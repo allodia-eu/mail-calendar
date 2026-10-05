@@ -43,6 +43,7 @@ impl ComposeContext {
             initial_bcc: prefill.bcc,
             subject: prefill.subject,
             initial_body: (!prefill.body.is_empty()).then_some(prefill.body),
+            stored_html: None,
             quote: None,
             initial_from,
             seeds_signature: true,

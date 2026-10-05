@@ -10,9 +10,9 @@
 
 use std::path::Path;
 
-use engine_api::{AccountId, Draft, DraftAttachmentDisposition, PendingOpId, Provider};
+use engine_api::{AccountId, Draft, DraftAttachmentDisposition, InlinePart, PendingOpId, Provider};
 
-use super::{Composition, Threading};
+use super::reopen::{Reopening, threading_of};
 use crate::{App, ComposeRequest, CompositionId, protocol::StagedAttachment};
 
 /// Rising counter for the staged files' names, as for a forward's.
@@ -67,24 +67,23 @@ impl<P: Provider> App<P> {
         else {
             return Err(NotMoved::Save("could not name the composition".to_owned()));
         };
-        self.drafts
-            .lock()
-            .expect("drafts mutex poisoned")
-            .open
-            .insert(
-                composition.clone(),
-                Composition {
-                    account: account.clone(),
-                    message_id: draft.message_id.clone(),
-                    key: None,
-                    saved: None,
-                    queued: None,
-                    threading: draft.in_reply_to.clone().map(|in_reply_to| Threading {
-                        in_reply_to,
-                        references: draft.references.clone(),
-                    }),
-                },
-            );
+        let request = self.open_composition(
+            &composition,
+            Reopening {
+                account: account.clone(),
+                message_id: draft.message_id.clone(),
+                key: None,
+                threading: threading_of(draft.in_reply_to.as_ref(), &draft.references),
+                pictures: pictures_of(draft),
+                to: join(&draft.to),
+                cc: join(&draft.cc),
+                bcc: join(&draft.bcc),
+                subject: draft.subject.clone(),
+                html: draft.html_body.clone(),
+                text: draft.text_body.clone(),
+                attachments,
+            },
+        );
         match self.put_draft(account, draft, None).await {
             // No digest: the composer's first save renders its own document, which is not
             // byte for byte this one, so it must write.
@@ -103,36 +102,7 @@ impl<P: Provider> App<P> {
                 ));
             }
         }
-        Ok(ComposeRequest {
-            account: account.as_str().to_owned(),
-            composition: composition.as_str().to_owned(),
-            to: join(&draft.to),
-            cc: join(&draft.cc),
-            bcc: join(&draft.bcc),
-            subject: draft.subject.clone(),
-            body_text: draft.text_body.clone(),
-            attachments,
-        })
-    }
-
-    /// Applies the composition's threading, if it has any, to a draft built for it.
-    pub(crate) fn with_threading(
-        &self,
-        composition: Option<&CompositionId>,
-        draft: Draft,
-    ) -> Draft {
-        let threading = composition.and_then(|composition| {
-            self.drafts
-                .lock()
-                .expect("drafts mutex poisoned")
-                .open
-                .get(composition)
-                .and_then(|open| open.threading.clone())
-        });
-        match threading {
-            Some(threading) => draft.in_reply_to(threading.in_reply_to, threading.references),
-            None => draft,
-        }
+        Ok(request)
     }
 
     /// Records the key a save stored the composition under, with no digest.
@@ -149,11 +119,25 @@ impl<P: Provider> App<P> {
     }
 }
 
-/// Writes the files a composer can hold into `directory`, all or nothing.
-///
-/// An inline image belongs to the formatted body, which the composer does not open with
-/// (`docs/drafts.md`, known gaps), so it is left out exactly as a resumed draft's is; the saved
-/// draft still carries it until the composer's first save.
+/// The pictures `draft`'s HTML addresses by `cid:`, which the composer shows in the body rather
+/// than staging as files.
+fn pictures_of(draft: &Draft) -> Vec<InlinePart> {
+    draft
+        .attachments
+        .iter()
+        .filter_map(|file| match &file.disposition {
+            DraftAttachmentDisposition::Inline { content_id } => Some(InlinePart::new(
+                content_id.as_str(),
+                file.media_type.clone(),
+                file.content.clone(),
+            )),
+            DraftAttachmentDisposition::Attachment => None,
+        })
+        .collect()
+}
+
+/// Writes the files the composer attaches into `directory`, all or nothing. A picture shown in
+/// the body is not one of them ([`pictures_of`]).
 fn stage_draft_files(draft: &Draft, directory: &str) -> Result<Vec<StagedAttachment>, String> {
     let files: Vec<_> = draft
         .attachments

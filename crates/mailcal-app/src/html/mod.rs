@@ -66,6 +66,16 @@ pub(crate) fn sanitize(html: &str) -> Sanitized {
     }
 }
 
+/// Sanitises a stored message's `text/html` for the composer that reopens it, inlining the
+/// pictures `parts` carries as `data:` URIs so the editor can show them
+/// (`ComposeRequest::body_html`).
+///
+/// The reading view's allowlist, without its linkifying: an address the user typed as text stays
+/// text in their own draft rather than becoming a link they did not make.
+pub(crate) fn sanitize_for_composer(html: &str, parts: &[InlinePart]) -> String {
+    inline_cid_images(&sanitizer().clean(html).to_string(), parts)
+}
+
 /// The shared, immutable [`Builder`]: its allowlists never change, so it is configured once
 /// and reused for every message open (ammonia's `clean` takes `&self`), rather than
 /// rebuilt per call.

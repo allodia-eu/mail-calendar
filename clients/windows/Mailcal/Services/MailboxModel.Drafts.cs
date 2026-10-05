@@ -190,7 +190,7 @@ public sealed partial class MailboxModel
     /// warm cache: a draft is opened from a list row, so the first open of one fetches the
     /// message. Run it off the UI thread.</para>
     /// </remarks>
-    internal DraftResume? ResumeDraft(
+    internal ComposeRequest? ResumeDraft(
         string composition,
         string account,
         string key,

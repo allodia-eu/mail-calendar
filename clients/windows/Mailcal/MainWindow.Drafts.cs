@@ -44,36 +44,41 @@ public sealed partial class MainWindow
             await DialogHelper.TellAsync(Content.XamlRoot, L10n.ComposeDraftOpenFailed());
             return;
         }
-        BeginCompose(ResumedDraftContext(composition, resumed));
+        BeginCompose(ReopenedContext(resumed));
     }
 
-    /// <summary>What a resumed draft's composer opens with.</summary>
+    /// <summary>What a composer reopened on a message that already exists opens with: a draft
+    /// resumed from Drafts, or a message moved back out of the Outbox. One context for both,
+    /// because the core answers both with one <see cref="uniffi.mailcal_bindings.ComposeRequest"/>
+    /// and the composer must open each holding all of it.</summary>
     /// <remarks>
     /// Two things separate it from every other new message. The composition is the one the core
-    /// adopted the stored draft into, never a fresh one, or the composer's first save would store
-    /// a second copy beside the one it is showing. And it seeds <b>no signature</b>, for the reason
-    /// an assistant's draft does not: the body came back as the text of a message that was signed
-    /// when it was first written, so seeding one would put a second signature under it and the
-    /// next save would store that.
+    /// joined the stored copy to, never a fresh one, or the composer's first save would store a
+    /// second copy beside the one it is showing. And it seeds <b>no signature</b>: the body already
+    /// carries the signature it was written with, so seeding one would put a second under it and
+    /// the next save would store that.
     /// </remarks>
-    private ComposeContext ResumedDraftContext(string composition, DraftResume resumed)
+    // Qualified, and it has to be: this file has both namespaces in scope, and the core's
+    // ComposeRequest and this client's ComposeContext are two different things (ComposeContext.cs).
+    internal ComposeContext ReopenedContext(uniffi.mailcal_bindings.ComposeRequest request)
     {
         var quotes = Model.QuoteSettings;
         return new ComposeContext(
             RichComposeKind.New,
             Account: null,
             Key: null,
-            InitialFrom: Model.SendAccount(resumed.Account)?.Id,
-            InitialTo: resumed.To,
-            InitialCc: resumed.Cc,
+            InitialFrom: Model.SendAccount(request.Account)?.Id,
+            InitialTo: request.To,
+            InitialCc: request.Cc,
             Quote: null,
             QuoteStyle: quotes.Style,
             QuoteStylePerMessage: quotes.PerMessage,
-            InitialBcc: resumed.Bcc,
-            InitialSubject: resumed.Subject,
-            InitialBody: resumed.BodyText,
+            InitialBcc: request.Bcc,
+            InitialSubject: request.Subject,
+            InitialBody: request.BodyText,
             SeedsSignature: false,
-            Attachments: resumed.Attachments,
-            Composition: composition);
+            Attachments: request.Attachments,
+            Composition: request.Composition,
+            StoredHtml: request.BodyHtml);
     }
 }

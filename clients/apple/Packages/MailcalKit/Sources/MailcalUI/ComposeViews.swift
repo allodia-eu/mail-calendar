@@ -67,7 +67,9 @@ struct ComposerSubmission {
     let composition: String?
 }
 
-/// A draft the core has opened back up, and the composition it was adopted into.
+/// A message the core has opened back up: a draft resumed from Drafts, or a queued send the user
+/// asked to edit, which the core has saved back into Drafts. The core answers both with one
+/// `ComposeRequest`, so both open the same composer the same way.
 ///
 /// The composition travels with it because the core has already joined that id to the copy on the
 /// server: a composer that minted one of its own would save a second draft beside the one it is
@@ -77,30 +79,15 @@ struct ComposerSubmission {
 /// open the composer twice rather than compare equal to the first and appear to do nothing.
 struct ResumedDraftRequest: Identifiable, Equatable {
     let id = UUID()
-    let composition: String
-    let draft: DraftResume
+    let draft: ComposeRequest
+
+    init(_ draft: ComposeRequest) {
+        self.draft = draft
+    }
+
+    var composition: String { draft.composition }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
-}
-
-extension ResumedDraftRequest {
-    /// A queued send the user asked to edit. The core has already saved it into Drafts under
-    /// `request.composition` and staged its files, so it opens exactly as a draft resumed from
-    /// the Drafts folder does: on that composition, holding every one of those files.
-    init(_ request: ComposeRequest) {
-        self.init(
-            composition: request.composition,
-            draft: DraftResume(
-                account: request.account,
-                to: request.to,
-                cc: request.cc,
-                bcc: request.bcc,
-                subject: request.subject,
-                bodyText: request.bodyText,
-                attachments: request.attachments
-            )
-        )
-    }
 }
 
 enum ComposeContext: Identifiable {

@@ -89,7 +89,7 @@ final class EditorHost: NSObject, WKNavigationDelegate {
 
     /// Encodes `value` as a JavaScript string literal (quoted and escaped), so it can be passed into
     /// a script as an argument without breaking out of it.
-    static func jsString(_ value: String) -> String {
+    nonisolated static func jsString(_ value: String) -> String {
         guard let data = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed),
               let literal = String(data: data, encoding: .utf8)
         else {

@@ -319,7 +319,7 @@ class OutboxTest {
                 mediaType = "image/png",
             ),
         )
-        val seed = withdrawnSeed(
+        val seed = reopenedSeed(
             ComposeRequest(
                 account = "home",
                 composition = "draft-7",
@@ -327,19 +327,21 @@ class OutboxTest {
                 cc = "copy@example.test",
                 bcc = "audit@example.test",
                 subject = "Lunch",
+                bodyHtml = "<p><strong>One</strong> o'clock?</p>",
                 bodyText = "One o'clock?",
                 attachments = files,
             ),
         )
         assertEquals(
-            WithdrawnSeed(
+            ReopenedSeed(
                 composition = "draft-7",
                 from = "home",
                 to = "ada@example.test",
                 cc = "copy@example.test",
                 bcc = "audit@example.test",
                 subject = "Lunch",
-                body = "One o'clock?",
+                html = "<p><strong>One</strong> o'clock?</p>",
+                text = "One o'clock?",
                 attachments = files,
             ),
             seed,

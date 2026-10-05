@@ -64,18 +64,12 @@ impl<P: Provider> App<P> {
             self.fail_send().await;
             return;
         }
-        // A brand-new message has no quoted original, so no inline parts to re-attach.
+        // A composition reopened on a message keeps the parts its quoted original's pictures
+        // came from; any other new message has no quoted original to re-attach.
+        let pictures = self.composition_pictures(composition.as_ref());
         let Some(draft) = new_message_id().and_then(|message_id| {
             rich_draft(
-                message_id,
-                &identity,
-                to,
-                cc,
-                bcc,
-                subject,
-                document,
-                blobs,
-                &[],
+                message_id, &identity, to, cc, bcc, subject, document, blobs, &pictures,
             )
         }) else {
             self.fail_send().await;

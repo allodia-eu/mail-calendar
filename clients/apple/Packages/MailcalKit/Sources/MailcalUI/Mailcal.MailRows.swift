@@ -72,9 +72,7 @@ extension ContentView {
                 read()
                 return
             }
-            compose = .resumedDraft(
-                ResumedDraftRequest(composition: composition, draft: draft)
-            )
+            compose = .resumedDraft(ResumedDraftRequest(draft))
         }
     }
 

@@ -346,8 +346,7 @@ impl AppModel {
     /// answers. Leaving the open composer refuses no navigation, so the withdrawn message always
     /// reaches the pane (`docs/sending.md`).
     pub(super) fn open_withdrawn_message(&mut self, request: CoreComposeRequest) {
-        let initial_from = Some(request.account.clone()).filter(|account| !account.is_empty());
-        let context = ComposeContext::from_withdrawn(request, initial_from);
+        let context = ComposeContext::reopening(request);
         if self.composer.is_some() {
             self.queue_navigation(PendingNavigation::Composer(context));
         } else {

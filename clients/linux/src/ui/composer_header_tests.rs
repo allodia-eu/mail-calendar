@@ -121,6 +121,7 @@ fn request(initial_cc: &str) -> ComposeContext {
         initial_bcc: String::new(),
         subject: String::new(),
         initial_body: None,
+        stored_html: None,
         quote: None,
         initial_from: None,
         seeds_signature: true,

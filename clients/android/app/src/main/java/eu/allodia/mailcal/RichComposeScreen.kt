@@ -76,6 +76,9 @@ internal fun RichComposeMessageDialog(
     // as text, never markup (docs/composer-security.md, Gate 12), with the caret left after it
     // so the user writes on from there.
     initialBody: String = "",
+    // The HTML of a message this composer reopens (`ComposeRequest.bodyHtml`), which the editor
+    // reads back into its document; `initialBody` is then that message's text.
+    initialHtml: String = "",
     // Files the composer opens already holding: a share (docs/os-integration.md), or the files a
     // forwarded message carries. Each is the shared core's answer about one file, name and media
     // type included, so this list is displayed as given and never re-derived here. Removable like
@@ -383,6 +386,7 @@ internal fun RichComposeMessageDialog(
                         linkHost = linkHost,
                         quote = quote,
                         body = initialBody,
+                        storedHtml = initialHtml,
                         labelsJson = labelsJson,
                         // The caret opens where the work starts, the body here, the To field
                         // otherwise (`composerOpensInBody`). Raising the keyboard is part of it,

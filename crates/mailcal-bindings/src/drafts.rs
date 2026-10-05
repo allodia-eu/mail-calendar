@@ -278,7 +278,7 @@ impl MailcalApp {
         account: String,
         key: String,
         staging_directory: String,
-    ) -> Result<DraftResume, MailcalError> {
+    ) -> Result<crate::ComposeRequest, MailcalError> {
         let composition = composition_id(composition)?;
         let message = message_ref(&account, key)?;
         let app = Arc::clone(&self.app);
@@ -287,7 +287,7 @@ impl MailcalApp {
                 app.resume_draft(composition, message, &staging_directory)
                     .await
             })
-            .map(DraftResume::from)
+            .map(crate::ComposeRequest::from)
             .map_err(MailcalError::Engine)
     }
 }
@@ -323,50 +323,6 @@ impl MailcalApp {
             })
         });
         Ok(())
-    }
-}
-
-/// A stored draft, as the composer resuming it opens.
-#[derive(uniffi::Record)]
-pub struct DraftResume {
-    /// The account whose Drafts folder held it, and which its saves go back to. Show it in
-    /// the From field: a later change there does not move the stored copy.
-    pub account: String,
-    /// The `To` field, comma-separated.
-    pub to: String,
-    /// The `Cc` field, comma-separated.
-    pub cc: String,
-    /// The `Bcc` field, comma-separated; usually empty for a draft saved elsewhere, since
-    /// most transports do not hand a `Bcc` back.
-    pub bcc: String,
-    /// The subject.
-    pub subject: String,
-    /// The body, as plain text. Seed the editor with it the way a `mailto:` body is seeded.
-    pub body_text: String,
-    /// The files the draft carries, already written into the staging directory and ready to
-    /// be attached exactly as a picked file is.
-    pub attachments: Vec<ComposerFileAttachment>,
-}
-
-impl From<mailcal_app::DraftResume> for DraftResume {
-    fn from(resumed: mailcal_app::DraftResume) -> Self {
-        Self {
-            account: resumed.account,
-            to: resumed.to,
-            cc: resumed.cc,
-            bcc: resumed.bcc,
-            subject: resumed.subject,
-            body_text: resumed.body_text,
-            attachments: resumed
-                .attachments
-                .into_iter()
-                .map(|file| ComposerFileAttachment {
-                    path: file.path,
-                    file_name: file.file_name,
-                    media_type: file.media_type,
-                })
-                .collect(),
-        }
     }
 }
 

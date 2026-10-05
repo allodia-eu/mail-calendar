@@ -19,6 +19,8 @@ use super::{
 mod draft_ops_leave_tests;
 #[path = "draft_ops_tests.rs"]
 mod draft_ops_tests;
+#[path = "draft_reopen_tests.rs"]
+mod draft_reopen_tests;
 #[path = "mail_ops_fake_provider.rs"]
 mod fake;
 #[path = "mail_ops_mail_provider.rs"]

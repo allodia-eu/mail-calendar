@@ -3,8 +3,8 @@
 use std::path::PathBuf;
 
 use mailcal_bindings::{
-    AccountCapability, AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget,
-    DetectedSetup, DraftResume, ImapAuthOffer, Intent, MailtoPrefill, SearchScope, SharePrefill,
+    AccountCapability, AgentDraft, BulkAction, ComposeRequest, ContactDetail, ContactEdit,
+    ContactTarget, DetectedSetup, ImapAuthOffer, Intent, MailtoPrefill, SearchScope, SharePrefill,
     Surface,
 };
 
@@ -209,7 +209,7 @@ pub(crate) enum AppInput {
     SaveComposerDraft(Box<ComposerSubmission>),
     /// A draft the core opened back up, under the composition it was adopted into. `Err` is said,
     /// never shown as an empty composer, which would replace the draft on its next save.
-    DraftResumed(String, Box<Result<DraftResume, ()>>),
+    DraftResumed(Box<Result<ComposeRequest, ()>>),
     SaveAttachment {
         source: ReadingSource,
         id: u32,

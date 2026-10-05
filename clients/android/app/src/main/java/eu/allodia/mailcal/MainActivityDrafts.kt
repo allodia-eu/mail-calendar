@@ -20,7 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import java.io.File
 import java.util.UUID
 import kotlin.concurrent.thread
-import uniffi.mailcal_bindings.DraftResume
+import uniffi.mailcal_bindings.ComposeRequest
 import uniffi.mailcal_bindings.DraftStatus
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
@@ -125,7 +125,7 @@ internal fun resumeDraft(
     account: String,
     key: String,
     stagingDirectory: File,
-): DraftResume? = try {
+): ComposeRequest? = try {
     stagingDirectory.mkdirs()
     instance.resumeDraft(composition, account, key, stagingDirectory.absolutePath)
 } catch (e: MailcalException) {
@@ -156,14 +156,11 @@ internal class DraftUiState {
     var draftStatusVersion by mutableStateOf(0)
     // A draft the core has opened back up, waiting for its composer to be drawn. Null the rest of
     // the time; set only by a tap on a Drafts-folder row (docs/drafts.md).
-    var resumedDraft by mutableStateOf<ResumedDraft?>(null)
+    var resumedDraft by mutableStateOf<ComposeRequest?>(null)
     // Whether to say that a draft could not be opened back into a composer. Raised instead of
     // opening an empty one, whose next save would replace the draft.
     var draftOpenFailed by mutableStateOf(false)
 }
-
-/** A draft the core has opened back up, and the composition it was adopted into. */
-internal data class ResumedDraft(val composition: String, val draft: DraftResume)
 
 /**
  * Opens a Drafts-folder row back into its composer, and every other row for reading.
@@ -196,7 +193,7 @@ internal fun MainActivity.openOrResume(
                 drafts.draftOpenFailed = true
                 openMessage(instance, opened, conversation)
             } else {
-                drafts.resumedDraft = ResumedDraft(composition, resumed)
+                drafts.resumedDraft = resumed
             }
         }
     }
@@ -239,24 +236,24 @@ internal fun DraftOpenFailedDialog(onDismiss: () -> Unit) {
  * Two things separate it from every other new message. The composition is the one the core adopted
  * the stored draft into, never a fresh one, or the composer's first save would store a second copy
  * beside the one it is showing. And it seeds no signature, for the reason [WithdrawnMessagePane]
- * does: the body came back as the text of a message that was signed when it was first written, so
- * seeding one would put a second signature under it and the next save would store that.
+ * does: the body already carries the signature it was written with, so seeding one would put a
+ * second under it and the next save would store that.
  */
 @Composable
 internal fun MainActivity.ResumedDraftPane(instance: MailcalApp) {
-    val resumed = drafts.resumedDraft ?: return
-    val draft = resumed.draft
+    val seed = reopenedSeed(drafts.resumedDraft ?: return)
     RichComposeMessageDialog(
         mode = RichComposeMode.New,
         accounts = accounts,
-        initialFrom = draft.account,
-        initialTo = draft.to,
-        initialCc = draft.cc,
-        initialBcc = draft.bcc,
-        initialSubject = draft.subject,
-        initialBody = draft.bodyText,
-        initialAttachments = draft.attachments,
-        composition = resumed.composition,
+        initialFrom = seed.from,
+        initialTo = seed.to,
+        initialCc = seed.cc,
+        initialBcc = seed.bcc,
+        initialSubject = seed.subject,
+        initialBody = seed.text,
+        initialHtml = seed.html,
+        initialAttachments = seed.attachments,
+        composition = seed.composition,
         drafts = composerDrafts(instance),
         suggestionsFor = { prefix ->
             try {

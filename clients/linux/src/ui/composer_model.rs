@@ -30,6 +30,10 @@ pub(crate) struct ComposeContext {
     pub(crate) initial_bcc: String,
     pub(crate) subject: String,
     pub(crate) initial_body: Option<String>,
+    /// The HTML of a message this composer reopens (a resumed draft, or one moved back out of
+    /// the Outbox), which the editor reads back into its document; `initial_body` is then that
+    /// message's text, for when it has none.
+    pub(crate) stored_html: Option<String>,
     pub(crate) quote: Option<String>,
     pub(crate) initial_from: Option<String>,
     /// Whether this client owns the body and should seed and offer its signature library.
@@ -59,6 +63,7 @@ impl ComposeContext {
             initial_bcc: prefill.bcc,
             subject: prefill.subject,
             initial_body: (!prefill.body.is_empty()).then_some(prefill.body),
+            stored_html: None,
             quote: None,
             initial_from,
             seeds_signature: true,
@@ -78,48 +83,12 @@ impl ComposeContext {
             initial_bcc: draft.bcc,
             subject: draft.subject,
             initial_body: (!draft.body_text.is_empty()).then_some(draft.body_text),
+            stored_html: None,
             quote: None,
             initial_from,
             seeds_signature: false,
             composition: new_composition(),
             files: Vec::new(),
-        }
-    }
-
-    /// A message the core **withdrew from the Outbox** and handed back, unsent.
-    ///
-    /// The same composer an assistant's draft opens: a prefilled, unsent message a person
-    /// reviews and sends themselves is the same thing either way. It seeds no signature for the
-    /// same reason, that the body already carries whatever was on it when the message was
-    /// queued, and a second one would go out with it.
-    pub(crate) fn from_withdrawn(
-        request: mailcal_bindings::ComposeRequest,
-        initial_from: Option<String>,
-    ) -> Self {
-        Self {
-            kind: ComposeKind::New,
-            host: ComposerHost::Pane,
-            account: None,
-            key: None,
-            initial_to: request.to,
-            initial_cc: request.cc,
-            initial_bcc: request.bcc,
-            subject: request.subject,
-            initial_body: (!request.body_text.is_empty()).then_some(request.body_text),
-            quote: None,
-            initial_from,
-            seeds_signature: false,
-            // The draft the core moved it into: saved over, and holding its files, as a resume.
-            composition: request.composition,
-            files: request
-                .attachments
-                .into_iter()
-                .map(|file| PickedFile {
-                    path: file.path,
-                    file_name: file.file_name,
-                    media_type: file.media_type,
-                })
-                .collect(),
         }
     }
 
@@ -149,10 +118,21 @@ pub(crate) fn new_composition() -> String {
     )
 }
 
-/// The shared editor call for a plain-text seed, encoded as JavaScript data rather than code.
-pub(crate) fn plain_text_seed_script(body: Option<&str>) -> Option<String> {
-    body.filter(|body| !body.is_empty())
-        .map(|body| format!("window.setPlainText({});", json!(body)))
+/// The shared editor call that seeds the body, encoded as JavaScript data rather than code: a
+/// reopened message's HTML when it has some, else the text.
+pub(crate) fn body_seed_script(request: &ComposeContext) -> Option<String> {
+    let text = request.initial_body.as_deref().unwrap_or_default();
+    match request
+        .stored_html
+        .as_deref()
+        .filter(|html| !html.trim().is_empty())
+    {
+        Some(html) => Some(format!(
+            "window.setComposerBody({});",
+            json!({ "html": html, "text": text })
+        )),
+        None => (!text.is_empty()).then(|| format!("window.setPlainText({});", json!(text))),
+    }
 }
 
 /// Metadata for one native file selected for an outgoing message.
@@ -193,7 +173,7 @@ mod tests {
     use mailcal_bindings::{AgentDraft, MailtoPrefill, QuoteStyleKind, ReadingSnapshot};
     use serde_json::Value;
 
-    use super::{ComposeContext, ComposeKind, initial_sender, plain_text_seed_script};
+    use super::{ComposeContext, ComposeKind, body_seed_script, initial_sender};
     use crate::ui::{composer_quote::quote_seed, model::OpenedMessage};
 
     #[test]
@@ -216,11 +196,26 @@ mod tests {
         );
         assert_eq!(request.initial_from.as_deref(), Some("account"));
         assert_eq!(
-            plain_text_seed_script(request.initial_body.as_deref()).as_deref(),
+            body_seed_script(&request).as_deref(),
             Some("window.setPlainText(\"Hello </script>\\nSecond line\");")
         );
-        assert_eq!(plain_text_seed_script(None), None);
-        assert_eq!(plain_text_seed_script(Some("")), None);
+        let empty = ComposeContext {
+            initial_body: Some(String::new()),
+            ..request.clone()
+        };
+        assert_eq!(body_seed_script(&empty), None);
+        let reopened = ComposeContext {
+            stored_html: Some("<p>Hi</p>".to_owned()),
+            ..request.clone()
+        };
+        assert_eq!(
+            body_seed_script(&reopened).as_deref(),
+            Some(
+                "window.setComposerBody({\"html\":\"<p>Hi</p>\",\
+                 \"text\":\"Hello </script>\\nSecond line\"});"
+            ),
+            "a reopened message's HTML is handed over as data, never as code"
+        );
         assert!(request.seeds_signature);
     }
 

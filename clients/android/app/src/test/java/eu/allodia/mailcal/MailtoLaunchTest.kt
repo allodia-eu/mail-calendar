@@ -9,6 +9,7 @@
 package eu.allodia.mailcal
 
 import android.content.Intent
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -108,6 +109,29 @@ class MailtoLaunchTest {
         val signature = scripts.indexOfFirst { it.startsWith("window.setComposerSignature(") }
         assertTrue("both must be sent", body >= 0 && signature >= 0)
         assertTrue("the body must not overwrite the signature", body < signature)
+    }
+
+    /**
+     * A reopened message seeds its HTML through the editor's reader, with its text beside it, and
+     * as data: the whole seed is one JSON-quoted string, so markup in the body cannot close the
+     * call and run as script.
+     */
+    @Test
+    fun `a reopened message is seeded with its HTML instead of its text`() {
+        val scripts = composerPageFinishedScripts(
+            labelsJson = """{"placeholder":"Write a message"}""",
+            quote = null,
+            topInsetDp = 208f,
+            body = "Agreed",
+            storedHtml = "<p><strong>Agreed</strong></p>\")</script>",
+        )
+
+        val seed = scripts.single { it.startsWith("window.setComposerBody(") }
+        assertTrue(scripts.none { it.contains("setPlainText") })
+        val argument = seed.removePrefix("window.setComposerBody(").removeSuffix(")")
+        val decoded = org.json.JSONObject(org.json.JSONTokener(argument).nextValue() as String)
+        assertEquals("<p><strong>Agreed</strong></p>\")</script>", decoded.getString("html"))
+        assertEquals("Agreed", decoded.getString("text"))
     }
 
     @Test

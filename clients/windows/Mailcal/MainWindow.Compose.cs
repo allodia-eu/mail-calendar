@@ -113,35 +113,19 @@ public sealed partial class MainWindow
     /// that draft in Drafts.
     /// </para>
     /// <para>
-    /// It opens as a resumed draft does (<see cref="ResumedDraftContext"/>): on the composition
+    /// It opens as a resumed draft does (<see cref="ReopenedContext"/>): on the composition
     /// the core saved it under, never a fresh one, or the first save would store a second draft
     /// beside it; holding every staged file, because that save replaces the draft and a file left
     /// out is taken off it; and with no signature, because the body already carries whatever was
     /// on it when it was queued.
     /// </para>
     /// </remarks>
-    // Qualified, and it has to be: this file has both namespaces in scope, and the core's
-    // ComposeRequest and this client's ComposeContext are two different things (ComposeContext.cs).
+    // Qualified for the reason ReopenedContext is (ComposeContext.cs).
     internal async void ComposeWithdrawnMessage(uniffi.mailcal_bindings.ComposeRequest request)
     {
         // The recipients, the subject and the body are the user's own mail; none is logged.
         Log.Info($"outbox: a queued message is going back into the composer with {request.Attachments.Length} files");
-        var context = new ComposeContext(
-            RichComposeKind.New,
-            Account: null,
-            Key: null,
-            InitialFrom: Model.SendAccount(request.Account)?.Id,
-            InitialTo: request.To,
-            InitialCc: request.Cc,
-            Quote: null,
-            QuoteStyle: Model.QuoteSettings.Style,
-            QuoteStylePerMessage: Model.QuoteSettings.PerMessage,
-            InitialBcc: request.Bcc,
-            InitialSubject: request.Subject,
-            InitialBody: request.BodyText,
-            SeedsSignature: false,
-            Attachments: request.Attachments,
-            Composition: request.Composition);
+        var context = ReopenedContext(request);
         await LeaveComposerAsync();
         // The composer lives in the mail surface's detail column, and Edit is reachable from the
         // Outbox while the calendar or Contacts is up, where it would open unseen.

@@ -233,6 +233,9 @@ impl Provider for ThreadProvider {
         }
         // A stored draft is a half-written message with a file on it: the shape a resume has
         // to carry back into the composer whole (`docs/drafts.md`).
+        if message.is_draft() && message.id.as_str().starts_with("rich") {
+            return Ok(RawMime::new(RICH_DRAFT.as_bytes().to_vec()));
+        }
         if message.is_draft() {
             return Ok(RawMime::new(
                 concat!(
@@ -366,6 +369,38 @@ pub(super) fn original_message(key: &str) -> Message {
     ];
     message.envelope.message_id = vec![MessageIdHeader::new("parent@remote").unwrap()];
     message.envelope.references = vec![MessageIdHeader::new("root@remote").unwrap()];
+    message
+}
+
+/// A stored draft written in this app's composer: formatted words, a script a hostile copy could
+/// carry, a reply's quote showing a picture its message carries as a part (base64 `aGVsbG8=`),
+/// and a file. Served for every draft whose key starts `rich` ([`rich_stored_draft`]).
+const RICH_DRAFT: &str = concat!(
+    "Content-Type: multipart/mixed; boundary=\"d\"\r\n\r\n",
+    "--d\r\nContent-Type: multipart/related; boundary=\"r\"\r\n\r\n",
+    "--r\r\nContent-Type: text/html\r\n\r\n",
+    "<p><strong>Half</strong> a sentence</p><script>steal()</script>",
+    "<p>On Monday, Bob wrote:</p>",
+    "<blockquote style=\"margin:0 0 0 0.8ex;border-left:2px solid #cccccc;padding-left:1ex\">",
+    "<img src=\"cid:chart@remote.test\" alt=\"chart\"></blockquote>\r\n",
+    "--r\r\nContent-Type: image/png\r\nContent-ID: <chart@remote.test>\r\n",
+    "Content-Transfer-Encoding: base64\r\nContent-Disposition: inline\r\n\r\naGVsbG8=\r\n",
+    "--r--\r\n",
+    "--d\r\nContent-Type: application/pdf\r\n",
+    "Content-Disposition: attachment; filename=\"terms.pdf\"\r\n",
+    "Content-Transfer-Encoding: base64\r\n\r\nVEVSTVM=\r\n",
+    "--d--\r\n",
+);
+
+/// A stored reply written in this app ([`RICH_DRAFT`]), answering the conversation
+/// [`original_message`] starts.
+pub(super) fn rich_stored_draft(key: &str) -> Message {
+    let mut message = stored_draft(key);
+    message.envelope.in_reply_to = vec![MessageIdHeader::new("parent@remote").unwrap()];
+    message.envelope.references = vec![
+        MessageIdHeader::new("root@remote").unwrap(),
+        MessageIdHeader::new("parent@remote").unwrap(),
+    ];
     message
 }
 

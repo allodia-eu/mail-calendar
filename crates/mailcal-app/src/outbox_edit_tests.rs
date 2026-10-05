@@ -14,9 +14,12 @@ use std::sync::{
 };
 
 use engine_api::{
-    AccountId, Draft, DraftAttachment, DraftCalendar, EmailAddress, MessageIdHeader, ScheduleMethod,
+    AccountId, ContentIdHeader, Draft, DraftAttachment, DraftCalendar, EmailAddress,
+    MessageIdHeader, ScheduleMethod,
 };
-use mailcal_composer::{Block, ComposerDocument, InlineContent, Paragraph, TextRun};
+use mailcal_composer::{
+    Block, ComposerDocument, InlineContent, Paragraph, Quote, QuoteAttribution, QuoteStyle, TextRun,
+};
 use mailcal_viewmodel::QueuedRow;
 
 use super::{SubmitProvider, app_over, outbox_tests::outbox_holding};
@@ -188,4 +191,102 @@ async fn an_invitation_answer_is_not_offered_for_editing() {
     assert_eq!(app.mailbox_list().outbox.len(), 1);
     assert!(puts.lock().unwrap().is_empty());
     assert!(app.compose_request().is_none());
+}
+
+/// The quote of an edited reply, as the editor hands it back: its picture still the `data:`
+/// URI it opened with.
+fn document_quoting_the_plan() -> ComposerDocument {
+    let Intent::Drafts(DraftsIntent::Save { mut document, .. }) = save("unused", "Agreed.") else {
+        unreachable!("`save` builds a save");
+    };
+    document.blocks.push(Block::Quote(Quote {
+        style: QuoteStyle::Indented,
+        attribution: QuoteAttribution {
+            line: "On Monday, Bob wrote:".to_owned(),
+            headers: Vec::new(),
+        },
+        body_html: "<img src=\"data:image/png;base64,aGVsbG8=\" alt=\"plan\">".to_owned(),
+        body_plain: String::new(),
+    }));
+    document
+}
+
+/// An edited message opens formatted, its quoted picture showable, and keeps that picture's
+/// part on the composer's saves: the composer cannot hold the part itself, so the composition
+/// does, as it does for a draft resumed from Drafts.
+#[tokio::test(start_paused = true)]
+async fn an_edited_message_opens_formatted_and_keeps_its_quoted_picture() {
+    let provider = SubmitProvider::offline();
+    let puts = provider.draft_puts();
+    let app = app_over(provider);
+    let mut draft = Draft::new(
+        MessageIdHeader::new("queued-rich@allodia.local").unwrap(),
+        EmailAddress::new("me@allodia.local"),
+        vec![EmailAddress::new("you@test.local")],
+        "Re: Plans",
+        "Agreed.",
+    )
+    .with_html_body(
+        "<p><em>Agreed.</em></p><p>On Monday, Bob wrote:</p>\
+         <blockquote><img src=\"cid:plan@remote.test\" alt=\"plan\"></blockquote>",
+    );
+    draft.attachments.push(DraftAttachment::inline(
+        "plan.png",
+        "image/png",
+        ContentIdHeader::new("plan@remote.test").unwrap(),
+        b"hello".to_vec(),
+    ));
+    app.send_draft(&AccountId::try_from("acct-1").unwrap(), &draft, None)
+        .await;
+    let row = outbox_holding(&app, 1).await.remove(0);
+
+    app.dispatch(edit(&row, &staging())).await;
+
+    let request = app.compose_request().expect("the composer is offered");
+    assert!(
+        request.body_html.contains("<em>Agreed.</em>"),
+        "{}",
+        request.body_html
+    );
+    assert!(
+        request
+            .body_html
+            .contains("src=\"data:image/png;base64,aGVsbG8=\""),
+        "the quoted picture comes as bytes the editor can show: {}",
+        request.body_html
+    );
+    assert!(
+        request.attachments.is_empty(),
+        "a picture in the body is not a file to attach"
+    );
+
+    app.dispatch(Intent::Drafts(DraftsIntent::Save {
+        composition: CompositionId::new(request.composition.clone()).unwrap(),
+        from: None,
+        to: "you@test.local".to_owned(),
+        cc: String::new(),
+        bcc: String::new(),
+        subject: "Re: Plans".to_owned(),
+        document: document_quoting_the_plan(),
+        blobs: Vec::new(),
+        then_close: false,
+    }))
+    .await;
+
+    let saved = puts.lock().unwrap().clone();
+    let (latest, _) = saved.last().expect("the composer's save");
+    assert!(
+        latest
+            .html_body
+            .as_deref()
+            .is_some_and(|html| html.contains("cid:plan@remote.test")),
+        "the quoted picture points at its part again"
+    );
+    assert!(
+        latest
+            .attachments
+            .iter()
+            .any(|part| part.content == b"hello"),
+        "and the part goes with it"
+    );
 }

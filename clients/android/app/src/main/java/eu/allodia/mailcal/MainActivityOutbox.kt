@@ -11,6 +11,7 @@ import androidx.compose.material3.DrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import uniffi.mailcal_bindings.ComposeRequest
 import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.Intent
@@ -54,7 +55,7 @@ internal fun MainActivity.WithdrawnMessagePane(instance: MailcalApp, library: Li
     val request = withdrawnMessage ?: return
     // The recipients, the subject and the body are the user's own mail; none is logged.
     Log.i(TAG, "outbox: a withdrawn message is going back into the composer")
-    val seed = withdrawnSeed(request)
+    val seed = reopenedSeed(request)
     RichComposeMessageDialog(
         mode = RichComposeMode.New,
         accounts = accounts,
@@ -63,7 +64,8 @@ internal fun MainActivity.WithdrawnMessagePane(instance: MailcalApp, library: Li
         initialCc = seed.cc,
         initialBcc = seed.bcc,
         initialSubject = seed.subject,
-        initialBody = seed.body,
+        initialBody = seed.text,
+        initialHtml = seed.html,
         initialAttachments = seed.attachments,
         composition = seed.composition,
         suggestionsFor = { prefix ->
@@ -85,38 +87,52 @@ internal fun MainActivity.WithdrawnMessagePane(instance: MailcalApp, library: Li
     )
 }
 
-/** The fields a withdrawn message opens its composer with. */
-internal data class WithdrawnSeed(
-    /** The composition the core saved the draft under, adopted rather than minted. */
+/** The fields a reopened message opens its composer with. */
+internal data class ReopenedSeed(
+    /** The composition the core joined the stored copy to, adopted rather than minted. */
     val composition: String,
     val from: String,
     val to: String,
     val cc: String,
     val bcc: String,
     val subject: String,
-    val body: String,
+    /** The body's HTML, which the editor reads back into its document; empty when it has none. */
+    val html: String,
+    /** The body's text, which the editor opens when there is no HTML. */
+    val text: String,
     val attachments: List<ComposerFileAttachment>,
 )
 
 /**
- * What [WithdrawnMessagePane] opens its composer with.
+ * What a composer reopened on an existing message opens with: a draft resumed from Drafts
+ * ([ResumedDraftPane]) or a message moved back out of the Outbox ([WithdrawnMessagePane]). The core
+ * answers both with one [ComposeRequest], and both panes read it through this, so neither can open
+ * less of the message than the other.
  *
- * A function the pane itself calls, rather than a description of what it does: the JVM suite can
- * read this without composing a WebView, and a mirror of the seeding would be free to drift from
- * it. The failure it guards is a field silently dropped on the way back out of the queue, which
- * looks like an empty composer and nothing else.
+ * A function the panes themselves call, rather than a description of what they do: the JVM suite
+ * can read this without composing a WebView, and a mirror of the seeding would be free to drift
+ * from it. The failure it guards is a field silently dropped on the way, which looks like an
+ * emptier composer and nothing else.
  *
- * `from` is the account the message was **queued on**, never the selected mailbox's: this list
- * holds every account's mail at once, so the identity it was waiting on is the only right answer,
- * and the only one the recipient already expects.
+ * `from` is the account the message is stored on, never the selected mailbox's: this list holds
+ * every account's mail at once, so the identity it was written on is the only right answer, and
+ * the only one the recipient already expects.
  */
-internal fun withdrawnSeed(request: ComposeRequest): WithdrawnSeed = WithdrawnSeed(
+internal fun reopenedSeed(request: ComposeRequest): ReopenedSeed = ReopenedSeed(
     composition = request.composition,
     from = request.account,
     to = request.to,
     cc = request.cc,
     bcc = request.bcc,
     subject = request.subject,
-    body = request.bodyText,
+    html = request.bodyHtml,
+    text = request.bodyText,
     attachments = request.attachments,
 )
+
+/**
+ * The argument `setComposerBody` takes for a reopened message: its HTML, which the editor reads
+ * back into its document, and its text for when it has none, as one JSON object.
+ */
+internal fun reopenedBodySeed(html: String, text: String): String =
+    JSONObject().put("html", html).put("text", text).toString()
