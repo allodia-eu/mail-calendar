@@ -18,19 +18,20 @@ use uniffi::Enum;
 pub enum OutboxIntent {
     /// Show the Outbox: every account's unsent messages, in one list.
     Show,
-    /// Withdraw a queued send so it is never delivered.
+    /// Withdraw a queued send so it is never delivered, or dismiss one that was not sent.
     ///
-    /// Refused while the send is actually in flight; the app says so and the row stays.
+    /// Refused while the send is actually in flight, or awaiting confirmation; the app says so
+    /// and the row stays.
     Cancel {
         /// The account whose outbox holds it.
         account: String,
         /// The queued send's op id, from `QueuedRow::op`.
         op: u64,
     },
-    /// Attempt a queued send now instead of waiting out its backoff.
+    /// Attempt a queued send now instead of waiting out its backoff, or send again one that
+    /// was not sent.
     ///
-    /// Does not reset the attempt count, so holding the button cannot outrun the retry
-    /// limit.
+    /// Never sends one awaiting confirmation: that takes `ConfirmNotSent`.
     SendNow {
         /// The account whose outbox holds it.
         account: String,
@@ -43,6 +44,25 @@ pub enum OutboxIntent {
     /// message; a host opens its composer from that and dismisses the request. Pressing Send
     /// there queues a new message.
     Edit {
+        /// The account whose outbox holds it.
+        account: String,
+        /// The queued send's op id, from `QueuedRow::op`.
+        op: u64,
+    },
+    /// Answer a send awaiting confirmation: it reached its recipients. It leaves the Outbox and
+    /// is never sent again.
+    ConfirmSent {
+        /// The account whose outbox holds it.
+        account: String,
+        /// The queued send's op id, from `QueuedRow::op`.
+        op: u64,
+    },
+    /// Answer a send awaiting confirmation: it did not reach them, so send it now.
+    ///
+    /// The user's own answer, after checking; it may deliver the message a second time if
+    /// they were wrong, which is why no client offers it on any other state and the app
+    /// refuses it on one.
+    ConfirmNotSent {
         /// The account whose outbox holds it.
         account: String,
         /// The queued send's op id, from `QueuedRow::op`.

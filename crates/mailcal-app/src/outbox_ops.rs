@@ -6,9 +6,13 @@
 //! decides only what a *person* is offered, and turns each refusal into something the app can
 //! say out loud rather than a silent no-op.
 
-use engine_api::{AccountId, OpRejection, PendingOpKind, PendingOpState, Provider};
+use engine_api::{AccountId, Confirmation, PendingOpKind, PendingOpState, Provider};
 
+use self::outbox_log::{log_action, log_drain_report, log_refusal};
 use crate::{App, ComposeRequest, OutboxIntent, Scope, Surface, reference::QueuedRef};
+
+#[path = "outbox_log.rs"]
+mod outbox_log;
 
 impl<P: Provider> App<P> {
     /// Routes one [`OutboxIntent`] to its handler.
@@ -18,6 +22,14 @@ impl<P: Provider> App<P> {
             OutboxIntent::Cancel(queued) => self.cancel_queued_send(&queued).await,
             OutboxIntent::SendNow(queued) => self.send_queued_now(&queued).await,
             OutboxIntent::Edit(queued) => self.edit_queued_send(&queued).await,
+            OutboxIntent::ConfirmSent(queued) => {
+                self.confirm_queued_send(&queued, Confirmation::Delivered)
+                    .await;
+            }
+            OutboxIntent::ConfirmNotSent(queued) => {
+                self.confirm_queued_send(&queued, Confirmation::NotDelivered)
+                    .await;
+            }
         }
     }
 
@@ -27,36 +39,77 @@ impl<P: Provider> App<P> {
         self.rebuild_snapshot().await;
     }
 
-    /// Withdraws a queued send so it is never delivered.
+    /// Withdraws a queued send so it is never delivered, or dismisses one that was not sent.
     ///
     /// A refusal is **logged and left on screen**, never swallowed: the row the user pressed
-    /// is still there afterwards, and the next rebuild shows why. The one refusal that
-    /// matters is `InFlight`, and the honest reading of it is that the message may already
-    /// have gone.
+    /// is still there afterwards, and the next rebuild shows why. The refusals that matter are
+    /// `InFlight` and `AwaitingConfirmation`, and the honest reading of both is that the message
+    /// may already have gone.
     pub(crate) async fn cancel_queued_send(&self, queued: &QueuedRef) {
+        let acct = self.account_ordinal(&queued.account).await;
         match self
             .engine
             .cancel_pending_op(&queued.account, queued.op)
             .await
         {
-            Ok(None) => log::info!("outbox: a queued send was withdrawn before it went out"),
-            Ok(Some(refusal)) => log_refusal("withdraw", refusal),
-            Err(err) => log::warn!("outbox: withdrawing a queued send failed: {err}"),
+            Ok(None) => log_action(
+                acct,
+                queued.op,
+                "withdrawn by the user; it will not be sent",
+            ),
+            Ok(Some(refusal)) => log_refusal(acct, queued.op, "withdraw", refusal),
+            Err(err) => log::warn!("outbox[a{acct}]: withdrawing a queued send failed: {err}"),
         }
         self.rebuild_snapshot().await;
     }
 
-    /// Attempts a queued send now instead of waiting out its backoff, then drains so the
-    /// attempt actually happens in this gesture rather than at some later pass.
+    /// Attempts a queued send now instead of waiting out its backoff, or sends again one the
+    /// server refused, then drains so the attempt happens in this gesture rather than at some
+    /// later pass.
     pub(crate) async fn send_queued_now(&self, queued: &QueuedRef) {
+        let acct = self.account_ordinal(&queued.account).await;
         match self
             .engine
             .retry_pending_op_now(&queued.account, queued.op)
             .await
         {
-            Ok(None) => self.drain_account(&queued.account).await,
-            Ok(Some(refusal)) => log_refusal("send now", refusal),
-            Err(err) => log::warn!("outbox: hurrying a queued send failed: {err}"),
+            Ok(None) => {
+                log_action(acct, queued.op, "the user asked for it to be sent now");
+                self.drain_account(&queued.account).await;
+            }
+            Ok(Some(refusal)) => log_refusal(acct, queued.op, "send now", refusal),
+            Err(err) => log::warn!("outbox[a{acct}]: sending a queued send now failed: {err}"),
+        }
+        self.rebuild_snapshot().await;
+    }
+
+    /// Records the user's answer to a send whose delivery could not be confirmed.
+    ///
+    /// The store refuses an answer to a send that is not waiting for one, so a row that changed
+    /// state under the click cannot be sent again through here. An answer that it did not
+    /// arrive drains at once, as Send now does.
+    pub(crate) async fn confirm_queued_send(&self, queued: &QueuedRef, answer: Confirmation) {
+        let acct = self.account_ordinal(&queued.account).await;
+        match self
+            .engine
+            .confirm_pending_op(&queued.account, queued.op, answer)
+            .await
+        {
+            Ok(None) if answer == Confirmation::Delivered => log_action(
+                acct,
+                queued.op,
+                "the user says it was delivered; it will not be sent again",
+            ),
+            Ok(None) => {
+                log_action(
+                    acct,
+                    queued.op,
+                    "the user says it was not delivered; sending it again",
+                );
+                self.drain_account(&queued.account).await;
+            }
+            Ok(Some(refusal)) => log_refusal(acct, queued.op, "record an answer for", refusal),
+            Err(err) => log::warn!("outbox[a{acct}]: recording the user's answer failed: {err}"),
         }
         self.rebuild_snapshot().await;
     }
@@ -68,8 +121,12 @@ impl<P: Provider> App<P> {
     /// withdrawal is refused the composer never opens: editing a copy of a message that is
     /// still queued would send it twice.
     pub(crate) async fn edit_queued_send(&self, queued: &QueuedRef) {
+        let acct = self.account_ordinal(&queued.account).await;
         let Some(draft) = self.queued_draft(queued).await else {
-            log::warn!("outbox: no queued send to edit under that id");
+            log::warn!(
+                "outbox[a{acct}]: no queued send {} to edit",
+                queued.op.get()
+            );
             return;
         };
         match self
@@ -77,14 +134,14 @@ impl<P: Provider> App<P> {
             .cancel_pending_op(&queued.account, queued.op)
             .await
         {
-            Ok(None) => {}
+            Ok(None) => log_action(acct, queued.op, "withdrawn to be edited"),
             Ok(Some(refusal)) => {
-                log_refusal("edit", refusal);
+                log_refusal(acct, queued.op, "edit", refusal);
                 self.rebuild_snapshot().await;
                 return;
             }
             Err(err) => {
-                log::warn!("outbox: withdrawing a queued send to edit it failed: {err}");
+                log::warn!("outbox[a{acct}]: withdrawing a queued send to edit it failed: {err}");
                 return;
             }
         }
@@ -113,12 +170,21 @@ impl<P: Provider> App<P> {
     ///
     /// The attempt counts are untouched: this asks for one more attempt each, now, not for
     /// the retry bound to start again.
+    ///
+    /// Only what is still waiting is hurried. A send the server refused is in the queue too,
+    /// and hurrying it means sending it again: reconnecting is no answer to a refusal, so it
+    /// waits for the user rather than going out again on its own.
     pub(crate) async fn flush_outboxes(&self) {
         for account in self.account_ids().await {
             let queued = self.engine.outbox(&account).await.unwrap_or_default();
-            for row in &queued {
-                // A refusal here is ordinary (in flight, or awaiting confirmation) and the
-                // drain below is unaffected by it, so it is not worth a line of its own.
+            for row in queued.iter().filter(|row| {
+                matches!(
+                    row.state,
+                    PendingOpState::Pending | PendingOpState::InFlight
+                )
+            }) {
+                // A refusal here is ordinary (a live attempt) and the drain below is
+                // unaffected by it, so it is not worth a line of its own.
                 let _ = self.engine.retry_pending_op_now(&account, row.id).await;
             }
             self.drain_account(&account).await;
@@ -136,15 +202,13 @@ impl<P: Provider> App<P> {
         // Read before the pass: a change that settles leaves the queue, and a refused one still
         // has to be named on the pane.
         let folder_changes = self.queued_folder_changes(account).await;
-        self.log_due_sends(account).await;
+        let acct = self.account_ordinal(account).await;
+        self.log_due_sends(account, acct).await;
         match self.engine.drain_outbox(provider, account).await {
             Ok(report) if report.is_idle() => {}
             Ok(report) => {
-                log::info!(
-                    "outbox: a drain pass attempted {} queued write(s), {} delivered",
-                    report.attempted.len(),
-                    report.delivered()
-                );
+                let after = self.engine.outbox(account).await.unwrap_or_default();
+                log_drain_report(acct, &report, &after);
                 // A queued draft save that got through resolved to a key, and this report is
                 // the only place it is ever named (`docs/drafts.md`).
                 self.record_drained_drafts(&report);
@@ -164,7 +228,7 @@ impl<P: Provider> App<P> {
                 }
                 self.refresh_after_write(account).await;
             }
-            Err(err) => log::warn!("outbox: a drain pass failed: {err}"),
+            Err(err) => log::warn!("outbox[a{acct}]: a drain pass failed: {err}"),
         }
     }
 
@@ -175,21 +239,21 @@ impl<P: Provider> App<P> {
     /// is waiting, and its backoff has elapsed) for a log line, never to decide anything. A
     /// send serialised behind another write on the same resource is named here and then left
     /// for a later pass, which the summary line after the pass shows.
-    async fn log_due_sends(&self, account: &AccountId) {
+    async fn log_due_sends(&self, account: &AccountId, acct: usize) {
         let Ok(queued) = self.engine.outbox(account).await else {
             return;
         };
         let Ok(now) = crate::helpers::now_utc() else {
             return;
         };
-        let acct = self.account_ordinal(account).await;
         for row in queued.iter().filter(|row| {
             row.kind == Some(PendingOpKind::MailSubmit)
                 && row.state == PendingOpState::Pending
                 && row.next_attempt_at.is_none_or(|due| due <= now)
         }) {
             log::info!(
-                "outbox[a{acct}]: retrying a queued send, attempt {}",
+                "outbox[a{acct}]: retrying queued send {}, attempt {}",
+                row.id.get(),
                 row.attempts.saturating_add(1)
             );
         }
@@ -248,21 +312,6 @@ impl<P: Provider> App<P> {
             .find(|row| row.id == queued.op)
             .and_then(engine_api::queued_draft)
     }
-}
-
-/// Logs why a host action on a queued send did not take effect.
-///
-/// Every one of these is a state the user can see resolve itself: an in-flight send lands, a
-/// settled one leaves the list. So the app says what happened and rebuilds, rather than
-/// raising a question nobody can answer.
-fn log_refusal(action: &str, refusal: OpRejection) {
-    let reason = match refusal {
-        OpRejection::Unknown => "it is no longer queued",
-        OpRejection::Settled => "it has already finished",
-        OpRejection::InFlight => "it is being sent right now",
-        OpRejection::AwaitingConfirmation => "it may already have been delivered",
-    };
-    log::info!("outbox: could not {action} a queued send: {reason}");
 }
 
 /// A recipient field as the composer takes it: one comma-joined string.

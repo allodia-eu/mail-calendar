@@ -13,12 +13,21 @@ use std::sync::{
 use engine_api::{AccountId, CalendarWrites, Draft, Mailbox, ProviderKey, SubmissionReceipt};
 use engine_core::sync::SyncState;
 use engine_provider::{
-    Capabilities, ConnectionInfo, Provider, ProviderError, ProviderResult, ScopeSync,
+    Capabilities, ConnectionInfo, HandOver, Provider, ProviderError, ProviderResult, ScopeSync,
 };
 use tokio::sync::Notify;
 
 /// One recorded draft save: what was stored, and the key it said it was superseding.
 pub(super) type DraftSave = (Draft, Option<ProviderKey>);
+
+/// Where a send stops for good, as it would in a process that ended there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum CutOff {
+    /// Connected, and the message not yet handed to the server: safe to send again.
+    BeforeHandOver,
+    /// The hand-over recorded and the message's end on its way: it may have been delivered.
+    AfterHandOver,
+}
 
 pub(super) struct SubmitProvider {
     caps: Capabilities,
@@ -56,6 +65,17 @@ pub(super) struct SubmitProvider {
     /// notified: the seam a test needs to hold one save open and start a second while it is
     /// in flight, which is the only way to observe whether the two overlap.
     save_gate: Option<Arc<Notify>>,
+    /// Where the next send stops and never returns. Taken by the first send that reaches it,
+    /// so the attempt after a recovery runs normally.
+    cut_off: Arc<Mutex<Option<CutOff>>>,
+    /// How many sends reached their cut-off and stopped there.
+    stopped: Arc<AtomicUsize>,
+    /// Sends left to answer as lost after the hand-over: the server may have the message, and
+    /// no answer came back.
+    unanswered_sends: Arc<Mutex<u32>>,
+    /// How many sends recorded their hand-over: each is a message that may have reached the
+    /// server, so a test that counts deliveries counts these.
+    handed_over: Arc<AtomicUsize>,
     /// While set, a sync's folder-list request never returns: a server that accepts the
     /// connection and then says nothing, which no deadline of the sync's own bounds.
     silent: Arc<AtomicBool>,
@@ -79,6 +99,10 @@ impl SubmitProvider {
             offline_saves: Arc::new(Mutex::new(0)),
             saves_before_outage: Arc::new(Mutex::new(None)),
             save_gate: None,
+            cut_off: Arc::new(Mutex::new(None)),
+            stopped: Arc::new(AtomicUsize::new(0)),
+            unanswered_sends: Arc::new(Mutex::new(0)),
+            handed_over: Arc::new(AtomicUsize::new(0)),
             silent: Arc::new(AtomicBool::new(false)),
             parked_syncs: Arc::new(AtomicUsize::new(0)),
         }
@@ -133,6 +157,29 @@ impl SubmitProvider {
         let provider = Self::new();
         *provider.offline_sends.lock().unwrap() = sends;
         provider
+    }
+
+    /// A provider whose first send stops at `at` and never returns, and whose sends after that
+    /// go out.
+    pub(super) fn cut_off_at(at: CutOff) -> Self {
+        let provider = Self::new();
+        *provider.cut_off.lock().unwrap() = Some(at);
+        provider
+    }
+
+    /// A provider whose next `sends` hand the message over and then hear nothing back.
+    pub(super) fn unanswered_for(sends: u32) -> Self {
+        let provider = Self::new();
+        *provider.unanswered_sends.lock().unwrap() = sends;
+        provider
+    }
+
+    pub(super) fn stopped(&self) -> Arc<AtomicUsize> {
+        Arc::clone(&self.stopped)
+    }
+
+    pub(super) fn handed_over(&self) -> Arc<AtomicUsize> {
+        Arc::clone(&self.handed_over)
     }
 
     /// A submitting provider whose every send fails with a permanent error carrying `detail`.
@@ -212,6 +259,7 @@ impl Provider for SubmitProvider {
         &self,
         _account: &AccountId,
         draft: &Draft,
+        hand_over: &HandOver<'_>,
     ) -> ProviderResult<SubmissionReceipt> {
         self.submissions.lock().unwrap().push(draft.clone());
         if let Some(detail) = &self.fail_detail {
@@ -224,13 +272,33 @@ impl Provider for SubmitProvider {
                 return Err(ProviderError::retryable("no route to host"));
             }
         }
+        let cut_off = self.cut_off.lock().unwrap().take();
+        if cut_off == Some(CutOff::BeforeHandOver) {
+            self.stopped.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+        }
+        let handed = hand_over.commit().await?;
+        self.handed_over.fetch_add(1, Ordering::SeqCst);
+        if cut_off == Some(CutOff::AfterHandOver) {
+            self.stopped.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>().await;
+        }
+        {
+            let mut unanswered = self.unanswered_sends.lock().unwrap();
+            if *unanswered > 0 {
+                *unanswered -= 1;
+                return Err(ProviderError::needs_confirmation(
+                    "the connection closed before the server answered the end of the message",
+                ));
+            }
+        }
         let key = ProviderKey::new("sent-1").unwrap();
         let id = draft.message_id.clone();
         if self.unfiled {
             let detail = "IMAP transport error: connection reset by peer";
-            return Ok(SubmissionReceipt::unfiled(key, id, detail));
+            return Ok(SubmissionReceipt::unfiled(key, id, detail, &handed));
         }
-        Ok(SubmissionReceipt::filed(key, id))
+        Ok(SubmissionReceipt::filed(key, id, &handed))
     }
 
     /// Stores a draft, answering with a key that **moves on every save**, which is what

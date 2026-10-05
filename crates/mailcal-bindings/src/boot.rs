@@ -263,6 +263,10 @@ pub(crate) fn build_accounts(
     }
     let disconnected: Arc<Mutex<HashSet<String>>> =
         Arc::new(Mutex::new(disconnected_ids.into_iter().collect()));
+    // Before anything can drain: a send the last run left mid-attempt is put back the way the
+    // point it reached allows, so the first drain sends what never left and nothing sends what
+    // may have (`docs/sending.md`).
+    runtime.block_on(app.recover_outbox());
     let prime_start = Instant::now();
     runtime.block_on(app.prime_snapshot());
     log::info!(

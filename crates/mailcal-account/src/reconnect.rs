@@ -32,9 +32,9 @@ use engine_core::{
     sync::{SyncScope, SyncState, SyncWindow},
 };
 use engine_provider::{
-    ConnectionInfo, Draft, EmailStream, MailEdit, MailEditReceipt, MailboxEdit, MailboxEditReceipt,
-    MailboxWrites, MessageReport, Provider, ProviderError, ProviderResult, ReportReceipt,
-    ScopeSync, SourceStream, SubmissionReceipt,
+    ConnectionInfo, Draft, EmailStream, HandOver, MailEdit, MailEditReceipt, MailboxEdit,
+    MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderError, ProviderResult,
+    ReportReceipt, ScopeSync, SourceStream, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -297,17 +297,18 @@ impl Provider for ReconnectingImapProvider {
         })
     }
 
-    /// Submitting is **not** auto-retried: a send is not idempotent (a post-`DATA` drop may
-    /// have delivered), so blind-retrying could double-send. A retryable failure only
-    /// invalidates the session so the *next* explicit attempt re-dials; the error is
-    /// returned for the caller (the durable outbox / the user) to decide.
+    /// Submitting is **not** auto-retried: a send is not idempotent (a drop after the end of
+    /// `DATA` may have delivered), so blind-retrying could double-send. A retryable failure only
+    /// invalidates the session so the next attempt re-dials; the outbox decides whether there is
+    /// one, from the hand-over record the SMTP adapter writes before that end goes out.
     async fn submit_email(
         &self,
         account: &AccountId,
         draft: &Draft,
+        hand_over: &HandOver<'_>,
     ) -> ProviderResult<SubmissionReceipt> {
         let provider = self.delegate().await?;
-        match provider.submit_email(account, draft).await {
+        match provider.submit_email(account, draft, hand_over).await {
             Err(err) if err.class() == FailureClass::Retryable => {
                 self.invalidate();
                 Err(err)

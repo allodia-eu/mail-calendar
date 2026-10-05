@@ -90,8 +90,15 @@ pub enum SendStatus {
     /// it is queued invites them to write it again. The standing form of this is the pane's
     /// Outbox row, which stays until the message goes; this hint auto-clears like the others.
     Queued,
+    /// The message **may have been delivered**: the server stopped answering after it could
+    /// act on it. It is in the Outbox awaiting the user's answer, and is never sent again on
+    /// its own.
+    ///
+    /// Neither [`Self::Queued`] (it will not go out by itself) nor [`Self::Failed`] (a re-send
+    /// may deliver it twice).
+    Unconfirmed,
     /// The most recent submission failed: the message did **not** go out, and nothing will
-    /// retry it.
+    /// retry it. One the server refused stays in the Outbox until the user acts on it.
     Failed,
 }
 

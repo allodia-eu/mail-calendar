@@ -192,8 +192,10 @@ impl<P: Provider> App<P> {
 
         self.set_draft_status(composition, DraftStatus::Saving);
         let replacing = self.composition_key(composition);
+        let acct = self.account_ordinal(&account).await;
         match self.put_draft(&account, &draft, replacing.as_ref()).await {
             Some(Ok(key)) => {
+                log::info!("drafts[a{acct}]: the draft is saved on the server");
                 self.record_save(composition, key, digest);
                 self.set_draft_status(composition, DraftStatus::Saved);
                 // So the Drafts folder shows what was just put in it.
@@ -205,11 +207,15 @@ impl<P: Provider> App<P> {
             // key is deliberately left alone; the drain records its own.
             Some(Err(err)) => {
                 if let Some(op) = self.queued_save(&account, &draft).await {
-                    log::info!("drafts: the save is queued until there is a network: {err}");
+                    log::info!(
+                        "drafts[a{acct}]: the save is queued as write {} until the server can be \
+                         reached: {err}",
+                        op.get()
+                    );
                     self.record_queued(composition, op);
                     self.set_draft_status(composition, DraftStatus::Queued);
                 } else {
-                    log::warn!("drafts: the save failed: {err}");
+                    log::warn!("drafts[a{acct}]: the save failed and will not be retried: {err}");
                     self.set_draft_status(composition, DraftStatus::Failed);
                 }
             }
@@ -244,7 +250,10 @@ impl<P: Provider> App<P> {
                     // Said in words rather than as the rejection's own name: a log line is
                     // product surface and carries no internal jargon (`docs/logging.md`).
                     let reason = match refusal {
-                        OpRejection::Unknown => "it is no longer queued",
+                        // A withdrawal is never answered with the second: only a confirmation is.
+                        OpRejection::Unknown | OpRejection::NotAwaitingConfirmation => {
+                            "it is no longer queued"
+                        }
                         OpRejection::Settled => "it has already been stored",
                         OpRejection::InFlight => "it is being stored right now",
                         OpRejection::AwaitingConfirmation => "it may already have been stored",
@@ -262,7 +271,10 @@ impl<P: Provider> App<P> {
             return;
         };
         match self.engine.delete_draft(provider, &account, &key).await {
-            Ok(_) => self.refresh_after_write(&account).await,
+            Ok(_) => {
+                log::info!("drafts: the stored draft was removed");
+                self.refresh_after_write(&account).await;
+            }
             // Queued, like any other write the outbox holds: the copy goes when the network
             // does. Nothing to tell the composer, which has closed.
             Err(err) => log::info!("drafts: the discard did not reach the server yet: {err}"),

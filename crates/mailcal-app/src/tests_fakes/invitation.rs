@@ -357,11 +357,14 @@ impl Provider for InvitationFake {
         &self,
         _account: &AccountId,
         draft: &Draft,
+        hand_over: &engine_provider::HandOver<'_>,
     ) -> ProviderResult<SubmissionReceipt> {
         self.sends.lock().unwrap().push(draft.clone());
+        let handed = hand_over.commit().await?;
         Ok(SubmissionReceipt::filed(
             engine_core::ids::ProviderKey::new("sent-1").unwrap(),
             draft.message_id.clone(),
+            &handed,
         ))
     }
 }

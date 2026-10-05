@@ -13,7 +13,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use mailcal_viewmodel::QueuedRow;
+use mailcal_viewmodel::{QueuedRow, QueuedState};
 
 use super::{SubmitProvider, app_over, dispatch_until, plain_send};
 use crate::{App, Intent, OutboxIntent, QueuedRef, SendStatus};
@@ -27,7 +27,7 @@ use crate::{App, Intent, OutboxIntent, QueuedRef, SendStatus};
 /// of yields is a race that opens under load and nowhere else. Waiting for the condition makes
 /// the wait independent of how busy the machine is; the bound is what still turns a queue that
 /// never fills into a failure rather than a hang.
-async fn outbox_holding(app: &Arc<App<SubmitProvider>>, count: usize) -> Vec<QueuedRow> {
+pub(super) async fn outbox_holding(app: &Arc<App<SubmitProvider>>, count: usize) -> Vec<QueuedRow> {
     for _ in 0..100_000 {
         let outbox = app.mailbox_list().outbox;
         if outbox.len() == count {
@@ -153,19 +153,50 @@ async fn a_send_queued_with_the_device_offline_still_reaches_the_outbox() {
     task.await.unwrap();
 }
 
-/// A permanent failure is **not** queued: retrying sends the same message to the same server
-/// for the same answer, so it settles and the user is told it failed.
+/// A send the server refused is **kept**: the user is told it failed, and the message waits in
+/// the Outbox, never sent again on its own, until they send it again or discard it. Retrying it
+/// unasked sends the same message to the same server for the same answer; dropping it loses
+/// the user's words.
 #[tokio::test(start_paused = true)]
-async fn a_send_nothing_can_fix_still_fails() {
-    let app = app_over(SubmitProvider::failing_with("550 mailbox unavailable"));
+async fn a_refused_send_stays_in_the_outbox_until_the_user_acts() {
+    let provider = SubmitProvider::failing_with("550 mailbox unavailable");
+    let submissions = provider.submissions();
+    let app = app_over(provider);
 
     let task = dispatch_until(&app, plain_send(), SendStatus::Failed).await;
     assert_eq!(app.send_status(), SendStatus::Failed);
+    let queued = outbox_holding(&app, 1).await[0].clone();
+    assert_eq!(queued.state, QueuedState::NotSent);
+    assert_eq!(queued.subject, "Hi");
+    task.await.unwrap();
+
+    // Reconnecting hurries what is waiting, never what the server refused.
+    app.dispatch(Intent::ReportNetworkReachable(false)).await;
+    app.dispatch(Intent::ReportNetworkReachable(true)).await;
+    assert_eq!(
+        submissions.lock().unwrap().len(),
+        1,
+        "a refusal is never retried unasked"
+    );
+
+    let target = QueuedRef::from_parts(&queued.account, queued.op).unwrap();
+    app.dispatch(Intent::Outbox(OutboxIntent::SendNow(target.clone())))
+        .await;
+    assert_eq!(
+        submissions.lock().unwrap().len(),
+        2,
+        "sending it again is an attempt"
+    );
+    let again = outbox_holding(&app, 1).await;
+    assert_eq!(again[0].state, QueuedState::NotSent);
+    assert_eq!(again[0].attempts, 2);
+
+    app.dispatch(Intent::Outbox(OutboxIntent::Cancel(target)))
+        .await;
     assert!(
         app.mailbox_list().outbox.is_empty(),
-        "nothing will retry it, so it must not sit in the Outbox pretending otherwise"
+        "discarding it is the one way it leaves"
     );
-    task.await.unwrap();
 }
 
 /// The Outbox is its own scope: selecting it shows the queued sends, not everyone's inbox.

@@ -23,6 +23,8 @@ mod draft_ops_tests;
 mod fake;
 #[path = "mail_ops_mail_provider.rs"]
 mod mail_fake;
+#[path = "outbox_recovery_tests.rs"]
+mod outbox_recovery_tests;
 #[path = "outbox_tests.rs"]
 mod outbox_tests;
 #[path = "mail_ops_resume_tests.rs"]

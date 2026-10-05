@@ -32,7 +32,7 @@ use engine_core::{
     mail::EmailAddress,
     sync::SyncUpdate,
 };
-use engine_provider::{Draft, MailEdit, Provider};
+use engine_provider::{Draft, HandOver, MailEdit, Provider, Unrecorded};
 use mailcal_account::{GoogleConfig, Secret, connect_google_mail_providers, google_token_source};
 
 /// The test account's own address, from `GOOGLE_TEST_ADDRESS`. Every live send is
@@ -110,7 +110,7 @@ async fn the_product_gmail_wrapper_advertises_and_forwards_writes_and_sends() {
     // Send through the wrapper: this is the path the composer's send takes.
     let marker = format!("p{}", std::process::id());
     let receipt = provider
-        .submit_email(&account, &live_draft(&marker))
+        .submit_email(&account, &live_draft(&marker), &HandOver::new(&Unrecorded))
         .await
         .expect("submit_email forwards through the wrapper");
     let key = receipt.email_key;

@@ -16,7 +16,7 @@
 //! The capture filters on the two contacts modules by `target()`, so a parallel test logging
 //! from elsewhere in the crate can neither satisfy nor break either claim.
 
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 
 use super::*;
 use crate::ContactsIntent;
@@ -26,45 +26,17 @@ use crate::ContactsIntent;
 const NAME: &str = "Zelphina Quorrix";
 const EMAIL: &str = "zelphina@carbuncle.test";
 
-/// Collects the contacts modules' log records.
-struct Capture(Arc<Mutex<Vec<String>>>);
-
-impl log::Log for Capture {
-    fn enabled(&self, _metadata: &log::Metadata<'_>) -> bool {
-        true
-    }
-
-    fn log(&self, record: &log::Record<'_>) {
-        if matches!(
-            record.target(),
-            "mailcal_app::contacts" | "mailcal_app::contacts_write" | "mailcal_app::recipients"
-        ) {
-            self.0.lock().unwrap().push(record.args().to_string());
-        }
-    }
-
-    fn flush(&self) {}
-}
-
-/// The process-wide capture buffer, installed on first use.
-///
-/// `log` allows exactly one logger per process and the test binary runs its cases in parallel,
-/// so this is a `OnceLock` rather than per-test setup; every case reads the same buffer, which
-/// is why each asserts on lines it can identify rather than on the buffer's whole contents.
-fn captured() -> &'static Arc<Mutex<Vec<String>>> {
-    static LINES: OnceLock<Arc<Mutex<Vec<String>>>> = OnceLock::new();
-    LINES.get_or_init(|| {
-        let lines = Arc::new(Mutex::new(Vec::new()));
-        log::set_boxed_logger(Box::new(Capture(Arc::clone(&lines))))
-            .expect("this test binary installs no other logger");
-        log::set_max_level(log::LevelFilter::Debug);
-        lines
-    })
-}
-
-/// Every captured line so far.
+/// Every line the contacts modules logged so far.
 fn lines() -> Vec<String> {
-    captured().lock().unwrap().clone()
+    crate::tests_log_capture::lines_from(&[
+        "mailcal_app::contacts",
+        "mailcal_app::contacts_write",
+        "mailcal_app::recipients",
+    ])
+}
+
+fn captured() {
+    crate::tests_log_capture::install();
 }
 
 /// Asserts some captured line contains `needle`, printing the buffer when it does not: a bare
@@ -91,7 +63,7 @@ async fn every_contacts_stage_logs_a_count_and_a_duration() {
         )],
         &surfaces,
     );
-    let _ = captured();
+    captured();
 
     app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
         .await;
@@ -133,7 +105,7 @@ async fn the_contacts_log_never_carries_a_name_or_an_address() {
         )],
         &surfaces,
     );
-    let _ = captured();
+    captured();
 
     // Drive every path that touches a card, including the three that take user-typed text;
     // a search term, a composer token and an editor's fields are themselves names and
@@ -199,7 +171,7 @@ async fn an_account_with_no_contact_sources_says_so_rather_than_logging_nothing(
     // from "we synced sources that returned nothing" (a server or permission problem).
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = app(vec![account("work", Vec::new())], &surfaces);
-    let _ = captured();
+    captured();
 
     app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
         .await;

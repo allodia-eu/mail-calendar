@@ -1,4 +1,5 @@
-//! The Outbox's FFI records: one queued send, and the message the core asks a host to open.
+//! The sending FFI records: the send hint, one queued send, and the message the core asks a host
+//! to open.
 //!
 //! Split from [`records`](crate::records), which is at the 500-line limit.
 
@@ -19,8 +20,41 @@ pub enum QueuedState {
     /// It may or may not have been delivered, and will **never** be retried automatically.
     ///
     /// The one queued row where "send now" is the wrong offer: the message may already be in
-    /// front of its recipients, so a host shows this state and offers no retry.
+    /// front of its recipients. A host asks the user instead: it was delivered
+    /// (`OutboxIntent::ConfirmSent`), or it was not, so send it (`OutboxIntent::ConfirmNotSent`).
     Unconfirmed,
+    /// The server refused it, and nothing will try again on its own. It stays until the user
+    /// sends it again (`SendNow`), edits it or discards it (`Cancel`).
+    NotSent,
+}
+
+/// The state of the most recent outgoing send (pulled after a `Surface::Sending` signal).
+#[derive(uniffi::Enum)]
+pub enum SendStatus {
+    /// No send has started this session.
+    Idle,
+    /// A validated message is being submitted through the outbox.
+    Sending,
+    /// The most recent submission completed, and a copy is in the account's Sent folder.
+    Sent,
+    /// The message **was sent**, but its copy could not be filed in the account's Sent
+    /// folder; it is not there and will not appear later. Show it as sent, with a warning:
+    /// the recipients have the message, only the sender's own record of it is missing.
+    /// Never as a failure, that invites a re-send of mail that already went out.
+    SentNotFiled,
+    /// The submission has **not gone yet** and is waiting in the Outbox; it will be sent
+    /// when the network comes back. Show it as pending, never as a failure: the message is
+    /// not lost, and telling someone their send failed invites them to write it again.
+    /// The standing form of this is the pane's Outbox row.
+    Queued,
+    /// The message may have reached its recipients: the server stopped answering after it
+    /// could act on it. It is in the Outbox, where the user is asked whether it arrived, and
+    /// nothing sends it again on its own. Show it as a warning, never as a failure: a re-send
+    /// may deliver it twice.
+    Unconfirmed,
+    /// The most recent submission failed: the message did **not** go out, and nothing will
+    /// retry it. A refused message stays in the Outbox, from where the user can send it again.
+    Failed,
 }
 
 /// One unsent message, as the Outbox shows it.
@@ -76,6 +110,7 @@ impl From<AppQueuedState> for QueuedState {
             AppQueuedState::Waiting => Self::Waiting,
             AppQueuedState::Sending => Self::Sending,
             AppQueuedState::Unconfirmed => Self::Unconfirmed,
+            AppQueuedState::NotSent => Self::NotSent,
         }
     }
 }
