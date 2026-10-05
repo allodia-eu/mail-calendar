@@ -54,9 +54,11 @@ duplicate of a message already on its way, and the user would find it there week
 unable to tell whether it went. The composer names its composition on the submit and the core
 removes the draft; a client that does not name it leaves one behind.
 
-**A send that failed keeps it.** That is the one outcome where the stored copy is the only one
-left: nothing will retry the message, and the composer that held the words has already
-closed. Removing it there would make sending a way to lose mail.
+**A send that failed keeps it.** Nothing will retry the message, and the composer that held the
+words has already closed. A send the server refused is kept in the Outbox as well
+([`sending.md`](sending.md)), but Edit there hands back the words without the files, so the
+stored draft is still the whole copy to pick back up. Removing it would make sending a way to
+lose mail.
 
 **The send owns the composition from the submit on, and a client must not close it.** A composer
 is dismissed the moment its submit is accepted, which is validation only: the message has not

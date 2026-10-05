@@ -63,21 +63,61 @@ queue the engine owns, and goes out by itself when it can.
   message that already lives in a folder, and the folder is where its owner will look for it.
   Those drain in the background and are never shown as unsent mail.
 
+### A send survives the app ending mid-attempt
+
+The app can end at any point of a send: closed, killed, suspended, out of power. Whoever comes
+back for the message has to know whether it may have reached the server, because the two answers
+are opposite: one that cannot have left is sent again, and one that may have left must never be
+sent again without asking.
+
+- **The engine records a hand-over immediately before the point of no return**: the line ending
+  SMTP's `DATA`, or the last piece of the submitting request on JMAP, Graph and Gmail. Everything
+  before it (connecting, signing in, uploading) is safe to repeat. Where the line falls on each
+  transport is the engine's (`providers.md` in the engine).
+- **The core recovers the last run's sends at start-up, before anything can drain**
+  (`App::recover_outbox`, called by the boot path). A send cut off before its hand-over is
+  waiting again and goes out on the next drain. One cut off after it may already be with its
+  recipients, so it awaits confirmation. Without the recovery the row reads *Sending* until the
+  dead attempt's lease lapses, minutes into the next run.
+- **A send that may have been delivered is never sent again unasked.** That covers one cut off
+  after its hand-over and one whose answer never came back. Reconnecting, Send now, Cancel and
+  Edit are all refused on it. Its copy appearing in a Sent folder resolves it; otherwise the user
+  does, with **Mark as Sent** or **Send Again**, and the store refuses either answer on a send
+  that is not awaiting one, so a row that changed state under the click cannot send twice.
+- **A refused send is kept.** A refusal no retry fixes settles the send as not sent, and the
+  Outbox keeps it, payload and all, until the user sends it again, edits it or discards it.
+  Reconnecting never sends it again: it hurries what is waiting, not what was refused. The
+  composer's stored draft stays too ([`drafts.md`](drafts.md)).
+- **Every step leaves a log line**, because a queued send goes out with nobody watching
+  ([`logging.md`](logging.md)).
+
 ### What a queued message offers
 
-| Action | What it does | When it is refused |
+| State | Says | Offers, in this order |
 |---|---|---|
-| **Send now** | Clears the backoff and drains immediately | While the send is in flight, or awaiting confirmation |
-| **Cancel** | Withdraws it so it is never delivered | Same |
-| **Edit** | **Withdraws it, then** hands it back to the composer | Same |
+| Waiting | *Waiting to send* | Send Now · Edit · Cancel Send |
+| Sending | *Sending…* | nothing: it cannot be called back |
+| Awaiting confirmation | *Delivery not confirmed* | Mark as Sent · Send Again |
+| Not sent | *Not sent* | Send Again · Edit · Discard |
+
+| Action | Intent | What it does | When the core refuses it |
+|---|---|---|---|
+| **Send Now**, and **Send Again** on a refused send | `SendNow` | Clears the backoff, or puts a refused send back in the queue, and drains immediately | In flight, or awaiting confirmation |
+| **Cancel Send**, **Discard** | `Cancel` | Withdraws it so it is never delivered | Same |
+| **Edit** | `Edit` | **Withdraws it, then** hands it back to the composer | Same |
+| **Mark as Sent** | `ConfirmSent` | Settles it as delivered; it leaves the Outbox | On a send not awaiting confirmation |
+| **Send Again** on an unconfirmed send | `ConfirmNotSent` | Puts it back in the queue and drains immediately | Same |
 
 **Edit withdraws before it opens.** The other order leaves a window in which a drain delivers
 the message being edited, and no part of this app can take that back. The withdrawn message
 then exists *only* in `Surface::ComposeRequest`, which is why that request stands until the
 host says its composer holds it rather than auto-clearing.
 
-**A message awaiting confirmation offers no retry.** It may already be in front of its
-recipients, so the one thing a client must not do is offer to send it again.
+**A message awaiting confirmation offers only the user's answer.** It may already be in front of
+its recipients, so no client offers Send Now, Edit or Cancel on it, and Send Again there sends
+`ConfirmNotSent`, never `SendNow`. The two Send Again items read the same because to the user they
+are the same request; the intent is what keeps the unconfirmed one from going out on any other
+path.
 
 ## The three surfaces
 
@@ -90,6 +130,10 @@ recipients, so the one thing a client must not do is offer to send it again.
 The Outbox itself is a fourth thing and not a surface at all: it rides the mailbox-list
 snapshot (`outbox`, `showing_outbox`), because the pane row that counts it is on screen in
 every view.
+
+**`SendStatus::Unconfirmed` is a warning, never a failure and never a wait.** The message may be
+with its recipients, so "couldn't send" invites a second copy, and "waiting to send" promises an
+attempt that will not happen on its own. The hint points at the Outbox, where the question is.
 
 **`SendStatus::SentNotFiled` shows no hint of its own.** The standing question is already on
 screen and says the same thing with a button; two notices for one event is noise. What the
@@ -211,12 +255,18 @@ someone their own file back is noise that repeats on every turn of a long thread
 | Android | ✅ drawer row, hidden at zero | ✅ its own screen | ✅ row menu | ✅ row menu | ✅ row menu |
 | Linux | ✅ pane row, hidden at zero | ✅ | ✅ row menu | ✅ row menu | ✅ row menu |
 
-**The three actions are offered only on a message that is still waiting.** One in flight cannot be
-called back, and one whose delivery could not be confirmed may already be in front of its
-recipients. Windows draws them disabled rather than absent, so the menu is the same shape on every
-row and the state beside it says why; Apple, Linux and Android leave them off, and the latter two
-drop the row's overflow control with them rather than opening it onto nothing. Either answers the
-rule, which is that neither row may offer a retry.
+| Platform | Mark as Sent · Send Again on an unconfirmed send | Send Again · Edit · Discard on a refused send | Unconfirmed send hint |
+|---|---|---|---|
+| macOS / iOS / iPadOS | ✅ context menu | ✅ context menu | ✅ banner, warning |
+| Windows | ✅ row menu | ✅ row menu | ✅ InfoBar, Warning |
+| Android | ✅ row menu | ✅ row menu | ✅ banner, warning |
+| Linux | ✅ row menu | ✅ row menu | ✅ banner |
+
+**Each state offers what the first table says and nothing else.** A row in flight offers nothing:
+Apple, Linux and Android leave its menu off, the latter two dropping the overflow control rather
+than opening it onto nothing, and Windows draws its items disabled, so its menu keeps one shape
+and the state beside it says why. An unconfirmed row offers only its two answers on every
+platform.
 
 **Edit may not be refused.** The message has left the queue by the time a host is asked to open it,
 so it exists nowhere else, and the request stays standing until a host says its composer has had
@@ -256,6 +306,12 @@ opens there and nothing of the user's is displaced.
   holding every account's mail at once; the Apple row puts the account on the first line as a
   stand-in for recipients it has not got, and otherwise leaves it off. On a single-account device
   nothing is lost. Windows draws it on every row.
+- **Edit hands back the words, not the whole message.** `ComposeRequest` carries the recipients,
+  subject and text body, so a queued or refused send withdrawn to be edited reopens without its
+  attachments, its formatting and the headers that thread a reply, and the message the composer
+  sends is a new one. Nothing is lost silently from the Outbox itself, which sends the stored
+  payload whole; the loss is in the copy the user edits. Carrying the files means staging them
+  as a resumed draft's are ([`drafts.md`](drafts.md)).
 - **No automated suite watches a queued message appear.** Getting one takes a send that fails for
   a reason worth retrying, which means taking the mail server away between the connect and the
   send. The showcase seeds have no server to take away, and a Windows CI runner cannot run the
