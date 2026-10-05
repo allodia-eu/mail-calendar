@@ -156,20 +156,29 @@ view, so unlike a forward it cannot count on the message already being cached: t
 fetches it. A client does what it does for a slow reading open rather than freezing, and the
 composer appears when the answer does.
 
-**The body comes back as text.** The composer's document model is not HTML, so restoring
-formatting would mean a second markup parser in the editor; see the known gaps. The engine
-derives the text from the HTML when the draft carries no text part, so an HTML-only draft
-still opens with its words.
+**The body comes back as it was written.** The core hands the composer the draft's HTML,
+sanitised as a reading view's is, with every picture the draft carries as a part already turned
+into the `data:` URI the editor shows it from (`ComposeRequest::body_html`). The editor reads it
+back into its own document (`setComposerBody`, `clients/composer/src/read_html.ts`): the
+formatting, the lists and tables, the pictures, the quoted original and the signature. What this
+app wrote reads back as exactly the document it was rendered from, which a fixture both the
+renderer's and the reader's suites check holds (`clients/composer/tests/fixtures/rendered.json`);
+what another client wrote reads as closely as the editor's schema allows (see the known gaps). A
+draft with no HTML opens as its text.
 
-**A resumed composer seeds no signature.** The body comes back as the text of a message that
-was signed when it was first written, so seeding one would put a second signature under it, and
-the next save would store that. It is the same reason a message withdrawn from the Outbox seeds
-none ([`sending.md`](sending.md)).
+**The composition keeps what the editor cannot.** A reply's `In-Reply-To` and `References` go on
+every save and on the send, so a resumed reply stays in its conversation. And the parts its
+quoted original's pictures came from are put back on every save and the send, exactly as a
+reply's own quote has its original's restored, so a quoted picture leaves as a part rather than
+as a `data:` URI a reader may refuse to show.
+
+**A resumed composer seeds no signature.** The body already carries the one it was written with,
+so seeding one would put a second under it, and the next save would store that. It is the same
+reason a message withdrawn from the Outbox seeds none ([`sending.md`](sending.md)).
 
 **The first save after a resume always writes.** The unchanged check compares against what
-this app last put on the server, and a resumed body is text derived from the stored draft
-rather than the draft itself, so claiming the two match would skip a save the user can see is
-needed.
+this app last put on the server, and the composer renders its own document rather than the
+stored bytes, so claiming the two match would skip a save the user can see is needed.
 
 ## The draft is never in three places
 
@@ -238,6 +247,7 @@ and the removal below runs on whatever key the composition had.
 | "Save as draft" | ✅ | ✅ | ✅ | ✅ |
 | Discard removes the server copy | ✅ | ✅ | ✅ | ✅ |
 | Resume from the Drafts folder | ✅ | ✅ | ✅ | ✅ |
+| A resumed draft opens formatted, its pictures and quote included | ✅ | ✅ | ✅ | ✅ |
 | Sending takes the draft away | ✅ | ✅ | ✅ | ✅ |
 | Leaving the composer keeps the draft, unasked | ✅ | ✅ | ✅ | ✅ |
 | Discard asks only when something would be lost | ✅ | ✅ | ✅ | ✅ |
@@ -274,10 +284,18 @@ second name for leaving.
   and the Outbox shows sends only ([`sending.md`](sending.md)), so a draft saved with no network
   is in neither list until the network returns. It is not lost, and the composer's hint says so,
   but a user who closes the composer has nowhere to look.
-- **A resumed draft opens as plain text.** The composer holds a block document, not HTML, so
-  bold, lists and inline pictures made in an earlier session are not restored; the words and
-  the files are. Closing it means teaching the editor to read a mail body back into its own
-  blocks, which is a markup parser and belongs with the editor rather than here.
+- **A draft another client wrote opens as the editor's schema can hold it.** Its words, lines,
+  marks, lists, tables, links, quotes and the pictures it carries all come back, but a construct
+  the schema has no place for is read as the nearest thing it has: a heading as a bold line, a
+  font size other than the composer's four as the body's size, a named colour as no colour, and a
+  picture linked from the web, which the composer cannot send, not at all. The next save stores
+  what the composer opened with, so those are gone from the draft once it is saved.
+- **A reopened quote keeps one attribution.** The message carries only the style it was sent in,
+  the one-line "On … wrote:" or the header block, so switching a reopened quote to the other style
+  shows that style's attribution empty.
+- **A draft written from an alias reopens on its account.** This app sends from an account's own
+  address only, so a draft another client wrote from an alias goes out from the account if it is
+  sent from here.
 - **A client tells a draft by its folder, not by the row.** The core answers per message, but
   the mailbox list does not carry it, so a draft met in a search result, or in a thread shown
   from another folder, opens read-only rather than in a composer. Nothing is lost by it; the row

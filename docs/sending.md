@@ -121,8 +121,11 @@ withdrawal is refused the draft is taken away again and nothing opens. The reque
 **composition** the draft was saved under and carries the message's **files**, already staged
 where the host named on `Edit`: the composer opens on that composition holding all of them,
 exactly as a resumed draft does, so its saves replace the draft rather than add one and its
-first save cannot take a file off it. A reply stays a reply: the composition keeps the message's
-`In-Reply-To` and `References` for every save and for the send. A message carrying an
+first save cannot take a file off it. It is the same `ComposeRequest` a resumed draft answers
+with, built on the same path, so the message also opens formatted, its pictures, quote and
+signature included ([`drafts.md`](drafts.md)). A reply stays a reply: the composition keeps the
+message's `In-Reply-To` and `References`, and the parts its quoted pictures came from, for every
+save and for the send. A message carrying an
 invitation's answer is not editable, because no composer holds its calendar part, so no client
 offers Edit on it.
 
@@ -273,7 +276,7 @@ someone their own file back is noise that repeats on every turn of a long thread
 | Android | ✅ drawer row, hidden at zero | ✅ its own screen | ✅ row menu | ✅ row menu | ✅ row menu |
 | Linux | ✅ pane row, hidden at zero | ✅ | ✅ row menu | ✅ row menu | ✅ row menu |
 
-| Platform | Mark as Sent · Send Again on an unconfirmed send | Send Again asks first | Send Again · Edit · Discard on a refused send | Edit opens on the draft, holding its files | Unconfirmed and not-sent hints |
+| Platform | Mark as Sent · Send Again on an unconfirmed send | Send Again asks first | Send Again · Edit · Discard on a refused send | Edit opens on the draft, formatted and holding its files | Unconfirmed and not-sent hints |
 |---|---|---|---|---|---|
 | macOS / iOS / iPadOS | ✅ context menu | ✅ alert | ✅ context menu | ✅ | ✅ banner |
 | Windows | ✅ row menu | ✅ `ContentDialog` | ✅ row menu | ✅ | ✅ InfoBar |
@@ -324,11 +327,6 @@ opens there and nothing of the user's is displaced.
   holding every account's mail at once; the Apple row puts the account on the first line as a
   stand-in for recipients it has not got, and otherwise leaves it off. On a single-account device
   nothing is lost. Windows draws it on every row.
-- **Edit opens the words as text.** A queued send moved back into Drafts opens with its files and
-  its conversation, but its formatting and inline pictures do not come back into the composer,
-  for the reason a resumed draft's do not ([`drafts.md`](drafts.md), known gaps); the draft keeps
-  them until the composer's first save. Nor does an alias it was sent from: the composer opens on
-  the account.
 - **No automated suite watches a queued message appear.** Getting one takes a send that fails for
   a reason worth retrying, which means taking the mail server away between the connect and the
   send. The showcase seeds have no server to take away, and a Windows CI runner cannot run the
