@@ -57,6 +57,9 @@ namespace Allodia.Mailcal.ViewModels;
 /// joined to a stored draft (<c>docs/drafts.md</c>). Every other composer mints its own: the core
 /// has already joined this id to the copy on the server, so a fresh one would store a second
 /// draft beside the one the composer is showing.</param>
+/// <param name="StoredHtml">The HTML of a message this composer reopens (a resumed draft, or one
+/// moved back out of the Outbox), which the editor reads back into its document; <paramref
+/// name="InitialBody"/> is then that message's text, for when it has none.</param>
 /// <param name="AttachmentsFailed">Whether the files a forward was to carry could not be read, so
 /// the composer opens saying so. It travels beside <paramref name="Attachments"/> because an empty
 /// list means opposite things either way: nothing was attached, or everything was and none of it
@@ -80,7 +83,8 @@ internal sealed record ComposeContext(
     bool SeedsSignature = true,
     IReadOnlyList<ComposerFileAttachment>? Attachments = null,
     bool AttachmentsFailed = false,
-    string? Composition = null)
+    string? Composition = null,
+    string? StoredHtml = null)
 {
     /// <summary>The composer's heading, the action it is performing.</summary>
     public string Title => Kind switch

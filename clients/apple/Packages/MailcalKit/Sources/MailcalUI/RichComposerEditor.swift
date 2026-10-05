@@ -37,6 +37,10 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
     /// draft is a new message. Seeded in the quote's place, and for the same reason before the
     /// signature: `setPlainText` assigns the whole body.
     var pendingPlainBody: String?
+    /// The HTML of a message this composer reopens (a resumed draft, or one moved back out of the
+    /// Outbox), seeded in the plain body's place through `setComposerBody`, which reads it back
+    /// into the editor's document; `pendingPlainBody` then rides beside it as that message's text.
+    var pendingStoredHTML: String?
     /// Whether to put the caret in the message body once the editor has loaded. Set for a
     /// reply/forward, whose From/To/Subject are already filled in, so writing is the only thing
     /// left to do; a new message starts in its empty To field instead.
@@ -140,8 +144,8 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
         // than anywhere else, because this body was written by a model that may itself have been
         // steered by a hostile message. It runs in the quote's slot, and for the same reason: it
         // assigns the whole body, so a signature seeded first would be wiped.
-        if let body = pendingPlainBody, !body.isEmpty {
-            webView.evaluateJavaScript("window.setPlainText(\(Self.jsString(body)))") { [weak self] _, _ in
+        if let body = Self.bodySeedScript(html: pendingStoredHTML, text: pendingPlainBody) {
+            webView.evaluateJavaScript(body) { [weak self] _, _ in
                 self?.seedSignatureThenCapture()
             }
             return
@@ -259,7 +263,20 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
 
     /// Encodes `value` as a JavaScript string literal (quoted + escaped) so it can be passed
     /// safely into an `evaluateJavaScript` call without breaking out of the argument.
-    private static func jsString(_ value: String) -> String {
+    /// The call that seeds the body: a reopened message's HTML through `setComposerBody`, else a
+    /// text through `setPlainText`, else nothing. Everything is passed as one JSON string the
+    /// editor parses, never spliced into the script, so no body can close the call and run.
+    nonisolated static func bodySeedScript(html: String?, text: String?) -> String? {
+        if let html, !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let data = try? JSONSerialization.data(withJSONObject: ["html": html, "text": text ?? ""]),
+           let seed = String(data: data, encoding: .utf8) {
+            return "window.setComposerBody(\(jsString(seed)))"
+        }
+        guard let text, !text.isEmpty else { return nil }
+        return "window.setPlainText(\(jsString(text)))"
+    }
+
+    private nonisolated static func jsString(_ value: String) -> String {
         guard let data = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed),
               let literal = String(data: data, encoding: .utf8)
         else {

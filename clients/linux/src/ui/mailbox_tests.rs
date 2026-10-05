@@ -464,6 +464,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         initial_bcc: String::new(),
         subject: "Re: fixture".to_owned(),
         initial_body: None,
+        stored_html: None,
         quote: None,
         initial_from: Some("fixture".to_owned()),
         seeds_signature: true,

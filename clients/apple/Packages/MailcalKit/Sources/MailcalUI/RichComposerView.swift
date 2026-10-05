@@ -128,6 +128,9 @@ struct RichComposeView: View {
         initialBcc: String = "",
         initialSubject: String = "",
         initialBody: String = "",
+        /// The HTML of a message this composer reopens (`ComposeRequest.bodyHtml`), which the
+        /// editor reads back into its document; `initialBody` is then that message's text.
+        initialHTML: String = "",
         /// Files the composer opens already holding: the ones a forwarded message carries,
         /// staged by the core. Removable like any picked file: a forward proposes them, it does
         /// not impose them.
@@ -163,6 +166,7 @@ struct RichComposeView: View {
         let editor = RichComposerEditor()
         editor.pendingQuote = quote
         editor.pendingPlainBody = initialBody.isEmpty ? nil : initialBody
+        editor.pendingStoredHTML = initialHTML.isEmpty ? nil : initialHTML
         // The opening signature is resolved here, not in `onAppear`: it has to be injected before
         // the editor snapshots its "nothing written yet" seed, or the composer opens dirty. The
         // account is resolved the same way `resolvedFrom` does below, the From dropdown and the

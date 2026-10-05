@@ -29,6 +29,7 @@ use crate::{
 
 mod digest;
 mod from_outbox;
+mod reopen;
 pub(crate) mod resume;
 mod state;
 
@@ -129,8 +130,9 @@ impl<P: Provider> App<P> {
         let Some(message_id) = message_id else {
             return self.fail_draft(composition, "could not mint a Message-ID for the draft");
         };
+        let pictures = self.composition_pictures(Some(composition));
         let Some(draft) = build(
-            message_id, &identity, &to, &cc, &bcc, subject, document, blobs,
+            message_id, &identity, &to, &cc, &bcc, subject, document, blobs, &pictures,
         ) else {
             return self.fail_draft(composition, "the draft could not be rendered");
         };
@@ -327,14 +329,7 @@ impl<P: Provider> App<P> {
         let message_id = new_message_id()?;
         state.open.insert(
             composition.clone(),
-            Composition {
-                account: account.clone(),
-                message_id: message_id.clone(),
-                key: None,
-                saved: None,
-                queued: None,
-                threading: None,
-            },
+            Composition::new(account.clone(), message_id.clone()),
         );
         Some(message_id)
     }
@@ -439,6 +434,7 @@ fn build(
     subject: String,
     document: ComposerDocument,
     blobs: Vec<ComposerBlob>,
+    pictures: &[engine_api::InlinePart],
 ) -> Option<Draft> {
     rich_draft(
         message_id,
@@ -449,6 +445,6 @@ fn build(
         subject,
         document,
         blobs,
-        &[],
+        pictures,
     )
 }

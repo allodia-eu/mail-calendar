@@ -2,9 +2,9 @@
 // (docs/drafts.md).
 //
 // The join between the composition and the copy on the server is the core's, and is held by its
-// own Rust tests. What is Apple's, and what is covered here, is how the resumed draft travels to
-// the composer: which composition it saves under, and whether opening the same draft twice opens
-// the composer twice.
+// own Rust tests. What is Apple's, and what is covered here, is how the reopened message travels
+// to the composer: which composition it saves under, whether opening the same draft twice opens
+// the composer twice, and that the editor is seeded with the message's HTML rather than its words.
 
 import Foundation
 import MailcalBindings
@@ -14,15 +14,21 @@ import Testing
 
 @Suite struct ResumedDraftTests {
 
-    private func resume(subject: String = "Half a sentence") -> DraftResume {
-        DraftResume(
+    private func reopened(
+        composition: String = "c-1",
+        subject: String = "Half a sentence",
+        attachments: [ComposerFileAttachment] = []
+    ) -> ComposeRequest {
+        ComposeRequest(
             account: "acct-1",
+            composition: composition,
             to: "ada@example.test",
-            cc: "",
+            cc: "grace@example.test",
             bcc: "",
             subject: subject,
+            bodyHtml: "<p><strong>Half</strong> a sentence</p>",
             bodyText: "Half a sentence",
-            attachments: []
+            attachments: attachments
         )
     }
 
@@ -30,18 +36,10 @@ import Testing
         // `ComposeContext` is `Identifiable` and iOS presents it with `.fullScreenCover(item:)`,
         // which does nothing when the new item's id equals the one already presented. Two opens of
         // one draft are two composers, so the id is the request's own, not the draft's.
-        let first = ResumedDraftRequest(composition: "c-1", draft: resume())
-        let second = ResumedDraftRequest(composition: "c-2", draft: resume())
+        let first = ResumedDraftRequest(reopened(composition: "c-1"))
+        let second = ResumedDraftRequest(reopened(composition: "c-2"))
         #expect(first != second)
         #expect(ComposeContext.resumedDraft(first).id != ComposeContext.resumedDraft(second).id)
-    }
-
-    @Test func theCompositionTravelsWithTheDraft() {
-        // The core has already joined this id to the copy on the server: a composer that took a
-        // fresh one would store a second draft beside the one it is showing, and neither would
-        // supersede the other.
-        let request = ResumedDraftRequest(composition: "c-1", draft: resume())
-        #expect(request.composition == "c-1")
     }
 
     @Test func anEditedQueuedSendOpensOnItsCompositionHoldingItsFiles() {
@@ -53,37 +51,45 @@ import Testing
             fileName: "terms.pdf",
             mediaType: "application/pdf"
         )
-        let request = ResumedDraftRequest(
-            ComposeRequest(
-                account: "acct-1",
-                composition: "c-queued",
-                to: "ada@example.test",
-                cc: "grace@example.test",
-                bcc: "",
-                subject: "Terms",
-                bodyText: "See attached.",
-                attachments: [file]
-            )
-        )
+        let request = ResumedDraftRequest(reopened(composition: "c-queued", attachments: [file]))
         #expect(request.composition == "c-queued")
         #expect(request.draft.account == "acct-1")
-        #expect(request.draft.to == "ada@example.test")
-        #expect(request.draft.cc == "grace@example.test")
-        #expect(request.draft.subject == "Terms")
-        #expect(request.draft.bodyText == "See attached.")
         #expect(request.draft.attachments.map(\.path) == [file.path])
-        #expect(request.draft.attachments.map(\.fileName) == [file.fileName])
+    }
+
+    @Test func aReopenedMessageSeedsItsHTMLAsData() throws {
+        // A body seeded as words alone opened without its formatting, pictures, quote and
+        // signature, and the composer's next save took them off the draft.
+        let script = try #require(
+            RichComposerEditor.bodySeedScript(html: "<p>Hi</p>\")</script>", text: "Hi")
+        )
+        #expect(script.hasPrefix("window.setComposerBody("))
+        let argument = String(script.dropFirst("window.setComposerBody(".count).dropLast())
+        let json = try #require(
+            JSONSerialization.jsonObject(with: Data(argument.utf8), options: .fragmentsAllowed)
+                as? String
+        )
+        let seed = try #require(
+            JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: String]
+        )
+        #expect(seed["html"] == "<p>Hi</p>\")</script>")
+        #expect(seed["text"] == "Hi")
+    }
+
+    @Test func aBodyWithNoHTMLIsSeededAsText() {
+        #expect(RichComposerEditor.bodySeedScript(html: nil, text: "Hi") == "window.setPlainText(\"Hi\")")
+        #expect(RichComposerEditor.bodySeedScript(html: "", text: "") == nil)
     }
 
     @Test func aWindowShowingADraftIsNamedForIt() {
-        let request = ResumedDraftRequest(composition: "c-1", draft: resume(subject: "Terms"))
+        let request = ResumedDraftRequest(reopened(subject: "Terms"))
         #expect(ComposeContext.resumedDraft(request).windowTitle == "Terms")
     }
 
     @Test func aDraftWithNoSubjectIsNamedForWhatItIs() {
         // The Window menu, Cmd-Tab and Mission Control read this, and an empty string there is a
         // window with no name at all (`docs/reading-window.md`).
-        let request = ResumedDraftRequest(composition: "c-1", draft: resume(subject: ""))
+        let request = ResumedDraftRequest(reopened(subject: ""))
         #expect(ComposeContext.resumedDraft(request).windowTitle == L10n.compose_title_new())
     }
 }

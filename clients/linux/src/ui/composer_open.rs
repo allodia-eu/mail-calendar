@@ -155,6 +155,7 @@ impl AppModel {
             initial_bcc: String::new(),
             subject,
             initial_body: None,
+            stored_html: None,
             quote,
             initial_from: initial_sender(
                 opened,
