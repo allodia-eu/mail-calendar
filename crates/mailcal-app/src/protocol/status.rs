@@ -97,8 +97,12 @@ pub enum SendStatus {
     /// Neither [`Self::Queued`] (it will not go out by itself) nor [`Self::Failed`] (a re-send
     /// may deliver it twice).
     Unconfirmed,
-    /// The most recent submission failed: the message did **not** go out, and nothing will
-    /// retry it. One the server refused stays in the Outbox until the user acts on it.
+    /// The server **refused** the message: it did not go out, and nothing will retry it. It
+    /// is in the Outbox, its one place now, until the user sends it again, edits it or
+    /// discards it, so the hint says where it is rather than only that it failed.
+    NotSent,
+    /// The most recent submission failed before the Outbox held it: the message did **not**
+    /// go out, and only the composer's draft keeps it.
     Failed,
 }
 

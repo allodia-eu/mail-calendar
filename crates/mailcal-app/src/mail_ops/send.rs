@@ -32,8 +32,10 @@ enum SendOutcome {
     /// on it, and no answer came back. It is in the Outbox, never retried on its own, and
     /// waits for the user or for its copy to appear in Sent.
     Unconfirmed,
-    /// Not delivered, and nothing will retry it: the server refused it, or it never reached
-    /// the outbox at all.
+    /// Not delivered, and nothing will retry it: the server refused it. The Outbox keeps it
+    /// until the user sends it again, edits it or discards it.
+    NotSent,
+    /// Not delivered, and never reached the Outbox: nothing holds it but the composer's draft.
     Failed,
 }
 
@@ -78,6 +80,7 @@ impl<P: Provider> App<P> {
             SendOutcome::SentNotFiled => SendStatus::SentNotFiled,
             SendOutcome::Queued => SendStatus::Queued,
             SendOutcome::Unconfirmed => SendStatus::Unconfirmed,
+            SendOutcome::NotSent => SendStatus::NotSent,
             SendOutcome::Failed => SendStatus::Failed,
         });
         // Every outcome may have changed the Outbox: a queued send joined it, and a rebuild
@@ -88,10 +91,10 @@ impl<P: Provider> App<P> {
         self.rebuild_snapshot().await;
         // The send is what finishes with the composition, not the host.
         //
-        // The message the composer held now lives somewhere that will deliver it, so the draft
-        // beside it is a copy of a message already on its way, and one the user would find in
-        // Drafts long after they sent it. Only a **failed** send keeps it: the composer is gone
-        // by then and those words are nowhere else (`docs/drafts.md`).
+        // Once the Outbox holds the message, whether it went, is waiting, or was refused, that
+        // is its one place, and the draft beside it is a second copy the user would find in
+        // Drafts long after (`docs/drafts.md`). Only a send that never reached the Outbox keeps
+        // it: the composer is gone by then and those words are nowhere else.
         //
         // Either way the record goes. A host dismisses the composer the moment the submit is
         // accepted, which is long before the message has been anywhere, so it cannot be the one
@@ -161,26 +164,31 @@ impl<P: Provider> App<P> {
                 match self.queued_state(account, draft).await {
                     Some((op, PendingOpState::Pending | PendingOpState::InFlight)) => {
                         log::info!(
-                            "send[a{acct}]: not sent yet; it is in the Outbox as queued send                              {op}: {err}"
+                            "send[a{acct}]: not sent yet; it is in the Outbox as queued send \
+                             {op}: {err}"
                         );
                         SendOutcome::Queued
                     }
                     Some((op, PendingOpState::NeedsConfirmation)) => {
                         log::warn!(
-                            "send[a{acct}]: the server may have accepted the message but did not                              confirm it; it is in the Outbox as queued send {op}, waiting for an                              answer, and will not be sent again on its own: {err}"
+                            "send[a{acct}]: the server may have accepted the message but did not \
+                             confirm it; it is in the Outbox as queued send {op}, waiting for an \
+                             answer, and will not be sent again on its own: {err}"
                         );
                         SendOutcome::Unconfirmed
                     }
                     Some((op, _)) => {
                         log::warn!(
-                            "send[a{acct}]: not sent; it stays in the Outbox as queued send {op}                              until it is sent again or discarded: {err}"
+                            "send[a{acct}]: not sent; it stays in the Outbox as queued send {op} \
+                             until it is sent again, edited or discarded: {err}"
                         );
                         self.note_mail_write_error(account, &err);
-                        SendOutcome::Failed
+                        SendOutcome::NotSent
                     }
                     None => {
                         log::error!(
-                            "send[a{acct}]: not sent, and the message was not kept in the                              Outbox: {err}"
+                            "send[a{acct}]: not sent, and the message was not kept in the \
+                             Outbox: {err}"
                         );
                         self.note_mail_write_error(account, &err);
                         SendOutcome::Failed

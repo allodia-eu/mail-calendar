@@ -31,12 +31,19 @@ pub enum OutboxIntent {
     /// sends a message awaiting confirmation; only [`ConfirmNotSent`](Self::ConfirmNotSent)
     /// does, so a row that changed state under the user's click cannot deliver it twice.
     SendNow(QueuedRef),
-    /// Withdraw a queued send and reopen it in the composer.
+    /// Move a queued send back into Drafts and open it in the composer, holding its files.
     ///
-    /// Withdrawing first is what makes this safe: the message leaves the queue before the
-    /// composer opens, so a drain running in the same moment cannot deliver the copy the
-    /// user is editing. Pressing Send in the composer queues a **new** op.
-    Edit(QueuedRef),
+    /// The draft is saved before the send leaves the queue, and the send leaves the queue
+    /// before the composer opens: an app that ends part way leaves the message in both
+    /// places, never in neither, and a drain cannot deliver the copy being edited. Pressing
+    /// Send in the composer queues a **new** op.
+    Edit {
+        /// The queued send.
+        queued: QueuedRef,
+        /// Where the host's composer reads attachments from; the message's files are written
+        /// there before the composer is offered.
+        staging_directory: String,
+    },
     /// The user's answer to a send whose delivery could not be confirmed: it reached its
     /// recipients. It settles and leaves the Outbox, and is never sent again.
     ConfirmSent(QueuedRef),

@@ -6,10 +6,12 @@
 //! decides only what a *person* is offered, and turns each refusal into something the app can
 //! say out loud rather than a silent no-op.
 
-use engine_api::{AccountId, Confirmation, PendingOpKind, PendingOpState, Provider};
+use engine_api::{AccountId, Confirmation, OpRejection, PendingOpKind, PendingOpState, Provider};
 
 use self::outbox_log::{log_action, log_drain_report, log_refusal};
-use crate::{App, ComposeRequest, OutboxIntent, Scope, Surface, reference::QueuedRef};
+use crate::{
+    App, ComposeRequest, CompositionId, OutboxIntent, Scope, Surface, reference::QueuedRef,
+};
 
 #[path = "outbox_log.rs"]
 mod outbox_log;
@@ -21,7 +23,10 @@ impl<P: Provider> App<P> {
             OutboxIntent::Show => self.show_outbox().await,
             OutboxIntent::Cancel(queued) => self.cancel_queued_send(&queued).await,
             OutboxIntent::SendNow(queued) => self.send_queued_now(&queued).await,
-            OutboxIntent::Edit(queued) => self.edit_queued_send(&queued).await,
+            OutboxIntent::Edit {
+                queued,
+                staging_directory,
+            } => self.edit_queued_send(&queued, &staging_directory).await,
             OutboxIntent::ConfirmSent(queued) => {
                 self.confirm_queued_send(&queued, Confirmation::Delivered)
                     .await;
@@ -114,38 +119,69 @@ impl<P: Provider> App<P> {
         self.rebuild_snapshot().await;
     }
 
-    /// Withdraws a queued send and hands it back to the host's composer.
+    /// Moves a queued send back into Drafts and hands it to the host's composer.
     ///
-    /// **Withdraw first, then open.** The other order leaves a window in which a drain pass
-    /// delivers the message the user is editing, and there is no taking that back. If the
-    /// withdrawal is refused the composer never opens: editing a copy of a message that is
-    /// still queued would send it twice.
-    pub(crate) async fn edit_queued_send(&self, queued: &QueuedRef) {
+    /// **Saved first, withdrawn second, offered last.** The draft is durable before the send
+    /// leaves the queue, so an app that ends in between leaves the message in both places,
+    /// never in neither. If the withdrawal is refused the draft is taken away again and the
+    /// composer never opens: editing a copy of a message that is still queued would send it
+    /// twice.
+    pub(crate) async fn edit_queued_send(&self, queued: &QueuedRef, staging: &str) {
         let acct = self.account_ordinal(&queued.account).await;
-        let Some(draft) = self.queued_draft(queued).await else {
+        let Some((draft, state)) = self.queued_send(queued).await else {
             log::warn!(
                 "outbox[a{acct}]: no queued send {} to edit",
                 queued.op.get()
             );
             return;
         };
+        // Asked before anything is written, so a send that may already have gone does not
+        // leave a draft behind; the withdrawal below still decides, for a send that starts
+        // between the two.
+        let refusal = match state {
+            PendingOpState::InFlight => Some(OpRejection::InFlight),
+            PendingOpState::NeedsConfirmation => Some(OpRejection::AwaitingConfirmation),
+            _ => None,
+        };
+        if let Some(refusal) = refusal {
+            log_refusal(acct, queued.op, "edit", refusal);
+            return;
+        }
+        let request = match self
+            .move_to_drafts(&queued.account, queued.op, &draft, staging)
+            .await
+        {
+            Ok(request) => request,
+            Err(why) => {
+                log::warn!(
+                    "outbox[a{acct}]: queued send {} stays in the Outbox: {}",
+                    queued.op.get(),
+                    why.words()
+                );
+                return;
+            }
+        };
+        let composition = CompositionId::new(request.composition.clone())
+            .expect("a composition the core named is not blank");
         match self
             .engine
             .cancel_pending_op(&queued.account, queued.op)
             .await
         {
-            Ok(None) => log_action(acct, queued.op, "withdrawn to be edited"),
+            Ok(None) => log_action(acct, queued.op, "moved back to Drafts to be edited"),
             Ok(Some(refusal)) => {
                 log_refusal(acct, queued.op, "edit", refusal);
+                self.discard_draft(&composition).await;
                 self.rebuild_snapshot().await;
                 return;
             }
             Err(err) => {
                 log::warn!("outbox[a{acct}]: withdrawing a queued send to edit it failed: {err}");
+                self.discard_draft(&composition).await;
                 return;
             }
         }
-        self.raise_compose_request(&queued.account, &draft);
+        self.raise_compose_request(request);
         self.rebuild_snapshot().await;
     }
 
@@ -284,19 +320,10 @@ impl<P: Provider> App<P> {
         self.observer.surface_changed(Surface::ComposeRequest);
     }
 
-    /// Hands the withdrawn message to the host's composer, as a standing request.
-    ///
-    /// The outbox no longer holds it at this point, so this is the only copy: it stays put
-    /// until the host says the composer has it (`Intent::DismissComposeRequest`).
-    fn raise_compose_request(&self, account: &AccountId, draft: &engine_api::Draft) {
-        let request = ComposeRequest {
-            account: account.as_str().to_owned(),
-            to: join(&draft.to),
-            cc: join(&draft.cc),
-            bcc: join(&draft.bcc),
-            subject: draft.subject.clone(),
-            body_text: draft.text_body.clone(),
-        };
+    /// Hands the message moved back into Drafts to the host's composer, as a standing
+    /// request that stays until the host says the composer has it
+    /// (`Intent::DismissComposeRequest`).
+    fn raise_compose_request(&self, request: ComposeRequest) {
         *self
             .compose_request
             .lock()
@@ -304,21 +331,11 @@ impl<P: Provider> App<P> {
         self.observer.surface_changed(Surface::ComposeRequest);
     }
 
-    /// The draft behind a queued send, or `None` when that op is not a send this build can
-    /// read (or has already gone).
-    async fn queued_draft(&self, queued: &QueuedRef) -> Option<engine_api::Draft> {
+    /// The draft behind a queued send and where the send stands, or `None` when that op is not
+    /// a send this build can read (or has already gone).
+    async fn queued_send(&self, queued: &QueuedRef) -> Option<(engine_api::Draft, PendingOpState)> {
         let rows = self.engine.outbox(&queued.account).await.ok()?;
-        rows.iter()
-            .find(|row| row.id == queued.op)
-            .and_then(engine_api::queued_draft)
+        let row = rows.iter().find(|row| row.id == queued.op)?;
+        Some((engine_api::queued_draft(row)?, row.state))
     }
-}
-
-/// A recipient field as the composer takes it: one comma-joined string.
-fn join(addresses: &[engine_api::EmailAddress]) -> String {
-    addresses
-        .iter()
-        .map(|a| a.email.as_str())
-        .collect::<Vec<_>>()
-        .join(", ")
 }

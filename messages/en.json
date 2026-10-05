@@ -231,6 +231,7 @@
 	"send_status_failed": "Couldn't send your message.",
 	"send_status_queued": "Waiting to send.",
 	"send_status_unconfirmed": "Delivery not confirmed. Check the Outbox.",
+	"send_status_not_sent": "Not sent. Your message is in the Outbox.",
 
 	"outbox_waiting": "Waiting to send",
 	"outbox_sending": "Sending…",
@@ -241,6 +242,8 @@
 	"action_cancel_send": "Cancel Send",
 	"action_send_again": "Send Again",
 	"action_mark_sent": "Mark as Sent",
+	"outbox_send_again_title": "Send this message again?",
+	"outbox_send_again_message": "It may already have been delivered. If it was, its recipients will receive it twice. Your Sent folder, or a recipient, can tell you whether it arrived.",
 	"action_edit_queued": "Edit",
 	"unfiled_copy_title": "Your message was sent",
 	"unfiled_copy_body": "“{subject}” reached its recipients, but a copy couldn't be saved in your Sent folder.",

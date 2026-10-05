@@ -60,6 +60,9 @@ pub struct QueuedRow {
     /// A class and protocol detail, never draft content: this reaches a log line and a
     /// host-visible hint (`docs/logging.md`).
     pub detail: Option<String>,
+    /// Whether Edit is offered: false for a send that answers an invitation, whose calendar
+    /// part a composer cannot hold, so editing it would send something else.
+    pub editable: bool,
 }
 
 /// Projects an account's outstanding outbox rows into the Outbox list.
@@ -101,5 +104,6 @@ fn queued_row(account: &str, row: &PendingOpRow) -> Option<QueuedRow> {
         state,
         attempts: row.attempts,
         detail: row.detail.clone(),
+        editable: draft.calendar.is_none(),
     })
 }

@@ -78,6 +78,7 @@ impl From<AppSendStatus> for SendStatus {
             AppSendStatus::SentNotFiled => Self::SentNotFiled,
             AppSendStatus::Queued => Self::Queued,
             AppSendStatus::Unconfirmed => Self::Unconfirmed,
+            AppSendStatus::NotSent => Self::NotSent,
             AppSendStatus::Failed => Self::Failed,
         }
     }
@@ -421,7 +422,14 @@ fn outbox_intent(intent: OutboxIntent) -> Result<AppOutboxIntent, String> {
         OutboxIntent::Show => AppOutboxIntent::Show,
         OutboxIntent::Cancel { account, op } => AppOutboxIntent::Cancel(queued(&account, op)?),
         OutboxIntent::SendNow { account, op } => AppOutboxIntent::SendNow(queued(&account, op)?),
-        OutboxIntent::Edit { account, op } => AppOutboxIntent::Edit(queued(&account, op)?),
+        OutboxIntent::Edit {
+            account,
+            op,
+            staging_directory,
+        } => AppOutboxIntent::Edit {
+            queued: queued(&account, op)?,
+            staging_directory,
+        },
         OutboxIntent::ConfirmSent { account, op } => {
             AppOutboxIntent::ConfirmSent(queued(&account, op)?)
         }

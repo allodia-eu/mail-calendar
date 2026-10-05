@@ -231,6 +231,7 @@
 	"send_status_failed": "Impossible d’envoyer votre message.",
 	"send_status_queued": "En attente d'envoi.",
 	"send_status_unconfirmed": "Remise non confirmée. Consultez la boîte d'envoi.",
+	"send_status_not_sent": "Non envoyé. Votre message se trouve dans la Boîte d'envoi.",
 
 	"outbox_waiting": "En attente d'envoi",
 	"outbox_sending": "Envoi en cours…",
@@ -241,6 +242,8 @@
 	"action_cancel_send": "Annuler l'envoi",
 	"action_send_again": "Renvoyer",
 	"action_mark_sent": "Marquer comme envoyé",
+	"outbox_send_again_title": "Renvoyer ce message ?",
+	"outbox_send_again_message": "Il a peut-être déjà été remis. Dans ce cas, ses destinataires le recevront deux fois. Votre dossier Envoyés, ou un destinataire, peut vous dire s'il est arrivé.",
 	"action_edit_queued": "Modifier",
 	"unfiled_copy_title": "Votre message a été envoyé",
 	"unfiled_copy_body": "« {subject} » est arrivé à ses destinataires, mais aucune copie n’a pu être enregistrée dans votre dossier Envoyés.",

@@ -52,8 +52,11 @@ pub enum SendStatus {
     /// nothing sends it again on its own. Show it as a warning, never as a failure: a re-send
     /// may deliver it twice.
     Unconfirmed,
-    /// The most recent submission failed: the message did **not** go out, and nothing will
-    /// retry it. A refused message stays in the Outbox, from where the user can send it again.
+    /// The server refused it: it did not go out and nothing will retry it. It is in the
+    /// Outbox, which the hint names, until the user sends it again, edits it or discards it.
+    NotSent,
+    /// The most recent submission failed before the Outbox held it: the message did **not**
+    /// go out, and only the composer's draft keeps it.
     Failed,
 }
 
@@ -81,17 +84,24 @@ pub struct QueuedRow {
     /// **Not for the row.** What a user reads is plain language the client writes; this is
     /// carried for the diagnostics screen and support, like `UnfiledCopy::detail`.
     pub detail: Option<String>,
+    /// Whether Edit is offered. False for a send a composer cannot hold (an invitation's
+    /// answer), which a host offers no Edit on.
+    pub editable: bool,
 }
 
 /// A message the core asks the host to open in its composer, unsent.
 ///
-/// Raised when a user edits a queued send: the core withdraws it from the Outbox first, so
-/// by the time this exists the message is **nowhere else**. A host opens its composer with
-/// these fields and then dismisses the request (`Intent::DismissComposeRequest`).
+/// Raised when a user edits a queued send: the core saves it back into Drafts, then withdraws
+/// it from the Outbox. A host opens its composer **on `composition`** with these fields and
+/// files, so its saves replace that draft and its send takes it away, and then dismisses the
+/// request (`Intent::DismissComposeRequest`).
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct ComposeRequest {
     /// The account to send from.
     pub account: String,
+    /// The composition the draft was saved under: the composer adopts it rather than minting
+    /// its own.
+    pub composition: String,
     /// The `To` field, comma-joined.
     pub to: String,
     /// The `Cc` field, comma-joined.
@@ -102,6 +112,10 @@ pub struct ComposeRequest {
     pub subject: String,
     /// The body, as plain text.
     pub body_text: String,
+    /// The message's files, already written into the staging directory named on
+    /// `OutboxIntent::Edit`. The composer must open holding all of them: its first save
+    /// replaces the draft, so a file left out is taken off it.
+    pub attachments: Vec<crate::ComposerFileAttachment>,
 }
 
 impl From<AppQueuedState> for QueuedState {
@@ -125,6 +139,7 @@ impl From<AppQueuedRow> for QueuedRow {
             state: row.state.into(),
             attempts: row.attempts,
             detail: row.detail,
+            editable: row.editable,
         }
     }
 }
@@ -136,8 +151,18 @@ impl From<mailcal_app::ComposeRequest> for ComposeRequest {
             to: request.to,
             cc: request.cc,
             bcc: request.bcc,
+            composition: request.composition,
             subject: request.subject,
             body_text: request.body_text,
+            attachments: request
+                .attachments
+                .into_iter()
+                .map(|file| crate::ComposerFileAttachment {
+                    path: file.path,
+                    file_name: file.file_name,
+                    media_type: file.media_type,
+                })
+                .collect(),
         }
     }
 }

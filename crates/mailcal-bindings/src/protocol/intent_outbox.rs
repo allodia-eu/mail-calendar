@@ -38,16 +38,20 @@ pub enum OutboxIntent {
         /// The queued send's op id, from `QueuedRow::op`.
         op: u64,
     },
-    /// Withdraw a queued send and reopen it in this client's composer.
+    /// Move a queued send back into Drafts and open it in this client's composer.
     ///
-    /// The app withdraws it **first**, then raises `Surface::ComposeRequest` carrying the
-    /// message; a host opens its composer from that and dismisses the request. Pressing Send
-    /// there queues a new message.
+    /// The app saves it as a draft, withdraws it from the Outbox, then raises
+    /// `Surface::ComposeRequest` carrying the message, its files and the composition to open
+    /// on; a host opens its composer from that and dismisses the request. Pressing Send there
+    /// queues a new message. Offered only where `QueuedRow::editable`.
     Edit {
         /// The account whose outbox holds it.
         account: String,
         /// The queued send's op id, from `QueuedRow::op`.
         op: u64,
+        /// The host's staging directory, where the message's files are written for the
+        /// composer to attach, as for `resume_draft`.
+        staging_directory: String,
     },
     /// Answer a send awaiting confirmation: it reached its recipients. It leaves the Outbox and
     /// is never sent again.

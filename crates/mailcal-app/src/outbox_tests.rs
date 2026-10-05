@@ -163,8 +163,8 @@ async fn a_refused_send_stays_in_the_outbox_until_the_user_acts() {
     let submissions = provider.submissions();
     let app = app_over(provider);
 
-    let task = dispatch_until(&app, plain_send(), SendStatus::Failed).await;
-    assert_eq!(app.send_status(), SendStatus::Failed);
+    let task = dispatch_until(&app, plain_send(), SendStatus::NotSent).await;
+    assert_eq!(app.send_status(), SendStatus::NotSent);
     let queued = outbox_holding(&app, 1).await[0].clone();
     assert_eq!(queued.state, QueuedState::NotSent);
     assert_eq!(queued.subject, "Hi");
@@ -260,38 +260,6 @@ async fn a_queued_send_goes_out_when_the_user_asks() {
         app.mailbox_list().outbox.is_empty(),
         "the send went out, so it leaves the Outbox"
     );
-}
-
-/// Editing a queued send **withdraws it first**, then hands the message to the host's
-/// composer. The other order leaves a window in which a drain delivers the message the user
-/// is editing, and there is no taking that back.
-#[tokio::test(start_paused = true)]
-async fn editing_a_queued_send_withdraws_it_before_offering_the_composer() {
-    let app = app_over(SubmitProvider::offline());
-    dispatch_until(&app, plain_send(), SendStatus::Queued)
-        .await
-        .await
-        .unwrap();
-    let queued = outbox_holding(&app, 1).await[0].clone();
-
-    app.dispatch(Intent::Outbox(OutboxIntent::Edit(
-        QueuedRef::from_parts(&queued.account, queued.op).unwrap(),
-    )))
-    .await;
-
-    assert!(
-        app.mailbox_list().outbox.is_empty(),
-        "it must leave the queue before the composer can hold it"
-    );
-    let request = app.compose_request().expect("the message is offered back");
-    assert_eq!(request.subject, "Hi");
-    assert_eq!(request.to, "you@test.local");
-    assert_eq!(request.account, "acct-1");
-
-    // Standing until the host says its composer has it: the Outbox no longer holds the
-    // message, so an unanswered request is the only copy.
-    app.dispatch(Intent::DismissComposeRequest).await;
-    assert!(app.compose_request().is_none());
 }
 
 /// Coming back online sends what was written while there was no network, without the user

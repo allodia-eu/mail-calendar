@@ -231,6 +231,7 @@
 	"send_status_failed": "Ihre Nachricht kann nicht gesendet werden.",
 	"send_status_queued": "Wartet auf Versand.",
 	"send_status_unconfirmed": "Zustellung nicht bestätigt. Prüfen Sie den Postausgang.",
+	"send_status_not_sent": "Nicht gesendet. Ihre Nachricht liegt im Postausgang.",
 
 	"outbox_waiting": "Wartet auf Versand",
 	"outbox_sending": "Wird gesendet…",
@@ -241,6 +242,8 @@
 	"action_cancel_send": "Senden abbrechen",
 	"action_send_again": "Erneut senden",
 	"action_mark_sent": "Als gesendet markieren",
+	"outbox_send_again_title": "Diese Nachricht erneut senden?",
+	"outbox_send_again_message": "Sie wurde möglicherweise bereits zugestellt. In diesem Fall erhalten die Empfänger sie zweimal. Ihr Ordner „Gesendet“ oder ein Empfänger kann Ihnen sagen, ob sie angekommen ist.",
 	"action_edit_queued": "Bearbeiten",
 	"unfiled_copy_title": "Ihre Nachricht wurde gesendet",
 	"unfiled_copy_body": "„{subject}“ hat die Empfänger erreicht, aber im Ordner „Gesendet“ konnte keine Kopie gespeichert werden.",

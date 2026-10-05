@@ -19,8 +19,8 @@ use std::sync::{
 use mailcal_viewmodel::{QueuedRow, QueuedState};
 
 use super::{
-    SubmitProvider, app_over, dispatch_until, fake::CutOff, outbox_tests::outbox_holding,
-    plain_send,
+    SubmitProvider, app_over, dispatch_until, fake::CutOff, outbox_edit_tests::staging,
+    outbox_tests::outbox_holding, plain_send,
 };
 use crate::{App, Intent, OutboxIntent, QueuedRef, SendStatus};
 
@@ -101,7 +101,10 @@ async fn a_send_cut_off_after_the_hand_over_is_never_sent_again_unasked() {
     for intent in [
         OutboxIntent::SendNow(target(&row)),
         OutboxIntent::Cancel(target(&row)),
-        OutboxIntent::Edit(target(&row)),
+        OutboxIntent::Edit {
+            queued: target(&row),
+            staging_directory: staging(),
+        },
     ] {
         app.dispatch(Intent::Outbox(intent)).await;
     }

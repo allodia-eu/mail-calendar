@@ -1,6 +1,7 @@
 //! What a send does to the draft the composer was writing (`docs/drafts.md`).
 //!
-//! An accepted send takes the stored copy away, a failed one leaves it, and either way the
+//! A send the Outbox holds takes the stored copy away, whether it went, is waiting or was
+//! refused, because the Outbox is then the message's one place; and either way the
 //! composition is finished with: the composer was dismissed the moment the submit was accepted,
 //! long before the message had been anywhere, so nothing is left that could still save under it.
 //!
@@ -56,13 +57,11 @@ async fn an_accepted_send_takes_the_stored_draft_away() {
     );
 }
 
-/// A send that **failed** keeps the draft.
-///
-/// This is the one outcome where the stored copy is the only one left: the message never
-/// reached a server, nothing will retry it, and the host has already dismissed the composer
-/// that held the words. Removing it here would be the send losing the user's message.
+/// A send the server **refused** takes the draft away too: the Outbox keeps the message, whole,
+/// until the user sends it again, edits it back into Drafts or discards it, so a copy left in
+/// Drafts would be a second place holding it, and sending both would deliver it twice.
 #[tokio::test(start_paused = true)]
-async fn a_failed_send_leaves_the_draft_where_the_words_are() {
+async fn a_refused_send_moves_the_message_out_of_drafts_and_into_the_outbox() {
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]).failing_send());
     app.dispatch(Intent::RefreshMail).await;
     app.resume_draft(composition("c1"), draft_ref("d1"), &staging_dir("failed"))
@@ -79,15 +78,23 @@ async fn a_failed_send_leaves_the_draft_where_the_words_are() {
         blobs: Vec::new(),
         composition: Some(composition("c1")),
     };
-    dispatch_until(&app, intent, SendStatus::Failed)
+    dispatch_until(&app, intent, SendStatus::NotSent)
         .await
         .await
         .expect("the send finishes");
 
-    assert!(
-        logs.draft_deletes.lock().unwrap().is_empty(),
-        "nothing else holds the message, so the draft stays"
+    assert_eq!(
+        logs.draft_deletes.lock().unwrap().as_slice(),
+        &[ProviderKey::new("d1").unwrap()],
+        "the Outbox holds the message now, so the draft is a second copy"
     );
+    let outbox = app.mailbox_list().outbox;
+    assert_eq!(
+        outbox.len(),
+        1,
+        "and the message is not lost: it is in the Outbox"
+    );
+    assert_eq!(outbox[0].state, mailcal_viewmodel::QueuedState::NotSent);
 }
 
 /// A send from a composer that never saved reaches no server about a draft.
@@ -150,13 +157,13 @@ async fn a_queued_send_takes_the_stored_draft_away_as_well() {
     assert_eq!(deletes.as_slice(), &[ProviderKey::new("d1").unwrap()]);
 }
 
-/// A **failed** send keeps the draft and still forgets the composition.
+/// A **refused** send forgets the composition as well as taking its draft.
 ///
 /// The composer was dismissed the moment the submit was accepted, so by the time the send has
 /// settled there is nobody left to save under that id. Leaving the record would keep it for the
 /// life of the process, and hand it to whatever composer took the id next.
 #[tokio::test(start_paused = true)]
-async fn a_failed_send_forgets_the_composition_it_would_not_discard() {
+async fn a_refused_send_forgets_the_composition() {
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]).failing_send());
     app.dispatch(Intent::RefreshMail).await;
     app.resume_draft(
@@ -177,14 +184,11 @@ async fn a_failed_send_forgets_the_composition_it_would_not_discard() {
         blobs: Vec::new(),
         composition: Some(composition("c1")),
     };
-    dispatch_until(&app, intent, SendStatus::Failed)
+    dispatch_until(&app, intent, SendStatus::NotSent)
         .await
         .await
         .expect("the send finishes");
-    assert!(
-        logs.draft_deletes.lock().unwrap().is_empty(),
-        "nothing will retry the message, so the stored copy is the only one left"
-    );
+    assert_eq!(logs.draft_deletes.lock().unwrap().len(), 1);
 
     // Asked of the record rather than of a field: a discard on a composition the core still
     // held would name its key and take the draft, which is exactly what must no longer be
@@ -193,8 +197,9 @@ async fn a_failed_send_forgets_the_composition_it_would_not_discard() {
         composition: composition("c1"),
     }))
     .await;
-    assert!(
-        logs.draft_deletes.lock().unwrap().is_empty(),
+    assert_eq!(
+        logs.draft_deletes.lock().unwrap().len(),
+        1,
         "the send finished with the composition, so nothing can still be saving under it"
     );
 }
