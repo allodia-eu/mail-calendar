@@ -13,6 +13,7 @@ mod links;
 mod lists;
 mod mailto;
 mod quotes;
+mod rendered_fixture;
 mod share;
 mod signatures;
 

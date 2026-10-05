@@ -65,25 +65,17 @@ export function renderQuoteAttribution(container: HTMLElement): void {
   }
 }
 
-/// Seeds the editor for a reply or forward: a paragraph for the user's message above the quoted
-/// original.
-export function setComposerQuote(editor: HTMLElement, seed: QuoteSeed): void {
-  const doc = documentOf(editor);
-  editor.innerHTML = "";
-
-  const initialText = typeof seed.initial_text === "string" ? seed.initial_text : "";
-  const lead = doc.createElement("p");
-  if (initialText) lead.textContent = initialText;
-  else lead.appendChild(doc.createElement("br"));
-  editor.appendChild(lead);
-
-  const attribution: QuoteAttribution = seed.attribution ?? { line: "", headers: [] };
+/// The quoted original's region, built from a `Quote` value: the display-only attribution over
+/// the editable body. One builder for the reply seed and for a stored body reopened in the composer
+/// (`setComposerBody`), so a reopened draft's quote is the region its reply opened with.
+export function quoteContainer(doc: Document, quote: Partial<QuoteValue>): HTMLElement {
+  const attribution: QuoteAttribution = quote.attribution ?? { line: "", headers: [] };
   const container = doc.createElement("div");
   container.className = "allodia-quote";
-  container.dataset.quoteStyle = readStyle(seed.style);
+  container.dataset.quoteStyle = readStyle(quote.style);
   container.dataset.quoteLine = attribution.line || "";
   container.dataset.quoteHeaders = JSON.stringify(attribution.headers || []);
-  container.dataset.quotePlain = seed.body_plain || "";
+  container.dataset.quotePlain = quote.body_plain || "";
 
   const attr = doc.createElement("div");
   attr.className = "aq-attr";
@@ -92,8 +84,8 @@ export function setComposerQuote(editor: HTMLElement, seed: QuoteSeed): void {
 
   const body = doc.createElement("div");
   body.className = "aq-body";
-  if (seed.body_html) {
-    body.innerHTML = seed.body_html;
+  if (quote.body_html) {
+    body.innerHTML = quote.body_html;
   } else {
     // A plain-text original. Falling through to an empty `innerHTML` here is how the quoted message
     // used to VANISH: a message with no `text/html` part arrives with `body_html` empty, and the
@@ -113,13 +105,27 @@ export function setComposerQuote(editor: HTMLElement, seed: QuoteSeed): void {
     const plain = doc.createElement("div");
     plain.className = "aq-plain";
     plain.style.whiteSpace = "pre-wrap";
-    plain.textContent = seed.body_plain || "";
+    plain.textContent = quote.body_plain || "";
     body.appendChild(plain);
   }
   container.appendChild(body);
 
   renderQuoteAttribution(container);
-  editor.appendChild(container);
+  return container;
+}
+
+/// Seeds the editor for a reply or forward: a paragraph for the user's message above the quoted
+/// original.
+export function setComposerQuote(editor: HTMLElement, seed: QuoteSeed): void {
+  const doc = documentOf(editor);
+  editor.innerHTML = "";
+
+  const initialText = typeof seed.initial_text === "string" ? seed.initial_text : "";
+  const lead = doc.createElement("p");
+  if (initialText) lead.textContent = initialText;
+  else lead.appendChild(doc.createElement("br"));
+  editor.appendChild(lead);
+  editor.appendChild(quoteContainer(doc, seed));
 
   // The caret goes in the lead paragraph, above the quote; at its end when it was pre-filled, so
   // the user carries on typing after the seeded text.

@@ -58,8 +58,7 @@ export function setComposerSignature(editor: HTMLElement, signature: SignatureVa
   }
 
   if (!container) {
-    container = doc.createElement("div");
-    container.className = "allodia-signature";
+    container = signatureContainer(doc, signature);
     const quote = editor.querySelector(".allodia-quote");
     if (quote) editor.insertBefore(container, quote);
     else editor.appendChild(container);
@@ -72,7 +71,21 @@ export function setComposerSignature(editor: HTMLElement, signature: SignatureVa
       lead.appendChild(doc.createElement("br"));
       editor.insertBefore(lead, container);
     }
+    return;
   }
+  fillSignature(container, signature);
+}
+
+/// A signature region holding `signature`, not yet placed. `setComposerSignature` decides where a
+/// new one goes; a stored body reopened in the composer (`setComposerBody`) already says.
+export function signatureContainer(doc: Document, signature: SignatureValue): HTMLElement {
+  const container = doc.createElement("div");
+  container.className = "allodia-signature";
+  fillSignature(container, signature);
+  return container;
+}
+
+function fillSignature(container: HTMLElement, signature: SignatureValue): void {
   container.innerHTML = signature.body_html;
   container.dataset.signaturePlain = signature.body_plain || "";
 }
