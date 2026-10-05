@@ -8,7 +8,10 @@
 //! A child of [`super`] (the send tests), reusing its `SubmitProvider` and app builders; split
 //! into its own file to keep each test module under the 500-line limit.
 
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use mailcal_viewmodel::QueuedRow;
 
@@ -57,6 +60,75 @@ async fn a_send_the_server_refused_is_kept_in_the_outbox() {
     assert_eq!(queued.account, "acct-1");
     assert_eq!(queued.attempts, 1);
     task.await.unwrap();
+}
+
+/// Waits until a sync is parked on the silent server, so what a test reads next is what the
+/// user sees while that sync has still not come back.
+async fn until_a_sync_is_parked(parked: &AtomicUsize) {
+    for _ in 0..100_000 {
+        if parked.load(Ordering::SeqCst) > 0 {
+            return;
+        }
+        tokio::task::yield_now().await;
+    }
+    panic!("no sync ever reached the silent server");
+}
+
+/// **A server that accepts the connection and then says nothing.** The send fails at its own
+/// deadline and queues, but the sync that follows it has no deadline of its own, so an Outbox
+/// published only by that sync's rebuild is not published for as long as the server stays
+/// silent: the hint says "waiting to send" and the pane offers nowhere to look.
+#[tokio::test(start_paused = true)]
+async fn a_queued_send_reaches_the_outbox_while_the_server_stays_silent() {
+    let provider = SubmitProvider::offline();
+    provider.silence().store(true, Ordering::SeqCst);
+    let parked = provider.parked_syncs();
+    let app = app_over(provider);
+
+    let task = dispatch_until(&app, plain_send(), SendStatus::Queued).await;
+    until_a_sync_is_parked(&parked).await;
+
+    let outbox = app.mailbox_list().outbox;
+    assert_eq!(
+        outbox.len(),
+        1,
+        "the queue is in the store, so the Outbox must not wait for the server to answer"
+    );
+    assert_eq!(outbox[0].subject, "Hi");
+    task.abort();
+}
+
+/// The same for a queued send that goes out on "Send now": it leaves the Outbox when it is
+/// delivered, not when the sync after it comes back.
+#[tokio::test(start_paused = true)]
+async fn a_delivered_send_leaves_the_outbox_while_the_server_stays_silent() {
+    let provider = SubmitProvider::offline_for(1);
+    let silence = provider.silence();
+    let parked = provider.parked_syncs();
+    let app = app_over(provider);
+    dispatch_until(&app, plain_send(), SendStatus::Queued)
+        .await
+        .await
+        .unwrap();
+    let queued = outbox_holding(&app, 1).await[0].clone();
+
+    silence.store(true, Ordering::SeqCst);
+    let task = tokio::spawn({
+        let app = Arc::clone(&app);
+        async move {
+            app.dispatch(Intent::Outbox(OutboxIntent::SendNow(
+                QueuedRef::from_parts(&queued.account, queued.op).unwrap(),
+            )))
+            .await;
+        }
+    });
+    until_a_sync_is_parked(&parked).await;
+
+    assert!(
+        app.mailbox_list().outbox.is_empty(),
+        "the send went out, so it leaves the Outbox before the server is heard from again"
+    );
+    task.abort();
 }
 
 /// **The airplane-mode case, and the one a user actually meets.** A device with no network is

@@ -90,6 +90,11 @@ core, the bindings, and the native host land in one stream.
   counts, an `unavailable` source's server-given reason, and a per-pass summary; the reads log
   row/match counts with durations. The point is that "Contacts is empty" resolves to the stage
   that produced nothing instead of to a guess. Same test file gates that the lines exist.
+- **A send says it has started before it goes out.** An interactive send logs
+  `send[a0]: submitting a message` ahead of its round trip, and a drain pass logs
+  `outbox[a0]: retrying a queued send, attempt 2` for each queued send it is about to retry, so a
+  send that never comes back still left a line saying it began. Neither carries anything of the
+  message: no subject, address or `Message-ID`.
 
 ## The shared bar
 

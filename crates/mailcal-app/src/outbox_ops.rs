@@ -6,7 +6,7 @@
 //! decides only what a *person* is offered, and turns each refusal into something the app can
 //! say out loud rather than a silent no-op.
 
-use engine_api::{AccountId, OpRejection, Provider};
+use engine_api::{AccountId, OpRejection, PendingOpKind, PendingOpState, Provider};
 
 use crate::{App, ComposeRequest, OutboxIntent, Scope, Surface, reference::QueuedRef};
 
@@ -136,6 +136,7 @@ impl<P: Provider> App<P> {
         // Read before the pass: a change that settles leaves the queue, and a refused one still
         // has to be named on the pane.
         let folder_changes = self.queued_folder_changes(account).await;
+        self.log_due_sends(account).await;
         match self.engine.drain_outbox(provider, account).await {
             Ok(report) if report.is_idle() => {}
             Ok(report) => {
@@ -149,9 +150,48 @@ impl<P: Provider> App<P> {
                 self.record_drained_drafts(&report);
                 self.settle_drained_folder_changes(provider, account, &report, &folder_changes)
                     .await;
+                // A send that went out leaves the Outbox, and one that failed again carries a
+                // new attempt count. Both are in the store now, so they are published before
+                // the sync below, which a silent server can hold indefinitely. After the folder
+                // settle rather than before it: a drained rename is out of the queue but not yet
+                // in the stored tree until that settle re-reads it.
+                if report
+                    .attempted
+                    .iter()
+                    .any(|op| op.kind == PendingOpKind::MailSubmit)
+                {
+                    self.rebuild_snapshot().await;
+                }
                 self.refresh_after_write(account).await;
             }
             Err(err) => log::warn!("outbox: a drain pass failed: {err}"),
+        }
+    }
+
+    /// Logs each queued send the drain pass about to run will retry, before it runs, so a
+    /// retry that never comes back still left a line saying it started.
+    ///
+    /// Which op is due is the engine's decision: this reads the same two facts it does (the op
+    /// is waiting, and its backoff has elapsed) for a log line, never to decide anything. A
+    /// send serialised behind another write on the same resource is named here and then left
+    /// for a later pass, which the summary line after the pass shows.
+    async fn log_due_sends(&self, account: &AccountId) {
+        let Ok(queued) = self.engine.outbox(account).await else {
+            return;
+        };
+        let Ok(now) = crate::helpers::now_utc() else {
+            return;
+        };
+        let acct = self.account_ordinal(account).await;
+        for row in queued.iter().filter(|row| {
+            row.kind == Some(PendingOpKind::MailSubmit)
+                && row.state == PendingOpState::Pending
+                && row.next_attempt_at.is_none_or(|due| due <= now)
+        }) {
+            log::info!(
+                "outbox[a{acct}]: retrying a queued send, attempt {}",
+                row.attempts.saturating_add(1)
+            );
         }
     }
 
