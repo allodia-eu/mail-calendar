@@ -29,7 +29,7 @@ use super::{
     search::SearchBar,
     selection_bar::{self, SelectionBar, SelectionCountPane},
     selection_input::{selection_gesture, selection_keys, sync_selection},
-    settings::SettingsWindow,
+    settings::{PaneComposer, SettingsWindow},
     setup::SetupWindow,
     setup_widgets::SenderNamePrompt,
     shell_sidebar::{restore_pane_width, sidebar_pane},
@@ -354,8 +354,12 @@ impl AppWidgets {
         let selection = model.selection.summary(&model.snapshot.rows);
         self.selection_bar.render(selection);
         self.selection_pane.render(selection, &model.snapshot.mode);
+        let pane = PaneComposer::of(
+            model.composer.is_some(),
+            self.composer.is_active(model.composer_generation),
+        );
+        self.settings.give_way(pane, model.draft_check.is_some());
         if let Some(request) = &model.composer {
-            self.settings.close();
             if !self.composer.is_active(model.composer_generation) {
                 self.reading.suspend();
                 let accounts = super::detached::sender_accounts(model);
@@ -414,9 +418,6 @@ impl AppWidgets {
         }
         self.sync_strip
             .set_visible(model.sync_bar.is_some() || model.sync_status.is_some());
-        if model.draft_check.is_some() {
-            self.settings.close();
-        }
         self.settings.render(
             model.settings.render_state(
                 model.credential_repair_failed.as_deref(),

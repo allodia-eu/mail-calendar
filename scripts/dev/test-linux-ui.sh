@@ -1024,6 +1024,12 @@ PY
   "$PYTHON" "$ATSPI" activate --name "Mail" --timeout 20
   "$PYTHON" "$ATSPI" activate --name "New Mail" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "To" --role text --enabled --showing --timeout 30
+  # Settings opens over a composer and stays until closed, and the composer is still there after.
+  "$PYTHON" "$ATSPI" activate --name "Settings" --timeout 20
+  "$PYTHON" "$ATSPI" activate \
+    --name "Done" --within "Settings" --within-role frame --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Settings" --role frame --absent --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "To" --role text --enabled --showing --timeout 20
   # `--role text`: the caption label beside the field carries the same accessible name on purpose
   # (that association is what tells a screen reader To from Bcc), and only the entry takes text.
   "$PYTHON" "$ATSPI" set-text --name "To" --role text --text "sofie" --timeout 20

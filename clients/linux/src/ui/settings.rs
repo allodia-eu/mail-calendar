@@ -133,6 +133,26 @@ struct PageContext {
     account: Option<String>,
 }
 
+/// The main window's composer, as one render finds it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PaneComposer {
+    Absent,
+    /// This render puts it in the pane.
+    Arriving,
+    /// An earlier render put it there.
+    Shown,
+}
+
+impl PaneComposer {
+    pub(super) const fn of(open: bool, already_shown: bool) -> Self {
+        match (open, already_shown) {
+            (false, _) => Self::Absent,
+            (true, false) => Self::Arriving,
+            (true, true) => Self::Shown,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub(super) struct SettingsWindow {
     window: Option<gtk::Window>,
@@ -282,6 +302,18 @@ impl SettingsWindow {
         let same = pages.visible_child_name().as_deref() == Some(state.category.name())
             && self.drawn_account.as_deref() == state.account;
         same.then(|| redraw::offset(pages)).flatten()
+    }
+
+    /// Takes the window down for what has to be in front of the person instead: a composer
+    /// arriving in the pane, or a navigation waiting for the pane's composer to be left.
+    ///
+    /// A composer already in the pane leaves it open. Settings is a window of its own, so opening
+    /// it does not leave the composer, which stays where it is with its draft (`docs/drafts.md`),
+    /// as it does under Settings on macOS and Windows.
+    pub(super) fn give_way(&mut self, composer: PaneComposer, leaving_composer: bool) {
+        if composer == PaneComposer::Arriving || leaving_composer {
+            self.close();
+        }
     }
 
     pub(super) fn close(&mut self) {

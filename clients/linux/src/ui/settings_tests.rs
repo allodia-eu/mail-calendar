@@ -5,7 +5,9 @@
 
 use adw::prelude::*;
 
-use super::{CATEGORIES, Category, Redraw, SettingsState, SettingsWindow, initial_category};
+use super::{
+    CATEGORIES, Category, PaneComposer, Redraw, SettingsState, SettingsWindow, initial_category,
+};
 
 /// A generation is either a request to **open** the window or a redraw of an open one, and the
 /// two must not leak into each other.
@@ -108,15 +110,20 @@ fn the_cores_signal_redraws_the_accounts_page_and_no_other() {
     assert_eq!(signalled.category, Category::Accounts);
 }
 
+/// The window's checks that need a real `gtk::Window`. Called from the crate's single `gtk::init`
+/// test.
+pub(crate) fn the_window_is_on_screen_only_while_it_should_be() {
+    a_closed_settings_window_is_not_on_screen();
+    settings_stays_open_over_a_composer_already_in_the_pane();
+}
+
 /// The question the refresh guard has to ask, and the trap it sits in.
 ///
 /// A user closes this window through GTK: the title bar's close button and Escape both call
 /// `close()` on the widget, which destroys it but leaves the model's handle holding it. So
 /// `is_some()` still answers yes on the only path a person actually takes, and a guard written on
 /// it never fires: an Allodia redirect landing afterwards put Settings back over the user's mail.
-///
-/// Called from the crate's single `gtk::init` test.
-pub(crate) fn a_closed_settings_window_is_not_on_screen() {
+fn a_closed_settings_window_is_not_on_screen() {
     let mut settings = SettingsWindow::default();
     assert!(!settings.is_on_screen(), "nothing has been opened yet");
 
@@ -208,6 +215,42 @@ fn state_only_one_page_draws_redraws_that_page_and_no_other() {
     let redrawn = state.render_state(None, &synced);
     assert!(redrawn.generation > opened);
     assert_eq!(redrawn.redraw, Redraw::InPlace);
+}
+
+/// Settings opens over a composer and stays open: it is a window of its own, so opening it does
+/// not leave the composer, and the composer keeps its draft by staying where it is
+/// (`docs/drafts.md`). Only a composer *arriving*, from a mail link or a share, is put in front.
+///
+/// The regression: every render with a composer in the pane closed Settings, and opening Settings
+/// is itself followed by a render (its sidebar reports the page it opened on), so the window went
+/// as soon as it came.
+fn settings_stays_open_over_a_composer_already_in_the_pane() {
+    let mut settings = SettingsWindow::default();
+    let window = gtk::Window::new();
+    window.present();
+    settings.window = Some(window);
+
+    settings.give_way(PaneComposer::Shown, false);
+    assert!(
+        settings.is_on_screen(),
+        "a composer already in the pane leaves Settings open"
+    );
+    settings.give_way(PaneComposer::Absent, false);
+    assert!(settings.is_on_screen(), "and so does no composer at all");
+
+    settings.give_way(PaneComposer::Arriving, false);
+    assert!(
+        !settings.is_on_screen(),
+        "a composer arriving in the pane is put in front of Settings"
+    );
+}
+
+#[test]
+fn a_render_tells_a_composer_arriving_from_one_already_shown() {
+    assert_eq!(PaneComposer::of(false, false), PaneComposer::Absent);
+    assert_eq!(PaneComposer::of(false, true), PaneComposer::Absent);
+    assert_eq!(PaneComposer::of(true, false), PaneComposer::Arriving);
+    assert_eq!(PaneComposer::of(true, true), PaneComposer::Shown);
 }
 
 /// The sidebar selection counts rows the sidebar actually has.
