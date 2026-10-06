@@ -67,20 +67,22 @@ pub(super) fn server_group(
         l10n::settings_account_servers_heading(),
         &description(&entry.address, expired),
     );
-    let imap = endpoints.imap_host.as_deref().map(|host| {
+    let imap = endpoints.imap_host.as_deref().map(|address| {
         server_rows(
             &section,
             l10n::settings_account_field_imap(),
-            host,
+            address,
             endpoints.imap_security,
+            Server::Imap,
         )
     });
-    let smtp = endpoints.smtp_host.as_deref().map(|host| {
+    let smtp = endpoints.smtp_host.as_deref().map(|address| {
         server_rows(
             &section,
             l10n::setup_field_smtp(),
-            host,
+            address,
             endpoints.smtp_security,
+            Server::Smtp,
         )
     });
     let caldav = endpoints
@@ -112,10 +114,10 @@ pub(super) fn server_group(
     let original = endpoints.clone();
     save.connect_activated(move |_| {
         let fields = Fields {
-            imap_host: imap.as_ref().map(|(host, _)| host.text().to_string()),
-            imap_security: imap.as_ref().map(|(_, security)| security_of(security)),
-            smtp_host: smtp.as_ref().map(|(host, _)| host.text().to_string()),
-            smtp_security: smtp.as_ref().map(|(_, security)| security_of(security)),
+            imap_host: imap.as_ref().map(ServerRows::address),
+            imap_security: imap.as_ref().map(ServerRows::security),
+            smtp_host: smtp.as_ref().map(ServerRows::address),
+            smtp_security: smtp.as_ref().map(ServerRows::security),
             caldav_url: caldav.as_ref().map(|row| row.text().to_string()),
             carddav_url: carddav.as_ref().map(|row| row.text().to_string()),
             username: username.text().to_string(),
@@ -142,14 +144,98 @@ fn entry_row(section: &adw::PreferencesGroup, title: &str, text: &str) -> adw::E
     row
 }
 
-/// A server's address and, beneath it, how the connection is secured.
+/// Which server a row edits, for the port it takes by default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Server {
+    Imap,
+    Smtp,
+}
+
+impl Server {
+    /// The standard port for `security`, which a stored address leaves out.
+    pub(super) const fn default_port(self, security: ConnectionSecurity) -> u16 {
+        match (self, security) {
+            (Self::Imap, ConnectionSecurity::ImplicitTls) => 993,
+            (Self::Imap, ConnectionSecurity::StartTls) => 143,
+            (Self::Smtp, ConnectionSecurity::ImplicitTls) => 465,
+            (Self::Smtp, ConnectionSecurity::StartTls) => 587,
+        }
+    }
+}
+
+/// A stored address, `host` or `host:port`, as its host and its port, the default one when it
+/// names none.
+pub(super) fn split(
+    address: &str,
+    server: Server,
+    security: ConnectionSecurity,
+) -> (String, String) {
+    let named = address.rsplit_once(':').filter(|(host, port)| {
+        !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) && !host.contains(':')
+    });
+    match named {
+        Some((host, port)) => (host.to_owned(), port.to_owned()),
+        None => (
+            address.to_owned(),
+            server.default_port(security).to_string(),
+        ),
+    }
+}
+
+/// The address to store: the bare host when the port is the default for `security` or left
+/// empty, `host:port` otherwise.
+pub(super) fn joined(
+    host: &str,
+    port: &str,
+    server: Server,
+    security: ConnectionSecurity,
+) -> String {
+    let (host, port) = (host.trim(), port.trim());
+    if port.is_empty() || port == server.default_port(security).to_string() {
+        host.to_owned()
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
+/// One server's rows: its host, its port, and how the connection is secured.
+struct ServerRows {
+    host: adw::EntryRow,
+    port: adw::EntryRow,
+    picker: adw::ComboRow,
+    server: Server,
+}
+
+impl ServerRows {
+    fn security(&self) -> ConnectionSecurity {
+        if self.picker.selected() == 1 {
+            ConnectionSecurity::StartTls
+        } else {
+            ConnectionSecurity::ImplicitTls
+        }
+    }
+
+    fn address(&self) -> String {
+        joined(
+            &self.host.text(),
+            &self.port.text(),
+            self.server,
+            self.security(),
+        )
+    }
+}
+
 fn server_rows(
     section: &adw::PreferencesGroup,
     title: &str,
-    host: &str,
+    address: &str,
     security: ConnectionSecurity,
-) -> (adw::EntryRow, adw::ComboRow) {
-    let host = entry_row(section, title, host);
+    server: Server,
+) -> ServerRows {
+    let (host, port) = split(address, server, security);
+    let host = entry_row(section, title, &host);
+    let port = entry_row(section, l10n::setup_field_port(), &port);
+    port.set_input_purpose(gtk::InputPurpose::Digits);
     let choices = gtk::StringList::new(&[
         l10n::setup_security_implicit_tls(),
         l10n::setup_security_starttls(),
@@ -161,14 +247,28 @@ fn server_rows(
         .use_markup(false)
         .build();
     section.add(&picker);
-    (host, picker)
-}
-
-fn security_of(picker: &adw::ComboRow) -> ConnectionSecurity {
-    if picker.selected() == 1 {
-        ConnectionSecurity::StartTls
-    } else {
-        ConnectionSecurity::ImplicitTls
+    // A port still at the old security's default moves to the new one's, as on the setup form;
+    // one the person typed stays.
+    let previous = std::rc::Rc::new(std::cell::Cell::new(security));
+    let following = port.downgrade();
+    picker.connect_selected_notify(move |picker| {
+        let now = if picker.selected() == 1 {
+            ConnectionSecurity::StartTls
+        } else {
+            ConnectionSecurity::ImplicitTls
+        };
+        if let Some(port) = following.upgrade()
+            && port.text().trim() == server.default_port(previous.get()).to_string()
+        {
+            port.set_text(&server.default_port(now).to_string());
+        }
+        previous.set(now);
+    });
+    ServerRows {
+        host,
+        port,
+        picker,
+        server,
     }
 }
 
@@ -176,7 +276,7 @@ fn security_of(picker: &adw::ComboRow) -> ConnectionSecurity {
 mod tests {
     use mailcal_bindings::{AccountEndpoints, ConnectionSecurity};
 
-    use super::{Fields, description, edited};
+    use super::{Fields, Server, description, edited, joined, split};
     use crate::l10n;
 
     fn mailbox() -> AccountEndpoints {
@@ -221,6 +321,46 @@ mod tests {
         assert_eq!(endpoints.caldav_url, None);
         // And a server with no field keeps what it had.
         assert_eq!(endpoints.imap_host.as_deref(), Some("imap.example.org"));
+    }
+
+    #[test]
+    fn a_stored_address_shows_its_port_and_a_default_port_is_stored_bare() {
+        let tls = ConnectionSecurity::ImplicitTls;
+        let starttls = ConnectionSecurity::StartTls;
+        assert_eq!(
+            split("imap.example.org", Server::Imap, tls),
+            ("imap.example.org".to_owned(), "993".to_owned())
+        );
+        assert_eq!(
+            split("smtp.example.org", Server::Smtp, starttls),
+            ("smtp.example.org".to_owned(), "587".to_owned())
+        );
+        assert_eq!(
+            split("127.0.0.1:12993", Server::Imap, tls),
+            ("127.0.0.1".to_owned(), "12993".to_owned())
+        );
+
+        assert_eq!(
+            joined("imap.example.org", "993", Server::Imap, tls),
+            "imap.example.org"
+        );
+        assert_eq!(
+            joined("imap.example.org", "", Server::Imap, tls),
+            "imap.example.org"
+        );
+        assert_eq!(
+            joined(" imap.example.org ", "1143", Server::Imap, tls),
+            "imap.example.org:1143"
+        );
+        // A port that is the default for the other security is not this one's default.
+        assert_eq!(
+            joined("imap.example.org", "143", Server::Imap, tls),
+            "imap.example.org:143"
+        );
+        assert_eq!(
+            joined("imap.example.org", "143", Server::Imap, starttls),
+            "imap.example.org"
+        );
     }
 
     #[test]

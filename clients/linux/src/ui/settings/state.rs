@@ -114,6 +114,15 @@ impl SettingsState {
     /// model; and every model-driven rebuild therefore dropped the person back on whatever page
     /// the model last *named*. Deliberately no `bump`: the widget already shows this page, and a
     /// generation here would rebuild the window under a click.
+    /// Redraws the window in place when it shows `category`, and otherwise leaves it alone: for
+    /// state only that page draws. A rebuild of another page would close a dropdown the person
+    /// just opened and take what they typed, for nothing that page shows.
+    pub(in crate::ui) fn refresh_if_showing(&mut self, category: Category) {
+        if self.category == category {
+            self.refresh_in_place();
+        }
+    }
+
     pub(in crate::ui) const fn record_category(&mut self, category: Category) {
         self.category = category;
     }
