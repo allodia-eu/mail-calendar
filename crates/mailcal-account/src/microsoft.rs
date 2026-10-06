@@ -11,7 +11,7 @@
 //!
 //! [`AccountConfig`]: crate::AccountConfig
 
-use engine_api::EmailAddress;
+use engine_api::{Affiliation, EmailAddress};
 use engine_core::ids::{AccountId, IdError};
 use mailcal_oauth::OAuthProviderConfig;
 use serde::Deserialize;
@@ -53,6 +53,11 @@ pub struct MicrosoftConfig {
     /// otherwise.
     #[serde(default)]
     pub granted_scopes: Option<Vec<String>>,
+    /// Whether this is a personal Microsoft account or one an organisation administers, as Graph
+    /// answered when the account last signed in, or at its first connect after that was recorded.
+    /// `None` until then, which offers what every Microsoft account was offered before.
+    #[serde(default)]
+    pub affiliation: Option<Affiliation>,
     /// What the account is used for, its pinned id and its links: the keys every kind shares at
     /// the document's root ([`AccountShape`](crate::AccountShape)). Read by the loader beside the
     /// kind's own section.
@@ -62,10 +67,29 @@ pub struct MicrosoftConfig {
 
 impl MicrosoftConfig {
     /// What this account is used for: its stored choice, or what the kind has always meant
-    /// (everything, since sign-in asked for everything).
+    /// (everything, since sign-in asked for everything), of what it [offers](Self::offered).
     #[must_use]
     pub fn capabilities(&self) -> crate::Capabilities {
-        self.shape.capabilities_or(crate::Capability::ALL)
+        let offered = self.offered();
+        self.shape
+            .capabilities_or(crate::Capability::ALL)
+            .iter()
+            .filter(|capability| offered.contains(*capability))
+            .collect()
+    }
+
+    /// What this account can be used for. A personal account has no organisation, so no
+    /// colleagues: Microsoft never grants it the directory scope, and asking would leave the use
+    /// waiting on a permission no sign-in can give.
+    #[must_use]
+    pub fn offered(&self) -> crate::Capabilities {
+        crate::Capability::ALL
+            .into_iter()
+            .filter(|capability| {
+                *capability != crate::Capability::Colleagues
+                    || self.affiliation != Some(Affiliation::Personal)
+            })
+            .collect()
     }
 
     /// The uses this account is chosen for that its grant does not allow.
@@ -149,6 +173,9 @@ impl MicrosoftConfig {
                 "granted_scopes".into(),
                 toml::Value::Array(granted.iter().map(|s| s.clone().into()).collect()),
             );
+        }
+        if let Some(affiliation) = &self.affiliation {
+            microsoft.insert("affiliation".into(), toml::Value::try_from(affiliation)?);
         }
         let mut root = toml::Table::new();
         self.shape.write_into(&mut root);
@@ -235,8 +262,53 @@ mod tests {
             ],
             refresh_token: Secret::new("secret-refresh-token".to_owned()),
             granted_scopes: None,
+            affiliation: None,
             shape: crate::AccountShape::default(),
         }
+    }
+
+    #[test]
+    fn the_affiliation_round_trips_and_is_absent_until_known() {
+        let toml = config().to_toml().unwrap();
+        assert!(!toml.contains("affiliation"), "{toml}");
+        assert_eq!(load_microsoft_str(&toml).unwrap().affiliation, None);
+
+        let organisation = Affiliation::Organization(
+            engine_api::OrganizationId::try_from("00000000-0000-4000-8000-00000000feed").unwrap(),
+        );
+        for affiliation in [Affiliation::Personal, organisation] {
+            let mut known = config();
+            known.affiliation = Some(affiliation.clone());
+            let parsed = load_microsoft_str(&known.to_toml().unwrap()).unwrap();
+            assert_eq!(parsed.affiliation, Some(affiliation));
+        }
+    }
+
+    #[test]
+    fn a_personal_account_is_never_used_for_colleagues() {
+        use crate::Capability;
+        let mut account = config();
+        assert!(account.capabilities().contains(Capability::Colleagues));
+
+        account.affiliation = Some(Affiliation::Personal);
+        assert!(!account.offered().contains(Capability::Colleagues));
+        assert!(!account.capabilities().contains(Capability::Colleagues));
+        // Not even when its stored choice names them, as a sign-in that chose everything does.
+        account.shape.capabilities = Some(Capability::ALL.into_iter().collect());
+        assert!(!account.capabilities().contains(Capability::Colleagues));
+        assert!(account.capabilities().contains(Capability::Contacts));
+        // And so its grant never withholds them.
+        account.granted_scopes = Some(vec!["offline_access".to_owned()]);
+        assert!(
+            !account
+                .withheld_capabilities()
+                .contains(Capability::Colleagues)
+        );
+
+        account.affiliation = Some(Affiliation::Organization(
+            engine_api::OrganizationId::try_from("00000000-0000-4000-8000-00000000feed").unwrap(),
+        ));
+        assert!(account.capabilities().contains(Capability::Colleagues));
     }
 
     #[test]

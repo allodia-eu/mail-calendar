@@ -78,6 +78,7 @@ pub use google::{
 pub use graph::{
     CredentialOrigin, GraphTokenSource, TokenSink, connect_graph_calendar_providers,
     connect_graph_contact_providers, connect_graph_folder, connect_graph_mail_providers,
+    graph_affiliation,
 };
 pub use imap::{
     ImapConnections, connect_imap_mailbox, connect_imap_watcher, connect_mail_providers,

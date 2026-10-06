@@ -137,6 +137,7 @@ fn config() -> Option<MicrosoftConfig> {
         ],
         refresh_token: Secret::new(refresh_token),
         granted_scopes: None,
+        affiliation: None,
         shape: mailcal_account::AccountShape::default(),
     })
 }

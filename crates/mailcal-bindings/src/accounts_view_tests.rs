@@ -6,6 +6,8 @@ use mailcal_account::{AccountLinks, Capabilities, Capability};
 use super::{AccountFacts, entries};
 use crate::{AccountCapability, AccountKind, CapabilityState};
 
+const STANDARDS: [Capability; 3] = [Capability::Mail, Capability::Calendar, Capability::Contacts];
+
 fn set(capabilities: &[Capability]) -> Capabilities {
     capabilities.iter().copied().collect()
 }
@@ -19,6 +21,7 @@ fn mailbox(links: AccountLinks) -> AccountFacts {
         id: "alice@imap.example.org".to_owned(),
         address: "alice@example.org".to_owned(),
         kind: AccountKind::Imap,
+        offered: set(&STANDARDS),
         chosen: set(&[Capability::Mail]),
         withheld: Capabilities::default(),
         files_invitations: false,
@@ -33,6 +36,7 @@ fn cloud(links: AccountLinks) -> AccountFacts {
         id: "alice@dav:cloud.example".to_owned(),
         address: "alice".to_owned(),
         kind: AccountKind::Dav,
+        offered: set(&STANDARDS),
         chosen: set(&[Capability::Calendar, Capability::Contacts]),
         withheld: Capabilities::default(),
         files_invitations: true,
@@ -152,12 +156,14 @@ fn a_calendar_two_mailboxes_link_sends_through_the_one_it_names() {
 fn each_kind_lists_what_it_can_be_used_for_in_its_state() {
     let mut graph = mailbox(AccountLinks::default());
     graph.kind = AccountKind::Microsoft;
+    graph.offered = set(&Capability::ALL);
     graph.chosen = set(&[Capability::Mail, Capability::Calendar, Capability::Contacts]);
     graph.withheld = set(&[Capability::Contacts]);
     let standards = cloud(AccountLinks::default());
     let mut calendar_refused = mailbox(AccountLinks::default());
     calendar_refused.id = "carol@example.com@graph.microsoft.com".to_owned();
     calendar_refused.kind = AccountKind::Microsoft;
+    calendar_refused.offered = set(&Capability::ALL);
     calendar_refused.chosen = set(&Capability::ALL);
     let refused: BTreeSet<String> = [calendar_refused.id.clone()].into();
 
@@ -183,6 +189,25 @@ fn each_kind_lists_what_it_can_be_used_for_in_its_state() {
     assert_eq!(
         state(&accounts[2], AccountCapability::Calendar),
         Some(CapabilityState::NeedsPermission)
+    );
+}
+
+#[test]
+fn a_use_the_account_does_not_offer_is_not_listed_at_all() {
+    // A personal Microsoft account: no organisation, so no colleagues, rather than colleagues
+    // waiting on a permission no sign-in can give.
+    let mut personal = mailbox(AccountLinks::default());
+    personal.kind = AccountKind::Microsoft;
+    personal.offered = set(&STANDARDS);
+    personal.chosen = set(&STANDARDS);
+    personal.withheld = set(&[Capability::Colleagues]);
+
+    let accounts = entries(&[personal], &BTreeSet::new());
+
+    assert_eq!(state(&accounts[0], AccountCapability::Colleagues), None);
+    assert_eq!(
+        state(&accounts[0], AccountCapability::Contacts),
+        Some(CapabilityState::On)
     );
 }
 

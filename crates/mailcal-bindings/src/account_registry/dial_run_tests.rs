@@ -110,6 +110,7 @@ fn microsoft(capabilities: &[&str], granted: &[&str]) -> ConnectedAccount {
         scopes: Vec::new(),
         refresh_token: mailcal_account::Secret::new("refresh".to_owned()),
         granted_scopes: Some(granted.iter().map(|scope| (*scope).to_owned()).collect()),
+        affiliation: None,
         shape,
     };
     let id = config.account_id().unwrap();

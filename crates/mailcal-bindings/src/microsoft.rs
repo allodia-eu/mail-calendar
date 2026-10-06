@@ -194,6 +194,17 @@ pub(crate) async fn authorize(
     let email = mailcal_account::fetch_primary_address(&access_token)
         .await
         .map_err(|err| MailcalError::Connect(err.to_string()))?;
+    // Not worth failing a sign-in over: an account whose answer did not come is asked again at
+    // its first connect.
+    let affiliation = mailcal_account::graph_affiliation(
+        access_token.clone(),
+        &engine_api::RetryConfig::default(),
+    )
+    .await
+    .inspect_err(|err| {
+        log::warn!("oauth: could not ask whether the account is a personal one ({err})");
+    })
+    .ok();
     let mut config = MicrosoftConfig {
         email,
         client_id: pending.client_id,
@@ -202,6 +213,7 @@ pub(crate) async fn authorize(
         scopes: pending.scopes,
         refresh_token: Secret::new(refresh_token.expose().to_owned()),
         granted_scopes: Some(granted.as_slice().to_vec()),
+        affiliation,
         shape: mailcal_account::AccountShape::default(),
     };
     config.shape.capabilities = pending

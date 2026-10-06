@@ -53,6 +53,8 @@ pub(crate) struct OAuthAccount {
     tenant: String,
     capabilities: Capabilities,
     shape: mailcal_account::AccountShape,
+    /// Whether a Microsoft account is a personal one, as stored; `None` for Google.
+    affiliation: Option<engine_api::Affiliation>,
 }
 
 impl OAuthAccount {
@@ -65,6 +67,7 @@ impl OAuthAccount {
                 tenant: config.tenant.clone(),
                 capabilities: config.capabilities(),
                 shape: config.shape.clone(),
+                affiliation: config.affiliation.clone(),
             }),
             crate::ConnectedAccount::Google { config, .. } => Some(Self {
                 provider: Provider::Google,
@@ -72,6 +75,7 @@ impl OAuthAccount {
                 tenant: String::new(),
                 capabilities: config.capabilities(),
                 shape: config.shape.clone(),
+                affiliation: None,
             }),
             crate::ConnectedAccount::Imap { .. } | crate::ConnectedAccount::Jmap { .. } => None,
         }
@@ -187,6 +191,8 @@ impl MailcalApp {
                         &mut config.shape,
                         Some(stored.shape.clone()),
                     );
+                    // A sign-in that could not ask keeps what was known.
+                    config.affiliation = config.affiliation.or(stored.affiliation.clone());
                     config
                         .to_toml()
                         .map_err(|err| MailcalError::Config(err.to_string()))

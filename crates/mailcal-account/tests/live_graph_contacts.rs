@@ -50,6 +50,7 @@ fn config() -> Option<MicrosoftConfig> {
         scopes,
         refresh_token: Secret::new(var("MS_REFRESH_TOKEN")?),
         granted_scopes: None,
+        affiliation: None,
         shape: mailcal_account::AccountShape::default(),
     })
 }

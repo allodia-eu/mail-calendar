@@ -180,6 +180,8 @@ pub(crate) enum AccountDial {
         capabilities: Capabilities,
         /// What it is used for that its grant withholds.
         withheld: Capabilities,
+        /// Whether the account was stored before its affiliation was recorded, so the dial asks.
+        affiliation_unknown: bool,
     },
     /// A Google account: bind its account-global Gmail provider (+ calendar) through the shared
     /// token source.
@@ -223,6 +225,7 @@ impl AccountDial {
                 identity: config.identity(),
                 capabilities: entry.opened_capabilities(),
                 withheld: config.withheld_capabilities(),
+                affiliation_unknown: config.affiliation.is_none(),
             },
             ConnectedAccount::Google { config, tokens } => Self::Google {
                 tokens: Arc::clone(tokens),

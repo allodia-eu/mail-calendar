@@ -51,6 +51,7 @@ pub(crate) type ImapEntry = (
 
 use crate::{AccountProvider, ConnectedAccount};
 
+mod affiliation;
 mod calendar_users;
 mod credentials;
 mod dial;
