@@ -1070,6 +1070,11 @@ jobs:
       - name: Clippy (warnings as errors)
         run: cargo clippy -p mailcal-linux --all-targets --all-features -- -D warnings
 
+      - name: Build the unit tests
+        # Before the compositor starts, so it has to stay up for the seconds the tests run rather
+        # than for the minute the build takes as well.
+        run: cargo test -p mailcal-linux --all-features --no-run
+
       - name: Unit tests
         # A private headless compositor rather than a private X server: the tests then run on the
         # backend and the renderer that ship. `WLR_RENDERER=pixman` because a runner has no GPU,
