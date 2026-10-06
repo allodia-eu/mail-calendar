@@ -94,10 +94,10 @@ it, while bob's calendar is offered without being suggested.
 ## 4. Known gaps
 
 - **Only Linux creates an account without mail.** `account_config_toml` and the standards
-  sign-in (`ImapLoginRequest`) take the person's choice of uses and a CardDAV URL, and Linux's
-  found card offers both, on the IMAP route and for a domain with a calendar and address book and
-  no mail server. Its manual form offers neither yet, and the other clients' setup screens offer
-  neither, so there every account is used for mail.
+  sign-in (`ImapLoginRequest`) take the person's choice of uses and a CardDAV URL. Linux offers
+  both: its found card on the IMAP route and for a domain with a calendar and address book and no
+  mail server, and its manual form as an address-book field and a "Calendar and contacts" type.
+  The other clients' setup screens offer neither, so there every account is used for mail.
 - **An account without mail cannot be removed, nor its password updated, except on Linux.**
   Apple, Windows and Android draw "Remove account" and the account's Settings card only on surfaces
   rule 6 keeps it out of (the folder tree, a Settings → Accounts built from the mail-only

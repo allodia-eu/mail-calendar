@@ -8,7 +8,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 
 use super::{
-    AppInput, setup_google, setup_imap, setup_jmap, setup_microsoft,
+    AppInput, setup_dav, setup_google, setup_imap, setup_jmap, setup_microsoft,
     setup_model::{AccountKind, ManualForm},
     setup_pane::ConnectPane,
     setup_widgets::body,
@@ -50,6 +50,18 @@ pub(super) fn fields(
         AccountKind::Jmap => {
             let (snapshot, pane) =
                 setup_jmap::manual_fields(content, window, form, error, required, sender);
+            (snapshot, Some(pane))
+        }
+        AccountKind::Dav => {
+            let (snapshot, pane) = setup_dav::manual_fields(
+                content,
+                window,
+                form,
+                error,
+                certificate,
+                required,
+                sender,
+            );
             (snapshot, Some(pane))
         }
         AccountKind::Microsoft => (

@@ -48,8 +48,8 @@ pub(super) enum DetectedForm {
     Dav(DavForm),
 }
 
-/// The account types the manual form can offer, in picker order; the same four every client
-/// lists. Which of them this build actually shows is [`AccountKind::offered`].
+/// The account types the manual form can offer, in picker order. Which of them this build
+/// actually shows is [`AccountKind::offered`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum AccountKind {
     #[default]
@@ -57,11 +57,19 @@ pub(crate) enum AccountKind {
     Jmap,
     Microsoft,
     Google,
+    /// A calendar and address-book server without mail (CalDAV/CardDAV).
+    Dav,
 }
 
 impl AccountKind {
     /// Every kind, in picker order.
-    const ALL: [Self; 4] = [Self::Imap, Self::Jmap, Self::Microsoft, Self::Google];
+    const ALL: [Self; 5] = [
+        Self::Imap,
+        Self::Jmap,
+        Self::Microsoft,
+        Self::Google,
+        Self::Dav,
+    ];
 
     /// The kinds this build offers, in picker order. A browser sign-in needs an OAuth client
     /// registration, which is injected at build time, so a build given none drops the route
@@ -74,7 +82,7 @@ impl AccountKind {
             .filter(|kind| match kind {
                 Self::Microsoft => routes.microsoft,
                 Self::Google => routes.google,
-                Self::Imap | Self::Jmap => true,
+                Self::Imap | Self::Jmap | Self::Dav => true,
             })
             .collect()
     }
@@ -85,6 +93,7 @@ impl AccountKind {
             Self::Jmap => l10n::setup_account_type_jmap(),
             Self::Microsoft => l10n::setup_account_type_microsoft(),
             Self::Google => l10n::setup_account_type_google(),
+            Self::Dav => l10n::setup_account_type_dav(),
         }
     }
 
@@ -209,6 +218,7 @@ pub(crate) struct ManualForm {
     pub(super) imap_host: String,
     pub(super) smtp_host: String,
     pub(super) caldav_url: String,
+    pub(super) carddav_url: String,
     pub(super) jmap_server: String,
     pub(super) sign_in: JmapSignIn,
     /// Each server's port and connection security. The host fields above hold the name alone;
@@ -406,6 +416,7 @@ pub(super) fn edit_manually(form: &DetectedForm) -> SetupForm {
                 imap_host: split_host(&imap.imap_host).0.to_owned(),
                 smtp_host: split_host(&imap.smtp_host).0.to_owned(),
                 caldav_url: imap.caldav_url.clone(),
+                carddav_url: imap.carddav_url.clone(),
                 servers,
                 // The card already asked this server; the manual pane asks again for whatever
                 // the user edits the server to.
@@ -433,9 +444,10 @@ pub(super) fn edit_manually(form: &DetectedForm) -> SetupForm {
             ..ManualForm::default()
         },
         DetectedForm::Dav(form) => ManualForm {
-            kind: AccountKind::Imap,
+            kind: AccountKind::Dav,
             email: form.email.clone(),
             caldav_url: form.offer.caldav_url.clone(),
+            carddav_url: form.offer.carddav_url.clone(),
             ..ManualForm::default()
         },
     };

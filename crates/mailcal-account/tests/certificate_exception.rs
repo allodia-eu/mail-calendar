@@ -181,3 +181,50 @@ async fn an_exception_for_another_server_does_not_cover_this_one() {
         "expected the refusal to stand, got: {error}"
     );
 }
+
+/// An account used for its calendar alone waits on that connect, so a calendar server whose
+/// certificate does not verify reports the certificate the way a mail server does, and its
+/// owner can accept it.
+#[tokio::test]
+async fn a_calendar_server_whose_certificate_does_not_verify_reports_the_certificate() {
+    let (port, served) = bridge_shaped_server().await;
+    let calendar = |exception: Option<&CertificateException>| {
+        let mut toml = format!(
+            "capabilities = [\"calendar\"]\n\n[caldav]\nbase_url = \"https://127.0.0.1:{port}\"\n\
+             username = \"someone@example.com\"\npassword = \"secret\"\n"
+        );
+        if let Some(exception) = exception {
+            let _ = write!(
+                toml,
+                "\n[[certificate_exception]]\nserver_name = \"{}\"\nsha256 = \"{}\"\n",
+                exception.server_name, exception.sha256
+            );
+        }
+        load_str(&toml).expect("a valid account config")
+    };
+
+    let error = mailcal_account::connect_caldav(&calendar(None), None)
+        .await
+        .err()
+        .expect("a CA certificate served as the leaf cannot verify");
+    let AccountError::CertificateRejected { rejected, .. } = error else {
+        panic!("expected a certificate refusal, got: {error}");
+    };
+    assert_eq!(rejected.server_name, "127.0.0.1");
+    assert_eq!(
+        rejected.sha256,
+        mailcal_account::format_fingerprint(&engine_tls::fingerprint(&served))
+    );
+
+    let accepted = rejected
+        .exception()
+        .expect("the refusal offers its exception");
+    let error = mailcal_account::connect_caldav(&calendar(Some(&accepted)), None)
+        .await
+        .err()
+        .expect("the server answers no HTTP");
+    assert!(
+        !matches!(error, AccountError::CertificateRejected { .. }),
+        "TLS was settled and the calendar itself is what failed, got: {error}"
+    );
+}

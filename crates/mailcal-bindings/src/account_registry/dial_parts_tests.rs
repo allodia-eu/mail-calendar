@@ -77,3 +77,33 @@ fn a_capability_the_account_is_not_used_for_binds_nothing() {
     assert!(assembled.calendar.is_empty() && assembled.contacts.is_empty());
     assert!(assembled.calendar_failure.is_none());
 }
+
+#[test]
+fn an_account_without_mail_offers_the_certificate_its_calendar_refused() {
+    // Setting up a calendar on a self-signed server waits on this dial, so its refusal reaches
+    // the setup form as a certificate the person can accept, not as text.
+    let refused = mailcal_account::RejectedCertificate {
+        server_name: "cloud.example".to_owned(),
+        sha256: "AB:CD".to_owned(),
+        subject_common_name: None,
+        subject_organisation: None,
+        issuer_common_name: None,
+        issuer_organisation: None,
+        not_before: None,
+        not_after: None,
+    };
+    let failure = assemble::<u8, u8, u8>(
+        Part::Off,
+        Part::Failed(ConnectFailure::from(AccountError::CertificateRejected {
+            reason: "UnknownIssuer".to_owned(),
+            rejected: Box::new(refused),
+        })),
+        Part::Off,
+    )
+    .expect_err("nothing connected");
+    assert!(matches!(
+        crate::MailcalError::from(failure),
+        crate::MailcalError::CertificateRejected { certificate, .. }
+            if certificate.server_name == "cloud.example"
+    ));
+}

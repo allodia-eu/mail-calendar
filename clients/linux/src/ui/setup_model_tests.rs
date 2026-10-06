@@ -294,6 +294,33 @@ fn a_calendar_and_contacts_detection_sets_up_an_account_without_mail() {
     assert!(config.contains(r#"capabilities = ["contacts"]"#));
 }
 
+/// "Set up manually" from that card opens the manual form's calendar-and-contacts type, with
+/// the servers detection found filled in.
+#[test]
+fn a_calendar_and_contacts_card_is_edited_as_its_own_account_type() {
+    let SetupForm::Detected(detected) = super::detected_form(
+        mailcal_bindings::DetectedSetup {
+            recommendation: SetupRecommendation::Manual {
+                reason: mailcal_bindings::MissReason::NothingFound,
+            },
+            calendar_and_contacts: true,
+            caldav_url: Some("https://cloud.example.test/caldav".to_owned()),
+            carddav_url: Some("https://cloud.example.test/carddav".to_owned()),
+            choices: Vec::new(),
+        },
+        "alice@cloud.example.test".to_owned(),
+    ) else {
+        panic!("a detected card");
+    };
+    let SetupForm::Manual(manual) = edit_manually(&detected) else {
+        panic!("the manual form");
+    };
+    assert_eq!(manual.kind, AccountKind::Dav);
+    assert_eq!(manual.email, "alice@cloud.example.test");
+    assert_eq!(manual.caldav_url, "https://cloud.example.test/caldav");
+    assert_eq!(manual.carddav_url, "https://cloud.example.test/carddav");
+}
+
 /// Only an answer that a password does not work takes a drawn password field away
 /// (`docs/mail-oauth.md` rule 8); everything else leaves it where it is.
 #[test]
