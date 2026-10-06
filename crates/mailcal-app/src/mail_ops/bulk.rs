@@ -115,8 +115,9 @@ impl<P: Provider> App<P> {
     /// The in-place edits (read/unread, flag/unflag): every message on every selected row, a
     /// conversation's Sent copies included, then one re-sync.
     ///
-    /// No optimistic hide: nothing leaves the list, and the rows repaint from the rebuilt
-    /// snapshot the re-sync publishes.
+    /// Every edit is queued first, which shows it in the store, then the list is redrawn once,
+    /// then the edits are sent: the rows change before any round trip, and a hundred rows cost
+    /// one redraw rather than a hundred. The re-sync's snapshot shows any the server refused.
     async fn bulk_keyword(
         &self,
         account: &AccountId,
@@ -139,8 +140,16 @@ impl<P: Provider> App<P> {
         if keys.is_empty() {
             return;
         }
+        let mut queued = Vec::new();
         for key in keys {
-            self.edit_only(account, &build(key)).await;
+            let edit = build(key);
+            if let Some(op) = self.queue_edit(account, &edit).await {
+                queued.push((op, edit));
+            }
+        }
+        self.redraw_list().await;
+        for (op, edit) in &queued {
+            self.send_edit(account, *op, edit).await;
         }
         self.refresh_after_write(account).await;
     }

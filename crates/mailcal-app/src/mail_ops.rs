@@ -10,8 +10,8 @@
 use std::time::Duration;
 
 use engine_api::{
-    AccountId, Draft, EmailAddress, MailEdit, MailboxRole, Message, MessageIdHeader, MessageReport,
-    Provider, ProviderKey, ReportVerdict,
+    AccountId, Draft, EmailAddress, MailEdit, MailEditSent, MailboxRole, Message, MessageIdHeader,
+    MessageReport, PendingOpId, Provider, ProviderKey, ReportVerdict,
 };
 
 use crate::{
@@ -316,10 +316,6 @@ impl<P: Provider> App<P> {
         applied
     }
 
-    /// Applies a [`MailEdit`] to `account` through the durable outbox (its first provider;
-    /// `edit_mail` selects the message's own mailbox by key), **without** the re-sync. Returns
-    /// whether the edit was applied; `false` when the account has no provider or the provider
-    /// rejected it: so an optimistic caller can undo its hide.
     /// Applies `write` without touching the list: the shared tail of every optimistic
     /// removal. Returns whether it landed.
     pub(super) async fn apply_only(&self, account: &AccountId, write: &MailWrite) -> bool {
@@ -329,36 +325,98 @@ impl<P: Provider> App<P> {
         }
     }
 
+    /// Queues `edit` for `account` and sends it, **without** the re-sync. A keyword change is
+    /// redrawn the moment it is queued, before the server answers, because the store shows it
+    /// from then on.
+    ///
+    /// Returns whether the edit will happen: the server has it, or it is still queued (offline, a
+    /// rate limit, a backoff) and the outbox drain sends it. `false` only when it could not be
+    /// queued or the server refused it for good, so an optimistic caller undoes its hide then
+    /// and only then.
     async fn edit_only(&self, account: &AccountId, edit: &MailEdit) -> bool {
-        // Clone the account handle, then edit with the read guard released: the IMAP
-        // round-trip must not hold the lock.
-        if let Some(acct) = self.account_handle(account).await
-            && let Some(provider) = acct.providers.first()
-        {
-            return match self
-                .engine
-                .edit_mail(provider, account, &generated_idempotency(), edit)
-                .await
-            {
-                Ok(_) => {
-                    // The write went through, so the grant carries the mail-write scope; clear
-                    // any standing "reconnect to manage mail" prompt for this account.
-                    self.clear_mail_reauth_required(account);
-                    true
-                }
-                Err(err) => {
-                    // Log the rejected edit so it is discoverable; e.g. a Graph
-                    // `403 ErrorAccessDenied` when the OAuth grant lacks `Mail.ReadWrite`. The
-                    // error is a class + protocol detail, never message content or addresses; the
-                    // `false` still lets an optimistic caller undo its hide. An access-denied
-                    // refusal additionally raises the account's mail re-consent prompt.
-                    log::warn!("edit: mail edit failed: {err}");
-                    self.note_mail_write_error(account, &err);
-                    false
-                }
-            };
+        let Some(op) = self.queue_edit(account, edit).await else {
+            return false;
+        };
+        let shown = matches!(edit, MailEdit::SetKeywords { .. });
+        if shown {
+            self.redraw_list().await;
         }
-        false
+        let lands = self.send_edit(account, op, edit).await;
+        if shown && !lands {
+            // Refused for good: the store has taken the change back.
+            self.redraw_list().await;
+        }
+        lands
+    }
+
+    /// Queues `edit` in `account`'s outbox, which shows a keyword change in the store. Needs no
+    /// connection. `None` when it could not be queued.
+    pub(super) async fn queue_edit(
+        &self,
+        account: &AccountId,
+        edit: &MailEdit,
+    ) -> Option<PendingOpId> {
+        match self
+            .engine
+            .queue_mail_edit(account, &generated_idempotency(), edit)
+            .await
+        {
+            Ok(op) => Some(op),
+            Err(err) => {
+                log::warn!("edit: mail edit could not be queued: {err}");
+                None
+            }
+        }
+    }
+
+    /// Sends queued edit `op` on `account`'s provider. Returns whether the edit will happen;
+    /// `false` only when the server refused it for good.
+    ///
+    /// An account with no provider (offline, not yet reconnected) leaves the op queued: the drain
+    /// on reconnect sends it, and a keyword change stays shown meanwhile.
+    pub(super) async fn send_edit(
+        &self,
+        account: &AccountId,
+        op: PendingOpId,
+        edit: &MailEdit,
+    ) -> bool {
+        // Clone the account handle, then send with the read guard released: the IMAP
+        // round-trip must not hold the lock.
+        let Some(acct) = self.account_handle(account).await else {
+            return true;
+        };
+        let Some(provider) = acct.providers.first() else {
+            return true;
+        };
+        match self
+            .engine
+            .send_mail_edit(provider, account, op, edit)
+            .await
+        {
+            Ok(MailEditSent::Applied(_)) => {
+                // The write went through, so the grant carries the mail-write scope; clear any
+                // standing "reconnect to manage mail" prompt for this account.
+                self.clear_mail_reauth_required(account);
+                true
+            }
+            Ok(MailEditSent::Queued { .. }) => true,
+            Err(err) => {
+                // Log the refusal so it is discoverable; e.g. a Graph `403 ErrorAccessDenied`
+                // when the OAuth grant lacks `Mail.ReadWrite`. The error is a class + protocol
+                // detail, never message content or addresses. An access-denied refusal
+                // additionally raises the account's mail re-consent prompt.
+                log::warn!("edit: mail edit failed: {err}");
+                self.note_mail_write_error(account, &err);
+                false
+            }
+        }
+    }
+
+    /// Rebuilds the list from the store, past the row cache: what a write the store applied
+    /// itself needs, since no sync reported it.
+    pub(super) async fn redraw_list(&self) {
+        self.invalidate_list_cache();
+        self.rebuild_snapshot().await;
     }
 }
 

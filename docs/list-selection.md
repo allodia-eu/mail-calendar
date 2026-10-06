@@ -88,9 +88,11 @@ selection itself is the client's, and rule 1 says why.
    applies the writes, and syncs each account **once**; the single-row intents re-sync per write,
    which is right for one swipe and would be a hundred account-wide syncs for a hundred rows.
    Rows may span accounts (the unified list allows it) and each is written within its own account,
-   since a provider key is unique only there. A row the provider refuses comes back on its own,
-   leaving the rest of the batch applied; an account with no Archive folder is skipped and the
-   others still act.
+   since a provider key is unique only there. A row the provider refuses **for good** comes back
+   on its own, leaving the rest of the batch applied; one it refuses only for now (offline, rate
+   limited) stays hidden, because its write is queued and the outbox sends it later. A read or
+   flag change over the selection is shown once, as every write is queued, before any is sent. An
+   account with no Archive folder is skipped and the others still act.
 
 9. **The keyboard is the desktop's, and it is scoped to the list.** Where the message list has
    focus: **Delete** (and Backspace) moves the selection to Trash, **Escape** clears it. Both are
@@ -200,7 +202,7 @@ When you change what a selection does:
 1. Keep the write in one place. `mail_ops/bulk.rs` owns the batch, and `archive_thread` runs
    through it rather than keeping a second copy of the Sent rule; `tests_selection.rs` asserts the
    Sent protection, the per-account routing, the one-sync-per-account cost and the individual
-   restore of a refused row.
+   restore of a refused row; `tests_mail_actions.rs` asserts that a throttled one stays hidden.
 2. A new action is a `BulkAction` variant **and** a button on all five clients' bars, or it is
    neither. A variant nothing dispatches is a surface that drifts. It needs an icon per platform
    as well, since rule 5's bar carries one on every button.

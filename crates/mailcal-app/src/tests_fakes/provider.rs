@@ -66,6 +66,8 @@ pub(crate) struct FakeProvider {
     /// A shared flag ([`failure_switch`](Self::failure_switch)) so a test can toggle it
     /// between refreshes to exercise recovery.
     fail: Arc<AtomicBool>,
+    /// When on, every edit is refused for good ([`refusal_switch`](Self::refusal_switch)).
+    refuse_edits: Arc<AtomicBool>,
     /// How many times the app has asked this provider to stream email; i.e. how many syncs it
     /// has driven. Shared ([`syncs`](Self::syncs)) so a test can assert that a *burst* of writes
     /// coalesced into one account-wide re-sync rather than one per message.
@@ -304,11 +306,12 @@ impl Provider for FakeProvider {
         _account: &AccountId,
         edit: &MailEdit,
     ) -> ProviderResult<MailEditReceipt> {
-        // A downed provider can't apply an edit either: the same modelling
-        // `fetch_message_source` already does, so a test can prove a refused write surfaces as
-        // `MailActionError::Rejected` instead of a silent success.
+        // A downed provider refuses an edit for now; one refusing edits refuses it for good.
         if self.fail.load(Ordering::SeqCst) {
             return Err(ProviderError::retryable("account unreachable"));
+        }
+        if self.refuse_edits.load(Ordering::SeqCst) {
+            return Err(ProviderError::permanent("edit refused"));
         }
         if let Some(gate) = &self.edit_gate {
             gate.entered.notify_one();

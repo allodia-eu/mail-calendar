@@ -67,6 +67,7 @@ impl FakeProvider {
             edits: Arc::new(Mutex::new(Vec::new())),
             reports: Arc::new(Mutex::new(Vec::new())),
             fail: Arc::new(AtomicBool::new(false)),
+            refuse_edits: Arc::new(AtomicBool::new(false)),
             syncs: Arc::new(AtomicUsize::new(0)),
             email_mailbox: None,
             concurrent_fetches: 1,
@@ -324,6 +325,13 @@ impl FakeProvider {
 
     pub(crate) fn failure_switch(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.fail)
+    }
+
+    /// A shared handle that, when on, makes the server refuse every edit **for good**: the
+    /// outcome an outbox does not retry, as opposed to [`failure_switch`](Self::failure_switch)'s
+    /// unreachable server, whose edits stay queued.
+    pub(crate) fn refusal_switch(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.refuse_edits)
     }
 
     /// A shared handle to this provider's sync counter; how many times the app has streamed
