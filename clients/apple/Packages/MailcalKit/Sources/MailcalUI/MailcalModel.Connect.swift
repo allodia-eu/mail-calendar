@@ -21,6 +21,9 @@ extension MailboxModel {
         // Ensure the store directory exists, a fresh dev store dir won't yet.
         try? FileManager.default.createDirectory(atPath: dataDir, withIntermediateDirectories: true)
         isOpening = true
+        #if os(iOS)
+        LiveCore.shared.beginOpening()
+        #endif
         let logLevel = DiagnosticsPrefs.coreLogLevel
         let deviceTimezone = deviceTimeZone()
         let deviceInfo = DeviceFacts.current()
@@ -54,6 +57,9 @@ extension MailboxModel {
             case .success(let app):
                 didOpen(app, dataDir: dataDir, dataDirName: dataDirName)
             case .failure(let error):
+                #if os(iOS)
+                LiveCore.shared.openingFailed()
+                #endif
                 print("[Mailcal] could not open the accounts: \(error)")
                 setupError = L10n.status_connect_failed(error: "\(error)")
                 needsSetup = true

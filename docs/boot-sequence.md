@@ -198,7 +198,7 @@ are development and screenshot tools, and no migration runs on a store they just
 |---|---|---|
 | macOS · iOS | a detached task; the result is applied on the main actor | `LaunchView` in the root view while the model is opening |
 | Windows | `Task.Run`; the result is applied through the dispatcher queue | `LaunchVisibility` in `MainWindow` |
-| Android | the `mailcal-connect` thread; the result is posted to the main handler | `ConnectionStatus` in `MainScreen` while `app` is null |
+| Android | the `mailcal-connect` thread; the result is posted to the main handler | `LaunchStatus` in `MainScreen` while `app` is null and no error is set |
 | Linux | a worker thread; the result arrives as `AppInput::Booted` | the window's launch page while booting |
 
 ---
