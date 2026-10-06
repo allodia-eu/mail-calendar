@@ -236,6 +236,17 @@ impl FakeProvider {
         provider
     }
 
+    /// Lists the inbox under the id `id`, as an IMAP server's spelling of it once was.
+    pub(crate) fn listing_inbox_as(mut self, id: &str) -> Self {
+        let inbox = self
+            .mailboxes
+            .iter_mut()
+            .find(|mailbox| mailbox.role == Some(MailboxRole::Inbox))
+            .expect("an inbox");
+        inbox.id = MailboxId::try_from(id).unwrap();
+        self
+    }
+
     /// Lists the folder `key` as a level of the tree that holds no mail, as an IMAP server lists
     /// a `\Noselect` folder.
     pub(crate) fn with_container(mut self, key: &str) -> Self {

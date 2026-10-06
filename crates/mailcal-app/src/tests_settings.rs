@@ -5,6 +5,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use engine_api::{MailboxId, MailboxRole};
 use engine_provider::MailEdit;
 use fakes::{
     FakeProvider, account, app, app_with_prefs, flat_subjects, message, msg, thread_ref, threaded,
@@ -292,6 +293,36 @@ async fn sync_settings_defaults_to_pushing_the_inbox_when_idle_supported() {
         "the Inbox is watched by default under push"
     );
     assert!(!row.at_push_limit, "one subscribed folder is under the cap");
+}
+
+#[tokio::test]
+async fn a_push_choice_saved_under_the_servers_spelling_still_watches_the_inbox() {
+    // Yahoo lists its inbox as `Inbox`, and the engine once used that as its id, so changing
+    // any sync setting stored `Inbox` as the folder to push. The engine now lists every inbox
+    // as `INBOX`; the stored choice has to keep naming it, or push stops without a word.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = FakeProvider::with_idle(vec![])
+        .listing_inbox_as("Inbox")
+        .with_folder_tree();
+    let tree = provider.folder_tree();
+    let app = app(vec![account("acct", provider)], &surfaces);
+    app.dispatch(Intent::RefreshMail).await;
+    app.set_poll_interval("acct", 15).await;
+
+    for mailbox in tree.lock().unwrap().iter_mut() {
+        if mailbox.role == Some(MailboxRole::Inbox) {
+            mailbox.id = MailboxId::try_from("INBOX").unwrap();
+        }
+    }
+    app.dispatch(Intent::RefreshMail).await;
+
+    let row = &app.sync_settings().await.accounts[0];
+    let inbox = row
+        .folders
+        .iter()
+        .find(|f| f.key == "INBOX")
+        .expect("inbox listed");
+    assert!(inbox.subscribed, "the inbox is still pushed");
 }
 
 #[tokio::test]
