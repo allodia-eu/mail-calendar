@@ -134,9 +134,6 @@ struct PageContext {
 #[derive(Debug, Default)]
 pub(super) struct SettingsWindow {
     window: Option<gtk::Window>,
-    /// Kept beside the window because a refresh reuses both; the Done button lives here and must
-    /// not be packed a second time.
-    header: Option<adw::HeaderBar>,
     rendered_generation: u64,
     /// The category stack drawn last, the account page it showed and the accounts it was drawn
     /// from: what a redraw compares against to keep the person's place.
@@ -193,22 +190,17 @@ impl SettingsWindow {
         // the window they are being asked to type into.
         let reuse = state.redraw != Redraw::Open && self.is_on_screen();
         let offset = reuse.then(|| self.offset(&state)).flatten();
-        let standing = reuse
-            .then(|| self.window.clone().zip(self.header.clone()))
-            .flatten();
-        let (window, header) = if let Some(standing) = standing {
+        let standing = reuse.then(|| self.window.clone()).flatten();
+        let window = if let Some(standing) = standing {
             standing
         } else {
             if let Some(window) = self.window.take() {
                 window.close();
             }
-            let (window, header) =
-                crate::ui::modal::new(parent, l10n::settings_title(), 940, Some(680));
+            // The title bar's own close button closes it: a Done beside it would be a second
+            // control for the same thing, since every change here applies as it is made.
+            let (window, _) = crate::ui::modal::new(parent, l10n::settings_title(), 940, Some(680));
             window.set_modal(false);
-            let done = gtk::Button::with_label(l10n::action_done());
-            let closing = window.clone();
-            done.connect_clicked(move |_| closing.close());
-            header.pack_end(&done);
             // ⚠️ **Coming back to this window is the only signal a checkout gives.** The payment
             // finishes in a **browser** and this window stays open behind it, so without this the
             // person returns to the very card that sent them, still offering to sell what they
@@ -225,7 +217,7 @@ impl SettingsWindow {
                     returning.emit(AppInput::AllodiaSubscription(SubscriptionInput::Returned));
                 }
             });
-            (window, header)
+            window
         };
         let navigation = gtk::Stack::new();
         navigation.set_hexpand(true);
@@ -276,7 +268,6 @@ impl SettingsWindow {
         self.pages = Some(pages);
         self.rendered_generation = state.generation;
         self.window = Some(window);
-        self.header = Some(header);
     }
 
     /// How far the page on screen is scrolled, when the redraw shows that same page again.
@@ -288,7 +279,6 @@ impl SettingsWindow {
     }
 
     pub(super) fn close(&mut self) {
-        self.header = None;
         self.toasts = None;
         if let Some(window) = self.window.take() {
             window.close();
