@@ -78,9 +78,14 @@ impl AppModel {
             Surface::Contacts => self.contacts.refresh(&app),
             Surface::ContactsStatus => self.contacts.refresh_write_status(&app),
             Surface::CalendarStatus => self.calendar.refresh_write_status(&app),
-            Surface::Settings => self.calendar.refresh_settings(&app),
+            Surface::Settings => {
+                self.calendar.refresh_settings(&app);
+                self.settings.signalled();
+            }
+            // Both signals can change what an account's row says.
             Surface::Connectivity => {
                 self.connectivity = ConnectivityState::pull(&app, &self.snapshot.accounts);
+                self.settings.signalled();
             }
             // A composition's save moved. The signal names none, so every open composer reads
             // its own state back (`docs/drafts.md`).

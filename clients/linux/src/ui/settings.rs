@@ -29,11 +29,13 @@ mod diagnostics;
 pub(super) mod general;
 mod mcp;
 mod pages;
+pub(super) mod redraw;
 pub(super) mod sender_name;
 mod signature_editor;
 pub(super) mod signatures;
 mod state;
 
+use state::Redraw;
 pub(super) use state::SettingsState;
 
 /// A Settings category. Visible to the crate because a surface elsewhere can send the user to one
@@ -71,12 +73,7 @@ pub(super) struct RenderState<'a> {
     /// The account whose page Accounts shows, and what the last change on it came to.
     pub(super) account: Option<&'a str>,
     pub(super) account_notice: Option<&'a str>,
-    /// This generation is a **refresh** of an already-open window, not a request to open one.
-    ///
-    /// The Allodia card changes by rebuilding the whole window, and its sign-in outlives whatever
-    /// the user does next; so without this, a redirect landing after they closed Settings would
-    /// put the window back on screen over their mail.
-    pub(super) refresh_only: bool,
+    pub(super) redraw: Redraw,
 }
 
 /// Every category, in order. What a given build **shows** is [`visible_categories`].
@@ -141,6 +138,13 @@ pub(super) struct SettingsWindow {
     /// not be packed a second time.
     header: Option<adw::HeaderBar>,
     rendered_generation: u64,
+    /// The category stack drawn last, the account page it showed and the accounts it was drawn
+    /// from: what a redraw compares against to keep the person's place.
+    pages: Option<gtk::Stack>,
+    drawn_account: Option<String>,
+    drawn_accounts: Option<mailcal_bindings::AccountsSnapshot>,
+    /// Whether a field was edited since the window was drawn.
+    edited: std::rc::Rc<std::cell::Cell<bool>>,
 }
 
 impl SettingsWindow {
@@ -155,19 +159,36 @@ impl SettingsWindow {
         if state.generation == 0 || state.generation == self.rendered_generation {
             return;
         }
-        if state.refresh_only && !self.is_on_screen() {
+        if state.redraw != Redraw::Open && !self.is_on_screen() {
             return;
         }
         let Some(app) = app.cloned() else {
             return;
         };
+        if state.redraw == Redraw::Signalled {
+            let typing = self
+                .window
+                .as_ref()
+                .is_some_and(|window| redraw::typing(window, self.edited.get()));
+            match redraw::signalled(typing, self.drawn_accounts.as_ref(), || {
+                app.accounts_snapshot()
+            }) {
+                redraw::Signalled::Draw => {}
+                redraw::Signalled::Skip => {
+                    self.rendered_generation = state.generation;
+                    return;
+                }
+                redraw::Signalled::Wait => return,
+            }
+        }
         // A refresh redraws the window that is already on screen; it does not build a new one.
         //
         // Rebuilding would take the user's size and position with it, and `present()` would pull
         // focus back from wherever they are; which for the Allodia card is the **browser the
         // sign-in just opened**, one frame earlier. The card changing behind them must not steal
         // the window they are being asked to type into.
-        let reuse = state.refresh_only && self.is_on_screen();
+        let reuse = state.redraw != Redraw::Open && self.is_on_screen();
+        let offset = reuse.then(|| self.offset(&state)).flatten();
         let standing = reuse
             .then(|| self.window.clone().zip(self.header.clone()))
             .flatten();
@@ -220,15 +241,37 @@ impl SettingsWindow {
             account: state.account.map(str::to_owned),
             account_notice: state.account_notice.map(str::to_owned),
         };
-        navigation.add_named(&window_content(state.category, &ctx), Some("settings"));
+        // Read before the pages read theirs: a change landing in between then reads as one the
+        // window has not drawn, and the next signal draws it.
+        let drawn_accounts = ctx.app.accounts_snapshot();
+        let (content, pages) = window_content(state.category, &ctx);
+        navigation.add_named(&content, Some("settings"));
         navigation.set_visible_child_name("settings");
         window.set_child(Some(&navigation));
+        if let Some((offset, scroll)) =
+            offset.zip(pages.visible_child().and_downcast::<gtk::ScrolledWindow>())
+        {
+            redraw::keep_offset(&scroll, offset);
+        }
         if !reuse {
             window.present();
         }
+        self.edited = std::rc::Rc::default();
+        redraw::watch_edits(content.upcast_ref(), &self.edited);
+        self.drawn_accounts = Some(drawn_accounts);
+        self.drawn_account = state.account.map(str::to_owned);
+        self.pages = Some(pages);
         self.rendered_generation = state.generation;
         self.window = Some(window);
         self.header = Some(header);
+    }
+
+    /// How far the page on screen is scrolled, when the redraw shows that same page again.
+    fn offset(&self, state: &RenderState<'_>) -> Option<f64> {
+        let pages = self.pages.as_ref()?;
+        let same = pages.visible_child_name().as_deref() == Some(state.category.name())
+            && self.drawn_account.as_deref() == state.account;
+        same.then(|| redraw::offset(pages)).flatten()
     }
 
     pub(super) fn close(&mut self) {
@@ -250,7 +293,8 @@ impl SettingsWindow {
     }
 }
 
-fn window_content(category: Category, ctx: &PageContext) -> gtk::Box {
+/// The window's content, and the stack of category pages inside it.
+fn window_content(category: Category, ctx: &PageContext) -> (gtk::Box, gtk::Stack) {
     if let Some(display) = gtk::gdk::Display::default() {
         icons::install(&display);
     }
@@ -305,7 +349,7 @@ fn window_content(category: Category, ctx: &PageContext) -> gtk::Box {
     split.set_shrink_start_child(false);
     split.set_vexpand(true);
     shell.append(&split);
-    shell
+    (shell, stack)
 }
 
 /// One sidebar row's button: the category's glyph and its name, the way every other platform's
