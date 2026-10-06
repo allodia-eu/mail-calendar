@@ -64,7 +64,7 @@ internal data class EditTarget(
     val attendees: List<EventAttendee>,
 )
 
-/** The arguments a create dispatches (`Intent.CreateEvent`). */
+/** The arguments a create dispatches (`EventIntent.Create`). */
 internal data class CreateArgs(
     val title: String,
     val start: String,
@@ -79,7 +79,7 @@ internal data class CreateArgs(
     val recurrence: SimpleRecurrence?,
 )
 
-/** The arguments an edit dispatches (`Intent.UpdateEvent`). */
+/** The arguments an edit dispatches (`EventIntent.Update`). */
 internal data class UpdateArgs(
     val account: String,
     val key: String,

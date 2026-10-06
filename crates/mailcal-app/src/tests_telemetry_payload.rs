@@ -13,7 +13,7 @@ use engine_api::Engine;
 use super::{
     App, SilentObserver, Telemetry, TimeZoneInit, app_with_analytics, device, one_account, scratch,
 };
-use crate::{FolderRef, Intent, PROPERTY_KEYS, Protocol};
+use crate::{EventIntent, FolderRef, Intent, PROPERTY_KEYS, Protocol};
 
 /// The load-bearing privacy test. Drive a consented app through the intents that *do* carry
 /// content (a search query, a message, an event title) and assert none of it reaches the wire.
@@ -34,7 +34,7 @@ async fn no_content_reaches_the_wire() {
         folder: FolderRef::from_parts("acct-1", "Legal/Confidential".to_owned()).unwrap(),
     })
     .await;
-    app.dispatch(Intent::CreateEvent {
+    app.dispatch(Intent::Events(EventIntent::Create {
         title: "Divorce hearing".to_owned(),
         start: "2026-08-01T09:00:00Z".to_owned(),
         end: "2026-08-01T10:00:00Z".to_owned(),
@@ -45,7 +45,7 @@ async fn no_content_reaches_the_wire() {
         notes: Some("do not send this anywhere".to_owned()),
         location: Some("Courtroom 4B".to_owned()),
         recurrence: None,
-    })
+    }))
     .await;
     app.dispatch(Intent::SubmitMail {
         to: "lawyer@example.com".to_owned(),

@@ -154,7 +154,7 @@ impl<P: Provider> App<P> {
     /// creates a timed event in that zone rather than UTC; `notes` its description; `location` its
     /// place; `recurrence` makes it repeat. A no-op if no account can write, the account has no
     /// calendar, or the fields are invalid (the skeleton swallows it).
-    // A flat pass-through of `Intent::CreateEvent`'s fields; each a distinct scalar from the
+    // A flat pass-through of `EventIntent::Create`'s fields; each a distinct scalar from the
     // create form. A parameter struct would only re-wrap the same values `dispatch` just
     // destructured, so it stays flat.
     #[allow(clippy::too_many_arguments)]

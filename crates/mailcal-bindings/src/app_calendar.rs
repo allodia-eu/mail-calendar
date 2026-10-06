@@ -84,7 +84,7 @@ impl MailcalApp {
     /// changed individually, or `None` when there is nothing to say.
     ///
     /// Ask it with the payload about to be dispatched: the same values as
-    /// `Intent::UpdateEvent`, in the same three-state form, and show what comes back between
+    /// `EventIntent::Update`, in the same three-state form, and show what comes back between
     /// Save and the write. `None` means save straight away; a series with no per-occurrence
     /// work, a server that keeps it, and an edit that does not touch what would be lost all
     /// answer `None`, which is what keeps the dialog rare enough to be worth reading.

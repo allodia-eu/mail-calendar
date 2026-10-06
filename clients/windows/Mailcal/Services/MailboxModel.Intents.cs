@@ -267,9 +267,9 @@ public sealed partial class MailboxModel
     /// core's job; this only marshals the payload.
     /// </remarks>
     internal void CreateEvent(CreateArgs args) =>
-        _app?.Dispatch(new Intent.CreateEvent(
+        _app?.Dispatch(new Intent.Events(new EventIntent.Create(
             args.Title, args.Start, args.End, args.Account, args.Calendar, args.AllDay, args.Timezone,
-            args.Notes, args.Location, args.Recurrence));
+            args.Notes, args.Location, args.Recurrence)));
 
     /// <summary>
     /// Edit a stored calendar event from the editor's payload, then refresh.
@@ -280,9 +280,9 @@ public sealed partial class MailboxModel
     /// through the same <c>CalendarWriteStatus</c> surface as create and delete.
     /// </remarks>
     internal void UpdateEvent(UpdateArgs args) =>
-        _app?.Dispatch(new Intent.UpdateEvent(
+        _app?.Dispatch(new Intent.Events(new EventIntent.Update(
             args.Account, args.Key, args.Title, args.Start, args.End, args.Notes, args.Location,
-            args.Occurrence, args.Recurrence, args.TimesFromOccurrence));
+            args.Occurrence, args.Recurrence, args.TimesFromOccurrence)));
 
     /// <summary>
     /// What saving <paramref name="args"/> over the whole series would cost the occurrences the
@@ -303,7 +303,7 @@ public sealed partial class MailboxModel
     /// agenda. <paramref name="occurrence"/> names a single occurrence of a repeating event,
     /// the token the surface that drew it carried; <c>null</c> removes the whole series.</summary>
     public void DeleteEvent(string account, string key, string? occurrence = null) =>
-        _app?.Dispatch(new Intent.DeleteEvent(account, key, occurrence));
+        _app?.Dispatch(new Intent.Events(new EventIntent.Delete(account, key, occurrence)));
 
     /// <summary>
     /// Report the device's current OS zone (an IANA id) to the core, which adopts it on

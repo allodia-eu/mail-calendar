@@ -66,7 +66,7 @@ sequenceDiagram
     participant UI as Native client (SwiftUI · WinUI · Compose · GTK4)
     participant Core as MailcalApp (Rust core)
 
-    UI->>Core: dispatch(Intent) (e.g. Archive, Search, CreateEvent)
+    UI->>Core: dispatch(Intent) (e.g. Archive, Search, Events)
     Note over Core: fire-and-forget: the UI thread never blocks
     Core->>Core: apply → engine write (durable outbox) → recompute view-model
     Core-->>UI: surface_changed(Surface.MailboxList)

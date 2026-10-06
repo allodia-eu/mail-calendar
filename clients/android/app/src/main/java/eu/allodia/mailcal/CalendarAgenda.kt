@@ -96,7 +96,7 @@ internal fun AgendaList(
     }
 }
 
-// Swipe an agenda row to delete the event (Intent.DeleteEvent). Mirrors the mail row: the delete
+// Swipe an agenda row to delete the event (EventIntent.Delete). Mirrors the mail row: the delete
 // is dispatched once the box settles away, and then we `reset()` it back to rest, the demo
 // provider's edit is a no-op, so the row stays until the next snapshot and must not be left
 // parked off-screen. See MailRows.kt for why `onDismiss` must be ONE remembered instance.

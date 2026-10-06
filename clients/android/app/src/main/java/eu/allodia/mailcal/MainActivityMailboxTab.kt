@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.ContactDetail
+import uniffi.mailcal_bindings.EventIntent
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
@@ -145,13 +146,13 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 activeZoneId = timeZone?.active,
                                 onRefreshCalendar = { instance.dispatch(Intent.RefreshCalendar) },
                                 onDeleteEvent = { account, key, occurrence ->
-                                    instance.dispatch(Intent.DeleteEvent(account, key, occurrence))
+                                    instance.dispatch(Intent.Events(EventIntent.Delete(account, key, occurrence)))
                                 },
                                 // The editor builds the payload (calendar target, all-day, notes,
                                 // device-zone wall clock); we just dispatch it.
                                 onCreateEvent = { args ->
                                     instance.dispatch(
-                                        Intent.CreateEvent(
+                                        Intent.Events(EventIntent.Create(
                                             args.title,
                                             args.start,
                                             args.end,
@@ -162,12 +163,12 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             args.notes,
                                             args.location,
                                             args.recurrence,
-                                        ),
+                                        )),
                                     )
                                 },
                                 onUpdateEvent = { args ->
                                     instance.dispatch(
-                                        Intent.UpdateEvent(
+                                        Intent.Events(EventIntent.Update(
                                             args.account,
                                             args.key,
                                             args.title,
@@ -178,24 +179,24 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             args.occurrence,
                                             args.recurrence,
                                             args.timesFromOccurrence,
-                                        ),
+                                        )),
                                     )
                                 },
-                                // A drag on the grid. Deliberately NOT an `UpdateEvent` with new
+                                // A drag on the grid. Deliberately NOT an `EventIntent.Update` with new
                                 // times: the client sends how far the hand moved, and the core
                                 // applies it to the event's own wall clock, so a meeting in
                                 // another zone cannot be re-timed by the zone the grid was drawn
                                 // in (`mailcal_account::calendar_drag`).
                                 onMoveEvent = { args ->
                                     instance.dispatch(
-                                        Intent.MoveEvent(
+                                        Intent.Events(EventIntent.Move(
                                             args.account,
                                             args.key,
                                             args.edge,
                                             args.days,
                                             args.minutes,
                                             args.occurrence,
-                                        ),
+                                        )),
                                     )
                                 },
                                 // A synchronous detail read for the detail sheet and to prefill the

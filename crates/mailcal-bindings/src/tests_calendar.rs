@@ -203,21 +203,24 @@ fn a_client_pulls_one_events_detail_through_the_ffi() {
 /// value sets. This is the seam a client's editor dispatches through.
 #[test]
 fn an_update_event_intent_parses_into_a_typed_edit() {
-    let converted = mailcal_app::Intent::try_from(Intent::UpdateEvent {
-        account: "acct-a".to_owned(),
-        key: "/cal/e.ics".to_owned(),
-        title: Some("Standup (kort)".to_owned()),
-        start: Some("2026-01-05T10:00:00".to_owned()),
-        end: Some("2026-01-05T10:30:00".to_owned()),
-        notes: Some(String::new()), // clear
-        location: Some("Room 2".to_owned()),
-        occurrence: Some("2026-01-05T09:30:00".to_owned()),
-        recurrence: None,
-        times_from_occurrence: None,
+    let converted = mailcal_app::Intent::try_from(Intent::Events {
+        intent: EventIntent::Update {
+            account: "acct-a".to_owned(),
+            key: "/cal/e.ics".to_owned(),
+            title: Some("Standup (kort)".to_owned()),
+            start: Some("2026-01-05T10:00:00".to_owned()),
+            end: Some("2026-01-05T10:30:00".to_owned()),
+            notes: Some(String::new()), // clear
+            location: Some("Room 2".to_owned()),
+            occurrence: Some("2026-01-05T09:30:00".to_owned()),
+            recurrence: None,
+            times_from_occurrence: None,
+        },
     })
     .expect("a well-formed edit converts");
 
-    let mailcal_app::Intent::UpdateEvent { edit, .. } = converted else {
+    let mailcal_app::Intent::Events(mailcal_app::EventIntent::Update { edit, .. }) = converted
+    else {
         panic!("expected an UpdateEvent");
     };
     assert_eq!(edit.title.as_deref(), Some("Standup (kort)"));
@@ -238,35 +241,40 @@ fn an_update_event_intent_parses_into_a_typed_edit() {
 /// be cleared); a malformed wall-clock drops the whole intent rather than editing a wrong time.
 #[test]
 fn an_update_event_leaves_empty_required_fields_and_rejects_a_bad_time() {
-    let left_alone = mailcal_app::Intent::try_from(Intent::UpdateEvent {
-        account: "acct-a".to_owned(),
-        key: "/cal/e.ics".to_owned(),
-        title: Some(String::new()),
-        start: Some(String::new()),
-        end: None,
-        notes: None,
-        location: None,
-        occurrence: None,
-        recurrence: None,
-        times_from_occurrence: None,
+    let left_alone = mailcal_app::Intent::try_from(Intent::Events {
+        intent: EventIntent::Update {
+            account: "acct-a".to_owned(),
+            key: "/cal/e.ics".to_owned(),
+            title: Some(String::new()),
+            start: Some(String::new()),
+            end: None,
+            notes: None,
+            location: None,
+            occurrence: None,
+            recurrence: None,
+            times_from_occurrence: None,
+        },
     })
     .expect("empty required fields are valid; they change nothing");
-    let mailcal_app::Intent::UpdateEvent { edit, .. } = left_alone else {
+    let mailcal_app::Intent::Events(mailcal_app::EventIntent::Update { edit, .. }) = left_alone
+    else {
         panic!("expected an UpdateEvent");
     };
     assert!(edit.title.is_none() && edit.start.is_none() && edit.end.is_none());
 
-    let rejected = mailcal_app::Intent::try_from(Intent::UpdateEvent {
-        account: "acct-a".to_owned(),
-        key: "/cal/e.ics".to_owned(),
-        title: None,
-        start: Some("not-a-time".to_owned()),
-        end: None,
-        notes: None,
-        location: None,
-        occurrence: None,
-        recurrence: None,
-        times_from_occurrence: None,
+    let rejected = mailcal_app::Intent::try_from(Intent::Events {
+        intent: EventIntent::Update {
+            account: "acct-a".to_owned(),
+            key: "/cal/e.ics".to_owned(),
+            title: None,
+            start: Some("not-a-time".to_owned()),
+            end: None,
+            notes: None,
+            location: None,
+            occurrence: None,
+            recurrence: None,
+            times_from_occurrence: None,
+        },
     });
     assert!(rejected.is_err(), "a malformed wall-clock drops the intent");
 }
@@ -291,21 +299,25 @@ fn weekly_rule() -> SimpleRecurrence {
 /// series quietly repeating on the wrong rhythm rather than as an error.
 #[test]
 fn a_create_carries_its_repeat_rule_across_the_boundary() {
-    let converted = mailcal_app::Intent::try_from(Intent::CreateEvent {
-        title: "Retro".to_owned(),
-        start: "2026-09-03T15:00:00".to_owned(),
-        end: "2026-09-03T16:00:00".to_owned(),
-        account: None,
-        calendar: None,
-        all_day: false,
-        timezone: Some("Europe/Amsterdam".to_owned()),
-        notes: None,
-        location: None,
-        recurrence: Some(weekly_rule()),
+    let converted = mailcal_app::Intent::try_from(Intent::Events {
+        intent: EventIntent::Create {
+            title: "Retro".to_owned(),
+            start: "2026-09-03T15:00:00".to_owned(),
+            end: "2026-09-03T16:00:00".to_owned(),
+            account: None,
+            calendar: None,
+            all_day: false,
+            timezone: Some("Europe/Amsterdam".to_owned()),
+            notes: None,
+            location: None,
+            recurrence: Some(weekly_rule()),
+        },
     })
     .expect("a well-formed create converts");
 
-    let mailcal_app::Intent::CreateEvent { recurrence, .. } = converted else {
+    let mailcal_app::Intent::Events(mailcal_app::EventIntent::Create { recurrence, .. }) =
+        converted
+    else {
         panic!("expected a CreateEvent");
     };
     let rule = recurrence.expect("the new event repeats");
@@ -330,20 +342,23 @@ fn a_create_carries_its_repeat_rule_across_the_boundary() {
 #[test]
 fn an_edit_keeps_leaving_a_rule_alone_distinct_from_removing_it() {
     let edit_of = |change| {
-        let converted = mailcal_app::Intent::try_from(Intent::UpdateEvent {
-            account: "acct-a".to_owned(),
-            key: "e.ics".to_owned(),
-            title: None,
-            start: None,
-            end: None,
-            notes: None,
-            location: None,
-            occurrence: None,
-            recurrence: change,
-            times_from_occurrence: None,
+        let converted = mailcal_app::Intent::try_from(Intent::Events {
+            intent: EventIntent::Update {
+                account: "acct-a".to_owned(),
+                key: "e.ics".to_owned(),
+                title: None,
+                start: None,
+                end: None,
+                notes: None,
+                location: None,
+                occurrence: None,
+                recurrence: change,
+                times_from_occurrence: None,
+            },
         })
         .expect("a well-formed edit converts");
-        let mailcal_app::Intent::UpdateEvent { edit, .. } = converted else {
+        let mailcal_app::Intent::Events(mailcal_app::EventIntent::Update { edit, .. }) = converted
+        else {
             panic!("expected an UpdateEvent");
         };
         edit.recurrence
@@ -372,13 +387,18 @@ fn an_edit_keeps_leaving_a_rule_alone_distinct_from_removing_it() {
 #[test]
 fn a_delete_names_one_occurrence_or_the_whole_series() {
     let occurrence_of = |token: Option<&str>| {
-        mailcal_app::Intent::try_from(Intent::DeleteEvent {
-            account: "acct-a".to_owned(),
-            key: "e.ics".to_owned(),
-            occurrence: token.map(str::to_owned),
+        mailcal_app::Intent::try_from(Intent::Events {
+            intent: EventIntent::Delete {
+                account: "acct-a".to_owned(),
+                key: "e.ics".to_owned(),
+                occurrence: token.map(str::to_owned),
+            },
         })
         .map(|converted| {
-            let mailcal_app::Intent::DeleteEvent { occurrence, .. } = converted else {
+            let mailcal_app::Intent::Events(mailcal_app::EventIntent::Delete {
+                occurrence, ..
+            }) = converted
+            else {
                 panic!("expected a DeleteEvent");
             };
             occurrence
