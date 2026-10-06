@@ -106,6 +106,27 @@ fn inbox_default(mailboxes: &[Mailbox]) -> Vec<String> {
         .collect()
 }
 
+/// The behaviour in effect for an account listing `mailboxes`. A stored push folder spelled
+/// like `INBOX` names the listed inbox, because IMAP's reserved name is case-insensitive and an
+/// engine that once took a server's spelling (Yahoo's `Inbox`) as the id left that one stored.
+fn resolve(
+    stored: Option<&AccountSyncSettings>,
+    idle_supported: bool,
+    mailboxes: &[Mailbox],
+) -> EffectiveSync {
+    let inbox = inbox_default(mailboxes);
+    let mut eff = effective(stored, idle_supported, &inbox);
+    if let Some(inbox) = inbox.first() {
+        for folder in &mut eff.push_folders {
+            if folder.eq_ignore_ascii_case("INBOX") {
+                folder.clone_from(inbox);
+            }
+        }
+        eff.push_folders = cap_push_folders(&eff.push_folders);
+    }
+    eff
+}
+
 /// Maps the persisted strategy to the host-facing kind.
 fn kind(strategy: SyncStrategy) -> SyncStrategyKind {
     match strategy {
@@ -140,7 +161,6 @@ impl<P: Provider> App<P> {
                 .iter()
                 .any(|p| p.connection_info().capabilities.idle());
             let mailboxes = self.engine.mailboxes(&account.id).await.unwrap_or_default();
-            let default_push = inbox_default(&mailboxes);
             let (stored, sync_depth_months) = {
                 let guard = self
                     .sync_settings
@@ -151,7 +171,7 @@ impl<P: Provider> App<P> {
                     u16::from(guard.effective_depth(account.id.as_str())),
                 )
             };
-            let eff = effective(stored.as_ref(), idle_supported, &default_push);
+            let eff = resolve(stored.as_ref(), idle_supported, &mailboxes);
             let subscribed: HashSet<&str> = eff.push_folders.iter().map(String::as_str).collect();
             let is_push = matches!(eff.strategy, SyncStrategy::Push);
             // The pane's own rows, so this list is in the pane's order rather than the
@@ -218,13 +238,12 @@ impl<P: Provider> App<P> {
             .iter()
             .any(|p| p.connection_info().capabilities.idle());
         let mailboxes = self.engine.mailboxes(&account.id).await.unwrap_or_default();
-        let default_push = inbox_default(&mailboxes);
         let stored = self
             .sync_settings
             .lock()
             .expect("sync-settings mutex poisoned")
             .get(id);
-        Some(effective(stored.as_ref(), idle_supported, &default_push))
+        Some(resolve(stored.as_ref(), idle_supported, &mailboxes))
     }
 
     /// Switches an account between push and poll. The companion folder set / interval are
