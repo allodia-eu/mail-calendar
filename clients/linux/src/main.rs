@@ -116,7 +116,7 @@ fn main() {
         gtk::glib::ExitCode::SUCCESS
     });
     let app = relm4::RelmApp::<ui::AppInput>::from_app(application).with_broker(&APP_BROKER);
-    app.run::<ui::AppModel>(());
+    app.run::<ui::AppWindow>(());
 }
 
 #[cfg(test)]

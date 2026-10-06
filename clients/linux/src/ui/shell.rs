@@ -88,9 +88,6 @@ pub(crate) struct AppWidgets {
 
 impl AppWidgets {
     pub(super) fn new(root: adw::ApplicationWindow, sender: relm4::Sender<AppInput>) -> Self {
-        root.set_title(Some(l10n::app_title()));
-        root.set_default_width(1280);
-        root.set_default_height(800);
         let notice = adw::Banner::new("");
         // The banner now also carries host error strings (a failed account removal), and
         // `AdwBanner:title` is Pango markup by default: an ampersand would render it blank.
