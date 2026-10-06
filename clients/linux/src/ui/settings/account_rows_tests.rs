@@ -116,6 +116,30 @@ fn a_use_waiting_on_permission_is_drawn_off_and_switching_it_on_asks() {
 }
 
 #[test]
+fn an_only_use_waiting_on_permission_can_still_be_asked_for() {
+    let entry = entry(
+        AccountKind::Google,
+        &[
+            (AccountCapability::Mail, CapabilityState::Off),
+            (
+                AccountCapability::Calendar,
+                CapabilityState::NeedsPermission,
+            ),
+            (AccountCapability::Contacts, CapabilityState::Off),
+        ],
+    );
+    assert_eq!(
+        use_switch(&entry, AccountCapability::Calendar),
+        UseSwitch {
+            active: false,
+            asks: true,
+            sensitive: true,
+            note: Some(l10n::settings_account_use_withheld()),
+        }
+    );
+}
+
+#[test]
 fn signing_in_again_is_offered_where_the_provider_signs_in_and_says_what_is_wrong() {
     assert!(signs_in_at_provider(AccountKind::Microsoft));
     assert!(signs_in_at_provider(AccountKind::Google));

@@ -136,11 +136,6 @@ pub(crate) fn a_closed_settings_window_is_not_on_screen() {
     );
 }
 
-/// The sidebar selection counts rows the sidebar actually has.
-///
-/// A build carrying no Allodia registration draws one row fewer. Counted over every category,
-/// every request lands one row late; Settings → Signatures opens Notifications; and About,
-/// last in the list, matches no row at all and leaves the window with nothing selected.
 #[test]
 fn every_notice_is_raised_anew_and_redraws_the_page_in_place() {
     use super::notice::Notice;
@@ -162,8 +157,24 @@ fn every_notice_is_raised_anew_and_redraws_the_page_in_place() {
         .map(|raised| raised.id);
     assert!(first.is_some() && second.is_some());
     assert_ne!(second, first);
+
+    // A window opened afresh does not greet the person with one raised while it was closed,
+    // and the next notice still carries a number the window has not shown.
+    state.open(Some(Category::Accounts));
+    assert!(state.render_state(None, &synced).notice.is_none());
+    state.notify(Notice::Toast("Signed in again.".to_owned()));
+    let third = state
+        .render_state(None, &synced)
+        .notice
+        .map(|raised| raised.id);
+    assert!(third.is_some() && third != second && third != first);
 }
 
+/// The sidebar selection counts rows the sidebar actually has.
+///
+/// A build carrying no Allodia registration draws one row fewer. Counted over every category,
+/// every request lands one row late; Settings → Signatures opens Notifications; and About,
+/// last in the list, matches no row at all and leaves the window with nothing selected.
 #[test]
 fn a_build_without_the_allodia_route_still_opens_the_category_asked_for() {
     let without: Vec<Category> = CATEGORIES

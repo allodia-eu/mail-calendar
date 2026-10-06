@@ -113,7 +113,9 @@ pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) ->
         AccountCapability::Calendar,
         AccountCapability::Contacts,
     ];
-    let last = state != CapabilityState::Off
+    // A use waiting on a permission is drawn off, so it is never the one held on: switching it
+    // on asks the provider, which the core does not refuse.
+    let last = state == CapabilityState::On
         && primary.contains(&capability)
         && primary.iter().filter(|wanted| used(**wanted)).count() == 1;
     let without_contacts = capability == AccountCapability::Colleagues
