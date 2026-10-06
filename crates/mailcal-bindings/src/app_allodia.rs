@@ -158,12 +158,14 @@ impl MailcalApp {
             log::info!("allodia: redirect received; exchanging the code");
             let tokens = self
                 .runtime
-                .block_on(signin.complete(
-                    &callback_url,
-                    &pending.state,
-                    &pending.verifier,
-                    time::OffsetDateTime::now_utc(),
-                ))
+                .block_on(|| {
+                    signin.complete(
+                        &callback_url,
+                        &pending.state,
+                        &pending.verifier,
+                        time::OffsetDateTime::now_utc(),
+                    )
+                })
                 .map_err(|err| {
                     // The service's own machine-readable reason, which is the difference between a
                     // stale code and a token minted for the wrong audience. Without it the user
@@ -187,7 +189,7 @@ impl MailcalApp {
             })?;
             let identity = self
                 .runtime
-                .block_on(signin.identity(tokens.access_token.expose()))
+                .block_on(|| signin.identity(tokens.access_token.expose()))
                 .map_err(|err| {
                     log::warn!("allodia: the service would not say whose account this is; {err}");
                     MailcalError::Connect(err.to_string())
@@ -333,7 +335,7 @@ impl MailcalApp {
             log::info!("allodia: sign-in requested; reading the service's OAuth metadata");
             let signin = self
                 .runtime
-                .block_on(allodia_license::SignIn::discover(&redirect_uri))
+                .block_on(|| allodia_license::SignIn::discover(&redirect_uri))
                 .map_err(|err| {
                     log::warn!("allodia: sign-in could not start; {err}");
                     MailcalError::Connect(err.to_string())

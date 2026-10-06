@@ -20,7 +20,7 @@ impl MailcalApp {
     /// [`MailcalApp::signature_html`], so opening Settings does not drag every embedded logo
     /// across the FFI to draw a list of names.
     pub fn signatures(&self) -> SignaturesSnapshot {
-        self.runtime.block_on(self.app.signatures()).into()
+        self.runtime.block_on(|| self.app.signatures()).into()
     }
 
     /// One signature's HTML body, or `None` when the id names nothing; what a signature editor
@@ -40,7 +40,7 @@ impl MailcalApp {
         body_plain: String,
     ) -> SignatureRow {
         self.runtime
-            .block_on(self.app.create_signature(name, body_html, body_plain))
+            .block_on(|| self.app.create_signature(name, body_html, body_plain))
             .into()
     }
 
@@ -54,14 +54,14 @@ impl MailcalApp {
         body_plain: String,
     ) -> bool {
         self.runtime
-            .block_on(self.app.update_signature(&id, name, body_html, body_plain))
+            .block_on(|| self.app.update_signature(&id, name, body_html, body_plain))
     }
 
     /// Deletes a signature and clears it from every account slot that pointed at it, so no
     /// assignment is left naming something that no longer exists. Returns whether the id named
     /// one. Signals `Surface::Settings`.
     pub fn delete_signature(&self, id: String) -> bool {
-        self.runtime.block_on(self.app.delete_signature(&id))
+        self.runtime.block_on(|| self.app.delete_signature(&id))
     }
 
     /// Assigns (or clears, with `None`) which signature an account uses in one slot, then signals
@@ -73,10 +73,10 @@ impl MailcalApp {
         slot: SignatureSlotKind,
         signature: Option<String>,
     ) {
-        self.runtime.block_on(
+        self.runtime.block_on(|| {
             self.app
-                .set_account_signature(&account, slot.into(), signature),
-        );
+                .set_account_signature(&account, slot.into(), signature)
+        });
     }
 
     /// The signature a composer should open with for `account` in `slot`; its id and both

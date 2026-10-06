@@ -49,7 +49,7 @@ impl MailcalApp {
         let app = std::sync::Arc::clone(&self.app);
         let order = self
             .runtime
-            .block_on(async move { app.account_ids().await });
+            .block_on(|| async move { app.account_ids().await });
         let mut facts = self.registry.facts();
         let position = |id: &str| {
             order

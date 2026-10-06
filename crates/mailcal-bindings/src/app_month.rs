@@ -35,7 +35,7 @@ impl MailcalApp {
     /// accounts can each have a `work` calendar and hiding one must not hide the other.
     pub fn set_calendar_visible(&self, account: String, calendar: String, visible: bool) {
         self.runtime
-            .block_on(self.app.set_calendar_visible(&account, &calendar, visible));
+            .block_on(|| self.app.set_calendar_visible(&account, &calendar, visible));
     }
 
     /// Overrides one calendar's colour, or clears the override (`None`) back to the server's.
@@ -45,7 +45,7 @@ impl MailcalApp {
     /// actions.
     pub fn set_calendar_color(&self, account: String, calendar: String, hex: Option<String>) {
         self.runtime
-            .block_on(self.app.set_calendar_color(&account, &calendar, hex));
+            .block_on(|| self.app.set_calendar_color(&account, &calendar, hex));
     }
 
     /// Every calendar, with the user's decisions applied; what Settings lists.
@@ -67,7 +67,8 @@ impl MailcalApp {
         let choice = account
             .zip(calendar)
             .map(|(account, calendar)| DefaultCalendar { account, calendar });
-        self.runtime.block_on(self.app.set_default_calendar(choice));
+        self.runtime
+            .block_on(|| self.app.set_default_calendar(choice));
     }
 }
 

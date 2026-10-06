@@ -39,7 +39,7 @@ impl MailcalApp {
         let now = OffsetDateTime::now_utc();
         let authorized = self
             .runtime
-            .block_on(google::authorize(&pending, &callback_url, now))
+            .block_on(|| google::authorize(&pending, &callback_url, now))
             .map_err(|err| {
                 log::warn!("google: sign-in failed at token exchange / address lookup: {err}");
                 err
@@ -100,7 +100,7 @@ impl MailcalApp {
         };
         let outcome = match self
             .runtime
-            .block_on(dial.run(&account_id, self.device_zone.clone()))
+            .block_on(|| dial.run(&account_id, self.device_zone.clone()))
         {
             Ok(outcome) => outcome,
             Err(err) => {
@@ -138,7 +138,7 @@ impl MailcalApp {
         // first sync starts in the background.
         let app = Arc::clone(&self.app);
         self.runtime
-            .block_on(async move { app.add_new_account_deferred(account).await });
+            .block_on(|| async move { app.add_new_account_deferred(account).await });
         self.refresh_background(&row.id);
         let app_sync = Arc::clone(&self.app);
         self.runtime

@@ -67,7 +67,7 @@ impl HttpsTransport {
 impl Transport for HttpsTransport {
     fn send(&self, request: &Request) -> Result<Response, String> {
         let call = self.build(request).send();
-        let answered = block_on(&self.handle, async {
+        let answered = crate::runtime::drive(&self.handle, move || async move {
             let response = call.await.map_err(|error| error.to_string())?;
             let status = response.status().as_u16();
             // The body is read whatever the status: the service's `409` carries the record this
@@ -77,21 +77,6 @@ impl Transport for HttpsTransport {
             Ok::<_, String>(Response { status, body })
         })?;
         Ok(answered)
-    }
-}
-
-/// Drive one future to completion on the app's runtime, from a synchronous caller.
-///
-/// A pass runs on the thread that asked for it (a host's background thread) where handing the
-/// future to the runtime is all there is to it. A pass started *from* the runtime, which a
-/// scheduled one would be, is on a worker instead, and parking that worker is what
-/// [`block_in_place`](tokio::task::block_in_place) exists to avoid: it moves the thread out of the
-/// scheduler first, so the remaining work still has somewhere to run.
-pub(crate) fn block_on<T>(handle: &tokio::runtime::Handle, future: impl Future<Output = T>) -> T {
-    if tokio::runtime::Handle::try_current().is_ok() {
-        tokio::task::block_in_place(|| handle.block_on(future))
-    } else {
-        handle.block_on(future)
     }
 }
 

@@ -234,7 +234,7 @@ impl MailcalApp {
             autoconfig_issuer: request.oauth_issuer,
         };
         self.runtime
-            .block_on(mailcal_account::decide_imap_auth(&query))
+            .block_on(|| mailcal_account::decide_imap_auth(&query))
             .into()
     }
 
@@ -267,7 +267,7 @@ impl MailcalApp {
         log::info!("imap oauth: sign-in requested for the server the account dials");
         let registration = self
             .runtime
-            .block_on(discover_registration(&query, &redirect_uri))?;
+            .block_on(|| discover_registration(&query, &redirect_uri))?;
 
         let pending = PendingImapLogin {
             email: request.email,
@@ -319,12 +319,14 @@ impl MailcalApp {
         );
         let tokens = self
             .runtime
-            .block_on(oauth.complete(
-                &callback_url,
-                &pending.state,
-                &pending.verifier,
-                OffsetDateTime::now_utc(),
-            ))
+            .block_on(|| {
+                oauth.complete(
+                    &callback_url,
+                    &pending.state,
+                    &pending.verifier,
+                    OffsetDateTime::now_utc(),
+                )
+            })
             .map_err(|err| {
                 // The server's own machine-readable reason, which is the single most useful
                 // line in the whole flow for support: `invalid_grant` means the code was

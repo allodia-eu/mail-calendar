@@ -151,7 +151,7 @@ impl MailcalApp {
         };
         let app = Arc::clone(&self.app);
         self.runtime
-            .block_on(async move { app.reply_recipients(message, reply_all).await })
+            .block_on(|| async move { app.reply_recipients(message, reply_all).await })
             .into()
     }
 }

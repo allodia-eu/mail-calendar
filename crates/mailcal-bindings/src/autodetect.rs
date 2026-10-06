@@ -243,7 +243,7 @@ impl MailcalApp {
         let config = detect_config();
         let result = self
             .runtime
-            .block_on(mailcal_autodetect::detect(email, resolver, &config));
+            .block_on(|| mailcal_autodetect::detect(email, resolver, &config));
         account_route(email, result)
     }
 }

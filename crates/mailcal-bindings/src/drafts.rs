@@ -283,7 +283,7 @@ impl MailcalApp {
         let message = message_ref(&account, key)?;
         let app = Arc::clone(&self.app);
         self.runtime
-            .block_on(async move {
+            .block_on(|| async move {
                 app.resume_draft(composition, message, &staging_directory)
                     .await
             })

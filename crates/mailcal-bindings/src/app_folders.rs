@@ -26,12 +26,10 @@ impl MailcalApp {
             return FolderNameCheck::Empty;
         };
         self.runtime
-            .block_on(self.app.check_folder_name(
-                &account,
-                parent.as_deref(),
-                &name,
-                renaming.as_deref(),
-            ))
+            .block_on(|| {
+                self.app
+                    .check_folder_name(&account, parent.as_deref(), &name, renaming.as_deref())
+            })
             .into()
     }
 }

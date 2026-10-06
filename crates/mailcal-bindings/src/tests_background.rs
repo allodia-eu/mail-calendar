@@ -64,18 +64,18 @@ fn an_added_account_watches_its_inbox_once_the_first_sync_has_run() {
     );
     let account = pushing_account();
     let id = account.id.clone();
-    runtime.block_on(app.add_new_account_deferred(account));
+    runtime.block_on(|| app.add_new_account_deferred(account));
 
-    runtime.block_on(background.apply_current(id.as_str()));
+    runtime.block_on(|| background.apply_current(id.as_str()));
     assert_eq!(
         background.task_count(id.as_str()),
         1,
         "before the first sync there is no folder to watch, only the full pass",
     );
 
-    runtime.block_on(background::sync_added_account(&app, &background, &id));
+    runtime.block_on(|| background::sync_added_account(&app, &background, &id));
 
-    let settings = runtime.block_on(app.sync_settings());
+    let settings = runtime.block_on(|| app.sync_settings());
     let row = settings
         .accounts
         .iter()

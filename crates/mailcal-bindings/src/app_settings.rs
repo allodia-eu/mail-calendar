@@ -17,7 +17,7 @@ impl MailcalApp {
     /// interval, whether the server supports IMAP `IDLE`, and the folder list with
     /// push-subscription state; everything the settings screen renders.
     pub fn sync_settings(&self) -> SyncSettingsSnapshot {
-        self.runtime.block_on(self.app.sync_settings()).into()
+        self.runtime.block_on(|| self.app.sync_settings()).into()
     }
 
     /// Sets whether an account receives mail as it arrives (`Push`, valid only when the
@@ -26,7 +26,7 @@ impl MailcalApp {
     /// the new watches/poll produce mail.
     pub fn set_sync_strategy(&self, account: String, strategy: SyncStrategyKind) {
         self.runtime
-            .block_on(self.app.set_sync_strategy(&account, strategy.into()));
+            .block_on(|| self.app.set_sync_strategy(&account, strategy.into()));
         self.refresh_background(&account);
     }
 
@@ -34,7 +34,7 @@ impl MailcalApp {
     /// restarts its poll timer. Persisted.
     pub fn set_poll_interval(&self, account: String, minutes: u16) {
         self.runtime
-            .block_on(self.app.set_poll_interval(&account, minutes));
+            .block_on(|| self.app.set_poll_interval(&account, minutes));
         self.refresh_background(&account);
     }
 
@@ -42,7 +42,7 @@ impl MailcalApp {
     /// at the platform-wide maximum), then restarts its watches. Persisted.
     pub fn set_push_folder(&self, account: String, folder: String, subscribed: bool) {
         self.runtime
-            .block_on(self.app.set_push_folder(&account, &folder, subscribed));
+            .block_on(|| self.app.set_push_folder(&account, &folder, subscribed));
         self.refresh_background(&account);
     }
 
@@ -94,7 +94,7 @@ impl MailcalApp {
     /// configured account"), then signals `Surface::Settings`.
     pub fn set_default_send_account(&self, account: Option<String>) {
         self.runtime
-            .block_on(self.app.set_default_send_account(account));
+            .block_on(|| self.app.set_default_send_account(account));
     }
 
     /// The per-direction swipe actions (pulled after a `Surface::Settings` signal); what a
@@ -109,7 +109,7 @@ impl MailcalApp {
     /// directions are configured independently.
     pub fn set_swipe_action(&self, direction: SwipeDirection, action: SwipeActionKind) {
         self.runtime
-            .block_on(self.app.set_swipe_action(direction.into(), action.into()));
+            .block_on(|| self.app.set_swipe_action(direction.into(), action.into()));
     }
 
     /// Sets the global log ceiling at runtime: a host toggling on `debug`/`trace` for a
@@ -136,17 +136,17 @@ impl MailcalApp {
         support: DefaultMailAppSupport,
         is_default: Option<bool>,
     ) -> bool {
-        self.runtime.block_on(
+        self.runtime.block_on(|| {
             self.app
-                .should_offer_default_mail_app(support.into(), is_default),
-        )
+                .should_offer_default_mail_app(support.into(), is_default)
+        })
     }
 
     /// Records what came of the offer, so it is never put again, then signals
     /// `Surface::Settings`. A prompt the user closed without answering is `Declined`.
     pub fn record_default_mail_app_offer(&self, outcome: DefaultMailAppOutcome) {
         self.runtime
-            .block_on(self.app.record_default_mail_app_offer(outcome.into()));
+            .block_on(|| self.app.record_default_mail_app_offer(outcome.into()));
     }
 
     /// What came of the offer, or `None` if it has not been put yet: `Some(true)` the user took

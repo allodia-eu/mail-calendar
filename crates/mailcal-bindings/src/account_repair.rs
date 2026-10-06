@@ -90,7 +90,7 @@ impl MailcalApp {
         };
         let outcome = match self
             .runtime
-            .block_on(dial.run(&id, self.device_zone.clone()))
+            .block_on(|| dial.run(&id, self.device_zone.clone()))
         {
             Ok(outcome) => outcome,
             Err(error) => {
@@ -129,7 +129,7 @@ impl MailcalApp {
             for &domain in forget {
                 let app = Arc::clone(&self.app);
                 let forgotten = id.clone();
-                self.runtime.block_on(async move {
+                self.runtime.block_on(|| async move {
                     app.forget_account_domain(&forgotten, domain).await;
                 });
             }
@@ -138,7 +138,7 @@ impl MailcalApp {
         connection_log::log_account_connection_info("reauth", family, &outcome.account);
         let app = Arc::clone(&self.app);
         self.runtime
-            .block_on(async move { app.add_account_deferred(outcome.account).await });
+            .block_on(|| async move { app.add_account_deferred(outcome.account).await });
         self.app.clear_signin_expired(&id);
         self.disconnected
             .lock()

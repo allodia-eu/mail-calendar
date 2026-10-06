@@ -33,7 +33,7 @@ impl MailcalApp {
         let message = message_ref(&account, key)?;
         let app = Arc::clone(&self.app);
         self.runtime
-            .block_on(async move {
+            .block_on(|| async move {
                 app.save_attachment(message, attachment_id, &destination_path)
                     .await
             })
@@ -64,7 +64,7 @@ impl MailcalApp {
         let message = message_ref(&account, key)?;
         let app = Arc::clone(&self.app);
         self.runtime
-            .block_on(async move { app.save_message_source(message, &destination_path).await })
+            .block_on(|| async move { app.save_message_source(message, &destination_path).await })
             .map_err(MailcalError::Engine)
     }
 
@@ -98,7 +98,7 @@ impl MailcalApp {
         let message = message_ref(&account, key)?;
         let app = Arc::clone(&self.app);
         self.runtime
-            .block_on(async move {
+            .block_on(|| async move {
                 app.stage_message_attachments(message, &staging_directory)
                     .await
             })

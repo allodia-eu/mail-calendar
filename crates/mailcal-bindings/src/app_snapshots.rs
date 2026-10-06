@@ -96,7 +96,7 @@ impl MailcalApp {
             return Vec::new();
         };
         self.runtime
-            .block_on(self.app.connection_info(&account_id))
+            .block_on(|| self.app.connection_info(&account_id))
             .into_iter()
             .map(ConnectionInfo::from)
             .collect()
@@ -194,14 +194,14 @@ impl MailcalApp {
     /// `Surface::Settings`. Fire-and-forget beyond the persisted change.
     pub fn set_quote_style(&self, style: QuoteStyleKind) {
         self.runtime
-            .block_on(self.app.set_default_quote_style(style.into()));
+            .block_on(|| self.app.set_default_quote_style(style.into()));
     }
 
     /// Sets and persists whether the composer offers a per-message quote-style override, then
     /// signals `Surface::Settings`. Fire-and-forget beyond the persisted change.
     pub fn set_quote_style_per_message(&self, per_message: bool) {
         self.runtime
-            .block_on(self.app.set_quote_style_per_message(per_message));
+            .block_on(|| self.app.set_quote_style_per_message(per_message));
     }
 
     /// The current outgoing-send status (pulled after a `Surface::Sending` signal): the

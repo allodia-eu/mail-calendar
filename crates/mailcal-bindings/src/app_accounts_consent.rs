@@ -179,7 +179,7 @@ impl MailcalApp {
         let signed_in = match pending.provider {
             Provider::Microsoft => self
                 .runtime
-                .block_on(microsoft::authorize(&pending.login, &callback_url, now))
+                .block_on(|| microsoft::authorize(&pending.login, &callback_url, now))
                 .and_then(|authorized| {
                     let mut config = authorized.config;
                     same_address(&stored.email, &config.email)?;
@@ -193,7 +193,7 @@ impl MailcalApp {
                 }),
             Provider::Google => self
                 .runtime
-                .block_on(google::authorize(&pending.login, &callback_url, now))
+                .block_on(|| google::authorize(&pending.login, &callback_url, now))
                 .and_then(|authorized| {
                     let mut config = authorized.config;
                     same_address(&stored.email, &config.email)?;

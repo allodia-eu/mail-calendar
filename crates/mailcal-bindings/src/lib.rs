@@ -7,6 +7,10 @@
 //! for ([`MailcalApp::mailbox_list`]). FFI types mirror the pure `mailcal-app` types so
 //! the app stays binding-free.
 
+// A test drives a runtime of its own from the test harness's thread, not from a host's, so the
+// `clippy.toml` rule that keeps FFI calls off the caller's stack does not apply to it.
+#![cfg_attr(test, allow(clippy::disallowed_methods))]
+
 use std::{
     collections::HashSet,
     sync::{Arc, Mutex},
@@ -14,7 +18,6 @@ use std::{
 
 use engine_api::{AccountId, Provider};
 use mailcal_app::{Account, App};
-use tokio::runtime::Runtime;
 
 mod about;
 mod account_capability;
@@ -262,7 +265,7 @@ uniffi::setup_scaffolding!();
 /// observer, and the host pulls the snapshot.
 #[derive(uniffi::Object)]
 pub struct MailcalApp {
-    runtime: Runtime,
+    runtime: runtime::FfiRuntime,
     app: Arc<App<Box<dyn Provider>>>,
     /// Non-fatal account-connect diagnostics: at launch, any stored account whose IMAP/mail
     /// connect failed (a stale password, a server blip) and was skipped so the others come
@@ -407,7 +410,7 @@ impl MailcalApp {
     /// called after an account is added or its sync behaviour changes.
     fn refresh_background(&self, account_id: &str) {
         self.runtime
-            .block_on(self.background.apply_current(account_id));
+            .block_on(|| self.background.apply_current(account_id));
     }
 }
 

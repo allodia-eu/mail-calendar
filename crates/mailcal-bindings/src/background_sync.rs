@@ -106,7 +106,7 @@ impl MailcalApp {
     /// [`run_background_sync`](Self::run_background_sync) provide first-run seeding and dedupe.
     pub fn collect_cached_new_mail(&self) -> BackgroundSyncOutcome {
         self.runtime
-            .block_on(self.app.collect_cached_new_mail())
+            .block_on(|| self.app.collect_cached_new_mail())
             .into()
     }
 
@@ -173,7 +173,7 @@ impl MailcalApp {
             Duration::from_secs(u64::from(budget_seconds).clamp(MIN_BUDGET_SECS, MAX_BUDGET_SECS));
         let app = Arc::clone(&self.app);
         self.runtime
-            .block_on(async move { app.run_background_sync(budget).await })
+            .block_on(|| async move { app.run_background_sync(budget).await })
             .into()
     }
 }
