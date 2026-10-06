@@ -239,6 +239,8 @@ final class MailboxModel {
     /// so the Connect button shows a spinner and is disabled, an impatient user can't fire it
     /// twice or dismiss the form mid-connect.
     var isConnecting = false
+    /// The core is being opened at launch (`connect`); the root view shows `LaunchView` meanwhile.
+    var isOpening = false
     /// A non-blocking notice that some stored accounts were skipped at launch because their
     /// mail connect failed (a stale password, a server blip); `nil` when every account
     /// connected. Dismissible, the user clears it once they've seen it.

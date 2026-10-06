@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.TimeFormat
+import uniffi.mailcal_bindings.launchStatusAfterMs
 
 // [showcase] is whether this is a screenshot (documentation) launch, decided once in
 // MainActivityBoot.kt's prepareBoot() before setContent runs.
@@ -83,7 +84,7 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
                         instance != null && showingSettings -> SettingsTabContent(instance)
                         instance != null -> MailboxTabContent(instance)
                         error != null -> ConnectionStatus(L10n.status_connect_failed(ctx, error), isError = true)
-                        else -> ConnectionStatus(L10n.status_connecting(ctx), isError = false)
+                        else -> LaunchStatus(launchStatusAfterMs().toLong())
                     }
                     // The account connected: ask what to call its sender. Rendered here rather
                     // than inside the setup screen because that screen is gone by now, and the
