@@ -61,7 +61,6 @@ mod autodetect;
 mod background;
 mod background_sync;
 mod boot;
-mod launch;
 mod composer;
 mod composer_files;
 mod composer_host;
@@ -85,6 +84,7 @@ mod error;
 mod google;
 mod imap_oauth;
 mod jmap_oauth;
+mod launch;
 mod logging;
 mod mailto;
 mod mcp;
@@ -178,6 +178,7 @@ pub use drafts::{DraftResume, DraftStatus, draft_autosave_idle_seconds};
 pub use error::MailcalError;
 pub use google::{GoogleLoginStart, begin_google_login};
 pub use imap_oauth::{ImapAuthOffer, ImapLoginRequest, ImapLoginStart};
+pub use launch::launch_status_after_ms;
 pub use logging::{LogLevel, Logger};
 pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
@@ -250,7 +251,6 @@ pub use store_files::mail_store_paths;
 pub use sync_state::{SyncStateError, SyncStateStore};
 pub(crate) use timezone::device_zone;
 pub use timezone::{available_time_zones, device_time_zone};
-pub use launch::launch_status_after_ms;
 /// A shared registry of each connected account's re-connection state; see
 /// [`account_registry`], which explains why this is a type with three methods rather than the
 /// open `HashMap` it replaced.
