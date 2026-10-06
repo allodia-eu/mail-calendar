@@ -6,14 +6,14 @@ use crate::{AccountCapability, ConnectionSecurity};
 /// The accounts on this device, in the order the host stored them.
 ///
 /// Empty means there is no account left, and a client returns to first-run setup.
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct AccountsSnapshot {
     /// Every account, mail or not.
     pub accounts: Vec<AccountEntry>,
 }
 
 /// One account as Settings → Accounts lists it.
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct AccountEntry {
     /// The account's id, which every account method takes. Never shown.
     pub id: String,
@@ -51,7 +51,7 @@ pub enum AccountKind {
 }
 
 /// One use of an account and its state.
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct AccountUse {
     /// The use.
     pub capability: AccountCapability,
@@ -72,7 +72,7 @@ pub enum CapabilityState {
 }
 
 /// The accounts one account relies on, each already checked against the accounts that exist.
-#[derive(Debug, Clone, Default, uniffi::Record)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, uniffi::Record)]
 pub struct AccountLinksView {
     /// The calendar a mail account files and answers its invitations through.
     pub calendar: Option<LinkedAccount>,
@@ -92,7 +92,7 @@ pub struct LinkedAccount {
 }
 
 /// The accounts each link slot may name.
-#[derive(Debug, Clone, Default, uniffi::Record)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, uniffi::Record)]
 pub struct LinkCandidates {
     /// Calendars a mail account may file its invitations through.
     pub calendar: Vec<LinkedAccount>,

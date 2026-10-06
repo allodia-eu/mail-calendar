@@ -110,9 +110,7 @@ it, while bob's calendar is offered without being suggested.
 - **A suggestion compares the mail account's own address only.** An alias the mailbox sends as
   is not compared, so a calendar server that lists only the alias suggests nothing. Linux names
   the suggestion under the link's picker, with a button that links it; the other clients do not
-  draw the page yet. The Linux settings window is redrawn by the changes made in it and not by the
-  core's settings signal, so a suggestion that arrives after an account's page is drawn shows on
-  its next redraw.
+  draw the page yet.
 - **Links are stored but not acted on.** An invitation still files into, and answers from, the
   account whose mail it arrived in, and "save contact" still writes to the account in view.
 - **A use has three states, on, off and needs permission.** "Not offered" (the server has none)

@@ -312,6 +312,11 @@ that same file.
   the adjustment, which is right in both broken states
   ([`grid_widget_tests.rs`](../clients/linux/src/ui/calendar/grid_widget_tests.rs)).
 
+  A page built afresh can skip the deferral: the viewport places its child by the value it finds
+  at its **first** allocation, so an offset set before then is drawn in that frame, with no frame
+  at the top. The adjustment needs range enough to hold it, or it clamps to `0` against a page
+  with no height yet ([`redraw.rs`](../clients/linux/src/ui/settings/redraw.rs)).
+
   Deferring has its own price, and it is the reason a scrolled offset here is kept in **minutes**
   rather than pixels. For the pass before the height lands, the viewport measures the *old* day
   against the *new* size, so the offset it clamps is not the reader's: grow a window past twice its

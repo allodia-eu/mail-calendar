@@ -7,19 +7,34 @@
 
 use super::{Category, RenderState};
 
+/// What a generation asks of the window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::ui) enum Redraw {
+    /// Put the window on screen.
+    Open,
+    /// Redraw the window if it is open, and leave a closed one closed.
+    ///
+    /// Without this, an Allodia redirect landing after the person closed Settings would put the
+    /// window back on screen over their mail.
+    InPlace,
+    /// As [`InPlace`](Self::InPlace), for the core's signal rather than a change made in the
+    /// window: skipped when the accounts are as drawn, and held while the person is typing.
+    Signalled,
+}
+
 /// Everything the model holds about Settings: which generation is pending, what it should show,
 /// and whether it is a request to *open* the window or only to redraw an open one.
 ///
-/// Together in one type because they are written and read as one, and because the open/refresh
-/// distinction is an invariant rather than a field. A caller picks [`open`](Self::open) or
-/// [`refresh`](Self::refresh) and cannot express anything else; when it was a `bool` beside the
-/// generation, two of the four sites that bumped the generation forgot to set it, and a stale
-/// `true` silently turned the next *open* into nothing.
+/// Together in one type because they are written and read as one, and because the kind of
+/// redraw is an invariant rather than a field. A caller picks [`open`](Self::open),
+/// [`refresh`](Self::refresh) or one of their siblings and cannot express anything else; when it
+/// was a `bool` beside the generation, two of the four sites that bumped the generation forgot
+/// to set it, and a stale `true` silently turned the next *open* into nothing.
 #[derive(Debug)]
 pub(in crate::ui) struct SettingsState {
     generation: u64,
     category: Category,
-    refresh_only: bool,
+    redraw: Redraw,
     /// An Allodia sign-in's browser hop is outstanding, and the failure it may have left. Here
     /// rather than in the window because the window is rebuilt on every change and a hop outlives
     /// several.
@@ -47,7 +62,7 @@ impl Default for SettingsState {
             // Nothing is pending: generation 0 renders no window.
             generation: 0,
             category: Category::General,
-            refresh_only: false,
+            redraw: Redraw::Open,
             allodia_signing_in: false,
             allodia_sign_in_slow: false,
             allodia_failure: None,
@@ -69,7 +84,7 @@ impl SettingsState {
         // A window opened afresh starts on the accounts list, not on a page left open earlier.
         self.account = None;
         self.account_notice = None;
-        self.refresh_only = false;
+        self.redraw = Redraw::Open;
         self.bump();
     }
 
@@ -81,7 +96,7 @@ impl SettingsState {
     /// mail.
     pub(in crate::ui) fn refresh(&mut self, category: Category) {
         self.category = category;
-        self.refresh_only = true;
+        self.redraw = Redraw::InPlace;
         self.bump();
     }
 
@@ -101,8 +116,18 @@ impl SettingsState {
     /// Accounts page away mid-gesture and put Allodia in its place, which reads as the app
     /// rejecting what they just did rather than doing it.
     pub(in crate::ui) fn refresh_in_place(&mut self) {
-        self.refresh_only = true;
+        self.redraw = Redraw::InPlace;
         self.bump();
+    }
+
+    /// The core's settings signal: redraws Accounts if it is the page on screen, whose rows the
+    /// signal may describe. Every other page reconciles itself, and a rebuild under one would
+    /// take whatever is being written in it.
+    pub(in crate::ui) fn signalled(&mut self) {
+        if self.category == Category::Accounts {
+            self.redraw = Redraw::Signalled;
+            self.bump();
+        }
     }
 
     fn bump(&mut self) {
@@ -130,7 +155,7 @@ impl SettingsState {
             allodia_accounts_synced: accounts_synced,
             account: self.account.as_deref(),
             account_notice: self.account_notice.as_deref(),
-            refresh_only: self.refresh_only,
+            redraw: self.redraw,
         }
     }
 }

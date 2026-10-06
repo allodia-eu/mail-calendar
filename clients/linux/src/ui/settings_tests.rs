@@ -5,7 +5,7 @@
 
 use adw::prelude::*;
 
-use super::{CATEGORIES, Category, SettingsState, SettingsWindow, initial_category};
+use super::{CATEGORIES, Category, Redraw, SettingsState, SettingsWindow, initial_category};
 
 /// A generation is either a request to **open** the window or a redraw of an open one, and the
 /// two must not leak into each other.
@@ -26,7 +26,7 @@ fn an_open_is_never_left_holding_a_previous_refreshs_intent() {
 
     state.refresh(Category::Accounts);
     let refreshed = state.render_state(None, &synced);
-    assert!(refreshed.refresh_only);
+    assert_eq!(refreshed.redraw, Redraw::InPlace);
     assert_eq!(refreshed.category, Category::Accounts);
     assert_eq!(refreshed.generation, 1);
 
@@ -34,7 +34,11 @@ fn an_open_is_never_left_holding_a_previous_refreshs_intent() {
     // the refresh left behind.
     state.open(None);
     let opened = state.render_state(None, &synced);
-    assert!(!opened.refresh_only, "a refresh must not outlive itself");
+    assert_eq!(
+        opened.redraw,
+        Redraw::Open,
+        "a refresh must not outlive itself"
+    );
     assert_eq!(opened.category, Category::Accounts);
     assert_eq!(opened.generation, 2);
 
@@ -65,7 +69,7 @@ fn a_change_made_on_a_page_redraws_it_rather_than_leaving_it() {
         Category::Accounts,
         "the page the change was made on is the page that redraws"
     );
-    assert!(redrawn.refresh_only, "a redraw, never an open");
+    assert_eq!(redrawn.redraw, Redraw::InPlace, "a redraw, never an open");
     assert_eq!(redrawn.generation, 2, "and it does redraw");
 
     // The contrast, which is the behaviour worth keeping: a hop coming back names its page.
@@ -74,6 +78,34 @@ fn a_change_made_on_a_page_redraws_it_rather_than_leaving_it() {
         state.render_state(None, &synced).category,
         Category::Allodia
     );
+}
+
+/// The core's settings signal redraws Accounts, whose rows it describes, and no other page: the
+/// rest reconcile themselves, and a rebuild under the signature editor would take what is being
+/// written in it.
+#[test]
+fn the_cores_signal_redraws_the_accounts_page_and_no_other() {
+    let mut state = SettingsState::default();
+    let synced = std::collections::HashMap::new();
+
+    state.open(Some(Category::Signatures));
+    state.signalled();
+    assert_eq!(
+        state.render_state(None, &synced).generation,
+        1,
+        "nothing to redraw"
+    );
+
+    state.record_category(Category::Accounts);
+    state.signalled();
+    let signalled = state.render_state(None, &synced);
+    assert_eq!(signalled.generation, 2);
+    assert_eq!(
+        signalled.redraw,
+        Redraw::Signalled,
+        "a redraw, never an open"
+    );
+    assert_eq!(signalled.category, Category::Accounts);
 }
 
 /// The question the refresh guard has to ask, and the trap it sits in.
