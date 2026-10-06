@@ -32,7 +32,8 @@ impl SetupRecommendation {
                 carddav_url,
                 ..
             } => standards_choices(false, caldav_url.is_some(), carddav_url.is_some()),
-            Self::Microsoft { .. } | Self::Google { .. } => provider_choices(),
+            Self::Microsoft { email } => microsoft_choices(email),
+            Self::Google { email } => google_choices(email),
             Self::Jmap { .. } | Self::Manual { .. } => Vec::new(),
         }
     }
@@ -61,13 +62,48 @@ pub fn standards_choices(mail: bool, caldav: bool, carddav: bool) -> Vec<SetupCh
         .collect()
 }
 
-/// The uses a Microsoft or Google sign-in offers: every one, colleagues included, all on.
+/// The uses a Microsoft sign-in for `email` offers: every one, all on, and colleagues only when
+/// the address is not a personal one.
 #[must_use]
-pub fn provider_choices() -> Vec<SetupChoice> {
+pub fn microsoft_choices(email: &str) -> Vec<SetupChoice> {
+    provider_choices(is_microsoft_consumer_domain(email))
+}
+
+/// The uses a Google sign-in for `email` offers, as [`microsoft_choices`] does for Microsoft.
+#[must_use]
+pub fn google_choices(email: &str) -> Vec<SetupChoice> {
+    provider_choices(crate::autodetect::is_google_consumer_domain(email))
+}
+
+/// Every use, all on; colleagues left out for a personal account, which has no organisation
+/// directory (`docs/accounts.md` rule 3).
+fn provider_choices(personal: bool) -> Vec<SetupChoice> {
     Capability::ALL
         .into_iter()
+        .filter(|capability| !(personal && *capability == Capability::Colleagues))
         .map(|capability| found(capability, true))
         .collect()
+}
+
+/// Microsoft's consumer brands, each under many country domains (`hotmail.co.uk`, `live.nl`).
+const MICROSOFT_CONSUMER_BRANDS: &[&str] = &["outlook", "hotmail", "live", "msn", "windowslive"];
+
+/// Whether `email` is at one of Microsoft's personal-account domains: a brand followed by a
+/// top-level domain (`live.nl`), or by `co` or `com` and a country (`hotmail.co.uk`,
+/// `live.com.au`), so `outlook.example.com` and `live.ing.nl` are not one.
+fn is_microsoft_consumer_domain(email: &str) -> bool {
+    let Some(domain) = email
+        .rsplit_once('@')
+        .map(|(_, domain)| domain.to_ascii_lowercase())
+    else {
+        return false;
+    };
+    let mut labels = domain.split('.');
+    let brand = labels.next().unwrap_or_default();
+    let suffix: Vec<&str> = labels.collect();
+    MICROSOFT_CONSUMER_BRANDS.contains(&brand)
+        && (1..=2).contains(&suffix.len())
+        && (suffix.len() == 1 || matches!(suffix[0], "co" | "com") && suffix[1].len() == 2)
 }
 
 #[cfg(test)]

@@ -10,10 +10,9 @@
 //! [`crate::allodia`] gives: one FFI surface, whatever the build carries. A build with no Allodia
 //! registration answers every call below by saying it has none.
 
-use crate::{
-    autodetect::{DetectedServerRow, MissReason, SetupRecommendation},
-    setup::ConnectionSecurity,
-};
+use mailcal_account::{MissReason as AccountMiss, SetupRecommendation as Route};
+
+use crate::{autodetect::SetupRecommendation, setup::ConnectionSecurity};
 
 /// Where an offer's settings came from, for the provenance line the setup card carries.
 const OFFER_SOURCE: &str = "your other devices";
@@ -151,20 +150,29 @@ pub struct AllodiaSyncReport {
 #[uniffi::export]
 #[must_use]
 pub fn setup_from_offer(offer: AllodiaAccountOffer) -> SetupRecommendation {
+    crate::autodetect::convert(offer_route(offer))
+}
+
+/// The route an offer opens, as the account layer describes one: what [`setup_from_offer`]
+/// converts, and what [`offered_setup`](crate::offered_setup) reads the found card's choices
+/// from, so the two cannot come to different routes.
+pub(crate) fn offer_route(offer: AllodiaAccountOffer) -> Route {
     match offer.kind {
-        AllodiaAccountKind::Google => SetupRecommendation::Google { email: offer.email },
-        AllodiaAccountKind::Microsoft => SetupRecommendation::Microsoft { email: offer.email },
+        AllodiaAccountKind::Google => Route::Google { email: offer.email },
+        AllodiaAccountKind::Microsoft => Route::Microsoft { email: offer.email },
         // A record naming no server is one this device cannot route from. Detection is the
         // fallback rather than an error: it finds the same server the other device did.
         AllodiaAccountKind::Jmap => offer.jmap_base_url.map_or(
-            SetupRecommendation::Manual {
-                reason: MissReason::NothingFound,
+            Route::Manual {
+                reason: AccountMiss::NothingFound,
             },
-            |server_url| SetupRecommendation::Jmap {
+            |server_url| Route::Jmap {
                 email: offer.email,
                 server_url,
                 is_trusted: true,
                 source: OFFER_SOURCE.to_owned(),
+                caldav_url: None,
+                carddav_url: None,
             },
         ),
         AllodiaAccountKind::Imap => imap_route(offer),
@@ -172,10 +180,10 @@ pub fn setup_from_offer(offer: AllodiaAccountOffer) -> SetupRecommendation {
 }
 
 /// The IMAP route, or the manual form when the record names no incoming server to take.
-fn imap_route(offer: AllodiaAccountOffer) -> SetupRecommendation {
+fn imap_route(offer: AllodiaAccountOffer) -> Route {
     let (Some(host), Some(port)) = (offer.host, offer.port) else {
-        return SetupRecommendation::Manual {
-            reason: MissReason::NothingFound,
+        return Route::Manual {
+            reason: AccountMiss::NothingFound,
         };
     };
     let imap_security = offer.security.unwrap_or(ConnectionSecurity::ImplicitTls);
@@ -184,7 +192,7 @@ fn imap_route(offer: AllodiaAccountOffer) -> SetupRecommendation {
         .unwrap_or(ConnectionSecurity::ImplicitTls);
     // Submission needs both halves to be routable; one without the other is not a server.
     let smtp = offer.smtp_host.zip(offer.smtp_port);
-    SetupRecommendation::Imap {
+    Route::Imap {
         // A restored account is described by what it was, not by a fresh detection: nothing
         // here re-read an autoconfig document, so no issuer was named.
         oauth_issuer: None,
@@ -192,13 +200,14 @@ fn imap_route(offer: AllodiaAccountOffer) -> SetupRecommendation {
         smtp_host: smtp
             .as_ref()
             .map(|(host, port)| host_with_port(host, *port, 465)),
-        imap_security,
-        smtp_security,
+        imap_security: imap_security.into(),
+        smtp_security: smtp_security.into(),
         incoming: server_row("IMAP", &host, port, imap_security, &offer.email),
         outgoing: smtp
             .as_ref()
             .map(|(host, port)| server_row("SMTP", host, *port, smtp_security, &offer.email)),
         caldav_url: offer.caldav_base_url,
+        carddav_url: None,
         is_trusted: true,
         source: OFFER_SOURCE.to_owned(),
         email: offer.email,
@@ -220,8 +229,8 @@ fn server_row(
     port: u16,
     security: ConnectionSecurity,
     username: &str,
-) -> DetectedServerRow {
-    DetectedServerRow {
+) -> mailcal_account::ServerSummary {
+    mailcal_account::ServerSummary {
         protocol: protocol.to_owned(),
         hostname: hostname.to_owned(),
         port,

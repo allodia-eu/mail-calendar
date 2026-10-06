@@ -428,8 +428,8 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   domain with DAV alone as "nothing found". `detect_account_setup` carries the rest (both
   endpoints on every route, the calendar-and-contacts route, the choices), and an offer from the
   person's other devices has its own (`offered_setup`); each client moves to them when its setup
-  offers the choices. On Linux the choices reach the found card of the IMAP and
-  calendar-and-contacts routes; the Microsoft, Google and JMAP routes do not draw them yet.
+  offers the choices. On Linux they reach every route's card but JMAP's, whose session says
+  what it offers only after the sign-in.
 - **TXT `path` records are not read** (RFC 6764 §4). The host resolver has no TXT lookup, so a
   DAV server whose context path is published only in TXT, and not under `.well-known` on the
   SRV target, is not found, and the user adds it manually.

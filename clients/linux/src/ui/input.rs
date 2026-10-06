@@ -3,8 +3,9 @@
 use std::path::PathBuf;
 
 use mailcal_bindings::{
-    AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget, DetectedSetup, DraftResume,
-    ImapAuthOffer, Intent, MailtoPrefill, SearchScope, SharePrefill, Surface,
+    AccountCapability, AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget,
+    DetectedSetup, DraftResume, ImapAuthOffer, Intent, MailtoPrefill, SearchScope, SharePrefill,
+    Surface,
 };
 
 use super::{
@@ -267,11 +268,13 @@ pub(crate) enum AppInput {
     /// Close the "your name" step without setting one: the account keeps sending as a bare
     /// address.
     DismissSenderNamePrompt,
-    StartGoogleLogin(String),
+    /// The address to sign in, and what the account is used for.
+    StartGoogleLogin(String, Option<Vec<AccountCapability>>),
     CancelGoogleLogin,
     GoogleCallbackReceived(u64),
     GoogleFinished(u64, GoogleOutcome),
-    StartMicrosoftLogin(String),
+    /// The address to sign in, and what the account is used for.
+    StartMicrosoftLogin(String, Option<Vec<AccountCapability>>),
     CancelMicrosoftLogin,
     MicrosoftCallbackReceived(u64),
     MicrosoftFinished(u64, MicrosoftOutcome),

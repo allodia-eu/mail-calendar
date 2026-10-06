@@ -33,6 +33,20 @@ fn detected(recommendation: SetupRecommendation) -> DetectedSetup {
                 ],
             )
         }
+        SetupRecommendation::Microsoft { email } => (
+            None,
+            mailcal_bindings::provider_setup_choices(
+                mailcal_bindings::AccountKind::Microsoft,
+                email.clone(),
+            ),
+        ),
+        SetupRecommendation::Google { email } => (
+            None,
+            mailcal_bindings::provider_setup_choices(
+                mailcal_bindings::AccountKind::Google,
+                email.clone(),
+            ),
+        ),
         _ => (None, Vec::new()),
     };
     DetectedSetup {

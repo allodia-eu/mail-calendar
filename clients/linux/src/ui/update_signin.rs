@@ -21,8 +21,8 @@ impl AppModel {
     /// without the compiler having refused the caller first.
     pub(super) fn update_sign_in(&mut self, message: AppInput, sender: &ComponentSender<Self>) {
         match message {
-            AppInput::StartGoogleLogin(email) => {
-                self.start_google_login(email, sender.input_sender().clone());
+            AppInput::StartGoogleLogin(email, uses) => {
+                self.start_google_login(email, uses, sender.input_sender().clone());
             }
             AppInput::CancelGoogleLogin => self.cancel_google_login(),
             AppInput::GoogleCallbackReceived(attempt) => {
@@ -31,8 +31,8 @@ impl AppModel {
             AppInput::GoogleFinished(attempt, outcome) => {
                 self.google_finished(attempt, outcome, sender.input_sender().clone());
             }
-            AppInput::StartMicrosoftLogin(email) => {
-                self.start_microsoft_login(email, sender.input_sender().clone());
+            AppInput::StartMicrosoftLogin(email, uses) => {
+                self.start_microsoft_login(email, uses, sender.input_sender().clone());
             }
             AppInput::CancelMicrosoftLogin => self.cancel_microsoft_login(),
             AppInput::MicrosoftCallbackReceived(attempt) => {

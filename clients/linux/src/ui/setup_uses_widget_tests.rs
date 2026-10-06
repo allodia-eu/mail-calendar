@@ -257,3 +257,41 @@ pub(super) fn the_manual_mail_form_takes_an_address_book(window: &adw::Applicati
     };
     assert_eq!(submission.carddav_url, "https://contacts.example.test");
 }
+
+/// A Microsoft sign-in asks only for what the card chose: colleagues beneath contacts and gone
+/// with them, and the choice carried into the sign-in (`docs/accounts.md` rule 10).
+pub(super) fn a_provider_card_asks_only_for_what_is_chosen(window: &adw::ApplicationWindow) {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    state.show_form(recommendation_form(
+        SetupRecommendation::Microsoft {
+            email: "alice@contoso.example".to_owned(),
+        },
+        String::new(),
+    ));
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("detected Microsoft content");
+
+    let toggle = |label| check_button(&child, label).unwrap_or_else(|| panic!("{label}"));
+    let calendar = toggle(l10n::setup_detect_calendar_enable());
+    let contacts = toggle(l10n::setup_detect_contacts_enable());
+    let colleagues = toggle(l10n::setup_detect_colleagues_enable());
+    assert!(toggle(l10n::setup_detect_mail_enable()).is_active());
+    assert!(calendar.is_active() && contacts.is_active() && colleagues.is_active());
+    assert!(visible_entries(&child).is_empty(), "nothing to type");
+
+    contacts.set_active(false);
+    assert!(!colleagues.is_active() && !colleagues.is_sensitive());
+    calendar.set_active(false);
+    descendant_button(&child, l10n::setup_microsoft_signin()).emit_clicked();
+    let Some(AppInput::StartMicrosoftLogin(email, uses)) = receiver.recv_sync() else {
+        panic!("the sign-in starts");
+    };
+    assert_eq!(email, "alice@contoso.example");
+    assert_eq!(uses, Some(vec![AccountCapability::Mail]));
+}

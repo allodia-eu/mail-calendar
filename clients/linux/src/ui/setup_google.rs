@@ -9,6 +9,7 @@ use super::{
     AppInput,
     setup_manual::FormSnapshot,
     setup_model::{ManualForm, OAuthForm},
+    setup_uses::{self, UseToggles},
     setup_widgets::{actions, body, edit_manually_button, entry, primary, show_error, waiting},
 };
 use crate::l10n;
@@ -23,10 +24,13 @@ pub(super) fn detected_fields(
     sender: &relm4::Sender<AppInput>,
 ) {
     content.append(&body(l10n::setup_detect_google_hint()));
+    // What the account is used for decides what the sign-in asks for (`docs/accounts.md`
+    // rule 10).
+    let uses = setup_uses::append(content, &form.offer, &[]);
     let gate = gated_note(content, error);
     let actions = actions(window, required, sender);
     actions.append(&edit_manually_button(sender));
-    actions.append(&sign_in(window, &gate, form.email.clone(), sender));
+    actions.append(&sign_in(window, &gate, form.email.clone(), uses, sender));
     content.append(&actions);
 }
 
@@ -42,15 +46,21 @@ pub(super) fn manual_fields(
 ) -> FormSnapshot {
     let email = entry(l10n::setup_field_email(), &form.email, false);
     content.append(&email);
+    let offer = setup_uses::provider_offer(mailcal_bindings::AccountKind::Google, &form.email);
+    let uses = setup_uses::append(content, &offer, &[]);
     let gate = gated_note(content, error);
     let snapshot = address_snapshot(form, &email);
+    let kind = mailcal_bindings::AccountKind::Google;
+    setup_uses::follow_address(&email, kind, &offer, &snapshot, sender);
     let actions = actions(window, required, sender);
     let button = primary(l10n::setup_google_signin(), window);
     button.set_sensitive(false);
     gate_button(&gate, &button);
     let input = sender.clone();
     button.connect_clicked(move |_| {
-        input.emit(AppInput::StartGoogleLogin(email.text().trim().to_owned()));
+        let typed = email.text().trim().to_owned();
+        let uses = setup_uses::provider_uses(kind, &typed, &uses);
+        input.emit(AppInput::StartGoogleLogin(typed, uses));
     });
     actions.append(&button);
     content.append(&actions);
@@ -78,7 +88,7 @@ pub(super) fn signing_in(sender: &relm4::Sender<AppInput>) -> gtk::Box {
 /// What Google's sign-in needs above the button: what the flow does, and the mandatory Early
 /// Access confirmation while Google reviews the app for the restricted scopes.
 fn gated_note(content: &gtk::Box, error: Option<&str>) -> gtk::CheckButton {
-    content.append(&body(l10n::setup_google_note()));
+    content.append(&body(l10n::setup_google_choice_note()));
 
     let early_access = body(l10n::setup_google_early_access_title());
     early_access.add_css_class("heading");
@@ -101,13 +111,19 @@ fn sign_in(
     window: &gtk::Window,
     gate: &gtk::CheckButton,
     email: String,
+    uses: UseToggles,
     sender: &relm4::Sender<AppInput>,
 ) -> gtk::Button {
     let button = primary(l10n::setup_google_signin(), window);
     button.set_sensitive(false);
     gate_button(gate, &button);
     let input = sender.clone();
-    button.connect_clicked(move |_| input.emit(AppInput::StartGoogleLogin(email.clone())));
+    button.connect_clicked(move |_| {
+        input.emit(AppInput::StartGoogleLogin(
+            email.clone(),
+            uses.chosen().uses,
+        ));
+    });
     button
 }
 
