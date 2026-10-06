@@ -67,7 +67,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | Setting a link to one of the offered accounts | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | A link suggested when the calendar server schedules as the mail account's address | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Switching a use on or off, its data deleted when off | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| Editing a password account's servers, tested before applied | ✅ | — | — | — | — | — |
+| Editing a password account's servers, tested before applied | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Setting up an account without mail, or with an address book of its own | ✅ | — | — | — | — | — |
 | Choosing capabilities, and linking accounts, in Settings | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 
@@ -97,12 +97,13 @@ it, while bob's calendar is offered without being suggested.
   choice of uses and a CardDAV URL, and builds a calendar-and-contacts account without a mail
   server, but no setup screen offers either, so every account on a device is used for mail. The
   OAuth standards sign-in (`ImapLoginRequest`) takes neither yet.
-- **An account without mail cannot be removed, nor its password updated, except on Linux, which
-  can remove it.** Apple, Windows and Android draw "Remove account" and the account's Settings card
-  only on surfaces rule 6 keeps it out of (the folder tree, a Settings → Accounts built from the
-  mail-only `sync_settings`), so the "sign in again" prompt rule 7 raises for it points at a card
-  that is not there. Linux lists every account from `accounts_snapshot` and removes any of them;
-  no client updates such an account's password yet.
+- **An account without mail cannot be removed, nor its password updated, except on Linux.**
+  Apple, Windows and Android draw "Remove account" and the account's Settings card only on surfaces
+  rule 6 keeps it out of (the folder tree, a Settings → Accounts built from the mail-only
+  `sync_settings`), so the "sign in again" prompt rule 7 raises for it points at a card that is not
+  there. Linux lists every account from `accounts_snapshot`, removes any of them, and edits a
+  password account's servers and password on its page, which is where the expired-sign-in prompt
+  sends it.
 - **Rule 8 holds only for the calendar.** Every client names an account in the connection and
   sign-in banners and in a contact's provenance ("Also in", the account under each value) by
   looking its id up in the switcher rows, and falls back to the id. An account without mail is not
