@@ -53,7 +53,7 @@ pub(crate) struct OAuthAccount {
     tenant: String,
     capabilities: Capabilities,
     shape: mailcal_account::AccountShape,
-    /// Whether a Microsoft account is a personal one, as stored; `None` for Google.
+    /// Whether the account is a personal one, as stored.
     affiliation: Option<engine_api::Affiliation>,
 }
 
@@ -75,7 +75,7 @@ impl OAuthAccount {
                 tenant: String::new(),
                 capabilities: config.capabilities(),
                 shape: config.shape.clone(),
-                affiliation: None,
+                affiliation: config.affiliation.clone(),
             }),
             crate::ConnectedAccount::Imap { .. } | crate::ConnectedAccount::Jmap { .. } => None,
         }

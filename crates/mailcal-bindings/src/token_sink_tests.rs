@@ -222,6 +222,7 @@ async fn every_provider_family_re_persists_through_the_one_host_store() {
         scopes: vec!["offline_access".to_owned()],
         refresh_token: Secret::new("original-refresh".to_owned()),
         granted_scopes: None,
+        affiliation: None,
         shape: mailcal_account::AccountShape::default(),
     };
     let microsoft_id = microsoft.account_id().expect("a valid account id");

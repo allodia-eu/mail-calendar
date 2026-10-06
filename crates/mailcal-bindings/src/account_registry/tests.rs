@@ -336,6 +336,7 @@ fn every_oauth_family_rotates_and_names_itself() {
         scopes: vec!["offline_access".to_owned()],
         refresh_token: Secret::new("original".to_owned()),
         granted_scopes: None,
+        affiliation: None,
         shape: mailcal_account::AccountShape::default(),
     };
     let microsoft_id = microsoft.account_id().expect("a valid id");

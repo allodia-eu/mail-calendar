@@ -70,26 +70,17 @@ impl MicrosoftConfig {
     /// (everything, since sign-in asked for everything), of what it [offers](Self::offered).
     #[must_use]
     pub fn capabilities(&self) -> crate::Capabilities {
-        let offered = self.offered();
-        self.shape
-            .capabilities_or(crate::Capability::ALL)
-            .iter()
-            .filter(|capability| offered.contains(*capability))
-            .collect()
+        crate::affiliation::within(
+            &self.shape.capabilities_or(crate::Capability::ALL),
+            &self.offered(),
+        )
     }
 
-    /// What this account can be used for. A personal account has no organisation, so no
-    /// colleagues: Microsoft never grants it the directory scope, and asking would leave the use
-    /// waiting on a permission no sign-in can give.
+    /// What this account can be used for: no colleagues on a personal account, which has no
+    /// directory and is never granted one.
     #[must_use]
     pub fn offered(&self) -> crate::Capabilities {
-        crate::Capability::ALL
-            .into_iter()
-            .filter(|capability| {
-                *capability != crate::Capability::Colleagues
-                    || self.affiliation != Some(Affiliation::Personal)
-            })
-            .collect()
+        crate::affiliation::offered(self.affiliation.as_ref())
     }
 
     /// The uses this account is chosen for that its grant does not allow.

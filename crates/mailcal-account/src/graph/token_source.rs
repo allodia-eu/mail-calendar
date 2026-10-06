@@ -66,7 +66,7 @@ pub struct GraphTokenSource {
     /// Which provider family this source serves (`graph` / `google` / `jmap`): the shared
     /// type is provider-neutral, and a refresh log line that cannot say *whose* token it is
     /// answers half the question. Safe to log: it names the protocol and nothing else.
-    provider: &'static str,
+    pub(super) provider: &'static str,
     pub(super) sink: Option<Arc<dyn TokenSink>>,
     /// The account's credential state and its refresh single-flight; **shared with every other
     /// token source for this account in this process**, not owned.

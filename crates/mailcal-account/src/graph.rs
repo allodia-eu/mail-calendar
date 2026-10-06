@@ -34,7 +34,7 @@ mod contacts;
 mod mail_provider;
 mod token_source;
 
-pub use affiliation::graph_affiliation;
+pub use affiliation::{google_affiliation, graph_affiliation};
 pub use calendar::connect_graph_calendar_providers;
 pub use contacts::connect_graph_contact_providers;
 #[cfg(test)]

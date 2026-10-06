@@ -64,6 +64,7 @@ fn config() -> Option<GoogleConfig> {
         scopes: vec!["https://mail.google.com/".to_owned()],
         refresh_token: Secret::new(refresh_token),
         granted_scopes: None,
+        affiliation: None,
         shape: mailcal_account::AccountShape::default(),
     })
 }

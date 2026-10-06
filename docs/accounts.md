@@ -12,7 +12,7 @@ Setting accounts up is [`onboarding.md`](onboarding.md) and
 |---|---|---|
 | 1 | **An account is one sign-in at one provider**, used for a non-empty subset of **mail, calendar and contacts**. Every endpoint in it presents the same credential: one password, or one grant (`[oauth]`, [`mail-oauth.md`](mail-oauth.md) rule 10). Endpoints that need a different sign-in are a second account. | A person thinks of "my Nextcloud" and "my mailbox", not of four endpoints; and a credential shared across accounts is one that expires in several places at once. |
 | 2 | **What an account is used for is stored with it** (`capabilities`), and an account that stores nothing means what its kind always meant: a standards account its mailbox, plus its calendar and the address book beside it when it has a calendar endpoint; a JMAP account mail, calendar and contacts as far as its session offers them; a Microsoft or Google account all of them, colleagues included. | So no account stored before the choice existed changes meaning or is asked anything. |
-| 3 | **Colleagues are a choice of their own**, beside contacts, on Google and on a Microsoft account an organisation administers: the organisation's directory is bound only when the account is used for `colleagues`. A **personal** Microsoft account offers no colleagues at all, never "needs permission" for them: whether it is personal is asked of Graph at every sign-in and stored with the account (`affiliation`), and an account stored without it is asked at its next connect. | It is the permission a strict organisation is most likely to refuse, and it is a different thing from the person's own address book. A personal account has no directory, and Microsoft never grants it the scope, so a choice there would wait on a permission no sign-in can give. |
+| 3 | **Colleagues are a choice of their own**, beside contacts, on a Microsoft or Google account an organisation administers: the organisation's directory is bound only when the account is used for `colleagues`. A **personal** account offers no colleagues at all, never "needs permission" for them: whether it is personal is asked of the provider at every sign-in (Graph's `/organization`, Google's `userinfo`) and stored with the account (`affiliation`), and an account stored without it is asked at its next connect. A Google grant without `userinfo.email` cannot ask, and is offered colleagues as before. | It is the permission a strict organisation is most likely to refuse, and it is a different thing from the person's own address book. A personal account has no directory: Microsoft never grants it the scope, so a choice there would wait on a permission no sign-in can give, and Gmail would read an empty one. |
 | 4 | **A capability the account is not used for is never opened**: no connection, no sync, no watch. | Opening it anyway would spend a connection and a permission on a surface the person chose not to have. |
 | 5 | **Mail decides for an account used for mail; otherwise, anything decides.** An account used for mail connects when its mailbox does, and its mailbox's failure is the account's. An account without mail connects when anything it is used for connects, and reports the first failure (calendar, then contacts) when nothing does. | A mailbox that cannot be reached is an account that cannot be reached. A calendar-only account must still be able to say its server is unreachable or its sign-in has expired. |
 | 6 | **An account without mail is in no mail surface**: not the folder pane, the account switcher, the From picker, the sync settings, the signatures or the assistant's account list ([`folder-pane.md`](folder-pane.md) rule 22, [`mcp.md`](mcp.md) rule 2). Its calendars and contacts appear where every account's do. | A row that opens onto no mailbox, or a From address that cannot send, is a dead end. |
@@ -44,8 +44,8 @@ contacts = "alice@dav:cloud.example"
 A standards account's `[imap]` is optional; `[caldav]` and `[carddav]` are optional too, and at
 least one of the three is present or the document is refused. Its contacts come from `[carddav]`
 when present, otherwise from `[caldav]` ([`contacts.md`](contacts.md)). Microsoft and Google also
-keep `granted_scopes` beside the requested `scopes`, and Microsoft keeps `affiliation`: `"personal"`,
-or `{ organization = "<tenant id>" }`. A capability name this build does not know is
+keep `granted_scopes` beside the requested `scopes`, and both keep `affiliation`: `"personal"`, or
+`{ organization = "<id>" }`, a Microsoft tenant id or a Google Workspace domain. A capability name this build does not know is
 kept and counts for nothing, so an account a newer build wrote stays readable and keeps what it
 said.
 
@@ -129,9 +129,6 @@ it, while bob's calendar is offered without being suggested.
   account's session URL and an OAuth standards account's servers are not offered for editing:
   signing in again is their route, and a new token source over the stored grant during a test
   dial could rotate a refresh token the account then loses.
-- **A personal Google account still offers colleagues.** Gmail has no Workspace directory either,
-  and the engine does not yet tell the two apart for Google, so such an account can be used for
-  colleagues and its directory reads as empty.
 - **Switching colleagues off deletes the account's own contacts too**, until its next contacts
   sync brings them back: the store keeps directory cards beside the account's own with no line
   between them, so it can forget only both.
