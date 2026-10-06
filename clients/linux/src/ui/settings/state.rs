@@ -52,8 +52,8 @@ pub(in crate::ui) struct SettingsState {
     /// The account whose page Accounts shows, or `None` for the list. Here because a change on
     /// that page redraws the window, and the page must survive it.
     pub(in crate::ui) account: Option<String>,
-    /// What the last change on that page came to, when it needs saying.
-    pub(in crate::ui) account_notice: Option<String>,
+    /// What the last change on an account's page came to, when it needs saying.
+    pub(in crate::ui) notice: Option<super::notice::Raised>,
 }
 
 impl Default for SettingsState {
@@ -69,7 +69,7 @@ impl Default for SettingsState {
             allodia_sync: crate::ui::allodia_sync::AllodiaSyncState::default(),
             allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
             account: None,
-            account_notice: None,
+            notice: None,
         }
     }
 }
@@ -83,7 +83,6 @@ impl SettingsState {
         }
         // A window opened afresh starts on the accounts list, not on a page left open earlier.
         self.account = None;
-        self.account_notice = None;
         self.redraw = Redraw::Open;
         self.bump();
     }
@@ -130,6 +129,17 @@ impl SettingsState {
         }
     }
 
+    /// Says `notice` over the window, once, and redraws whatever page is open.
+    pub(in crate::ui) fn notify(&mut self, notice: super::notice::Notice) {
+        let id = self
+            .notice
+            .as_ref()
+            .map_or(0, |raised| raised.id)
+            .wrapping_add(1);
+        self.notice = Some(super::notice::Raised { id, notice });
+        self.refresh_in_place();
+    }
+
     fn bump(&mut self) {
         self.generation = self.generation.wrapping_add(1);
     }
@@ -154,7 +164,7 @@ impl SettingsState {
             allodia_subscription: &self.allodia_subscription,
             allodia_accounts_synced: accounts_synced,
             account: self.account.as_deref(),
-            account_notice: self.account_notice.as_deref(),
+            notice: self.notice.as_ref(),
             redraw: self.redraw,
         }
     }

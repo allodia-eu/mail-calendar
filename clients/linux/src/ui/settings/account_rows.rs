@@ -81,8 +81,11 @@ pub(super) fn signin_description(entry: &AccountEntry, expired: bool) -> String 
 /// How one use's switch is drawn.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct UseSwitch {
-    /// On, or waiting on a permission: the account is used for it either way.
+    /// On. A use waiting on a permission is drawn off: it is not working, and switching it on
+    /// is what asks the provider again.
     pub(super) active: bool,
+    /// Whether switching it on asks the provider rather than the core.
+    pub(super) asks: bool,
     /// Whether the person can flip it.
     pub(super) sensitive: bool,
     /// The line beneath it, when there is something to say.
@@ -104,29 +107,30 @@ pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) ->
         .iter()
         .find(|use_| use_.capability == capability)
         .map_or(CapabilityState::Off, |use_| use_.state);
-    let active = state != CapabilityState::Off;
+    let active = state == CapabilityState::On;
     let primary = [
         AccountCapability::Mail,
         AccountCapability::Calendar,
         AccountCapability::Contacts,
     ];
-    let last = active
+    let last = state != CapabilityState::Off
         && primary.contains(&capability)
         && primary.iter().filter(|wanted| used(**wanted)).count() == 1;
     let without_contacts = capability == AccountCapability::Colleagues
-        && !active
+        && state == CapabilityState::Off
         && !used(AccountCapability::Contacts);
     let note = if last {
         Some(l10n::settings_account_use_last())
     } else if without_contacts {
         Some(l10n::settings_account_colleagues_needs_contacts())
     } else if state == CapabilityState::NeedsPermission {
-        Some(l10n::settings_account_needs_permission())
+        Some(l10n::settings_account_use_withheld())
     } else {
         None
     };
     UseSwitch {
         active,
+        asks: state == CapabilityState::NeedsPermission,
         sensitive: !last && !without_contacts,
         note,
     }

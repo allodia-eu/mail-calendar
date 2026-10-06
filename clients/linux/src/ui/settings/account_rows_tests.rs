@@ -55,6 +55,7 @@ fn the_last_use_cannot_be_switched_off() {
         use_switch(&entry, AccountCapability::Mail),
         UseSwitch {
             active: true,
+            asks: false,
             sensitive: false,
             note: Some(l10n::settings_account_use_last()),
         }
@@ -63,6 +64,7 @@ fn the_last_use_cannot_be_switched_off() {
         use_switch(&entry, AccountCapability::Calendar),
         UseSwitch {
             active: false,
+            asks: false,
             sensitive: true,
             note: None,
         }
@@ -92,7 +94,7 @@ fn colleagues_wait_for_contacts() {
 }
 
 #[test]
-fn a_use_waiting_on_permission_reads_as_used_and_says_so() {
+fn a_use_waiting_on_permission_is_drawn_off_and_switching_it_on_asks() {
     let entry = entry(
         AccountKind::Google,
         &[
@@ -106,11 +108,9 @@ fn a_use_waiting_on_permission_reads_as_used_and_says_so() {
         ],
     );
     let calendar = use_switch(&entry, AccountCapability::Calendar);
-    assert!(calendar.active && calendar.sensitive);
-    assert_eq!(
-        calendar.note,
-        Some(l10n::settings_account_needs_permission())
-    );
+    assert!(!calendar.active, "it is not working, so it is not drawn on");
+    assert!(calendar.asks && calendar.sensitive);
+    assert_eq!(calendar.note, Some(l10n::settings_account_use_withheld()));
     assert!(needs_permission(&entry));
     assert!(summary(&entry).contains(l10n::settings_account_needs_permission()));
 }

@@ -7,6 +7,7 @@ use mailcal_bindings::{AccountCapability, CapabilityChange, LinkSlot, MailcalErr
 use super::{
     AppInput, AppModel,
     account_consent::{ConsentFinished, ConsentFrom},
+    settings::notice::Notice,
 };
 use crate::l10n;
 
@@ -36,7 +37,7 @@ pub(crate) enum AccountsInput {
     /// A sign-in asked for here or by a banner ended.
     Consented(ConsentFinished),
     /// A change finished, with what the page should say about it, if anything.
-    Changed(Option<String>),
+    Changed(Option<Notice>),
 }
 
 /// What the page does once switching a use has answered. A use the provider has not granted is
@@ -52,12 +53,18 @@ fn use_changed(
             account,
             adding: vec![capability],
         },
-        Ok(CapabilityChange::NeedsEndpoint) => {
-            AccountsInput::Changed(Some(l10n::settings_account_use_needs_endpoint().to_owned()))
-        }
-        Err(error) => AccountsInput::Changed(Some(l10n::settings_account_change_failed(
-            &error.to_string(),
+        Ok(CapabilityChange::NeedsEndpoint) => AccountsInput::Changed(Some(change_failed(
+            l10n::settings_account_use_needs_endpoint().to_owned(),
         ))),
+        Err(error) => AccountsInput::Changed(Some(change_failed(error.to_string()))),
+    }
+}
+
+/// A change the account's page could not make, and why.
+fn change_failed(detail: String) -> Notice {
+    Notice::Error {
+        title: l10n::settings_account_change_failed_title().to_owned(),
+        detail,
     }
 }
 
@@ -67,7 +74,6 @@ impl AppModel {
         match input {
             AccountsInput::Show(account) => {
                 self.settings.account = account;
-                self.settings.account_notice = None;
                 self.settings.refresh_in_place();
             }
             AccountsInput::SetUse {
@@ -84,10 +90,8 @@ impl AppModel {
                 self.start_account_consent(account, adding, ConsentFrom::Settings, sender);
             }
             AccountsInput::Consented(finished) => self.account_consent_finished(&finished),
-            AccountsInput::Changed(notice) => {
-                self.settings.account_notice = notice;
-                self.settings.refresh_in_place();
-            }
+            AccountsInput::Changed(Some(notice)) => self.settings.notify(notice),
+            AccountsInput::Changed(None) => self.settings.refresh_in_place(),
         }
     }
 
@@ -123,7 +127,7 @@ impl AppModel {
             let notice = app
                 .set_account_link(account, slot, target)
                 .err()
-                .map(|error| l10n::settings_account_change_failed(&error.to_string()));
+                .map(|error| change_failed(error.to_string()));
             sender.emit(AppInput::Accounts(AccountsInput::Changed(notice)));
         });
     }

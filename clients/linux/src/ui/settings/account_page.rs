@@ -18,11 +18,6 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
     kind.add_css_class("dim-label");
     kind.set_xalign(0.0);
     content.append(&kind);
-    if let Some(notice) = &ctx.account_notice {
-        let banner = adw::Banner::new(notice);
-        banner.set_revealed(true);
-        content.append(&banner);
-    }
     // Whether this one travels: first, because it decides whether anything below it is anybody
     // else's business (`docs/settings.md`).
     if let Some(status) = ctx.allodia_accounts_synced.get(&entry.id).copied() {
@@ -80,9 +75,16 @@ fn uses_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup 
         let parent = ctx.window.clone();
         let sender = ctx.sender.clone();
         let account = entry.id.clone();
+        let asks = switch.asks;
         row.connect_active_notify(move |row| {
             let on = row.is_active();
-            if on {
+            if on && asks {
+                // Already chosen, and waiting on the provider: switching it on asks again.
+                sender.emit(AppInput::Accounts(AccountsInput::SignInAgain {
+                    account: account.clone(),
+                    adding: vec![capability],
+                }));
+            } else if on {
                 sender.emit(AppInput::Accounts(AccountsInput::SetUse {
                     account: account.clone(),
                     capability,

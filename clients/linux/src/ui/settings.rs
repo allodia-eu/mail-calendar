@@ -28,6 +28,7 @@ mod widgets;
 mod diagnostics;
 pub(super) mod general;
 mod mcp;
+pub(super) mod notice;
 mod pages;
 pub(super) mod redraw;
 pub(super) mod sender_name;
@@ -72,7 +73,7 @@ pub(super) struct RenderState<'a> {
         &'a std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
     /// The account whose page Accounts shows, and what the last change on it came to.
     pub(super) account: Option<&'a str>,
-    pub(super) account_notice: Option<&'a str>,
+    pub(super) notice: Option<&'a notice::Raised>,
     pub(super) redraw: Redraw,
 }
 
@@ -128,7 +129,6 @@ struct PageContext {
         std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
     /// The account whose page Accounts shows, or `None` for the list.
     account: Option<String>,
-    account_notice: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -145,6 +145,10 @@ pub(super) struct SettingsWindow {
     drawn_accounts: Option<mailcal_bindings::AccountsSnapshot>,
     /// Whether a field was edited since the window was drawn.
     edited: std::rc::Rc<std::cell::Cell<bool>>,
+    /// Where toasts are shown: above the pages, which every redraw replaces.
+    toasts: Option<adw::ToastOverlay>,
+    /// The last notice shown.
+    shown_notice: u64,
 }
 
 impl SettingsWindow {
@@ -239,7 +243,6 @@ impl SettingsWindow {
             allodia_subscription: state.allodia_subscription.clone(),
             allodia_accounts_synced: state.allodia_accounts_synced.clone(),
             account: state.account.map(str::to_owned),
-            account_notice: state.account_notice.map(str::to_owned),
         };
         // Read before the pages read theirs: a change landing in between then reads as one the
         // window has not drawn, and the next signal draws it.
@@ -247,7 +250,12 @@ impl SettingsWindow {
         let (content, pages) = window_content(state.category, &ctx);
         navigation.add_named(&content, Some("settings"));
         navigation.set_visible_child_name("settings");
-        window.set_child(Some(&navigation));
+        let toasts = reuse
+            .then(|| self.toasts.clone())
+            .flatten()
+            .unwrap_or_else(adw::ToastOverlay::new);
+        toasts.set_child(Some(&navigation));
+        window.set_child(Some(&toasts));
         if let Some((offset, scroll)) =
             offset.zip(pages.visible_child().and_downcast::<gtk::ScrolledWindow>())
         {
@@ -256,6 +264,11 @@ impl SettingsWindow {
         if !reuse {
             window.present();
         }
+        if let Some(raised) = notice::due(state.notice, self.shown_notice) {
+            notice::show(&window, &toasts, &raised.notice);
+            self.shown_notice = raised.id;
+        }
+        self.toasts = Some(toasts);
         self.edited = std::rc::Rc::default();
         redraw::watch_edits(content.upcast_ref(), &self.edited);
         self.drawn_accounts = Some(drawn_accounts);
@@ -276,6 +289,7 @@ impl SettingsWindow {
 
     pub(super) fn close(&mut self) {
         self.header = None;
+        self.toasts = None;
         if let Some(window) = self.window.take() {
             window.close();
         }

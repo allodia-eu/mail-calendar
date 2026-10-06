@@ -142,6 +142,29 @@ pub(crate) fn a_closed_settings_window_is_not_on_screen() {
 /// every request lands one row late; Settings → Signatures opens Notifications; and About,
 /// last in the list, matches no row at all and leaves the window with nothing selected.
 #[test]
+fn every_notice_is_raised_anew_and_redraws_the_page_in_place() {
+    use super::notice::Notice;
+    let mut state = SettingsState::default();
+    let synced = std::collections::HashMap::new();
+    state.open(Some(Category::Accounts));
+
+    state.notify(Notice::Toast("Signed in again.".to_owned()));
+    let first = state.render_state(None, &synced);
+    assert_eq!(first.redraw, Redraw::InPlace, "a redraw, never an open");
+    assert_eq!(first.generation, 2, "and it does redraw");
+    let first = first.notice.map(|raised| raised.id);
+
+    // The same words again are a second notice, so the window shows them a second time.
+    state.notify(Notice::Toast("Signed in again.".to_owned()));
+    let second = state
+        .render_state(None, &synced)
+        .notice
+        .map(|raised| raised.id);
+    assert!(first.is_some() && second.is_some());
+    assert_ne!(second, first);
+}
+
+#[test]
 fn a_build_without_the_allodia_route_still_opens_the_category_asked_for() {
     let without: Vec<Category> = CATEGORIES
         .into_iter()

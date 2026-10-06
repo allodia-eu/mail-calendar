@@ -9,6 +9,7 @@ use super::{
     AppInput, AppModel,
     account_settings::AccountsInput,
     oauth_loopback::{self, CallbackOutcome, OAuthLoopback},
+    settings::notice::Notice,
 };
 use crate::l10n;
 
@@ -37,11 +38,16 @@ pub(crate) struct ConsentFinished {
 
 /// What the account's page says once a sign-in has ended. A cancelled one says nothing: the
 /// person closed it.
-pub(super) fn settings_notice(outcome: &ConsentOutcome) -> Option<String> {
+pub(super) fn settings_notice(outcome: &ConsentOutcome) -> Option<Notice> {
     match outcome {
-        ConsentOutcome::SignedIn => Some(l10n::settings_account_signed_in().to_owned()),
+        ConsentOutcome::SignedIn => {
+            Some(Notice::Toast(l10n::settings_account_signed_in().to_owned()))
+        }
         ConsentOutcome::Cancelled => None,
-        ConsentOutcome::Failed(error) => Some(l10n::settings_account_signin_failed(error)),
+        ConsentOutcome::Failed(error) => Some(Notice::Error {
+            title: l10n::settings_account_signin_failed().to_owned(),
+            detail: error.clone(),
+        }),
     }
 }
 
@@ -87,8 +93,10 @@ impl AppModel {
                 .into_iter()
                 .find(|entry| entry.id == account)
                 .map_or(account, |entry| entry.address);
-            self.settings.account_notice = Some(l10n::settings_account_signin_waiting(&address));
-            self.settings.refresh_in_place();
+            self.settings
+                .notify(Notice::Toast(l10n::settings_account_signin_waiting(
+                    &address,
+                )));
         }
         let failed = sender.clone();
         oauth_loopback::launch_browser(&start.authorization_url, move || {
@@ -127,10 +135,10 @@ impl AppModel {
                 super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
         }
         match finished.from {
-            ConsentFrom::Settings => {
-                self.settings.account_notice = settings_notice(&finished.outcome);
-                self.settings.refresh_in_place();
-            }
+            ConsentFrom::Settings => match settings_notice(&finished.outcome) {
+                Some(notice) => self.settings.notify(notice),
+                None => self.settings.refresh_in_place(),
+            },
             ConsentFrom::MainWindow => {
                 self.notice = matches!(finished.outcome, ConsentOutcome::Failed(_))
                     .then(|| l10n::signin_expired_failed().to_owned());
@@ -141,19 +149,23 @@ impl AppModel {
 
 #[cfg(test)]
 mod tests {
-    use super::{ConsentOutcome, settings_notice};
+    use super::{ConsentOutcome, Notice, settings_notice};
     use crate::l10n;
 
     #[test]
     fn the_page_says_how_a_sign_in_ended_unless_the_person_closed_it() {
         assert_eq!(
-            settings_notice(&ConsentOutcome::SignedIn).as_deref(),
-            Some(l10n::settings_account_signed_in())
+            settings_notice(&ConsentOutcome::SignedIn),
+            Some(Notice::Toast(l10n::settings_account_signed_in().to_owned()))
         );
         assert_eq!(settings_notice(&ConsentOutcome::Cancelled), None);
+        // A failure is a dialog to dismiss, not a line the person may have scrolled past.
         assert_eq!(
             settings_notice(&ConsentOutcome::Failed("refused".to_owned())),
-            Some(l10n::settings_account_signin_failed("refused"))
+            Some(Notice::Error {
+                title: l10n::settings_account_signin_failed().to_owned(),
+                detail: "refused".to_owned(),
+            })
         );
     }
 }
