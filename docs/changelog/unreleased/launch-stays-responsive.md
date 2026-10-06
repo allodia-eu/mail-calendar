@@ -5,7 +5,7 @@ Bump: patch
 
 > The core's constructor now runs off the UI thread on every client. On macOS and iOS it ran on
 > the main actor, and on Linux before the window existed, so a store migration after an update
-> froze the window (macOS reported the app as not responding). An open that outlasts 500 ms
+> froze the window (macOS reported the app as not responding). An open that outlasts 2 s
 > shows "Opening your mailbox…" with a progress indicator.
 
 **English**
