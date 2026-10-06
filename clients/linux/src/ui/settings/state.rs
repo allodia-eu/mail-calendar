@@ -20,6 +20,9 @@ pub(in crate::ui) enum Redraw {
     /// As [`InPlace`](Self::InPlace), for the core's signal rather than a change made in the
     /// window: skipped when the accounts are as drawn, and held while the person is typing.
     Signalled,
+    /// Show the notice raised last over the window on screen, and rebuild nothing: what the
+    /// person typed stays as they left it.
+    NoticeOnly,
 }
 
 /// Everything the model holds about Settings: which generation is pending, what it should show,
@@ -111,6 +114,15 @@ impl SettingsState {
     /// model; and every model-driven rebuild therefore dropped the person back on whatever page
     /// the model last *named*. Deliberately no `bump`: the widget already shows this page, and a
     /// generation here would rebuild the window under a click.
+    /// Redraws the window in place when it shows `category`, and otherwise leaves it alone: for
+    /// state only that page draws. A rebuild of another page would close a dropdown the person
+    /// just opened and take what they typed, for nothing that page shows.
+    pub(in crate::ui) fn refresh_if_showing(&mut self, category: Category) {
+        if self.category == category {
+            self.refresh_in_place();
+        }
+    }
+
     pub(in crate::ui) const fn record_category(&mut self, category: Category) {
         self.category = category;
     }
@@ -137,12 +149,24 @@ impl SettingsState {
 
     /// Says `notice` over the window, once, and redraws whatever page is open.
     pub(in crate::ui) fn notify(&mut self, notice: super::notice::Notice) {
+        self.raise(notice);
+        self.refresh_in_place();
+    }
+
+    /// Says `notice` over the window, once, and leaves the page as it is: for progress, and for a
+    /// refusal of what the person typed, which they will want to correct rather than retype.
+    pub(in crate::ui) fn say(&mut self, notice: super::notice::Notice) {
+        self.raise(notice);
+        self.redraw = Redraw::NoticeOnly;
+        self.bump();
+    }
+
+    fn raise(&mut self, notice: super::notice::Notice) {
         self.notices_raised = self.notices_raised.wrapping_add(1);
         self.notice = Some(super::notice::Raised {
             id: self.notices_raised,
             notice,
         });
-        self.refresh_in_place();
     }
 
     fn bump(&mut self) {

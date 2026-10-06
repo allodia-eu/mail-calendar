@@ -158,10 +158,11 @@ handed one. Read a 🚧 on this page as *unknown*.
 
 - **A certificate that changes after setup is not offered again.** The exception pins one
   certificate, so a server that regenerates its own (a Bridge reinstall, a rotated self-signed
-  certificate) stops connecting and reports the refusal. There is no per-account repair surface to
-  raise the question on: only Linux has one at all today. Removing and re-adding the account is the
-  way back, which costs the account its cached mail. The mechanism needs nothing new; the surface
-  does.
+  certificate) stops connecting and reports the refusal. Linux has the surface to raise the question
+  on, the account page's Server and sign-in section, which reports the refusal when a save meets
+  one; it cannot accept the certificate yet, because an edit (`update_account_endpoints`) carries no
+  acceptance. Removing and re-adding the account is the way back, which costs the account its
+  cached mail.
 - **JMAP accounts cannot carry an exception.** A JMAP account's stored config is its own type and
   has no `certificate_exception` (rule 8). The engine and the account's TLS build already support
   it, so this is config plumbing and a second form, not a design question.

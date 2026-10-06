@@ -175,7 +175,8 @@ impl AppModel {
             return;
         }
         self.settings.allodia_subscription.checking = true;
-        self.refresh_settings_in_place();
+        self.settings
+            .refresh_if_showing(super::settings::Category::Allodia);
         std::thread::spawn(move || {
             sender.emit(AppInput::AllodiaSubscription(
                 SubscriptionInput::ReadFinished(Box::new(read(&app))),
@@ -186,7 +187,8 @@ impl AppModel {
     fn allodia_subscription_read(&mut self, answer: SubscriptionAnswer) {
         self.settings.allodia_subscription.checking = false;
         self.settings.allodia_subscription.answer = Some(answer);
-        self.refresh_settings_in_place();
+        self.settings
+            .refresh_if_showing(super::settings::Category::Allodia);
     }
 
     /// Runs one write, off the main thread.
@@ -207,7 +209,8 @@ impl AppModel {
         }
         self.settings.allodia_subscription.writing = true;
         self.settings.allodia_subscription.note = None;
-        self.refresh_settings_in_place();
+        self.settings
+            .refresh_if_showing(super::settings::Category::Allodia);
         std::thread::spawn(move || {
             sender.emit(AppInput::AllodiaSubscription(SubscriptionInput::Written(
                 Box::new(run(&app, write)),

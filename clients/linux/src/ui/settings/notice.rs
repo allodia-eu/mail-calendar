@@ -31,6 +31,19 @@ pub(super) fn due(raised: Option<&Raised>, shown: u64) -> Option<&Raised> {
     raised.filter(|raised| raised.id != shown)
 }
 
+/// Shows the notice `window` has not shown yet, if any, and records it as shown.
+pub(super) fn show_due(
+    window: &gtk::Window,
+    toasts: &adw::ToastOverlay,
+    raised: Option<&Raised>,
+    shown: &mut u64,
+) {
+    if let Some(raised) = due(raised, *shown) {
+        show(window, toasts, &raised.notice);
+        *shown = raised.id;
+    }
+}
+
 /// Shows `notice` over `window`.
 pub(super) fn show(window: &gtk::Window, toasts: &adw::ToastOverlay, notice: &Notice) {
     match notice {

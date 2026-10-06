@@ -1,11 +1,13 @@
 //! One account's page in Settings → Accounts: how it travels, what it is used for, the accounts
-//! it relies on, signing in again at its provider, its mail settings while it is used for mail,
-//! and its removal, last.
+//! it relies on, signing in again at its provider or its own servers and password, its mail
+//! settings while it is used for mail, and its removal, last.
 
 use adw::prelude::*;
 use mailcal_bindings::{AccountCapability, AccountEntry};
 
-use super::{PageContext, account_mail, account_rows, dialog_box, group, page_box};
+use super::{
+    PageContext, account_mail, account_rows, account_servers, dialog_box, group, page_box,
+};
 use crate::{
     l10n,
     ui::{AppInput, account_settings::AccountsInput},
@@ -34,6 +36,14 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
     }
     if account_rows::signs_in_at_provider(entry.kind) {
         content.append(&signin_group(ctx, entry));
+    }
+    if let Some(endpoints) = &entry.endpoints {
+        content.append(&account_servers::server_group(
+            ctx,
+            entry,
+            endpoints,
+            signin_expired(ctx, entry),
+        ));
     }
     if let Some(mail) = mail_group(ctx, entry) {
         content.append(&mail);
@@ -215,11 +225,7 @@ fn suggest(row: &adw::ActionRow, dropdown: &gtk::DropDown, address: &str, index:
 /// "Sign in again", for an account that signs in at its provider's page: the remedy for an
 /// expired sign-in and for a permission the provider withheld.
 fn signin_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup {
-    let expired = ctx
-        .app
-        .connectivity()
-        .signin_expired_accounts
-        .contains(&entry.id);
+    let expired = signin_expired(ctx, entry);
     let section = group(
         l10n::settings_account_signin_heading(),
         &account_rows::signin_description(entry, expired),
@@ -247,11 +253,9 @@ fn mail_group(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::Preference
         .accounts
         .iter()
         .find(|account| account.account_id == entry.id)?;
-    let expired = ctx
-        .app
-        .connectivity()
-        .signin_expired_accounts
-        .contains(&entry.id);
+    // An account whose servers are editable takes its new password in that section, so the mail
+    // settings offer it only to one that has no such section.
+    let expired = signin_expired(ctx, entry) && entry.endpoints.is_none();
     let provider = ctx.app.account_provider(entry.id.clone());
     Some(account_mail::mail_group(
         ctx,
@@ -260,6 +264,14 @@ fn mail_group(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::Preference
         expired,
         provider.as_ref(),
     ))
+}
+
+/// Whether the server refused the account's stored sign-in.
+fn signin_expired(ctx: &PageContext, entry: &AccountEntry) -> bool {
+    ctx.app
+        .connectivity()
+        .signin_expired_accounts
+        .contains(&entry.id)
 }
 
 fn remove_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup {

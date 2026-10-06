@@ -170,6 +170,46 @@ fn every_notice_is_raised_anew_and_redraws_the_page_in_place() {
     assert!(third.is_some() && third != second && third != first);
 }
 
+#[test]
+fn a_refusal_is_said_over_the_page_without_rebuilding_what_was_typed() {
+    use super::notice::Notice;
+    let mut state = SettingsState::default();
+    let synced = std::collections::HashMap::new();
+    state.open(Some(Category::Accounts));
+
+    state.say(Notice::Toast("Trying the new settings…".to_owned()));
+    let said = state.render_state(None, &synced);
+    assert_eq!(
+        said.redraw,
+        Redraw::NoticeOnly,
+        "shown over the page, nothing rebuilt"
+    );
+    assert!(said.notice.is_some());
+
+    // A change that was made redraws the page as before.
+    state.notify(Notice::Toast("Saved.".to_owned()));
+    assert_eq!(state.render_state(None, &synced).redraw, Redraw::InPlace);
+}
+
+#[test]
+fn state_only_one_page_draws_redraws_that_page_and_no_other() {
+    let mut state = SettingsState::default();
+    let synced = std::collections::HashMap::new();
+    state.open(Some(Category::Accounts));
+    let opened = state.render_state(None, &synced).generation;
+
+    // The subscription section is the Allodia page's: an account page is left alone, so a
+    // dropdown open on it stays open.
+    state.refresh_if_showing(Category::Allodia);
+    assert_eq!(state.render_state(None, &synced).generation, opened);
+
+    state.record_category(Category::Allodia);
+    state.refresh_if_showing(Category::Allodia);
+    let redrawn = state.render_state(None, &synced);
+    assert!(redrawn.generation > opened);
+    assert_eq!(redrawn.redraw, Redraw::InPlace);
+}
+
 /// The sidebar selection counts rows the sidebar actually has.
 ///
 /// A build carrying no Allodia registration draws one row fewer. Counted over every category,

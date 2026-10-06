@@ -18,6 +18,7 @@ pub(super) mod about;
 pub(super) mod account_mail;
 mod account_page;
 mod account_rows;
+mod account_servers;
 pub(super) mod account_sync_mode;
 pub(super) mod accounts;
 pub(super) mod allodia;
@@ -166,6 +167,13 @@ impl SettingsWindow {
         if state.redraw != Redraw::Open && !self.is_on_screen() {
             return;
         }
+        if state.redraw == Redraw::NoticeOnly {
+            if let Some((window, toasts)) = self.window.clone().zip(self.toasts.clone()) {
+                notice::show_due(&window, &toasts, state.notice, &mut self.shown_notice);
+            }
+            self.rendered_generation = state.generation;
+            return;
+        }
         let Some(app) = app.cloned() else {
             return;
         };
@@ -264,10 +272,7 @@ impl SettingsWindow {
         if !reuse {
             window.present();
         }
-        if let Some(raised) = notice::due(state.notice, self.shown_notice) {
-            notice::show(&window, &toasts, &raised.notice);
-            self.shown_notice = raised.id;
-        }
+        notice::show_due(&window, &toasts, state.notice, &mut self.shown_notice);
         self.toasts = Some(toasts);
         self.edited = std::rc::Rc::default();
         redraw::watch_edits(content.upcast_ref(), &self.edited);
