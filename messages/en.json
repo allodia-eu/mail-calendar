@@ -535,6 +535,13 @@
 	"setup_detect_section_calendar": "Calendar",
 	"setup_detect_calendar_enable": "Also sync your calendar",
 	"setup_detect_calendar_add": "This account also has a calendar",
+	"setup_detect_mail_enable": "Use this account for mail",
+	"setup_detect_section_contacts": "Contacts",
+	"setup_detect_contacts_enable": "Also sync your contacts",
+	"setup_detect_contacts_add": "This account also has an address book",
+	"setup_hint_carddav": "carddav.example.com",
+	"setup_detect_dav_note": "We found a calendar and address book server for this address, but no mail server. You can add it for your calendar and contacts.",
+	"setup_imap_signin_unsupported": "This provider only allows apps it has registered in advance and doesn't accept a password, so this account can't be added here yet.",
 
 	"settings_title": "Settings",
 	"settings_default_mail_app_heading": "Default mail app",

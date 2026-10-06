@@ -28,7 +28,10 @@ pub(crate) enum ImapSignIn {
         password_also_works: bool,
     },
     /// The provider's sign-in exists but is not open to this application.
-    RegistrationNeeded,
+    RegistrationNeeded {
+        /// Whether a password still works. When it does not, the account cannot be added here.
+        password_also_works: bool,
+    },
     /// No sign-in here: the password form, as it always was.
     Password,
     /// A sign-in was started and did not finish. The password field comes back, because that
@@ -53,14 +56,31 @@ impl ImapSignIn {
             Self::Offered {
                 password_also_works,
                 ..
+            }
+            | Self::RegistrationNeeded {
+                password_also_works,
             } => *password_also_works,
-            Self::RegistrationNeeded | Self::Password | Self::Failed => true,
+            Self::Password | Self::Failed => true,
         }
+    }
+
+    /// Whether the server answered that a password does not work, which takes a password field
+    /// already drawn away (`docs/mail-oauth.md` rule 8).
+    pub(in crate::ui) const fn refuses_password(&self) -> bool {
+        matches!(
+            self,
+            Self::Offered {
+                password_also_works: false,
+                ..
+            } | Self::RegistrationNeeded {
+                password_also_works: false,
+            }
+        )
     }
 
     /// Whether to explain that this provider admits only pre-registered applications.
     pub(in crate::ui) const fn explains_registration(&self) -> bool {
-        matches!(self, Self::RegistrationNeeded)
+        matches!(self, Self::RegistrationNeeded { .. })
     }
 }
 
@@ -96,6 +116,9 @@ impl From<ManualForm> for ImapForm {
             },
             email: form.email,
             caldav_url: form.caldav_url,
+            carddav_url: String::new(),
+            uses: None,
+            offer: super::UseOffer::default(),
             outgoing: None,
             // Nothing was detected, so no provider named an issuer for itself; the core's
             // well-known probe is what answers here.
@@ -119,7 +142,11 @@ impl From<ImapAuthOffer> for ImapSignIn {
                 label: provider_label,
                 password_also_works,
             },
-            ImapAuthOffer::RegistrationNeeded { .. } => Self::RegistrationNeeded,
+            ImapAuthOffer::RegistrationNeeded {
+                password_also_works,
+            } => Self::RegistrationNeeded {
+                password_also_works,
+            },
             ImapAuthOffer::Password => Self::Password,
         }
     }

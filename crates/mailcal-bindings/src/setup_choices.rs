@@ -1,7 +1,10 @@
 //! What the found card offers: the detected route together with which of mail, calendar and
 //! contacts it can set up, and how each starts.
 
-use crate::{AccountCapability, MailcalApp, MxResolver, SetupRecommendation, autodetect::convert};
+use crate::{
+    AccountCapability, AllodiaAccountOffer, MailcalApp, MxResolver, SetupRecommendation,
+    autodetect::convert,
+};
 
 /// One use a setup route offers.
 #[derive(uniffi::Record, Debug, Clone, PartialEq, Eq)]
@@ -51,18 +54,47 @@ impl MailcalApp {
     }
 }
 
-/// The FFI answer for an account-layer route.
-pub(crate) fn detected_setup(route: mailcal_account::SetupRecommendation) -> DetectedSetup {
-    use mailcal_account::SetupRecommendation as R;
-    let choices = route
-        .choices()
+/// [`setup_from_offer`](crate::setup_from_offer), as the found card takes it: the route an
+/// account from one of the person's other devices opens, with the choices that card offers.
+#[uniffi::export]
+#[must_use]
+pub fn offered_setup(offer: AllodiaAccountOffer) -> DetectedSetup {
+    let caldav_url = offer.caldav_base_url.clone();
+    let recommendation = crate::setup_from_offer(offer);
+    let choices = match &recommendation {
+        SetupRecommendation::Imap { caldav_url, .. } => {
+            mailcal_account::standards_choices(true, caldav_url.is_some(), false)
+        }
+        SetupRecommendation::Microsoft { .. } | SetupRecommendation::Google { .. } => {
+            mailcal_account::provider_choices()
+        }
+        SetupRecommendation::Jmap { .. } | SetupRecommendation::Manual { .. } => Vec::new(),
+    };
+    DetectedSetup {
+        calendar_and_contacts: false,
+        caldav_url: caldav_url
+            .filter(|_| matches!(recommendation, SetupRecommendation::Imap { .. })),
+        carddav_url: None,
+        choices: ffi_choices(choices),
+        recommendation,
+    }
+}
+
+fn ffi_choices(choices: Vec<mailcal_account::SetupChoice>) -> Vec<SetupChoice> {
+    choices
         .into_iter()
         .map(|choice| SetupChoice {
             capability: choice.capability.into(),
             on: choice.on,
             server_found: choice.server_found,
         })
-        .collect();
+        .collect()
+}
+
+/// The FFI answer for an account-layer route.
+pub(crate) fn detected_setup(route: mailcal_account::SetupRecommendation) -> DetectedSetup {
+    use mailcal_account::SetupRecommendation as R;
+    let choices = ffi_choices(route.choices());
     let (caldav_url, carddav_url) = match &route {
         R::Imap {
             caldav_url,

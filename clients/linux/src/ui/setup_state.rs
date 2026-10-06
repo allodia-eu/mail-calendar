@@ -103,6 +103,13 @@ impl SetupState {
         self.bump();
     }
 
+    /// Back from the second step to the address it was reached with, which stays in the field
+    /// (`docs/account-autodetect.md` rule 12).
+    pub(super) fn back_to_address(&mut self, required: bool) {
+        let email = self.form.as_ref().map(SetupForm::email).unwrap_or_default();
+        self.open_on(required, email);
+    }
+
     pub(super) fn detecting(&mut self) {
         self.phase = Phase::Detecting;
         self.error = None;

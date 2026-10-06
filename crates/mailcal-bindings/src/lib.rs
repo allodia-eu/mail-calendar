@@ -237,7 +237,7 @@ pub use setup::{
     AccountSetup, ConnectionSecurity, JmapSetup, MailServerKind, RejectedCertificate,
     account_config_toml, jmap_account_config_toml, standard_port,
 };
-pub use setup_choices::{DetectedSetup, SetupChoice};
+pub use setup_choices::{DetectedSetup, SetupChoice, offered_setup};
 pub use share::{
     RejectedShare, SharePrefill, ShareRejectionReason, ShareRequest, SharedFile, prefill_from_share,
 };

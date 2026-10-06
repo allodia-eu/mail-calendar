@@ -535,6 +535,13 @@
 	"setup_detect_section_calendar": "Calendario",
 	"setup_detect_calendar_enable": "Sincronizza anche il calendario",
 	"setup_detect_calendar_add": "Questo account ha anche un calendario",
+	"setup_detect_mail_enable": "Usa questo account per la posta",
+	"setup_detect_section_contacts": "Contatti",
+	"setup_detect_contacts_enable": "Sincronizza anche i contatti",
+	"setup_detect_contacts_add": "Questo account ha anche una rubrica",
+	"setup_hint_carddav": "carddav.example.com",
+	"setup_detect_dav_note": "Per questo indirizzo abbiamo trovato un server di calendario e rubrica, ma nessun server di posta. Puoi aggiungerlo per il calendario e i contatti.",
+	"setup_imap_signin_unsupported": "Questo provider ammette solo le app che ha registrato in anticipo e non accetta password, quindi questo account non può ancora essere aggiunto qui.",
 
 	"settings_title": "Impostazioni",
 	"settings_default_mail_app_heading": "App di posta predefinita",

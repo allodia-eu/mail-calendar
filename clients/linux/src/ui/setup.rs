@@ -4,7 +4,7 @@
 use adw::prelude::*;
 
 use super::{
-    AppInput, setup_google, setup_imap, setup_jmap, setup_manual, setup_microsoft,
+    AppInput, setup_dav, setup_google, setup_imap, setup_jmap, setup_manual, setup_microsoft,
     setup_model::{DetectedForm, SetupForm},
     setup_onboarding,
     setup_pane::ConnectPane,
@@ -86,6 +86,7 @@ impl SetupWindow {
             Phase::Form | Phase::Connecting => {
                 let (content, pane) = form_step(&window, state, sender);
                 if let Some(pane) = &pane {
+                    pane.hold_back(&content);
                     pane.set_connecting(state.phase == Phase::Connecting);
                 }
                 self.pane = pane;
@@ -234,6 +235,15 @@ fn form_step(
                     setup_google::detected_fields(&content, window, form, error, required, sender);
                     None
                 }
+                DetectedForm::Dav(form) => Some(setup_dav::detected_fields(
+                    &content,
+                    window,
+                    form,
+                    error,
+                    certificate,
+                    required,
+                    sender,
+                )),
             }
         }
         SetupForm::Manual(form) => {

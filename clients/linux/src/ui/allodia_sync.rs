@@ -186,7 +186,7 @@ impl AppModel {
     ///
     /// The password is still asked for here, because no password travels. A record that names no
     /// server routes to detection rather than to an empty form
-    /// ([`mailcal_bindings::setup_from_offer`]). Settings stays open behind it: the setup
+    /// ([`mailcal_bindings::offered_setup`]). Settings stays open behind it: the setup
     /// window is a modal of its own.
     pub(super) fn set_up_offered_account(
         &mut self,
@@ -202,7 +202,7 @@ impl AppModel {
         // can close into an app with no accounts.
         self.setup
             .open_on(self.snapshot.accounts.is_empty(), email.clone());
-        self.account_detected(email, mailcal_bindings::setup_from_offer(offer), sender);
+        self.account_detected(email, mailcal_bindings::offered_setup(offer), sender);
     }
 
     /// Forgets what the other devices said. Called on sign-out: there is nothing left to say about
