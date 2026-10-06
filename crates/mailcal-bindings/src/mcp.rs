@@ -190,7 +190,7 @@ impl MailcalApp {
     /// platform whose host set none, which is how a Settings screen knows not to offer the panel
     /// at all.
     pub fn mcp_settings(&self) -> McpSettings {
-        let mut settings: McpSettings = self.runtime.block_on(self.app.mcp_settings()).into();
+        let mut settings: McpSettings = self.runtime.block_on(|| self.app.mcp_settings()).into();
         settings.running = self.mcp.is_running();
         settings.endpoint.clone_from(&self.mcp_endpoint());
         settings
@@ -202,7 +202,7 @@ impl MailcalApp {
     /// off for an afternoon should not have to re-tick every mailbox, and the list is inert while
     /// nothing is listening.
     pub fn set_mcp_enabled(&self, enabled: bool) {
-        self.runtime.block_on(self.app.set_mcp_enabled(enabled));
+        self.runtime.block_on(|| self.app.set_mcp_enabled(enabled));
         self.refresh_mcp();
     }
 
@@ -210,7 +210,7 @@ impl MailcalApp {
     /// server at once: so unticking an account revokes access without a restart.
     pub fn set_mcp_account_exposed(&self, account: String, exposed: bool) {
         self.runtime
-            .block_on(self.app.set_mcp_account_exposed(&account, exposed));
+            .block_on(|| self.app.set_mcp_account_exposed(&account, exposed));
         self.refresh_mcp();
     }
 
@@ -218,7 +218,7 @@ impl MailcalApp {
     /// re-applies it. With it off the send tool is **absent** from the server's listing entirely.
     pub fn set_mcp_allow_direct_send(&self, allow: bool) {
         self.runtime
-            .block_on(self.app.set_mcp_allow_direct_send(allow));
+            .block_on(|| self.app.set_mcp_allow_direct_send(allow));
         self.refresh_mcp();
     }
 
@@ -226,7 +226,7 @@ impl MailcalApp {
     /// and re-applies it.
     pub fn set_mcp_require_known_recipient(&self, require: bool) {
         self.runtime
-            .block_on(self.app.set_mcp_require_known_recipient(require));
+            .block_on(|| self.app.set_mcp_require_known_recipient(require));
         self.refresh_mcp();
     }
 

@@ -161,7 +161,7 @@ impl MailcalApp {
         let Ok(base_url) = mailcal_account::jmap_base_url(&email, server_url.as_deref()) else {
             return false;
         };
-        self.runtime.block_on(async {
+        self.runtime.block_on(|| async {
             let Ok(http) = mailcal_oauth::discovery_client() else {
                 return false;
             };
@@ -226,7 +226,7 @@ impl MailcalApp {
             resource,
         } = self
             .runtime
-            .block_on(discover_and_register(&base_url, &redirect_uri))?;
+            .block_on(|| discover_and_register(&base_url, &redirect_uri))?;
 
         let grant = OAuthGrant {
             client_id: client.client_id,
@@ -311,12 +311,14 @@ impl MailcalApp {
         );
         let tokens = self
             .runtime
-            .block_on(oauth.complete(
-                &callback_url,
-                &pending.state,
-                &pending.verifier,
-                OffsetDateTime::now_utc(),
-            ))
+            .block_on(|| {
+                oauth.complete(
+                    &callback_url,
+                    &pending.state,
+                    &pending.verifier,
+                    OffsetDateTime::now_utc(),
+                )
+            })
             .map_err(|err| {
                 // The single most valuable line in the whole flow for support: the server's own
                 // machine-readable reason. `invalid_target` means the RFC 8707 resource indicator

@@ -410,7 +410,7 @@ impl MailcalApp {
     /// called after an account is added or its sync behaviour changes.
     fn refresh_background(&self, account_id: &str) {
         self.runtime
-            .block_on(self.background.apply_current(account_id));
+            .block_on(|| self.background.apply_current(account_id));
     }
 }
 

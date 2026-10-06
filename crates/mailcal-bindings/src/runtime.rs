@@ -10,6 +10,11 @@
 //! [`DRIVER_STACK`], and the caller only waits for it. Whatever thread a host calls from, the
 //! stack the core runs on is the same.
 //!
+//! The future is also **built** there: a caller passes a closure that makes it, never the future
+//! itself. A debug build's account connect is a future of hundreds of KiB, and passing one by
+//! value copies it through each frame on the way to the driver, which on its own overflows a
+//! 512 KiB thread. The closure holds only what the future borrows or takes.
+//!
 //! `crates/mailcal-bindings/clippy.toml` forbids tokio's own `block_on`, so a call site cannot
 //! go back to polling on the caller's stack: [`FfiRuntime::block_on`] and [`drive`] are the only
 //! way to wait on a future here.
@@ -37,14 +42,15 @@ pub(crate) struct FfiRuntime {
 }
 
 impl FfiRuntime {
-    /// Runs `future` to completion on a thread of our own and returns its output; see the
-    /// module docs.
-    pub(crate) fn block_on<F>(&self, future: F) -> F::Output
+    /// Builds the future `make` returns on a thread of our own, runs it to completion there and
+    /// returns its output; see the module docs.
+    pub(crate) fn block_on<M, F>(&self, make: M) -> F::Output
     where
-        F: Future + Send,
+        M: FnOnce() -> F + Send,
+        F: Future,
         F::Output: Send,
     {
-        drive(self.runtime.handle(), future)
+        drive(self.runtime.handle(), make)
     }
 
     pub(crate) fn handle(&self) -> &Handle {
@@ -64,23 +70,25 @@ impl FfiRuntime {
     }
 }
 
-/// Polls `future` on `handle`'s runtime from a new [`DRIVER_STACK`]-sized thread and waits for
-/// it. A panic in the future resumes on the caller, where UniFFI turns it into an error.
+/// Builds the future `make` returns and polls it on `handle`'s runtime, both on a new
+/// [`DRIVER_STACK`]-sized thread, and waits for it. A panic in either resumes on the caller,
+/// where UniFFI turns it into an error.
 ///
 /// Called from a runtime worker (a scheduled pass), the wait moves the worker out of the
 /// scheduler first ([`tokio::task::block_in_place`]), so the work it waits for still has
 /// somewhere to run.
 #[allow(clippy::disallowed_methods)] // the one place tokio's `block_on` is called
-pub(crate) fn drive<F>(handle: &Handle, future: F) -> F::Output
+pub(crate) fn drive<M, F>(handle: &Handle, make: M) -> F::Output
 where
-    F: Future + Send,
+    M: FnOnce() -> F + Send,
+    F: Future,
     F::Output: Send,
 {
     std::thread::scope(|scope| {
         let driver = std::thread::Builder::new()
             .name(DRIVER_NAME.to_owned())
             .stack_size(DRIVER_STACK)
-            .spawn_scoped(scope, || handle.block_on(future))
+            .spawn_scoped(scope, || handle.block_on(make()))
             .expect("the system starts a thread for an FFI call");
         let on_worker = Handle::try_current()
             .is_ok_and(|current| current.runtime_flavor() == RuntimeFlavor::MultiThread);

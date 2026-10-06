@@ -38,7 +38,7 @@ fn from_a_host_thread<T: Send + 'static>(call: impl FnOnce() -> T + Send + 'stat
 fn a_call_is_polled_on_the_driver_thread_not_the_callers() {
     let runtime = runtime();
     let name = from_a_host_thread(move || {
-        runtime.block_on(async { std::thread::current().name().map(str::to_owned) })
+        runtime.block_on(|| async { std::thread::current().name().map(str::to_owned) })
     });
     assert_eq!(name.as_deref(), Some(DRIVER_NAME));
 }
@@ -48,15 +48,30 @@ fn work_deeper_than_the_callers_stack_completes() {
     // About 2 MiB, four times the host thread's stack. Polled on the caller, this ends the test
     // process with a stack overflow rather than failing an assertion.
     let runtime = runtime();
-    let used = from_a_host_thread(move || runtime.block_on(async { deep(32) }));
+    let used = from_a_host_thread(move || runtime.block_on(|| async { deep(32) }));
     assert_eq!(used, 33 * 64 * 1024);
+}
+
+#[test]
+fn a_future_larger_than_the_callers_stack_is_built_where_it_runs() {
+    // An account connect in a debug build is a future of hundreds of KiB. Built on the caller
+    // and handed over by value, copying it towards the driver overflows the caller first.
+    let runtime = runtime();
+    let first = from_a_host_thread(move || {
+        runtime.block_on(|| async {
+            let held = [7u8; 1024 * 1024];
+            tokio::task::yield_now().await;
+            black_box(&held)[HOST_STACK]
+        })
+    });
+    assert_eq!(first, 7);
 }
 
 #[test]
 fn a_panic_in_the_call_reaches_the_caller() {
     let runtime = runtime();
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        runtime.block_on(async { panic!("the provider panicked") })
+        runtime.block_on(|| async { panic!("the provider panicked") })
     }));
     let payload = outcome.expect_err("the panic resumes on the caller");
     assert_eq!(
@@ -71,8 +86,8 @@ fn a_call_from_a_runtime_worker_still_completes() {
     // worker the call itself needs.
     let runtime = runtime();
     let handle = runtime.handle().clone();
-    let answer = drive(runtime.handle(), async move {
-        tokio::spawn(async move { drive(&handle, async { 42 }) })
+    let answer = drive(runtime.handle(), move || async move {
+        tokio::spawn(async move { drive(&handle, || async { 42 }) })
             .await
             .expect("the worker task completes")
     });

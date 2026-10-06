@@ -89,7 +89,7 @@ fn the_constructors_credential_store_is_live_before_the_first_refresh_can_be() {
     // the app assembles it. Nothing installed a store after construction; there is no longer a
     // way to.
     let sink = crate::token_sink::token_sink(&app.registry, &app.credential_store);
-    app.runtime.block_on(async {
+    app.runtime.block_on(|| async {
         sink.refresh_token_rotated(&account_id, "rotated-refresh")
             .await;
     });
@@ -251,7 +251,7 @@ fn the_stored_credential_is_the_registrys_config_not_the_callers() {
     let _registered = register_jmap(&app, &config_toml);
     // A rotation lands mid-connect, exactly as it does on a real dial.
     let sink = crate::token_sink::token_sink(&app.registry, &app.credential_store);
-    app.runtime.block_on(async {
+    app.runtime.block_on(|| async {
         sink.refresh_token_rotated(&account_id, "rotated-mid-connect")
             .await;
     });

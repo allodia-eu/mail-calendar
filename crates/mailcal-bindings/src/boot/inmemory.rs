@@ -190,36 +190,33 @@ pub(crate) fn build_showcase(
     let app = Arc::new(app);
     // Prime the seeded inbox synchronously (like the real path's prime_snapshot) so the host
     // paints rows on connect, not racing a post-boot RefreshMail; Android came up blank.
-    runtime.block_on(app.dispatch(AppIntent::RefreshMail));
+    runtime.block_on(|| app.dispatch(AppIntent::RefreshMail));
     // …and the calendar with it, which the real path gets from `prime_calendar` reading the
     // on-disk store. This boot has no store to prime from, so the equivalent is one sync over the
     // in-memory provider; microseconds, and it is what makes the *invitation* card honest: the
     // card says "we have not looked at your calendar" (and hides its day preview) until the
     // calendar cache actually covers the meeting's day, and mail otherwise syncs first. Without
     // this the invitation screenshot would show a card with no picture under it.
-    runtime.block_on(app.dispatch(AppIntent::RefreshCalendar));
+    runtime.block_on(|| app.dispatch(AppIntent::RefreshCalendar));
     // Seed the signature library and point both slots of each account at its own signature.
     // Persistence is off in this boot (`prefs_path: None`), so this lives only for the run;
     // which is exactly right for a screenshot dataset. Without it the composer's Signature
     // control never appears (it is hidden while the library is empty) and the Settings category
     // shows its empty state, so a store capture would advertise neither.
-    runtime.block_on(seed_signatures(
-        &app,
-        locale,
-        &primary_identity,
-        &secondary_identity,
-    ));
+    runtime.block_on(|| seed_signatures(&app, locale, &primary_identity, &secondary_identity));
     // Give each account the name it sends under (`docs/sending.md`). Without it both accounts
     // send as a bare address, which is a real state but not the one a screenshot should
     // advertise, and the seeded mail already addresses this person by name: the From picker
     // would then show an address for the same person the Inbox greets by name.
-    runtime.block_on(seed_sender_names(
-        &app,
-        [
-            (&primary_identity, &primary_sender_name),
-            (&secondary_identity, &secondary_sender_name),
-        ],
-    ));
+    runtime.block_on(|| {
+        seed_sender_names(
+            &app,
+            [
+                (&primary_identity, &primary_sender_name),
+                (&secondary_identity, &secondary_sender_name),
+            ],
+        )
+    });
     finish_showcase(app, runtime, device_tz)
 }
 

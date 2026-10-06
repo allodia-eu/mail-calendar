@@ -24,9 +24,7 @@ use allodia_license::Refresher;
 use mailcal_oauth::TokenSet;
 use time::{Duration, OffsetDateTime};
 
-use crate::{
-    AllodiaGrantHealth, MailcalApp, MailcalError, allodia::ACCOUNT_ID, allodia_transport::block_on,
-};
+use crate::{AllodiaGrantHealth, MailcalApp, MailcalError, allodia::ACCOUNT_ID};
 
 /// How long before expiry a token is treated as spent.
 ///
@@ -141,8 +139,7 @@ impl MailcalApp {
         // Built outside the gate: discovery has a `OnceCell` of its own, and holding the refresh
         // gate across it would serialise the one part that is already shared.
         let refresher = self.allodia_refresher()?;
-        block_on(
-            self.runtime.handle(),
+        self.runtime.block_on(|| {
             self.allodia_tokens.minted(reason, || async {
                 let now = OffsetDateTime::now_utc();
                 // Read inside the gate rather than on the way in: a caller that waited must present
@@ -184,18 +181,17 @@ impl MailcalApp {
                     self.store_rotated_allodia_grant(rotated.expose());
                 }
                 Ok(minted)
-            }),
-        )
+            })
+        })
     }
 
     /// The discovered client, built on first use and kept for the process.
     fn allodia_refresher(&self) -> Result<Arc<Refresher>, MailcalError> {
-        let built = block_on(
-            self.runtime.handle(),
+        let built = self.runtime.block_on(|| {
             self.allodia_tokens
                 .refresher
-                .get_or_try_init(|| async { Refresher::discover().await.map(Arc::new) }),
-        );
+                .get_or_try_init(|| async { Refresher::discover().await.map(Arc::new) })
+        });
         let refresher = built.cloned().map_err(|error| {
             log::warn!("allodia: the account service's metadata could not be read; {error}");
             MailcalError::Connect(error.to_string())

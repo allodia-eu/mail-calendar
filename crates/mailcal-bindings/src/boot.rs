@@ -163,7 +163,7 @@ pub(crate) fn build_accounts(
         placeholders
     } else {
         let connect_start = Instant::now();
-        let dialed = runtime.block_on(dial_registered(&registry, placeholders, &device_tz));
+        let dialed = runtime.block_on(|| dial_registered(&registry, placeholders, &device_tz));
         // A dial that failed keeps its placeholder: the account still lists, badged unreachable,
         // and re-dials later: so the account count is the same either way and only the channels
         // differ. Nothing is registered here: `prepare_accounts` did that before any of these
@@ -215,7 +215,7 @@ pub(crate) fn build_accounts(
     );
     let lease_recovery_start = Instant::now();
     let abandoned = runtime
-        .block_on(engine.abandon_sync_leases())
+        .block_on(|| engine.abandon_sync_leases())
         .map_err(|err| MailcalError::Engine(err.to_string()))?;
     log::info!(
         "boot: abandoned {abandoned} interrupted sync scope lease(s) in {}ms",
@@ -266,9 +266,9 @@ pub(crate) fn build_accounts(
     // Before anything can drain: a send the last run left mid-attempt is put back the way the
     // point it reached allows, so the first drain sends what never left and nothing sends what
     // may have (`docs/sending.md`).
-    runtime.block_on(app.recover_outbox());
+    runtime.block_on(|| app.recover_outbox());
     let prime_start = Instant::now();
-    runtime.block_on(app.prime_snapshot());
+    runtime.block_on(|| app.prime_snapshot());
     log::info!(
         "boot: primed cached snapshot in {}ms; NewAccounts total {}ms",
         prime_start.elapsed().as_millis(),

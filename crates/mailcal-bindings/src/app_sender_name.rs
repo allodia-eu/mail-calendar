@@ -35,7 +35,7 @@ impl MailcalApp {
     /// account holder owns its copy; signals `Surface::Settings`.
     pub fn set_account_sender_name(&self, account: String, name: String) {
         self.runtime
-            .block_on(self.app.set_account_sender_name(&account, &name));
+            .block_on(|| self.app.set_account_sender_name(&account, &name));
     }
 
     /// The name to fill a "your name" field in with: the one already set, else the one the
@@ -53,7 +53,8 @@ impl MailcalApp {
         let Ok(id) = AccountId::try_from(account.as_str()) else {
             return String::new();
         };
-        self.runtime.block_on(self.app.suggested_sender_name(&id))
+        self.runtime
+            .block_on(|| self.app.suggested_sender_name(&id))
     }
 
     /// Whether the flow that just added `account` should still ask for a sender name.
@@ -72,7 +73,7 @@ impl MailcalApp {
         let Ok(id) = AccountId::try_from(account.as_str()) else {
             return false;
         };
-        self.runtime.block_on(self.app.needs_sender_name(&id))
+        self.runtime.block_on(|| self.app.needs_sender_name(&id))
     }
 
     /// Whether a client may offer to change `account`'s sender name.
@@ -89,6 +90,6 @@ impl MailcalApp {
         let Ok(id) = AccountId::try_from(account.as_str()) else {
             return false;
         };
-        self.runtime.block_on(self.app.sender_name_editable(&id))
+        self.runtime.block_on(|| self.app.sender_name_editable(&id))
     }
 }

@@ -76,7 +76,7 @@ impl MailcalApp {
     ) -> Option<EventDetail> {
         let event = EventRef::from_parts(&account, key)?;
         self.runtime
-            .block_on(self.app.event_detail(&event, occurrence.as_deref()))
+            .block_on(|| self.app.event_detail(&event, occurrence.as_deref()))
             .map(Into::into)
     }
 
@@ -102,7 +102,7 @@ impl MailcalApp {
         let event = EventRef::from_parts(&account, key)?;
         let edit = edit.into_account_edit()?;
         self.runtime
-            .block_on(self.app.series_edit_warning(&event, &edit))
+            .block_on(|| self.app.series_edit_warning(&event, &edit))
             .map(Into::into)
     }
 }

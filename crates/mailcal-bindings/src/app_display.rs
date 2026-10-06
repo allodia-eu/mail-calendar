@@ -45,19 +45,20 @@ impl MailcalApp {
 
     /// Sets the first day of the calendar week, and persists it.
     pub fn set_week_start(&self, start: WeekStart) {
-        self.runtime.block_on(self.app.set_week_start(start.into()));
+        self.runtime
+            .block_on(|| self.app.set_week_start(start.into()));
     }
 
     /// Sets the 12/24-hour clock (for mail and calendar alike) and persists it.
     pub fn set_time_format(&self, format: TimeFormat) {
         self.runtime
-            .block_on(self.app.set_time_format(format.into()));
+            .block_on(|| self.app.set_time_format(format.into()));
     }
 
     /// Sets whether the app paints light, dark, or however the host is set, and persists it.
     pub fn set_appearance(&self, appearance: Appearance) {
         self.runtime
-            .block_on(self.app.set_appearance(appearance.into()));
+            .block_on(|| self.app.set_appearance(appearance.into()));
     }
 
     /// Sets the calendar's default horizon (how many hours the grid shows at once) and persists it.
@@ -66,7 +67,7 @@ impl MailcalApp {
     /// exceptional; cannot leave the grid dividing the day by zero.
     pub fn set_calendar_visible_hours(&self, hours: u8) {
         self.runtime
-            .block_on(self.app.set_calendar_visible_hours(hours));
+            .block_on(|| self.app.set_calendar_visible_hours(hours));
     }
 
     /// Remembers the shape the calendar is being read in, so it opens that way next time.
@@ -75,7 +76,7 @@ impl MailcalApp {
     /// on the next launch: the same columns, over the same hours.
     pub fn set_calendar_layout(&self, layout: CalendarLayout) {
         self.runtime
-            .block_on(self.app.set_calendar_layout(layout.into()));
+            .block_on(|| self.app.set_calendar_layout(layout.into()));
     }
 }
 

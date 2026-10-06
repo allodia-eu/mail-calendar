@@ -51,7 +51,7 @@ impl MailcalApp {
     /// need not refresh its list before opening a row it already has.
     pub fn contact_detail(&self, id: String) -> Option<ContactDetail> {
         self.runtime
-            .block_on(self.app.contact_detail(&id))
+            .block_on(|| self.app.contact_detail(&id))
             .map(Into::into)
     }
 
@@ -62,7 +62,7 @@ impl MailcalApp {
     /// read like the two below, so call it off the UI thread.
     pub fn contact_targets(&self) -> Vec<ContactTarget> {
         self.runtime
-            .block_on(self.app.contact_targets())
+            .block_on(|| self.app.contact_targets())
             .into_iter()
             .map(Into::into)
             .collect()
@@ -83,7 +83,7 @@ impl MailcalApp {
         card: String,
     ) -> Option<ContactEdit> {
         self.runtime
-            .block_on(self.app.contact_card(&person, &account, &card))
+            .block_on(|| self.app.contact_card(&person, &account, &card))
             .map(Into::into)
     }
 
@@ -95,7 +95,7 @@ impl MailcalApp {
     /// on an account with no address book at all.
     pub fn recipient_suggestions(&self, query: String) -> Vec<RecipientMatch> {
         self.runtime
-            .block_on(self.app.recipient_suggestions(&query))
+            .block_on(|| self.app.recipient_suggestions(&query))
             .into_iter()
             .map(Into::into)
             .collect()

@@ -67,7 +67,7 @@ impl HttpsTransport {
 impl Transport for HttpsTransport {
     fn send(&self, request: &Request) -> Result<Response, String> {
         let call = self.build(request).send();
-        let answered = block_on(&self.handle, async {
+        let answered = crate::runtime::drive(&self.handle, move || async move {
             let response = call.await.map_err(|error| error.to_string())?;
             let status = response.status().as_u16();
             // The body is read whatever the status: the service's `409` carries the record this
@@ -78,15 +78,6 @@ impl Transport for HttpsTransport {
         })?;
         Ok(answered)
     }
-}
-
-/// Drive one future to completion on the app's runtime, from a synchronous caller
-/// ([`crate::runtime::drive`]).
-pub(crate) fn block_on<T: Send>(
-    handle: &tokio::runtime::Handle,
-    future: impl Future<Output = T> + Send,
-) -> T {
-    crate::runtime::drive(handle, future)
 }
 
 #[cfg(test)]

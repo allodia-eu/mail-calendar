@@ -63,7 +63,7 @@ impl MailcalApp {
         if !on {
             let app = Arc::clone(&self.app);
             let forgotten = id.clone();
-            self.runtime.block_on(async move {
+            self.runtime.block_on(|| async move {
                 app.forget_account_domain(&forgotten, domain_of(capability))
                     .await;
             });
@@ -89,7 +89,7 @@ impl MailcalApp {
         self.background.apply(id.as_str(), None);
         let app = Arc::clone(&self.app);
         self.runtime
-            .block_on(async move { app.add_account_deferred(placeholder).await });
+            .block_on(|| async move { app.add_account_deferred(placeholder).await });
     }
 }
 

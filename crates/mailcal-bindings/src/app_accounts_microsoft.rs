@@ -39,11 +39,10 @@ impl MailcalApp {
         let started = std::time::Instant::now();
         log::info!("microsoft: completing sign-in; exchanging code + address lookup");
         let now = OffsetDateTime::now_utc();
-        let authorized = match self.runtime.block_on(microsoft::authorize(
-            &pending,
-            &callback_url,
-            now,
-        )) {
+        let authorized = match self
+            .runtime
+            .block_on(|| microsoft::authorize(&pending, &callback_url, now))
+        {
             Ok(authorized) => authorized,
             Err(err) => {
                 // A re-consent (or first connect) that failed to complete: the user declined, an
@@ -114,7 +113,7 @@ impl MailcalApp {
         };
         let outcome = match self
             .runtime
-            .block_on(dial.run(&account_id, self.device_zone.clone()))
+            .block_on(|| dial.run(&account_id, self.device_zone.clone()))
         {
             Ok(outcome) => outcome,
             Err(err) => {
@@ -156,7 +155,7 @@ impl MailcalApp {
         // the visible first sync starts in the background.
         let app = Arc::clone(&self.app);
         self.runtime
-            .block_on(async move { app.add_new_account_deferred(account).await });
+            .block_on(|| async move { app.add_new_account_deferred(account).await });
         // Reconcile the calendar re-consent prompt: a successful calendar connect clears it (this
         // is the path a re-auth completes through), a scope-`403` raises it.
         if calendar_connected {

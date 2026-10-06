@@ -227,7 +227,7 @@ impl MailcalApp {
             ));
         };
         let zone = self.device_zone.clone();
-        let outcome = match self.runtime.block_on(dial.run(&account_id, zone)) {
+        let outcome = match self.runtime.block_on(|| dial.run(&account_id, zone)) {
             Ok(outcome) => outcome,
             Err(err) => {
                 // Put the registry back as it was: remove the entry this added, or restore the one
@@ -286,7 +286,7 @@ impl MailcalApp {
         let sync_id = account.id.clone();
         let app = Arc::clone(&self.app);
         self.runtime
-            .block_on(async move { app.add_new_account_deferred(account).await });
+            .block_on(|| async move { app.add_new_account_deferred(account).await });
         // The first sync runs with the download bar **visible**; adding an account is an explicit
         // download the user is waiting on, so it shows progress immediately. The account's push
         // watches / poll timer start inside it, once its folders are known.
@@ -342,7 +342,7 @@ impl MailcalApp {
         if let Ok(account_id) = AccountId::try_from(id.as_str()) {
             let app = Arc::clone(&self.app);
             self.runtime
-                .block_on(async move { app.remove_account(&account_id).await });
+                .block_on(|| async move { app.remove_account(&account_id).await });
             // Removal dropped the account from the MCP exposure list; re-apply so a *running*
             // server stops serving it immediately rather than at the next restart: the config it
             // holds is a snapshot, so nothing else would tell it.
