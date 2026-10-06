@@ -1,32 +1,16 @@
-//! Resolving a sign-in the server has stopped accepting: which route the banner's button takes,
-//! and which account it takes it for. Split from `update` to keep each file under the 500-line
-//! limit.
+//! Resolving a sign-in the server has stopped accepting, or a grant missing a permission: which
+//! route the banner's button takes, and which account it takes it for. Split from `update` to
+//! keep each file under the 500-line limit.
 
 use super::{
-    AppInput, AppModel,
-    connectivity::ExpiredResolution,
-    settings,
-    setup_model::{DetectedForm, OAuthForm, SetupForm},
+    AppInput, AppModel, account_consent::ConsentFrom, connectivity::ExpiredResolution, settings,
 };
 
 impl AppModel {
     pub(super) fn resolve_expired_signin(&mut self, sender: relm4::Sender<AppInput>) {
         match self.connectivity.expired_resolution() {
-            Some(ExpiredResolution::Microsoft(email)) => {
-                self.setup.open(false);
-                self.setup
-                    .show_form(SetupForm::Detected(DetectedForm::Microsoft(OAuthForm {
-                        email: email.clone(),
-                    })));
-                self.start_microsoft_login(email, sender);
-            }
-            Some(ExpiredResolution::Google(email)) => {
-                self.setup.open(false);
-                self.setup
-                    .show_form(SetupForm::Detected(DetectedForm::Google(OAuthForm {
-                        email: email.clone(),
-                    })));
-                self.start_google_login(email, sender);
+            Some(ExpiredResolution::SignInAgain(account)) => {
+                self.start_account_consent(account, Vec::new(), ConsentFrom::MainWindow, sender);
             }
             Some(ExpiredResolution::JmapOauth(account)) => {
                 self.start_jmap_reauth(account, sender);
@@ -38,24 +22,22 @@ impl AppModel {
         }
     }
 
-    pub(super) fn resolve_microsoft_reauth(
+    /// The mail or calendar permission banner's Reconnect: one sign-in asks again for everything
+    /// the account is used for, so it answers both banners at once (`docs/provider-oauth.md`
+    /// rule 11).
+    pub(super) fn resolve_permission_reauth(
         &mut self,
         calendar: bool,
         sender: relm4::Sender<AppInput>,
     ) {
-        let email = if calendar {
-            self.connectivity.calendar_reauth_emails.first()
+        let accounts = if calendar {
+            &self.connectivity.calendar_reauth
         } else {
-            self.connectivity.mail_reauth_emails.first()
+            &self.connectivity.mail_reauth
         };
-        let Some(email) = email.cloned() else {
+        let Some(account) = accounts.first().map(|account| account.id.clone()) else {
             return;
         };
-        self.setup.open(false);
-        self.setup
-            .show_form(SetupForm::Detected(DetectedForm::Microsoft(OAuthForm {
-                email: email.clone(),
-            })));
-        self.start_microsoft_login(email, sender);
+        self.start_account_consent(account, Vec::new(), ConsentFrom::MainWindow, sender);
     }
 }

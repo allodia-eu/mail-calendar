@@ -15,8 +15,8 @@ use crate::l10n;
 pub(super) struct ConnectivityState {
     pub(super) offline: bool,
     pub(super) unreachable_accounts: HashSet<String>,
-    pub(super) calendar_reauth_emails: Vec<String>,
-    pub(super) mail_reauth_emails: Vec<String>,
+    pub(super) calendar_reauth: Vec<NamedAccount>,
+    pub(super) mail_reauth: Vec<NamedAccount>,
     pub(super) expired_signins: Vec<ExpiredSignIn>,
 }
 
@@ -41,21 +41,19 @@ impl ConnectivityState {
                 provider: provider(&id),
             })
             .collect();
-        let calendar_reauth_emails = snapshot
-            .calendar_reauth_accounts
-            .iter()
-            .map(|id| account_email(accounts, id))
-            .collect();
-        let mail_reauth_emails = snapshot
-            .mail_reauth_accounts
-            .iter()
-            .map(|id| account_email(accounts, id))
-            .collect();
+        let named = |ids: Vec<String>| {
+            ids.into_iter()
+                .map(|id| NamedAccount {
+                    email: account_email(accounts, &id),
+                    id,
+                })
+                .collect()
+        };
         Self {
             offline: snapshot.offline,
             unreachable_accounts: snapshot.unreachable_accounts.into_iter().collect(),
-            calendar_reauth_emails,
-            mail_reauth_emails,
+            calendar_reauth: named(snapshot.calendar_reauth_accounts),
+            mail_reauth: named(snapshot.mail_reauth_accounts),
             expired_signins,
         }
     }
@@ -63,6 +61,20 @@ impl ConnectivityState {
     pub(super) fn expired_resolution(&self) -> Option<ExpiredResolution> {
         self.expired_signins.first().map(ExpiredSignIn::resolution)
     }
+}
+
+/// An account a banner names, with the id its button acts on.
+pub(super) struct NamedAccount {
+    pub(super) id: String,
+    pub(super) email: String,
+}
+
+fn names(accounts: &[NamedAccount]) -> String {
+    accounts
+        .iter()
+        .map(|account| account.email.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn account_email(accounts: &[AccountRow], id: &str) -> String {
@@ -81,8 +93,9 @@ pub(super) struct ExpiredSignIn {
 impl ExpiredSignIn {
     fn resolution(&self) -> ExpiredResolution {
         match self.provider.as_ref() {
-            Some(AccountProvider::Microsoft) => ExpiredResolution::Microsoft(self.email.clone()),
-            Some(AccountProvider::Google) => ExpiredResolution::Google(self.email.clone()),
+            Some(AccountProvider::Microsoft | AccountProvider::Google) => {
+                ExpiredResolution::SignInAgain(self.id.clone())
+            }
             Some(AccountProvider::JmapOauth) => ExpiredResolution::JmapOauth(self.id.clone()),
             Some(AccountProvider::Password | AccountProvider::Jmap) | None => {
                 ExpiredResolution::Settings
@@ -92,8 +105,8 @@ impl ExpiredSignIn {
 }
 
 pub(super) enum ExpiredResolution {
-    Microsoft(String),
-    Google(String),
+    /// A Microsoft or Google account, signed in again in place by its id.
+    SignInAgain(String),
     JmapOauth(String),
     Settings,
 }
@@ -170,18 +183,17 @@ impl ConnectivityBanners {
         self.offline.set_title(l10n::connectivity_offline_banner());
         self.offline.set_revealed(state.offline);
 
-        let mail_names = state.mail_reauth_emails.join(", ");
         self.mail_reauth
-            .set_title(&l10n::mail_reauth_prompt(&mail_names));
+            .set_title(&l10n::mail_reauth_prompt(&names(&state.mail_reauth)));
         self.mail_reauth
-            .set_revealed(primary == PrimaryView::Mail && !state.mail_reauth_emails.is_empty());
+            .set_revealed(primary == PrimaryView::Mail && !state.mail_reauth.is_empty());
 
-        let calendar_names = state.calendar_reauth_emails.join(", ");
         self.calendar_reauth
-            .set_title(&l10n::calendar_reauth_prompt(&calendar_names));
-        self.calendar_reauth.set_revealed(
-            primary == PrimaryView::Calendar && !state.calendar_reauth_emails.is_empty(),
-        );
+            .set_title(&l10n::calendar_reauth_prompt(&names(
+                &state.calendar_reauth,
+            )));
+        self.calendar_reauth
+            .set_revealed(primary == PrimaryView::Calendar && !state.calendar_reauth.is_empty());
 
         let names = state
             .expired_signins
@@ -191,11 +203,7 @@ impl ConnectivityBanners {
             .join(", ");
         let browser_flow = matches!(
             state.expired_resolution(),
-            Some(
-                ExpiredResolution::Microsoft(_)
-                    | ExpiredResolution::Google(_)
-                    | ExpiredResolution::JmapOauth(_)
-            )
+            Some(ExpiredResolution::SignInAgain(_) | ExpiredResolution::JmapOauth(_))
         );
         let title = if browser_flow {
             l10n::signin_expired_prompt(&names)

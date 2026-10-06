@@ -62,6 +62,22 @@ pub(super) fn needs_permission(entry: &AccountEntry) -> bool {
         .any(|use_| use_.state == CapabilityState::NeedsPermission)
 }
 
+/// Whether the account signs in at its provider's own page, which "Sign in again" opens.
+pub(super) const fn signs_in_at_provider(kind: AccountKind) -> bool {
+    matches!(kind, AccountKind::Microsoft | AccountKind::Google)
+}
+
+/// What the sign-in group says beneath its heading: what is wrong, when something is.
+pub(super) fn signin_description(entry: &AccountEntry, expired: bool) -> String {
+    if expired {
+        l10n::signin_expired_prompt(&entry.address)
+    } else if needs_permission(entry) {
+        l10n::settings_account_needs_permission().to_owned()
+    } else {
+        l10n::settings_account_signin_description().to_owned()
+    }
+}
+
 /// How one use's switch is drawn.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct UseSwitch {

@@ -639,6 +639,7 @@ single provider's table):
 | Prompt routes to the right sign-in via `MailcalApp::account_provider` (Settings where there is no browser flow) | ✅ | ✅ | ✅ Google · OAuth JMAP · Microsoft untested | ✅ | ✅ Microsoft · Google · OAuth JMAP runtime-verified; stored-secret repair code-complete |
 | A second sign-in request supersedes one abandoned in the browser (rule 13) | — | ✅ never guarded | ✅ `SignInFlight` | ✅ never guarded | ✅ `AttemptSlot` |
 | OAuth **JMAP** re-authentication in place from the prompt (rule 14: `begin_jmap_reauth` / `complete_jmap_reauth`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Microsoft and Google signed in again in place, from the prompts and the account's Settings page, a withheld use asked for when switched on (rule 11: `begin_account_consent` / `complete_account_consent`) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
 | Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`replace_account_secret`) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
 
 Each client fills its Azure **client id** in its `MicrosoftOAuth.{swift,kt,cs}` and registers a
@@ -747,8 +748,9 @@ the doctrine's "provider sync" language for *account connection* specifically.)
   the mail surfaces without saying why. Neither setup nor Settings says "Calendar was
   not allowed" or offers to ask again, because there is no "needs permission" state for a client
   to read ([`accounts.md`](accounts.md)); Microsoft's calendar is the exception, through rule 11's
-  prompt. No client calls `begin_account_consent` yet, so **Reconnect** and "sign in again" still
-  run `complete_microsoft_login` / `complete_google_login`, which ask for everything and start a
+  prompt. Linux says so on the account's page and signs it in again through
+  `begin_account_consent`; the other clients' **Reconnect** and "sign in again" still run
+  `complete_microsoft_login` / `complete_google_login`, which ask for everything and start a
   visible first download of an account that already has its mail.
 - **Graph mail: read/sync + mail actions + sending.** The engine's Graph adapter does mail folders
   + messages + message source (bodies render via `/messages/{id}/$value`) + a `receivedDateTime`

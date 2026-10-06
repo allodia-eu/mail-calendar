@@ -40,14 +40,26 @@ fn one_snapshot_projects_the_offline_outage_and_expired_signin_states() {
 
     assert!(state.offline);
     assert!(state.unreachable_accounts.contains("outage"));
-    assert_eq!(state.calendar_reauth_emails, ["calendar@example.test"]);
-    assert_eq!(state.mail_reauth_emails, ["mail@example.test"]);
+    let named = |accounts: &[super::NamedAccount]| {
+        accounts
+            .iter()
+            .map(|account| (account.id.clone(), account.email.clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        named(&state.calendar_reauth),
+        [("calendar".to_owned(), "calendar@example.test".to_owned())]
+    );
+    assert_eq!(
+        named(&state.mail_reauth),
+        [("mail".to_owned(), "mail@example.test".to_owned())]
+    );
     assert_eq!(state.expired_signins.len(), 2);
     assert_eq!(state.expired_signins[0].id, "expired");
     assert_eq!(state.expired_signins[0].email, "expired@example.test");
     assert!(matches!(
         state.expired_signins[0].resolution(),
-        ExpiredResolution::Google(email) if email == "expired@example.test"
+        ExpiredResolution::SignInAgain(account) if account == "expired"
     ));
     assert_eq!(
         state.expired_signins[1].email, "removed",
@@ -82,7 +94,7 @@ fn every_provider_routes_to_the_remedy_linux_currently_has() {
 
     assert!(matches!(
         state.expired_signins[0].resolution(),
-        ExpiredResolution::Microsoft(email) if email == "m@example.test"
+        ExpiredResolution::SignInAgain(account) if account == "m"
     ));
     assert!(matches!(
         state.expired_signins[1].resolution(),
