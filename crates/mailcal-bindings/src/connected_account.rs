@@ -223,13 +223,13 @@ impl ConnectedAccount {
         }
     }
 
-    /// What the account can be used for: colleagues on a Google account and on a Microsoft one
-    /// that is not personal, beside the mail, calendar and contacts every kind offers.
+    /// What the account can be used for: colleagues on a Microsoft or Google account that is not
+    /// a personal one, beside the mail, calendar and contacts every kind offers.
     pub(crate) fn offered(&self) -> mailcal_account::Capabilities {
         use mailcal_account::Capability;
         match self {
             Self::Microsoft { config, .. } => config.offered(),
-            Self::Google { .. } => Capability::ALL.into_iter().collect(),
+            Self::Google { config, .. } => config.offered(),
             Self::Imap { .. } | Self::Jmap { .. } => {
                 [Capability::Mail, Capability::Calendar, Capability::Contacts]
                     .into_iter()

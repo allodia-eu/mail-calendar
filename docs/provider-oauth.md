@@ -532,7 +532,7 @@ autodetection. It reuses the whole state machine above; the deltas are:
   | `gmail.settings.basic` | `sendAs.patch`, the send-as alias a sender name is written to | mail |
   | `calendar` | events, edits, answering invitations | calendar |
   | `contacts`, `contacts.other.readonly` | the account's own contacts, and the addresses Google collects for it | contacts |
-  | `directory.readonly` | colleagues on a Workspace domain | colleagues, beside contacts |
+  | `directory.readonly` | colleagues on a Workspace domain | colleagues, beside contacts; never on a personal account, which has no Workspace directory |
   | `userinfo.email` | the account's address from `oauth2/v3/userinfo` | every account |
 
   `userinfo.email` is asked for whatever the account is used for, because it is what names the

@@ -12,7 +12,7 @@
 //! [`AccountConfig`]: crate::AccountConfig
 //! [`MicrosoftConfig`]: crate::MicrosoftConfig
 
-use engine_api::EmailAddress;
+use engine_api::{Affiliation, EmailAddress};
 use engine_core::ids::{AccountId, IdError};
 use mailcal_oauth::OAuthProviderConfig;
 use serde::Deserialize;
@@ -71,6 +71,12 @@ pub struct GoogleConfig {
     /// otherwise.
     #[serde(default)]
     pub granted_scopes: Option<Vec<String>>,
+    /// Whether this is a personal Google account or a Workspace one, as Google answered when the
+    /// account last signed in, or at its first connect after that was recorded. `None` until
+    /// then, and for a grant without `userinfo.email`, which cannot ask; both are offered what
+    /// every Google account was offered before.
+    #[serde(default)]
+    pub affiliation: Option<Affiliation>,
     /// What the account is used for, its pinned id and its links: the keys every kind shares at
     /// the document's root ([`AccountShape`](crate::AccountShape)). Read by the loader beside the
     /// kind's own section.
@@ -80,10 +86,28 @@ pub struct GoogleConfig {
 
 impl GoogleConfig {
     /// What this account is used for: its stored choice, or what the kind has always meant
-    /// (everything, since sign-in asked for everything).
+    /// (everything, since sign-in asked for everything), of what it [offers](Self::offered).
     #[must_use]
     pub fn capabilities(&self) -> crate::Capabilities {
-        self.shape.capabilities_or(crate::Capability::ALL)
+        crate::affiliation::within(
+            &self.shape.capabilities_or(crate::Capability::ALL),
+            &self.offered(),
+        )
+    }
+
+    /// What this account can be used for: no colleagues on a personal account, which has no
+    /// Workspace directory.
+    #[must_use]
+    pub fn offered(&self) -> crate::Capabilities {
+        crate::affiliation::offered(self.affiliation.as_ref())
+    }
+
+    /// Whether the grant can ask who the account belongs to: `userinfo` answers to
+    /// `userinfo.email`, which every sign-in asks for and an old grant may not hold.
+    #[must_use]
+    pub fn can_ask_affiliation(&self) -> bool {
+        let granted = self.granted_scopes.as_deref().unwrap_or(&self.scopes);
+        mailcal_oauth::scopes::GOOGLE.holds(granted, USERINFO_EMAIL_SCOPE)
     }
 
     /// The uses this account is chosen for that its grant does not allow.
@@ -173,6 +197,9 @@ impl GoogleConfig {
                 "granted_scopes".into(),
                 toml::Value::Array(granted.iter().map(|s| s.clone().into()).collect()),
             );
+        }
+        if let Some(affiliation) = &self.affiliation {
+            google.insert("affiliation".into(), toml::Value::try_from(affiliation)?);
         }
         let mut root = toml::Table::new();
         self.shape.write_into(&mut root);
@@ -266,8 +293,42 @@ mod tests {
             ],
             refresh_token: Secret::new("secret-refresh-token".to_owned()),
             granted_scopes: None,
+            affiliation: None,
             shape: crate::AccountShape::default(),
         }
+    }
+
+    #[test]
+    fn a_personal_account_offers_no_colleagues_and_the_answer_round_trips() {
+        use crate::Capability;
+        let mut account = config();
+        assert!(account.capabilities().contains(Capability::Colleagues));
+        assert!(!config().to_toml().unwrap().contains("affiliation"));
+
+        account.affiliation = Some(Affiliation::Personal);
+        account.shape.capabilities = Some(Capability::ALL.into_iter().collect());
+        assert!(!account.offered().contains(Capability::Colleagues));
+        assert!(!account.capabilities().contains(Capability::Colleagues));
+        let reread = load_google_str(&account.to_toml().unwrap()).unwrap();
+        assert_eq!(reread.affiliation, Some(Affiliation::Personal));
+
+        account.affiliation = Some(Affiliation::Organization(
+            engine_api::OrganizationId::try_from("example.test").unwrap(),
+        ));
+        assert!(account.capabilities().contains(Capability::Colleagues));
+    }
+
+    #[test]
+    fn only_a_grant_holding_the_email_scope_can_ask_who_it_belongs_to() {
+        let mut account = config();
+        assert!(!account.can_ask_affiliation());
+        account
+            .scopes
+            .push("https://www.googleapis.com/auth/userinfo.email".to_owned());
+        assert!(account.can_ask_affiliation());
+        // What was granted decides, over what was asked for.
+        account.granted_scopes = Some(vec!["https://mail.google.com/".to_owned()]);
+        assert!(!account.can_ask_affiliation());
     }
 
     #[test]

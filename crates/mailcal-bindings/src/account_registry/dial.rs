@@ -192,6 +192,9 @@ pub(crate) enum AccountDial {
         identity: EmailAddress,
         /// What the account opens: what it is used for, less what its grant withholds.
         capabilities: Capabilities,
+        /// Whether the account was stored before its affiliation was recorded and its grant can
+        /// ask, so the dial asks.
+        affiliation_unknown: bool,
     },
     /// A JMAP account: dial its account-wide mail provider (+ calendar when advertised) from its
     /// config, minting a fresh access token first when the account is OAuth.
@@ -231,6 +234,7 @@ impl AccountDial {
                 tokens: Arc::clone(tokens),
                 identity: config.identity(),
                 capabilities: entry.opened_capabilities(),
+                affiliation_unknown: config.affiliation.is_none() && config.can_ask_affiliation(),
             },
             ConnectedAccount::Jmap { config, tokens } => Self::Jmap {
                 config: config.clone(),

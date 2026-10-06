@@ -85,7 +85,8 @@ means the person is genuinely gone, never merely renumbered.
 - **Colleagues are a choice of their own.** A Microsoft or Google account binds the organisation's
   directory (Graph `/users`, the Workspace directory) only when it is used for `colleagues`, which
   every account stored before the choice existed is. Its own contacts are the `contacts` choice. A
-  personal Microsoft account is never used for colleagues ([`accounts.md`](accounts.md) rule 3).
+  personal Microsoft or Google account is never used for colleagues ([`accounts.md`](accounts.md)
+  rule 3).
 - An account **not used for contacts** binds no contact source at all.
 
 ### A client

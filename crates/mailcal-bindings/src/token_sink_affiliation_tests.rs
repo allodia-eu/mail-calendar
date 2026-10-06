@@ -1,10 +1,10 @@
-//! Whether a Microsoft account is a personal one: stored once Graph has said, and never written
-//! again for the same answer.
+//! Whether a Microsoft or Google account is a personal one: stored once its provider has said, and
+//! never written again for the same answer.
 
 use std::sync::{Arc, Mutex};
 
 use engine_api::{AccountId, Affiliation, OrganizationId};
-use mailcal_account::{MicrosoftConfig, Secret, TokenSink};
+use mailcal_account::{GoogleConfig, MicrosoftConfig, Secret, TokenSink};
 
 use super::BindingTokenSink;
 use crate::{
@@ -112,4 +112,49 @@ async fn a_different_answer_replaces_the_stored_one() {
     sink.affiliation_found(&id, &organisation).await;
 
     assert_eq!(stored(&store), [Some(organisation)]);
+}
+
+/// A Google account stored without an answer keeps the one its first connect got.
+#[tokio::test]
+async fn a_google_account_records_its_answer_too() {
+    let config = GoogleConfig {
+        email: "alice@example.com".to_owned(),
+        client_id: "client-abc".to_owned(),
+        client_secret: None,
+        redirect_uri: "eu.allodia.mailcal://auth".to_owned(),
+        scopes: vec!["https://www.googleapis.com/auth/userinfo.email".to_owned()],
+        refresh_token: Secret::new("refresh".to_owned()),
+        granted_scopes: None,
+        affiliation: None,
+        shape: mailcal_account::AccountShape::default(),
+    };
+    let id = config.account_id().expect("a valid account id");
+    let tokens = mailcal_account::google_token_source(
+        &config,
+        id.clone(),
+        None,
+        mailcal_account::CredentialOrigin::Stored,
+    )
+    .expect("a token source over a well-formed config");
+    let registry = AccountRegistry::new();
+    registry.pre_register(
+        id.as_str().to_owned(),
+        ConnectedAccount::Google { config, tokens },
+    );
+    let store = Arc::new(Store::default());
+    let sink = BindingTokenSink {
+        registry,
+        store: Arc::clone(&store) as Arc<dyn AccountCredentialStore>,
+    };
+
+    sink.affiliation_found(&id, &Affiliation::Personal).await;
+
+    let written = store.0.lock().expect("store mutex poisoned").clone();
+    assert_eq!(written.len(), 1);
+    assert_eq!(
+        mailcal_account::load_google_str(&written[0])
+            .expect("a valid config")
+            .affiliation,
+        Some(Affiliation::Personal)
+    );
 }

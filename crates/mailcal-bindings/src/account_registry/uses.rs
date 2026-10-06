@@ -143,6 +143,9 @@ fn opens(entry: &ConnectedAccount, next: &Capabilities, capability: Capability) 
             next,
             config.granted_scopes.as_deref(),
         )),
+        ConnectedAccount::Google { config, .. } if !config.offered().contains(capability) => {
+            Opens::NotOffered
+        }
         ConnectedAccount::Google { config, .. } => granted(mailcal_account::withheld(
             &mailcal_oauth::scopes::GOOGLE,
             next,

@@ -52,6 +52,7 @@ fn google_account(stored: Option<&[&str]>) -> (AccountId, BindingTokenSink, Arc<
         ]),
         refresh_token: Secret::new("original-refresh".to_owned()),
         granted_scopes: stored.map(scopes),
+        affiliation: None,
         shape: mailcal_account::AccountShape::default(),
     };
     let id = config.account_id().expect("a valid account id");
