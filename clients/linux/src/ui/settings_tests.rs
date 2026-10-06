@@ -110,10 +110,10 @@ fn the_cores_signal_redraws_the_accounts_page_and_no_other() {
 
 /// The question the refresh guard has to ask, and the trap it sits in.
 ///
-/// A user closes this window through GTK: the Done button and the titlebar both call `close()`
-/// on the widget: which destroys it but leaves the model's handle holding it. So `is_some()`
-/// still answers yes on the only path a person actually takes, and a guard written on it never
-/// fires: an Allodia redirect landing afterwards put Settings back over the user's mail.
+/// A user closes this window through GTK: the title bar's close button and Escape both call
+/// `close()` on the widget, which destroys it but leaves the model's handle holding it. So
+/// `is_some()` still answers yes on the only path a person actually takes, and a guard written on
+/// it never fires: an Allodia redirect landing afterwards put Settings back over the user's mail.
 ///
 /// Called from the crate's single `gtk::init` test.
 pub(crate) fn a_closed_settings_window_is_not_on_screen() {
