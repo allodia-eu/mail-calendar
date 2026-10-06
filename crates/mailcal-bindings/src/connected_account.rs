@@ -200,6 +200,7 @@ impl ConnectedAccount {
             id: id.to_owned(),
             address: self.identity().email,
             kind,
+            offered: self.offered(),
             chosen,
             withheld,
             files_invitations,
@@ -219,6 +220,21 @@ impl ConnectedAccount {
             Self::Microsoft { config, .. } => config.capabilities(),
             Self::Google { config, .. } => config.capabilities(),
             Self::Jmap { config, .. } => config.capabilities(),
+        }
+    }
+
+    /// What the account can be used for: colleagues on a Google account and on a Microsoft one
+    /// that is not personal, beside the mail, calendar and contacts every kind offers.
+    pub(crate) fn offered(&self) -> mailcal_account::Capabilities {
+        use mailcal_account::Capability;
+        match self {
+            Self::Microsoft { config, .. } => config.offered(),
+            Self::Google { .. } => Capability::ALL.into_iter().collect(),
+            Self::Imap { .. } | Self::Jmap { .. } => {
+                [Capability::Mail, Capability::Calendar, Capability::Contacts]
+                    .into_iter()
+                    .collect()
+            }
         }
     }
 

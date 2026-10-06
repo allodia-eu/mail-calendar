@@ -34,6 +34,7 @@ fn microsoft_entry() -> ConnectedAccount {
         scopes: Vec::new(),
         refresh_token: mailcal_account::Secret::new("refresh".to_owned()),
         granted_scopes: None,
+        affiliation: None,
         shape: mailcal_account::AccountShape::read("capabilities = [\"mail\"]").unwrap(),
     };
     let id = config.account_id().unwrap();

@@ -94,12 +94,14 @@ impl AccountDial {
                 tokens,
                 identity,
                 withheld,
+                affiliation_unknown,
                 ..
             } => {
                 // The same Graph token also syncs the calendar and contacts, concurrently. A
                 // calendar the grant withholds, or a scope-denied `403` on it, sets
-                // `calendar_reauth_required`.
-                let (mail, (calendar, calendar_reauth_required), contacts) = tokio::join!(
+                // `calendar_reauth_required`. An account stored before its affiliation was
+                // recorded is asked beside them, and the token sink stores the answer.
+                let (mail, (calendar, calendar_reauth_required), contacts, ()) = tokio::join!(
                     part(on(Capability::Mail), async {
                         mailcal_account::connect_graph_mail_providers(id, Arc::clone(&tokens), None)
                             .await
@@ -126,6 +128,11 @@ impl AccountDial {
                             on(Capability::Colleagues),
                         ),
                     ),
+                    async {
+                        if affiliation_unknown {
+                            tokens.detect_affiliation().await;
+                        }
+                    },
                 );
                 let assembled = assemble(mail, calendar, contacts)?;
                 Ok(outcome(

@@ -135,6 +135,9 @@ fn opens(entry: &ConnectedAccount, next: &Capabilities, capability: Capability) 
         }
     };
     match entry {
+        ConnectedAccount::Microsoft { config, .. } if !config.offered().contains(capability) => {
+            Opens::NotOffered
+        }
         ConnectedAccount::Microsoft { config, .. } => granted(mailcal_account::withheld(
             &mailcal_oauth::scopes::MICROSOFT,
             next,

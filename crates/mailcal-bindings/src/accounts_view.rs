@@ -17,6 +17,8 @@ pub(crate) struct AccountFacts {
     pub(crate) id: String,
     pub(crate) address: String,
     pub(crate) kind: AccountKind,
+    /// What the account can be used for.
+    pub(crate) offered: Capabilities,
     /// What the account is used for.
     pub(crate) chosen: Capabilities,
     /// What its Microsoft or Google grant does not allow of that.
@@ -238,17 +240,12 @@ pub(crate) fn valid_links(facts: &[AccountFacts]) -> Vec<AccountLinks> {
         .collect()
 }
 
-/// The uses `account`'s kind can offer, each in its state.
+/// The uses `account` offers, each in its state.
 fn uses(account: &AccountFacts, calendar_refused: bool) -> Vec<AccountUse> {
-    let offered: &[Capability] = match account.kind {
-        AccountKind::Microsoft | AccountKind::Google => &Capability::ALL,
-        AccountKind::Imap | AccountKind::Dav | AccountKind::Jmap => {
-            &[Capability::Mail, Capability::Calendar, Capability::Contacts]
-        }
-    };
-    offered
+    account
+        .offered
         .iter()
-        .map(|&capability| {
+        .map(|capability| {
             let refused = account.withheld.contains(capability)
                 || (capability == Capability::Calendar && calendar_refused);
             let state = match (account.chosen.contains(capability), refused) {

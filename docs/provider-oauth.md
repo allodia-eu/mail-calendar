@@ -294,7 +294,7 @@ capturing the redirect), because that is inherently platform-specific.
     | `Mail.Send` | `POST /sendMail` | sending; `Mail.ReadWrite` does not grant it | mail |
     | `Calendars.ReadWrite` | `/calendars`, `/events`, `POST /events/{id}/accept`, `decline`, `tentativelyAccept` | the calendar, event edits, answering invitations | calendar |
     | `Contacts.ReadWrite` | `/contacts`, `/contactFolders`, `/contacts/delta` | the account's own contacts, adding and editing them | contacts |
-    | `User.ReadBasic.All` | `GET /users` (at the tenant, not under `/me`), `/users/{id}/photo` | colleagues from a work or school directory, and their photos | colleagues, beside contacts |
+    | `User.ReadBasic.All` | `GET /users` (at the tenant, not under `/me`), `/users/{id}/photo` | colleagues from a work or school directory, and their photos | colleagues, beside contacts; never on a personal account, which has no directory |
 
     **A use the grant withholds is not opened.** Each use has one scope it cannot open without
     (`Mail.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `User.ReadBasic.All`), and a

@@ -172,6 +172,7 @@ fn a_use_the_grant_does_not_hold_needs_consent_and_one_it_holds_does_not() {
             "Mail.ReadWrite".to_owned(),
             "Contacts.ReadWrite".to_owned(),
         ]),
+        affiliation: None,
         shape: mailcal_account::AccountShape::read("capabilities = [\"mail\"]").unwrap(),
     };
     let id = config.account_id().unwrap();
@@ -194,4 +195,39 @@ fn a_use_the_grant_does_not_hold_needs_consent_and_one_it_holds_does_not() {
     assert!(matches!(calendar, Ok(UseChange::NeedsConsent)));
     let contacts = registry.set_use(id.as_str(), mailcal_account::Capability::Contacts, true);
     assert!(matches!(contacts, Ok(UseChange::Changed { .. })));
+}
+
+#[test]
+fn a_personal_microsoft_account_offers_no_colleagues_to_switch_on() {
+    let config = mailcal_account::MicrosoftConfig {
+        email: "alice@example.com".to_owned(),
+        client_id: "client-abc".to_owned(),
+        tenant: "common".to_owned(),
+        redirect_uri: "eu.allodia.mailcal://auth".to_owned(),
+        scopes: Vec::new(),
+        refresh_token: mailcal_account::Secret::new("refresh".to_owned()),
+        // The grant a personal account comes back with: everything but the directory.
+        granted_scopes: Some(vec!["Contacts.ReadWrite".to_owned()]),
+        affiliation: Some(engine_api::Affiliation::Personal),
+        shape: mailcal_account::AccountShape::read("capabilities = [\"contacts\"]").unwrap(),
+    };
+    let id = config.account_id().unwrap();
+    let tokens = mailcal_account::GraphTokenSource::new(
+        &config,
+        id.clone(),
+        None,
+        mailcal_account::CredentialOrigin::FreshSignIn,
+    )
+    .unwrap();
+    let registry = AccountRegistry::new();
+    registry
+        .pre_register(
+            id.as_str().to_owned(),
+            crate::ConnectedAccount::Microsoft { config, tokens },
+        )
+        .commit();
+
+    // Refused, not "needs consent": no sign-in would ever grant it.
+    let colleagues = registry.set_use(id.as_str(), mailcal_account::Capability::Colleagues, true);
+    assert!(matches!(colleagues, Err(MailcalError::Config(_))));
 }

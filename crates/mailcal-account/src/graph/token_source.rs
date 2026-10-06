@@ -48,17 +48,26 @@ pub trait TokenSink: Send + Sync {
     /// what the provider grants now, and consent withdrawn since the last one shows up nowhere
     /// else.
     async fn scopes_granted(&self, account: &AccountId, granted: &GrantedScopes);
+
+    /// Reports who `account` belongs to, once Graph was asked
+    /// ([`GraphTokenSource::detect_affiliation`]). The host stores it with the account.
+    async fn affiliation_found(
+        &self,
+        _account: &AccountId,
+        _affiliation: &engine_api::Affiliation,
+    ) {
+    }
 }
 
 /// A shared, self-refreshing source of Graph access tokens for one account.
 pub struct GraphTokenSource {
     oauth: OAuthClient,
-    account: AccountId,
+    pub(super) account: AccountId,
     /// Which provider family this source serves (`graph` / `google` / `jmap`): the shared
     /// type is provider-neutral, and a refresh log line that cannot say *whose* token it is
     /// answers half the question. Safe to log: it names the protocol and nothing else.
     provider: &'static str,
-    sink: Option<Arc<dyn TokenSink>>,
+    pub(super) sink: Option<Arc<dyn TokenSink>>,
     /// The account's credential state and its refresh single-flight; **shared with every other
     /// token source for this account in this process**, not owned.
     ///
