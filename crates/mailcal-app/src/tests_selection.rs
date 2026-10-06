@@ -274,11 +274,12 @@ async fn an_account_with_no_archive_folder_is_skipped_and_the_others_still_act()
 
 #[tokio::test]
 async fn a_refused_write_brings_its_own_row_back_and_leaves_the_batch_hidden() {
-    // A provider that refuses every write: each row's hide is undone individually, so a
-    // rejection cannot leave a message hidden from a list it never left.
+    // A provider that refuses every write for good: each row's hide is undone individually, so
+    // a rejection cannot leave a message hidden from a list it never left. A write refused only
+    // for now stays queued and its row hidden (`tests_mail_actions`).
     let provider =
         FakeProvider::with_archive(vec![message("m1", "a", "One"), message("m2", "a", "Two")]);
-    let refuse = provider.failure_switch();
+    let refuse = provider.refusal_switch();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = app(vec![account("acct-1", provider)], &surfaces);
     app.dispatch(Intent::RefreshMail).await;

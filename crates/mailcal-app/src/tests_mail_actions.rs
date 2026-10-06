@@ -5,13 +5,19 @@
 //! tell *why* nothing happened (a closed [`MailActionError`], not a silent no-op), and a burst of
 //! writes does not turn into a burst of account-wide syncs. Both are the difference between an
 //! assistant reporting the truth and an assistant reporting success it never achieved.
+//!
+//! The last tests hold the other side of "rejected": a write the server has not answered yet, or
+//! refuses only for now, is not one. A read or flag change shows the moment it is queued and stays
+//! while the server is unreachable or throttling, and a throttled archive keeps its rows hidden;
+//! only a refusal for good takes a change back and is reported.
 
 use std::sync::{Arc, Mutex, atomic::Ordering};
 
 use engine_provider::MailEdit;
-use fakes::{FakeProvider, account, app, message, msg};
+use fakes::{EditGate, FakeProvider, account, app, message, msg};
+use mailcal_viewmodel::{MailboxListSnapshot, SnapshotRow};
 
-use crate::{MailActionError, SendActionError};
+use crate::{App, BulkAction, Intent, MailActionError, RowRef, SendActionError};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -77,12 +83,13 @@ async fn archiving_without_an_archive_folder_says_so_rather_than_failing_silentl
 #[tokio::test]
 async fn a_provider_that_refuses_the_edit_surfaces_as_rejected() {
     let provider = FakeProvider::with(vec![message("m1", "a", "Hello")]);
-    let refuse = provider.failure_switch();
+    let refuse = provider.refusal_switch();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = app(vec![account("acct-1", provider)], &surfaces);
     app.dispatch(crate::Intent::RefreshMail).await;
 
-    // The message is synced; now the server starts refusing writes (a revoked scope, an outage).
+    // The message is synced; now the server refuses writes for good (a revoked scope). One it
+    // refuses only for now is queued, and is not a rejection (`tests_mail_actions`).
     refuse.store(true, Ordering::SeqCst);
     assert_eq!(
         app.act_mark_read(&msg("acct-1", "m1"), true).await,
@@ -214,5 +221,102 @@ async fn an_archive_re_syncs_its_own_account_and_leaves_the_others_alone() {
             .iter()
             .any(|row| format!("{row:?}").contains("m1")),
         "the archived row still left the list",
+    );
+}
+
+/// `(unread, flagged)` as the list shows the one message.
+fn shown(snapshot: &MailboxListSnapshot) -> (bool, bool) {
+    match snapshot.rows.as_slice() {
+        [SnapshotRow::Flat(row)] => (row.unread, row.flagged),
+        other => panic!("expected the one message, got {} rows", other.len()),
+    }
+}
+
+async fn synced(provider: FakeProvider) -> Arc<App<FakeProvider>> {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = Arc::new(app(vec![account("acct-1", provider)], &surfaces));
+    app.dispatch(Intent::RefreshMail).await;
+    app
+}
+
+#[tokio::test]
+async fn a_flag_shows_while_the_server_is_still_answering() {
+    let gate = EditGate::new();
+    let app =
+        synced(FakeProvider::with(vec![message("m1", "a", "Hello")]).gating_edits(&gate)).await;
+    assert_eq!(shown(&app.mailbox_list()), (true, false));
+
+    let flagging = tokio::spawn({
+        let app = Arc::clone(&app);
+        async move {
+            app.dispatch(Intent::SetFlagged {
+                message: msg("acct-1", "m1"),
+                flagged: true,
+            })
+            .await;
+        }
+    });
+    // The write is at the server, which has not answered.
+    gate.await_entry().await;
+    assert_eq!(
+        shown(&app.mailbox_list()),
+        (true, true),
+        "flagged before the server answers"
+    );
+
+    gate.release_one();
+    flagging.await.unwrap();
+    assert_eq!(shown(&app.mailbox_list()), (true, true));
+}
+
+#[tokio::test]
+async fn a_throttled_mark_read_is_queued_not_rejected() {
+    let provider = FakeProvider::with(vec![message("m1", "a", "Hello")]);
+    let unreachable = provider.failure_switch();
+    let app = synced(provider).await;
+
+    // The server stops answering after the message is synced: the edit is queued, not refused.
+    unreachable.store(true, Ordering::SeqCst);
+    assert_eq!(app.act_mark_read(&msg("acct-1", "m1"), true).await, Ok(()));
+    assert_eq!(
+        shown(&app.mailbox_list()),
+        (false, false),
+        "read, and it stays read while the edit waits"
+    );
+}
+
+#[tokio::test]
+async fn a_mark_read_refused_for_good_goes_back_and_is_reported() {
+    let provider = FakeProvider::with(vec![message("m1", "a", "Hello")]);
+    let refusing = provider.refusal_switch();
+    let app = synced(provider).await;
+
+    refusing.store(true, Ordering::SeqCst);
+    assert_eq!(
+        app.act_mark_read(&msg("acct-1", "m1"), true).await,
+        Err(MailActionError::Rejected)
+    );
+    assert_eq!(shown(&app.mailbox_list()), (true, false), "unread again");
+}
+
+#[tokio::test]
+async fn a_throttled_archive_keeps_its_rows_hidden() {
+    let provider =
+        FakeProvider::with_archive(vec![message("m1", "a", "One"), message("m2", "a", "Two")]);
+    let unreachable = provider.failure_switch();
+    let app = synced(provider).await;
+
+    unreachable.store(true, Ordering::SeqCst);
+    app.dispatch(Intent::ActOnSelection {
+        rows: vec![
+            RowRef::Message(msg("acct-1", "m1")),
+            RowRef::Message(msg("acct-1", "m2")),
+        ],
+        action: BulkAction::Archive,
+    })
+    .await;
+    assert!(
+        app.mailbox_list().rows.is_empty(),
+        "the moves are queued, so the rows stay out of the inbox"
     );
 }

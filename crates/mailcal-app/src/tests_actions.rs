@@ -348,7 +348,8 @@ async fn mark_read_forwards_a_seen_edit_through_the_loop() {
         }
         other => panic!("expected a SetKeywords edit, got {other:?}"),
     }
-    // The edit re-synced and republished the list (ignoring background sync-progress pulses).
+    // The list was republished twice (ignoring background sync-progress pulses): once when the
+    // edit was queued, which shows it before the server answers, and once after the re-sync.
     assert_eq!(
         surfaces
             .lock()
@@ -356,7 +357,7 @@ async fn mark_read_forwards_a_seen_edit_through_the_loop() {
             .iter()
             .filter(|s| **s == Surface::MailboxList)
             .count(),
-        1
+        2
     );
 }
 
