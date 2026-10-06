@@ -206,16 +206,18 @@
 
         <!-- While the core is opening (docs/boot-sequence.md, "Hosting the constructor: the launch
              view"). The other surfaces are collapsed meanwhile, so the window is a blank page, and
-             this shows only once the open has outlasted the core's launch-status delay. -->
+             this shows only once the open has outlasted the core's launch-status delay. The
+             automation id is on the ring: a StackPanel has no automation peer, so an id on it is
+             in no UI Automation tree. -->
         <StackPanel
             x:Name="LaunchHost"
             Grid.Row="2"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             Spacing="12"
-            AutomationProperties.AutomationId="LaunchView"
             Visibility="{x:Bind Model.LaunchVisibility, Mode=OneWay}">
             <ProgressRing Width="36" Height="36" HorizontalAlignment="Center"
+                          AutomationProperties.AutomationId="LaunchView"
                           IsActive="{x:Bind IsVisible(Model.LaunchVisibility), Mode=OneWay}" />
             <TextBlock Text="{x:Bind l10n:L10n.StatusOpeningMailbox()}" HorizontalAlignment="Center" />
         </StackPanel>
