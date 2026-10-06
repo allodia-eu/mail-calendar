@@ -11,7 +11,6 @@ use std::{
 use engine_api::{AccountId, EmailAddress, Engine, Provider, TimeZoneId};
 use mailcal_app::{Account, App, Intent as AppIntent, Telemetry, TimeZoneInit};
 use mailcal_viewmodel::SignatureSlotKind;
-use tokio::runtime::Runtime;
 
 use crate::{
     LogLevel, Logger, MailcalApp, Observer,
@@ -19,7 +18,7 @@ use crate::{
     demo::DemoProvider,
     device_zone, logging,
     observer::{DebouncedObserver, ObserverBridge},
-    runtime::runtime,
+    runtime::{FfiRuntime, runtime},
     showcase::{ShowcaseCalendarProvider, ShowcaseMailProvider},
     showcase_contacts::ShowcaseContactsProvider,
     showcase_data::{self, ShowcaseLocale},
@@ -228,7 +227,7 @@ pub(crate) fn build_showcase(
 /// which is everything that does not depend on whether the dataset seeded any accounts.
 fn finish_showcase(
     app: Arc<App<Box<dyn Provider>>>,
-    runtime: Runtime,
+    runtime: FfiRuntime,
     device_tz: TimeZoneId,
 ) -> Arc<MailcalApp> {
     let registry = crate::account_registry::AccountRegistry::new();

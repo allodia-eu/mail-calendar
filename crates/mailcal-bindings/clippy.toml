@@ -1,0 +1,6 @@
+# A blocking FFI call polls its future on a thread of our own, never on the host's: see
+# `src/runtime.rs`. Its `drive` is the one place tokio's `block_on` is allowed outside tests.
+disallowed-methods = [
+    { path = "tokio::runtime::Runtime::block_on", reason = "poll on the FFI driver thread: `FfiRuntime::block_on` or `runtime::drive`" },
+    { path = "tokio::runtime::Handle::block_on", reason = "poll on the FFI driver thread: `FfiRuntime::block_on` or `runtime::drive`" },
+]

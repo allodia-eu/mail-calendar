@@ -137,6 +137,12 @@ Reading the map:
   consumes the engine strictly through `engine-api`. `mailcal-account` deliberately reaches the
   concrete `provider-*` crates: the engine's facade design has the *host* construct providers and
   hand them in.
+- **`mailcal-bindings`** may be called from any thread a client has. A blocking method polls
+  its work on a thread of its own with a large stack and only makes the caller wait, so a host
+  thread's small stack (512 KiB for a Swift concurrency thread) never decides whether an account
+  connect fits. Its `clippy.toml` keeps it that way
+  ([`runtime.rs`](../crates/mailcal-bindings/src/runtime.rs)). It still blocks, so a client calls
+  it off its UI thread.
 - **`mailcal-telemetry`** exists so demo, test, and air-gapped builds structurally cannot phone
   home. The analytics contract lives in [`analytics.md`](analytics.md).
 - **`mailcal-mcp`** is the same argument in the other direction: a build without it structurally

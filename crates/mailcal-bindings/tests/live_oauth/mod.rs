@@ -4,6 +4,9 @@
 //! Both tests run against the harness's sign-in server (`stalwart-oauth` in
 //! `docker/stalwart/docker-compose.yml`), where alice signs in with her harness password.
 
+// A test drives a runtime of its own from the test thread; see `src/lib.rs`.
+#![allow(clippy::disallowed_methods)]
+
 use std::{
     fs,
     sync::{Arc, Mutex, mpsc},
