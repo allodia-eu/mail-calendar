@@ -199,7 +199,8 @@ set_notifications() { # <true|false>
   done
   grep -Fq "$wanted" "$XDG_CONFIG_HOME/mailcal/host.json" ||
     die "the new-mail notification switch did not persist $1"
-  "$PYTHON" "$ATSPI" activate --name "Done" --timeout 20
+  "$PYTHON" "$ATSPI" activate \
+    --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
 }
 
 open_mail_message() { # <subject>
@@ -534,7 +535,8 @@ assert args[:1] + args[2:] == [
 ]
 PY
   capture mcp-settings
-  "$PYTHON" "$ATSPI" activate --name "Done" --timeout 20
+  "$PYTHON" "$ATSPI" activate \
+    --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
 
   local mcp_endpoint="$XDG_DATA_HOME/mailcal/mcp.sock"
   for _ in {1..100}; do
@@ -614,7 +616,8 @@ PY
     sleep 0.05
   done
   [[ ! -e "$mcp_endpoint" ]] || die "turning MCP off left its socket behind"
-  "$PYTHON" "$ATSPI" activate --name "Done" --timeout 20
+  "$PYTHON" "$ATSPI" activate \
+    --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
 
   # New-mail notifications: on (the shipped default), off, on again. The middle one asserts an
   # **absence**, which proves nothing by itself. A path that never fires satisfies it silently, and
@@ -869,7 +872,7 @@ PY
   "$PYTHON" "$ATSPI" wait --name "Default calendar" --showing --timeout 20
   "$PYTHON" "$ATSPI" wait --role "check box" --showing --timeout 20
   "$PYTHON" "$ATSPI" activate \
-    --name "Done" --within "Settings" --within-role frame --timeout 20
+    --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
   capture calendar-management
 
   "$PYTHON" "$ATSPI" activate --name "New Event" --timeout 20
@@ -1192,7 +1195,7 @@ PY
     --name "bob@test.local" --role "list item" \
     --within "Settings" --within-role frame --showing --timeout 60
   "$PYTHON" "$ATSPI" activate \
-    --name "Done" --within "Settings" --within-role frame --timeout 20
+    --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
   capture contacts-merged
 
   # Cold activation exercises the other half of the desktop contract: the first process receives

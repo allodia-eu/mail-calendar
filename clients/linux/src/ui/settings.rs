@@ -288,9 +288,9 @@ impl SettingsWindow {
     /// Whether a Settings window is actually in front of the user.
     ///
     /// Deliberately not `self.window.is_some()`. The user closes this window through GTK: the
-    /// Done button and the titlebar both call `close()` on the widget: which destroys it but
-    /// leaves this handle holding it, so the `Option` stays `Some` for a window that is not on
-    /// screen and never becomes `None` on the path a person actually takes. A destroyed widget
+    /// title bar's close button and Escape both call `close()` on the widget, which destroys it
+    /// but leaves this handle holding it, so the `Option` stays `Some` for a window that is not
+    /// on screen and never becomes `None` on the path a person actually takes. A destroyed widget
     /// does report itself as not visible, which is the question worth asking.
     fn is_on_screen(&self) -> bool {
         self.window.as_ref().is_some_and(WidgetExt::is_visible)
