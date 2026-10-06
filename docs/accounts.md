@@ -58,7 +58,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | Stored capabilities, pinned id and links read and kept | ✅ | — | — | — | — | — |
 | Only the capabilities an account is used for are opened | ✅ | — | — | — | — | — |
 | Sign-in asks for the chosen capabilities' scopes only, and opens what was granted | ✅ | — | — | — | — | — |
-| Signing in again, or adding a capability, keeps the account and its mail | ✅ | — | — | — | — | — |
+| Signing in again, or adding a capability, keeps the account and its mail | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | A standards account without a mailbox connects its calendar and contacts | ✅ | — | — | — | — | — |
 | An account without mail is kept out of the mail surfaces | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar groups headed by the account's address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -117,7 +117,7 @@ it, while bob's calendar is offered without being suggested.
 - **A use has three states, on, off and needs permission.** "Not offered" (the server has none)
   and "failing" have no representation yet: a JMAP session that lacks a chosen capability binds
   nothing for it and still reads as on. Linux draws "needs permission" on the account's page and
-  in the list, but offers no sign-in that asks for it yet; the other clients do not draw
+  in the list, and signs the account in again to ask for it; the other clients do not draw
   Settings → Accounts from the snapshot, so there a use a Microsoft or Google grant withholds is
   still closed without a word (Microsoft's calendar aside, which raises its re-consent prompt).
 - **A JMAP account without mail still opens its session through the mail provider**, because that

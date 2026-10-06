@@ -1,5 +1,6 @@
 //! One account's page in Settings → Accounts: how it travels, what it is used for, the accounts
-//! it relies on, its mail settings while it is used for mail, and its removal, last.
+//! it relies on, signing in again at its provider, its mail settings while it is used for mail,
+//! and its removal, last.
 
 use adw::prelude::*;
 use mailcal_bindings::{AccountCapability, AccountEntry};
@@ -17,11 +18,6 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
     kind.add_css_class("dim-label");
     kind.set_xalign(0.0);
     content.append(&kind);
-    if let Some(notice) = &ctx.account_notice {
-        let banner = adw::Banner::new(notice);
-        banner.set_revealed(true);
-        content.append(&banner);
-    }
     // Whether this one travels: first, because it decides whether anything below it is anybody
     // else's business (`docs/settings.md`).
     if let Some(status) = ctx.allodia_accounts_synced.get(&entry.id).copied() {
@@ -35,6 +31,9 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
     let pickers = account_rows::link_pickers(entry);
     if !pickers.is_empty() {
         content.append(&links_group(ctx, entry, pickers));
+    }
+    if account_rows::signs_in_at_provider(entry.kind) {
+        content.append(&signin_group(ctx, entry));
     }
     if let Some(mail) = mail_group(ctx, entry) {
         content.append(&mail);
@@ -76,9 +75,16 @@ fn uses_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup 
         let parent = ctx.window.clone();
         let sender = ctx.sender.clone();
         let account = entry.id.clone();
+        let asks = switch.asks;
         row.connect_active_notify(move |row| {
             let on = row.is_active();
-            if on {
+            if on && asks {
+                // Already chosen, and waiting on the provider: switching it on asks again.
+                sender.emit(AppInput::Accounts(AccountsInput::SignInAgain {
+                    account: account.clone(),
+                    adding: vec![capability],
+                }));
+            } else if on {
                 sender.emit(AppInput::Accounts(AccountsInput::SetUse {
                     account: account.clone(),
                     capability,
@@ -204,6 +210,34 @@ fn suggest(row: &adw::ActionRow, dropdown: &gtk::DropDown, address: &str, index:
         }
     });
     row.add_suffix(&link);
+}
+
+/// "Sign in again", for an account that signs in at its provider's page: the remedy for an
+/// expired sign-in and for a permission the provider withheld.
+fn signin_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup {
+    let expired = ctx
+        .app
+        .connectivity()
+        .signin_expired_accounts
+        .contains(&entry.id);
+    let section = group(
+        l10n::settings_account_signin_heading(),
+        &account_rows::signin_description(entry, expired),
+    );
+    let row = adw::ButtonRow::builder()
+        .title(l10n::signin_expired_action())
+        .use_markup(false)
+        .build();
+    let sender = ctx.sender.clone();
+    let account = entry.id.clone();
+    row.connect_activated(move |_| {
+        sender.emit(AppInput::Accounts(AccountsInput::SignInAgain {
+            account: account.clone(),
+            adding: Vec::new(),
+        }));
+    });
+    section.add(&row);
+    section
 }
 
 /// The mail settings, while the account is used for mail and the core lists its mailbox.

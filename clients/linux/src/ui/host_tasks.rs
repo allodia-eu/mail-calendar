@@ -49,6 +49,8 @@ pub(super) struct HostTasks {
     pub(super) jmap: AttemptSlot,
     pub(super) imap: AttemptSlot,
     pub(super) allodia: AttemptSlot,
+    /// Signing an existing Microsoft or Google account in again (`super::account_consent`).
+    pub(super) consent: AttemptSlot,
     jmap_loopback: Option<OAuthLoopback>,
 }
 
@@ -132,6 +134,7 @@ impl HostTasks {
             jmap: AttemptSlot::empty(),
             imap: AttemptSlot::empty(),
             allodia: AttemptSlot::empty(),
+            consent: AttemptSlot::empty(),
             jmap_loopback: None,
         }
     }

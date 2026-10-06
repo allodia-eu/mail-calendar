@@ -62,10 +62,10 @@ impl AppModel {
                 self.resolve_expired_signin(sender.input_sender().clone());
             }
             AppInput::ResolveMailReauth => {
-                self.resolve_microsoft_reauth(false, sender.input_sender().clone());
+                self.resolve_permission_reauth(false, sender.input_sender().clone());
             }
             AppInput::ResolveCalendarReauth => {
-                self.resolve_microsoft_reauth(true, sender.input_sender().clone());
+                self.resolve_permission_reauth(true, sender.input_sender().clone());
             }
             AppInput::ShowMail => self.primary = PrimaryView::Mail,
             AppInput::ShowCalendar => self.show_calendar(),

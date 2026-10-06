@@ -136,6 +136,40 @@ pub(crate) fn a_closed_settings_window_is_not_on_screen() {
     );
 }
 
+#[test]
+fn every_notice_is_raised_anew_and_redraws_the_page_in_place() {
+    use super::notice::Notice;
+    let mut state = SettingsState::default();
+    let synced = std::collections::HashMap::new();
+    state.open(Some(Category::Accounts));
+
+    state.notify(Notice::Toast("Signed in again.".to_owned()));
+    let first = state.render_state(None, &synced);
+    assert_eq!(first.redraw, Redraw::InPlace, "a redraw, never an open");
+    assert_eq!(first.generation, 2, "and it does redraw");
+    let first = first.notice.map(|raised| raised.id);
+
+    // The same words again are a second notice, so the window shows them a second time.
+    state.notify(Notice::Toast("Signed in again.".to_owned()));
+    let second = state
+        .render_state(None, &synced)
+        .notice
+        .map(|raised| raised.id);
+    assert!(first.is_some() && second.is_some());
+    assert_ne!(second, first);
+
+    // A window opened afresh does not greet the person with one raised while it was closed,
+    // and the next notice still carries a number the window has not shown.
+    state.open(Some(Category::Accounts));
+    assert!(state.render_state(None, &synced).notice.is_none());
+    state.notify(Notice::Toast("Signed in again.".to_owned()));
+    let third = state
+        .render_state(None, &synced)
+        .notice
+        .map(|raised| raised.id);
+    assert!(third.is_some() && third != second && third != first);
+}
+
 /// The sidebar selection counts rows the sidebar actually has.
 ///
 /// A build carrying no Allodia registration draws one row fewer. Counted over every category,

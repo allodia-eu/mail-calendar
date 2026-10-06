@@ -2,9 +2,13 @@
 //! one. Each change is a core call that may touch the keyring or delete local data, so it runs
 //! off the main thread and redraws the page when it is done.
 
-use mailcal_bindings::{AccountCapability, CapabilityChange, LinkSlot};
+use mailcal_bindings::{AccountCapability, CapabilityChange, LinkSlot, MailcalError};
 
-use super::{AppInput, AppModel};
+use super::{
+    AppInput, AppModel,
+    account_consent::{ConsentFinished, ConsentFrom},
+    settings::notice::Notice,
+};
 use crate::l10n;
 
 /// One input rather than several, so the dispatch has a single arm: they are one page's traffic
@@ -25,8 +29,43 @@ pub(crate) enum AccountsInput {
         slot: LinkSlot,
         target: Option<String>,
     },
+    /// Sign the account in again at its provider, asking for what it is used for plus `adding`.
+    SignInAgain {
+        account: String,
+        adding: Vec<AccountCapability>,
+    },
+    /// A sign-in asked for here or by a banner ended.
+    Consented(ConsentFinished),
     /// A change finished, with what the page should say about it, if anything.
-    Changed(Option<String>),
+    Changed(Option<Notice>),
+}
+
+/// What the page does once switching a use has answered. A use the provider has not granted is
+/// asked for straight away: the person switching it on is the person who would be asked.
+fn use_changed(
+    result: Result<CapabilityChange, MailcalError>,
+    account: String,
+    capability: AccountCapability,
+) -> AccountsInput {
+    match result {
+        Ok(CapabilityChange::Applied) => AccountsInput::Changed(None),
+        Ok(CapabilityChange::NeedsConsent) => AccountsInput::SignInAgain {
+            account,
+            adding: vec![capability],
+        },
+        Ok(CapabilityChange::NeedsEndpoint) => AccountsInput::Changed(Some(change_failed(
+            l10n::settings_account_use_needs_endpoint().to_owned(),
+        ))),
+        Err(error) => AccountsInput::Changed(Some(change_failed(error.to_string()))),
+    }
+}
+
+/// A change the account's page could not make, and why.
+fn change_failed(detail: String) -> Notice {
+    Notice::Error {
+        title: l10n::settings_account_change_failed_title().to_owned(),
+        detail,
+    }
 }
 
 impl AppModel {
@@ -35,7 +74,6 @@ impl AppModel {
         match input {
             AccountsInput::Show(account) => {
                 self.settings.account = account;
-                self.settings.account_notice = None;
                 self.settings.refresh_in_place();
             }
             AccountsInput::SetUse {
@@ -48,10 +86,12 @@ impl AppModel {
                 slot,
                 target,
             } => self.set_account_link(account, slot, target, sender),
-            AccountsInput::Changed(notice) => {
-                self.settings.account_notice = notice;
-                self.settings.refresh_in_place();
+            AccountsInput::SignInAgain { account, adding } => {
+                self.start_account_consent(account, adding, ConsentFrom::Settings, sender);
             }
+            AccountsInput::Consented(finished) => self.account_consent_finished(&finished),
+            AccountsInput::Changed(Some(notice)) => self.settings.notify(notice),
+            AccountsInput::Changed(None) => self.settings.refresh_in_place(),
         }
     }
 
@@ -65,25 +105,10 @@ impl AppModel {
         let Some(app) = self.app.clone() else {
             return;
         };
-        let address = app
-            .accounts_snapshot()
-            .accounts
-            .into_iter()
-            .find(|entry| entry.id == account)
-            .map_or_else(|| account.clone(), |entry| entry.address);
         // Blocking: switching a use off deletes what the device holds of it.
         std::thread::spawn(move || {
-            let notice = match app.set_account_capability(account, capability, on) {
-                Ok(CapabilityChange::Applied) => None,
-                Ok(CapabilityChange::NeedsConsent) => {
-                    Some(l10n::settings_account_use_needs_consent(&address))
-                }
-                Ok(CapabilityChange::NeedsEndpoint) => {
-                    Some(l10n::settings_account_use_needs_endpoint().to_owned())
-                }
-                Err(error) => Some(l10n::settings_account_change_failed(&error.to_string())),
-            };
-            sender.emit(AppInput::Accounts(AccountsInput::Changed(notice)));
+            let result = app.set_account_capability(account.clone(), capability, on);
+            sender.emit(AppInput::Accounts(use_changed(result, account, capability)));
         });
     }
 
@@ -102,8 +127,37 @@ impl AppModel {
             let notice = app
                 .set_account_link(account, slot, target)
                 .err()
-                .map(|error| l10n::settings_account_change_failed(&error.to_string()));
+                .map(|error| change_failed(error.to_string()));
             sender.emit(AppInput::Accounts(AccountsInput::Changed(notice)));
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mailcal_bindings::{AccountCapability, CapabilityChange};
+
+    use super::{AccountsInput, use_changed};
+
+    #[test]
+    fn switching_on_a_use_the_provider_withholds_asks_for_it() {
+        let input = use_changed(
+            Ok(CapabilityChange::NeedsConsent),
+            "a".to_owned(),
+            AccountCapability::Contacts,
+        );
+        assert!(matches!(
+            input,
+            AccountsInput::SignInAgain { account, adding }
+                if account == "a" && adding == [AccountCapability::Contacts]
+        ));
+        assert!(matches!(
+            use_changed(
+                Ok(CapabilityChange::Applied),
+                "a".to_owned(),
+                AccountCapability::Contacts
+            ),
+            AccountsInput::Changed(None)
+        ));
     }
 }
