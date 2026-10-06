@@ -25,9 +25,21 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/linux_session.sh"
 [[ $# -ge 1 ]] || die "usage: with-headless-session.sh <command> [args...]"
 is_linux || die "a headless Wayland session needs a Linux host"
 
+# The compositor's own output is kept, so a command that fails can say what the compositor was
+# doing. A GTK test only learns that no display opened; whether sway had exited, and what it
+# printed first, is otherwise lost with it.
+export LINUX_SESSION_LOG="${LINUX_SESSION_LOG:-$(mktemp)}"
+
 linux_session_start "${MAILCAL_HEADLESS_SIZE:-1440x900}" "${MAILCAL_HEADLESS_SCALE:-1}"
 trap linux_session_stop EXIT INT TERM
 
 status=0
 WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" env -u DISPLAY "$@" || status=$?
+if [[ "$status" -ne 0 ]]; then
+  runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  if kill -0 "$LINUX_SESSION_PID" 2>/dev/null; then state="still running"; else state="gone"; fi
+  if [[ -S "$runtime/$LINUX_SESSION_DISPLAY" ]]; then socket="is there"; else socket="is not"; fi
+  warn "the command failed (exit $status). The compositor (pid $LINUX_SESSION_PID) is $state, and its socket $runtime/$LINUX_SESSION_DISPLAY $socket. The last of what it printed:"
+  tail -n 30 "$LINUX_SESSION_LOG" >&2 || true
+fi
 exit "$status"

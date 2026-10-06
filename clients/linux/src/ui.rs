@@ -54,6 +54,8 @@ mod folder_pane_edit;
 mod folder_pane_rows;
 mod folder_picker;
 mod google;
+#[cfg(test)]
+mod gtk_test_display;
 mod host_tasks;
 mod icons;
 mod imap_actions;
