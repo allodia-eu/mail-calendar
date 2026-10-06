@@ -81,6 +81,8 @@ impl AppModel {
             Surface::Settings => {
                 self.calendar.refresh_settings(&app);
                 self.settings.signalled();
+                // A link suggestion the core found after the link step was drawn.
+                self.refresh_link_step();
             }
             // Both signals can change what an account's row says.
             Surface::Connectivity => {

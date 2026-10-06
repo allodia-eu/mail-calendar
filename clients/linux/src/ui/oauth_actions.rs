@@ -166,7 +166,6 @@ impl AppModel {
     /// added by a provider sign-in reaches the person's other devices only at the next launch,
     /// and Settings draws no sharing control for it until then.
     pub(super) fn account_signed_in(&mut self, account: String, sender: relm4::Sender<AppInput>) {
-        self.setup.complete();
         self.dispatch(mailcal_bindings::Intent::SelectAccount {
             account: Some(account.clone()),
         });
@@ -174,10 +173,10 @@ impl AppModel {
             self.snapshot = app.mailbox_list();
         }
         self.say_what_was_withheld(&account);
-        // The same step the manual route raises: every way in asks the same question
-        // (`docs/sending.md`).
-        self.ask_sender_name(account, sender.clone());
-        self.sync_after_account_change(sender);
+        self.sync_after_account_change(sender.clone());
+        // The link step, then the name, as the password route: every way in asks the same
+        // questions (`docs/sending.md`).
+        self.after_account_added(account, sender);
     }
 
     /// A use the person chose that the provider's grant did not allow is said at once, on the

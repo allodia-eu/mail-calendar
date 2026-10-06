@@ -236,6 +236,14 @@ pub(crate) enum AppInput {
     RestartAccountSetup,
     /// Back from the second step to the address, which stays as typed.
     AccountSetupBack,
+    /// A pick on the link step: which picker, and which of its options (`None` for none).
+    SetupLinkPicked(usize, Option<usize>),
+    /// The link step is done: link what is picked, or skip.
+    SetupLinksDone(bool),
+    /// "Add another account" from the link step.
+    SetupAddLinkedAccount,
+    /// The account needs no name asked; the next one waiting is.
+    SenderNameNotNeeded,
     CancelAccountSetup,
     ManualAccountSetup(String),
     EditDetectedManually,

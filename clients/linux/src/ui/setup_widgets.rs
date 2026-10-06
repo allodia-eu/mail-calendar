@@ -305,12 +305,11 @@ pub(super) fn actions(
     actions.append(&back);
     if !required {
         let cancel = gtk::Button::with_label(l10n::action_cancel());
-        let input = sender.clone();
         let dialog = window.clone();
-        cancel.connect_clicked(move |_| {
-            input.emit(AppInput::CancelAccountSetup);
-            dialog.close();
-        });
+        // The close request is what cancels the flow, for this button and the window's own
+        // alike; a second cancel here would end the flow a cancelled "Add another account"
+        // had just returned to.
+        cancel.connect_clicked(move |_| dialog.close());
         actions.append(&cancel);
     }
     actions

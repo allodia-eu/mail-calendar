@@ -40,6 +40,8 @@ pub(super) struct HostTasks {
     /// raises it, exactly as the two first-run flags above are completed here
     /// (`super::setup_widgets`).
     pub(super) sender_name_ask: Option<super::setup_widgets::SenderNameAsk>,
+    /// Accounts whose name is asked after the one on screen.
+    pub(super) sender_names_waiting: std::collections::VecDeque<String>,
     background: BackgroundScan,
     /// One slot per browser flow. They are independent; a JMAP pre-flight running while a
     /// Microsoft sign-in is open must not cancel it; but each behaves identically, so they
@@ -128,6 +130,7 @@ impl HostTasks {
             welcome_pending,
             setup_after_welcome,
             sender_name_ask: None,
+            sender_names_waiting: std::collections::VecDeque::new(),
             background: BackgroundScan::Idle,
             google: AttemptSlot::empty(),
             microsoft: AttemptSlot::empty(),
@@ -283,11 +286,10 @@ impl AppModel {
     ) {
         match result {
             Ok(account) => {
-                self.setup.complete();
                 if let Some(app) = &self.app {
                     self.snapshot = app.mailbox_list();
                 }
-                self.ask_sender_name(account, sender);
+                self.after_account_added(account, sender);
                 self.try_open_pending_mailto();
                 self.try_open_pending_share();
             }
@@ -302,8 +304,8 @@ impl AppModel {
 
     /// Raises the "your name" step, but only where the core says the account still needs a
     /// name (`docs/sending.md`): a provider that already holds one has had it adopted, so the
-    /// step would arrive with a pre-filled answer and nothing to decide. Nothing is emitted
-    /// then, and no window opens.
+    /// step would arrive with a pre-filled answer and nothing to decide. No window opens then;
+    /// the next account waiting is asked instead.
     ///
     /// Off the main loop, exactly like the connect above it: an account whose provider keeps
     /// identities costs a round trip here, and this is the moment a sign-in has just returned,
@@ -314,6 +316,7 @@ impl AppModel {
         };
         std::thread::spawn(move || {
             if !app.needs_sender_name(account.clone()) {
+                sender.emit(AppInput::SenderNameNotNeeded);
                 return;
             }
             let suggestion = super::setup_widgets::sender_name_suggestion(&app, &account);

@@ -328,7 +328,13 @@ impl AppModel {
                     .back_to_address(self.snapshot.accounts.is_empty());
                 self.refresh_onboarding_card();
             }
-            AppInput::CancelAccountSetup => self.setup.cancel(),
+            AppInput::CancelAccountSetup => {
+                self.cancel_account_setup(sender.input_sender().clone());
+            }
+            message @ (AppInput::SetupLinkPicked(..)
+            | AppInput::SetupLinksDone(_)
+            | AppInput::SetupAddLinkedAccount
+            | AppInput::SenderNameNotNeeded) => self.update_setup_flow(message, sender),
             AppInput::ManualAccountSetup(email) => {
                 self.setup.show_form(setup_model::manual_form(email, None));
             }
@@ -434,9 +440,11 @@ impl AppModel {
                 if let Some(app) = &self.app {
                     app.set_account_sender_name(account, name);
                 }
-                self.host_tasks.sender_name_ask = None;
+                self.ask_next_sender_name(sender.input_sender().clone());
             }
-            AppInput::DismissSenderNamePrompt => self.host_tasks.sender_name_ask = None,
+            AppInput::DismissSenderNamePrompt => {
+                self.ask_next_sender_name(sender.input_sender().clone());
+            }
             AppInput::ReplaceAccountSecret { account, secret } => {
                 self.replace_account_secret(account, secret, sender.input_sender().clone());
             }
