@@ -150,7 +150,7 @@ impl TokenSink for BindingTokenSink {
     /// Stores whether the account is a personal one. Losing this write costs one more question
     /// at the next connect.
     async fn affiliation_found(&self, account: &AccountId, affiliation: &engine_api::Affiliation) {
-        let Some(encoded) = self.registry.record_affiliation(account, affiliation) else {
+        let Some((family, encoded)) = self.registry.record_affiliation(account, affiliation) else {
             return;
         };
         let handle = mailcal_account::account_log_handle(account.as_str());
@@ -160,9 +160,11 @@ impl TokenSink for BindingTokenSink {
                 .map_err(|err| err.to_string())
         });
         match stored {
-            Ok(()) => log::info!("graph: [{handle}] saved whether the account is a personal one"),
+            Ok(()) => {
+                log::info!("{family}: [{handle}] saved whether the account is a personal one")
+            }
             Err(err) => log::warn!(
-                "graph: [{handle}] could not save whether the account is a personal one ({err}); \
+                "{family}: [{handle}] could not save whether the account is a personal one ({err}); \
                  asking again at the next connect"
             ),
         }
