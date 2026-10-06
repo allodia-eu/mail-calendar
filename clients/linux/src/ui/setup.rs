@@ -13,6 +13,9 @@ use super::{
 };
 use crate::l10n;
 
+/// The tallest a step grows before it scrolls.
+const SCROLL_HEIGHT: i32 = 640;
+
 #[derive(Debug, Default)]
 pub(super) struct SetupWindow {
     window: Option<gtk::Window>,
@@ -97,7 +100,15 @@ impl SetupWindow {
             Phase::JmapSigningIn => setup_jmap::signing_in(sender),
             Phase::ImapSigningIn => setup_imap::signing_in(sender),
         };
-        window.set_child(Some(&content));
+        // A found card with every use on is taller than a laptop screen, so the step scrolls
+        // inside the window rather than pushing its footer off the bottom of the display.
+        let scrolled = gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Never)
+            .propagate_natural_height(true)
+            .max_content_height(SCROLL_HEIGHT)
+            .child(&content)
+            .build();
+        window.set_child(Some(&scrolled));
         window.present();
         self.rendered_generation = state.generation;
         self.rendered_form_generation = state.form_generation;
