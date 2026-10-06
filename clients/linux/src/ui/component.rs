@@ -8,6 +8,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use gtk::prelude::GtkWindowExt;
 use relm4::{ComponentParts, ComponentSender, SimpleComponent};
 
 use super::{
