@@ -200,9 +200,25 @@
                 </StackPanel>
             </ScrollViewer>
         </Border>
-        <!-- The three top-level surfaces are mutually exclusive and all share row 2, under the
-             caption and the actions bar, they overlap deliberately (only one is ever Visible), so
-             they are siblings rather than a nested Grid. -->
+        <!-- The launch view and the three top-level surfaces are mutually exclusive and all share
+             row 2, under the caption and the actions bar, they overlap deliberately (only one is
+             ever Visible), so they are siblings rather than a nested Grid. -->
+
+        <!-- While the core is opening (docs/boot-sequence.md, "Hosting the constructor: the launch
+             view"). The other surfaces are collapsed meanwhile, so the window is a blank page, and
+             this shows only once the open has outlasted the core's launch-status delay. -->
+        <StackPanel
+            x:Name="LaunchHost"
+            Grid.Row="2"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Spacing="12"
+            AutomationProperties.AutomationId="LaunchView"
+            Visibility="{x:Bind Model.LaunchVisibility, Mode=OneWay}">
+            <ProgressRing Width="36" Height="36" HorizontalAlignment="Center"
+                          IsActive="{x:Bind IsVisible(Model.LaunchVisibility), Mode=OneWay}" />
+            <TextBlock Text="{x:Bind l10n:L10n.StatusOpeningMailbox()}" HorizontalAlignment="Center" />
+        </StackPanel>
 
         <!-- First boot: welcome + the usage-statistics question, ahead of setup and everything
              else. It outranks the setup form (see MailboxModel's three visibility properties), and

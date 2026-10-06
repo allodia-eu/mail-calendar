@@ -262,8 +262,9 @@ public sealed partial class MailboxModel
 
     /// <summary>
     /// Opens the engine over every stored account <paramref name="configs"/> and wires the
-    /// reactive loop. NewAccounts blocks on each account's network connect, so it runs off the
-    /// UI thread (a spinner would be nicer). An empty <paramref name="configs"/> brings up an
+    /// reactive loop. NewAccounts opens the store (migrations included) and blocks on each
+    /// account's network connect, so it runs off the UI thread while the window shows the launch
+    /// view (MailboxModel.Launch.cs). An empty <paramref name="configs"/> brings up an
     /// account-less app for first-run setup; on failure it surfaces the error and shows the form.
     /// A non-null <paramref name="storeSubdir"/> isolates the engine store in that subdirectory
     /// (the dev accounts do this, so harness test data never mixes with real accounts).
@@ -271,6 +272,7 @@ public sealed partial class MailboxModel
     private async Task ConnectAsync(string[] configs, string? storeSubdir = null)
     {
         _connecting = true;
+        BeginLaunch();
         // Device zone detected in shared Rust (region-aware: the real city, not the
         // Windows-zone primary), so first boot adopts e.g. Europe/Amsterdam, not Berlin.
         var deviceTz = MailcalBindingsMethods.DeviceTimeZone();
@@ -313,11 +315,10 @@ public sealed partial class MailboxModel
                 Log.Info("connected");
                 // The core can now answer the usage-statistics question, and `asked == false` is
                 // what puts the welcome screen up. All three top-level surfaces depend on it, so
-                // re-evaluate them now the answer exists.
+                // re-evaluate them now the answer exists; ending the launch view raises the other two.
                 Raise(nameof(AnalyticsAsked));
                 Raise(nameof(WelcomeVisibility));
-                Raise(nameof(SetupVisibility));
-                Raise(nameof(MainVisibility));
+                EndLaunch();
                 // The retention signal, once per launch. A no-op until the user opts in.
                 _app.ReportAppOpened();
                 // A configured-but-failed CalDAV connect is non-fatal (mail still works), so it's
@@ -354,6 +355,7 @@ public sealed partial class MailboxModel
                 _connecting = false;
                 SetupError = L10n.StatusConnectFailed(CoreError.Describe(ex));
                 NeedsSetup = true;
+                EndLaunch();
             });
         }
     }
