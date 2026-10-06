@@ -430,6 +430,7 @@
 	"tz_picker_label": "Zona horaria",
 
 	"status_connecting": "Conectando con tu cuenta…",
+	"status_opening_mailbox": "Abriendo tu buzón…",
 	"status_connect_failed": "No se ha podido conectar: {error}",
 	"accounts_skipped_notice": "Algunas cuentas no han podido conectarse y se han omitido: {details}",
 	"error_invalid_config": "Configuración de cuenta no válida",

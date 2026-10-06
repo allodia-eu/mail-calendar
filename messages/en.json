@@ -430,6 +430,7 @@
 	"tz_picker_label": "Time zone",
 
 	"status_connecting": "Connecting to your account…",
+	"status_opening_mailbox": "Opening your mailbox…",
 	"status_connect_failed": "Couldn't connect: {error}",
 	"accounts_skipped_notice": "Some accounts couldn't connect and were skipped: {details}",
 	"error_invalid_config": "Invalid account configuration",

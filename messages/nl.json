@@ -430,6 +430,7 @@
 	"tz_picker_label": "Tijdzone",
 
 	"status_connecting": "Verbinden met je account…",
+	"status_opening_mailbox": "Je mailbox wordt geopend…",
 	"status_connect_failed": "Verbinden mislukt: {error}",
 	"accounts_skipped_notice": "Sommige accounts konden niet verbinden en zijn overgeslagen: {details}",
 	"error_invalid_config": "Ongeldige accountconfiguratie",

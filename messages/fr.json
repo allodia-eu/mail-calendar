@@ -430,6 +430,7 @@
 	"tz_picker_label": "Fuseau horaire",
 
 	"status_connecting": "Connexion à votre compte…",
+	"status_opening_mailbox": "Ouverture de votre boîte aux lettres…",
 	"status_connect_failed": "Échec de la connexion : {error}",
 	"accounts_skipped_notice": "Certains comptes n’ont pas pu se connecter et ont été ignorés : {details}",
 	"error_invalid_config": "Configuration de compte non valide",

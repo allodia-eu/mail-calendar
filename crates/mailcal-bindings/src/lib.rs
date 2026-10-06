@@ -61,6 +61,7 @@ mod autodetect;
 mod background;
 mod background_sync;
 mod boot;
+mod launch;
 mod composer;
 mod composer_files;
 mod composer_host;
@@ -249,6 +250,7 @@ pub use store_files::mail_store_paths;
 pub use sync_state::{SyncStateError, SyncStateStore};
 pub(crate) use timezone::device_zone;
 pub use timezone::{available_time_zones, device_time_zone};
+pub use launch::launch_status_after_ms;
 /// A shared registry of each connected account's re-connection state; see
 /// [`account_registry`], which explains why this is a type with three methods rather than the
 /// open `HashMap` it replaced.

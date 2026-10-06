@@ -430,6 +430,7 @@
 	"tz_picker_label": "Fuso orario",
 
 	"status_connecting": "Connessione al tuo account…",
+	"status_opening_mailbox": "Apertura della tua casella di posta…",
 	"status_connect_failed": "Connessione non riuscita: {error}",
 	"accounts_skipped_notice": "Alcuni account non sono riusciti a connettersi e sono stati ignorati: {details}",
 	"error_invalid_config": "Configurazione dell’account non valida",
