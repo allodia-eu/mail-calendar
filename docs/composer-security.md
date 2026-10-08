@@ -102,6 +102,14 @@ port:
    the resulting attachment id/blob handle/metadata.
 7. **Pasted HTML is sanitised before insertion.** The client/editor strips scripts, event handlers,
    frames, forms, remote resources, and unsupported CSS; Rust validation is the final authority.
+   The shared bundle (`paste.ts`) never inserts the clipboard's markup: it parses it into an inert
+   document, reads text and a closed set of marks out of it, and builds new markup in the editor's
+   own shapes. What survives is what the schema holds: paragraphs, line breaks, bold, italic,
+   underline, links (only the schemes Gate 16 allows), lists and tables. Fonts, sizes and colours
+   from outside are dropped, because a word processor stamps one on every run and a page in dark
+   mode stamps a light one; the editor's own `data-*` colour, highlight and size stamps survive, so
+   text moved within a draft keeps them. A paste that asks for plain text carries no HTML and stays
+   plain.
 8. **Draft body text is sensitive.** Do not log editor JSON, rendered HTML, plain text, or pasted
    content. Logs may include lengths, counts, ids, and validation error categories.
 9. **External dispatches stay gated.** If a future feature fetches a remote image, uploads to a cloud
@@ -159,7 +167,7 @@ port:
       inline image at the caret, carrying its bytes in the document as a base64 `data:image/…` URI
       (`mailcal_composer::DraftAttachment::data_url`); the core decodes it into the `cid:`
       `multipart/related` part the sent body points at, the same destination a signature's logo
-      reaches. Everything else pasted stays plain text (Gate 7). One implementation, so a pasted
+      reaches. Formatted text is mapped onto the schema (Gate 7). One implementation, so a pasted
       screenshot behaves identically on all four hosts.
 
       ⚠️ **Except where the WebView tells the page nothing.** WebKitGTK's paste `DataTransfer`
@@ -402,9 +410,12 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 - **A dropped picture is read on the main thread everywhere except Android.** Android stages and
   reads off it; Apple, Windows and Linux read inline from the dialog's answer, which is a stall of
   tens of milliseconds for a file within the cap and has not been worth a thread yet.
-- **Pasted text stays plain text.** Formatting from Word, Outlook or a browser is dropped on paste,
-  which is the strict reading of Gate 7 rather than an oversight. Mapping pasted HTML onto the closed
-  document schema is its own piece of work.
+- **A pasted list from Word arrives as lines, not as a list.** Word writes a list to the clipboard
+  as paragraphs that draw the bullet or number in text (its `mso-list` markup), not as `<ul>` or
+  `<ol>`, so each item pastes as a paragraph starting with that character. A list from a browser,
+  Google Docs or another mail client is a real list and pastes as one.
+- **A picture inside pasted HTML is dropped.** The markup names it by URL and the composer fetches
+  nothing (Gate 3); a picture copied on its own is a file on the clipboard and pastes inline.
 - **Undo does not take back a link the editor made by itself.** An address becoming a link on
   Space is a DOM edit, not an engine command, so it is not on the WebView's undo stack; Remove link
   in the link editor is the way back. The `- ` bullet has the same shape.

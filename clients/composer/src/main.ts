@@ -22,6 +22,7 @@ import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
 import { editLinkThroughHost } from "./link_menu";
 import { autolinkBeforeCaret } from "./links";
 import { indentSelection } from "./lists";
+import { pastedHtml } from "./paste";
 import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
 import { installImageResize } from "./resize";
 import { installRevisionCounter } from "./revision";
@@ -55,10 +56,9 @@ const revision = installRevisionCounter(editor);
 
 // Paste. A picture on the clipboard goes into the body where the caret is, as an inline image the
 // core turns into a `cid:` part on send: what Outlook does with a pasted screenshot, and what the
-// user means by pasting one into a message. Everything else arrives as plain TEXT: the document is
-// a closed schema (marked text runs, lists, tables, images), and dropping foreign markup is the
-// strict reading of `docs/composer-security.md` Gate 7. Mapping pasted HTML onto the schema is its
-// own piece of work, not an accident of leaving this out.
+// user means by pasting one into a message. Formatted text keeps what the document can hold of its
+// formatting (`paste.ts`), and anything else arrives as plain text. A paste that asks for plain
+// text (Paste and Match Style) carries no `text/html`, so it stays plain.
 //
 // The picture is read asynchronously, so the caret is captured first: without it a slow read would
 // drop the image wherever the selection had moved to by the time the bytes arrived.
@@ -69,12 +69,11 @@ editor.addEventListener("paste", (event) => {
     void insertImageFiles(editor, attachments, images, saveSelection(editor));
     return;
   }
-  const text = event.clipboardData?.getData("text/plain") ?? "";
-  (doc as Document & { execCommand?: (c: string, ui: boolean, v: string) => boolean }).execCommand?.(
-    "insertText",
-    false,
-    text,
-  );
+  const exec = (doc as Document & { execCommand?: (c: string, ui: boolean, v: string) => boolean })
+    .execCommand;
+  const html = pastedHtml(doc, event.clipboardData?.getData("text/html") ?? "");
+  if (html !== null && exec?.call(doc, "insertHTML", false, html)) return;
+  exec?.call(doc, "insertText", false, event.clipboardData?.getData("text/plain") ?? "");
 });
 
 // A drop is refused HERE and handled by the host, which is what lets a dropped file become a real

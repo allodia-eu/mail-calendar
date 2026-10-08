@@ -1994,6 +1994,336 @@
     return true;
   }
 
+  // src/paste.ts
+  var PLAIN = {
+    bold: false,
+    italic: false,
+    underline: false,
+    link: null,
+    color: null,
+    highlight: null,
+    size: null
+  };
+  var DROPPED = new Set([
+    "script",
+    "style",
+    "template",
+    "head",
+    "title",
+    "meta",
+    "link",
+    "base",
+    "iframe",
+    "frame",
+    "frameset",
+    "object",
+    "embed",
+    "noscript",
+    "svg",
+    "math",
+    "canvas",
+    "video",
+    "audio",
+    "img",
+    "picture",
+    "input",
+    "select",
+    "textarea",
+    "button",
+    "xml"
+  ]);
+  var BLOCKS = new Set([
+    "p",
+    "div",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "blockquote",
+    "pre",
+    "address",
+    "section",
+    "article",
+    "header",
+    "footer",
+    "main",
+    "nav",
+    "aside",
+    "figure",
+    "figcaption",
+    "dl",
+    "dt",
+    "dd",
+    "center",
+    "form",
+    "fieldset",
+    "legend",
+    "details",
+    "summary",
+    "hr",
+    "li",
+    "caption"
+  ]);
+  var STRUCTURES = new Set(["ul", "ol", "table", "tbody", "thead", "tfoot", "tr", "td", "th"]);
+  var HEADINGS = new Set(["h1", "h2", "h3", "h4", "h5", "h6"]);
+
+  class Flow {
+    doc;
+    root;
+    inline;
+    line = null;
+    spaced = true;
+    separated = false;
+    lastRun = null;
+    constructor(doc, root, inline) {
+      this.doc = doc;
+      this.root = root;
+      this.inline = inline;
+    }
+    text(value, marks) {
+      let text = value.replace(/[\t\n\f\r ]+/g, " ");
+      if (this.spaced && text.startsWith(" "))
+        text = text.slice(1);
+      if (!text)
+        return;
+      if (this.separated) {
+        if (!text.startsWith(" "))
+          text = ` ${text}`;
+        this.separated = false;
+      }
+      this.spaced = text.endsWith(" ");
+      const target = this.target();
+      const key = JSON.stringify(marks);
+      if (this.lastRun?.key === key && this.lastRun.outer === target.lastChild) {
+        this.lastRun.text.appendData(text);
+        return;
+      }
+      const node = this.doc.createTextNode(text);
+      const outer = wrapRun(this.doc, node, marks);
+      target.appendChild(outer);
+      this.lastRun = { key, text: node, outer };
+    }
+    lineBreak() {
+      if (this.inline) {
+        this.endLine();
+        return;
+      }
+      this.trimEnd();
+      this.target().appendChild(this.doc.createElement("br"));
+      this.spaced = true;
+    }
+    endLine() {
+      this.trimEnd();
+      if (this.inline)
+        this.separated ||= this.root.hasChildNodes();
+      else
+        this.line = null;
+      this.spaced = true;
+    }
+    block(element) {
+      if (this.inline)
+        return false;
+      this.endLine();
+      this.root.appendChild(element);
+      return true;
+    }
+    target() {
+      if (this.inline)
+        return this.root;
+      if (!this.line) {
+        this.line = this.doc.createElement("p");
+        this.root.appendChild(this.line);
+      }
+      return this.line;
+    }
+    trimEnd() {
+      const text = this.lastRun?.text;
+      if (text?.data.endsWith(" ")) {
+        text.data = text.data.slice(0, -1);
+        if (!text.data)
+          text.parentNode?.removeChild(text);
+      }
+      this.lastRun = null;
+    }
+  }
+  function wrapRun(doc, text, marks) {
+    let node = text;
+    const wrap = (tag) => {
+      const element = doc.createElement(tag);
+      element.appendChild(node);
+      node = element;
+      return element;
+    };
+    if (marks.underline && !marks.link)
+      wrap("u");
+    if (marks.italic)
+      wrap("i");
+    if (marks.bold)
+      wrap("b");
+    if (marks.color || marks.highlight || marks.size) {
+      const span = wrap("span");
+      if (marks.color) {
+        span.dataset.color = marks.color;
+        span.style.color = marks.color;
+      }
+      if (marks.highlight) {
+        span.dataset.highlight = marks.highlight;
+        span.style.backgroundColor = marks.highlight;
+      }
+      if (marks.size) {
+        span.dataset.size = marks.size;
+        span.style.fontSize = `${SIZE_PX[marks.size]}px`;
+      }
+    }
+    if (marks.link)
+      wrap("a").setAttribute("href", marks.link);
+    return node;
+  }
+  function marksOf(element, tag, inherited) {
+    const style = element.style;
+    const weight = style?.getPropertyValue("font-weight") ?? "";
+    const fontStyle = style?.getPropertyValue("font-style") ?? "";
+    const decoration = `${style?.getPropertyValue("text-decoration-line") ?? ""} ${style?.getPropertyValue("text-decoration") ?? ""}`;
+    let bold = inherited.bold || tag === "b" || tag === "strong" || tag === "th" || HEADINGS.has(tag);
+    if (weight)
+      bold = weight === "bold" || weight === "bolder" || Number.parseInt(weight, 10) >= 600;
+    let italic = inherited.italic || ["i", "em", "cite", "var", "dfn"].includes(tag);
+    if (fontStyle)
+      italic = fontStyle === "italic" || fontStyle === "oblique";
+    const underline = inherited.underline || tag === "u" || tag === "ins" || decoration.includes("underline");
+    const size = element.dataset?.size;
+    return {
+      bold,
+      italic,
+      underline,
+      link: (tag === "a" ? safeLinkHref(element.getAttribute("href")) : null) ?? inherited.link,
+      color: normalizeColor(element.dataset?.color) ?? inherited.color,
+      highlight: normalizeColor(element.dataset?.highlight) ?? inherited.highlight,
+      size: isFontSize(size) ? size : inherited.size
+    };
+  }
+  function hidden(element) {
+    return element.hasAttribute("hidden") || element.style?.getPropertyValue("display") === "none";
+  }
+  function walk(node, marks, flow, doc) {
+    if (node.nodeType === 3) {
+      flow.text(node.nodeValue ?? "", marks);
+      return;
+    }
+    if (node.nodeType !== 1)
+      return;
+    const element = node;
+    const tag = element.localName;
+    if (DROPPED.has(tag) || hidden(element))
+      return;
+    if (tag === "br") {
+      flow.lineBreak();
+      return;
+    }
+    if (tag === "ul" || tag === "ol") {
+      const list = listFrom(element, marks, doc);
+      if (list && flow.block(list))
+        return;
+    }
+    if (tag === "table") {
+      const table = tableFrom(element, marks, doc);
+      if (table && flow.block(table))
+        return;
+    }
+    const inner = marksOf(element, tag, marks);
+    const block = BLOCKS.has(tag) || STRUCTURES.has(tag);
+    if (block)
+      flow.endLine();
+    for (const child of Array.from(element.childNodes))
+      walk(child, inner, flow, doc);
+    if (block)
+      flow.endLine();
+  }
+  function listFrom(source, marks, doc) {
+    const list = doc.createElement(source.localName);
+    for (const child of Array.from(source.children)) {
+      if (DROPPED.has(child.localName) || hidden(child))
+        continue;
+      const item = doc.createElement("li");
+      const flow = new Flow(doc, item, true);
+      let sublist = null;
+      const nodes = child.localName === "li" ? Array.from(child.childNodes) : [child];
+      for (const node of nodes) {
+        const name = node.localName;
+        if (!sublist && (name === "ul" || name === "ol"))
+          sublist = listFrom(node, marks, doc);
+        else
+          walk(node, marksOf(child, child.localName, marks), flow, doc);
+      }
+      flow.endLine();
+      if (sublist)
+        item.appendChild(sublist);
+      if (item.hasChildNodes())
+        list.appendChild(item);
+    }
+    return list.hasChildNodes() ? list : null;
+  }
+  function tableFrom(source, marks, doc) {
+    const rows = [];
+    const sections = [
+      source,
+      ...Array.from(source.children).filter((child) => /^(thead|tbody|tfoot)$/.test(child.localName))
+    ];
+    for (const section of sections) {
+      for (const row of Array.from(section.children)) {
+        if (row.localName !== "tr" || hidden(row))
+          continue;
+        const cells = [];
+        for (const cell of Array.from(row.children)) {
+          if (cell.localName !== "td" && cell.localName !== "th" || hidden(cell))
+            continue;
+          const td = doc.createElement("td");
+          const flow = new Flow(doc, td, true);
+          const cellMarks = marksOf(cell, cell.localName, marks);
+          for (const child of Array.from(cell.childNodes))
+            walk(child, cellMarks, flow, doc);
+          flow.endLine();
+          cells.push(td);
+        }
+        if (cells.length > 0)
+          rows.push(cells);
+      }
+    }
+    if (rows.length === 0)
+      return null;
+    const width = Math.max(...rows.map((cells) => cells.length));
+    const table = doc.createElement("table");
+    const body = table.appendChild(doc.createElement("tbody"));
+    for (const cells of rows) {
+      const tr = body.appendChild(doc.createElement("tr"));
+      while (cells.length < width)
+        cells.push(doc.createElement("td"));
+      for (const td of cells) {
+        if (!td.hasChildNodes())
+          td.appendChild(doc.createElement("br"));
+        tr.appendChild(td);
+      }
+    }
+    return table;
+  }
+  function pastedHtml(doc, html) {
+    const view = doc.defaultView;
+    if (!view?.DOMParser)
+      return null;
+    const source = new view.DOMParser().parseFromString(html, "text/html");
+    const out = doc.createElement("div");
+    const flow = new Flow(doc, out, false);
+    for (const child of Array.from(source.body?.childNodes ?? []))
+      walk(child, PLAIN, flow, doc);
+    flow.endLine();
+    if (!out.textContent?.trim())
+      return null;
+    const only = out.childNodes.length === 1 ? out.firstChild : null;
+    return only?.localName === "p" ? only.innerHTML : out.innerHTML;
+  }
+
   // src/resize.ts
   var MIN_WIDTH_PX = 24;
   var GRIP_REACH_PX = 24;
@@ -2641,8 +2971,11 @@
       insertImageFiles(editor, attachments, images, saveSelection(editor));
       return;
     }
-    const text = event.clipboardData?.getData("text/plain") ?? "";
-    doc.execCommand?.("insertText", false, text);
+    const exec = doc.execCommand;
+    const html = pastedHtml(doc, event.clipboardData?.getData("text/html") ?? "");
+    if (html !== null && exec?.call(doc, "insertHTML", false, html))
+      return;
+    exec?.call(doc, "insertText", false, event.clipboardData?.getData("text/plain") ?? "");
   });
   editor.addEventListener("dragover", (event) => event.preventDefault());
   editor.addEventListener("drop", (event) => event.preventDefault());
