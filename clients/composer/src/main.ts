@@ -8,7 +8,7 @@
 import { Attachments, type AttachmentMeta, type InlineImageMeta, insertAtCaret, safePreviewUrl } from "./attachments";
 import { autoformatBulletList } from "./autoformat";
 import { documentBlocks, referencedAttachmentIds } from "./document";
-import { focusEditor, saveSelection } from "./dom";
+import { ancestorOf, focusEditor, rangeWithin, saveSelection } from "./dom";
 import { applyMark } from "./format";
 import { installNativeChrome } from "./host";
 import { HostRequests } from "./host_requests";
@@ -71,7 +71,9 @@ editor.addEventListener("paste", (event) => {
   }
   const exec = (doc as Document & { execCommand?: (c: string, ui: boolean, v: string) => boolean })
     .execCommand;
-  const html = pastedHtml(doc, event.clipboardData?.getData("text/html") ?? "");
+  const caret = rangeWithin(editor)?.startContainer ?? null;
+  const inline = ancestorOf(caret, editor, "li", "td", "th") !== null;
+  const html = pastedHtml(doc, event.clipboardData?.getData("text/html") ?? "", inline);
   if (html !== null && exec?.call(doc, "insertHTML", false, html)) return;
   exec?.call(doc, "insertText", false, event.clipboardData?.getData("text/plain") ?? "");
 });

@@ -414,6 +414,9 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   as paragraphs that draw the bullet or number in text (its `mso-list` markup), not as `<ul>` or
   `<ol>`, so each item pastes as a paragraph starting with that character. A list from a browser,
   Google Docs or another mail client is a real list and pastes as one.
+- **A pasted table cell merged across rows shifts the row below it.** A merged column (`colspan`)
+  is padded so the cells after it stay in place; a merged row (`rowspan`) is not, so the next row's
+  cells move one column left. Placing them needs a grid of which cells are taken.
 - **A picture inside pasted HTML is dropped.** The markup names it by URL and the composer fetches
   nothing (Gate 3); a picture copied on its own is a file on the clipboard and pastes inline.
 - **Undo does not take back a link the editor made by itself.** An address becoming a link on

@@ -76,7 +76,7 @@ class Flow {
   constructor(
     private readonly doc: Document,
     private readonly root: Node,
-    private readonly inline: boolean,
+    readonly inline: boolean,
   ) {}
 
   text(value: string, marks: PasteMarks): void {
@@ -117,13 +117,11 @@ class Flow {
     this.spaced = true;
   }
 
-  /// A list or a table, between paragraphs. `false` inside a list item or a cell, which hold
-  /// inline content only; the caller then flattens the structure into this line instead.
-  block(element: HTMLElement): boolean {
-    if (this.inline) return false;
+  /// A list or a table, between paragraphs. Never called on an `inline` flow: a list item or a
+  /// cell holds inline content only, so the caller flattens the structure into the line instead.
+  block(element: HTMLElement): void {
     this.endLine();
     this.root.appendChild(element);
-    return true;
   }
 
   private target(): Node {
@@ -136,10 +134,11 @@ class Flow {
   }
 
   private trimEnd(): void {
-    const text = this.lastRun?.text;
-    if (text?.data.endsWith(" ")) {
-      text.data = text.data.slice(0, -1);
-      if (!text.data) text.parentNode?.removeChild(text);
+    const run = this.lastRun;
+    if (run?.text.data.endsWith(" ")) {
+      run.text.data = run.text.data.slice(0, -1);
+      // The run's wrappers go with it: an empty `<a>` or `<b>` is a mark on nothing.
+      if (!run.text.data) run.outer.parentNode?.removeChild(run.outer);
     }
     this.lastRun = null;
   }
@@ -188,10 +187,14 @@ function marksOf(element: HTMLElement, tag: string, inherited: PasteMarks): Past
     style?.getPropertyValue("text-decoration") ?? ""
   }`;
 
+  // Only a weight or a style that names one decides; `inherit`, `unset` and the like keep the tag's.
   let bold = inherited.bold || tag === "b" || tag === "strong" || tag === "th" || HEADINGS.has(tag);
-  if (weight) bold = weight === "bold" || weight === "bolder" || Number.parseInt(weight, 10) >= 600;
+  const numeric = Number.parseInt(weight, 10);
+  if (weight === "bold" || weight === "bolder" || numeric >= 600) bold = true;
+  else if (weight === "normal" || weight === "lighter" || numeric < 600) bold = false;
   let italic = inherited.italic || ["i", "em", "cite", "var", "dfn"].includes(tag);
-  if (fontStyle) italic = fontStyle === "italic" || fontStyle === "oblique";
+  if (fontStyle === "italic" || fontStyle === "oblique") italic = true;
+  else if (fontStyle === "normal") italic = false;
   const underline = inherited.underline || tag === "u" || tag === "ins" || decoration.includes("underline");
 
   const size = element.dataset?.size;
@@ -210,9 +213,19 @@ function hidden(element: HTMLElement): boolean {
   return element.hasAttribute("hidden") || element.style?.getPropertyValue("display") === "none";
 }
 
-function walk(node: Node, marks: PasteMarks, flow: Flow, doc: Document): void {
+/// `pre` is true inside preformatted text, whose newlines are line breaks: code copied from a page
+/// keeps its lines.
+function walk(node: Node, marks: PasteMarks, flow: Flow, doc: Document, pre = false): void {
   if (node.nodeType === 3) {
-    flow.text(node.nodeValue ?? "", marks);
+    const value = node.nodeValue ?? "";
+    if (!pre) {
+      flow.text(value, marks);
+      return;
+    }
+    value.split(/\r\n|\r|\n/).forEach((line, index) => {
+      if (index > 0) flow.lineBreak();
+      flow.text(line, marks);
+    });
     return;
   }
   if (node.nodeType !== 1) return;
@@ -223,18 +236,19 @@ function walk(node: Node, marks: PasteMarks, flow: Flow, doc: Document): void {
     flow.lineBreak();
     return;
   }
-  if (tag === "ul" || tag === "ol") {
+  if (!flow.inline && (tag === "ul" || tag === "ol")) {
     const list = listFrom(element, marks, doc);
-    if (list && flow.block(list)) return;
+    if (list) return flow.block(list);
   }
-  if (tag === "table") {
+  if (!flow.inline && tag === "table") {
     const table = tableFrom(element, marks, doc);
-    if (table && flow.block(table)) return;
+    if (table) return flow.block(table);
   }
   const inner = marksOf(element, tag, marks);
+  const inPre = pre || tag === "pre" || /^pre/.test(element.style?.getPropertyValue("white-space") ?? "");
   const block = BLOCKS.has(tag) || STRUCTURES.has(tag);
   if (block) flow.endLine();
-  for (const child of Array.from(element.childNodes)) walk(child, inner, flow, doc);
+  for (const child of Array.from(element.childNodes)) walk(child, inner, flow, doc, inPre);
   if (block) flow.endLine();
 }
 
@@ -242,6 +256,16 @@ function listFrom(source: HTMLElement, marks: PasteMarks, doc: Document): HTMLEl
   const list = doc.createElement(source.localName);
   for (const child of Array.from(source.children) as HTMLElement[]) {
     if (DROPPED.has(child.localName) || hidden(child)) continue;
+    // A list straight inside a list (`<ul><li>a</li><ul>…</ul></ul>`, which some editors write)
+    // is the previous item's sub-list, not an item of its own with no text.
+    const previous = list.lastElementChild;
+    const own =
+      previous && !Array.from(previous.children).some((node) => /^(ul|ol)$/.test(node.localName));
+    if (own && (child.localName === "ul" || child.localName === "ol")) {
+      const sublist = listFrom(child, marks, doc);
+      if (sublist) previous.appendChild(sublist);
+      continue;
+    }
     const item = doc.createElement("li");
     const flow = new Flow(doc, item, true);
     let sublist: HTMLElement | null = null;
@@ -278,6 +302,10 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, doc: Document): HTMLE
         for (const child of Array.from(cell.childNodes)) walk(child, cellMarks, flow, doc);
         flow.endLine();
         cells.push(td);
+        // A merged cell keeps the columns after it in place: its content in the first, the rest
+        // empty. 1000 is the most a browser honours.
+        const span = Math.min(Number.parseInt(cell.getAttribute("colspan") ?? "", 10) || 1, 1000);
+        for (let extra = 1; extra < span; extra += 1) cells.push(doc.createElement("td"));
       }
       if (cells.length > 0) rows.push(cells);
     }
@@ -302,14 +330,15 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, doc: Document): HTMLE
 /// (a copied picture, say), so the caller falls back to the plain-text flavour.
 ///
 /// One paragraph comes back as its runs alone, so a phrase pasted mid-sentence joins that sentence
-/// rather than splitting it into three lines.
-export function pastedHtml(doc: Document, html: string): string | null {
+/// rather than splitting it into three lines. `inline` is a paste into a list item or a table cell,
+/// which hold inline content only, so everything arrives as one line there.
+export function pastedHtml(doc: Document, html: string, inline = false): string | null {
   const view = doc.defaultView as (Window & typeof globalThis) | null;
   if (!view?.DOMParser) return null;
   // A parsed document has no browsing context: its scripts never run and its pictures never load.
   const source = new view.DOMParser().parseFromString(html, "text/html");
   const out = doc.createElement("div");
-  const flow = new Flow(doc, out, false);
+  const flow = new Flow(doc, out, inline);
   for (const child of Array.from(source.body?.childNodes ?? [])) walk(child, PLAIN, flow, doc);
   flow.endLine();
   if (!out.textContent?.trim()) return null;

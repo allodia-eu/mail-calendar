@@ -193,6 +193,48 @@ describe("pasted structure", () => {
     expect(runs(block.Table.rows[0]!.cells[0]!.content)[0]!.bold).toBe(true);
   });
 
+  test("a merged cell keeps the columns after it in place", () => {
+    const [block] = pasted(
+      "<table><tr><td>Item</td><td>Unit</td><td>Price</td></tr>" +
+        '<tr><td colspan="2">Total</td><td>5</td></tr></table>',
+    );
+    if (!block || !("Table" in block)) throw new Error("expected a table");
+    const rows = block.Table.rows.map((row) => row.cells.map((cell) => text(cell.content)));
+    expect(rows).toEqual([
+      ["Item", "Unit", "Price"],
+      ["Total", "", "5"],
+    ]);
+  });
+
+  test("a list written straight inside a list is the previous item's sub-list", () => {
+    const [block] = pasted("<ul><li>a</li><ul><li>b</li></ul><li>c</li></ul>");
+    if (!block || !("List" in block)) throw new Error("expected a list");
+    expect(block.List.items.map((item) => text(item.content))).toEqual(["a", "c"]);
+    expect(block.List.items[0]!.child!.items.map((item) => text(item.content))).toEqual(["b"]);
+  });
+
+  test("preformatted text keeps its lines", () => {
+    const blocks = paragraphs(pasted("<pre>let a = 1;\nlet b = 2;</pre>"));
+    expect(blocks.map((line) => line.map((run) => run.text).join(""))).toEqual(["let a = 1;", "let b = 2;"]);
+  });
+
+  test("a style that names no weight keeps the bold it sits in", () => {
+    const [line] = paragraphs(pasted('<p><b>bold <span style="font-weight:inherit">still</span></b></p>'));
+    expect(line!.every((run) => run.bold)).toBe(true);
+  });
+
+  test("a trailing space leaves no empty mark behind", () => {
+    const { editor } = harness("");
+    const markup = pastedHtml(editor.ownerDocument, '<p>a<a href="https://example.com"> </a></p><p>b</p>');
+    expect(markup).toBe("<p>a</p><p>b</p>");
+  });
+
+  test("a paste into a list item or a cell arrives as one line", () => {
+    const { editor } = harness("");
+    const markup = pastedHtml(editor.ownerDocument, "<p>one</p><ul><li>two</li></ul>", true);
+    expect(markup).toBe("one two");
+  });
+
   test("a table inside a cell is flattened into that cell's text", () => {
     const [block] = pasted(
       "<table><tr><td>outer <table><tr><td>a</td><td>b</td></tr></table></td></tr></table>",

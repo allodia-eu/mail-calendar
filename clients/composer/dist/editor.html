@@ -2123,11 +2123,8 @@
       this.spaced = true;
     }
     block(element) {
-      if (this.inline)
-        return false;
       this.endLine();
       this.root.appendChild(element);
-      return true;
     }
     target() {
       if (this.inline)
@@ -2139,11 +2136,11 @@
       return this.line;
     }
     trimEnd() {
-      const text = this.lastRun?.text;
-      if (text?.data.endsWith(" ")) {
-        text.data = text.data.slice(0, -1);
-        if (!text.data)
-          text.parentNode?.removeChild(text);
+      const run = this.lastRun;
+      if (run?.text.data.endsWith(" ")) {
+        run.text.data = run.text.data.slice(0, -1);
+        if (!run.text.data)
+          run.outer.parentNode?.removeChild(run.outer);
       }
       this.lastRun = null;
     }
@@ -2187,11 +2184,16 @@
     const fontStyle = style?.getPropertyValue("font-style") ?? "";
     const decoration = `${style?.getPropertyValue("text-decoration-line") ?? ""} ${style?.getPropertyValue("text-decoration") ?? ""}`;
     let bold = inherited.bold || tag === "b" || tag === "strong" || tag === "th" || HEADINGS.has(tag);
-    if (weight)
-      bold = weight === "bold" || weight === "bolder" || Number.parseInt(weight, 10) >= 600;
+    const numeric = Number.parseInt(weight, 10);
+    if (weight === "bold" || weight === "bolder" || numeric >= 600)
+      bold = true;
+    else if (weight === "normal" || weight === "lighter" || numeric < 600)
+      bold = false;
     let italic = inherited.italic || ["i", "em", "cite", "var", "dfn"].includes(tag);
-    if (fontStyle)
-      italic = fontStyle === "italic" || fontStyle === "oblique";
+    if (fontStyle === "italic" || fontStyle === "oblique")
+      italic = true;
+    else if (fontStyle === "normal")
+      italic = false;
     const underline = inherited.underline || tag === "u" || tag === "ins" || decoration.includes("underline");
     const size = element.dataset?.size;
     return {
@@ -2207,9 +2209,18 @@
   function hidden(element) {
     return element.hasAttribute("hidden") || element.style?.getPropertyValue("display") === "none";
   }
-  function walk(node, marks, flow, doc) {
+  function walk(node, marks, flow, doc, pre = false) {
     if (node.nodeType === 3) {
-      flow.text(node.nodeValue ?? "", marks);
+      const value = node.nodeValue ?? "";
+      if (!pre) {
+        flow.text(value, marks);
+        return;
+      }
+      value.split(/\r\n|\r|\n/).forEach((line, index) => {
+        if (index > 0)
+          flow.lineBreak();
+        flow.text(line, marks);
+      });
       return;
     }
     if (node.nodeType !== 1)
@@ -2222,22 +2233,23 @@
       flow.lineBreak();
       return;
     }
-    if (tag === "ul" || tag === "ol") {
+    if (!flow.inline && (tag === "ul" || tag === "ol")) {
       const list = listFrom(element, marks, doc);
-      if (list && flow.block(list))
-        return;
+      if (list)
+        return flow.block(list);
     }
-    if (tag === "table") {
+    if (!flow.inline && tag === "table") {
       const table = tableFrom(element, marks, doc);
-      if (table && flow.block(table))
-        return;
+      if (table)
+        return flow.block(table);
     }
     const inner = marksOf(element, tag, marks);
+    const inPre = pre || tag === "pre" || /^pre/.test(element.style?.getPropertyValue("white-space") ?? "");
     const block = BLOCKS.has(tag) || STRUCTURES.has(tag);
     if (block)
       flow.endLine();
     for (const child of Array.from(element.childNodes))
-      walk(child, inner, flow, doc);
+      walk(child, inner, flow, doc, inPre);
     if (block)
       flow.endLine();
   }
@@ -2246,6 +2258,14 @@
     for (const child of Array.from(source.children)) {
       if (DROPPED.has(child.localName) || hidden(child))
         continue;
+      const previous = list.lastElementChild;
+      const own = previous && !Array.from(previous.children).some((node) => /^(ul|ol)$/.test(node.localName));
+      if (own && (child.localName === "ul" || child.localName === "ol")) {
+        const sublist = listFrom(child, marks, doc);
+        if (sublist)
+          previous.appendChild(sublist);
+        continue;
+      }
       const item = doc.createElement("li");
       const flow = new Flow(doc, item, true);
       let sublist = null;
@@ -2286,6 +2306,9 @@
             walk(child, cellMarks, flow, doc);
           flow.endLine();
           cells.push(td);
+          const span = Math.min(Number.parseInt(cell.getAttribute("colspan") ?? "", 10) || 1, 1000);
+          for (let extra = 1;extra < span; extra += 1)
+            cells.push(doc.createElement("td"));
         }
         if (cells.length > 0)
           rows.push(cells);
@@ -2308,13 +2331,13 @@
     }
     return table;
   }
-  function pastedHtml(doc, html) {
+  function pastedHtml(doc, html, inline = false) {
     const view = doc.defaultView;
     if (!view?.DOMParser)
       return null;
     const source = new view.DOMParser().parseFromString(html, "text/html");
     const out = doc.createElement("div");
-    const flow = new Flow(doc, out, false);
+    const flow = new Flow(doc, out, inline);
     for (const child of Array.from(source.body?.childNodes ?? []))
       walk(child, PLAIN, flow, doc);
     flow.endLine();
@@ -2972,7 +2995,9 @@
       return;
     }
     const exec = doc.execCommand;
-    const html = pastedHtml(doc, event.clipboardData?.getData("text/html") ?? "");
+    const caret = rangeWithin(editor)?.startContainer ?? null;
+    const inline = ancestorOf(caret, editor, "li", "td", "th") !== null;
+    const html = pastedHtml(doc, event.clipboardData?.getData("text/html") ?? "", inline);
     if (html !== null && exec?.call(doc, "insertHTML", false, html))
       return;
     exec?.call(doc, "insertText", false, event.clipboardData?.getData("text/plain") ?? "");
