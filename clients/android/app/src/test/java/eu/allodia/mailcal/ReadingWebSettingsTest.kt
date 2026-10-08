@@ -11,6 +11,8 @@
 // Robolectric, because WebSettings is an Android type; the policy itself is plain Kotlin.
 package eu.allodia.mailcal
 
+import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.webkit.WebView
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertFalse
@@ -58,5 +60,18 @@ class ReadingWebSettingsTest {
         // The legacy on-screen +/- pair is a WebView overlay drawn on top of the message; the
         // gesture is the whole feature and the buttons are not.
         assertFalse(settings.displayZoomControls)
+    }
+
+    @Test
+    fun a_remote_image_over_plain_http_can_load_once_the_reader_opts_in() {
+        val flags = ApplicationProvider.getApplicationContext<Context>()
+            .applicationInfo.flags
+
+        // The document CSP allows `http:` after the opt-in, but the platform refuses cleartext by
+        // default before the CSP is ever asked, so an `http://` signature stays a broken image.
+        assertTrue(
+            "the manifest has to permit cleartext for the WebView to fetch an http:// image",
+            flags and ApplicationInfo.FLAG_USES_CLEARTEXT_TRAFFIC != 0,
+        )
     }
 }

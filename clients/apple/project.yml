@@ -231,6 +231,13 @@ targets:
         # stack), which is exempt, so this is `false` ("no NON-exempt encryption"). It answers the
         # App Store export-compliance question up front instead of per-upload in App Store Connect.
         ITSAppUsesNonExemptEncryption: false
+        # Lets a web view load a plain `http://` image once the reader has chosen to load a
+        # message's remote images (docs/rendering-security.md). Left to ATS, WebKit refuses the
+        # request outright, so a signature whose host still writes `http://` stays broken after
+        # "Load images". Web content only: the app's own connections are the Rust core's and keep
+        # their TLS, and the document CSP still blocks every remote load until the reader opts in.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoadsInWebContent: true
         UILaunchScreen: {}
         # Background mail sync (docs/background-sync.md): the app-refresh background mode + the
         # permitted BGTaskScheduler identifier the `.backgroundTask(.appRefresh:)` handler uses.
