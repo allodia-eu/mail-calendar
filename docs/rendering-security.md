@@ -85,7 +85,11 @@ the presentation are identical across clients**:
 - `default-src 'none'`: nothing loads unless explicitly allowed below.
 - `img-src data:` by default: only inline images render; **every remote image is blocked**, so a
   message cannot phone home or track the open. When the user opts in, remote `http(s)` is added to
-  `img-src` and the document is re-rendered.
+  `img-src` and the document is re-rendered. Plain `http` is included because senders still write
+  it, mostly in signatures; Apple's ATS and Android's cleartext policy refuse such a load before
+  the CSP is asked, so each is lifted: Apple's for web content only, Android's for the whole app,
+  whose own connections are the core's sockets and never met it (matrix: "Opted-in `http` image
+  loads").
 - No `script-src`: scripts never run, even if one survived sanitisation.
 - The document has **no resolvable base origin**, so relative/remote URLs can't be rebased.
 
@@ -184,6 +188,7 @@ cell is filled.
 | Opaque document origin | `loadHTMLString(_, baseURL: nil)` | `loadDataWithBaseURL(null, …)` | `NavigateToString(…)` | `load_html(_, None)` |
 | Remote sub-resources blocked by default | document CSP + nil base origin **(CSP-only; see gaps)** | document CSP + **`shouldInterceptRequest`** hard-block unless opted in | document CSP + **`WebResourceRequested`** 403 hard-block unless opted in | document CSP + native `UserContentFilter` blocks `http(s)` unless opted in |
 | Remote-images opt-in (per message, resets per message) | ✓ banner → re-render | ✓ banner → re-render | ✓ banner → re-render | ✓ banner → re-render; native filter removed only for that open message |
+| Opted-in `http` image loads (the platform's cleartext policy does not overrule the CSP) | `NSAllowsArbitraryLoadsInWebContent` (web views only) | `android:usesCleartextTraffic="true"`; the app's own connections are the core's sockets, which the policy never reached | (no platform cleartext policy) | (no platform cleartext policy) |
 | Inline `cid:` images (resolved to `data:` in shared Rust: `image/*` only, `<img src>` only; **local, not gated**) | renders via document CSP `img-src data:` | renders via CSP; `shouldInterceptRequest` passes `data:` (blocks only `http(s)`) | renders via CSP; `WebResourceRequested` passes `data:` (403s only `http(s)`) | renders via CSP; native filter blocks only `http(s)` |
 | Downloadable attachments: metadata only in view; **never rendered/executed in-app**; explicit per-attachment Save + Open | Save: save panel (macOS) / share sheet (iOS/iPadOS) → core decodes to chosen or temp path. Open: core decodes to a temp path (extension typed from the media type when the name carries none) → `NSWorkspace.open` (OS handler) on macOS, `QLPreviewController` (OS viewer, out-of-process) on iOS/iPadOS, falling back to the share sheet for a type Quick Look cannot preview | Save: document picker → core decodes to app-private temp → host copies to chosen URI. Open: core decodes to app-cache → `FileProvider` `content://` + `ACTION_VIEW` (OS handler) | Save: save picker → core decodes to temp → host copies to chosen `StorageFile`. Open: core decodes to temp → `Launcher.LaunchFileAsync` (OS handler) | Save: `GtkFileDialog` → core decodes to chosen path. Open: core decodes to an app-owned temp path → `GAppInfo` OS handler |
 | Attachment decode/write off the UI thread (large parts must not freeze/ANR) | detached task → `save_attachment` | background thread → `save_attachment` | `Task.Run` → `save_attachment` | Rust worker thread → `save_attachment`; completion returns through the Relm4 sender |
@@ -253,7 +258,8 @@ Source of truth per client:
   document CSP + a nil base origin (WebKit enforces the CSP), but, unlike Android and Windows,
   has no explicit native interceptor as a second barrier. To bring it to full parity with this
   contract, add a `WKContentRuleList` that blocks network loads unless the user opted in. Tracked
-  as a follow-up for macOS, iOS, and iPadOS.
+  as a follow-up for macOS, iOS, and iPadOS. With `NSAllowsArbitraryLoadsInWebContent` set, ATS no
+  longer refuses a plain `http` load either, so the CSP is the only barrier for both schemes.
 - **iOS/iPadOS reading view newly ported (Apple multiplatform migration).** It shares the
   macOS `WKWebView` host **verbatim** (scripting off, in-view navigation blocked, new windows blocked,
   opaque `baseURL: nil` origin, document CSP), so every gate is met by construction; only the
