@@ -87,7 +87,9 @@ the presentation are identical across clients**:
   message cannot phone home or track the open. When the user opts in, remote `http(s)` is added to
   `img-src` and the document is re-rendered. Plain `http` is included because senders still write
   it, mostly in signatures; Apple's ATS and Android's cleartext policy refuse such a load before
-  the CSP is asked, so each exempts its web content (matrix: "Opted-in `http` image loads").
+  the CSP is asked, so each is lifted: Apple's for web content only, Android's for the whole app,
+  whose own connections are the core's sockets and never met it (matrix: "Opted-in `http` image
+  loads").
 - No `script-src`: scripts never run, even if one survived sanitisation.
 - The document has **no resolvable base origin**, so relative/remote URLs can't be rebased.
 
@@ -256,7 +258,8 @@ Source of truth per client:
   document CSP + a nil base origin (WebKit enforces the CSP), but, unlike Android and Windows,
   has no explicit native interceptor as a second barrier. To bring it to full parity with this
   contract, add a `WKContentRuleList` that blocks network loads unless the user opted in. Tracked
-  as a follow-up for macOS, iOS, and iPadOS.
+  as a follow-up for macOS, iOS, and iPadOS. With `NSAllowsArbitraryLoadsInWebContent` set, ATS no
+  longer refuses a plain `http` load either, so the CSP is the only barrier for both schemes.
 - **iOS/iPadOS reading view newly ported (Apple multiplatform migration).** It shares the
   macOS `WKWebView` host **verbatim** (scripting off, in-view navigation blocked, new windows blocked,
   opaque `baseURL: nil` origin, document CSP), so every gate is met by construction; only the
