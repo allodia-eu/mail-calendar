@@ -1,8 +1,15 @@
-//! Widget assertions for leaving a composer: that one navigation leaves it once. The pure
-//! dirtiness rule is unit-tested beside it in [`super`], and the Discard question's own two
-//! buttons in [`super::super::composer_discard`].
+//! Widget assertions for leaving a composer: that one navigation leaves it once, and that a reply
+//! nobody typed into is not a draft. The pure dirtiness rule is unit-tested beside it in
+//! [`super`], and the Discard question's own two buttons in [`super::super::composer_discard`].
 
-use super::super::{AppInput, reader::ComposerHost};
+use adw::prelude::*;
+
+use super::super::{
+    AppInput,
+    composer::ComposerPane,
+    composer_model::{ComposeContext, ComposeKind, new_composition},
+    reader::ComposerHost,
+};
 
 /// The pane answers a request once and ignores the re-renders that follow it, which is why each
 /// navigation away from a draft has to arrive with its own number. Give two of them the same one,
@@ -39,4 +46,50 @@ pub(crate) fn each_navigation_gets_its_own_answer() {
         ),
         "the next navigation must get its own answer"
     );
+}
+
+/// A shown reply whose To is seeded and which nobody has typed into is not a draft: leaving it
+/// saves nothing, and Discard does not ask about a message nobody wrote.
+pub(crate) fn a_reply_nobody_typed_into_is_not_a_draft(window: &adw::ApplicationWindow) {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let pane = ComposerPane::new();
+    let request = ComposeContext {
+        kind: ComposeKind::Reply,
+        host: ComposerHost::Pane,
+        account: Some("fixture".to_owned()),
+        key: Some("message".to_owned()),
+        initial_to: "recipient@example.test".to_owned(),
+        initial_cc: String::new(),
+        initial_bcc: String::new(),
+        subject: "Re: fixture".to_owned(),
+        initial_body: None,
+        stored_html: None,
+        quote: None,
+        initial_from: Some("fixture".to_owned()),
+        seeds_signature: true,
+        composition: new_composition(),
+        files: Vec::new(),
+    };
+    pane.show(
+        42,
+        &request,
+        &[("fixture".to_owned(), "sender@example.test".to_owned())],
+        None,
+        window,
+        sender,
+    );
+
+    assert!(pane.is_active(42));
+    assert!(pane.widget().first_child().is_some());
+    let guard = pane
+        .draft_cell()
+        .borrow()
+        .clone()
+        .expect("the shown composer has its guard");
+    assert!(
+        !guard.header_edited(),
+        "a reply nobody typed into is not a draft"
+    );
+    pane.teardown();
+    assert!(pane.widget().first_child().is_none());
 }

@@ -1,4 +1,4 @@
-//! Widget-level regressions for the mailbox rows and the composer pane.
+//! Widget-level regressions for the mailbox rows.
 
 use std::collections::HashSet;
 
@@ -12,17 +12,10 @@ pub(crate) use super::test_tree::{
 };
 use super::{MailboxRendering, ThreadKey, display_row, flat_row};
 use crate::ui::{
-    AppInput,
-    composer::ComposerPane,
-    composer_header::tests as composer_header,
-    composer_model::{ComposeContext, ComposeKind, new_composition},
-    connectivity::tests as connectivity,
-    contacts::pane::tests as contacts,
-    destinations::tests as destinations,
-    folder_pane::tests as folder_pane,
-    invitation::widget_tests as invitation,
-    recipients::field::tests as recipients,
-    search::bar::tests as search,
+    AppInput, composer_header::tests as composer_header, connectivity::tests as connectivity,
+    contacts::pane::tests as contacts, destinations::tests as destinations,
+    folder_pane::tests as folder_pane, invitation::widget_tests as invitation,
+    recipients::field::tests as recipients, search::bar::tests as search,
     settings::signatures::tests as signatures,
 };
 
@@ -452,49 +445,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         .register(None::<&gtk::gio::Cancellable>)
         .expect("register test application");
     let window = adw::ApplicationWindow::new(&application);
-    let (sender, _receiver) = relm4::channel::<AppInput>();
-    let pane = ComposerPane::new();
-    let request = ComposeContext {
-        kind: ComposeKind::Reply,
-        host: crate::ui::reader::ComposerHost::Pane,
-        account: Some("fixture".to_owned()),
-        key: Some("message".to_owned()),
-        initial_to: "recipient@example.test".to_owned(),
-        initial_cc: String::new(),
-        initial_bcc: String::new(),
-        subject: "Re: fixture".to_owned(),
-        initial_body: None,
-        stored_html: None,
-        quote: None,
-        initial_from: Some("fixture".to_owned()),
-        seeds_signature: true,
-        composition: new_composition(),
-        files: Vec::new(),
-    };
-    pane.show(
-        42,
-        &request,
-        &[("fixture".to_owned(), "sender@example.test".to_owned())],
-        None,
-        &window,
-        sender,
-    );
-
-    assert!(pane.is_active(42));
-    assert!(pane.widget().first_child().is_some());
-    // Its To is seeded and nobody has typed: leaving it must save nothing, and Discard must not
-    // ask about a message nobody wrote.
-    let guard = pane
-        .draft_cell()
-        .borrow()
-        .clone()
-        .expect("the shown composer has its guard");
-    assert!(
-        !guard.header_edited(),
-        "a reply nobody typed into is not a draft"
-    );
-    pane.teardown();
-    assert!(pane.widget().first_child().is_none());
+    crate::ui::composer_draft::widget_tests::a_reply_nobody_typed_into_is_not_a_draft(&window);
 
     crate::ui::setup_widget_tests::the_setup_window_offers_each_route_its_own_surface();
     crate::ui::setup_onboarding_tests::the_first_account_screen_offers_an_allodia_account(&window);
