@@ -116,7 +116,7 @@ impl From<ManualForm> for ImapForm {
             },
             email: form.email,
             caldav_url: form.caldav_url,
-            carddav_url: String::new(),
+            carddav_url: form.carddav_url,
             uses: None,
             offer: super::UseOffer::default(),
             outgoing: None,

@@ -254,6 +254,12 @@ pub(super) fn manual_fields(
     );
     let caldav = entry(l10n::setup_field_caldav_optional(), &form.caldav_url, false);
     content.append(&caldav);
+    let carddav = entry(
+        l10n::setup_field_carddav_optional(),
+        &form.carddav_url,
+        false,
+    );
+    content.append(&carddav);
     content.append(&caption(l10n::setup_port_note()));
     let feedback = gtk::Box::new(gtk::Orientation::Vertical, 14);
     content.append(&feedback);
@@ -263,13 +269,14 @@ pub(super) fn manual_fields(
     // or a line of explanation: rebuilding over a password being typed would erase it.
     let snapshot: FormSnapshot = {
         let base = form.clone();
-        let (email, caldav) = (email.clone(), caldav.clone());
+        let (email, caldav, carddav) = (email.clone(), caldav.clone(), carddav.clone());
         let (imap_row, smtp_row) = (imap.clone(), smtp.clone());
         Rc::new(move || ManualForm {
             email: email.text().trim().to_owned(),
             imap_host: imap_row.host_text(),
             smtp_host: smtp_row.host_text(),
             caldav_url: caldav.text().trim().to_owned(),
+            carddav_url: carddav.text().trim().to_owned(),
             servers: ServerPair {
                 imap: imap_row.read(),
                 smtp: smtp_row.read(),
@@ -312,7 +319,8 @@ pub(super) fn manual_fields(
             imap_host: imap.dial(),
             smtp_host: smtp.dial(),
             caldav_url: caldav.text().trim().to_owned(),
-            carddav_url: String::new(),
+            // The servers given decide: an address book beside the mail is used for contacts.
+            carddav_url: carddav.text().trim().to_owned(),
             uses: None,
             imap_security: imap.read().security(),
             smtp_security: smtp.read().security(),

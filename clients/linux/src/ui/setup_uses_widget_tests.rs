@@ -12,7 +12,10 @@ use crate::{
         AppInput,
         mailbox::tests::rendered_labels,
         setup::SetupWindow,
-        setup_model::{AccountSubmission, SetupForm, detected_form, recommendation_form},
+        setup_model::{
+            AccountKind, AccountSubmission, ManualForm, SetupForm, detected_form,
+            recommendation_form,
+        },
         setup_state::SetupState,
         setup_widget_tests::{check_button, descendant_button, server_row, visible_entries},
     },
@@ -165,4 +168,92 @@ fn back_keeps_the_address() {
     assert_eq!(state.start_email, "person@gmail.com");
     assert!(state.form.is_none());
     assert!(!matches!(state.form, Some(SetupForm::Detected(_))));
+}
+
+/// The manual form's calendar-and-contacts type: no mail server, the address book and the
+/// calendar typed, and an account set up for those alone.
+pub(super) fn the_manual_form_sets_up_calendar_and_contacts_alone(window: &adw::ApplicationWindow) {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    state.select_account_kind(ManualForm {
+        kind: AccountKind::Dav,
+        email: "alice@cloud.example.test".to_owned(),
+        ..ManualForm::default()
+    });
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("manual calendar-and-contacts content");
+
+    assert!(
+        rendered_labels(&child)
+            .iter()
+            .any(|text| text == l10n::setup_dav_note())
+    );
+    let fields = visible_entries(&child);
+    let placeholder = |field: &gtk::Entry| field.placeholder_text().unwrap_or_default();
+    assert_eq!(
+        fields.iter().map(placeholder).collect::<Vec<_>>(),
+        [
+            l10n::setup_field_username(),
+            l10n::setup_field_password(),
+            l10n::setup_field_caldav_optional(),
+            l10n::setup_field_carddav_optional(),
+        ],
+        "no mail server is asked for"
+    );
+    assert_eq!(fields[0].text(), "alice@cloud.example.test");
+    fields[1].set_text("secret");
+    fields[3].set_text("https://cloud.example.test/dav");
+    descendant_button(&child, l10n::action_connect()).emit_clicked();
+    let Some(AppInput::SubmitAccount(submission)) = receiver.recv_sync() else {
+        panic!("Connect submits the account");
+    };
+    let AccountSubmission::Imap(submission) = *submission else {
+        panic!("a password account");
+    };
+    assert_eq!(submission.uses, Some(vec![AccountCapability::Contacts]));
+    assert_eq!(submission.carddav_url, "https://cloud.example.test/dav");
+    assert!(submission.imap_host.is_empty());
+    let config = AccountSubmission::Imap(submission)
+        .config_toml()
+        .expect("an address book alone is an account");
+    assert!(config.contains("[carddav]") && !config.contains("[imap]"));
+}
+
+/// The manual IMAP form takes an address book of its own beside the mail server.
+pub(super) fn the_manual_mail_form_takes_an_address_book(window: &adw::ApplicationWindow) {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    state.select_account_kind(ManualForm {
+        email: "alice@example.test".to_owned(),
+        ..ManualForm::default()
+    });
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("manual IMAP content");
+    let field = |placeholder: &str| {
+        visible_entries(&child)
+            .into_iter()
+            .find(|field| field.placeholder_text().as_deref() == Some(placeholder))
+            .unwrap_or_else(|| panic!("{placeholder}"))
+    };
+    field(l10n::setup_field_mail_server()).set_text("imap.example.test");
+    field(l10n::setup_field_password()).set_text("secret");
+    field(l10n::setup_field_carddav_optional()).set_text("https://contacts.example.test");
+    descendant_button(&child, l10n::action_connect()).emit_clicked();
+    let Some(AppInput::SubmitAccount(submission)) = receiver.recv_sync() else {
+        panic!("Connect submits the account");
+    };
+    let AccountSubmission::Imap(submission) = *submission else {
+        panic!("a password account");
+    };
+    assert_eq!(submission.carddav_url, "https://contacts.example.test");
 }
