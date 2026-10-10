@@ -88,6 +88,23 @@ Building inside `probe` and running the suite after it is deliberate: the probe 
 present in the **binary**, and the acceptance suite is the cheapest way to drive the app through
 enough of itself to raise the critical.
 
+## When GTK's own frames are `???`
+
+The distribution strips its libraries, and Ubuntu's debuginfod does not carry every update's
+symbols (`debuginfod-find` answers "No such file or directory"). The symbol package does: fetch the
+one for the installed version from `ddebs.ubuntu.com`, unpack it without installing, and point gdb
+at it. Check that the build id it holds matches `readelf -n` on the library.
+
+```sh
+curl -fLO "http://ddebs.ubuntu.com/pool/main/g/gtk4/libgtk-4-1-dbgsym_<version>_amd64.ddeb"
+dpkg-deb -x libgtk-4-1-dbgsym_*.ddeb dbg
+gdb -iex "set debug-file-directory $PWD/dbg/usr/lib/debug:/usr/lib/debug" ...
+```
+
+With names and arguments, a `dprintf` on the toolkit's own functions traces an object's life
+without a rebuild, which is how the input-method crash in
+[`gtk_test_display.rs`](../../../clients/linux/src/ui/gtk_test_display.rs) was pinned down.
+
 ## Fixing it, and proving the fix
 
 The log is not the defect. Find what the user loses, because that decides whether this is a
