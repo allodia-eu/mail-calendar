@@ -22,6 +22,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
 
@@ -86,7 +87,7 @@ internal static class CredentialStore
     /// </summary>
     public static bool Save(string id, string config)
     {
-        if (!WriteChunked(AccountTarget(id), config))
+        if (!WriteChunked(AccountTarget(id), config, $"[{MailcalBindingsMethods.AccountLogHandle(id)}]"))
         {
             return false; // WriteChunked logged the failure; don't index an unpersisted account.
         }
@@ -96,7 +97,7 @@ internal static class CredentialStore
             return true;
         }
         ids.Add(id);
-        return WriteChunked(IndexTarget, JsonSerializer.Serialize(ids));
+        return WriteChunked(IndexTarget, JsonSerializer.Serialize(ids), IndexLabel);
     }
 
     /// <summary>
@@ -113,7 +114,7 @@ internal static class CredentialStore
         {
         }
         var ids = ReadIndex();
-        return !ids.Remove(id) || WriteChunked(IndexTarget, JsonSerializer.Serialize(ids));
+        return !ids.Remove(id) || WriteChunked(IndexTarget, JsonSerializer.Serialize(ids), IndexLabel);
     }
 
     private static List<string> ReadIndex()
@@ -139,6 +140,9 @@ internal static class CredentialStore
     // reassembled on read; the bytes are joined before UTF-8 decode, so a multi-byte character
     // straddling a chunk boundary still decodes.
 
+    // How a log line names the index of account ids.
+    private const string IndexLabel = "the account index";
+
     private static string ChunkTarget(string baseTarget, int chunk) =>
         chunk == 0 ? baseTarget : $"{baseTarget}:{chunk}";
 
@@ -159,8 +163,10 @@ internal static class CredentialStore
 
     // Writes value across as many chunks as needed, then drops any stale higher-index chunks from
     // a previously larger value. Each CredWrite is checked, a swallowed failure here is exactly
-    // what used to lose Microsoft accounts, so a failure is logged loudly.
-    private static bool WriteChunked(string baseTarget, string value)
+    // what used to lose Microsoft accounts, so a failure is logged loudly. The line names what was
+    // written by `label`, never by its target: an account's target holds its id, which is an
+    // address and a host (docs/logging.md).
+    private static bool WriteChunked(string baseTarget, string value, string label)
     {
         var bytes = Encoding.UTF8.GetBytes(value);
         var chunkCount = System.Math.Max(1, (bytes.Length + MaxChunkBytes - 1) / MaxChunkBytes);
@@ -170,7 +176,7 @@ internal static class CredentialStore
             var length = System.Math.Min(MaxChunkBytes, bytes.Length - offset);
             if (!WriteChunkBytes(ChunkTarget(baseTarget, chunk), bytes, offset, length))
             {
-                Log.Error($"credential store: CredWrite failed for '{baseTarget}' chunk {chunk} of " +
+                Log.Error($"credential store: CredWrite failed for {label} chunk {chunk} of " +
                           $"{chunkCount} (err {Marshal.GetLastWin32Error()}); not persisted");
                 return false;
             }

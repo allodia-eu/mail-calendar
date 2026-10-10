@@ -67,14 +67,14 @@ public sealed partial class MailboxModel
     public Visibility MainVisibility =>
         AnalyticsAsked && !NeedsSetup ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>Show the setup form's Cancel button only when adding another account (not first run).</summary>
-    public Visibility AddingAccountVisibility => AddingAccount ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility AddingAccountVisibility => SetupCancellable ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>
     /// Show the form's Cancel button when adding another account OR whenever a Microsoft sign-in is
     /// in flight, the browser step can hang indefinitely (the user closes the tab, or picks the
     /// wrong app on the redirect), so a first-run sign-in needs an escape too, not only an add.
     /// </summary>
     public Visibility CancelVisibility =>
-        AddingAccount || IsSigningIn ? Visibility.Visible : Visibility.Collapsed;
+        SetupCancellable || IsSigningIn ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>
     /// The Cancel button is enabled while a Microsoft sign-in is in flight (so it can abort the
     /// hung wait), and otherwise whenever nothing is submitting. A bounded IMAP/JMAP connect still

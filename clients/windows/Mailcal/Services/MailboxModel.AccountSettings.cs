@@ -18,7 +18,11 @@ public sealed partial class MailboxModel
     /// and its connectivity signal, which an expired sign-in and a refused calendar raise.</summary>
     public event Action? AccountsChanged;
 
-    private void RaiseAccountsChanged() => AccountsChanged?.Invoke();
+    private void RaiseAccountsChanged()
+    {
+        AccountsChanged?.Invoke();
+        RefreshSetupLinks();
+    }
 
     /// <summary>Every account, mail or not, as the core lists it; empty before the core is up.</summary>
     internal AccountsSnapshot AccountsSnapshot() =>

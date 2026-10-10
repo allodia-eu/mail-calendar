@@ -133,7 +133,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 | An empty answer says so, in words | 🚧 | ✅ | 🚧 | ✅ | ✅ |
 | Offers on a later add, not just the first | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
 | Set up takes the record's own route | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
-| The link step after the connect, with "Add another account" | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| The link step after the connect, with "Add another account" | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
 
 ## What signing in here does
 

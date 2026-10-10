@@ -207,6 +207,15 @@ fn app_with_identity(
     name: Option<&str>,
     prefs_path: std::path::PathBuf,
 ) -> Arc<App<IdentityProvider>> {
+    app_using_identity(name, prefs_path, true)
+}
+
+/// [`app_with_identity`], used for mail or not.
+fn app_using_identity(
+    name: Option<&str>,
+    prefs_path: std::path::PathBuf,
+    uses_mail: bool,
+) -> Arc<App<IdentityProvider>> {
     Arc::new(App::new(
         Engine::open_in_memory().unwrap(),
         vec![Account {
@@ -218,7 +227,7 @@ fn app_with_identity(
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
             dialled: true,
-            uses_mail: true,
+            uses_mail,
         }],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),
@@ -254,6 +263,21 @@ async fn a_provider_holding_no_name_is_still_asked() {
         app.sender_name("acct-1"),
         None,
         "asking is not the same as storing an empty name"
+    );
+}
+
+#[tokio::test]
+async fn an_account_without_mail_is_never_asked() {
+    // It sends nothing, so it has no name to send under; asking would put a mail question to
+    // an account every mail surface leaves out (`docs/accounts.md` rule 6).
+    let app = app_using_identity(None, scratch_prefs("no-mail"), false);
+    let account = AccountId::try_from("acct-1").unwrap();
+
+    assert!(!app.needs_sender_name(&account).await);
+    assert_eq!(
+        app.sender_name("acct-1"),
+        None,
+        "nothing is stored for it either"
     );
 }
 

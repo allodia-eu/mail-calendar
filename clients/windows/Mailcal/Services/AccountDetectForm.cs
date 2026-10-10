@@ -15,6 +15,8 @@ internal enum DetectTab
     Jmap,
     Microsoft,
     Google,
+    /// <summary>An account used for its calendar and contacts alone, over CalDAV and CardDAV.</summary>
+    Dav,
 }
 
 /// <summary>
@@ -40,11 +42,33 @@ internal sealed record DetectRoute(
     // The issuer the provider's own autoconfig named, when it named one. Carried so the setup
     // form's pre-flight asks that server first rather than probing well-known paths for one the
     // provider has already pointed at (docs/mail-oauth.md rule 4).
-    string? OauthIssuer = null);
+    string? OauthIssuer = null,
+    // What the found card offers the account for, and the calendar and address-book servers found
+    // beside the route (docs/account-autodetect.md rule 8). Empty for a route the core offers no
+    // choice on, and for the manual form.
+    UseOffer? Uses = null);
 
 /// <summary>Pure routing + connect-gating for the detection flow (no WinUI types, so it's testable).</summary>
 internal static class AccountDetectForm
 {
+    /// <summary>
+    /// Maps a detection run onto a routed, prefilled form, with the uses its card offers. A domain
+    /// with a calendar or address book and no mail server routes to the calendar-and-contacts card,
+    /// signed in with <paramref name="email"/>.
+    /// </summary>
+    internal static DetectRoute Route(DetectedSetup setup, string email)
+    {
+        if (setup.CalendarAndContacts)
+        {
+            return new DetectRoute(
+                IsManual: false, Tab: DetectTab.Dav, Email: email.Trim(),
+                ImapHost: string.Empty, SmtpHost: string.Empty, JmapServer: string.Empty,
+                CaldavUrl: setup.CaldavUrl ?? string.Empty, NeedsApproval: false, Reason: null,
+                Uses: UseOffer.Of(setup));
+        }
+        return Route(setup.Recommendation) with { Uses = UseOffer.Of(setup) };
+    }
+
     /// <summary>Maps a detection result onto a routed, prefilled form.</summary>
     internal static DetectRoute Route(SetupRecommendation recommendation) => recommendation switch
     {
@@ -112,17 +136,19 @@ internal static class AccountDetectForm
             DetectTab.Imap => !string.IsNullOrWhiteSpace(imapHost)
                 && !string.IsNullOrWhiteSpace(email)
                 && (!passwordShown || !string.IsNullOrEmpty(password)),
+            // Which servers it needs is checked on Connect, where the empty one can be pointed at.
+            DetectTab.Dav => !string.IsNullOrWhiteSpace(email) && !string.IsNullOrEmpty(password),
             _ => false,
         };
     }
 
     /// <summary>
-    /// Whether this tab can act on a refused certificate at all. Only an IMAP account's stored
-    /// config carries an exception, so a refusal on any other route is reported and not offered:
-    /// taking an answer and ignoring it is worse than not asking
-    /// (docs/certificate-exceptions.md, Known gaps).
+    /// Whether this tab can act on a refused certificate at all. Only a standards account's stored
+    /// config carries an exception, a calendar-and-contacts one included, so a refusal on any other
+    /// route is reported and not offered: taking an answer and ignoring it is worse than not
+    /// asking (docs/certificate-exceptions.md, Known gaps).
     /// </summary>
-    internal static bool OffersCertificateException(DetectTab tab) => tab == DetectTab.Imap;
+    internal static bool OffersCertificateException(DetectTab tab) => tab is DetectTab.Imap or DetectTab.Dav;
 
     private static DetectRoute Manual(MissReason reason) => new DetectRoute(
         IsManual: true, Tab: DetectTab.Imap, Email: string.Empty,

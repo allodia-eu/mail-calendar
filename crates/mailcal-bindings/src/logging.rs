@@ -68,6 +68,15 @@ pub trait Logger: Send + Sync {
     fn log(&self, level: LogLevel, target: String, message: String);
 }
 
+/// The handle a log line names `account_id` by (`acct:1a2b`): short, stable across launches, and
+/// not reversible to the id, which is an address and a host. The core names accounts by it, so a
+/// client writing into the same log names them the same way (`docs/logging.md`).
+#[uniffi::export]
+#[must_use]
+pub fn account_log_handle(account_id: String) -> String {
+    mailcal_account::account_log_handle(&account_id)
+}
+
 /// The process-wide sink the [`LogBridge`] forwards to. Behind an [`RwLock`] so a later
 /// constructor (a second `MailcalApp`, or the demo after the real app) can swap the host
 /// logger without re-registering the global `log` logger (which can be set only once).
@@ -155,7 +164,20 @@ pub(crate) fn set_level(level: LogLevel) {
 
 #[cfg(test)]
 mod tests {
-    use super::is_ours;
+    use super::{account_log_handle, is_ours};
+
+    #[test]
+    fn a_client_names_an_account_by_the_core_s_own_handle() {
+        let id = "alice@example.org@imap.example.org";
+        let handle = account_log_handle(id.to_owned());
+        // The same handle the core's own lines carry, so a client's line and the core's about
+        // one account read alike in one log.
+        assert_eq!(handle, mailcal_account::account_log_handle(id));
+        assert!(
+            !handle.contains('@') && !handle.contains("alice"),
+            "{handle}"
+        );
+    }
 
     #[test]
     fn debug_belongs_to_our_crates_and_the_engine_under_them() {

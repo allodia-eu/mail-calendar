@@ -31,16 +31,25 @@ public sealed partial class AccountSetupView
     // two cannot come to different conclusions about the same account: a pre-flight that probed a
     // different server from the one the sign-in registers against would offer a button that fails
     // at the provider.
-    private ImapLoginRequest ImapRequest() => new(
-        Username.Text.Trim(),
-        // The port and security of each server as Connect submits them: detected, or chosen by
-        // the person on the manual form.
-        _imap.Dial(ImapHost.Text.Trim()),
-        string.IsNullOrWhiteSpace(SmtpHost.Text) ? null : _smtp.Dial(SmtpHost.Text.Trim()),
-        string.IsNullOrWhiteSpace(CaldavUrl.Text) ? null : CaldavUrl.Text.Trim(),
-        _imap.Security,
-        _smtp.Security,
-        _detectedOauthIssuer);
+    private ImapLoginRequest ImapRequest()
+    {
+        // What the found card's choices make of the account, or the manual form's fields.
+        var chosen = _uses.Choices.Count > 0 ? ChosenUses() : null;
+        var caldav = (chosen?.CaldavUrl ?? CaldavUrl.Text).Trim();
+        var carddav = (chosen?.CarddavUrl ?? CarddavUrl.Text).Trim();
+        return new(
+            Username.Text.Trim(),
+            // The port and security of each server as Connect submits them: detected, or chosen
+            // by the person on the manual form.
+            _imap.Dial(ImapHost.Text.Trim()),
+            string.IsNullOrWhiteSpace(SmtpHost.Text) ? null : _smtp.Dial(SmtpHost.Text.Trim()),
+            caldav.Length == 0 ? null : caldav,
+            _imap.Security,
+            _smtp.Security,
+            _detectedOauthIssuer,
+            carddav.Length == 0 ? null : carddav,
+            chosen?.Uses);
+    }
 
     // Restart the debounce. The tick fires on the UI thread, so the ask it starts resumes there.
     private void ScheduleImapProbe()
@@ -100,6 +109,10 @@ public sealed partial class AccountSetupView
     private async void OnSignInImap(object sender, RoutedEventArgs e)
     {
         if (Model is not { } model)
+        {
+            return;
+        }
+        if (FlagMissingServer())
         {
             return;
         }

@@ -203,6 +203,17 @@
          second-guesses a link already made, and a save that adds a server the account never had. -->
     <Compile Include="..\Mailcal\Services\AccountSettingsRules.cs" Link="Services\AccountSettingsRules.cs" />
     <Compile Include="..\Mailcal\Services\AccountEndpointEdit.cs" Link="Services\AccountEndpointEdit.cs" />
+    <!-- What a setup card's toggles make of an account (docs/account-autodetect.md rule 8): which
+         uses it is set up with and which servers it stores. Silent when wrong: contacts found only
+         through the calendar's server lose that server when the calendar is switched off, and the
+         account connects with no address book while the card said it would have one. -->
+    <Compile Include="..\Mailcal\Services\SetupUses.cs" Link="Services\SetupUses.cs" />
+    <!-- The link step and the flow around it (docs/onboarding.md, "After the connect"): a
+         suggestion that starts picked and yields to a pick, and "Add another account" coming back
+         to the step it left. A flow that forgets where it came from closes the window on an
+         account that was about to be linked, and nothing on screen says it was ever offered. -->
+    <Compile Include="..\Mailcal\Services\SetupLinkStep.cs" Link="Services\SetupLinkStep.cs" />
+    <Compile Include="..\Mailcal\Services\SetupFlow.cs" Link="Services\SetupFlow.cs" />
     <!-- The composer recipient field's string work: which part of a To/Cc/Bcc field is being typed,
          which recipients are finished, and what the field becomes when one is accepted or removed.
          Both failure modes here are SILENT (a whole-field query matches nothing once a first
