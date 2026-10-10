@@ -19,7 +19,7 @@ pub(super) fn kind_label(kind: AccountKind) -> &'static str {
 }
 
 /// A use's name, as the main window's sections name it.
-pub(super) fn use_name(capability: AccountCapability) -> &'static str {
+pub(in crate::ui) fn use_name(capability: AccountCapability) -> &'static str {
     match capability {
         AccountCapability::Mail => l10n::nav_mail(),
         AccountCapability::Calendar => l10n::nav_calendar(),

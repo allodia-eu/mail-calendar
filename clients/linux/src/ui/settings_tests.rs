@@ -265,3 +265,26 @@ fn taxonomy_order_matches_the_cross_platform_contract() {
         ]
     );
 }
+
+/// What a sign-in's grant withheld opens the window on the account's page, where switching the
+/// use on asks again, and says so over it.
+#[test]
+fn an_account_can_be_opened_with_something_to_say_about_it() {
+    use super::notice::Notice;
+    let mut state = SettingsState::default();
+    let synced = std::collections::HashMap::new();
+    state.open_on_account(
+        "alice@example.com".to_owned(),
+        Notice::Error {
+            title: "Not everything you chose was allowed".to_owned(),
+            detail: "Calendar".to_owned(),
+        },
+    );
+    let opened = state.render_state(None, &synced);
+    assert_eq!(opened.redraw, Redraw::Open);
+    assert_eq!(state.account.as_deref(), Some("alice@example.com"));
+    assert!(
+        opened.notice.is_some(),
+        "the notice survives the open it came with"
+    );
+}

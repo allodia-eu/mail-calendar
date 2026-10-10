@@ -23,7 +23,12 @@ pub(crate) enum MicrosoftOutcome {
     Failed(String),
 }
 
-pub(super) fn begin(login_hint: String) -> Result<(OAuthLoopback, MicrosoftLoginStart), String> {
+/// Binds the loopback and starts a sign-in that asks only for what `uses` names (everything when
+/// it is `None`).
+pub(super) fn begin(
+    login_hint: String,
+    uses: Option<Vec<mailcal_bindings::AccountCapability>>,
+) -> Result<(OAuthLoopback, MicrosoftLoginStart), String> {
     let loopback =
         OAuthLoopback::bind().map_err(|_| l10n::setup_microsoft_browser_failed().to_owned())?;
     let start = begin_microsoft_login(
@@ -32,7 +37,7 @@ pub(super) fn begin(login_hint: String) -> Result<(OAuthLoopback, MicrosoftLogin
         // With the address known, Microsoft targets that account instead of a different one
         // already signed in in the browser (`docs/provider-oauth.md` rule 8).
         (!login_hint.trim().is_empty()).then_some(login_hint),
-        None,
+        uses,
     )
     .map_err(|error| error.to_string())?;
     Ok((loopback, start))
@@ -78,10 +83,11 @@ mod tests {
         // The registration is injected at build time, so this asserts whichever contract this
         // build is under: a build given none refuses to start a sign-in it cannot finish.
         let Some(client_id) = oauth_routes().microsoft.then(client_id) else {
-            assert!(begin("person@outlook.com".to_owned()).is_err());
+            assert!(begin("person@outlook.com".to_owned(), None).is_err());
             return;
         };
-        let (loopback, start) = begin("person@outlook.com".to_owned()).expect("begin sign-in");
+        let (loopback, start) =
+            begin("person@outlook.com".to_owned(), None).expect("begin sign-in");
         let redirect = loopback.redirect_uri();
 
         assert!(redirect.starts_with("http://127.0.0.1:"));
@@ -98,7 +104,7 @@ mod tests {
         assert!(start.authorization_url.contains("login_hint"));
 
         // Without an address, Microsoft shows its picker instead.
-        let (_, start) = begin(String::new()).expect("begin sign-in");
+        let (_, start) = begin(String::new(), None).expect("begin sign-in");
         assert!(!start.authorization_url.contains("login_hint"));
         assert!(start.authorization_url.contains("prompt=select_account"));
     }
@@ -110,7 +116,7 @@ mod tests {
     /// The client id this build was given. Read from an authorization URL rather than from the
     /// core, which deliberately exposes only whether the route exists.
     fn client_id() -> String {
-        let (_, start) = begin(String::new()).expect("begin sign-in");
+        let (_, start) = begin(String::new(), None).expect("begin sign-in");
         let url = url::Url::parse(&start.authorization_url).expect("an authorization URL");
         url.query_pairs()
             .find(|(key, _)| key == "client_id")

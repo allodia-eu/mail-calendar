@@ -2,8 +2,8 @@
 //! contacts it can set up, and how each starts.
 
 use crate::{
-    AccountCapability, AllodiaAccountOffer, MailcalApp, MxResolver, SetupRecommendation,
-    autodetect::convert,
+    AccountCapability, AccountKind, AllodiaAccountOffer, MailcalApp, MxResolver,
+    SetupRecommendation, autodetect::convert,
 };
 
 /// One use a setup route offers.
@@ -59,25 +59,20 @@ impl MailcalApp {
 #[uniffi::export]
 #[must_use]
 pub fn offered_setup(offer: AllodiaAccountOffer) -> DetectedSetup {
-    let caldav_url = offer.caldav_base_url.clone();
-    let recommendation = crate::setup_from_offer(offer);
-    let choices = match &recommendation {
-        SetupRecommendation::Imap { caldav_url, .. } => {
-            mailcal_account::standards_choices(true, caldav_url.is_some(), false)
-        }
-        SetupRecommendation::Microsoft { .. } | SetupRecommendation::Google { .. } => {
-            mailcal_account::provider_choices()
-        }
-        SetupRecommendation::Jmap { .. } | SetupRecommendation::Manual { .. } => Vec::new(),
-    };
-    DetectedSetup {
-        calendar_and_contacts: false,
-        caldav_url: caldav_url
-            .filter(|_| matches!(recommendation, SetupRecommendation::Imap { .. })),
-        carddav_url: None,
-        choices: ffi_choices(choices),
-        recommendation,
-    }
+    detected_setup(crate::allodia_sync::offer_route(offer))
+}
+
+/// The uses a Microsoft or Google sign-in for `email` offers before the browser opens, for a
+/// manual form that reached that sign-in without a detection run. Empty for every other kind,
+/// whose servers decide.
+#[uniffi::export]
+#[must_use]
+pub fn provider_setup_choices(kind: AccountKind, email: String) -> Vec<SetupChoice> {
+    ffi_choices(match kind {
+        AccountKind::Microsoft => mailcal_account::microsoft_choices(&email),
+        AccountKind::Google => mailcal_account::google_choices(&email),
+        AccountKind::Imap | AccountKind::Dav | AccountKind::Jmap => Vec::new(),
+    })
 }
 
 fn ffi_choices(choices: Vec<mailcal_account::SetupChoice>) -> Vec<SetupChoice> {

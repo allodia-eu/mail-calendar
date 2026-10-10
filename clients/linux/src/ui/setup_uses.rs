@@ -39,12 +39,14 @@ struct Picked<'a> {
 /// A calendar stores the endpoint detection found, or the one typed in its place. Contacts store
 /// an address book found apart from the calendar, or the one typed. Contacts found only through
 /// the calendar's server keep that server even with the calendar off, because that is where they
-/// are looked for, and the stored uses keep the calendar closed.
+/// are looked for, and the stored uses keep the calendar closed. Colleagues count only beside
+/// contacts.
 fn chosen(
     offer: &UseOffer,
     mail: Option<bool>,
     calendar: Option<Picked<'_>>,
     contacts: Option<Picked<'_>>,
+    colleagues: Option<bool>,
 ) -> ChosenUses {
     let calendar_on = calendar.is_some_and(|picked| picked.on);
     let contacts_on = contacts.is_some_and(|picked| picked.on);
@@ -72,6 +74,7 @@ fn chosen(
             (mail == Some(true)).then_some(AccountCapability::Mail),
             calendar_on.then_some(AccountCapability::Calendar),
             contacts_on.then_some(AccountCapability::Contacts),
+            (contacts_on && colleagues == Some(true)).then_some(AccountCapability::Colleagues),
         ]
         .into_iter()
         .flatten()
@@ -88,7 +91,8 @@ fn chosen(
 /// found, or a field for one when it found none.
 struct DavToggle {
     enabled: gtk::CheckButton,
-    typed: gtk::Entry,
+    /// The field for a server detection did not find; none when it found one.
+    typed: Option<gtk::Entry>,
 }
 
 /// The toggles a card drew, read back when the person connects or signs in.
@@ -97,6 +101,7 @@ pub(super) struct UseToggles {
     mail: Option<gtk::CheckButton>,
     calendar: Option<DavToggle>,
     contacts: Option<DavToggle>,
+    colleagues: Option<gtk::CheckButton>,
 }
 
 impl UseToggles {
@@ -106,9 +111,10 @@ impl UseToggles {
             state.map(|(on, typed)| Picked { on: *on, typed })
         }
         let state = |toggle: &Option<DavToggle>| {
-            toggle
-                .as_ref()
-                .map(|toggle| (toggle.enabled.is_active(), toggle.typed.text().to_string()))
+            toggle.as_ref().map(|toggle| {
+                let typed = toggle.typed.as_ref().map(|typed| typed.text().to_string());
+                (toggle.enabled.is_active(), typed.unwrap_or_default())
+            })
         };
         let (calendar, contacts) = (state(&self.calendar), state(&self.contacts));
         chosen(
@@ -116,6 +122,7 @@ impl UseToggles {
             self.mail.as_ref().map(gtk::CheckButton::is_active),
             picked(calendar.as_ref()),
             picked(contacts.as_ref()),
+            self.colleagues.as_ref().map(gtk::CheckButton::is_active),
         )
     }
 }
@@ -132,6 +139,7 @@ pub(super) fn append(
         mail: None,
         calendar: None,
         contacts: None,
+        colleagues: None,
     };
     for choice in &offer.choices {
         match choice.capability {
@@ -173,7 +181,16 @@ pub(super) fn append(
                     l10n::setup_hint_carddav(),
                 ));
             }
-            AccountCapability::Colleagues => {}
+            AccountCapability::Colleagues => {
+                let enabled = gtk::CheckButton::with_label(l10n::setup_detect_colleagues_enable());
+                enabled.set_active(choice.on);
+                enabled.set_margin_start(24);
+                content.append(&enabled);
+                if let Some(contacts) = &toggles.contacts {
+                    beneath(&contacts.enabled, &enabled);
+                }
+                toggles.colleagues = Some(enabled);
+            }
         }
     }
     keep_one_on(&toggles);
@@ -191,22 +208,28 @@ fn dav_toggle(
     let enabled = gtk::CheckButton::with_label(if choice.server_found { enable } else { add });
     enabled.set_active(choice.on);
     content.append(&enabled);
-    let detail = caption(&url_host(found));
-    content.append(&detail);
-    let typed = entry(hint, "", false);
-    content.append(&typed);
-    // Exactly one of the two belongs to this choice, the endpoint to recognise or a box to type
-    // one into, and it follows the toggle, so a use switched off leaves nothing behind claiming
-    // otherwise.
-    let shown: gtk::Widget = if choice.server_found {
-        typed.set_visible(false);
-        detail.upcast()
-    } else {
-        detail.set_visible(false);
-        typed.clone().upcast()
-    };
-    follow(&enabled, &shown);
-    DavToggle { enabled, typed }
+    // Beneath the toggle, and following it so a use switched off leaves nothing behind claiming
+    // otherwise: the endpoint detection found, to recognise; a box to type one into when it
+    // found none; and nothing for a provider's sign-in, which covers the use with no server to
+    // name.
+    if !choice.server_found {
+        let typed = entry(hint, "", false);
+        content.append(&typed);
+        follow(&enabled, &typed);
+        return DavToggle {
+            enabled,
+            typed: Some(typed),
+        };
+    }
+    if !found.is_empty() {
+        let detail = caption(&url_host(found));
+        content.append(&detail);
+        follow(&enabled, &detail);
+    }
+    DavToggle {
+        enabled,
+        typed: None,
+    }
 }
 
 /// Shows `widget` only while `toggle` is on.
@@ -214,6 +237,19 @@ fn follow(toggle: &gtk::CheckButton, widget: &impl IsA<gtk::Widget>) {
     let widget = widget.as_ref().clone();
     widget.set_visible(toggle.is_active());
     toggle.connect_toggled(move |toggle| widget.set_visible(toggle.is_active()));
+}
+
+/// Colleagues come from the organisation's directory beside the person's own contacts, so they
+/// are offered only while contacts are on, as on the account's page in Settings.
+fn beneath(contacts: &gtk::CheckButton, colleagues: &gtk::CheckButton) {
+    colleagues.set_sensitive(contacts.is_active());
+    let colleagues = colleagues.clone();
+    contacts.connect_toggled(move |contacts| {
+        if !contacts.is_active() {
+            colleagues.set_active(false);
+        }
+        colleagues.set_sensitive(contacts.is_active());
+    });
 }
 
 /// The last use switched on cannot be switched off: an account used for nothing is not one.
@@ -240,6 +276,74 @@ fn keep_one_on(toggles: &UseToggles) {
         let settle = std::rc::Rc::clone(&settle);
         toggle.connect_toggled(move |_| settle());
     }
+}
+
+/// What a manual form's Microsoft or Google sign-in offers for `email`, decided by the core as a
+/// detected card's is.
+pub(super) fn provider_offer(kind: mailcal_bindings::AccountKind, email: &str) -> UseOffer {
+    UseOffer {
+        choices: mailcal_bindings::provider_setup_choices(kind, email.to_owned()),
+        ..UseOffer::default()
+    }
+}
+
+/// What a manual form's provider sign-in asks for: the uses chosen on screen, less any the
+/// address now typed is not offered, so a personal address edited in is never asked for
+/// colleagues.
+pub(super) fn provider_uses(
+    kind: mailcal_bindings::AccountKind,
+    typed: &str,
+    toggles: &UseToggles,
+) -> Option<Vec<AccountCapability>> {
+    let offered = mailcal_bindings::provider_setup_choices(kind, typed.to_owned());
+    allowed(toggles.chosen().uses, &offered)
+}
+
+fn allowed(
+    chosen: Option<Vec<AccountCapability>>,
+    offered: &[SetupChoice],
+) -> Option<Vec<AccountCapability>> {
+    chosen.map(|chosen| {
+        chosen
+            .into_iter()
+            .filter(|capability| {
+                offered
+                    .iter()
+                    .any(|choice| choice.capability == *capability)
+            })
+            .collect()
+    })
+}
+
+/// Redraws a manual provider form when the address the person leaves the field with is offered
+/// other uses than the one it was drawn for: colleagues come and go with a personal address.
+pub(super) fn follow_address(
+    email: &gtk::Entry,
+    kind: mailcal_bindings::AccountKind,
+    drawn: &UseOffer,
+    snapshot: &super::setup_manual::FormSnapshot,
+    sender: &relm4::Sender<super::AppInput>,
+) {
+    let drawn: Vec<AccountCapability> = drawn
+        .choices
+        .iter()
+        .map(|choice| choice.capability)
+        .collect();
+    let snapshot = std::rc::Rc::clone(snapshot);
+    let input = sender.clone();
+    let focus = gtk::EventControllerFocus::new();
+    let field = email.clone();
+    focus.connect_leave(move |_| {
+        let now: Vec<AccountCapability> =
+            mailcal_bindings::provider_setup_choices(kind, field.text().trim().to_owned())
+                .into_iter()
+                .map(|choice| choice.capability)
+                .collect();
+        if now != drawn {
+            input.emit(super::AppInput::SelectAccountKind(Box::new(snapshot())));
+        }
+    });
+    email.add_controller(focus);
 }
 
 /// The host of a discovered URL, for a line the person can recognise; the whole URL when it

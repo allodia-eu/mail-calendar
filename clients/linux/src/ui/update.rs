@@ -367,11 +367,11 @@ impl AppModel {
             // the outcome. They are a quarter of this match and reached from nowhere else in it,
             // so they live next door (`update_signin.rs`). Listed rather than caught by a
             // wildcard, so a new input variant still has to be handled somewhere by name.
-            message @ (AppInput::StartGoogleLogin(_)
+            message @ (AppInput::StartGoogleLogin(..)
             | AppInput::CancelGoogleLogin
             | AppInput::GoogleCallbackReceived(_)
             | AppInput::GoogleFinished(..)
-            | AppInput::StartMicrosoftLogin(_)
+            | AppInput::StartMicrosoftLogin(..)
             | AppInput::CancelMicrosoftLogin
             | AppInput::MicrosoftCallbackReceived(_)
             | AppInput::MicrosoftFinished(..)

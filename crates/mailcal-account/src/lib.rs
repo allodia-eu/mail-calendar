@@ -118,7 +118,7 @@ pub use series_warning::{
 pub use setup::{
     AccountSetup, SetupCredential, build_config_toml, imap_default_port, smtp_default_port,
 };
-pub use setup_choices::{SetupChoice, provider_choices, standards_choices};
+pub use setup_choices::{SetupChoice, google_choices, microsoft_choices, standards_choices};
 pub use signatures::{
     AccountSignatureAssignment, SignatureId, SignatureSlot, Signatures, StoredSignature,
     load_signatures, save_signatures, signatures_path,

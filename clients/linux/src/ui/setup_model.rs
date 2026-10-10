@@ -179,10 +179,12 @@ pub(crate) struct DavForm {
 }
 
 /// A provider whose whole setup is one browser sign-in; Microsoft or Google. There is nothing
-/// to fill in but the address the sign-in targets.
+/// to fill in but the address the sign-in targets, and what the account is used for, which
+/// decides what the sign-in asks the provider to allow.
 #[derive(Clone)]
 pub(crate) struct OAuthForm {
     pub(super) email: String,
+    pub(super) offer: UseOffer,
 }
 
 /// Whether this JMAP server's own metadata advertises sign-in, as answered by the core's
@@ -377,10 +379,10 @@ pub(super) fn detected_form(setup: DetectedSetup, fallback_email: String) -> Set
             sign_in: ImapSignIn::Checking,
         }))),
         SetupRecommendation::Microsoft { email } => {
-            SetupForm::Detected(DetectedForm::Microsoft(OAuthForm { email }))
+            SetupForm::Detected(DetectedForm::Microsoft(OAuthForm { email, offer }))
         }
         SetupRecommendation::Google { email } => {
-            SetupForm::Detected(DetectedForm::Google(OAuthForm { email }))
+            SetupForm::Detected(DetectedForm::Google(OAuthForm { email, offer }))
         }
         SetupRecommendation::Manual { reason } => {
             manual_form(fallback_email, Some(miss_reason(reason)))

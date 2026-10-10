@@ -14,13 +14,18 @@ pub(crate) enum GoogleOutcome {
     Failed(String),
 }
 
-pub(super) fn begin(login_hint: String) -> Result<(OAuthLoopback, GoogleLoginStart), String> {
+/// Binds the loopback and starts a sign-in that asks only for what `uses` names (everything when
+/// it is `None`).
+pub(super) fn begin(
+    login_hint: String,
+    uses: Option<Vec<mailcal_bindings::AccountCapability>>,
+) -> Result<(OAuthLoopback, GoogleLoginStart), String> {
     let loopback =
         OAuthLoopback::bind().map_err(|_| l10n::setup_google_browser_failed().to_owned())?;
     let start = begin_google_login(
         loopback.redirect_uri(),
         (!login_hint.trim().is_empty()).then_some(login_hint),
-        None,
+        uses,
     )
     .map_err(|error| error.to_string())?;
     Ok((loopback, start))
