@@ -6,7 +6,10 @@
 use adw::prelude::*;
 
 use super::DestinationBar;
-use crate::ui::{AppInput, PrimaryView, shell_sidebar};
+use crate::{
+    l10n,
+    ui::{AppInput, PrimaryView, shell_sidebar},
+};
 
 /// Pressing a destination navigates; the model arriving at one by another route does not.
 ///
@@ -48,8 +51,7 @@ pub(crate) fn the_switcher_is_pinned_below_the_accounts_and_never_scrolls_with_t
     let destinations = DestinationBar::new(&sender);
     let accounts = gtk::ScrolledWindow::new();
     accounts.set_child(Some(&gtk::ListBox::new()));
-    let pane =
-        shell_sidebar::sidebar_pane(&sender, &accounts, &destinations, &adw::Banner::new(""));
+    let pane = shell_sidebar::sidebar_pane(&accounts, &destinations, &adw::Banner::new(""));
 
     let bar = destinations.widget().clone().upcast::<gtk::Widget>();
     assert!(
@@ -67,5 +69,24 @@ pub(crate) fn the_switcher_is_pinned_below_the_accounts_and_never_scrolls_with_t
         pane.content().as_ref(),
         Some(accounts.upcast_ref::<gtk::Widget>()),
         "the accounts are the pane's content, so they take the height the bars leave"
+    );
+    // A later account is added from Settings → Accounts alone (`docs/settings.md`).
+    let mut buttons = Vec::new();
+    let mut stack = vec![pane.clone().upcast::<gtk::Widget>()];
+    while let Some(widget) = stack.pop() {
+        if let Ok(button) = widget.clone().downcast::<gtk::Button>() {
+            buttons.push(button);
+        }
+        let mut child = widget.first_child();
+        while let Some(next) = child {
+            child = next.next_sibling();
+            stack.push(next);
+        }
+    }
+    assert!(
+        buttons
+            .iter()
+            .all(|button| button.tooltip_text().as_deref() != Some(l10n::action_add_account())),
+        "the folder pane offers no way to add an account"
     );
 }

@@ -109,7 +109,7 @@ impl AppWidgets {
         sidebar_scroll.set_child(Some(&sidebar));
         let destinations = DestinationBar::new(&sender);
         let folder_notice = folder_pane_edit::notice_banner(&sender);
-        let sidebar_toolbar = sidebar_pane(&sender, &sidebar_scroll, &destinations, &folder_notice);
+        let sidebar_toolbar = sidebar_pane(&sidebar_scroll, &destinations, &folder_notice);
 
         let messages = gtk::ListBox::new();
         // Multiple, so a selection is the platform's own selected state rather than a colour we
