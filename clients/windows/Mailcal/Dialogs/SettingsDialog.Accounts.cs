@@ -1,15 +1,13 @@
-// The Accounts category: one card per configured account, how far back it fetches mail, whether
-// it receives by push (IMAP IDLE) or on a timer, and which folders it watches. Split into its own
-// partial to keep SettingsDialog.cs clear of the 500-line limit, which the Signatures category took
-// it to within one line of.
+// The Accounts category: every account, mail or not, from the core's one snapshot, each opening a
+// page of its own (docs/accounts.md rule 11, docs/settings.md category 9). The page's sections are
+// partials of their own: what the account is used for and linked to (AccountUses), its servers and
+// its removal (AccountServers), and its mail settings (AccountMail).
 //
-// State lives in Rust (the sync snapshot the model projects) and each change forwards to the core,
-// which re-signals the settings surface. A strategy or folder change alters the card's LAYOUT, so
-// those go through Apply() and re-render; a depth or interval change does not, so it sets directly.
+// State lives in the core. A change on a page forwards to it off the UI thread, and the page is
+// drawn again from the next snapshot; a core signal that changed nothing the page shows leaves it,
+// and whatever is being typed on it, alone.
 
-using System;
-using System.Linq;
-using Allodia.Mailcal.ViewModels;
+using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -19,261 +17,274 @@ namespace Allodia.Mailcal.Dialogs;
 
 public sealed partial class SettingsDialog
 {
-    // --- Accounts: per-account fetch depth + sync behaviour --------------------
+    // The account whose page is open; null for the list.
+    private string? _accountPage;
+
+    // What the list or the page last said, kept across the redraw a change ends with.
+    private AccountNotice? _accountNotice;
+    private InfoBar? _accountNoticeBar;
+
+    // What the open list or page was drawn from, so a signal that changed none of it is ignored.
+    private string? _accountsDrawn;
+
+    // Whether there was an account when Settings last looked: the last one going is what closes it.
+    private bool _hadAccounts;
+
+    private sealed record AccountNotice(InfoBarSeverity Severity, string Title, string Message);
 
     private UIElement BuildAccounts()
     {
+        var snapshot = _model.AccountsSnapshot();
+        _accountsDrawn = AccountsFingerprint(snapshot);
         var panel = new StackPanel { Spacing = 16 };
+        _accountNoticeBar = new InfoBar { IsClosable = true };
+        ShowNotice(_accountNoticeBar, _accountNotice);
+        _accountNoticeBar.Closed += (_, _) => _accountNotice = null;
+        var entry = snapshot.Accounts.FirstOrDefault(account => account.Id == _accountPage);
+        if (entry is not null)
+        {
+            panel.Children.Add(BackToAccounts());
+            panel.Children.Add(_accountNoticeBar);
+            BuildAccountPage(panel, entry);
+            return panel;
+        }
+        _accountPage = null;
+        panel.Children.Add(_accountNoticeBar);
+        var add = new Button { Content = L10n.ActionAddAccount(), Style = AccentButton() };
+        add.Click += (_, _) =>
+        {
+            Hide();
+            _model.BeginAddAccount();
+        };
+        panel.Children.Add(add);
         // What the person's other devices have to say, above their own accounts: an offer becomes
         // one of them.
         if (BuildAllodiaSync() is { } sync)
         {
             panel.Children.Add(sync);
         }
-        var settings = _model.GetSyncSettings();
-        if (settings is null || settings.Accounts.Count == 0)
+        if (snapshot.Accounts.Length == 0)
         {
-            panel.Children.Add(new TextBlock
-            {
-                Text = L10n.SettingsAccountsEmpty(),
-                TextWrapping = TextWrapping.Wrap,
-                Opacity = 0.7,
-            });
+            panel.Children.Add(Description(L10n.SettingsAccountsEmpty()));
             return panel;
         }
-        foreach (var account in settings.Accounts)
+        var list = new StackPanel { Spacing = 4 };
+        foreach (var account in snapshot.Accounts)
         {
-            panel.Children.Add(BuildAccountCard(account, settings));
+            list.Children.Add(AccountRow(account));
         }
+        panel.Children.Add(list);
         return panel;
     }
 
-    /// <summary>
-    /// The three positions an account can be shared in, and what the selected one means.
-    /// </summary>
-    /// <remarks>
-    /// A single choice rather than a switch and a button: the two questions underneath, is this
-    /// account on my other devices, and does this device exchange changes about it, are not
-    /// independent in any way somebody can act on, and splitting them produced a screen where
-    /// turning the switch off changed nothing the person could see.
-    ///
-    /// <c>RadioButtons</c> is WinUI's own single-choice control; laid out in three columns it is
-    /// the segmented equivalent its Apple, Android and Linux twins draw. One subtext, the selected
-    /// position's: three at once is a paragraph nobody reads.
-    /// </remarks>
-    private UIElement BuildSyncModePicker(string accountId, AllodiaAccountSyncMode mode)
+    /// <summary>One account in the list: its address, then its kind, uses and links, and an arrow
+    /// to its page.</summary>
+    private Button AccountRow(AccountEntry entry)
     {
-        var panel = new StackPanel { Spacing = 4 };
-        var modes = new[]
+        var text = new StackPanel { Spacing = 2 };
+        text.Children.Add(Heading(entry.Address));
+        text.Children.Add(Description(AccountSummary(entry)));
+        var row = new Grid { ColumnSpacing = 12 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Children.Add(text);
+        var arrow = new FontIcon { Glyph = "", FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(arrow, 1);
+        row.Children.Add(arrow);
+        var button = new Button
         {
-            AllodiaAccountSyncMode.On,
-            AllodiaAccountSyncMode.Paused,
-            AllodiaAccountSyncMode.Off,
+            Content = row,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(12, 8, 12, 8),
         };
-        var picker = new RadioButtons
-        {
-            Header = L10n.SettingsAccountSyncHeading(),
-            MaxColumns = 3,
-        };
-        foreach (var option in modes)
-        {
-            picker.Items.Add(SyncModeLabel(option));
-        }
-        picker.SelectedIndex = Array.IndexOf(modes, mode);
-        var hint = Description(SyncModeHint(mode));
-        picker.SelectionChanged += async (_, _) =>
-        {
-            var picked = modes[picker.SelectedIndex < 0 ? 0 : picker.SelectedIndex];
-            if (picked == mode)
-            {
-                return;
-            }
-            var failure = await _model.SetAllodiaAccountSyncModeAsync(accountId, picked);
-            Apply(() => _allodiaSyncFailure = failure);
-        };
-        panel.Children.Add(picker);
-        panel.Children.Add(hint);
-        return panel;
+        AutomationProperties.SetName(button, entry.Address);
+        AutomationProperties.SetHelpText(button, AccountSummary(entry));
+        button.Click += (_, _) => OpenAccountPage(entry.Id);
+        return button;
     }
 
-    private static string SyncModeLabel(AllodiaAccountSyncMode mode) => mode switch
+    /// <summary>The list row's second line: the kind, what the account is used for, what it is
+    /// linked to, and whether something needs the person.</summary>
+    private static string AccountSummary(AccountEntry entry)
     {
-        AllodiaAccountSyncMode.On => L10n.SettingsAccountSyncOn(),
-        AllodiaAccountSyncMode.Paused => L10n.SettingsAccountSyncPaused(),
-        _ => L10n.SettingsAccountSyncOff(),
-    };
-
-    private static string SyncModeHint(AllodiaAccountSyncMode mode) => mode switch
-    {
-        AllodiaAccountSyncMode.On => L10n.SettingsAccountSyncOnHint(),
-        AllodiaAccountSyncMode.Paused => L10n.SettingsAccountSyncPausedHint(),
-        _ => L10n.SettingsAccountSyncOffHint(),
-    };
-
-    private UIElement BuildAccountCard(AccountSyncChoice account, SyncSettingsChoices settings)
-    {
-        var panel = new StackPanel { Spacing = 8 };
-        // The address first. This panel is a flat stack of cards with no box around either of
-        // them, so the heading is the only thing that says which account the rows under it are
-        // about, and with two accounts on screen, anything above it reads as belonging to the
-        // one before. (Linux puts the same rows above its heading and is right to: an
-        // AdwPreferencesGroup draws its own box, and nothing there is ambiguous.)
-        panel.Children.Add(Heading(account.Email));
-        // How this one is shared. First under the address, because it decides whether anything
-        // below it is anybody else's business. Absent in a build with no Allodia sign-in, which
-        // draws nothing rather than a dead control.
-        if (_model.AccountsSyncMode.TryGetValue(account.AccountId, out var mode))
+        var uses = string.Join(", ", AccountSettingsRules.InUse(entry).Select(UseName));
+        var lines = new List<string> { $"{KindLabel(entry.Kind)} · {uses}" };
+        lines.AddRange(AccountSettingsRules.Linked(entry)
+            .Select(link => L10n.SettingsAccountLinkedLine(UseName(link.Use), link.Address)));
+        if (AccountSettingsRules.NeedsPermission(entry))
         {
-            panel.Children.Add(BuildSyncModePicker(account.AccountId, mode));
+            lines.Add(L10n.SettingsAccountNeedsPermission());
         }
+        return string.Join("\n", lines);
+    }
 
-        // The name this account sends under: the one thing on the card a recipient can see, so it
-        // comes before the questions about how much of the account this device keeps
-        // (docs/settings.md).
-        panel.Children.Add(BuildSenderName(account));
+    /// <summary>The label for an account's kind, as the setup form names the same choice.</summary>
+    private static string KindLabel(AccountKind kind) => kind switch
+    {
+        AccountKind.Dav => L10n.AccountKindDav(),
+        AccountKind.Jmap => L10n.SetupAccountTypeJmap(),
+        AccountKind.Microsoft => L10n.SetupAccountTypeMicrosoft(),
+        AccountKind.Google => L10n.SetupAccountTypeGoogle(),
+        _ => L10n.SetupAccountTypePassword(),
+    };
 
-        // Fetch depth, how far back this account downloads mail (per-account). A depth change
-        // doesn't change the card's layout, so it sets directly (no rebuild), like the interval.
-        panel.Children.Add(new TextBlock { Text = L10n.SettingsSyncDepthHeading() });
-        panel.Children.Add(Description(L10n.SettingsSyncDepthDescription()));
-        var depthOptions = settings.SyncDepths.Select(m => new DepthOption(m, DepthLabel(m))).ToList();
-        var depthBox = new ComboBox
-        {
-            MinWidth = 220,
-            ItemsSource = depthOptions,
-            SelectedItem = depthOptions.FirstOrDefault(o => o.Months == account.SyncDepthMonths),
-        };
-        depthBox.SelectionChanged += (_, _) =>
-        {
-            if (!_rebuilding && depthBox.SelectedItem is DepthOption option)
-            {
-                _model.SetAccountSyncDepthChoice(account.AccountId, option.Months);
-            }
-        };
-        // The heading above is a sibling TextBlock, which carries no relation a screen reader
-        // follows, so the picker needs its own name, the catalog's field label, as Android uses it.
-        AutomationProperties.SetName(depthBox, L10n.SettingsSyncDepthLabel());
-        panel.Children.Add(depthBox);
+    /// <summary>A use's name, as the main window's sections name it.</summary>
+    internal static string UseName(AccountCapability capability) => capability switch
+    {
+        AccountCapability.Calendar => L10n.NavCalendar(),
+        AccountCapability.Contacts => L10n.NavContacts(),
+        AccountCapability.Colleagues => L10n.AccountUseColleagues(),
+        _ => L10n.NavMail(),
+    };
 
-        // Message size, the largest message kept offline (per-account). Like the depth, it sets
-        // directly: the choice changes no layout, so the card needs no rebuild.
-        panel.Children.Add(new TextBlock { Text = L10n.SettingsMessageSizeHeading() });
-        panel.Children.Add(Description(L10n.SettingsMessageSizeDescription()));
-        var sizeOptions = settings.MessageSizeLimitsMb
-            .Select(mb => new MessageSizeOption(mb, MessageSizeLabel(mb)))
-            .ToList();
-        var sizeBox = new ComboBox
+    /// <summary>One account's page: how it travels, what it is used for, the accounts it relies
+    /// on, signing in again or its own servers, its mail settings while it is used for mail, and
+    /// its removal, last.</summary>
+    private void BuildAccountPage(StackPanel panel, AccountEntry entry)
+    {
+        var title = new TextBlock
         {
-            MinWidth = 220,
-            ItemsSource = sizeOptions,
-            SelectedItem = sizeOptions.FirstOrDefault(o => o.Megabytes == account.MessageSizeLimitMb),
+            Text = entry.Address,
+            Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"],
+            TextWrapping = TextWrapping.Wrap,
         };
-        sizeBox.SelectionChanged += (_, _) =>
+        AutomationProperties.SetHeadingLevel(title, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level2);
+        panel.Children.Add(title);
+        panel.Children.Add(Description(KindLabel(entry.Kind)));
+        // Whether this one travels: first, because it decides whether anything below it is
+        // anybody else's business (docs/settings.md).
+        if (_model.AccountsSyncMode.TryGetValue(entry.Id, out var mode))
         {
-            if (!_rebuilding && sizeBox.SelectedItem is MessageSizeOption option)
-            {
-                _model.SetAccountMessageSizeChoice(account.AccountId, option.Megabytes);
-            }
-        };
-        AutomationProperties.SetName(sizeBox, L10n.SettingsMessageSizeLabel());
-        panel.Children.Add(sizeBox);
+            panel.Children.Add(BuildSyncModePicker(entry.Id, mode));
+        }
+        panel.Children.Add(UsesGroup(entry));
+        if (AccountSettingsRules.LinkPickers(entry) is { Count: > 0 } pickers)
+        {
+            panel.Children.Add(LinksGroup(entry, pickers));
+        }
+        var expired = _model.SignInExpiredIds.Contains(entry.Id);
+        if (AccountSettingsRules.SignsInAtProvider(entry.Kind))
+        {
+            panel.Children.Add(SignInGroup(entry, expired));
+        }
+        if (entry.Endpoints is { } endpoints)
+        {
+            panel.Children.Add(ServersGroup(entry, endpoints, expired));
+        }
+        if (MailGroup(entry, expired) is { } mail)
+        {
+            panel.Children.Add(mail);
+        }
+        panel.Children.Add(RemoveGroup(entry));
+    }
 
-        // Sync behaviour, push (IMAP IDLE, when supported) vs. interval polling.
-        if (account.IdleSupported)
+    private Button BackToAccounts()
+    {
+        var back = new Button
         {
-            var group = $"strategy-{account.AccountId}";
-            panel.Children.Add(Radio(
-                L10n.SettingsSyncStrategyPush(), group, account.Strategy == SyncStrategyChoice.Push,
-                () => _model.SetSyncStrategyChoice(account.AccountId, true), rebuild: true));
-            panel.Children.Add(Radio(
-                L10n.SettingsSyncStrategyPoll(), group, account.Strategy == SyncStrategyChoice.Poll,
-                () => _model.SetSyncStrategyChoice(account.AccountId, false), rebuild: true));
+            Content = new FontIcon { Glyph = "", FontSize = 14 },
+            Padding = new Thickness(8),
+        };
+        AutomationProperties.SetName(back, L10n.A11yBack());
+        ToolTipService.SetToolTip(back, L10n.A11yBack());
+        back.Click += (_, _) => OpenAccountPage(null);
+        return back;
+    }
+
+    private void OpenAccountPage(string? accountId)
+    {
+        _accountPage = accountId;
+        _accountNotice = null;
+        ShowCategory("accounts");
+    }
+
+    /// <summary>Says <paramref name="notice"/> and draws the page again from the core.</summary>
+    private void NotifyAccounts(AccountNotice? notice)
+    {
+        _accountNotice = notice;
+        if (CurrentCategory() == "accounts")
+        {
+            ShowCategory("accounts");
+        }
+    }
+
+    /// <summary>Says <paramref name="notice"/> and leaves the page as it is: for progress, and for
+    /// a refusal of what the person typed, which they will want to correct rather than retype.</summary>
+    private void SayOnAccounts(AccountNotice notice)
+    {
+        _accountNotice = notice;
+        if (_accountNoticeBar is { } bar)
+        {
+            ShowNotice(bar, notice);
+        }
+    }
+
+    /// <summary>Fills <paramref name="bar"/> with <paramref name="notice"/>, and scrolls it into
+    /// view: what it answers was usually pressed further down the page.</summary>
+    private static void ShowNotice(InfoBar bar, AccountNotice? notice)
+    {
+        bar.IsOpen = notice is not null;
+        if (notice is null)
+        {
+            return;
+        }
+        bar.Severity = notice.Severity;
+        bar.Title = notice.Title;
+        bar.Message = notice.Message;
+        if (bar.IsLoaded)
+        {
+            bar.StartBringIntoView();
         }
         else
         {
-            panel.Children.Add(new TextBlock
-            {
-                Text = L10n.SettingsSyncIdleUnsupported(),
-                TextWrapping = TextWrapping.Wrap,
-            });
+            bar.Loaded += (_, _) => bar.StartBringIntoView();
         }
-
-        panel.Children.Add(account.Strategy == SyncStrategyChoice.Push
-            ? PushFolders(account, settings.MaxPushFolders)
-            : PollIntervals(account, settings.PollIntervals));
-        return panel;
     }
 
-    private UIElement PollIntervals(AccountSyncChoice account, IReadOnlyList<ushort> intervals)
-    {
-        var options = intervals
-            .Select(minutes => new IntervalOption(minutes, L10n.SettingsSyncIntervalMinutes(minutes)))
-            .ToList();
-        var combo = new ComboBox
-        {
-            Header = L10n.SettingsSyncIntervalLabel(),
-            ItemsSource = options,
-            SelectedItem = options.FirstOrDefault(option => option.Minutes == account.PollIntervalMins),
-        };
-        // An interval change doesn't change the layout, so it sets directly (no rebuild).
-        combo.SelectionChanged += (_, _) =>
-        {
-            if (!_rebuilding && combo.SelectedItem is IntervalOption option)
-            {
-                _model.SetPollIntervalChoice(account.AccountId, option.Minutes);
-            }
-        };
-        return combo;
-    }
+    /// <summary>A change the page could not make, and why.</summary>
+    private static AccountNotice ChangeFailed(string detail) =>
+        new(InfoBarSeverity.Error, L10n.SettingsAccountChangeFailedTitle(), detail);
 
-    private UIElement PushFolders(AccountSyncChoice account, int maxFolders)
+    /// <summary>
+    /// The core says the accounts may have changed. The open list or page is drawn again when what
+    /// it shows did; the last account gone closes Settings, because the window returns to first-run
+    /// setup underneath it.
+    /// </summary>
+    private void OnAccountsChanged()
     {
-        var panel = new StackPanel { Spacing = 4 };
-        panel.Children.Add(new TextBlock { Text = L10n.SettingsSyncFoldersHeading() });
-        panel.Children.Add(new TextBlock
+        // Every other category reconciles itself, and the core is asked nothing on their behalf:
+        // this runs on every settings and connectivity signal. An account is removed from the
+        // Accounts category, so that is where the last one goes.
+        if (_rebuilding || CurrentCategory() != "accounts")
         {
-            Text = L10n.SettingsSyncFoldersNote(maxFolders),
-            TextWrapping = TextWrapping.Wrap,
-        });
-        foreach (var folder in account.Folders)
-        {
-            var check = new CheckBox
-            {
-                Content = folder.Name,
-                IsChecked = folder.Subscribed,
-                // Unchecked folders are disabled once the account is at the cap.
-                IsEnabled = folder.Subscribed || !account.AtPushLimit,
-            };
-            check.Checked += (_, _) => Apply(() => _model.SetPushFolderChoice(account.AccountId, folder.Key, true));
-            check.Unchecked += (_, _) => Apply(() => _model.SetPushFolderChoice(account.AccountId, folder.Key, false));
-            panel.Children.Add(check);
+            return;
         }
-        return panel;
+        var snapshot = _model.AccountsSnapshot();
+        var any = snapshot.Accounts.Length > 0;
+        if (!any && _hadAccounts)
+        {
+            Hide();
+            return;
+        }
+        _hadAccounts = any;
+        if (AccountsFingerprint(snapshot) != _accountsDrawn)
+        {
+            ShowCategory("accounts");
+        }
     }
 
-    // The label for a fetch-depth option: a month count, or "All time" for the 0 sentinel.
-    private static string DepthLabel(ushort months) =>
-        months == 0 ? L10n.SyncDepthAll() : L10n.SyncDepthMonths(months);
-
-    // The label for a message-size option: a megabyte count, or "Any size" for the 0 sentinel.
-    private static string MessageSizeLabel(ushort megabytes) =>
-        megabytes == 0 ? L10n.MessageSizeUnlimited() : L10n.MessageSizeMegabytes(megabytes);
-
-    // A message-size option; ToString is the localised label so the ComboBox shows it directly.
-    private sealed record MessageSizeOption(ushort Megabytes, string Label)
+    /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, and
+    /// which accounts have a mailbox listed and how each is shared, which the page draws from
+    /// calls of their own.</summary>
+    private string AccountsFingerprint(AccountsSnapshot snapshot)
     {
-        public override string ToString() => Label;
+        var beside = (_model.GetSyncSettings()?.Accounts.Select(account => "mail:" + account.AccountId) ?? [])
+            .Concat(_model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}"));
+        return AccountSettingsRules.Fingerprint(snapshot, _model.SignInExpiredIds, beside);
     }
 
-    // A fetch-depth option; ToString is the localised label so the ComboBox shows it directly.
-    private sealed record DepthOption(ushort Months, string Label)
-    {
-        public override string ToString() => Label;
-    }
+    private string? CurrentCategory() => (_categories.SelectedItem as ListViewItem)?.Tag as string;
 
-    // One interval option; ToString is the localised label so the ComboBox shows it directly.
-    private sealed record IntervalOption(ushort Minutes, string Label)
-    {
-        public override string ToString() => Label;
-    }
+    private static Style AccentButton() => (Style)Application.Current.Resources["AccentButtonStyle"];
 }

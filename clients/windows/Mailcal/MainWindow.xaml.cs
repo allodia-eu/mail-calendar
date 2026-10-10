@@ -60,7 +60,13 @@ public sealed partial class MainWindow : Window
         MailView.Init(Model);
         // The list's search-horizon line asks for the depth setting; the dialog needs this
         // window's XamlRoot, so the control raises and the window opens.
-        MailView.SettingsRequested += (_, category) => _ = OpenSettingsAsync(category);
+        // The horizon line's "Change" asks for the sync depth, which is on the page of the account
+        // in view, or of the only one when the combined inbox shows a single account.
+        MailView.SettingsRequested += (_, category) => _ = OpenSettingsAsync(
+            category,
+            category == "accounts"
+                ? Model.SelectedAccount ?? (Model.Accounts.Count == 1 ? Model.Accounts[0].Id : null)
+                : null);
         CalendarDetail.Init(Model);
         ContactsDetail.Init(Model);
         ReadingPanel.Init(Model);

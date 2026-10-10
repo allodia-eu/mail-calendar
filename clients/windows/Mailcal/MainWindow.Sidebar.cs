@@ -260,9 +260,10 @@ public sealed partial class MainWindow
 
     // Opens the unified Settings dialog, then restores the sidebar selection (the Settings gear
     // isn't a scope, so it must not keep the highlight after the modal closes).
-    private async Task OpenSettingsAsync(string category = "general")
+    private async Task OpenSettingsAsync(
+        string category = "general", string? account = null, (string Title, string Message)? notice = null)
     {
-        var dialog = new SettingsDialog(Model, category) { XamlRoot = Content.XamlRoot };
+        var dialog = new SettingsDialog(Model, category, account, notice) { XamlRoot = Content.XamlRoot };
         // Coming back to the window is what tells the subscription card to look again. The
         // subscription is changed in places this app is not: a checkout finishes in a browser, and
         // a purchase, a cancellation or a failed renewal can happen on another device entirely, so

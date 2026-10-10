@@ -186,15 +186,8 @@ public sealed partial class CalendarView
         }
     }
 
-    // Re-authenticate the first Microsoft account whose calendar is withheld for lack of the
-    // calendar scope: re-runs its sign-in (login_hint = its address), upgrading its token in place.
-    // The banner clears once the calendar connects; if several are affected it re-renders for the
-    // next after each completes.
-    private void OnCalendarReauth(object sender, RoutedEventArgs e)
-    {
-        if (Model?.CalendarReauthEmail is { } email)
-        {
-            Model.SignInWithMicrosoft(email);
-        }
-    }
+    // Signs the first account whose calendar the grant withholds in again, in place. The banner
+    // clears once the calendar connects; if several are affected it re-renders for the next after
+    // each completes.
+    private void OnCalendarReauth(object sender, RoutedEventArgs e) => Model?.ReconsentCalendar();
 }

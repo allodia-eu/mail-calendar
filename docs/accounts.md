@@ -58,18 +58,18 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | Stored capabilities, pinned id and links read and kept | ✅ | — | — | — | — | — |
 | Only the capabilities an account is used for are opened | ✅ | — | — | — | — | — |
 | Sign-in asks for the chosen capabilities' scopes only, and opens what was granted | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| Signing in again, or adding a capability, keeps the account and its mail | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| Signing in again, or adding a capability, keeps the account and its mail | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
 | A standards account without a mailbox connects its calendar and contacts | ✅ | — | — | — | — | — |
 | An account without mail is kept out of the mail surfaces | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar groups headed by the account's address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Every account, its uses' states and its links in one snapshot | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| Removing an account clears the links to it, and the confirmation names them | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| Setting a link to one of the offered accounts | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| A link suggested when the calendar server schedules as the mail account's address | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| Switching a use on or off, its data deleted when off | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| Editing a password account's servers, tested before applied | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| Every account, its uses' states and its links in one snapshot | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
+| Removing an account clears the links to it, and the confirmation names them | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
+| Setting a link to one of the offered accounts | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
+| A link suggested when the calendar server schedules as the mail account's address | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
+| Switching a use on or off, its data deleted when off | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
+| Editing a password account's servers, tested before applied | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
 | Setting up an account without mail, or with an address book of its own | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| Choosing capabilities, and linking accounts, in Settings | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| Choosing capabilities, and linking accounts, in Settings | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
 | Linking a new account as the last step of setting it up ([`onboarding.md`](onboarding.md)) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 
 A client ✅ in the mail-surfaces row reads the rows the core already filters; it holds no rule of
@@ -99,28 +99,28 @@ it, while bob's calendar is offered without being suggested.
   both: its found card on the IMAP route and for a domain with a calendar and address book and no
   mail server, and its manual form as an address-book field and a "Calendar and contacts" type.
   The other clients' setup screens offer neither, so there every account is used for mail.
-- **An account without mail cannot be removed, nor its password updated, except on Linux.**
-  Apple, Windows and Android draw "Remove account" and the account's Settings card only on surfaces
-  rule 6 keeps it out of (the folder tree, a Settings → Accounts built from the mail-only
+- **An account without mail cannot be removed, nor its password updated, on Apple or
+  Android.** They draw "Remove account" and the account's Settings card only on surfaces rule 6
+  keeps it out of (the folder tree, a Settings → Accounts built from the mail-only
   `sync_settings`), so the "sign in again" prompt rule 7 raises for it points at a card that is not
-  there. Linux lists every account from `accounts_snapshot`, removes any of them, and edits a
-  password account's servers and password on its page, which is where the expired-sign-in prompt
-  sends it.
+  there. Linux and Windows list every account from `accounts_snapshot`, remove any of them, and
+  edit a password account's servers and password on its page, which is where the expired-sign-in
+  prompt sends it.
 - **Rule 8 holds only for the calendar.** Every client names an account in the connection and
   sign-in banners and in a contact's provenance ("Also in", the account under each value) by
   looking its id up in the switcher rows, and falls back to the id. An account without mail is not
   in those rows, so there it reads `alice@dav:cloud.example`. The fix is the calendar's: the core
   hands the address over with the id.
 - **A suggestion compares the mail account's own address only.** An alias the mailbox sends as
-  is not compared, so a calendar server that lists only the alias suggests nothing. Linux names
-  the suggestion under the link's picker, with a button that links it; the other clients do not
-  draw the page yet.
+  is not compared, so a calendar server that lists only the alias suggests nothing. Linux and
+  Windows name the suggestion under the link's picker, with a button that links it; Apple and
+  Android do not draw the page yet.
 - **Links are stored but not acted on.** An invitation still files into, and answers from, the
   account whose mail it arrived in, and "save contact" still writes to the account in view.
 - **A use has three states, on, off and needs permission.** "Not offered" (the server has none)
   and "failing" have no representation yet: a JMAP session that lacks a chosen capability binds
-  nothing for it and still reads as on. Linux draws "needs permission" on the account's page and
-  in the list, and signs the account in again to ask for it; the other clients do not draw
+  nothing for it and still reads as on. Linux and Windows draw "needs permission" on the account's page
+  and in the list, and sign the account in again to ask for it; Apple and Android do not draw
   Settings → Accounts from the snapshot, so there a use a Microsoft or Google grant withholds is
   still closed without a word (Microsoft's calendar aside, which raises its re-consent prompt).
 - **A JMAP account without mail still opens its session through the mail provider**, because that

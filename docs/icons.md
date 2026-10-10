@@ -234,6 +234,7 @@ The order and names are [`settings.md`](settings.md). Windows draws none (Known 
 | Meaning | Apple | Android | Windows | Linux |
 |---|---|---|---|---|
 | Open a category (phone) | — | `ic_keyboard_arrow_right` | — | — |
+| Open an account's page in Settings, and back to the list | — | — | `E76C` ChevronRight / `E72B` Back | `go-next-symbolic` / `go-previous-symbolic` |
 | Open a list of choices | — | `ic_arrow_drop_down` | — | — |
 | Add a signature | `plus` | `ic_add` | — | — |
 | A signature in the library | `signature` | — | — | — |

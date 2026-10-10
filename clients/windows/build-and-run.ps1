@@ -83,25 +83,25 @@ elseif ($devAccountOn) {
       $mailbox = 'the local Stalwart harness over JMAP as two accounts (MAILCAL_DEV_ACCOUNT=stalwart-multi)'
       Write-Host "==> MAILCAL_DEV_ACCOUNT=stalwart-multi, this launch shows the harness mailbox as TWO accounts (alice + bob), NOT your accounts" -ForegroundColor Magenta
     }
-    'stalwart-imap' {
+    { $_ -in 'stalwart-imap', 'stalwart-linked' } {
       # The harness's IMAP listener serves a self-signed cert, which the debug core trusts only as
       # an extra root read from the PEM named by MAILCAL_EXTRA_CA. When that file is absent the core
       # adds no anchor and says nothing (dev_tls returns an empty vector by design, a dev
       # convenience must never break the normal trust path), so the only symptom is an opaque TLS
       # failure on the setup form. Refuse here instead, where the fix is one command away.
       if (-not $env:MAILCAL_EXTRA_CA) {
-        throw "MAILCAL_DEV_ACCOUNT=stalwart-imap needs MAILCAL_EXTRA_CA (the harness's self-signed IMAP cert), which is unset. Boot through scripts/dev/boot.sh windows --account stalwart-imap, which extracts it and sets this for you."
+        throw "MAILCAL_DEV_ACCOUNT=$devAccount needs MAILCAL_EXTRA_CA (the harness's self-signed IMAP cert), which is unset. Boot through scripts/dev/boot.sh windows --account $devAccount, which extracts it and sets this for you."
       }
       if (-not (Test-Path -LiteralPath $env:MAILCAL_EXTRA_CA -PathType Leaf)) {
-        throw "MAILCAL_EXTRA_CA points at '$env:MAILCAL_EXTRA_CA', which is not a readable file. The cert is regenerated on every harness up/reset, run scripts/dev/harness.sh up, then boot via scripts/dev/boot.sh windows --account stalwart-imap."
+        throw "MAILCAL_EXTRA_CA points at '$env:MAILCAL_EXTRA_CA', which is not a readable file. The cert is regenerated on every harness up/reset, run scripts/dev/harness.sh up, then boot via scripts/dev/boot.sh windows --account $devAccount."
       }
-      $mailbox = 'the local Stalwart harness over IMAP (MAILCAL_DEV_ACCOUNT=stalwart-imap)'
-      Write-Host "==> MAILCAL_DEV_ACCOUNT=stalwart-imap, this launch shows the harness mailbox over IMAP (IDLE push + full mail actions), NOT your accounts" -ForegroundColor Magenta
+      $mailbox = "the local Stalwart harness over IMAP (MAILCAL_DEV_ACCOUNT=$devAccount)"
+      Write-Host "==> MAILCAL_DEV_ACCOUNT=$devAccount, this launch shows the harness mailbox over IMAP, NOT your accounts" -ForegroundColor Magenta
       Write-Host "    Trusting the harness IMAP cert from $env:MAILCAL_EXTRA_CA (debug builds only)" -ForegroundColor Magenta
     }
     default {
       Write-Host "==> MAILCAL_DEV_ACCOUNT=$devAccount is not supported on Windows, falling back to YOUR REAL accounts" -ForegroundColor Yellow
-      Write-Host "    Use 'stalwart' (JMAP), 'stalwart-multi' (two JMAP accounts) or 'stalwart-imap' (IMAP) here." -ForegroundColor Yellow
+      Write-Host "    Use 'stalwart' (JMAP), 'stalwart-multi' (two JMAP accounts), 'stalwart-imap' (IMAP) or 'stalwart-linked' (a mailbox beside two calendar and contacts accounts) here." -ForegroundColor Yellow
     }
   }
   Write-Host "    For your real mailboxes:  Remove-Item env:MAILCAL_DEV_ACCOUNT" -ForegroundColor Magenta

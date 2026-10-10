@@ -15,7 +15,7 @@
 #              stalwart-imap     ; the same harness over IMAP (full mail actions + IDLE push)
 #              stalwart-linked   ; alice's mailbox for mail alone, beside alice's and bob's calendar
 #                                    and contacts as accounts of their own: what linking accounts
-#                                    is verified against (Linux)
+#                                    is verified against (Linux and Windows)
 #              personal          ; the developer's stored accounts (today's behaviour)
 #              demo              ; the in-memory demo provider (Apple)
 #              first-run         ; an EMPTY namespace of its own: no accounts, no consent answered,
@@ -114,7 +114,7 @@ case "$ACCOUNT" in
   stalwart-linked)
     # The other clients answer a mode they do not know with the developer's stored accounts, so
     # this one is refused there rather than opening real mail under a harness's name.
-    [[ $platform == linux ]] || die "--account stalwart-linked is implemented on Linux only"
+    [[ $platform == linux || $platform == windows ]] || die "--account stalwart-linked is implemented on Linux and Windows only"
     require_harness
     [[ -f "$HARNESS_CA" ]] || extract_harness_ca || die "no harness certificates at $HARNESS_CA: run: scripts/dev/harness.sh up"
     deliver_harness_ca

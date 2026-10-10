@@ -53,7 +53,9 @@ public sealed partial class AccountSetupView : UserControl
         Model = model;
         model.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(MailboxModel.AddingAccount) && model.AddingAccount)
+            // Adding another account, or the last one removed: the form starts from the address.
+            if ((e.PropertyName == nameof(MailboxModel.AddingAccount) && model.AddingAccount)
+                || (e.PropertyName == nameof(MailboxModel.NeedsSetup) && model.NeedsSetup))
             {
                 ResetToDetect();
             }

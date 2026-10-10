@@ -19,6 +19,7 @@ public class AppPathsTests
     [InlineData("stalwart", "dev")]
     [InlineData("stalwart-multi", "dev-multi")]
     [InlineData("stalwart-imap", "dev-imap")]
+    [InlineData("stalwart-linked", "dev-linked")]
     [InlineData(" STALWART ", "dev")]           // trimmed + case-insensitive, like the account switch
     [InlineData("Stalwart-Imap", "dev-imap")]
     [InlineData("Stalwart-Multi", "dev-multi")]
@@ -40,6 +41,7 @@ public class AppPathsTests
             AppPaths.DevStoreSubdir("stalwart"),
             AppPaths.DevStoreSubdir("stalwart-multi"),
             AppPaths.DevStoreSubdir("stalwart-imap"),
+            AppPaths.DevStoreSubdir("stalwart-linked"),
             AppPaths.DevStoreSubdir("first-run"),
         ];
         Assert.All(subdirs, Assert.NotNull);
