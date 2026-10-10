@@ -49,7 +49,7 @@ impl AppModel {
             ShowcaseScreen::Settings | ShowcaseScreen::Signatures => {
                 input.emit(AppInput::OpenSettings);
             }
-            // Not `OpenAccountSetup`, which is the sidebar's button and opens setup as a LATER
+            // Not `OpenAccountSetup`, which is Settings' button and opens setup as a LATER
             // add: cancellable, and deliberately making no offer. This run booted with no account
             // (boot.rs), and the screen worth photographing is the required first one, card and
             // all, which is what this input opens and why it re-derives the card.

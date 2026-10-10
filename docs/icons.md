@@ -71,7 +71,7 @@ noted beside it, and the two without one are this app's own drawings.
 | An account | `person.crop.circle` | `ic_account_circle` (Top level in Move to…) | `E77B` Contact | `avatar-default-symbolic` |
 | An account whose server is unreachable | `exclamationmark.triangle.fill` | `ic_warning` | `Symbol.Important` | `dialog-warning-symbolic` |
 | Outbox | `tray.and.arrow.up` | `ic_outbox` | `E898` Upload | `document-send-symbolic` |
-| Add an account | `plus.circle` | — | `E710` Add | `list-add-symbolic` |
+| Add an account | `plus.circle` | — | `E710` Add | — |
 | Open / closed tree | `chevron.down` / `chevron.right` | `ic_keyboard_arrow_down` / `ic_keyboard_arrow_right` | the `NavigationView`'s own | `pan-down-symbolic` / `pan-end-symbolic` |
 
 ### Navigation

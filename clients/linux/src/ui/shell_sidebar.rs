@@ -3,10 +3,9 @@
 //! limit.
 
 use adw::prelude::*;
-use gtk::accessible::Property as AccessibleProperty;
 
-use super::{AppInput, destinations::DestinationBar, folder_pane};
-use crate::{l10n, preferences, ui::icons};
+use super::{destinations::DestinationBar, folder_pane};
+use crate::{l10n, preferences};
 
 /// Assembles the folder pane: every account's tree scrolling under a header, with the destination
 /// switcher pinned beneath it.
@@ -15,8 +14,10 @@ use crate::{l10n, preferences, ui::icons};
 /// tree, which is what makes it survive a long folder list: the bar's height is reserved before
 /// the accounts get theirs, so an account with fifty folders scrolls for as long as it likes and
 /// the calendar, contacts and settings stay where the user last saw them.
+///
+/// The header carries no way to add an account: a later one is added from Settings → Accounts
+/// alone (`docs/settings.md`).
 pub(super) fn sidebar_pane(
-    sender: &relm4::Sender<AppInput>,
     accounts: &gtk::ScrolledWindow,
     destinations: &DestinationBar,
     folder_notice: &adw::Banner,
@@ -26,12 +27,6 @@ pub(super) fn sidebar_pane(
     header.set_show_start_title_buttons(false);
     header.set_show_end_title_buttons(false);
     header.set_title_widget(Some(&adw::WindowTitle::new(l10n::sidebar_accounts(), "")));
-    let add_account = gtk::Button::from_icon_name(icons::ADD);
-    add_account.set_tooltip_text(Some(l10n::action_add_account()));
-    add_account.update_property(&[AccessibleProperty::Label(l10n::action_add_account())]);
-    let input = sender.clone();
-    add_account.connect_clicked(move |_| input.emit(AppInput::OpenAccountSetup));
-    header.pack_start(&add_account);
     pane.add_top_bar(&header);
     pane.add_top_bar(folder_notice);
     pane.set_content(Some(accounts));
