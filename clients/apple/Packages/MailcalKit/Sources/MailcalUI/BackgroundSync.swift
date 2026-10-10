@@ -38,12 +38,30 @@ final class LiveCore: Sendable {
     /// there is no way to read the handle without holding it.
     private struct Handle: ~Copyable {
         weak var app: MailcalApp?
+        /// The foreground core is being opened off the main actor (docs/boot-sequence.md), so a
+        /// missing `app` does not yet mean the process has none.
+        var opening = false
     }
 
     private let handle = Mutex(Handle())
 
+    func beginOpening() {
+        handle.withLock { $0.opening = true }
+    }
+
+    func openingFailed() {
+        handle.withLock { $0.opening = false }
+    }
+
+    var isOpening: Bool {
+        handle.withLock { $0.opening }
+    }
+
     func set(_ app: MailcalApp?) {
-        handle.withLock { $0.app = app }
+        handle.withLock {
+            $0.app = app
+            $0.opening = false
+        }
     }
 
     func current() -> MailcalApp? {
@@ -80,6 +98,12 @@ public func handleBackgroundRefresh() async {
     // Read here rather than in the pass below: the idiom is main-actor state, and the pass runs
     // off the cooperative pool. One hop, before any of the blocking work starts.
     let deviceInfo = await DeviceFacts.current()
+    // A foreground core still opening would be missed below, and a second core over the same store
+    // is a second refresher on every account's grant. Wait for it, unless the OS ends this pass.
+    while LiveCore.shared.isOpening {
+        if Task.isCancelled { return }
+        try? await Task.sleep(for: .milliseconds(200))
+    }
     // The FFI pass blocks its thread (the core drives its runtime to completion), so run it off the
     // cooperative pool. The reuse-vs-cold decision happens INSIDE the task so the (non-Sendable) core
     // never crosses an isolation boundary.

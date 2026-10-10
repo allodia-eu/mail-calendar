@@ -94,14 +94,11 @@ function Wait-DatasetReady {
       # welcome question above, that screen comes first (docs/onboarding.md).
       #
       # READY MEANS THE WELCOME QUESTION HAS BEEN ANSWERED, above, and not merely that the setup
-      # form is on screen. The form is on screen FIRST, on every run: `AnalyticsAsked` reads true
-      # until the core has connected, deliberately, so that nothing flashes while the app starts
-      # (MailboxModel.Analytics.cs), which leaves the form up with no welcome screen in the tree
-      # at all for the first few hundred milliseconds, and the welcome card arrives over it after.
-      # "The form is up and the welcome screen is not" cannot tell that apart from "the welcome
-      # screen has been dealt with", so it returns on the starting frame and the card then covers
-      # the form for the whole suite: five Onboarding cases assert against a screen that has no
-      # card on it, and on a build with no Allodia registration four of them pass by doing so.
+      # form is on screen. A core that failed to open also draws the form with no welcome screen
+      # before it: `AnalyticsAsked` reads true without a core (MailboxModel.Analytics.cs). "The
+      # form is up and the welcome screen is not" cannot tell that apart from "the welcome screen
+      # has been dealt with", and five Onboarding cases would then assert against a screen no new
+      # user sees, four of them passing by doing so on a build with no Allodia registration.
       #
       # Waiting for the press is deterministic rather than optimistic: the store is cleared before
       # every first-run launch, so the question is always open and the welcome screen always comes.
@@ -113,9 +110,10 @@ function Wait-DatasetReady {
           $_.Current.AutomationId -eq 'DetectEmail' -and -not $_.Current.IsOffscreen
         }
         if ($settled -and $form -and -not $welcomeUp) { return }
-        $stage = if (-not $settled) {
-          'the setup form the app draws while it starts, with the welcome screen still to come'
+        $stage = if (-not $settled -and $form) {
+          'the setup form with no welcome screen before it, which is what a core that failed to open draws'
         }
+        elseif (-not $settled) { 'the launch view, which never gave way to the welcome screen' }
         elseif ($welcomeUp) { 'the welcome screen, which never gave way to the account-setup form' }
         else { 'a window, but the account-setup form never came to the front' }
         Start-Sleep -Milliseconds 200

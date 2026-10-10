@@ -65,6 +65,7 @@ mod invitation;
 mod invitation_actions;
 mod jmap;
 mod jmap_actions;
+mod launch;
 mod linked_text;
 mod mail_actions;
 mod mail_actions_menu;
@@ -156,6 +157,7 @@ use contacts::ContactsModel;
 pub(crate) use destinations::PrimaryView;
 use host_tasks::HostTasks;
 pub(crate) use input::AppInput;
+pub(crate) use launch::AppWindow;
 use mail_actions::DeleteTarget;
 use mailbox::ThreadKey;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]

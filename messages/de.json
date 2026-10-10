@@ -430,6 +430,7 @@
 	"tz_picker_label": "Zeitzone",
 
 	"status_connecting": "Verbindung zu Ihrem Konto wird hergestellt…",
+	"status_opening_mailbox": "Ihr Postfach wird geöffnet…",
 	"status_connect_failed": "Verbindung fehlgeschlagen: {error}",
 	"accounts_skipped_notice": "Einige Konten konnten sich nicht verbinden und wurden übersprungen: {details}",
 	"error_invalid_config": "Ungültige Kontokonfiguration",

@@ -55,17 +55,18 @@ public sealed partial class MailboxModel
     // The three top-level surfaces are mutually exclusive, and the welcome screen outranks both of
     // the others: it is the first thing a new user sees, ahead of setup. `AnalyticsAsked` (see
     // MailboxModel.Analytics.cs) reads true before the core has connected, so nothing flashes while
-    // the app is still starting.
+    // the app is still starting. While the core is opening, none of the three shows: the launch
+    // view has the window (MailboxModel.Launch.cs).
 
     /// <summary>
     /// Show the setup form in the window on first run. Adding another account puts the same form
     /// in a dialog over the shell instead (MainWindow.AddAccount.cs).
     /// </summary>
     public Visibility SetupVisibility =>
-        AnalyticsAsked && NeedsSetup ? Visibility.Visible : Visibility.Collapsed;
+        !_launch.Opening && AnalyticsAsked && NeedsSetup ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>Show the main shell once connected (hidden behind the welcome/setup screens).</summary>
     public Visibility MainVisibility =>
-        AnalyticsAsked && !NeedsSetup ? Visibility.Visible : Visibility.Collapsed;
+        !_launch.Opening && AnalyticsAsked && !NeedsSetup ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>Show the setup form's Cancel button only when adding another account (not first run).</summary>
     public Visibility AddingAccountVisibility => AddingAccount ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>

@@ -7,6 +7,8 @@ use super::AppInput;
 impl fmt::Debug for AppInput {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
+            Self::Booted(_) => "Booted",
+            Self::LaunchStatusDue => "LaunchStatusDue",
             Self::RefreshRequested => "RefreshRequested",
             Self::RetryUnfiledCopy => "RetryUnfiledCopy",
             Self::DismissUnfiledCopy => "DismissUnfiledCopy",

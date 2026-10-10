@@ -8,8 +8,8 @@ use std::{fs, path::PathBuf, sync::Arc};
 #[cfg(debug_assertions)]
 use dev::{dev_credential_store, dev_secrets, with_stored_allodia_account};
 use mailcal_bindings::{
-    AccountCredentialStore, DeviceClass, DeviceInfo, LogLevel, MailcalApp, Observer, Platform,
-    device_time_zone,
+    AccountCredentialStore, Appearance, DeviceClass, DeviceInfo, LogLevel, MailcalApp, Observer,
+    Platform, device_time_zone,
 };
 
 use crate::{
@@ -281,6 +281,37 @@ fn real_app(
 fn data_dir(subdir: Option<&str>) -> PathBuf {
     let root = gtk::glib::user_data_dir().join("mailcal");
     subdir.map_or(root.clone(), |name| root.join(name))
+}
+
+/// The appearance the store this launch opens has persisted, read before the core exists so the
+/// launch page is painted in it. The in-memory demo and showcase have nothing on disk and follow
+/// the desktop, as does a fixture this client cannot boot.
+pub(crate) fn stored_appearance() -> Appearance {
+    boot_mode()
+        .ok()
+        .and_then(store_dir)
+        .map_or(Appearance::System, |dir| {
+            mailcal_bindings::stored_appearance(dir.to_string_lossy().into_owned())
+        })
+}
+
+/// The data directory [`app`] opens `mode`'s store in, or `None` for a store held in memory.
+fn store_dir(mode: BootMode) -> Option<PathBuf> {
+    match mode {
+        BootMode::Accounts => Some(data_dir(None)),
+        #[cfg(debug_assertions)]
+        BootMode::StalwartJmap => Some(data_dir(Some("dev"))),
+        #[cfg(debug_assertions)]
+        BootMode::StalwartMulti => Some(data_dir(Some("dev-multi"))),
+        #[cfg(debug_assertions)]
+        BootMode::StalwartImap => Some(data_dir(Some("dev-imap"))),
+        #[cfg(debug_assertions)]
+        BootMode::StalwartLinked => Some(data_dir(Some("dev-linked"))),
+        #[cfg(debug_assertions)]
+        BootMode::Demo => None,
+        #[cfg(any(debug_assertions, feature = "dev-harness"))]
+        BootMode::Showcase => None,
+    }
 }
 
 fn device_info() -> DeviceInfo {

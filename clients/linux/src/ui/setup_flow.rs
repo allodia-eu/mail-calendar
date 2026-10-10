@@ -6,7 +6,7 @@
 
 use relm4::ComponentSender;
 
-use super::{AppInput, AppModel, setup_links::LinkStep};
+use super::{AppInput, AppModel, AppWindow, setup_links::LinkStep};
 
 impl AppModel {
     /// An account was added: back to the link step it was added from, on to its own link step
@@ -104,7 +104,11 @@ impl AppModel {
     }
 
     /// One message of the link step's.
-    pub(super) fn update_setup_flow(&mut self, message: AppInput, sender: &ComponentSender<Self>) {
+    pub(super) fn update_setup_flow(
+        &mut self,
+        message: AppInput,
+        sender: &ComponentSender<AppWindow>,
+    ) {
         let input = sender.input_sender().clone();
         match message {
             AppInput::SetupLinkPicked(picker, option) => self.setup.pick_link(picker, option),

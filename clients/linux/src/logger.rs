@@ -19,7 +19,8 @@ pub(crate) fn diagnostic_log_path() -> PathBuf {
     gtk::glib::user_data_dir().join("mailcal/mailcal.log")
 }
 
-/// Written once, when GTK has put the main window on screen.
+/// Written once, when GTK has put the main window on screen with the mailbox in it, in place of
+/// the launch page.
 ///
 /// A launcher cannot tell a client that is still starting from one that has already failed, and
 /// on Linux the app is run in the foreground, so there is no exit code to wait for either. This

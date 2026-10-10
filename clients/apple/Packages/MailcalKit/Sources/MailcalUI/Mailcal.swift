@@ -105,7 +105,9 @@ public struct ContentView: View {
             // upgrading into this version, who has accounts already but has never been asked. The
             // showcase and the demo report it settled (they have no store to record an answer in),
             // so no screenshot run ever sees this.
-            if model.analyticsConsent?.asked == false {
+            if model.isOpening {
+                LaunchView()
+            } else if model.analyticsConsent?.asked == false {
                 WelcomeView(
                     payloadPreview: { model.analyticsPayloadPreview() },
                     getStarted: { model.setAnalyticsConsent($0) }

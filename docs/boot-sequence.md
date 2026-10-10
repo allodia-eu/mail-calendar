@@ -171,6 +171,39 @@ one that lost an account.
 
 ---
 
+## Hosting the constructor: the launch view
+
+Opening the engine is part of the foreground constructor, and after an update it includes the
+store's migrations, so `new_accounts` can take seconds. These rules bind every client:
+
+1. **The constructor runs off the UI thread.** The window is up and responsive while it runs
+   ([`architecture.md`](architecture.md): a blocking binding is called off the UI thread). The
+   credential store is still handed to the constructor, never set afterwards from a UI-thread
+   post (invariant 4).
+2. **Until it returns, the window shows the launch view.** For the first
+   `launch_status_after_ms()` (2 s, exported by the core) that is a blank page: a normal open
+   ends inside it (60 launches of a five-account desktop store took 28 ms to 1.1 s), and a label
+   raised and removed within it reads as flicker. A store migration after an update outlasts it.
+   After that the view shows a centred progress indicator and `status_opening_mailbox` ("Opening
+   your mailbox…").
+   Not `status_connecting`: no account has been dialled yet, and what the user waits for is the
+   store.
+3. **When it returns, the launch view gives way** to whatever the client would otherwise show
+   first (the welcome screen, account setup or the mailbox). A constructor that failed shows
+   `status_connect_failed`, as before.
+
+The demo and showcase constructors open a store of their own and may stay on the UI thread: they
+are development and screenshot tools, and no migration runs on a store they just created.
+
+| | Thread | Launch view |
+|---|---|---|
+| macOS · iOS | a detached task; the result is applied on the main actor | `LaunchView` in the root view while the model is opening |
+| Windows | `Task.Run`; the result is applied through the dispatcher queue | `LaunchVisibility` in `MainWindow` |
+| Android | the `mailcal-connect` thread; the result is posted to the main handler | `LaunchStatus` in `MainScreen` while `app` is null and no error is set |
+| Linux | a worker thread; the result arrives as `AppInput::Booted` | the window's launch page while booting |
+
+---
+
 ## Enforcement
 
 The invariants above are held by the type system where possible, and by tests where not:

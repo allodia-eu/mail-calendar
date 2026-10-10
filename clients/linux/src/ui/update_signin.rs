@@ -11,7 +11,7 @@
 
 use relm4::ComponentSender;
 
-use super::{AppInput, AppModel};
+use super::{AppInput, AppModel, AppWindow};
 
 impl AppModel {
     /// Dispatches one sign-in message.
@@ -19,7 +19,11 @@ impl AppModel {
     /// Reached only from the arm in [`super::update`] that names every variant below, so the
     /// fallback is genuinely unreachable: a message that is not a sign-in cannot arrive here
     /// without the compiler having refused the caller first.
-    pub(super) fn update_sign_in(&mut self, message: AppInput, sender: &ComponentSender<Self>) {
+    pub(super) fn update_sign_in(
+        &mut self,
+        message: AppInput,
+        sender: &ComponentSender<AppWindow>,
+    ) {
         match message {
             AppInput::StartGoogleLogin(email, uses) => {
                 self.start_google_login(email, uses, sender.input_sender().clone());

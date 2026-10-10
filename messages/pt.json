@@ -430,6 +430,7 @@
 	"tz_picker_label": "Fuso horário",
 
 	"status_connecting": "A ligar à sua conta…",
+	"status_opening_mailbox": "A abrir a sua caixa de correio…",
 	"status_connect_failed": "Não foi possível ligar: {error}",
 	"accounts_skipped_notice": "Algumas contas não conseguiram ligar-se e foram ignoradas: {details}",
 	"error_invalid_config": "Configuração de conta inválida",

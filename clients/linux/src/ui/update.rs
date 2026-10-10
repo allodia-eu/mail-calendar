@@ -6,13 +6,17 @@ use mailcal_bindings::{Intent, Surface};
 use relm4::ComponentSender;
 
 use super::{
-    AppInput, AppModel, PrimaryView, composer_model::ComposeKind, mail_actions::DeleteTarget,
-    reader::ReadingSource, setup_model,
+    AppInput, AppModel, AppWindow, PrimaryView, composer_model::ComposeKind,
+    mail_actions::DeleteTarget, reader::ReadingSource, setup_model,
 };
 use crate::l10n;
 
 impl AppModel {
-    pub(super) fn update_message(&mut self, message: AppInput, sender: &ComponentSender<Self>) {
+    pub(super) fn update_message(
+        &mut self,
+        message: AppInput,
+        sender: &ComponentSender<AppWindow>,
+    ) {
         match message {
             AppInput::RefreshRequested => self.dispatch(Intent::RefreshMail),
             AppInput::RetryUnfiledCopy => self.dispatch(Intent::RetryUnfiledCopy),
@@ -302,7 +306,12 @@ impl AppModel {
             AppInput::AttachmentOpenFailed => {
                 self.notice = Some(l10n::attachment_open_failed().to_owned());
             }
-            AppInput::WebViewReady | AppInput::ReadingBodyPainted => {}
+            // The window answers the launch's two inputs before the model exists. A status timer
+            // that fires after the core opened still arrives here, with nothing left to show.
+            AppInput::WebViewReady
+            | AppInput::ReadingBodyPainted
+            | AppInput::Booted(_)
+            | AppInput::LaunchStatusDue => {}
             AppInput::WebViewUnavailable => {
                 self.webview_available = false;
                 self.composer_error = self

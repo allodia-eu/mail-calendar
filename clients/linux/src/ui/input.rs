@@ -30,8 +30,15 @@ use super::{
     selection::SelectMode,
     setup_model::{AccountSubmission, ImapForm, ManualForm},
 };
+use crate::boot::BootedApp;
 
 pub(crate) enum AppInput {
+    /// The core's constructor has returned on its worker thread (`docs/boot-sequence.md`). Every
+    /// input that arrived before it was held, and reaches the model after it.
+    Booted(Result<BootedApp, String>),
+    /// The launch page has been blank for `launch_status_after_ms()`, so it now says what the
+    /// wait is for. One that fires after [`Self::Booted`] has nothing left to show.
+    LaunchStatusDue,
     RefreshRequested,
     RetryUnfiledCopy,
     DismissUnfiledCopy,

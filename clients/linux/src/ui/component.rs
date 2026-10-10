@@ -1,4 +1,5 @@
-//! How the Relm4 component runs [`AppModel`]: boot, the input queue, and the render pass.
+//! How the Relm4 component runs the window: the launch, the input queue and the render pass, and
+//! how [`AppModel`] comes up once the core has opened.
 //!
 //! Split from [`super`], which had reached the size limit, along the seam that was already
 //! there: that module says what the model *is* and which modules exist, this one says how it
@@ -7,28 +8,33 @@
 
 use std::collections::{HashMap, HashSet};
 
-use gtk::prelude::WidgetExt;
-use mailcal_bindings::Appearance;
+use gtk::prelude::GtkWindowExt;
 use relm4::{ComponentParts, ComponentSender, SimpleComponent};
 
 use super::{
-    AppInput, AppModel, PrimaryView, SetupState, allodia_sync, calendar::CalendarModel,
+    AppInput, AppModel, AppWindow, PrimaryView, SetupState, allodia_sync, calendar::CalendarModel,
     calendar_actions, composer_drafts, connectivity, contacts::ContactsModel,
-    host_tasks::HostTasks, mcp, model, model::ReadingState, preferences, runtime_timers,
-    search::SearchState, selection::Selection, settings, setup_onboarding, shell::AppWidgets,
-    sync_line, time_zone, welcome,
+    host_tasks::HostTasks, launch, mcp, model, model::ReadingState, preferences, runtime_timers,
+    search::SearchState, selection::Selection, settings, setup_onboarding, sync_line, time_zone,
+    welcome,
 };
-use crate::{appearance, boot, crash, logger, observer::SurfaceObserver};
+use crate::{appearance, boot, boot::BootedApp, crash, l10n, logger};
 
-impl SimpleComponent for AppModel {
+impl SimpleComponent for AppWindow {
     type Init = ();
     type Input = AppInput;
     type Output = ();
     type Root = adw::ApplicationWindow;
-    type Widgets = AppWidgets;
+    type Widgets = launch::WindowWidgets;
 
     fn init_root() -> Self::Root {
-        adw::ApplicationWindow::new(&relm4::main_adw_application())
+        let root = adw::ApplicationWindow::new(&relm4::main_adw_application());
+        // Here rather than with the shell: the window is presented on the launch page, and a
+        // default size set after that is not the size it opens at.
+        root.set_title(Some(l10n::app_title()));
+        root.set_default_width(1280);
+        root.set_default_height(800);
+        root
     }
 
     fn init(
@@ -36,48 +42,73 @@ impl SimpleComponent for AppModel {
         root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let input = sender.input_sender().clone();
-        let observer = SurfaceObserver::new(input.clone());
-        let (app, secrets, snapshot, boot_error, allodia_syncable) =
-            match boot::app(Box::new(observer)) {
-                Ok(booted) => {
-                    let snapshot = booted.app.mailbox_list();
-                    (
-                        Some(booted.app),
-                        booted.secrets,
-                        snapshot,
-                        None,
-                        booted.syncable,
-                    )
+        // Before the window is presented, so it is never painted in the desktop's scheme first.
+        // Read from the store's own file, because the core that owns the setting is not open yet.
+        appearance::apply(appearance::at_launch(boot::stored_appearance()));
+        let widgets = launch::WindowWidgets::new(root, sender.input_sender().clone());
+        launch::open_core(sender.input_sender());
+        ComponentParts {
+            model: Self::Opening(launch::Opening::default()),
+            widgets,
+        }
+    }
+
+    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
+        match self {
+            Self::Open(model) => model.update_message(message, &sender),
+            Self::Opening(opening) => match message {
+                AppInput::LaunchStatusDue => opening.status_due(),
+                AppInput::Booted(booted) => {
+                    let held = opening.take_held();
+                    let mut model = Box::new(AppModel::open(booted, sender.input_sender()));
+                    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+                    {
+                        model.apply_debug_open_hook();
+                        if std::env::var_os("MAILCAL_CALENDAR").is_some() {
+                            model.show_calendar();
+                        }
+                        model.begin_showcase(sender.input_sender());
+                    }
+                    for input in held {
+                        model.update_message(input, &sender);
+                    }
+                    *self = Self::Open(model);
                 }
-                Err(error) => (None, None, model::empty_mailbox(), Some(error), false),
-            };
+                other => opening.hold(other),
+            },
+        }
+    }
+
+    fn update_view(&self, widgets: &mut Self::Widgets, _sender: ComponentSender<Self>) {
+        widgets.render(self);
+    }
+}
+
+impl AppModel {
+    /// The model over what the core's constructor returned: the core, or why it could not open.
+    pub(super) fn open(booted: Result<BootedApp, String>, input: &relm4::Sender<AppInput>) -> Self {
+        let (app, secrets, snapshot, boot_error, allodia_syncable) = match booted {
+            Ok(booted) => {
+                let snapshot = booted.app.mailbox_list();
+                (
+                    Some(booted.app),
+                    booted.secrets,
+                    snapshot,
+                    None,
+                    booted.syncable,
+                )
+            }
+            Err(error) => (None, None, model::empty_mailbox(), Some(error), false),
+        };
         // The core installed the log sink on the way through, so GTK's own warnings and criticals
         // now have somewhere to land (crate::crash).
         crash::capture_toolkit_diagnostics();
-        // Nothing above this point means the window is up: the launch can still fail between here
-        // and the first frame, and a caller waiting to drive the app has no other way to tell a
-        // slow start from a dead one. `map` is GTK putting it on screen, and it fires again on a
-        // remap, so the line is written once ([`logger::WINDOW_ON_SCREEN`]).
-        let announced = std::cell::Cell::new(false);
-        root.connect_map(move |_| {
-            if !announced.replace(true) {
-                log::info!("{}", logger::WINDOW_ON_SCREEN);
-            }
-        });
         // The same moment, for the same reason: a fault record needs the file to exist. Linux has
         // no tombstone and no Error Reporting, so the shared log is the only place a segfault in
         // the core or in GTK leaves a trace the user can hand over.
         mailcal_bindings::watch_for_native_faults(
             logger::diagnostic_log_path().to_string_lossy().into_owned(),
         );
-        // Before the window is presented, so it is never painted in the desktop's scheme first.
-        // The demo and the showcase have no store to have persisted a choice in, so they follow
-        // the desktop unless a launch override says otherwise.
-        appearance::apply(appearance::at_launch(
-            app.as_deref()
-                .map_or(Appearance::System, |app| app.display_settings().appearance),
-        ));
         let requires_setup = secrets.is_some() && snapshot.accounts.is_empty();
         let flow = welcome::initial_flow(
             secrets.is_some() || welcome::force_in_fixture(),
@@ -121,7 +152,7 @@ impl SimpleComponent for AppModel {
         });
         // Pull once: a boot outage's signal fired before this model existed.
         let (connectivity, network_monitor) =
-            connectivity::at_launch(app.as_deref(), &snapshot.accounts, &input);
+            connectivity::at_launch(app.as_deref(), &snapshot.accounts, input);
         let calendar_input = input.clone();
         let mut calendar_refreshes_remaining = runtime_timers::calendar_refresh_limit();
         let calendar_refresh_timer =
@@ -141,7 +172,7 @@ impl SimpleComponent for AppModel {
                 timezone_input.emit(AppInput::CheckDeviceTimeZone);
                 gtk::glib::ControlFlow::Continue
             });
-        let model = Self {
+        Self {
             app,
             secrets,
             preferences: preferences::global(),
@@ -195,27 +226,6 @@ impl SimpleComponent for AppModel {
             host_tasks: HostTasks::new(welcome_pending, flow.setup_after_welcome),
             #[cfg(any(debug_assertions, feature = "dev-harness"))]
             showcase_pending: None,
-        };
-        #[cfg(any(debug_assertions, feature = "dev-harness"))]
-        let model = {
-            let mut model = model;
-            model.apply_debug_open_hook();
-            if std::env::var_os("MAILCAL_CALENDAR").is_some() {
-                model.show_calendar();
-            }
-            model.begin_showcase(sender.input_sender());
-            model
-        };
-        let mut widgets = AppWidgets::new(root, input);
-        widgets.render(&model);
-        ComponentParts { model, widgets }
-    }
-
-    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
-        self.update_message(message, &sender);
-    }
-
-    fn update_view(&self, widgets: &mut Self::Widgets, _sender: ComponentSender<Self>) {
-        widgets.render(self);
+        }
     }
 }

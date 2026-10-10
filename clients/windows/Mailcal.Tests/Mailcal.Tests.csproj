@@ -184,6 +184,10 @@
          time in this group, and the reason is sharper here, because the bug it fixes is a ~200 ms
          flicker that no screenshot and no UI-automation assertion can see. -->
     <Compile Include="..\Mailcal\Services\ReadingHandover.cs" Link="Services\ReadingHandover.cs" />
+    <!-- What the window shows while the core's constructor runs (docs/boot-sequence.md): blank,
+         then the opening status, then whatever comes first. Pure BCL, because the label raised and
+         removed inside the delay is a flicker no screenshot can catch. -->
+    <Compile Include="..\Mailcal\Services\LaunchState.cs" Link="Services\LaunchState.cs" />
     <!-- The language-choice -> formatting-culture mapping (docs/timestamps.md): the half of the
          Language setting that makes DATES follow it, not just words. Split out of LanguageStore
          precisely so it is WinUI-free and testable here, LanguageStore itself touches MRT-Core. -->
