@@ -84,6 +84,7 @@ mod error;
 mod google;
 mod imap_oauth;
 mod jmap_oauth;
+mod jmap_session;
 mod launch;
 mod logging;
 mod mailto;
@@ -240,7 +241,8 @@ pub use setup::{
     account_config_toml, jmap_account_config_toml, standard_port,
 };
 pub use setup_choices::{
-    DetectedSetup, SetupChoice, offered_setup, offers_setup_links, provider_setup_choices,
+    DetectedSetup, SetupChoice, dav_setup_beside, offered_setup, offers_setup_links,
+    provider_setup_choices,
 };
 pub use share::{
     RejectedShare, SharePrefill, ShareRejectionReason, ShareRequest, SharedFile, prefill_from_share,

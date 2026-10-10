@@ -249,6 +249,13 @@ pub(crate) enum AppInput {
     SetupLinksDone(bool),
     /// "Add another account" from the link step.
     SetupAddLinkedAccount,
+    /// The link step's offer of the servers found beside a JMAP server, as an account of their own.
+    SetupBesideAccount,
+    /// What a just signed-in account is used for, of the uses its server offered.
+    SetupUsesChosen(Vec<mailcal_bindings::AccountCapability>),
+    /// Those choices are stored for the account (first); the flow goes on to the link step of the
+    /// account it came from (second), or ends.
+    SetupUsesApplied(String, String),
     /// The account needs no name asked; the next one waiting is.
     SenderNameNotNeeded,
     CancelAccountSetup,

@@ -9,6 +9,7 @@ use super::{
     setup_model::{DetectedForm, SetupForm},
     setup_onboarding,
     setup_pane::ConnectPane,
+    setup_signed_in,
     setup_state::{Phase, SetupState},
     setup_widgets::{actions, body, entry, heading, page, progress},
 };
@@ -106,6 +107,10 @@ impl SetupWindow {
             Phase::MicrosoftSigningIn => setup_microsoft::signing_in(sender),
             Phase::JmapSigningIn => setup_jmap::signing_in(sender),
             Phase::ImapSigningIn => setup_imap::signing_in(sender),
+            Phase::Uses => match &state.uses {
+                Some(step) => setup_signed_in::step(&window, step, sender),
+                None => progress(l10n::setup_signed_in_uses_saving()),
+            },
             Phase::Links => match &state.links {
                 Some(step) => setup_links::step(&window, step, sender),
                 None => progress(l10n::status_connecting()),

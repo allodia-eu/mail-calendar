@@ -247,3 +247,19 @@ fn a_second_mail_account_linking_a_calendar_keeps_the_one_it_sends_through() {
         .unwrap();
     assert_eq!(cloud.linked_from.len(), 2);
 }
+
+/// What a client asks to decide on first-run setup: a device holding only a calendar-and-contacts
+/// account has accounts, though none is in the mailbox snapshot; and removing it leaves none.
+#[test]
+fn an_account_without_mail_is_an_account_until_it_is_removed() {
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app_with("accounts-without-mail", &store, &[CLOUD]);
+    assert!(app.mailbox_list().accounts.is_empty(), "no mail surface");
+    assert_eq!(app.accounts_snapshot().accounts.len(), 1);
+
+    app.remove_account(CLOUD_ID.to_owned()).expect("removed");
+    assert!(
+        app.accounts_snapshot().accounts.is_empty(),
+        "the last account is gone"
+    );
+}

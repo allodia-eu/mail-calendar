@@ -93,20 +93,35 @@ the direct route alone, with no heading over it.
 The empty-answer message is part of the card, not the offers: "no mail accounts yet" is a sentence
 about a new Allodia account, and somebody adding their second mail account has one.
 
+## After the sign-in: what a JMAP account is used for
+
+A JMAP session says which of mail, calendar and contacts the account has only once it is signed
+in, so that is when the choice is offered, where every other route offers it before. When the
+session offers more than one, the window asks which the account is used for, each on to start
+with, the last one held on; one it does not offer is not shown. Continuing switches off what was
+unticked, and closing the window keeps everything on. The choices are the core's
+(`signed_in_setup_choices`), empty when there is nothing to choose, so a mail-only server goes
+straight on. The step comes before the link step and the name, as for any account.
+
 ## After the connect: linking another account
 
 **The last step, and a skippable one.** When another account can fill a use a new standards
-account (IMAP, or calendar and contacts) lacks, the window offers it before it closes: a calendar or an address book from another account, and
-for a calendar without mail, the account that sends its invitations. The pickers are the account
-page's own ([`accounts.md`](accounts.md) rule 12), from the same `accounts_snapshot`, so the step
-offers exactly what Settings would, and nothing when there is nothing to link. A Microsoft,
-Google or JMAP account holds mail, calendar and contacts itself, so it is not offered the step;
-linking one is for Settings, whenever the person wants it (`offers_setup_links`). A suggested account
-starts picked and is linked only when the person continues; a suggestion the core finds after the
-step is drawn reaches it unless the person has already changed a pick. **Add another account** runs
-setup again from the address and comes back to the step, cancelled or done, so the account just
-added can be picked. The name each added account sends under is asked once the window closes, one
-account after another ([`sending.md`](sending.md)).
+account (IMAP, or calendar and contacts) or JMAP account lacks, the window offers it before it
+closes: a calendar or an address book from another account, and for a calendar without mail, the
+account that sends its invitations. The pickers are the account page's own
+([`accounts.md`](accounts.md) rule 12), from the same `accounts_snapshot`, so the step offers
+exactly what Settings would, and nothing when there is nothing to link. Microsoft and Google hold
+mail, calendar and contacts themselves, so they are not offered the step; linking one is for
+Settings, whenever the person wants it (`offers_setup_links`). A JMAP server often has no calendar,
+since JMAP Calendars is still a draft, so a JMAP account whose server offers no calendar or no
+contacts is offered the step even with nothing to pick yet, and when detection found a calendar or
+address-book server beside the JMAP server, the step offers to set that up as an account of its
+own (`dav_setup_beside`). A suggested account starts picked and is linked only when the person
+continues; a suggestion the core finds after the step is drawn reaches it unless the person has
+already changed a pick. **Add another account** runs setup again from the address and comes back
+to the step, cancelled or done, with the account just added picked where it fits. The name each
+added account sends under is asked once the window closes, one account after another
+([`sending.md`](sending.md)).
 
 ## Accessibility
 
@@ -134,6 +149,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 | Offers on a later add, not just the first | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
 | Set up takes the record's own route | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
 | The link step after the connect, with "Add another account" | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| What a JMAP account is used for, asked after its sign-in | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| The link step for a JMAP server without a calendar, with the server found beside it | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 
 ## What signing in here does
 

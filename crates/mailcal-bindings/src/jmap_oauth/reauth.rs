@@ -241,10 +241,12 @@ mod tests {
         let signed_in = ConnectedAccount::Jmap {
             config: config("alice@example.com", Some(grant())),
             tokens: None,
+            session: crate::jmap_session::JmapSession::default(),
         };
         let pasted_secret = ConnectedAccount::Jmap {
             config: config("alice@example.com", None),
             tokens: None,
+            session: crate::jmap_session::JmapSession::default(),
         };
 
         assert!(matches!(signed_in.provider(), AccountProvider::JmapOauth,));

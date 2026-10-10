@@ -6,30 +6,94 @@
 
 use relm4::ComponentSender;
 
-use super::{AppInput, AppModel, AppWindow, setup_links::LinkStep};
+use super::{AppInput, AppModel, AppWindow, setup_links::LinkStep, setup_signed_in::UsesStep};
 
 impl AppModel {
-    /// An account was added: back to the link step it was added from, on to its own link step
+    /// An account was added: which of the uses its server offers it is used for, when only the
+    /// server could say; then back to the link step it was added from, on to its own link step
     /// when another account can fill something it lacks, or the end of the flow.
-    pub(super) fn after_account_added(&mut self, account: String, sender: relm4::Sender<AppInput>) {
-        self.setup.added.push(account.clone());
+    pub(super) fn after_account_added(&mut self, account: &str, sender: relm4::Sender<AppInput>) {
+        self.setup.added.push(account.to_owned());
+        self.setup.remember_beside(account);
         // A connect or sign-in still running when "Add another account" was cancelled finishes
         // onto the link step that cancel returned to, which stays on screen.
-        let target = self
+        let next = self
             .setup
             .returning_to
             .take()
             .or_else(|| self.setup.linking().map(str::to_owned))
-            .unwrap_or(account);
-        match self.link_step(&target) {
-            Some(step) => self.setup.show_links_again(step),
+            .unwrap_or_else(|| account.to_owned());
+        let choices = self
+            .app
+            .as_ref()
+            .map(|app| app.signed_in_setup_choices(account.to_owned()))
+            .unwrap_or_default();
+        match UsesStep::new(account.to_owned(), next.clone(), choices) {
+            Some(step) => self.setup.show_uses(step),
+            None => self.onward(account, &next, sender),
+        }
+    }
+
+    /// On to `next`'s link step, with `added` picked on it when it came back from adding that
+    /// account, or the end of the flow.
+    fn onward(&mut self, added: &str, next: &str, sender: relm4::Sender<AppInput>) {
+        match self.link_step(next) {
+            Some(step) => self
+                .setup
+                .show_links_again(step, (added != next).then_some(added)),
             None => self.finish_setup(sender),
         }
     }
 
+    /// Stores what the uses step chose, off the main thread: switching a use off deletes what the
+    /// device holds of it.
+    fn choose_uses(
+        &mut self,
+        chosen: &[mailcal_bindings::AccountCapability],
+        sender: relm4::Sender<AppInput>,
+    ) {
+        let Some(step) = self.setup.take_uses() else {
+            return;
+        };
+        let dropped = step.dropped(chosen);
+        let Some(app) = self.app.clone().filter(|_| !dropped.is_empty()) else {
+            self.onward(&step.account, &step.next, sender);
+            return;
+        };
+        std::thread::spawn(move || {
+            for capability in dropped {
+                if let Err(err) =
+                    app.set_account_capability(step.account.clone(), capability, false)
+                {
+                    log::warn!("setup: a use could not be switched off ({err})");
+                }
+            }
+            sender.emit(AppInput::SetupUsesApplied(step.account, step.next));
+        });
+    }
+
     fn link_step(&self, account: &str) -> Option<LinkStep> {
         let app = self.app.as_ref()?;
-        LinkStep::for_account(&app.accounts_snapshot(), account)
+        LinkStep::for_account(
+            &app.accounts_snapshot(),
+            account,
+            self.setup.beside_for(account),
+        )
+    }
+
+    /// Sets up the servers found beside a JMAP server, as an account of their own that the link
+    /// step comes back to.
+    fn set_up_beside(&mut self, sender: relm4::Sender<AppInput>) {
+        let Some(beside) = self.setup.add_beside() else {
+            return;
+        };
+        if let Some(setup) = mailcal_bindings::dav_setup_beside(
+            beside.email.clone(),
+            beside.caldav_url,
+            beside.carddav_url,
+        ) {
+            self.account_detected(beside.email, setup, sender);
+        }
     }
 
     /// Closes the window and asks each added account's name, one after another.
@@ -78,6 +142,14 @@ impl AppModel {
     /// the end of the flow. A flow that already added an account ends as a skipped link step
     /// does, so each account added is still asked its name.
     pub(super) fn cancel_account_setup(&mut self, sender: relm4::Sender<AppInput>) {
+        // The account is added already: closing its uses step keeps what it offers and goes on,
+        // and one being stored goes on when it is.
+        if self.setup.choosing_uses() {
+            if let Some(step) = self.setup.take_uses() {
+                self.onward(&step.account, &step.next, sender);
+            }
+            return;
+        }
         let Some(account) = self.setup.returning_to.take() else {
             if self.setup.added.is_empty() {
                 self.setup.cancel();
@@ -86,10 +158,7 @@ impl AppModel {
             }
             return;
         };
-        match self.link_step(&account) {
-            Some(step) => self.setup.show_links_again(step),
-            None => self.finish_setup(sender),
-        }
+        self.onward(&account, &account, sender);
     }
 
     /// A suggestion the core found after the link step was drawn reaches it, unless the person
@@ -127,6 +196,16 @@ impl AppModel {
                 }
                 self.finish_setup(input);
             }
+            AppInput::SetupUsesChosen(chosen) => self.choose_uses(&chosen, input),
+            AppInput::SetupUsesApplied(account, next) => {
+                if let Some(app) = &self.app {
+                    self.snapshot = app.mailbox_list();
+                }
+                if self.setup.choosing_uses() {
+                    self.onward(&account, &next, input);
+                }
+            }
+            AppInput::SetupBesideAccount => self.set_up_beside(input),
             AppInput::SenderNameNotNeeded => self.ask_next_sender_name(input),
             other => unreachable!("not a setup flow message: {other:?}"),
         }

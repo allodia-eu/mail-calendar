@@ -44,6 +44,7 @@ fn jmap_entry(refresh: &str) -> (String, ConnectedAccount) {
         ConnectedAccount::Jmap {
             config,
             tokens: None,
+            session: crate::jmap_session::JmapSession::default(),
         },
     )
 }
@@ -227,6 +228,7 @@ fn replacement_credentials_are_built_for_password_and_secret_jmap_accounts_only(
         ConnectedAccount::Jmap {
             config: jmap_config,
             tokens: None,
+            session: crate::jmap_session::JmapSession::default(),
         },
     );
     let (oauth_id, oauth) = jmap_entry("refresh-token");

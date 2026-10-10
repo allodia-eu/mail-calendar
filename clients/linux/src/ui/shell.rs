@@ -414,7 +414,9 @@ impl AppWidgets {
         }
         self.sync_strip
             .set_visible(model.sync_bar.is_some() || model.sync_status.is_some());
-        if model.draft_check.is_some() {
+        // The first-run setup nobody can close is the one window left: an app with no account
+        // has no settings worth showing over it.
+        if model.draft_check.is_some() || (model.setup.visible && model.setup.required) {
             self.settings.close();
         }
         self.settings.render(

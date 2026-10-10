@@ -187,16 +187,26 @@ impl AccountDial {
                     false,
                 ))
             }
-            Self::Jmap { config, tokens, .. } => {
+            Self::Jmap {
+                config,
+                tokens,
+                session,
+                ..
+            } => {
                 let identity = config.identity();
-                // The session says which of calendars and contacts the account has, and the mail
-                // provider is what reads it. An account not used for mail still reads its session
-                // that way and binds no mail from it; a session that cannot be read leaves nothing
-                // on the account that could connect, so it is the account's failure either way.
+                // The session says which of mail, calendars and contacts the account has, and the
+                // mail provider is what reads it. An account not used for mail still reads its
+                // session that way and binds no mail from it; a session that cannot be read leaves
+                // nothing on the account that could connect, so it is the account's failure either
+                // way.
                 let providers =
                     mailcal_account::connect_jmap_mail_providers(&config, tokens.as_ref())
                         .await
                         .map_err(ConnectFailure::from)?;
+                if let Some(provider) = providers.first() {
+                    session.record(provider.connection_info().capabilities);
+                }
+                let has_mail = !session.lacks().contains(Capability::Mail);
                 let calendar = part(
                     on(Capability::Calendar),
                     boot::connect_jmap_calendars(&config, tokens.as_ref(), &providers),
@@ -207,20 +217,14 @@ impl AccountDial {
                     boot::connect_jmap_contacts(&config, tokens.as_ref(), &providers),
                 )
                 .await;
-                let mail = if on(Capability::Mail) {
+                let uses_mail = on(Capability::Mail) && has_mail;
+                let mail = if uses_mail {
                     Part::Bound(providers)
                 } else {
                     Part::Off
                 };
                 let assembled = assemble(mail, calendar, contacts)?;
-                Ok(outcome(
-                    id,
-                    on(Capability::Mail),
-                    identity,
-                    assembled,
-                    None,
-                    false,
-                ))
+                Ok(outcome(id, uses_mail, identity, assembled, None, false))
             }
         }
     }

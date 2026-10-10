@@ -29,9 +29,10 @@ impl AccountRegistry {
     ///
     /// # Errors
     ///
-    /// Returns [`MailcalError::Config`] for an unknown account, a use its kind cannot offer,
-    /// colleagues without contacts, or a change that would leave it used for none of mail,
-    /// calendar and contacts: such an account is removed, never emptied.
+    /// Returns [`MailcalError::Config`] for an unknown account, a use its kind or its server
+    /// cannot offer, colleagues without contacts, or a change that would leave it used for none of
+    /// mail, calendar and contacts that its server offers: such an account is removed, never
+    /// emptied.
     pub(crate) fn set_use(
         &self,
         id: &str,
@@ -46,6 +47,10 @@ impl AccountRegistry {
         let Some(entry) = entries.get_mut(id) else {
             return refused("no such account");
         };
+        let lacks = entry.lacks();
+        if on && lacks.contains(capability) {
+            return refused("this account's server does not offer that");
+        }
         let chosen = entry.capabilities();
         if chosen.contains(capability) == on {
             return Ok(UseChange::Unchanged);
@@ -60,7 +65,7 @@ impl AccountRegistry {
             .collect();
         if [Capability::Mail, Capability::Calendar, Capability::Contacts]
             .into_iter()
-            .all(|usable| !next.contains(usable))
+            .all(|usable| !next.contains(usable) || lacks.contains(usable))
         {
             return refused("an account is used for at least one of mail, calendar and contacts");
         }
@@ -70,7 +75,7 @@ impl AccountRegistry {
         if on {
             match opens(entry, &next, capability) {
                 Opens::Yes => {}
-                Opens::NotOffered => return refused("this kind of account does not offer that"),
+                Opens::NotOffered => return refused("this account does not offer that"),
                 Opens::NeedsConsent => return Ok(UseChange::NeedsConsent),
                 Opens::NeedsEndpoint => return Ok(UseChange::NeedsEndpoint),
             }
@@ -165,7 +170,23 @@ fn opens(entry: &ConnectedAccount, next: &Capabilities, capability: Capability) 
                 Opens::NeedsEndpoint
             }
         }
-        // The session says which domains the account has; the dial binds what it offers.
+        // The session says which domains the account has; one it lacks is refused before this.
         ConnectedAccount::Jmap { .. } => Opens::Yes,
+    }
+}
+
+#[cfg(test)]
+impl AccountRegistry {
+    /// Where `id`'s dials record its JMAP session, for a test that has no server to read one from.
+    pub(crate) fn jmap_session(&self, id: &str) -> Option<crate::jmap_session::JmapSession> {
+        match self
+            .entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+        {
+            Some(ConnectedAccount::Jmap { session, .. }) => Some(session.clone()),
+            _ => None,
+        }
     }
 }

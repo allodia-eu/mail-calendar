@@ -26,6 +26,8 @@ pub(super) enum Phase {
     JmapSigningIn,
     ImapSigningIn,
     Connecting,
+    /// The account is added; which of the uses its server offers it is used for is asked.
+    Uses,
     /// The account is added; linking it to another is offered.
     Links,
 }
@@ -57,12 +59,16 @@ pub(super) struct SetupState {
     /// The first-run Allodia recommendation's state ([`super::setup_onboarding`]). Held here
     /// because a sign-in outlives several window rebuilds.
     pub(super) onboarding: Onboarding,
+    /// The uses step on screen, in [`Phase::Uses`]; `None` there while the choice is stored.
+    pub(super) uses: Option<super::setup_signed_in::UsesStep>,
     /// The link step on screen, in [`Phase::Links`].
     pub(super) links: Option<super::setup_links::LinkStep>,
     /// The account whose link step an "Add another account" left, to come back to.
     pub(super) returning_to: Option<String>,
     /// Every account this flow added, whose names are asked once it ends.
     pub(super) added: Vec<String>,
+    /// The servers found beside each JMAP account this flow added, until its link step uses them.
+    pub(super) beside: Vec<super::setup_links::Beside>,
 }
 
 impl SetupState {
@@ -79,9 +85,11 @@ impl SetupState {
             accepted_certificate: None,
             start_email: String::new(),
             onboarding: Onboarding::new(),
+            uses: None,
             links: None,
             returning_to: None,
             added: Vec::new(),
+            beside: Vec::new(),
         }
     }
 
@@ -102,9 +110,32 @@ impl SetupState {
 
     /// A flow of its own, which comes back to no link step and has added nothing yet.
     fn forget_flow(&mut self) {
+        self.uses = None;
         self.links = None;
         self.returning_to = None;
         self.added.clear();
+        self.beside.clear();
+    }
+
+    /// Keeps the servers detection found beside the JMAP form `account` was just added from.
+    pub(super) fn remember_beside(&mut self, account: &str) {
+        let Some(SetupForm::Detected(super::setup_model::DetectedForm::Jmap(form))) = &self.form
+        else {
+            return;
+        };
+        if form.caldav_url.is_some() || form.carddav_url.is_some() {
+            self.beside.push(super::setup_links::Beside {
+                account: account.to_owned(),
+                email: form.email.clone(),
+                caldav_url: form.caldav_url.clone(),
+                carddav_url: form.carddav_url.clone(),
+            });
+        }
+    }
+
+    /// The servers found beside `account`'s own, while unused.
+    pub(super) fn beside_for(&self, account: &str) -> Option<&super::setup_links::Beside> {
+        self.beside.iter().find(|beside| beside.account == account)
     }
 
     /// Opens on an address, for an offer from one of the person's other devices.
@@ -120,6 +151,32 @@ impl SetupState {
         self.start_email = start_email;
         self.forget_flow();
         self.bump();
+    }
+
+    /// Shows the uses step. A link step an "Add another account" left is kept, so what was
+    /// picked on it comes back after.
+    pub(super) fn show_uses(&mut self, step: super::setup_signed_in::UsesStep) {
+        self.phase = Phase::Uses;
+        self.uses = Some(step);
+        self.error = None;
+        self.certificate = None;
+        self.bump();
+    }
+
+    /// The uses step answered: it waits while the choice is stored. `None` when it is not on
+    /// screen.
+    pub(super) fn take_uses(&mut self) -> Option<super::setup_signed_in::UsesStep> {
+        if !self.visible || self.phase != Phase::Uses {
+            return None;
+        }
+        let step = self.uses.take()?;
+        self.bump();
+        Some(step)
+    }
+
+    /// Whether the uses step is on screen, answered or not.
+    pub(super) fn choosing_uses(&self) -> bool {
+        self.visible && self.phase == Phase::Uses
     }
 
     /// Shows the link step.
@@ -171,20 +228,47 @@ impl SetupState {
         let Some(step) = self.links.take() else {
             return;
         };
-        let added = std::mem::take(&mut self.added);
+        let (added, beside) = (
+            std::mem::take(&mut self.added),
+            std::mem::take(&mut self.beside),
+        );
         self.open_on(false, String::new());
         self.returning_to = Some(step.account.clone());
         self.added = added;
+        self.beside = beside;
         // Kept, so what was picked comes back with the step.
         self.links = Some(step);
     }
 
-    /// Shows the link step again, read afresh, with what was picked on it before carried across.
-    pub(super) fn show_links_again(&mut self, fresh: super::setup_links::LinkStep) {
-        let step = match self.links.take() {
+    /// The link step's offer of the servers found beside its account: setup again, on those
+    /// servers, coming back to the step as "Add another account" does. The offer is used up.
+    pub(super) fn add_beside(&mut self) -> Option<super::setup_links::Beside> {
+        let account = self.links.as_ref()?.account.clone();
+        let index = self
+            .beside
+            .iter()
+            .position(|beside| beside.account == account)?;
+        let beside = self.beside.remove(index);
+        self.add_linked();
+        // Back from the card it opens goes to this address, as from any other.
+        self.start_email.clone_from(&beside.email);
+        Some(beside)
+    }
+
+    /// Shows the link step again, read afresh, with what was picked on it before carried across,
+    /// and `added`, an account just added from it, picked where it fits.
+    pub(super) fn show_links_again(
+        &mut self,
+        fresh: super::setup_links::LinkStep,
+        added: Option<&str>,
+    ) {
+        let mut step = match self.links.take() {
             Some(earlier) if earlier.account == fresh.account => earlier.refreshed(fresh),
             _ => fresh,
         };
+        if let Some(added) = added {
+            step.adopt(added);
+        }
         self.show_links(step);
     }
 
@@ -192,15 +276,17 @@ impl SetupState {
     /// (`docs/account-autodetect.md` rule 12).
     pub(super) fn back_to_address(&mut self, required: bool) {
         let email = self.form.as_ref().map(SetupForm::email).unwrap_or_default();
-        let (returning_to, added, links) = (
+        let (returning_to, added, links, beside) = (
             self.returning_to.take(),
             std::mem::take(&mut self.added),
             self.links.take(),
+            std::mem::take(&mut self.beside),
         );
         self.open_on(required, email);
         self.returning_to = returning_to;
         self.added = added;
         self.links = links;
+        self.beside = beside;
     }
 
     pub(super) fn detecting(&mut self) {
