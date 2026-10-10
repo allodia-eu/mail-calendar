@@ -65,13 +65,14 @@ enum ShareInbox {
     }
 }
 
-/// The two moments a share reaches the composer: the app being activated, which is what the
-/// extension's doorbell causes and what a manual launch also does, and an account finally existing
-/// for a share that arrived before there was one.
+/// The moments a share reaches the composer: the extension's doorbell, the app being activated,
+/// and an account finally existing for a share that arrived before there was one.
 ///
-/// Activation rather than the doorbell URL itself, deliberately. The URL carries nothing, so
-/// nothing is lost by not reading it; and the extension's `open` is best effort, so a share whose
-/// doorbell went unanswered is still picked up the next time the user brings the app forward.
+/// The doorbell and activation both drain the box, and neither is enough alone. Activation is the
+/// net: the extension's `open` is best effort, so a share whose doorbell went unanswered is still
+/// picked up the next time the user brings the app forward. The doorbell is for an app that is
+/// already in front, which no activation follows. The URL carries nothing either way, it only says
+/// to look; whichever looks second finds the box empty, because taking a share removes it.
 struct ShareRouting: ViewModifier {
     let model: MailboxModel
     let open: (ShareOpenRequest) -> Void
@@ -87,6 +88,10 @@ struct ShareRouting: ViewModifier {
             // The cold start: activation has already happened by the time this view exists.
             .task { drain() }
             .onReceive(NotificationCenter.default.publisher(for: Self.activated)) { _ in drain() }
+            .onOpenURL { url in
+                guard ShareHandoff.isDoorbell(url, appID: Brand.appID) else { return }
+                drain()
+            }
             .onChange(of: model.accounts.count) { _, count in
                 guard count > 0, let request = model.pendingShare else { return }
                 model.pendingShare = nil
