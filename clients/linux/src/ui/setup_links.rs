@@ -48,8 +48,32 @@ impl LinkStep {
 
     /// The same step read again, for a suggestion that arrived after it was drawn. A step the
     /// person has already changed is kept as it is.
-    pub(super) fn refreshed(self, fresh: Self) -> Self {
-        if self.touched { self } else { fresh }
+    ///
+    /// The fresh pickers stand, since they may offer an account added since; what the person
+    /// picked is carried across by account, slot by slot.
+    pub(super) fn refreshed(self, mut fresh: Self) -> Self {
+        if !self.touched {
+            return fresh;
+        }
+        for (picker, picked) in fresh.pickers.iter().zip(fresh.picked.iter_mut()) {
+            let earlier = self
+                .pickers
+                .iter()
+                .zip(&self.picked)
+                .find(|(earlier, _)| earlier.slot == picker.slot);
+            if let Some((earlier, chose)) = earlier {
+                *picked = chose
+                    .and_then(|index| earlier.options.get(index))
+                    .and_then(|option| {
+                        picker
+                            .options
+                            .iter()
+                            .position(|offered| offered.id == option.id)
+                    });
+            }
+        }
+        fresh.touched = true;
+        fresh
     }
 
     /// Records a pick.

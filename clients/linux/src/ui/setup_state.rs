@@ -173,18 +173,34 @@ impl SetupState {
         };
         let added = std::mem::take(&mut self.added);
         self.open_on(false, String::new());
-        self.returning_to = Some(step.account);
+        self.returning_to = Some(step.account.clone());
         self.added = added;
+        // Kept, so what was picked comes back with the step.
+        self.links = Some(step);
+    }
+
+    /// Shows the link step again, read afresh, with what was picked on it before carried across.
+    pub(super) fn show_links_again(&mut self, fresh: super::setup_links::LinkStep) {
+        let step = match self.links.take() {
+            Some(earlier) if earlier.account == fresh.account => earlier.refreshed(fresh),
+            _ => fresh,
+        };
+        self.show_links(step);
     }
 
     /// Back from the second step to the address it was reached with, which stays in the field
     /// (`docs/account-autodetect.md` rule 12).
     pub(super) fn back_to_address(&mut self, required: bool) {
         let email = self.form.as_ref().map(SetupForm::email).unwrap_or_default();
-        let (returning_to, added) = (self.returning_to.take(), std::mem::take(&mut self.added));
+        let (returning_to, added, links) = (
+            self.returning_to.take(),
+            std::mem::take(&mut self.added),
+            self.links.take(),
+        );
         self.open_on(required, email);
         self.returning_to = returning_to;
         self.added = added;
+        self.links = links;
     }
 
     pub(super) fn detecting(&mut self) {

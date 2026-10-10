@@ -42,6 +42,8 @@ pub(super) struct HostTasks {
     pub(super) sender_name_ask: Option<super::setup_widgets::SenderNameAsk>,
     /// Accounts whose name is asked after the one on screen.
     pub(super) sender_names_waiting: std::collections::VecDeque<String>,
+    /// What a sign-in's grant withheld, said on the account's page once the names are asked.
+    pub(super) withheld: Option<(String, super::settings::notice::Notice)>,
     background: BackgroundScan,
     /// One slot per browser flow. They are independent; a JMAP pre-flight running while a
     /// Microsoft sign-in is open must not cancel it; but each behaves identically, so they
@@ -131,6 +133,7 @@ impl HostTasks {
             setup_after_welcome,
             sender_name_ask: None,
             sender_names_waiting: std::collections::VecDeque::new(),
+            withheld: None,
             background: BackgroundScan::Idle,
             google: AttemptSlot::empty(),
             microsoft: AttemptSlot::empty(),

@@ -43,6 +43,8 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     super::setup_uses_widget_tests::the_manual_mail_form_takes_an_address_book(&window);
     super::setup_uses_widget_tests::a_provider_card_asks_only_for_what_is_chosen(&window);
     super::setup_links::tests::the_link_step_offers_the_accounts_it_can_use(&window);
+    super::setup_flag_tests::a_use_switched_on_without_a_server_asks_for_one(&window);
+    super::setup_flag_tests::a_manual_calendar_form_without_a_server_asks_for_one(&window);
     an_untrusted_card_holds_connect_until_it_is_approved(&window);
     a_refused_certificate_holds_connect_until_it_is_accepted(&window);
     super::setup_manual_tests::the_manual_form_switches_account_type(&window);

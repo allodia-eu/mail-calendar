@@ -175,3 +175,30 @@ pub(in crate::ui) fn the_link_step_offers_the_accounts_it_can_use(window: &adw::
         Some(AppInput::SetupLinksDone(true))
     ));
 }
+
+/// A pick made before "Add another account" survives it: the step comes back with the account
+/// just added among the options and what was picked still picked.
+#[test]
+fn a_pick_survives_adding_another_account() {
+    use crate::ui::setup_state::{Phase, SetupState};
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_links(LinkStep::for_account(&snapshot(), "alice@imap").unwrap());
+    state.pick_link(0, Some(0));
+    state.add_linked();
+
+    let mut later = snapshot();
+    later.accounts[0]
+        .link_candidates
+        .calendar
+        .insert(0, linked("carol@dav"));
+    state.show_links_again(LinkStep::for_account(&later, "alice@imap").unwrap());
+    assert_eq!(state.phase, Phase::Links);
+    let step = state.links.as_ref().unwrap();
+    assert_eq!(
+        step.pickers[0].options.len(),
+        3,
+        "the account just added is offered"
+    );
+    assert_eq!(step.links(), [(LinkSlot::Calendar, "bob@dav".to_owned())]);
+}

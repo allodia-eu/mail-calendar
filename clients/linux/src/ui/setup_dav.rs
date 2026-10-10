@@ -51,6 +51,10 @@ pub(super) fn detected_fields(
         if password.text().is_empty() {
             return;
         }
+        if let Some(field) = uses.missing_server() {
+            setup_uses::flag(&field);
+            return;
+        }
         let chosen = uses.chosen();
         input.emit(AppInput::SubmitAccount(Box::new(AccountSubmission::Imap(
             ImapSubmission {
@@ -125,13 +129,18 @@ pub(super) fn manual_fields(
             caldav.text().trim().to_owned(),
             carddav.text().trim().to_owned(),
         );
-        let login = login.text().trim().to_owned();
-        let Some(uses) = dav_uses(&caldav_url, &carddav_url) else {
-            return;
-        };
-        if login.is_empty() || password.text().is_empty() {
+        if login.text().trim().is_empty() {
+            setup_uses::flag(&login);
             return;
         }
+        let Some(uses) = dav_uses(&caldav_url, &carddav_url) else {
+            setup_uses::flag(&caldav);
+            return;
+        };
+        if password.text().is_empty() {
+            return;
+        }
+        let login = login.text().trim().to_owned();
         input.emit(AppInput::SubmitAccount(Box::new(AccountSubmission::Imap(
             ImapSubmission {
                 email: login,

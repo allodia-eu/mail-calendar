@@ -747,8 +747,9 @@ the doctrine's "provider sync" language for *account connection* specifically.)
   colleagues for a personal address), and pass the choice on; every other client passes none,
   which asks for everything as before.
 - **A use the grant withholds is closed silently, except on Linux.** An account whose mail was
-  withheld leaves the mail surfaces without saying why. Linux says so when the sign-in returns,
-  opening the account's page in Settings with the withheld uses named, and that page signs the
+  withheld leaves the mail surfaces without saying why. Linux says so once setup has finished and
+  its name prompts are answered, opening the account's page in Settings with the withheld uses
+  named, and that page signs the
   account in again for one through `begin_account_consent`. The other clients draw no "needs
   permission" state; Microsoft's calendar is their exception, through rule 11's prompt, and their
   **Reconnect** and "sign in again" still run `complete_microsoft_login` /

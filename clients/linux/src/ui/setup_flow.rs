@@ -22,7 +22,7 @@ impl AppModel {
             .or_else(|| self.setup.linking().map(str::to_owned))
             .unwrap_or(account);
         match self.link_step(&target) {
-            Some(step) => self.setup.show_links(step),
+            Some(step) => self.setup.show_links_again(step),
             None => self.finish_setup(sender),
         }
     }
@@ -63,11 +63,14 @@ impl AppModel {
         }
     }
 
-    /// The name step answered or was skipped; the next account waiting is asked.
+    /// The name step answered or was skipped; the next account waiting is asked, and once none
+    /// is, what a sign-in's grant withheld is said on that account's page in Settings.
     pub(super) fn ask_next_sender_name(&mut self, sender: relm4::Sender<AppInput>) {
         self.host_tasks.sender_name_ask = None;
         if let Some(next) = self.host_tasks.sender_names_waiting.pop_front() {
             self.ask_sender_name(next, sender);
+        } else if let Some((account, notice)) = self.host_tasks.withheld.take() {
+            self.settings.open_on_account(account, notice);
         }
     }
 
@@ -84,7 +87,7 @@ impl AppModel {
             return;
         };
         match self.link_step(&account) {
-            Some(step) => self.setup.show_links(step),
+            Some(step) => self.setup.show_links_again(step),
             None => self.finish_setup(sender),
         }
     }
