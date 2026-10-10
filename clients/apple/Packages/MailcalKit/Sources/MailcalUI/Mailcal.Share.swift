@@ -7,8 +7,9 @@
 //
 // What differs is the payload, and how it gets here. The composer opens already holding
 // attachments, which only a forward otherwise does; and the share was read by a separate process,
-// the Share Extension, which left it in the App Group container (MailcalShareBox). So the trigger
-// is not a URL but an **activation**: whatever brought the app forward, it looks in its box.
+// the Share Extension, which left it in the App Group container (MailcalShareBox). So no URL
+// carries it: the extension's doorbell and the app being activated each only make it look in its
+// box.
 
 import MailcalBindings
 import MailcalShareBox
@@ -73,8 +74,15 @@ enum ShareInbox {
 /// picked up the next time the user brings the app forward. The doorbell is for an app that is
 /// already in front, which no activation follows. The URL carries nothing either way, it only says
 /// to look; whichever looks second finds the box empty, because taking a share removes it.
+///
+/// One share is on screen at a time. Taking a share spends it, and opening one over another would
+/// replace a composer holding files the user watched leave a share sheet and has not seen since:
+/// one nobody has written in closes without a draft, and its files go with it. So while a share's
+/// composer is open the box is left alone, and the next share opens as that composer closes.
 struct ShareRouting: ViewModifier {
     let model: MailboxModel
+    /// Whether a share's composer is on screen.
+    let holdsShare: Bool
     let open: (ShareOpenRequest) -> Void
 
     #if os(macOS)
@@ -92,6 +100,9 @@ struct ShareRouting: ViewModifier {
                 guard ShareHandoff.isDoorbell(url, appID: Brand.appID) else { return }
                 drain()
             }
+            .onChange(of: holdsShare) { held, holds in
+                if held, !holds { drain() }
+            }
             .onChange(of: model.accounts.count) { _, count in
                 guard count > 0, let request = model.pendingShare else { return }
                 model.pendingShare = nil
@@ -100,10 +111,9 @@ struct ShareRouting: ViewModifier {
     }
 
     private func drain() {
-        // Not while one is already waiting for its first account. Taking a share spends it, so a
-        // second activation would overwrite a set of files the user watched leave a share sheet
-        // and has not seen since. It keeps its place in the box instead.
-        guard model.pendingShare == nil, let request = ShareInbox.take() else { return }
+        // Not while one is on screen, nor while one is waiting for its first account: either way
+        // the next share keeps its place in the box rather than taking the first one's.
+        guard !holdsShare, model.pendingShare == nil, let request = ShareInbox.take() else { return }
         open(request)
     }
 }

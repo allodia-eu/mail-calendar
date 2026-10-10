@@ -71,7 +71,7 @@ copies the shared bytes into a **drop box**, leaves a note saying what arrived, 
 to open the app; the app drains the box when that request arrives and every time it is activated,
 hands the note to the core, and opens a composer with the answer.
 
-Four consequences are worth knowing before they surprise someone:
+Five consequences are worth knowing before they surprise someone:
 
 - **The doorbell carries nothing.** The URL the extension opens is only a request to look in the
   box. The share is already there, the app reads nothing from the URL, and a page that guesses the
@@ -80,6 +80,9 @@ Four consequences are worth knowing before they surprise someone:
 - **Both the doorbell and activation drain the box.** An app already in front is not activated
   again, so the doorbell is what reaches it; activation catches the share whose doorbell went
   unanswered. Taking a share removes it, so whichever looks second finds nothing.
+- **One share is on screen at a time.** While a share's composer is open the box is left alone,
+  and the next share opens as that composer closes. Opening one over another would close the
+  first, and a share nobody has written in closes without a draft, taking its files with it.
 - **Opening the app is best effort.** A share whose doorbell went unanswered is still in the box,
   and is picked up the next time the user brings the app forward, rather than lost.
 - **Where the box is depends on what the build was signed with.** iOS and the Mac App Store build
