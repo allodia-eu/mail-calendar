@@ -70,7 +70,7 @@ final class RichComposerEditor: NSObject {
 
     /// The web view, for the representable: built on the first call, the same one after.
     func mount() -> WKWebView {
-        host.mount { [weak self] view in
+        host.mount { view in
             (view as? EditorWebView)?.acceptDroppedFiles = { [weak self] urls in
                 self?.acceptDroppedFiles?(urls)
             }

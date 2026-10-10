@@ -82,7 +82,7 @@ extension ContentView {
 /// (docs/composer-security.md, Gate 12). Anything that is not a mail link is ignored rather than
 /// opening a blank composer over whatever the user was doing.
 ///
-/// `onOpenURL` is the only URL hook in the app, here and in `ShareRouting` for the Share
+/// `onOpenURL` is the app's only URL hook, used here and in `ShareRouting` for the Share
 /// Extension's doorbell, each ignoring the other's scheme. The OAuth redirects never reach it: each
 /// is captured inside its own `ASWebAuthenticationSession`, which is why there is no scheme dispatch
 /// here of the kind Windows, Linux and Android each need to keep a sign-in from being mistaken for
