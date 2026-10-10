@@ -55,8 +55,13 @@ struct ComposerDropModifier: ViewModifier {
             // on it: that rectangle is a hole in the SwiftUI tree it hit-tests. The web view takes
             // those itself and hands them straight back here, so a file dropped on the message and
             // one dropped on the chrome go through the same code on every Apple host.
+            //
+            // The handler takes the two bindings and never `self`: `self` holds the editor, the
+            // editor holds the web view and the web view holds the handler, so capturing it would
+            // keep every closed composer's web view, and its WebContent process, alive.
             .onAppear {
-                (editor.webView as? EditorWebView)?.acceptDroppedFiles = { accept($0) }
+                let sort = Self.sort(attachments: $attachments, droppedPictures: $droppedPictures)
+                (editor.webView as? EditorWebView)?.acceptDroppedFiles = { _ = sort($0) }
             }
             .confirmationDialog(
                 L10n.compose_image_drop_title(),
@@ -74,19 +79,27 @@ struct ComposerDropModifier: ViewModifier {
             }
     }
 
+    private func accept(_ urls: [URL]) -> Bool {
+        Self.sort(attachments: $attachments, droppedPictures: $droppedPictures)(urls)
+    }
+
     /// Sorts one drop: everything that is not a picture attaches straight away, and the pictures
     /// go to the question below. Answers whether the drop carried anything at all.
-    @discardableResult
-    private func accept(_ urls: [URL]) -> Bool {
-        let files = urls.filter(\.isFileURL)
-        guard !files.isEmpty else {
-            return false
+    private static func sort(
+        attachments: Binding<[PickedAttachment]>,
+        droppedPictures: Binding<[URL]>
+    ) -> ([URL]) -> Bool {
+        { urls in
+            let files = urls.filter(\.isFileURL)
+            guard !files.isEmpty else {
+                return false
+            }
+            attachments.wrappedValue.append(
+                contentsOf: files.filter { !isPicture($0) }.map { PickedAttachment(url: $0) }
+            )
+            droppedPictures.wrappedValue = files.filter(isPicture)
+            return true
         }
-        attachments.append(
-            contentsOf: files.filter { !Self.isPicture($0) }.map { PickedAttachment(url: $0) }
-        )
-        droppedPictures = files.filter(Self.isPicture)
-        return true
     }
 
     /// Whether a dropped file is worth asking about. The system's guess from the file's type,

@@ -50,10 +50,7 @@ final class SignatureEditor: NSObject, WKNavigationDelegate {
     /// native barrier behind the bundle's CSP. If compilation fails the CSP still blocks remote
     /// loads, so the editor is loaded anyway rather than left blank.
     private func installRemoteBlockThenLoad() {
-        WKContentRuleListStore.default().compileContentRuleList(
-            forIdentifier: "composer-block-remote",
-            encodedContentRuleList: Self.blockRemoteRuleList
-        ) { [weak self] ruleList, _ in
+        ComposerRemoteBlock.ruleList { [weak self] ruleList in
             guard let self else { return }
             if let ruleList {
                 self.webView.configuration.userContentController.add(ruleList)
@@ -61,10 +58,6 @@ final class SignatureEditor: NSObject, WKNavigationDelegate {
             self.loadEditor()
         }
     }
-
-    private static let blockRemoteRuleList = """
-        [{"trigger":{"url-filter":"^https?://"},"action":{"type":"block"}}]
-        """
 
     // Always call `setSignatureBody`, even for a brand-new signature with no body: it also carries
     // the placeholder, and the bundle's default ("Write your message") is the composer's wording,

@@ -88,16 +88,11 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
         installRemoteBlockThenLoad()
     }
 
-    // Compiles a content rule list that blocks every remote (http/https) sub-resource load
-    // the Apple half of the composer's "no network egress" gate (docs/composer-security.md),
-    // a native barrier behind the bundle's CSP, matching Android's `shouldInterceptRequest`
-    // and Windows' `WebResourceRequested` 403. If compilation fails the CSP still blocks
-    // remote loads, so we load the editor anyway rather than leave the composer blank.
+    // Installs the rule list that blocks every remote sub-resource load (`ComposerRemoteBlock`).
+    // If compilation fails the CSP still blocks remote loads, so we load the editor anyway rather
+    // than leave the composer blank.
     private func installRemoteBlockThenLoad() {
-        WKContentRuleListStore.default().compileContentRuleList(
-            forIdentifier: "composer-block-remote",
-            encodedContentRuleList: Self.blockRemoteRuleList
-        ) { [weak self] ruleList, _ in
+        ComposerRemoteBlock.ruleList { [weak self] ruleList in
             guard let self else { return }
             if let ruleList {
                 self.webView.configuration.userContentController.add(ruleList)
@@ -105,10 +100,6 @@ final class RichComposerEditor: NSObject, WKNavigationDelegate {
             self.loadEditor()
         }
     }
-
-    private static let blockRemoteRuleList = """
-        [{"trigger":{"url-filter":"^https?://"},"action":{"type":"block"}}]
-        """
 
     func documentJSON(_ completion: @escaping (Result<String, Error>) -> Void) {
         webView.evaluateJavaScript("composerDocument()") { value, error in
