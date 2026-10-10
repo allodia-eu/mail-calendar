@@ -183,8 +183,9 @@ store's migrations, so `new_accounts` can take seconds. These rules bind every c
 2. **Until it returns, the window shows the launch view.** For the first
    `launch_status_after_ms()` (2 s, exported by the core) that is a blank page: a normal open
    ends inside it (60 launches of a five-account desktop store took 28 ms to 1.1 s), and a label
-   raised and removed within it reads as flicker. A store migration after an update outlasts it. After that the view
-   shows a centred progress indicator and `status_opening_mailbox` ("Opening your mailbox…").
+   raised and removed within it reads as flicker. A store migration after an update outlasts it.
+   After that the view shows a centred progress indicator and `status_opening_mailbox` ("Opening
+   your mailbox…").
    Not `status_connecting`: no account has been dialled yet, and what the user waits for is the
    store.
 3. **When it returns, the launch view gives way** to whatever the client would otherwise show
