@@ -229,9 +229,9 @@ impl AppModel {
         };
         self.setup.detecting();
         std::thread::spawn(move || {
-            let recommendation =
-                app.detect_account_settings(email.clone(), Some(Box::new(dns::NativeResolver)));
-            sender.emit(AppInput::AccountDetected(email, Box::new(recommendation)));
+            let setup =
+                app.detect_account_setup(email.clone(), Some(Box::new(dns::NativeResolver)));
+            sender.emit(AppInput::AccountDetected(email, Box::new(setup)));
         });
     }
 

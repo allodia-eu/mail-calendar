@@ -117,6 +117,15 @@ pub struct ImapLoginRequest {
     /// [`SetupRecommendation::Imap`](crate::SetupRecommendation).
     #[uniffi(default = None)]
     pub oauth_issuer: Option<String>,
+    /// A CardDAV endpoint to attach, for an address book found apart from the calendar or
+    /// wanted without one, as [`AccountSetup::carddav_base_url`](crate::AccountSetup).
+    #[uniffi(default = None)]
+    pub carddav_base_url: Option<String>,
+    /// What the account is used for, as the person chose on the found card. `None` means what
+    /// the servers given mean, as [`AccountSetup::uses`](crate::AccountSetup). Without mail the
+    /// mail server is still what the sign-in is discovered from, and no mail server is stored.
+    #[uniffi(default = None)]
+    pub uses: Option<Vec<crate::AccountCapability>>,
 }
 
 /// What [`MailcalApp::begin_imap_login`] returns: the URL to open in the platform auth
@@ -138,6 +147,9 @@ struct PendingImapLogin {
     imap_host: String,
     smtp_host: Option<String>,
     caldav_base_url: Option<String>,
+    carddav_base_url: Option<String>,
+    /// The chosen uses by name, `None` when nothing was chosen.
+    uses: Option<Vec<String>>,
     imap_starttls: bool,
     smtp_starttls: bool,
     client_id: String,
@@ -186,8 +198,11 @@ impl PendingImapLogin {
             // A sign-in is offered only by a pre-flight that verified the server's certificate,
             // so there is no exception to carry.
             accepted_certificate: None,
-            carddav_base_url: None,
-            uses: None,
+            carddav_base_url: self.carddav_base_url,
+            uses: self
+                .uses
+                .as_deref()
+                .map(crate::account_capability::from_names),
         };
         (setup, grant)
     }
@@ -253,11 +268,13 @@ impl MailcalApp {
     /// is an expected outcome rather than a defect, and the same one
     /// [`imap_auth_options`](Self::imap_auth_options) reports as
     /// [`ImapAuthOffer::RegistrationNeeded`]: the caller falls back to the password field.
+    /// Returns [`MailcalError::Config`] when `uses` names none of mail, calendar and contacts.
     pub fn begin_imap_login(
         &self,
         request: ImapLoginRequest,
         redirect_uri: String,
     ) -> Result<ImapLoginStart, MailcalError> {
+        let uses = crate::account_capability::chosen(request.uses.clone())?;
         let query = ImapAuthQuery {
             imap_host: request.imap_host.clone(),
             imap_security: account_security(request.imap_security),
@@ -274,6 +291,8 @@ impl MailcalApp {
             imap_host: request.imap_host,
             smtp_host: request.smtp_host,
             caldav_base_url: request.caldav_base_url,
+            carddav_base_url: request.carddav_base_url,
+            uses: uses.as_ref().map(crate::account_capability::names),
             imap_starttls: is_starttls(request.imap_security),
             smtp_starttls: is_starttls(request.smtp_security),
             client_id: registration.client_id,

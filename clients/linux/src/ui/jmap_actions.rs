@@ -10,7 +10,7 @@ use super::{
     AppInput, AppModel,
     jmap::{self, JmapOutcome, JmapPrepared, JmapReauthOutcome, JmapReauthPrepared},
     oauth_loopback::CallbackOutcome,
-    setup_model::{DetectedForm, ImapForm, ManualForm, SetupForm, recommendation_form},
+    setup_model::{DetectedForm, ImapForm, ManualForm, SetupForm, detected_form},
 };
 
 /// How long the detected card waits for the pre-flight before offering the secret field
@@ -53,10 +53,10 @@ impl AppModel {
     pub(super) fn account_detected(
         &mut self,
         fallback_email: String,
-        recommendation: mailcal_bindings::SetupRecommendation,
+        setup: mailcal_bindings::DetectedSetup,
         sender: relm4::Sender<AppInput>,
     ) {
-        let form = recommendation_form(recommendation, fallback_email);
+        let form = detected_form(setup, fallback_email);
         // Both routes ask their server what it accepts before drawing a credential field, and
         // both ask as soon as the card exists: the answer decides what the card *is*, so a
         // later one would rebuild it under the user.

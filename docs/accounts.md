@@ -68,7 +68,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | A link suggested when the calendar server schedules as the mail account's address | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Switching a use on or off, its data deleted when off | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Editing a password account's servers, tested before applied | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| Setting up an account without mail, or with an address book of its own | ✅ | — | — | — | — | — |
+| Setting up an account without mail, or with an address book of its own | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Choosing capabilities, and linking accounts, in Settings | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 
 A client ✅ in the mail-surfaces row reads the rows the core already filters; it holds no rule of
@@ -93,10 +93,11 @@ it, while bob's calendar is offered without being suggested.
 
 ## 4. Known gaps
 
-- **No client creates an account without mail yet.** `account_config_toml` takes the person's
-  choice of uses and a CardDAV URL, and builds a calendar-and-contacts account without a mail
-  server, but no setup screen offers either, so every account on a device is used for mail. The
-  OAuth standards sign-in (`ImapLoginRequest`) takes neither yet.
+- **Only Linux creates an account without mail.** `account_config_toml` and the standards
+  sign-in (`ImapLoginRequest`) take the person's choice of uses and a CardDAV URL, and Linux's
+  found card offers both, on the IMAP route and for a domain with a calendar and address book and
+  no mail server. Its manual form offers neither yet, and the other clients' setup screens offer
+  neither, so there every account is used for mail.
 - **An account without mail cannot be removed, nor its password updated, except on Linux.**
   Apple, Windows and Android draw "Remove account" and the account's Settings card only on surfaces
   rule 6 keeps it out of (the folder tree, a Settings → Accounts built from the mail-only

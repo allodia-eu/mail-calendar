@@ -34,6 +34,11 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     );
     super::setup_signin_tests::a_provider_offering_sign_in_leads_with_it(&window);
     super::setup_signin_tests::a_provider_that_only_admits_registered_apps_says_so(&window);
+    super::setup_signin_tests::a_provider_refusing_passwords_and_this_app_says_so(&window);
+    super::setup_uses_widget_tests::the_found_card_offers_each_use_and_keeps_one_on(&window);
+    super::setup_uses_widget_tests::a_calendar_and_contacts_card_asks_only_for_the_password(
+        &window,
+    );
     an_untrusted_card_holds_connect_until_it_is_approved(&window);
     a_refused_certificate_holds_connect_until_it_is_accepted(&window);
     super::setup_manual_tests::the_manual_form_switches_account_type(&window);

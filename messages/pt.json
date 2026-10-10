@@ -535,6 +535,13 @@
 	"setup_detect_section_calendar": "Calendário",
 	"setup_detect_calendar_enable": "Sincronizar também o calendário",
 	"setup_detect_calendar_add": "Esta conta também tem um calendário",
+	"setup_detect_mail_enable": "Usar esta conta para o correio",
+	"setup_detect_section_contacts": "Contactos",
+	"setup_detect_contacts_enable": "Sincronizar também os contactos",
+	"setup_detect_contacts_add": "Esta conta também tem um livro de endereços",
+	"setup_hint_carddav": "carddav.example.com",
+	"setup_detect_dav_note": "Encontrámos um servidor de calendário e de livro de endereços para este endereço, mas nenhum servidor de correio. Pode adicioná-la para o calendário e os contactos.",
+	"setup_imap_signin_unsupported": "Este fornecedor só admite aplicações que tenha registado com antecedência e não aceita palavras-passe, por isso esta conta ainda não pode ser adicionada aqui.",
 
 	"settings_title": "Definições",
 	"settings_default_mail_app_heading": "Aplicação de e-mail predefinida",

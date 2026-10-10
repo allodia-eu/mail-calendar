@@ -4,7 +4,7 @@
 use adw::prelude::*;
 
 use super::{
-    AppInput, setup_google, setup_imap, setup_jmap, setup_manual, setup_microsoft,
+    AppInput, setup_dav, setup_google, setup_imap, setup_jmap, setup_manual, setup_microsoft,
     setup_model::{DetectedForm, SetupForm},
     setup_onboarding,
     setup_pane::ConnectPane,
@@ -12,6 +12,9 @@ use super::{
     setup_widgets::{actions, body, entry, heading, page, progress},
 };
 use crate::l10n;
+
+/// The tallest a step grows before it scrolls.
+const SCROLL_HEIGHT: i32 = 640;
 
 #[derive(Debug, Default)]
 pub(super) struct SetupWindow {
@@ -86,6 +89,7 @@ impl SetupWindow {
             Phase::Form | Phase::Connecting => {
                 let (content, pane) = form_step(&window, state, sender);
                 if let Some(pane) = &pane {
+                    pane.hold_back(&content);
                     pane.set_connecting(state.phase == Phase::Connecting);
                 }
                 self.pane = pane;
@@ -96,7 +100,15 @@ impl SetupWindow {
             Phase::JmapSigningIn => setup_jmap::signing_in(sender),
             Phase::ImapSigningIn => setup_imap::signing_in(sender),
         };
-        window.set_child(Some(&content));
+        // A found card with every use on is taller than a laptop screen, so the step scrolls
+        // inside the window rather than pushing its footer off the bottom of the display.
+        let scrolled = gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Never)
+            .propagate_natural_height(true)
+            .max_content_height(SCROLL_HEIGHT)
+            .child(&content)
+            .build();
+        window.set_child(Some(&scrolled));
         window.present();
         self.rendered_generation = state.generation;
         self.rendered_form_generation = state.form_generation;
@@ -234,6 +246,15 @@ fn form_step(
                     setup_google::detected_fields(&content, window, form, error, required, sender);
                     None
                 }
+                DetectedForm::Dav(form) => Some(setup_dav::detected_fields(
+                    &content,
+                    window,
+                    form,
+                    error,
+                    certificate,
+                    required,
+                    sender,
+                )),
             }
         }
         SetupForm::Manual(form) => {

@@ -97,6 +97,7 @@ mod selection_bar;
 mod selection_input;
 mod settings;
 mod setup;
+mod setup_dav;
 mod setup_google;
 mod setup_imap;
 mod setup_jmap;
@@ -116,6 +117,9 @@ mod setup_server_row;
 #[cfg(test)]
 mod setup_signin_tests;
 mod setup_state;
+mod setup_uses;
+#[cfg(test)]
+mod setup_uses_widget_tests;
 #[cfg(test)]
 mod setup_widget_tests;
 mod setup_widgets;

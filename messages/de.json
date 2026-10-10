@@ -535,6 +535,13 @@
 	"setup_detect_section_calendar": "Kalender",
 	"setup_detect_calendar_enable": "Auch Ihren Kalender synchronisieren",
 	"setup_detect_calendar_add": "Dieses Konto hat auch einen Kalender",
+	"setup_detect_mail_enable": "Dieses Konto für E-Mail verwenden",
+	"setup_detect_section_contacts": "Kontakte",
+	"setup_detect_contacts_enable": "Auch Ihre Kontakte synchronisieren",
+	"setup_detect_contacts_add": "Dieses Konto hat auch ein Adressbuch",
+	"setup_hint_carddav": "carddav.example.com",
+	"setup_detect_dav_note": "Für diese Adresse haben wir einen Kalender- und Adressbuchserver gefunden, aber keinen Mailserver. Sie können sie für Ihren Kalender und Ihre Kontakte hinzufügen.",
+	"setup_imap_signin_unsupported": "Dieser Anbieter lässt nur Apps zu, die er vorab registriert hat, und akzeptiert kein Passwort. Dieses Konto kann hier daher noch nicht hinzugefügt werden.",
 
 	"settings_title": "Einstellungen",
 	"settings_default_mail_app_heading": "Standard-E-Mail-App",

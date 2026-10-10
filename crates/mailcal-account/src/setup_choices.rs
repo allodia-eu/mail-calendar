@@ -21,43 +21,53 @@ impl SetupRecommendation {
     /// manual form.
     #[must_use]
     pub fn choices(&self) -> Vec<SetupChoice> {
-        let found = |capability, server_found| SetupChoice {
-            capability,
-            on: server_found,
-            server_found,
-        };
         match self {
             Self::Imap {
                 caldav_url,
                 carddav_url,
                 ..
-            } => vec![
-                found(Capability::Mail, true),
-                found(Capability::Calendar, caldav_url.is_some()),
-                // Contacts are looked for at the calendar's server when no address book was found.
-                found(
-                    Capability::Contacts,
-                    caldav_url.is_some() || carddav_url.is_some(),
-                ),
-            ],
+            } => standards_choices(true, caldav_url.is_some(), carddav_url.is_some()),
             Self::Dav {
                 caldav_url,
                 carddav_url,
                 ..
-            } => vec![
-                found(Capability::Calendar, caldav_url.is_some()),
-                found(
-                    Capability::Contacts,
-                    caldav_url.is_some() || carddav_url.is_some(),
-                ),
-            ],
-            Self::Microsoft { .. } | Self::Google { .. } => Capability::ALL
-                .into_iter()
-                .map(|capability| found(capability, true))
-                .collect(),
+            } => standards_choices(false, caldav_url.is_some(), carddav_url.is_some()),
+            Self::Microsoft { .. } | Self::Google { .. } => provider_choices(),
             Self::Jmap { .. } | Self::Manual { .. } => Vec::new(),
         }
     }
+}
+
+/// A use that starts on exactly when its server is known.
+const fn found(capability: Capability, server_found: bool) -> SetupChoice {
+    SetupChoice {
+        capability,
+        on: server_found,
+        server_found,
+    }
+}
+
+/// The uses a standards account offers: mail when it has a mail server, then calendar and
+/// contacts, each on when its server is known. Contacts are looked for at the calendar's server
+/// when no address book was found.
+#[must_use]
+pub fn standards_choices(mail: bool, caldav: bool, carddav: bool) -> Vec<SetupChoice> {
+    mail.then(|| found(Capability::Mail, true))
+        .into_iter()
+        .chain([
+            found(Capability::Calendar, caldav),
+            found(Capability::Contacts, caldav || carddav),
+        ])
+        .collect()
+}
+
+/// The uses a Microsoft or Google sign-in offers: every one, colleagues included, all on.
+#[must_use]
+pub fn provider_choices() -> Vec<SetupChoice> {
+    Capability::ALL
+        .into_iter()
+        .map(|capability| found(capability, true))
+        .collect()
 }
 
 #[cfg(test)]

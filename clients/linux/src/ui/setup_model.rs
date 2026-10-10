@@ -2,11 +2,15 @@
 //! autodetection recommendation.
 
 use mailcal_bindings::{
-    AccountSetup, ConnectionSecurity, DetectedServerRow, JmapSetup, MissReason,
-    RejectedCertificate, SetupRecommendation, account_config_toml, jmap_account_config_toml,
+    AccountCapability, AccountSetup, ConnectionSecurity, DetectedServerRow, DetectedSetup,
+    JmapSetup, MissReason, RejectedCertificate, SetupRecommendation, account_config_toml,
+    jmap_account_config_toml,
 };
 
-use super::setup_server_field::{ServerPair, split_host};
+use super::{
+    setup_server_field::{ServerPair, split_host},
+    setup_uses::UseOffer,
+};
 use crate::l10n;
 
 /// What the setup window is showing: a recommendation the user is confirming, or the manual
@@ -17,6 +21,21 @@ pub(super) enum SetupForm {
     Manual(ManualForm),
 }
 
+impl SetupForm {
+    /// The address the form is for.
+    pub(super) fn email(&self) -> String {
+        match self {
+            Self::Detected(DetectedForm::Imap(form)) => form.email.clone(),
+            Self::Detected(DetectedForm::Jmap(form)) => form.email.clone(),
+            Self::Detected(DetectedForm::Microsoft(form) | DetectedForm::Google(form)) => {
+                form.email.clone()
+            }
+            Self::Detected(DetectedForm::Dav(form)) => form.email.clone(),
+            Self::Manual(form) => form.email.clone(),
+        }
+    }
+}
+
 /// A detection result, on the route the shared core picked for it
 /// (`docs/account-autodetect.md` → Routing).
 #[derive(Clone)]
@@ -25,6 +44,8 @@ pub(super) enum DetectedForm {
     Jmap(JmapForm),
     Microsoft(OAuthForm),
     Google(OAuthForm),
+    /// A calendar or address-book server and no mail server: an account for those alone.
+    Dav(DavForm),
 }
 
 /// The account types the manual form can offer, in picker order; the same four every client
@@ -86,13 +107,20 @@ impl AccountKind {
 }
 
 /// A detected IMAP account: the servers detection found, shown for recognition rather than
-/// editing, plus the CalDAV endpoint the follow-on probe discovered (empty when none).
+/// editing, and the uses the card offers.
 #[derive(Clone)]
 pub(crate) struct ImapForm {
     pub(super) email: String,
     pub(super) imap_host: String,
     pub(super) smtp_host: String,
+    /// The calendar and address-book endpoints the account is set up with, and what it is used
+    /// for: what detection found until the person chooses on the card, which fills them in for
+    /// the sign-in it starts. Empty URLs are none.
     pub(super) caldav_url: String,
+    pub(super) carddav_url: String,
+    pub(super) uses: Option<Vec<AccountCapability>>,
+    /// What the card offers the account for.
+    pub(super) offer: UseOffer,
     pub(super) imap_security: ConnectionSecurity,
     pub(super) smtp_security: ConnectionSecurity,
     pub(super) trusted: bool,
@@ -132,6 +160,13 @@ pub(crate) struct JmapForm {
     pub(super) server_url: String,
     pub(super) trusted: bool,
     pub(super) sign_in: JmapSignIn,
+}
+
+/// A domain with a calendar or address-book server and no mail server. The address is the login.
+#[derive(Clone)]
+pub(crate) struct DavForm {
+    pub(super) email: String,
+    pub(super) offer: UseOffer,
 }
 
 /// A provider whose whole setup is one browser sign-in; Microsoft or Google. There is nothing
@@ -226,6 +261,9 @@ pub(crate) struct ImapSubmission {
     pub(super) imap_host: String,
     pub(super) smtp_host: String,
     pub(super) caldav_url: String,
+    pub(super) carddav_url: String,
+    /// `None` when nothing was chosen, so the servers given decide.
+    pub(super) uses: Option<Vec<AccountCapability>>,
     pub(super) imap_security: ConnectionSecurity,
     pub(super) smtp_security: ConnectionSecurity,
     pub(super) password: String,
@@ -262,8 +300,8 @@ impl AccountSubmission {
                 imap_security: Some(form.imap_security),
                 smtp_security: Some(form.smtp_security),
                 accepted_certificate: form.accepted_certificate,
-                carddav_base_url: None,
-                uses: None,
+                carddav_base_url: non_empty(form.carddav_url),
+                uses: form.uses,
             })
             .map_err(|error| error.to_string()),
             Self::Jmap(form) => jmap_account_config_toml(JmapSetup {
@@ -276,11 +314,20 @@ impl AccountSubmission {
     }
 }
 
-pub(super) fn recommendation_form(
-    recommendation: SetupRecommendation,
-    fallback_email: String,
-) -> SetupForm {
-    match recommendation {
+/// The form a detection run routes to.
+pub(super) fn detected_form(setup: DetectedSetup, fallback_email: String) -> SetupForm {
+    let offer = UseOffer {
+        choices: setup.choices,
+        caldav_url: setup.caldav_url.unwrap_or_default(),
+        carddav_url: setup.carddav_url.unwrap_or_default(),
+    };
+    if setup.calendar_and_contacts {
+        return SetupForm::Detected(DetectedForm::Dav(DavForm {
+            email: fallback_email,
+            offer,
+        }));
+    }
+    match setup.recommendation {
         SetupRecommendation::Jmap {
             email,
             server_url,
@@ -300,7 +347,6 @@ pub(super) fn recommendation_form(
             smtp_security,
             incoming,
             outgoing,
-            caldav_url,
             oauth_issuer,
             is_trusted,
             ..
@@ -308,7 +354,10 @@ pub(super) fn recommendation_form(
             email,
             imap_host,
             smtp_host: smtp_host.unwrap_or_default(),
-            caldav_url: caldav_url.unwrap_or_default(),
+            caldav_url: offer.caldav_url.clone(),
+            carddav_url: offer.carddav_url.clone(),
+            uses: None,
+            offer,
             imap_security,
             smtp_security,
             trusted: is_trusted,
@@ -383,6 +432,12 @@ pub(super) fn edit_manually(form: &DetectedForm) -> SetupForm {
             email: form.email.clone(),
             ..ManualForm::default()
         },
+        DetectedForm::Dav(form) => ManualForm {
+            kind: AccountKind::Imap,
+            email: form.email.clone(),
+            caldav_url: form.offer.caldav_url.clone(),
+            ..ManualForm::default()
+        },
     };
     SetupForm::Manual(manual)
 }
@@ -405,6 +460,13 @@ fn non_empty(value: String) -> Option<String> {
 #[path = "setup_model_imap.rs"]
 mod imap;
 pub(crate) use imap::ImapSignIn;
+
+/// The routes the tests start from, as a detection run answers them.
+#[cfg(test)]
+#[path = "setup_model_fixture.rs"]
+mod fixture;
+#[cfg(test)]
+pub(super) use fixture::recommendation_form;
 
 #[cfg(test)]
 #[path = "setup_model_tests.rs"]

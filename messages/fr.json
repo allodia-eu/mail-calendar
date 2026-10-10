@@ -535,6 +535,13 @@
 	"setup_detect_section_calendar": "Calendrier",
 	"setup_detect_calendar_enable": "Synchroniser aussi votre calendrier",
 	"setup_detect_calendar_add": "Ce compte a aussi un calendrier",
+	"setup_detect_mail_enable": "Utiliser ce compte pour les e-mails",
+	"setup_detect_section_contacts": "Contacts",
+	"setup_detect_contacts_enable": "Synchroniser aussi vos contacts",
+	"setup_detect_contacts_add": "Ce compte a aussi un carnet d’adresses",
+	"setup_hint_carddav": "carddav.example.com",
+	"setup_detect_dav_note": "Nous avons trouvé un serveur de calendrier et de carnet d’adresses pour cette adresse, mais aucun serveur de messagerie. Vous pouvez l’ajouter pour votre calendrier et vos contacts.",
+	"setup_imap_signin_unsupported": "Ce fournisseur n’autorise que les applications qu’il a enregistrées à l’avance et n’accepte pas de mot de passe : ce compte ne peut donc pas encore être ajouté ici.",
 
 	"settings_title": "Réglages",
 	"settings_default_mail_app_heading": "Application de messagerie par défaut",

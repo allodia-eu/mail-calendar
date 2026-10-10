@@ -54,6 +54,8 @@ fn detected_security_and_calendar_ride_back_into_the_config() {
         imap_host: form.imap_host,
         smtp_host: form.smtp_host,
         caldav_url: form.caldav_url,
+        carddav_url: form.carddav_url,
+        uses: form.uses,
         imap_security: form.imap_security,
         smtp_security: form.smtp_security,
         password: "secret".to_owned(),
@@ -82,6 +84,8 @@ fn an_accepted_certificate_reaches_the_stored_config() {
         imap_host: form.imap_host.clone(),
         smtp_host: form.smtp_host,
         caldav_url: form.caldav_url,
+        carddav_url: form.carddav_url,
+        uses: form.uses,
         imap_security: form.imap_security,
         smtp_security: form.smtp_security,
         password: "secret".to_owned(),
@@ -239,6 +243,82 @@ const fn form_kind(form: &SetupForm) -> &'static str {
         SetupForm::Detected(DetectedForm::Jmap(_)) => "jmap",
         SetupForm::Detected(DetectedForm::Microsoft(_)) => "microsoft",
         SetupForm::Detected(DetectedForm::Google(_)) => "google",
+        SetupForm::Detected(DetectedForm::Dav(_)) => "dav",
         SetupForm::Manual(_) => "manual",
+    }
+}
+
+/// A domain with a calendar and address book and no mail server is an account for those alone,
+/// signed in to with the address typed (`docs/account-autodetect.md` rule 8).
+#[test]
+fn a_calendar_and_contacts_detection_sets_up_an_account_without_mail() {
+    let choice = |capability| mailcal_bindings::SetupChoice {
+        capability,
+        on: true,
+        server_found: true,
+    };
+    let form = super::detected_form(
+        mailcal_bindings::DetectedSetup {
+            recommendation: SetupRecommendation::Manual {
+                reason: mailcal_bindings::MissReason::NothingFound,
+            },
+            calendar_and_contacts: true,
+            caldav_url: Some("https://cloud.example.test/remote.php/dav".to_owned()),
+            carddav_url: None,
+            choices: vec![
+                choice(mailcal_bindings::AccountCapability::Calendar),
+                choice(mailcal_bindings::AccountCapability::Contacts),
+            ],
+        },
+        "alice@cloud.example.test".to_owned(),
+    );
+    assert_eq!(form_kind(&form), "dav");
+    assert_eq!(form.email(), "alice@cloud.example.test");
+
+    let config = AccountSubmission::Imap(ImapSubmission {
+        email: form.email(),
+        imap_host: String::new(),
+        smtp_host: String::new(),
+        caldav_url: "https://cloud.example.test/remote.php/dav".to_owned(),
+        carddav_url: String::new(),
+        uses: Some(vec![mailcal_bindings::AccountCapability::Contacts]),
+        imap_security: mailcal_bindings::ConnectionSecurity::ImplicitTls,
+        smtp_security: mailcal_bindings::ConnectionSecurity::ImplicitTls,
+        password: "secret".to_owned(),
+        accepted_certificate: None,
+    })
+    .config_toml()
+    .expect("an account without mail needs no mail server");
+    assert!(!config.contains("[imap]"));
+    assert!(config.contains("[caldav]"));
+    assert!(config.contains(r#"capabilities = ["contacts"]"#));
+}
+
+/// Only an answer that a password does not work takes a drawn password field away
+/// (`docs/mail-oauth.md` rule 8); everything else leaves it where it is.
+#[test]
+fn only_a_refused_password_takes_the_field_away() {
+    use super::ImapSignIn;
+    let offered = |password_also_works| ImapSignIn::Offered {
+        label: None,
+        password_also_works,
+    };
+    assert!(offered(false).refuses_password());
+    assert!(
+        ImapSignIn::RegistrationNeeded {
+            password_also_works: false
+        }
+        .refuses_password()
+    );
+    for keeps in [
+        ImapSignIn::Checking,
+        offered(true),
+        ImapSignIn::RegistrationNeeded {
+            password_also_works: true,
+        },
+        ImapSignIn::Password,
+        ImapSignIn::Failed,
+    ] {
+        assert!(!keeps.refuses_password(), "{keeps:?}");
     }
 }

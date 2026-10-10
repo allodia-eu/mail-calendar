@@ -18,6 +18,24 @@ use mailcal_bindings::RejectedCertificate;
 
 use super::setup_widgets::{ConnectGate, certificate_gate, show_error};
 
+/// The widget name of a step's Back button, by which the window hands it to the step's pane.
+pub(super) const BACK: &str = "setup-back";
+
+/// The first widget under `root` named `name`.
+pub(super) fn named(root: &gtk::Widget, name: &str) -> Option<gtk::Widget> {
+    if root.widget_name() == name {
+        return Some(root.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        if let Some(found) = named(&widget, name) {
+            return Some(found);
+        }
+        child = widget.next_sibling();
+    }
+    None
+}
+
 /// The readout that stands where Connect was while a connect runs: small and in the row, not
 /// the page-sized spinner a whole phase gets, because the form it belongs to is still on screen.
 pub(super) fn connecting_readout(message: &str) -> gtk::Box {
@@ -44,6 +62,8 @@ pub(super) struct ConnectPane {
     /// config carries no exception, so its refusal is reported as plain text
     /// (`docs/certificate-exceptions.md` rule 8).
     offers_exception: bool,
+    /// The step's Back, which waits while a connect runs; handed over by [`Self::hold_back`].
+    back: Rc<RefCell<Option<gtk::Widget>>>,
 }
 
 impl ConnectPane {
@@ -60,10 +80,17 @@ impl ConnectPane {
             connect: connect.clone(),
             progress: progress.as_ref().clone(),
             refused: Rc::new(RefCell::new(None)),
+            back: Rc::new(RefCell::new(None)),
             offers_exception,
         };
         pane.set_connecting(false);
         pane
+    }
+
+    /// Hands over the step's Back button, found in `content` by its name, so a running connect
+    /// can hold it.
+    pub(super) fn hold_back(&self, content: &impl IsA<gtk::Widget>) {
+        self.back.replace(named(content.as_ref(), BACK));
     }
 
     /// The certificate to send back with the next submission: what the person accepted on this
@@ -91,10 +118,14 @@ impl ConnectPane {
     }
 
     /// A connect is running: the button becomes the progress readout in its place, so the form
-    /// stays legible and nothing below it jumps.
+    /// stays legible and nothing below it jumps. Back waits for it too, because its answer belongs
+    /// to the step on screen (`docs/account-autodetect.md` rule 12).
     pub(super) fn set_connecting(&self, connecting: bool) {
         self.connect.set_visible(!connecting);
         self.progress.set_visible(connecting);
+        if let Some(back) = self.back.borrow().as_ref() {
+            back.set_sensitive(!connecting);
+        }
         if connecting {
             while let Some(child) = self.feedback.first_child() {
                 self.feedback.remove(&child);

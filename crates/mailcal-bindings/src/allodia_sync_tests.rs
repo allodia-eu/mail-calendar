@@ -177,3 +177,55 @@ fn a_record_naming_no_server_falls_back_to_detection() {
         }
     }
 }
+
+/// An offer is set up through the same found card a detection draws, so it carries the same
+/// choices: the uses its kind can hold, on where the other device found a server.
+#[test]
+fn an_offer_carries_the_choices_of_the_card_it_opens() {
+    use crate::{AccountCapability, offered_setup};
+    let uses = |setup: crate::DetectedSetup| -> Vec<(AccountCapability, bool)> {
+        setup
+            .choices
+            .iter()
+            .map(|choice| (choice.capability, choice.on))
+            .collect()
+    };
+    let imap = offered_setup(imap_offer());
+    assert_eq!(
+        imap.caldav_url.as_deref(),
+        Some("https://dav.example.test/")
+    );
+    assert!(matches!(
+        imap.recommendation,
+        SetupRecommendation::Imap { .. }
+    ));
+    assert_eq!(
+        uses(imap),
+        [
+            (AccountCapability::Mail, true),
+            (AccountCapability::Calendar, true),
+            (AccountCapability::Contacts, true),
+        ]
+    );
+    let without_calendar = AllodiaAccountOffer {
+        caldav_base_url: None,
+        ..imap_offer()
+    };
+    assert_eq!(
+        uses(offered_setup(without_calendar)),
+        [
+            (AccountCapability::Mail, true),
+            (AccountCapability::Calendar, false),
+            (AccountCapability::Contacts, false),
+        ]
+    );
+    assert_eq!(
+        uses(offered_setup(offer(AllodiaAccountKind::Google))).len(),
+        4
+    );
+    assert!(
+        offered_setup(offer(AllodiaAccountKind::Jmap))
+            .choices
+            .is_empty()
+    );
+}

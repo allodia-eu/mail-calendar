@@ -252,6 +252,11 @@ pub(super) fn a_refusal_is_answered_in_the_form_it_came_from(window: &adw::Appli
         !connect.is_visible(),
         "a running connect stands where Connect was"
     );
+    let back = descendant_button(&child, l10n::a11y_back());
+    assert!(
+        !back.is_sensitive(),
+        "Back waits for the connect, whose answer belongs to this step"
+    );
     assert_eq!(
         setup.current_window().and_then(|window| window.child()),
         Some(child.clone()),
@@ -281,6 +286,7 @@ pub(super) fn a_refusal_is_answered_in_the_form_it_came_from(window: &adw::Appli
         refused, child,
         "the refusal is drawn into the same pane, not into a new one"
     );
+    assert!(back.is_sensitive(), "and goes back once it has answered");
 
     // Every field stands, the secret included: it was never stored anywhere to be restored
     // from, and it does not have to be.

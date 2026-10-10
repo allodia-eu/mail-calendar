@@ -323,6 +323,11 @@ impl AppModel {
                 // have happened since boot; so the card is re-derived rather than left as it was.
                 self.refresh_onboarding_card();
             }
+            AppInput::AccountSetupBack => {
+                self.setup
+                    .back_to_address(self.snapshot.accounts.is_empty());
+                self.refresh_onboarding_card();
+            }
             AppInput::CancelAccountSetup => self.setup.cancel(),
             AppInput::ManualAccountSetup(email) => {
                 self.setup.show_form(setup_model::manual_form(email, None));
