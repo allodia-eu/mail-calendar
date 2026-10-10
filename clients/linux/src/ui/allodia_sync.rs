@@ -200,8 +200,7 @@ impl AppModel {
         // `required` is re-derived rather than assumed false: an offer accepted on the FIRST run
         // must leave the window required, or the screen the person cannot skip becomes one they
         // can close into an app with no accounts.
-        self.setup
-            .open_on(self.snapshot.accounts.is_empty(), email.clone());
+        self.setup.open_on(self.has_no_accounts(), email.clone());
         self.account_detected(email, mailcal_bindings::offered_setup(offer), sender);
     }
 

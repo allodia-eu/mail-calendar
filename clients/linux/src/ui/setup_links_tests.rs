@@ -38,7 +38,7 @@ fn snapshot() -> AccountsSnapshot {
 
 #[test]
 fn a_suggestion_starts_picked_and_continuing_links_it() {
-    let step = LinkStep::for_account(&snapshot(), "alice@imap").expect("a calendar to link");
+    let step = LinkStep::for_account(&snapshot(), "alice@imap", None).expect("a calendar to link");
     assert_eq!(step.pickers.len(), 1, "only the slot with candidates");
     assert_eq!(step.picked, [Some(1)]);
     assert_eq!(step.links(), [(LinkSlot::Calendar, "alice@dav".to_owned())]);
@@ -46,33 +46,33 @@ fn a_suggestion_starts_picked_and_continuing_links_it() {
 
 #[test]
 fn nothing_to_link_is_no_step() {
-    assert!(LinkStep::for_account(&snapshot(), "someone-else").is_none());
+    assert!(LinkStep::for_account(&snapshot(), "someone-else", None).is_none());
     // A provider account is linked from Settings, not offered it at setup.
     let mut provider = snapshot();
     provider.accounts[0].kind = AccountKind::Google;
-    assert!(LinkStep::for_account(&provider, "alice@imap").is_none());
+    assert!(LinkStep::for_account(&provider, "alice@imap", None).is_none());
     let mut lone = snapshot();
     lone.accounts[0].link_candidates = LinkCandidates::default();
-    assert!(LinkStep::for_account(&lone, "alice@imap").is_none());
+    assert!(LinkStep::for_account(&lone, "alice@imap", None).is_none());
 }
 
 #[test]
 fn a_pick_survives_a_late_suggestion_and_none_links_nothing() {
     let mut first = snapshot();
     first.accounts[0].link_candidates.suggested.clear();
-    let mut step = LinkStep::for_account(&first, "alice@imap").unwrap();
+    let mut step = LinkStep::for_account(&first, "alice@imap", None).unwrap();
     assert_eq!(step.picked, [None]);
     assert!(step.links().is_empty(), "none picked, nothing linked");
 
     // Untouched, the step takes the suggestion that arrived.
-    let fresh = LinkStep::for_account(&snapshot(), "alice@imap").unwrap();
+    let fresh = LinkStep::for_account(&snapshot(), "alice@imap", None).unwrap();
     let step_now = step.refreshed(fresh);
     assert_eq!(step_now.picked, [Some(1)]);
 
     // Touched, it keeps what the person picked.
     step = step_now;
     step.pick(0, Some(0));
-    let fresh = LinkStep::for_account(&snapshot(), "alice@imap").unwrap();
+    let fresh = LinkStep::for_account(&snapshot(), "alice@imap", None).unwrap();
     let kept = step.refreshed(fresh);
     assert_eq!(kept.links(), [(LinkSlot::Calendar, "bob@dav".to_owned())]);
 }
@@ -85,7 +85,7 @@ fn another_account_comes_back_to_the_step_it_was_added_from() {
     let mut state = SetupState::closed();
     state.open(false);
     state.added.push("alice@imap".to_owned());
-    state.show_links(LinkStep::for_account(&snapshot(), "alice@imap").unwrap());
+    state.show_links(LinkStep::for_account(&snapshot(), "alice@imap", None).unwrap());
     assert_eq!(state.phase, Phase::Links);
     assert_eq!(state.linking(), Some("alice@imap"));
 
@@ -112,13 +112,13 @@ fn an_unchanged_step_is_not_redrawn_and_a_closed_flow_links_nothing() {
     first.accounts[0].link_candidates.suggested.clear();
     let mut state = SetupState::closed();
     state.open(false);
-    state.show_links(LinkStep::for_account(&first, "alice@imap").unwrap());
+    state.show_links(LinkStep::for_account(&first, "alice@imap", None).unwrap());
 
     let drawn = state.generation;
-    state.refresh_links(LinkStep::for_account(&first, "alice@imap").unwrap());
+    state.refresh_links(LinkStep::for_account(&first, "alice@imap", None).unwrap());
     assert_eq!(state.generation, drawn, "nothing changed, nothing redrawn");
 
-    state.refresh_links(LinkStep::for_account(&snapshot(), "alice@imap").unwrap());
+    state.refresh_links(LinkStep::for_account(&snapshot(), "alice@imap", None).unwrap());
     assert_ne!(state.generation, drawn, "a late suggestion is drawn");
     assert_eq!(state.links.as_ref().unwrap().picked, [Some(1)]);
 
@@ -143,7 +143,7 @@ pub(in crate::ui) fn the_link_step_offers_the_accounts_it_can_use(window: &adw::
     let mut state = SetupState::closed();
     let mut setup = SetupWindow::default();
     state.open(false);
-    state.show_links(LinkStep::for_account(&snapshot(), "alice@imap").unwrap());
+    state.show_links(LinkStep::for_account(&snapshot(), "alice@imap", None).unwrap());
     setup.render(&state, window, &sender);
     let child = setup
         .current_window()
@@ -183,7 +183,7 @@ fn a_pick_survives_adding_another_account() {
     use crate::ui::setup_state::{Phase, SetupState};
     let mut state = SetupState::closed();
     state.open(false);
-    state.show_links(LinkStep::for_account(&snapshot(), "alice@imap").unwrap());
+    state.show_links(LinkStep::for_account(&snapshot(), "alice@imap", None).unwrap());
     state.pick_link(0, Some(0));
     state.add_linked();
 
@@ -192,7 +192,10 @@ fn a_pick_survives_adding_another_account() {
         .link_candidates
         .calendar
         .insert(0, linked("carol@dav"));
-    state.show_links_again(LinkStep::for_account(&later, "alice@imap").unwrap());
+    state.show_links_again(
+        LinkStep::for_account(&later, "alice@imap", None).unwrap(),
+        None,
+    );
     assert_eq!(state.phase, Phase::Links);
     let step = state.links.as_ref().unwrap();
     assert_eq!(

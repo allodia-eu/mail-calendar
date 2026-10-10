@@ -140,6 +140,33 @@ fn an_only_use_waiting_on_permission_can_still_be_asked_for() {
 }
 
 #[test]
+fn a_use_the_server_does_not_offer_cannot_be_switched_and_holds_nothing_on() {
+    let entry = entry(
+        AccountKind::Jmap,
+        &[
+            (AccountCapability::Mail, CapabilityState::On),
+            (AccountCapability::Calendar, CapabilityState::NotOffered),
+            (AccountCapability::Contacts, CapabilityState::Off),
+        ],
+    );
+    assert_eq!(
+        use_switch(&entry, AccountCapability::Calendar),
+        UseSwitch {
+            active: false,
+            asks: false,
+            sensitive: false,
+            note: Some(l10n::settings_account_use_not_offered()),
+        }
+    );
+    // Mail is the one use that works, so it is the last.
+    assert_eq!(
+        use_switch(&entry, AccountCapability::Mail).note,
+        Some(l10n::settings_account_use_last())
+    );
+    assert!(!summary(&entry).contains(l10n::nav_calendar()));
+}
+
+#[test]
 fn signing_in_again_is_offered_where_the_provider_signs_in_and_says_what_is_wrong() {
     assert!(signs_in_at_provider(AccountKind::Microsoft));
     assert!(signs_in_at_provider(AccountKind::Google));

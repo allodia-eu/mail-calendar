@@ -115,8 +115,12 @@ optional OAuth sign-in, and secure storage of the resulting config.
   `blobId` + the session `downloadUrl` (RFC 8620 §6.2), then sanitised and rendered like any
   other account (this is the engine's `fetch_message_source`, added for JMAP).
 - **Sending new mail**: JMAP `EmailSubmission` (the engine's `submit_email`), filed to Sent.
-- **Calendar (read)**: the account's calendars + events sync into the agenda when the server
-  advertises calendar support.
+- **Calendar (read)**: the account's calendars + events sync into the agenda when its session
+  lists calendars.
+- **What the account has** is read from the signed-in account's session at every connect
+  (`accountCapabilities`, RFC 8620 §2). Mail, calendar or contacts it does not list is opened for
+  nothing and reads as not offered ([`accounts.md`](accounts.md) rule 11), and setup asks which
+  of the rest the account is used for ([`onboarding.md`](onboarding.md)).
 
 ## Per-platform matrix
 
