@@ -169,6 +169,10 @@ pub(crate) struct JmapForm {
     pub(super) server_url: String,
     pub(super) trusted: bool,
     pub(super) sign_in: JmapSignIn,
+    /// The calendar and address-book servers detection found beside it, offered at the link step
+    /// when the session has neither of its own.
+    pub(super) caldav_url: Option<String>,
+    pub(super) carddav_url: Option<String>,
 }
 
 /// A domain with a calendar or address-book server and no mail server. The address is the login.
@@ -350,6 +354,8 @@ pub(super) fn detected_form(setup: DetectedSetup, fallback_email: String) -> Set
             server_url,
             trusted: is_trusted,
             sign_in: JmapSignIn::Checking,
+            caldav_url: (!offer.caldav_url.is_empty()).then(|| offer.caldav_url.clone()),
+            carddav_url: (!offer.carddav_url.is_empty()).then(|| offer.carddav_url.clone()),
         })),
         SetupRecommendation::Imap {
             email,

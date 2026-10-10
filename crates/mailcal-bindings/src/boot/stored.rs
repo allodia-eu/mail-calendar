@@ -80,7 +80,14 @@ pub(crate) fn prepare_stored_account(
         // An OAuth JMAP account's token source builds without a live socket; a stored-secret
         // account has nothing to refresh and gets none.
         let tokens = jmap_tokens(&config, &id, sink, origin)?;
-        (id, ConnectedAccount::Jmap { config, tokens })
+        (
+            id,
+            ConnectedAccount::Jmap {
+                config,
+                tokens,
+                session: crate::jmap_session::JmapSession::default(),
+            },
+        )
     } else {
         let config = mailcal_account::load_str(config_toml)
             .map_err(|err| MailcalError::Config(err.to_string()))?;

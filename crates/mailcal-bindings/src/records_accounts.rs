@@ -69,6 +69,9 @@ pub enum CapabilityState {
     /// Used for it, and the provider has not granted the permission it needs: signing in again
     /// (`begin_account_consent`) asks for it.
     NeedsPermission,
+    /// The server offers none, so nothing can switch it on: a JMAP session that does not list
+    /// it. Known once the account has connected; before that a use reads as chosen.
+    NotOffered,
 }
 
 /// The accounts one account relies on, each already checked against the accounts that exist.

@@ -34,7 +34,7 @@ pub(super) fn summary(entry: &AccountEntry) -> String {
     let uses = entry
         .uses
         .iter()
-        .filter(|use_| use_.state != CapabilityState::Off)
+        .filter(|use_| works(use_.state))
         .map(|use_| use_name(use_.capability))
         .collect::<Vec<_>>()
         .join(", ");
@@ -52,6 +52,15 @@ pub(super) fn summary(entry: &AccountEntry) -> String {
         lines.push(l10n::settings_account_needs_permission().to_owned());
     }
     lines.join("\n")
+}
+
+/// Whether the account is used for a use in `state`: on, or waiting on the provider's permission.
+/// A use the server does not offer is not one, whatever was chosen.
+const fn works(state: CapabilityState) -> bool {
+    matches!(
+        state,
+        CapabilityState::On | CapabilityState::NeedsPermission
+    )
 }
 
 /// Whether a use the account is used for waits on the provider's permission.
@@ -100,7 +109,7 @@ pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) ->
         entry
             .uses
             .iter()
-            .any(|use_| use_.capability == wanted && use_.state != CapabilityState::Off)
+            .any(|use_| use_.capability == wanted && works(use_.state))
     };
     let state = entry
         .uses
@@ -121,7 +130,10 @@ pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) ->
     let without_contacts = capability == AccountCapability::Colleagues
         && state == CapabilityState::Off
         && !used(AccountCapability::Contacts);
-    let note = if last {
+    let not_offered = state == CapabilityState::NotOffered;
+    let note = if not_offered {
+        Some(l10n::settings_account_use_not_offered())
+    } else if last {
         Some(l10n::settings_account_use_last())
     } else if without_contacts {
         Some(l10n::settings_account_colleagues_needs_contacts())
@@ -133,7 +145,7 @@ pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) ->
     UseSwitch {
         active,
         asks: state == CapabilityState::NeedsPermission,
-        sensitive: !last && !without_contacts,
+        sensitive: !last && !without_contacts && !not_offered,
         note,
     }
 }

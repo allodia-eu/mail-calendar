@@ -327,14 +327,13 @@ impl AppModel {
                 }
             }
             AppInput::RestartAccountSetup => {
-                self.setup.open(self.snapshot.accounts.is_empty());
+                self.setup.open(self.has_no_accounts());
                 // Removing the last account reopens the first-account screen, and a sign-in may
                 // have happened since boot; so the card is re-derived rather than left as it was.
                 self.refresh_onboarding_card();
             }
             AppInput::AccountSetupBack => {
-                self.setup
-                    .back_to_address(self.snapshot.accounts.is_empty());
+                self.setup.back_to_address(self.has_no_accounts());
                 self.refresh_onboarding_card();
             }
             AppInput::CancelAccountSetup => {
@@ -343,6 +342,9 @@ impl AppModel {
             message @ (AppInput::SetupLinkPicked(..)
             | AppInput::SetupLinksDone(_)
             | AppInput::SetupAddLinkedAccount
+            | AppInput::SetupBesideAccount
+            | AppInput::SetupUsesChosen(_)
+            | AppInput::SetupUsesApplied(..)
             | AppInput::SenderNameNotNeeded) => self.update_setup_flow(message, sender),
             AppInput::ManualAccountSetup(email) => {
                 self.setup.show_form(setup_model::manual_form(email, None));
@@ -464,14 +466,7 @@ impl AppModel {
                 self.remove_account(id, sender.input_sender().clone());
             }
             AppInput::AccountRemoved(result) => match result {
-                Ok(()) => {
-                    if let Some(app) = &self.app {
-                        self.snapshot = app.mailbox_list();
-                    }
-                    // Back to the list: the page that asked is the account that is gone.
-                    self.settings.account = None;
-                    self.settings.refresh_in_place();
-                }
+                Ok(()) => self.account_removed(),
                 // The account is still connected when the keyring write fails, so say what
                 // happened in the app's own voice rather than surfacing a bare D-Bus string.
                 Err(error) => self.notice = Some(l10n::remove_account_failed(&error)),

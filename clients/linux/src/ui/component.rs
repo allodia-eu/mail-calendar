@@ -109,7 +109,8 @@ impl AppModel {
         mailcal_bindings::watch_for_native_faults(
             logger::diagnostic_log_path().to_string_lossy().into_owned(),
         );
-        let requires_setup = secrets.is_some() && snapshot.accounts.is_empty();
+        let requires_setup =
+            secrets.is_some() && super::account_settings::no_accounts(app.as_deref());
         let flow = welcome::initial_flow(
             secrets.is_some() || welcome::force_in_fixture(),
             requires_setup,

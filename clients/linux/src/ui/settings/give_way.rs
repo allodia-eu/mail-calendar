@@ -34,4 +34,12 @@ impl SettingsWindow {
             self.close();
         }
     }
+
+    /// Takes the window down while the first-run setup nobody can close is up: it is the one
+    /// window left, and an app with no account has no settings worth showing over it.
+    pub(crate) fn give_way_to_setup(&mut self, required_setup: bool) {
+        if required_setup {
+            self.close();
+        }
+    }
 }

@@ -19,10 +19,12 @@ pub(crate) struct AccountFacts {
     pub(crate) kind: AccountKind,
     /// What the account can be used for.
     pub(crate) offered: Capabilities,
-    /// What the account is used for.
+    /// What the account is used for, less what its server offers none of.
     pub(crate) chosen: Capabilities,
     /// What its Microsoft or Google grant does not allow of that.
     pub(crate) withheld: Capabilities,
+    /// What its server offers none of: a JMAP session's omissions.
+    pub(crate) lacks: Capabilities,
     /// Whether its calendar is a CalDAV one, which is what an invitation that arrived by mail
     /// can be filed into.
     pub(crate) files_invitations: bool,
@@ -249,6 +251,7 @@ fn uses(account: &AccountFacts, calendar_refused: bool) -> Vec<AccountUse> {
             let refused = account.withheld.contains(capability)
                 || (capability == Capability::Calendar && calendar_refused);
             let state = match (account.chosen.contains(capability), refused) {
+                _ if account.lacks.contains(capability) => CapabilityState::NotOffered,
                 (false, _) => CapabilityState::Off,
                 (true, false) => CapabilityState::On,
                 (true, true) => CapabilityState::NeedsPermission,

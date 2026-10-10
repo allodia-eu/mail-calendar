@@ -205,6 +205,8 @@ pub(crate) enum AccountDial {
         tokens: Option<Arc<GraphTokenSource>>,
         /// What the account is used for; a capability it is not used for is never opened.
         capabilities: Capabilities,
+        /// Where the dial records what the session offers.
+        session: crate::jmap_session::JmapSession,
     },
 }
 
@@ -236,10 +238,15 @@ impl AccountDial {
                 capabilities: entry.opened_capabilities(),
                 affiliation_unknown: config.affiliation.is_none() && config.can_ask_affiliation(),
             },
-            ConnectedAccount::Jmap { config, tokens } => Self::Jmap {
+            ConnectedAccount::Jmap {
+                config,
+                tokens,
+                session,
+            } => Self::Jmap {
                 config: config.clone(),
                 tokens: tokens.clone(),
                 capabilities: config.capabilities(),
+                session: session.clone(),
             },
         }
     }

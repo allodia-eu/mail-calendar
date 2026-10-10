@@ -418,6 +418,7 @@ impl AppWidgets {
         }
         self.sync_strip
             .set_visible(model.sync_bar.is_some() || model.sync_status.is_some());
+        self.settings.give_way_to_setup(model.setup.required_open());
         self.settings.render(
             model.settings.render_state(
                 model.credential_repair_failed.as_deref(),

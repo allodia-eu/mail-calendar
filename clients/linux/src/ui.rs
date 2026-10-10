@@ -119,6 +119,7 @@ mod setup_server_field;
 #[cfg(test)]
 mod setup_server_field_tests;
 mod setup_server_row;
+mod setup_signed_in;
 #[cfg(test)]
 mod setup_signin_tests;
 mod setup_state;

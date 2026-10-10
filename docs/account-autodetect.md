@@ -106,7 +106,7 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
    discovered endpoint is always tamper-resistant-sourced. **Which uses the found card offers,
    and how each starts, is the core's** (`detect_account_setup`'s `choices`): mail, calendar and
    contacts on the IMAP route, calendar and contacts on the calendar-and-contacts route, all four
-   (colleagues included) before a Microsoft or Google sign-in, none before a JMAP sign-in. A use
+   (colleagues included) before a Microsoft or Google sign-in, none before a JMAP sign-in, whose session offers its own after it, and the servers found beside it are offered as an account of their own when it has no calendar or contacts ([`onboarding.md`](onboarding.md)). A use
    whose server was found starts **on** (opt-out), reusing the account's credential, and contacts
    count as found when a calendar was, since they are looked for at its server; a use whose
    server was not found starts off, and switching it on asks for the URL. The probe is **soft**: every candidate is bounded by
@@ -449,7 +449,8 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   found". `detect_account_setup` carries the rest (both endpoints on every route, the
   calendar-and-contacts route, the choices), and an offer from the person's other devices has its
   own (`offered_setup`). On Apple, Linux and Windows they reach every route's card but JMAP's,
-  whose session says what it offers only after the sign-in. The showcase scripts
+  whose session says what it offers only after the sign-in, where Linux asks
+  ([`onboarding.md`](onboarding.md)). The showcase scripts
   `cloud.example` as a calendar-and-contacts domain, since no harness domain is one.
 - **TXT `path` records are not read** (RFC 6764 §4). The host resolver has no TXT lookup, so a
   DAV server whose context path is published only in TXT, and not under `.well-known` on the

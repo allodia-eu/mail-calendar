@@ -59,6 +59,7 @@ fn oauth_jmap_account() -> (AccountId, SharedRegistry) {
         ConnectedAccount::Jmap {
             config,
             tokens: None,
+            session: crate::jmap_session::JmapSession::default(),
         },
     );
     (id, registry)
@@ -296,6 +297,7 @@ async fn a_stored_secret_jmap_account_is_left_untouched() {
         ConnectedAccount::Jmap {
             config,
             tokens: None,
+            session: crate::jmap_session::JmapSession::default(),
         },
     );
     let recorder = Arc::new(Recorder(Mutex::new(Vec::new())));

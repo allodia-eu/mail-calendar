@@ -70,6 +70,8 @@ pub(crate) enum ConnectedAccount {
         config: JmapAccountConfig,
         /// The shared token source, for an OAuth account only.
         tokens: Option<Arc<GraphTokenSource>>,
+        /// What its session offered at the last dial.
+        session: crate::jmap_session::JmapSession,
     },
 }
 
@@ -179,9 +181,15 @@ impl ConnectedAccount {
         }
     }
 
-    /// What Settings → Accounts lists about the account `id`.
+    /// What Settings → Accounts lists about the account `id`. A use its server offers none of
+    /// counts as not used, whatever was chosen, so a link may fill it.
     pub(crate) fn facts(&self, id: &str) -> crate::accounts_view::AccountFacts {
-        let chosen = self.capabilities();
+        let lacks = self.lacks();
+        let chosen: mailcal_account::Capabilities = self
+            .capabilities()
+            .iter()
+            .filter(|&capability| !lacks.contains(capability))
+            .collect();
         let (kind, files_invitations) = match self {
             Self::Imap { config, .. } if chosen.contains(mailcal_account::Capability::Mail) => {
                 (crate::AccountKind::Imap, config.caldav.is_some())
@@ -203,6 +211,7 @@ impl ConnectedAccount {
             offered: self.offered(),
             chosen,
             withheld,
+            lacks,
             files_invitations,
             links: self.shape().links.clone(),
             calendar_addresses: Vec::new(),
@@ -210,6 +219,18 @@ impl ConnectedAccount {
                 Self::Imap { config, .. } if !config.is_oauth() => Some(config.endpoints()),
                 _ => None,
             },
+        }
+    }
+
+    /// The uses of mail, calendar and contacts the account's server offers none of: what a JMAP
+    /// session left out at the last dial. Empty for every other kind, whose servers are the
+    /// ones configured.
+    pub(crate) fn lacks(&self) -> mailcal_account::Capabilities {
+        match self {
+            Self::Jmap { session, .. } => session.lacks(),
+            Self::Imap { .. } | Self::Microsoft { .. } | Self::Google { .. } => {
+                mailcal_account::Capabilities::default()
+            }
         }
     }
 

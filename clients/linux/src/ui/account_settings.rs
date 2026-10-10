@@ -104,7 +104,34 @@ fn change_failed(detail: String) -> Notice {
     }
 }
 
+/// Whether no account is set up at all, mail or not, which is when setup is the first-run one
+/// the person cannot close (`docs/accounts.md` rule 11). The mailbox snapshot cannot say: it
+/// lists the accounts used for mail, and an account for a calendar and contacts alone is in none.
+pub(super) fn no_accounts(app: Option<&mailcal_bindings::MailcalApp>) -> bool {
+    app.is_none_or(|app| app.accounts_snapshot().accounts.is_empty())
+}
+
 impl AppModel {
+    pub(super) fn has_no_accounts(&self) -> bool {
+        no_accounts(self.app.as_deref())
+    }
+
+    /// An account was removed. Removing the last one returns to first-run setup, which Settings
+    /// gives way to; otherwise Settings goes back to its list, since the page that asked is the
+    /// account that is gone.
+    pub(super) fn account_removed(&mut self) {
+        if let Some(app) = &self.app {
+            self.snapshot = app.mailbox_list();
+        }
+        self.settings.account = None;
+        if self.has_no_accounts() {
+            self.setup.open(true);
+            self.refresh_onboarding_card();
+        } else {
+            self.settings.refresh_in_place();
+        }
+    }
+
     /// One piece of the account pages' traffic.
     pub(super) fn accounts_input(&mut self, input: AccountsInput, sender: relm4::Sender<AppInput>) {
         match input {

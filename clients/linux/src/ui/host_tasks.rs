@@ -292,7 +292,7 @@ impl AppModel {
                 if let Some(app) = &self.app {
                     self.snapshot = app.mailbox_list();
                 }
-                self.after_account_added(account, sender);
+                self.after_account_added(&account, sender);
                 self.try_open_pending_mailto();
                 self.try_open_pending_share();
             }
