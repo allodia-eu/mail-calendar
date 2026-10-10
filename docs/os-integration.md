@@ -68,15 +68,21 @@ A Share Extension is a process of its own, and it cannot open the composer: that
 accounts, the signatures and the send path, which belong to the one core with the one open store
 ([`reading-window.md`](reading-window.md)). So the extension does the one thing only it can do. It
 copies the shared bytes into a **drop box**, leaves a note saying what arrived, and asks the system
-to open the app; the app drains the box every time it is activated, hands the note to the core, and
-opens a composer with the answer.
+to open the app; the app drains the box when that request arrives and every time it is activated,
+hands the note to the core, and opens a composer with the answer.
 
-Three consequences are worth knowing before they surprise someone:
+Five consequences are worth knowing before they surprise someone:
 
-- **The doorbell carries nothing.** The URL the extension opens is only a request to bring the app
-  up. The share is already in the box, the app acts on *being activated* rather than on the URL,
-  and a page that guesses the scheme can therefore do no more than make the app look in its own
-  box. It is also a scheme of its own rather than the app id's, which sign-in redirects use.
+- **The doorbell carries nothing.** The URL the extension opens is only a request to look in the
+  box. The share is already there, the app reads nothing from the URL, and a page that guesses the
+  scheme can therefore do no more than make the app look in its own box. It is also a scheme of
+  its own rather than the app id's, which sign-in redirects use.
+- **Both the doorbell and activation drain the box.** An app already in front is not activated
+  again, so the doorbell is what reaches it; activation catches the share whose doorbell went
+  unanswered. Taking a share removes it, so whichever looks second finds nothing.
+- **One share is on screen at a time.** While a share's composer is open the box is left alone,
+  and the next share opens as that composer closes. Opening one over another would close the
+  first, and a share nobody has written in closes without a draft, taking its files with it.
 - **Opening the app is best effort.** A share whose doorbell went unanswered is still in the box,
   and is picked up the next time the user brings the app forward, rather than lost.
 - **Where the box is depends on what the build was signed with.** iOS and the Mac App Store build

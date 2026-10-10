@@ -11,10 +11,10 @@ private struct RichComposerWebView: PlatformViewRepresentable {
     let editor: RichComposerEditor
 
     #if os(macOS)
-    func makeNSView(context: Context) -> WKWebView { editor.webView }
+    func makeNSView(context: Context) -> WKWebView { editor.mount() }
     func updateNSView(_ nsView: WKWebView, context: Context) {}
     #else
-    func makeUIView(context: Context) -> WKWebView { editor.webView }
+    func makeUIView(context: Context) -> WKWebView { editor.mount() }
     func updateUIView(_ uiView: WKWebView, context: Context) {}
     #endif
 }
@@ -167,7 +167,7 @@ struct RichComposeView: View {
         // the editor snapshots its "nothing written yet" seed, or the composer opens dirty. The
         // account is resolved the same way `resolvedFrom` does below, the From dropdown and the
         // signature must agree about who is sending.
-        let opening = accounts.contains { $0.id == initialFrom } ? initialFrom : accounts.first?.id
+        let opening = FromAccountField.sender(initialFrom, in: accounts)
         editor.pendingSignature = opening
             .flatMap { signatures?.forAccount($0, signatureSlot(for: mode)) }
             .flatMap(Self.signatureSeed)
@@ -218,19 +218,12 @@ struct RichComposeView: View {
         to.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// The account the From field shows *and* the one the send goes out as. `from` can name no
-    /// configured account, the composer may be opened before the first snapshot lands, leaving
-    /// the caller's `initialFrom` nil, and a Picker whose selection matches no tag renders
-    /// blank. Resolving here keeps the visible sender and the submitted `from` the same account,
-    /// which is the whole point of the picker.
+    /// The account the From field shows *and* the one the send goes out as
+    /// (`FromAccountField.sender(_:in:)`).
     ///
     /// Not `private`: RichComposerView.Signature.swift's `accountSignature` reads it too.
     var resolvedFrom: String? {
-        accounts.contains { $0.id == from } ? from : accounts.first?.id
-    }
-
-    private var fromBinding: Binding<String?> {
-        Binding(get: { resolvedFrom }, set: { from = $0 })
+        FromAccountField.sender(from, in: accounts)
     }
 
     var body: some View {
@@ -334,7 +327,11 @@ struct RichComposeView: View {
     /// The From/recipient/subject fields, the action bar and the optional quote-style picker:
     /// everything above the editor.
     @ViewBuilder private var composerHeader: some View {
-        FromAccountField(accounts: accounts, selection: fromBinding)
+        // Every control in the composer is bound to its state (`$from`), never to a `Binding` built
+        // from closures over `self`. Bound that way, the From pop-up button (macOS, two accounts or
+        // more) keeps a closed composer in SwiftUI's graph, and with it the editor, its web view and
+        // the WebContent process behind it. `ComposerReleaseTests` holds the line.
+        FromAccountField(accounts: accounts, selection: $from)
             // Auto-swap: the signature follows the sender, because a work signature under a
             // personal address is the mistake this setting exists to prevent. Keyed on the
             // *resolved* account, so it doesn't fire when the binding settles on the same one.

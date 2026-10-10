@@ -53,7 +53,13 @@ struct AllodiaApp: App {
         WindowGroup(L10n.app_title()) {
             #if os(macOS)
             // The mailbox is what the other windows were opened out of, so they go when it does.
+            //
+            // Every URL the app is handed, a `mailto:` link and the Share Extension's doorbell
+            // alike, goes to the mailbox already open. Left to itself SwiftUI answers each one
+            // with a new main window, which is the second mailbox the ⌘N removal below exists
+            // to prevent.
             ContentView(session: session).closesItsWindows(session: session)
+                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
             #else
             ContentView(session: session)
             #endif

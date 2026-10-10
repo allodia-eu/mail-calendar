@@ -1,7 +1,7 @@
 // The signature body editor: the shared `clients/composer/dist/editor.html` bundle hosted body-only,
-// with the same hardened WKWebView configuration as the composer (docs/composer-security.md):
-// local assets, JS for this document only, every remote load and navigation blocked. Authoring a
-// signature is authoring mail content, so it gets the composer's gates, not a lighter set.
+// in the composer's own `EditorHost` (docs/composer-security.md): local assets, JS for this
+// document only, every remote load and navigation blocked. Authoring a signature is authoring mail
+// content, so it gets the composer's gates, not a lighter set.
 //
 // The one thing it does that the composer does not is insert an image as a self-contained `data:`
 // URI. That is what a signature stores (one file, no side-car blobs) and what the core rewrites
@@ -20,86 +20,52 @@ private let signatureImageLimit = 512 * 1024
 
 @MainActor
 @Observable
-final class SignatureEditor: NSObject, WKNavigationDelegate {
-    let webView: WKWebView
-    private var expectingInitialLoad = true
+final class SignatureEditor {
+    /// The web view and its gates, the composer's own (`EditorHost`). Nothing is built until the
+    /// editor is on screen.
+    @ObservationIgnored let host = EditorHost(
+        fallbackHTML: "<!doctype html><html><body><script>window.signatureBody=function(){return JSON.stringify({body_html:\"\",body_plain:\"\"});};</script></body></html>"
+    )
     /// The body to load once the bundle has finished loading, set for an existing signature,
-    /// `nil` for a new one. Applied in `didFinish` because the bundle loads asynchronously.
+    /// `nil` for a new one. Applied once the bundle has loaded, because it loads asynchronously.
     var pendingBody: String?
-    /// The editor's request channel, and the link dialog it is waiting on, if any.
-    let hostChannel = ComposerHostChannel()
+    /// The link dialog the editor is waiting on, if any.
     var linkRequest: LinkDialogRequest?
 
-    override init() {
-        let configuration = WKWebViewConfiguration()
-        let preferences = WKWebpagePreferences()
-        preferences.allowsContentJavaScript = true
-        configuration.defaultWebpagePreferences = preferences
-        configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
-        configuration.websiteDataStore = .nonPersistent()
-        webView = WKWebView(frame: .zero, configuration: configuration)
-        super.init()
-        webView.navigationDelegate = self
-        webView.allowsBackForwardNavigationGestures = false
-        hostChannel.install(on: webView)
-        hostChannel.onLink = { [weak self] in self?.linkRequest = $0 }
-        installRemoteBlockThenLoad()
+    /// The editor's request channel.
+    var hostChannel: ComposerHostChannel { host.channel }
+
+    init() {
+        host.channel.onLink = { [weak self] in self?.linkRequest = $0 }
+        host.onLoad = { [weak self] in self?.seedOnLoad() }
     }
 
-    /// Compiles the same block-every-remote-subresource rule list the composer installs, the
-    /// native barrier behind the bundle's CSP. If compilation fails the CSP still blocks remote
-    /// loads, so the editor is loaded anyway rather than left blank.
-    private func installRemoteBlockThenLoad() {
-        WKContentRuleListStore.default().compileContentRuleList(
-            forIdentifier: "composer-block-remote",
-            encodedContentRuleList: Self.blockRemoteRuleList
-        ) { [weak self] ruleList, _ in
-            guard let self else { return }
-            if let ruleList {
-                self.webView.configuration.userContentController.add(ruleList)
-            }
-            self.loadEditor()
-        }
+    /// The web view, for the representable: built on the first call, the same one after.
+    func mount() -> WKWebView {
+        host.mount()
     }
-
-    private static let blockRemoteRuleList = """
-        [{"trigger":{"url-filter":"^https?://"},"action":{"type":"block"}}]
-        """
 
     // Always call `setSignatureBody`, even for a brand-new signature with no body: it also carries
     // the placeholder, and the bundle's default ("Write your message") is the composer's wording,
     // which is wrong here.
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    private func seedOnLoad() {
         // The toolbar's strings first, then the body, `setSignatureBody` carries this surface's own
         // placeholder and must win over the composer wording `setComposerLabels` sends.
-        webView.evaluateJavaScript(ComposerLabels.script())
-        hostChannel.announce()
-        let body = Self.jsString(pendingBody ?? "")
-        let placeholder = Self.jsString(L10n.settings_signatures_placeholder())
-        webView.evaluateJavaScript("window.setSignatureBody(\(body), \(placeholder))")
+        host.evaluate(ComposerLabels.script())
+        host.channel.announce()
+        let body = EditorHost.jsString(pendingBody ?? "")
+        let placeholder = EditorHost.jsString(L10n.settings_signatures_placeholder())
+        host.evaluate("window.setSignatureBody(\(body), \(placeholder))")
         // Writing the signature is the only thing this screen is for, so the caret opens in it.
         // Asked for rather than assumed: the shared bundle focuses nothing of its own accord,
         // because in the composer the caret belongs in To (docs/contacts.md §4).
-        webView.evaluateJavaScript("window.focusComposerBody()")
-    }
-
-    func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void
-    ) {
-        if expectingInitialLoad {
-            expectingInitialLoad = false
-            decisionHandler(.allow)
-        } else {
-            decisionHandler(.cancel)
-        }
+        host.evaluate("window.focusComposerBody()")
     }
 
     /// Reads back the authored signature, the HTML to store and its plain-text rendering.
     /// `nil` if the editor could not be read (the bundle is still loading).
     func body(_ completion: @escaping ((html: String, plain: String)?) -> Void) {
-        webView.evaluateJavaScript("window.signatureBody()") { value, _ in
+        host.evaluate("window.signatureBody()") { value, _ in
             guard let json = value as? String,
                   let data = json.data(using: .utf8),
                   let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -118,53 +84,7 @@ final class SignatureEditor: NSObject, WKNavigationDelegate {
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8)
         else { return }
-        webView.evaluateJavaScript("window.insertSignatureImage(\(Self.jsString(json)))")
-    }
-
-    private func loadEditor() {
-        let asset = SignatureEditorAsset.load()
-        webView.loadHTMLString(asset.html, baseURL: asset.baseURL)
-    }
-
-    /// Encodes `value` as a JavaScript string literal so it can be passed into an
-    /// `evaluateJavaScript` call without breaking out of the argument.
-    private static func jsString(_ value: String) -> String {
-        guard let data = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed),
-              let literal = String(data: data, encoding: .utf8)
-        else {
-            return "\"\""
-        }
-        return literal
-    }
-}
-
-/// Loads the shared editor bundle, by the same three routes the composer uses (SPM resource, app
-/// bundle, then the source tree for a `swift run` from the checkout).
-private struct SignatureEditorAsset {
-    let html: String
-    let baseURL: URL?
-
-    static func load() -> SignatureEditorAsset {
-        for bundle in [Bundle.module, Bundle.main] {
-            if let bundleURL = bundle.url(
-                forResource: "editor",
-                withExtension: "html",
-                subdirectory: "composer"
-            ), let html = try? String(contentsOf: bundleURL, encoding: .utf8) {
-                return SignatureEditorAsset(html: html, baseURL: bundleURL.deletingLastPathComponent())
-            }
-        }
-        let sourceURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("composer/editor.html")
-        if let html = try? String(contentsOf: sourceURL, encoding: .utf8) {
-            return SignatureEditorAsset(html: html, baseURL: sourceURL.deletingLastPathComponent())
-        }
-        return SignatureEditorAsset(
-            html: "<!doctype html><html><body><script>window.signatureBody=function(){return JSON.stringify({body_html:\"\",body_plain:\"\"});};</script></body></html>",
-            baseURL: nil
-        )
+        host.evaluate("window.insertSignatureImage(\(EditorHost.jsString(json)))")
     }
 }
 
@@ -172,10 +92,10 @@ private struct SignatureEditorWebView: PlatformViewRepresentable {
     let editor: SignatureEditor
 
     #if os(macOS)
-    func makeNSView(context: Context) -> WKWebView { editor.webView }
+    func makeNSView(context: Context) -> WKWebView { editor.mount() }
     func updateNSView(_ nsView: WKWebView, context: Context) {}
     #else
-    func makeUIView(context: Context) -> WKWebView { editor.webView }
+    func makeUIView(context: Context) -> WKWebView { editor.mount() }
     func updateUIView(_ uiView: WKWebView, context: Context) {}
     #endif
 }

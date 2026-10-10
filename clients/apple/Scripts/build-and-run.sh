@@ -405,6 +405,13 @@ fi
 if [[ "$PLATFORM" == "macos" ]]; then
   [[ "$SANDBOXED" -eq 1 ]] || SIGNING_IDENTITY="$(find_codesign_identity)"
 
+  APP="$DERIVED_DATA/Build/Products/$CONFIGURATION/AllodiaMail.app"
+  # The re-sign below rewrites the extension inside the app after Xcode has embedded it. Xcode
+  # re-embeds only a copy it judges stale, and a re-signed copy it keeps fails the next build at
+  # ValidateEmbeddedBinary: "Embedded binary is not signed with the same certificate as the parent
+  # app". Without the copy every build embeds Xcode's own.
+  rm -rf "$APP/Contents/PlugIns"
+
   echo "==> Building AllodiaMail for macOS ($CONFIGURATION)"
   xcodebuild \
     -project "$PROJECT" \
@@ -415,7 +422,6 @@ if [[ "$PLATFORM" == "macos" ]]; then
     "${SANDBOX_ARGS[@]}" \
     build
 
-  APP="$DERIVED_DATA/Build/Products/$CONFIGURATION/AllodiaMail.app"
   # Each item is re-signed carrying the entitlements the BUILD applied to it, read back off the
   # item itself, which is also the more correct source: it is what was actually applied, already
   # resolved, with no build-setting indirection to drift from (Scripts/package.sh reads the app's

@@ -49,7 +49,10 @@ MAC_INSTALLER_IDENTITY="3rd Party Mac Developer Installer: REPLACE (REPLACE_WITH
 # Signs with your Apple Development cert against a macOS App Development profile that grants the
 # App Group and lists this Mac (docs/debugging.md, section 8). Found automatically like the one
 # above; uncomment to point at one kept elsewhere.
+# The Share Extension (App ID <your app id>.share) needs a macOS App Development profile of its
+# own, made the same way: the same group, the same Mac.
 # MACOS_DEV_PROVISIONING_PROFILE="$HOME/Downloads/Allodia_Mail_macOS_Development.provisionprofile"
+# MACOS_DEV_SHARE_PROVISIONING_PROFILE="$HOME/Downloads/Allodia_Mail_Share_macOS_Development.provisionprofile"
 
 # ---- Uploading a finished build (optional; Flow B and Flow C) ----------------------------------
 # App Store Connect API credentials for `xcrun altool --upload-app`. Set both and package.sh prints

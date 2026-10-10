@@ -113,6 +113,12 @@ enum ComposeContext: Identifiable {
     case share(ShareOpenRequest)
     case resumedDraft(ResumedDraftRequest)
 
+    /// Whether this composer holds a share another app handed over.
+    var isShare: Bool {
+        if case .share = self { return true }
+        return false
+    }
+
     var id: String {
         switch self {
         case .new: return "new"

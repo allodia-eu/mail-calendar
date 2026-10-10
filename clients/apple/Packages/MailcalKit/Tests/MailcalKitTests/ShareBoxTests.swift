@@ -123,6 +123,16 @@ import Testing
         #expect(doorbell?.absoluteString == "eu.allodia.mailcal.share://shared")
     }
 
+    @Test func onlyTheDoorbellRingsIt() {
+        // The app looks in its box when the doorbell rings, which is what reaches an app already in
+        // front. A mail link and a sign-in redirect are not it.
+        let appID = "eu.allodia.mailcal"
+        #expect(ShareHandoff.isDoorbell(ShareHandoff.doorbell(appID: appID)!, appID: appID))
+        #expect(ShareHandoff.isDoorbell(URL(string: "EU.Allodia.Mailcal.Share://shared")!, appID: appID))
+        #expect(!ShareHandoff.isDoorbell(URL(string: "mailto:someone@example.com")!, appID: appID))
+        #expect(!ShareHandoff.isDoorbell(URL(string: "eu.allodia.mailcal://oauth")!, appID: appID))
+    }
+
     @Test func theDoorbellSchemeIsNotTheSignInScheme() {
         // Sign-in redirects use the app id itself as a scheme. Claiming that one would route an
         // OAuth redirect to the app's URL hook, where today each is captured inside its own

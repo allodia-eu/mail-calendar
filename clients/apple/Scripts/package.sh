@@ -282,6 +282,7 @@ source "$CONFIG"
 : "${MAS_PROVISIONING_PROFILE:=}"
 : "${MAS_SHARE_PROVISIONING_PROFILE:=}"
 : "${MACOS_DEV_PROVISIONING_PROFILE:=}"
+: "${MACOS_DEV_SHARE_PROVISIONING_PROFILE:=}"
 : "${IOS_PROVISIONING_PROFILE:=}"
 : "${IOS_SHARE_PROVISIONING_PROFILE:=}"
 : "${ASC_API_KEY_ID:=}"
@@ -884,28 +885,36 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
   /bin/cp "$PROFILE_FILE" "$APP/Contents/embedded.provisionprofile"
   xattr -c "$APP/Contents/embedded.provisionprofile"
 
-  # The Share Extension is an App ID of its own, so the Store wants a profile of its own in it, and
-  # checks the extension's signing cert against that profile's list just as it does the app's. The
-  # archive embeds Xcode's development profile, which lists no distribution cert, and App Store
-  # Connect refuses the upload: ITMS-90283 "Invalid Provisioning Profile … Missing code-signing
-  # certificate". Resolved against SIGN_ID alone, because every nested item is signed with the
-  # app's cert. Flow E keeps the archive's profile (clients/apple/README.md, Flow E).
+  # The Share Extension is an App ID of its own, so it needs a profile of its own, of the app's
+  # kind, and one that grants the group. The Store checks the extension's signing cert against that
+  # profile's list just as it does the app's: the archive embeds Xcode's development profile, which
+  # lists no distribution cert, and App Store Connect refuses the upload with ITMS-90283 "Invalid
+  # Provisioning Profile … Missing code-signing certificate". On this Mac the group is the half that
+  # matters: Xcode's profile is the wildcard *Mac Team Provisioning Profile*, which grants no group,
+  # and a sandboxed process cannot write to a group its profile did not grant, so every share would
+  # be refused on its way into the box and the app would open with nothing to show. Resolved
+  # against SIGN_ID alone, because every nested item is signed with the app's cert.
   SHARE_APPEX="$APP/Contents/PlugIns/AllodiaMailShare.appex"
   SHARE_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SHARE_APPEX/Contents/Info.plist")"
   if [[ "$FLOW" == app-store ]]; then
-    SHARE_PROFILE_FILE="$(resolve_profile "$DEVELOPMENT_TEAM.$SHARE_BUNDLE_ID" "$SIGN_ID" \
-                           "$MAS_SHARE_PROVISIONING_PROFILE" "$APP_GROUP" OSX distribution | cut -f1)"
-    [[ -n "$SHARE_PROFILE_FILE" ]] || fail "no Mac App Store provisioning profile for $DEVELOPMENT_TEAM.$SHARE_BUNDLE_ID
+    SHARE_SETTING=MAS_SHARE_PROVISIONING_PROFILE
+    SHARE_PORTAL_STEPS="'Mac App Store Connect' ▸ App ID $SHARE_BUNDLE_ID ▸ pick that cert"
+  else
+    SHARE_SETTING=MACOS_DEV_SHARE_PROVISIONING_PROFILE
+    SHARE_PORTAL_STEPS="'macOS App Development' ▸ App ID $SHARE_BUNDLE_ID ▸ pick that cert ▸ this Mac"
+  fi
+  SHARE_PROFILE_FILE="$(resolve_profile "$DEVELOPMENT_TEAM.$SHARE_BUNDLE_ID" "$SIGN_ID" \
+                         "${!SHARE_SETTING}" "$APP_GROUP" OSX "$PROFILE_KIND" | cut -f1)"
+  [[ -n "$SHARE_PROFILE_FILE" ]] || fail "no $PROFILE_KIND provisioning profile for $DEVELOPMENT_TEAM.$SHARE_BUNDLE_ID
        authorises the cert the app signs with ($SIGN_ID) AND grants the app group '$APP_GROUP'.
        In the developer portal: Identifiers ▸ $SHARE_BUNDLE_ID ▸ App Groups ▸ assign '$APP_GROUP' ▸
-       Save, then Profiles ▸ + ▸ 'Mac App Store Connect' ▸ App ID $SHARE_BUNDLE_ID ▸ pick that cert ▸
+       Save, then Profiles ▸ + ▸ $SHARE_PORTAL_STEPS ▸
        Generate ▸ Download, then copy it into place:
          cp ~/Downloads/<name>.provisionprofile ~/Library/MobileDevice/Provisioning\\ Profiles/
-       (or point MAS_SHARE_PROVISIONING_PROFILE=<path> at the download in $CONFIG). Then re-run."
-    echo "    share extension profile: $(basename "$SHARE_PROFILE_FILE")"
-    /bin/cp "$SHARE_PROFILE_FILE" "$SHARE_APPEX/Contents/embedded.provisionprofile"
-    xattr -c "$SHARE_APPEX/Contents/embedded.provisionprofile"
-  fi
+       (or point $SHARE_SETTING=<path> at the download in $CONFIG). Then re-run."
+  echo "    share extension profile: $(basename "$SHARE_PROFILE_FILE")"
+  /bin/cp "$SHARE_PROFILE_FILE" "$SHARE_APPEX/Contents/embedded.provisionprofile"
+  xattr -c "$SHARE_APPEX/Contents/embedded.provisionprofile"
 
   # Reconstruct the distribution entitlements that xcodebuild would inject: the sandbox set from
   # App/AllodiaMail.appstore.entitlements, with $(AppIdentifierPrefix) resolved to the team id and
@@ -965,20 +974,17 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
   # ⚠️ The Store archive is the ONE macOS build that can carry this group, because it is the one
   # signed against a provisioning profile; every other macOS build takes
   # App/AllodiaMailShare.macOS.entitlements and a home-relative grant instead (that file carries
-  # the measurement). So the extension's Mac App Store profile must grant the group as well as the
-  # app's, and the resolver above checks both.
+  # the measurement). So the extension's own profile must grant the group as well as the app's,
+  # and the resolver above checks both.
   #
-  # On the Store it carries its own profile (above), so it takes the pair the app takes,
-  # application-identifier and team-identifier, naming its own App ID: that pair is what ties a
-  # signature to the profile embedded beside it, and codesign does not inject it. Flow E keeps the
-  # archive's profile and signs without the pair, as it always has.
+  # It carries its own profile (above), so it takes the pair the app takes, application-identifier
+  # and team-identifier, naming its own App ID: that pair is what ties a signature to the profile
+  # embedded beside it, and codesign does not inject it.
   SHARE_ENTS="$BUILD/appstore.share.entitlements"
   sed -e "s/\$(MAILCAL_HOST_APP_ID)/${BUNDLE_ID}/g" \
     "$HERE/App/AllodiaMailShare.entitlements" >"$SHARE_ENTS"
-  if [[ "$FLOW" == app-store ]]; then
-    /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string ${DEVELOPMENT_TEAM}.${SHARE_BUNDLE_ID}" "$SHARE_ENTS"
-    /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string ${DEVELOPMENT_TEAM}" "$SHARE_ENTS"
-  fi
+  /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string ${DEVELOPMENT_TEAM}.${SHARE_BUNDLE_ID}" "$SHARE_ENTS"
+  /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string ${DEVELOPMENT_TEAM}" "$SHARE_ENTS"
   plutil -convert xml1 "$SHARE_ENTS"
   plutil -lint "$SHARE_ENTS" >/dev/null \
     || fail "the resolved Share Extension entitlements are not a valid plist ($SHARE_ENTS)."

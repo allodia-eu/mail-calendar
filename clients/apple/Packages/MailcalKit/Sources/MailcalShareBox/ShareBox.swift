@@ -261,11 +261,16 @@ public enum ShareHandoff {
 
     /// The URL the extension opens once it has left a drop.
     ///
-    /// A doorbell and nothing more: it carries no payload, the app acts on being activated rather
-    /// than on the URL, and a page that guesses the scheme can therefore do no more than make the
-    /// app look in its own box. What was shared never travels in a URI
-    /// (docs/os-integration.md).
+    /// A doorbell and nothing more: it carries no payload, the app only looks in its box when it
+    /// rings, and a page that guesses the scheme can therefore do no more than make the app look in
+    /// its own box. What was shared never travels in a URI (docs/os-integration.md).
     public static func doorbell(appID: String) -> URL? {
         URL(string: "\(scheme(appID: appID))://shared")
+    }
+
+    /// Whether `url` is the doorbell: any URL in its scheme, compared without case as a scheme is.
+    /// The rest of it says nothing, so nothing else is read.
+    public static func isDoorbell(_ url: URL, appID: String) -> Bool {
+        url.scheme?.lowercased() == scheme(appID: appID).lowercased()
     }
 }
