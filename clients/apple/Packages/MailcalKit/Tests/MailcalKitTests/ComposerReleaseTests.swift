@@ -1,12 +1,12 @@
-// A closed composer gives its editor back.
+// An editor's web view exists only while the editor is on screen, and once.
 //
-// Each editor is a `WKWebView`, and each web view a WebContent process of its own, so a composer
-// kept alive after it closes is a process left running for the rest of the session: one per "New
-// message" opened, visible in Activity Monitor and nowhere in the UI. Nothing on screen tells a
-// leaked editor from a released one, which is why it is asserted here.
+// Each web view is a WebContent process of its own once it loads, so one built and kept for
+// nothing is a process left running for the rest of the session: visible in Activity Monitor and
+// nowhere in the UI. Nothing on screen tells a composer that built one web view from one that built
+// five, which is why it is asserted here.
 //
 // The rule list each editor installs is the same kind of leak at a smaller size: every compile
-// writes a new file and keeps it mapped, one per composer opened, so it is compiled once and shared.
+// writes a new file and keeps it mapped, so it is compiled once and shared.
 
 import Testing
 
@@ -19,6 +19,42 @@ import WebKit
 
 @MainActor
 @Suite struct ComposerReleaseTests {
+
+    @Test func buildingAnEditorBuildsNoWebView() {
+        // SwiftUI runs a view's initialiser on every render of its parent and keeps the first
+        // `@State` value, so each composer's initialiser builds an editor that is thrown away.
+        // Building one has to cost nothing.
+        #expect(RichComposerEditor().host.webView == nil)
+        #expect(SignatureEditor().host.webView == nil)
+    }
+
+    @Test func mountingBuildsTheWebViewOnce() {
+        let composer = RichComposerEditor()
+        let first = composer.mount()
+        #expect(composer.mount() === first)
+        #expect(composer.host.webView === first)
+
+        let signature = SignatureEditor()
+        #expect(signature.mount() === signature.mount())
+    }
+
+    @Test func aComposerShowsOneWebViewHoweverOftenItsParentRenders() async {
+        let renders = RenderCount()
+        let frame = NSRect(x: 0, y: 0, width: 800, height: 600)
+        let host = NSHostingView(rootView: RerenderingParent(renders: renders))
+        host.frame = frame
+        let window = NSWindow(contentRect: frame, styleMask: [], backing: .buffered, defer: true)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        for _ in 0..<5 {
+            renders.value += 1
+            host.layoutSubtreeIfNeeded()
+            await Task.yield()
+        }
+        #expect(webViews(in: host).count == 1)
+        window.contentView = nil
+        window.close()
+    }
 
     @Test func theDropModifierDoesNotKeepTheEditorAlive() async {
         weak var released: RichComposerEditor?
@@ -41,9 +77,9 @@ import WebKit
             window.isReleasedWhenClosed = false
             window.contentView = host
             host.layoutSubtreeIfNeeded()
-            // `onAppear` is what hands the web view its drop handler; let it run.
+            // `onAppear` is what hands the editor its drop handler; let it run.
             await Task.yield()
-            #expect((editor.webView as? EditorWebView)?.acceptDroppedFiles != nil)
+            #expect(editor.acceptDroppedFiles != nil)
             window.contentView = nil
             window.close()
         }
@@ -65,6 +101,32 @@ import WebKit
     private func compiledRuleList() async -> WKContentRuleList? {
         await withCheckedContinuation { done in
             ComposerRemoteBlock.ruleList { done.resume(returning: $0) }
+        }
+    }
+
+    private func webViews(in view: NSView) -> [WKWebView] {
+        view.subviews.flatMap { subview -> [WKWebView] in
+            if let webView = subview as? WKWebView { return [webView] }
+            return webViews(in: subview)
+        }
+    }
+}
+
+/// A count the parent below re-renders on.
+@MainActor
+@Observable
+private final class RenderCount {
+    var value = 0
+}
+
+/// A parent that builds the composer afresh on every render, as the mailbox does.
+private struct RerenderingParent: View {
+    let renders: RenderCount
+
+    var body: some View {
+        VStack {
+            Text("\(renders.value)")
+            RichComposeView(title: "New Message", send: { _ in true }, cancel: {})
         }
     }
 }

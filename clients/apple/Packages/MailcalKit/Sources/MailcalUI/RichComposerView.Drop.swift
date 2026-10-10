@@ -56,12 +56,12 @@ struct ComposerDropModifier: ViewModifier {
             // those itself and hands them straight back here, so a file dropped on the message and
             // one dropped on the chrome go through the same code on every Apple host.
             //
-            // The handler takes the two bindings and never `self`: `self` holds the editor, the
-            // editor holds the web view and the web view holds the handler, so capturing it would
-            // keep every closed composer's web view, and its WebContent process, alive.
+            // The handler takes the two bindings and never `self`: `self` holds the editor and the
+            // editor holds the handler, so capturing it would keep every closed composer's editor,
+            // and with it the web view and its WebContent process, alive.
             .onAppear {
                 let sort = Self.sort(attachments: $attachments, droppedPictures: $droppedPictures)
-                (editor.webView as? EditorWebView)?.acceptDroppedFiles = { _ = sort($0) }
+                editor.acceptDroppedFiles = { _ = sort($0) }
             }
             .confirmationDialog(
                 L10n.compose_image_drop_title(),

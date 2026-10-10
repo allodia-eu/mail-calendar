@@ -11,10 +11,10 @@ private struct RichComposerWebView: PlatformViewRepresentable {
     let editor: RichComposerEditor
 
     #if os(macOS)
-    func makeNSView(context: Context) -> WKWebView { editor.webView }
+    func makeNSView(context: Context) -> WKWebView { editor.mount() }
     func updateNSView(_ nsView: WKWebView, context: Context) {}
     #else
-    func makeUIView(context: Context) -> WKWebView { editor.webView }
+    func makeUIView(context: Context) -> WKWebView { editor.mount() }
     func updateUIView(_ uiView: WKWebView, context: Context) {}
     #endif
 }
