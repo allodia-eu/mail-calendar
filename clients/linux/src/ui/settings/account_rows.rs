@@ -140,20 +140,20 @@ pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) ->
 
 /// One link slot's picker: "none" first, then the accounts it may name.
 #[derive(Debug, PartialEq, Eq)]
-pub(super) struct LinkPicker {
-    pub(super) slot: LinkSlot,
-    pub(super) title: &'static str,
-    pub(super) options: Vec<LinkedAccount>,
+pub(in crate::ui) struct LinkPicker {
+    pub(in crate::ui) slot: LinkSlot,
+    pub(in crate::ui) title: &'static str,
+    pub(in crate::ui) options: Vec<LinkedAccount>,
     /// The index into `options` of the account linked now; `None` for "none".
-    pub(super) selected: Option<usize>,
+    pub(in crate::ui) selected: Option<usize>,
     /// The index into `options` of the account to suggest, while nothing is linked: one whose
     /// calendar server schedules as the mail account's address.
-    pub(super) suggested: Option<usize>,
+    pub(in crate::ui) suggested: Option<usize>,
 }
 
 /// The pickers an account's page offers: one per slot it can hold, which is a slot with
 /// candidates or one already linked.
-pub(super) fn link_pickers(entry: &AccountEntry) -> Vec<LinkPicker> {
+pub(in crate::ui) fn link_pickers(entry: &AccountEntry) -> Vec<LinkPicker> {
     [
         (
             LinkSlot::Calendar,

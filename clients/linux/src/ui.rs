@@ -98,9 +98,13 @@ mod selection_input;
 mod settings;
 mod setup;
 mod setup_dav;
+#[cfg(test)]
+mod setup_flag_tests;
+mod setup_flow;
 mod setup_google;
 mod setup_imap;
 mod setup_jmap;
+mod setup_links;
 mod setup_manual;
 #[cfg(test)]
 mod setup_manual_tests;

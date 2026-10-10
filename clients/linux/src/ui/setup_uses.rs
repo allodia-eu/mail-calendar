@@ -287,6 +287,48 @@ pub(super) fn provider_offer(kind: mailcal_bindings::AccountKind, email: &str) -
     }
 }
 
+impl UseToggles {
+    /// The field of a use switched on whose server is still to be typed: the calendar's, or the
+    /// address book's when no calendar gives contacts a server to be looked for at.
+    pub(super) fn missing_server(&self) -> Option<gtk::Entry> {
+        let empty = |toggle: &DavToggle| {
+            toggle
+                .typed
+                .clone()
+                .filter(|field| toggle.enabled.is_active() && field.text().trim().is_empty())
+        };
+        if let Some(field) = self.calendar.as_ref().and_then(empty) {
+            return Some(field);
+        }
+        let calendar_on = self
+            .calendar
+            .as_ref()
+            .is_some_and(|toggle| toggle.enabled.is_active());
+        self.contacts
+            .as_ref()
+            .filter(|_| !calendar_on)
+            .and_then(empty)
+    }
+}
+
+/// Marks `field` as the one still to fill in and moves to it, for an action that cannot go on
+/// without it; typing in it clears the mark.
+pub(super) fn flag(field: &gtk::Entry) {
+    if !field.has_css_class("error") {
+        field.connect_changed(|field| {
+            field.remove_css_class("error");
+            field.update_state(&[gtk::accessible::State::Invalid(
+                gtk::AccessibleInvalidState::False,
+            )]);
+        });
+    }
+    field.add_css_class("error");
+    field.update_state(&[gtk::accessible::State::Invalid(
+        gtk::AccessibleInvalidState::True,
+    )]);
+    field.grab_focus();
+}
+
 /// What a manual form's provider sign-in asks for: the uses chosen on screen, less any the
 /// address now typed is not offered, so a personal address edited in is never asked for
 /// colleagues.

@@ -55,6 +55,10 @@ pub(super) fn detected_fields(
         let approved = trust.clone();
         let chosen = Rc::clone(&uses);
         button.connect_clicked(move |_| {
+            if let Some(field) = chosen.missing_server() {
+                setup_uses::flag(&field);
+                return;
+            }
             if trust_approved(base.trusted, approved.is_active()) {
                 let form = with_chosen(&base, chosen.chosen());
                 input.emit(AppInput::StartImapLogin(Box::new(form)));
@@ -110,6 +114,10 @@ pub(super) fn detected_fields(
         let input = sender.clone();
         connect.connect_clicked(move |_| {
             if !trust_approved(base.trusted, trust.is_active()) || password.text().is_empty() {
+                return;
+            }
+            if let Some(field) = uses.missing_server() {
+                setup_uses::flag(&field);
                 return;
             }
             let chosen = uses.chosen();
@@ -327,10 +335,15 @@ pub(super) fn manual_fields(
             password: password.text().to_string(),
             accepted_certificate: refused.borrow().clone(),
         };
-        if submission.email.is_empty()
-            || submission.imap_host.is_empty()
-            || submission.password.is_empty()
-        {
+        if submission.email.is_empty() {
+            setup_uses::flag(&email);
+            return;
+        }
+        if submission.imap_host.is_empty() {
+            setup_uses::flag(&imap.host);
+            return;
+        }
+        if submission.password.is_empty() {
             return;
         }
         input.emit(AppInput::SubmitAccount(Box::new(AccountSubmission::Imap(

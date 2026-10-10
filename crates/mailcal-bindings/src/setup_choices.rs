@@ -75,6 +75,15 @@ pub fn provider_setup_choices(kind: AccountKind, email: String) -> Vec<SetupChoi
     })
 }
 
+/// Whether setup ends by offering to link an account of `kind` to another. Only a standards
+/// account is offered it: Microsoft, Google and JMAP hold mail, calendar and contacts themselves,
+/// so linking one is left to Settings, where it can be done at any time.
+#[uniffi::export]
+#[must_use]
+pub fn offers_setup_links(kind: AccountKind) -> bool {
+    matches!(kind, AccountKind::Imap | AccountKind::Dav)
+}
+
 fn ffi_choices(choices: Vec<mailcal_account::SetupChoice>) -> Vec<SetupChoice> {
     choices
         .into_iter()

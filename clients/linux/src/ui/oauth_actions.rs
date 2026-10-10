@@ -166,7 +166,6 @@ impl AppModel {
     /// added by a provider sign-in reaches the person's other devices only at the next launch,
     /// and Settings draws no sharing control for it until then.
     pub(super) fn account_signed_in(&mut self, account: String, sender: relm4::Sender<AppInput>) {
-        self.setup.complete();
         self.dispatch(mailcal_bindings::Intent::SelectAccount {
             account: Some(account.clone()),
         });
@@ -174,15 +173,15 @@ impl AppModel {
             self.snapshot = app.mailbox_list();
         }
         self.say_what_was_withheld(&account);
-        // The same step the manual route raises: every way in asks the same question
-        // (`docs/sending.md`).
-        self.ask_sender_name(account, sender.clone());
-        self.sync_after_account_change(sender);
+        self.sync_after_account_change(sender.clone());
+        // The link step, then the name, as the password route: every way in asks the same
+        // questions (`docs/sending.md`).
+        self.after_account_added(account, sender);
     }
 
-    /// A use the person chose that the provider's grant did not allow is said at once, on the
-    /// account's page in Settings, where switching it on asks for it again; rather than left for
-    /// them to find missing (`docs/accounts.md` rule 10).
+    /// A use the person chose that the provider's grant did not allow is said on the account's
+    /// page in Settings, where switching it on asks for it again, rather than left for them to
+    /// find missing (`docs/accounts.md` rule 10). It is said when setup has finished.
     fn say_what_was_withheld(&mut self, account: &str) {
         let Some(app) = &self.app else {
             return;
@@ -198,7 +197,9 @@ impl AppModel {
             .map(|used| used.capability)
             .collect();
         if let Some(notice) = withheld_notice(&withheld) {
-            self.settings.open_on_account(account.to_owned(), notice);
+            // Said once setup and its name prompts are done, so it is not one of several
+            // windows competing for the same moment.
+            self.host_tasks.withheld = Some((account.to_owned(), notice));
         }
     }
 

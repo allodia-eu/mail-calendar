@@ -4,7 +4,8 @@
 use adw::prelude::*;
 
 use super::{
-    AppInput, setup_dav, setup_google, setup_imap, setup_jmap, setup_manual, setup_microsoft,
+    AppInput, setup_dav, setup_google, setup_imap, setup_jmap, setup_links, setup_manual,
+    setup_microsoft,
     setup_model::{DetectedForm, SetupForm},
     setup_onboarding,
     setup_pane::ConnectPane,
@@ -47,7 +48,13 @@ impl SetupWindow {
         // new window. Every other step swaps the child of the one already on screen; a window
         // per phase would stack them, since `close()` is vetoed while setup is required.
         let reusable = self.rendered_required == state.required;
-        let window = match self.window.take() {
+        // A window the person closed with its own controls is gone, even though the flow it
+        // belonged to goes on (a cancelled "Add another account" returns to the link step).
+        let window = match self
+            .window
+            .take()
+            .filter(gtk::prelude::WidgetExt::is_visible)
+        {
             Some(window) if reusable => {
                 if self.rendered_generation == state.generation {
                     self.window = Some(window);
@@ -99,6 +106,10 @@ impl SetupWindow {
             Phase::MicrosoftSigningIn => setup_microsoft::signing_in(sender),
             Phase::JmapSigningIn => setup_jmap::signing_in(sender),
             Phase::ImapSigningIn => setup_imap::signing_in(sender),
+            Phase::Links => match &state.links {
+                Some(step) => setup_links::step(&window, step, sender),
+                None => progress(l10n::status_connecting()),
+            },
         };
         // A found card with every use on is taller than a laptop screen, so the step scrolls
         // inside the window rather than pushing its footer off the bottom of the display.
@@ -170,12 +181,11 @@ fn email_step(
     actions.set_halign(gtk::Align::End);
     if !required {
         let cancel = gtk::Button::with_label(l10n::action_cancel());
-        let input = sender.clone();
         let dialog = window.clone();
-        cancel.connect_clicked(move |_| {
-            input.emit(AppInput::CancelAccountSetup);
-            dialog.close();
-        });
+        // The close request is what cancels the flow, for this button and the window's own
+        // alike; a second cancel here would end the flow a cancelled "Add another account"
+        // had just returned to.
+        cancel.connect_clicked(move |_| dialog.close());
         actions.append(&cancel);
     }
     let manual = gtk::Button::with_label(l10n::setup_detect_manual());
