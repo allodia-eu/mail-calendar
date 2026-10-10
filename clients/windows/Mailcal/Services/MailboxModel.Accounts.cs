@@ -434,11 +434,11 @@ public sealed partial class MailboxModel
     /// </summary>
     public void RemoveAccount(string id) => _ = RemoveAccountAsync(id);
 
-    private async Task RemoveAccountAsync(string id)
+    private async Task<string?> RemoveAccountAsync(string id)
     {
         if (_app is null)
         {
-            return;
+            return L10n.AppUnavailable();
         }
         try
         {
@@ -447,6 +447,15 @@ public sealed partial class MailboxModel
             // The core erases the stored credential too, through the port it wrote it through.
             await Task.Run(() => _app!.RemoveAccount(id));
             Log.Info($"account removed: {id}");
+            // The last account gone, mail or not, is a first run again (docs/accounts.md rule 11).
+            _ui.TryEnqueue(() =>
+            {
+                if (_app?.AccountsSnapshot().Accounts.Length == 0)
+                {
+                    NeedsSetup = true;
+                }
+            });
+            return null;
         }
         catch (Exception ex)
         {
@@ -454,6 +463,7 @@ public sealed partial class MailboxModel
             // credential, which would bring it back at the next launch. Say so rather than letting
             // it reappear unexplained.
             Log.Error($"remove account failed: {CoreError.Describe(ex)}");
+            return CoreError.Describe(ex);
         }
     }
 

@@ -47,7 +47,7 @@ internal static class AppPaths
 
     /// <summary>
     /// The isolated store subdirectory for a dev mode (<c>dev</c> / <c>dev-multi</c> /
-    /// <c>dev-imap</c> / <c>dev-first-run</c>), or <c>null</c> for a normal launch (unset,
+    /// <c>dev-imap</c> / <c>dev-linked</c> / <c>dev-first-run</c>), or <c>null</c> for a normal launch (unset,
     /// <c>personal</c>, or an unsupported value, which must fall back to the real paths exactly
     /// like the account resolution it mirrors).
     /// </summary>
@@ -64,6 +64,7 @@ internal static class AppPaths
         "stalwart" => "dev",
         "stalwart-multi" => "dev-multi",
         "stalwart-imap" => "dev-imap",
+        "stalwart-linked" => "dev-linked",
         "first-run" => "dev-first-run",
         _ => null,
     };

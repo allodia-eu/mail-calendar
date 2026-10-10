@@ -505,6 +505,29 @@ function Open-SettingsCategory {
 
 <#
 .SYNOPSIS
+Opens one account's page in Settings → Accounts, by its position in the list or its address, and
+returns the dialog root.
+.DESCRIPTION
+The list is drawn afresh first, by leaving the category and coming back: that rebuilds it from the
+core, so what the page shows afterwards is the core's answer and not a value the client kept. Two
+accounts can share an address (a mailbox and its calendar account), which is why -Index exists.
+#>
+function Open-SettingsAccount {
+  param([int] $Index = 0, [string] $Address)
+  Open-SettingsCategory -Name 'General' | Out-Null
+  $dialog = Open-SettingsCategory -Name 'Accounts'
+  $rows = @(Find-UiaElements -Type 'Button' -Root $dialog | Where-Object { $_.Current.Name -match '@' })
+  if ($Address) { $rows = @($rows | Where-Object { $_.Current.Name -eq $Address }) }
+  if ($rows.Count -le $Index) {
+    throw "Settings → Accounts lists $($rows.Count) matching account(s), not $($Index + 1)"
+  }
+  Invoke-UiaElement $rows[$Index]
+  Wait-UiaQuiet -CapMs 1500 -FloorMs 400
+  Get-SettingsDialog
+}
+
+<#
+.SYNOPSIS
 Wait for the window to stop changing shape, or until $CapMs is spent.
 .DESCRIPTION
 The settle after an action used to be a flat sleep of its whole budget, on every call. That is the

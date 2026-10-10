@@ -200,6 +200,7 @@ public sealed partial class MailboxModel
         if (changed == Surface.Settings)
         {
             BumpDisplaySettings();
+            RaiseAccountsChanged();
         }
 
         // The derived mail count/name labels may have changed with the collections.

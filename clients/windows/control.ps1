@@ -83,8 +83,8 @@ function Invoke-Relaunch([string] $Hook, [string] $HookValue = '1') {
     if (Test-Path -LiteralPath $ca -PathType Leaf) {
       $env:MAILCAL_EXTRA_CA = (Resolve-Path -LiteralPath $ca).Path
     }
-    elseif ($env:MAILCAL_DEV_ACCOUNT -eq 'stalwart-imap') {
-      throw "MAILCAL_DEV_ACCOUNT=stalwart-imap needs the harness certificates, and there are none at $ca, run scripts/dev/harness.sh up."
+    elseif ($env:MAILCAL_DEV_ACCOUNT -in 'stalwart-imap', 'stalwart-linked') {
+      throw "MAILCAL_DEV_ACCOUNT=$env:MAILCAL_DEV_ACCOUNT needs the harness certificates, and there are none at $ca, run scripts/dev/harness.sh up."
     }
   }
   Start-Process $exe

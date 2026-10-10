@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# Settings → Accounts: how one mail account is shared with the person's other devices, and what a
+# An account's page in Settings → Accounts: how one mail account is shared with the person's other devices, and what a
 # refusal from the core reads like when it is put on screen.
 #
 # Why it is here and not in `Mailcal.Tests`: that assembly is plain net10.0 and links no WinUI, and
@@ -26,8 +26,8 @@ function Get-AccountSyncTexts {
 $Suite = @{
   Dataset = 'harness'
   Prepare = {
-    Open-SettingsCategory -Name 'Accounts' | Out-Null
-    Start-Sleep -Milliseconds 800
+    # How an account is shared is the first question on its own page.
+    Open-SettingsAccount -Address 'alice@test.local' | Out-Null
   }
   Cases   = @(
     @{
@@ -41,10 +41,8 @@ $Suite = @{
           Find-UiaElement -Type 'Group' -Root (Get-SettingsDialog) |
             Where-Object { -not $_.Current.IsOffscreen } | Select-Object -First 1
         ) -What 'the sync-position control'
-        # This panel is a flat stack of cards with no box around either of them, so the heading is
-        # the only thing saying which account the rows under it are about. Built the other way
-        # round, a second account's control sits under the FIRST account's last row and reads as
-        # belonging to it, which renders perfectly and is wrong.
+        # The page has no box around its sections, so the address is what says which account the
+        # rows under it are about, and it comes first.
         Assert-True ($address.Top -lt $picker.Top) (
           "the address names the card, so it comes first (address at $($address.Top), " +
           "sync control at $($picker.Top))")

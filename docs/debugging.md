@@ -166,9 +166,10 @@ mode renders it as one row badged "In 2 accounts".
 alone, and alice's and bob's calendars and address books over CalDAV, each an account without a
 mailbox ([`accounts.md`](accounts.md)). It exists for linking accounts: alice's calendar server
 schedules as her address, so it is the one suggested for her mailbox, and bob's is offered beside it
-without being suggested. Nothing is linked up front. Linux only for now: `boot.sh` refuses it on the
-other platforms, whose clients would answer a mode they do not know with the developer's stored
-accounts.
+without being suggested. Nothing is linked up front, and nothing changed in that mode outlives the launch: the canned
+accounts are connected without what the namespace stored, since a link or a use is stored under the
+canned account's own id. Linux and Windows only: `boot.sh` refuses it on the other platforms, whose
+clients would answer a mode they do not know with the developer's stored accounts.
 
 On **macOS** the isolation is wider still, and it is not conditional on the harness: **every** DEBUG
 build is separated from the installed app, `--account personal` included (that being the mode that
@@ -219,7 +220,7 @@ Three things follow that are worth knowing before you go hunting:
 
 On **Windows** the isolation extends beyond the
 engine store: the credential store switches to a throwaway
-`dev`/`dev-multi`/`dev-imap`/`dev-first-run` namespace (`CredentialStore.UseDevNamespace`), and the
+`dev`/`dev-multi`/`dev-imap`/`dev-linked`/`dev-first-run` namespace (`CredentialStore.UseDevNamespace`), and the
 one-line **preference files** (language, window placement, pane width, the Diagnostics log level)
 move into the same dev subdir (`AppPaths.PrefsDir`), so nothing a harness run persists (a resized
 window, a flipped DEBUG toggle) survives into a normal launch. The rotating log deliberately stays

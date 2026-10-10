@@ -47,12 +47,23 @@ public sealed partial class SettingsDialog : ContentDialog
     private bool _languageChanged;
 
     /// <summary>Builds the dialog over the shared model, opened on <paramref name="category"/>,
-    /// a tag from <see cref="Categories"/>. Only the screenshot driver passes one; the app itself
-    /// always opens on General, which is not the first category in a build that carries the
-    /// Allodia route.</summary>
-    public SettingsDialog(MailboxModel model, string category = "general")
+    /// a tag from <see cref="Categories"/>, and within Accounts on <paramref name="account"/>'s
+    /// page with <paramref name="notice"/> said over it. The app itself opens on General, which is
+    /// not the first category in a build that carries the Allodia route.</summary>
+    public SettingsDialog(
+        MailboxModel model, string category = "general", string? account = null, (string Title, string Message)? notice = null)
     {
         _model = model;
+        _accountPage = account;
+        if (notice is { } said)
+        {
+            _accountNotice = new AccountNotice(InfoBarSeverity.Warning, said.Title, said.Message);
+        }
+        // Settings → Accounts is drawn from the core, and the core says when that may have
+        // changed: an account added, removed, linked or signed in again, or its sign-in expiring.
+        _hadAccounts = model.AccountsSnapshot().Accounts.Length > 0;
+        model.AccountsChanged += OnAccountsChanged;
+        Closed += (_, _) => model.AccountsChanged -= OnAccountsChanged;
         _brushes = new ThemeBrushes(this);
         Title = L10n.SettingsTitle();
         CloseButtonText = L10n.ActionDone();
@@ -139,6 +150,13 @@ public sealed partial class SettingsDialog : ContentDialog
             _deletingSignature = null;
         }
         CloseAllodiaSubscription(tag);
+        // Leaving Accounts goes back to its list, and what a page said goes with it.
+        if (tag != "accounts")
+        {
+            _accountPage = null;
+            _accountNotice = null;
+            _accountNoticeBar = null;
+        }
         _detail.Children.Clear();
         _detail.Children.Add(tag switch
         {

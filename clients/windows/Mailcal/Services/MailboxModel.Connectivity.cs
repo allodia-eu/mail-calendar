@@ -26,6 +26,10 @@ public sealed partial class MailboxModel
     // so a send or mail action was refused, drives the mail re-auth banner. Reconnecting re-runs
     // sign-in with the full scope set, clearing this and any calendar prompt at once.
     private List<string> _mailReauthEmails = new();
+    // The same two prompts by account id, which signing an account in again in place is addressed
+    // to (docs/provider-oauth.md rule 11).
+    private List<string> _calendarReauthIds = new();
+    private List<string> _mailReauthIds = new();
     // Accounts whose stored sign-in the server has stopped accepting, an expired or revoked OAuth
     // grant (Google invalid_grant, a Microsoft AADSTS700082), or a password it now refuses. Nothing
     // syncs and a retry never helps, so this drives its own banner rather than the connection-issues
@@ -64,10 +68,12 @@ public sealed partial class MailboxModel
         }).ToList();
         // A standing permission gap, not a connectivity fault, resolved to emails the same way,
         // and (unlike unreachable) shown regardless of the offline state.
+        _calendarReauthIds = connectivity.CalendarReauthAccounts.ToList();
         _calendarReauthEmails = connectivity.CalendarReauthAccounts
             .Select(id => Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id)
             .ToList();
         // Likewise the mail write/send permission gap (a refused send or mail action).
+        _mailReauthIds = connectivity.MailReauthAccounts.ToList();
         _mailReauthEmails = connectivity.MailReauthAccounts
             .Select(id => Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id)
             .ToList();
@@ -92,6 +98,7 @@ public sealed partial class MailboxModel
         Raise(nameof(SignInExpiredActionVisible));
         RaiseConnectionStatus();
         ConnectivityChanged?.Invoke();
+        RaiseAccountsChanged();
     }
 
     /// <summary>Whether the device has no network (drives the offline banner).</summary>
@@ -125,10 +132,6 @@ public sealed partial class MailboxModel
     public string CalendarReauthText =>
         L10n.CalendarReauthPrompt(string.Join(", ", _calendarReauthEmails));
 
-    /// <summary>The address to re-authenticate when the banner's "Reconnect" is clicked (the first
-    /// affected account; the banner re-renders after it clears, walking through any others).</summary>
-    public string? CalendarReauthEmail => _calendarReauthEmails.FirstOrDefault();
-
     /// <summary>Whether a Microsoft account's mail write/send is withheld for lack of the
     /// Mail.ReadWrite / Mail.Send OAuth scopes, drives the mail re-auth banner. Reading is
     /// unaffected; reconnecting re-runs sign-in with the full scope set.</summary>
@@ -137,10 +140,6 @@ public sealed partial class MailboxModel
     /// <summary>The mail re-auth banner text, naming the affected account(s).</summary>
     public string MailReauthText =>
         L10n.MailReauthPrompt(string.Join(", ", _mailReauthEmails));
-
-    /// <summary>The address to re-authenticate when the mail banner's "Reconnect" is clicked (the
-    /// first affected account; the banner re-renders after it clears, walking through any others).</summary>
-    public string? MailReauthEmail => _mailReauthEmails.FirstOrDefault();
 
     /// <summary>Whether an account's stored sign-in has stopped being accepted, drives the
     /// "sign in again" banner. Not an outage: the server answered, and only a fresh sign-in
@@ -191,17 +190,47 @@ public sealed partial class MailboxModel
         SetSignInReauthFailed(false);
         switch (account.Provider)
         {
-            case AccountProvider.Microsoft:
-                SignInWithMicrosoft(account.Email);
-                break;
-            case AccountProvider.Google:
-                SignInWithGoogle(account.Email);
+            case AccountProvider.Microsoft or AccountProvider.Google:
+                _ = SignInAgainFromBannerAsync(account.Id);
                 break;
             case AccountProvider.JmapOauth:
                 // Addressed to the account id, not the address: the core re-authorises this
                 // account's own stored grant, so there is no discovery and no second registration.
                 _ = ReconnectJmapAsync(account.Id);
                 break;
+        }
+    }
+
+    /// <summary>Signs in again the first account whose calendar the grant withholds, in place.</summary>
+    public void ReconsentCalendar()
+    {
+        if (_calendarReauthIds.FirstOrDefault() is { } id)
+        {
+            _ = SignInAgainFromBannerAsync(id);
+        }
+    }
+
+    /// <summary>Signs in again the first account whose mail writes the grant withholds, in place.</summary>
+    public void ReconsentMail()
+    {
+        if (_mailReauthIds.FirstOrDefault() is { } id)
+        {
+            _ = SignInAgainFromBannerAsync(id);
+        }
+    }
+
+    /// <summary>
+    /// A banner's sign-in: the account is signed in again where it is, keeping its mail and
+    /// settings, rather than added a second time. A failure is said on the expired-sign-in banner;
+    /// the core leaves every prompt raised, so the retry is one click away.
+    /// </summary>
+    private async Task SignInAgainFromBannerAsync(string accountId)
+    {
+        SetSignInReauthFailed(false);
+        var ended = await SignInAgainAsync(accountId, []);
+        if (ended.Error is not null)
+        {
+            SetSignInReauthFailed(true);
         }
     }
 

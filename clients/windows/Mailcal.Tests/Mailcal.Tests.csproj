@@ -196,6 +196,13 @@
          server on a non-standard port is the reason the manual form exists and nothing else
          here can fail when that breaks. -->
     <Compile Include="..\Mailcal\Services\ManualServerField.cs" Link="Services\ManualServerField.cs" />
+    <!-- What Settings → Accounts draws from the core's one snapshot (docs/accounts.md rules 11 to
+         14): which switch is held on and why, which link pickers a page offers and which account
+         one suggests, and what an edit of an account's servers sends back. WinUI-free and
+         L10n-free on purpose; each rule fails silently on screen, most sharply a suggestion that
+         second-guesses a link already made, and a save that adds a server the account never had. -->
+    <Compile Include="..\Mailcal\Services\AccountSettingsRules.cs" Link="Services\AccountSettingsRules.cs" />
+    <Compile Include="..\Mailcal\Services\AccountEndpointEdit.cs" Link="Services\AccountEndpointEdit.cs" />
     <!-- The composer recipient field's string work: which part of a To/Cc/Bcc field is being typed,
          which recipients are finished, and what the field becomes when one is accepted or removed.
          Both failure modes here are SILENT (a whole-field query matches nothing once a first
