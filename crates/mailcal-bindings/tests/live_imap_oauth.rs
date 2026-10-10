@@ -74,6 +74,8 @@ fn an_imap_account_signs_in_through_its_providers_own_autoconfig() {
         imap_security: Some(imap_security),
         smtp_security: Some(smtp_security),
         oauth_issuer,
+        carddav_base_url: None,
+        uses: None,
     };
     assert_eq!(
         app.imap_auth_options(request.clone()),

@@ -3,8 +3,9 @@
 use std::path::PathBuf;
 
 use mailcal_bindings::{
-    AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget, DraftResume, ImapAuthOffer,
-    Intent, MailtoPrefill, SearchScope, SetupRecommendation, SharePrefill, Surface,
+    AccountCapability, AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget,
+    DetectedSetup, DraftResume, ImapAuthOffer, Intent, MailtoPrefill, SearchScope, SharePrefill,
+    Surface,
 };
 
 use super::{
@@ -240,13 +241,23 @@ pub(crate) enum AppInput {
     OpenSettings,
     OpenAccountSetup,
     RestartAccountSetup,
+    /// Back from the second step to the address, which stays as typed.
+    AccountSetupBack,
+    /// A pick on the link step: which picker, and which of its options (`None` for none).
+    SetupLinkPicked(usize, Option<usize>),
+    /// The link step is done: link what is picked, or skip.
+    SetupLinksDone(bool),
+    /// "Add another account" from the link step.
+    SetupAddLinkedAccount,
+    /// The account needs no name asked; the next one waiting is.
+    SenderNameNotNeeded,
     CancelAccountSetup,
     ManualAccountSetup(String),
     EditDetectedManually,
     SelectAccountKind(Box<ManualForm>),
     ProbeManualJmapSignIn(Box<ManualForm>),
     DetectAccount(String),
-    AccountDetected(String, Box<SetupRecommendation>),
+    AccountDetected(String, Box<DetectedSetup>),
     JmapOAuthAvailable {
         email: String,
         server_url: String,
@@ -272,11 +283,13 @@ pub(crate) enum AppInput {
     /// Close the "your name" step without setting one: the account keeps sending as a bare
     /// address.
     DismissSenderNamePrompt,
-    StartGoogleLogin(String),
+    /// The address to sign in, and what the account is used for.
+    StartGoogleLogin(String, Option<Vec<AccountCapability>>),
     CancelGoogleLogin,
     GoogleCallbackReceived(u64),
     GoogleFinished(u64, GoogleOutcome),
-    StartMicrosoftLogin(String),
+    /// The address to sign in, and what the account is used for.
+    StartMicrosoftLogin(String, Option<Vec<AccountCapability>>),
     CancelMicrosoftLogin,
     MicrosoftCallbackReceived(u64),
     MicrosoftFinished(u64, MicrosoftOutcome),
@@ -341,3 +354,7 @@ pub(crate) enum AppInput {
     CollectNewMail,
     BackgroundFinished,
 }
+
+/// The name each input logs under.
+#[path = "input_names.rs"]
+mod names;

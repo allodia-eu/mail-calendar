@@ -26,6 +26,8 @@ pub(super) enum Phase {
     JmapSigningIn,
     ImapSigningIn,
     Connecting,
+    /// The account is added; linking it to another is offered.
+    Links,
 }
 
 pub(super) struct SetupState {
@@ -55,6 +57,12 @@ pub(super) struct SetupState {
     /// The first-run Allodia recommendation's state ([`super::setup_onboarding`]). Held here
     /// because a sign-in outlives several window rebuilds.
     pub(super) onboarding: Onboarding,
+    /// The link step on screen, in [`Phase::Links`].
+    pub(super) links: Option<super::setup_links::LinkStep>,
+    /// The account whose link step an "Add another account" left, to come back to.
+    pub(super) returning_to: Option<String>,
+    /// Every account this flow added, whose names are asked once it ends.
+    pub(super) added: Vec<String>,
 }
 
 impl SetupState {
@@ -71,6 +79,9 @@ impl SetupState {
             accepted_certificate: None,
             start_email: String::new(),
             onboarding: Onboarding::new(),
+            links: None,
+            returning_to: None,
+            added: Vec::new(),
         }
     }
 
@@ -89,6 +100,13 @@ impl SetupState {
         self.open_on(required, String::new());
     }
 
+    /// A flow of its own, which comes back to no link step and has added nothing yet.
+    fn forget_flow(&mut self) {
+        self.links = None;
+        self.returning_to = None;
+        self.added.clear();
+    }
+
     /// Opens on an address, for an offer from one of the person's other devices.
     pub(super) fn open_on(&mut self, required: bool, start_email: String) {
         self.visible = true;
@@ -100,7 +118,89 @@ impl SetupState {
         // A fresh flow asks its own questions; nothing an earlier one answered carries over.
         self.accepted_certificate = None;
         self.start_email = start_email;
+        self.forget_flow();
         self.bump();
+    }
+
+    /// Shows the link step.
+    pub(super) fn show_links(&mut self, step: super::setup_links::LinkStep) {
+        self.phase = Phase::Links;
+        self.links = Some(step);
+        self.error = None;
+        self.certificate = None;
+        self.bump();
+    }
+
+    /// The same step read again, for a suggestion that arrived after it was drawn: redrawn only
+    /// when the person has not changed it.
+    pub(super) fn refresh_links(&mut self, fresh: super::setup_links::LinkStep) {
+        if self.phase != Phase::Links {
+            return;
+        }
+        let Some(step) = self.links.take() else {
+            return;
+        };
+        // Every Settings signal reads the step again; redrawing an unchanged one would close a
+        // dropdown the person has open.
+        let redraw =
+            !step.touched && (step.pickers != fresh.pickers || step.picked != fresh.picked);
+        self.links = Some(step.refreshed(fresh));
+        if redraw {
+            self.bump();
+        }
+    }
+
+    /// The account the link step on screen is for.
+    pub(super) fn linking(&self) -> Option<&str> {
+        (self.visible && self.phase == Phase::Links)
+            .then_some(self.links.as_ref())
+            .flatten()
+            .map(|step| step.account.as_str())
+    }
+
+    /// Records a pick. The dropdown already shows it, so nothing is redrawn.
+    pub(super) fn pick_link(&mut self, picker: usize, option: Option<usize>) {
+        if let Some(step) = self.links.as_mut() {
+            step.pick(picker, option);
+        }
+    }
+
+    /// "Add another account" from the link step: setup again from the address, coming back to
+    /// this step when it adds an account or is cancelled.
+    pub(super) fn add_linked(&mut self) {
+        let Some(step) = self.links.take() else {
+            return;
+        };
+        let added = std::mem::take(&mut self.added);
+        self.open_on(false, String::new());
+        self.returning_to = Some(step.account.clone());
+        self.added = added;
+        // Kept, so what was picked comes back with the step.
+        self.links = Some(step);
+    }
+
+    /// Shows the link step again, read afresh, with what was picked on it before carried across.
+    pub(super) fn show_links_again(&mut self, fresh: super::setup_links::LinkStep) {
+        let step = match self.links.take() {
+            Some(earlier) if earlier.account == fresh.account => earlier.refreshed(fresh),
+            _ => fresh,
+        };
+        self.show_links(step);
+    }
+
+    /// Back from the second step to the address it was reached with, which stays in the field
+    /// (`docs/account-autodetect.md` rule 12).
+    pub(super) fn back_to_address(&mut self, required: bool) {
+        let email = self.form.as_ref().map(SetupForm::email).unwrap_or_default();
+        let (returning_to, added, links) = (
+            self.returning_to.take(),
+            std::mem::take(&mut self.added),
+            self.links.take(),
+        );
+        self.open_on(required, email);
+        self.returning_to = returning_to;
+        self.added = added;
+        self.links = links;
     }
 
     pub(super) fn detecting(&mut self) {

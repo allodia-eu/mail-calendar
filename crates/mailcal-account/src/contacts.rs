@@ -60,7 +60,8 @@ pub async fn connect_carddav_contact_providers(
         normalize_caldav_base_url(endpoint.base_url),
         credentials,
     )
-    .with_tls(tls)
+    // A clone shares the record of what it refused, so a refusal reads back from `tls`.
+    .with_tls(tls.clone())
     // Ungated: no CalDAV/CardDAV adapter states a concurrency ceiling, because no RFC gives
     // one and no server here has been measured (`docs/agent-guidance/http-throttling.md`).
     // A gate with nothing to narrow it bounds nothing, so wiring one would be ceremony.
@@ -70,7 +71,7 @@ pub async fn connect_carddav_contact_providers(
 
     let discovery = CardDavProvider::connect(config.clone())
         .await
-        .map_err(AccountError::from_first_dav_connect)?;
+        .map_err(|err| AccountError::from_first_dav_connect(err).over_tls(&tls))?;
     // The server says whether it has address books (the `addressbook` class, RFC 6352 §6.1): an
     // account whose CalDAV origin serves no CardDAV reports no contacts capability, and syncing it
     // would fail once per pass forever.

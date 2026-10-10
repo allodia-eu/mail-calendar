@@ -332,7 +332,18 @@ impl AppModel {
                 // have happened since boot; so the card is re-derived rather than left as it was.
                 self.refresh_onboarding_card();
             }
-            AppInput::CancelAccountSetup => self.setup.cancel(),
+            AppInput::AccountSetupBack => {
+                self.setup
+                    .back_to_address(self.snapshot.accounts.is_empty());
+                self.refresh_onboarding_card();
+            }
+            AppInput::CancelAccountSetup => {
+                self.cancel_account_setup(sender.input_sender().clone());
+            }
+            message @ (AppInput::SetupLinkPicked(..)
+            | AppInput::SetupLinksDone(_)
+            | AppInput::SetupAddLinkedAccount
+            | AppInput::SenderNameNotNeeded) => self.update_setup_flow(message, sender),
             AppInput::ManualAccountSetup(email) => {
                 self.setup.show_form(setup_model::manual_form(email, None));
             }
@@ -371,11 +382,11 @@ impl AppModel {
             // the outcome. They are a quarter of this match and reached from nowhere else in it,
             // so they live next door (`update_signin.rs`). Listed rather than caught by a
             // wildcard, so a new input variant still has to be handled somewhere by name.
-            message @ (AppInput::StartGoogleLogin(_)
+            message @ (AppInput::StartGoogleLogin(..)
             | AppInput::CancelGoogleLogin
             | AppInput::GoogleCallbackReceived(_)
             | AppInput::GoogleFinished(..)
-            | AppInput::StartMicrosoftLogin(_)
+            | AppInput::StartMicrosoftLogin(..)
             | AppInput::CancelMicrosoftLogin
             | AppInput::MicrosoftCallbackReceived(_)
             | AppInput::MicrosoftFinished(..)
@@ -435,12 +446,11 @@ impl AppModel {
                 suggestion,
             } => self.sender_name_suggested(account, suggestion),
             AppInput::SetAccountSenderName { account, name } => {
-                if let Some(app) = &self.app {
-                    app.set_account_sender_name(account, name);
-                }
-                self.host_tasks.sender_name_ask = None;
+                self.set_sender_name(account, name, sender.input_sender().clone());
             }
-            AppInput::DismissSenderNamePrompt => self.host_tasks.sender_name_ask = None,
+            AppInput::DismissSenderNamePrompt => {
+                self.ask_next_sender_name(sender.input_sender().clone());
+            }
             AppInput::ReplaceAccountSecret { account, secret } => {
                 self.replace_account_secret(account, secret, sender.input_sender().clone());
             }

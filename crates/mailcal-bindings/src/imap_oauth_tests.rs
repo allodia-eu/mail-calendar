@@ -15,6 +15,8 @@ fn pending() -> PendingImapLogin {
         imap_host: "imap.example.com".to_owned(),
         smtp_host: Some("smtp.example.com".to_owned()),
         caldav_base_url: Some("https://dav.example.com".to_owned()),
+        carddav_base_url: None,
+        uses: None,
         imap_starttls: true,
         smtp_starttls: true,
         client_id: "client-abc".to_owned(),
@@ -80,6 +82,36 @@ fn the_detected_transports_survive_into_the_stored_account() {
     let smtp = config.smtp.as_ref().expect("smtp");
     assert_eq!(smtp.addr, "smtp.example.com:587");
     assert_eq!(smtp.security, mailcal_account::ConnectionSecurity::StartTls);
+}
+
+#[test]
+fn the_uses_chosen_on_the_found_card_survive_the_hop() {
+    // The person switched mail off and kept the calendar and an address book found apart from
+    // it: the account stores no mail server, and both DAV halves present the grant.
+    let chosen = vec![
+        crate::AccountCapability::Calendar,
+        crate::AccountCapability::Contacts,
+    ];
+    let login = PendingImapLogin {
+        carddav_base_url: Some("https://contacts.example.com".to_owned()),
+        uses: crate::account_capability::chosen(Some(chosen))
+            .unwrap()
+            .as_ref()
+            .map(crate::account_capability::names),
+        ..pending()
+    };
+    let encoded = serde_json::to_string(&login).unwrap();
+    let decoded: PendingImapLogin = serde_json::from_str(&encoded).unwrap();
+    let (setup, _grant) = decoded.into_grant("rt".to_owned());
+    let config = mailcal_account::load_str(&mailcal_account::build_config_toml(&setup).unwrap())
+        .expect("round-trips");
+
+    assert!(config.imap.is_none() && config.smtp.is_none());
+    assert!(config.is_oauth());
+    let carddav = config.carddav.as_ref().expect("address book");
+    assert_eq!(carddav.base_url, "https://contacts.example.com");
+    assert!(carddav.password.is_none());
+    assert!(config.caldav.as_ref().unwrap().password.is_none());
 }
 
 #[test]

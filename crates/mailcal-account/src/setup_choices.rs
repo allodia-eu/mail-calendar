@@ -21,43 +21,89 @@ impl SetupRecommendation {
     /// manual form.
     #[must_use]
     pub fn choices(&self) -> Vec<SetupChoice> {
-        let found = |capability, server_found| SetupChoice {
-            capability,
-            on: server_found,
-            server_found,
-        };
         match self {
             Self::Imap {
                 caldav_url,
                 carddav_url,
                 ..
-            } => vec![
-                found(Capability::Mail, true),
-                found(Capability::Calendar, caldav_url.is_some()),
-                // Contacts are looked for at the calendar's server when no address book was found.
-                found(
-                    Capability::Contacts,
-                    caldav_url.is_some() || carddav_url.is_some(),
-                ),
-            ],
+            } => standards_choices(true, caldav_url.is_some(), carddav_url.is_some()),
             Self::Dav {
                 caldav_url,
                 carddav_url,
                 ..
-            } => vec![
-                found(Capability::Calendar, caldav_url.is_some()),
-                found(
-                    Capability::Contacts,
-                    caldav_url.is_some() || carddav_url.is_some(),
-                ),
-            ],
-            Self::Microsoft { .. } | Self::Google { .. } => Capability::ALL
-                .into_iter()
-                .map(|capability| found(capability, true))
-                .collect(),
+            } => standards_choices(false, caldav_url.is_some(), carddav_url.is_some()),
+            Self::Microsoft { email } => microsoft_choices(email),
+            Self::Google { email } => google_choices(email),
             Self::Jmap { .. } | Self::Manual { .. } => Vec::new(),
         }
     }
+}
+
+/// A use that starts on exactly when its server is known.
+const fn found(capability: Capability, server_found: bool) -> SetupChoice {
+    SetupChoice {
+        capability,
+        on: server_found,
+        server_found,
+    }
+}
+
+/// The uses a standards account offers: mail when it has a mail server, then calendar and
+/// contacts, each on when its server is known. Contacts are looked for at the calendar's server
+/// when no address book was found.
+#[must_use]
+pub fn standards_choices(mail: bool, caldav: bool, carddav: bool) -> Vec<SetupChoice> {
+    mail.then(|| found(Capability::Mail, true))
+        .into_iter()
+        .chain([
+            found(Capability::Calendar, caldav),
+            found(Capability::Contacts, caldav || carddav),
+        ])
+        .collect()
+}
+
+/// The uses a Microsoft sign-in for `email` offers: every one, all on, and colleagues only when
+/// the address is not a personal one.
+#[must_use]
+pub fn microsoft_choices(email: &str) -> Vec<SetupChoice> {
+    provider_choices(is_microsoft_consumer_domain(email))
+}
+
+/// The uses a Google sign-in for `email` offers, as [`microsoft_choices`] does for Microsoft.
+#[must_use]
+pub fn google_choices(email: &str) -> Vec<SetupChoice> {
+    provider_choices(crate::autodetect::is_google_consumer_domain(email))
+}
+
+/// Every use, all on; colleagues left out for a personal account, which has no organisation
+/// directory (`docs/accounts.md` rule 3).
+fn provider_choices(personal: bool) -> Vec<SetupChoice> {
+    Capability::ALL
+        .into_iter()
+        .filter(|capability| !(personal && *capability == Capability::Colleagues))
+        .map(|capability| found(capability, true))
+        .collect()
+}
+
+/// Microsoft's consumer brands, each under many country domains (`hotmail.co.uk`, `live.nl`).
+const MICROSOFT_CONSUMER_BRANDS: &[&str] = &["outlook", "hotmail", "live", "msn", "windowslive"];
+
+/// Whether `email` is at one of Microsoft's personal-account domains: a brand followed by a
+/// top-level domain (`live.nl`), or by `co` or `com` and a country (`hotmail.co.uk`,
+/// `live.com.au`), so `outlook.example.com` and `live.ing.nl` are not one.
+fn is_microsoft_consumer_domain(email: &str) -> bool {
+    let Some(domain) = email
+        .rsplit_once('@')
+        .map(|(_, domain)| domain.to_ascii_lowercase())
+    else {
+        return false;
+    };
+    let mut labels = domain.split('.');
+    let brand = labels.next().unwrap_or_default();
+    let suffix: Vec<&str> = labels.collect();
+    MICROSOFT_CONSUMER_BRANDS.contains(&brand)
+        && (1..=2).contains(&suffix.len())
+        && (suffix.len() == 1 || matches!(suffix[0], "co" | "com") && suffix[1].len() == 2)
 }
 
 #[cfg(test)]

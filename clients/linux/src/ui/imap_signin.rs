@@ -44,6 +44,8 @@ pub(super) fn login_request(form: &ImapForm) -> ImapLoginRequest {
         imap_security: Some(form.imap_security),
         smtp_security: Some(form.smtp_security),
         oauth_issuer: form.oauth_issuer.clone(),
+        carddav_base_url: (!form.carddav_url.trim().is_empty()).then(|| form.carddav_url.clone()),
+        uses: form.uses.clone(),
     }
 }
 
@@ -127,6 +129,9 @@ mod tests {
             imap_host: "imap.example.com".to_owned(),
             smtp_host: "smtp.example.com".to_owned(),
             caldav_url: String::new(),
+            carddav_url: String::new(),
+            uses: None,
+            offer: crate::ui::setup_uses::UseOffer::default(),
             imap_security: mailcal_bindings::ConnectionSecurity::StartTls,
             smtp_security: mailcal_bindings::ConnectionSecurity::StartTls,
             trusted: true,
@@ -165,7 +170,26 @@ mod tests {
         // `[caldav]` section pointing at nothing, and the calendar would fail on every sync.
         let request = login_request(&form());
         assert!(request.caldav_base_url.is_none());
+        assert!(request.carddav_base_url.is_none());
         assert_eq!(request.smtp_host.as_deref(), Some("smtp.example.com"));
+    }
+
+    #[test]
+    fn the_sign_in_sets_the_account_up_for_what_the_card_chose() {
+        let chosen = ImapForm {
+            carddav_url: "https://contacts.example.com".to_owned(),
+            uses: Some(vec![mailcal_bindings::AccountCapability::Contacts]),
+            ..form()
+        };
+        let request = login_request(&chosen);
+        assert_eq!(
+            request.carddav_base_url.as_deref(),
+            Some("https://contacts.example.com")
+        );
+        assert_eq!(
+            request.uses,
+            Some(vec![mailcal_bindings::AccountCapability::Contacts])
+        );
     }
 
     #[test]

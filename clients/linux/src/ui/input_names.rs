@@ -1,5 +1,4 @@
-//! The name each input is logged under: the variant alone, never its payload, which can carry
-//! mail, addresses and credentials.
+//! The name each input logs under: the variant alone, never what it carries, which can be mail.
 
 use std::fmt;
 
@@ -109,6 +108,11 @@ impl fmt::Debug for AppInput {
             Self::OpenSettings => "OpenSettings",
             Self::OpenAccountSetup => "OpenAccountSetup",
             Self::RestartAccountSetup => "RestartAccountSetup",
+            Self::AccountSetupBack => "AccountSetupBack",
+            Self::SetupLinkPicked(..) => "SetupLinkPicked",
+            Self::SetupLinksDone(_) => "SetupLinksDone",
+            Self::SetupAddLinkedAccount => "SetupAddLinkedAccount",
+            Self::SenderNameNotNeeded => "SenderNameNotNeeded",
             Self::CancelAccountSetup => "CancelAccountSetup",
             Self::ManualAccountSetup(_) => "ManualAccountSetup",
             Self::EditDetectedManually => "EditDetectedManually",
@@ -122,11 +126,11 @@ impl fmt::Debug for AppInput {
             Self::SenderNameSuggested { .. } => "SenderNameSuggested",
             Self::SetAccountSenderName { .. } => "SetAccountSenderName",
             Self::DismissSenderNamePrompt => "DismissSenderNamePrompt",
-            Self::StartGoogleLogin(_) => "StartGoogleLogin",
+            Self::StartGoogleLogin(..) => "StartGoogleLogin",
             Self::CancelGoogleLogin => "CancelGoogleLogin",
             Self::GoogleCallbackReceived(_) => "GoogleCallbackReceived",
             Self::GoogleFinished(..) => "GoogleFinished",
-            Self::StartMicrosoftLogin(_) => "StartMicrosoftLogin",
+            Self::StartMicrosoftLogin(..) => "StartMicrosoftLogin",
             Self::CancelMicrosoftLogin => "CancelMicrosoftLogin",
             Self::MicrosoftCallbackReceived(_) => "MicrosoftCallbackReceived",
             Self::MicrosoftFinished(..) => "MicrosoftFinished",

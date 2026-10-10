@@ -147,6 +147,18 @@ impl SettingsState {
         }
     }
 
+    /// Opens the window on `account`'s page, saying `notice` over it: for something about the
+    /// account that the page is where to act on.
+    pub(in crate::ui) fn open_on_account(
+        &mut self,
+        account: String,
+        notice: super::notice::Notice,
+    ) {
+        self.open(Some(Category::Accounts));
+        self.account = Some(account);
+        self.raise(notice);
+    }
+
     /// Says `notice` over the window, once, and redraws whatever page is open.
     pub(in crate::ui) fn notify(&mut self, notice: super::notice::Notice) {
         self.raise(notice);

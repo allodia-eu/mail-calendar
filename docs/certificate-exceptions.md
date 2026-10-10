@@ -115,6 +115,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Acceptance stored with the account, asked once | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Detected card **and** manual form | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Exception applies to IMAP, SMTP and CalDAV of that account | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A calendar or address-book server's refusal carries its certificate, for an account without mail | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
 
 The **shared TLS config is per account**, so an accepted certificate covers every provider of that
 account whose server name it matches. Proton Mail Bridge serves the same certificate on its IMAP
@@ -166,10 +167,12 @@ handed one. Read a 🚧 on this page as *unknown*.
 - **JMAP accounts cannot carry an exception.** A JMAP account's stored config is its own type and
   has no `certificate_exception` (rule 8). The engine and the account's TLS build already support
   it, so this is config plumbing and a second form, not a design question.
-- **CalDAV and SMTP are covered but never asked about.** They share the account's TLS config, so an
-  exception accepted for the mail host admits them when their server name matches. A calendar or
-  submission host on a *different* name that also fails to verify is refused, and the person is
-  never offered that one: the mail connect is the only one they wait on.
+- **Beside a mailbox, CalDAV, CardDAV and SMTP are covered but never asked about.** They share the
+  account's TLS config, so an exception accepted for the mail host admits them when their server
+  name matches. A calendar, address-book or submission host on a *different* name that also fails
+  to verify is refused, and the person is never offered that one: the mail connect is the only one
+  they wait on. An account without mail waits on its calendar or address book instead, and that
+  refusal carries its certificate like a mail server's; only Linux sets such an account up.
 - **An acceptance does not survive leaving the flow.** It is carried across the attempts of one
   setup and dropped when the form closes, because until the account exists there is nothing to
   store it against. Somebody who cancels and starts again is asked once more.

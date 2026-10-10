@@ -288,8 +288,9 @@ fn answered(
     approved && certificate_accepted(certificate) && !secret.text().is_empty()
 }
 
-/// The trailing button row every pane ends with. Cancel (when the flow is dismissable) and Back
-/// are the same everywhere; the caller appends whichever primary action its pane offers.
+/// The trailing button row every pane ends with: Back first (`docs/account-autodetect.md`
+/// rule 12), then Cancel when the flow is dismissable; the caller appends whichever primary
+/// action its pane offers.
 pub(super) fn actions(
     window: &gtk::Window,
     required: bool,
@@ -297,20 +298,20 @@ pub(super) fn actions(
 ) -> gtk::Box {
     let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     actions.set_halign(gtk::Align::End);
+    let back = gtk::Button::with_label(l10n::a11y_back());
+    back.set_widget_name(super::setup_pane::BACK);
+    let input = sender.clone();
+    back.connect_clicked(move |_| input.emit(AppInput::AccountSetupBack));
+    actions.append(&back);
     if !required {
         let cancel = gtk::Button::with_label(l10n::action_cancel());
-        let input = sender.clone();
         let dialog = window.clone();
-        cancel.connect_clicked(move |_| {
-            input.emit(AppInput::CancelAccountSetup);
-            dialog.close();
-        });
+        // The close request is what cancels the flow, for this button and the window's own
+        // alike; a second cancel here would end the flow a cancelled "Add another account"
+        // had just returned to.
+        cancel.connect_clicked(move |_| dialog.close());
         actions.append(&cancel);
     }
-    let back = gtk::Button::with_label(l10n::a11y_back());
-    let input = sender.clone();
-    back.connect_clicked(move |_| input.emit(AppInput::RestartAccountSetup));
-    actions.append(&back);
     actions
 }
 

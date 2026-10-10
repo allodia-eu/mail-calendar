@@ -61,7 +61,6 @@ mod icons;
 mod imap_actions;
 mod imap_signin;
 mod input;
-mod input_debug;
 mod invitation;
 mod invitation_actions;
 mod jmap;
@@ -99,9 +98,14 @@ mod selection_bar;
 mod selection_input;
 mod settings;
 mod setup;
+mod setup_dav;
+#[cfg(test)]
+mod setup_flag_tests;
+mod setup_flow;
 mod setup_google;
 mod setup_imap;
 mod setup_jmap;
+mod setup_links;
 mod setup_manual;
 #[cfg(test)]
 mod setup_manual_tests;
@@ -118,6 +122,9 @@ mod setup_server_row;
 #[cfg(test)]
 mod setup_signin_tests;
 mod setup_state;
+mod setup_uses;
+#[cfg(test)]
+mod setup_uses_widget_tests;
 #[cfg(test)]
 mod setup_widget_tests;
 mod setup_widgets;

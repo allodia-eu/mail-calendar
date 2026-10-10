@@ -93,6 +93,21 @@ the direct route alone, with no heading over it.
 The empty-answer message is part of the card, not the offers: "no mail accounts yet" is a sentence
 about a new Allodia account, and somebody adding their second mail account has one.
 
+## After the connect: linking another account
+
+**The last step, and a skippable one.** When another account can fill a use a new standards
+account (IMAP, or calendar and contacts) lacks, the window offers it before it closes: a calendar or an address book from another account, and
+for a calendar without mail, the account that sends its invitations. The pickers are the account
+page's own ([`accounts.md`](accounts.md) rule 12), from the same `accounts_snapshot`, so the step
+offers exactly what Settings would, and nothing when there is nothing to link. A Microsoft,
+Google or JMAP account holds mail, calendar and contacts itself, so it is not offered the step;
+linking one is for Settings, whenever the person wants it (`offers_setup_links`). A suggested account
+starts picked and is linked only when the person continues; a suggestion the core finds after the
+step is drawn reaches it unless the person has already changed a pick. **Add another account** runs
+setup again from the address and comes back to the step, cancelled or done, so the account just
+added can be picked. The name each added account sends under is asked once the window closes, one
+account after another ([`sending.md`](sending.md)).
+
 ## Accessibility
 
 The card is one control rather than a heading beside a button, so a screen reader announces the
@@ -118,6 +133,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 | An empty answer says so, in words | 🚧 | ✅ | 🚧 | ✅ | ✅ |
 | Offers on a later add, not just the first | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
 | Set up takes the record's own route | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
+| The link step after the connect, with "Add another account" | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 
 ## What signing in here does
 

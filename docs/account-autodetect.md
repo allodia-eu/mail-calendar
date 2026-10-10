@@ -292,14 +292,14 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Untrusted-settings approval gate | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | Refused-certificate acceptance ([`certificate-exceptions.md`](certificate-exceptions.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | "Set up manually" escape + reason line | ✅ | ✅ | 🚧 | ✅ | ✅ |
-| Back from the second step to the address (rule 12) | n/a | ✅ | ✅ | ✅ system Back | 🚧 |
+| Back from the second step to the address (rule 12) | n/a | ✅ | ✅ | ✅ system Back | ✅ |
 | MX fallback (host DNS) | ✅ | ✅ libresolv | 🚧 DnsQuery_W | ✅ DnsResolver | ✅ GIO Resolver |
 | JMAP-SRV autodiscovery (`_jmap._tcp`) | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | IMAP/SMTP SRV (`_imaps`/`_submissions`, RFC 6186/8314) | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | DNSSEC AD bit read (reserved for a future "require DNSSEC" opt-in) | ✅ | n/a | n/a | ✅ | n/a |
 | CalDAV follow-on discovery (RFC 6764) | ✅ | ✅ | 🚧 | ✅ | ✅ |
-| CardDAV, DAV SRV, DAV beside JMAP, the calendar-and-contacts result (rule 8) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The found card's choices, decided in the core (rule 8) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| CardDAV, DAV SRV, DAV beside JMAP, the calendar-and-contacts result (rule 8) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| The found card's choices, decided in the core (rule 8) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
 | JMAP OAuth metadata chain (RFC 9728 → 8414 → 7591), offered only when advertised | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | `<oAuth2><issuer>` read from the provider's own trusted autoconfig, carried to setup | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
 
@@ -339,9 +339,9 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   `AddAccount.Tests.ps1` press "Set up manually", then Back, and read the address back;
   `AccountSetupBackTests` does the same on iOS from the found card and the manual form, on a first
   run and a later add. The Apple UI suite is iOS only, so macOS shares the view but is checked by
-  eye. Linux has had its Back button all along, but it restarts the flow and so empties the address
-  field. Android steps back with the system Back (`BackNavigationTest`) and draws no button, which
-  the rule allows.
+  eye. Linux asserts the address it goes back with (`setup_uses_widget_tests`) and that Back waits
+  for a running connect (`setup_manual_tests`). Android steps back with the system Back
+  (`BackNavigationTest`) and draws no button, which the rule allows.
 - **The manual form's port and security row is undriven on Apple only.** The rule is rule 11 and
   every client implements it; Windows, Linux and Android have each been driven against a real
   STARTTLS server. Apple carries 🚧 in the matrix until someone runs it.
@@ -423,11 +423,13 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   stranding the user. The **manual** pane keeps its secret field throughout: it is already on
   screen, so a negative answer changes nothing there and must not rebuild over a secret being
   typed.
-- **No client offers what rule 8 adds yet.** Every client still calls `detect_account_settings`,
-  which hands it only the CalDAV endpoint on the IMAP route and a domain with DAV alone as
-  "nothing found". `detect_account_setup` carries the rest (both endpoints on every route, the
-  calendar-and-contacts route, the choices), and each client moves to it when its setup offers
-  the choices.
+- **Only Linux offers what rule 8 adds.** Apple, Windows and Android still call
+  `detect_account_settings`, which hands them only the CalDAV endpoint on the IMAP route and a
+  domain with DAV alone as "nothing found". `detect_account_setup` carries the rest (both
+  endpoints on every route, the calendar-and-contacts route, the choices), and an offer from the
+  person's other devices has its own (`offered_setup`); each client moves to them when its setup
+  offers the choices. On Linux they reach every route's card but JMAP's, whose session says
+  what it offers only after the sign-in.
 - **TXT `path` records are not read** (RFC 6764 §4). The host resolver has no TXT lookup, so a
   DAV server whose context path is published only in TXT, and not under `.well-known` on the
   SRV target, is not found, and the user adds it manually.

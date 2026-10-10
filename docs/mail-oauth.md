@@ -155,7 +155,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Server asked before a credential field is drawn | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Sign-in primary, password behind a secondary control | ✅ | ✅ | ✅ | ⬜ beside it | ⬜ beside it |
+| Sign-in primary, password behind a secondary control | ✅ | ✅ | ✅ | ⬜ beside it | ✅ |
 | "Only pre-registered apps" explained rather than shown as a bare form | ✅ | ✅ | ✅ | ✅ | ✅ |
 | No password field where the server refuses passwords | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Nothing to act on until the answer, with a deadline racing it | ✅ | ✅ | ✅ | ✅ under the spinner | ✅ |
@@ -166,15 +166,15 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 
 ## Known gaps
 
-- **Linux and Android draw the password field beside the sign-in**, which rule 2 says is not
-  "behind" it. Linux submits the field with a secondary "Use a password instead"
-  (`setup_imap_signin_password_instead`), Android draws it under the sign-in button with Connect;
-  on both the field is on screen before anybody asks for it. Apple's and Windows' panels are the
-  layout the rule describes.
+- **Android draws the password field beside the sign-in**, which rule 2 says is not "behind" it:
+  under the sign-in button with Connect, on screen before anybody asks for it. Apple's, Windows'
+  and Linux's panels are the layout the rule describes; Linux draws the field and its Connect
+  only once "Use a password instead" is pressed.
 - **A provider that admits only pre-registered apps and refuses passwords still gets a password
-  field**, with copy telling the person to use it. `RegistrationNeeded` carries
-  `password_also_works`, and every client draws the field regardless, against rule 3. The honest
-  screen for that server says it cannot be added here yet; none is written.
+  field on Apple, Windows and Android**, with copy telling the person to use it, against rule 3.
+  `RegistrationNeeded` carries `password_also_works`, and Linux reads it: such a server's card
+  says the account cannot be added here yet and draws no field, and its manual form takes a drawn
+  field away.
 - **Windows' UI suite runs against the harness only, so CI does not run it.**
   `uitests/ImapSignIn.Tests.ps1` asserts each answer the harness can serve, nothing
   credential-shaped before an answer, the field held through an edit, a silent server, and a

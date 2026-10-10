@@ -1,7 +1,10 @@
 //! What the found card offers: the detected route together with which of mail, calendar and
 //! contacts it can set up, and how each starts.
 
-use crate::{AccountCapability, MailcalApp, MxResolver, SetupRecommendation, autodetect::convert};
+use crate::{
+    AccountCapability, AccountKind, AllodiaAccountOffer, MailcalApp, MxResolver,
+    SetupRecommendation, autodetect::convert,
+};
 
 /// One use a setup route offers.
 #[derive(uniffi::Record, Debug, Clone, PartialEq, Eq)]
@@ -51,18 +54,51 @@ impl MailcalApp {
     }
 }
 
-/// The FFI answer for an account-layer route.
-pub(crate) fn detected_setup(route: mailcal_account::SetupRecommendation) -> DetectedSetup {
-    use mailcal_account::SetupRecommendation as R;
-    let choices = route
-        .choices()
+/// [`setup_from_offer`](crate::setup_from_offer), as the found card takes it: the route an
+/// account from one of the person's other devices opens, with the choices that card offers.
+#[uniffi::export]
+#[must_use]
+pub fn offered_setup(offer: AllodiaAccountOffer) -> DetectedSetup {
+    detected_setup(crate::allodia_sync::offer_route(offer))
+}
+
+/// The uses a Microsoft or Google sign-in for `email` offers before the browser opens, for a
+/// manual form that reached that sign-in without a detection run. Empty for every other kind,
+/// whose servers decide.
+#[uniffi::export]
+#[must_use]
+pub fn provider_setup_choices(kind: AccountKind, email: String) -> Vec<SetupChoice> {
+    ffi_choices(match kind {
+        AccountKind::Microsoft => mailcal_account::microsoft_choices(&email),
+        AccountKind::Google => mailcal_account::google_choices(&email),
+        AccountKind::Imap | AccountKind::Dav | AccountKind::Jmap => Vec::new(),
+    })
+}
+
+/// Whether setup ends by offering to link an account of `kind` to another. Only a standards
+/// account is offered it: Microsoft, Google and JMAP hold mail, calendar and contacts themselves,
+/// so linking one is left to Settings, where it can be done at any time.
+#[uniffi::export]
+#[must_use]
+pub fn offers_setup_links(kind: AccountKind) -> bool {
+    matches!(kind, AccountKind::Imap | AccountKind::Dav)
+}
+
+fn ffi_choices(choices: Vec<mailcal_account::SetupChoice>) -> Vec<SetupChoice> {
+    choices
         .into_iter()
         .map(|choice| SetupChoice {
             capability: choice.capability.into(),
             on: choice.on,
             server_found: choice.server_found,
         })
-        .collect();
+        .collect()
+}
+
+/// The FFI answer for an account-layer route.
+pub(crate) fn detected_setup(route: mailcal_account::SetupRecommendation) -> DetectedSetup {
+    use mailcal_account::SetupRecommendation as R;
+    let choices = ffi_choices(route.choices());
     let (caldav_url, carddav_url) = match &route {
         R::Imap {
             caldav_url,

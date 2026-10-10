@@ -19,7 +19,9 @@ use crate::{
         setup::SetupWindow,
         setup_model::recommendation_form,
         setup_state::SetupState,
-        setup_widget_tests::{descendants, server_row, visible_entries},
+        setup_widget_tests::{
+            descendant_button, descendant_has_button, descendants, server_row, visible_entries,
+        },
     },
 };
 
@@ -65,7 +67,8 @@ pub(super) fn a_detected_imap_card_shows_no_credential_until_the_server_answers(
 }
 
 /// A provider that offers sign-in gets the button as the primary action, with the password
-/// behind a secondary one: the order the provider's own answer puts them in.
+/// behind a secondary one (`docs/mail-oauth.md` rule 2): no field is on screen until the person
+/// asks for it.
 pub(super) fn a_provider_offering_sign_in_leads_with_it(window: &adw::ApplicationWindow) {
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let mut state = SetupState::closed();
@@ -101,13 +104,58 @@ pub(super) fn a_provider_offering_sign_in_leads_with_it(window: &adw::Applicatio
         "the sign-in button must be on screen: {labels:?}"
     );
     assert!(
-        labels
-            .iter()
-            .any(|label| label == l10n::setup_imap_signin_password_instead()),
-        "and the password route stays reachable beside it: {labels:?}"
+        visible_entries(&child).is_empty(),
+        "no field before it is asked for"
     );
-    // Exactly one field on screen: the password behind that secondary action.
-    assert_eq!(visible_entries(&child).len(), 1);
+    let connect = descendant_button(&child, l10n::action_connect());
+    assert!(!connect.is_visible());
+
+    let instead = descendant_button(&child, l10n::setup_imap_signin_password_instead());
+    instead.emit_clicked();
+    assert_eq!(
+        visible_entries(&child).len(),
+        1,
+        "asking for the password route draws its field"
+    );
+    assert!(connect.is_visible() && !instead.is_visible());
+}
+
+/// A provider that admits only registered apps and refuses a password is one this app cannot
+/// add yet, and the card says so rather than drawing a field that would fail
+/// (`docs/mail-oauth.md` rule 3).
+pub(super) fn a_provider_refusing_passwords_and_this_app_says_so(window: &adw::ApplicationWindow) {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    state.show_form(recommendation_form(
+        imap_recommendation(true),
+        String::new(),
+    ));
+    assert!(state.imap_auth_answered(
+        "alice@example.test",
+        "imap.example.test:993",
+        ImapAuthOffer::RegistrationNeeded {
+            password_also_works: false
+        },
+    ));
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("detected IMAP content");
+
+    assert!(
+        rendered_labels(&child)
+            .iter()
+            .any(|text| text == l10n::setup_imap_signin_unsupported())
+    );
+    assert!(visible_entries(&child).is_empty());
+    assert!(!descendant_has_button(&child, l10n::action_connect()));
+    assert!(!descendant_has_button(
+        &child,
+        l10n::setup_imap_signin_button()
+    ));
 }
 
 /// A provider whose sign-in exists but is closed to this application says so. Showing the same

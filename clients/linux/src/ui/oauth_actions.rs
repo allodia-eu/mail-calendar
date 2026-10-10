@@ -6,6 +6,8 @@
 //! and which sign-in phase they drive. The JMAP flow is [`super::jmap_actions`]: it discovers
 //! and registers before it can begin, which is a step neither of these has.
 
+use mailcal_bindings::{AccountCapability, CapabilityState};
+
 use super::{
     AppInput, AppModel,
     google::{self, GoogleOutcome},
@@ -15,12 +17,17 @@ use super::{
 use crate::l10n;
 
 impl AppModel {
-    pub(super) fn start_google_login(&mut self, email: String, sender: relm4::Sender<AppInput>) {
+    pub(super) fn start_google_login(
+        &mut self,
+        email: String,
+        uses: Option<Vec<AccountCapability>>,
+        sender: relm4::Sender<AppInput>,
+    ) {
         let Some(app) = self.app.clone() else {
             return;
         };
         let (attempt, cancel) = self.host_tasks.google.start();
-        let (loopback, start) = match google::begin(email) {
+        let (loopback, start) = match google::begin(email, uses) {
             Ok(start) => start,
             Err(error) => {
                 self.host_tasks.google.finish(attempt);
@@ -82,12 +89,17 @@ impl AppModel {
         }
     }
 
-    pub(super) fn start_microsoft_login(&mut self, email: String, sender: relm4::Sender<AppInput>) {
+    pub(super) fn start_microsoft_login(
+        &mut self,
+        email: String,
+        uses: Option<Vec<AccountCapability>>,
+        sender: relm4::Sender<AppInput>,
+    ) {
         let Some(app) = self.app.clone() else {
             return;
         };
         let (attempt, cancel) = self.host_tasks.microsoft.start();
-        let (loopback, start) = match microsoft::begin(email) {
+        let (loopback, start) = match microsoft::begin(email, uses) {
             Ok(start) => start,
             Err(error) => {
                 self.host_tasks.microsoft.finish(attempt);
@@ -154,17 +166,41 @@ impl AppModel {
     /// added by a provider sign-in reaches the person's other devices only at the next launch,
     /// and Settings draws no sharing control for it until then.
     pub(super) fn account_signed_in(&mut self, account: String, sender: relm4::Sender<AppInput>) {
-        self.setup.complete();
         self.dispatch(mailcal_bindings::Intent::SelectAccount {
             account: Some(account.clone()),
         });
         if let Some(app) = &self.app {
             self.snapshot = app.mailbox_list();
         }
-        // The same step the manual route raises: every way in asks the same question
-        // (`docs/sending.md`).
-        self.ask_sender_name(account, sender.clone());
-        self.sync_after_account_change(sender);
+        self.say_what_was_withheld(&account);
+        self.sync_after_account_change(sender.clone());
+        // The link step, then the name, as the password route: every way in asks the same
+        // questions (`docs/sending.md`).
+        self.after_account_added(account, sender);
+    }
+
+    /// A use the person chose that the provider's grant did not allow is said on the account's
+    /// page in Settings, where switching it on asks for it again, rather than left for them to
+    /// find missing (`docs/accounts.md` rule 10). It is said when setup has finished.
+    fn say_what_was_withheld(&mut self, account: &str) {
+        let Some(app) = &self.app else {
+            return;
+        };
+        let snapshot = app.accounts_snapshot();
+        let Some(entry) = snapshot.accounts.iter().find(|entry| entry.id == account) else {
+            return;
+        };
+        let withheld: Vec<AccountCapability> = entry
+            .uses
+            .iter()
+            .filter(|used| used.state == CapabilityState::NeedsPermission)
+            .map(|used| used.capability)
+            .collect();
+        if let Some(notice) = withheld_notice(&withheld) {
+            // Said once setup and its name prompts are done, so it is not one of several
+            // windows competing for the same moment.
+            self.host_tasks.withheld = Some((account.to_owned(), notice));
+        }
     }
 
     /// A sign-in the user cancelled after the exchange had already stored the account. Nothing
@@ -175,5 +211,39 @@ impl AppModel {
             self.snapshot = app.mailbox_list();
             self.sync_after_account_change(sender);
         }
+    }
+}
+
+/// What to say about the uses a grant withheld, or nothing when it withheld none.
+fn withheld_notice(withheld: &[AccountCapability]) -> Option<super::settings::notice::Notice> {
+    (!withheld.is_empty()).then(|| {
+        let names: Vec<&str> = withheld
+            .iter()
+            .map(|capability| super::settings::use_name(*capability))
+            .collect();
+        super::settings::notice::Notice::Error {
+            title: l10n::setup_withheld_title().to_owned(),
+            detail: l10n::setup_withheld_detail(&names.join(", ")),
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use mailcal_bindings::AccountCapability;
+
+    use super::withheld_notice;
+    use crate::{l10n, ui::settings::notice::Notice};
+
+    #[test]
+    fn a_withheld_use_is_named_and_none_says_nothing() {
+        assert!(withheld_notice(&[]).is_none());
+        let Some(Notice::Error { title, detail }) =
+            withheld_notice(&[AccountCapability::Calendar, AccountCapability::Contacts])
+        else {
+            panic!("an error notice");
+        };
+        assert_eq!(title, l10n::setup_withheld_title());
+        assert!(detail.contains(l10n::nav_calendar()) && detail.contains(l10n::nav_contacts()));
     }
 }

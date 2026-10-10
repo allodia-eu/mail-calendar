@@ -102,6 +102,43 @@ fn a_calendar_and_contacts_route_offers_no_mail() {
     );
 }
 
+/// A personal address has no organisation directory, so colleagues are not offered before a
+/// sign-in that could never grant them (`docs/accounts.md` rule 3).
+#[test]
+fn a_personal_address_is_offered_no_colleagues() {
+    let three = [
+        choice(Capability::Mail, true, true),
+        choice(Capability::Calendar, true, true),
+        choice(Capability::Contacts, true, true),
+    ];
+    for email in ["someone@gmail.com", "someone@googlemail.com"] {
+        let route = SetupRecommendation::Google {
+            email: email.to_owned(),
+        };
+        assert_eq!(route.choices(), three, "{email}");
+    }
+    for email in [
+        "someone@outlook.com",
+        "someone@hotmail.co.uk",
+        "someone@live.com.au",
+        "someone@live.nl",
+        "someone@msn.com",
+        "someone@Outlook.de",
+    ] {
+        let route = SetupRecommendation::Microsoft {
+            email: email.to_owned(),
+        };
+        assert_eq!(route.choices(), three, "{email}");
+    }
+    // A domain that only starts like one is an organisation's.
+    for email in ["someone@outlook.example.com", "someone@live.ing.nl"] {
+        let organisation = SetupRecommendation::Microsoft {
+            email: email.to_owned(),
+        };
+        assert_eq!(organisation.choices().len(), 4, "{email}");
+    }
+}
+
 #[test]
 fn a_provider_sign_in_offers_everything_switched_on() {
     let everything = [

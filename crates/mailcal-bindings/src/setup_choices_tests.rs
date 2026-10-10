@@ -63,8 +63,9 @@ fn a_jmap_route_carries_what_was_found_beside_it_and_no_choices() {
 
 #[test]
 fn a_provider_sign_in_offers_colleagues_too() {
+    // A Workspace domain: a personal Gmail address has no directory to offer.
     let setup = detected_setup(Route::Google {
-        email: "alice@gmail.com".to_owned(),
+        email: "alice@workspace.example".to_owned(),
     });
     let offered: Vec<_> = setup
         .choices
@@ -81,4 +82,44 @@ fn a_provider_sign_in_offers_colleagues_too() {
         ]
     );
     assert!(setup.choices.iter().all(|choice| choice.on));
+}
+
+#[test]
+fn a_manual_provider_sign_in_offers_what_a_detected_one_does() {
+    use crate::AccountKind;
+    let offered = |kind, email: &str| -> Vec<AccountCapability> {
+        super::provider_setup_choices(kind, email.to_owned())
+            .into_iter()
+            .map(|choice| choice.capability)
+            .collect()
+    };
+    assert_eq!(
+        offered(AccountKind::Microsoft, "alice@contoso.example"),
+        [
+            AccountCapability::Mail,
+            AccountCapability::Calendar,
+            AccountCapability::Contacts,
+            AccountCapability::Colleagues,
+        ]
+    );
+    assert!(
+        !offered(AccountKind::Google, "alice@gmail.com").contains(&AccountCapability::Colleagues)
+    );
+    assert!(offered(AccountKind::Imap, "alice@example.com").is_empty());
+}
+
+/// Linking at setup is offered for a standards account only: a provider that holds mail,
+/// calendar and contacts itself is linked from Settings, when the person wants to.
+#[test]
+fn setup_offers_links_for_a_standards_account_only() {
+    use crate::AccountKind;
+    assert!(super::offers_setup_links(AccountKind::Imap));
+    assert!(super::offers_setup_links(AccountKind::Dav));
+    for kind in [
+        AccountKind::Microsoft,
+        AccountKind::Google,
+        AccountKind::Jmap,
+    ] {
+        assert!(!super::offers_setup_links(kind), "{kind:?}");
+    }
 }

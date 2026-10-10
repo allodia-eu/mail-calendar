@@ -216,9 +216,15 @@ mod tests {
             "a second gate run would interleave its steps with the first's"
         );
         drop(first);
-        assert!(
-            second.try_lock().is_ok(),
-            "the lock goes with the run that held it"
-        );
+        // A test beside this one that spawns a process forks a child holding a copy of every open
+        // file until its exec closes them, this lock's included, and an `flock` lasts until its
+        // last copy closes. So the release can trail the drop by that moment.
+        let released = (0..100).any(|_| {
+            second.try_lock().is_ok() || {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                false
+            }
+        });
+        assert!(released, "the lock goes with the run that held it");
     }
 }

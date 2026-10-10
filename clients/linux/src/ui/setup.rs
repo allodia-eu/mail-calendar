@@ -4,7 +4,8 @@
 use adw::prelude::*;
 
 use super::{
-    AppInput, setup_google, setup_imap, setup_jmap, setup_manual, setup_microsoft,
+    AppInput, setup_dav, setup_google, setup_imap, setup_jmap, setup_links, setup_manual,
+    setup_microsoft,
     setup_model::{DetectedForm, SetupForm},
     setup_onboarding,
     setup_pane::ConnectPane,
@@ -12,6 +13,9 @@ use super::{
     setup_widgets::{actions, body, entry, heading, page, progress},
 };
 use crate::l10n;
+
+/// The tallest a step grows before it scrolls.
+const SCROLL_HEIGHT: i32 = 640;
 
 #[derive(Debug, Default)]
 pub(super) struct SetupWindow {
@@ -44,7 +48,13 @@ impl SetupWindow {
         // new window. Every other step swaps the child of the one already on screen; a window
         // per phase would stack them, since `close()` is vetoed while setup is required.
         let reusable = self.rendered_required == state.required;
-        let window = match self.window.take() {
+        // A window the person closed with its own controls is gone, even though the flow it
+        // belonged to goes on (a cancelled "Add another account" returns to the link step).
+        let window = match self
+            .window
+            .take()
+            .filter(gtk::prelude::WidgetExt::is_visible)
+        {
             Some(window) if reusable => {
                 if self.rendered_generation == state.generation {
                     self.window = Some(window);
@@ -86,6 +96,7 @@ impl SetupWindow {
             Phase::Form | Phase::Connecting => {
                 let (content, pane) = form_step(&window, state, sender);
                 if let Some(pane) = &pane {
+                    pane.hold_back(&content);
                     pane.set_connecting(state.phase == Phase::Connecting);
                 }
                 self.pane = pane;
@@ -95,8 +106,20 @@ impl SetupWindow {
             Phase::MicrosoftSigningIn => setup_microsoft::signing_in(sender),
             Phase::JmapSigningIn => setup_jmap::signing_in(sender),
             Phase::ImapSigningIn => setup_imap::signing_in(sender),
+            Phase::Links => match &state.links {
+                Some(step) => setup_links::step(&window, step, sender),
+                None => progress(l10n::status_connecting()),
+            },
         };
-        window.set_child(Some(&content));
+        // A found card with every use on is taller than a laptop screen, so the step scrolls
+        // inside the window rather than pushing its footer off the bottom of the display.
+        let scrolled = gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Never)
+            .propagate_natural_height(true)
+            .max_content_height(SCROLL_HEIGHT)
+            .child(&content)
+            .build();
+        window.set_child(Some(&scrolled));
         window.present();
         self.rendered_generation = state.generation;
         self.rendered_form_generation = state.form_generation;
@@ -158,12 +181,11 @@ fn email_step(
     actions.set_halign(gtk::Align::End);
     if !required {
         let cancel = gtk::Button::with_label(l10n::action_cancel());
-        let input = sender.clone();
         let dialog = window.clone();
-        cancel.connect_clicked(move |_| {
-            input.emit(AppInput::CancelAccountSetup);
-            dialog.close();
-        });
+        // The close request is what cancels the flow, for this button and the window's own
+        // alike; a second cancel here would end the flow a cancelled "Add another account"
+        // had just returned to.
+        cancel.connect_clicked(move |_| dialog.close());
         actions.append(&cancel);
     }
     let manual = gtk::Button::with_label(l10n::setup_detect_manual());
@@ -234,6 +256,15 @@ fn form_step(
                     setup_google::detected_fields(&content, window, form, error, required, sender);
                     None
                 }
+                DetectedForm::Dav(form) => Some(setup_dav::detected_fields(
+                    &content,
+                    window,
+                    form,
+                    error,
+                    certificate,
+                    required,
+                    sender,
+                )),
             }
         }
         SetupForm::Manual(form) => {

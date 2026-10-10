@@ -17,8 +17,15 @@
          delivered in the background is the app's core function, which is the basis we declare. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- usesCleartextTraffic lets a WebView load a plain `http://` image once the reader has
+         chosen to load a message's remote images (docs/rendering-security.md); the default policy
+         refuses it outright, so a signature whose host still writes `http://` stays broken after
+         "Load images". In practice it reaches only the WebViews: the app's own connections are
+         made by the Rust core over its own sockets, and the document CSP and
+         `shouldInterceptRequest` still block every remote load until the reader opts in. -->
     <application
         android:name=".MailcalApplication"
+        android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="${appName}"

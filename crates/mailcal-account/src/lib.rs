@@ -118,7 +118,7 @@ pub use series_warning::{
 pub use setup::{
     AccountSetup, SetupCredential, build_config_toml, imap_default_port, smtp_default_port,
 };
-pub use setup_choices::SetupChoice;
+pub use setup_choices::{SetupChoice, google_choices, microsoft_choices, standards_choices};
 pub use signatures::{
     AccountSignatureAssignment, SignatureId, SignatureSlot, Signatures, StoredSignature,
     load_signatures, save_signatures, signatures_path,
@@ -156,7 +156,8 @@ pub async fn connect_caldav(
         normalize_caldav_base_url(&caldav.base_url),
         credentials,
     )
-    .with_tls(tls)
+    // A clone shares the record of what it refused, so a refusal reads back from `tls`.
+    .with_tls(tls.clone())
     // Ungated, for the reason `connect_carddav_contact_providers` gives: no DAV adapter
     // states a ceiling yet.
     .with_retry(throttle::ungated_retry())
@@ -164,9 +165,10 @@ pub async fn connect_caldav(
     let provider = match &caldav.calendar {
         Some(calendar) => CalDavProvider::connect(config.with_calendar(calendar.clone()))
             .await
-            .map_err(AccountError::from_first_dav_connect)?,
-        None => connect_primary_calendar(config).await?,
-    };
+            .map_err(AccountError::from_first_dav_connect),
+        None => connect_primary_calendar(config).await,
+    }
+    .map_err(|err| err.over_tls(&tls))?;
     Ok(Box::new(provider))
 }
 

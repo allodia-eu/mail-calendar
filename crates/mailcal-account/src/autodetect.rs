@@ -175,7 +175,7 @@ impl OauthRoutes {
 const GOOGLE_CONSUMER_DOMAINS: &[&str] = &["gmail.com", "googlemail.com"];
 
 /// Whether the typed address's domain is a consumer Google domain.
-fn is_google_consumer_domain(email: &str) -> bool {
+pub(crate) fn is_google_consumer_domain(email: &str) -> bool {
     email
         .rsplit('@')
         .next()
