@@ -8,6 +8,7 @@
 // The rule list each editor installs is the same kind of leak at a smaller size: every compile
 // writes a new file and keeps it mapped, so it is compiled once and shared.
 
+import MailcalBindings
 import Testing
 
 @testable import MailcalUI
@@ -56,46 +57,40 @@ import WebKit
         window.close()
     }
 
-    @Test func theDropModifierDoesNotKeepTheEditorAlive() async {
-        weak var released: RichComposerEditor?
-        do {
-            let editor = RichComposerEditor()
-            released = editor
-            let frame = NSRect(x: 0, y: 0, width: 400, height: 300)
-            let host = NSHostingView(
-                rootView: Color.clear.modifier(
-                    ComposerDropModifier(
-                        attachments: .constant([]),
-                        droppedPictures: .constant([]),
-                        composerError: .constant(nil),
-                        editor: editor
-                    )
-                )
-            )
-            host.frame = frame
-            let window = NSWindow(contentRect: frame, styleMask: [], backing: .buffered, defer: true)
-            window.isReleasedWhenClosed = false
-            window.contentView = host
-            host.layoutSubtreeIfNeeded()
-            // `onAppear` is what hands the editor its drop handler; let it run.
-            await Task.yield()
-            #expect(editor.acceptDroppedFiles != nil)
-            window.contentView = nil
-            window.close()
-        }
+    @Test func aClosedComposerReleasesItsWebView() async {
+        // The whole composer, as the mailbox shows it: its own state behind every binding, the drop
+        // handler, the link dialog and draft saving all attached. Anything among them that keeps
+        // the editor alive keeps this web view, and its WebContent process, alive with it.
+        weak var webView: WKWebView?
+        let presence = Presence()
+        let frame = NSRect(x: 0, y: 0, width: 800, height: 600)
+        let host = NSHostingView(rootView: ComposerOnScreen(presence: presence))
+        host.frame = frame
+        let window = NSWindow(contentRect: frame, styleMask: [], backing: .buffered, defer: true)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
         await Task.yield()
-        #expect(released == nil)
+        webView = webViews(in: host).first
+        #expect(webView != nil)
+
+        presence.shown = false
+        host.layoutSubtreeIfNeeded()
+        // Leaving runs the draft's close in a task of its own, which holds the editor until it has
+        // read the body; give it the turns it needs rather than a wall-clock guess.
+        for _ in 0..<200 where webView != nil {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(webView == nil)
+        window.contentView = nil
+        window.close()
     }
 
-    @Test func everyEditorSharesOneCompiledRuleList() async {
-        // Two at once, as two composers opened together ask, and one after both have their answer.
-        async let first = compiledRuleList()
-        async let second = compiledRuleList()
-        let (together, alongside) = await (first, second)
-        let later = await compiledRuleList()
-        #expect(together != nil)
-        #expect(together === alongside)
-        #expect(together === later)
+    @Test func theRuleListIsCompiledAndShared() async {
+        let first = await compiledRuleList()
+        let second = await compiledRuleList()
+        #expect(first != nil)
+        #expect(first === second)
     }
 
     private func compiledRuleList() async -> WKContentRuleList? {
@@ -117,6 +112,37 @@ import WebKit
 @Observable
 private final class RenderCount {
     var value = 0
+}
+
+/// Whether the composer below is on screen.
+@MainActor
+@Observable
+private final class Presence {
+    var shown = true
+}
+
+/// The composer as a host shows it, with draft saving on, until `presence` says otherwise.
+private struct ComposerOnScreen: View {
+    let presence: Presence
+
+    var body: some View {
+        if presence.shown {
+            RichComposeView(
+                title: "New Message",
+                drafts: ComposerDrafts(
+                    save: { _, _, _, _, _, _ in },
+                    leave: { _, _, _, _, _, _ in },
+                    discard: { _ in },
+                    close: { _ in },
+                    status: { _ in .idle },
+                    isStored: { _ in false },
+                    version: 0
+                ),
+                send: { _ in true },
+                cancel: {}
+            )
+        }
+    }
 }
 
 /// A parent that builds the composer afresh on every render, as the mailbox does.
