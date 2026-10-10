@@ -188,7 +188,7 @@ impl AppModel {
                 )
                 .map_err(|_| ())
             });
-            sender.emit(super::AppInput::DraftResumed(id, Box::new(resumed)));
+            sender.emit(super::AppInput::DraftResumed(Box::new(resumed)));
         });
     }
 
@@ -196,20 +196,15 @@ impl AppModel {
     ///
     /// Nothing is adopted on a failure, so the message is left alone rather than opened into a
     /// composer whose next save would replace it with whatever was on screen.
-    pub(super) fn draft_resumed(
-        &mut self,
-        composition: String,
-        resumed: Result<mailcal_bindings::DraftResume, ()>,
-    ) {
+    pub(super) fn draft_resumed(&mut self, resumed: Result<mailcal_bindings::ComposeRequest, ()>) {
         match resumed {
             // A composer already in the pane is left first, so what it holds is kept in Drafts.
             Ok(draft) if self.composer.is_some() => {
-                self.queue_navigation(PendingNavigation::Composer(resumed_context(
-                    composition,
+                self.queue_navigation(PendingNavigation::Composer(ComposeContext::reopening(
                     draft,
                 )));
             }
-            Ok(draft) => self.commit_composer(resumed_context(composition, draft)),
+            Ok(draft) => self.commit_composer(ComposeContext::reopening(draft)),
             Err(()) => self.notice = Some(l10n::compose_draft_open_failed().to_owned()),
         }
     }
@@ -272,38 +267,42 @@ fn resume_staging_dir(composition: &str) -> PathBuf {
     ))
 }
 
-/// What a resumed draft's composer opens with.
-///
-/// Two things separate it from every other new message. The composition is the one the core
-/// adopted the stored draft into, never a fresh one, or the composer's first save would store a
-/// second copy beside the one it is showing. And it seeds **no signature**, for the reason a
-/// withdrawn message does not: the body came back as the text of a message that was signed when
-/// it was first written, so seeding one would put a second signature under it, and the next save
-/// would store that.
-fn resumed_context(composition: String, draft: mailcal_bindings::DraftResume) -> ComposeContext {
-    ComposeContext {
-        kind: ComposeKind::New,
-        host: ComposerHost::Pane,
-        account: None,
-        key: None,
-        initial_to: draft.to,
-        initial_cc: draft.cc,
-        initial_bcc: draft.bcc,
-        subject: draft.subject,
-        initial_body: (!draft.body_text.is_empty()).then_some(draft.body_text),
-        quote: None,
-        initial_from: Some(draft.account).filter(|account| !account.is_empty()),
-        seeds_signature: false,
-        files: draft
-            .attachments
-            .into_iter()
-            .map(|file| PickedFile {
-                path: file.path,
-                file_name: file.file_name,
-                media_type: file.media_type,
-            })
-            .collect(),
-        composition,
+impl ComposeContext {
+    /// What a composer reopened on a message that already exists opens with: a draft resumed
+    /// from Drafts, or a message moved back out of the Outbox. One constructor for both, because
+    /// the core answers both with one record and the composer must open each holding all of it.
+    ///
+    /// Two things separate it from every other new message. The composition is the one the core
+    /// joined the stored copy to, never a fresh one, or the composer's first save would store a
+    /// second copy beside the one it is showing. And it seeds **no signature**: the body already
+    /// carries whatever signature it was written with, so seeding one would put a second under
+    /// it, and the next save would store that.
+    pub(crate) fn reopening(request: mailcal_bindings::ComposeRequest) -> Self {
+        Self {
+            kind: ComposeKind::New,
+            host: ComposerHost::Pane,
+            account: None,
+            key: None,
+            initial_to: request.to,
+            initial_cc: request.cc,
+            initial_bcc: request.bcc,
+            subject: request.subject,
+            initial_body: (!request.body_text.is_empty()).then_some(request.body_text),
+            stored_html: (!request.body_html.is_empty()).then_some(request.body_html),
+            quote: None,
+            initial_from: Some(request.account).filter(|account| !account.is_empty()),
+            seeds_signature: false,
+            files: request
+                .attachments
+                .into_iter()
+                .map(|file| PickedFile {
+                    path: file.path,
+                    file_name: file.file_name,
+                    media_type: file.media_type,
+                })
+                .collect(),
+            composition: request.composition,
+        }
     }
 }
 
@@ -425,6 +424,47 @@ pub(crate) type DraftStatuses = HashMap<String, DraftStatus>;
 
 #[cfg(test)]
 mod tests {
+    use mailcal_bindings::{ComposeRequest, ComposerFileAttachment};
+
+    use crate::ui::composer_model::{ComposeContext, body_seed_script};
+
+    /// A reopened message opens on the composition the core joined it to, with its files, its
+    /// account and its formatted body: the editor is seeded with the HTML, which it reads back
+    /// into its document, rather than with the words alone.
+    #[test]
+    fn a_reopened_message_opens_whole_on_its_own_composition() {
+        let context = ComposeContext::reopening(ComposeRequest {
+            account: "work".to_owned(),
+            composition: "outbox-7-1".to_owned(),
+            to: "ada@example.test".to_owned(),
+            cc: String::new(),
+            bcc: String::new(),
+            subject: "Re: Plans".to_owned(),
+            body_html: "<p><strong>Agreed</strong></p>".to_owned(),
+            body_text: "Agreed".to_owned(),
+            attachments: vec![ComposerFileAttachment {
+                path: "/staged/plan.pdf".to_owned(),
+                file_name: "plan.pdf".to_owned(),
+                media_type: "application/pdf".to_owned(),
+            }],
+        });
+
+        assert_eq!(context.composition, "outbox-7-1");
+        assert_eq!(context.initial_from.as_deref(), Some("work"));
+        assert_eq!(context.files.len(), 1);
+        assert!(
+            !context.seeds_signature,
+            "its body already carries its signature"
+        );
+        assert_eq!(
+            body_seed_script(&context).as_deref(),
+            Some(
+                "window.setComposerBody({\"html\":\"<p><strong>Agreed</strong></p>\",\"text\":\
+                 \"Agreed\"});"
+            )
+        );
+    }
+
     /// The twin of the forward staging assertion, and it fails the same way: a path under the
     /// sandbox's private `/tmp` looks right in a host build and is not there in the Flatpak the
     /// user runs, so the composer opens without the files the draft carries and the next save

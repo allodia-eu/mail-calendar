@@ -1,0 +1,440 @@
+[
+  {
+    "document": {
+      "attachments": [],
+      "blocks": [
+        {
+          "Paragraph": {
+            "content": [
+              {
+                "Text": {
+                  "bold": false,
+                  "italic": false,
+                  "text": "Plain, ",
+                  "underline": false
+                }
+              },
+              {
+                "Text": {
+                  "bold": true,
+                  "italic": false,
+                  "text": "bold",
+                  "underline": false
+                }
+              },
+              {
+                "Text": {
+                  "bold": false,
+                  "italic": false,
+                  "text": ", ",
+                  "underline": false
+                }
+              },
+              {
+                "Text": {
+                  "bold": true,
+                  "italic": true,
+                  "text": "all three",
+                  "underline": true
+                }
+              },
+              {
+                "Text": {
+                  "bold": false,
+                  "italic": false,
+                  "text": " and ",
+                  "underline": false
+                }
+              },
+              {
+                "Text": {
+                  "bold": false,
+                  "color": "#c00000",
+                  "font_size": "Large",
+                  "highlight": "#ffff00",
+                  "italic": false,
+                  "text": "large red on yellow",
+                  "underline": false
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Paragraph": {
+            "content": []
+          }
+        },
+        {
+          "Paragraph": {
+            "content": [
+              {
+                "Text": {
+                  "bold": false,
+                  "italic": false,
+                  "text": "See ",
+                  "underline": false
+                }
+              },
+              {
+                "Text": {
+                  "bold": false,
+                  "italic": false,
+                  "link": "https://example.test/schedule",
+                  "text": "the schedule",
+                  "underline": false
+                }
+              },
+              {
+                "Text": {
+                  "bold": false,
+                  "italic": false,
+                  "text": " or write to ",
+                  "underline": false
+                }
+              },
+              {
+                "Text": {
+                  "bold": false,
+                  "italic": false,
+                  "link": "mailto:ada@example.test",
+                  "text": "ada@example.test",
+                  "underline": false
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Paragraph": {
+            "content": [
+              {
+                "Text": {
+                  "bold": false,
+                  "font_size": "Small",
+                  "italic": false,
+                  "text": "Small",
+                  "underline": false
+                }
+              },
+              {
+                "Text": {
+                  "bold": false,
+                  "font_size": "Normal",
+                  "italic": false,
+                  "text": "Normal",
+                  "underline": false
+                }
+              },
+              {
+                "Text": {
+                  "bold": true,
+                  "font_size": "Huge",
+                  "italic": false,
+                  "text": "Huge",
+                  "underline": false
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><p>Plain, <strong>bold</strong>, <strong><em><u>all three</u></em></strong> and <span style=\"font-size:18px;color:#c00000;background-color:#ffff00\">large red on yellow</span></p><p></p><p>See <a href=\"https://example.test/schedule\">the schedule</a> or write to <a href=\"mailto:ada@example.test\">ada@example.test</a></p><p><span style=\"font-size:13px\">Small</span><span style=\"font-size:15px\">Normal</span><span style=\"font-size:24px\"><strong>Huge</strong></span></p></body></html>",
+    "name": "marked runs and a blank line"
+  },
+  {
+    "document": {
+      "attachments": [],
+      "blocks": [
+        {
+          "List": {
+            "items": [
+              {
+                "child": null,
+                "content": [
+                  {
+                    "Text": {
+                      "bold": false,
+                      "italic": false,
+                      "text": "First",
+                      "underline": false
+                    }
+                  }
+                ]
+              },
+              {
+                "child": {
+                  "items": [
+                    {
+                      "child": null,
+                      "content": [
+                        {
+                          "Text": {
+                            "bold": false,
+                            "italic": false,
+                            "text": "Inner one",
+                            "underline": false
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "child": null,
+                      "content": [
+                        {
+                          "Text": {
+                            "bold": false,
+                            "italic": false,
+                            "text": "Inner two",
+                            "underline": false
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "kind": "Ordered"
+                },
+                "content": [
+                  {
+                    "Text": {
+                      "bold": true,
+                      "italic": false,
+                      "text": "Second",
+                      "underline": false
+                    }
+                  }
+                ]
+              }
+            ],
+            "kind": "Bullet"
+          }
+        },
+        {
+          "Table": {
+            "rows": [
+              {
+                "cells": [
+                  {
+                    "content": [
+                      {
+                        "Text": {
+                          "bold": true,
+                          "italic": false,
+                          "text": "Name",
+                          "underline": false
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "content": [
+                      {
+                        "Text": {
+                          "bold": true,
+                          "italic": false,
+                          "text": "Room",
+                          "underline": false
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "cells": [
+                  {
+                    "content": [
+                      {
+                        "Text": {
+                          "bold": false,
+                          "italic": false,
+                          "text": "Ada",
+                          "underline": false
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "content": []
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "Paragraph": {
+            "content": [
+              {
+                "Text": {
+                  "bold": false,
+                  "italic": false,
+                  "text": "After the table",
+                  "underline": false
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><ul><li>First</li><li><strong>Second</strong><ol><li>Inner one</li><li>Inner two</li></ol></li></ul><table style=\"border-collapse:collapse\"><tr><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\"><strong>Name</strong></td><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\"><strong>Room</strong></td></tr><tr><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\">Ada</td><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\"></td></tr></table><p>After the table</p></body></html>",
+    "name": "nested lists and a table"
+  },
+  {
+    "document": {
+      "attachments": [
+        {
+          "data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+          "disposition": {
+            "Inline": {
+              "cid": "img0.1@allodia.local"
+            }
+          },
+          "file_name": "chart.png",
+          "id": "captured-0",
+          "media_type": "image/png",
+          "size": null
+        },
+        {
+          "data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+          "disposition": {
+            "Inline": {
+              "cid": "img1.1@allodia.local"
+            }
+          },
+          "file_name": "photo.png",
+          "id": "captured-1",
+          "media_type": "image/png",
+          "size": null
+        }
+      ],
+      "blocks": [
+        {
+          "Paragraph": {
+            "content": [
+              {
+                "Text": {
+                  "bold": false,
+                  "italic": false,
+                  "text": "The chart: ",
+                  "underline": false
+                }
+              },
+              {
+                "Image": {
+                  "alt_text": "Quarterly chart",
+                  "attachment_id": "captured-0",
+                  "width_px": 320
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Paragraph": {
+            "content": [
+              {
+                "Image": {
+                  "alt_text": "",
+                  "attachment_id": "captured-1",
+                  "width_px": null
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><p>The chart: <img src=\"cid:img0.1@allodia.local\" alt=\"Quarterly chart\" width=\"320\" style=\"width: 320px; max-width: 100%\"></p><p><img src=\"cid:img1.1@allodia.local\" alt=\"\" style=\"max-width: 100%\"></p></body></html>",
+    "name": "a picture in the message"
+  },
+  {
+    "document": {
+      "attachments": [],
+      "blocks": [
+        {
+          "Paragraph": {
+            "content": [
+              {
+                "Text": {
+                  "bold": false,
+                  "italic": false,
+                  "text": "Thursday works for me.",
+                  "underline": false
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Signature": {
+            "body_html": "<p>Ada Lovelace</p><p><em>Analytical Engines</em></p>",
+            "body_plain": "Ada Lovelace\nAnalytical Engines"
+          }
+        },
+        {
+          "Quote": {
+            "attribution": {
+              "headers": [],
+              "line": "On 2 October 2026, Charles wrote:"
+            },
+            "body_html": "<p>Can we meet on Thursday?</p><p>Charles</p>",
+            "body_plain": "Can we meet on Thursday?\nCharles",
+            "style": "Indented"
+          }
+        }
+      ]
+    },
+    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><p>Thursday works for me.</p><div class=\"allodia-signature\"><p>Ada Lovelace</p><p><em>Analytical Engines</em></p></div><p>On 2 October 2026, Charles wrote:</p><blockquote style=\"margin:0 0 0 0.8ex;border-left:2px solid #cccccc;padding-left:1ex\"><p>Can we meet on Thursday?</p><p>Charles</p></blockquote></body></html>",
+    "name": "a reply with a signature over the indented original"
+  },
+  {
+    "document": {
+      "attachments": [],
+      "blocks": [
+        {
+          "Paragraph": {
+            "content": [
+              {
+                "Text": {
+                  "bold": false,
+                  "italic": false,
+                  "text": "For your records.",
+                  "underline": false
+                }
+              }
+            ]
+          }
+        },
+        {
+          "Quote": {
+            "attribution": {
+              "headers": [
+                {
+                  "label": "From",
+                  "value": "Charles <charles@example.test>"
+                },
+                {
+                  "label": "Sent",
+                  "value": "2 October 2026 09:30"
+                },
+                {
+                  "label": "Subject",
+                  "value": "Minutes & actions"
+                }
+              ],
+              "line": ""
+            },
+            "body_html": "<p>The minutes are attached.</p>",
+            "body_plain": "The minutes are attached.",
+            "style": "LineAndHeader"
+          }
+        }
+      ]
+    },
+    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><p>For your records.</p><div style=\"padding:3pt 0 0;border-top:1pt solid rgb(181, 196, 223)\"><div><strong>From: </strong>Charles &lt;charles@example.test&gt;<br><strong>Sent: </strong>2 October 2026 09:30<br><strong>Subject: </strong>Minutes &amp; actions<br></div></div><div><p>The minutes are attached.</p></div></body></html>",
+    "name": "a forward under its header block"
+  }
+]

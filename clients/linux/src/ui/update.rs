@@ -254,8 +254,8 @@ impl AppModel {
             AppInput::KeepEditing => self.keep_editing(),
             AppInput::SubmitComposer(submission) => self.submit_composer(&submission),
             AppInput::SaveComposerDraft(submission) => self.save_composer_draft(&submission),
-            AppInput::DraftResumed(composition, resumed) => {
-                self.draft_resumed(composition, *resumed);
+            AppInput::DraftResumed(resumed) => {
+                self.draft_resumed(*resumed);
             }
             AppInput::SaveAttachment {
                 source,

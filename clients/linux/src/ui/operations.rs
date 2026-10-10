@@ -350,6 +350,7 @@ mod tests {
                 initial_bcc: String::new(),
                 subject: String::new(),
                 initial_body: None,
+                stored_html: None,
                 quote: None,
                 initial_from: Some(account.clone()),
                 seeds_signature: true,

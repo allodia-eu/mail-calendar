@@ -121,7 +121,7 @@ extension MailboxModel {
     ///
     /// Off the main actor, and unlike a forward's staging it cannot count on a warm cache: a
     /// draft is opened from a list row, so the first open of one fetches the message.
-    func resumeDraft(_ composition: String, _ account: String, _ key: String) async -> DraftResume? {
+    func resumeDraft(_ composition: String, _ account: String, _ key: String) async -> ComposeRequest? {
         guard let app else { return nil }
         let directory = draftStagingDirectory().path
         return await Task.detached {

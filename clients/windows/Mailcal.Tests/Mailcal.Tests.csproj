@@ -235,6 +235,8 @@
     <!-- Leaving a composer and discarding one (docs/drafts.md): which saves, and which asks. Pure
          BCL; the WinUI half that applies them is ComposerView.Drafts.cs. -->
     <Compile Include="..\Mailcal\Services\ComposerExit.cs" Link="Services\ComposerExit.cs" />
+    <!-- The call that seeds a composer's body, a reopened message's HTML or a text. Pure BCL. -->
+    <Compile Include="..\Mailcal\Services\ComposerBodySeed.cs" Link="Services\ComposerBodySeed.cs" />
     <!-- The embedded-image cap and the media-type refusal, enforced client-side, where the user can
          still be told, so the core never sees an oversized logo. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />

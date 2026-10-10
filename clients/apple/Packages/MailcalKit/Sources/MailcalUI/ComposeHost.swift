@@ -163,9 +163,9 @@ struct ComposeHost: View {
     ///
     /// Two things separate it from every other new message. The composition is the one the core
     /// adopted the stored draft into, never a fresh one, or the composer's first save would store
-    /// a second copy beside the one it is showing. And no signature is seeded: the body came back
-    /// as the text of a message that was signed when it was first written, so seeding one would
-    /// put a second signature under it, and the next save would write that to the server.
+    /// a second copy beside the one it is showing. And no signature is seeded: the body already
+    /// carries the signature it was written with, so seeding one would put a second under it, and
+    /// the next save would write that to the server.
     private func resumedDraft(_ request: ResumedDraftRequest) -> some View {
         RichComposeView(
             title: L10n.compose_title_new(),
@@ -177,6 +177,7 @@ struct ComposeHost: View {
             initialBcc: request.draft.bcc,
             initialSubject: request.draft.subject,
             initialBody: request.draft.bodyText,
+            initialHTML: request.draft.bodyHtml,
             initialAttachments: request.draft.attachments,
             composition: request.composition,
             suggestionsFor: recipientSuggestions,

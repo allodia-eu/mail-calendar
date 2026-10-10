@@ -414,13 +414,12 @@ public sealed partial class ComposerView : UserControl
             {
                 await _editor.RunAsync($"window.setComposerQuote({EditorWebViewHost.Arg(quote)})");
             }
-            // An assistant's draft body, seeded in the quote's place and for the same reason ahead
-            // of the signature: setPlainText assigns the WHOLE body, so anything injected first is
-            // overwritten. Lengths only, never content (docs/logging.md), and not even that here,
-            // since the seed is the assistant's text.
-            if (_request?.InitialBody is { } body)
+            // An assistant's draft body, or a reopened message's, seeded in the quote's place and
+            // for the same reason ahead of the signature: either call assigns the WHOLE body, so
+            // anything injected first is overwritten. Nothing about it is logged (docs/logging.md).
+            if (ComposerBodySeed.Script(_request?.StoredHtml, _request?.InitialBody) is { } body)
             {
-                await _editor.RunAsync($"window.setPlainText({EditorWebViewHost.Arg(body)})");
+                await _editor.RunAsync(body);
             }
             await ApplySignatureAsync();
             _seedDocument = await ReadDocumentAsync();

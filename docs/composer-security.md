@@ -311,6 +311,20 @@ port:
       carries a link as `words <address>`, written once when the words are the address.
     - **The composer never opens a link.** Gate 4 is unchanged: a click in the editor places the
       caret, and a link is edited through the link editor or copied through the menu (Gate 14).
+17. **A reopened message's HTML reaches the editor sanitised, and the editor keeps only its schema.**
+    A draft resumed from Drafts, or a message moved back out of the Outbox, opens through
+    `setComposerBody` with the message's own HTML ([`drafts.md`](drafts.md)). That HTML is mail the
+    server handed back, so it is hostile input like any other:
+    - **The core sanitises it before any host sees it** (`ComposeRequest::body_html`), with the
+      reading view's allowlist, and turns each `cid:` picture into the `data:` URI of its part. A
+      host passes it on as data: one JSON string the editor parses, never spliced into a script.
+    - **The editor parses it into a document of its own with no window** (`DOMParser`), so nothing
+      in it runs, loads or lays out, and none of it is attached to the editor. Only the blocks read
+      off it are, rebuilt node by node from the schema (`blocks_dom.ts`): what the editor shows is
+      what the document holds, which is what Rust validates and sends. A picture survives only as
+      an inline `data:image/…` of a showable type (Gate 13's rule); one on the web is dropped.
+    - **The two raw-HTML regions stay what they always were.** A quoted original and a signature
+      keep their markup, and both are re-sanitised on submit (Gate 10).
 
 ## Per-platform implementation matrix
 
@@ -351,6 +365,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | `initial_text` is plain text | host passes only `showcase_reply(locale).text`; the shared editor assigns it as `textContent` | (same: shared editor) | (same: shared editor) | (same: shared editor) |
 | `mailto:` link decoded by the core, never the client | `CFBundleURLTypes` scheme `mailto` → the shell's `onOpenURL` → `parseMailtoUri`. No scheme gate is needed: the OAuth redirects are captured inside their own `ASWebAuthenticationSession` and never reach it. **macOS only in practice**: iOS routes a mail link to the *default* mail app alone, which needs an Apple-granted entitlement ([`os-integration.md`](os-integration.md)) | `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` → `parseMailtoUri` (`MailtoLaunch` gates action + scheme so an OAuth redirect is never mistaken for a link) | MSIX `windows.protocol` `mailto` → `ParseMailtoUri` (`MailLink` gates the scheme, for the same reason; the URI reaches the core as `OriginalString`, still percent-encoded) | desktop `MimeType=x-scheme-handler/mailto` + raw GApplication command-line activation → `parse_mailto_uri`; cold and redirected warm activations share one broker path |
 | `Cc`/`Bcc` collapsed by default, revealed when pre-filled | `revealsCcBcc(cc:bcc:)` seeds `showsCcBcc`; held by `RecipientTokenTests`, and on a mail link's own shape by `MailLinkTests` | `revealsCcBcc(cc, bcc)` opens the row; held by a JVM test | `RecipientTokens.RevealsCcBcc` sets the chevron's `IsChecked`; the rule is held by `Mailcal.Tests` and the collapse itself by a UI test that asks the running window for the fields, plus the mail-link suite that reads the pre-filled pills off it | `reveals_cc_bcc` sets the chevron; held by the crate's GTK test, which reads the row's visibility off the widget |
+| Reopened message seeded from sanitised HTML (Gate 17) | `ComposeRequest.bodyHtml` → `RichComposerEditor.bodySeedScript` → the shared editor's `setComposerBody` | `ComposeRequest.bodyHtml` → `composerPageFinishedScripts` → `setComposerBody` | `ComposeRequest.BodyHtml` → `ComposerBodySeed.Script` → `setComposerBody` | `ComposeRequest::body_html` → `body_seed_script` → `setComposerBody` |
 | `mailto:` body seeded as text | `initialBody` → the shared editor's `setPlainText`, as `textContent` | `window.setPlainText` (shared editor) assigns one paragraph per line via `textContent` | (same: shared editor, the same call the assistant-draft path uses) | (same: shared editor; the body is JSON-encoded data, never script) |
 | Shared files named and typed by the core (Gate 15) | a Share Extension (`com.apple.share-services`) stages the shared bytes into a drop box and asks for the app, which calls `prefillFromShare`; the extension holds no core and never sends, and the box is an App Group container where a profile grants one and a narrowly granted directory under the user's home otherwise | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` on `*/*` → `prefillFromShare`; `ShareLaunch` gates the action, the bytes are copied out of the sender's provider into app cache first | MSIX `windows.shareTarget` (any file type, plus Text and WebLink) → `PrefillFromShare`; the shared bytes are staged out of the `ShareOperation` before it reports complete, since its access ends there | desktop `MimeType=` + `%U` and `--attach` → `prefill_from_share`; the composer opens holding `ComposeRequest::files` |
 | A forward's own files, staged by the core | `stageForwardedAttachments` into the app's temporary directory, seeded through `initialAttachments` | (same call) into the app cache, seeded through `initialAttachments` | (same call) into the temp directory, seeded through `ComposeRequest.Attachments` | (same call) into the app cache (owner-only), seeded through `ComposeRequest::files` |
@@ -403,8 +418,10 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   reads off it; Apple, Windows and Linux read inline from the dialog's answer, which is a stall of
   tens of milliseconds for a file within the cap and has not been worth a thread yet.
 - **Pasted text stays plain text.** Formatting from Word, Outlook or a browser is dropped on paste,
-  which is the strict reading of Gate 7 rather than an oversight. Mapping pasted HTML onto the closed
-  document schema is its own piece of work.
+  which is the strict reading of Gate 7 rather than an oversight. The reader that maps a reopened
+  message onto the schema (Gate 17, `read_html.ts`) could serve a paste too, but a stored body has
+  been through the core's sanitiser first and a clipboard has not, so paste stays text until that
+  step is in place for it.
 - **Undo does not take back a link the editor made by itself.** An address becoming a link on
   Space is a DOM edit, not an engine command, so it is not on the WebView's undo stack; Remove link
   in the link editor is the way back. The `- ` bullet has the same shape.

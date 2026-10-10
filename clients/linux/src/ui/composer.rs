@@ -23,7 +23,7 @@ use super::{
     composer_drafts::Autosave,
     composer_fields::{ComposerFields, connect_save_draft, connect_send, read_document},
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
-    composer_model::{ComposeContext, ComposeKind, plain_text_seed_script},
+    composer_model::{ComposeContext, ComposeKind, body_seed_script},
     composer_signature::SignatureControl,
     editor_paste,
     reader::ComposerHost,
@@ -433,7 +433,7 @@ fn seed_editor(
 ) {
     let labels = editor_labels();
     let quote = request.quote.clone();
-    let body = plain_text_seed_script(request.initial_body.as_deref());
+    let body = body_seed_script(request);
     // Read here, not in the closure: the request is borrowed, the closure outlives this call.
     let opens_in_body = request.opens_in_body();
     let editor_host = editor_host.clone();

@@ -174,7 +174,7 @@ pub use credential_store::{AccountCredentialStore, CredentialStoreError};
 // Re-exported, not merely `#[uniffi::export]`ed: the generated languages see one flat
 // namespace, so a host reaching these through the FFI never names the module, while the Linux
 // client links this crate as Rust and does (`AGENTS.md`, why that client breaks differently).
-pub use drafts::{DraftResume, DraftStatus, draft_autosave_idle_seconds};
+pub use drafts::{DraftStatus, draft_autosave_idle_seconds};
 pub use error::MailcalError;
 pub use google::{GoogleLoginStart, begin_google_login};
 pub use imap_oauth::{ImapAuthOffer, ImapLoginRequest, ImapLoginStart};

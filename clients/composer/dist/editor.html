@@ -708,6 +708,9 @@
         return this.items.slice();
       return this.items.filter((item) => item.disposition === "Attachment" || referenced.has(item.id));
     }
+    dataUrlOf(id) {
+      return this.items.find((item) => item.id === id)?.data_url ?? "";
+    }
     add(meta) {
       this.remember({
         id: String(meta.id),
@@ -1078,20 +1081,41 @@
     const tag = element.tagName;
     const style = element.style;
     const computed = element.ownerDocument.defaultView?.getComputedStyle(element);
-    const weight = Number.parseInt(computed?.fontWeight ?? "", 10);
-    const decoration = `${computed?.textDecorationLine ?? ""} ${computed?.textDecoration ?? ""}`;
+    const fontWeight = computed?.fontWeight || style?.fontWeight || "";
+    const weight = fontWeight.startsWith("bold") ? 700 : Number.parseInt(fontWeight, 10);
+    const decoration = [
+      computed?.textDecorationLine,
+      computed?.textDecoration,
+      style?.textDecorationLine,
+      style?.textDecoration
+    ].join(" ");
     const size = element.dataset.size;
     const color = normalizeColor(element.dataset.color ?? style?.color);
     const highlight = normalizeColor(element.dataset.highlight ?? style?.backgroundColor);
     return {
-      bold: inherited.bold || tag === "B" || tag === "STRONG" || weight >= 600,
-      italic: inherited.italic || tag === "I" || tag === "EM",
+      bold: inherited.bold || tag === "B" || tag === "STRONG" || tag in HEADING_SIZES || weight >= 600,
+      italic: inherited.italic || tag === "I" || tag === "EM" || style?.fontStyle === "italic",
       underline: inherited.underline || tag === "U" || tag !== "A" && decoration.includes("underline"),
-      size: isFontSize(size) ? size : inherited.size,
+      size: isFontSize(size) ? size : sizeOfCss(style?.fontSize) ?? HEADING_SIZES[tag] ?? inherited.size,
       color: color ?? inherited.color,
       highlight: highlight ?? inherited.highlight,
       link: tag === "A" ? safeLinkHref(element.getAttribute("href")) : inherited.link
     };
+  }
+  var HEADING_SIZES = {
+    H1: "Huge",
+    H2: "Large",
+    H3: null,
+    H4: null,
+    H5: null,
+    H6: null
+  };
+  function sizeOfCss(value) {
+    const px = /^(\d+)px$/.exec((value ?? "").trim());
+    if (!px)
+      return null;
+    const sizes = Object.keys(SIZE_PX);
+    return sizes.find((key) => SIZE_PX[key] === Number(px[1])) ?? null;
   }
   function normalizeFontElements(editor, pendingSize) {
     for (const node of Array.from(editor.querySelectorAll("font"))) {
@@ -1161,6 +1185,33 @@
       attr.textContent = container.dataset.quoteLine || "";
     }
   }
+  function quoteContainer(doc, quote) {
+    const attribution = quote.attribution ?? { line: "", headers: [] };
+    const container = doc.createElement("div");
+    container.className = "allodia-quote";
+    container.dataset.quoteStyle = readStyle(quote.style);
+    container.dataset.quoteLine = attribution.line || "";
+    container.dataset.quoteHeaders = JSON.stringify(attribution.headers || []);
+    container.dataset.quotePlain = quote.body_plain || "";
+    const attr = doc.createElement("div");
+    attr.className = "aq-attr";
+    attr.setAttribute("contenteditable", "false");
+    container.appendChild(attr);
+    const body = doc.createElement("div");
+    body.className = "aq-body";
+    if (quote.body_html) {
+      body.innerHTML = quote.body_html;
+    } else {
+      const plain = doc.createElement("div");
+      plain.className = "aq-plain";
+      plain.style.whiteSpace = "pre-wrap";
+      plain.textContent = quote.body_plain || "";
+      body.appendChild(plain);
+    }
+    container.appendChild(body);
+    renderQuoteAttribution(container);
+    return container;
+  }
   function setComposerQuote(editor, seed) {
     const doc = documentOf(editor);
     editor.innerHTML = "";
@@ -1171,31 +1222,7 @@
     else
       lead.appendChild(doc.createElement("br"));
     editor.appendChild(lead);
-    const attribution = seed.attribution ?? { line: "", headers: [] };
-    const container = doc.createElement("div");
-    container.className = "allodia-quote";
-    container.dataset.quoteStyle = readStyle(seed.style);
-    container.dataset.quoteLine = attribution.line || "";
-    container.dataset.quoteHeaders = JSON.stringify(attribution.headers || []);
-    container.dataset.quotePlain = seed.body_plain || "";
-    const attr = doc.createElement("div");
-    attr.className = "aq-attr";
-    attr.setAttribute("contenteditable", "false");
-    container.appendChild(attr);
-    const body = doc.createElement("div");
-    body.className = "aq-body";
-    if (seed.body_html) {
-      body.innerHTML = seed.body_html;
-    } else {
-      const plain = doc.createElement("div");
-      plain.className = "aq-plain";
-      plain.style.whiteSpace = "pre-wrap";
-      plain.textContent = seed.body_plain || "";
-      body.appendChild(plain);
-    }
-    container.appendChild(body);
-    renderQuoteAttribution(container);
-    editor.appendChild(container);
+    editor.appendChild(quoteContainer(doc, seed));
     caretInto(lead, !initialText);
     focusEditor(editor);
   }
@@ -1227,8 +1254,7 @@
       return;
     }
     if (!container) {
-      container = doc.createElement("div");
-      container.className = "allodia-signature";
+      container = signatureContainer(doc, signature);
       const quote = editor.querySelector(".allodia-quote");
       if (quote)
         editor.insertBefore(container, quote);
@@ -1239,7 +1265,17 @@
         lead.appendChild(doc.createElement("br"));
         editor.insertBefore(lead, container);
       }
+      return;
     }
+    fillSignature(container, signature);
+  }
+  function signatureContainer(doc, signature) {
+    const container = doc.createElement("div");
+    container.className = "allodia-signature";
+    fillSignature(container, signature);
+    return container;
+  }
+  function fillSignature(container, signature) {
     container.innerHTML = signature.body_html;
     container.dataset.signaturePlain = signature.body_plain || "";
   }
@@ -1329,7 +1365,7 @@
   function isBr(node) {
     return node.nodeType === 1 && node.tagName === "BR";
   }
-  function leafParagraphs(element, blocks) {
+  function leafParagraphs(element, blocks, marks) {
     const children = Array.from(element.childNodes);
     if (children.length > 0 && isBr(children[children.length - 1]))
       children.pop();
@@ -1342,7 +1378,7 @@
       if (isBr(child))
         flush();
       else
-        content.push(...inlinesFrom(child, emptyMarks()));
+        content.push(...inlinesFrom(child, marks));
     }
     flush();
   }
@@ -1387,16 +1423,42 @@
       }
     };
   }
-  var BLOCK_TAGS2 = new Set(["DIV", "P", "UL", "OL", "TABLE", "BLOCKQUOTE", "SECTION", "ARTICLE"]);
+  var LINE_TAGS = new Set([
+    "DIV",
+    "P",
+    "BLOCKQUOTE",
+    "SECTION",
+    "ARTICLE",
+    "HEADER",
+    "FOOTER",
+    "MAIN",
+    "NAV",
+    "ASIDE",
+    "CENTER",
+    "ADDRESS",
+    "FIGURE",
+    "FIGCAPTION",
+    "DL",
+    "DT",
+    "DD",
+    "PRE",
+    "H1",
+    "H2",
+    "H3",
+    "H4",
+    "H5",
+    "H6"
+  ]);
+  var BLOCK_TAGS2 = new Set([...LINE_TAGS, "UL", "OL", "TABLE", "HR"]);
   function hasBlockChild(element) {
     return Array.from(element.children).some((child) => BLOCK_TAGS2.has(child.tagName));
   }
-  function collectBlocks(container, blocks) {
+  function collectBlocks(container, blocks, marks = emptyMarks()) {
     let inlineRun = [];
     const flush = () => {
       if (inlineRun.length === 0)
         return;
-      const content = inlineRun.flatMap((node) => inlinesFrom(node, emptyMarks()));
+      const content = inlineRun.flatMap((node) => inlinesFrom(node, marks));
       if (content.length > 0)
         blocks.push({ Paragraph: { content } });
       inlineRun = [];
@@ -1420,13 +1482,14 @@
       } else if (tag === "TABLE") {
         flush();
         blocks.push(tableBlock(element));
-      } else if (tag === "DIV" || tag === "P") {
+      } else if (tag && LINE_TAGS.has(tag)) {
         flush();
+        const lineMarks = elementMarks(element, marks);
         if (hasBlockChild(element))
-          collectBlocks(element, blocks);
+          collectBlocks(element, blocks, lineMarks);
         else
-          leafParagraphs(element, blocks);
-      } else if (tag === "BR") {
+          leafParagraphs(element, blocks, lineMarks);
+      } else if (tag === "BR" || tag === "HR") {
         flush();
       } else {
         inlineRun.push(child);
@@ -2180,6 +2243,346 @@
     return node.ownerDocument.defaultView;
   }
 
+  // src/blocks_dom.ts
+  function setBlocks(editor, blocks, attachments) {
+    const doc = documentOf(editor);
+    editor.innerHTML = "";
+    for (const block of blocks)
+      editor.appendChild(blockNode(doc, block, attachments));
+    const first = editor.firstElementChild;
+    if (!first || first.classList.contains("allodia-signature") || first.classList.contains("allodia-quote")) {
+      const lead = doc.createElement("p");
+      lead.appendChild(doc.createElement("br"));
+      editor.insertBefore(lead, first);
+    }
+  }
+  function blockNode(doc, block, attachments) {
+    if ("Paragraph" in block)
+      return lineNode(doc, "p", block.Paragraph.content, attachments);
+    if ("List" in block)
+      return listNode(doc, block.List, attachments);
+    if ("Table" in block)
+      return tableNode(doc, block.Table, attachments);
+    if ("Quote" in block)
+      return quoteContainer(doc, block.Quote);
+    return signatureContainer(doc, block.Signature);
+  }
+  function lineNode(doc, tag, content, attachments) {
+    const element = doc.createElement(tag);
+    appendInlines(element, content, attachments);
+    if (!element.firstChild)
+      element.appendChild(doc.createElement("br"));
+    return element;
+  }
+  function appendInlines(parent, content, attachments) {
+    const doc = documentOf(parent);
+    for (const inline of content) {
+      const node = "Text" in inline ? runNode(doc, inline.Text) : imageNode(doc, inline.Image, attachments);
+      if (node)
+        parent.appendChild(node);
+    }
+  }
+  function runNode(doc, run) {
+    let node = doc.createTextNode(run.text);
+    if (run.underline)
+      node = wrap(doc, "u", node);
+    if (run.italic)
+      node = wrap(doc, "em", node);
+    if (run.bold)
+      node = wrap(doc, "strong", node);
+    if (run.font_size || run.color || run.highlight) {
+      const span = doc.createElement("span");
+      if (run.font_size) {
+        span.dataset.size = run.font_size;
+        span.style.fontSize = `${SIZE_PX[run.font_size]}px`;
+      }
+      if (run.color) {
+        span.dataset.color = run.color;
+        span.style.color = run.color;
+      }
+      if (run.highlight) {
+        span.dataset.highlight = run.highlight;
+        span.style.backgroundColor = run.highlight;
+      }
+      span.appendChild(node);
+      node = span;
+    }
+    if (run.link) {
+      const anchor = doc.createElement("a");
+      anchor.setAttribute("href", run.link);
+      anchor.appendChild(node);
+      node = anchor;
+    }
+    return node;
+  }
+  function wrap(doc, tag, child) {
+    const element = doc.createElement(tag);
+    element.appendChild(child);
+    return element;
+  }
+  function imageNode(doc, image, attachments) {
+    const src = attachments.dataUrlOf(image.attachment_id);
+    if (!src)
+      return null;
+    const node = doc.createElement("img");
+    node.dataset.attachmentId = image.attachment_id;
+    node.src = src;
+    node.alt = image.alt_text;
+    if (image.width_px)
+      node.width = image.width_px;
+    return node;
+  }
+  function listNode(doc, list, attachments) {
+    const element = doc.createElement(list.kind === "Ordered" ? "ol" : "ul");
+    for (const item of list.items) {
+      const li = doc.createElement("li");
+      appendInlines(li, item.content, attachments);
+      if (item.child)
+        li.appendChild(listNode(doc, item.child, attachments));
+      if (!li.firstChild)
+        li.appendChild(doc.createElement("br"));
+      element.appendChild(li);
+    }
+    return element;
+  }
+  function tableNode(doc, table, attachments) {
+    const element = doc.createElement("table");
+    const body = doc.createElement("tbody");
+    for (const row of table.rows) {
+      const tr = doc.createElement("tr");
+      for (const cell of row.cells)
+        tr.appendChild(lineNode(doc, "td", cell.content, attachments));
+      body.appendChild(tr);
+    }
+    element.appendChild(body);
+    return element;
+  }
+
+  // src/read_html.ts
+  function blocksFromHtml(editor, html, attachments) {
+    const parsed = new (windowOf(editor)).DOMParser().parseFromString(html, "text/html");
+    const body = parsed.body;
+    for (const node of Array.from(body.querySelectorAll(INERT_TAGS)))
+      node.remove();
+    readOwnQuotes(body);
+    readOtherQuotes(body);
+    for (const signature of Array.from(body.querySelectorAll(".allodia-signature"))) {
+      if (!signature.closest(".allodia-quote"))
+        signature.dataset.signaturePlain = plainText(signature);
+    }
+    adoptPictures(body, attachments);
+    breakPreformattedLines(body);
+    collapseWhitespace(body);
+    return documentBlocks(body).map(tidy);
+  }
+  var INERT_TAGS = "head, style, title, template, noscript, script";
+  var OWN_INDENTED_BORDER = "border-left:2px solid #cccccc";
+  var OWN_HEADER_DIVIDER = "rgb(181, 196, 223)";
+  function styleOf(element) {
+    return (element.getAttribute("style") ?? "").replace(/\s+/g, " ").replace(/:\s/g, ":");
+  }
+  function readOwnQuotes(body) {
+    for (const quote of Array.from(body.querySelectorAll("blockquote"))) {
+      if (!styleOf(quote).includes(OWN_INDENTED_BORDER))
+        continue;
+      const attribution = quote.previousElementSibling;
+      let line = "";
+      if (attribution?.tagName === "P") {
+        line = attribution.textContent ?? "";
+        attribution.remove();
+      }
+      replaceWithQuote(quote, { style: "Indented", line, headers: [] }, quote);
+    }
+    for (const divider of Array.from(body.querySelectorAll("div"))) {
+      if (!styleOf(divider).includes(OWN_HEADER_DIVIDER))
+        continue;
+      const quoted = divider.nextElementSibling;
+      if (quoted?.tagName !== "DIV")
+        continue;
+      const headers = headersOf(divider);
+      divider.remove();
+      replaceWithQuote(quoted, { style: "LineAndHeader", line: "", headers }, quoted);
+    }
+  }
+  function readOtherQuotes(body) {
+    for (const quote of Array.from(body.querySelectorAll("blockquote"))) {
+      if (quote.parentElement?.closest("blockquote, .allodia-quote, li, td, th"))
+        continue;
+      replaceWithQuote(quote, { style: "Indented", line: "", headers: [] }, quote);
+    }
+  }
+  function replaceWithQuote(element, attribution, content) {
+    const doc = element.ownerDocument;
+    const region = quoteContainer(doc, {
+      style: attribution.style,
+      attribution: { line: attribution.line, headers: attribution.headers },
+      body_plain: plainText(content)
+    });
+    const quoted = region.querySelector(".aq-body");
+    quoted.textContent = "";
+    while (content.firstChild)
+      quoted.appendChild(content.firstChild);
+    element.replaceWith(region);
+  }
+  function headersOf(divider) {
+    const headers = [];
+    let current = null;
+    const walk = (node) => {
+      for (const child of Array.from(node.childNodes)) {
+        const tag = child.nodeType === 1 ? child.tagName : null;
+        if (tag === "STRONG" || tag === "B") {
+          current = { label: (child.textContent ?? "").replace(/:\s*$/, "").trim(), value: "" };
+          headers.push(current);
+        } else if (tag === "BR") {
+          current = null;
+        } else if (tag) {
+          walk(child);
+        } else if (current) {
+          current.value += child.textContent ?? "";
+        }
+      }
+    };
+    walk(divider);
+    return headers;
+  }
+  function adoptPictures(body, attachments) {
+    for (const image of Array.from(body.querySelectorAll("img"))) {
+      if (image.closest(".allodia-quote, .allodia-signature"))
+        continue;
+      const src = image.getAttribute("src") ?? "";
+      if (!src.startsWith("data:") || !isShowableImage(mediaTypeOf(src))) {
+        image.remove();
+        continue;
+      }
+      image.dataset.attachmentId = attachments.addCapturedImage({
+        data_url: src,
+        file_name: "",
+        media_type: ""
+      });
+    }
+  }
+  function breakPreformattedLines(body) {
+    for (const pre of Array.from(body.querySelectorAll("pre"))) {
+      if (pre.closest(".allodia-quote, .allodia-signature"))
+        continue;
+      const walker = pre.ownerDocument.createTreeWalker(pre, 4);
+      const texts = [];
+      for (let node = walker.nextNode();node; node = walker.nextNode())
+        texts.push(node);
+      for (const text of texts) {
+        const lines = (text.nodeValue ?? "").split(`
+`);
+        if (lines.length < 2)
+          continue;
+        const parts = [];
+        lines.forEach((line, index) => {
+          if (index > 0)
+            parts.push(pre.ownerDocument.createElement("br"));
+          if (line)
+            parts.push(pre.ownerDocument.createTextNode(line));
+        });
+        text.replaceWith(...parts);
+      }
+    }
+  }
+  function collapseWhitespace(body) {
+    const walker = body.ownerDocument.createTreeWalker(body, 4);
+    const texts = [];
+    for (let node = walker.nextNode();node; node = walker.nextNode())
+      texts.push(node);
+    for (const text of texts) {
+      if (text.parentElement?.closest(".allodia-quote, .allodia-signature"))
+        continue;
+      const collapsed = (text.nodeValue ?? "").replace(/[\t\n\r ]+/g, " ");
+      if (collapsed === " " && betweenBlocks(text))
+        text.remove();
+      else
+        text.nodeValue = collapsed;
+    }
+  }
+  function betweenBlocks(text) {
+    const isBlock = (node) => node === null || node.nodeType === 1 && /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|BR|CENTER|DD|DIV|DL|DT|FIGCAPTION|FIGURE|FOOTER|H[1-6]|HEADER|HR|LI|MAIN|NAV|OL|P|PRE|SECTION|TABLE|TBODY|TD|TH|THEAD|TFOOT|TR|UL)$/.test(node.tagName) || node.nodeType === 1 && node.classList.contains("allodia-quote");
+    return isBlock(text.previousSibling) || isBlock(text.nextSibling);
+  }
+  function tidy(block) {
+    if ("Paragraph" in block)
+      return { Paragraph: { content: tidyLine(block.Paragraph.content) } };
+    if ("List" in block) {
+      const list = (value) => ({
+        kind: value.kind,
+        items: value.items.map((item) => ({
+          content: tidyLine(item.content),
+          child: item.child ? list(item.child) : null
+        }))
+      });
+      return { List: list(block.List) };
+    }
+    if ("Table" in block) {
+      return {
+        Table: {
+          rows: block.Table.rows.map((row) => ({
+            cells: row.cells.map((cell) => ({ content: tidyLine(cell.content) }))
+          }))
+        }
+      };
+    }
+    return block;
+  }
+  function tidyLine(content) {
+    const merged = [];
+    for (const inline of content) {
+      const last = merged[merged.length - 1];
+      if (last && "Text" in last && "Text" in inline && sameMarks(last.Text, inline.Text)) {
+        merged[merged.length - 1] = { Text: { ...last.Text, text: last.Text.text + inline.Text.text } };
+      } else {
+        merged.push(inline);
+      }
+    }
+    const first = merged[0];
+    if (first && "Text" in first)
+      first.Text.text = first.Text.text.replace(/^ +/, "");
+    const last = merged[merged.length - 1];
+    if (last && "Text" in last)
+      last.Text.text = last.Text.text.replace(/ +$/, "");
+    return merged.filter((inline) => !("Text" in inline) || inline.Text.text !== "");
+  }
+  function sameMarks(a, b) {
+    return a.bold === b.bold && a.italic === b.italic && a.underline === b.underline && a.font_size === b.font_size && a.color === b.color && a.highlight === b.highlight && a.link === b.link;
+  }
+  function plainText(element) {
+    const lines = [""];
+    const breakLine = () => {
+      if (lines[lines.length - 1] !== "")
+        lines.push("");
+    };
+    const walk = (node) => {
+      if (node.nodeType === 3) {
+        lines[lines.length - 1] += node.nodeValue ?? "";
+        return;
+      }
+      if (node.nodeType !== 1)
+        return;
+      const tag = node.tagName;
+      if (tag === "BR") {
+        lines.push("");
+        return;
+      }
+      const block = /^(P|DIV|LI|TR|H[1-6]|BLOCKQUOTE|PRE|TABLE|UL|OL)$/.test(tag);
+      if (block)
+        breakLine();
+      for (const child of Array.from(node.childNodes))
+        walk(child);
+      if (block)
+        breakLine();
+    };
+    for (const child of Array.from(element.childNodes))
+      walk(child);
+    return lines.map((line) => line.replace(/[\t\r ]+/g, " ").trim()).join(`
+`).replace(/\n{3,}/g, `
+
+`).trim();
+  }
+
   // src/seeds.ts
   function focusComposerBody(editor) {
     const lead = editor.firstElementChild;
@@ -2199,6 +2602,14 @@
         div.appendChild(doc.createElement("br"));
       editor.appendChild(div);
     }
+  }
+  function setComposerBody(editor, attachments, seed) {
+    const html = typeof seed.html === "string" ? seed.html : "";
+    if (!html.trim()) {
+      setPlainText(editor, seed.text);
+      return;
+    }
+    setBlocks(editor, blocksFromHtml(editor, html, attachments), attachments);
   }
 
   // src/tables.ts
@@ -2703,6 +3114,7 @@
   window.signatureBody = () => JSON.stringify(signatureBody(editor));
   window.focusComposerBody = () => focusComposerBody(editor);
   window.setPlainText = (text) => setPlainText(editor, text);
+  window.setComposerBody = (seed) => setComposerBody(editor, attachments, parsed(seed) ?? {});
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerHostRequests = (kinds) => hostRequests.setAnswered(kinds);

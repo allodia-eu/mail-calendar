@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use engine_api::{AccountId, MessageIdHeader, PendingOpId, ProviderKey};
+use engine_api::{AccountId, InlinePart, MessageIdHeader, PendingOpId, ProviderKey};
 
 use crate::{CompositionId, DraftStatus};
 
@@ -28,9 +28,28 @@ pub(super) struct Composition {
     /// Without it a composer that stayed open through the outage would save again with
     /// `replacing` empty and leave a second draft on the server.
     pub(super) queued: Option<PendingOpId>,
-    /// The message this one answers, for a composition opened from the Outbox on a reply:
-    /// every save and the send carry it, so the edited reply stays in its conversation.
+    /// The message this one answers, for a composition reopened on a reply: every save and
+    /// the send carry it, so the reply stays in its conversation.
     pub(super) threading: Option<Threading>,
+    /// The pictures the message it was reopened on carried as parts. The quoted original
+    /// shows them as `data:` URIs, and every save and the send turn those back into the parts
+    /// they came from, as a reply's own quote does with its original's.
+    pub(super) pictures: Arc<[InlinePart]>,
+}
+
+impl Composition {
+    /// A composition with nothing saved yet.
+    pub(super) fn new(account: AccountId, message_id: MessageIdHeader) -> Self {
+        Self {
+            account,
+            message_id,
+            key: None,
+            saved: None,
+            queued: None,
+            threading: None,
+            pictures: Arc::from([]),
+        }
+    }
 }
 
 /// The headers that place a reply in its conversation.

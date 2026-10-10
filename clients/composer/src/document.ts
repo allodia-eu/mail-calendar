@@ -80,7 +80,7 @@ function isBr(node: Node): boolean {
 /// `<br>` in pasted text) becomes a real line break instead of gluing the two sides into one run.
 /// A single trailing `<br>` is `contenteditable`'s placeholder for an empty or last line and is
 /// dropped, so it adds no spurious paragraph.
-function leafParagraphs(element: Element, blocks: Block[]): void {
+function leafParagraphs(element: Element, blocks: Block[], marks: Marks): void {
   const children = Array.from(element.childNodes);
   if (children.length > 0 && isBr(children[children.length - 1]!)) children.pop();
   let content: InlineContent[] = [];
@@ -90,7 +90,7 @@ function leafParagraphs(element: Element, blocks: Block[]): void {
   };
   for (const child of children) {
     if (isBr(child)) flush();
-    else content.push(...inlinesFrom(child, emptyMarks()));
+    else content.push(...inlinesFrom(child, marks));
   }
   flush();
 }
@@ -149,7 +149,37 @@ function tableBlock(element: Element): Block {
   };
 }
 
-const BLOCK_TAGS = new Set(["DIV", "P", "UL", "OL", "TABLE", "BLOCKQUOTE", "SECTION", "ARTICLE"]);
+/// Elements that hold lines rather than sit inside one. The editor's own DOM has only `<div>` and
+/// `<p>`; the rest are what another client's markup brings when a stored body is reopened
+/// (`read_html.ts`), and each is a line, or a run of lines, exactly as a `<div>` is.
+const LINE_TAGS = new Set([
+  "DIV",
+  "P",
+  "BLOCKQUOTE",
+  "SECTION",
+  "ARTICLE",
+  "HEADER",
+  "FOOTER",
+  "MAIN",
+  "NAV",
+  "ASIDE",
+  "CENTER",
+  "ADDRESS",
+  "FIGURE",
+  "FIGCAPTION",
+  "DL",
+  "DT",
+  "DD",
+  "PRE",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "H5",
+  "H6",
+]);
+
+const BLOCK_TAGS = new Set([...LINE_TAGS, "UL", "OL", "TABLE", "HR"]);
 
 function hasBlockChild(element: Element): boolean {
   return Array.from(element.children).some((child) => BLOCK_TAGS.has(child.tagName));
@@ -161,11 +191,11 @@ function hasBlockChild(element: Element): boolean {
 /// be nested rather than a direct editor child; recursing into block wrappers keeps them
 /// structured instead of flattening them into one paragraph. Adjacent inline nodes (text, `<b>`,
 /// `<img>`, …) accumulate into a single paragraph.
-function collectBlocks(container: Element, blocks: Block[]): void {
+function collectBlocks(container: Element, blocks: Block[], marks: Marks = emptyMarks()): void {
   let inlineRun: Node[] = [];
   const flush = () => {
     if (inlineRun.length === 0) return;
-    const content = inlineRun.flatMap((node) => inlinesFrom(node, emptyMarks()));
+    const content = inlineRun.flatMap((node) => inlinesFrom(node, marks));
     if (content.length > 0) blocks.push({ Paragraph: { content } });
     inlineRun = [];
   };
@@ -195,12 +225,15 @@ function collectBlocks(container: Element, blocks: Block[]): void {
     } else if (tag === "TABLE") {
       flush();
       blocks.push(tableBlock(element!));
-    } else if (tag === "DIV" || tag === "P") {
+    } else if (tag && LINE_TAGS.has(tag)) {
       flush();
-      if (hasBlockChild(element!)) collectBlocks(element!, blocks);
-      else leafParagraphs(element!, blocks);
-    } else if (tag === "BR") {
-      // A top-level `<br>` ends the current line.
+      // A line's own marks reach its words: a heading is bold, and another client's
+      // `<div style="color:…">` colours everything inside it.
+      const lineMarks = elementMarks(element!, marks);
+      if (hasBlockChild(element!)) collectBlocks(element!, blocks, lineMarks);
+      else leafParagraphs(element!, blocks, lineMarks);
+    } else if (tag === "BR" || tag === "HR") {
+      // A top-level `<br>` ends the current line, and so does a rule.
       flush();
     } else {
       inlineRun.push(child);

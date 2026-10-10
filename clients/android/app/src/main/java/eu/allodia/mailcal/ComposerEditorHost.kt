@@ -93,6 +93,7 @@ internal fun composerPageFinishedScripts(
     topInsetDp: Float,
     signature: String? = null,
     body: String = "",
+    storedHtml: String = "",
 ): List<String> = buildList {
     add("window.useNativeComposerChrome()")
     if (topInsetDp > 0f) {
@@ -107,7 +108,14 @@ internal fun composerPageFinishedScripts(
     // seeded before it is overwritten, so the signature would be gone and the quote would have to
     // be re-seeded. In practice a link never carries a quote, a quote only ever seeds a
     // reply/forward, but the order makes the editor's state defined rather than call-order luck.
-    if (body.isNotEmpty()) {
+    //
+    // A message reopened in the composer (a resumed draft, or one moved back out of the Outbox)
+    // seeds through the same slot with its HTML, which the editor reads back into its document:
+    // its formatting, its pictures, its quote and its signature. The text rides along for when the
+    // message has no HTML.
+    if (storedHtml.isNotBlank()) {
+        add("window.setComposerBody(${JSONObject.quote(reopenedBodySeed(storedHtml, body))})")
+    } else if (body.isNotEmpty()) {
         add("window.setPlainText(${JSONObject.quote(body)})")
     }
     if (signature != null) {
@@ -119,6 +127,8 @@ internal fun WebView.configureComposerWebView(
     quote: String?,
     // The plain-text body the composer opens with, a mail link's `body=`, empty otherwise.
     body: String = "",
+    // The HTML of a message the composer reopens, empty otherwise.
+    storedHtml: String = "",
     labelsJson: String,
     focusBody: Boolean,
     topInsetDp: () -> Float,
@@ -143,7 +153,9 @@ internal fun WebView.configureComposerWebView(
         // not right after loadDataWithBaseURL, and not from a layout-time effect, is what
         // guarantees they are defined. See composerPageFinishedScripts for the contract.
         override fun onPageFinished(view: WebView?, url: String?) {
-            for (script in composerPageFinishedScripts(labelsJson, quote, topInsetDp(), signature(), body)) {
+            val scripts =
+                composerPageFinishedScripts(labelsJson, quote, topInsetDp(), signature(), body, storedHtml)
+            for (script in scripts) {
                 view?.evaluateJavascript(script, null)
             }
             view?.announceComposerHost()
@@ -175,6 +187,7 @@ internal fun ComposerEditorView(
     linkHost: ComposerLinkHost,
     quote: String?,
     body: String,
+    storedHtml: String,
     labelsJson: String,
     focusBody: Boolean,
     topInsetDp: () -> Float,
@@ -197,6 +210,7 @@ internal fun ComposerEditorView(
                 configureComposerWebView(
                     quote = quote,
                     body = body,
+                    storedHtml = storedHtml,
                     labelsJson = labelsJson,
                     focusBody = focusBody,
                     topInsetDp = topInsetDp,
