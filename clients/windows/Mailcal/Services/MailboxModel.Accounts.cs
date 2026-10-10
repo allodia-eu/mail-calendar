@@ -235,7 +235,7 @@ public sealed partial class MailboxModel
             var callbackUrl = await callback.WaitAsync(cancelToken);
             // The token exchange + folder connect block, so run them off the UI thread.
             var row = await Task.Run(() => _app!.CompleteMicrosoftLogin(start.Pending, callbackUrl));
-            Log.Info($"microsoft account added: {row.Email}");
+            Log.Info($"microsoft account added: {LogHandle(row.Id)}");
             AccountAdded(row.Id);
             // This route never touches AddAccountAsync, so the pass is owed here: without it the
             // account stays on this device until the next launch, and its card in Settings draws
@@ -388,7 +388,7 @@ public sealed partial class MailboxModel
                 {
                     Log.Warn($"calendar (CalDAV) failed to connect: {calendarError}");
                 }
-                Log.Info($"account added: {row.Email}");
+                Log.Info($"account added: {LogHandle(row.Id)}");
                 // The link step, or the end of setup and the name it sends under (docs/sending.md).
                 AccountAdded(row.Id);
                 // The core synced the new account and refreshed the snapshot (the observer
@@ -447,7 +447,7 @@ public sealed partial class MailboxModel
             // operations; the observer refreshes the sidebar + list as the snapshot rebuilds.
             // The core erases the stored credential too, through the port it wrote it through.
             await Task.Run(() => _app!.RemoveAccount(id));
-            Log.Info($"account removed: {id}");
+            Log.Info($"account removed: {LogHandle(id)}");
             // The last account gone, mail or not, is a first run again (docs/accounts.md rule 11).
             _ui.TryEnqueue(() =>
             {
@@ -467,6 +467,13 @@ public sealed partial class MailboxModel
             return CoreError.Describe(ex);
         }
     }
+
+    /// <summary>
+    /// How a log line names an account: the core's own handle (<c>[acct:1a2b]</c>), never its
+    /// address or its id, which is an address and a host (docs/logging.md).
+    /// </summary>
+    private static string LogHandle(string accountId) =>
+        $"[{MailcalBindingsMethods.AccountLogHandle(accountId)}]";
 
     /// <summary>
     /// The core log verbosity to boot with, resolved by <see cref="DiagnosticsLog.ResolveLevel"/>:

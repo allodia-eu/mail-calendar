@@ -76,7 +76,7 @@ public sealed partial class MailboxModel
             var callbackUrl = await WaitForGoogleCallbackAsync(loopback, cancelToken);
             // The code exchange + folder connect block, so run them off the UI thread.
             var row = await Task.Run(() => _app!.CompleteGoogleLogin(start.Pending, callbackUrl));
-            Log.Info($"google account added: {row.Email}");
+            Log.Info($"google account added: {LogHandle(row.Id)}");
             AccountAdded(row.Id);
             // This route never touches AddAccountAsync, so the pass is owed here: without it the
             // account stays on this device until the next launch, and its card in Settings draws

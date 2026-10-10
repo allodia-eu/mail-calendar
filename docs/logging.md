@@ -72,8 +72,9 @@ core, the bindings, and the native host land in one stream.
   ids, and high-level events, **never** mail/event content, addresses, or credentials. The stream
   is therefore safe to surface to a user and to attach to a support report.
   An **account id is an address and a host**, so it is never logged: that is what the handle
-  above is for. (Whether this binds the *clients*, which write into the same file, is an open
-  gap: the Windows client logs the address today and Apple/Android log nothing.)
+  above is for. The clients write into the same file and keep the same rule: a client that names
+  an account names it by the same handle, exported to them as `account_log_handle`, so its lines
+  and the core's about one account read alike.
   **Contacts fall under exactly this rule**, and are the most identifying thing the app holds: the
   contacts paths log row counts, source counts and durations, never a name, email address, phone
   number or organisation. An **address-book id** is a container id, not content, and may be logged
