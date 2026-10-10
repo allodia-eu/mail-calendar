@@ -62,15 +62,21 @@ extension RichComposeView {
         return signatures.forAccount(account, signatureSlot(for: mode))
     }
 
-    /// The id the picker shows as selected, `nil` is the "None" row.
+    /// The id the picker shows as selected, `nil` is the "None" row. Built from the choice's own
+    /// binding and never from `self` (see `composerHeader`); the editor follows the choice through
+    /// `signatureChoiceChanged()`.
     private var signatureBinding: Binding<String?> {
-        Binding(
-            get: { effectiveSignature?.id },
-            set: { id in
-                signatureChoice = id.map(SignatureChoice.signature) ?? .noSignature
-                editor.setSignature(effectiveSignature.flatMap(Self.signatureSeed))
-            }
+        let choice = $signatureChoice
+        let selected = effectiveSignature?.id
+        return Binding(
+            get: { selected },
+            set: { choice.wrappedValue = $0.map(SignatureChoice.signature) ?? .noSignature }
         )
+    }
+
+    /// Puts the signature the user picked in the message.
+    private func signatureChoiceChanged() {
+        editor.setSignature(effectiveSignature.flatMap(Self.signatureSeed))
     }
 
     /// Re-seeds the signature after the From account changed. A no-op once the user has picked one
@@ -116,5 +122,6 @@ extension RichComposeView {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .fixedSize()
+        .onChange(of: signatureChoice) { _, _ in signatureChoiceChanged() }
     }
 }

@@ -112,8 +112,13 @@ struct ComposerDropModifier: ViewModifier {
         return UTType(filenameExtension: url.pathExtension)?.conforms(to: .image) ?? false
     }
 
+    /// Built from the pictures' own binding, never from `self` (see `composerHeader`).
     private var questionPresented: Binding<Bool> {
-        Binding(get: { !droppedPictures.isEmpty }, set: { if !$0 { droppedPictures = [] } })
+        let pictures = $droppedPictures
+        return Binding(
+            get: { !pictures.wrappedValue.isEmpty },
+            set: { if !$0 { pictures.wrappedValue = [] } }
+        )
     }
 
     /// Reads each picture through the core and hands it to the shared editor.

@@ -57,14 +57,16 @@ import WebKit
         window.close()
     }
 
-    @Test func aClosedComposerReleasesItsWebView() async {
+    @Test(arguments: ComposerOnScreen.Kind.allCases)
+    func aClosedComposerReleasesItsWebView(kind: ComposerOnScreen.Kind) async {
         // The whole composer, as the mailbox shows it: its own state behind every binding, the drop
-        // handler, the link dialog and draft saving all attached. Anything among them that keeps
-        // the editor alive keeps this web view, and its WebContent process, alive with it.
+        // handler, the link dialog and draft saving all attached, and two accounts so From is a
+        // pop-up button. Anything among them that keeps the editor alive keeps this web view, and
+        // its WebContent process, alive with it.
         weak var webView: WKWebView?
         let presence = Presence()
         let frame = NSRect(x: 0, y: 0, width: 800, height: 600)
-        let host = NSHostingView(rootView: ComposerOnScreen(presence: presence))
+        let host = NSHostingView(rootView: ComposerOnScreen(presence: presence, kind: kind))
         host.frame = frame
         let window = NSWindow(contentRect: frame, styleMask: [], backing: .buffered, defer: true)
         window.isReleasedWhenClosed = false
@@ -117,18 +119,39 @@ private final class RenderCount {
 /// Whether the composer below is on screen.
 @MainActor
 @Observable
-private final class Presence {
+final class Presence {
     var shown = true
 }
 
 /// The composer as a host shows it, with draft saving on, until `presence` says otherwise.
-private struct ComposerOnScreen: View {
+struct ComposerOnScreen: View {
+    /// Which of the composer's optional controls it shows.
+    enum Kind: CaseIterable {
+        /// A new message: From, recipients, subject and the editor.
+        case new
+        /// A new message with a signature library, and one assigned to the sending account.
+        case signed
+        /// A reply carrying a quote, with the per-message quote-style picker.
+        case reply
+    }
+
     let presence: Presence
+    let kind: Kind
 
     var body: some View {
         if presence.shown {
             RichComposeView(
                 title: "New Message",
+                mode: kind == .reply ? .reply : .new,
+                accounts: [
+                    AccountRow(id: "work", email: "work@example.test", name: "", expanded: true),
+                    AccountRow(id: "home", email: "home@example.test", name: "", expanded: true),
+                ],
+                initialFrom: "work",
+                initialTo: kind == .reply ? "sender@example.test" : "",
+                quote: kind == .reply ? "<p>Earlier</p>" : nil,
+                quoteStylePerMessage: kind == .reply,
+                signatures: kind == .signed ? Self.signatures : nil,
                 drafts: ComposerDrafts(
                     save: { _, _, _, _, _, _ in },
                     leave: { _, _, _, _, _, _ in },
@@ -143,6 +166,13 @@ private struct ComposerOnScreen: View {
             )
         }
     }
+
+    private static let signature = SignatureBody(id: "s1", bodyHtml: "<p>Regards</p>", bodyPlain: "Regards")
+    private static let signatures = ComposerSignatures(
+        library: [SignatureRow(id: "s1", name: "Work")],
+        forAccount: { _, _ in signature },
+        byId: { _ in signature }
+    )
 }
 
 /// A parent that builds the composer afresh on every render, as the mailbox does.

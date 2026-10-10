@@ -31,7 +31,7 @@ struct FromAccountField: View {
     @ViewBuilder
     private var field: some View {
         if accounts.count > 1 {
-            Picker(L10n.compose_from(), selection: $selection) {
+            Picker(L10n.compose_from(), selection: shown) {
                 ForEach(accounts, id: \.id) { account in
                     Text(label(for: account)).tag(Optional(account.id))
                 }
@@ -42,6 +42,20 @@ struct FromAccountField: View {
         } else if let only = accounts.first {
             Text(label(for: only)).lineLimit(1).truncationMode(.middle)
         }
+    }
+
+    /// The account a composer sends from: `from` when it names a configured account, else the
+    /// first one. `from` can name none, since a composer may open before the first snapshot lands,
+    /// and a Picker whose selection matches no tag renders blank. Resolving it the same way for the
+    /// field and for the send keeps the visible sender and the submitted one the same account.
+    static func sender(_ from: String?, in accounts: [AccountRow]) -> String? {
+        accounts.contains { $0.id == from } ? from : accounts.first?.id
+    }
+
+    /// The selection the picker shows. Its closures hold this field, which holds nothing of the
+    /// composer but the binding to `from` (see `RichComposeView.composerHeader`).
+    private var shown: Binding<String?> {
+        Binding(get: { Self.sender(selection, in: accounts) }, set: { selection = $0 })
     }
 
     /// How the account reads here: `Name <address>`, or the address alone when no name is set.
