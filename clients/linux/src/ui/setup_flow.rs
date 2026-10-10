@@ -13,7 +13,14 @@ impl AppModel {
     /// when another account can fill something it lacks, or the end of the flow.
     pub(super) fn after_account_added(&mut self, account: String, sender: relm4::Sender<AppInput>) {
         self.setup.added.push(account.clone());
-        let target = self.setup.returning_to.take().unwrap_or(account);
+        // A connect or sign-in still running when "Add another account" was cancelled finishes
+        // onto the link step that cancel returned to, which stays on screen.
+        let target = self
+            .setup
+            .returning_to
+            .take()
+            .or_else(|| self.setup.linking().map(str::to_owned))
+            .unwrap_or(account);
         match self.link_step(&target) {
             Some(step) => self.setup.show_links(step),
             None => self.finish_setup(sender),
@@ -31,6 +38,27 @@ impl AppModel {
         self.setup.complete();
         self.host_tasks.sender_names_waiting.extend(added);
         if self.host_tasks.sender_name_ask.is_none() {
+            self.ask_next_sender_name(sender);
+        }
+    }
+
+    /// Stores a name. Settings' own name field sends one too, so only the prompt's answer moves
+    /// the queue on; an edit there leaves the prompt on screen where it is.
+    pub(super) fn set_sender_name(
+        &mut self,
+        account: String,
+        name: String,
+        sender: relm4::Sender<AppInput>,
+    ) {
+        let answers_prompt = self
+            .host_tasks
+            .sender_name_ask
+            .as_ref()
+            .is_some_and(|ask| ask.account == account);
+        if let Some(app) = &self.app {
+            app.set_account_sender_name(account, name);
+        }
+        if answers_prompt {
             self.ask_next_sender_name(sender);
         }
     }

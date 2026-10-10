@@ -103,6 +103,29 @@ fn another_account_comes_back_to_the_step_it_was_added_from() {
     assert!(state.returning_to.is_none() && state.added.is_empty());
 }
 
+/// A Settings signal reads the step again on every pass; only a step that changed is redrawn, so
+/// an open dropdown is not closed under the person, and a closed flow is linking nothing.
+#[test]
+fn an_unchanged_step_is_not_redrawn_and_a_closed_flow_links_nothing() {
+    use crate::ui::setup_state::SetupState;
+    let mut first = snapshot();
+    first.accounts[0].link_candidates.suggested.clear();
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_links(LinkStep::for_account(&first, "alice@imap").unwrap());
+
+    let drawn = state.generation;
+    state.refresh_links(LinkStep::for_account(&first, "alice@imap").unwrap());
+    assert_eq!(state.generation, drawn, "nothing changed, nothing redrawn");
+
+    state.refresh_links(LinkStep::for_account(&snapshot(), "alice@imap").unwrap());
+    assert_ne!(state.generation, drawn, "a late suggestion is drawn");
+    assert_eq!(state.links.as_ref().unwrap().picked, [Some(1)]);
+
+    state.complete();
+    assert!(state.linking().is_none());
+}
+
 /// The step draws Settings' pickers with the suggestion picked, and says what the person does.
 pub(in crate::ui) fn the_link_step_offers_the_accounts_it_can_use(window: &adw::ApplicationWindow) {
     use adw::prelude::*;

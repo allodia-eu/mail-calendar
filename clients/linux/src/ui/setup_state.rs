@@ -140,7 +140,10 @@ impl SetupState {
         let Some(step) = self.links.take() else {
             return;
         };
-        let redraw = !step.touched;
+        // Every Settings signal reads the step again; redrawing an unchanged one would close a
+        // dropdown the person has open.
+        let redraw =
+            !step.touched && (step.pickers != fresh.pickers || step.picked != fresh.picked);
         self.links = Some(step.refreshed(fresh));
         if redraw {
             self.bump();
@@ -149,7 +152,7 @@ impl SetupState {
 
     /// The account the link step on screen is for.
     pub(super) fn linking(&self) -> Option<&str> {
-        (self.phase == Phase::Links)
+        (self.visible && self.phase == Phase::Links)
             .then_some(self.links.as_ref())
             .flatten()
             .map(|step| step.account.as_str())

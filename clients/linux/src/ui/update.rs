@@ -437,10 +437,7 @@ impl AppModel {
                 suggestion,
             } => self.sender_name_suggested(account, suggestion),
             AppInput::SetAccountSenderName { account, name } => {
-                if let Some(app) = &self.app {
-                    app.set_account_sender_name(account, name);
-                }
-                self.ask_next_sender_name(sender.input_sender().clone());
+                self.set_sender_name(account, name, sender.input_sender().clone());
             }
             AppInput::DismissSenderNamePrompt => {
                 self.ask_next_sender_name(sender.input_sender().clone());
