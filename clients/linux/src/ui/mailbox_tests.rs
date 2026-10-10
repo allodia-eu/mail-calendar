@@ -258,7 +258,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::outbox::tests::
         opening_the_outbox_moves_a_highlight_the_selection_cache_would_have_held();
     crate::ui::outbox::tests::an_emptied_outbox_says_so_rather_than_going_blank();
-    crate::ui::settings::tests::a_closed_settings_window_is_not_on_screen();
+    crate::ui::settings::tests::the_window_is_on_screen_only_while_it_should_be();
     crate::ui::settings::allodia::tests::the_card_names_the_account_by_address_and_offers_a_way_out(
     );
     crate::ui::settings::allodia::tests::a_nameless_account_gets_no_empty_second_line();

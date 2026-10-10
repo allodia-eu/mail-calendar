@@ -29,6 +29,7 @@ mod widgets;
 
 mod diagnostics;
 pub(super) mod general;
+mod give_way;
 mod mcp;
 pub(super) mod notice;
 mod pages;
@@ -38,6 +39,7 @@ mod signature_editor;
 pub(super) mod signatures;
 mod state;
 
+pub(super) use give_way::PaneComposer;
 use state::Redraw;
 pub(super) use state::SettingsState;
 
