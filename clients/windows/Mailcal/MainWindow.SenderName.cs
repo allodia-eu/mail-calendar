@@ -3,6 +3,7 @@
 
 using System.Threading.Tasks;
 using Allodia.Mailcal.Dialogs;
+using Allodia.Mailcal.Services;
 
 namespace Allodia.Mailcal;
 
@@ -24,6 +25,29 @@ public sealed partial class MainWindow
     /// slow, unreachable, or short the scope its settings API needs answers empty, which is the
     /// ordinary IMAP case and means <em>ask</em>.
     /// </remarks>
+    private async Task AskSenderNameThenNextAsync(string account)
+    {
+        try
+        {
+            await AskSenderNameAsync(account);
+        }
+        finally
+        {
+            // The next account the setup added, or what a sign-in withheld.
+            Model.SenderNameAnswered();
+        }
+    }
+
+    /// <summary>Opens the account's page in Settings saying which uses the provider did not
+    /// allow.</summary>
+    private async Task SayWithheldAsync(WithheldUses withheld)
+    {
+        await DialogHelper.WhenIdleAsync();
+        var uses = string.Join(", ", withheld.Uses.Select(SettingsDialog.UseName));
+        await OpenSettingsAsync(
+            "accounts", withheld.AccountId, (L10n.SetupWithheldTitle(), L10n.SetupWithheldDetail(uses)));
+    }
+
     private async Task AskSenderNameAsync(string account)
     {
         Model.SenderNamePrompt = null;

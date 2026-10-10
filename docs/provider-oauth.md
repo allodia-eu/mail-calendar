@@ -641,7 +641,7 @@ single provider's table):
 | OAuth **JMAP** re-authentication in place from the prompt (rule 14: `begin_jmap_reauth` / `complete_jmap_reauth`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Microsoft and Google signed in again in place, from the prompts and the account's Settings page, a withheld use asked for when switched on (rule 11: `begin_account_consent` / `complete_account_consent`) | ✅ | ⬜ | ✅ | ⬜ | ✅ |
 | Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`replace_account_secret`) | ✅ | ⬜ | ✅ | ⬜ | ✅ |
-| The uses chosen before the browser opens, the sign-in asking for those alone, and a use the grant withheld said after it (rule 10) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| The uses chosen before the browser opens, the sign-in asking for those alone, and a use the grant withheld said after it (rule 10) | ✅ | ⬜ | ✅ | ⬜ | ✅ |
 
 Each client fills its Azure **client id** in its `MicrosoftOAuth.{swift,kt,cs}` and registers a
 redirect: **Apple** the custom scheme `msauth.eu.allodia.mailcal://auth` across macOS, iOS,
@@ -741,20 +741,19 @@ the doctrine's "provider sync" language for *account connection* specifically.)
 
 ## Known gaps
 
-- **Only Linux offers the choice.** `begin_microsoft_login` and `begin_google_login` take the
-  capabilities an account is to be used for. Linux's Microsoft and Google cards draw them before
-  the browser opens, from the core's choices (`provider_setup_choices`, which offers no
-  colleagues for a personal address), and pass the choice on; every other client passes none,
-  which asks for everything as before.
-- **A use the grant withholds is closed silently, except on Linux.** An account whose mail was
-  withheld leaves the mail surfaces without saying why. Linux says so once setup has finished and
-  its name prompts are answered, opening the account's page in Settings with the withheld uses
-  named, and that page signs the
-  account in again for one through `begin_account_consent`. The other clients draw no "needs
-  permission" state; Microsoft's calendar is their exception, through rule 11's prompt, and their
-  **Reconnect** and "sign in again" still run `complete_microsoft_login` /
-  `complete_google_login`, which ask for everything and start a visible first download of an
-  account that already has its mail.
+- **Only Linux and Windows offer the choice.** `begin_microsoft_login` and `begin_google_login`
+  take the capabilities an account is to be used for. Their Microsoft and Google cards draw them
+  before the browser opens, from the core's choices (`provider_setup_choices`, which offers no
+  colleagues for a personal address), and pass the choice on; Apple and Android pass none, which
+  asks for everything as before.
+- **A use the grant withholds is closed silently on Apple and Android.** An account whose mail
+  was withheld leaves the mail surfaces without saying why. Linux and Windows say so once setup has
+  finished and its name prompts are answered, opening the account's page in Settings with the
+  withheld uses named, and that page signs the account in again for one through
+  `begin_account_consent`. Apple and Android draw no "needs permission" state; Microsoft's calendar
+  is their exception, through rule 11's prompt, and their **Reconnect** and "sign in again" still
+  run `complete_microsoft_login` / `complete_google_login`, which ask for everything and start a
+  visible first download of an account that already has its mail.
 - **Graph mail: read/sync + mail actions + sending.** The engine's Graph adapter does mail folders
   + messages + message source (bodies render via `/messages/{id}/$value`) + a `receivedDateTime`
   sync-depth window, mail edits (`edit_mail`: mark-read/flag, move/archive, permanent

@@ -79,6 +79,7 @@ public sealed partial class AccountSetupView : UserControl
                 ShowRefusedCertificate();
             }
         };
+        model.SetupLinksChanged += OnSetupLinksChanged;
         // Once now: on a first run nothing raises AddingAccount, so the panel would otherwise
         // never be built.
         RenderOnboarding();
@@ -110,8 +111,8 @@ public sealed partial class AccountSetupView : UserControl
         SetDetecting(true);
         try
         {
-            var recommendation = await Model.DetectAsync(DetectEmail.Text);
-            ApplyRoute(AccountDetectForm.Route(recommendation));
+            var setup = await Model.DetectAsync(DetectEmail.Text);
+            ApplyRoute(AccountDetectForm.Route(setup, DetectEmail.Text));
         }
         finally
         {
@@ -131,6 +132,8 @@ public sealed partial class AccountSetupView : UserControl
     private void ApplyRoute(DetectRoute route)
     {
         _needsApproval = route.NeedsApproval;
+        _detectedTab = route.IsManual ? null : route.Tab;
+        _detectedUses = route.Uses ?? UseOffer.None;
         _imap.AdoptDetected(route.ImapHost, route.ImapSecurity);
         _smtp.AdoptDetected(route.SmtpHost, route.SmtpSecurity);
         ShowServerSettings();
@@ -144,6 +147,7 @@ public sealed partial class AccountSetupView : UserControl
         ShowRefusedCertificate();
         Username.Text = route.Email;
         JmapEmail.Text = route.Email;
+        DavLogin.Text = route.Email;
         // The account-type picker (IMAP/JMAP/Microsoft) is a manual-setup control, not something to
         // put in front of someone the moment detection succeeded, a detected result routes to one
         // provider, so the picker only reads as a confusing choice (mirrors the Android flow, where
@@ -175,6 +179,10 @@ public sealed partial class AccountSetupView : UserControl
                 case DetectTab.Google:
                     GoogleChoice.IsChecked = true;
                     ShowNote(L10n.SetupDetectGoogleHint());
+                    break;
+                case DetectTab.Dav:
+                    DavChoice.IsChecked = true;
+                    ShowNote(null);
                     break;
                 default:
                     ShowServerFields(
@@ -211,6 +219,12 @@ public sealed partial class AccountSetupView : UserControl
         ShowNote(null);
         _needsApproval = false;
         ApprovalPanel.Visibility = Visibility.Collapsed;
+        // The manual form types its servers rather than choosing them, starting from what the
+        // card had found.
+        _detectedTab = null;
+        CaldavUrl.Text = DavCaldavUrl.Text = _detectedUses.CaldavUrl;
+        CarddavUrl.Text = DavCarddavUrl.Text = _detectedUses.CarddavUrl;
+        OnAccountTypeChanged(this, new RoutedEventArgs());
         // This IS the manual path, the one "Set up manually" exists to reach, so the secret and
         // server come back even where a sign-in is on offer.
         _jmapSignIn.CardChanged(detected: false);
@@ -272,6 +286,7 @@ public sealed partial class AccountSetupView : UserControl
         JmapChoice?.IsChecked == true ? DetectTab.Jmap
         : MicrosoftChoice?.IsChecked == true ? DetectTab.Microsoft
         : GoogleChoice?.IsChecked == true ? DetectTab.Google
+        : DavChoice?.IsChecked == true ? DetectTab.Dav
         : DetectTab.Imap;
 
     // What gates Connect depends on the active tab and, for a detected result, the approval: IMAP
@@ -295,8 +310,8 @@ public sealed partial class AccountSetupView : UserControl
             _needsApproval,
             ApprovalCheck.IsChecked == true,
             ImapHost.Text,
-            tab == DetectTab.Jmap ? JmapEmail.Text : Username.Text,
-            Password.Password,
+            tab switch { DetectTab.Jmap => JmapEmail.Text, DetectTab.Dav => DavLogin.Text, _ => Username.Text },
+            tab == DetectTab.Dav ? DavPassword.Password : Password.Password,
             JmapPassword.Password,
             certificateRefused: RefusedCertificate() is not null,
             certificateAccepted: CertificateCheck.IsChecked == true,
@@ -317,8 +332,12 @@ public sealed partial class AccountSetupView : UserControl
         // Switching tabs changes whether a refused certificate can be acted on at all.
         ShowRefusedCertificate();
         var google = GoogleChoice.IsChecked == true;
-        var imap = !jmap && !microsoft && !google;
+        var dav = DavChoice.IsChecked == true;
+        var imap = !jmap && !microsoft && !google && !dav;
         ImapSection.Visibility = imap ? Visibility.Visible : Visibility.Collapsed;
+        DavSection.Visibility = dav ? Visibility.Visible : Visibility.Collapsed;
+        ShowDavSection(detected: _detectedTab == DetectTab.Dav);
+        RefreshUses(ActiveTab());
         JmapSection.Visibility = jmap ? Visibility.Visible : Visibility.Collapsed;
         MicrosoftSection.Visibility = microsoft ? Visibility.Visible : Visibility.Collapsed;
         GoogleSection.Visibility = google ? Visibility.Visible : Visibility.Collapsed;
@@ -336,55 +355,6 @@ public sealed partial class AccountSetupView : UserControl
         {
             ScheduleJmapProbe();
         }
-    }
-
-    private void OnConnect(object sender, RoutedEventArgs e)
-    {
-        if (JmapChoice.IsChecked == true)
-        {
-            Model?.SubmitJmapSetup(JmapEmail.Text, JmapServer.Text, JmapPassword.Password);
-        }
-        else
-        {
-            Model?.SubmitSetup(
-                _imap.Dial(ImapHost.Text),
-                Username.Text,
-                Password.Password,
-                _smtp.Dial(SmtpHost.Text),
-                CaldavUrl.Text,
-                _imap.Security,
-                _smtp.Security,
-                CertificateCheck.IsChecked == true ? RefusedCertificate() : null);
-        }
-    }
-
-    // Pass the address the user typed in the email-first step (empty on a purely manual pick), so
-    // Microsoft targets that account rather than a different one already signed in in the browser.
-    private void OnSignInMicrosoft(object sender, RoutedEventArgs e) =>
-        Model?.SignInWithMicrosoft(DetectEmail.Text);
-
-    // Pass the typed address as the login hint, same as Microsoft. The Early Access checkbox has
-    // already gated this button to enabled, so no extra check is needed here.
-    private void OnSignInGoogle(object sender, RoutedEventArgs e) =>
-        Model?.SignInWithGoogle(DetectEmail.Text);
-
-    // The Early Access checkbox gates the Google sign-in button: the user must confirm they've
-    // signed up (Gmail is allow-listed while Google reviews the app) before we can start the flow.
-    private void OnGoogleEarlyAccessChanged(object sender, RoutedEventArgs e) => UpdateGoogleSignInEnabled();
-
-    // Open the Early Access sign-up page in the default browser.
-    private async void OnOpenGoogleEarlyAccess(object sender, RoutedEventArgs e) =>
-        await Windows.System.Launcher.LaunchUriAsync(new System.Uri(L10n.SetupGoogleEarlyAccessUrl()));
-
-    // The Google sign-in button is enabled only once the Early Access box is checked AND nothing is
-    // already submitting (so it can't fire twice or while a connect is in flight).
-    private void UpdateGoogleSignInEnabled()
-    {
-        if (GoogleButton is null)
-        {
-            return;
-        }
-        GoogleButton.IsEnabled = Model is { IsSubmitting: false } && GoogleEarlyAccessCheck.IsChecked == true;
     }
 
     // Cancel means "abort the browser sign-in" while one is outstanding (it can hang forever), and
@@ -435,7 +405,7 @@ public sealed partial class AccountSetupView : UserControl
         // one pressed on this screen.
         if (Model?.SetupStartOffer is { } offer)
         {
-            ApplyRoute(AccountDetectForm.Route(MailcalBindingsMethods.SetupFromOffer(offer)));
+            ApplyRoute(AccountDetectForm.Route(MailcalBindingsMethods.OfferedSetup(offer), offer.Email));
         }
     }
 
@@ -450,6 +420,13 @@ public sealed partial class AccountSetupView : UserControl
         _smtp.Reset();
         ShowServerFields(string.Empty, string.Empty);
         CaldavUrl.Text = string.Empty;
+        CarddavUrl.Text = string.Empty;
+        DavLogin.Text = string.Empty;
+        DavPassword.Password = string.Empty;
+        DavCaldavUrl.Text = string.Empty;
+        DavCarddavUrl.Text = string.Empty;
+        _detectedTab = null;
+        _detectedUses = UseOffer.None;
         JmapEmail.Text = string.Empty;
         JmapPassword.Password = string.Empty;
         JmapServer.Text = string.Empty;

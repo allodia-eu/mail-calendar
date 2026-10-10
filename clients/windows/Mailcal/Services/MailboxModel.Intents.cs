@@ -174,6 +174,12 @@ public sealed partial class MailboxModel
     /// <summary>Back out of adding an account (the user dismissed the form).</summary>
     public void CancelAddAccount()
     {
+        // Back to the link step "Add another account" left, or the end of a flow that already
+        // added an account, which still asks each of them their name.
+        if (CancelSetupFlow())
+        {
+            return;
+        }
         AddingAccount = false;
         SetupStartEmail = string.Empty;
         SetupStartOffer = null;

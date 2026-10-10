@@ -77,6 +77,14 @@ impl<P: Provider> App<P> {
     /// ⚠️ Talks to the provider, like [`App::suggested_sender_name`], and is asked once, by
     /// the flow that adds an account.
     pub async fn needs_sender_name(&self, account: &AccountId) -> bool {
+        // An account without mail sends nothing, so it has no name to send under.
+        if self
+            .account_handle(account)
+            .await
+            .is_some_and(|handle| !handle.uses_mail)
+        {
+            return false;
+        }
         if self.sender_name(account.as_str()).is_some() {
             return false;
         }

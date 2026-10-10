@@ -49,6 +49,46 @@ public class AccountDetectFormTests
     }
 
     [Fact]
+    public void A_domain_with_a_calendar_and_no_mail_server_routes_to_the_calendar_and_contacts_card()
+    {
+        var setup = new DetectedSetup(
+            new SetupRecommendation.Manual(MissReason.NothingFound),
+            CalendarAndContacts: true,
+            CaldavUrl: "https://dav.example.com/caldav",
+            CarddavUrl: null,
+            Choices: [new SetupChoice(AccountCapability.Calendar, true, true)]);
+        var route = AccountDetectForm.Route(setup, " alice@example.com ");
+        Assert.False(route.IsManual);
+        Assert.Equal(DetectTab.Dav, route.Tab);
+        // The address typed is the login, as on Linux's card.
+        Assert.Equal("alice@example.com", route.Email);
+        Assert.Equal("https://dav.example.com/caldav", route.Uses?.CaldavUrl);
+        Assert.Single(route.Uses!.Choices);
+    }
+
+    [Fact]
+    public void A_detected_route_carries_the_choices_its_card_offers()
+    {
+        var setup = new DetectedSetup(
+            Imap(trusted: true), false, "https://dav.example.com", "https://book.example.com",
+            [new SetupChoice(AccountCapability.Mail, true, true), new SetupChoice(AccountCapability.Contacts, true, true)]);
+        var route = AccountDetectForm.Route(setup, "alice@example.com");
+        Assert.Equal(DetectTab.Imap, route.Tab);
+        Assert.Equal("imap.example.com", route.ImapHost);
+        Assert.Equal(2, route.Uses?.Choices.Count);
+        Assert.Equal("https://book.example.com", route.Uses?.CarddavUrl);
+    }
+
+    [Fact]
+    public void Calendar_and_contacts_connect_needs_a_login_and_password()
+    {
+        Assert.False(AccountDetectForm.CanConnect(DetectTab.Dav, false, false, "", "", "pw", ""));
+        Assert.False(AccountDetectForm.CanConnect(DetectTab.Dav, false, false, "", "alice", "", ""));
+        // No mail server is needed: the account has no mailbox.
+        Assert.True(AccountDetectForm.CanConnect(DetectTab.Dav, false, false, "", "alice", "pw", ""));
+    }
+
+    [Fact]
     public void An_untrusted_result_needs_approval()
     {
         Assert.True(AccountDetectForm.Route(Imap(trusted: false)).NeedsApproval);
@@ -135,11 +175,13 @@ public class AccountDetectFormTests
     }
 
     [Fact]
-    public void Only_the_imap_route_offers_to_accept_a_certificate()
+    public void Only_a_standards_route_offers_to_accept_a_certificate()
     {
         // A JMAP account's stored config carries no exception, so a refusal there is reported and
-        // not offered (docs/certificate-exceptions.md, Known gaps).
+        // not offered (docs/certificate-exceptions.md, Known gaps). A calendar-and-contacts
+        // account's does: its server is as likely to be self-signed as a mailbox's.
         Assert.True(AccountDetectForm.OffersCertificateException(DetectTab.Imap));
+        Assert.True(AccountDetectForm.OffersCertificateException(DetectTab.Dav));
         Assert.False(AccountDetectForm.OffersCertificateException(DetectTab.Jmap));
         Assert.False(AccountDetectForm.OffersCertificateException(DetectTab.Microsoft));
         Assert.False(AccountDetectForm.OffersCertificateException(DetectTab.Google));

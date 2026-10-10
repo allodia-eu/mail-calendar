@@ -298,16 +298,15 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | IMAP/SMTP SRV (`_imaps`/`_submissions`, RFC 6186/8314) | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | DNSSEC AD bit read (reserved for a future "require DNSSEC" opt-in) | ✅ | n/a | n/a | ✅ | n/a |
 | CalDAV follow-on discovery (RFC 6764) | ✅ | ✅ | 🚧 | ✅ | ✅ |
-| CardDAV, DAV SRV, DAV beside JMAP, the calendar-and-contacts result (rule 8) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
-| The found card's choices, decided in the core (rule 8) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| CardDAV, DAV SRV, DAV beside JMAP, the calendar-and-contacts result (rule 8) | ✅ | ⬜ | ✅ | ⬜ | ✅ |
+| The found card's choices, decided in the core (rule 8) | ✅ | ⬜ | ✅ | ⬜ | ✅ |
 | JMAP OAuth metadata chain (RFC 9728 → 8414 → 7591), offered only when advertised | ✅ | ✅ | 🚧 | ✅ | ✅ |
-| `<oAuth2><issuer>` read from the provider's own trusted autoconfig, carried to setup | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| `<oAuth2><issuer>` read from the provider's own trusted autoconfig, carried to setup | ✅ | ⬜ | ✅ | ⬜ | ✅ |
 
 The **CalDAV follow-on** offers the discovered calendar as an ✉ Email / 📅 Calendar sectioned
-card on macOS/iOS/Android/Linux (a pre-checked opt-out toggle when found, an opt-in manual field
-otherwise, hidden until the offer is accepted, so an empty box never reads as a calendar we
-failed to fill in); Windows reveals the full prefilled form, so it prefills the existing calendar
-field with the discovered endpoint (clear it to skip), verified by the routing tests. The
+card on every client (a pre-checked opt-out toggle when found, an opt-in manual field otherwise,
+hidden until the offer is accepted, so an empty box never reads as a calendar we failed to fill
+in); on Linux and Windows the card is the core's choices, contacts included (rule 8). The
 Windows prefilled form itself is now UIA-verified on a Windows host (a live IMAP detection
 routed `someone@gmail.com` to the form with its host fields filled); the discovered-CalDAV
 prefill specifically is still owed.
@@ -423,13 +422,13 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   stranding the user. The **manual** pane keeps its secret field throughout: it is already on
   screen, so a negative answer changes nothing there and must not rebuild over a secret being
   typed.
-- **Only Linux offers what rule 8 adds.** Apple, Windows and Android still call
+- **Only Linux and Windows offer what rule 8 adds.** Apple and Android still call
   `detect_account_settings`, which hands them only the CalDAV endpoint on the IMAP route and a
   domain with DAV alone as "nothing found". `detect_account_setup` carries the rest (both
   endpoints on every route, the calendar-and-contacts route, the choices), and an offer from the
   person's other devices has its own (`offered_setup`); each client moves to them when its setup
-  offers the choices. On Linux they reach every route's card but JMAP's, whose session says
-  what it offers only after the sign-in.
+  offers the choices. On Linux and Windows they reach every route's card but JMAP's, whose
+  session says what it offers only after the sign-in.
 - **TXT `path` records are not read** (RFC 6764 §4). The host resolver has no TXT lookup, so a
   DAV server whose context path is published only in TXT, and not under `.well-known` on the
   SRV target, is not found, and the user adds it manually.

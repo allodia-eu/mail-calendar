@@ -30,7 +30,7 @@ public sealed partial class MailboxModel
     /// are already disabled while submitting, so the removed guard cost no double-fire protection
     /// there, its only remaining effect was to make the reconnect banner's button dead.
     /// </remarks>
-    public void SignInWithGoogle(string? loginHint = null)
+    internal void SignInWithGoogle(string? loginHint = null, AccountCapability[]? uses = null)
     {
         if (_connecting)
         {
@@ -41,7 +41,7 @@ public sealed partial class MailboxModel
             SetupError = L10n.AppUnavailable();
             return;
         }
-        _ = _signIn.RunAsync(cancel => SignInWithGoogleAsync(loginHint, cancel));
+        _ = _signIn.RunAsync(cancel => SignInWithGoogleAsync(loginHint, uses, cancel));
     }
 
     /// <summary>
@@ -50,7 +50,8 @@ public sealed partial class MailboxModel
     /// </summary>
     public void CancelGoogleSignIn() => _signIn.Cancel();
 
-    private async Task SignInWithGoogleAsync(string? loginHint, CancellationToken cancelToken)
+    private async Task SignInWithGoogleAsync(
+        string? loginHint, AccountCapability[]? uses, CancellationToken cancelToken)
     {
         // IsSigningIn drives the (enabled) Cancel; IsSubmitting keeps the setup form's own buttons
         // from firing twice (they bind to it) while the browser step is outstanding.
@@ -67,18 +68,16 @@ public sealed partial class MailboxModel
                 // The address the user is connecting (from autodetection), so Google targets that
                 // account instead of another already signed in in the browser; null/blank ⇒ the picker.
                 string.IsNullOrWhiteSpace(loginHint) ? null : loginHint,
-                // No capability choice yet: ask for everything.
-                null);
+                // Asked only for what the account is to be used for (docs/accounts.md rule 10);
+                // null, from a route that offered no choice, asks for everything.
+                uses);
             // Open the default browser (where the user is usually already signed in to Google).
             await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
             var callbackUrl = await WaitForGoogleCallbackAsync(loopback, cancelToken);
             // The code exchange + folder connect block, so run them off the UI thread.
             var row = await Task.Run(() => _app!.CompleteGoogleLogin(start.Pending, callbackUrl));
-            SetupError = null;
-            NeedsSetup = false;
-            AddingAccount = false;
             Log.Info($"google account added: {row.Email}");
-            SenderNamePrompt = row.Id;
+            AccountAdded(row.Id);
             // This route never touches AddAccountAsync, so the pass is owed here: without it the
             // account stays on this device until the next launch, and its card in Settings draws
             // no sharing control at all (docs/settings.md, category 9).

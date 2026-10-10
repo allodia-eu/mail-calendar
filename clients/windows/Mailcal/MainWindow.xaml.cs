@@ -114,7 +114,15 @@ public sealed partial class MainWindow : Window
             if (e.PropertyName is nameof(MailboxModel.SenderNamePrompt)
                 && Model.SenderNamePrompt is { } account)
             {
-                _ = AskSenderNameAsync(account);
+                _ = AskSenderNameThenNextAsync(account);
+            }
+            // A sign-in withheld a use the person chose: said on that account's page, where
+            // switching it on asks for it again (docs/accounts.md rule 10).
+            if (e.PropertyName is nameof(MailboxModel.WithheldNotice)
+                && Model.WithheldNotice is { } withheld)
+            {
+                Model.WithheldNotice = null;
+                _ = SayWithheldAsync(withheld);
             }
         };
         SyncNavItems();
