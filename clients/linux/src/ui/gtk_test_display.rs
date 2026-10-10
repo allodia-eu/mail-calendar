@@ -27,7 +27,8 @@ pub(crate) fn init() {
 /// announced `text-input-v3`, and until that announcement neither focus-out nor finalize clears
 /// it. A test focuses a field and drops its window without running the main loop in between, so
 /// the context is freed while still current, and the compositor's `enter` that follows reaches
-/// it. A headless compositor runs no input method and never sends `enter`.
+/// it. A headless compositor runs no input method and never sends `enter`. Reported upstream as
+/// <https://gitlab.gnome.org/GNOME/gtk/-/work_items/8458>.
 ///
 /// The setting is read when a text widget picks its input method, so it has to be in place before
 /// the first one exists. `GTK_IM_MODULE` in the environment outranks it.
