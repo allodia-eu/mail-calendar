@@ -144,6 +144,7 @@ function Get-HarnessPrefsFile {
     'stalwart' { 'dev' }
     'stalwart-multi' { 'dev-multi' }
     'stalwart-imap' { 'dev-imap' }
+    'stalwart-linked' { 'dev-linked' }
     default { throw "no harness store is known for MAILCAL_DEV_ACCOUNT=$account" }
   }
   Join-Path $env:LOCALAPPDATA "Allodia\MailCalendar\$subdir\preferences.toml"

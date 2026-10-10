@@ -639,8 +639,8 @@ single provider's table):
 | Prompt routes to the right sign-in via `MailcalApp::account_provider` (Settings where there is no browser flow) | ✅ | ✅ | ✅ Google · OAuth JMAP · Microsoft untested | ✅ | ✅ Microsoft · Google · OAuth JMAP runtime-verified; stored-secret repair code-complete |
 | A second sign-in request supersedes one abandoned in the browser (rule 13) | — | ✅ never guarded | ✅ `SignInFlight` | ✅ never guarded | ✅ `AttemptSlot` |
 | OAuth **JMAP** re-authentication in place from the prompt (rule 14: `begin_jmap_reauth` / `complete_jmap_reauth`) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Microsoft and Google signed in again in place, from the prompts and the account's Settings page, a withheld use asked for when switched on (rule 11: `begin_account_consent` / `complete_account_consent`) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
-| Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`replace_account_secret`) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Microsoft and Google signed in again in place, from the prompts and the account's Settings page, a withheld use asked for when switched on (rule 11: `begin_account_consent` / `complete_account_consent`) | ✅ | ⬜ | ✅ | ⬜ | ✅ |
+| Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`replace_account_secret`) | ✅ | ⬜ | ✅ | ⬜ | ✅ |
 | The uses chosen before the browser opens, the sign-in asking for those alone, and a use the grant withheld said after it (rule 10) | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
 
 Each client fills its Azure **client id** in its `MicrosoftOAuth.{swift,kt,cs}` and registers a

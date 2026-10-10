@@ -374,17 +374,10 @@ public sealed partial class MailListView : UserControl
     // dispatch the actions bar's Sync makes.
     private void OnRefresh(object sender, RoutedEventArgs e) => Model?.Refresh();
 
-    // Re-authenticate the first Microsoft account whose mail write/send is withheld for lack of the
-    // Mail.ReadWrite / Mail.Send scopes: re-runs its sign-in (login_hint = its address), re-granting
-    // the full scope set. The banner clears once a send/action succeeds; if several are affected it
-    // re-renders for the next after each completes.
-    private void OnMailReauth(object sender, RoutedEventArgs e)
-    {
-        if (Model?.MailReauthEmail is { } email)
-        {
-            Model.SignInWithMicrosoft(email);
-        }
-    }
+    // Signs the first account whose mail writes the grant withholds in again, in place. The banner
+    // clears once a send or action succeeds; if several are affected it re-renders for the next
+    // after each completes.
+    private void OnMailReauth(object sender, RoutedEventArgs e) => Model?.ReconsentMail();
 
     /// <summary>
     /// The horizon line's "Change" link: opens Settings on the Accounts category, where the

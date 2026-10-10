@@ -11,8 +11,9 @@ namespace Allodia.Mailcal.Services;
 #if DEBUG
 public sealed partial class MailboxModel
 {
-    /// <summary>The accounts a dev launch injects, and the store subdirectory they live in.</summary>
-    private sealed record DevAccount(string[] Configs, string StoreSubdir);
+    /// <summary>The accounts a dev launch injects, the store subdirectory they live in, and
+    /// whether what earlier sessions stored in that namespace is connected beside them.</summary>
+    private sealed record DevAccount(string[] Configs, string StoreSubdir, bool ReadsStored = true);
 
     /// <summary>
     /// Resolves the accounts to connect at startup and the engine-store subdir they use. For a
@@ -41,7 +42,7 @@ public sealed partial class MailboxModel
         // account. Re-adding the canned account itself through the form is the one case that would
         // duplicate it, a non-issue for a throwaway harness store, and cleared by wiping the dev
         // namespace.
-        string[] configs = [.. dev.Configs, .. CredentialStore.Configs()];
+        string[] configs = dev.ReadsStored ? [.. dev.Configs, .. CredentialStore.Configs()] : dev.Configs;
         return (configs, dev.StoreSubdir);
     }
 
@@ -90,6 +91,40 @@ public sealed partial class MailboxModel
         username = "alice@test.local"
         password = "harness-alice-pw"
         """;
+
+    /// <summary>
+    /// <c>stalwart-linked</c>: alice's mailbox used for mail alone, and alice's and bob's calendar
+    /// and contacts as accounts without a mailbox, the same three Linux boots for that mode.
+    /// </summary>
+    private static readonly string[] StalwartDevLinkedTomls =
+    [
+        """
+        capabilities = ["mail"]
+
+        [imap]
+        addr = "127.0.0.1:12993"
+        server_name = "localhost"
+        username = "alice@test.local"
+        password = "harness-alice-pw"
+
+        [smtp]
+        addr = "127.0.0.1:12587"
+        server_name = "localhost"
+        security = "starttls"
+        """,
+        """
+        [caldav]
+        base_url = "http://127.0.0.1:28080"
+        username = "alice@test.local"
+        password = "harness-alice-pw"
+        """,
+        """
+        [caldav]
+        base_url = "http://127.0.0.1:28080"
+        username = "bob@test.local"
+        password = "harness-bob-pw"
+        """,
+    ];
 
     /// <summary>
     /// One harness JMAP account config, built through the shared config builder, the same FFI the
@@ -157,6 +192,16 @@ public sealed partial class MailboxModel
             case "stalwart-imap":
                 Log.Info("MAILCAL_DEV_ACCOUNT=stalwart-imap, connecting the local harness over IMAP (mail actions + IDLE)");
                 return new DevAccount([StalwartDevImapToml], AppPaths.DevStoreSubdir(raw)!);
+            case "stalwart-linked":
+                // Alice's mailbox for mail alone, beside alice's and bob's calendar and contacts as
+                // accounts of their own: what linking accounts is verified against
+                // (docs/accounts.md rule 12). Alice's calendar server schedules as her address, so
+                // it is suggested for her mailbox; bob's is offered and not suggested. The stored
+                // namespace is not read, as on Linux: a link or a use changed here is stored under
+                // a canned account's own id, and reading it back beside the canned copy would
+                // connect that account twice. Every launch starts with nothing linked.
+                Log.Info("MAILCAL_DEV_ACCOUNT=stalwart-linked, connecting alice's mailbox beside alice's and bob's calendar and contacts");
+                return new DevAccount(StalwartDevLinkedTomls, AppPaths.DevStoreSubdir(raw)!, ReadsStored: false);
             case "first-run":
                 // Injects nothing. The namespace starts empty, so the app opens on the screens a
                 // person sees once; anything added through the form persists there and is wiped
@@ -167,7 +212,7 @@ public sealed partial class MailboxModel
                 // A recognised-elsewhere dev mode this client doesn't support (e.g. demo). Fall back
                 // to the stored accounts, but say so loudly rather than silently connecting the
                 // developer's real accounts as if the switch were ignored.
-                Log.Warn($"MAILCAL_DEV_ACCOUNT='{raw}' is not supported on Windows; using stored accounts. Use 'stalwart' (JMAP), 'stalwart-multi' (two JMAP accounts), 'stalwart-imap' (IMAP) or 'first-run' (an empty namespace) here.");
+                Log.Warn($"MAILCAL_DEV_ACCOUNT='{raw}' is not supported on Windows; using stored accounts. Use 'stalwart' (JMAP), 'stalwart-multi' (two JMAP accounts), 'stalwart-imap' (IMAP), 'stalwart-linked' (a mailbox beside two calendar and contacts accounts) or 'first-run' (an empty namespace) here.");
                 return null;
         }
     }
