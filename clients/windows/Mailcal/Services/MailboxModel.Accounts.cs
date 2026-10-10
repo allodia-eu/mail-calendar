@@ -77,7 +77,9 @@ public sealed partial class MailboxModel
         string caldavUrl,
         ConnectionSecurity imapSecurity = ConnectionSecurity.ImplicitTls,
         ConnectionSecurity smtpSecurity = ConnectionSecurity.ImplicitTls,
-        RejectedCertificate? acceptedCertificate = null)
+        RejectedCertificate? acceptedCertificate = null,
+        string carddavUrl = "",
+        AccountCapability[]? uses = null)
     {
         // Ignore a second submit while a connect/add is already in flight (e.g. a double-click),
         // so we never build two engines or add one account twice.
@@ -105,7 +107,10 @@ public sealed partial class MailboxModel
             SmtpSecurity: smtpSecurity,
             // Set only on a re-submit somebody asked for after being shown the certificate; it is
             // stored with the account, so no later connect asks again.
-            AcceptedCertificate: acceptedCertificate);
+            AcceptedCertificate: acceptedCertificate,
+            CarddavBaseUrl: string.IsNullOrWhiteSpace(carddavUrl) ? null : carddavUrl,
+            // What the person chose on the found card; null leaves it to the servers given.
+            Uses: uses);
         // The app is built (account-less) before the form is shown, so this normally holds. It
         // fails only if the engine itself couldn't open at launch, surface that rather than
         // letting the Connect button silently do nothing.
@@ -183,7 +188,7 @@ public sealed partial class MailboxModel
     /// <see cref="SignInWithGoogle"/>: a request arriving while one is outstanding supersedes it,
     /// because a sign-in abandoned in the browser cannot be told apart from one still in progress.
     /// </remarks>
-    public void SignInWithMicrosoft(string? loginHint = null)
+    internal void SignInWithMicrosoft(string? loginHint = null, AccountCapability[]? uses = null)
     {
         if (_connecting)
         {
@@ -194,7 +199,7 @@ public sealed partial class MailboxModel
             SetupError = L10n.AppUnavailable();
             return;
         }
-        _ = _signIn.RunAsync(cancel => SignInWithMicrosoftAsync(loginHint, cancel));
+        _ = _signIn.RunAsync(cancel => SignInWithMicrosoftAsync(loginHint, uses, cancel));
     }
 
     /// <summary>
@@ -203,7 +208,8 @@ public sealed partial class MailboxModel
     /// </summary>
     public void CancelMicrosoftSignIn() => _signIn.Cancel();
 
-    private async Task SignInWithMicrosoftAsync(string? loginHint, CancellationToken cancelToken)
+    private async Task SignInWithMicrosoftAsync(
+        string? loginHint, AccountCapability[]? uses, CancellationToken cancelToken)
     {
         // IsSigningIn drives the (enabled) Cancel; IsSubmitting keeps the setup form's own buttons
         // from firing twice (they bind to it) while the browser step is outstanding.
@@ -221,18 +227,16 @@ public sealed partial class MailboxModel
                 // The address the user is connecting (from autodetection), so Microsoft targets that
                 // account instead of offering a different signed-in one; null/blank ⇒ the picker.
                 string.IsNullOrWhiteSpace(loginHint) ? null : loginHint,
-                // No capability choice yet: ask for everything.
-                null);
+                // Asked only for what the account is to be used for (docs/accounts.md rule 10);
+                // null, from a route that offered no choice, asks for everything.
+                uses);
             // Open the default browser (Edge, where the user is usually already signed in).
             await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
             var callbackUrl = await callback.WaitAsync(cancelToken);
             // The token exchange + folder connect block, so run them off the UI thread.
             var row = await Task.Run(() => _app!.CompleteMicrosoftLogin(start.Pending, callbackUrl));
-            SetupError = null;
-            NeedsSetup = false;
-            AddingAccount = false;
             Log.Info($"microsoft account added: {row.Email}");
-            SenderNamePrompt = row.Id;
+            AccountAdded(row.Id);
             // This route never touches AddAccountAsync, so the pass is owed here: without it the
             // account stays on this device until the next launch, and its card in Settings draws
             // no sharing control at all (docs/settings.md, category 9).
@@ -384,12 +388,9 @@ public sealed partial class MailboxModel
                 {
                     Log.Warn($"calendar (CalDAV) failed to connect: {calendarError}");
                 }
-                SetupError = null;
-                NeedsSetup = false;
-                AddingAccount = false;
                 Log.Info($"account added: {row.Email}");
-                // Ask what to call the sender of this account's mail (docs/sending.md).
-                SenderNamePrompt = row.Id;
+                // The link step, or the end of setup and the name it sends under (docs/sending.md).
+                AccountAdded(row.Id);
                 // The core synced the new account and refreshed the snapshot (the observer
                 // reloads the sidebar + unified inbox); nudge a mail sync too.
                 _app.Dispatch(new Intent.RefreshMail());

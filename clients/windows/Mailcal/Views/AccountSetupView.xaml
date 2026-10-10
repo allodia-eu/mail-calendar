@@ -59,23 +59,35 @@
                 <!-- Account type: IMAP/password vs. JMAP (a password or API token, plus a browser
                      sign-in where the server offers one) vs. Microsoft 365 vs. Google (Gmail +
                      Google Calendar). -->
-                <StackPanel x:Name="AccountTypeRow" Orientation="Horizontal" Spacing="16">
-                    <RadioButton x:Name="ImapChoice" GroupName="AccountType" IsChecked="True"
-                                 Content="{x:Bind l10n:L10n.SetupAccountTypePassword()}" Checked="OnAccountTypeChanged" />
-                    <RadioButton x:Name="JmapChoice" GroupName="AccountType"
-                                 Content="{x:Bind l10n:L10n.SetupAccountTypeJmap()}" Checked="OnAccountTypeChanged" />
-                    <RadioButton x:Name="MicrosoftChoice" GroupName="AccountType"
-                                 Content="{x:Bind l10n:L10n.SetupAccountTypeMicrosoft()}" Checked="OnAccountTypeChanged" />
-                    <RadioButton x:Name="GoogleChoice" GroupName="AccountType"
-                                 Content="{x:Bind l10n:L10n.SetupAccountTypeGoogle()}" Checked="OnAccountTypeChanged" />
+                <StackPanel x:Name="AccountTypeRow" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <RadioButton x:Name="ImapChoice" GroupName="AccountType" IsChecked="True"
+                                     Content="{x:Bind l10n:L10n.SetupAccountTypePassword()}" Checked="OnAccountTypeChanged" />
+                        <RadioButton x:Name="JmapChoice" GroupName="AccountType"
+                                     Content="{x:Bind l10n:L10n.SetupAccountTypeJmap()}" Checked="OnAccountTypeChanged" />
+                        <RadioButton x:Name="MicrosoftChoice" GroupName="AccountType"
+                                     Content="{x:Bind l10n:L10n.SetupAccountTypeMicrosoft()}" Checked="OnAccountTypeChanged" />
+                        <RadioButton x:Name="GoogleChoice" GroupName="AccountType"
+                                     Content="{x:Bind l10n:L10n.SetupAccountTypeGoogle()}" Checked="OnAccountTypeChanged" />
+                    </StackPanel>
+                    <!-- A server that holds a calendar and contacts but no mail. On a line of its
+                         own: its name is the longest, and the row above is already full. -->
+                    <RadioButton x:Name="DavChoice" GroupName="AccountType"
+                                 Content="{x:Bind l10n:L10n.SetupAccountTypeDav()}" Checked="OnAccountTypeChanged" />
                 </StackPanel>
+
+                <!-- What the account is used for: mail, calendar and contacts, as the core offered
+                     them for this route and how each starts (docs/account-autodetect.md rule 8).
+                     Built in code (AccountSetupView.Uses.cs), and collapsed where the route offers
+                     no choice. -->
+                <StackPanel x:Name="UsesPanel" Spacing="8" Visibility="Collapsed" />
 
                 <!-- IMAP / password account fields. -->
                 <StackPanel x:Name="ImapSection" Spacing="12">
                     <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount()}" Style="{StaticResource BodyStrongTextBlockStyle}" />
                     <!-- Server, port and security on one row: the port is the field a user must be
                          able to see and change, not a colon inside the server name. -->
-                    <Grid ColumnSpacing="12">
+                    <Grid x:Name="ImapServerRow" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -158,8 +170,8 @@
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
 
-                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAdvanced()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
-                    <Grid ColumnSpacing="12">
+                    <TextBlock x:Name="AdvancedHeading" Text="{x:Bind l10n:L10n.SetupSectionAdvanced()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+                    <Grid x:Name="SmtpServerRow" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -176,8 +188,12 @@
                         </ComboBox>
                     </Grid>
                     <TextBox x:Name="CaldavUrl" Header="{x:Bind l10n:L10n.SetupFieldCaldav()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCaldav()}" />
+                    <!-- An address book that is not on the calendar's server, or one without a
+                         calendar. Contacts are otherwise looked for at the calendar's server. -->
+                    <TextBox x:Name="CarddavUrl" Header="{x:Bind l10n:L10n.SetupFieldCarddavOptional()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCarddav()}" />
 
                     <TextBlock
+                        x:Name="PortNote"
                         Text="{x:Bind l10n:L10n.SetupPortNote()}"
                         Style="{StaticResource CaptionTextBlockStyle}"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -246,10 +262,31 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Microsoft 365 branch: a note; the sign-in button lives in the shared footer. -->
+                <!-- A calendar and address book server holding no mail: the login, the password,
+                     and on the manual form the servers. On the found card the servers come from
+                     detection, and the uses panel above says which are wanted. -->
+                <StackPanel x:Name="DavSection" Spacing="12" Visibility="Collapsed">
+                    <TextBlock x:Name="DavNote"
+                               Style="{StaticResource BodyTextBlockStyle}"
+                               TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBox x:Name="DavLogin" Header="{x:Bind l10n:L10n.SetupFieldUsername()}" TextChanged="OnDavFieldChanged" />
+                    <PasswordBox x:Name="DavPassword" Header="{x:Bind l10n:L10n.SetupFieldPassword()}" PasswordChanged="OnPasswordChanged" />
+                    <TextBlock
+                        Text="{x:Bind l10n:L10n.SetupCredentialsNote()}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBox x:Name="DavCaldavUrl" Header="{x:Bind l10n:L10n.SetupFieldCaldavOptional()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCaldav()}" />
+                    <TextBox x:Name="DavCarddavUrl" Header="{x:Bind l10n:L10n.SetupFieldCarddavOptional()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCarddav()}" />
+                </StackPanel>
+
+                <!-- Microsoft 365 branch: a note; the sign-in button lives in the shared footer.
+                     What the account is used for is chosen in the uses panel above, and the note
+                     says Microsoft is asked for that alone. -->
                 <StackPanel x:Name="MicrosoftSection" Spacing="12" Visibility="Collapsed">
                     <TextBlock
-                        Text="{x:Bind l10n:L10n.SetupMicrosoftNote()}"
+                        Text="{x:Bind l10n:L10n.SetupMicrosoftChoiceNote()}"
                         Style="{StaticResource BodyTextBlockStyle}"
                         TextWrapping="Wrap"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -365,6 +402,10 @@
                 <HyperlinkButton x:Name="SetupManualButton" Content="{x:Bind l10n:L10n.SetupDetectManual()}"
                                  HorizontalAlignment="Center" Visibility="Collapsed" Click="OnSetUpManuallyFromFound" />
             </StackPanel>
+
+            <!-- The last step, after a connect: linking the new account to another
+                 (docs/onboarding.md). Built in code (AccountSetupView.Links.cs). -->
+            <StackPanel x:Name="LinksPanel" Spacing="12" Visibility="Collapsed" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

@@ -38,7 +38,9 @@ public sealed partial class AccountSetupView
             return false;
         }
         Model.CancelAddAccount();
-        return true;
+        // Cancelling an "Add another account" goes back to the link step it left, which is still
+        // this dialog's to show.
+        return Model.SetupLinks is null;
     }
 
     // Only one browser sign-in runs at a time; cancelling the others is a safe no-op.
@@ -67,6 +69,7 @@ public sealed partial class AccountSetupView
         ApprovalPanel.Visibility = Visibility.Collapsed;
         DetectNote.Visibility = Visibility.Collapsed;
         SetupPanel.Visibility = Visibility.Collapsed;
+        LinksPanel.Visibility = Visibility.Collapsed;
         DetectPanel.Visibility = Visibility.Visible;
         ContinueButton.IsEnabled = !string.IsNullOrWhiteSpace(DetectEmail.Text);
     }
