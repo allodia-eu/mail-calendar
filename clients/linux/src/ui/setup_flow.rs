@@ -87,7 +87,11 @@ impl AppModel {
         let Some(beside) = self.setup.add_beside() else {
             return;
         };
-        if let Some(setup) = mailcal_bindings::dav_setup_beside(
+        let Some(app) = self.app.as_ref() else {
+            return;
+        };
+        if let Some(setup) = app.dav_setup_beside(
+            beside.account,
             beside.email.clone(),
             beside.caldav_url,
             beside.carddav_url,

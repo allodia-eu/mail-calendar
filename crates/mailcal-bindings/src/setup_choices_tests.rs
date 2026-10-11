@@ -120,25 +120,3 @@ fn setup_offers_links_for_a_standards_or_jmap_account_only() {
         assert!(!super::offers_setup_links(kind), "{kind:?}");
     }
 }
-
-#[test]
-fn the_servers_beside_a_jmap_server_are_a_calendar_and_contacts_setup() {
-    let setup = super::dav_setup_beside(
-        "alice@example.org".to_owned(),
-        Some(CALDAV.to_owned()),
-        None,
-    )
-    .expect("a calendar server was found");
-    assert!(setup.calendar_and_contacts);
-    assert_eq!(setup.caldav_url.as_deref(), Some(CALDAV));
-    let offered: Vec<AccountCapability> = setup
-        .choices
-        .iter()
-        .map(|choice| choice.capability)
-        .collect();
-    assert_eq!(
-        offered,
-        [AccountCapability::Calendar, AccountCapability::Contacts]
-    );
-    assert!(super::dav_setup_beside("alice@example.org".to_owned(), None, None).is_none());
-}

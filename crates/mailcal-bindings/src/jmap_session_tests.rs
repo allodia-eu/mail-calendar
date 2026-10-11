@@ -182,3 +182,58 @@ fn setup_offers_what_the_session_offers_once_signed_in() {
         "a standards account chose before it connected"
     );
 }
+
+const CALDAV: &str = "https://dav.example.org/.well-known/caldav";
+const CARDDAV: &str = "https://dav.example.org/.well-known/carddav";
+
+fn offered(setup: &crate::DetectedSetup) -> Vec<AccountCapability> {
+    setup
+        .choices
+        .iter()
+        .map(|choice| choice.capability)
+        .collect()
+}
+
+/// The setup beside a JMAP account fills what its session lacks and nothing else: a second copy
+/// of contacts the session already syncs would be a duplicate, not a link.
+#[test]
+fn the_setup_beside_offers_only_what_the_session_lacks() {
+    let app = app("jmap-setup-beside", &[JMAP]);
+    let beside = |id: &str, carddav: Option<&str>| {
+        app.dav_setup_beside(
+            id.to_owned(),
+            "alice@example.org".to_owned(),
+            Some(CALDAV.to_owned()),
+            carddav.map(str::to_owned),
+        )
+    };
+
+    let id = session(&app, Offered::none().with_mail().with_contacts());
+    let setup = beside(&id, Some(CARDDAV)).expect("the calendar is missing");
+    assert_eq!(offered(&setup), [AccountCapability::Calendar]);
+    assert_eq!(setup.caldav_url.as_deref(), Some(CALDAV));
+    assert_eq!(setup.carddav_url, None, "the session's own contacts stay");
+
+    session(&app, Offered::none().with_mail().with_calendars());
+    let setup = beside(&id, None).expect("contacts are missing");
+    assert_eq!(offered(&setup), [AccountCapability::Contacts]);
+    assert_eq!(
+        setup.caldav_url.as_deref(),
+        Some(CALDAV),
+        "with no address-book server found, contacts are looked for at the calendar's"
+    );
+
+    session(&app, Offered::none().with_mail());
+    let setup = beside(&id, Some(CARDDAV)).expect("both are missing");
+    assert_eq!(
+        offered(&setup),
+        [AccountCapability::Calendar, AccountCapability::Contacts]
+    );
+
+    session(
+        &app,
+        Offered::none().with_mail().with_calendars().with_contacts(),
+    );
+    assert!(beside(&id, Some(CARDDAV)).is_none(), "nothing is missing");
+    assert!(beside("not-an-account", Some(CARDDAV)).is_none());
+}

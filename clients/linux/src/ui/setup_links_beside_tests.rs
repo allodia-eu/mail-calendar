@@ -7,7 +7,7 @@ use mailcal_bindings::{
     CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
 };
 
-use super::{Beside, LinkStep};
+use super::{Beside, Fills, LinkStep};
 use crate::ui::setup_state::{Phase, SetupState};
 
 const JMAP: &str = "alice@jmap:example.org";
@@ -57,7 +57,7 @@ fn a_server_without_a_calendar_is_offered_the_step_and_the_server_beside_it() {
     let step = LinkStep::for_account(&lacking, JMAP, None).expect("offered with nothing to pick");
     assert!(step.pickers.is_empty() && step.beside.is_none());
     let step = LinkStep::for_account(&lacking, JMAP, Some(&beside())).unwrap();
-    assert_eq!(step.beside, Some(beside()));
+    assert_eq!(step.beside, Some((beside(), Fills::Calendar)));
 
     let offering = jmap(CapabilityState::On, Vec::new());
     assert!(
@@ -114,7 +114,11 @@ pub(in crate::ui) fn the_step_offers_the_server_beside(window: &adw::Application
         .and_then(|window| window.child())
         .expect("link step content");
 
-    descendant_button(&child, &l10n::setup_links_beside("dav.example.org")).emit_clicked();
+    descendant_button(
+        &child,
+        &l10n::setup_links_beside_calendar("dav.example.org"),
+    )
+    .emit_clicked();
     assert!(matches!(
         receiver.recv_sync(),
         Some(AppInput::SetupBesideAccount)
@@ -162,4 +166,34 @@ fn the_server_beside_is_not_offered_for_another_address() {
     state.remember_beside(JMAP);
 
     assert!(state.beside_for(JMAP).is_none());
+}
+
+/// The offer fills what the account lacks and names it: a JMAP session with contacts of its own
+/// is offered the calendar beside it, never a second copy of its contacts.
+#[test]
+fn the_server_beside_is_offered_for_what_the_account_lacks() {
+    let lacks = |calendar, contacts| {
+        let mut snapshot = jmap(calendar, Vec::new());
+        snapshot.accounts[0].uses[2].state = contacts;
+        snapshot
+    };
+    let both = Beside {
+        carddav_url: Some("https://dav.example.org/.well-known/carddav".to_owned()),
+        ..beside()
+    };
+    let fills = |snapshot: &AccountsSnapshot, found: &Beside| {
+        LinkStep::for_account(snapshot, JMAP, Some(found))
+            .and_then(|step| step.beside)
+            .map(|(_, fills)| fills)
+    };
+    let (on, off) = (CapabilityState::On, CapabilityState::NotOffered);
+
+    assert_eq!(fills(&lacks(off, on), &both), Some(Fills::Calendar));
+    assert_eq!(fills(&lacks(on, off), &both), Some(Fills::Contacts));
+    assert_eq!(fills(&lacks(off, off), &both), Some(Fills::Both));
+    assert_eq!(
+        fills(&lacks(on, off), &beside()),
+        Some(Fills::Contacts),
+        "contacts are looked for at the calendar's server when no address book was found"
+    );
 }

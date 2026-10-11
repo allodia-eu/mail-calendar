@@ -55,6 +55,45 @@ impl Found {
     }
 }
 
+/// What the servers found beside a JMAP server would fill: only what its session lacks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Fills {
+    Calendar,
+    Contacts,
+    Both,
+}
+
+impl Fills {
+    /// What `beside` can fill of what the account lacks; contacts are looked for at the
+    /// calendar's server when no address book was found (`MailcalApp::dav_setup_beside`).
+    fn of(beside: &Beside, calendar: bool, contacts: bool) -> Option<Self> {
+        let calendar = calendar && beside.caldav_url.is_some();
+        let contacts = contacts && (beside.carddav_url.is_some() || beside.caldav_url.is_some());
+        match (calendar, contacts) {
+            (true, true) => Some(Self::Both),
+            (true, false) => Some(Self::Calendar),
+            (false, true) => Some(Self::Contacts),
+            (false, false) => None,
+        }
+    }
+
+    fn note(self, host: &str) -> String {
+        match self {
+            Self::Calendar => l10n::setup_links_beside_calendar_note(host),
+            Self::Contacts => l10n::setup_links_beside_contacts_note(host),
+            Self::Both => l10n::setup_links_beside_note(host),
+        }
+    }
+
+    fn action(self, host: &str) -> String {
+        match self {
+            Self::Calendar => l10n::setup_links_beside_calendar(host),
+            Self::Contacts => l10n::setup_links_beside_contacts(host),
+            Self::Both => l10n::setup_links_beside(host),
+        }
+    }
+}
+
 impl Beside {
     /// The host a person recognises the servers by.
     fn host(&self) -> String {
@@ -73,7 +112,7 @@ pub(crate) struct LinkStep {
     pub(super) pickers: Vec<LinkPicker>,
     /// The servers found beside the account's own, offered as an account of their own while its
     /// server offers no calendar or contacts.
-    pub(super) beside: Option<Beside>,
+    pub(super) beside: Option<(Beside, Fills)>,
     /// Per picker, the index into its options that is picked; a suggestion starts picked, and
     /// the person confirms it by continuing.
     pub(super) picked: Vec<Option<usize>>,
@@ -100,13 +139,19 @@ impl LinkStep {
             .into_iter()
             .filter(|picker| picker.selected.is_none())
             .collect();
-        let lacks = entry.uses.iter().any(|use_| {
-            matches!(
-                use_.capability,
-                AccountCapability::Calendar | AccountCapability::Contacts
-            ) && use_.state == CapabilityState::NotOffered
+        let lacks = |capability| {
+            entry.uses.iter().any(|use_| {
+                use_.capability == capability && use_.state == CapabilityState::NotOffered
+            })
+        };
+        let (calendar, contacts) = (
+            lacks(AccountCapability::Calendar),
+            lacks(AccountCapability::Contacts),
+        );
+        let lacks = calendar || contacts;
+        let beside = beside.and_then(|found| {
+            Fills::of(found, calendar, contacts).map(|fills| (found.clone(), fills))
         });
-        let beside = beside.filter(|_| lacks).cloned();
         (!pickers.is_empty() || lacks).then(|| Self {
             account: account.to_owned(),
             picked: pickers.iter().map(|picker| picker.suggested).collect(),
@@ -214,10 +259,10 @@ pub(super) fn step(
             input.emit(AppInput::SetupLinkPicked(index, option));
         });
     }
-    if let Some(beside) = &step.beside {
+    if let Some((beside, fills)) = &step.beside {
         let host = beside.host();
-        content.append(&body(&l10n::setup_links_beside_note(&host)));
-        let set_up = gtk::Button::with_label(&l10n::setup_links_beside(&host));
+        content.append(&body(&fills.note(&host)));
+        let set_up = gtk::Button::with_label(&fills.action(&host));
         set_up.set_halign(gtk::Align::Start);
         let input = sender.clone();
         set_up.connect_clicked(move |_| input.emit(AppInput::SetupBesideAccount));

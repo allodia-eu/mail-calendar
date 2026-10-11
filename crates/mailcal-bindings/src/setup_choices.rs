@@ -68,6 +68,47 @@ impl MailcalApp {
         };
         signed_in_choices(&account.chosen, &account.lacks)
     }
+
+    /// The calendar-and-contacts setup for the servers detection found beside the JMAP server of
+    /// `account_id`, offering only what its session lacks: the same answer a domain with those
+    /// servers and no mail server gets, the typed address as its login. Contacts are looked for at
+    /// the calendar's server when no address-book server was found. `None` when the session
+    /// lacks neither, or no server was found for what it lacks.
+    #[must_use]
+    pub fn dav_setup_beside(
+        &self,
+        account_id: String,
+        email: String,
+        caldav_url: Option<String>,
+        carddav_url: Option<String>,
+    ) -> Option<DetectedSetup> {
+        use mailcal_account::Capability;
+        let lacks = self
+            .registry
+            .facts()
+            .into_iter()
+            .find(|account| account.id == account_id && account.kind == AccountKind::Jmap)?
+            .lacks;
+        let calendar = lacks.contains(Capability::Calendar);
+        let contacts = lacks.contains(Capability::Contacts);
+        let carddav_url = carddav_url.filter(|_| contacts);
+        let caldav_url = caldav_url.filter(|_| calendar || (contacts && carddav_url.is_none()));
+        let mut setup = detected_setup(mailcal_account::SetupRecommendation::Dav {
+            email,
+            caldav_url,
+            carddav_url,
+        });
+        setup.choices.retain(|choice| match choice.capability {
+            AccountCapability::Calendar => calendar,
+            AccountCapability::Contacts => contacts,
+            _ => false,
+        });
+        setup
+            .choices
+            .iter()
+            .any(|choice| choice.on)
+            .then_some(setup)
+    }
 }
 
 /// The uses of mail, calendar and contacts a server offers, on while `chosen`; none when it
@@ -99,26 +140,6 @@ fn signed_in_choices(
 #[must_use]
 pub fn offered_setup(offer: AllodiaAccountOffer) -> DetectedSetup {
     detected_setup(crate::allodia_sync::offer_route(offer))
-}
-
-/// The calendar-and-contacts setup for the servers detection found beside a JMAP server, for a
-/// JMAP account whose session offers no calendar or contacts of its own: the same answer a domain
-/// with those servers and no mail server gets, the typed address as its login. `None` when
-/// neither server was found.
-#[uniffi::export]
-#[must_use]
-pub fn dav_setup_beside(
-    email: String,
-    caldav_url: Option<String>,
-    carddav_url: Option<String>,
-) -> Option<DetectedSetup> {
-    (caldav_url.is_some() || carddav_url.is_some()).then(|| {
-        detected_setup(mailcal_account::SetupRecommendation::Dav {
-            email,
-            caldav_url,
-            carddav_url,
-        })
-    })
 }
 
 /// The uses a Microsoft or Google sign-in for `email` offers before the browser opens, for a

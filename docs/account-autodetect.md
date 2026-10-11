@@ -106,7 +106,7 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
    discovered endpoint is always tamper-resistant-sourced. **Which uses the found card offers,
    and how each starts, is the core's** (`detect_account_setup`'s `choices`): mail, calendar and
    contacts on the IMAP route, calendar and contacts on the calendar-and-contacts route, all four
-   (colleagues included) before a Microsoft or Google sign-in, none before a JMAP sign-in, whose session offers its own after it, and the servers found beside it are offered as an account of their own when it has no calendar or contacts ([`onboarding.md`](onboarding.md)). A use
+   (colleagues included) before a Microsoft or Google sign-in, none before a JMAP sign-in, whose session offers its own after it, and the servers found beside it are offered as an account of their own for whichever of calendar and contacts its session lacks, and only that ([`onboarding.md`](onboarding.md)). A use
    whose server was found starts **on** (opt-out), reusing the account's credential, and contacts
    count as found when a calendar was, since they are looked for at its server; a use whose
    server was not found starts off, and switching it on asks for the URL. The probe is **soft**: every candidate is bounded by
