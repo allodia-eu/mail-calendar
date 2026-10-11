@@ -44,5 +44,5 @@ async fn a_calendar_source_that_fails_is_logged_with_its_reason() {
 
     assert_logged("calendar[a1]: source[0] failed in ");
     assert_logged("the server could not be reached");
-    assert_logged("refresh_calendar: 2 source(s) on 2 account(s); 1 synced, 1 failed;");
+    assert_logged("refresh_calendar: 2 source(s) on 2 account(s); 1 synced, 0 busy, 1 failed;");
 }

@@ -39,7 +39,7 @@ impl<P: Provider> App<P> {
         // draws *nowhere*, and dropping the report is what makes that unreproducible.
         let mut refused = Vec::new();
         let accounts = self.account_handles().await;
-        let (mut sources, mut synced_sources, mut failed) = (0, 0, 0);
+        let (mut sources, mut synced_sources, mut busy, mut failed) = (0, 0, 0, 0);
         for (acct, account) in accounts.iter().enumerate() {
             let mut reaches = Vec::new();
             for (index, provider) in account.calendar_providers.iter().enumerate() {
@@ -54,6 +54,13 @@ impl<P: Provider> App<P> {
                     Ok(report) => {
                         synced_sources += 1;
                         refused.extend(report.events.unexpandable);
+                    }
+                    // Another pass holds the scope and will bring the same changes: no failure.
+                    Err(engine_api::ApiError::Busy) => {
+                        busy += 1;
+                        log::debug!(
+                            "calendar[a{acct}]: source[{index}] busy, another pass holds it"
+                        );
                     }
                     // Counted and logged, never surfaced as an error state: the calendars that
                     // did sync are still worth showing, and a failed write reaches the user
@@ -100,7 +107,7 @@ impl<P: Provider> App<P> {
         }
         log::info!(
             "refresh_calendar: {sources} source(s) on {} account(s); {synced_sources} synced, \
-             {failed} failed; sync+expand {}ms + rebuild {}ms{}",
+             {busy} busy, {failed} failed; sync+expand {}ms + rebuild {}ms{}",
             accounts.len(),
             synced.as_millis(),
             rebuild_start.elapsed().as_millis(),
