@@ -427,15 +427,15 @@ mod tests_account_order;
 #[cfg(test)]
 mod tests_actions;
 #[cfg(test)]
-#[path = "tests_calendar.rs"]
 mod tests_calendar;
 #[cfg(test)]
 mod tests_calendar_actions;
 #[cfg(test)]
 mod tests_calendar_drag;
 #[cfg(test)]
-#[path = "tests_calendar_launch.rs"]
 mod tests_calendar_launch;
+#[cfg(test)]
+mod tests_calendar_logging;
 #[cfg(test)]
 mod tests_calendar_occurrence_detail;
 #[cfg(test)]

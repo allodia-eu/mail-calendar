@@ -38,16 +38,33 @@ impl<P: Provider> App<P> {
         // and the rest of the calendar materializes, so this is not a sync failure, but it
         // draws *nowhere*, and dropping the report is what makes that unreproducible.
         let mut refused = Vec::new();
-        for account in self.account_handles().await {
+        let accounts = self.account_handles().await;
+        let (mut sources, mut synced_sources, mut failed) = (0, 0, 0);
+        for (acct, account) in accounts.iter().enumerate() {
             let mut reaches = Vec::new();
-            for provider in &account.calendar_providers {
+            for (index, provider) in account.calendar_providers.iter().enumerate() {
+                sources += 1;
+                let started = Instant::now();
                 let result = self
                     .engine
                     .sync_calendar(provider, &account.id, horizon, &zone)
                     .await;
                 reaches.push(reach_of_api(&result));
-                if let Ok(report) = result {
-                    refused.extend(report.events.unexpandable);
+                match result {
+                    Ok(report) => {
+                        synced_sources += 1;
+                        refused.extend(report.events.unexpandable);
+                    }
+                    // Counted and logged, never surfaced as an error state: the calendars that
+                    // did sync are still worth showing, and a failed write reaches the user
+                    // through `CalendarWriteStatus` instead.
+                    Err(error) => {
+                        failed += 1;
+                        log::warn!(
+                            "calendar[a{acct}]: source[{index}] failed in {}ms: {error}",
+                            started.elapsed().as_millis(),
+                        );
+                    }
                 }
             }
             // An account with mail learns whether its server answers from its mail pass; one
@@ -63,12 +80,13 @@ impl<P: Provider> App<P> {
             }
             // A delta expands only changed events. Re-expanding keeps a quiet account materialized
             // as the rolling window advances.
-            if let Ok(expansion) = self
+            match self
                 .engine
                 .expand_horizon(&account.id, horizon, &zone)
                 .await
             {
-                refused.extend(expansion.unexpandable);
+                Ok(expansion) => refused.extend(expansion.unexpandable),
+                Err(error) => log::warn!("calendar[a{acct}]: expansion failed: {error}"),
             }
         }
         let synced = sync_start.elapsed();
@@ -81,7 +99,9 @@ impl<P: Provider> App<P> {
             self.set_calendar_write_status(CalendarWriteStatus::Idle);
         }
         log::info!(
-            "refresh_calendar: sync+expand {}ms + rebuild {}ms{}",
+            "refresh_calendar: {sources} source(s) on {} account(s); {synced_sources} synced, \
+             {failed} failed; sync+expand {}ms + rebuild {}ms{}",
+            accounts.len(),
             synced.as_millis(),
             rebuild_start.elapsed().as_millis(),
             if changed { "" } else { "; no redraw" }

@@ -112,13 +112,18 @@ optional OAuth sign-in, and secure storage of the resulting config.
 ## What works today
 
 - **Connect + folder list + message list** (subject / from / date / preview / flags-display),
-  unified inbox, per-account folder sidebar, threading.
+  unified inbox, per-account folder sidebar, threading. A first sync stays whole while another
+  device changes the mailbox: the engine walks the list by anchor and records where the server
+  stood at its first page, so a message moved, flagged or deleted meanwhile is put right by the
+  next sync, and none is skipped.
 - **Reading a message body**: the raw RFC 5322 source is downloaded on demand via the JMAP
   `blobId` + the session `downloadUrl` (RFC 8620 §6.2), then sanitised and rendered like any
   other account (this is the engine's `fetch_message_source`, added for JMAP).
 - **Sending new mail**: JMAP `EmailSubmission` (the engine's `submit_email`), filed to Sent.
-- **Calendar (read)**: the account's calendars + events sync into the agenda when its session
-  lists calendars.
+- **Calendar**: the account's calendars + events sync into the agenda, and an event can be created
+  and edited, when the account offers JMAP calendars, however many events it holds: the engine
+  pages every sync within the server's `maxObjectsInGet`. Fastmail offers them to an OAuth sign-in only; an API token's session has
+  none, so such an account's calendar has to come from Fastmail's CalDAV server.
 - **What the account has** is read from the signed-in account's session at every connect
   (`accountCapabilities`, RFC 8620 §2). Mail, calendar or contacts it does not list is opened for
   nothing and reads as not offered ([`accounts.md`](accounts.md) rule 11), and setup asks which
@@ -230,7 +235,6 @@ cannot offer them for a JMAP account regardless of client:
   whoever wires push must handle a watch `401` by reconnecting with backoff (never a hot loop).
   The refresh machinery it would need already exists (`RefreshingJmapProvider`). Tracked as a
   follow-up; do not wire push without that handling.
-- **Calendar is read-only.** JMAP calendar writes / RSVP are deferred in the engine.
 - **The manual form's blank server hides the sign-in button for some providers.** With the server
   box empty the core derives `https://<email-domain>` (rule 5), and a provider whose JMAP lives on
   a different host (Fastmail's is `api.fastmail.com`) 404s there, so the pre-flight says "no
