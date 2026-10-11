@@ -75,17 +75,11 @@ enum ShareInbox {
 /// already in front, which no activation follows. The URL carries nothing either way, it only says
 /// to look; whichever looks second finds the box empty, because taking a share removes it.
 ///
-/// One share is on screen at a time. Taking a share spends it, and opening one over another would
-/// replace a composer holding files the user watched leave a share sheet and has not seen since:
-/// one nobody has written in closes without a draft, and its files go with it. So while a share's
-/// composer is open the box is left alone, and the next share opens once no composer is open, so
-/// it never replaces one the user has just opened in its place.
+/// When a share may be taken is `ShareGate`'s to decide.
 struct ShareRouting: ViewModifier {
     let model: MailboxModel
-    /// Whether any composer is on screen.
-    let composing: Bool
-    /// Whether a share's composer is on screen.
-    let holdsShare: Bool
+    /// What the composer slot holds.
+    let composer: ShareGate.Composer
     let open: (ShareOpenRequest) -> Void
 
     #if os(macOS)
@@ -103,8 +97,8 @@ struct ShareRouting: ViewModifier {
                 guard ShareHandoff.isDoorbell(url, appID: Brand.appID) else { return }
                 drain()
             }
-            .onChange(of: composing) { was, now in
-                if was, !now { drain() }
+            .onChange(of: composer) { old, new in
+                if ShareGate.looksAfter(from: old, to: new) { drain() }
             }
             .onChange(of: model.accounts.count) { _, count in
                 guard count > 0, let request = model.pendingShare else { return }
@@ -114,10 +108,53 @@ struct ShareRouting: ViewModifier {
     }
 
     private func drain() {
-        // Not while one is on screen, nor while one is waiting for its first account: either way
-        // the next share keeps its place in the box rather than taking the first one's.
-        guard !holdsShare, model.pendingShare == nil, let request = ShareInbox.take() else { return }
+        guard ShareGate.mayTake(with: composer, sharePending: model.pendingShare != nil),
+            let request = ShareInbox.take()
+        else { return }
         open(request)
+    }
+}
+
+/// When a share may leave the box for the composer.
+///
+/// One share is on screen at a time. Taking a share spends it, and opening one over another would
+/// replace a composer holding files the user watched leave a share sheet and has not seen since:
+/// one nobody has written in closes without a draft, and its files go with it. So while a share's
+/// composer is open the box is left alone, and the next share opens once no composer is open, so
+/// it never replaces one the user opened in its place.
+enum ShareGate {
+    /// What the composer slot holds, as far as the box is concerned.
+    enum Composer: Equatable {
+        case empty
+        /// A composer the user opened: a new message, a reply, a mail link.
+        case other
+        /// A composer holding a share.
+        case share
+
+        init(_ compose: ComposeContext?) {
+            switch compose {
+            case nil: self = .empty
+            case let compose? where compose.isShare: self = .share
+            case _?: self = .other
+            }
+        }
+    }
+
+    /// Whether a look in the box (the doorbell, activation, the cold start) may take a share.
+    ///
+    /// Not while a share is on screen, nor while one waits for its first account: either way the
+    /// next share keeps its place in the box. Another composer does not stop it, because a share
+    /// arriving now is the user's own action, and the composer it replaces saves what was written
+    /// to Drafts on the way out.
+    static func mayTake(with composer: Composer, sharePending: Bool) -> Bool {
+        composer != .share && !sharePending
+    }
+
+    /// Whether a change in the composer slot is a moment to look in the box: only when the last
+    /// composer closes. A composer replacing a share's leaves the next share waiting rather than
+    /// replacing it in turn.
+    static func looksAfter(from old: Composer, to new: Composer) -> Bool {
+        old != .empty && new == .empty
     }
 }
 
