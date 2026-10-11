@@ -165,9 +165,10 @@ the same bundle as the composer, so it must carry the same WebView hardening: au
 drift, so each client collapses them into a single definition its two hosts call: Apple's
 `EditorHost` (`EditorHost.swift`), Android's `EditorWebView.kt`, Windows's `EditorWebViewHost`
 (`Services/EditorWebView.cs`), Linux's `SecureWebView` (`ui/webview.rs`,
-`DocumentKind::Composer`). A new client should do the same rather than repeat the gate list. The **labels** the bundle's own chrome draws are one definition too, for
-the same reason: a host that sends a partial map leaves those controls in English with nothing to
-say so (`cargo xtask check-composer-labels`).
+`DocumentKind::Composer`). A new client should do the same rather than repeat the gate list. The
+**labels** the bundle's own chrome draws are one definition too, for the same reason: a host that
+sends a partial map leaves those controls in English with nothing to say so
+(`cargo xtask check-composer-labels`).
 
 **A quoted original can contain a signature too, and the composer must never touch it.** Our own
 outgoing mail wraps the sender's signature in `.allodia-signature` (the Rust renderer emits that

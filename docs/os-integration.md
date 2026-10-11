@@ -81,8 +81,9 @@ Five consequences are worth knowing before they surprise someone:
   again, so the doorbell is what reaches it; activation catches the share whose doorbell went
   unanswered. Taking a share removes it, so whichever looks second finds nothing.
 - **One share is on screen at a time.** While a share's composer is open the box is left alone,
-  and the next share opens as that composer closes. Opening one over another would close the
-  first, and a share nobody has written in closes without a draft, taking its files with it.
+  and the next share opens once no composer is open, so it never replaces one the user opened in
+  its place. Opening one over another would close the first, and a share nobody has written in
+  closes without a draft, taking its files with it.
 - **Opening the app is best effort.** A share whose doorbell went unanswered is still in the box,
   and is picked up the next time the user brings the app forward, rather than lost.
 - **Where the box is depends on what the build was signed with.** iOS and the Mac App Store build

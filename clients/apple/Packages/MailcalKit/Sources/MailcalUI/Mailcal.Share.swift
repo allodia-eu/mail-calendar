@@ -78,9 +78,12 @@ enum ShareInbox {
 /// One share is on screen at a time. Taking a share spends it, and opening one over another would
 /// replace a composer holding files the user watched leave a share sheet and has not seen since:
 /// one nobody has written in closes without a draft, and its files go with it. So while a share's
-/// composer is open the box is left alone, and the next share opens as that composer closes.
+/// composer is open the box is left alone, and the next share opens once no composer is open, so
+/// it never replaces one the user has just opened in its place.
 struct ShareRouting: ViewModifier {
     let model: MailboxModel
+    /// Whether any composer is on screen.
+    let composing: Bool
     /// Whether a share's composer is on screen.
     let holdsShare: Bool
     let open: (ShareOpenRequest) -> Void
@@ -100,8 +103,8 @@ struct ShareRouting: ViewModifier {
                 guard ShareHandoff.isDoorbell(url, appID: Brand.appID) else { return }
                 drain()
             }
-            .onChange(of: holdsShare) { held, holds in
-                if held, !holds { drain() }
+            .onChange(of: composing) { was, now in
+                if was, !now { drain() }
             }
             .onChange(of: model.accounts.count) { _, count in
                 guard count > 0, let request = model.pendingShare else { return }

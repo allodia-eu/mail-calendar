@@ -18,8 +18,9 @@ import WebKit
 
 /// A `WKWebView` that takes files dropped on the message itself.
 final class EditorWebView: WKWebView {
-    /// Files dropped on the editor, handed to the host. Set by `ComposerDropModifier`, which owns
-    /// what a dropped file becomes; this type only gets the drop as far as it.
+    /// Files dropped on the editor, handed to the host. Set by `RichComposerEditor.mount()`, which
+    /// forwards to `ComposerDropModifier`, the owner of what a dropped file becomes; this type only
+    /// gets the drop as far as it.
     var acceptDroppedFiles: (([URL]) -> Void)? {
         get { dropTarget.acceptDroppedFiles }
         set { dropTarget.acceptDroppedFiles = newValue }

@@ -56,8 +56,8 @@ final class EditorWebView: WKWebView {
 
     /// Files dropped on the message itself, handed to the host.
     ///
-    /// Set by `ComposerDropModifier`, which owns what a dropped file becomes; this type only gets
-    /// the drag as far as it.
+    /// Set by `RichComposerEditor.mount()`, which forwards to `ComposerDropModifier`, the owner of
+    /// what a dropped file becomes; this type only gets the drag as far as it.
     var acceptDroppedFiles: (([URL]) -> Void)?
 
     /// Takes the drop over the editor for the host.
