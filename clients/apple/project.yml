@@ -406,11 +406,16 @@ targets:
         # process cannot use an App Group a profile did not grant, so it takes a home-relative
         # grant instead; App/AllodiaMailShare.macOS.entitlements carries the measurement.
         # Indirected through MACOS_SHARE_ENTITLEMENTS for the reason MACOS_ENTITLEMENTS is: the
-        # --app-store flow swaps the group set back in on the xcodebuild line, where its automatic
-        # provisioning can resolve a profile that grants one.
+        # --app-store flow and build-and-run.sh --sandboxed swap the group set back in on the
+        # xcodebuild line, alongside a profile that grants it.
         CODE_SIGN_ENTITLEMENTS: App/AllodiaMailShare.entitlements
         MACOS_SHARE_ENTITLEMENTS: App/AllodiaMailShare.macOS.entitlements
         CODE_SIGN_ENTITLEMENTS[sdk=macosx*]: $(MACOS_SHARE_ENTITLEMENTS)
+        # The group set needs a profile granting the group, as the app's does, scoped to this
+        # target for the reason the app's MACOS_PROVISIONING_PROFILE is. Empty, so an ordinary
+        # build stays ad-hoc; Scripts/build-and-run.sh --sandboxed fills it.
+        MACOS_SHARE_PROVISIONING_PROFILE: ""
+        PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]: $(MACOS_SHARE_PROVISIONING_PROFILE)
         SWIFT_VERSION: "6.0"
         # As the app does. Left on, a Debug build puts two more Mach-Os inside the .appex (the
         # target's own debug dylib and __preview.dylib), which is three signatures where one

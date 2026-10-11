@@ -49,8 +49,9 @@ Options:
   --list-devices           List connected iPhones/iPads and exit.
   --list-simulators        List available simulators and exit.
   --sandboxed               macOS only: build with the Mac App Store sandbox, signed against a
-                            development provisioning profile that grants the app group. Needs one
-                            installed; the error says how to make it if not.
+                            development provisioning profile that grants the app group, and one for
+                            the Share Extension's App ID. Needs both installed; the error says how
+                            to make them if not.
   --no-core                 Skip rebuilding the Rust XCFramework and generated Swift bindings.
   --no-run                  Build only; do not launch/install the app.
   --configuration <name>    Xcode configuration to build (default: Debug).
@@ -63,6 +64,9 @@ Environment:
   MAILCAL_DEVICE            Same as --device <udid> (also read by scripts/dev/device.sh).
   CONFIGURATION             Same as --configuration.
   DERIVED_DATA              Same as --derived-data.
+  MACOS_DEV_PROVISIONING_PROFILE, MACOS_DEV_SHARE_PROVISIONING_PROFILE
+                            --sandboxed: the app's and the Share Extension's development profile,
+                            when they are not installed where Xcode keeps them.
 
 Examples:
   Scripts/build-and-run.sh
@@ -389,7 +393,26 @@ if [[ "$SANDBOXED" -eq 1 ]]; then
     echo "       (More: clients/apple/README.md, docs/debugging.md.)" >&2
     exit 1
   fi
+  # The Share Extension takes the group set too, under a profile of its own App ID that authorises
+  # the same certificate. Without it the extension keeps the home-directory grant while the app
+  # reads the group container, and `ShareBox.shared` sends the two to different boxes.
+  SHARE_BUNDLE_ID="$BUNDLE_ID.share"
+  SHARE_MATCH="$(resolve_profile "$SANDBOX_TEAM.$SHARE_BUNDLE_ID" "$SIGNING_IDENTITY" \
+                  "${MACOS_DEV_SHARE_PROVISIONING_PROFILE:-}" "$SANDBOX_GROUP" OSX development)"
+  SHARE_PROFILE="$(printf '%s' "$SHARE_MATCH" | cut -f1)"
+  SHARE_UUID="$(printf '%s' "$SHARE_MATCH" | cut -f3)"
+  if [[ -z "$SHARE_PROFILE" ]]; then
+    echo "error: no macOS DEVELOPMENT provisioning profile for $SANDBOX_TEAM.$SHARE_BUNDLE_ID grants" >&2
+    echo "       the app group '$SANDBOX_GROUP', lists this Mac, and authorizes the certificate the" >&2
+    echo "       app's profile does ($SIGNING_IDENTITY)." >&2
+    echo "       In the developer portal: Identifiers ▸ $SHARE_BUNDLE_ID ▸ enable 'App Groups' ▸" >&2
+    echo "       assign '$SANDBOX_GROUP' ▸ Save, then Profiles ▸ + ▸ macOS App Development ▸ that" >&2
+    echo "       App ID ▸ the same certificate ▸ this Mac. Install it as above, or point" >&2
+    echo "       MACOS_DEV_SHARE_PROVISIONING_PROFILE=<path> at the download." >&2
+    exit 1
+  fi
   echo "==> Sandboxed build: profile $(basename "$SANDBOX_PROFILE") (grants $SANDBOX_GROUP)"
+  echo "    share extension profile: $(basename "$SHARE_PROFILE")"
   echo "    signing cert: $SIGNING_IDENTITY"
   # CODE_SIGN_STYLE=Manual reaches every target, deliberately: the MailcalKit package targets are
   # automatically signed by default and reject a manual identity ("has conflicting provisioning
@@ -398,6 +421,8 @@ if [[ "$SANDBOXED" -eq 1 ]]; then
   SANDBOX_ARGS=("DEVELOPMENT_TEAM=$SANDBOX_TEAM"
                 "MACOS_ENTITLEMENTS=App/AllodiaMail.appstore.entitlements"
                 "MACOS_PROVISIONING_PROFILE=$SANDBOX_UUID"
+                "MACOS_SHARE_ENTITLEMENTS=App/AllodiaMailShare.entitlements"
+                "MACOS_SHARE_PROVISIONING_PROFILE=$SHARE_UUID"
                 "CODE_SIGN_STYLE=Manual"
                 "CODE_SIGN_IDENTITY=$SIGNING_IDENTITY")
 fi

@@ -939,7 +939,8 @@ clients/apple/Scripts/build-and-run.sh --macos --sandboxed
 ```
 
 The app then carries exactly `App/AllodiaMail.appstore.entitlements`, the set the Store build
-carries, and the relay is sandboxed with the app group rather than ad-hoc signed with nothing.
+carries, the Share Extension carries the group set the Store gives it, and the relay is sandboxed
+with the app group rather than ad-hoc signed with nothing.
 `--configuration Release` on top gets the optimisation settings too, though the sandbox is what
 decides the bugs above, not the optimiser. For the Store's own archive and signing pass, release
 core included, `clients/apple/Scripts/package.sh --sandboxed` signs with the same profile
@@ -955,6 +956,12 @@ assign the group ▸ Save, then Profiles ▸ **+** ▸ **macOS App Development**
 Apple Development certificate ▸ this Mac. Download it and double-click it, or copy it into
 `~/Library/Developer/Xcode/UserData/Provisioning Profiles/`, or point
 `MACOS_DEV_PROVISIONING_PROFILE=<path>` at the download.
+
+**The Share Extension needs one of its own**, made the same way for its App ID (`<app id>.share`):
+the same group, the same certificate, this Mac. `MACOS_DEV_SHARE_PROVISIONING_PROFILE=<path>` points
+at one kept elsewhere. The script stops without it rather than building an extension that keeps the
+home-directory grant, because that extension stages every share where the sandboxed app does not
+look (`ShareBox.shared` decides by what each process was signed with).
 
 Two things about that profile are worth knowing before they surprise you.
 
