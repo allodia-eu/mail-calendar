@@ -14,13 +14,16 @@ struct SettingsHubView: View {
     let close: () -> Void
     /// Removes an account by id, handed straight to `SettingsCategoryDetail`, see its own
     /// note for why removal is the shell's job rather than a direct model call.
-    let removeAccount: (String) -> Void
+    let removeAccount: (String) -> String?
 
     @Environment(\.horizontalSizeClass) private var hSize
     // iPad's two-pane selection. Optional because a NavigationSplitView sidebar drives the detail
     // through an optional binding; it starts on the category the opener named, so the detail is
     // never blank.
     @State private var selection: SettingsCategory?
+    // iPhone's stack: the hub, and the category pushed on it. A caller pointing at a specific
+    // setting lands on its category; General is what the gear opens, so it opens on the hub.
+    @State private var path: [SettingsCategory]
 
     /// Opens on `openOn`, every caller names one, because a caller that is pointing at a
     /// specific setting must land on it. An explicit `init` because `@State`'s default cannot
@@ -28,13 +31,14 @@ struct SettingsHubView: View {
     init(
         model: MailboxModel,
         close: @escaping () -> Void,
-        removeAccount: @escaping (String) -> Void,
+        removeAccount: @escaping (String) -> String?,
         openOn: SettingsCategory
     ) {
         self.model = model
         self.close = close
         self.removeAccount = removeAccount
         _selection = State(initialValue: openOn)
+        _path = State(initialValue: openOn == .general ? [] : [openOn])
     }
 
     var body: some View {
@@ -44,24 +48,23 @@ struct SettingsHubView: View {
     /// iPhone: a hub of category rows, each pushing its detail. Back (arrow and system) steps
     /// detail → hub; Done closes the sheet.
     private var iPhoneHub: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List(SettingsCategory.displayed) { category in
-                NavigationLink {
-                    // Scrolled, like the iPad detail beside it. A category's detail is as tall as
-                    // its content, Accounts grows a card per account, each with its own pickers:
-                    // and a plain view in a NavigationStack does not scroll, so everything past the
-                    // first screenful was unreachable rather than merely below the fold. It looks
-                    // like a screen that simply ends.
-                    ScrollView {
-                        SettingsCategoryDetail(model: model, category: category, close: close, removeAccount: removeAccount)
-                            .padding(20)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .navigationTitle(category.title)
-                    .navigationBarTitleDisplayMode(.inline)
-                } label: {
+                NavigationLink(value: category) {
                     hubRow(category)
                 }
+            }
+            .navigationDestination(for: SettingsCategory.self) { category in
+                // Scrolled, like the iPad detail beside it. A category's detail is as tall as its
+                // content, and a plain view in a NavigationStack does not scroll, so everything
+                // past the first screenful was unreachable rather than merely below the fold.
+                ScrollView {
+                    SettingsCategoryDetail(model: model, category: category, close: close, removeAccount: removeAccount)
+                        .padding(20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .navigationTitle(category.title)
+                .navigationBarTitleDisplayMode(.inline)
             }
             .navigationTitle(L10n.settings_title())
             .navigationBarTitleDisplayMode(.inline)

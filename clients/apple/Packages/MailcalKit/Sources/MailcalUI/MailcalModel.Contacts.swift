@@ -103,6 +103,12 @@ extension MailboxModel {
     /// is both ugly and a leak of how ids are built. An id with no account left falls back to
     /// itself rather than vanishing.
     var contactAccountLabels: [String: String] {
-        Dictionary(accounts.map { ($0.id, $0.email) }, uniquingKeysWith: { first, _ in first })
+        // Every account, mail or not: an address book can belong to one without a mailbox, and
+        // its id is not something a person should read (`docs/accounts.md` rule 8).
+        Dictionary(
+            accounts.map { ($0.id, $0.email) }
+                + accountsSnapshot.accounts.map { ($0.id, $0.address) },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 }

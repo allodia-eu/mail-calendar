@@ -24,7 +24,7 @@ func progress(_ label: String) -> some View {
 
 /// What to prefill in the manual form when the user edits a discovered config.
 struct ManualPrefill {
-    var kind: AccountKind = .imap
+    var kind: SetupAccountKind = .imap
     var email = ""
     var imapHost = ""
     var smtpHost = ""

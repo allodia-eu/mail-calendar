@@ -241,10 +241,10 @@ extension ContentView {
         )
     }
 
-    /// Names an account from the app's own account list, which is where every other surface gets
-    /// the address; the id is the fallback for one removed mid-pass.
+    /// Names an account by its address, as every other surface does; the id is the fallback for
+    /// one removed mid-pass.
     func accountName(_ id: String) -> String {
-        model.accounts.first { $0.id == id }?.email ?? id
+        model.accountEmail(id)
     }
 
     /// The background-sync hint: which accounts are pulling mail down right now, and how far

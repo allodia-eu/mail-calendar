@@ -89,25 +89,22 @@ struct CalendarScreenView: View {
     }
 
     /// A Microsoft account connected before calendar support (or with revoked consent) syncs no
-    /// calendar until it re-authenticates, prompt for it here, where its absence is felt. Mail is
-    /// unaffected, so it uses an informational style, not the error one. "Reconnect" re-runs that
-    /// account's sign-in (with its address as the login hint), upgrading its token in place with
-    /// the calendar scope; the banner clears once the calendar connects.
+    /// calendar until it signs in again, prompt for it here, where its absence is felt. Mail is
+    /// unaffected, so it uses an informational style, not the error one. "Reconnect" signs that
+    /// account in again in place for everything it is used for (`docs/provider-oauth.md`
+    /// rule 11); the banner clears once the calendar connects.
     @ViewBuilder private var reauthBanner: some View {
-        let emails = model.calendarReauthEmails
-        if !emails.isEmpty {
+        let ids = model.connectivity?.calendarReauthAccounts ?? []
+        if let first = ids.first {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text(L10n.calendar_reauth_prompt(accounts: emails.joined(separator: ", ")))
+                Text(L10n.calendar_reauth_prompt(accounts: ids.map(model.accountEmail).joined(separator: ", ")))
                     .font(.callout).fixedSize(horizontal: false, vertical: true)
                 Spacer()
-                // One button re-auths the first affected account; when several are affected the
-                // banner re-renders after each clears, walking through them one sign-in at a time.
-                Button(L10n.calendar_reauth_action()) {
-                    if let email = emails.first { model.signInWithMicrosoft(loginHint: email) }
-                }
-                .buttonStyle(.borderless)
-                .disabled(model.microsoftSigningIn)
+                // One button signs the first affected account in again; when several are affected
+                // the banner re-renders after each clears, walking through them one at a time.
+                Button(L10n.calendar_reauth_action()) { model.signInAgainFromBanner(first) }
+                    .buttonStyle(.borderless)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)

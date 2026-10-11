@@ -192,6 +192,20 @@ final class MailboxModel {
     /// (docs/onboarding.md); by this point the account exists, so the provider can be asked
     /// what it already calls this person (docs/sending.md).
     var senderNamePrompt: SenderNamePrompt?
+    /// Every account, mail or not, as Settings → Accounts draws it (`docs/accounts.md` rule 11).
+    /// Pulled on a `Surface::Settings` or `Surface::Connectivity` signal.
+    var accountsSnapshot = AccountsSnapshot(accounts: [])
+    /// The account whose page Settings → Accounts shows, or `nil` for the list.
+    var accountPage: String?
+    /// The account a sign-in in place is waiting on the browser for, or `nil`.
+    var signingInAgain: String?
+    /// That sign-in's browser half, so a newer request can end it rather than wait behind it.
+    @ObservationIgnored var consentBrowser: ConsentBrowser?
+    /// Which sign-in in place is the newest, so one a newer request ended clears nothing of it.
+    @ObservationIgnored var consentAttempt = 0
+    /// Settings, asked for by something outside it: a prompt that points at an account's page.
+    /// The shell presents Settings on this category and clears it.
+    var settingsRequest: SettingsCategory?
     /// `true` when no account is configured yet, the host shows the full-screen setup form.
     var needsSetup = false
     /// `true` while the user is adding another account (the setup form as a sheet over the

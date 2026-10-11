@@ -43,6 +43,41 @@ extension MailboxModel {
     password = "harness-alice-pw"
     """
 
+    /// `stalwart-linked`: alice's mailbox used for mail alone, and alice's and bob's calendar and
+    /// contacts as accounts without a mailbox, the same three Linux and Windows boot for that mode.
+    ///
+    /// What linking accounts is verified against (`docs/accounts.md` rule 12). Alice's calendar
+    /// server schedules as her address, so it is suggested for her mailbox; bob's is offered beside
+    /// it and is not. Nothing is linked up front, so the suggestion is what a person sees first.
+    static let stalwartDevLinkedTomls = [
+        """
+        capabilities = ["mail"]
+
+        [imap]
+        addr = "127.0.0.1:12993"
+        server_name = "localhost"
+        username = "alice@test.local"
+        password = "harness-alice-pw"
+
+        [smtp]
+        addr = "127.0.0.1:12587"
+        server_name = "localhost"
+        security = "starttls"
+        """,
+        """
+        [caldav]
+        base_url = "http://127.0.0.1:28080"
+        username = "alice@test.local"
+        password = "harness-alice-pw"
+        """,
+        """
+        [caldav]
+        base_url = "http://127.0.0.1:28080"
+        username = "bob@test.local"
+        password = "harness-bob-pw"
+        """,
+    ]
+
     /// One harness JMAP account config, built through the shared config builder, the same FFI the
     /// real setup form uses, so this fixture can't silently drift from the `[jmap]` schema.
     ///
@@ -113,6 +148,14 @@ extension MailboxModel {
             needsSetup = false
             // → `mailcal-dev-imap`, see above
             connect([Self.stalwartDevImapToml] + storedDevConfigs())
+            return true
+        }
+        // → `mailcal-dev-linked`. As in every harness mode, only the canned accounts connect: a
+        // link or a use changed here is stored under a canned account's own id and is not read
+        // back, so every launch starts with nothing linked.
+        if devAccount == "stalwart-linked" {
+            needsSetup = false
+            connect(Self.stalwartDevLinkedTomls + storedDevConfigs())
             return true
         }
         return false

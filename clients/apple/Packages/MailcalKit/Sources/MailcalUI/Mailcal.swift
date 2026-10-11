@@ -219,7 +219,10 @@ public struct ContentView: View {
         .onChange(of: model.destination) { _, _ in restoreSceneIfPossible() }
         .onChange(of: model.selectedAccount) { _, _ in restoreSceneIfPossible() }
         .onChange(of: model.selected) { _, _ in restoreSceneIfPossible() }
-        .onChange(of: model.needsSetup) { _, _ in
+        .onChange(of: model.needsSetup) { _, needsSetup in
+            // The last account gone takes the window back to setup, and Settings with it: left
+            // set, it would open again over the first account added.
+            if needsSetup { settingsCategory = nil }
             restoreSceneIfPossible()
             // The user just onboarded their first account, now it makes sense to ask.
             requestNotificationsIfSettled()
@@ -229,6 +232,12 @@ public struct ContentView: View {
         // system alert must not open on top of it. Waiting on the consent question here is what
         // sequences the two asks in that case.
         .onChange(of: model.analyticsConsent?.asked) { _, _ in requestNotificationsIfSettled() }
+        // A prompt in the main window that points at an account's page in Settings.
+        .onChange(of: model.settingsRequest) { _, request in
+            guard let request else { return }
+            model.settingsRequest = nil
+            settingsCategory = request
+        }
         .onChange(of: model.reading?.key) { _, key in
             autoReplyIfRequested(readingKey: key)
             showcaseReplyIfNeeded(readingKey: key)
@@ -310,7 +319,10 @@ public struct ContentView: View {
             Button(L10n.action_remove(), role: .destructive) { removeAccount(account.id) }
             Button(L10n.action_cancel(), role: .cancel) {}
         } message: { account in
-            Text(L10n.remove_account_message(email: account.email))
+            // Naming the accounts that lose their link to it (`docs/accounts.md` rule 12).
+            Text(AccountSettingsLabels.removal(
+                address: account.email,
+                unlinked: model.accountEntry(account.id).flatMap(AccountSettingsRules.unlinked)))
         }
         // The composer takes the whole window on iOS/iPadOS (a form-sheet modal leaves too little
         // room, especially on iPad). macOS no longer presents it at all: it renders INSIDE the
@@ -466,6 +478,8 @@ public struct ContentView: View {
     /// silently dropped, the button does nothing at all. So the press closes Settings and the
     /// intent is spent here, on the dismissal's own completion rather than after a guessed delay.
     private func addAccountIfSettingsAskedFor() {
+        // Settings opens on the list next time, not on the page it was left on.
+        model.accountPage = nil
         guard model.addAccountWhenSettingsCloses else { return }
         model.addAccountWhenSettingsCloses = false
         model.addingAccount = true

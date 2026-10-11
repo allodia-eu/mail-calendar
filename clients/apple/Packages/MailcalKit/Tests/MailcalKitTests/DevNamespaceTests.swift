@@ -13,7 +13,8 @@ import XCTest
 final class DevNamespaceTests: XCTestCase {
     /// Every mode a DEBUG build can run in, including the ones that touch real data.
     private let allModes: [String?] = [
-        nil, "personal", "demo", "stalwart", "stalwart-multi", "stalwart-imap", "unrecognized",
+        nil, "personal", "demo", "stalwart", "stalwart-multi", "stalwart-imap", "stalwart-linked",
+        "unrecognized",
     ]
 
     /// No dev mode may resolve to production, not the harness ones, and above all not `personal`,
@@ -34,7 +35,7 @@ final class DevNamespaceTests: XCTestCase {
     /// obvious name for `personal` was the base `mailcal-dev`, which the JMAP harness already
     /// owns, two modes silently writing one SQLite database.
     func testDistinctModesNeverShareADataDirectory() {
-        let distinct: [String?] = [nil, "stalwart", "stalwart-multi", "stalwart-imap"]
+        let distinct: [String?] = [nil, "stalwart", "stalwart-multi", "stalwart-imap", "stalwart-linked"]
         let dirs = distinct.map { DevNamespace.dataDirName(for: $0) }
         XCTAssertEqual(
             Set(dirs).count, dirs.count,
@@ -61,6 +62,8 @@ final class DevNamespaceTests: XCTestCase {
         XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart"), "mailcal-dev")
         XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart-multi"), "mailcal-dev-multi")
         XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart-imap"), "mailcal-dev-imap")
+        // `harness.sh` resets this one by name (`DEV_STORE_MODES` in scripts/dev/lib.sh).
+        XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart-linked"), "mailcal-dev-linked")
         XCTAssertEqual(
             DevNamespace.keychainService(for: "stalwart"), "\(Brand.appID).dev.stalwart")
         XCTAssertEqual(
@@ -69,6 +72,9 @@ final class DevNamespaceTests: XCTestCase {
         XCTAssertEqual(
             DevNamespace.keychainService(for: "stalwart-imap"),
             "\(Brand.appID).dev.stalwart-imap")
+        XCTAssertEqual(
+            DevNamespace.keychainService(for: "stalwart-linked"),
+            "\(Brand.appID).dev.stalwart-linked")
     }
 
     /// Production names are what the shipped app's existing state is stored under; changing either

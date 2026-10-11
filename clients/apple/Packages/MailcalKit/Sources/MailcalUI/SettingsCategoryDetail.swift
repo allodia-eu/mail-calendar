@@ -18,12 +18,11 @@ struct SettingsCategoryDetail: View {
     /// here, because removal is more than the model call: the shell also clears the scene's stored
     /// selection and the open message when they belong to the account going away. Two entry points
     /// (the sidebar's context menu and the button below) must not mean two behaviours, skipping
-    /// that cleanup leaves a removed account's message sitting in the reading pane.
-    let removeAccount: (String) -> Void
+    /// that cleanup leaves a removed account's message sitting in the reading pane. Answers why
+    /// the stored sign-in could not be erased, or `nil`.
+    let removeAccount: (String) -> String?
 
     @State private var confirmingReset = false
-    /// The account a remove-confirmation is open for, or nil.
-    @State private var accountToRemove: AccountSyncRow?
 
     var body: some View {
         switch category {
@@ -35,7 +34,8 @@ struct SettingsCategoryDetail: View {
         case .notifications: notificationsDetail
         case .privacy: privacyDetail
         case .allodia: AllodiaAccountSettings(model: model)
-        case .accounts: accountsDetail
+        case .accounts:
+            AccountsSettingsView(model: model, close: close, removeAccount: removeAccount)
         case .diagnostics: DiagnosticsSettingsView(model: model)
         case .advanced: advancedDetail
         case .about: AboutSettingsView()
@@ -190,245 +190,6 @@ struct SettingsCategoryDetail: View {
     // Only reachable in a build that carries the registration: `SettingsCategory.displayed` drops
     // the category otherwise, so this draws unconditionally.
 
-    // MARK: Accounts, per-account fetch depth + sync behaviour, for mail accounts only
-
-    /// The three positions an account can be shared in, and what the selected one means.
-    ///
-    /// A segmented picker rather than a switch and a button: the two questions underneath, is
-    /// this account on my other devices, and does this device exchange changes about it, are not
-    /// independent in any way somebody can act on, and splitting them produced a screen where
-    /// turning the switch off changed nothing the person could see.
-    ///
-    /// One subtext, the selected position's: three at once is a paragraph nobody reads, and the
-    /// one that matters is the one in force.
-    @ViewBuilder
-    private func accountSyncSection(
-        _ accountId: String, _ mode: AllodiaAccountSyncMode
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(L10n.settings_account_sync_heading()).font(.subheadline).bold()
-            Picker(
-                L10n.settings_account_sync_heading(),
-                selection: Binding(
-                    get: { mode },
-                    set: { picked in
-                        guard picked != mode else { return }
-                        Task { await model.setAllodiaAccountSyncMode(accountId, picked) }
-                    }
-                )
-            ) {
-                Text(L10n.settings_account_sync_on()).tag(AllodiaAccountSyncMode.on)
-                Text(L10n.settings_account_sync_paused()).tag(AllodiaAccountSyncMode.paused)
-                Text(L10n.settings_account_sync_off()).tag(AllodiaAccountSyncMode.off)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            Text(syncModeHint(mode))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private func syncModeHint(_ mode: AllodiaAccountSyncMode) -> String {
-        switch mode {
-        case .on: L10n.settings_account_sync_on_hint()
-        case .paused: L10n.settings_account_sync_paused_hint()
-        case .off: L10n.settings_account_sync_off_hint()
-        }
-    }
-
-    @ViewBuilder
-    private var accountsDetail: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // What the person's other devices have to say, above their own accounts: an offer
-            // becomes one of them.
-            // Settings is a modal, and the setup sheet cannot present over it, so this asks for
-            // it and closes, and `ContentView` opens it once this is off screen.
-            AllodiaSyncSettings(model: model) { offer in
-                model.setupStartEmail = offer.email
-                model.setupStartOffer = offer
-                model.addAccountWhenSettingsCloses = true
-                close()
-            }
-            if let snapshot = model.syncSettings, !snapshot.accounts.isEmpty {
-                ForEach(snapshot.accounts, id: \.accountId) { account in
-                    accountSection(account, snapshot)
-                }
-            } else {
-                Text(L10n.settings_accounts_empty())
-                    .foregroundStyle(.secondary)
-            }
-        }
-        // The second way to remove an account (the first is the sidebar's context menu). A
-        // context menu is not a discoverable place to keep the only copy of "delete my
-        // account", on a touch device it is a long press on a row that gives no sign it
-        // holds one, which is why App Review asks where the control is.
-        .alert(
-            L10n.remove_account_title(),
-            isPresented: Binding(
-                get: { accountToRemove != nil },
-                set: { if !$0 { accountToRemove = nil } }
-            ),
-            presenting: accountToRemove
-        ) { account in
-            Button(L10n.action_remove(), role: .destructive) { removeAccount(account.accountId) }
-            Button(L10n.action_cancel(), role: .cancel) {}
-        } message: { account in
-            Text(L10n.remove_account_message(email: account.email))
-        }
-    }
-
-    @ViewBuilder
-    private func accountSection(_ account: AccountSyncRow, _ snapshot: SyncSettingsSnapshot) -> some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(account.email).font(.headline)
-
-                // Where this one stands, and whether it travels. First in the card, because it
-                // decides whether anything below it is anybody else's business. Absent in a build
-                // with no Allodia sign-in, which draws nothing rather than a dead switch.
-                if let mode = model.accountsSyncMode[account.accountId] {
-                    accountSyncSection(account.accountId, mode)
-                }
-
-                // The name this account sends under: the one thing on the card a recipient can
-                // see, so it comes before the questions about how much of the account this
-                // device keeps (docs/settings.md).
-                SenderNameSection(model: model, account: account)
-
-                // Fetch depth, how far back this account downloads mail (per-account).
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.settings_sync_depth_heading()).font(.subheadline).bold()
-                    Text(L10n.settings_sync_depth_description())
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Picker(L10n.settings_sync_depth_label(), selection: depthBinding(account)) {
-                        ForEach(snapshot.syncDepths, id: \.self) { months in
-                            Text(depthLabel(months)).tag(months)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .frame(maxWidth: 220, alignment: .leading)
-                }
-
-                // Message size, the largest message kept offline (per-account).
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.settings_message_size_heading()).font(.subheadline).bold()
-                    Text(L10n.settings_message_size_description())
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Picker(L10n.settings_message_size_label(), selection: sizeBinding(account)) {
-                        ForEach(snapshot.messageSizeLimitsMb, id: \.self) { megabytes in
-                            Text(sizeLabel(megabytes)).tag(megabytes)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .frame(maxWidth: 220, alignment: .leading)
-                }
-
-                Divider()
-
-                // Sync behaviour, push (IMAP IDLE, when supported) vs. interval polling.
-                if account.idleSupported {
-                    Picker(L10n.settings_sync_strategy_label(), selection: strategyBinding(account)) {
-                        Text(L10n.settings_sync_strategy_push()).tag(SyncStrategyKind.push)
-                        Text(L10n.settings_sync_strategy_poll()).tag(SyncStrategyKind.poll)
-                    }
-                    .radioPickerStyle()
-                } else {
-                    Text(L10n.settings_sync_idle_unsupported())
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                switch account.strategy {
-                case .push: pushFolders(account)
-                case .poll: pollInterval(account, snapshot)
-                }
-
-                Divider()
-
-                // Last in the card, and the only destructive control in Settings: a remove sits
-                // below the things you might actually adjust, not among them.
-                Button(role: .destructive) {
-                    accountToRemove = account
-                } label: {
-                    Label(L10n.action_remove_account(), systemImage: "trash")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(6)
-        }
-    }
-
-    @ViewBuilder
-    private func pollInterval(_ account: AccountSyncRow, _ snapshot: SyncSettingsSnapshot) -> some View {
-        Picker(L10n.settings_sync_interval_label(), selection: intervalBinding(account)) {
-            ForEach(snapshot.pollIntervals, id: \.self) { minutes in
-                Text(L10n.settings_sync_interval_minutes(count: Int(minutes))).tag(minutes)
-            }
-        }
-        .frame(maxWidth: 260)
-    }
-
-    @ViewBuilder
-    private func pushFolders(_ account: AccountSyncRow) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(L10n.settings_sync_folders_heading()).font(.subheadline).bold()
-            Text(L10n.settings_sync_folders_note(count: Int(model.syncSettings?.maxPushFolders ?? 4)))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            ForEach(account.folders, id: \.key) { folder in
-                Toggle(
-                    folderLabel(role: folder.role, name: folder.name),
-                    isOn: folderBinding(account, folder)
-                )
-                    .disabled(!folder.subscribed && account.atPushLimit)
-            }
-        }
-    }
-
-    /// The label for a fetch-depth option: a month count, or "All time" for the `0` sentinel.
-    private func depthLabel(_ months: UInt16) -> String {
-        months == 0 ? L10n.sync_depth_all() : L10n.sync_depth_months(count: Int(months))
-    }
-
-    private func depthBinding(_ account: AccountSyncRow) -> Binding<UInt16> {
-        Binding(
-            get: { account.syncDepthMonths },
-            set: { model.setAccountSyncDepth(account.accountId, $0) }
-        )
-    }
-
-    private func sizeLabel(_ megabytes: UInt16) -> String {
-        megabytes == 0
-            ? L10n.message_size_unlimited()
-            : L10n.message_size_megabytes(count: Int(megabytes))
-    }
-
-    private func sizeBinding(_ account: AccountSyncRow) -> Binding<UInt16> {
-        Binding(
-            get: { account.messageSizeLimitMb },
-            set: { model.setAccountMessageSizeLimit(account.accountId, $0) }
-        )
-    }
-
-    private func strategyBinding(_ account: AccountSyncRow) -> Binding<SyncStrategyKind> {
-        Binding(get: { account.strategy }, set: { model.setSyncStrategy(account.accountId, $0) })
-    }
-
-    private func intervalBinding(_ account: AccountSyncRow) -> Binding<UInt16> {
-        Binding(get: { account.pollIntervalMins }, set: { model.setPollInterval(account.accountId, $0) })
-    }
-
-    private func folderBinding(_ account: AccountSyncRow, _ folder: SyncFolderRow) -> Binding<Bool> {
-        Binding(get: { folder.subscribed }, set: { model.setPushFolder(account.accountId, folder.key, $0) })
-    }
-
     // MARK: Advanced, AI assistant access (desktop) + reset database (destructive)
     //
     // Both belong to this category's character rather than its old one-line description:
@@ -467,20 +228,11 @@ struct SettingsCategoryDetail: View {
 
     // MARK: A labelled GroupBox section (heading + description + content)
 
-    @ViewBuilder
     private func settingsGroup(
         _ heading: String,
         _ description: String,
-        @ViewBuilder content: () -> some View
+        @ViewBuilder content: @escaping () -> some View
     ) -> some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(heading).font(.headline)
-                Text(description).font(.callout).foregroundStyle(.secondary)
-                content().padding(.top, 2)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(6)
-        }
+        SettingsGroup(heading: heading, description: description, content: content)
     }
 }

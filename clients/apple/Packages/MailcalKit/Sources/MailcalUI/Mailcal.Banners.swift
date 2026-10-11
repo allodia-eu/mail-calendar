@@ -24,23 +24,21 @@ extension ContentView {
     /// `Mail.ReadWrite` / `Mail.Send` OAuth scopes (connected before those scopes, or revoked
     /// consent), so a send or a mail action was refused with `403 ErrorAccessDenied`. Reading is
     /// unaffected, a permission prompt, not an outage, so it uses the informational style, like
-    /// the calendar one. "Reconnect" re-runs that account's sign-in with the full scope set
-    /// (clearing this and any calendar prompt); the banner clears once a send/action succeeds.
+    /// the calendar one. "Reconnect" signs that account in again in place for everything it is
+    /// used for (`docs/provider-oauth.md` rule 11), which clears this and any calendar prompt; the
+    /// account keeps its mail and settings.
     @ViewBuilder var mailReauthBanner: some View {
-        let emails = model.mailReauthEmails
-        if !emails.isEmpty {
+        let ids = model.connectivity?.mailReauthAccounts ?? []
+        if let first = ids.first {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text(L10n.mail_reauth_prompt(accounts: emails.joined(separator: ", ")))
+                Text(L10n.mail_reauth_prompt(accounts: ids.map(model.accountEmail).joined(separator: ", ")))
                     .font(.callout).fixedSize(horizontal: false, vertical: true)
                 Spacer()
-                // One button re-auths the first affected account; when several are affected the
-                // banner re-renders after each clears, walking through them one sign-in at a time.
-                Button(L10n.mail_reauth_action()) {
-                    if let email = emails.first { model.signInWithMicrosoft(loginHint: email) }
-                }
-                .buttonStyle(.borderless)
-                .disabled(model.microsoftSigningIn)
+                // One button signs the first affected account in again; when several are affected
+                // the banner re-renders after each clears, walking through them one at a time.
+                Button(L10n.mail_reauth_action()) { model.signInAgainFromBanner(first) }
+                    .buttonStyle(.borderless)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
@@ -53,39 +51,30 @@ extension ContentView {
     /// OAuth grant (Google `invalid_grant`, a Microsoft `AADSTS700082`), or a refused password.
     /// Distinct from the two permission prompts above: nothing about the account syncs, and
     /// distinct from the offline/unreachable badges because the server *was* reached and a retry
-    /// will never help. An OAuth account gets a button that re-runs its own sign-in, including a
-    /// JMAP account connected by signing in, which re-authorises its own persisted grant; a
-    /// password or pasted-secret JMAP account is pointed at Settings, since there is no browser
-    /// flow to launch.
+    /// will never help. A Microsoft or Google account is signed in again in place, and a JMAP
+    /// account connected by signing in re-authorises its own persisted grant; a password or
+    /// pasted-secret account opens its page in Settings, where the new one is entered.
     @ViewBuilder var signInExpiredBanner: some View {
         let accounts = model.signInExpiredAccounts
         if let first = accounts.first {
             let emails = accounts.map(\.email).joined(separator: ", ")
+            let browserFlow = first.provider == .microsoft || first.provider == .google
+                || first.provider == .jmapOauth
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 Text(
-                    first.provider == .microsoft || first.provider == .google
-                        || first.provider == .jmapOauth
+                    browserFlow
                         ? L10n.signin_expired_prompt(accounts: emails)
                         : L10n.signin_expired_prompt_settings(accounts: emails)
                 )
                 .font(.callout).fixedSize(horizontal: false, vertical: true)
                 Spacer()
-                // One button re-signs-in the first affected account; with several affected the
+                // One button signs the first affected account in again; with several affected the
                 // banner re-renders after each clears, walking through them one at a time.
                 switch first.provider {
-                case .microsoft:
-                    Button(L10n.signin_expired_action()) {
-                        model.signInWithMicrosoft(loginHint: first.email)
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(model.microsoftSigningIn)
-                case .google:
-                    Button(L10n.signin_expired_action()) {
-                        model.signInWithGoogle(loginHint: first.email)
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(model.googleSigningIn)
+                case .microsoft, .google:
+                    Button(L10n.signin_expired_action()) { model.signInAgainFromBanner(first.id) }
+                        .buttonStyle(.borderless)
                 case .jmapOauth:
                     // Addressed to the account id, not the address: the core re-authorises that
                     // account's own stored grant rather than starting a discovery from an email.
@@ -95,7 +84,8 @@ extension ContentView {
                     .buttonStyle(.borderless)
                     .disabled(model.jmapReconnecting)
                 default:
-                    EmptyView()
+                    Button(L10n.settings_title()) { model.openAccountPage(first.id) }
+                        .buttonStyle(.borderless)
                 }
             }
             .padding(.horizontal, 14)

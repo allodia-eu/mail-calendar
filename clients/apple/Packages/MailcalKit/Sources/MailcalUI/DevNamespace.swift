@@ -38,7 +38,7 @@ enum DevNamespace {
         switch devAccount {
         case let tag?
         where tag == "stalwart" || tag == "stalwart-multi" || tag == "stalwart-imap"
-            || tag == "first-run":
+            || tag == "stalwart-linked" || tag == "first-run":
             "\(prodKeychainService).dev.\(tag)"
         default: "\(prodKeychainService).dev"
         }
@@ -55,6 +55,7 @@ enum DevNamespace {
         case "stalwart": "mailcal-dev"
         case "stalwart-multi": "mailcal-dev-multi"
         case "stalwart-imap": "mailcal-dev-imap"
+        case "stalwart-linked": "mailcal-dev-linked"
         case "first-run": "mailcal-dev-first-run"
         default: "mailcal-dev-personal"
         }

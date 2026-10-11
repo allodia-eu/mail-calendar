@@ -19,7 +19,7 @@ struct SettingsView: View {
     let close: () -> Void
     /// Removes an account by id, handed straight to `SettingsCategoryDetail`, see its own
     /// note for why removal is the shell's job rather than a direct model call.
-    let removeAccount: (String) -> Void
+    let removeAccount: (String) -> String?
 
     @State private var selection: SettingsCategory
 
@@ -29,7 +29,7 @@ struct SettingsView: View {
     init(
         model: MailboxModel,
         close: @escaping () -> Void,
-        removeAccount: @escaping (String) -> Void,
+        removeAccount: @escaping (String) -> String?,
         openOn: SettingsCategory
     ) {
         self.model = model

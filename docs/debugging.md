@@ -168,8 +168,8 @@ mailbox ([`accounts.md`](accounts.md)). It exists for linking accounts: alice's 
 schedules as her address, so it is the one suggested for her mailbox, and bob's is offered beside it
 without being suggested. Nothing is linked up front, and nothing changed in that mode outlives the launch: the canned
 accounts are connected without what the namespace stored, since a link or a use is stored under the
-canned account's own id. Linux and Windows only: `boot.sh` refuses it on the other platforms, whose
-clients would answer a mode they do not know with the developer's stored accounts.
+canned account's own id. Every client but Android: `boot.sh` refuses it there, since that client
+would answer a mode it does not know with the developer's stored accounts.
 
 On **macOS** the isolation is wider still, and it is not conditional on the harness: **every** DEBUG
 build is separated from the installed app, `--account personal` included (that being the mode that
@@ -177,11 +177,11 @@ reads and writes real credentials and real mail, and so the one that most needs 
 the installed `.dmg` otherwise share a login keychain, a home directory, and (same bundle id) a
 `UserDefaults` domain. One type decides all of it: `DevNamespace` ([`DevNamespace.swift`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/DevNamespace.swift)):
 
-| | shipped app | `personal` / unset / `demo` | `stalwart` | `stalwart-multi` | `stalwart-imap` |
-|---|---|---|---|---|---|
-| Keychain service | `eu.allodia.mailcal` | `…mailcal.dev` | `…dev.stalwart` | `…dev.stalwart-multi` | `…dev.stalwart-imap` |
-| Engine store (`~/.local/share/`) | `mailcal` | `mailcal-dev-personal` | `mailcal-dev` | `mailcal-dev-multi` | `mailcal-dev-imap` |
-| Preferences | `UserDefaults.standard` | suite `…mailcal.dev` | suite `…dev.stalwart` | suite `…dev.stalwart-multi` | suite `…dev.stalwart-imap` |
+| | shipped app | `personal` / unset / `demo` | `stalwart` | `stalwart-multi` | `stalwart-imap` | `stalwart-linked` |
+|---|---|---|---|---|---|---|
+| Keychain service | `eu.allodia.mailcal` | `…mailcal.dev` | `…dev.stalwart` | `…dev.stalwart-multi` | `…dev.stalwart-imap` | `…dev.stalwart-linked` |
+| Engine store (`~/.local/share/`) | `mailcal` | `mailcal-dev-personal` | `mailcal-dev` | `mailcal-dev-multi` | `mailcal-dev-imap` | `mailcal-dev-linked` |
+| Preferences | `UserDefaults.standard` | suite `…mailcal.dev` | suite `…dev.stalwart` | suite `…dev.stalwart-multi` | suite `…dev.stalwart-imap` | suite `…dev.stalwart-linked` |
 
 `personal` takes the third store name rather than the base `mailcal-dev` because the JMAP harness
 already owns that one: the two would silently have shared a SQLite database. `DevNamespaceTests`

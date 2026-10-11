@@ -9,7 +9,7 @@ import SwiftUI
 import MailcalBindings
 
 /// The account kinds the setup form can offer.
-enum AccountKind: Hashable {
+enum SetupAccountKind: Hashable {
     case imap
     case microsoft
     case google
@@ -19,7 +19,7 @@ enum AccountKind: Hashable {
     /// OAuth client registration, which is injected at build time, so a build given none drops
     /// the route rather than showing a button that fails at the provider. The two credential
     /// routes are always there.
-    static var offered: [AccountKind] {
+    static var offered: [SetupAccountKind] {
         let routes = oauthRoutes()
         return [.imap, .jmap, .microsoft, .google].filter { kind in
             switch kind {
@@ -87,7 +87,7 @@ struct AccountSetupView: View {
     /// unsupported provider), so the user knows why they're entering settings by hand.
     var note: String? = nil
 
-    @State private var kind: AccountKind
+    @State private var kind: SetupAccountKind
     /// What the typed mail server said it accepts. `.password` until it answers, because this
     /// pane's password field is already on screen and must not be taken away to say nothing.
     @State private var imapAuth: ImapAuthState = .password
@@ -138,7 +138,7 @@ struct AccountSetupView: View {
         signInJmap: @escaping (String, String) async -> JmapSignInOutcome,
         imapAuthOptions: ((ImapLoginRequest) async -> ImapAuthOffer)? = nil,
         signInImap: ((ImapLoginRequest) async -> ImapSignInOutcome)? = nil,
-        initialKind: AccountKind = .imap,
+        initialKind: SetupAccountKind = .imap,
         prefillEmail: String = "",
         prefillImapHost: String = "",
         prefillSmtpHost: String = "",
@@ -204,7 +204,7 @@ struct AccountSetupView: View {
             }
 
             Picker(L10n.setup_account_type(), selection: $kind) {
-                ForEach(AccountKind.offered, id: \.self) { offered in
+                ForEach(SetupAccountKind.offered, id: \.self) { offered in
                     Text(offered.label).tag(offered)
                 }
             }

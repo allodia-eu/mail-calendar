@@ -1,0 +1,215 @@
+// What Settings → Accounts says about an account, decided from its snapshot entry alone
+// (docs/accounts.md rules 11 to 13), so each rule is tested without a view. The words are the
+// catalog's; the decisions are here.
+
+import MailcalBindings
+
+/// Which line, if any, sits under a use's switch.
+enum UseNote: Equatable {
+    case none
+    /// The last of mail, calendar and contacts: the account is removed instead.
+    case last
+    /// Colleagues, while contacts are off.
+    case needsContacts
+    /// Chosen, and the provider has not granted it.
+    case withheld
+}
+
+/// How one use's switch is drawn.
+struct UseSwitch: Equatable {
+    /// On. A use waiting on a permission is drawn off: it is not working, and switching it on is
+    /// what asks the provider again.
+    let active: Bool
+    /// Whether switching it on asks the provider rather than the core.
+    let asks: Bool
+    /// Whether the person can flip it.
+    let enabled: Bool
+    let note: UseNote
+}
+
+/// One link slot's picker: "none" first, then `options`.
+struct LinkPicker: Equatable {
+    let slot: LinkSlot
+    let options: [LinkedAccount]
+    /// The index into `options` of the account linked now; `nil` for "none".
+    let selected: Int?
+    /// The index of the account to suggest while nothing is linked: one whose calendar server
+    /// schedules as the mail account's address.
+    let suggested: Int?
+}
+
+enum AccountSettingsRules {
+    private static let primary: [AccountCapability] = [.mail, .calendar, .contacts]
+
+    /// The uses the account is used for, working or waiting on a permission, in the snapshot's
+    /// order.
+    static func inUse(_ entry: AccountEntry) -> [AccountCapability] {
+        entry.uses.filter { $0.state != .off }.map(\.capability)
+    }
+
+    /// The links the account holds, as the list row names them.
+    static func linked(_ entry: AccountEntry) -> [(use: AccountCapability, address: String)] {
+        [
+            (AccountCapability.calendar, entry.links.calendar),
+            (.contacts, entry.links.contacts),
+            (.mail, entry.links.mail),
+        ].compactMap { use, link in link.map { (use, $0.address) } }
+    }
+
+    /// Whether a use the account is used for waits on the provider's permission.
+    static func needsPermission(_ entry: AccountEntry) -> Bool {
+        entry.uses.contains { $0.state == .needsPermission }
+    }
+
+    /// The uses waiting on the provider's permission, for what a sign-in that withheld some of
+    /// them ends with.
+    static func withheld(_ entry: AccountEntry) -> [AccountCapability] {
+        entry.uses.filter { $0.state == .needsPermission }.map(\.capability)
+    }
+
+    /// Whether the account signs in at its provider's own page, which "Sign in again" opens.
+    static func signsInAtProvider(_ kind: AccountKind) -> Bool {
+        kind == .microsoft || kind == .google
+    }
+
+    /// The switch for `capability`. The last of mail, calendar and contacts cannot be switched
+    /// off, and colleagues cannot be switched on without contacts: the core refuses both, so the
+    /// switch says why rather than letting the person find out.
+    static func useSwitch(_ entry: AccountEntry, _ capability: AccountCapability) -> UseSwitch {
+        func used(_ wanted: AccountCapability) -> Bool {
+            entry.uses.contains { $0.capability == wanted && $0.state != .off }
+        }
+        let state = entry.uses.first { $0.capability == capability }?.state ?? .off
+        // A use waiting on a permission is drawn off, so it is never the one held on: switching
+        // it on asks the provider, which the core does not refuse.
+        let last = state == .on && primary.contains(capability)
+            && primary.filter(used).count == 1
+        let withoutContacts = capability == .colleagues && state == .off && !used(.contacts)
+        let note: UseNote =
+            last ? .last
+            : withoutContacts ? .needsContacts
+            : state == .needsPermission ? .withheld
+            : .none
+        return UseSwitch(
+            active: state == .on,
+            asks: state == .needsPermission,
+            enabled: !last && !withoutContacts,
+            note: note
+        )
+    }
+
+    /// The pickers an account's page offers: one per slot it can hold, which is a slot with
+    /// candidates or one already linked. A link the candidates no longer offer is kept as the
+    /// first option, so the picker shows what is stored rather than "none".
+    static func linkPickers(_ entry: AccountEntry) -> [LinkPicker] {
+        let slots: [(LinkSlot, [LinkedAccount], LinkedAccount?)] = [
+            (.calendar, entry.linkCandidates.calendar, entry.links.calendar),
+            (.contacts, entry.linkCandidates.contacts, entry.links.contacts),
+            (.mail, entry.linkCandidates.mail, entry.links.mail),
+        ]
+        return slots.compactMap { slot, candidates, current in
+            guard !candidates.isEmpty || current != nil else { return nil }
+            var options = candidates
+            if let current, !options.contains(current) {
+                options.insert(current, at: 0)
+            }
+            let selected = current.flatMap { options.firstIndex(of: $0) }
+            let suggested = selected == nil
+                ? options.firstIndex { entry.linkCandidates.suggested.contains($0.id) }
+                : nil
+            return LinkPicker(slot: slot, options: options, selected: selected, suggested: suggested)
+        }
+    }
+
+    /// The accounts that lose their link when this one is removed, joined for the confirmation;
+    /// `nil` when none does.
+    static func unlinked(_ entry: AccountEntry) -> String? {
+        entry.linkedFrom.isEmpty ? nil : entry.linkedFrom.map(\.address).joined(separator: ", ")
+    }
+
+    /// Whether the mail settings offer a new password or API token: a JMAP account whose pasted
+    /// secret the server stopped accepting. An account whose servers are editable takes its new
+    /// password there, and one that signs in at a provider signs in again instead.
+    static func replacesSecret(
+        _ entry: AccountEntry, expired: Bool, provider: AccountProvider?
+    ) -> Bool {
+        expired && entry.endpoints == nil && (provider == .jmap || provider == .password)
+    }
+}
+
+/// The catalog's words for the decisions above.
+enum AccountSettingsLabels {
+    /// An account's kind, as the setup screen names the same choice.
+    static func kind(_ kind: AccountKind) -> String {
+        switch kind {
+        case .imap: L10n.setup_account_type_password()
+        case .dav: L10n.account_kind_dav()
+        case .jmap: L10n.setup_account_type_jmap()
+        case .microsoft: L10n.setup_account_type_microsoft()
+        case .google: L10n.setup_account_type_google()
+        }
+    }
+
+    /// A use's name, as the main window's sections name it.
+    static func use(_ capability: AccountCapability) -> String {
+        switch capability {
+        case .mail: L10n.nav_mail()
+        case .calendar: L10n.nav_calendar()
+        case .contacts: L10n.nav_contacts()
+        case .colleagues: L10n.account_use_colleagues()
+        }
+    }
+
+    /// The list row's lines under the address: the kind and what the account is used for, what it
+    /// is linked to, and whether something needs the person.
+    static func summary(_ entry: AccountEntry) -> [String] {
+        let uses = AccountSettingsRules.inUse(entry).map(use).joined(separator: ", ")
+        var lines = ["\(kind(entry.kind)) · \(uses)"]
+        lines += AccountSettingsRules.linked(entry).map {
+            L10n.settings_account_linked_line(capability: use($0.use), address: $0.address)
+        }
+        if AccountSettingsRules.needsPermission(entry) {
+            lines.append(L10n.settings_account_needs_permission())
+        }
+        return lines
+    }
+
+    /// The line under a use's switch.
+    static func note(_ note: UseNote) -> String? {
+        switch note {
+        case .none: nil
+        case .last: L10n.settings_account_use_last()
+        case .needsContacts: L10n.settings_account_colleagues_needs_contacts()
+        case .withheld: L10n.settings_account_use_withheld()
+        }
+    }
+
+    /// A link picker's heading.
+    static func slot(_ slot: LinkSlot) -> String {
+        switch slot {
+        case .calendar: L10n.settings_account_link_calendar()
+        case .contacts: L10n.settings_account_link_contacts()
+        case .mail: L10n.settings_account_link_mail()
+        }
+    }
+
+    /// What removing the account does, naming the accounts that lose their link to it.
+    static func removal(_ entry: AccountEntry) -> String {
+        removal(address: entry.address, unlinked: AccountSettingsRules.unlinked(entry))
+    }
+
+    static func removal(address: String, unlinked: String?) -> String {
+        let message = L10n.remove_account_message(email: address)
+        guard let unlinked else { return message }
+        return "\(message) \(L10n.remove_account_unlinks(accounts: unlinked))"
+    }
+
+    /// The sign-in section's line: what is wrong, when something is.
+    static func signIn(_ entry: AccountEntry, expired: Bool) -> String {
+        if expired { return L10n.signin_expired_prompt(accounts: entry.address) }
+        if AccountSettingsRules.needsPermission(entry) {
+            return L10n.settings_account_needs_permission()
+        }
+        return L10n.settings_account_signin_description()
+    }
+}

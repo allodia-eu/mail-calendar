@@ -53,12 +53,12 @@ if another platform grows summaries it uses the same keys.
 
 ## Known gaps
 
-- **Only Linux lists every account in Accounts.** Apple, Windows and Android still draw one card
-  per **mail** account from `sync_settings`, with the per-account mail settings and removal inline,
-  and offer no page per account: so an account without mail is not listed there, nothing switches
-  a use on or off, and nothing sets a link. On Linux the uses switch is the account page's first
-  group after the sharing control, the linked accounts follow, then the mail settings, then
-  removal.
+- **Android does not list every account in Accounts.** It still draws one card per **mail**
+  account from `sync_settings`, with the per-account mail settings and removal inline, and offers
+  no page per account: so an account without mail is not listed there, nothing switches a use on
+  or off, and nothing sets a link. On Apple, Linux and Windows the uses switch is the account
+  page's first group after the sharing control, the linked accounts follow, then sign-in and
+  servers, then the mail settings, then removal.
 
 - **Nothing presses the account category's browser hand-off.** Manage, Delete and the end-session
   hop each open a URL in the system browser, and no suite on any platform follows it: Windows
@@ -67,11 +67,10 @@ if another platform grows summaries it uses the same keys.
   against the running client, and the Linux widget suite asserts each button reaches its own input.
   Both stop at the launch. What the pages themselves show is unverified from here.
 
-- **Expired stored-secret replacement is wired on Linux only, and runtime-unverified there.** The
-  Apple, Windows, and Android prompt says to use Settings, but Accounts exposes no credential editor,
-  so their only remedy remains removing and re-adding the account. The shared
-  `replace_account_secret` operation already preserves the account and validates before persistence;
-  the missing work is client UI.
+- **Expired stored-secret replacement is missing on Android.** Its prompt says to use Settings, but
+  Accounts there exposes no credential editor, so its only remedy remains removing and re-adding the
+  account. Apple, Linux and Windows offer a new password or API token on the account's page, tried
+  before it is kept (`replace_account_secret`); the missing work is client UI.
 
 - **Two surfaces stay light whatever the appearance says: the composer editor and a message's own
   body.** Both are HTML in a web view: the shared editor bundle
@@ -90,14 +89,13 @@ if another platform grows summaries it uses the same keys.
 - **Android's Diagnostics row changed icon.** It borrowed the "info" symbol, which About now
   carries; Diagnostics uses Material's "troubleshoot". Apple already distinguished the two
   (stethoscope / info circle) and Windows draws no category icons.
-- **"Remove account" in the Accounts category is missing on Android and Windows**: Apple (macOS +
-  iOS/iPadOS, which share one target) and Linux both offer it there. Android and Windows still
-  offer removal *only* from the mailbox sidebar's
-  per-account context menu, which works, and whose confirmation already carries a Cancel on both
-  (Android's `AlertDialog` has a `dismissButton`, Windows' `ContentDialog` a `CloseButtonText`), so
-  neither has the defect this entry was added for. What they lack is the discoverable second route.
-  It is client wiring on both: the core call (`removeAccount`) and the confirmation copy
-  (`remove_account_title` / `remove_account_message`) are already shared and already used.
+- **"Remove account" in the Accounts category is missing on Android**: Apple, Linux and Windows
+  offer it on each account's page. Android still offers removal *only* from the mailbox sidebar's
+  per-account context menu, which works, and whose confirmation already carries a Cancel (its
+  `AlertDialog` has a `dismissButton`), so it does not have the defect this entry was added for.
+  What it lacks is the discoverable second route. It is client wiring: the core call
+  (`removeAccount`) and the confirmation copy (`remove_account_title` / `remove_account_message`)
+  are already shared and already used.
 
 - **Linux's Accounts category opens with an "Add account" button**, above the per-account cards. No
   other client puts one there: Apple's and Windows' live in the mailbox sidebar, Android's on the

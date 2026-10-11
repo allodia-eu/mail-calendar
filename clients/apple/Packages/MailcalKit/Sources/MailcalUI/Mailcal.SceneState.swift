@@ -69,13 +69,14 @@ extension ContentView {
         model.showContacts()
     }
 
-    func removeAccount(_ id: String) {
+    @discardableResult
+    func removeAccount(_ id: String) -> String? {
         if sceneSelectedAccount == id || model.selectedAccount == id {
             sceneSelectedAccount = ""
             sceneSelectedFolder = ""
             clearOpenedMessage()
         }
-        model.removeAccount(id)
+        return model.removeAccount(id)
     }
 
     func setOpenedMessage(_ message: OpenedMessage) {

@@ -15,21 +15,6 @@ extension MailboxModel {
         connectivity?.unreachableAccounts.contains(accountId) ?? false
     }
 
-    /// The friendly emails of Microsoft accounts whose calendar is withheld for lack of the
-    /// calendar OAuth scope (connected before calendar support, or revoked consent), drives the
-    /// "reconnect for calendar" banner. Mail is unaffected; re-authenticating grants the scope.
-    var calendarReauthEmails: [String] {
-        (connectivity?.calendarReauthAccounts ?? []).map(accountEmail)
-    }
-
-    /// The friendly emails of Microsoft accounts whose mail write/send is withheld for lack of the
-    /// `Mail.ReadWrite` / `Mail.Send` OAuth scopes (connected before those scopes, or revoked
-    /// consent), drives the "reconnect to send and manage mail" banner. Reading is unaffected;
-    /// re-authenticating grants the full scope set, clearing this and any calendar prompt at once.
-    var mailReauthEmails: [String] {
-        (connectivity?.mailReauthAccounts ?? []).map(accountEmail)
-    }
-
     /// The accounts whose stored sign-in the server has stopped accepting, an expired or revoked
     /// OAuth grant, or a password it now refuses. Nothing syncs until the user signs in again, and
     /// retrying never helps, so this drives its own banner rather than the unreachable badge (the
@@ -186,16 +171,22 @@ extension MailboxModel {
         return folders.filter(\.visible).map { SidebarFolder(account: account, folder: $0) }
     }
 
-    /// The email of the account `id`, for display (falls back to the id itself).
+    /// The address of the account `id`, for display (`docs/accounts.md` rule 8). The snapshot
+    /// names every account, mail or not; the id is the fallback for one removed mid-pass.
     func accountEmail(_ id: String) -> String {
-        accounts.first { $0.id == id }?.email ?? id
+        accounts.first { $0.id == id }?.email ?? accountEntry(id)?.address ?? id
     }
 
     /// Removes account `id`: drops it from the running app (the core rebuilds the switcher +
-    /// list without it and, if it was selected, falls back to the unified inbox). The core also
-    /// erases its Keychain entry, through the same port it wrote it through, so it doesn't return
-    /// on the next launch.
-    func removeAccount(_ id: String) {
+    /// list without it and, if it was selected, falls back to the unified inbox), and clears every
+    /// link the other accounts held to it. The core also erases its Keychain entry, through the
+    /// same port it wrote it through, so it doesn't return on the next launch. The last account
+    /// gone returns the window to first-run setup (`docs/accounts.md` rule 11).
+    ///
+    /// Answers why its stored sign-in could not be erased, or `nil`.
+    @discardableResult
+    func removeAccount(_ id: String) -> String? {
+        var failure: String?
         do {
             try app?.removeAccount(id: id)
         } catch {
@@ -206,7 +197,13 @@ extension MailboxModel {
                 target: "accounts",
                 message: "remove account: the stored credential could not be erased: \(error)"
             )
+            failure = L10n.remove_account_failed(error: coreMessage(error))
         }
+        refreshAccountsSnapshot()
+        if app != nil, accountsSnapshot.accounts.isEmpty {
+            needsSetup = true
+        }
+        return failure
     }
 
     /// Focus one folder of one account, in the mail view.
