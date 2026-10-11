@@ -116,7 +116,8 @@ Settings, whenever the person wants it (`offers_setup_links`). A JMAP server oft
 since JMAP Calendars is still a draft, so a JMAP account whose server offers no calendar or no
 contacts is offered the step even with nothing to pick yet, and when detection found a calendar or
 address-book server beside the JMAP server, the step offers to set that up as an account of its
-own (`dav_setup_beside`). A suggested account starts picked and is linked only when the person
+own (`dav_setup_beside`), whether the account was added from the detected card or by hand from
+it, which is how an API token goes in where the card offers a sign-in instead. A suggested account starts picked and is linked only when the person
 continues; a suggestion the core finds after the step is drawn reaches it unless the person has
 already changed a pick. **Add another account** runs setup again from the address and comes back
 to the step, cancelled or done, with the account just added picked where it fits. The name each

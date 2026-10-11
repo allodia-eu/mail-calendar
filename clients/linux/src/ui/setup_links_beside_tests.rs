@@ -120,3 +120,46 @@ pub(in crate::ui) fn the_step_offers_the_server_beside(window: &adw::Application
         Some(AppInput::SetupBesideAccount)
     ));
 }
+
+fn detected_jmap(email: &str) -> crate::ui::setup_model::SetupForm {
+    use crate::ui::setup_model::{DetectedForm, JmapForm, JmapSignIn, SetupForm};
+    SetupForm::Detected(DetectedForm::Jmap(JmapForm {
+        email: email.to_owned(),
+        server_url: "https://jmap.example.org".to_owned(),
+        trusted: true,
+        sign_in: JmapSignIn::Offered,
+        caldav_url: Some("https://dav.example.org/.well-known/caldav".to_owned()),
+        carddav_url: None,
+    }))
+}
+
+/// An API token goes in by hand: a server offering sign-in shows the offer in place of the
+/// secret field, so "Set up manually" is the way to a token, and the servers found beside the
+/// JMAP server must survive it.
+#[test]
+fn the_server_beside_survives_setting_the_account_up_by_hand() {
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(detected_jmap("alice@example.org"));
+    state.edit_detected_manually();
+
+    state.remember_beside(JMAP);
+
+    assert_eq!(state.beside_for(JMAP), Some(&beside()));
+}
+
+/// What was found belongs to the address it was found for, never to another typed in its place.
+#[test]
+fn the_server_beside_is_not_offered_for_another_address() {
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(detected_jmap("alice@example.org"));
+    state.show_form(crate::ui::setup_model::manual_form(
+        "bob@example.net".to_owned(),
+        None,
+    ));
+
+    state.remember_beside(JMAP);
+
+    assert!(state.beside_for(JMAP).is_none());
+}

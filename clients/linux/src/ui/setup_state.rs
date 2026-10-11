@@ -69,6 +69,8 @@ pub(super) struct SetupState {
     pub(super) added: Vec<String>,
     /// The servers found beside each JMAP account this flow added, until its link step uses them.
     pub(super) beside: Vec<super::setup_links::Beside>,
+    /// The servers detection found beside the JMAP server on screen, kept past "Set up manually".
+    found: Option<super::setup_links::Found>,
 }
 
 impl SetupState {
@@ -95,6 +97,7 @@ impl SetupState {
             returning_to: None,
             added: Vec::new(),
             beside: Vec::new(),
+            found: None,
         }
     }
 
@@ -122,19 +125,21 @@ impl SetupState {
         self.beside.clear();
     }
 
-    /// Keeps the servers detection found beside the JMAP form `account` was just added from.
+    /// Keeps the servers detection found beside the JMAP form `account` was just added from,
+    /// detected or edited by hand, for the address they were found for.
     pub(super) fn remember_beside(&mut self, account: &str) {
-        let Some(SetupForm::Detected(super::setup_model::DetectedForm::Jmap(form))) = &self.form
-        else {
-            return;
+        let jmap = match &self.form {
+            Some(SetupForm::Detected(super::setup_model::DetectedForm::Jmap(_))) => true,
+            Some(SetupForm::Manual(form)) => form.kind == super::setup_model::AccountKind::Jmap,
+            _ => false,
         };
-        if form.caldav_url.is_some() || form.carddav_url.is_some() {
-            self.beside.push(super::setup_links::Beside {
-                account: account.to_owned(),
-                email: form.email.clone(),
-                caldav_url: form.caldav_url.clone(),
-                carddav_url: form.carddav_url.clone(),
-            });
+        let email = self.form.as_ref().map(SetupForm::email).unwrap_or_default();
+        if let Some(found) = self
+            .found
+            .as_ref()
+            .filter(|found| jmap && found.email == email)
+        {
+            self.beside.push(found.offer_for(account));
         }
     }
 
@@ -154,6 +159,7 @@ impl SetupState {
         // A fresh flow asks its own questions; nothing an earlier one answered carries over.
         self.accepted_certificate = None;
         self.start_email = start_email;
+        self.found = None;
         self.forget_flow();
         self.bump();
     }
@@ -302,6 +308,9 @@ impl SetupState {
     }
 
     pub(super) fn show_form(&mut self, form: SetupForm) {
+        if let SetupForm::Detected(detected) = &form {
+            self.found = super::setup_links::Found::of(detected);
+        }
         self.phase = Phase::Form;
         self.form = Some(form);
         self.error = None;

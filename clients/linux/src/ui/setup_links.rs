@@ -23,6 +23,38 @@ pub(crate) struct Beside {
     pub(super) carddav_url: Option<String>,
 }
 
+/// The servers detection found beside a JMAP server, for the address it was found for.
+#[derive(Clone, Debug)]
+pub(crate) struct Found {
+    pub(super) email: String,
+    caldav_url: Option<String>,
+    carddav_url: Option<String>,
+}
+
+impl Found {
+    /// What a detected card found beside its JMAP server, if anything.
+    pub(super) fn of(detected: &super::setup_model::DetectedForm) -> Option<Self> {
+        let super::setup_model::DetectedForm::Jmap(form) = detected else {
+            return None;
+        };
+        (form.caldav_url.is_some() || form.carddav_url.is_some()).then(|| Self {
+            email: form.email.clone(),
+            caldav_url: form.caldav_url.clone(),
+            carddav_url: form.carddav_url.clone(),
+        })
+    }
+
+    /// The offer for `account`, set up from the JMAP server these were found beside.
+    pub(super) fn offer_for(&self, account: &str) -> Beside {
+        Beside {
+            account: account.to_owned(),
+            email: self.email.clone(),
+            caldav_url: self.caldav_url.clone(),
+            carddav_url: self.carddav_url.clone(),
+        }
+    }
+}
+
 impl Beside {
     /// The host a person recognises the servers by.
     fn host(&self) -> String {
