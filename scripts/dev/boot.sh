@@ -92,7 +92,7 @@ deliver_harness_ca() {
 # (docker/stalwart/README.md). Without the harness, the boot is unaffected.
 offer_harness_sign_in() {
   harness_healthy || return 0
-  [[ -f "$HARNESS_CA" ]] || extract_harness_ca || return 0
+  extract_harness_ca || return 0
   deliver_harness_ca
 }
 
@@ -108,7 +108,7 @@ case "$ACCOUNT" in
   stalwart-imap)
     require_harness
     # IMAP fidelity (full mail actions + IDLE) needs the harness's self-signed IMAP cert trusted.
-    [[ -f "$HARNESS_CA" ]] || extract_harness_ca || die "no harness certificates at $HARNESS_CA: run: scripts/dev/harness.sh up"
+    extract_harness_ca || die "could not read the harness certificates: run: scripts/dev/harness.sh up"
     deliver_harness_ca
     info "booting $platform against the local Stalwart harness over IMAP (full mail actions + IDLE)" ;;
   stalwart-linked)
@@ -116,7 +116,7 @@ case "$ACCOUNT" in
     # this one is refused there rather than opening real mail under a harness's name.
     [[ $platform == linux ]] || die "--account stalwart-linked is implemented on Linux only"
     require_harness
-    [[ -f "$HARNESS_CA" ]] || extract_harness_ca || die "no harness certificates at $HARNESS_CA: run: scripts/dev/harness.sh up"
+    extract_harness_ca || die "could not read the harness certificates: run: scripts/dev/harness.sh up"
     deliver_harness_ca
     info "booting $platform against the harness as alice's mailbox beside alice's and bob's calendar and contacts" ;;
   personal) info "booting $platform against your stored (personal) accounts" ;;

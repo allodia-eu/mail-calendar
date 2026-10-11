@@ -95,7 +95,8 @@ touches the count-asserted CI fixtures, so CI (`SEED_BULK` unset ⇒ 0) is unaff
 <platform> --account stalwart-imap` drives the harness over IMAP (implicit TLS on 12993). Since
 that listener serves a **self-signed** cert (`CN=rcgen self signed cert`, SAN `localhost`),
 `harness.sh up` extracts it, with the sign-in server's two certificates below, to
-`docker/stalwart/tls/harness-ca.pem` (gitignored), and `boot.sh` delivers that bundle so the
+`docker/stalwart/tls/harness-ca.pem` (gitignored), and `boot.sh` reads them afresh and delivers
+that bundle so the
 **dev-only** trust path in the core adds each as an extra anchor. Standard verification otherwise
 unchanged. Dial `127.0.0.1:12993` (Android emulator `10.0.2.2:12993`) with
 `server_name = localhost`. Supported on **every** platform: macOS, the iOS/iPad simulators,

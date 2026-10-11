@@ -390,6 +390,10 @@ require_harness() {
 # meets it: the seeded IMAP (12993), the sign-in server's IMAP (12995) and its HTTPS front (443).
 # The dial IP is irrelevant to the cert; server_name is `localhost` for all three. Best-effort:
 # warns and returns 1 when any is missing, and leaves the bundle as it was.
+#
+# Every boot reads them afresh rather than trusting the bundle already there: the harness is shared
+# by every checkout, so recreating it from one leaves the bundle in each other checkout stale, and a
+# stale anchor fails every TLS dial to it with `BadSignature`, which reads like a client bug.
 extract_harness_ca() {
   command -v openssl >/dev/null 2>&1 || { warn "openssl not found; cannot extract the harness certificates"; return 1; }
   mkdir -p "$(dirname "$HARNESS_CA")"
