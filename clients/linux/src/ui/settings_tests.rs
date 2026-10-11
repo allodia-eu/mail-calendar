@@ -147,13 +147,17 @@ pub(crate) fn setup_opens_over_settings_while_settings_is_open() {
 
     let root = gtk::Window::new();
     let mut settings = SettingsWindow::default();
-    assert!(settings.front().is_none(), "nothing is open over the app");
+    assert_eq!(
+        settings.front_or(&root),
+        root,
+        "nothing is open over the app"
+    );
 
     let window = gtk::Window::builder().transient_for(&root).build();
     window.present();
     settings.window = Some(window.clone());
-    let front = settings.front().expect("Settings is in front");
-    assert_eq!(front, window);
+    let front = settings.front_or(&root);
+    assert_eq!(front, window, "Settings is in front");
 
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let mut state = SetupState::closed();
@@ -165,8 +169,7 @@ pub(crate) fn setup_opens_over_settings_while_settings_is_open() {
 
     // Settings closing under it hands setup back to the main window, unchanged otherwise.
     window.close();
-    assert!(settings.front().is_none());
-    setup.render(&state, &root, &sender);
+    setup.render(&state, &settings.front_or(&root), &sender);
     assert_eq!(
         setup.current_window().as_ref(),
         Some(&open),

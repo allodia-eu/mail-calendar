@@ -302,10 +302,11 @@ impl SettingsWindow {
         self.window.as_ref().is_some_and(WidgetExt::is_visible)
     }
 
-    /// The Settings window while it is on screen: what a window opened from it is parented to,
-    /// so the toolkit stacks that window above Settings rather than beside it.
-    pub(super) fn front(&self) -> Option<gtk::Window> {
-        self.window.clone().filter(WidgetExt::is_visible)
+    /// The Settings window while it is on screen, else `root`: what a window opened from it is
+    /// parented to, so the toolkit stacks that window above Settings rather than beside it.
+    pub(super) fn front_or(&self, root: &impl IsA<gtk::Window>) -> gtk::Window {
+        let settings = self.window.clone().filter(WidgetExt::is_visible);
+        settings.unwrap_or_else(|| root.clone().upcast())
     }
 }
 

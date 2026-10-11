@@ -300,7 +300,7 @@ that same file.
   opened from Settings but parented to the main window shows above Settings only until the person
   returns to the app, which raises Settings over it; a modal hidden that way also makes the button
   that opened it look dead. Parent a window to the window it was opened from
-  (`SettingsWindow::front` in [`settings.rs`](../clients/linux/src/ui/settings.rs)).
+  (`SettingsWindow::front_or` in [`settings.rs`](../clients/linux/src/ui/settings.rs)).
 - **A size request or a scroll offset set from a `GtkAdjustment` notification never reaches the
   screen.** GTK emits `notify::page-size` and `notify::upper` from inside the viewport's own size
   allocation, which has already measured and placed the child for this frame. A height asked for
