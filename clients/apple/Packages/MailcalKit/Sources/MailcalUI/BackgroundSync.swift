@@ -6,7 +6,6 @@
 import BackgroundTasks
 import Foundation
 import MailcalBindings
-import Synchronization
 
 /// The BGTaskScheduler identifier for the periodic background mail refresh. Must match the
 /// `BGTaskSchedulerPermittedIdentifiers` entry in project.yml (the generated Info.plist) and the
@@ -22,51 +21,6 @@ private let backgroundBudgetSeconds: UInt32 = 25
 private func backgroundDataDir() -> String {
     FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("mailcal").path
-}
-
-/// A process-global **weak** handle to the foreground live core. A `BGAppRefreshTask` fires in the
-/// still-resident (merely *suspended*, not terminated) app process, whose foreground core is alive
-/// with the store already open, so the background pass **reuses** that instance instead of opening a
-/// SECOND engine store + runtime over the same SQLite file (two write connections, duplicate IMAP).
-/// Weak so it clears once the foreground model releases its core; a genuinely terminated app starts a
-/// fresh process where this is `nil`, and the handler cold-builds a headless core. Set by
-/// `MailcalModel.connect` (iOS only). See docs/background-sync.md.
-final class LiveCore: Sendable {
-    static let shared = LiveCore()
-
-    /// The weak handle, behind a `Mutex` rather than a lock beside it: the mutex owns the value, so
-    /// there is no way to read the handle without holding it.
-    private struct Handle: ~Copyable {
-        weak var app: MailcalApp?
-        /// The foreground core is being opened off the main actor (docs/boot-sequence.md), so a
-        /// missing `app` does not yet mean the process has none.
-        var opening = false
-    }
-
-    private let handle = Mutex(Handle())
-
-    func beginOpening() {
-        handle.withLock { $0.opening = true }
-    }
-
-    func openingFailed() {
-        handle.withLock { $0.opening = false }
-    }
-
-    var isOpening: Bool {
-        handle.withLock { $0.opening }
-    }
-
-    func set(_ app: MailcalApp?) {
-        handle.withLock {
-            $0.app = app
-            $0.opening = false
-        }
-    }
-
-    func current() -> MailcalApp? {
-        handle.withLock { $0.app }
-    }
 }
 
 /// Submits the next app-refresh request (~15 min out). Best-effort, iOS decides the real cadence
@@ -100,10 +54,8 @@ public func handleBackgroundRefresh() async {
     let deviceInfo = await DeviceFacts.current()
     // A foreground core still opening would be missed below, and a second core over the same store
     // is a second refresher on every account's grant. Wait for it, unless the OS ends this pass.
-    while LiveCore.shared.isOpening {
-        if Task.isCancelled { return }
-        try? await Task.sleep(for: .milliseconds(200))
-    }
+    await LiveCore.shared.waitWhileOpening()
+    if Task.isCancelled { return }
     // The FFI pass blocks its thread (the core drives its runtime to completion), so run it off the
     // cooperative pool. The reuse-vs-cold decision happens INSIDE the task so the (non-Sendable) core
     // never crosses an isolation boundary.
