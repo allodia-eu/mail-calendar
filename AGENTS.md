@@ -138,6 +138,14 @@ attention, human or agent alike. Write the fact, not the story around it.
 - **Bug fixes get a regression test** at the lowest shared layer that observes the contract, so
   prefer `mailcal-app` or `mailcal-bindings` for client-visible behaviour. If none is practical, say
   why and record the manual verification path.
+- **Work leaves no known gaps.** A change is finished when nothing it found is left open: a
+  shortfall in its own surface, the same fault on another platform, a script or doc it made wrong.
+  Close it in the same PR or in one stacked on it, even when that makes the work take longer. A PR
+  description, a code comment and a doc's "Known gaps" section are not places to park one. What
+  this host cannot build or run goes to an issue carrying the steps to reproduce, fix and verify
+  it, and the work is not done until that issue is closed. What a platform cannot do at all is a
+  decision, stated as a rule in its contract with the reason. Existing "Known gaps" entries are
+  debt to pay down; nothing new is added to them.
 - **Consume the engine only through its `engine-api` facade.** Never reach into lower engine crates.
 - **Protocol knowledge belongs in the engine: check before you parse.** About to read or write
   protocol bytes here (an iCalendar property, a MIME part, a JMAP or DAV payload, an RFC status
@@ -169,8 +177,8 @@ carries a per-platform matrix. Add or change a surface a contract covers and you
 change: (1) update that doc's rule **and** its matrix, (2) apply it to **every** platform that ships
 the surface (a new platform may not ship the surface until it meets every gate in the contract),
 (3) update [`docs/capabilities.md`](docs/capabilities.md) if a capability's reach shifted, and (4) write a changelog
-fragment if a user could notice. A shortfall goes under that doc's **"Known gaps"**, never left
-silent. Two couplings apply to everything user-facing: copy may not out-run the capability matrix
+fragment if a user could notice. A shortfall is closed, not recorded ("Work leaves no known gaps",
+above). Two couplings apply to everything user-facing: copy may not out-run the capability matrix
 (anti-hype), and every privacy claim must match [`docs/privacy-policy.md`](docs/privacy-policy.md).
 
 | Contract | What it decides |
