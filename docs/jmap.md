@@ -42,7 +42,9 @@ optional OAuth sign-in, and secure storage of the resulting config.
    - **Every discovery hop must be HTTPS** (loopback excepted: it has no hop to read, RFC 8252
      §7.3), the metadata's `issuer` must match the issuer we asked about (RFC 8414 §3.3), and
      the server must advertise **S256** PKCE. Any of these failing declines the flow rather
-     than running a weaker one.
+     than running a weaker one. **No metadata document is fetched through a redirect**; only
+     the opening request to the session URL follows one, and only within its own HTTPS origin,
+     because a server may answer `/.well-known/jmap` by redirecting to the session it names.
    - **We request only the capabilities we use:** `offline_access` plus the advertised
      scopes whose last segment is `mail`/`calendar`/`calendars`/`contacts`. Never the whole
      `scopes_supported` list; a consent screen asking for admin or anything else we never

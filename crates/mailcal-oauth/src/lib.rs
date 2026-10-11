@@ -36,6 +36,7 @@ mod pkce;
 mod provider;
 mod reach;
 mod register;
+mod resource_probe;
 pub mod scopes;
 mod token;
 

@@ -19,7 +19,8 @@
 //! # What this refuses to do
 //!
 //! Discovery is a *trust* decision; it decides which host we will send a user's credentials
-//! to: so it is deliberately strict and fails closed. Every hop must be **HTTPS**; the
+//! to: so it is deliberately strict and fails closed. Every hop must be **HTTPS**, and only the
+//! opening request follows a redirect, within its own origin (`resource_probe`); the
 //! metadata's `issuer` must match the issuer we asked about (RFC 8414 §3.3, which is what
 //! stops a compromised resource pointing us at an attacker's token endpoint), and the server
 //! must advertise **S256** PKCE, because without it there is no protection on the code
@@ -62,9 +63,8 @@ const OIDC_WELL_KNOWN: &str = "/.well-known/openid-configuration";
 /// that arrived from somewhere else. A redirect is treated exactly as an error response.
 ///
 /// The policy is set on the whole client rather than per fetch, which reqwest has no way to
-/// express, so it also covers the resource probe that opens the chain. That costs nothing: a
-/// redirected resource URL simply yields no `WWW-Authenticate` challenge, and the chain falls
-/// back to the RFC 9728 well-known location as it does for every server that sends none.
+/// express, so the resource probe that opens the chain follows its own redirects, within the
+/// resource's origin only (`resource_probe`).
 ///
 /// # Errors
 ///
@@ -311,10 +311,11 @@ fn resource_metadata_url(header: &str) -> Option<String> {
 /// Finds the authorization server protecting `resource_url`, and the resource's own canonical
 /// URI (RFC 9728).
 ///
-/// Sends an unauthenticated request and reads the `401`'s `WWW-Authenticate` challenge for a
-/// `resource_metadata` pointer; if the challenge carries none, tries the well-known default
-/// location for the resource. Returns the **first** advertised issuer; servers list them in
-/// preference order, and a client that cannot choose between them should take the first.
+/// Sends an unauthenticated request, following a redirect within the resource's origin, and
+/// reads the `401`'s `WWW-Authenticate` challenge for a `resource_metadata` pointer; if the
+/// challenge carries none, tries the well-known default location for the resource that
+/// answered. Returns the **first** advertised issuer; servers list them in preference order,
+/// and a client that cannot choose between them should take the first.
 ///
 /// # Errors
 ///
@@ -325,13 +326,14 @@ pub async fn discover_protected_resource(
     resource_url: &str,
 ) -> Result<ProtectedResource, DiscoveryError> {
     let resource_url = require_https(resource_url)?;
-    let response = http
-        .get(&resource_url)
-        .send()
+    let parsed = url::Url::parse(&resource_url)
+        .map_err(|err| DiscoveryError::InsecureUrl(format!("{resource_url}: {err}")))?;
+    let response = crate::resource_probe::send(http, &parsed)
         .await
         .map_err(DiscoveryError::Transport)?;
 
-    // The pointer the challenge gives us, else the RFC's well-known default for this resource.
+    // The pointer the challenge gives us, else the RFC's well-known default for the resource
+    // that answered.
     let pointer = response
         .headers()
         .get(reqwest::header::WWW_AUTHENTICATE)
@@ -340,9 +342,7 @@ pub async fn discover_protected_resource(
     let metadata_url = if let Some(url) = pointer {
         require_https(&url)?
     } else {
-        let parsed = url::Url::parse(&resource_url)
-            .map_err(|err| DiscoveryError::InsecureUrl(format!("{resource_url}: {err}")))?;
-        well_known_url(&parsed, PROTECTED_RESOURCE_WELL_KNOWN)
+        well_known_url(response.url(), PROTECTED_RESOURCE_WELL_KNOWN)
     };
 
     let metadata: RawResourceMetadata = fetch_json(http, &metadata_url).await?;
