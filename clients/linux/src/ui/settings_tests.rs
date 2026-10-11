@@ -136,6 +136,47 @@ pub(crate) fn a_closed_settings_window_is_not_on_screen() {
     );
 }
 
+/// Settings' **Add account** opens setup over Settings, never over the main window behind it.
+/// Both are children of the main window, so a setup window parented there is stacked beside
+/// Settings rather than above it: coming back to the app raises Settings over it, and the button
+/// does nothing, because setup is already open out of sight.
+///
+/// Called from the crate's single `gtk::init` test.
+pub(crate) fn setup_opens_over_settings_while_settings_is_open() {
+    use crate::ui::{AppInput, setup::SetupWindow, setup_state::SetupState};
+
+    let root = gtk::Window::new();
+    let mut settings = SettingsWindow::default();
+    assert!(settings.front().is_none(), "nothing is open over the app");
+
+    let window = gtk::Window::builder().transient_for(&root).build();
+    window.present();
+    settings.window = Some(window.clone());
+    let front = settings.front().expect("Settings is in front");
+    assert_eq!(front, window);
+
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    setup.render(&state, &front, &sender);
+    let open = setup.current_window().expect("setup is on screen");
+    assert_eq!(open.transient_for().as_ref(), Some(&window));
+
+    // Settings closing under it hands setup back to the main window, unchanged otherwise.
+    window.close();
+    assert!(settings.front().is_none());
+    setup.render(&state, &root, &sender);
+    assert_eq!(
+        setup.current_window().as_ref(),
+        Some(&open),
+        "the same window"
+    );
+    assert_eq!(open.transient_for().as_ref(), Some(&root));
+    open.destroy();
+    root.destroy();
+}
+
 #[test]
 fn every_notice_is_raised_anew_and_redraws_the_page_in_place() {
     use super::notice::Notice;

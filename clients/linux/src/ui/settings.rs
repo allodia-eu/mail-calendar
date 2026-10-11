@@ -301,6 +301,12 @@ impl SettingsWindow {
     fn is_on_screen(&self) -> bool {
         self.window.as_ref().is_some_and(WidgetExt::is_visible)
     }
+
+    /// The Settings window while it is on screen: what a window opened from it is parented to,
+    /// so the toolkit stacks that window above Settings rather than beside it.
+    pub(super) fn front(&self) -> Option<gtk::Window> {
+        self.window.clone().filter(WidgetExt::is_visible)
+    }
 }
 
 /// The window's content, and the stack of category pages inside it.

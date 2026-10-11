@@ -442,10 +442,14 @@ impl AppWidgets {
             &self.root,
             &self.sender,
         );
-        self.setup.render(&model.setup, &self.root, &self.sender);
+        let front = self
+            .settings
+            .front()
+            .unwrap_or_else(|| self.root.clone().upcast());
+        self.setup.render(&model.setup, &front, &self.sender);
         self.sender_name.render(
             model.host_tasks.sender_name_ask.as_ref(),
-            &self.root,
+            &front,
             &self.sender,
         );
         self.unfiled_copy

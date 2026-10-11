@@ -51,6 +51,7 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     super::setup_manual_tests::a_miss_explains_itself_on_the_manual_form(&window);
     super::setup_manual_tests::a_refusal_is_answered_in_the_form_it_came_from(&window);
     super::setup_manual_tests::a_dismissible_window_cancels_the_flow(&window);
+    super::settings::tests::setup_opens_over_settings_while_settings_is_open();
 }
 
 /// Microsoft retired Basic auth and Google is a native-API integration, so neither route may

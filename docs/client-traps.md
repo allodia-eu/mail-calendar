@@ -296,6 +296,11 @@ that same file.
 - **A `GtkWindow` closes on no key.** `AdwDialog` closes on Escape; a plain window used as a
   dialog does not, though every reader expects it to. [`modal::new`](../clients/linux/src/ui/modal.rs)
   binds Escape to `window.close`, so build a modal through it.
+- **Two windows transient for one parent are siblings, and either can cover the other.** A window
+  opened from Settings but parented to the main window shows above Settings only until the person
+  returns to the app, which raises Settings over it; a modal hidden that way also makes the button
+  that opened it look dead. Parent a window to the window it was opened from
+  (`SettingsWindow::front` in [`settings.rs`](../clients/linux/src/ui/settings.rs)).
 - **A size request or a scroll offset set from a `GtkAdjustment` notification never reaches the
   screen.** GTK emits `notify::page-size` and `notify::upper` from inside the viewport's own size
   allocation, which has already measured and placed the child for this frame. A height asked for

@@ -33,7 +33,7 @@ impl SetupWindow {
     pub(super) fn render(
         &mut self,
         state: &SetupState,
-        parent: &adw::ApplicationWindow,
+        parent: &impl IsA<gtk::Window>,
         sender: &relm4::Sender<AppInput>,
     ) {
         if !state.visible {
@@ -56,6 +56,11 @@ impl SetupWindow {
             .filter(gtk::prelude::WidgetExt::is_visible)
         {
             Some(window) if reusable => {
+                // Opened from Settings, it sits over Settings; Settings closing hands it back.
+                let parent = parent.upcast_ref::<gtk::Window>();
+                if window.transient_for().as_ref() != Some(parent) {
+                    window.set_transient_for(Some(parent));
+                }
                 if self.rendered_generation == state.generation {
                     self.window = Some(window);
                     return;
@@ -134,7 +139,7 @@ impl SetupWindow {
 }
 
 fn modal(
-    parent: &adw::ApplicationWindow,
+    parent: &impl IsA<gtk::Window>,
     required: bool,
     sender: &relm4::Sender<AppInput>,
 ) -> gtk::Window {
