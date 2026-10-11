@@ -78,6 +78,7 @@ mod convert_status;
 mod crash;
 mod credential_log;
 pub mod credential_store;
+mod dav_rediscovery;
 mod demo;
 mod drafts;
 mod error;
@@ -348,6 +349,8 @@ pub struct MailcalApp {
     /// user's *chosen* display zone re-projects the agenda in the view-model, this only anchors
     /// the Graph read (one display zone per provider, per the engine's documented limitation).
     device_zone: engine_api::TimeZoneId,
+    /// What looking again for a calendar or address-book server that stopped answering needs.
+    rediscovery: dav_rediscovery::Rediscovery,
     /// Whether this app was built by [`MailcalApp::new_showcase`]: the seeded, offline
     /// screenshot dataset.
     ///
@@ -400,14 +403,26 @@ impl MailcalApp {
             "retry_connections: re-dialing {} disconnected account(s)",
             plans.len(),
         );
-        self.runtime.spawn(reconnect::reconnect_all(
+        let reconnect = reconnect::reconnect_all(
             Arc::clone(&self.app),
             Arc::clone(&self.background),
             Arc::clone(&self.registry),
             Arc::clone(&self.disconnected),
             plans,
             self.device_zone.clone(),
-        ));
+        );
+        let app = self.rediscovery.app();
+        self.runtime.spawn(async move {
+            let unanswered = reconnect.await;
+            // Off the runtime: looking again blocks on discovery and on the move's connect.
+            if let Some(app) = app.filter(|_| !unanswered.is_empty()) {
+                std::thread::spawn(move || {
+                    for id in unanswered {
+                        app.rediscover_servers(&id);
+                    }
+                });
+            }
+        });
     }
 
     /// Recomputes and restarts one account's background sync from the current settings;

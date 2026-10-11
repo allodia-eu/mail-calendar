@@ -299,6 +299,9 @@ public sealed partial class MailboxModel
             // dropped (docs/provider-oauth.md rule 5).
             var app = await Task.Run(() => MailcalApp.NewAccounts(_observer!, _logger!, level, configs, storeDir, deviceTz, DeviceFacts.Current(), new CredentialStoreSink()));
             Log.Info($"NewAccounts (connect + engine open) returned in {sw.ElapsedMilliseconds}ms");
+            // The DNS setup uses, so a calendar server found through an SRV record can be looked
+            // for again when it stops answering. Until it is set, the core does not look again.
+            app.SetDnsResolver(new WindowsMxResolver());
             // Resume on the UI thread explicitly (ObservableCollections + bindable state must
             // only be touched there), not relying on the await's captured context.
             _ui.TryEnqueue(() =>

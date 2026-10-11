@@ -4,7 +4,7 @@ use gtk::gio::{Resolver, ResolverRecordType, prelude::ResolverExt};
 use mailcal_bindings::{DnsError, MxRecord, MxResolution, MxResolver, SrvRecord, SrvResolution};
 
 #[derive(Debug, Default)]
-pub(super) struct NativeResolver;
+pub(crate) struct NativeResolver;
 
 impl MxResolver for NativeResolver {
     fn resolve_mx(&self, domain: String) -> Result<MxResolution, DnsError> {

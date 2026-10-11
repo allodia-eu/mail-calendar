@@ -250,7 +250,7 @@ impl MailcalApp {
 
 /// Adapts the host's FFI [`MxResolver`] to the detection crate's DNS port, mapping the
 /// records across and a [`DnsError`] to the crate's lookup error.
-struct CallbackMxResolver(Box<dyn MxResolver>);
+pub(crate) struct CallbackMxResolver(pub(crate) Box<dyn MxResolver>);
 
 impl mailcal_autodetect::MxResolver for CallbackMxResolver {
     fn resolve_mx(

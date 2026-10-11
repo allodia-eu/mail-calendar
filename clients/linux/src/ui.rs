@@ -42,7 +42,7 @@ mod contacts;
 mod contacts_actions;
 pub(crate) mod destinations;
 mod detached;
-mod dns;
+pub(crate) mod dns;
 mod editor_paste;
 mod folder_actions;
 mod folder_dialogs;

@@ -194,6 +194,22 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
     A domain that has left Microsoft 365 but kept its `autodiscover` record is routed to the
     Microsoft sign-in; "Set up manually" stays on that card. The locations come from
     `mapi-autodiscover`, which performs no I/O; the fetch is detection's own.
+14. **A calendar or address-book server that stops answering is looked for again, and followed
+    only within its provider.** RFC 6764 §6 has a client keep the servers that worked and
+    bootstrap again when they fail, and a found server is often a provider's own name for one
+    machine (`_caldavs._tcp.fastmail.com` names `d277161.caldav.fastmail.com`), which it may
+    move. So when a reconnect cannot reach an account's calendar or address-book server, the
+    core runs rule 8's lookup again for the account's address (`dav_rediscovery`), at most once
+    an hour per account and never for a refused sign-in or a certificate that did not verify,
+    which have prompts of their own. A server found somewhere new is followed only when its
+    host is under the registrable domain of the server it replaces or of the address, over
+    HTTPS: DNS is not authenticated, so a stored password never follows an answer anywhere else
+    (RFC 6764 §8), and such a find is logged and left. Following goes through the same door as
+    editing the servers in Settings (`update_account_endpoints`): the new server connects before
+    anything is stored, and what the device held of a use whose server moved host is synced
+    again from it. The lookup needs the host's DNS for the SRV records, which each client hands
+    the core once, right after building the app (`set_dns_resolver`); before that the core does
+    not look again.
 
 ## Strategy order
 
@@ -324,6 +340,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | The found card's choices, decided in the core (rule 8) | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | JMAP OAuth metadata chain (RFC 9728 → 8414 → 7591), offered only when advertised | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | `<oAuth2><issuer>` read from the provider's own trusted autoconfig, carried to setup | ✅ | ✅ | ✅ | ⬜ | ✅ |
+| A calendar or address-book server that stops answering looked for again (rule 14) | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
 
 The **CalDAV follow-on** offers the discovered calendar as an ✉ Email / 📅 Calendar sectioned
 card on every client (a pre-checked opt-out toggle when found, an opt-in manual field otherwise,
@@ -451,6 +468,11 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   own (`offered_setup`). On Apple, Linux and Windows they reach every route's card but JMAP's,
   whose session says what it offers only after the sign-in. The showcase scripts
   `cloud.example` as a calendar-and-contacts domain, since no harness domain is one.
+- **No client has yet seen a provider move a server (rule 14).** The core's tests drive the
+  trigger end to end against a port nothing listens on, a moved SRV record, and the rule that
+  keeps a password within its provider (`dav_rediscovery_tests`, `rediscover_tests`); every
+  client hands the core its DNS at launch, but none has run against a server that actually
+  moved, so each cell stays 🚧 until one does.
 - **TXT `path` records are not read** (RFC 6764 §4). The host resolver has no TXT lookup, so a
   DAV server whose context path is published only in TXT, and not under `.well-known` on the
   SRV target, is not found, and the user adds it manually.

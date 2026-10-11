@@ -55,6 +55,10 @@ extension MailboxModel {
             isOpening = false
             switch opened {
             case .success(let app):
+                // The DNS setup uses, so a calendar server found through an SRV record can be
+                // looked for again when it stops answering. Until it is set, the core does not
+                // look again.
+                app.setDnsResolver(resolver: SystemMxResolver())
                 didOpen(app, dataDir: dataDir, dataDirName: dataDirName)
             case .failure(let error):
                 #if os(iOS)

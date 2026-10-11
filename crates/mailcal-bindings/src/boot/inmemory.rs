@@ -104,6 +104,7 @@ pub(crate) fn build_demo(
         // The demo fixture is what the CI verify gates assert on; it must keep behaving like a
         // real app, detection included.
         showcase: false,
+        rediscovery: crate::dav_rediscovery::Rediscovery::default(),
     })
 }
 
@@ -269,6 +270,7 @@ fn finish_showcase(
         // The one build where account detection answers from a script instead of the network;
         // see `MailcalApp::detect_account_settings`.
         showcase: true,
+        rediscovery: crate::dav_rediscovery::Rediscovery::default(),
     })
 }
 

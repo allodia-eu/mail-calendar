@@ -43,6 +43,7 @@ mod jmap_probe;
 mod mx;
 mod orchestrator;
 mod parser;
+mod rediscover;
 mod srv;
 mod strategy;
 mod types;
@@ -56,6 +57,7 @@ use std::time::Duration;
 use engine_tls::TlsPolicy;
 pub use mx::{MxError, MxRecord, MxResolution, MxResolver, SrvRecord, SrvResolution};
 pub use orchestrator::detect;
+pub use rediscover::{discover_dav, may_follow};
 pub use types::{
     AuthKind, DetectError, Detected, DetectedDav, DetectedJmap, DetectedMailSettings,
     DetectedMicrosoft365, DetectedServer, Domain, EmailParts, SocketKind, Source, SourceKind,

@@ -330,10 +330,12 @@ pub(crate) fn build_accounts(
         device_zone: device_tz,
         // The real account path: detection reaches the network, as it must.
         showcase: false,
+        rediscovery: crate::dav_rediscovery::Rediscovery::default(),
     });
     // Seed the analytics account mix from the registry we just populated. A no-op unless the user
     // has consented, but it must happen before the first event, or a consented install's very
     // first batch would report zero accounts.
+    mailcal.rediscovery.adopt(&mailcal);
     mailcal.refresh_analytics_accounts();
     // Interactive boot: every account is a provider-less placeholder, so dial them all in the
     // background now. Each successful reconnect registers live providers (the cached mail is

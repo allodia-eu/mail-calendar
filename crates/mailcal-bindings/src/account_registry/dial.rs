@@ -97,6 +97,11 @@ impl ConnectFailure {
     pub(crate) const fn signin_expired(&self) -> bool {
         self.signin_expired
     }
+
+    /// Whether the server presented a certificate that did not verify.
+    pub(crate) const fn certificate_rejected(&self) -> bool {
+        self.certificate.is_some()
+    }
 }
 
 impl From<AccountError> for ConnectFailure {

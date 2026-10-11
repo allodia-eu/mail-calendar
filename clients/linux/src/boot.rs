@@ -266,6 +266,9 @@ fn real_app(
         credential_store,
     )
     .map_err(|error| error.to_string())?;
+    // The DNS setup uses, kept so a calendar server found through an SRV record can be looked
+    // for again when it stops answering.
+    app.set_dns_resolver(Box::new(crate::ui::dns::NativeResolver));
     // Where this device remembers what it has synced with the account service, beside the engine
     // store so a dev launch's bookkeeping is isolated with the accounts it describes. A store that
     // cannot be read leaves syncing off for this launch rather than starting from nothing, which

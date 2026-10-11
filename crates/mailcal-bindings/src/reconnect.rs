@@ -48,8 +48,12 @@ pub(crate) async fn reconnect_all(
     disconnected: Arc<Mutex<HashSet<String>>>,
     plans: Vec<(AccountId, AccountDial)>,
     display_zone: TimeZoneId,
-) {
+) -> Vec<String> {
+    // The accounts whose calendar or address-book server did not answer, for looking again
+    // (`crate::dav_rediscovery`); one that has neither server stored is dropped there.
+    let unanswered = Arc::new(Mutex::new(Vec::new()));
     dial_all(plans, |index, (id, plan)| {
+        let unanswered = Arc::clone(&unanswered);
         let app = Arc::clone(&app);
         let background = Arc::clone(&background);
         let registry = Arc::clone(&registry);
@@ -74,6 +78,10 @@ pub(crate) async fn reconnect_all(
                         log::warn!(
                             "reconnect: account[{index}] mail up but calendar failed: {detail}"
                         );
+                        unanswered
+                            .lock()
+                            .expect("unanswered mutex poisoned")
+                            .push(id.as_str().to_owned());
                     }
                     // Reflect the calendar's re-consent state: if it connected, clear any prior
                     // prompt (e.g. the user just re-authenticated); if a scope-`403` withheld it,
@@ -142,6 +150,13 @@ pub(crate) async fn reconnect_all(
                         .expect("disconnected mutex poisoned")
                         .insert(id.as_str().to_owned());
                     log::warn!("reconnect: account[{index}] still unreachable: {err}");
+                    // A certificate that does not verify is asked about, never looked past.
+                    if !err.certificate_rejected() {
+                        unanswered
+                            .lock()
+                            .expect("unanswered mutex poisoned")
+                            .push(id.as_str().to_owned());
+                    }
                 }
             }
         }
@@ -168,4 +183,5 @@ pub(crate) async fn reconnect_all(
     // already-drawn list, and a cold or offline boot must still show everything cached
     // without waiting on any of it.
     app.refresh_contacts().await;
+    std::mem::take(&mut *unanswered.lock().expect("unanswered mutex poisoned"))
 }

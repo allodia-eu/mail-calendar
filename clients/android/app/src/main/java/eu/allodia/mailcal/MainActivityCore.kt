@@ -142,6 +142,9 @@ internal fun MainActivity.connect(
                 // a turn first (docs/provider-oauth.md rule 5).
                 SecureStoreCredentialStore(activity),
             )
+            // The DNS setup uses, so a calendar server found through an SRV record can be looked
+            // for again when it stops answering. Until it is set, the core does not look again.
+            connected.setDnsResolver(AndroidMxResolver(activity))
             // Where this device remembers what it has synced with the account service. Installed
             // on this thread, before anything can ask for a pass, unlike the credential store
             // above it is not racing a dial, because nothing syncs until somebody asks.
