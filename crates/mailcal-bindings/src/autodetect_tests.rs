@@ -290,3 +290,21 @@ fn the_showcase_script_ignores_domain_case() {
         SetupRecommendation::Imap { .. }
     ));
 }
+
+#[test]
+fn the_showcase_dav_domain_offers_calendar_and_contacts_alone() {
+    // The card that sets up an account without mail has no harness domain to be reached from,
+    // so the showcase is where a client draws it.
+    let setup = crate::setup_choices::detected_setup(super::showcase_route("eva@cloud.example"));
+    assert!(setup.calendar_and_contacts);
+    assert_eq!(
+        setup.caldav_url.as_deref(),
+        Some("https://dav.cloud.example/caldav/")
+    );
+    assert!(
+        setup
+            .choices
+            .iter()
+            .all(|choice| choice.capability != crate::AccountCapability::Mail)
+    );
+}

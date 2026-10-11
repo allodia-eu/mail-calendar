@@ -57,7 +57,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | Stored capabilities, pinned id and links read and kept | ✅ | — | — | — | — | — |
 | Only the capabilities an account is used for are opened | ✅ | — | — | — | — | — |
-| Sign-in asks for the chosen capabilities' scopes only, and opens what was granted | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
+| Sign-in asks for the chosen capabilities' scopes only, and opens what was granted | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | Signing in again, or adding a capability, keeps the account and its mail | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | A standards account without a mailbox connects its calendar and contacts | ✅ | — | — | — | — | — |
 | An account without mail is kept out of the mail surfaces | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -68,9 +68,9 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | A link suggested when the calendar server schedules as the mail account's address | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | Switching a use on or off, its data deleted when off | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | Editing a password account's servers, tested before applied | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
-| Setting up an account without mail, or with an address book of its own | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
+| Setting up an account without mail, or with an address book of its own | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | Choosing capabilities, and linking accounts, in Settings | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
-| Linking a new account as the last step of setting it up ([`onboarding.md`](onboarding.md)) | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
+| Linking a new account as the last step of setting it up ([`onboarding.md`](onboarding.md)) | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
 
 A client ✅ in the mail-surfaces row reads the rows the core already filters; it holds no rule of
 its own.
@@ -94,12 +94,12 @@ it, while bob's calendar is offered without being suggested.
 
 ## 4. Known gaps
 
-- **Only Linux and Windows create an account without mail.** `account_config_toml` and the
-  standards sign-in (`ImapLoginRequest`) take the person's choice of uses and a CardDAV URL. Both
-  clients offer both: the found card on the IMAP route and for a domain with a calendar and address
+- **Android does not create an account without mail.** `account_config_toml` and the standards
+  sign-in (`ImapLoginRequest`) take the person's choice of uses and a CardDAV URL. Apple, Linux and
+  Windows offer both: the found card on the IMAP route and for a domain with a calendar and address
   book and no mail server, and the manual form as an address-book field and a "Calendar and
-  contacts" type. Apple's and Android's setup screens offer neither, so there every account is
-  used for mail.
+  contacts" type. Android's setup screens offer neither, so there every account is used for
+  mail.
 - **An account without mail cannot be removed, nor its password updated, on Android.** It draws
   "Remove account" and the account's Settings card only on surfaces rule 6 keeps it out of (the
   folder tree, a Settings → Accounts built from the mail-only `sync_settings`), so the "sign in

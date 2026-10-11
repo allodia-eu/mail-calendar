@@ -27,7 +27,9 @@ extension MailboxModel {
         caldavBaseUrl: String,
         imapSecurity: ConnectionSecurity = .implicitTls,
         smtpSecurity: ConnectionSecurity = .implicitTls,
-        acceptedCertificate: RejectedCertificate? = nil
+        acceptedCertificate: RejectedCertificate? = nil,
+        carddavBaseUrl: String = "",
+        uses: [AccountCapability]? = nil
     ) {
         // Accepted once, carried for the rest of this setup: a retry that then fails on the
         // password must not ask the same question over again.
@@ -44,13 +46,16 @@ extension MailboxModel {
             smtpSecurity: smtpSecurity,
             // Set only on a re-submit somebody asked for after being shown the certificate;
             // it is stored with the account, so no later connect asks again.
-            acceptedCertificate: acceptedCertificate ?? setupAcceptedCertificate
+            acceptedCertificate: acceptedCertificate ?? setupAcceptedCertificate,
+            carddavBaseUrl: carddavBaseUrl.isEmpty ? nil : carddavBaseUrl,
+            // What the person chose on the card; `nil` lets the servers given decide.
+            uses: uses
         )
         // The app is built (account-less) before the form is shown, so this normally holds.
         // It fails only if the engine itself couldn't open at launch, surface that rather
         // than letting the Connect button silently do nothing.
         guard let app else {
-            setupError = "Could not open the app. Please relaunch."
+            setupError = L10n.app_unavailable()
             return
         }
         let configToml: String
@@ -110,7 +115,7 @@ extension MailboxModel {
             password: password
         )
         guard let app else {
-            setupError = "Could not open the app. Please relaunch."
+            setupError = L10n.app_unavailable()
             return
         }
         let configToml: String
@@ -140,14 +145,18 @@ extension MailboxModel {
         }
     }
 
-    /// Detects a provider's settings from just the email address, off the main thread (the
-    /// core call blocks up to ~10 s). The device's own DNS answers the MX fallback via
-    /// `SystemMxResolver`. Returns a manual fallback if the app somehow isn't up (the setup
-    /// flow only shows when it is).
-    func detectSetup(email: String) async -> SetupRecommendation {
-        guard let app else { return .manual(reason: .networkError) }
+    /// Detects a provider's settings from just the email address, with the uses the found card
+    /// offers, off the main thread (the core call blocks up to ~10 s). The device's own DNS answers
+    /// the MX fallback via `SystemMxResolver`. Returns a manual fallback if the app somehow isn't
+    /// up (the setup flow only shows when it is).
+    func detectSetup(email: String) async -> DetectedSetup {
+        guard let app else {
+            return DetectedSetup(
+                recommendation: .manual(reason: .networkError), calendarAndContacts: false,
+                caldavUrl: nil, carddavUrl: nil, choices: [])
+        }
         return await Task.detached(priority: .userInitiated) {
-            app.detectAccountSettings(email: email, mxResolver: SystemMxResolver())
+            app.detectAccountSetup(email: email, mxResolver: SystemMxResolver())
         }.value
     }
 }

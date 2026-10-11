@@ -21,8 +21,9 @@ enum ImapAuthState: Equatable {
     /// Sign in with the provider. `passwordAlsoWorks` decides whether the password field sits
     /// below it, or whether that route would be a dead end.
     case signIn(passwordAlsoWorks: Bool)
-    /// The provider's sign-in exists but is closed to this application.
-    case registrationNeeded
+    /// The provider's sign-in exists but is closed to this application. When a password does not
+    /// work either, the account cannot be added here, and no field is drawn to say otherwise.
+    case registrationNeeded(passwordAlsoWorks: Bool)
     /// No sign-in here: the password form, as it always was.
     case password
     /// A sign-in was started and did not finish. The password field comes back, because that is
@@ -40,8 +41,8 @@ enum ImapAuthState: Equatable {
         switch offer {
         case let .signIn(_, _, passwordAlsoWorks):
             self = .signIn(passwordAlsoWorks: passwordAlsoWorks)
-        case .registrationNeeded:
-            self = .registrationNeeded
+        case let .registrationNeeded(passwordAlsoWorks):
+            self = .registrationNeeded(passwordAlsoWorks: passwordAlsoWorks)
         case .password:
             self = .password
         }
@@ -61,8 +62,9 @@ enum ImapAuthState: Equatable {
     var showsPassword: Bool {
         switch self {
         case .checking: return false
-        case let .signIn(passwordAlsoWorks): return passwordAlsoWorks
-        case .registrationNeeded, .password, .failed: return true
+        case let .signIn(passwordAlsoWorks), let .registrationNeeded(passwordAlsoWorks):
+            return passwordAlsoWorks
+        case .password, .failed: return true
         }
     }
 
@@ -95,7 +97,9 @@ func imapLoginRequest(
     caldavURL: String?,
     imapSecurity: ConnectionSecurity,
     smtpSecurity: ConnectionSecurity,
-    oauthIssuer: String?
+    oauthIssuer: String?,
+    carddavURL: String? = nil,
+    uses: [AccountCapability]? = nil
 ) -> ImapLoginRequest {
     ImapLoginRequest(
         email: email,
@@ -104,7 +108,9 @@ func imapLoginRequest(
         caldavBaseUrl: caldavURL,
         imapSecurity: imapSecurity,
         smtpSecurity: smtpSecurity,
-        oauthIssuer: oauthIssuer
+        oauthIssuer: oauthIssuer,
+        carddavBaseUrl: carddavURL,
+        uses: uses
     )
 }
 
@@ -142,8 +148,10 @@ struct ImapAuthExplanation: View {
             .font(.caption)
         case .signIn:
             caption(L10n.setup_imap_signin_note(), .secondary)
-        case .registrationNeeded:
+        case .registrationNeeded(passwordAlsoWorks: true):
             caption(L10n.setup_imap_signin_registration_needed(), .secondary)
+        case .registrationNeeded(passwordAlsoWorks: false):
+            caption(L10n.setup_imap_signin_unsupported(), .secondary)
         case .failed:
             caption(L10n.setup_imap_signin_failed(), .red)
         case .password:

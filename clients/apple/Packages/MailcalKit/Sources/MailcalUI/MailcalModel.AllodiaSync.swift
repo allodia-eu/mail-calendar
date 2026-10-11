@@ -127,46 +127,6 @@ extension MailboxModel {
         )
     }
 
-    /// Every route that adds a mail account ends here: the manual form, the Microsoft and Google
-    /// sign-ins, and the JMAP one (whose two routes converge before this).
-    ///
-    /// The pass belongs to all of them rather than to the form. An account added without one
-    /// stays on this device until the next launch, and its card in Settings draws no sharing
-    /// control at all, the mode map is read in the same call.
-    /// `account` is the row the add returned, when the route has it: it opens the "your name"
-    /// step for that account. A route with none skips the step rather than guessing which
-    /// account it just added.
-    func accountWasAdded(_ account: AccountRow? = nil) {
-        setupError = nil
-        needsSetup = false
-        addingAccount = false
-        // Cleared first: the step for whatever was added before it may not stay up over this
-        // add, and the answer for this one arrives later, off the main actor.
-        senderNamePrompt = nil
-        if let account { askForSenderNameIfNeeded(account.id) }
-        syncAfterAccountChange()
-    }
-
-    /// Opens the "your name" step only where the core says the account still needs a name.
-    /// A provider that already holds one has had it adopted, so the step would arrive with a
-    /// pre-filled answer and nothing to decide (docs/sending.md).
-    ///
-    /// Off the main actor, because the question is a provider round trip. With no core to ask
-    /// the step opens: skipping it is the answer that cannot be taken back, since it leaves the
-    /// account sending as a bare address, and the step itself is one action to dismiss.
-    private func askForSenderNameIfNeeded(_ account: String) {
-        guard let app else {
-            senderNamePrompt = SenderNamePrompt(id: account)
-            return
-        }
-        Task {
-            let needed = await Task.detached(priority: .userInitiated) { [account] in
-                app.needsSenderName(account: account)
-            }.value
-            if needed { senderNamePrompt = SenderNamePrompt(id: account) }
-        }
-    }
-
     /// The account list changed, so the person's other devices should hear about it now rather
     /// than at the next launch. A no-op when nobody is signed in.
     func syncAfterAccountChange() {

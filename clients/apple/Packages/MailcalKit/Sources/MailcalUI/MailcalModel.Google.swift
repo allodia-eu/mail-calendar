@@ -16,9 +16,11 @@ extension MailboxModel {
     /// setup UI's mandatory checkbox) gates the button, so this is only ever reached once the user
     /// has confirmed. Google grants Gmail + Calendar scopes at connect, so there is no calendar
     /// reauth follow-up.
-    func signInWithGoogle(loginHint: String? = nil) {
+    /// `uses` is what the person chose; the sign-in asks Google for those alone
+    /// (`docs/accounts.md` rule 10), and `nil` asks for everything.
+    func signInWithGoogle(loginHint: String? = nil, uses: [AccountCapability]? = nil) {
         guard let app else {
-            setupError = "Could not open the app. Please relaunch."
+            setupError = L10n.app_unavailable()
             return
         }
         // The platform's browser half: iOS an `ASWebAuthenticationSession` with a custom-scheme
@@ -40,7 +42,8 @@ extension MailboxModel {
                     redirectUri: redirectURI,
                     // The address the user is connecting (from autodetection), so Google targets
                     // that account instead of a different signed-in one; nil ⇒ the account picker.
-                    loginHint: loginHint.flatMap { $0.isEmpty ? nil : $0 }
+                    loginHint: loginHint.flatMap { $0.isEmpty ? nil : $0 },
+                    capabilities: uses
                 )
                 // Opens the browser and awaits the redirect (must start on the main actor).
                 let callbackURL = try await flow.authorize(

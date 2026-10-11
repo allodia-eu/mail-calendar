@@ -42,6 +42,9 @@ public struct ContentView: View {
     /// Settings then opens on whatever the first render held, which put the search horizon's
     /// "Change" on General instead of Accounts, intermittently.
     @State var settingsCategory: SettingsCategory?
+    /// Whether the add-account sheet is on screen, from its appearance until its dismissal has
+    /// finished, so Settings asked for meanwhile is presented after it rather than dropped.
+    @State var setupSheetUp = false
     #if os(iOS)
     /// Whether the iPhone's accounts-and-folders drawer is showing. View state, not the core's:
     /// which accounts stand *expanded* is the core's and is persisted (`docs/folder-pane.md`
@@ -113,46 +116,9 @@ public struct ContentView: View {
                     getStarted: { model.setAnalyticsConsent($0) }
                 )
             } else if model.needsSetup {
-                AccountSetupDetectView(
-                    error: model.setupError,
-                    rejectedCertificate: model.setupRejectedCertificate,
-                    signInMicrosoft: { hint in model.signInWithMicrosoft(loginHint: hint) },
-                    signInGoogle: { hint in model.signInWithGoogle(loginHint: hint) },
-                    signingIn: model.microsoftSigningIn,
-                    googleSigningIn: model.googleSigningIn,
-                    connecting: model.isConnecting,
-                    submit: { imapHost, username, password, smtpHost, caldavURL, imapSecurity, smtpSecurity, acceptedCertificate in
-                        model.submitSetup(
-                            imapHost: imapHost,
-                            username: username,
-                            password: password,
-                            smtpHost: smtpHost,
-                            caldavBaseUrl: caldavURL,
-                            imapSecurity: imapSecurity,
-                            smtpSecurity: smtpSecurity,
-                            acceptedCertificate: acceptedCertificate
-                        )
-                    },
-                    submitJmap: { email, serverURL, password in
-                        model.submitJmapSetup(
-                            email: email,
-                            serverURL: serverURL,
-                            password: password
-                        )
-                    },
-                    jmapOAuthAvailable: { email, serverURL in
-                        await model.jmapOAuthAvailable(email: email, serverURL: serverURL)
-                    },
-                    signInJmap: { email, serverURL in
-                        await model.signInWithJmap(email: email, serverURL: serverURL)
-                    },
-                    imapAuthOptions: { request in await model.imapAuthOptions(request) },
-                    signInImap: { request in await model.signInWithImap(request) },
-                    detect: { email in await model.detectSetup(email: email) },
-                    // The first account, so the recommendation is offered here and only here.
-                    onboarding: model,
-                    clearAttempt: clearSetupAttempt
-                )
+                // The first account, so the recommendation is offered here and only here: not
+                // again once one was added and "Add another account" brought the address back.
+                AccountSetupScreen(model: model, firstRun: !model.setupFlow.active)
             } else {
                 mainView
             }
@@ -232,11 +198,11 @@ public struct ContentView: View {
         // system alert must not open on top of it. Waiting on the consent question here is what
         // sequences the two asks in that case.
         .onChange(of: model.analyticsConsent?.asked) { _, _ in requestNotificationsIfSettled() }
-        // A prompt in the main window that points at an account's page in Settings.
-        .onChange(of: model.settingsRequest) { _, request in
-            guard let request else { return }
-            model.settingsRequest = nil
-            settingsCategory = request
+        // A prompt in the main window that points at an account's page in Settings. One that
+        // arrives while the setup sheet is still going away waits for it: a presentation made
+        // during a dismissal is dropped.
+        .onChange(of: model.settingsRequest) { _, _ in
+            if !setupSheetUp { presentRequestedSettings() }
         }
         .onChange(of: model.reading?.key) { _, key in
             autoReplyIfRequested(readingKey: key)
@@ -417,12 +383,19 @@ public struct ContentView: View {
         // It cannot open while Settings is up, one modal does not present another, and the press
         // is silently dropped, so an offer pressed in there closes Settings and is opened by
         // `addAccountIfSettingsAskedFor` on the way out.
-        .sheet(isPresented: $model.addingAccount) { addAccountSheet }
+        .sheet(isPresented: $model.addingAccount, onDismiss: setupSheetDismissed) {
+            AccountSetupScreen(model: model, firstRun: false)
+                // Ended by its own Cancel or Skip, never by a swipe: either may go back to a link
+                // step rather than out of setup.
+                .interactiveDismissDisabled()
+                .onAppear { setupSheetUp = true }
+        }
         // The account connected: ask what to call its sender. After the add rather than before,
         // because the first screen is the address field and nothing else (docs/onboarding.md)
         // and only a connected account can be asked what its provider already calls this
         // person. Skipping is one action and leaves the account sending as a bare address.
-        .sheet(item: $model.senderNamePrompt) { prompt in
+        // One account after another: dismissed however, the next one waiting is asked.
+        .sheet(item: $model.senderNamePrompt, onDismiss: model.senderNameAnswered) { prompt in
             SenderNameStepView(model: model, account: prompt.id) { model.senderNamePrompt = nil }
         }
         // The device moved to a different time zone than the active one: prompt to switch.
@@ -473,6 +446,17 @@ public struct ContentView: View {
         }
     }
 
+    private func setupSheetDismissed() {
+        setupSheetUp = false
+        presentRequestedSettings()
+    }
+
+    private func presentRequestedSettings() {
+        guard let request = model.settingsRequest else { return }
+        model.settingsRequest = nil
+        settingsCategory = request
+    }
+
     /// Opens the setup sheet for an offer that was pressed inside Settings.
     ///
     /// Settings is itself a modal on both platforms, and a second modal presented over one is
@@ -481,6 +465,7 @@ public struct ContentView: View {
     private func addAccountIfSettingsAskedFor() {
         // Settings opens on the list next time, not on the page it was left on.
         model.accountPage = nil
+        model.accountPageNotice = nil
         guard model.addAccountWhenSettingsCloses else { return }
         model.addAccountWhenSettingsCloses = false
         model.addingAccount = true

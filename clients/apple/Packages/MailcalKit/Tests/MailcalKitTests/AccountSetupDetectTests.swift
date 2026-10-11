@@ -141,27 +141,23 @@ struct AccountSetupDetectTests {
         #expect(!DetectedConnectForm(recommendation: .manual(reason: .nothingFound)).canConnect)
     }
 
-    @Test func aDiscoveredCalendarIsPreselectedAndRidesTheCredentials() {
-        // A found endpoint is opt-out: pre-checked, and stored on connect reusing the password.
-        var form = DetectedConnectForm(recommendation: imap(true, caldavURL: "https://caldav.soverin.net/calendars"))
-        #expect(form.calendarEnabled)
+    @Test func aCalendarAndContactsCardConnectsWithAPasswordAndTakesARefusedCertificate() {
+        // No mail server was found, so the account is a standards one used for its calendar and
+        // contacts, whose stored config carries a certificate exception like an IMAP one's.
+        var form = DetectedConnectForm(
+            recommendation: .manual(reason: .nothingFound), calendarAndContacts: true)
+        #expect(!form.canConnect)
         form.password = "hunter2"
-        #expect(form.effectiveCaldavURL == "https://caldav.soverin.net/calendars")
-    }
-
-    @Test func optingOutOfADiscoveredCalendarLeavesItUnset() {
-        var form = DetectedConnectForm(recommendation: imap(true, caldavURL: "https://caldav.soverin.net/calendars"))
-        form.calendarEnabled = false
-        #expect(form.effectiveCaldavURL == nil)
-    }
-
-    @Test func withoutADiscoveredCalendarTheUserCanAddOneManually() {
-        // Nothing discovered → opt-in: off by default until the user turns it on and types a URL.
-        var form = DetectedConnectForm(recommendation: imap(true, caldavURL: nil))
-        #expect(!form.calendarEnabled)
-        form.calendarEnabled = true
-        form.calendarURLEntry = "caldav.example.com"
-        #expect(form.effectiveCaldavURL == "caldav.example.com")
+        #expect(form.canConnect)
+        form.rejectedCertificate = RejectedCertificate(
+            serverName: "dav.example.org", sha256: "AA:BB", subjectCommonName: nil,
+            subjectOrganisation: nil, issuerCommonName: nil, issuerOrganisation: nil,
+            notBefore: nil, notAfter: nil)
+        #expect(form.refusedCertificate != nil)
+        #expect(!form.canConnect)
+        form.certificateAccepted = true
+        #expect(form.canConnect)
+        #expect(form.acceptedCertificate == form.rejectedCertificate)
     }
 
     // What the setup card asks for once the server has answered. Three states rather than a flag,
@@ -215,7 +211,7 @@ struct AccountSetupDetectTests {
     }
 
     @Test func withoutASignInThePasswordFieldNeedsNoAsking() {
-        for state in [ImapAuthState.password, .registrationNeeded, .failed] {
+        for state in [ImapAuthState.password, .registrationNeeded(passwordAlsoWorks: true), .failed] {
             #expect(state.showsPasswordField(chosen: false))
             #expect(!state.offersPasswordInstead(chosen: false))
         }
@@ -227,6 +223,14 @@ struct AccountSetupDetectTests {
         let state = ImapAuthState(.registrationNeeded(passwordAlsoWorks: true))
         #expect(!state.offersSignIn)
         #expect(state.showsPassword)
+    }
+
+    @Test func aClosedSignInThatRefusesPasswordsDrawsNoField() {
+        // Nothing can add this account here, so a field would be a dead end the person finds
+        // only after typing into it (docs/mail-oauth.md rule 3).
+        let state = ImapAuthState(.registrationNeeded(passwordAlsoWorks: false))
+        #expect(!state.offersSignIn)
+        #expect(!state.showsPasswordField(chosen: true))
     }
 
     @Test func aFailedSignInBringsThePasswordFieldBack() {

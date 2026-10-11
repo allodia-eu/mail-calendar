@@ -245,6 +245,8 @@ The order and names are [`settings.md`](settings.md). Windows draws none (Known 
 | The analytics preview, open / closed | `chevron.down` / `chevron.right` | — | — | — |
 | Setup: the mail account | `envelope` | — | — | — |
 | Setup: the calendar | `calendar` | — | — | — |
+| Setup: the contacts | `person.2` | — | — | — |
+| Setup: signing in, the password and the server's certificate | `key` | — | — | — |
 | Setup: advanced server settings | `slider.horizontal.3` | — | — | — |
 
 ### Banners and notifications

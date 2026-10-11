@@ -61,6 +61,7 @@ extension MailboxModel {
         if let accountPage, !fresh.accounts.contains(where: { $0.id == accountPage }) {
             self.accountPage = nil
         }
+        refreshSetupLinks()
     }
 
     func accountEntry(_ id: String) -> AccountEntry? {

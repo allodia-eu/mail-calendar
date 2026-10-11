@@ -59,7 +59,7 @@ extension AccountSetupDetectView {
     /// Connect, or a progress readout while a connect runs.
     func connectButton(enabled: Bool, action: @escaping () -> Void) -> some View {
         Group {
-            if connecting {
+            if model.isConnecting {
                 progress(L10n.status_connecting())
             } else {
                 Button(L10n.action_connect(), action: action)

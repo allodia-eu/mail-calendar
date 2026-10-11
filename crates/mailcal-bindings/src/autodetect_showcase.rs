@@ -14,11 +14,16 @@ const SHOWCASE_TRUSTED_DOMAIN: &str = "northwind.example";
 /// (docs/account-autodetect.md), and the one a real provider gives us no reliable way to stage.
 const SHOWCASE_UNTRUSTED_DOMAIN: &str = "oldschool.example";
 
+/// The domain whose canned detection finds a calendar and an address book and no mail server: the
+/// card that sets an account up for those alone (docs/account-autodetect.md rule 8), which no
+/// harness domain produces.
+const SHOWCASE_DAV_DOMAIN: &str = "cloud.example";
+
 /// Detection's answer in a showcase (screenshot) build: scripted, instant, and offline.
 ///
-/// Three outcomes, because the account-setup documentation has three screens to show; the
-/// settings were found and are trustworthy, they were found over an insecure hop and need
-/// approval, and nothing was found so the manual form takes over. Every other address falls to
+/// Four outcomes: the settings were found and are trustworthy, they were found over an insecure
+/// hop and need approval, only a calendar and an address book were found, and nothing was found
+/// so the manual form takes over. Every other address falls to
 /// the last one, which is what makes the personal-domain example in the guide land on the manual
 /// route without a special case.
 ///
@@ -45,6 +50,13 @@ pub(super) fn showcase_route(email: &str) -> mailcal_account::SetupRecommendatio
     if domain.is_empty() {
         return SetupRecommendation::Manual {
             reason: MissReason::InvalidEmail,
+        };
+    }
+    if domain == SHOWCASE_DAV_DOMAIN {
+        return SetupRecommendation::Dav {
+            email: email.to_owned(),
+            caldav_url: Some(format!("https://dav.{domain}/caldav/")),
+            carddav_url: Some(format!("https://dav.{domain}/carddav/")),
         };
     }
     let trusted = domain == SHOWCASE_TRUSTED_DOMAIN;

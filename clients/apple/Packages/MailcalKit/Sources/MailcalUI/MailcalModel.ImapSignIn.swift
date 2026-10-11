@@ -39,7 +39,7 @@ extension MailboxModel {
     /// added and stored through the path that already exists.
     func signInWithImap(_ request: ImapLoginRequest) async -> ImapSignInOutcome {
         guard let app else {
-            setupError = "Could not open the app. Please relaunch."
+            setupError = L10n.app_unavailable()
             return .failed
         }
         // The session's `presentationContextProvider` is a WEAK reference, so this local is what

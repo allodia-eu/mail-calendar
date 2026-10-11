@@ -38,7 +38,7 @@ extension MailboxModel {
     /// form produces, so it is added and stored through the same path.
     func signInWithJmap(email: String, serverURL: String) async -> JmapSignInOutcome {
         guard let app else {
-            setupError = "Could not open the app. Please relaunch."
+            setupError = L10n.app_unavailable()
             return .failed
         }
         let server = serverURL.isEmpty ? nil : serverURL

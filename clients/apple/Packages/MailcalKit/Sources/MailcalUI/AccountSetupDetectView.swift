@@ -1,57 +1,43 @@
-// The email-first account-setup flow: the user types only their email, the shared core
-// detects their provider's settings, and we route them to a prefilled JMAP / IMAP / Microsoft
-// path, falling back to the manual AccountSetupView (with a reason) when nothing usable is
-// found. Mirrors the Android flow. The connect-gating (the untrusted-settings approval and the
-// refused-certificate acceptance) lives in DetectedConnectForm next door, a plain struct the
-// package test suite drives.
+// The email-first account-setup flow: the user types only their email, the shared core detects
+// their provider's settings and which of mail, calendar and contacts it can set up, and we route
+// them to a prefilled card (AccountSetupFoundCard.swift), falling back to the manual
+// AccountSetupView (with a reason) when nothing usable is found. The connect-gating (the
+// untrusted-settings approval and the refused-certificate acceptance) lives in
+// DetectedConnectForm next door, and what the card's toggles make of the account in SetupUses,
+// both plain structs the package test suite drives.
 
 import SwiftUI
 import MailcalBindings
 
-struct AccountSetupDetectView: View {
-    let error: String?
-    /// The certificate the last connect was refused for, when that is why it failed. Drawn
-    /// with the confirmation that unlocks Connect (`docs/certificate-exceptions.md`).
-    var rejectedCertificate: RejectedCertificate? = nil
-    var cancel: (() -> Void)? = nil
-    let signInMicrosoft: (String?) -> Void
-    let signInGoogle: (String?) -> Void
-    var signingIn: Bool = false
-    var googleSigningIn: Bool = false
-    var connecting: Bool = false
-    let submit: (String, String, String, String, String, ConnectionSecurity, ConnectionSecurity, RejectedCertificate?) -> Void
-    let submitJmap: (String, String, String) -> Void
-    /// Whether the detected JMAP server advertises OAuth sign-in (the blocking core pre-flight,
-    /// run off the main thread), so the button is only offered where it works.
-    let jmapOAuthAvailable: (String, String) async -> Bool
-    /// Runs the JMAP browser sign-in and, on success, adds + stores the account.
-    let signInJmap: (String, String) async -> JmapSignInOutcome
-    /// Asks the mail server what it accepts, before any credential field is drawn.
-    let imapAuthOptions: (ImapLoginRequest) async -> ImapAuthOffer
-    /// Runs the IMAP browser sign-in and, on success, adds + stores the account.
-    let signInImap: (ImapLoginRequest) async -> ImapSignInOutcome
-    /// Runs the (blocking) core lookup; the caller hops off the main thread.
-    let detect: (String) async -> SetupRecommendation
-    /// The address an account offered by one of the person's other devices is for, filling the
-    /// field.
-    var startEmail: String = ""
-    /// The whole record behind that address, when this flow was opened from an offer elsewhere.
-    /// Its route is taken from what the other device wrote down rather than re-derived from the
-    /// address, the round trip account sync exists to save.
-    var startOffer: AllodiaAccountOffer?
-    /// The Allodia onboarding block (`docs/onboarding.md`). Its card is first-run only; its offers
-    /// are not.
-    var onboarding: MailboxModel?
-    /// Whether this is the screen somebody cannot skip.
-    var firstRun = true
-    /// Forgets what the abandoned step's attempt left on the model (its error, and a certificate it
-    /// was refused or accepted) when the person steps back to the address.
-    var clearAttempt: () -> Void = {}
+/// The setup screen: the link step once an account has been added and another can fill
+/// something it lacks (docs/onboarding.md, "After the connect"), the email-first flow otherwise.
+/// One view for the first run and a later add, so the two cannot drift.
+struct AccountSetupScreen: View {
+    var model: MailboxModel
+    /// Whether this is the first account, which offers the Allodia recommendation.
+    var firstRun: Bool
 
-    private enum Phase {
+    var body: some View {
+        if model.setupFlow.links != nil {
+            SetupLinkStepView(model: model)
+        } else {
+            // A fresh view whenever the link step hands back to it, so "Add another account"
+            // starts at the address rather than on the card the last account was added from.
+            AccountSetupDetectView(model: model, firstRun: firstRun)
+        }
+    }
+}
+
+struct AccountSetupDetectView: View {
+    var model: MailboxModel
+    /// Whether this is the screen somebody cannot skip: the first account, which is also the
+    /// only place the Allodia card is drawn. Its offers are drawn on a later add too.
+    var firstRun = true
+
+    enum Phase {
         case email
         case detecting
-        case found(SetupRecommendation)
+        case found(DetectedSetup)
         case manual(MissReason?, SetupRecommendation?)
 
         /// Whether this is still the untouched first step, the showcase driver only ever fires
@@ -62,31 +48,32 @@ struct AccountSetupDetectView: View {
         }
     }
 
-    @State private var phase: Phase = .email
-    @State private var email = ""
-    @State private var password = ""
-    @State private var approved = false
-    /// Whether the person has accepted the certificate `rejectedCertificate` names. Reset
+    @State var phase: Phase = .email
+    @State var email = ""
+    @State var password = ""
+    @State var approved = false
+    /// Whether the person has accepted the certificate the last connect was refused for. Reset
     /// whenever a different certificate arrives, so an acceptance never carries over to one
     /// nobody has looked at.
-    @State private var certificateAccepted = false
-    // nil = follow the detected default (on when a CalDAV endpoint was found); once the user
-    // toggles, their choice sticks.
-    @State private var calendarChoice: Bool?
-    @State private var calendarURL = ""
+    @State var certificateAccepted = false
+    /// What the found card offers the account for, and what the person has made of it.
+    @State var uses = UseChoices(.none)
+    /// A use switched on whose server is still to be typed, marked when Connect or the sign-in
+    /// was pressed.
+    @State var flagged = MissingServer.none
     /// The mandatory Early Access confirmation for a detected Google account; sign-in stays
     /// disabled until it is on (same gate as the manual Google form).
-    @State private var googleEarlyAccessConfirmed = false
+    @State var googleEarlyAccessConfirmed = false
     /// Whether the detected JMAP server advertises OAuth sign-in, as answered by `jmapOAuthProbe`.
-    @State private var jmapSignInOffered = false
+    @State var jmapSignInOffered = false
     /// What the detected IMAP server said it accepts. `.checking` until it answers, so the card
     /// draws no credential field in the meantime: one that appears and is then taken away reads
     /// as the app changing its mind (docs/mail-oauth.md rule 8).
-    @State private var imapAuth: ImapAuthState = .checking
+    @State var imapAuth: ImapAuthState = .checking
     /// Set while the IMAP sign-in's browser is up.
-    @State private var imapSigningIn = false
+    @State var imapSigningIn = false
     /// The person asked for the password route beside a sign-in.
-    @State private var passwordChosen = false
+    @State var passwordChosen = false
 
     var body: some View {
         // The manual form brings its own scaffold (it *is* AccountSetupView), so it is not wrapped
@@ -99,7 +86,7 @@ struct AccountSetupDetectView: View {
                     switch phase {
                     case .email: emailView
                     case .detecting: detectingView
-                    case let .found(recommendation): foundView(recommendation)
+                    case let .found(setup): foundView(setup)
                     case .manual: EmptyView() // handled above
                     }
                 }
@@ -108,15 +95,21 @@ struct AccountSetupDetectView: View {
         // An offer only fills the field; it never skips a step. Guarded on the first step and on
         // an empty field, so a re-entrant appear cannot overwrite what somebody has typed.
         .onAppear {
-            if phase.isEmailStep, email.isEmpty { email = startEmail }
+            if phase.isEmailStep, email.isEmpty { email = model.setupStartEmail }
             // An offer opened from elsewhere, the Settings list, lands on its own route, the
             // same as one pressed on this screen.
-            if phase.isEmailStep, let startOffer { takeOffer(startOffer) }
+            if phase.isEmailStep, let offer = model.setupStartOffer { takeOffer(offer) }
         }
         .task { await driveShowcaseIfNeeded() }
         // A different certificate is a different decision, so an acceptance never carries
         // over to one nobody has been shown.
-        .onChange(of: rejectedCertificate) { certificateAccepted = false }
+        .onChange(of: model.setupRejectedCertificate) { certificateAccepted = false }
+    }
+
+    /// Cancel, where there is somewhere to go: an add over the running app, or back to the link
+    /// step an "Add another account" left.
+    var cancel: (() -> Void)? {
+        model.setupCancellable ? { model.cancelSetup() } : nil
     }
 
     /// Sets an offered account up on the route its record names, rather than re-deriving one from
@@ -127,7 +120,7 @@ struct AccountSetupDetectView: View {
     /// The password is still asked for on this device, because no password travels.
     private func takeOffer(_ offer: AllodiaAccountOffer) {
         email = offer.email
-        phase = route(setupFromOffer(offer: offer))
+        show(offeredSetup(offer: offer))
     }
 
     /// Documentation screenshots: type the seeded address and, for the later steps, run detection
@@ -140,7 +133,7 @@ struct AccountSetupDetectView: View {
         email = seed.email
         guard seed.runDetection else { return }
         phase = .detecting
-        phase = route(await detect(email))
+        show(await model.detectSetup(email: email))
     }
 
     private var emailView: some View {
@@ -170,21 +163,20 @@ struct AccountSetupDetectView: View {
             // divider that names what follows, above the address field, in that order
             // (`docs/onboarding.md`). Nothing at all in a build with no registration. On a later
             // add the card is gone and the offers are not: `firstRun` tells the two apart.
-            if let onboarding {
-                OnboardingAllodiaCard(model: onboarding, setUp: takeOffer, firstRun: firstRun)
-            }
+            OnboardingAllodiaCard(model: model, setUp: takeOffer, firstRun: firstRun)
 
             TextField(L10n.setup_detect_email_placeholder(), text: $email)
                 .setupField(.email)
             SetupFooter {
                 if let cancel {
-                    Button(L10n.action_cancel()) { cancel() }
+                    Button(L10n.action_cancel(), action: cancel)
+                        .keyboardShortcut(.cancelAction)
                 }
                 Button(L10n.setup_detect_manual()) { phase = .manual(nil, nil) }
                 Button(L10n.setup_detect_action()) {
                     Task {
                         phase = .detecting
-                        phase = route(await detect(email))
+                        show(await model.detectSetup(email: email))
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -202,178 +194,12 @@ struct AccountSetupDetectView: View {
     }
 
     @ViewBuilder
-    private func foundView(_ recommendation: SetupRecommendation) -> some View {
-        var form = DetectedConnectForm(recommendation: recommendation)
-        let calendarOn = calendarChoice ?? form.calendarEnabled
-        let _ = {
-            form.password = password
-            form.approved = approved
-            form.rejectedCertificate = rejectedCertificate
-            form.certificateAccepted = certificateAccepted
-            form.calendarEnabled = calendarOn
-            form.calendarURLEntry = calendarURL
-        }()
-        VStack(alignment: .leading, spacing: 14) {
-            Text(L10n.setup_detect_found_title()).font(.title2).bold()
-
-            switch recommendation {
-            case let .microsoft(microsoftEmail):
-                Text(L10n.setup_detect_microsoft_hint()).font(.callout)
-                    .fixedSize(horizontal: false, vertical: true)
-                // A failed/declined sign-in surfaces as `error`; show it so the user isn't
-                // left on a silent dead-end and can retry or set up manually.
-                inlineError()
-                footer {
-                    if signingIn {
-                        progress(L10n.setup_microsoft_signing_in())
-                    } else {
-                        Button(L10n.setup_microsoft_signin()) { signInMicrosoft(microsoftEmail) }
-                            .buttonStyle(.borderedProminent)
-                    }
-                }
-            case let .google(googleEmail):
-                Text(L10n.setup_detect_google_hint()).font(.callout)
-                    .fixedSize(horizontal: false, vertical: true)
-                // Same Early Access gate as the manual Google form: this path also reaches
-                // beginGoogleLogin, which Google blocks for anyone not yet allow-listed.
-                GoogleEarlyAccessGate(confirmed: $googleEarlyAccessConfirmed)
-                inlineError()
-                footer {
-                    if googleSigningIn {
-                        progress(L10n.setup_google_signing_in())
-                    } else {
-                        Button(L10n.setup_google_signin()) { signInGoogle(googleEmail) }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!googleEarlyAccessConfirmed)
-                    }
-                }
-            case let .jmap(jmapEmail, serverURL, _, _):
-                Text(L10n.setup_detect_found_jmap_note()).font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                SetupCard(title: L10n.setup_detect_section_email(), systemImage: "envelope") {
-                    if !serverURL.isEmpty {
-                        detectedRow(protocolName: "JMAP", detail: urlHost(serverURL))
-                    }
-                    approvalControls(form)
-                    // Offered above the secret when this server advertises OAuth, and never
-                    // instead of it. An untrusted (non-HTTPS) result cannot reach here: the core's
-                    // discovery requires HTTPS at every hop and declines otherwise, so the button
-                    // stays hidden.
-                    if jmapSignInOffered {
-                        JmapSignInButton(email: jmapEmail, serverURL: serverURL, signIn: signInJmap)
-                    }
-                    SecureField(L10n.setup_jmap_secret_placeholder(), text: $password)
-                        .setupField(.password)
-                        .jmapOAuthProbe(
-                            email: jmapEmail,
-                            serverURL: serverURL,
-                            isAvailable: jmapOAuthAvailable,
-                            offered: $jmapSignInOffered
-                        )
-                }
-                inlineError()
-                footer {
-                    connectButton(enabled: form.canConnect) {
-                        submitJmap(jmapEmail, serverURL, password)
-                    }
-                }
-            case let .imap(
-                imapEmail, imapHost, smtpHost, imapSecurity, smtpSecurity, incoming, outgoing,
-                caldavURL, oauthIssuer, _, _
-            ):
-                let connectImap = {
-                    submit(imapHost, imapEmail, password, smtpHost ?? "", form.effectiveCaldavURL ?? "", imapSecurity, smtpSecurity, form.acceptedCertificate)
-                }
-                SetupCard(title: L10n.setup_detect_section_email(), systemImage: "envelope") {
-                    serverRow(incoming)
-                    if let outgoing { serverRow(outgoing) }
-                    ImapAuthExplanation(state: imapAuth)
-                    approvalControls(form)
-                    if imapAuth.offersSignIn {
-                        ImapSignInButton(
-                            request: imapLoginRequest(
-                                email: imapEmail, imapHost: imapHost, smtpHost: smtpHost,
-                                caldavURL: form.effectiveCaldavURL, imapSecurity: imapSecurity,
-                                smtpSecurity: smtpSecurity, oauthIssuer: oauthIssuer
-                            ),
-                            signIn: signInImap, signingIn: $imapSigningIn, leads: !passwordChosen,
-                            passwordInstead: imapAuth.offersPasswordInstead(chosen: passwordChosen)
-                                ? { passwordChosen = true } : nil,
-                            failed: { imapAuth = .failed }
-                        )
-                        .disabled(!form.canSignIn || connecting)
-                    }
-                    if imapAuth.showsPasswordField(chosen: passwordChosen) {
-                        Text(L10n.setup_detect_app_password_hint())
-                            .font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        SecureField(L10n.setup_field_password(), text: $password)
-                            .setupField(.password)
-                        certificateControls(form)
-                    }
-                }
-                .task(id: "\(imapEmail)|\(imapHost)") {
-                    imapAuth = .checking
-                    passwordChosen = false
-                    // The card shows nothing to act on while it asks, so a server that never
-                    // answers must not be able to hold somebody here. Whichever answer lands
-                    // first decides: both apply themselves only while the state is still
-                    // `.checking`, so the loser is dropped rather than rebuilding a card the
-                    // person has started using (docs/mail-oauth.md rule 8).
-                    let deadline = Task { @MainActor in
-                        try? await Task.sleep(for: ImapAuthState.deadline)
-                        if case .checking = imapAuth { imapAuth = .password }
-                    }
-                    let offer = await imapAuthOptions(
-                        imapLoginRequest(
-                            email: imapEmail, imapHost: imapHost, smtpHost: smtpHost,
-                            caldavURL: nil, imapSecurity: imapSecurity,
-                            smtpSecurity: smtpSecurity, oauthIssuer: oauthIssuer
-                        )
-                    )
-                    deadline.cancel()
-                    // The person may have edited the address while the (blocking,
-                    // uncancellable) call ran; `.task(id:)` has already restarted for the
-                    // server they moved on to.
-                    guard !Task.isCancelled else { return }
-                    if case .checking = imapAuth { imapAuth = ImapAuthState(offer) }
-                }
-                calendarSection(discovered: caldavURL)
-                inlineError(suppressed: form.refusedCertificate != nil)
-                // Back and Cancel whatever the server said; Connect once a password field is shown.
-                // A sign-in that leads is drawn in the card, under the line that explains it.
-                footer {
-                    if imapAuth.showsPasswordField(chosen: passwordChosen) {
-                        connectButton(enabled: form.canConnect && !imapSigningIn, action: connectImap)
-                    }
-                }
-            case .manual:
-                EmptyView() // never routed here
-            }
-
-            Button(L10n.setup_detect_manual()) { phase = .manual(nil, recommendation) }
-        }
-    }
-
-    @ViewBuilder
     private func manualView(_ reason: MissReason?, _ edit: SetupRecommendation?) -> some View {
         let prefill = manualPrefill(edit, typedEmail: email)
         AccountSetupView(
-            error: error,
-            rejectedCertificate: rejectedCertificate,
+            model: model,
             cancel: cancel,
             back: stepBack,
-            signInMicrosoft: signInMicrosoft,
-            signInGoogle: signInGoogle,
-            signingIn: signingIn,
-            googleSigningIn: googleSigningIn,
-            connecting: connecting,
-            submit: submit,
-            submitJmap: submitJmap,
-            jmapOAuthAvailable: jmapOAuthAvailable,
-            signInJmap: signInJmap,
-            imapAuthOptions: imapAuthOptions,
-            signInImap: signInImap,
             initialKind: prefill.kind,
             prefillEmail: prefill.email,
             prefillImapHost: prefill.imapHost,
@@ -383,112 +209,31 @@ struct AccountSetupDetectView: View {
         )
     }
 
-    // MARK: - Small pieces
-
-    /// The refused certificate and the confirmation that unlocks Connect, shown only once a
-    /// connect has actually been refused for one.
-    @ViewBuilder
-    private func certificateControls(_ form: DetectedConnectForm) -> some View {
-        if let refused = form.refusedCertificate {
-            CertificateExceptionPanel(certificate: refused, accepted: $certificateAccepted)
-        }
-    }
-
-    @ViewBuilder
-    private func approvalControls(_ form: DetectedConnectForm) -> some View {
-        if form.needsApproval {
-            Text(L10n.setup_detect_untrusted_warning()).font(.caption).foregroundStyle(.red)
-                .fixedSize(horizontal: false, vertical: true)
-            Toggle(L10n.setup_detect_trust_confirm(), isOn: $approved)
-        }
-    }
-
-    private func serverRow(_ row: DetectedServerRow) -> some View {
-        detectedRow(
-            protocolName: row.`protocol`,
-            detail: "\(row.hostname):\(row.port) · \(row.security)"
-        )
-    }
-
-    /// One discovered server, as a labelled row rather than a `·`-joined string: the protocol reads
-    /// as the label it is, and the host/port/security line up down the card when there are two.
-    private func detectedRow(protocolName: String, detail: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(protocolName)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 52, alignment: .leading)
-            Text(detail)
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-        }
-    }
-
-    /// The Calendar section of the found card. When detection discovered a CalDAV endpoint
-    /// the toggle is pre-checked (opt-out) and its host shown; otherwise it's an opt-in
-    /// toggle revealing a manual CalDAV field. Calendar reuses the IMAP credentials.
-    @ViewBuilder
-    private func calendarSection(discovered: String?) -> some View {
-        let isOn = calendarChoice ?? (discovered != nil)
-        SetupCard(title: L10n.setup_detect_section_calendar(), systemImage: "calendar") {
-            Toggle(
-                discovered != nil ? L10n.setup_detect_calendar_enable() : L10n.setup_detect_calendar_add(),
-                isOn: Binding(get: { isOn }, set: { calendarChoice = $0 })
-            )
-            if isOn {
-                if let discovered {
-                    Text(urlHost(discovered)).font(.caption).foregroundStyle(.secondary)
-                } else {
-                    TextField(L10n.setup_hint_caldav(), text: $calendarURL).setupField(.host)
-                }
-            }
-        }
-    }
-
-    /// The failure, in the transport's own words. Suppressed where a certificate panel is up:
-    /// that panel says the same thing in the reader's language and with the certificate beside
-    /// it, and the raw text under it is a second, worse copy of the question.
-    @ViewBuilder private func inlineError(suppressed: Bool = false) -> some View {
-        if let error, !suppressed {
-            Text(error).font(.callout).foregroundStyle(.red)
-        }
-    }
-
-    /// The found card's footer: Back at the start, and the same Cancel the other two steps carry
-    /// when this is a later add.
-    private func footer<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> some View {
-        SetupFooter(back: stepBack, backDisabled: busy) {
-            if let cancel {
-                Button(L10n.action_cancel()) { cancel() }
-            }
-            content()
-        }
-    }
-
-    /// A connect or a sign-in is running, and its answer belongs to the step on screen.
-    private var busy: Bool { connecting || signingIn || googleSigningIn || imapSigningIn }
-
     /// Back to the address, which keeps what was typed there. Everything the abandoned route
     /// filled in goes with it: a different address can reach a different server, and nothing is
     /// accepted that was not shown.
-    private func stepBack() {
-        clearAttempt()
+    func stepBack() {
+        model.clearSetupAttempt()
         password = ""
         approved = false
         certificateAccepted = false
-        calendarChoice = nil
-        calendarURL = ""
+        uses = UseChoices(.none)
+        flagged = .none
         googleEarlyAccessConfirmed = false
         jmapSignInOffered = false
         passwordChosen = false
         phase = .email
     }
 
-    private func route(_ recommendation: SetupRecommendation) -> Phase {
-        if case let .manual(reason) = recommendation {
-            return .manual(reason, nil)
+    /// Moves on to what detection found: its card, with the uses as the core said they start, or
+    /// the manual form with the reason it ended up there.
+    func show(_ setup: DetectedSetup) {
+        uses = UseChoices(UseOffer(setup))
+        flagged = .none
+        if !setup.calendarAndContacts, case let .manual(reason) = setup.recommendation {
+            phase = .manual(reason, nil)
+        } else {
+            phase = .found(setup)
         }
-        return .found(recommendation)
     }
 }

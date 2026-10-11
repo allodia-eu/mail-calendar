@@ -208,6 +208,21 @@ final class MailboxModel {
     /// Settings, asked for by something outside it: a prompt that points at an account's page.
     /// The shell presents Settings on this category and clears it.
     var settingsRequest: SettingsCategory?
+    /// A line Settings shows at the top of an account's page, opened to say it: what a sign-in's
+    /// grant withheld.
+    var accountPageNotice: AccountPageNotice?
+    /// What follows a connect: the link step, and the accounts added on the way
+    /// (MailcalModel.SetupFlow.swift).
+    var setupFlow = SetupFlow()
+    /// The link step's picks are being stored; each stored link signals the core, which must not
+    /// redraw the step under the person meanwhile.
+    var savingSetupLinks = false
+    /// The accounts still to be asked their name, one after another, once setup closes.
+    @ObservationIgnored var senderNamesWaiting: [String] = []
+    /// A name prompt is under way, from the moment it is decided on until it is answered.
+    @ObservationIgnored var askingSenderName = false
+    /// What a sign-in's grant withheld, said once setup and its name prompts are done.
+    @ObservationIgnored var withheldWaiting: AccountPageNotice?
     /// `true` when no account is configured yet, the host shows the full-screen setup form.
     var needsSetup = false
     /// `true` while the user is adding another account (the setup form as a sheet over the
@@ -407,9 +422,11 @@ final class MailboxModel {
     /// the browser (ASWebAuthenticationSession, reusing the browser's Microsoft session),
     /// then completes the flow (token exchange + connect) and stores the returned config in
     /// the Keychain. A cancel or failure surfaces as `setupError` and keeps the form up.
-    func signInWithMicrosoft(loginHint: String? = nil) {
+    /// `uses` is what the person chose; the sign-in asks Microsoft for those alone
+    /// (`docs/accounts.md` rule 10), and `nil` asks for everything.
+    func signInWithMicrosoft(loginHint: String? = nil, uses: [AccountCapability]? = nil) {
         guard let app else {
-            setupError = "Could not open the app. Please relaunch."
+            setupError = L10n.app_unavailable()
             return
         }
         do {
@@ -418,7 +435,8 @@ final class MailboxModel {
                 redirectUri: MicrosoftOAuthConfig.redirectURI,
                 // The address the user is connecting (from autodetection), so Microsoft targets
                 // that account instead of a different signed-in one; nil ⇒ the account picker.
-                loginHint: loginHint.flatMap { $0.isEmpty ? nil : $0 }
+                loginHint: loginHint.flatMap { $0.isEmpty ? nil : $0 },
+                capabilities: uses
             )
             let signIn = MicrosoftSignIn()
             microsoftSignIn = signIn

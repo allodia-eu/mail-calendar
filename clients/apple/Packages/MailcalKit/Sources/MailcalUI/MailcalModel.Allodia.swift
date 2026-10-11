@@ -32,7 +32,7 @@ extension MailboxModel {
     /// already escaped ([`docs/onboarding.md`](docs/onboarding.md)).
     func signInToAllodia(create: Bool = false) async -> AllodiaSignInOutcome {
         guard let app else {
-            return .failed("Could not open the app. Please relaunch.")
+            return .failed(L10n.app_unavailable())
         }
         // The session's `presentationContextProvider` is a WEAK reference, so this local is what
         // keeps the provider alive; the awaited `authorize` call spans the whole presentation.
