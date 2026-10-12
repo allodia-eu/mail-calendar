@@ -41,6 +41,22 @@ public class CoreErrorTests
         Assert.Equal(expected, CoreError.Describe(message, "fallback"));
 
     [Fact]
+    public void A_refused_certificate_is_described_by_its_reason_and_never_carries_the_certificate()
+    {
+        // The generated message lists every field, the certificate's fingerprint, subject and
+        // issuer included, and this description is what the app log writes
+        // (docs/certificate-exceptions.md rule 9).
+        var refused = new uniffi.mailcal_bindings.MailcalException.CertificateRejected(
+            "certificate not verified: caldav: transport error",
+            new uniffi.mailcal_bindings.RejectedCertificate(
+                "localhost", "E0:46:B5:7D", "localhost", null, "Untrusted DAV", null, 1, 2));
+        var described = CoreError.Describe(refused);
+        Assert.Equal("certificate not verified: caldav: transport error", described);
+        Assert.DoesNotContain("E0:46", described);
+        Assert.DoesNotContain("Untrusted DAV", described);
+    }
+
+    [Fact]
     public void An_empty_core_message_falls_back_rather_than_showing_a_bare_label()
     {
         // "Couldn't connect: " with nothing after it is worse than a type name.

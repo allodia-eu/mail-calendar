@@ -26,8 +26,16 @@ internal static class CoreError
     /// The message to show or log for <paramref name="error"/>, with UniFFI's generated
     /// <c>@vN=</c> field wrapper removed. Safe on any exception: one that carries no wrapper
     /// (a <c>PanicException</c>, or a plain BCL exception) comes back unchanged.
+    /// A refused certificate is described by its reason alone, as the core's own text is: the
+    /// generated message lists the whole certificate, and this text reaches the app log
+    /// (<c>docs/certificate-exceptions.md</c> rule 9).
     /// </summary>
-    internal static string Describe(Exception error) => Describe(error.Message, error.GetType().Name);
+    internal static string Describe(Exception error) => error switch
+    {
+        uniffi.mailcal_bindings.MailcalException.CertificateRejected refused =>
+            Describe(refused.@reason, error.GetType().Name),
+        _ => Describe(error.Message, error.GetType().Name),
+    };
 
     /// <summary>
     /// The wrapper-stripping itself, split from the exception so it can be tested directly.
