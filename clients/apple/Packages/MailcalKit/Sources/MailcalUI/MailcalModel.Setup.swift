@@ -10,8 +10,7 @@ import MailcalBindings
 /// every field of the certificate, so only the transport's reason is kept
 /// (`docs/certificate-exceptions.md` rule 9); the certificate itself is drawn by the panel.
 func setupFailureMessage(_ error: Error) -> String {
-    if case let MailcalError.CertificateRejected(reason, _) = error { return reason }
-    return "\(error)"
+    coreMessage(error)
 }
 
 extension MailboxModel {

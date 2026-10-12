@@ -64,7 +64,7 @@ extension MailboxModel {
                 // once the sheet is gone. The core's messages name endpoints and error codes,
                 // never the address or a secret.
                 logBrowserSignIn("google", "did not complete (\(error))")
-                self.setupError = "\(error)"
+                self.setupError = coreMessage(error)
             }
         }
     }

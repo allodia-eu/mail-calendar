@@ -462,11 +462,11 @@ final class MailboxModel {
                 } catch MicrosoftSignInError.cancelled {
                     // The user dismissed the browser, not an error; the defer resets the spinner.
                 } catch {
-                    self.setupError = "\(error)"
+                    self.setupError = coreMessage(error)
                 }
             }
         } catch {
-            setupError = "\(error)"
+            setupError = coreMessage(error)
         }
     }
 
