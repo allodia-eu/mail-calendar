@@ -153,6 +153,59 @@ function Clear-StoredDraft {
   Remove-OpenDraft | Out-Null
 }
 
+# Stores a draft as another client would, straight into the account's Drafts over JMAP: an HTML
+# body whose only picture is a `cid:` part, a solid red square, ahead of one line of text. The
+# harness advertises its JMAP URLs under a hostname this machine does not resolve, so only their
+# paths are used.
+function Add-ForeignDraft {
+  param([Parameter(Mandatory)] [string] $Subject)
+  $base = 'http://127.0.0.1:28080'
+  $auth = @{ Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${DraftAccount}:harness-alice-pw")) }
+  $session = Invoke-RestMethod "$base/jmap/session" -Headers $auth
+  $account = $session.primaryAccounts.'urn:ietf:params:jmap:mail'
+  $local = { param($url) ($url -replace '^https?://[^/]+', $base) -replace '\{accountId\}', $account }
+  $message = @(
+    "From: $DraftAccount", "To: $DraftRecipient", "Subject: $Subject",
+    "Date: $([DateTime]::UtcNow.ToString('r'))", "Message-ID: <$([guid]::NewGuid())@test.local>",
+    'MIME-Version: 1.0', 'Content-Type: multipart/related; boundary="part"', '',
+    '--part', 'Content-Type: text/html; charset=utf-8', '',
+    '<p><img src="cid:square@test.local" alt="" width="40" height="40"></p><p>Written elsewhere</p>',
+    '--part', 'Content-Type: image/png', 'Content-ID: <square@test.local>', 'Content-Transfer-Encoding: base64', '',
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
+    '--part--', ''
+  ) -join "`r`n"
+  $blob = Invoke-RestMethod (& $local $session.uploadUrl) -Method Post -Headers $auth -ContentType 'message/rfc822' `
+    -Body ([Text.Encoding]::UTF8.GetBytes($message))
+  $call = { param($method, $arguments)
+    $body = @{ using = @('urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'); methodCalls = @(, @($method, $arguments, 'c')) }
+    (Invoke-RestMethod (& $local $session.apiUrl) -Method Post -Headers $auth -ContentType 'application/json' `
+      -Body ($body | ConvertTo-Json -Depth 10)).methodResponses[0][1]
+  }
+  $drafts = (& $call 'Mailbox/query' @{ accountId = $account; filter = @{ role = 'drafts' } }).ids[0]
+  $imported = & $call 'Email/import' @{ accountId = $account; emails = @{ d = @{
+    blobId = $blob.blobId; mailboxIds = @{ $drafts = $true }; keywords = @{ '$draft' = $true; '$seen' = $true } } } }
+  if (-not $imported.created.d) { throw "the harness refused the draft: $($imported | ConvertTo-Json -Depth 5 -Compress)" }
+}
+
+# How many pixels inside the open composer's editor are the fixture's red.
+function Get-EditorRedPixels {
+  $editor = Get-RenderedBounds -Element (Find-UiaElement -AutomationId 'Editor') -What 'the message editor'
+  $bmp = New-Object System.Drawing.Bitmap ([int]$editor.Width), ([int]$editor.Height)
+  try {
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    try { $g.CopyFromScreen([int]$editor.X, [int]$editor.Y, 0, 0, $bmp.Size) } finally { $g.Dispose() }
+    $red = 0
+    for ($x = 0; $x -lt $bmp.Width; $x += 2) {
+      for ($y = 0; $y -lt $bmp.Height; $y += 2) {
+        $c = $bmp.GetPixel($x, $y)
+        if ($c.R -gt 200 -and $c.G -lt 60 -and $c.B -lt 60) { $red++ }
+      }
+    }
+    $red
+  }
+  finally { $bmp.Dispose() }
+}
+
 $Suite = @{
   Dataset = 'harness'
   Cases   = @(
@@ -212,6 +265,25 @@ $Suite = @{
             "the resumed composer does not hold the recipient the draft was saved with ($DraftRecipient)"
           Assert-Equal '' (Get-DraftHint) `
             'a composer that has saved nothing yet says nothing about saving (docs/drafts.md)'
+        }
+        finally { Clear-StoredDraft -Subject $subject }
+      }
+    },
+    @{
+      Name = 'a draft another client stored reopens with its picture'
+      Body = {
+        # The picture is a `cid:` part, so it is on screen only if the composer was seeded with the
+        # message's HTML: a draft seeded with its text alone opens with no picture at all.
+        $subject = "Draft suite $DraftRun picture"
+        try {
+          Add-ForeignDraft -Subject $subject
+          Open-StoredDraft -Subject $subject
+          Wait-UiaQuiet -CapMs 1500
+          # 40 DIPs square, sampled every second pixel each way; half of it is plenty to tell it
+          # from none.
+          $floor = [int]([Math]::Pow((ConvertTo-UiaPixels 40), 2) / 4 / 2)
+          Assert-GreaterThan $floor (Get-EditorRedPixels) `
+            'the resumed composer does not draw the picture the stored draft carries: it was not seeded with the draft''s HTML (docs/drafts.md)'
         }
         finally { Clear-StoredDraft -Subject $subject }
       }
