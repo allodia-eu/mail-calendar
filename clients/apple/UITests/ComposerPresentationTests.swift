@@ -24,10 +24,10 @@ final class ComposerPresentationTests: XCTestCase {
         )
         XCTAssertFalse(app.buttons["Send"].isEnabled, "an empty composer offered Send")
 
-        ShowcaseApp.tap(app.buttons["Cancel"])
+        ShowcaseApp.tap(app.buttons["Close"])
         XCTAssertTrue(
             app.buttons["New Mail"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "Cancel did not return to the mailbox"
+            "Close did not return to the mailbox"
         )
 
         // The second time is the assertion. A binding that is cleared on dismissal and one that is
