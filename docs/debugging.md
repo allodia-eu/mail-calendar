@@ -294,6 +294,20 @@ the certificates this needs whenever the harness is up. What serves it, and why 
 is under "Signing in to an IMAP account" in
 [`docker/stalwart/README.md`](../docker/stalwart/README.md).
 
+### Meeting a certificate that does not verify
+
+Set a calendar-and-contacts account up by hand with `https://localhost:12443` as its CalDAV and
+CardDAV server (`alice@test.local` / `harness-alice-pw`). That listener serves the harness's DAV
+under a certificate `boot.sh` never delivers, so Connect is refused and the form asks whether to
+accept it ([`certificate-exceptions.md`](certificate-exceptions.md)).
+
+### Making a stored password stop working
+
+On Windows, `Set-HarnessPassword` in
+[`uitests/dataset.ps1`](../clients/windows/uitests/dataset.ps1) changes a seeded user's password
+on the server, which is how a pasted secret expires; put `harness-alice-pw` back afterwards, or
+`harness.sh reset`.
+
 ### Making the server refuse a login that is valid
 
 A server can reject a credential that works: Dovecot answers `[AUTHENTICATIONFAILED]` after its

@@ -104,6 +104,8 @@ Host ports (loopback only): the 12xxx/28080 block, kept clear of the engine repo
   JMAP sign-in (OAuth)   http://localhost:28081   (stalwart-oauth: alice only, nothing seeded)
   IMAP sign-in           localhost:12995 IMAP, :12467 submission, https://localhost + https://127.0.0.1
                          (stalwart-oauth and its HTTPS front: set up alice@localhost to be offered it)
+  Untrusted DAV          https://localhost:12443   (the seeded CalDAV + CardDAV, under a certificate
+                         left out of MAILCAL_EXTRA_CA, so setup asks whether to accept it)
 
 Seeded account: alice@test.local / harness-alice-pw   (also bob@test.local, admin)
 Certificates a debug build trusts via MAILCAL_EXTRA_CA: $HARNESS_CA

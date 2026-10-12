@@ -111,7 +111,14 @@ namespace MailcalDev
 # The store first: a running app holds its sqlite file open, and a delete that half-succeeds is
 # worth a clear refusal rather than a namespace with accounts and no store, or the reverse.
 $store = Join-Path $env:LOCALAPPDATA "Allodia\MailCalendar\$Namespace"
-Remove-Item -Recurse -Force -LiteralPath $store -ErrorAction SilentlyContinue
+# Retried for a few seconds: an app stopped a moment ago has exited before Windows lets go of its
+# sqlite files, so the first delete after a launch on this namespace can find them still open.
+$deadline = [Diagnostics.Stopwatch]::StartNew()
+do {
+  Remove-Item -Recurse -Force -LiteralPath $store -ErrorAction SilentlyContinue
+  if (-not (Test-Path -LiteralPath $store)) { break }
+  Start-Sleep -Milliseconds 250
+} while ($deadline.Elapsed.TotalSeconds -lt 10)
 if (Test-Path -LiteralPath $store) {
   throw "the store at $store could not be cleared; close any running Mailcal.exe and retry."
 }

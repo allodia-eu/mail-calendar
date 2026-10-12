@@ -71,8 +71,9 @@ appliances do the same. It applies to any certificate the verifier refuses, what
    A refusal on a route that cannot carry an exception keeps its message, because nothing else
    would say it.
 
-8. **Only the IMAP route offers acceptance today.** An `[imap]` account's stored config carries
-   `[[certificate_exception]]`; a JMAP account's does not (see Known gaps). Every other route
+8. **Only a standards account offers acceptance today.** Its stored config, with a mailbox or used
+   for calendar and contacts alone, carries `[[certificate_exception]]`; a JMAP account's does not
+   (see Known gaps). Every other route
    reports the refusal plainly. Taking an answer and ignoring it is worse than not asking.
 
 9. **A log line never carries the certificate.** The refusal's own message does, which is why the
@@ -173,8 +174,8 @@ handed one. Read a 🚧 on this page as *unknown*.
   to verify is refused, and the person is never offered that one: the mail connect is the only one
   they wait on. An account without mail waits on its calendar or address book instead, and that
   refusal carries its certificate like a mail server's; Apple, Linux and Windows set such an
-  account up, and on Apple and Windows that refusal has been reached in the unit suites only,
-  since the harness serves its calendar over plain HTTP.
+  account up. On Apple that refusal has been reached in the unit suites only; Windows drives it
+  against the harness (Testing, below).
 - **An acceptance does not survive leaving the flow.** It is carried across the attempts of one
   setup and dropped when the form closes, because until the account exists there is nothing to
   store it against. Somebody who cancels and starts again is asked once more.
@@ -197,3 +198,8 @@ handed one. Read a 🚧 on this page as *unknown*.
   unit-tested there (Apple `AccountSetupDetectTests`, Android `AccountSetupDetectTest`, Windows
   `AccountDetectFormTests`, Linux `setup_model_tests`), including that accepting a certificate does
   not also approve untrusted settings. Linux additionally drives the rendered widget tree.
+- **Harness**: the front serves the seeded server's CalDAV and CardDAV on `12443` under a
+  certificate no debug build is handed (`docker/stalwart/front/nginx.conf`). Windows'
+  `SetupCertificate.Tests.ps1` sets an account without mail up against it: the panel's SHA-256
+  matches what the listener presents, Connect stays inert until the box is ticked, and the account
+  then connects. Its `CoreErrorTests` hold rule 9 for the refusal's own message.

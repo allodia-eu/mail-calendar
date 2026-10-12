@@ -114,6 +114,8 @@ services:
       HARNESS_ADMIN_PW: "harness-admin-pw"
       HARNESS_SEED: "0"
       HARNESS_FRONT_TLS_DIR: "/harness/front-tls"
+      # The certificate no debug build trusts, for the front's untrusted DAV listener below.
+      HARNESS_UNTRUSTED_CERT: "untrusted"
     volumes:
       - ./entrypoint.sh:/harness/entrypoint.sh:ro
       - stalwart-oauth-etc:/etc/stalwart
@@ -143,11 +145,18 @@ services:
   # Host port 443, because an issuer candidate carries no port: setup asks `https://<domain>`
   # itself. A machine that already serves 443 on loopback cannot start this service, and
   # `harness.sh up` fails on it by name.
+  #
+  # It also fronts the seeded server's CalDAV and CardDAV on 12443, under a certificate that
+  # `harness.sh certs` leaves out of the bundle, so a debug build meets a refusal it can be asked
+  # about (docs/certificate-exceptions.md).
   stalwart-oauth-front:
     # Pinned by multi-arch index digest, like ./Dockerfile's images.
     image: nginx:1.31-alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2
     depends_on:
       stalwart-oauth:
+        condition: service_healthy
+      # nginx resolves the seeded server's name when it starts, for the DAV listener.
+      stalwart:
         condition: service_healthy
     volumes:
       - ./front/nginx.conf:/etc/nginx/conf.d/default.conf:ro
@@ -155,6 +164,7 @@ services:
       - stalwart-oauth-front-tls:/etc/nginx/harness-tls:ro
     ports:
       - "127.0.0.1:443:443" # HTTPS: autoconfig (localhost) + metadata (127.0.0.1)
+      - "127.0.0.1:12443:8443" # HTTPS: the seeded server's DAV, under a certificate nothing trusts
     # Healthy once the republished metadata names the HTTPS issuer, which proves the rewrite
     # rather than merely that nginx started.
     healthcheck:

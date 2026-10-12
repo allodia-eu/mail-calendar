@@ -116,6 +116,7 @@ Windows, and the Android emulator (see [`../../docs/debugging.md`](../../docs/de
 | IMAP (`stalwart-oauth`)       | 993       | `12995` | implicit TLS (self-signed) |
 | SMTP submission (`stalwart-oauth`) | 465  | `12467` | implicit TLS (self-signed) |
 | HTTPS front (`stalwart-oauth-front`) | 443 | `443` | TLS (self-signed), reached as `localhost` and `127.0.0.1` |
+| CalDAV + CardDAV (`stalwart-oauth-front`) | 8443 | `12443` | TLS under a certificate no debug build trusts, so setting a calendar up against it asks to accept it |
 
 ### Why these are not the engine's numbers
 

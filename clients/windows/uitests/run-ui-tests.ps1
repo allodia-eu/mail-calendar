@@ -26,8 +26,8 @@
 # without WinUI. Put it here when the thing under test is what the user actually sees.
 #
 # WHAT CI RUNS, AND WHAT IT DOES NOT. The Windows job runs `-Dataset showcase,first-run` after its
-# build, on the same runner, and a failure is red. The twelve HARNESS suites cannot run there at
-# all: the harness is a Linux container and a GitHub Windows runner runs only Windows ones. So
+# build, on the same runner, and a failure is red. The HARNESS suites, `harness-setup` included,
+# cannot run there at all: the harness is a Linux container and a GitHub Windows runner runs only Windows ones. So
 # nothing CI checks proves a mail action survived a round trip, and the suites that do are run by
 # hand (docs/background-sync.md carries the same gap for background sync). CI names them as not
 # selected rather than letting them take the "the harness is not up" skip, which would silently
@@ -40,7 +40,7 @@
 # dot-sources it to READ it, then launches the dataset, then invokes the cases:
 #
 #     $Suite = @{
-#       Dataset = 'showcase'                 # 'showcase' | 'harness' | 'first-run'
+#       Dataset = 'showcase'                 # 'showcase' | 'harness' | 'first-run' | 'harness-setup'
 #       Env = @{ MAILCAL_… = '…' }           # optional; see below
 #       Prepare = { … }                    # optional; see below
 #       Cases = @(
@@ -115,6 +115,13 @@
 #              prove something that has to survive a round trip. Skipped loudly when the harness
 #              is not up, never silently, because a skipped check reads exactly like a passing
 #              one in a summary line. Pass -RequireHarness to turn that into a failure.
+#   first-run  the real core over an EMPTY namespace, wiped before every launch: the screens a
+#              person sees once. Needs no server, so CI runs it.
+#   harness-setup
+#              first-run's empty namespace beside the harness: for a suite that sets an account
+#              up through the form, uses it against a real server and removes it again, ending
+#              where it started. Skipped like `harness` when the harness is not up, and never
+#              selected by CI.
 #
 # The showcase engine DOES NOT REALLY PERFORM MAIL ACTIONS. Anything destructive belongs in a
 # harness suite, or it proves only that you dispatched into a void.
@@ -128,7 +135,7 @@ param(
   # harness is a Linux one.
   #
   # A DECLARATION, not an optimisation. Leaving it out and letting the harness suites take the
-  # "the harness is not up" skip reaches the same 19 suites today, and silently reaches a
+  # "the harness is not up" skip reaches the same suites today, and silently reaches a
   # different set the day anything starts listening on that port. What is deliberately excluded
   # is named in the summary, on its own line, next to what merely happened to be unavailable.
   #
@@ -137,7 +144,7 @@ param(
   # thing over as ONE string, while the same words inside a pwsh script are an array. ValidateSet
   # rejected the first with "the argument does not belong to the set", which reads as a wrong
   # value rather than a quoting difference and sent the reader looking at the wrong thing.
-  [string[]] $Dataset = @('showcase', 'harness', 'first-run'),
+  [string[]] $Dataset = @('showcase', 'harness', 'first-run', 'harness-setup'),
   # Leave the app running afterwards, for poking at a failure by hand.
   [switch] $KeepApp
 )
@@ -145,7 +152,7 @@ $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $windows = Join-Path $here '..'
 
-$KnownDatasets = @('showcase', 'harness', 'first-run')
+$KnownDatasets = @('showcase', 'harness', 'first-run', 'harness-setup')
 $Dataset = @($Dataset | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $unknown = @($Dataset | Where-Object { $KnownDatasets -notcontains $_ })
 if ($unknown.Count -gt 0) {
@@ -377,7 +384,7 @@ foreach ($group in ($plan | Group-Object -Property Key)) {
     continue
   }
 
-  if ($groupDataset -eq 'harness' -and -not (Test-HarnessUp)) {
+  if ($groupDataset -in @('harness', 'harness-setup') -and -not (Test-HarnessUp)) {
     foreach ($member in $members) {
       $reason = "$($member.Name): the harness is not up (scripts/dev/harness.sh up)"
       if ($RequireHarness) { $failed += $reason; Write-Host "FAIL  $reason" -ForegroundColor Red }
@@ -478,7 +485,7 @@ Write-Host ("$ran suite(s) ran in {0:N0}s: {1:N0}s setup over $launches app laun
   $wall.Elapsed.TotalSeconds, $launchSeconds, $caseSeconds)
 foreach ($s in $skipped) { Write-Host "  SKIPPED: $s" -ForegroundColor Yellow }
 # One line, not one per suite: an excluded dataset is a whole block of the suite the caller asked
-# not to run, and printing nineteen identical reasons buries the skips above that are not that.
+# not to run, and printing a line for each of them buries the skips above that are not that.
 if ($excluded.Count -gt 0) {
   Write-Host ("  NOT SELECTED: $($excluded.Count) suite(s), -Dataset is " + ($Dataset -join ',')) -ForegroundColor Yellow
 }

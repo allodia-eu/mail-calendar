@@ -130,6 +130,18 @@ if [ -n "${HARNESS_FRONT_TLS_DIR:-}" ] && [ ! -s "$HARNESS_FRONT_TLS_DIR/front.p
     -addext "extendedKeyUsage=serverAuth" \
     -keyout "$HARNESS_FRONT_TLS_DIR/front.key" -out "$HARNESS_FRONT_TLS_DIR/front.pem" 2>/dev/null
 fi
+# A second, for the front's DAV listener: the same names under a key of its own, which no debug
+# build is handed, so a dial to it is refused the way a server with its own certificate is.
+UNTRUSTED="${HARNESS_FRONT_TLS_DIR:-}/${HARNESS_UNTRUSTED_CERT:-}"
+if [ -n "${HARNESS_FRONT_TLS_DIR:-}" ] && [ -n "${HARNESS_UNTRUSTED_CERT:-}" ] && [ ! -s "$UNTRUSTED.pem" ]; then
+  log "minting the untrusted DAV listener's certificate"
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 3650 \
+    -subj "/CN=Stalwart harness untrusted DAV" \
+    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+    -addext "basicConstraints=critical,CA:FALSE" \
+    -addext "extendedKeyUsage=serverAuth" \
+    -keyout "$UNTRUSTED.key" -out "$UNTRUSTED.pem" 2>/dev/null
+fi
 
 touch "$MARKER"
 log "harness ready"
