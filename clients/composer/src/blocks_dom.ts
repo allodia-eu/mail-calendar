@@ -21,10 +21,12 @@ export function setBlocks(editor: HTMLElement, blocks: Block[], attachments: Att
   for (const block of blocks) editor.appendChild(blockNode(doc, block, attachments));
   // The caret needs a line of the message to land on. A body that opens on its signature or its
   // quote (everything above them deleted before it was saved) gets the empty line a reply opens
-  // with, or the user's first keystroke would go into that region.
+  // with, or the user's first keystroke would go into that region. It is marked, so that until
+  // something is written in it the document reads back without it (`document.ts`).
   const first = editor.firstElementChild;
   if (!first || first.classList.contains("allodia-signature") || first.classList.contains("allodia-quote")) {
     const lead = doc.createElement("p");
+    lead.setAttribute("data-lead", "");
     lead.appendChild(doc.createElement("br"));
     editor.insertBefore(lead, first);
   }

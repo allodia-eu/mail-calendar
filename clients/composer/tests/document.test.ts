@@ -176,8 +176,9 @@ describe("inline images", () => {
     expect(texts('<p>before<img src="https://tracker.example/x.png">after</p>')).toEqual([
       "beforeafter",
     ]);
+    // The two sides, with nothing left between them, are one run (`canonicalLine`).
     expect(paragraphs('<p>before<img src="https://tracker.example/x.png">after</p>')[0]).toHaveLength(
-      2,
+      1,
     );
   });
 });
@@ -271,7 +272,7 @@ describe("block structure", () => {
   test("a quoted original is one Quote block, never flattened into paragraphs", () => {
     const result = blocks(
       '<p>my reply</p>' +
-        '<div class="allodia-quote" data-quote-style="LineAndHeader" data-quote-line="On Monday, Alice wrote:" data-quote-plain="original">' +
+        '<div class="allodia-quote" data-quote-style="LineAndHeader" data-quote-line="On Monday, Alice wrote:">' +
         '<div class="aq-attr">On Monday, Alice wrote:</div>' +
         '<div class="aq-body"><p>original</p></div>' +
         "</div>",
@@ -286,7 +287,7 @@ describe("block structure", () => {
   test("the signature is one Signature block, keeping its markup intact", () => {
     const result = blocks(
       "<p>my message</p>" +
-        '<div class="allodia-signature" data-signature-plain="Alice"><p><b>Alice</b></p></div>',
+        '<div class="allodia-signature"><p><b>Alice</b></p></div>',
     );
     expect(result.map((block) => Object.keys(block)[0])).toEqual(["Paragraph", "Signature"]);
     const signature = result[1] as { Signature: { body_html: string; body_plain: string } };

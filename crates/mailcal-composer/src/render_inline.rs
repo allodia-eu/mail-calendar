@@ -38,11 +38,13 @@ fn link_groups(
     })
 }
 
+/// Renders one line's inline content: a paragraph's, a list item's or a table cell's.
 pub(crate) fn render_inlines_html(
     inlines: &[InlineContent],
     out: &mut String,
     attachments: &Attachments<'_>,
 ) {
+    let mut spaces = hard_spaces(inlines).into_iter();
     for (link, group) in link_groups(inlines) {
         if let Some(link) = link {
             out.push_str("<a href=\"");
@@ -51,7 +53,7 @@ pub(crate) fn render_inlines_html(
         }
         for inline in group {
             match inline {
-                InlineContent::Text(run) => render_run_html(run, out),
+                InlineContent::Text(run) => render_run_html(run, out, &mut spaces),
                 InlineContent::Image(image) => render_image_html(image, out, attachments),
             }
         }
@@ -59,6 +61,50 @@ pub(crate) fn render_inlines_html(
             out.push_str("</a>");
         }
     }
+}
+
+/// For each space in a line's text, in order, whether it is written as `&nbsp;`.
+///
+/// HTML collapses a run of spaces into one and drops a space at either end of a line, so text
+/// written verbatim loses the spaces the user typed: a recipient reads "a b" for "a  b", and an
+/// indented line arrives flush. The usual remedy, and what every mail client's own editor
+/// produces, is to make just enough of them non-breaking that none collapses: a run alternates
+/// between the two, opening with a hard space at the start of a line and closing with one at its
+/// end, so a lone space between two words stays an ordinary one and the line can still wrap there.
+fn hard_spaces(inlines: &[InlineContent]) -> Vec<bool> {
+    // `None` for content a space cannot collapse into: any other character, or a picture.
+    let chars: Vec<Option<char>> = inlines
+        .iter()
+        .flat_map(|inline| match inline {
+            InlineContent::Text(run) => run.text.chars().map(Some).collect::<Vec<_>>(),
+            InlineContent::Image(_) => vec![None],
+        })
+        .collect();
+    let mut hard = Vec::new();
+    let mut index = 0;
+    while index < chars.len() {
+        if chars[index] != Some(' ') {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        while index < chars.len() && chars[index] == Some(' ') {
+            index += 1;
+        }
+        let at_start = start == 0;
+        let at_end = index == chars.len();
+        let len = index - start;
+        if len == 1 && !at_start && !at_end {
+            hard.push(false);
+            continue;
+        }
+        let first = hard.len();
+        hard.extend((0..len).map(|offset| (offset % 2 == 0) == at_start));
+        if at_end {
+            hard[first + len - 1] = true;
+        }
+    }
+    hard
 }
 
 /// The inline CSS a run's non-structural marks need, as one declaration list.
@@ -90,7 +136,7 @@ fn run_style(run: &TextRun) -> String {
     style
 }
 
-fn render_run_html(run: &TextRun, out: &mut String) {
+fn render_run_html(run: &TextRun, out: &mut String, spaces: &mut impl Iterator<Item = bool>) {
     let style = run_style(run);
     let opened_span = !style.is_empty();
     if opened_span {
@@ -107,7 +153,7 @@ fn render_run_html(run: &TextRun, out: &mut String) {
     if run.underline {
         out.push_str("<u>");
     }
-    escape_html_text(&run.text, out);
+    escape_run_text(&run.text, out, spaces);
     if run.underline {
         out.push_str("</u>");
     }
@@ -193,6 +239,22 @@ pub(crate) fn render_inlines_text(inlines: &[InlineContent], out: &mut String) {
                 out.push_str(target);
                 out.push('>');
             }
+        }
+    }
+}
+
+/// A run's words, escaped, with the spaces [`hard_spaces`] marked as `&nbsp;` and each tab in a
+/// span that keeps it. A tab has no entity of its own, and `white-space: pre` on the one character
+/// is what the other clients' editors write for it.
+fn escape_run_text(value: &str, out: &mut String, spaces: &mut impl Iterator<Item = bool>) {
+    for ch in value.chars() {
+        match ch {
+            ' ' if spaces.next().unwrap_or(false) => out.push_str("&nbsp;"),
+            '\t' => out.push_str("<span style=\"white-space:pre\">\t</span>"),
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            _ => out.push(ch),
         }
     }
 }

@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 
 import { Attachments } from "../src/attachments";
 import { documentBlocks } from "../src/document";
-import { plainText } from "../src/read_html";
+import { plainText } from "../src/plain_text";
 import { setComposerBody } from "../src/seeds";
 import type { Block, ComposerDocument, DraftAttachment, InlineContent, TextRun } from "../src/types";
 import rendered from "./fixtures/rendered.json";

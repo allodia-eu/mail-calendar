@@ -27,6 +27,9 @@ export interface CapturedImageMeta {
   data_url: string;
   file_name: string;
   media_type: string;
+  /// The `Content-ID` the picture already goes by, when it came out of a stored message; empty for
+  /// one captured here, which is given a new one.
+  content_id?: string;
 }
 
 export class Attachments {
@@ -110,7 +113,7 @@ export class Attachments {
       file_name: meta.file_name || `image-${seq}${extensionFor(mediaType)}`,
       media_type: mediaType,
       size: null,
-      disposition: { Inline: { cid: mintContentId(seq) } },
+      disposition: { Inline: { cid: meta.content_id || mintContentId(seq) } },
       data_url: meta.data_url,
     });
     return id;

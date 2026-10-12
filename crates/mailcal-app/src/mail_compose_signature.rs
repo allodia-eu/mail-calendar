@@ -27,20 +27,20 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use engine_api::{ContentIdHeader, DraftAttachment};
 use mailcal_composer::{Block, ComposerDocument};
 
-use crate::{helpers::generated_content_id, html::image_media_type};
+use crate::{helpers::content_id_for, html::image_media_type};
 
 /// The attribute prefix an inline image is matched on. Anchoring on the whole `src="…"` value
 /// (rather than the bare `data:` substring) keeps the rewrite inside one attribute; it can never
 /// splice the middle of another attribute's value.
 const SRC_PREFIX: &str = "src=\"data:";
 
-/// Re-sanitises every signature body to the inert, safe subset (`crate::html::sanitize`) in place
+/// Re-sanitises every signature body to the inert, safe subset (`crate::html::sanitize_inert`) in place
 /// : the Gate-10 treatment a quoted original already gets, applied to the other block the composer
 /// emits verbatim.
 pub(super) fn sanitize_signature_bodies(document: &mut ComposerDocument) {
     for block in &mut document.blocks {
         if let Block::Signature(signature) = block {
-            signature.body_html = crate::html::sanitize(&signature.body_html).html;
+            signature.body_html = crate::html::sanitize_inert(&signature.body_html);
         }
     }
 }
@@ -115,9 +115,7 @@ fn cid_for(
         return Some(existing.clone());
     }
     let (media, bytes) = decode_data_image(uri)?;
-    // The sequence is the count of parts so far, so several images in one signature; rewritten
-    // inside a single clock tick; cannot collide on the wall-clock component alone.
-    let id = generated_content_id(attachments.len());
+    let id = content_id_for(&bytes);
     let content_id = ContentIdHeader::new(&id).ok()?;
     attachments.push(DraftAttachment::inline(
         file_name(&media, attachments.len()),

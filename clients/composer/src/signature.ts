@@ -1,6 +1,7 @@
 // The sender's signature region, and the body-only seams the Settings signature editor uses.
 
 import { caretInto, documentOf, focusEditor } from "./dom";
+import { plainText } from "./plain_text";
 import type { Block, SignatureValue } from "./types";
 
 /// **This message's** signature region; a DIRECT child of the editor, never a descendant.
@@ -21,13 +22,13 @@ export function composerSignature(editor: HTMLElement): HTMLElement | null {
 }
 
 /// The `Signature` block emitted to the shared composer: the region's current HTML (the user may
-/// have edited it before sending) and the plain-text rendering that rides alongside it into the
+/// have edited it before sending) and that HTML's text, which rides alongside it into the
 /// `text/plain` part. The core sanitises both halves again on submit.
 export function signatureBlock(container: HTMLElement): Block {
   return {
     Signature: {
       body_html: container.innerHTML,
-      body_plain: container.dataset.signaturePlain || "",
+      body_plain: plainText(container),
     },
   };
 }
@@ -87,7 +88,6 @@ export function signatureContainer(doc: Document, signature: SignatureValue): HT
 
 function fillSignature(container: HTMLElement, signature: SignatureValue): void {
   container.innerHTML = signature.body_html;
-  container.dataset.signaturePlain = signature.body_plain || "";
 }
 
 /// Routes a click in the editor's empty area **below everything** to the MESSAGE, never the

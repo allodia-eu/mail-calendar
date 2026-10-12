@@ -46,13 +46,21 @@ pub(crate) fn new_message_id() -> Option<MessageIdHeader> {
     MessageIdHeader::new(generated_message_id()).ok()
 }
 
-/// A unique `Content-ID` for an inline part the core mints itself: a signature's embedded image
-/// on the way out (`crate::mail_compose_signature`). Unlike a quoted original's images, which
-/// keep the sender's ids, a signature's bytes have never been a MIME part before, so there is no
-/// id to preserve and one is minted here. `seq` distinguishes several images in the same
-/// signature, which the clock alone would not (they are rewritten inside one tick).
-pub(crate) fn generated_content_id(seq: usize) -> String {
-    format!("sig{seq}.{}@allodia.local", wall_nanos())
+/// The `Content-ID` for an inline part the core mints itself: a signature's embedded image on the
+/// way out (`crate::mail_compose_signature`). Unlike a quoted original's images, which keep the
+/// sender's ids, a signature's bytes have never been a MIME part before, so there is no id to
+/// preserve and one is made here.
+///
+/// Made from the bytes rather than minted: every save of a draft renders its signature again, and
+/// an id that changed each time would make an untouched draft differ from the copy it replaces, so
+/// it could never be found unchanged (`docs/drafts.md`). Two different pictures have different
+/// bytes; the same picture twice is meant to be one part. FNV-1a, because what it has to be is
+/// stable on every build, not hard to forge.
+pub(crate) fn content_id_for(bytes: &[u8]) -> String {
+    let hash = bytes.iter().fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x0000_0100_0000_01b3)
+    });
+    format!("sig.{hash:016x}@allodia.local")
 }
 
 /// A unique, **URL-safe** calendar event uid (no `@` or other chars a CalDAV server

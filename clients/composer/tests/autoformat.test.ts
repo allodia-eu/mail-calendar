@@ -103,7 +103,7 @@ describe("it stays out of the way", () => {
     // caret at its start IS that container. Replacing it with a <ul> dropped the class `quoteBlock`
     // reads the body from, and the whole quoted message left the outgoing HTML.
     const h = harness(
-      '<p>reply</p><div class="allodia-quote" data-quote-plain="orig">' +
+      '<p>reply</p><div class="allodia-quote">' +
         '<div class="aq-attr" contenteditable="false">On x wrote:</div>' +
         '<div class="aq-body aq-plain">-original</div></div>',
     );

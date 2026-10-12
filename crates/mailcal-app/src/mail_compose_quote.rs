@@ -13,14 +13,14 @@ use std::collections::HashSet;
 use engine_api::{ContentIdHeader, DraftAttachment, InlinePart};
 use mailcal_composer::{Block, ComposerDocument};
 
-/// Re-sanitises every quoted original's HTML to the inert, safe subset (`crate::html::sanitize`)
+/// Re-sanitises every quoted original's HTML to the inert, safe subset (`crate::html::sanitize_inert`)
 /// in place. Called on the rich-draft path right before render: the quote body is HTML a host's
 /// WebView editor handed back, so it is re-hardened here rather than trusted: the same sanitiser
 /// the reading view runs on inbound mail, applied now to outbound quoted content.
 pub(super) fn sanitize_quote_bodies(document: &mut ComposerDocument) {
     for block in &mut document.blocks {
         if let Block::Quote(quote) = block {
-            quote.body_html = crate::html::sanitize(&quote.body_html).html;
+            quote.body_html = crate::html::sanitize_inert(&quote.body_html);
         }
     }
 }

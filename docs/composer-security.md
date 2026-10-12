@@ -127,9 +127,11 @@ port:
       core stores it** (a client assigns it into the editor with `innerHTML`, and `signatures.toml` is
       a plain file anything with disk access can edit) **and re-sanitised on submit**.
 
-    `rich_draft` runs the reading-view sanitiser over every quote body and every signature body before
-    the document is rendered into the outgoing message. The editor is never trusted to keep either
-    inert. Because this runs in the shared use-case layer, it holds on every platform regardless of
+    `rich_draft` runs the reading-view sanitiser's allowlist over every quote body and every signature
+    body before the document is rendered into the outgoing message, a draft's save included. The
+    editor is never trusted to keep either inert. The reading view's linkifying is left out: it adds
+    links rather than removing anything, and adding them on every save would make a region the user
+    never touched differ from the copy it replaces. Because this runs in the shared use-case layer, it holds on every platform regardless of
     what a client's editor emits, so the gate cannot be missed by a new client. See
     [`signatures.md`](signatures.md).
 11. **The quote seed's `initial_text` is text, never markup.** `setComposerQuote` accepts an optional
@@ -337,8 +339,9 @@ port:
     `setComposerBody` with the message's own HTML ([`drafts.md`](drafts.md)). That HTML is mail the
     server handed back, so it is hostile input like any other:
     - **The core sanitises it before any host sees it** (`ComposeRequest::body_html`), with the
-      reading view's allowlist, and turns each `cid:` picture into the `data:` URI of its part. A
-      host passes it on as data: one JSON string the editor parses, never spliced into a script.
+      reading view's allowlist, and turns each `cid:` picture into the `data:` URI of its part,
+      noting the part's `Content-ID` beside it as `data-cid` for the editor to keep. A host passes it
+      on as data: one JSON string the editor parses, never spliced into a script.
     - **The editor parses it into a document of its own with no window** (`DOMParser`), so nothing
       in it runs, loads or lays out, and none of it is attached to the editor. Only the blocks read
       off it are, rebuilt node by node from the schema (`blocks_dom.ts`): what the editor shows is
@@ -496,8 +499,8 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   under Gate 10. It is sanitised **on store as well as on submit**: a client seeds it into the
   editor with `innerHTML`, and the editor page's CSP permits inline handlers, so the library must
   only ever hold inert HTML. On send the core rewrites the signature's inline `data:` images to
-  `cid:` `multipart/related` parts with **minted** Content-IDs (the quote path preserves the
-  sender's original ids instead, since those bytes were already MIME parts). The Settings signature
+  `cid:` `multipart/related` parts with Content-IDs made from their bytes (the quote path preserves
+  the sender's original ids instead, since those bytes were already MIME parts). The Settings signature
   editor hosts the **same** bundle with the **same** WebView gates (authoring a signature is
   authoring mail content) and adds three body-only seams (`setSignatureBody` / `signatureBody` /
   `insertSignatureImage`). The composer's seam is `setComposerSignature`, which replaces only **this message's**

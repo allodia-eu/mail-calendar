@@ -160,11 +160,31 @@ composer appears when the answer does.
 sanitised as a reading view's is, with every picture the draft carries as a part already turned
 into the `data:` URI the editor shows it from (`ComposeRequest::body_html`). The editor reads it
 back into its own document (`setComposerBody`, `clients/composer/src/read_html.ts`): the
-formatting, the lists and tables, the pictures, the quoted original and the signature. What this
-app wrote reads back as exactly the document it was rendered from, which a fixture both the
-renderer's and the reader's suites check holds (`clients/composer/tests/fixtures/rendered.json`);
-what another client wrote reads as closely as the editor's schema allows (see the known gaps). A
-draft with no HTML opens as its text.
+formatting, the lists and tables, the pictures, the quoted original and the signature. What another
+client wrote reads as closely as the editor's schema allows (see the known gaps). A draft with no
+HTML opens as its text.
+
+**What this app saved reopens as exactly the document it was saved from.** Every part of that is
+carried in the HTML itself, in markup any client reads, so nothing about it is particular to this
+app:
+
+- **Spaces and tabs as typed.** A space that would collapse is written as `&nbsp;`, alternating
+  with ordinary ones so a line still wraps, and a tab sits in a `white-space: pre` span. The reader
+  lays whitespace out as a browser does, so it reads back exactly the spaces that were on screen.
+  The same markup is what keeps them for a recipient.
+- **One form for each line.** The editor emits neighbouring runs with the same formatting as one,
+  which is all an HTML reader can recover.
+- **A quote's and a signature's text follow their markup.** The `text/plain` half of either is
+  derived from its HTML whenever the editor emits it, so a quote the user trimmed is trimmed in both
+  halves, and reopening derives the same text again. Their markup goes out as the editor held it:
+  re-sanitised (Gate 10, [`composer-security.md`](composer-security.md)) but never linkified.
+- **Pictures keep their names.** A picture keeps the `Content-ID` of the part it came from, and a
+  signature's picture is given one made from its bytes, so a second save names it as the first did.
+
+This is checked rather than assumed. The core generates documents across the editor's whole schema,
+passes each through the save's own builder and the reopen's own sanitiser, and writes the result
+to `clients/composer/tests/fixtures/reopened.json`; the editor's suite then reads every entry back
+and requires the document it was saved from.
 
 **The composition keeps what the editor cannot.** A reply's `In-Reply-To` and `References` go on
 every save and on the send, so a resumed reply stays in its conversation. And the parts its

@@ -5,6 +5,7 @@
 // than a round-trip to the core.
 
 import { caretInto, documentOf, focusEditor } from "./dom";
+import { plainText } from "./plain_text";
 import type { Block, QuoteAttribution, QuoteHeader, QuoteStyle, QuoteValue } from "./types";
 
 /// The seed a host passes to `setComposerQuote`. `initial_text` pre-fills the lead paragraph and
@@ -28,7 +29,8 @@ function readHeaders(json: string | undefined): QuoteHeader[] {
 
 /// The `Quote` block emitted to the shared composer: its style, the fixed attribution (the core
 /// re-renders the visible line or header block from these on send), the editable body's current
-/// HTML, and the original plain text for the `text/plain` part.
+/// HTML, and that HTML's text for the `text/plain` part, so a quote the user trimmed is trimmed in
+/// both.
 export function quoteBlock(container: HTMLElement): Block {
   const body = container.querySelector(".aq-body");
   return {
@@ -39,7 +41,7 @@ export function quoteBlock(container: HTMLElement): Block {
         headers: readHeaders(container.dataset.quoteHeaders),
       },
       body_html: body ? body.innerHTML : "",
-      body_plain: container.dataset.quotePlain || "",
+      body_plain: body ? plainText(body) : "",
     },
   };
 }
@@ -75,7 +77,6 @@ export function quoteContainer(doc: Document, quote: Partial<QuoteValue>): HTMLE
   container.dataset.quoteStyle = readStyle(quote.style);
   container.dataset.quoteLine = attribution.line || "";
   container.dataset.quoteHeaders = JSON.stringify(attribution.headers || []);
-  container.dataset.quotePlain = quote.body_plain || "";
 
   const attr = doc.createElement("div");
   attr.className = "aq-attr";

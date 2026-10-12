@@ -749,7 +749,7 @@
         file_name: meta.file_name || `image-${seq}${extensionFor(mediaType)}`,
         media_type: mediaType,
         size: null,
-        disposition: { Inline: { cid: mintContentId(seq) } },
+        disposition: { Inline: { cid: meta.content_id || mintContentId(seq) } },
         data_url: meta.data_url
       });
       return id;
@@ -1141,6 +1141,68 @@
     }
   }
 
+  // src/plain_text.ts
+  function plainText(element) {
+    const lines = [{ text: "", pre: false }];
+    const current = () => lines[lines.length - 1];
+    const breakLine = () => {
+      if (current().text !== "")
+        lines.push({ text: "", pre: false });
+    };
+    const walk = (node, pre) => {
+      if (node.nodeType === 3) {
+        const value = node.nodeValue ?? "";
+        const parts = pre ? value.split(`
+`) : [value];
+        parts.forEach((part, index) => {
+          if (index > 0)
+            lines.push({ text: "", pre });
+          current().text += part;
+          if (pre)
+            current().pre = true;
+        });
+        return;
+      }
+      if (node.nodeType !== 1)
+        return;
+      const element = node;
+      const tag = element.tagName;
+      if (tag === "BR") {
+        lines.push({ text: "", pre: false });
+        return;
+      }
+      const block = /^(P|DIV|LI|TR|H[1-6]|BLOCKQUOTE|PRE|TABLE|UL|OL)$/.test(tag);
+      if (block)
+        breakLine();
+      const inner = pre || isPreformatted(element);
+      for (const child of Array.from(element.childNodes))
+        walk(child, inner);
+      if (block)
+        breakLine();
+    };
+    for (const child of Array.from(element.childNodes))
+      walk(child, isPreformatted(element));
+    const out = [];
+    let blanks = 0;
+    for (const line of lines) {
+      const text = line.pre ? line.text : line.text.replace(/[\t\r ]+/g, " ").trim();
+      blanks = text === "" && !line.pre ? blanks + 1 : 0;
+      if (blanks <= 1)
+        out.push(text);
+    }
+    while (out.length > 0 && out[0] === "")
+      out.shift();
+    while (out.length > 0 && out[out.length - 1] === "")
+      out.pop();
+    return out.join(`
+`);
+  }
+  function isPreformatted(element) {
+    if (element.tagName === "PRE")
+      return true;
+    return /white-space\s*:\s*pre/i.test(element.getAttribute("style") ?? "");
+  }
+
   // src/quote.ts
   function readStyle(value) {
     return value === "LineAndHeader" ? "LineAndHeader" : "Indented";
@@ -1163,7 +1225,7 @@
           headers: readHeaders(container.dataset.quoteHeaders)
         },
         body_html: body ? body.innerHTML : "",
-        body_plain: container.dataset.quotePlain || ""
+        body_plain: body ? plainText(body) : ""
       }
     };
   }
@@ -1193,7 +1255,6 @@
     container.dataset.quoteStyle = readStyle(quote.style);
     container.dataset.quoteLine = attribution.line || "";
     container.dataset.quoteHeaders = JSON.stringify(attribution.headers || []);
-    container.dataset.quotePlain = quote.body_plain || "";
     const attr = doc.createElement("div");
     attr.className = "aq-attr";
     attr.setAttribute("contenteditable", "false");
@@ -1243,7 +1304,7 @@
     return {
       Signature: {
         body_html: container.innerHTML,
-        body_plain: container.dataset.signaturePlain || ""
+        body_plain: plainText(container)
       }
     };
   }
@@ -1278,7 +1339,6 @@
   }
   function fillSignature(container, signature) {
     container.innerHTML = signature.body_html;
-    container.dataset.signaturePlain = signature.body_plain || "";
   }
   function routeClickBelowSignature(editor, target) {
     if (target !== editor)
@@ -1312,6 +1372,21 @@
   // src/document.ts
   function normalizeText(value) {
     return value.replace(/\u00A0/g, " ");
+  }
+  function canonicalLine(content) {
+    const merged = [];
+    for (const inline of content) {
+      const last = merged[merged.length - 1];
+      if (last && "Text" in last && "Text" in inline && sameMarks(last.Text, inline.Text)) {
+        merged[merged.length - 1] = { Text: { ...last.Text, text: last.Text.text + inline.Text.text } };
+      } else if (!("Text" in inline) || inline.Text.text !== "") {
+        merged.push(inline);
+      }
+    }
+    return merged;
+  }
+  function sameMarks(a, b) {
+    return a.bold === b.bold && a.italic === b.italic && a.underline === b.underline && a.font_size === b.font_size && a.color === b.color && a.highlight === b.highlight && a.link === b.link;
   }
   function inlineText(text, marks) {
     const run = {
@@ -1372,7 +1447,7 @@
       children.pop();
     let content = [];
     const flush = () => {
-      blocks.push({ Paragraph: { content } });
+      blocks.push({ Paragraph: { content: canonicalLine(content) } });
       content = [];
     };
     for (const child of children) {
@@ -1399,7 +1474,7 @@
         content.push(...inlinesFrom(node, emptyMarks()));
       }
     }
-    return { content, child };
+    return { content: canonicalLine(content), child };
   }
   function tableRows(table) {
     const rows = [];
@@ -1419,7 +1494,7 @@
     return {
       Table: {
         rows: tableRows(element).map((row) => ({
-          cells: Array.from(row.children).filter((cell) => cell.tagName === "TD" || cell.tagName === "TH").map((cell) => ({ content: blockInlines(cell) }))
+          cells: Array.from(row.children).filter((cell) => cell.tagName === "TD" || cell.tagName === "TH").map((cell) => ({ content: canonicalLine(blockInlines(cell)) }))
         }))
       }
     };
@@ -1459,7 +1534,7 @@
     const flush = () => {
       if (inlineRun.length === 0)
         return;
-      const content = inlineRun.flatMap((node) => inlinesFrom(node, marks));
+      const content = canonicalLine(inlineRun.flatMap((node) => inlinesFrom(node, marks)));
       if (content.length > 0)
         blocks.push({ Paragraph: { content } });
       inlineRun = [];
@@ -1467,6 +1542,8 @@
     for (const child of Array.from(container.childNodes)) {
       const element = child.nodeType === 1 ? child : null;
       const tag = element?.tagName ?? null;
+      if (element && isUnwrittenLead(element))
+        continue;
       if (element?.classList.contains("allodia-quote")) {
         flush();
         blocks.push(quoteBlock(element));
@@ -1497,6 +1574,10 @@
       }
     }
     flush();
+  }
+  function isUnwrittenLead(element) {
+    const next = element.nextElementSibling;
+    return element.hasAttribute("data-lead") && element.parentElement?.firstElementChild === element && !!next && (next.classList.contains("allodia-quote") || next.classList.contains("allodia-signature")) && (element.textContent ?? "") === "" && !element.querySelector("img");
   }
   function documentBlocks(editor) {
     const blocks = [];
@@ -2662,6 +2743,7 @@
     const first = editor.firstElementChild;
     if (!first || first.classList.contains("allodia-signature") || first.classList.contains("allodia-quote")) {
       const lead = doc.createElement("p");
+      lead.setAttribute("data-lead", "");
       lead.appendChild(doc.createElement("br"));
       editor.insertBefore(lead, first);
     }
@@ -2772,61 +2854,57 @@
   function blocksFromHtml(editor, html, attachments) {
     const parsed = new (windowOf(editor)).DOMParser().parseFromString(html, "text/html");
     const body = parsed.body;
-    for (const node of Array.from(body.querySelectorAll(INERT_TAGS)))
-      node.remove();
-    readOwnQuotes(body);
-    readOtherQuotes(body);
-    for (const signature of Array.from(body.querySelectorAll(".allodia-signature"))) {
-      if (!signature.closest(".allodia-quote"))
-        signature.dataset.signaturePlain = plainText(signature);
+    readQuotes(body);
+    for (const node of Array.from(body.querySelectorAll(INERT_TAGS))) {
+      if (!inRegion(node))
+        node.remove();
     }
     adoptPictures(body, attachments);
     breakPreformattedLines(body);
     collapseWhitespace(body);
     return documentBlocks(body).map(tidy);
   }
-  var INERT_TAGS = "head, style, title, template, noscript, script";
+  var INERT_TAGS = "style, title, template, noscript, script";
+  var REGIONS = ".allodia-quote, .allodia-signature";
+  function inRegion(node) {
+    return !!node.parentElement?.closest(REGIONS);
+  }
   var OWN_INDENTED_BORDER = "border-left:2px solid #cccccc";
   var OWN_HEADER_DIVIDER = "rgb(181, 196, 223)";
   function styleOf(element) {
     return (element.getAttribute("style") ?? "").replace(/\s+/g, " ").replace(/:\s/g, ":");
   }
-  function readOwnQuotes(body) {
-    for (const quote of Array.from(body.querySelectorAll("blockquote"))) {
-      if (!styleOf(quote).includes(OWN_INDENTED_BORDER))
+  function readQuotes(body) {
+    for (const element of Array.from(body.querySelectorAll("blockquote, div"))) {
+      if (element.closest(REGIONS))
         continue;
-      const attribution = quote.previousElementSibling;
-      let line = "";
-      if (attribution?.tagName === "P") {
-        line = attribution.textContent ?? "";
-        attribution.remove();
+      if (element.tagName === "BLOCKQUOTE") {
+        if (styleOf(element).includes(OWN_INDENTED_BORDER)) {
+          const attribution = element.previousElementSibling;
+          let line = "";
+          if (attribution?.tagName === "P") {
+            line = attribution.textContent ?? "";
+            attribution.remove();
+          }
+          replaceWithQuote(element, { style: "Indented", line, headers: [] }, element);
+        } else if (!element.parentElement?.closest("li, td, th")) {
+          replaceWithQuote(element, { style: "Indented", line: "", headers: [] }, element);
+        }
+      } else if (styleOf(element).includes(OWN_HEADER_DIVIDER)) {
+        const quoted = element.nextElementSibling;
+        if (quoted?.tagName !== "DIV")
+          continue;
+        const headers = headersOf(element);
+        element.remove();
+        replaceWithQuote(quoted, { style: "LineAndHeader", line: "", headers }, quoted);
       }
-      replaceWithQuote(quote, { style: "Indented", line, headers: [] }, quote);
-    }
-    for (const divider of Array.from(body.querySelectorAll("div"))) {
-      if (!styleOf(divider).includes(OWN_HEADER_DIVIDER))
-        continue;
-      const quoted = divider.nextElementSibling;
-      if (quoted?.tagName !== "DIV")
-        continue;
-      const headers = headersOf(divider);
-      divider.remove();
-      replaceWithQuote(quoted, { style: "LineAndHeader", line: "", headers }, quoted);
-    }
-  }
-  function readOtherQuotes(body) {
-    for (const quote of Array.from(body.querySelectorAll("blockquote"))) {
-      if (quote.parentElement?.closest("blockquote, .allodia-quote, li, td, th"))
-        continue;
-      replaceWithQuote(quote, { style: "Indented", line: "", headers: [] }, quote);
     }
   }
   function replaceWithQuote(element, attribution, content) {
     const doc = element.ownerDocument;
     const region = quoteContainer(doc, {
       style: attribution.style,
-      attribution: { line: attribution.line, headers: attribution.headers },
-      body_plain: plainText(content)
+      attribution: { line: attribution.line, headers: attribution.headers }
     });
     const quoted = region.querySelector(".aq-body");
     quoted.textContent = "";
@@ -2857,8 +2935,10 @@
   }
   function adoptPictures(body, attachments) {
     for (const image of Array.from(body.querySelectorAll("img"))) {
-      if (image.closest(".allodia-quote, .allodia-signature"))
+      if (image.closest(REGIONS)) {
+        image.removeAttribute("data-cid");
         continue;
+      }
       const src = image.getAttribute("src") ?? "";
       if (!src.startsWith("data:") || !isShowableImage(mediaTypeOf(src))) {
         image.remove();
@@ -2867,53 +2947,84 @@
       image.dataset.attachmentId = attachments.addCapturedImage({
         data_url: src,
         file_name: "",
-        media_type: ""
+        media_type: "",
+        content_id: image.getAttribute("data-cid") ?? ""
       });
     }
   }
   function breakPreformattedLines(body) {
-    for (const pre of Array.from(body.querySelectorAll("pre"))) {
-      if (pre.closest(".allodia-quote, .allodia-signature"))
+    for (const text of textNodes(body)) {
+      if (inRegion(text) || !preformatted(text))
         continue;
-      const walker = pre.ownerDocument.createTreeWalker(pre, 4);
-      const texts = [];
-      for (let node = walker.nextNode();node; node = walker.nextNode())
-        texts.push(node);
-      for (const text of texts) {
-        const lines = (text.nodeValue ?? "").split(`
+      const lines = (text.nodeValue ?? "").split(`
 `);
-        if (lines.length < 2)
-          continue;
-        const parts = [];
-        lines.forEach((line, index) => {
-          if (index > 0)
-            parts.push(pre.ownerDocument.createElement("br"));
-          if (line)
-            parts.push(pre.ownerDocument.createTextNode(line));
-        });
-        text.replaceWith(...parts);
-      }
+      if (lines.length < 2)
+        continue;
+      const doc = body.ownerDocument;
+      const parts = [];
+      lines.forEach((line, index) => {
+        if (index > 0)
+          parts.push(doc.createElement("br"));
+        if (line)
+          parts.push(doc.createTextNode(line));
+      });
+      text.replaceWith(...parts);
     }
   }
   function collapseWhitespace(body) {
-    const walker = body.ownerDocument.createTreeWalker(body, 4);
-    const texts = [];
-    for (let node = walker.nextNode();node; node = walker.nextNode())
-      texts.push(node);
-    for (const text of texts) {
-      if (text.parentElement?.closest(".allodia-quote, .allodia-signature"))
+    for (const text of textNodes(body)) {
+      if (inRegion(text))
         continue;
-      const collapsed = (text.nodeValue ?? "").replace(/[\t\n\r ]+/g, " ");
-      if (collapsed === " " && betweenBlocks(text))
+      const value = text.nodeValue ?? "";
+      if (preformatted(text)) {
+        text.nodeValue = value.replace(/[  ]/g, HARD_SPACE);
+        continue;
+      }
+      const collapsed = value.replace(/[\t\n\r ]+/g, " ").replace(/ /g, HARD_SPACE);
+      if (collapsed === " " && atLineEdge(text))
         text.remove();
       else
         text.nodeValue = collapsed;
     }
   }
-  function betweenBlocks(text) {
-    const isBlock = (node) => node === null || node.nodeType === 1 && /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|BR|CENTER|DD|DIV|DL|DT|FIGCAPTION|FIGURE|FOOTER|H[1-6]|HEADER|HR|LI|MAIN|NAV|OL|P|PRE|SECTION|TABLE|TBODY|TD|TH|THEAD|TFOOT|TR|UL)$/.test(node.tagName) || node.nodeType === 1 && node.classList.contains("allodia-quote");
-    return isBlock(text.previousSibling) || isBlock(text.nextSibling);
+  var HARD_SPACE = "";
+  function textNodes(root) {
+    const walker = root.ownerDocument.createTreeWalker(root, 4);
+    const texts = [];
+    for (let node = walker.nextNode();node; node = walker.nextNode())
+      texts.push(node);
+    return texts;
   }
+  function preformatted(node) {
+    for (let element = node.parentElement;element; element = element.parentElement) {
+      if (isPreformatted(element))
+        return true;
+      if (element.tagName === "BODY")
+        return false;
+    }
+    return false;
+  }
+  function atLineEdge(text) {
+    return edge(text, (node) => node.previousSibling) || edge(text, (node) => node.nextSibling);
+  }
+  function edge(node, step) {
+    for (let current = node;; ) {
+      const sibling = step(current);
+      if (sibling)
+        return isBlock(sibling);
+      const parent = current.parentNode;
+      if (!parent || parent.nodeType !== 1 || isBlock(parent))
+        return true;
+      current = parent;
+    }
+  }
+  function isBlock(node) {
+    if (node.nodeType !== 1)
+      return false;
+    const element = node;
+    return BLOCK_TAG.test(element.tagName) || element.matches(REGIONS);
+  }
+  var BLOCK_TAG = /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|BODY|BR|CENTER|DD|DIV|DL|DT|FIGCAPTION|FIGURE|FOOTER|H[1-6]|HEADER|HR|LI|MAIN|NAV|OL|P|PRE|SECTION|TABLE|TBODY|TD|TH|THEAD|TFOOT|TR|UL)$/;
   function tidy(block) {
     if ("Paragraph" in block)
       return { Paragraph: { content: tidyLine(block.Paragraph.content) } };
@@ -2939,58 +3050,33 @@
     return block;
   }
   function tidyLine(content) {
-    const merged = [];
+    const out = [];
+    let afterSpace = true;
     for (const inline of content) {
-      const last = merged[merged.length - 1];
-      if (last && "Text" in last && "Text" in inline && sameMarks(last.Text, inline.Text)) {
-        merged[merged.length - 1] = { Text: { ...last.Text, text: last.Text.text + inline.Text.text } };
-      } else {
-        merged.push(inline);
+      if (!("Text" in inline)) {
+        out.push(inline);
+        afterSpace = false;
+        continue;
       }
+      let text = "";
+      for (const ch of inline.Text.text) {
+        if (ch === " " && afterSpace)
+          continue;
+        afterSpace = ch === " ";
+        text += ch;
+      }
+      out.push({ Text: { ...inline.Text, text } });
     }
-    const first = merged[0];
-    if (first && "Text" in first)
-      first.Text.text = first.Text.text.replace(/^ +/, "");
-    const last = merged[merged.length - 1];
-    if (last && "Text" in last)
-      last.Text.text = last.Text.text.replace(/ +$/, "");
-    return merged.filter((inline) => !("Text" in inline) || inline.Text.text !== "");
-  }
-  function sameMarks(a, b) {
-    return a.bold === b.bold && a.italic === b.italic && a.underline === b.underline && a.font_size === b.font_size && a.color === b.color && a.highlight === b.highlight && a.link === b.link;
-  }
-  function plainText(element) {
-    const lines = [""];
-    const breakLine = () => {
-      if (lines[lines.length - 1] !== "")
-        lines.push("");
-    };
-    const walk = (node) => {
-      if (node.nodeType === 3) {
-        lines[lines.length - 1] += node.nodeValue ?? "";
-        return;
-      }
-      if (node.nodeType !== 1)
-        return;
-      const tag = node.tagName;
-      if (tag === "BR") {
-        lines.push("");
-        return;
-      }
-      const block = /^(P|DIV|LI|TR|H[1-6]|BLOCKQUOTE|PRE|TABLE|UL|OL)$/.test(tag);
-      if (block)
-        breakLine();
-      for (const child of Array.from(node.childNodes))
-        walk(child);
-      if (block)
-        breakLine();
-    };
-    for (const child of Array.from(element.childNodes))
-      walk(child);
-    return lines.map((line) => line.replace(/[\t\r ]+/g, " ").trim()).join(`
-`).replace(/\n{3,}/g, `
-
-`).trim();
+    for (let index = out.length - 1;index >= 0; index--) {
+      const inline = out[index];
+      if (!("Text" in inline))
+        break;
+      const text = inline.Text.text.replace(/ +$/, "");
+      out[index] = { Text: { ...inline.Text, text } };
+      if (text !== "")
+        break;
+    }
+    return canonicalLine(out.map((inline) => ("Text" in inline) ? { Text: { ...inline.Text, text: inline.Text.text.split(HARD_SPACE).join(" ") } } : inline));
   }
 
   // src/seeds.ts

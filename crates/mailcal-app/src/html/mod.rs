@@ -71,9 +71,19 @@ pub(crate) fn sanitize(html: &str) -> Sanitized {
 /// (`ComposeRequest::body_html`).
 ///
 /// The reading view's allowlist, without its linkifying: an address the user typed as text stays
-/// text in their own draft rather than becoming a link they did not make.
+/// text in their own draft rather than becoming a link they did not make. Each inlined picture
+/// keeps the `Content-ID` it was addressed by, as `data-cid`, so the editor hands the same one back
+/// and the next save names the picture as the last did.
 pub(crate) fn sanitize_for_composer(html: &str, parts: &[InlinePart]) -> String {
-    inline_cid_images(&sanitizer().clean(html).to_string(), parts)
+    inline_images(&sanitize_inert(html), parts, true)
+}
+
+/// The reading view's allowlist alone, without linkifying: what the composer's raw-HTML regions,
+/// a quoted original and a signature, are re-sanitised with on every save and send. A region the
+/// user did not touch then goes out as it came in, and a draft saved and reopened twice holds the
+/// same markup both times (`docs/composer-security.md`, Gate 10).
+pub(crate) fn sanitize_inert(html: &str) -> String {
+    sanitizer().clean(html).to_string()
 }
 
 /// The shared, immutable [`Builder`]: its allowlists never change, so it is configured once
@@ -221,6 +231,11 @@ const CID_SRC_MARKER: &str = "src=\"cid:";
 /// broken image, exactly as before this resolution existed. Operates on byte indices found
 /// at ASCII boundaries, so it never slices a multi-byte char in hostile input.
 pub(crate) fn inline_cid_images(html: &str, parts: &[InlinePart]) -> String {
+    inline_images(html, parts, false)
+}
+
+/// [`inline_cid_images`], writing ` data-cid="ID"` after each rewritten `src` when `mark_cid`.
+fn inline_images(html: &str, parts: &[InlinePart], mark_cid: bool) -> String {
     if parts.is_empty() {
         return html.to_owned();
     }
@@ -247,6 +262,11 @@ pub(crate) fn inline_cid_images(html: &str, parts: &[InlinePart]) -> String {
                 out.push_str(";base64,");
                 base64_encode_into(bytes, &mut out);
                 out.push('"');
+                if mark_cid {
+                    out.push_str(" data-cid=\"");
+                    escape_attr_value(cid, &mut out);
+                    out.push('"');
+                }
             }
             // Unresolved or non-image: leave the original `src="cid:ID"` token as-is.
             None => out.push_str(&html[token_start..token_end]),

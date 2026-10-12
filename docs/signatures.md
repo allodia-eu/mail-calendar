@@ -68,9 +68,10 @@ emits. See [`composer-security.md`](composer-security.md), Gate 10.
    URIs; right for the library (one self-contained file), wrong for the wire: **Outlook's reader
    blocks `data:` images**, so a logo sent that way is an empty box for a large share of recipients.
    On send the core rewrites each to a `cid:` reference and attaches the bytes as a
-   `multipart/related` part with a **minted** `Content-ID`. (A quoted original's images take the same
-   route but *keep* the sender's original ids: they were already MIME parts; a signature's bytes
-   never were.) A `data:` URI that cannot be safely decoded, or is not an `image/*`, is left
+   `multipart/related` part with a `Content-ID` made from its bytes, so every save of one draft
+   names the picture the same way and an untouched draft is found unchanged ([`drafts.md`](drafts.md)).
+   (A quoted original's images take the same route but *keep* the sender's original ids: they were
+   already MIME parts; a signature's bytes never were.) A `data:` URI that cannot be safely decoded, or is not an `image/*`, is left
    untouched rather than dropped: losing the user's logo is worse than an interoperability shortfall.
 3. **Never logged.** A signature body is user content: a name, a phone number, a logo. The core logs
    counts, ids and lengths only ([`logging.md`](logging.md)); `StoredSignature`'s `Debug` prints
@@ -207,7 +208,7 @@ it (only when a signature is present, so behaviour without one is unchanged).
   `signatures.toml`, the pointers in `preferences.toml`), the composer seed, the override picker
   both ways, auto-swap in **both** directions across two accounts, an explicit choice surviving a
   From round-trip, the caret rule (a tap in the blank area below the signature continued the
-  *message*), and the delivered MIME over JMAP: `multipart/related`, `cid:sig0.…@allodia.local`,
+  *message*), and the delivered MIME over JMAP: `multipart/related`, `cid:sig.…@allodia.local`,
   the inline `image/png` part carrying the logo's exact bytes, and the `-- ` delimiter.
   On **Windows**, against the same harness booted as two accounts (`--account stalwart-multi`):
   the category in its taxonomy slot and the library's empty state; writing a signature and what the
@@ -220,7 +221,7 @@ it (only when a signature is present, so behaviour without one is unchanged).
   where both signatures survive and the quoted one is untouched (the `e516a16` bug, absent); the
   caret rule; deleting a signature clearing the slots that pointed at it while another account's
   assignment stayed; and the delivered MIME over JMAP: `multipart/related`, a minted
-  `cid:sig0.…@allodia.local`, **no `data:` image left in the HTML**, the inline `image/png`
+  `cid:sig.…@allodia.local`, **no `data:` image left in the HTML**, the inline `image/png`
   carrying the logo's exact bytes, and the `-- ` delimiter.
   On **Linux**, confirmed end to end **against a real account** (2026-08-20) and, for the detail
   below, against the same harness: the category in its taxonomy slot and the library's empty
@@ -232,7 +233,7 @@ it (only when a signature is present, so behaviour without one is unchanged).
   named signature put it back in the same place); a reply placing the signature above the quote;
   and the delivered MIME over JMAP: for a text signature `multipart/alternative` with
   `<div class="allodia-signature">` and a text part opening `-- ` (trailing space intact), and for
-  the logo signature `multipart/related`, a minted `cid:sig0.…@allodia.local`, **no `data:` image
+  the logo signature `multipart/related`, a minted `cid:sig.…@allodia.local`, **no `data:` image
   left in the HTML**, an inline `image/png` byte-identical to the picked file, and the `-- `
   delimiter still emitted for a signature that is nothing but an image. Two cells are ✅ by
   **shared code rather than a driven run**: auto-swap (the harness seeds one account, so there is

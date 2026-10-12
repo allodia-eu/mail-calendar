@@ -16,6 +16,7 @@ mod quotes;
 mod rendered_fixture;
 mod share;
 mod signatures;
+mod whitespace;
 
 fn aid(value: &str) -> AttachmentId {
     AttachmentId::new(value).expect("non-empty id")

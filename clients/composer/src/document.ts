@@ -20,6 +20,36 @@ function normalizeText(value: string): string {
   return value.replace(/\u00A0/g, " ");
 }
 
+/// A line with every pair of neighbouring runs that differ in nothing but being two made one.
+///
+/// The editor's DOM splits text wherever an edit left two text nodes side by side, and a document
+/// read back from HTML has no way to know where those splits were. Emitting the line in this one
+/// form is what lets a body that is saved and reopened read back as the document it was.
+export function canonicalLine(content: InlineContent[]): InlineContent[] {
+  const merged: InlineContent[] = [];
+  for (const inline of content) {
+    const last = merged[merged.length - 1];
+    if (last && "Text" in last && "Text" in inline && sameMarks(last.Text, inline.Text)) {
+      merged[merged.length - 1] = { Text: { ...last.Text, text: last.Text.text + inline.Text.text } };
+    } else if (!("Text" in inline) || inline.Text.text !== "") {
+      merged.push(inline);
+    }
+  }
+  return merged;
+}
+
+export function sameMarks(a: TextRun, b: TextRun): boolean {
+  return (
+    a.bold === b.bold &&
+    a.italic === b.italic &&
+    a.underline === b.underline &&
+    a.font_size === b.font_size &&
+    a.color === b.color &&
+    a.highlight === b.highlight &&
+    a.link === b.link
+  );
+}
+
 function inlineText(text: string, marks: Marks): InlineContent {
   const run: TextRun = {
     text: normalizeText(text),
@@ -85,7 +115,7 @@ function leafParagraphs(element: Element, blocks: Block[], marks: Marks): void {
   if (children.length > 0 && isBr(children[children.length - 1]!)) children.pop();
   let content: InlineContent[] = [];
   const flush = () => {
-    blocks.push({ Paragraph: { content } });
+    blocks.push({ Paragraph: { content: canonicalLine(content) } });
     content = [];
   };
   for (const child of children) {
@@ -117,7 +147,7 @@ function listItem(li: Element): ListItem {
       content.push(...inlinesFrom(node, emptyMarks()));
     }
   }
-  return { content, child };
+  return { content: canonicalLine(content), child };
 }
 
 /// This table's own rows only: direct `<tr>` children and those under a direct
@@ -143,7 +173,7 @@ function tableBlock(element: Element): Block {
       rows: tableRows(element).map((row) => ({
         cells: Array.from(row.children)
           .filter((cell) => cell.tagName === "TD" || cell.tagName === "TH")
-          .map((cell) => ({ content: blockInlines(cell) })),
+          .map((cell) => ({ content: canonicalLine(blockInlines(cell)) })),
       })),
     },
   };
@@ -195,7 +225,7 @@ function collectBlocks(container: Element, blocks: Block[], marks: Marks = empty
   let inlineRun: Node[] = [];
   const flush = () => {
     if (inlineRun.length === 0) return;
-    const content = inlineRun.flatMap((node) => inlinesFrom(node, marks));
+    const content = canonicalLine(inlineRun.flatMap((node) => inlinesFrom(node, marks)));
     if (content.length > 0) blocks.push({ Paragraph: { content } });
     inlineRun = [];
   };
@@ -203,6 +233,10 @@ function collectBlocks(container: Element, blocks: Block[], marks: Marks = empty
   for (const child of Array.from(container.childNodes)) {
     const element = child.nodeType === 1 ? (child as HTMLElement) : null;
     const tag = element?.tagName ?? null;
+
+    // The line `setBlocks` puts above a leading quote or signature for the caret to land on is
+    // not part of the message until something is written in it.
+    if (element && isUnwrittenLead(element)) continue;
 
     // A quoted original is its own block: never recursed into as a generic `<div>`, which would
     // flatten the quoted body into loose paragraphs.
@@ -240,6 +274,20 @@ function collectBlocks(container: Element, blocks: Block[], marks: Marks = empty
     }
   }
   flush();
+}
+
+/// The caret's line above a leading quote or signature, still blank. Asked of its place as well as
+/// its mark, because Enter in it clones the mark onto the line it opens.
+function isUnwrittenLead(element: Element): boolean {
+  const next = element.nextElementSibling;
+  return (
+    element.hasAttribute("data-lead") &&
+    element.parentElement?.firstElementChild === element &&
+    !!next &&
+    (next.classList.contains("allodia-quote") || next.classList.contains("allodia-signature")) &&
+    (element.textContent ?? "") === "" &&
+    !element.querySelector("img")
+  );
 }
 
 export function documentBlocks(editor: HTMLElement): Block[] {
