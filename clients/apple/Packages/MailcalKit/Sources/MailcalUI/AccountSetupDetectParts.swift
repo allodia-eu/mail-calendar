@@ -23,27 +23,39 @@ func progress(_ label: String) -> some View {
 }
 
 /// What to prefill in the manual form when the user edits a discovered config.
-struct ManualPrefill {
+struct ManualPrefill: Equatable {
     var kind: SetupAccountKind = .imap
     var email = ""
     var imapHost = ""
     var smtpHost = ""
     var jmapServer = ""
+    var caldavURL = ""
+    var carddavURL = ""
 }
 
-func manualPrefill(_ edit: SetupRecommendation?, typedEmail: String) -> ManualPrefill {
-    switch edit {
+/// The manual form for a found card the person chose to edit, carrying the calendar and address
+/// book found beside its route; or, with nothing found, the IMAP form with the address typed.
+func manualPrefill(_ edit: DetectedSetup?, typedEmail: String) -> ManualPrefill {
+    var prefill: ManualPrefill
+    switch edit?.recommendation {
     case let .imap(email, imapHost, smtpHost, _, _, _, _, _, _, _, _):
-        return ManualPrefill(kind: .imap, email: email, imapHost: imapHost, smtpHost: smtpHost ?? "")
+        prefill = ManualPrefill(kind: .imap, email: email, imapHost: imapHost, smtpHost: smtpHost ?? "")
     case let .jmap(email, serverURL, _, _):
-        return ManualPrefill(kind: .jmap, email: email, jmapServer: serverURL)
+        prefill = ManualPrefill(kind: .jmap, email: email, jmapServer: serverURL)
     case let .microsoft(email):
-        return ManualPrefill(kind: .microsoft, email: email)
+        prefill = ManualPrefill(kind: .microsoft, email: email)
     case let .google(email):
-        return ManualPrefill(kind: .google, email: email)
+        prefill = ManualPrefill(kind: .google, email: email)
+    // A found card with no mail route is the calendar-and-contacts one, so editing it by hand is
+    // that form.
+    case .manual where edit?.calendarAndContacts == true:
+        prefill = ManualPrefill(kind: .dav, email: typedEmail)
     default:
-        return ManualPrefill(email: typedEmail)
+        prefill = ManualPrefill(email: typedEmail)
     }
+    prefill.caldavURL = edit?.caldavUrl ?? ""
+    prefill.carddavURL = edit?.carddavUrl ?? ""
+    return prefill
 }
 
 /// The localised line explaining why detection sent the user to manual setup.

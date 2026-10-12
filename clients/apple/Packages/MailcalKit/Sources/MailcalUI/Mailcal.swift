@@ -394,8 +394,10 @@ public struct ContentView: View {
         // because the first screen is the address field and nothing else (docs/onboarding.md)
         // and only a connected account can be asked what its provider already calls this
         // person. Skipping is one action and leaves the account sending as a bare address.
-        // One account after another: dismissed however, the next one waiting is asked.
-        .sheet(item: $model.senderNamePrompt, onDismiss: model.senderNameAnswered) { prompt in
+        // One account after another: dismissed however, the next one waiting is asked. Held while
+        // the setup sheet is still going away, since a sheet presented during a dismissal is
+        // dropped, and the queue would then wait on a dismissal that never comes.
+        .sheet(item: senderNameSheet, onDismiss: model.senderNameAnswered) { prompt in
             SenderNameStepView(model: model, account: prompt.id) { model.senderNamePrompt = nil }
         }
         // The device moved to a different time zone than the active one: prompt to switch.
@@ -444,6 +446,13 @@ public struct ContentView: View {
                 .interactiveDismissDisabled()
             }
         }
+    }
+
+    private var senderNameSheet: Binding<SenderNamePrompt?> {
+        Binding(
+            get: { setupSheetUp ? nil : model.senderNamePrompt },
+            set: { model.senderNamePrompt = $0 }
+        )
     }
 
     private func setupSheetDismissed() {

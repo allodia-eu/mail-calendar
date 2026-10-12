@@ -141,6 +141,34 @@ struct AccountSetupDetectTests {
         #expect(!DetectedConnectForm(recommendation: .manual(reason: .nothingFound)).canConnect)
     }
 
+    @Test func editingACalendarAndContactsCardByHandOpensThatForm() {
+        // The card's route is `.manual` with calendar and contacts found, so "Set up manually"
+        // lands on the calendar-and-contacts form, carrying the servers the card found.
+        let found = DetectedSetup(
+            recommendation: .manual(reason: .nothingFound), calendarAndContacts: true,
+            caldavUrl: "https://dav.cloud.example/caldav/",
+            carddavUrl: "https://dav.cloud.example/carddav/", choices: [])
+        let prefill = manualPrefill(found, typedEmail: "eva@cloud.example")
+        #expect(prefill.kind == .dav)
+        #expect(prefill.email == "eva@cloud.example")
+        #expect(prefill.caldavURL == "https://dav.cloud.example/caldav/")
+        #expect(prefill.carddavURL == "https://dav.cloud.example/carddav/")
+        // Nothing found at all reaches the form with no route, and opens on mail.
+        #expect(manualPrefill(nil, typedEmail: "eva@cloud.example").kind == .imap)
+    }
+
+    @Test func editingAnImapCardByHandKeepsTheCalendarItFound() {
+        let found = DetectedSetup(
+            recommendation: imap(true, caldavURL: "https://caldav.example.com/"),
+            calendarAndContacts: false, caldavUrl: "https://caldav.example.com/", carddavUrl: nil,
+            choices: [])
+        let prefill = manualPrefill(found, typedEmail: "alice@example.com")
+        #expect(prefill.kind == .imap)
+        #expect(prefill.imapHost == "imap.example.com")
+        #expect(prefill.caldavURL == "https://caldav.example.com/")
+        #expect(prefill.carddavURL.isEmpty)
+    }
+
     @Test func aCalendarAndContactsCardConnectsWithAPasswordAndTakesARefusedCertificate() {
         // No mail server was found, so the account is a standards one used for its calendar and
         // contacts, whose stored config carries a certificate exception like an IMAP one's.

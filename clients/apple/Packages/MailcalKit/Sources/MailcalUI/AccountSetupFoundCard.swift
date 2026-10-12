@@ -79,7 +79,7 @@ extension AccountSetupDetectView {
                 }
             }
 
-            Button(L10n.setup_detect_manual()) { phase = .manual(nil, setup.recommendation) }
+            Button(L10n.setup_detect_manual()) { phase = .manual(nil, setup) }
         }
     }
 
@@ -245,7 +245,7 @@ extension AccountSetupDetectView {
         let chosen = uses.chosen
         model.submitSetup(
             imapHost: request?.imapHost ?? "",
-            username: request?.email ?? email,
+            username: request?.email ?? email.trimmingCharacters(in: .whitespaces),
             password: password,
             smtpHost: request?.smtpHost ?? "",
             caldavBaseUrl: chosen.caldavURL,

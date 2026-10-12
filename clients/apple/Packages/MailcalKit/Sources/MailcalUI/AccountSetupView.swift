@@ -108,6 +108,8 @@ struct AccountSetupView: View {
         prefillImapHost: String = "",
         prefillSmtpHost: String = "",
         prefillJmapServer: String = "",
+        prefillCaldav: String = "",
+        prefillCarddav: String = "",
         note: String? = nil
     ) {
         self.model = model
@@ -119,6 +121,8 @@ struct AccountSetupView: View {
         _username = State(initialValue: prefillEmail)
         _smtpHost = State(initialValue: prefillSmtpHost)
         _jmapServer = State(initialValue: prefillJmapServer)
+        _caldavURL = State(initialValue: prefillCaldav)
+        _carddavURL = State(initialValue: prefillCarddav)
     }
 
     /// The refused certificate this pane can actually do something about. Only a standards

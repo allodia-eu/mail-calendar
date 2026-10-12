@@ -38,7 +38,7 @@ struct AccountSetupDetectView: View {
         case email
         case detecting
         case found(DetectedSetup)
-        case manual(MissReason?, SetupRecommendation?)
+        case manual(MissReason?, DetectedSetup?)
 
         /// Whether this is still the untouched first step, the showcase driver only ever fires
         /// from there, so a re-entrant `.task` can never restart a flow the user has moved on in.
@@ -198,7 +198,7 @@ struct AccountSetupDetectView: View {
     }
 
     @ViewBuilder
-    private func manualView(_ reason: MissReason?, _ edit: SetupRecommendation?) -> some View {
+    private func manualView(_ reason: MissReason?, _ edit: DetectedSetup?) -> some View {
         let prefill = manualPrefill(edit, typedEmail: email)
         AccountSetupView(
             model: model,
@@ -209,6 +209,8 @@ struct AccountSetupDetectView: View {
             prefillImapHost: prefill.imapHost,
             prefillSmtpHost: prefill.smtpHost,
             prefillJmapServer: prefill.jmapServer,
+            prefillCaldav: prefill.caldavURL,
+            prefillCarddav: prefill.carddavURL,
             note: reason.map(reasonNote)
         )
     }
