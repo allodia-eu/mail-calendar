@@ -451,6 +451,9 @@ mod tests_showcase;
 mod tests_showcase_first_run;
 
 #[cfg(test)]
+mod tests_showcase_accounts;
+
+#[cfg(test)]
 mod tests_showcase_invitation;
 
 #[cfg(test)]

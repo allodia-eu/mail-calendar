@@ -10,10 +10,9 @@
 # misnames every account. `cargo test` proves the core stores and composes what it is handed;
 # nothing else proves a client ever hands it over or draws what comes back.
 #
-# The dataset is the harness as two accounts (`stalwart-multi`), each given the name the server
-# holds for it, and Stalwart advertises no sender identities, so the name is ours alone and every
-# page offers the field. Not the showcase: Settings → Accounts is drawn from `accounts_snapshot`,
-# which lists the accounts the core registered, and the in-memory showcase registers none.
+# The dataset is the showcase: two accounts, each seeded with the name it sends under, and neither
+# provider holds a name of its own, so every page offers the field. The core lists both in
+# `accounts_snapshot`, which is what Settings → Accounts is drawn from (tests_showcase_accounts.rs).
 #
 # KNOWN GAPS, and why each is one:
 #
@@ -123,8 +122,7 @@ function Get-ComposerFrom {
 }
 
 $Suite = @{
-  Dataset = 'harness'
-  Env     = @{ MAILCAL_DEV_ACCOUNT = 'stalwart-multi' }
+  Dataset = 'showcase'
   Prepare = {
     Open-SettingsCategory -Name 'Accounts' | Out-Null
     Wait-UiaQuiet -CapMs 1500 -FloorMs 500
@@ -143,8 +141,8 @@ $Suite = @{
             'a box that is drawn and disabled reads as a bug; where the name cannot be changed ' +
             'the page states the name instead and draws no box')
           Assert-True ((Get-UiaText $boxes[0]).Trim().Length -gt 0) (
-            'the harness gives each account the name the server holds for it ' +
-            '(MailboxModel.DevAccount.cs); an empty field means that never reached the core')
+            'the showcase seeds each account with the name it sends under; an empty field ' +
+            'means the seed never reached the core')
           $managed = @(Find-UiaElements -Name $SenderNameManaged -Type 'Text' -Root (Get-SettingsDialog))
           Assert-Equal 0 $managed.Count (
             'the organisation-sets-this note belongs only where sender_name_editable is false. A ' +
@@ -211,7 +209,7 @@ $Suite = @{
         Wait-UiaQuiet -CapMs 1200 -FloorMs 400
         $items = @(Find-UiaElements -Type 'ListItem' -Root $from | ForEach-Object { $_.Current.Name })
         Assert-True ($items.Count -ge 2) (
-          "the harness connects two accounts, so the picker offers both. It offers: $($items -join ' | ')")
+          "the showcase holds two accounts, so the picker offers both. It offers: $($items -join ' | ')")
         foreach ($item in $items) {
           Assert-True ($item -match '^.+ <[^<>@]+@[^<>]+>$') (
             "every account in the picker carries its name, not only the selected one. This one " +

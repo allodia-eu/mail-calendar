@@ -9,11 +9,12 @@ use std::{
 };
 
 use engine_api::{AccountId, EmailAddress, Engine, Provider, TimeZoneId};
+use mailcal_account::{AccountShape, Capability, JmapAccountConfig};
 use mailcal_app::{Account, App, Intent as AppIntent, Telemetry, TimeZoneInit};
 use mailcal_viewmodel::SignatureSlotKind;
 
 use crate::{
-    LogLevel, Logger, MailcalApp, Observer,
+    ConnectedAccount, LogLevel, Logger, MailcalApp, Observer,
     background::BackgroundManager,
     demo::DemoProvider,
     device_zone, logging,
@@ -218,17 +219,62 @@ pub(crate) fn build_showcase(
             ],
         )
     });
-    finish_showcase(app, runtime, device_tz)
+    let registered = [
+        listed(
+            &primary_identity,
+            [Capability::Mail, Capability::Calendar, Capability::Contacts],
+        ),
+        listed(
+            &secondary_identity,
+            [Capability::Mail, Capability::Contacts],
+        ),
+    ];
+    finish_showcase(app, runtime, device_tz, registered)
+}
+
+/// The registry entry that lists the showcase account `id` in Settings → Accounts, used for
+/// `uses`: the providers its seed binds. A JMAP account holding a secret, because that is the
+/// kind whose page offers nothing that dials: it has no servers to edit, and asks for a new
+/// secret only once one has stopped working. The entry is never dialled; the account's providers
+/// are the seeded ones, and a change the page asks for is refused by the showcase's credential
+/// store, which keeps none.
+fn listed(id: &str, uses: impl IntoIterator<Item = Capability>) -> (String, ConnectedAccount) {
+    let config = JmapAccountConfig {
+        email: id.to_owned(),
+        base_url: "https://mail.example.com".to_owned(),
+        password: None,
+        token: None,
+        oauth: None,
+        shape: AccountShape {
+            id: Some(AccountId::try_from(id).expect("valid account id")),
+            capabilities: Some(uses.into_iter().collect()),
+            links: mailcal_account::AccountLinks::default(),
+        },
+    };
+    (
+        id.to_owned(),
+        ConnectedAccount::Jmap {
+            config,
+            tokens: None,
+            session: crate::jmap_session::JmapSession::default(),
+        },
+    )
 }
 
 /// Wraps a built showcase [`App`] in the FFI object: the half both showcase boots share,
 /// which is everything that does not depend on whether the dataset seeded any accounts.
+/// `registered` is what Settings → Accounts lists, one entry per seeded account.
 fn finish_showcase(
     app: Arc<App<Box<dyn Provider>>>,
     runtime: FfiRuntime,
     device_tz: TimeZoneId,
+    registered: impl IntoIterator<Item = (String, ConnectedAccount)>,
 ) -> Arc<MailcalApp> {
     let registry = crate::account_registry::AccountRegistry::new();
+    for (id, entry) in registered {
+        // Nothing dials it, so the proof that it was written first is not needed.
+        let _ = registry.pre_register(id, entry);
+    }
     let background = Arc::new(BackgroundManager::new(
         Arc::clone(&app),
         Arc::clone(&registry),
@@ -318,15 +364,9 @@ pub(crate) fn build_showcase_first_run(
         Telemetry::off(None),
     );
     // Nothing to prime and nothing to seed: both are per account, and this boot has none.
-    finish_showcase(Arc::new(app), runtime(), device_tz)
+    finish_showcase(Arc::new(app), runtime(), device_tz, [])
 }
 
-/// Seeds the showcase signature library: one signature per account, each pointed at by **both**
-/// of that account's slots, so a new message and a reply/forward both open with one.
-///
-/// Assigning both slots is what makes the screenshots honest rather than lucky: the reply
-/// capture composes from the primary account, and a `NewMessage`-only assignment would leave it
-/// with no signature while the Settings screen said it had one.
 /// Sets each showcase account's sender name, so the composer's From reads `Name <address>`
 /// and the Settings card shows a name rather than its first-run empty state.
 ///
@@ -338,6 +378,12 @@ async fn seed_sender_names(app: &App<Box<dyn Provider>>, accounts: [(&str, &str)
     }
 }
 
+/// Seeds the showcase signature library: one signature per account, each pointed at by **both**
+/// of that account's slots, so a new message and a reply/forward both open with one.
+///
+/// Assigning both slots is what makes the screenshots honest rather than lucky: the reply
+/// capture composes from the primary account, and a `NewMessage`-only assignment would leave it
+/// with no signature while the Settings screen said it had one.
 async fn seed_signatures(
     app: &App<Box<dyn Provider>>,
     locale: ShowcaseLocale,

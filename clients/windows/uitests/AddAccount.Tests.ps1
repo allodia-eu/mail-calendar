@@ -27,6 +27,28 @@ function Close-AddAccount {
   if ($cancel) { Invoke-UiaElement $cancel -SettleMs 1500 }
 }
 
+<#
+.SYNOPSIS
+Opens the form, types $Address and continues, and waits for the card detection found.
+#>
+function Open-AccountCard {
+  param([Parameter(Mandatory)] [string] $Address)
+  $box = Open-AddAccount
+  Set-UiaText -Element $box -Text $Address
+  Invoke-UiaElement (Find-UiaElement -AutomationId 'ContinueButton' -Type 'Button')
+  if (-not (Wait-UiaElement -AutomationId 'ConnectButton' -Type 'Button' -TimeoutSec 15)) {
+    throw "continuing with $Address reached no card"
+  }
+  Wait-UiaQuiet -CapMs 1200 -FloorMs 300
+}
+
+# Whether the element with $Id is drawn on screen. Collapsed WinUI elements leave the UIA tree, and
+# a drawn one scrolled out of view is still drawn.
+function Test-UiaShown {
+  param([Parameter(Mandatory)] [string] $Id)
+  $null -ne (Find-UiaElement -AutomationId $Id)
+}
+
 $Suite = @{
   Dataset = 'showcase'
   Cases   = @(
@@ -76,6 +98,69 @@ $Suite = @{
           $box = Wait-UiaElement -AutomationId 'DetectEmail' -Type 'Edit' -TimeoutSec 5
           Assert-True ($null -ne $box) 'Back must return to the address step, not close the dialog'
           Assert-Equal $address (Get-UiaText $box) 'going back keeps the address'
+        }
+        finally { Close-AddAccount }
+      }
+    }
+    @{
+      Name = 'the found card offers mail, the calendar and contacts as detection found them'
+      Body = {
+        # The showcase's scripted detection: northwind.example publishes its mail and a calendar
+        # (autodetect_showcase.rs), and contacts are looked for at the calendar's server.
+        Open-AccountCard -Address 'eva@northwind.example'
+        try {
+          foreach ($use in 'Mail', 'Calendar', 'Contacts') {
+            $box = Find-UiaElement -AutomationId "SetupUse$use"
+            Assert-True ($null -ne $box -and (Get-UiaToggle $box)) (
+              "docs/account-autodetect.md rule 8: a use whose server was found starts on ($use)")
+          }
+          Assert-True ($null -eq (Find-UiaElement -AutomationId 'SetupUseCalendarServer')) (
+            'a calendar that was found is named by its host, not asked for')
+          Set-UiaToggle (Find-UiaElement -AutomationId 'SetupUseMail')
+          Assert-True (-not (Test-UiaShown 'ImapHost')) (
+            'the mail servers follow the mail toggle, so an account not used for mail shows none')
+          Set-UiaToggle (Find-UiaElement -AutomationId 'SetupUseCalendar')
+          $contacts = Find-UiaElement -AutomationId 'SetupUseContacts'
+          Assert-True ((Get-UiaToggle $contacts) -and -not $contacts.Current.IsEnabled) (
+            'the last use on is held on: an account used for nothing is not one')
+          Set-UiaToggle (Find-UiaElement -AutomationId 'SetupUseMail') -On
+          Assert-True (Test-UiaShown 'ImapHost') 'switching mail back on brings its servers back'
+        }
+        finally { Close-AddAccount }
+      }
+    }
+    @{
+      Name = 'a calendar the domain does not publish starts off, and switched on asks for its server'
+      Body = {
+        # oldschool.example publishes its mail and no calendar.
+        Open-AccountCard -Address 'eva@oldschool.example'
+        try {
+          $calendar = Find-UiaElement -AutomationId 'SetupUseCalendar'
+          Assert-True ($null -ne $calendar -and -not (Get-UiaToggle $calendar)) (
+            'rule 8: a use whose server was not found starts off')
+          Assert-True (-not (Test-UiaShown 'SetupUseCalendarServer')) 'and asks for nothing while off'
+          Set-UiaToggle $calendar -On
+          Assert-True (Test-UiaShown 'SetupUseCalendarServer') 'switching it on asks for the server'
+        }
+        finally { Close-AddAccount }
+      }
+    }
+    @{
+      Name = 'a domain with a calendar and address book and no mail gets a card of its own'
+      Body = {
+        # cloud.example publishes CalDAV and CardDAV and no mail server.
+        Open-AccountCard -Address 'eva@cloud.example'
+        try {
+          Assert-True ($null -eq (Find-UiaElement -AutomationId 'SetupUseMail')) (
+            'docs/account-autodetect.md rule 8: the calendar-and-contacts route offers no mail')
+          foreach ($use in 'Calendar', 'Contacts') {
+            $box = Find-UiaElement -AutomationId "SetupUse$use"
+            Assert-True ($null -ne $box -and (Get-UiaToggle $box)) "both were found, so both start on ($use)"
+          }
+          Assert-True (-not (Test-UiaShown 'ImapHost')) 'and the card draws no mail server'
+          Assert-True (-not (Test-UiaShown 'DavLogin')) (
+            'the typed address is the login, so the card does not ask for one')
+          Assert-True (Test-UiaShown 'DavPassword') 'it asks for the password alone'
         }
         finally { Close-AddAccount }
       }
