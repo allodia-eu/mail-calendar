@@ -42,8 +42,12 @@ import uniffi.mailcal_bindings.JmapSetup
 import uniffi.mailcal_bindings.MailServerKind
 import uniffi.mailcal_bindings.MissReason
 import uniffi.mailcal_bindings.AllodiaAccountOffer
+import uniffi.mailcal_bindings.SetupChoice
 import uniffi.mailcal_bindings.SetupRecommendation
-import uniffi.mailcal_bindings.setupFromOffer
+import uniffi.mailcal_bindings.offeredSetup
+import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
+import uniffi.mailcal_bindings.DetectedSetup
 
 
 // The email-first flow. [detect] runs the (blocking) core lookup off-main. The IMAP/JMAP/
@@ -57,9 +61,9 @@ internal fun AccountSetupFlow(
     signingIn: Boolean,
     signingInGoogle: Boolean = false,
     connecting: Boolean,
-    detect: suspend (String) -> SetupRecommendation,
-    onSignInMicrosoft: (String?) -> Unit,
-    onSignInGoogle: (String?) -> Unit = {},
+    detect: suspend (String) -> DetectedSetup,
+    onSignInMicrosoft: (String?, List<AccountCapability>?) -> Unit,
+    onSignInGoogle: (String?, List<AccountCapability>?) -> Unit = { _, _ -> },
     onConnect: (AccountSetup) -> ConnectFailure?,
     onConnectJmap: (JmapSetup) -> ConnectFailure?,
     // Whether this JMAP server offers discoverable OAuth sign-in, and how to start it. Both are
@@ -91,6 +95,13 @@ internal fun AccountSetupFlow(
     // The Allodia onboarding block (docs/onboarding.md). Its card is first-run only; its offers
     // are not.
     allodia: OnboardingAllodia? = null,
+    // The uses a provider sign-in offers for an address, for the manual form; null in a test.
+    providerChoices: ((CoreAccountKind, String) -> List<SetupChoice>)? = null,
+    // Told which route a detection took, for the address it was run for: the servers found beside
+    // a JMAP server are offered once its account is added.
+    onRoute: (String, DetectedSetup) -> Unit = { _, _ -> },
+    // A route to open on rather than the address: the servers found beside an account's own.
+    startOn: Pair<String, DetectedSetup>? = null,
 ) {
     var phase by remember { mutableStateOf<DetectPhase>(DetectPhase.Email) }
     var email by remember { mutableStateOf(startEmail) }
@@ -112,14 +123,22 @@ internal fun AccountSetupFlow(
         email = seed.email
         if (!seed.runDetection) return@LaunchedEffect
         phase = DetectPhase.Detecting
-        phase = route(detect(seed.email), signInOffered = false)
+        phase = route(detect(seed.email), seed.email, signInOffered = false)
+    }
+
+    LaunchedEffect(startOn) {
+        val (address, setup) = startOn ?: return@LaunchedEffect
+        email = address
+        phase = route(setup, address, signInOffered = false)
     }
 
     // An offer opened from elsewhere, the Settings list, lands on its own route, the same as one
     // pressed on this screen.
     LaunchedEffect(startOffer) {
         val offer = startOffer ?: return@LaunchedEffect
-        phase = route(setupFromOffer(offer), signInOffered = false)
+        val setup = offeredSetup(offer)
+        onRoute(offer.email, setup)
+        phase = route(setup, offer.email, signInOffered = false)
     }
 
     val goManual: (SetupRecommendation?) -> Unit = { edit ->
@@ -166,7 +185,9 @@ internal fun AccountSetupFlow(
                     // domain publishing no autoconfig it would find less.
                     onSetUp = { offer ->
                         email = offer.email
-                        phase = route(setupFromOffer(offer), signInOffered = false)
+                        val setup = offeredSetup(offer)
+                        onRoute(offer.email, setup)
+                        phase = route(setup, offer.email, signInOffered = false)
                     },
                     escapable = state.escapable,
                     onCancelSignIn = state.onCancelSignIn,
@@ -183,7 +204,8 @@ internal fun AccountSetupFlow(
                 onClick = {
                     detecting = scope.launch {
                         phase = DetectPhase.Detecting
-                        val recommendation = detect(email)
+                        val detected = detect(email)
+                        val recommendation = detected.recommendation
                         // Ask whether this server offers sign-in *here*, while the "Looking…"
                         // spinner is already up, rather than after the card is on screen. Both
                         // calls are network round trips; running the second one under the same
@@ -204,7 +226,8 @@ internal fun AccountSetupFlow(
                                 val imap = recommendation as SetupRecommendation.Imap
                                 ImapAuthState.of(check(imapLoginRequest(imap)))
                             } ?: ImapAuthState.Password
-                        phase = route(recommendation, signInOffered, imapAuth)
+                        onRoute(email.trim(), detected)
+                        phase = route(detected, email, signInOffered, imapAuth)
                     }
                 },
                 enabled = email.isNotBlank(),
@@ -229,6 +252,7 @@ internal fun AccountSetupFlow(
 
         is DetectPhase.Found -> FoundView(
             recommendation = current.recommendation,
+            offer = current.offer,
             signInOffered = current.signInOffered,
             imapAuth = current.imapAuth,
             onSignInImap = onSignInImap,
@@ -247,8 +271,18 @@ internal fun AccountSetupFlow(
             onManual = { goManual(current.recommendation) },
         )
 
+        is DetectPhase.Dav -> DavFoundCard(
+            email = current.email,
+            offer = current.offer,
+            connecting = connecting,
+            externalError = externalError,
+            externalFailure = externalFailure,
+            onConnect = onConnect,
+            onManual = { phase = DetectPhase.Manual(reason = null, edit = null, dav = current.offer) },
+        )
+
         is DetectPhase.Manual -> {
-            val prefill = manualPrefill(current.edit)
+            val prefill = manualPrefill(current.edit, current.dav)
             AccountSetupScreen(
                 externalError = externalError,
                 externalFailure = externalFailure,
@@ -273,202 +307,11 @@ internal fun AccountSetupFlow(
                 prefillImapHost = prefill.imapHost,
                 prefillSmtpHost = prefill.smtpHost,
                 prefillJmapServer = prefill.jmapServer,
+                prefillCaldav = prefill.caldavUrl,
+                prefillCarddav = prefill.carddavUrl,
                 note = current.reason?.let { reasonNote(it, ctx) },
+                providerChoices = providerChoices,
             )
         }
-    }
-}
-
-// The routed card for a JMAP/IMAP/Microsoft hit.
-@Composable
-private fun FoundView(
-    recommendation: SetupRecommendation,
-    connecting: Boolean,
-    signingIn: Boolean,
-    signingInGoogle: Boolean,
-    externalError: String?,
-    externalFailure: ConnectFailure? = null,
-    onSignInMicrosoft: (String?) -> Unit,
-    onSignInGoogle: (String?) -> Unit,
-    onConnect: (AccountSetup) -> ConnectFailure?,
-    onConnectJmap: (JmapSetup) -> ConnectFailure?,
-    signInOffered: Boolean,
-    onSignInJmap: (String, String) -> Unit,
-    signingInJmap: Boolean,
-    imapAuth: ImapAuthState,
-    onSignInImap: ((uniffi.mailcal_bindings.ImapLoginRequest) -> Unit)?,
-    signingInImap: Boolean,
-    onManual: () -> Unit,
-) {
-    val ctx = LocalContext.current
-    val form = remember(recommendation) { DetectedConnectForm(recommendation) }
-    var password by remember(recommendation) { mutableStateOf("") }
-    var approved by remember(recommendation) { mutableStateOf(false) }
-    // Gates the Google sign-in button here just as it does in the manual picker.
-    var googleConfirmed by remember(recommendation) { mutableStateOf(false) }
-    // Calendar defaults ON when a CalDAV endpoint was discovered (opt-out), OFF otherwise (opt-in).
-    var calendarEnabled by remember(recommendation) {
-        mutableStateOf((recommendation as? SetupRecommendation.Imap)?.caldavUrl != null)
-    }
-    var calendarUrl by remember(recommendation) { mutableStateOf("") }
-    var ownFailure by remember(recommendation) { mutableStateOf<ConnectFailure?>(null) }
-    // Whichever connect answered last. `addAccount` runs on a thread of its own, so its answer
-    // arrives as `externalFailure` rather than as the return of `onConnect`.
-    val failure = ownFailure ?: externalFailure
-    // A different certificate is a different decision, so an acceptance never carries over to
-    // one nobody has been shown.
-    var certificateAccepted by remember(failure?.certificate) { mutableStateOf(false) }
-    // The transport's own words, but not while the certificate panel is up: that panel says the
-    // same thing in the reader's language and with the certificate beside it. A refusal on a
-    // route that cannot carry an exception keeps its message, because nothing else would say it.
-    // Read off `failure` rather than the form: the form's fields are assigned below, so they
-    // still hold the previous composition's answer here.
-    val error = failure
-        ?.takeIf { it.certificate == null || recommendation !is SetupRecommendation.Imap }
-        ?.message
-    form.password = password
-    form.approved = approved
-    form.calendarEnabled = calendarEnabled
-    form.calendarUrlEntry = calendarUrl
-    form.rejectedCertificate = failure?.certificate
-    form.certificateAccepted = certificateAccepted
-
-    Column(
-        modifier = Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(L10n.setup_detect_found_title(ctx), style = MaterialTheme.typography.headlineSmall)
-
-        when (recommendation) {
-            is SetupRecommendation.Microsoft -> {
-                Text(L10n.setup_detect_microsoft_hint(ctx), style = MaterialTheme.typography.bodyMedium)
-                // A failed/declined sign-in comes back as externalError; show it so the user
-                // isn't left on a silent dead-end and can retry or set up manually.
-                InlineError(externalError)
-                Button(
-                    onClick = { onSignInMicrosoft(recommendation.email) },
-                    enabled = !signingIn,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (signingIn) CircularProgressIndicator(modifier = Modifier.size(18.dp)) else Text(L10n.setup_microsoft_signin(ctx))
-                }
-            }
-            is SetupRecommendation.Google -> {
-                Text(L10n.setup_detect_google_hint(ctx), style = MaterialTheme.typography.bodyMedium)
-                // Early Access gate: same as the manual picker, the sign-in button stays disabled
-                // until the user confirms they've signed up, so we never open a flow Google blocks.
-                GoogleEarlyAccessInfo(googleConfirmed) { googleConfirmed = it }
-                // A failed/declined sign-in comes back as externalError; show it so the user isn't
-                // left on a silent dead-end and can retry or set up manually.
-                InlineError(externalError)
-                GoogleSignInButton(
-                    enabled = googleConfirmed && !signingInGoogle,
-                    signingIn = signingInGoogle,
-                    onClick = { onSignInGoogle(recommendation.email) },
-                )
-            }
-            is SetupRecommendation.Jmap -> {
-                // Only when there IS a secret field to add something to. With sign-in on offer
-                // the field is hidden, and "Just add your password or an API token" would be
-                // describing a box that isn't on screen.
-                if (!signInOffered) {
-                    Text(L10n.setup_detect_found_jmap_note(ctx), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                recommendation.serverUrl.takeIf { it.isNotBlank() }?.let {
-                    Text("JMAP · ${urlHost(it)}", style = MaterialTheme.typography.bodyMedium)
-                }
-                UntrustedApproval(form.needsApproval, approved) { approved = it }
-                if (signInOffered) {
-                    Text(
-                        L10n.setup_jmap_signin_note(ctx),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    ConnectButton(!signingInJmap, signingInJmap, L10n.setup_jmap_signin_button(ctx)) {
-                        onSignInJmap(recommendation.email, recommendation.serverUrl)
-                    }
-                }
-                // When sign-in is on offer the secret field is NOT shown beside it: presenting
-                // both at once asks the user to choose between two things that do the same job,
-                // and the better one is already a single tap. It appears the moment sign-in
-                // actually fails, and "Set up manually" is the other way to reach it, so the
-                // manual path is never locked behind a flow this server might not honour.
-                val signInFailed = (error ?: externalError) != null
-                val showManualSecret = !signInOffered || signInFailed
-                if (showManualSecret) {
-                    PasswordField(password, { password = it }, L10n.setup_jmap_secret_placeholder(ctx))
-                }
-                InlineError(error ?: externalError)
-                if (showManualSecret) {
-                    ConnectButton(form.canConnect && !connecting, connecting, L10n.action_connect(ctx)) {
-                        ownFailure = onConnectJmap(form.jmapSetup())
-                    }
-                }
-            }
-            is SetupRecommendation.Imap -> {
-                SectionHeader("✉", L10n.setup_detect_section_email(ctx))
-                ServerRow(recommendation.incoming)
-                recommendation.outgoing?.let { ServerRow(it) }
-                ImapAuthExplanation(imapAuth)
-                UntrustedApproval(form.needsApproval, approved) { approved = it }
-                if (imapAuth.offersSignIn && onSignInImap != null) {
-                    SignInButton(
-                        enabled = !signingInImap && (!form.needsApproval || approved),
-                        signingIn = signingInImap,
-                        label = L10n.setup_imap_signin_button(ctx),
-                    ) { onSignInImap(imapLoginRequest(recommendation, form.effectiveCaldavUrl)) }
-                }
-                if (imapAuth.showsPassword) {
-                    Text(L10n.setup_detect_app_password_hint(ctx), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    PasswordField(password, { password = it }, L10n.setup_field_password(ctx))
-                }
-                CalendarSection(
-                    discovered = recommendation.caldavUrl,
-                    enabled = calendarEnabled,
-                    onEnabledChange = { calendarEnabled = it },
-                    url = calendarUrl,
-                    onUrlChange = { calendarUrl = it },
-                )
-                InlineError(error ?: externalError)
-                if (imapAuth.showsPassword) {
-                    form.refusedCertificate?.let {
-                        CertificateExceptionPanel(it, certificateAccepted) { on -> certificateAccepted = on }
-                    }
-                    ConnectButton(form.canConnect && !connecting, connecting, L10n.action_connect(ctx)) {
-                        ownFailure = onConnect(form.imapSetup())
-                    }
-                }
-            }
-            is SetupRecommendation.Manual -> Unit // never routed here
-        }
-
-        TextButton(onClick = onManual, modifier = Modifier.fillMaxWidth()) { Text(L10n.setup_detect_manual(ctx)) }
-    }
-}
-
-
-@Composable
-private fun ServerRow(row: uniffi.mailcal_bindings.DetectedServerRow) {
-    Text(
-        text = "${row.protocol} · ${row.hostname}:${row.port} · ${row.security}",
-        style = MaterialTheme.typography.bodyMedium,
-    )
-}
-
-@Composable
-private fun UntrustedApproval(needed: Boolean, approved: Boolean, onApprove: (Boolean) -> Unit) {
-    if (!needed) return
-    val ctx = LocalContext.current
-    Text(L10n.setup_detect_untrusted_warning(ctx), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = approved, onCheckedChange = onApprove)
-        Text(L10n.setup_detect_trust_confirm(ctx), style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-@Composable
-private fun InlineError(message: String?) {
-    if (message != null) {
-        Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     }
 }

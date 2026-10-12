@@ -4,6 +4,7 @@
 // 500-line limit.
 package eu.allodia.mailcal
 
+import uniffi.mailcal_bindings.DetectedSetup
 import uniffi.mailcal_bindings.MissReason
 import uniffi.mailcal_bindings.SetupRecommendation
 
@@ -17,27 +18,46 @@ internal sealed interface DetectPhase {
     // appeared for a second and then vanished under the user, the flash this design exists to
     // prevent, and it is the same reason `imapAuth` has no "still asking" state here: the
     // "Looking…" spinner is what somebody sees while the server is being asked.
+    // `offer` is what the card offers the account for, as the core decided it.
     data class Found(
         val recommendation: SetupRecommendation,
         val signInOffered: Boolean,
         val imapAuth: ImapAuthState = ImapAuthState.Password,
+        val offer: UseOffer = UseOffer.NONE,
     ) : DetectPhase
 
-    data class Manual(val reason: MissReason?, val edit: SetupRecommendation?) : DetectPhase
+    // A domain with a calendar or address-book server and no mail server: an account used for
+    // those alone, the typed address as its login.
+    data class Dav(val email: String, val offer: UseOffer) : DetectPhase
+
+    // `dav` is the calendar-and-contacts card's servers when that card sent the person here.
+    data class Manual(
+        val reason: MissReason?,
+        val edit: SetupRecommendation?,
+        val dav: UseOffer? = null,
+    ) : DetectPhase
 }
 
-// Routes a detection result: a Manual result drops to the manual form with its reason;
-// everything else shows a routed card.
+// Routes a detection result: a domain with only a calendar or address book to its own card, a
+// Manual result to the manual form with its reason, and everything else to a routed card.
 internal fun route(
-    recommendation: SetupRecommendation,
+    setup: DetectedSetup,
+    email: String,
     signInOffered: Boolean,
     imapAuth: ImapAuthState = ImapAuthState.Password,
-): DetectPhase =
-    when (recommendation) {
-        is SetupRecommendation.Manual ->
+): DetectPhase {
+    val recommendation = setup.recommendation
+    return when {
+        setup.calendarAndContacts -> DetectPhase.Dav(email.trim(), UseOffer.of(setup))
+        recommendation is SetupRecommendation.Manual ->
             DetectPhase.Manual(reason = recommendation.reason, edit = null)
-        else -> DetectPhase.Found(recommendation, signInOffered, imapAuth)
+        else -> DetectPhase.Found(recommendation, signInOffered, imapAuth, UseOffer.of(setup))
     }
+}
+
+// A detection answer that offers no choice, for a route decided without one.
+internal fun detected(recommendation: SetupRecommendation) =
+    DetectedSetup(recommendation, false, null, null, emptyList())
 
 // The localised line explaining why detection sent the user to manual setup.
 internal fun reasonNote(reason: MissReason, ctx: android.content.Context): String = when (reason) {
@@ -53,7 +73,15 @@ internal data class ManualPrefill(
     val imapHost: String = "",
     val smtpHost: String = "",
     val jmapServer: String = "",
+    val caldavUrl: String = "",
+    val carddavUrl: String = "",
 )
+
+// The calendar-and-contacts card's servers carry into the manual form as that account type.
+internal fun manualPrefill(edit: SetupRecommendation?, dav: UseOffer? = null): ManualPrefill = when {
+    dav != null -> ManualPrefill(AccountKind.DAV, caldavUrl = dav.caldavUrl, carddavUrl = dav.carddavUrl)
+    else -> manualPrefill(edit)
+}
 
 internal fun manualPrefill(edit: SetupRecommendation?): ManualPrefill = when (edit) {
     is SetupRecommendation.Imap ->

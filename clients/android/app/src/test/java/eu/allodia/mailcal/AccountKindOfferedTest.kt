@@ -20,11 +20,12 @@ class AccountKindOfferedTest {
     )
 
     @Test
-    fun a_build_with_both_registrations_offers_all_four() {
+    fun a_build_with_both_registrations_offers_all_five() {
         assertEquals(
             listOf(
                 AccountKind.PASSWORD,
                 AccountKind.JMAP,
+                AccountKind.DAV,
                 AccountKind.MICROSOFT,
                 AccountKind.GOOGLE,
             ),
@@ -33,9 +34,9 @@ class AccountKindOfferedTest {
     }
 
     @Test
-    fun a_build_with_neither_still_offers_both_credential_routes() {
+    fun a_build_with_neither_still_offers_the_three_credential_routes() {
         assertEquals(
-            listOf(AccountKind.PASSWORD, AccountKind.JMAP),
+            listOf(AccountKind.PASSWORD, AccountKind.JMAP, AccountKind.DAV),
             AccountKind.offered(routes(google = false, microsoft = false)),
         )
     }
@@ -43,11 +44,11 @@ class AccountKindOfferedTest {
     @Test
     fun each_registration_drops_only_its_own_route() {
         assertEquals(
-            listOf(AccountKind.PASSWORD, AccountKind.JMAP, AccountKind.MICROSOFT),
+            listOf(AccountKind.PASSWORD, AccountKind.JMAP, AccountKind.DAV, AccountKind.MICROSOFT),
             AccountKind.offered(routes(google = false, microsoft = true)),
         )
         assertEquals(
-            listOf(AccountKind.PASSWORD, AccountKind.JMAP, AccountKind.GOOGLE),
+            listOf(AccountKind.PASSWORD, AccountKind.JMAP, AccountKind.DAV, AccountKind.GOOGLE),
             AccountKind.offered(routes(google = true, microsoft = false)),
         )
     }

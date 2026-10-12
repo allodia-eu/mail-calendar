@@ -27,8 +27,8 @@ class AccountSetupMicrosoftTest {
                 signingIn = false,
                 connecting = false,
                 // A Microsoft-hosted domain routes straight to the Microsoft found-card.
-                detect = { SetupRecommendation.Microsoft(it) },
-                onSignInMicrosoft = onSignIn,
+                detect = { detected(SetupRecommendation.Microsoft(it)) },
+                onSignInMicrosoft = { hint, _ -> onSignIn(hint) },
                 onConnect = { null },
                 onConnectJmap = { null },
             )

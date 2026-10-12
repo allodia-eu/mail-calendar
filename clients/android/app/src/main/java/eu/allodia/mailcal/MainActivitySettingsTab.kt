@@ -126,6 +126,7 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             // their own accounts because an offer becomes one of them.
                             allodiaSync = allodiaSync,
                             onAllodiaSetUp = { offer ->
+                                settingsCategory = SettingsCategory.ACCOUNTS
                                 setupStartEmail = offer.email
                                 setupStartOffer = offer
                                 addingAccount = true
@@ -191,9 +192,10 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     // A JMAP account holding a pasted password or API token, while the server refuses it.
     pastedSecret = signInExpired.filter { it.provider == AccountProvider.JMAP }.map { it.id }.toSet(),
     standardPort = { kind, security -> standardPort(kind, security).toInt() },
-    // Add account opens setup over Settings, which is where cancelling or finishing returns to.
+    // Add account opens setup in place of Settings, and cancelling or finishing returns to Accounts.
     onAddAccount = {
         addError = null
+        settingsCategory = SettingsCategory.ACCOUNTS
         addingAccount = true
     },
     onOpenPage = { id ->

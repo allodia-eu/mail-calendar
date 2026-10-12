@@ -33,6 +33,8 @@ internal fun MainActivity.refreshAccountsSnapshot() {
     if (accountSettings.page?.let { accountSettings.entry(it) } == null) {
         accountSettings.page = null
     }
+    // A suggestion the core found after the link step was drawn reaches it.
+    setupFlow.links?.let { setupFlow.refresh(linkStepFor(it.account)) }
 }
 
 /** Opens Settings on account [id]'s page: where a password is replaced and a use asked for. */

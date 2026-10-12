@@ -336,8 +336,8 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | IMAP/SMTP SRV (`_imaps`/`_submissions`, RFC 6186/8314) | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | DNSSEC AD bit read (reserved for a future "require DNSSEC" opt-in) | ✅ | n/a | n/a | ✅ | n/a |
 | CalDAV follow-on discovery (RFC 6764) | ✅ | ✅ | 🚧 | ✅ | ✅ |
-| CardDAV, DAV SRV, DAV beside JMAP, the calendar-and-contacts result (rule 8) | ✅ | ✅ | ✅ | ⬜ | ✅ |
-| The found card's choices, decided in the core (rule 8) | ✅ | ✅ | ✅ | ⬜ | ✅ |
+| CardDAV, DAV SRV, DAV beside JMAP, the calendar-and-contacts result (rule 8) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The found card's choices, decided in the core (rule 8) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | JMAP OAuth metadata chain (RFC 9728 → 8414 → 7591), offered only when advertised | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | `<oAuth2><issuer>` read from the provider's own trusted autoconfig, carried to setup | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | A calendar or address-book server that stops answering looked for again (rule 14) | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
@@ -461,14 +461,6 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   stranding the user. The **manual** pane keeps its secret field throughout: it is already on
   screen, so a negative answer changes nothing there and must not rebuild over a secret being
   typed.
-- **Android does not offer what rule 8 adds.** It still calls `detect_account_settings`, which
-  hands it only the CalDAV endpoint on the IMAP route and a domain with DAV alone as "nothing
-  found". `detect_account_setup` carries the rest (both endpoints on every route, the
-  calendar-and-contacts route, the choices), and an offer from the person's other devices has its
-  own (`offered_setup`). On Apple, Linux and Windows they reach every route's card but JMAP's,
-  whose session says what it offers only after the sign-in, where Linux asks
-  ([`onboarding.md`](onboarding.md)). The showcase scripts
-  `cloud.example` as a calendar-and-contacts domain, since no harness domain is one.
 - **No client has yet seen a provider move a server (rule 14).** The core's tests drive the
   trigger end to end against a port nothing listens on, a moved SRV record, and the rule that
   keeps a password within its provider (`dav_rediscovery_tests`, `rediscover_tests`); every

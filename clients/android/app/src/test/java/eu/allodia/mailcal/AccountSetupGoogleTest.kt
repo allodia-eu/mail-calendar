@@ -32,9 +32,9 @@ class AccountSetupGoogleTest {
                 signingIn = false,
                 signingInGoogle = false,
                 connecting = false,
-                detect = { SetupRecommendation.Google(it) },
-                onSignInMicrosoft = {},
-                onSignInGoogle = onSignIn,
+                detect = { detected(SetupRecommendation.Google(it)) },
+                onSignInMicrosoft = { _, _ -> },
+                onSignInGoogle = { hint, _ -> onSignIn(hint) },
                 onConnect = { null },
                 onConnectJmap = { null },
             )

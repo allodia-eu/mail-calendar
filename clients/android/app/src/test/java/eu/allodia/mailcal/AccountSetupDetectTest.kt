@@ -7,6 +7,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.DetectedServerRow
 import uniffi.mailcal_bindings.RejectedCertificate
@@ -166,31 +167,32 @@ class AccountSetupDetectTest {
     }
 
     @Test
-    fun aDiscoveredCalendarIsPreselectedAndRidesTheImapCredentials() {
+    fun withoutAChoiceTheDiscoveredCalendarRidesTheImapCredentials() {
         val form = DetectedConnectForm(imap(isTrusted = true, caldavUrl = "https://caldav.soverin.net/calendars"))
-        // A found endpoint is opt-out: pre-checked, and stored on connect reusing the password.
-        assertTrue(form.calendarEnabled)
         form.password = "hunter2"
+        // No toggles on screen: the servers detection found decide, the calendar included.
         assertEquals("https://caldav.soverin.net/calendars", form.imapSetup().caldavBaseUrl)
+        assertNull(form.imapSetup().uses)
     }
 
     @Test
-    fun optingOutOfADiscoveredCalendarLeavesItUnset() {
+    fun theToggledUsesAndServersAreWhatTheAccountIsSetUpWith() {
         val form = DetectedConnectForm(imap(isTrusted = true, caldavUrl = "https://caldav.soverin.net/calendars"))
         form.password = "hunter2"
-        form.calendarEnabled = false
+        form.uses = ChosenUses(listOf(AccountCapability.MAIL), caldavUrl = "", carddavUrl = "")
+        // The calendar switched off is not stored, though detection found it.
         assertNull(form.imapSetup().caldavBaseUrl)
-    }
+        assertEquals(listOf(AccountCapability.MAIL), form.imapSetup().uses)
 
-    @Test
-    fun withoutADiscoveredCalendarTheUserCanAddOneManually() {
-        val form = DetectedConnectForm(imap(isTrusted = true, caldavUrl = null))
-        // Nothing discovered → opt-in: off by default until the user turns it on and types a URL.
-        assertFalse(form.calendarEnabled)
-        form.password = "hunter2"
-        assertNull(form.imapSetup().caldavBaseUrl)
-        form.calendarEnabled = true
-        form.calendarUrlEntry = "caldav.example.com"
-        assertEquals("caldav.example.com", form.imapSetup().caldavBaseUrl)
+        form.uses = ChosenUses(
+            listOf(AccountCapability.CALENDAR, AccountCapability.CONTACTS),
+            caldavUrl = "https://caldav.soverin.net/calendars",
+            carddavUrl = "https://carddav.soverin.net",
+        )
+        assertEquals("https://carddav.soverin.net", form.imapSetup().carddavBaseUrl)
+        assertEquals(
+            listOf(AccountCapability.CALENDAR, AccountCapability.CONTACTS),
+            form.imapSetup().uses,
+        )
     }
 }

@@ -116,7 +116,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Acceptance stored with the account, asked once | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Detected card **and** manual form | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Exception applies to IMAP, SMTP and CalDAV of that account | ✅ | ✅ | ✅ | ✅ | ✅ |
-| A calendar or address-book server's refusal carries its certificate, for an account without mail | ✅ | ✅ | ✅ | ⬜ | ✅ |
+| A calendar or address-book server's refusal carries its certificate, for an account without mail | ✅ | ✅ | ✅ | 🚧 | ✅ |
 
 The **shared TLS config is per account**, so an accepted certificate covers every provider of that
 account whose server name it matches. Proton Mail Bridge serves the same certificate on its IMAP

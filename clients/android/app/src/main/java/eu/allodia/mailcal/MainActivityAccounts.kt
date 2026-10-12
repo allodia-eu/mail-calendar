@@ -7,43 +7,24 @@ import android.util.Log
 import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
 import uniffi.mailcal_bindings.MissReason
+import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.DetectedSetup
 import uniffi.mailcal_bindings.SetupRecommendation
 import uniffi.mailcal_bindings.beginGoogleLogin
 import uniffi.mailcal_bindings.beginMicrosoftLogin
 
 private const val TAG = "Mailcal"
 
-// Opens the "your name" step, but only where the core says the account still needs a name: a
-// provider that already holds one has had it adopted, so the step would arrive with a pre-filled
-// answer and nothing to decide (docs/sending.md).
-//
-// A provider round trip, so it runs on the worker each add route already has, and only *after*
-// that route has released the UI: the account is connected either way, and the mailbox may not
-// wait on a settings read to appear. A provider that cannot be asked means ask, which is also
-// why a failure here never reports the add as failed.
-private fun MainActivity.askSenderNameIfNeeded(instance: MailcalApp, accountId: String) {
-    val needed = try {
-        instance.needsSenderName(accountId)
-    } catch (e: Exception) {
-        logUiWarn("sender name: the provider was not asked: ${e.message}")
-        true
-    }
-    if (needed) {
-        mainHandler.post { senderNamePrompt = accountId }
-    }
-}
-
 // Connect an added account off the main thread, then persist its config under the core id.
 // Detects a provider's settings from just the email address, off the main thread (the core
 // call blocks up to ~10 s). The device's own DNS answers the MX fallback via AndroidMxResolver.
 // Returns a manual fallback if the app somehow isn't up (the setup flow only shows when it is).
-internal suspend fun MainActivity.detectAccount(email: String): SetupRecommendation {
-    val instance = app ?: return SetupRecommendation.Manual(MissReason.NETWORK_ERROR)
+internal suspend fun MainActivity.detectAccount(email: String): DetectedSetup {
+    val instance = app ?: return detected(SetupRecommendation.Manual(MissReason.NETWORK_ERROR))
     return withContext(Dispatchers.IO) {
-        instance.detectAccountSettings(email, AndroidMxResolver(this@detectAccount))
+        instance.detectAccountSetup(email, AndroidMxResolver(this@detectAccount))
     }
 }
 
@@ -60,16 +41,14 @@ internal fun MainActivity.addAccount(configToml: String) {
             }
             activity.mainHandler.post {
                 activity.isConnecting = false
-                activity.addingAccount = false
                 activity.addError = null
                 // The account list changed, so the person's other devices should hear about
                 // it now rather than at the next launch. A no-op when nobody is signed in.
                 activity.readAccountsSynced()
                 activity.syncAllodiaAccounts()
-                activity.needsSetup = false
-                activity.senderNamePrompt = null
+                // Its uses, its link step, or the end of setup (MainActivitySetupFlow.kt).
+                activity.afterAccountAdded(row.id)
             }
-            activity.askSenderNameIfNeeded(instance, row.id)
         } catch (e: Exception) {
             // The reason, never the certificate: a refusal's message carries the whole of it
             // (docs/certificate-exceptions.md rule 9).
@@ -82,7 +61,7 @@ internal fun MainActivity.addAccount(configToml: String) {
                 // twice, so only what the panel cannot carry is left as a message (rule 7).
                 activity.addError = when {
                     failure?.certificate != null -> null
-                    else -> e.message ?: "unknown error"
+                    else -> coreErrorText(e) ?: L10n.error_unknown(activity)
                 }
             }
         }
@@ -92,7 +71,10 @@ internal fun MainActivity.addAccount(configToml: String) {
 // Starts the Microsoft sign-in: asks the core for the authorization URL, opens it in the
 // browser (Custom Tabs), and holds the pending handle until the redirect returns to
 // onNewIntent → completeMicrosoftLogin. Fast (no blocking), so it stays on the main thread.
-internal fun MainActivity.signInWithMicrosoft(loginHint: String? = null) {
+internal fun MainActivity.signInWithMicrosoft(
+    loginHint: String? = null,
+    capabilities: List<AccountCapability>? = null,
+) {
     if (app == null) return
     addError = null
     try {
@@ -102,6 +84,9 @@ internal fun MainActivity.signInWithMicrosoft(loginHint: String? = null) {
             // The address the user is connecting (from autodetection), so Microsoft targets
             // that account instead of offering a different signed-in one. Null ⇒ the picker.
             loginHint?.takeIf { it.isNotBlank() },
+            // What the account is to be used for, so the provider is asked for that alone; null
+            // asks for everything (docs/accounts.md rule 10).
+            capabilities,
         )
         pendingMicrosoftLogin = start.pending
         // A new account, not one being signed in again: this redirect is the setup form's.
@@ -110,7 +95,7 @@ internal fun MainActivity.signInWithMicrosoft(loginHint: String? = null) {
         openMicrosoftSignIn(this, start.authorizationUrl)
     } catch (e: Exception) {
         logUiWarn("microsoft sign-in start failed: ${e.message}")
-        addError = e.message ?: "Microsoft sign-in failed to start"
+        addError = coreErrorText(e) ?: "Microsoft sign-in failed to start"
     }
 }
 
@@ -126,25 +111,20 @@ internal fun MainActivity.completeMicrosoftLogin(callbackUrl: String) {
         try {
             val row = instance.completeMicrosoftLogin(pending, callbackUrl)
             activity.mainHandler.post {
-                activity.senderNamePrompt = null
                 activity.signingInMicrosoft = false
-                activity.addingAccount = false
-                activity.needsSetup = false
                 activity.addError = null
                 // The account list changed, so the person's other devices should hear about
                 // it now rather than at the next launch. A no-op when nobody is signed in.
                 activity.readAccountsSynced()
                 activity.syncAllodiaAccounts()
-                // A re-auth to grant calendar clears the account's re-consent flag in the core;
-                // re-pull so the "reconnect for calendar" banner disappears at once.
                 activity.refreshConnectivity()
+                activity.afterAccountAdded(row.id, signedInAtProvider = true)
             }
-            activity.askSenderNameIfNeeded(instance, row.id)
         } catch (e: Exception) {
             logUiWarn("microsoft complete failed: ${e.message}")
             activity.mainHandler.post {
                 activity.signingInMicrosoft = false
-                activity.addError = e.message ?: "Microsoft sign-in failed"
+                activity.addError = coreErrorText(e) ?: "Microsoft sign-in failed"
             }
         }
     }
@@ -155,7 +135,10 @@ internal fun MainActivity.completeMicrosoftLogin(callbackUrl: String) {
 // completeGoogleLogin. Fast (no blocking), so it stays on the main thread. The setup UI's Early
 // Access confirmation gates the button that reaches here, Google hard-blocks anyone not on the
 // app's OAuth test-user allow-list, so this is never reached without that acknowledgement.
-internal fun MainActivity.signInWithGoogle(loginHint: String? = null) {
+internal fun MainActivity.signInWithGoogle(
+    loginHint: String? = null,
+    capabilities: List<AccountCapability>? = null,
+) {
     if (app == null) return
     addError = null
     try {
@@ -167,6 +150,7 @@ internal fun MainActivity.signInWithGoogle(loginHint: String? = null) {
             // The address the user is connecting (from autodetection), so Google targets that
             // account instead of offering a different signed-in one. Null ⇒ the picker.
             loginHint = loginHint?.takeIf { it.isNotBlank() },
+            capabilities = capabilities,
         )
         pendingGoogleLogin = start.pending
         accountSettings.consent = null
@@ -174,7 +158,7 @@ internal fun MainActivity.signInWithGoogle(loginHint: String? = null) {
         openGoogleSignIn(this, start.authorizationUrl)
     } catch (e: Exception) {
         logUiWarn("google sign-in start failed: ${e.message}")
-        addError = e.message ?: "Google sign-in failed to start"
+        addError = coreErrorText(e) ?: "Google sign-in failed to start"
     }
 }
 
@@ -190,22 +174,19 @@ internal fun MainActivity.completeGoogleLogin(callbackUrl: String) {
         try {
             val row = instance.completeGoogleLogin(pending, callbackUrl)
             activity.mainHandler.post {
-                activity.senderNamePrompt = null
                 activity.signingInGoogle = false
-                activity.addingAccount = false
-                activity.needsSetup = false
                 activity.addError = null
                 // The account list changed, so the person's other devices should hear about
                 // it now rather than at the next launch. A no-op when nobody is signed in.
                 activity.readAccountsSynced()
                 activity.syncAllodiaAccounts()
+                activity.afterAccountAdded(row.id, signedInAtProvider = true)
             }
-            activity.askSenderNameIfNeeded(instance, row.id)
         } catch (e: Exception) {
             logUiWarn("google complete failed: ${e.message}")
             activity.mainHandler.post {
                 activity.signingInGoogle = false
-                activity.addError = e.message ?: "Google sign-in failed"
+                activity.addError = coreErrorText(e) ?: "Google sign-in failed"
             }
         }
     }

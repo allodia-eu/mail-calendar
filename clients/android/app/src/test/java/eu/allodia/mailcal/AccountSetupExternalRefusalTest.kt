@@ -34,7 +34,7 @@ class AccountSetupExternalRefusalTest {
                 externalError = null,
                 externalFailure = failure,
                 onCancel = {},
-                onSignInMicrosoft = {},
+                onSignInMicrosoft = { _, _ -> },
                 onConnect = { null },
                 onConnectJmap = { null },
             )

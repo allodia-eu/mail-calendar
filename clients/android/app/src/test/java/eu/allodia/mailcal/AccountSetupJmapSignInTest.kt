@@ -12,6 +12,7 @@ package eu.allodia.mailcal
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -46,6 +47,7 @@ class AccountSetupJmapSignInTest {
                 onSignInJmap = { email, server -> signInStarts += email to server },
             )
         }
+        compose.onNodeWithTag("setup-kind").performClick()
         compose.onNodeWithText(TAB_JMAP).performClick()
         compose.waitForIdle()
     }
@@ -113,6 +115,7 @@ class AccountSetupJmapSignInTest {
                 onSignInJmap = { _, _ -> },
             )
         }
+        compose.onNodeWithTag("setup-kind").performClick()
         compose.onNodeWithText(TAB_JMAP).performClick()
         compose.waitForIdle()
         typeEmail("alice@fastmail.example")
@@ -133,6 +136,7 @@ class AccountSetupJmapSignInTest {
         compose.setContent {
             AccountSetupScreen(onConnect = { null }, onConnectJmap = { null })
         }
+        compose.onNodeWithTag("setup-kind").performClick()
         compose.onNodeWithText(TAB_JMAP).performClick()
         compose.waitForIdle()
         compose.onNodeWithText(FIELD_EMAIL).performTextInput("alice@fastmail.example")
@@ -167,8 +171,8 @@ class DetectedJmapSignInTest {
                 onCancel = null,
                 signingIn = false,
                 connecting = false,
-                detect = { jmapRecommendation },
-                onSignInMicrosoft = {},
+                detect = { detected(jmapRecommendation) },
+                onSignInMicrosoft = { _, _ -> },
                 onConnect = { null },
                 onConnectJmap = { null },
                 onCheckJmapSignIn = { _, _ -> available },

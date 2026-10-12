@@ -98,11 +98,12 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
                                 instance?.suggestedSenderName(id).orEmpty()
                             }
                         },
+                        // Each added account is asked in turn (MainActivitySetupFlow.kt).
                         onSave = { id, name ->
                             instance?.setAccountSenderName(id, name)
-                            senderNamePrompt = null
+                            askNextSenderName()
                         },
-                        onDismiss = { senderNamePrompt = null },
+                        onDismiss = { askNextSenderName() },
                     )
                     // The message went out; its copy did not reach Sent. Rendered here for the
                     // same reason as the question below: the send may have been started from

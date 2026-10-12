@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -52,6 +53,7 @@ class AccountSetupJmapTest {
     /** Renders the form and switches to the JMAP tab. */
     private fun jmapTab() {
         form()
+        compose.onNodeWithTag("setup-kind").performClick()
         compose.onNodeWithText(TAB_JMAP).performClick()
         compose.waitForIdle()
     }
@@ -65,11 +67,12 @@ class AccountSetupJmapTest {
     fun the_form_offers_jmap_alongside_imap_and_microsoft() {
         form()
 
-        // Exact matches: the first tab reads "IMAP", not the old "IMAP / password", the three
-        // labels only fit on one line short.
+        // Exact matches: the menu names each type short, "IMAP" rather than "IMAP / password".
         compose.onNodeWithText(TAB_IMAP).assertIsDisplayed()
+        compose.onNodeWithTag("setup-kind").performClick()
         compose.onNodeWithText(TAB_JMAP).assertIsDisplayed()
         compose.onNodeWithText(TAB_MICROSOFT).assertIsDisplayed()
+        compose.onNodeWithText("Calendar and contacts (CalDAV/CardDAV)").assertIsDisplayed()
     }
 
     @Test

@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.text.KeyboardOptions
 
 // A single-line text field for the setup form; [placeholder] is shown when empty and
-// [keyboardType] tailors the soft keyboard (email/password vs. plain text).
+// [keyboardType] tailors the soft keyboard (email/password vs. plain text). [missing] marks a field
+// Connect found empty, and takes the focus to it.
 @androidx.compose.runtime.Composable
 internal fun SetupField(
     value: String,
@@ -19,11 +21,17 @@ internal fun SetupField(
     label: String,
     placeholder: String? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
+    missing: Boolean = false,
 ) {
+    val focus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(missing) {
+        if (missing) runCatching { focus.requestFocus() }
+    }
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().focusRequester(focus),
+        isError = missing,
         singleLine = true,
         label = { Text(label) },
         placeholder = placeholder?.let { text -> { Text(text) } },

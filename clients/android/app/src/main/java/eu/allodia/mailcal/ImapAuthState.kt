@@ -57,17 +57,22 @@ internal sealed interface ImapAuthState {
 // One builder used by both, so the two cannot come to different conclusions about the same
 // account: a pre-flight that probed a different server from the one the sign-in registers against
 // would offer a button that fails at the provider.
+//
+// [uses] is what the card's toggles chose, carried through the browser hop so the account is set
+// up with them; null asks with the servers detection found.
 internal fun imapLoginRequest(
     recommendation: SetupRecommendation.Imap,
-    caldavBaseUrl: String? = null,
+    uses: ChosenUses? = null,
 ): ImapLoginRequest = ImapLoginRequest(
     email = recommendation.email,
     imapHost = recommendation.imapHost,
     smtpHost = recommendation.smtpHost,
-    caldavBaseUrl = caldavBaseUrl,
+    caldavBaseUrl = uses?.let { it.caldavUrl.ifEmpty { null } },
     imapSecurity = recommendation.imapSecurity,
     smtpSecurity = recommendation.smtpSecurity,
     oauthIssuer = recommendation.oauthIssuer,
+    carddavBaseUrl = uses?.carddavUrl?.ifEmpty { null },
+    uses = uses?.uses,
 )
 
 // The same, for the manual form's typed fields. Nothing was detected, so no provider named an

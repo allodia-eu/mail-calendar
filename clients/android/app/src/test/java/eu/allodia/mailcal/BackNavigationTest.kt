@@ -327,8 +327,8 @@ class BackNavigationTest {
                     onCancel = onCancel,
                     signingIn = false,
                     connecting = false,
-                    detect = { SetupRecommendation.Manual(MissReason.NOTHING_FOUND) },
-                    onSignInMicrosoft = {},
+                    detect = { detected(SetupRecommendation.Manual(MissReason.NOTHING_FOUND)) },
+                    onSignInMicrosoft = { _, _ -> },
                     onConnect = { null },
                     onConnectJmap = { null },
                 )

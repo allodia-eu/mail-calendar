@@ -10,7 +10,9 @@ package eu.allodia.mailcal
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,8 +57,8 @@ class AccountSetupShowcaseSeedTest {
                 onCancel = null,
                 signingIn = false,
                 connecting = false,
-                detect = ::scriptedDetect,
-                onSignInMicrosoft = {},
+                detect = { standardsSetup(scriptedDetect(it)) },
+                onSignInMicrosoft = { _, _ -> },
                 onConnect = { null },
                 onConnectJmap = { null },
                 showcaseSeed = showcaseSetupSeed(screen),
@@ -80,7 +82,7 @@ class AccountSetupShowcaseSeedTest {
         compose.onNodeWithText("smtp.northwind.example", substring = true).assertIsDisplayed()
         // The pre-checked calendar sync only appears when an endpoint was discovered, which is the
         // difference between this capture and the untrusted one below.
-        compose.onNodeWithText("dav.northwind.example").assertIsDisplayed()
+        compose.onAllNodesWithText("dav.northwind.example")[0].performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -111,8 +113,8 @@ class AccountSetupShowcaseSeedTest {
                 onCancel = null,
                 signingIn = false,
                 connecting = false,
-                detect = { lookups++; scriptedDetect(it) },
-                onSignInMicrosoft = {},
+                detect = { lookups++; standardsSetup(scriptedDetect(it)) },
+                onSignInMicrosoft = { _, _ -> },
                 onConnect = { null },
                 onConnectJmap = { null },
                 showcaseSeed = null,

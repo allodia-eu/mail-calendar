@@ -20,9 +20,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
@@ -35,45 +32,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountSetup
+import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
+import uniffi.mailcal_bindings.SetupChoice
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.JmapSetup
 import uniffi.mailcal_bindings.MailServerKind
-import uniffi.mailcal_bindings.OAuthRoutes
-
-// The account kinds the setup form can offer (the two OAuth providers, Microsoft and Google, sit
-// together at the end); which of them this build shows is [AccountKind.offered].
-internal enum class AccountKind {
-    PASSWORD,
-    JMAP,
-    MICROSOFT,
-    GOOGLE,
-    ;
-
-    internal fun label(ctx: Context): String = when (this) {
-        PASSWORD -> L10n.setup_account_type_password(ctx)
-        JMAP -> L10n.setup_account_type_jmap(ctx)
-        MICROSOFT -> L10n.setup_account_type_microsoft(ctx)
-        GOOGLE -> L10n.setup_account_type_google(ctx)
-    }
-
-    internal companion object {
-        // The kinds a build offering [routes] shows, in picker order. A browser sign-in needs the
-        // provider's OAuth client registration, which is injected at build time, so a build given
-        // none drops the route rather than showing a button that fails at the provider. The two
-        // credential routes are always there.
-        //
-        // Takes the routes rather than asking the core for them, so this is a pure function the
-        // JVM suite can exercise, asking would load the cdylib, which no test here does.
-        internal fun offered(routes: OAuthRoutes): List<AccountKind> = entries.filter { kind ->
-            when (kind) {
-                MICROSOFT -> routes.microsoft
-                GOOGLE -> routes.google
-                PASSWORD, JMAP -> true
-            }
-        }
-    }
-}
 
 // How long typing must pause before we probe a JMAP server for OAuth support. The probe is
 // several network round trips, so firing it per keystroke would hammer half-typed domains.
@@ -103,8 +68,9 @@ internal fun AccountSetupScreen(
     signingIn: Boolean = false,
     signingInGoogle: Boolean = false,
     connecting: Boolean = false,
-    onSignInMicrosoft: (String?) -> Unit = {},
-    onSignInGoogle: (String?) -> Unit = {},
+    // A provider's sign-in, with the uses chosen for the account; null asks for everything.
+    onSignInMicrosoft: (String?, List<AccountCapability>?) -> Unit = { _, _ -> },
+    onSignInGoogle: (String?, List<AccountCapability>?) -> Unit = { _, _ -> },
     onConnect: (AccountSetup) -> ConnectFailure?,
     onConnectJmap: (JmapSetup) -> ConnectFailure?,
     // Asks the core whether this JMAP server offers discoverable OAuth sign-in. Blocking, so the
@@ -133,7 +99,13 @@ internal fun AccountSetupScreen(
     prefillImapHost: String = "",
     prefillSmtpHost: String = "",
     prefillJmapServer: String = "",
+    prefillCaldav: String = "",
+    prefillCarddav: String = "",
     note: String? = null,
+    // The uses a Microsoft or Google sign-in offers for the address typed (the core's
+    // `provider_setup_choices`). Null where there is no core to ask, a preview or a test, which
+    // offers no choice and asks for everything.
+    providerChoices: ((CoreAccountKind, String) -> List<SetupChoice>)? = null,
 ) {
     var kind by remember { mutableStateOf(initialKind) }
     var imapHost by remember { mutableStateOf(prefillImapHost) }
@@ -145,7 +117,23 @@ internal fun AccountSetupScreen(
     var servers by remember(standardPort) {
         mutableStateOf(standardPort?.let(ManualServerPair::fromCore) ?: ManualServerPair())
     }
-    var caldavBaseUrl by remember { mutableStateOf("") }
+    var caldavBaseUrl by remember { mutableStateOf(prefillCaldav) }
+    var carddavBaseUrl by remember { mutableStateOf(prefillCarddav) }
+    // The calendar-and-contacts type's first server, marked when Connect found neither typed.
+    var davMissing by remember { mutableStateOf(false) }
+    // What a Microsoft or Google sign-in is to be used for, offered for the address typed.
+    val providerKind = when (kind) {
+        AccountKind.MICROSOFT -> CoreAccountKind.MICROSOFT
+        AccountKind.GOOGLE -> CoreAccountKind.GOOGLE
+        else -> null
+    }
+    val providerOffer = remember(providerKind, username, providerChoices) {
+        val choices = providerKind?.let { providerChoices?.invoke(it, username.trim()) }.orEmpty()
+        UseOffer(choices)
+    }
+    val providerToggles = remember(providerOffer) { UseToggles(providerOffer) }
+    fun providerUses(): List<AccountCapability>? =
+        providerToggles.chosen().uses.takeIf { providerToggles.choosing }
     // JMAP reuses the shared username/password state (only one kind is active at a time), the
     // secret is one field, whether the server issued a password or an API token.
     var jmapServer by remember { mutableStateOf(prefillJmapServer) }
@@ -166,7 +154,9 @@ internal fun AccountSetupScreen(
     // The transport's own words, but not while the certificate panel is up: that panel says the
     // same thing in the reader's language and with the certificate beside it. A refusal on a
     // route that cannot carry an exception keeps its message, because nothing else would say it.
-    val error = failure?.takeIf { it.certificate == null || kind != AccountKind.PASSWORD }?.message
+    val error = failure
+        ?.takeIf { it.certificate == null || (kind != AccountKind.PASSWORD && kind != AccountKind.DAV) }
+        ?.message
     // What the typed mail server said it accepts.
     var imapAuth by remember { mutableStateOf<ImapAuthState>(ImapAuthState.Password) }
     val ctx = LocalContext.current
@@ -232,33 +222,51 @@ internal fun AccountSetupScreen(
             )
         }
 
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            offeredKinds.forEachIndexed { index, offeredKind ->
-                SegmentedButton(
-                    selected = kind == offeredKind,
-                    onClick = { kind = offeredKind },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = offeredKinds.size,
-                    ),
-                ) { Text(offeredKind.label(ctx)) }
-            }
-        }
+        AccountKindPicker(offeredKinds, kind) { kind = it }
 
         when (kind) {
-            AccountKind.MICROSOFT -> Text(
-                text = L10n.setup_microsoft_note(ctx),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            AccountKind.GOOGLE -> {
+            AccountKind.MICROSOFT -> {
                 Text(
-                    text = L10n.setup_google_note(ctx),
+                    text = if (providerToggles.choosing) {
+                        L10n.setup_microsoft_choice_note(ctx)
+                    } else {
+                        L10n.setup_microsoft_note(ctx)
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                UsesChoices(providerToggles)
+            }
+            AccountKind.GOOGLE -> {
+                Text(
+                    text = if (providerToggles.choosing) {
+                        L10n.setup_google_choice_note(ctx)
+                    } else {
+                        L10n.setup_google_note(ctx)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                UsesChoices(providerToggles)
                 GoogleEarlyAccessInfo(googleEarlyAccessConfirmed) { googleEarlyAccessConfirmed = it }
             }
+            AccountKind.DAV -> DavManualFields(
+                login = username,
+                onLogin = { username = it },
+                caldav = caldavBaseUrl,
+                onCaldav = {
+                    caldavBaseUrl = it
+                    davMissing = false
+                },
+                carddav = carddavBaseUrl,
+                onCarddav = {
+                    carddavBaseUrl = it
+                    davMissing = false
+                },
+                password = password,
+                onPassword = { password = it },
+                caldavMissing = davMissing,
+            )
             AccountKind.JMAP -> {
                 Text(
                     text = L10n.setup_jmap_note(ctx),
@@ -325,6 +333,7 @@ internal fun AccountSetupScreen(
                     ctx = ctx,
                 )
                 SetupField(caldavBaseUrl, { caldavBaseUrl = it }, L10n.setup_field_caldav_optional(ctx))
+                SetupField(carddavBaseUrl, { carddavBaseUrl = it }, L10n.setup_field_carddav_optional(ctx))
             }
         }
 
@@ -339,7 +348,7 @@ internal fun AccountSetupScreen(
         // Only an IMAP account's stored config carries an exception, so a refusal on any other
         // route is reported and not offered: taking an answer and ignoring it is worse than not
         // asking (docs/certificate-exceptions.md -> Known gaps).
-        val refused = failure?.certificate?.takeIf { kind == AccountKind.PASSWORD }
+        val refused = failure?.certificate?.takeIf { kind == AccountKind.PASSWORD || kind == AccountKind.DAV }
         refused?.let {
             CertificateExceptionPanel(it, certificateAccepted) { on -> certificateAccepted = on }
         }
@@ -347,7 +356,7 @@ internal fun AccountSetupScreen(
 
         when (kind) {
             AccountKind.MICROSOFT -> Button(
-                onClick = { onSignInMicrosoft(username.ifBlank { null }) },
+                onClick = { onSignInMicrosoft(username.ifBlank { null }, providerUses()) },
                 enabled = !signingIn,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -362,7 +371,7 @@ internal fun AccountSetupScreen(
             AccountKind.GOOGLE -> GoogleSignInButton(
                 enabled = googleEarlyAccessConfirmed && !signingInGoogle,
                 signingIn = signingInGoogle,
-                onClick = { onSignInGoogle(username.ifBlank { null }) },
+                onClick = { onSignInGoogle(username.ifBlank { null }, providerUses()) },
             )
             AccountKind.JMAP -> ConnectButton(
                 enabled = canConnectJmap && !connecting,
@@ -397,8 +406,32 @@ internal fun AccountSetupScreen(
                             // certificate; it is stored with the account, so no later connect
                             // asks again.
                             acceptedCertificate = if (certificateAccepted) refused else null,
+                            carddavBaseUrl = carddavBaseUrl.ifBlank { null },
                         ),
                     )
+                },
+            )
+            AccountKind.DAV -> ConnectButton(
+                enabled = username.isNotBlank() && password.isNotBlank() && !connecting && certificateOk,
+                connecting = connecting,
+                label = L10n.action_connect(ctx),
+                onClick = {
+                    val uses = SetupUses.davUses(caldavBaseUrl, carddavBaseUrl)
+                    if (uses == null) {
+                        // No server typed is no account: the calendar's is the one to start with.
+                        davMissing = true
+                    } else {
+                        ownFailure = onConnect(
+                            davSetup(
+                                login = username,
+                                password = password,
+                                caldav = caldavBaseUrl,
+                                carddav = carddavBaseUrl,
+                                uses = uses,
+                                accepted = if (certificateAccepted) refused else null,
+                            ),
+                        )
+                    }
                 },
             )
         }

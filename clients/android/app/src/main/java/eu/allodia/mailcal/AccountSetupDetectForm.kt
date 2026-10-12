@@ -31,16 +31,9 @@ internal class DetectedConnectForm(val recommendation: SetupRecommendation) {
     var rejectedCertificate: RejectedCertificate? = null
     var certificateAccepted: Boolean = false
 
-    // Calendar (IMAP only). When detection found a CalDAV endpoint we pre-select sync (opt-out);
-    // otherwise the user can opt in and type one. Either way it reuses the IMAP credentials.
-    private val detectedCaldav: String? = (recommendation as? SetupRecommendation.Imap)?.caldavUrl
-    var calendarEnabled: Boolean = detectedCaldav != null
-    var calendarUrlEntry: String = ""
-
-    // The CalDAV URL to store: the discovered endpoint, else a manually entered one; null when
-    // calendar is switched off or nothing was entered.
-    val effectiveCaldavUrl: String?
-        get() = if (!calendarEnabled) null else detectedCaldav ?: calendarUrlEntry.ifBlank { null }
+    // What the card's toggles make of the account (SetupUses), or null where it offered no choice:
+    // the servers it found then decide, the calendar detection found included.
+    var uses: ChosenUses? = null
 
     val isTrusted: Boolean = when (recommendation) {
         is SetupRecommendation.Jmap -> recommendation.isTrusted
@@ -87,7 +80,7 @@ internal class DetectedConnectForm(val recommendation: SetupRecommendation) {
             username = imap.email,
             password = password,
             smtpHost = imap.smtpHost,
-            caldavBaseUrl = effectiveCaldavUrl,
+            caldavBaseUrl = if (uses != null) uses?.caldavUrl?.ifEmpty { null } else imap.caldavUrl,
             // Carry the detected connection security straight through so the engine dials
             // implicit TLS or STARTTLS exactly as detection found it.
             imapSecurity = imap.imapSecurity,
@@ -95,6 +88,8 @@ internal class DetectedConnectForm(val recommendation: SetupRecommendation) {
             // Set only on a re-submit somebody asked for after being shown the certificate; it
             // is stored with the account, so no later connect asks again.
             acceptedCertificate = acceptedCertificate,
+            carddavBaseUrl = uses?.carddavUrl?.ifEmpty { null },
+            uses = uses?.uses,
         )
     }
 }

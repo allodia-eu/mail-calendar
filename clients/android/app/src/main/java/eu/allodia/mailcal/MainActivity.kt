@@ -184,7 +184,6 @@ class MainActivity : AppCompatActivity() {
     // helps, so this drives its own banner rather than the connection-issues one (the core already
     // keeps such an account out of the unreachable list).
     internal var signInExpired by mutableStateOf<List<ExpiredSignIn>>(emptyList())
-    // Retains the registered default-network callback so it isn't garbage-collected.
     internal var networkCallback: Any? = null
     // The per-account sync-behaviour settings (fetch depth, push vs. poll, watched folders),
     // pulled on a SETTINGS surface change; feeds the Accounts section of the Settings screen.
@@ -272,6 +271,8 @@ class MainActivity : AppCompatActivity() {
     internal var needsSetup by mutableStateOf(false)
     // True while the user is adding another account (the setup form shown over the running app).
     internal var addingAccount by mutableStateOf(false)
+    // What follows a connect: its uses, its link step, and the names asked once setup ends.
+    internal val setupFlow = SetupFlow()
     // The account whose "your name" step is open, or null when none is. Set by every route that
     // adds an account, so the step follows a manual connect and a browser sign-in alike; a route
     // that cannot name the account it added opens nothing (docs/sending.md).
@@ -495,5 +496,4 @@ class MainActivity : AppCompatActivity() {
         setIntent(intent)
         routeNewIntent(intent)
     }
-
 }
