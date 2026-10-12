@@ -66,6 +66,10 @@ extension AccountSetupView {
                 if imapAuth.showsPasswordField(chosen: passwordRouteChosen) {
                     SecureField(L10n.setup_field_password(), text: $password)
                         .setupField(.password)
+                        .onTouchKeyboardSubmit {
+                            guard canConnect, certificateOK, !model.isConnecting else { return }
+                            submitImap()
+                        }
                 }
             }
             .task(id: ImapAuthQuestion(typedImapRequest)) {
@@ -115,6 +119,10 @@ extension AccountSetupView {
                 }
                 SecureField(L10n.setup_jmap_secret_placeholder(), text: $password)
                     .setupField(.password)
+                    .onTouchKeyboardSubmit {
+                        guard canConnectJmap, !model.isConnecting else { return }
+                        model.submitJmapSetup(email: username, serverURL: jmapServer, password: password)
+                    }
                 Text(L10n.setup_jmap_secret_note())
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -141,6 +149,10 @@ extension AccountSetupView {
                     .setupField(.email)
                 SecureField(L10n.setup_field_password(), text: $password)
                     .setupField(.password)
+                    .onTouchKeyboardSubmit {
+                        guard canConnectDav, certificateOK, !model.isConnecting else { return }
+                        submitDav()
+                    }
             }
             SetupCard(title: L10n.setup_detect_section_calendar(), systemImage: "calendar") {
                 davServerField(L10n.setup_field_caldav_optional(), text: $caldavURL)

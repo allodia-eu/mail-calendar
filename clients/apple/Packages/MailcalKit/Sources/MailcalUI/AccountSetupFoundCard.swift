@@ -37,6 +37,7 @@ extension AccountSetupDetectView {
                                     loginHint: microsoftEmail, uses: uses.chosen.uses)
                             }
                             .buttonStyle(.borderedProminent)
+                            .keyboardShortcut(.defaultAction)
                         }
                     }
                 case let .google(googleEmail):
@@ -56,6 +57,7 @@ extension AccountSetupDetectView {
                                 model.signInWithGoogle(loginHint: googleEmail, uses: uses.chosen.uses)
                             }
                             .buttonStyle(.borderedProminent)
+                            .keyboardShortcut(.defaultAction)
                             .disabled(!googleEarlyAccessConfirmed)
                         }
                     }
@@ -122,6 +124,10 @@ extension AccountSetupDetectView {
                 }
                 SecureField(L10n.setup_jmap_secret_placeholder(), text: $password)
                     .setupField(.password)
+                    .onTouchKeyboardSubmit {
+                        guard form.canConnect, !model.isConnecting else { return }
+                        model.submitJmapSetup(email: email, serverURL: serverURL, password: password)
+                    }
                     .jmapOAuthProbe(
                         email: email,
                         serverURL: serverURL,
@@ -172,6 +178,10 @@ extension AccountSetupDetectView {
                         .fixedSize(horizontal: false, vertical: true)
                     SecureField(L10n.setup_field_password(), text: $password)
                         .setupField(.password)
+                        .onTouchKeyboardSubmit {
+                            guard form.canConnect, !imapSigningIn, !model.isConnecting else { return }
+                            connectStandards(form, request: request)
+                        }
                     certificateControls(form)
                 }
             }
@@ -204,6 +214,10 @@ extension AccountSetupDetectView {
                     .fixedSize(horizontal: false, vertical: true)
                 SecureField(L10n.setup_field_password(), text: $password)
                     .setupField(.password)
+                    .onTouchKeyboardSubmit {
+                        guard form.canConnect, !model.isConnecting else { return }
+                        connectStandards(form, request: nil)
+                    }
                 certificateControls(form)
             }
             inlineError(suppressed: form.refusedCertificate != nil)

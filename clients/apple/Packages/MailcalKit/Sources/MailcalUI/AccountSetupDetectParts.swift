@@ -64,6 +64,7 @@ extension AccountSetupDetectView {
             } else {
                 Button(L10n.action_connect(), action: action)
                     .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                     .disabled(!enabled)
             }
         }

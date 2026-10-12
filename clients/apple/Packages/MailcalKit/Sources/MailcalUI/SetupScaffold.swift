@@ -113,6 +113,18 @@ struct SetupFooter<Content: View>: View {
 }
 
 extension View {
+    /// The touch keyboard's Return does what the step's primary button does. On macOS Return
+    /// already reaches that button as the sheet's default action, and a second path would press
+    /// it twice.
+    @ViewBuilder
+    func onTouchKeyboardSubmit(_ action: @escaping () -> Void) -> some View {
+        #if os(iOS)
+        onSubmit(action)
+        #else
+        self
+        #endif
+    }
+
     /// A setup text field: the keyboard/content-type configuration for what it holds, plus the
     /// bordered style. The style is explicit because these fields no longer sit in a `Form`, which
     /// is what used to draw their chrome.

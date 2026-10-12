@@ -167,22 +167,26 @@ struct AccountSetupDetectView: View {
 
             TextField(L10n.setup_detect_email_placeholder(), text: $email)
                 .setupField(.email)
+                .onTouchKeyboardSubmit(continueFromAddress)
             SetupFooter {
                 if let cancel {
                     Button(L10n.action_cancel(), action: cancel)
                         .keyboardShortcut(.cancelAction)
                 }
                 Button(L10n.setup_detect_manual()) { phase = .manual(nil, nil) }
-                Button(L10n.setup_detect_action()) {
-                    Task {
-                        phase = .detecting
-                        show(await model.detectSetup(email: email))
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(email.isEmpty)
+                Button(L10n.setup_detect_action(), action: continueFromAddress)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(email.isEmpty)
             }
         }
+    }
+
+    /// Looks the address up, once: a second Return while it is being looked up does nothing.
+    private func continueFromAddress() {
+        guard !email.isEmpty, phase.isEmailStep else { return }
+        phase = .detecting
+        Task { show(await model.detectSetup(email: email)) }
     }
 
     private var detectingView: some View {

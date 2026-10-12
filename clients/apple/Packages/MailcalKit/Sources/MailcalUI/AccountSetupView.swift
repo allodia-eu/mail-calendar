@@ -229,6 +229,7 @@ struct AccountSetupView: View {
             } else {
                 Button(L10n.action_connect(), action: submitImap)
                     .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                     .disabled(!canConnect || !certificateOK)
             }
         case .jmap:
@@ -239,6 +240,7 @@ struct AccountSetupView: View {
                     model.submitJmapSetup(email: username, serverURL: jmapServer, password: password)
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
                 .disabled(!canConnectJmap)
             }
         case .dav:
@@ -247,6 +249,7 @@ struct AccountSetupView: View {
             } else {
                 Button(L10n.action_connect(), action: submitDav)
                     .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                     .disabled(!canConnectDav || !certificateOK)
             }
         case .microsoft:
@@ -257,6 +260,7 @@ struct AccountSetupView: View {
                     model.signInWithMicrosoft(loginHint: typedHint, uses: providerChoice)
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
             }
         case .google:
             if model.googleSigningIn {
@@ -267,6 +271,7 @@ struct AccountSetupView: View {
                     model.signInWithGoogle(loginHint: typedHint, uses: providerChoice)
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
                 .disabled(!googleEarlyAccessConfirmed)
             }
         }
