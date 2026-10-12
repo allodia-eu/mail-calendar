@@ -34,8 +34,8 @@ internal sealed class SetupLinkStep
     /// <summary>
     /// The step for <paramref name="account"/>, or null when no other account can fill anything
     /// it lacks, or its kind is not offered linking at setup (<paramref name="offersLinks"/>, the
-    /// core's <c>offers_setup_links</c>: a Microsoft, Google or JMAP account holds everything
-    /// itself, and linking one is for Settings).
+    /// core's <c>offers_setup_links</c>: a Microsoft or Google account holds everything itself,
+    /// and linking one is for Settings).
     /// </summary>
     public static SetupLinkStep? For(AccountsSnapshot snapshot, string account, Func<AccountKind, bool> offersLinks)
     {

@@ -72,6 +72,16 @@ private func mailboxOnly() -> AccountEntry {
                 == UseSwitch(active: false, asks: true, enabled: true, note: .withheld))
     }
 
+    @Test func aUseTheServerDoesNotOfferCannotBeSwitchedAndHoldsNothingOn() {
+        let account = entry(.jmap, [(.mail, .on), (.calendar, .notOffered), (.contacts, .off)])
+        #expect(
+            AccountSettingsRules.useSwitch(account, .calendar)
+                == UseSwitch(active: false, asks: false, enabled: false, note: .notOffered))
+        // Mail is the one use that works, so it is the last.
+        #expect(AccountSettingsRules.useSwitch(account, .mail).note == .last)
+        #expect(AccountSettingsRules.inUse(account) == [.mail])
+    }
+
     @Test func signingInAgainIsOfferedWhereTheProviderSignsIn() {
         #expect(AccountSettingsRules.signsInAtProvider(.microsoft))
         #expect(AccountSettingsRules.signsInAtProvider(.google))

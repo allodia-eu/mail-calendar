@@ -89,6 +89,22 @@ public class AccountSettingsRulesTests
     }
 
     [Fact]
+    public void AUseTheServerDoesNotOfferCannotBeSwitchedAndHoldsNothingOn()
+    {
+        var entry = Entry(
+            AccountKind.Jmap,
+            (AccountCapability.Mail, CapabilityState.On),
+            (AccountCapability.Calendar, CapabilityState.NotOffered),
+            (AccountCapability.Contacts, CapabilityState.Off));
+        Assert.Equal(
+            new UseSwitch(Active: false, Asks: false, Enabled: false, Note: UseNote.NotOffered),
+            AccountSettingsRules.Switch(entry, AccountCapability.Calendar));
+        // Mail is the one use that works, so it is the last.
+        Assert.Equal(UseNote.Last, AccountSettingsRules.Switch(entry, AccountCapability.Mail).Note);
+        Assert.Equal([AccountCapability.Mail], AccountSettingsRules.InUse(entry));
+    }
+
+    [Fact]
     public void SigningInAgainIsOfferedWhereTheProviderSignsIn()
     {
         Assert.True(AccountSettingsRules.SignsInAtProvider(AccountKind.Microsoft));

@@ -63,8 +63,8 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | An account without mail is kept out of the mail surfaces | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar groups headed by the account's address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Every account, its uses' states and its links in one snapshot | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
-| A use the server does not offer reads as such, and cannot be switched on | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| First-run setup when no account is left, an account without mail counting | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| A use the server does not offer reads as such, and cannot be switched on | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
+| First-run setup when no account is left, an account without mail counting | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | Removing an account clears the links to it, and the confirmation names them | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | Setting a link to one of the offered accounts | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | A link suggested when the calendar server schedules as the mail account's address | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
@@ -122,8 +122,8 @@ it, while bob's calendar is offered without being suggested.
   account whose mail it arrived in, and "save contact" still writes to the account in view.
 - **A use that fails has no state of its own.** A calendar that cannot be reached beside a
   working mailbox still reads as on; only the connection banners say so. Apple, Linux and Windows
-  draw "needs permission" on the account's page and in the list, and sign the account in again to
-  ask for it; Linux also draws "not offered". Android does not draw Settings → Accounts from the
+  draw "needs permission" and "not offered" on the account's page and in the list, and sign the
+  account in again to ask for a permission. Android does not draw Settings → Accounts from the
   snapshot, so there a use a Microsoft or Google grant withholds is still closed without a word
   (Microsoft's calendar aside, which raises its re-consent prompt), and a use a JMAP session lacks
   is simply absent.

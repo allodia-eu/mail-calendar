@@ -94,6 +94,7 @@ public sealed partial class SettingsDialog
         UseNote.Last => L10n.SettingsAccountUseLast(),
         UseNote.NeedsContacts => L10n.SettingsAccountColleaguesNeedsContacts(),
         UseNote.Withheld => L10n.SettingsAccountUseWithheld(),
+        UseNote.NotOffered => L10n.SettingsAccountUseNotOffered(),
         _ => null,
     };
 

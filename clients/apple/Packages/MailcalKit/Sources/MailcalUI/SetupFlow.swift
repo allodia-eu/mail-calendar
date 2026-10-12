@@ -27,7 +27,7 @@ struct SetupLinkStep: Equatable {
 
     /// The step for `account`, or `nil` when no other account can fill anything it lacks, or its
     /// kind is not offered linking at setup (`offersLinks`, the core's `offers_setup_links`: a
-    /// Microsoft, Google or JMAP account holds everything itself, and linking one is for Settings).
+    /// Microsoft or Google account holds everything itself, and linking one is for Settings).
     static func step(
         _ snapshot: AccountsSnapshot, account: String,
         offersLinks: (AccountKind) -> Bool = { offersSetupLinks(kind: $0) }

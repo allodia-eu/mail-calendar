@@ -13,6 +13,8 @@ enum UseNote: Equatable {
     case needsContacts
     /// Chosen, and the provider has not granted it.
     case withheld
+    /// The server offers none, so nothing can switch it on.
+    case notOffered
 }
 
 /// How one use's switch is drawn.
@@ -44,7 +46,13 @@ enum AccountSettingsRules {
     /// The uses the account is used for, working or waiting on a permission, in the snapshot's
     /// order.
     static func inUse(_ entry: AccountEntry) -> [AccountCapability] {
-        entry.uses.filter { $0.state != .off }.map(\.capability)
+        entry.uses.filter { works($0.state) }.map(\.capability)
+    }
+
+    /// Whether the account is used for a use in `state`: on, or waiting on the provider's
+    /// permission. A use the server does not offer is not one, whatever was chosen.
+    private static func works(_ state: CapabilityState) -> Bool {
+        state == .on || state == .needsPermission
     }
 
     /// The links the account holds, as the list row names them.
@@ -77,7 +85,7 @@ enum AccountSettingsRules {
     /// switch says why rather than letting the person find out.
     static func useSwitch(_ entry: AccountEntry, _ capability: AccountCapability) -> UseSwitch {
         func used(_ wanted: AccountCapability) -> Bool {
-            entry.uses.contains { $0.capability == wanted && $0.state != .off }
+            entry.uses.contains { $0.capability == wanted && works($0.state) }
         }
         let state = entry.uses.first { $0.capability == capability }?.state ?? .off
         // A use waiting on a permission is drawn off, so it is never the one held on: switching
@@ -85,15 +93,17 @@ enum AccountSettingsRules {
         let last = state == .on && primary.contains(capability)
             && primary.filter(used).count == 1
         let withoutContacts = capability == .colleagues && state == .off && !used(.contacts)
+        let notOffered = state == .notOffered
         let note: UseNote =
-            last ? .last
+            notOffered ? .notOffered
+            : last ? .last
             : withoutContacts ? .needsContacts
             : state == .needsPermission ? .withheld
             : .none
         return UseSwitch(
             active: state == .on,
             asks: state == .needsPermission,
-            enabled: !last && !withoutContacts,
+            enabled: !last && !withoutContacts && !notOffered,
             note: note
         )
     }
@@ -183,6 +193,7 @@ enum AccountSettingsLabels {
         case .last: L10n.settings_account_use_last()
         case .needsContacts: L10n.settings_account_colleagues_needs_contacts()
         case .withheld: L10n.settings_account_use_withheld()
+        case .notOffered: L10n.settings_account_use_not_offered()
         }
     }
 

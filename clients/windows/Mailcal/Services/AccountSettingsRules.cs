@@ -16,6 +16,8 @@ internal enum UseNote
     NeedsContacts,
     /// <summary>Chosen, and the provider has not granted it.</summary>
     Withheld,
+    /// <summary>The server offers none, so nothing can switch it on.</summary>
+    NotOffered,
 }
 
 /// <summary>How one use's switch is drawn.</summary>
@@ -52,7 +54,13 @@ internal static class AccountSettingsRules
     /// <summary>The uses the account is used for, working or waiting on a permission, in the
     /// snapshot's order.</summary>
     internal static IReadOnlyList<AccountCapability> InUse(AccountEntry entry) =>
-        entry.Uses.Where(use => use.State != CapabilityState.Off).Select(use => use.Capability).ToList();
+        entry.Uses.Where(use => Works(use.State)).Select(use => use.Capability).ToList();
+
+    /// <summary>Whether the account is used for a use in <paramref name="state"/>: on, or waiting
+    /// on the provider's permission. A use the server does not offer is not one, whatever was
+    /// chosen.</summary>
+    private static bool Works(CapabilityState state) =>
+        state is CapabilityState.On or CapabilityState.NeedsPermission;
 
     /// <summary>The links the account holds, as the list row names them.</summary>
     internal static IReadOnlyList<(AccountCapability Use, string Address)> Linked(AccountEntry entry)
@@ -96,7 +104,7 @@ internal static class AccountSettingsRules
     internal static UseSwitch Switch(AccountEntry entry, AccountCapability capability)
     {
         bool Used(AccountCapability wanted) =>
-            entry.Uses.Any(use => use.Capability == wanted && use.State != CapabilityState.Off);
+            entry.Uses.Any(use => use.Capability == wanted && Works(use.State));
         var state = entry.Uses.FirstOrDefault(use => use.Capability == capability)?.State
             ?? CapabilityState.Off;
         // A use waiting on a permission is drawn off, so it is never the one held on: switching it
@@ -107,14 +115,16 @@ internal static class AccountSettingsRules
         var withoutContacts = capability == AccountCapability.Colleagues
             && state == CapabilityState.Off
             && !Used(AccountCapability.Contacts);
-        var note = last ? UseNote.Last
+        var notOffered = state == CapabilityState.NotOffered;
+        var note = notOffered ? UseNote.NotOffered
+            : last ? UseNote.Last
             : withoutContacts ? UseNote.NeedsContacts
             : state == CapabilityState.NeedsPermission ? UseNote.Withheld
             : UseNote.None;
         return new UseSwitch(
             Active: state == CapabilityState.On,
             Asks: state == CapabilityState.NeedsPermission,
-            Enabled: !last && !withoutContacts,
+            Enabled: !last && !withoutContacts && !notOffered,
             Note: note);
     }
 
