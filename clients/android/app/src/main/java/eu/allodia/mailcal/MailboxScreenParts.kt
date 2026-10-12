@@ -15,7 +15,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -136,15 +135,15 @@ internal fun ConnectionIssuesBanner(
 // Shown on the calendar when a Microsoft account's calendar is withheld for lack of the calendar
 // OAuth scope (connected before calendar support, or revoked consent). Mail is unaffected, this
 // is a permission prompt, not an outage, so it uses the tertiary (informational) container, not
-// the error one. "Reconnect" re-runs that account's Microsoft sign-in, which upgrades its token
-// in place with the calendar scope; the banner clears once the calendar connects.
+// the error one. "Reconnect" signs that account in again in place for everything it is used for,
+// keeping its mail and settings; the banner clears once the calendar connects.
 @androidx.compose.runtime.Composable
 internal fun CalendarReauthBanner(
-    emails: List<String>,
-    onReconnect: (email: String) -> Unit,
+    accounts: List<NamedAccount>,
+    onReconnect: (accountId: String) -> Unit,
     ctx: Context,
 ) {
-    if (emails.isEmpty()) return
+    if (accounts.isEmpty()) return
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -159,7 +158,7 @@ internal fun CalendarReauthBanner(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = L10n.calendar_reauth_prompt(ctx, emails.joinToString(", ")),
+            text = L10n.calendar_reauth_prompt(ctx, accounts.joinToString(", ") { it.email }),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
             modifier = Modifier.weight(1f),
@@ -167,7 +166,7 @@ internal fun CalendarReauthBanner(
         Spacer(modifier = Modifier.width(8.dp))
         // One button re-auths the first affected account; when several are affected the banner
         // re-renders after each clears, walking through them one sign-in at a time.
-        TextButton(onClick = { emails.firstOrNull()?.let(onReconnect) }) {
+        TextButton(onClick = { accounts.firstOrNull()?.let { onReconnect(it.id) } }) {
             Text(L10n.calendar_reauth_action(ctx))
         }
     }
@@ -177,15 +176,15 @@ internal fun CalendarReauthBanner(
 // Mail.ReadWrite / Mail.Send OAuth scopes (connected before those scopes, or revoked consent), so a
 // send or a mail action was refused with `403 ErrorAccessDenied`. Reading is unaffected, a
 // permission prompt, not an outage, so it uses the tertiary (informational) container, like the
-// calendar one. "Reconnect" re-runs that account's Microsoft sign-in, which re-grants the full
-// scope set (clearing this and any calendar prompt); the banner clears once a send/action succeeds.
+// calendar one. "Reconnect" signs that account in again in place for everything it is used for
+// (clearing this and any calendar prompt); the banner clears once a send/action succeeds.
 @androidx.compose.runtime.Composable
 internal fun MailReauthBanner(
-    emails: List<String>,
-    onReconnect: (email: String) -> Unit,
+    accounts: List<NamedAccount>,
+    onReconnect: (accountId: String) -> Unit,
     ctx: Context,
 ) {
-    if (emails.isEmpty()) return
+    if (accounts.isEmpty()) return
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -200,7 +199,7 @@ internal fun MailReauthBanner(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = L10n.mail_reauth_prompt(ctx, emails.joinToString(", ")),
+            text = L10n.mail_reauth_prompt(ctx, accounts.joinToString(", ") { it.email }),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
             modifier = Modifier.weight(1f),
@@ -208,7 +207,7 @@ internal fun MailReauthBanner(
         Spacer(modifier = Modifier.width(8.dp))
         // One button re-auths the first affected account; when several are affected the banner
         // re-renders after each clears, walking through them one sign-in at a time.
-        TextButton(onClick = { emails.firstOrNull()?.let(onReconnect) }) {
+        TextButton(onClick = { accounts.firstOrNull()?.let { onReconnect(it.id) } }) {
             Text(L10n.mail_reauth_action(ctx))
         }
     }
@@ -218,13 +217,15 @@ internal fun MailReauthBanner(
 /// revoked OAuth grant, or a refused password. Distinct from [ConnectionIssuesBanner]: the server
 /// answered, so "Try again" would never help; only a fresh sign-in does. An OAuth account gets a
 /// button that re-runs its own flow, including a JMAP account connected by signing in, which
-/// re-authorises its own persisted grant; a password or pasted-secret JMAP account is pointed at
-/// Settings, since there is no browser flow to launch.
+/// re-authorises its own persisted grant; a password or pasted-secret JMAP account opens its page in
+/// Settings, where the new one is entered.
 @androidx.compose.runtime.Composable
 internal fun SignInExpiredBanner(
     accounts: List<ExpiredSignIn>,
     onSignIn: (account: ExpiredSignIn) -> Unit,
     ctx: Context,
+    // Opens the account's page in Settings, where a password or API token is replaced.
+    onOpenSettings: (account: ExpiredSignIn) -> Unit = {},
 ) {
     val first = accounts.firstOrNull() ?: return
     val canRelaunch = first.provider == AccountProvider.MICROSOFT ||
@@ -254,12 +255,16 @@ internal fun SignInExpiredBanner(
             color = MaterialTheme.colorScheme.onTertiaryContainer,
             modifier = Modifier.weight(1f),
         )
+        Spacer(modifier = Modifier.width(8.dp))
+        // One button signs the first affected account back in; with several affected the banner
+        // re-renders after each clears, walking through them one at a time.
         if (canRelaunch) {
-            Spacer(modifier = Modifier.width(8.dp))
-            // One button signs the first affected account back in; with several affected the
-            // banner re-renders after each clears, walking through them one at a time.
             TextButton(onClick = { onSignIn(first) }) {
                 Text(L10n.signin_expired_action(ctx))
+            }
+        } else {
+            TextButton(onClick = { onOpenSettings(first) }) {
+                Text(L10n.settings_title(ctx))
             }
         }
     }
@@ -295,9 +300,10 @@ internal fun AccountSwitcher(
     selectedAccount: String?,
     unreachableAccounts: List<String>,
     onSelectAccount: (String?) -> Unit,
-    onAddAccount: () -> Unit,
     onRemoveAccount: (String) -> Unit,
     modifier: Modifier = Modifier,
+    // The accounts losing their link when an account is removed, named in its confirmation.
+    unlinkedBy: (String) -> String? = { null },
 ) {
     val ctx = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
@@ -363,31 +369,16 @@ internal fun AccountSwitcher(
                     },
                 )
             }
-            HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text(L10n.action_add_account(ctx)) },
-                onClick = {
-                    expanded = false
-                    onAddAccount()
-                },
-            )
         }
         accountToRemove?.let { account ->
-            AlertDialog(
-                onDismissRequest = { accountToRemove = null },
-                title = { Text(L10n.remove_account_title(ctx)) },
-                text = { Text(L10n.remove_account_message(ctx, account.email)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        onRemoveAccount(account.id)
-                        accountToRemove = null
-                    }) { Text(L10n.action_remove(ctx)) }
+            RemoveAccountDialog(
+                address = account.email,
+                unlinked = unlinkedBy(account.id),
+                onConfirm = {
+                    onRemoveAccount(account.id)
+                    accountToRemove = null
                 },
-                dismissButton = {
-                    TextButton(onClick = { accountToRemove = null }) {
-                        Text(L10n.action_cancel(ctx))
-                    }
-                },
+                onDismiss = { accountToRemove = null },
             )
         }
     }

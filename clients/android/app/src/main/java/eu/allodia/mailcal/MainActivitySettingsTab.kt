@@ -6,10 +6,12 @@ package eu.allodia.mailcal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import uniffi.mailcal_bindings.AboutPlatform
+import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.aboutInfo
+import uniffi.mailcal_bindings.standardPort
 
 // The unified Settings screen, swapped in over the mailbox.
 @Composable
@@ -173,7 +175,35 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onBack = {
                                 showingSettings = false
                                 settingsCategory = null
+                                accountSettings.page = null
+                                accountSettings.notice = null
                             },
                             initialCategory = settingsCategory,
+                            accountsUi = accountsSettingsUi(),
                         )
 }
+
+// Settings → Accounts' state and what each change on it asks of the core
+// (MainActivityAccountSettings.kt).
+private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
+    state = accountSettings,
+    expired = signInExpired.map { it.id }.toSet(),
+    // A JMAP account holding a pasted password or API token, while the server refuses it.
+    pastedSecret = signInExpired.filter { it.provider == AccountProvider.JMAP }.map { it.id }.toSet(),
+    standardPort = { kind, security -> standardPort(kind, security).toInt() },
+    // Add account opens setup over Settings, which is where cancelling or finishing returns to.
+    onAddAccount = {
+        addError = null
+        addingAccount = true
+    },
+    onOpenPage = { id ->
+        accountSettings.notice = null
+        accountSettings.page = id
+    },
+    onSetUse = { id, capability, on -> setAccountUse(id, capability, on) },
+    onSetLink = { id, slot, target -> setAccountLink(id, slot, target) },
+    onSignInAgain = { id, adding -> signInAgain(id, adding) },
+    onSaveServers = { id, endpoints -> saveAccountEndpoints(id, endpoints) },
+    onReplaceSecret = { id, secret -> replaceAccountSecret(id, secret) },
+    onRemove = { id -> removeAccount(id) },
+)

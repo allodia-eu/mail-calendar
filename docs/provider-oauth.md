@@ -639,8 +639,8 @@ single provider's table):
 | Prompt routes to the right sign-in via `MailcalApp::account_provider` (Settings where there is no browser flow) | ✅ | ✅ | ✅ Google · OAuth JMAP · Microsoft untested | ✅ | ✅ Microsoft · Google · OAuth JMAP runtime-verified; stored-secret repair code-complete |
 | A second sign-in request supersedes one abandoned in the browser (rule 13) | — | ✅ never guarded; a sign-in in place ends the one before it | ✅ `SignInFlight` | ✅ never guarded | ✅ `AttemptSlot` |
 | OAuth **JMAP** re-authentication in place from the prompt (rule 14: `begin_jmap_reauth` / `complete_jmap_reauth`) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Microsoft and Google signed in again in place, from the prompts and the account's Settings page, a withheld use asked for when switched on (rule 11: `begin_account_consent` / `complete_account_consent`) | ✅ | ✅ | ✅ | ⬜ | ✅ |
-| Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`replace_account_secret`) | ✅ | ✅ | ✅ | ⬜ | ✅ |
+| Microsoft and Google signed in again in place, from the prompts and the account's Settings page, a withheld use asked for when switched on (rule 11: `begin_account_consent` / `complete_account_consent`) | ✅ | ✅ | ✅ | 🚧 | ✅ |
+| Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`replace_account_secret`) | ✅ | ✅ | ✅ | 🚧 | ✅ |
 | The uses chosen before the browser opens, the sign-in asking for those alone, and a use the grant withheld said after it (rule 10) | ✅ | ✅ | ✅ | ⬜ | ✅ |
 
 Each client fills its Azure **client id** in its `MicrosoftOAuth.{swift,kt,cs}` and registers a
@@ -746,14 +746,12 @@ the doctrine's "provider sync" language for *account connection* specifically.)
   cards draw them before the browser opens, from the core's choices (`provider_setup_choices`,
   which offers no colleagues for a personal address), and pass the choice on; Android passes none,
   which asks for everything as before.
-- **A use the grant withholds is closed silently on Android.** An account whose mail was withheld
-  leaves the mail surfaces without saying why. Apple, Linux and Windows say so once setup has
-  finished and its name prompts are answered, opening the account's page in Settings with the
-  withheld uses named, and that page signs the account in again for one through
-  `begin_account_consent`. Android draws no "needs permission" state; Microsoft's calendar is its
-  exception, through rule 11's prompt, and its **Reconnect** and "sign in again" still run
-  `complete_microsoft_login` / `complete_google_login`, which ask for everything and start a
-  visible first download of an account that already has its mail.
+- **A use the grant withholds is not said after setup on Android.** An account whose mail was
+  withheld leaves the mail surfaces with nothing said at the time. Apple, Linux and Windows say so
+  once setup has finished and its name prompts are answered, opening the account's page in Settings
+  with the withheld uses named. On Android that page draws the use as needing permission, and
+  switching it on, or **Sign in again**, signs the account in again in place through
+  `begin_account_consent`, as the banners' **Reconnect** does.
 - **Graph mail: read/sync + mail actions + sending.** The engine's Graph adapter does mail folders
   + messages + message source (bodies render via `/messages/{id}/$value`) + a `receivedDateTime`
   sync-depth window, mail edits (`edit_mail`: mark-read/flag, move/archive, permanent
@@ -920,10 +918,6 @@ the doctrine's "provider sync" language for *account connection* specifically.)
 - **Linux's stored-secret credential remedy remains live-account unverified.** Password and
   pasted-secret JMAP accounts expose an in-place replacement in Settings → Accounts. Its rollback
   and UI routing are automated, but it has not been driven against a real expired Linux account yet.
-- **Apple, Windows, and Android still tell stored-secret accounts to use Settings without offering
-  a credential editor there.** The shared connect-before-persist operation exists, but those
-  clients have not exposed it in Accounts yet; a refused password or pasted JMAP secret still
-  requires remove-and-re-add on them.
 - **Windows leaves a dangling browser tab.** Apple (`ASWebAuthenticationSession`) and Android
   (Custom Tabs) auto-dismiss their session on the redirect; the Windows **default browser** has no
   API to close its own tab, so after the custom-scheme hand-off the app raises itself but a blank

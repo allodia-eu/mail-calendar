@@ -69,10 +69,10 @@ APK="$HERE/app/build/outputs/apk/play/debug/app-play-debug.apk"
 
 echo "==> Installing + launching on the device/emulator"
 "$ADB" wait-for-device
-if [[ "${MAILCAL_DEV_ACCOUNT:-}" == "stalwart" || "${MAILCAL_DEV_ACCOUNT:-}" == "stalwart-multi" || "${MAILCAL_DEV_ACCOUNT:-}" == "stalwart-imap" ]]; then
+if [[ "${MAILCAL_DEV_ACCOUNT:-}" == stalwart* ]]; then
   echo "==> Mapping Android localhost to the host Stalwart harness (adb reverse)"
   "$ADB" reverse tcp:28080 tcp:28080
-  if [[ "${MAILCAL_DEV_ACCOUNT:-}" == "stalwart-imap" ]]; then
+  if [[ "${MAILCAL_DEV_ACCOUNT:-}" == "stalwart-imap" || "${MAILCAL_DEV_ACCOUNT:-}" == "stalwart-linked" ]]; then
     "$ADB" reverse tcp:12993 tcp:12993
     # SMTP submission (STARTTLS). The stalwart-imap fixture carries an [smtp] and a [caldav]
     # half so it is mail-beside-a-separate-calendar, the shape meeting invitations break on

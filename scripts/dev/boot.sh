@@ -112,9 +112,6 @@ case "$ACCOUNT" in
     deliver_harness_ca
     info "booting $platform against the local Stalwart harness over IMAP (full mail actions + IDLE)" ;;
   stalwart-linked)
-    # Android answers a mode it does not know with the developer's stored accounts, so this one is
-    # refused there rather than opening real mail under a harness's name.
-    [[ $platform != android ]] || die "--account stalwart-linked is not implemented on Android"
     require_harness
     extract_harness_ca || die "could not read the harness certificates: run: scripts/dev/harness.sh up"
     deliver_harness_ca

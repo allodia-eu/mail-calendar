@@ -168,8 +168,8 @@ mailbox ([`accounts.md`](accounts.md)). It exists for linking accounts: alice's 
 schedules as her address, so it is the one suggested for her mailbox, and bob's is offered beside it
 without being suggested. Nothing is linked up front, and nothing changed in that mode outlives the launch: the canned
 accounts are connected without what the namespace stored, since a link or a use is stored under the
-canned account's own id. Every client but Android: `boot.sh` refuses it there, since that client
-would answer a mode it does not know with the developer's stored accounts.
+canned account's own id. On Android, whose store is not namespaced per mode, the core's writes in
+that mode go nowhere at all, so none reaches the developer's own accounts.
 
 On **macOS** the isolation is wider still, and it is not conditional on the harness: **every** DEBUG
 build is separated from the installed app, `--account personal` included (that being the mode that

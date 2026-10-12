@@ -39,8 +39,31 @@ internal fun MainActivity.devConfigs(devMode: String?): List<String>? {
             installHarnessCa()
             listOf(STALWART_DEV_IMAP_TOML)
         }
+        // Alice's mailbox for mail alone, beside alice's and bob's calendar and contacts as
+        // accounts of their own: what linking accounts is verified against (docs/accounts.md rule
+        // 12). Alice's calendar server schedules as her address, so it is suggested for her
+        // mailbox; bob's is offered and not suggested. Nothing is read from or written to the
+        // Keystore (`DevLinkedCredentialStore`), so every launch starts with nothing linked.
+        DEV_LINKED -> {
+            installHarnessCa()
+            STALWART_DEV_LINKED_TOMLS
+        }
         else -> null
     }
+}
+
+/** The dev mode whose accounts live in memory alone. */
+internal const val DEV_LINKED = "stalwart-linked"
+
+/**
+ * Where the core writes `stalwart-linked`'s accounts: nowhere durable. Its canned accounts are not
+ * read from the Keystore, so a link or a use changed here, written there, would come back at the
+ * next personal launch as a harness account beside the developer's own.
+ */
+internal object DevLinkedCredentialStore : uniffi.mailcal_bindings.AccountCredentialStore {
+    override fun persist(accountId: String, configToml: String) = Unit
+
+    override fun delete(accountId: String) = Unit
 }
 
 // The Allodia account a previous dev session signed in to, if any, nothing else.
@@ -160,3 +183,34 @@ private val STALWART_DEV_IMAP_TOML = """
     username = "alice@test.local"
     password = "harness-alice-pw"
 """.trimIndent()
+
+// The three accounts of `stalwart-linked`, hand-written for the reason the IMAP one above is: the
+// harness presents `localhost`, which the config builder cannot be told.
+private val STALWART_DEV_LINKED_TOMLS = listOf(
+    """
+    capabilities = ["mail"]
+
+    [imap]
+    addr = "127.0.0.1:12993"
+    server_name = "localhost"
+    username = "alice@test.local"
+    password = "harness-alice-pw"
+
+    [smtp]
+    addr = "127.0.0.1:12587"
+    server_name = "localhost"
+    security = "starttls"
+    """.trimIndent(),
+    """
+    [caldav]
+    base_url = "http://127.0.0.1:28080"
+    username = "alice@test.local"
+    password = "harness-alice-pw"
+    """.trimIndent(),
+    """
+    [caldav]
+    base_url = "http://127.0.0.1:28080"
+    username = "bob@test.local"
+    password = "harness-bob-pw"
+    """.trimIndent(),
+)

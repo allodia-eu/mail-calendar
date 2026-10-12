@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -103,6 +102,7 @@ internal fun CategoryDetail(
     onSetPushFolder: (account: String, folder: String, subscribed: Boolean) -> Unit,
     onSetSenderName: (account: String, name: String) -> Unit,
     onRequestReset: () -> Unit,
+    accountsUi: AccountsSettingsUi,
 ) {
     val ctx = LocalContext.current
     when (category) {
@@ -270,37 +270,36 @@ internal fun CategoryDetail(
             }
         }
 
-        // Accounts, per-account fetch depth + sync behaviour, for mail accounts only, under
-        // whatever the person's other devices have to say about the list itself.
-        SettingsCategory.ACCOUNTS -> {
-            AllodiaSyncCard(allodiaSync, onAllodiaSetUp, onAllodiaKeepLocal, onAllodiaSignIn)
-            val syncAccounts = settings?.accounts.orEmpty()
-            if (syncAccounts.isEmpty()) {
-                Text(
-                    L10n.settings_accounts_empty(ctx),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 8.dp),
-                )
-            } else {
-                syncAccounts.forEach { account ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                            AccountSyncCard(
-                                account = account,
-                                settings = settings!!,
-                                onSetSyncDepth = onSetSyncDepth,
-                                onSetMessageSize = onSetMessageSize,
-                                onSetStrategy = onSetStrategy,
-                                onSetPollInterval = onSetPollInterval,
-                                onSetPushFolder = onSetPushFolder,
-                                onSetSenderName = onSetSenderName,
-                                syncMode = accountsSyncMode[account.accountId],
-                                onSetSyncMode = onSetAccountSyncMode,
-                            )
-                        }
-                    }
+        // Accounts: Add account, what the person's other devices have to say, then every account,
+        // mail or not, each opening a page of its own (SettingsAccounts.kt).
+        SettingsCategory.ACCOUNTS -> AccountsSettings(
+            ui = accountsUi,
+            allodiaSyncCard = {
+                AllodiaSyncCard(allodiaSync, onAllodiaSetUp, onAllodiaKeepLocal, onAllodiaSignIn)
+            },
+        ) { entry ->
+            AccountPage(
+                entry = entry,
+                ui = accountsUi,
+                syncMode = accountsSyncMode[entry.id],
+                onSetSyncMode = { mode -> onSetAccountSyncMode(entry.id, mode) },
+            ) {
+                // While it is used for mail and the core lists its mailbox.
+                val mail = settings?.accounts?.firstOrNull { it.accountId == entry.id }
+                if (settings != null && mail != null) {
                     Spacer(modifier = Modifier.height(8.dp))
+                    SettingsGroupCard(L10n.nav_mail(ctx), L10n.settings_sync_description(ctx)) {
+                        AccountSyncCard(
+                            account = mail,
+                            settings = settings,
+                            onSetSyncDepth = onSetSyncDepth,
+                            onSetMessageSize = onSetMessageSize,
+                            onSetStrategy = onSetStrategy,
+                            onSetPollInterval = onSetPollInterval,
+                            onSetPushFolder = onSetPushFolder,
+                            onSetSenderName = onSetSenderName,
+                        )
+                    }
                 }
             }
         }

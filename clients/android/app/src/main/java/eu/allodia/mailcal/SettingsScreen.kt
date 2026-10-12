@@ -149,16 +149,25 @@ internal fun SettingsScreen(
      * through the hub, which is where a phone user expects the second press to go.
      */
     initialCategory: SettingsCategory? = null,
+    // Accounts: every account from the core's snapshot, and the page open (SettingsAccounts.kt).
+    accountsUi: AccountsSettingsUi = remember { AccountsSettingsUi(AccountsUiState()) },
 ) {
     val ctx = LocalContext.current
     var open by remember(initialCategory) { mutableStateOf(initialCategory) }
     var confirmingReset by remember { mutableStateOf(false) }
-
-    // System back mirrors the back arrow: a detail screen returns to the hub, the hub to the
-    // mailbox. Without this, back would leave Settings (or the app) from anywhere inside it.
-    BackHandler {
-        if (open != null) open = null else onBack()
+    // An account's page sits under the Accounts category, so back from it returns to the list.
+    val accountPage = accountsUi.openEntry().takeIf { open == SettingsCategory.ACCOUNTS }
+    val stepBack = {
+        when {
+            accountPage != null -> accountsUi.onOpenPage(null)
+            open != null -> open = null
+            else -> onBack()
+        }
     }
+
+    // System back mirrors the back arrow: a page returns to its list, a detail screen to the hub,
+    // the hub to the mailbox. Without this, back would leave Settings (or the app) from anywhere.
+    BackHandler { stepBack() }
 
     // Outside the Scaffold, so the system bars are this screen's own problem (see WelcomeScreen).
     Column(modifier = Modifier.fillMaxSize().systemBarsPadding().padding(16.dp)) {
@@ -189,15 +198,22 @@ internal fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = { open = null }) {
+                IconButton(onClick = stepBack) {
                     Icon(
                         painter = painterResource(R.drawable.ic_arrow_back),
                         contentDescription = L10n.a11y_back(ctx),
                     )
                 }
-                Text(current.title(ctx), style = MaterialTheme.typography.titleLarge)
+                Text(
+                    accountPage?.address ?: current.title(ctx),
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
             }
-            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+            // Each page starts at its top: an account's page is not the list scrolled further.
+            val detailScroll = androidx.compose.runtime.key(current, accountPage?.id) { rememberScrollState() }
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(detailScroll)) {
                 Spacer(modifier = Modifier.height(8.dp))
                 CategoryDetail(
                     category = current,
@@ -257,6 +273,7 @@ internal fun SettingsScreen(
                     onSetPushFolder = onSetPushFolder,
                     onSetSenderName = onSetSenderName,
                     onRequestReset = { confirmingReset = true },
+                    accountsUi = accountsUi,
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }

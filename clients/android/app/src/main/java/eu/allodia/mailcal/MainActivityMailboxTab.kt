@@ -30,7 +30,10 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
     // and lands on the store's connection thread, so a call made while a sync holds it waits for
     // it. Off the UI thread, therefore, unlike the detail read this screen already does inline.
     val scope = rememberCoroutineScope()
-    val accountLabels = accounts.associate { it.id to it.email }
+    // Every account by its address, mail or not: a contact's book may be one without a mailbox,
+    // which the switcher rows leave out (docs/accounts.md rule 8).
+    val accountLabels = accounts.associate { it.id to it.email } +
+        accountSettings.snapshot.accounts.associate { it.id to it.address }
     Column(modifier = Modifier.fillMaxSize()) {
                           // A launch outage no longer shows a raw error dump here (it overflowed the
                           // status bar): accounts that can't connect are kept, badged unreachable,
@@ -251,9 +254,9 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                     showingSettings = true
                                 },
                                 // A Microsoft account missing the calendar scope prompts here; the
-                                // action re-runs its sign-in (login_hint = its address) to grant it.
-                                calendarReauthEmails = calendarReauthEmails,
-                                onReconnectCalendar = { email -> signInWithMicrosoft(loginHint = email) },
+                                // action signs it in again in place to grant it.
+                                calendarReauth = calendarReauth,
+                                onReconnectCalendar = { id -> signInAgain(id, emptyList()) },
                             )
                           } else {
                             // The folder navigation drawer wraps the mailbox screen so it can
@@ -300,16 +303,16 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             MailboxScreen(
                             rows = rows,
                             sendStatus = sendStatus,
-                            // Account switcher: the configured accounts, the selected one
-                            // (null = unified all-inboxes), and the add-account affordance.
+                            // Account switcher: the configured accounts and the selected one
+                            // (null = unified all-inboxes). A later account is added from Settings
+                            // alone (docs/settings.md).
                             accounts = accounts,
                             selectedAccount = selectedAccount,
                             onSelectAccount = { instance.dispatch(Intent.SelectAccount(it)) },
-                            onAddAccount = {
-                                addError = null
-                                addingAccount = true
-                            },
                             onRemoveAccount = { removeAccount(it) },
+                            unlinkedBy = { id ->
+                                accountSettings.entry(id)?.let(AccountSettingsRules::unlinked)
+                            },
                             // The folder navigation drawer state, the hamburger icon opens it.
                             drawerState = drawerState,
                             // The list's scroll position, kept by the activity: opening a message
@@ -425,17 +428,18 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             unreachableAccounts = connectivity?.unreachableAccounts ?: emptyList(),
                             connectionIssues = connectionIssues,
                             // A Microsoft account whose grant lacks the mail write/send scopes: a
-                            // "reconnect to send and manage mail" banner whose action re-runs its
-                            // sign-in with the full scope set (same flow as the calendar prompt).
-                            mailReauthEmails = mailReauthEmails,
-                            onReconnectMail = { email -> signInWithMicrosoft(loginHint = email) },
+                            // "reconnect to send and manage mail" banner whose action signs it in
+                            // again in place (same flow as the calendar prompt).
+                            mailReauth = mailReauth,
+                            onReconnectMail = { id -> signInAgain(id, emptyList()) },
                             signInExpired = signInExpired,
+                            onOpenAccountPage = { id -> openAccountPage(id) },
                             onSignInExpired = { account ->
                                 when (account.provider) {
-                                    AccountProvider.MICROSOFT ->
-                                        signInWithMicrosoft(loginHint = account.email)
-                                    AccountProvider.GOOGLE ->
-                                        signInWithGoogle(loginHint = account.email)
+                                    // In place: the account keeps its id, settings and mail, where
+                                    // a first sign-in would add it again (provider-oauth.md rule 11).
+                                    AccountProvider.MICROSOFT, AccountProvider.GOOGLE ->
+                                        signInAgain(account.id, emptyList())
                                     // Addressed to the account id, not the address: the core
                                     // re-authorises this account's own stored grant.
                                     AccountProvider.JMAP_OAUTH ->

@@ -96,6 +96,7 @@ internal fun MainActivity.prepareBoot(): MainActivityBootPlan {
             // A dev launch connects its canned harness account, plus the one stored entry that is
             // not a mail account (devCarriedOverConfigs), so an Allodia sign-in made in this mode
             // is still there at the next launch.
+            devMode == DEV_LINKED -> devConfigs.orEmpty()
             devConfigs != null -> devConfigs + devCarriedOverConfigs(SecureStore.configs(this))
             else -> SecureStore.configs(this)
         }
@@ -262,8 +263,19 @@ internal fun MainActivity.completeOAuthRedirect(data: Uri) {
             appScheme = JmapOAuthConfig.REDIRECT_SCHEME,
         )
     ) {
-        OAuthRedirect.GOOGLE -> completeGoogleLogin(data.toString())
-        OAuthRedirect.MICROSOFT -> completeMicrosoftLogin(data.toString())
+        // Each provider's redirect completes either a first sign-in from the setup form or an
+        // existing account signed in again from Settings or a banner; whichever started last
+        // claimed it (MainActivityAccountSettings.kt).
+        OAuthRedirect.GOOGLE -> if (awaitsConsent(google = true)) {
+            completeAccountConsent(data.toString())
+        } else {
+            completeGoogleLogin(data.toString())
+        }
+        OAuthRedirect.MICROSOFT -> if (awaitsConsent(google = false)) {
+            completeAccountConsent(data.toString())
+        } else {
+            completeMicrosoftLogin(data.toString())
+        }
         OAuthRedirect.ALLODIA -> completeAllodiaSignIn(data.toString())
         OAuthRedirect.IMAP -> completeImapSignIn(data.toString())
         // One host, two flows: a first sign-in from the setup form and a re-authentication

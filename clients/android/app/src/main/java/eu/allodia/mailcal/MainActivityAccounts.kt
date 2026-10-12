@@ -1,5 +1,5 @@
-// Adding and removing a mail account, split out of MainActivityCore.kt: email-first detection, the
-// shared add/remove path every setup route funnels through, and the Microsoft/Google/JMAP OAuth
+// Adding a mail account, split out of MainActivityCore.kt: email-first detection, the
+// shared add path every setup route funnels through, and the Microsoft/Google/JMAP OAuth
 // sign-in + re-authentication flows that end in it.
 package eu.allodia.mailcal
 
@@ -89,23 +89,6 @@ internal fun MainActivity.addAccount(configToml: String) {
     }
 }
 
-// Removes account [id] off the main thread: drops it from the running core (which stops its
-// background sync, takes it out of the switcher/list, and, if it was selected, falls back to
-// the unified inbox, then rebuilds the snapshot so the UI updates via the observer) and deletes
-// its stored credential so it doesn't return on the next launch.
-internal fun MainActivity.removeAccount(id: String) {
-    val instance = app ?: return
-    thread(name = "mailcal-remove-account") {
-        try {
-            instance.removeAccount(id)
-        } catch (e: Exception) {
-            // The account IS gone from the app, only erasing its stored credential failed, so it
-            // would come back at the next launch. Say so rather than letting it reappear silently.
-            logUiWarn("remove account: the credential could not be erased: ${e.message}")
-        }
-    }
-}
-
 // Starts the Microsoft sign-in: asks the core for the authorization URL, opens it in the
 // browser (Custom Tabs), and holds the pending handle until the redirect returns to
 // onNewIntent → completeMicrosoftLogin. Fast (no blocking), so it stays on the main thread.
@@ -121,6 +104,8 @@ internal fun MainActivity.signInWithMicrosoft(loginHint: String? = null) {
             loginHint?.takeIf { it.isNotBlank() },
         )
         pendingMicrosoftLogin = start.pending
+        // A new account, not one being signed in again: this redirect is the setup form's.
+        accountSettings.consent = null
         signingInMicrosoft = true
         openMicrosoftSignIn(this, start.authorizationUrl)
     } catch (e: Exception) {
@@ -184,6 +169,7 @@ internal fun MainActivity.signInWithGoogle(loginHint: String? = null) {
             loginHint = loginHint?.takeIf { it.isNotBlank() },
         )
         pendingGoogleLogin = start.pending
+        accountSettings.consent = null
         signingInGoogle = true
         openGoogleSignIn(this, start.authorizationUrl)
     } catch (e: Exception) {
@@ -428,6 +414,8 @@ internal fun MainActivity.cancelAbandonedSignIns() {
         allodiaSignInSlow = false
         pendingAllodiaSignIn = null
     }
+    // And for a dismissed sign-in of an existing account (MainActivityAccountSettings.kt).
+    cancelAbandonedConsent()
     // A JMAP sign-in is handled differently on purpose. Its browser runs in its own task
     // (see openJmapSignIn), so resuming MainActivity does NOT mean the browser is gone, the
     // user may simply have stepped out to a password manager and come back. So the spinner is

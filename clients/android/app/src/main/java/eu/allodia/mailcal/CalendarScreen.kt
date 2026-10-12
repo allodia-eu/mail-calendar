@@ -95,10 +95,10 @@ internal fun CalendarScreen(
     // (first day of the week, default zoom, default calendar) are three taps away from the hub, and
     // the calendar is where a user is standing when they want them.
     onOpenCalendarSettings: () -> Unit = {},
-    // Emails of Microsoft accounts whose calendar is withheld for lack of the calendar OAuth scope,
-    // and the action to re-authenticate one (re-runs its sign-in with the calendar scope).
-    calendarReauthEmails: List<String> = emptyList(),
-    onReconnectCalendar: (email: String) -> Unit = {},
+    // Microsoft accounts whose calendar is withheld for lack of the calendar OAuth scope, and the
+    // action that signs one in again in place to grant it.
+    calendarReauth: List<NamedAccount> = emptyList(),
+    onReconnectCalendar: (accountId: String) -> Unit = {},
     clock: () -> LocalDateTime = { LocalDateTime.now() },
 ) {
     val ctx = LocalContext.current
@@ -275,7 +275,7 @@ internal fun CalendarScreen(
         HorizontalDivider()
         // A Microsoft account connected before calendar support (or with revoked consent) syncs no
         // calendar until it re-authenticates, prompt for it here, where its absence is felt.
-        CalendarReauthBanner(calendarReauthEmails, onReconnectCalendar, ctx)
+        CalendarReauthBanner(calendarReauth, onReconnectCalendar, ctx)
         if (pager.mode.isMonth) {
             HorizontalPager(
                 state = pagerState,

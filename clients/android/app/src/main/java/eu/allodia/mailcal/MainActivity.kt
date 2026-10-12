@@ -170,15 +170,15 @@ class MainActivity : AppCompatActivity() {
     // its friendly email + technical detail, drives the connection-issues banner. Empty while the
     // whole device is offline (the offline banner stands in) or when everything is connected.
     internal var connectionIssues by mutableStateOf<List<ConnectionIssue>>(emptyList())
-    // The friendly emails of Microsoft accounts whose calendar is withheld for lack of the calendar
-    // OAuth scope (connected before calendar support, or revoked consent), drives the calendar
-    // re-auth banner. Reconnecting an account re-runs its sign-in with the calendar scope.
-    internal var calendarReauthEmails by mutableStateOf<List<String>>(emptyList())
-    // The friendly emails of Microsoft accounts whose mail write/send is withheld for lack of the
-    // Mail.ReadWrite / Mail.Send OAuth scopes (connected before those scopes, or revoked consent):
-    // drives the mail re-auth banner. Reconnecting an account re-runs its sign-in with the full
-    // scope set, so it clears this and any calendar prompt at once.
-    internal var mailReauthEmails by mutableStateOf<List<String>>(emptyList())
+    // Microsoft accounts whose calendar is withheld for lack of the calendar OAuth scope (connected
+    // before calendar support, or revoked consent), drives the calendar re-auth banner. Reconnecting
+    // signs the account in again in place for everything it is used for.
+    internal var calendarReauth by mutableStateOf<List<NamedAccount>>(emptyList())
+    // Microsoft accounts whose mail write/send is withheld for lack of the Mail.ReadWrite /
+    // Mail.Send OAuth scopes (connected before those scopes, or revoked consent): drives the mail
+    // re-auth banner. Reconnecting signs the account in again in place for everything it is used
+    // for, so it clears this and any calendar prompt at once.
+    internal var mailReauth by mutableStateOf<List<NamedAccount>>(emptyList())
     // Accounts whose stored sign-in the server has stopped accepting, an expired or revoked OAuth
     // grant, or a password it now refuses. Nothing about the account syncs and retrying never
     // helps, so this drives its own banner rather than the connection-issues one (the core already
@@ -191,9 +191,9 @@ class MainActivity : AppCompatActivity() {
     // `showingSettings` swaps the unified Settings screen in over the mailbox, like the reading
     // view.
     internal var syncSettings by mutableStateOf<SyncSettingsSnapshot?>(null)
-    // Widened from private: read/written from MainActivityScreen.kt, MainActivitySettingsTab.kt
-    // and MainActivityMailboxTab.kt, the extracted MainScreen branches.
     internal var showingSettings by mutableStateOf(false)
+    // Settings → Accounts: every account from the core's one snapshot, and the page open.
+    internal val accountSettings = AccountsUiState()
 
     // Which Settings category a shortcut asked for, or null for the hub. Held beside
     // `showingSettings` rather than folded into it: "is Settings open" and "which page of it" are

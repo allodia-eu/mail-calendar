@@ -27,6 +27,7 @@ class SignInExpiredBannerTest {
     @get:Rule val compose = createComposeRule()
 
     private val signedIn = mutableListOf<ExpiredSignIn>()
+    private val opened = mutableListOf<String>()
 
     private fun banner(provider: AccountProvider?) {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -36,7 +37,12 @@ class SignInExpiredBannerTest {
             provider = provider,
         )
         compose.setContent {
-            SignInExpiredBanner(listOf(account), onSignIn = { signedIn += it }, ctx = ctx)
+            SignInExpiredBanner(
+                listOf(account),
+                onSignIn = { signedIn += it },
+                ctx = ctx,
+                onOpenSettings = { opened += it.id },
+            )
         }
         compose.waitForIdle()
     }
@@ -56,10 +62,13 @@ class SignInExpiredBannerTest {
     fun a_jmap_account_holding_a_pasted_secret_is_pointed_at_settings() {
         banner(AccountProvider.JMAP)
 
-        // No browser flow exists for a stored password/API token, so no button is offered, and
-        // the wording has to change with it, or it would name an action that isn't there.
+        // No browser flow exists for a stored password/API token, so the button opens the
+        // account's page in Settings, where the new one is entered.
         compose.onNodeWithText(SIGN_IN_AGAIN).assertDoesNotExist()
-        compose.onNodeWithText("Settings", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Update it in Settings", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Settings").performClick()
+
+        assertEquals(listOf("alice@jmap:api.example.com"), opened)
     }
 
     @Test

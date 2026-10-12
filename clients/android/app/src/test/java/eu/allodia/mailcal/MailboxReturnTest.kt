@@ -78,7 +78,6 @@ private fun TestMailbox(position: MailListPosition, search: SearchBarState) {
         accounts = listOf(AccountRow(id = ACCOUNT, email = "me@local.test", name = "", expanded = false)),
         selectedAccount = ACCOUNT,
         onSelectAccount = {},
-        onAddAccount = {},
         onRemoveAccount = {},
         drawerState = rememberDrawerState(DrawerValue.Closed),
         position = position,

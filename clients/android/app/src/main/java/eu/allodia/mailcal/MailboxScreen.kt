@@ -67,7 +67,6 @@ internal fun MailboxScreen(
     accounts: List<AccountRow>,
     selectedAccount: String?,
     onSelectAccount: (String?) -> Unit,
-    onAddAccount: () -> Unit,
     onRemoveAccount: (String) -> Unit,
     // The folder navigation drawer state, owned by the caller (FolderDrawerScaffold). The
     // hamburger icon here opens it; the scaffold handles folder selection and rendering.
@@ -127,10 +126,14 @@ internal fun MailboxScreen(
     offline: Boolean,
     unreachableAccounts: List<String>,
     connectionIssues: List<ConnectionIssue>,
-    mailReauthEmails: List<String> = emptyList(),
-    onReconnectMail: (email: String) -> Unit = {},
+    mailReauth: List<NamedAccount> = emptyList(),
+    onReconnectMail: (accountId: String) -> Unit = {},
     signInExpired: List<ExpiredSignIn> = emptyList(),
     onSignInExpired: (account: ExpiredSignIn) -> Unit = {},
+    // Opens an account's page in Settings, for a sign-in only a new password or token mends.
+    onOpenAccountPage: (accountId: String) -> Unit = {},
+    // The accounts losing their link when an account is removed, for its confirmation.
+    unlinkedBy: (accountId: String) -> String? = { null },
     onOpenSettings: () -> Unit,
     // A mail link (`mailto:`) the OS handed us, already decoded by the shared core: non-null
     // opens the composer pre-filled with it. `onMailtoConsumed` is called when that composer
@@ -241,10 +244,10 @@ internal fun MailboxScreen(
                     selectedAccount = selectedAccount,
                     unreachableAccounts = unreachableAccounts,
                     onSelectAccount = onSelectAccount,
-                    onAddAccount = onAddAccount,
                     onRemoveAccount = onRemoveAccount,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
                     onOpenSettings = onOpenSettings,
+                    unlinkedBy = unlinkedBy,
                 )
             }
             // While searching, the scope filter sits under the field: "this folder" (whatever the
@@ -267,11 +270,11 @@ internal fun MailboxScreen(
             // A standing permission gap (not an outage): a Microsoft account whose grant lacks the
             // mail write/send scopes, so a send or mail action was refused. "Reconnect" re-runs its
             // sign-in with the full scope set; the banner clears once a send/action succeeds.
-            MailReauthBanner(mailReauthEmails, onReconnectMail, ctx)
+            MailReauthBanner(mailReauth, onReconnectMail, ctx)
             // An account whose stored sign-in has stopped being accepted (an expired or revoked
             // OAuth grant, a refused password). Not an outage, the server answered, so "Try
             // again" would never help; only a fresh sign-in does.
-            SignInExpiredBanner(signInExpired, onSignInExpired, ctx)
+            SignInExpiredBanner(signInExpired, onSignInExpired, ctx) { onOpenAccountPage(it.id) }
             val listState = position.listState
             // Infinite scroll: when the last loaded row nears view, ask the core for the next page.
             // `onShowMore` is guarded in the host (it no-ops once every row is shown); keying the

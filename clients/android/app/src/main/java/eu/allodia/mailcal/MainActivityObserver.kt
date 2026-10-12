@@ -46,6 +46,9 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
             defaultSendAccount = app.defaultSendAccount()
             displaySettings = app.displaySettings()
             signatures = app.signatures()
+            // Every account, mail or not: adding, removing, linking and signing one in again all
+            // raise this signal (docs/accounts.md rule 11).
+            refreshAccountsSnapshot()
         }
         // The reading body (a potentially large HTML string) only changes on a
         // Reading signal, pull it just then, not on every other refresh.
@@ -56,7 +59,12 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         CoreSurface.SYNC_PROGRESS -> syncProgress = app.syncProgress()
         // A connectivity signal updates the offline banner, the per-account outage
         // badges, and the friendly connection-issues banner (names + details).
-        CoreSurface.CONNECTIVITY -> refreshConnectivity()
+        // The accounts snapshot first: a provider refusing a calendar changes a use's state, and
+        // the banners name accounts from it.
+        CoreSurface.CONNECTIVITY -> {
+            refreshAccountsSnapshot()
+            refreshConnectivity()
+        }
         // A composition's save moved. The signal names none, so there is nothing to publish
         // but the fact that one did: every open composer re-pulls its own off this counter
         // (docs/drafts.md).

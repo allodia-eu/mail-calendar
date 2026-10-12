@@ -134,9 +134,9 @@ internal fun AccountSyncModePicker(
     )
 }
 
-// One account's mail settings: how far back to download (fetch depth), whether to receive mail as
-// it arrives (IMAP IDLE push, shown only when the server supports it) or on a schedule, and which
-// folders to watch for push.
+// One account's mail settings, on its page in Settings → Accounts: the name it sends under, how far
+// back to download (fetch depth), whether to receive mail as it arrives (IMAP IDLE push, shown only
+// when the server supports it) or on a schedule, and which folders to watch for push.
 @Composable
 internal fun AccountSyncCard(
     account: AccountSyncRow,
@@ -147,26 +147,9 @@ internal fun AccountSyncCard(
     onSetPollInterval: (account: String, minutes: UShort) -> Unit,
     onSetPushFolder: (account: String, folder: String, subscribed: Boolean) -> Unit,
     onSetSenderName: (account: String, name: String) -> Unit,
-    // How this account is shared with the person's other devices, and how to change it. Null when
-    // this build carries no Allodia sign-in, and the block is then absent rather than dead.
-    syncMode: AllodiaAccountSyncMode? = null,
-    onSetSyncMode: (account: String, mode: AllodiaAccountSyncMode) -> Unit = { _, _ -> },
 ) {
     val ctx = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            account.email,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        // How this one is shared. First in the card, because it decides whether anything below
-        // it is anybody else's business.
-        if (syncMode != null) {
-            AccountSyncModePicker(syncMode) { mode -> onSetSyncMode(account.accountId, mode) }
-            Spacer(modifier = Modifier.height(12.dp))
-        }
         // The name this account sends under: the one thing on the card a recipient can see, so
         // it comes before the questions about how much of the account this device keeps
         // (docs/settings.md).

@@ -53,24 +53,12 @@ if another platform grows summaries it uses the same keys.
 
 ## Known gaps
 
-- **Android does not list every account in Accounts.** It still draws one card per **mail**
-  account from `sync_settings`, with the per-account mail settings and removal inline, and offers
-  no page per account: so an account without mail is not listed there, nothing switches a use on
-  or off, and nothing sets a link. On Apple, Linux and Windows the uses switch is the account
-  page's first group after the sharing control, the linked accounts follow, then sign-in and
-  servers, then the mail settings, then removal.
-
 - **Nothing presses the account category's browser hand-off.** Manage, Delete and the end-session
   hop each open a URL in the system browser, and no suite on any platform follows it: Windows
   ([`SettingsAllodia.Tests.ps1`](../clients/windows/uitests/SettingsAllodia.Tests.ps1), 2026-08-27)
   asserts the category's place, both signed-out routes and that Accounts no longer carries the card
   against the running client, and the Linux widget suite asserts each button reaches its own input.
   Both stop at the launch. What the pages themselves show is unverified from here.
-
-- **Expired stored-secret replacement is missing on Android.** Its prompt says to use Settings, but
-  Accounts there exposes no credential editor, so its only remedy remains removing and re-adding the
-  account. Apple, Linux and Windows offer a new password or API token on the account's page, tried
-  before it is kept (`replace_account_secret`); the missing work is client UI.
 
 - **Two surfaces stay light whatever the appearance says: the composer editor and a message's own
   body.** Both are HTML in a web view: the shared editor bundle
@@ -89,17 +77,9 @@ if another platform grows summaries it uses the same keys.
 - **Android's Diagnostics row changed icon.** It borrowed the "info" symbol, which About now
   carries; Diagnostics uses Material's "troubleshoot". Apple already distinguished the two
   (stethoscope / info circle) and Windows draws no category icons.
-- **"Remove account" in the Accounts category is missing on Android**: Apple, Linux and Windows
-  offer it on each account's page. Android still offers removal *only* from the mailbox sidebar's
-  per-account context menu, which works, and whose confirmation already carries a Cancel (its
-  `AlertDialog` has a `dismissButton`), so it does not have the defect this entry was added for.
-  What it lacks is the discoverable second route. It is client wiring: the core call
-  (`removeAccount`) and the confirmation copy (`remove_account_title` / `remove_account_message`)
-  are already shared and already used.
-
-- **Only Linux adds a later account from Settings alone.** Apple, Windows and Android still offer
-  it in the main window (Apple's sidebar row, Windows' navigation item, Android's switcher), and
-  none of them opens Accounts with **Add account** yet. Linux's folder pane has no button for it.
+- **Only Linux and Android add a later account from Settings alone.** Apple and Windows still
+  offer it in the main window (Apple's sidebar row, Windows' navigation item), and neither opens
+  Accounts with **Add account** yet. Linux's folder pane and Android's switcher have no add.
 
 - **The Calendar category's default calendar ships on Android and Linux.** The setting itself is in
   the core (`Preferences::default_calendar`, resolved onto `CalendarRow::is_default`), so Apple and

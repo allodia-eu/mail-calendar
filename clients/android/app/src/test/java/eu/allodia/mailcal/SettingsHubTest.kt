@@ -14,6 +14,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import org.junit.Assert.assertEquals
@@ -68,6 +69,7 @@ class SettingsHubTest {
         initialCategory: SettingsCategory? = null,
         allodia: AllodiaSettings = AllodiaSettings(),
         allodiaSync: AllodiaSyncState = AllodiaSyncState(),
+        accountsUi: AccountsSettingsUi = AccountsSettingsUi(AccountsUiState()),
     ) {
         compose.setContent {
             SettingsScreen(
@@ -137,6 +139,7 @@ class SettingsHubTest {
                 onReset = { resets++ },
                 onBack = { closed++ },
                 initialCategory = initialCategory,
+                accountsUi = accountsUi,
             )
         }
     }
@@ -186,6 +189,28 @@ class SettingsHubTest {
             compose.onNodeWithText(item.license).performScrollTo().assertIsDisplayed()
         }
         assertEquals("About opens in place, like every other category", 0, diagnosticsOpened)
+    }
+
+    /**
+     * An account's page sits under the Accounts list, so back from it (the arrow or the system's)
+     * returns to that list rather than skipping it for the hub.
+     */
+    @Test
+    fun back_from_an_account_page_returns_to_the_accounts_list() {
+        val state = AccountsUiState().apply {
+            snapshot = uniffi.mailcal_bindings.AccountsSnapshot(listOf(mailboxOnly()))
+        }
+        show(initialCategory = SettingsCategory.ACCOUNTS, accountsUi = AccountsSettingsUi(state))
+        compose.onNodeWithTag("account-row-${mailboxOnly().id}").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("account-use-MAIL").assertExists()
+
+        compose.onNodeWithContentDescription(L10n.a11y_back(ctx())).performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("account-row-${mailboxOnly().id}").assertExists()
+        assertEquals(null, state.page)
+        assertEquals(0, closed)
     }
 
     @Test

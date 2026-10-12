@@ -26,6 +26,10 @@ private const val TAG = "Mailcal"
 /// connect error) revealed behind the connection banner's "Details" action.
 internal data class ConnectionIssue(val email: String, val detail: String)
 
+/// An account a banner names: its id, which the remedy is addressed to, and what a person reads it
+/// by.
+internal data class NamedAccount(val id: String, val email: String)
+
 /// One account whose stored sign-in the server has stopped accepting: its account id, display
 /// email and provider family, which decides the remedy, `MICROSOFT`/`GOOGLE`/`JMAP_OAUTH` re-run
 /// their browser sign-in, anything else (a password or pasted-secret JMAP account, or an unknown
@@ -96,6 +100,7 @@ internal class SecureStoreCredentialStore(context: Context) : AccountCredentialS
 internal fun devDataSubdir(devMode: String?): String? = when (devMode) {
     "stalwart" -> "dev"
     "stalwart-imap" -> "dev-imap"
+    DEV_LINKED -> "dev-linked"
     else -> null
 }
 
@@ -140,7 +145,7 @@ internal fun MainActivity.connect(
                 // call. The setters this replaces ran in the mainHandler.post below, so whether a
                 // rotation half a second later was saved came down to whether the main thread got
                 // a turn first (docs/provider-oauth.md rule 5).
-                SecureStoreCredentialStore(activity),
+                if (devMode == DEV_LINKED) DevLinkedCredentialStore else SecureStoreCredentialStore(activity),
             )
             // The DNS setup uses, so a calendar server found through an SRV record can be looked
             // for again when it stops answering. Until it is set, the core does not look again.
@@ -194,6 +199,7 @@ internal fun MainActivity.connect(
                 // never a launch we fail to count.
                 connected.reportAppOpened()
                 activity.observeNetworkReachability()
+                activity.refreshAccountsSnapshot()
                 activity.refreshConnectivity()
                 // Render the primed cached snapshot right away, so the last-synced mail shows
                 // instantly, even offline, when the RefreshMail below short-circuits (its rebuild
@@ -270,6 +276,7 @@ internal fun MainActivity.connectShowcase(locale: ShowcaseLocale) {
             activity.defaultSendAccount = connected.defaultSendAccount()
             activity.displaySettings = connected.displaySettings()
             activity.signatures = connected.signatures()
+            activity.refreshAccountsSnapshot()
             activity.reload()
             // No account, so nothing to sync: the first-run screen draws none of it.
             if (!firstRun) {
@@ -385,22 +392,22 @@ internal fun MainActivity.refreshConnectivity() {
     val instance = app ?: return
     val snapshot = instance.connectivity()
     connectivity = snapshot
+    // Named from the accounts snapshot, which lists every account, mail or not: an account without
+    // mail is in none of the switcher rows (docs/accounts.md rule 8).
+    fun address(id: String) =
+        accountSettings.addressOf(id, accounts.firstOrNull { it.id == id }?.email)
     connectionIssues = if (snapshot.offline) {
         emptyList()
     } else {
         snapshot.unreachableAccounts.map { id ->
-            val email = accounts.firstOrNull { it.id == id }?.email ?: id
+            val email = address(id)
             ConnectionIssue(email, instance.connectionDetail(id) ?: email)
         }
     }
     // A standing permission gap, not a connectivity fault, shown regardless of the offline state.
-    calendarReauthEmails = snapshot.calendarReauthAccounts.map { id ->
-        accounts.firstOrNull { it.id == id }?.email ?: id
-    }
+    calendarReauth = snapshot.calendarReauthAccounts.map { NamedAccount(it, address(it)) }
     // Likewise the mail write/send permission gap (a refused send or mail action).
-    mailReauthEmails = snapshot.mailReauthAccounts.map { id ->
-        accounts.firstOrNull { it.id == id }?.email ?: id
-    }
+    mailReauth = snapshot.mailReauthAccounts.map { NamedAccount(it, address(it)) }
     // An account whose stored sign-in the server has stopped accepting (an expired or revoked
     // OAuth grant, a refused password). Not an outage, the core keeps it out of
     // `unreachableAccounts`, so it gets its own banner. Carries the provider because the remedy
@@ -408,7 +415,7 @@ internal fun MainActivity.refreshConnectivity() {
     signInExpired = snapshot.signinExpiredAccounts.map { id ->
         ExpiredSignIn(
             id = id,
-            email = accounts.firstOrNull { it.id == id }?.email ?: id,
+            email = address(id),
             provider = instance.accountProvider(id),
         )
     }
