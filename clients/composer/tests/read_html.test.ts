@@ -127,6 +127,14 @@ describe("a body another client wrote", () => {
     expect(editor.querySelector("img")).toBeNull();
   });
 
+  test("a picture it carries is named for the type its bytes declare", () => {
+    const png = "data:image/png;base64,iVBORw0KGgo=";
+    const { attachments } = reopen(`<p><img src="${png}" alt="dot"></p>`);
+    expect(attachments.list().map(({ file_name, media_type }) => ({ file_name, media_type }))).toEqual([
+      { file_name: "image-0.png", media_type: "image/png" },
+    ]);
+  });
+
   test("nothing it carries outside the body is read as words", () => {
     const { blocks } = reopen(
       "<html><head><title>Draft</title><style>p { color: red }</style></head><body><p>Hi</p></body></html>",
