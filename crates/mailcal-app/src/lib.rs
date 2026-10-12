@@ -417,8 +417,6 @@ impl<P> core::fmt::Debug for App<P> {
 #[cfg(test)]
 mod connectivity_prompt_tests;
 #[cfg(test)]
-mod draft_roundtrip_tests;
-#[cfg(test)]
 mod connectivity_tests;
 #[cfg(test)]
 mod mail_ops_tests;

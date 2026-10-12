@@ -48,9 +48,13 @@ fn the_reopened_fixture_holds_what_a_save_and_a_reopen_produce() {
         std::fs::write(&path, written).expect("the fixture is writable");
         return;
     }
-    let held = std::fs::read_to_string(&path).unwrap_or_default();
+    // Compared as values: whether a map keeps its keys in insertion order is a `serde_json` feature
+    // another crate in the build can switch on, so the text can differ where the content does not.
+    let held: Option<Value> = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|held| serde_json::from_str(&held).ok());
     assert!(
-        held.replace("\r\n", "\n") == written,
+        held == Some(Value::Array(entries)),
         "a save followed by a reopen no longer produces what clients/composer/tests/fixtures/\
          reopened.json holds; re-run with MAILCAL_BLESS=1, then run the editor's suite (`bun test` \
          in clients/composer)"
@@ -115,8 +119,21 @@ impl Rng {
 
 /// Words, including the characters HTML treats specially and ones no layout may touch.
 const WORDS: &[&str] = &[
-    "Agenda", "a", "naïve", "café", "日本語", "R&D", "<b>", "x>y", "zero\u{200B}width", "\"quoted\"",
-    "it's", "🙂", "50%", "e.g.", "Ø",
+    "Agenda",
+    "a",
+    "naïve",
+    "café",
+    "日本語",
+    "R&D",
+    "<b>",
+    "x>y",
+    "zero\u{200B}width",
+    "\"quoted\"",
+    "it's",
+    "🙂",
+    "50%",
+    "e.g.",
+    "Ø",
 ];
 
 /// What sits between words: one space, a run of them, a tab.
@@ -304,7 +321,11 @@ impl<'a> Generator<'a> {
     fn quote(&mut self) -> Value {
         let body = *self.rng.pick(QUOTES);
         let (style, line, headers) = if self.rng.chance(50) {
-            ("Indented", "On 1 March, Bob <bob@example.test> wrote:", json!([]))
+            (
+                "Indented",
+                "On 1 March, Bob <bob@example.test> wrote:",
+                json!([]),
+            )
         } else {
             let headers = json!([
                 { "label": "From", "value": "Bob <bob@example.test>" },
@@ -323,7 +344,9 @@ impl<'a> Generator<'a> {
     fn signature(&mut self) -> Value {
         let mut body = (*self.rng.pick(SIGNATURES)).to_owned();
         if self.rng.chance(40) {
-            body.push_str(&format!("<p><img src=\"{}\" alt=\"Logo\"></p>", self.rng.pick(PICTURES)));
+            body.push_str("<p><img src=\"");
+            body.push_str(self.rng.pick(PICTURES));
+            body.push_str("\" alt=\"Logo\"></p>");
         }
         json!({ "Signature": { "body_html": body, "body_plain": "" } })
     }
@@ -355,7 +378,15 @@ fn same_marks(a: &Value, b: &Value) -> bool {
     if a.is_null() || b.is_null() {
         return false;
     }
-    ["bold", "italic", "underline", "font_size", "color", "highlight", "link"]
-        .iter()
-        .all(|key| a.get(key) == b.get(key))
+    [
+        "bold",
+        "italic",
+        "underline",
+        "font_size",
+        "color",
+        "highlight",
+        "link",
+    ]
+    .iter()
+    .all(|key| a.get(key) == b.get(key))
 }

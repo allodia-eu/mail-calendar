@@ -1,5 +1,6 @@
-//! The spaces and tabs a user typed, as the outgoing HTML keeps them: a recipient's client collapses
-//! a run of spaces and drops one at either end of a line unless the message says otherwise.
+//! The spaces and tabs a user typed, as the outgoing HTML keeps them: a recipient's client
+//! collapses a run of spaces and drops one at either end of a line unless the message says
+//! otherwise.
 
 use super::{html_doc, text};
 use crate::{Block, ComposerDocument, InlineContent, Paragraph, TextRun, render};
@@ -38,8 +39,14 @@ fn a_run_of_spaces_alternates_so_none_collapses() {
 
 #[test]
 fn a_space_at_either_end_of_a_line_is_a_hard_one() {
-    assert_eq!(line(vec![text("  indented")]), html_doc("<p>&nbsp; indented</p>"));
-    assert_eq!(line(vec![text("trailing ")]), html_doc("<p>trailing&nbsp;</p>"));
+    assert_eq!(
+        line(vec![text("  indented")]),
+        html_doc("<p>&nbsp; indented</p>")
+    );
+    assert_eq!(
+        line(vec![text("trailing ")]),
+        html_doc("<p>trailing&nbsp;</p>")
+    );
     assert_eq!(line(vec![text("   ")]), html_doc("<p>&nbsp; &nbsp;</p>"));
 }
 

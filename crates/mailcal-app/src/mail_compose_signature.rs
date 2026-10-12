@@ -34,9 +34,9 @@ use crate::{helpers::content_id_for, html::image_media_type};
 /// splice the middle of another attribute's value.
 const SRC_PREFIX: &str = "src=\"data:";
 
-/// Re-sanitises every signature body to the inert, safe subset (`crate::html::sanitize_inert`) in place
-/// : the Gate-10 treatment a quoted original already gets, applied to the other block the composer
-/// emits verbatim.
+/// Re-sanitises every signature body to the inert, safe subset (`crate::html::sanitize_inert`) in
+/// place : the Gate-10 treatment a quoted original already gets, applied to the other block the
+/// composer emits verbatim.
 pub(super) fn sanitize_signature_bodies(document: &mut ComposerDocument) {
     for block in &mut document.blocks {
         if let Block::Signature(signature) = block {
