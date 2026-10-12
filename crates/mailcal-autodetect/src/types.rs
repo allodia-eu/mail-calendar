@@ -122,6 +122,9 @@ pub enum SourceKind {
     /// A `_jmap._tcp` SRV record's target, probed at its `/.well-known/jmap`; the
     /// autodiscovery mechanism providers like Fastmail publish instead of the apex.
     JmapSrv,
+    /// Microsoft's Autodiscover service, reached from the domain's redirect probe or its
+    /// `_autodiscover._tcp` SRV record.
+    Autodiscover,
     /// The provider's own `autoconfig.{domain}` endpoint.
     Autoconfig,
     /// The provider's `/.well-known/autoconfig/…` endpoint.
@@ -188,6 +191,14 @@ pub struct DetectedJmap {
     pub dav: DetectedDav,
 }
 
+/// A domain whose Autodiscover service is Microsoft's own: Microsoft 365 hosts its mail, and it
+/// is reached through the Microsoft sign-in.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DetectedMicrosoft365 {
+    /// How it was found: the redirect probe URL, or the SRV name.
+    pub source: Source,
+}
+
 /// The CalDAV and CardDAV servers an unauthenticated RFC 6764 probe found: each a
 /// `.well-known` landing point reached over HTTPS, from the domain itself or from the
 /// target its `_caldavs._tcp` / `_carddavs._tcp` SRV record names. Only "is there one, and
@@ -213,6 +224,8 @@ impl DetectedDav {
 pub enum Detected {
     /// The domain speaks JMAP: the preferred protocol for this product.
     Jmap(DetectedJmap),
+    /// Microsoft 365 hosts the domain's mail, as its Autodiscover service says.
+    Microsoft365(DetectedMicrosoft365),
     /// IMAP/SMTP settings were published for the domain.
     Mail(DetectedMailSettings),
     /// No mail server was found, but the domain names a calendar or address-book server.

@@ -205,6 +205,7 @@ pub fn recommend(email: &str, detected: Detected, routes: OauthRoutes) -> SetupR
             caldav_url: jmap.dav.caldav_url,
             carddav_url: jmap.dav.carddav_url,
         },
+        Detected::Microsoft365(_) => microsoft(email, routes),
         Detected::Mail(settings) => recommend_mail(email, &settings, routes),
         Detected::Dav(dav) => SetupRecommendation::Dav {
             email: email.to_owned(),
@@ -233,15 +234,7 @@ fn recommend_mail(
         // the only route that works is the browser OAuth sign-in. A build without the
         // registration to start one has nothing to offer this domain, and the prefilled IMAP
         // form ISPDB would produce is a login that cannot succeed: so say so instead.
-        return if routes.microsoft {
-            SetupRecommendation::Microsoft {
-                email: email.to_owned(),
-            }
-        } else {
-            SetupRecommendation::Manual {
-                reason: MissReason::OauthOnlyProvider,
-            }
-        };
+        return microsoft(email, routes);
     }
 
     if routes.google && settings.incoming.iter().any(is_google_family) {
@@ -280,6 +273,20 @@ fn recommend_mail(
         oauth_issuer: settings.oauth_issuer.clone(),
         is_trusted: settings.is_trusted,
         source: settings.source.url.clone(),
+    }
+}
+
+/// The Microsoft 365 sign-in, where this build carries the registration to start it, and
+/// otherwise the reason there is nothing to offer.
+fn microsoft(email: &str, routes: OauthRoutes) -> SetupRecommendation {
+    if routes.microsoft {
+        SetupRecommendation::Microsoft {
+            email: email.to_owned(),
+        }
+    } else {
+        SetupRecommendation::Manual {
+            reason: MissReason::OauthOnlyProvider,
+        }
     }
 }
 

@@ -6,10 +6,11 @@
 //! | Priority | Strategy | What it asks |
 //! |---|---|---|
 //! | 0 | JMAP probe | `https://{domain}/.well-known/jmap`, then the `_jmap._tcp` SRV target; does the domain speak JMAP? |
-//! | 1 | Autoconfig | `autoconfig.{domain}` + `/.well-known/autoconfig/…` (HTTPS, then HTTP) |
-//! | 2 | ISPDB | Thunderbird's provider database, by domain only |
-//! | 3 | IMAP/SMTP SRV | `_imaps._tcp` + `_submissions._tcp` (RFC 6186/8314, implicit TLS only) |
-//! | 4 | MX fallback | host-resolved MX → provider's registrable domain → autoconfig + ISPDB |
+//! | 1 | Autodiscover | `http://autodiscover.{domain}/…` redirect + `_autodiscover._tcp` SRV; is it Microsoft 365? |
+//! | 2 | Autoconfig | `autoconfig.{domain}` + `/.well-known/autoconfig/…` (HTTPS, then HTTP) |
+//! | 3 | ISPDB | Thunderbird's provider database, by domain only |
+//! | 4 | IMAP/SMTP SRV | `_imaps._tcp` + `_submissions._tcp` (RFC 6186/8314, implicit TLS only) |
+//! | 5 | MX fallback | host-resolved MX → provider's registrable domain → autoconfig + ISPDB |
 //!
 //! All strategies start at once; the **lowest-priority-number success wins**, a
 //! lower-priority success waits for every higher strategy to finish, and losers are
@@ -34,6 +35,7 @@
 //! resolver so each platform's native API (and thus the device's real DNS settings;
 //! VPNs, private DNS) answers the MX and SRV queries.
 
+mod autodiscover;
 mod dav;
 mod fetch;
 mod hostname;
@@ -56,7 +58,7 @@ pub use mx::{MxError, MxRecord, MxResolution, MxResolver, SrvRecord, SrvResoluti
 pub use orchestrator::detect;
 pub use types::{
     AuthKind, DetectError, Detected, DetectedDav, DetectedJmap, DetectedMailSettings,
-    DetectedServer, Domain, EmailParts, SocketKind, Source, SourceKind,
+    DetectedMicrosoft365, DetectedServer, Domain, EmailParts, SocketKind, Source, SourceKind,
 };
 use url::Url;
 

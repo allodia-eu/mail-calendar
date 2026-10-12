@@ -301,3 +301,49 @@ async fn the_imap_srv_strategy_resolves_when_higher_strategies_miss() {
     assert_eq!(mail.incoming[0].hostname, "imap.company.example");
     assert_eq!(mail.outgoing[0].hostname, "smtp.company.example");
 }
+
+#[tokio::test(start_paused = true)]
+async fn microsoft_autodiscover_wins_over_a_stale_autoconfig() {
+    // A domain whose mail moved to Microsoft 365 while its website stayed on the old host, which
+    // generates an autoconfig for every domain it serves, here over plain HTTP. The domain's own
+    // Autodiscover redirect names Microsoft, and that is where its mail is.
+    let stale = urls::autoconfig_urls(&email().domain)[3].to_string();
+    let fetcher = FakeFetch::new()
+        .on(
+            &stale,
+            Reply::Ok {
+                status: 200,
+                body: CONFIG.as_bytes().to_vec(),
+                trusted: false,
+                www_authenticate: false,
+            },
+        )
+        .on(
+            "http://autodiscover.company.example/Autodiscover/Autodiscover.xml",
+            Reply::Landed {
+                final_url: "https://autodiscover-s.outlook.com/Autodiscover/Autodiscover.xml"
+                    .to_owned(),
+                status: 401,
+            },
+        );
+    let detected = run(fetcher, None, DetectConfig::default()).await;
+    assert!(
+        matches!(detected, Detected::Microsoft365(_)),
+        "expected Microsoft 365, got {detected:?}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_autodiscover_that_is_not_microsoft_leaves_autoconfig_to_answer() {
+    let fetcher = FakeFetch::new().default_reply(Reply::xml(CONFIG)).on(
+        "http://autodiscover.company.example/Autodiscover/Autodiscover.xml",
+        Reply::Landed {
+            final_url: "https://mail.company.example/Autodiscover/Autodiscover.xml".to_owned(),
+            status: 401,
+        },
+    );
+    let Detected::Mail(settings) = run(fetcher, None, DetectConfig::default()).await else {
+        panic!("autoconfig should answer");
+    };
+    assert_eq!(settings.source.kind, SourceKind::Autoconfig);
+}

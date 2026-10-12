@@ -12,7 +12,7 @@ use std::sync::Arc;
 use tokio::task::JoinHandle;
 
 use crate::{
-    DetectConfig, dav,
+    DetectConfig, autodiscover, dav,
     fetch::{Fetch, Fetcher},
     jmap_probe, mx, srv, strategy,
     strategy::StrategyOutcome,
@@ -88,6 +88,9 @@ fn log_outcome(detected: &Detected) {
                 trust(jmap.is_trusted),
                 found_dav(&jmap.dav)
             );
+        }
+        Detected::Microsoft365(microsoft) => {
+            log::info!("autodetect: microsoft 365 via {:?}", microsoft.source.kind);
         }
         Detected::Mail(mail) => {
             log::info!(
@@ -173,8 +176,12 @@ async fn with_dav(
 }
 
 /// Spawns every strategy at once, in priority order: JMAP probe (apex + `_jmap._tcp`
-/// SRV), autoconfig, ISPDB, then (only when a resolver is supplied) the IMAP/SMTP SRV
-/// strategy and the MX fallback.
+/// SRV), Autodiscover, autoconfig, ISPDB, then (only when a resolver is supplied) the
+/// IMAP/SMTP SRV strategy and the MX fallback.
+///
+/// Autodiscover outranks autoconfig because it answers only one question, whether Microsoft 365
+/// hosts the domain's mail, and a domain that moved its mail there often leaves a stale autoconfig
+/// behind on its old web host, which generates one for every domain it serves.
 fn spawn_all(
     fetcher: &Arc<dyn Fetch>,
     email: &EmailParts,
@@ -192,6 +199,12 @@ fn spawn_all(
             jmap_probe::run(fetcher.as_ref(), &email, resolver.as_ref(), &config).await
         })
     };
+    let autodiscover = tokio::spawn(autodiscover::run(
+        fetcher.clone(),
+        email.clone(),
+        resolver.clone(),
+        config.clone(),
+    ));
     let autoconfig = {
         let (fetcher, email) = (fetcher.clone(), email.clone());
         tokio::spawn(async move { strategy::run_autoconfig(fetcher.as_ref(), &email).await })
@@ -200,9 +213,9 @@ fn spawn_all(
         let (fetcher, email) = (fetcher.clone(), email.clone());
         tokio::spawn(async move { strategy::run_ispdb(fetcher.as_ref(), &email).await })
     };
-    let mut handles = vec![jmap, autoconfig, ispdb];
-    // The two DNS-derived strategies need the host resolver: IMAP/SMTP SRV (priority 3,
-    // consulted before MX) then the MX fallback (priority 4).
+    let mut handles = vec![jmap, autodiscover, autoconfig, ispdb];
+    // The two DNS-derived strategies need the host resolver: IMAP/SMTP SRV (priority 4,
+    // consulted before MX) then the MX fallback (priority 5).
     if let Some(resolver) = resolver {
         handles.push(tokio::spawn(srv::run(
             email.clone(),
@@ -235,6 +248,10 @@ async fn collect(handles: Vec<JoinHandle<StrategyOutcome>>) -> Detected {
             Ok(StrategyOutcome::Jmap(jmap)) => {
                 abort_pending(&pending);
                 return Detected::Jmap(jmap);
+            }
+            Ok(StrategyOutcome::Microsoft365(microsoft)) => {
+                abort_pending(&pending);
+                return Detected::Microsoft365(microsoft);
             }
             Ok(StrategyOutcome::Mail(mail)) => {
                 abort_pending(&pending);

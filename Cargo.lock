@@ -2227,6 +2227,7 @@ dependencies = [
  "async-trait",
  "engine-tls",
  "log",
+ "mapi-autodiscover",
  "psl",
  "quick-xml 0.42.0",
  "reqwest",
@@ -2394,6 +2395,15 @@ version = "0.11.0"
 dependencies = [
  "wayland-client",
  "wayland-protocols-wlr",
+]
+
+[[package]]
+name = "mapi-autodiscover"
+version = "0.3.0"
+source = "git+https://github.com/allodia-eu/mapi-client-rs?rev=6ea23133ab9837d66cca98b89e5e47e1a12275cb#6ea23133ab9837d66cca98b89e5e47e1a12275cb"
+dependencies = [
+ "roxmltree",
+ "thiserror",
 ]
 
 [[package]]
@@ -3204,6 +3214,15 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "roxmltree"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]

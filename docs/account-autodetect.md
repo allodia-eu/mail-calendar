@@ -18,9 +18,10 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
 
 1. **Strategies raced in priority order.** For `user@domain` the core runs, at once:
    (0) a **JMAP** well-known probe: apex `.well-known/jmap`, then the `_jmap._tcp` SRV
-   target; (1) Mozilla **autoconfig** (`autoconfig.{domain}` + `/.well-known/autoconfig/…`,
-   HTTPS then HTTP); (2) the **ISPDB** (`autoconfig.thunderbird.net`); (3) an **IMAP/SMTP
-   SRV** lookup (`_imaps._tcp` + `_submissions._tcp`, RFC 6186/8314); and (4) an **MX
+   target; (1) Microsoft **Autodiscover**, asked only whether Microsoft 365 hosts the domain
+   (rule 13); (2) Mozilla **autoconfig** (`autoconfig.{domain}` + `/.well-known/autoconfig/…`,
+   HTTPS then HTTP); (3) the **ISPDB** (`autoconfig.thunderbird.net`); (4) an **IMAP/SMTP
+   SRV** lookup (`_imaps._tcp` + `_submissions._tcp`, RFC 6186/8314); and (5) an **MX
    fallback** (host-resolved). The lowest-priority-number success wins; a lower-priority
    success waits for every higher-priority strategy to finish, and the losers are cancelled.
    This product is JMAP-first, so JMAP is priority 0.
@@ -28,7 +29,8 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
 2. **The email address never appears in a URL.** Only the domain is disclosed: to the
    provider's own endpoints, to the ISPDB, and to the DNS resolver (as the
    `_service._tcp.{domain}` SRV owner name). A JMAP-SRV *target* host is disclosed only to
-   that host, when its `.well-known/jmap` is probed. (Thunderbird's optional
+   that host, when its `.well-known/jmap` is probed. Autodiscover's `POST`, whose body is the
+   address, is never sent (rule 13). (Thunderbird's optional
    `?emailaddress=` parameter is deliberately not implemented.)
 
 3. **A result is trusted when it was obtained over TLS.** `is_trusted` is true when every fetch
@@ -176,23 +178,41 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
     own idiom already goes back (Android's system Back) meets the rule by that route. Back waits
     while a connect or a sign-in is running, whose answer belongs to the step on screen.
 
+13. **Autodiscover is asked one question: does Microsoft 365 host this domain?** A custom domain on
+    Exchange Online points `autodiscover.{domain}` at Microsoft, so a plain-HTTP `GET` there is
+    redirected to `autodiscover-s.outlook.com`, or an `_autodiscover._tcp` SRV record names
+    `autodiscover.outlook.com` ([MS-OXDISCO] §3.1.5.3, §3.1.5.4). Either routes the address to the
+    Microsoft sign-in. Any other answer, a self-hosted Exchange included, is nothing found: mail
+    reaches Microsoft 365 through Microsoft Graph here, and there is no Exchange protocol to
+    connect anything else with. Only those two hosts count; Microsoft's national clouds sign in
+    elsewhere. The Autodiscover `POST` is never sent: its body is the address (rule 2), and
+    Exchange Online answers it with `401` until the person has signed in, so it would decide
+    nothing. The plain-HTTP hop needs no approval (rule 3): it chooses a route, never a server,
+    and the sign-in it leads to runs on Microsoft's own TLS endpoints. It outranks autoconfig
+    because it answers only that one question, and a domain that moved its mail to Microsoft
+    often leaves behind an autoconfig its old web host generates for every domain it serves.
+    A domain that has left Microsoft 365 but kept its `autodiscover` record is routed to the
+    Microsoft sign-in; "Set up manually" stays on that card. The locations come from
+    `mapi-autodiscover`, which performs no I/O; the fetch is detection's own.
+
 ## Strategy order
 
-The whole flow has three stages: **(1)** the five discovery strategies below, raced in priority
+The whole flow has three stages: **(1)** the six discovery strategies below, raced in priority
 order; **(2)** the [DAV probe](#the-rules) (rule 8, not one of the raced strategies);
 **(3)** [routing](#routing) the winner onto a prefilled client form.
 Stages 1–2 are the discovery; stage 3 is what the client does with the result.
 
-The five strategies, for `user@company.example`, in priority order (each an independent parallel
+The six strategies, for `user@company.example`, in priority order (each an independent parallel
 task):
 
 | # | Strategy | Requests (in order) |
 |---|---|---|
 | 0 | JMAP probe | `https://company.example/.well-known/jmap`, then (on a clean miss) `_jmap._tcp.company.example` SRV → `https://{target}/.well-known/jmap` per target |
-| 1 | Autoconfig | `https://autoconfig.company.example/mail/config-v1.1.xml` · `https://company.example/.well-known/autoconfig/mail/config-v1.1.xml` · the same two over `http://` (untrusted) |
-| 2 | ISPDB | `https://autoconfig.thunderbird.net/v1.1/company.example` |
-| 3 | IMAP/SMTP SRV | `_imaps._tcp.company.example` (required) + `_submissions._tcp.company.example` (optional) SRV lookups, implicit-TLS labels only |
-| 4 | MX fallback | host MX lookup → registrable domain via the Public Suffix List (+ the MX host minus its first label) → `https://autoconfig.{mxdomain}/mail/config-v1.1.xml` then the ISPDB for it |
+| 1 | Autodiscover | `GET http://autodiscover.company.example/Autodiscover/Autodiscover.xml`, redirects followed, beside `_autodiscover._tcp.company.example` SRV; a hit only when either lands on Microsoft 365's own service (rule 13) |
+| 2 | Autoconfig | `https://autoconfig.company.example/mail/config-v1.1.xml` · `https://company.example/.well-known/autoconfig/mail/config-v1.1.xml` · the same two over `http://` (untrusted) |
+| 3 | ISPDB | `https://autoconfig.thunderbird.net/v1.1/company.example` |
+| 4 | IMAP/SMTP SRV | `_imaps._tcp.company.example` (required) + `_submissions._tcp.company.example` (optional) SRV lookups, implicit-TLS labels only |
+| 5 | MX fallback | host MX lookup → registrable domain via the Public Suffix List (+ the MX host minus its first label) → `https://autoconfig.{mxdomain}/mail/config-v1.1.xml` then the ISPDB for it |
 
 The **JMAP probe** counts a domain as JMAP-capable on a terminal 2xx JSON session
 (`capabilities` present) or a `401` + `WWW-Authenticate` (the Stalwart/Fastmail shape), with
@@ -209,9 +229,9 @@ of the raced strategies) looks for CalDAV and CardDAV:
 | Email domain | `_caldavs._tcp.company.example` SRV → `https://{target}/.well-known/caldav` · `https://company.example/.well-known/caldav` (the same for `carddav`) |
 | Provider domain (mail or JMAP result only) | the same, on the registrable domain of the winning host |
 
-No port guessing/probing, no Exchange AutoDiscover, no bundled `providers.xml`: otherwise
-the scope of Thunderbird for Android, **extended** with the JMAP and IMAP/SMTP SRV strategies
-(rule 9), which Thunderbird omits.
+No port guessing/probing, no Autodiscover beyond recognising Microsoft 365, no bundled
+`providers.xml`: otherwise the scope of Thunderbird for Android, **extended** with the JMAP and
+IMAP/SMTP SRV strategies (rule 9), which Thunderbird omits.
 
 ## Routing
 
@@ -220,8 +240,9 @@ engine can connect, so it lives in `mailcal-account`, not the protocol-neutral d
 
 - **JMAP found** (apex or `_jmap._tcp` SRV, including a cross-domain provider host) → the JMAP
   form, server prefilled (password/token entry only). The discovered host is shown on the card.
-- **A Microsoft-family incoming host** (`outlook.office365.com` / `*.office365.com` /
-  `*.outlook.com`) → the Microsoft 365 browser sign-in, regardless of any Basic auth the
+- **Microsoft 365 found by Autodiscover** (rule 13), **or a Microsoft-family incoming host**
+  (`outlook.office365.com` / `*.office365.com` / `*.outlook.com`) → the Microsoft 365 browser
+  sign-in, regardless of any Basic auth the
   ISPDB still lists (Microsoft retired it). The detected address is passed as the OAuth
   `login_hint` so Microsoft targets *that* account, and a declined/failed sign-in is shown on
   the card (never a silent dead-end); see [`provider-oauth.md`](provider-oauth.md) rules 8–9.
@@ -289,6 +310,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Manual port **and** connection-security selector (rule 11) | ✅ | 🚧 | ✅ | ✅ | ✅ |
 | Google native route (consumer fast-path + Workspace-host) | ✅ | 🚧 | 🚧 | 🚧 | ✅ consumer fast-path |
 | JMAP probe · autoconfig · ISPDB | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Microsoft Autodiscover, Microsoft 365 only, above autoconfig (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Untrusted-settings approval gate | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | Refused-certificate acceptance ([`certificate-exceptions.md`](certificate-exceptions.md)) | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | "Set up manually" escape + reason line | ✅ | ✅ | 🚧 | ✅ | ✅ |

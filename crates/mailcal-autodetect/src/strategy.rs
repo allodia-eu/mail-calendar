@@ -6,7 +6,10 @@ use url::Url;
 use crate::{
     fetch::{Fetch, FetchOutcome},
     parser::parse_autoconfig,
-    types::{DetectedDav, DetectedJmap, DetectedMailSettings, EmailParts, Source, SourceKind},
+    types::{
+        DetectedDav, DetectedJmap, DetectedMailSettings, DetectedMicrosoft365, EmailParts, Source,
+        SourceKind,
+    },
     urls,
 };
 
@@ -15,6 +18,8 @@ use crate::{
 pub(crate) enum StrategyOutcome {
     /// The domain speaks JMAP.
     Jmap(DetectedJmap),
+    /// The domain's Autodiscover service is Microsoft 365's.
+    Microsoft365(DetectedMicrosoft365),
     /// IMAP/SMTP settings were found.
     Mail(DetectedMailSettings),
     /// This strategy cleanly found nothing.
@@ -91,7 +96,8 @@ const fn describes_itself(kind: SourceKind) -> bool {
         | SourceKind::MxIspdb
         | SourceKind::ImapSrv
         | SourceKind::JmapWellKnown
-        | SourceKind::JmapSrv => false,
+        | SourceKind::JmapSrv
+        | SourceKind::Autodiscover => false,
     }
 }
 

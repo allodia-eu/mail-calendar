@@ -61,3 +61,20 @@ async fn fastmail_without_a_resolver_uses_autoconfig_imap() {
         }
     }
 }
+
+#[tokio::test]
+async fn a_microsoft_365_domain_resolves_through_autodiscover() {
+    // microsoft.com's own mail is Exchange Online: its `autodiscover` host redirects to
+    // Microsoft's service, which is what routes a custom domain to the Microsoft sign-in.
+    if !enabled() {
+        eprintln!("skipping live detect test: AUTODETECT_LIVE unset");
+        return;
+    }
+    let detected = detect("someone@microsoft.com", None, &DetectConfig::default())
+        .await
+        .expect("detection runs");
+    assert!(
+        matches!(detected, Detected::Microsoft365(_)),
+        "expected Microsoft 365 for microsoft.com, got {detected:?}"
+    );
+}

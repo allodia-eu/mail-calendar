@@ -1,6 +1,6 @@
 [package]
 name = "mailcal-autodetect"
-description = "Email-first automatic mail-server-settings detection: a JMAP well-known probe, Mozilla autoconfig, the ISPDB, and a host-resolved MX fallback, raced in priority order. Reimplements the approach of Thunderbird for Android's autodiscovery in the shared core so every client gets it from one implementation."
+description = "Email-first automatic mail-server-settings detection: a JMAP well-known probe, Microsoft 365 by Autodiscover, Mozilla autoconfig, the ISPDB, and a host-resolved MX fallback, raced in priority order. Reimplements the approach of Thunderbird for Android's autodiscovery in the shared core so every client gets it from one implementation."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,6 +14,9 @@ async-trait = { workspace = true }
 # The shared TLS trust store (Mozilla roots + OS store) behind the HTTPS fetcher; the
 # same policy the OAuth and Graph paths use, so detection trusts exactly what sync does.
 engine-tls = { workspace = true, features = ["reqwest"] }
+# Where Microsoft's Autodiscover service is published for a domain: the redirect probe URL and
+# the SRV name ([MS-OXDISCO] §3.1.5).
+mapi-autodiscover = { workspace = true }
 # A quiet diagnostic trail of which strategy/URL was tried (domain only, never the
 # local part), forwarded to the host's logger by the bindings.
 log = { workspace = true }

@@ -1,8 +1,8 @@
 //! Recommendation-mapping tests; one per routing rule.
 
 use mailcal_autodetect::{
-    AuthKind, Detected, DetectedDav, DetectedJmap, DetectedMailSettings, DetectedServer,
-    SocketKind, Source, SourceKind,
+    AuthKind, Detected, DetectedDav, DetectedJmap, DetectedMailSettings, DetectedMicrosoft365,
+    DetectedServer, SocketKind, Source, SourceKind,
 };
 
 use super::{ConnectionSecurity, MissReason, OauthRoutes, SetupRecommendation};
@@ -445,6 +445,35 @@ fn without_microsofts_registration_a_microsoft_domain_says_it_is_oauth_only() {
     );
     assert_eq!(
         super::recommend(EMAIL, detected, routes),
+        SetupRecommendation::Manual {
+            reason: MissReason::OauthOnlyProvider
+        }
+    );
+}
+
+#[test]
+fn a_domain_whose_autodiscover_is_microsoft_routes_to_the_microsoft_sign_in() {
+    let microsoft = || {
+        Detected::Microsoft365(DetectedMicrosoft365 {
+            source: Source {
+                kind: SourceKind::Autodiscover,
+                url: "http://autodiscover.example.com/Autodiscover/Autodiscover.xml".to_owned(),
+            },
+        })
+    };
+    assert_eq!(
+        recommend(EMAIL, microsoft()),
+        SetupRecommendation::Microsoft {
+            email: EMAIL.to_owned()
+        }
+    );
+    // Without the registration, the same answer a Microsoft-hosted mail config gets.
+    let routes = OauthRoutes {
+        google: true,
+        microsoft: false,
+    };
+    assert_eq!(
+        super::recommend(EMAIL, microsoft(), routes),
         SetupRecommendation::Manual {
             reason: MissReason::OauthOnlyProvider
         }

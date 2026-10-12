@@ -262,6 +262,10 @@ mailcal-mcp = { path = "crates/mailcal-mcp" }
 # `TelemetrySink` port. Kept out of `mailcal-app` so the core stays network-free — the demo, the
 # showcase, and every test run with no sink, and therefore cannot phone home. See docs/analytics.md.
 mailcal-telemetry = { path = "crates/mailcal-telemetry" }
+# Exchange Autodiscover ([MS-OXDISCO]): where a domain publishes its Autodiscover service. Sans-IO,
+# so detection does the fetching through its own bounded fetcher. Pinned by git commit to the
+# public allodia-eu/mapi-client-rs, as the engine is below.
+mapi-autodiscover = { git = "https://github.com/allodia-eu/mapi-client-rs", rev = "6ea23133ab9837d66cca98b89e5e47e1a12275cb" }
 # The sync engine, consumed only through its `engine-api` facade. Pinned by
 # git commit to the public allodia-eu/email-calendar-sync-engine, so the build is
 # reproducible everywhere with no sibling checkout (and no repo credentials — it's public).

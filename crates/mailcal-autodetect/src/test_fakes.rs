@@ -24,6 +24,14 @@ pub(crate) enum Reply {
         /// Whether a `WWW-Authenticate` header was present.
         www_authenticate: bool,
     },
+    /// A response reached after following redirects to `final_url`, over a chain that left
+    /// HTTPS: the shape of an Autodiscover redirect probe.
+    Landed {
+        /// Where the redirects ended.
+        final_url: String,
+        /// The status there.
+        status: u16,
+    },
     /// An unusable response chain.
     Miss,
     /// A transport failure.
@@ -132,6 +140,13 @@ impl Fetch for FakeFetch {
                 body,
                 trusted,
                 final_url: url.clone(),
+            }),
+            Reply::Landed { final_url, status } => FetchOutcome::Response(FetchResponse {
+                status,
+                www_authenticate: false,
+                body: Vec::new(),
+                trusted: false,
+                final_url: Url::parse(&final_url).expect("a scripted landing URL parses"),
             }),
             Reply::Miss => FetchOutcome::Miss,
             Reply::Net => FetchOutcome::NetworkError,
