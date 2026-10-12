@@ -197,6 +197,8 @@ final class MailboxModel {
     var accountsSnapshot = AccountsSnapshot(accounts: [])
     /// The account whose page Settings → Accounts shows, or `nil` for the list.
     var accountPage: String?
+    /// A removal whose stored sign-in could not be erased, until the person has read it.
+    var removalFailure: String?
     /// The account a sign-in in place is waiting on the browser for, or `nil`.
     var signingInAgain: String?
     /// That sign-in's browser half, so a newer request can end it rather than wait behind it.

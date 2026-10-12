@@ -50,6 +50,16 @@ struct EndpointFields: Equatable {
         username = endpoints.username
     }
 
+    /// Whether a field the account has is empty. Saving waits: an empty server would leave its use
+    /// without one, which the core refuses only after the person has been made to wait for it.
+    var incomplete: Bool {
+        let blank = { (text: String?) in
+            text.map { $0.trimmingCharacters(in: .whitespaces).isEmpty } ?? false
+        }
+        return blank(imap?.host) || blank(smtp?.host) || blank(caldav) || blank(carddav)
+            || blank(username)
+    }
+
     /// The servers to save: `original` with what the fields changed. A server the account does
     /// not have stays absent, and an empty password keeps the stored one.
     func edited(from original: AccountEndpoints) -> AccountEndpoints {

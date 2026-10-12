@@ -115,6 +115,18 @@ private func mailboxOnly() -> AccountEntry {
         #expect(pickers.first?.selected == 0)
     }
 
+    @Test func aLinkIsMatchedToItsCandidateByIdAlone() {
+        var mailbox = mailboxOnly()
+        mailbox.linkCandidates = LinkCandidates(
+            calendar: [LinkedAccount(id: "cal", address: "new@cloud.example")], contacts: [],
+            mail: [], suggested: [])
+        mailbox.links = AccountLinksView(
+            calendar: LinkedAccount(id: "cal", address: "old@cloud.example"), contacts: nil, mail: nil)
+        let picker = AccountSettingsRules.linkPickers(mailbox).first
+        #expect(picker?.options.map(\.id) == ["cal"])
+        #expect(picker?.selected == 0)
+    }
+
     @Test func aSuggestionIsOfferedOnlyWhereNothingIsLinked() {
         var mailbox = mailboxOnly()
         mailbox.linkCandidates = LinkCandidates(
@@ -155,6 +167,11 @@ private func mailboxOnly() -> AccountEntry {
             smtpSecurity: .implicitTls, caldavUrl: nil, carddavUrl: nil, username: "alice",
             password: nil)
         #expect(!AccountSettingsRules.replacesSecret(imap, expired: true, provider: .password))
+
+        // An IMAP account that signed in at its provider reports `.password` without editable
+        // servers, and has no secret a paste could replace.
+        let imapSignedIn = entry(.imap, [(.mail, .on)])
+        #expect(!AccountSettingsRules.replacesSecret(imapSignedIn, expired: true, provider: .password))
     }
 }
 
@@ -209,6 +226,19 @@ private func mailboxOnly() -> AccountEntry {
         #expect(other.stored == "imap.example.org:143")
         other.field.choose(.startTls)
         #expect(other.stored == "imap.example.org")
+    }
+
+    @Test func savingWaitsWhileAServerTheAccountHasIsEmpty() {
+        var fields = EndpointFields(mailbox())
+        #expect(!fields.incomplete)
+        fields.smtp?.host = "  "
+        #expect(fields.incomplete)
+        fields.smtp?.host = "smtp.example.org"
+        fields.username = ""
+        #expect(fields.incomplete)
+        // A server the account does not have has no field, and is never what holds Save.
+        fields.username = "alice"
+        #expect(fields.caldav == nil && !fields.incomplete)
     }
 
     @Test func aPortWrittenIntoTheHostWins() {

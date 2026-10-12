@@ -13,22 +13,8 @@ struct AccountsSettingsView: View {
     /// Answers why the stored sign-in could not be erased, or `nil`.
     let removeAccount: (String) -> String?
 
-    /// A removal whose stored sign-in could not be erased. Said here, on the list, because the
-    /// page it was asked from is gone by then.
-    @State private var removalFailure: String?
-
     var body: some View {
-        content
-            .alert(
-                L10n.remove_account_title(),
-                isPresented: Binding(
-                    get: { removalFailure != nil }, set: { if !$0 { removalFailure = nil } }
-                )
-            ) {
-                Button(L10n.action_close(), role: .cancel) {}
-            } message: {
-                Text(removalFailure ?? "")
-            }
+        content.modifier(RemovalFailureAlert(model: model))
     }
 
     @ViewBuilder
@@ -53,7 +39,7 @@ struct AccountsSettingsView: View {
 
     private func remove(_ id: String) {
         model.accountPage = nil
-        removalFailure = removeAccount(id)
+        _ = removeAccount(id)
     }
 
     private var list: some View {
@@ -138,6 +124,27 @@ private struct AccountPageScreen: View {
     }
 }
 #endif
+
+/// Says that a removed account's stored sign-in could not be erased, so it would come back at the
+/// next launch. On the account list, and on the shell for a removal from the sidebar or of the last
+/// account, which takes Settings away with it.
+struct RemovalFailureAlert: ViewModifier {
+    var model: MailboxModel
+    /// Whether this is where it is said now.
+    var showing = true
+
+    func body(content: Content) -> some View {
+        content.alert(
+            model.removalFailure ?? "",
+            isPresented: Binding(
+                get: { showing && model.removalFailure != nil },
+                set: { if !$0 { model.removalFailure = nil } }
+            )
+        ) {
+            Button(L10n.action_close(), role: .cancel) {}
+        }
+    }
+}
 
 /// A labelled settings section: a heading, a line saying what it is for, and its controls, in the
 /// card every category draws.

@@ -110,10 +110,10 @@ enum AccountSettingsRules {
         return slots.compactMap { slot, candidates, current in
             guard !candidates.isEmpty || current != nil else { return nil }
             var options = candidates
-            if let current, !options.contains(current) {
+            if let current, !options.contains(where: { $0.id == current.id }) {
                 options.insert(current, at: 0)
             }
-            let selected = current.flatMap { options.firstIndex(of: $0) }
+            let selected = current.flatMap { current in options.firstIndex { $0.id == current.id } }
             let suggested = selected == nil
                 ? options.firstIndex { entry.linkCandidates.suggested.contains($0.id) }
                 : nil
@@ -129,11 +129,13 @@ enum AccountSettingsRules {
 
     /// Whether the mail settings offer a new password or API token: a JMAP account whose pasted
     /// secret the server stopped accepting. An account whose servers are editable takes its new
-    /// password there, and one that signs in at a provider signs in again instead.
+    /// password there, and one that signs in at a provider signs in again instead. An IMAP account
+    /// that signed in at its provider also reports `.password` and has no editable servers, but
+    /// holds no secret a paste could replace.
     static func replacesSecret(
         _ entry: AccountEntry, expired: Bool, provider: AccountProvider?
     ) -> Bool {
-        expired && entry.endpoints == nil && (provider == .jmap || provider == .password)
+        expired && entry.endpoints == nil && provider == .jmap
     }
 }
 

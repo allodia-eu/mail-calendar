@@ -248,6 +248,7 @@ public struct ContentView: View {
         // forced scheme also reaches the sheets and covers presented from here, because they inherit
         // this environment.
         .preferredColorScheme(AppearanceMode.colorScheme(model.appearance))
+        .modifier(RemovalFailureAlert(model: model, showing: settingsCategory == nil))
     }
 
     /// DEBUG/verification only: with `MAILCAL_OPEN_FIRST=1` (or `MAILCAL_REPLY=1`), auto-open the

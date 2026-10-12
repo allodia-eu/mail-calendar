@@ -75,7 +75,7 @@ struct AccountServersSection: View {
                 HStack(spacing: 10) {
                     Button(L10n.action_save(), action: save)
                         .buttonStyle(.borderedProminent)
-                        .disabled(saving || fields.username.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(saving || fields.incomplete)
                     if saving {
                         progress(L10n.settings_account_servers_trying())
                     } else if savedAs == fields {

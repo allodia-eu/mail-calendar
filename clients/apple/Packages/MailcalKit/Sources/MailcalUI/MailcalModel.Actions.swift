@@ -199,6 +199,7 @@ extension MailboxModel {
             )
             failure = L10n.remove_account_failed(error: coreMessage(error))
         }
+        removalFailure = failure
         refreshAccountsSnapshot()
         if app != nil, accountsSnapshot.accounts.isEmpty {
             needsSetup = true
