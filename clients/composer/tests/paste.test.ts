@@ -223,14 +223,14 @@ describe("pasted marks", () => {
     const [line] = paragraphs(
       pasted(
         '<p><span data-color="#c00000" style="color:#c00000">red</span> ' +
-          '<span data-highlight="#ffff00" data-size="Large">marked</span> ' +
+          '<span data-highlight="#ffff00" data-size="18">marked</span> ' +
           '<span style="color:#ffffff;background-color:#000">foreign</span></p>',
       ),
     );
     expect(line!.find((run) => run.text === "red")?.color).toBe("#c00000");
     expect(line!.find((run) => run.text === "marked")).toMatchObject({
       highlight: "#ffff00",
-      font_size: "Large",
+      font_size: 18,
     });
     const foreign = line!.find((run) => run.text.includes("foreign"))!;
     expect(foreign.color).toBeUndefined();

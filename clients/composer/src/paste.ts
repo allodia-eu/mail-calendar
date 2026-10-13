@@ -16,7 +16,7 @@
 import { imageFilesFrom } from "./images";
 import { safeLinkHref } from "./links";
 import { normalizeColor } from "./marks";
-import { type FontSize, type HexColor, isFontSize, SIZE_PX } from "./types";
+import { type FontSize, fontSizeOf, type HexColor } from "./types";
 
 interface PasteMarks {
   bold: boolean;
@@ -239,8 +239,8 @@ function wrapRun(doc: Document, text: Text, marks: PasteMarks): Node {
       span.style.backgroundColor = marks.highlight;
     }
     if (marks.size) {
-      span.dataset.size = marks.size;
-      span.style.fontSize = `${SIZE_PX[marks.size]}px`;
+      span.dataset.size = String(marks.size);
+      span.style.fontSize = `${marks.size}px`;
     }
   }
   if (marks.link) wrap("a").setAttribute("href", marks.link);
@@ -266,7 +266,7 @@ function marksOf(element: HTMLElement, tag: string, inherited: PasteMarks, class
   const underline =
     inherited.underline || tag === "u" || tag === "ins" || `${decorationLine} ${decoration}`.includes("underline");
 
-  const size = element.dataset?.size;
+  const size = Number(element.dataset?.size);
   return {
     bold,
     italic,
@@ -274,7 +274,7 @@ function marksOf(element: HTMLElement, tag: string, inherited: PasteMarks, class
     link: (tag === "a" ? safeLinkHref(element.getAttribute("href")) : null) ?? inherited.link,
     color: normalizeColor(element.dataset?.color) ?? inherited.color,
     highlight: normalizeColor(element.dataset?.highlight) ?? inherited.highlight,
-    size: isFontSize(size) ? size : inherited.size,
+    size: size > 0 ? fontSizeOf(size) : inherited.size,
   };
 }
 
