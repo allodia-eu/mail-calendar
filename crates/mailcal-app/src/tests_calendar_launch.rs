@@ -210,7 +210,7 @@ async fn a_newly_added_accounts_first_sync_brings_its_calendar_with_it() {
 /// Signing an account in again fetches the calendar the new grant reaches.
 ///
 /// A calendar added at the provider's consent screen arrives through a replaced credential rather
-/// than a new account or a launch, so without this it stayed empty until the tab was opened.
+/// than a new account or a launch, and nothing else fetches it until the tab is opened.
 #[tokio::test]
 async fn signing_in_again_brings_the_calendar_the_new_grant_reaches() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));

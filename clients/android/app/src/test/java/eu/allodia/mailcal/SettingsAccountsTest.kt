@@ -219,4 +219,26 @@ class SettingsAccountsTest {
 
         assertNull(state.notice)
     }
+
+    @Test
+    fun a_first_sign_in_taking_the_redirect_ends_a_sign_in_again() {
+        state.consent = PendingConsent("acct", google = false, handle = "h")
+        state.signingIn = "acct"
+
+        state.yieldConsent()
+
+        // Nothing is left to finish it, so "Sign in again" is offered again.
+        assertNull(state.consent)
+        assertNull(state.signingIn)
+    }
+
+    @Test
+    fun a_sign_in_again_already_answering_is_left_alone() {
+        // Its redirect arrived: the consent is spent, and the connect still runs.
+        state.signingIn = "acct"
+
+        state.yieldConsent()
+
+        assertEquals("acct", state.signingIn)
+    }
 }

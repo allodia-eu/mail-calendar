@@ -63,6 +63,17 @@ internal class AccountsUiState {
     /** The consent sign-in the next Microsoft or Google redirect completes, if any. */
     var consent: PendingConsent? = null
 
+    /**
+     * A first sign-in from the setup form claims the redirect a sign-in again was waiting for. That
+     * one can no longer finish, so its page stops saying it is under way, or "Sign in again" would
+     * stay disabled with nothing left to enable it.
+     */
+    fun yieldConsent() {
+        if (consent == null) return
+        consent = null
+        signingIn = null
+    }
+
     /** The account [id] names, if it is still listed. */
     fun entry(id: String): AccountEntry? = snapshot.accounts.firstOrNull { it.id == id }
 

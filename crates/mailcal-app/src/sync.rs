@@ -280,20 +280,17 @@ impl<P: Provider> App<P> {
     }
 
     /// The catch-up after an account's credential was replaced in place: a sign-in again, a new
-    /// password or new servers. Its mail as [`refresh_reconnected_account`] catches up, and its
-    /// calendar and contacts too, because the new grant may be the first to reach them: a use
-    /// added at the provider's consent screen has nothing stored, and nothing else fetches it
-    /// until its tab is opened.
+    /// password or new servers. Its mail catches up as [`refresh_reconnected_account`] does, then
+    /// it is warmed as a new account is ([`warm_added_account`]), because the new grant may be
+    /// the first to reach its calendar or contacts: a use added at the provider's consent screen
+    /// has nothing stored, and nothing else fetches it until its tab is opened.
     ///
     /// [`refresh_reconnected_account`]: Self::refresh_reconnected_account
+    /// [`warm_added_account`]: Self::warm_added_account
     pub async fn refresh_repaired_account(&self, id: &AccountId) {
         self.refresh_account_with_busy_retry(id, "reconnect", false)
             .await;
-        futures::join!(
-            self.refresh_calendar_in_background(),
-            self.refresh_contacts(),
-            self.prefetch_account_bodies(id),
-        );
+        self.warm_added_account(id).await;
     }
 
     /// Re-snapshots one account after a user changed its sync-depth window. If a poll, watch,

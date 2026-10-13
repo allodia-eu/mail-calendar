@@ -67,7 +67,8 @@ internal fun imapLoginRequest(
     email = recommendation.email,
     imapHost = recommendation.imapHost,
     smtpHost = recommendation.smtpHost,
-    caldavBaseUrl = uses?.let { it.caldavUrl.ifEmpty { null } },
+    // As the password route's connect (DetectedConnectForm.imapSetup) takes it.
+    caldavBaseUrl = if (uses != null) uses.caldavUrl.ifEmpty { null } else recommendation.caldavUrl,
     imapSecurity = recommendation.imapSecurity,
     smtpSecurity = recommendation.smtpSecurity,
     oauthIssuer = recommendation.oauthIssuer,

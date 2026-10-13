@@ -195,4 +195,19 @@ class AccountSetupDetectTest {
             form.imapSetup().uses,
         )
     }
+
+    @Test
+    fun aSignInSetsTheAccountUpWithTheSameCalendarAsAConnect() {
+        val imap = imap(isTrusted = true, caldavUrl = "https://caldav.soverin.net/calendars")
+        val form = DetectedConnectForm(imap)
+        form.password = "hunter2"
+        // No toggles on screen: the browser sign-in keeps the calendar a password connect keeps.
+        assertEquals(form.imapSetup().caldavBaseUrl, imapLoginRequest(imap).caldavBaseUrl)
+
+        // Toggles on screen: the calendar switched off is left out of either route.
+        val mailOnly = ChosenUses(listOf(AccountCapability.MAIL), caldavUrl = "", carddavUrl = "")
+        form.uses = mailOnly
+        assertNull(imapLoginRequest(imap, mailOnly).caldavBaseUrl)
+        assertEquals(form.imapSetup().caldavBaseUrl, imapLoginRequest(imap, mailOnly).caldavBaseUrl)
+    }
 }

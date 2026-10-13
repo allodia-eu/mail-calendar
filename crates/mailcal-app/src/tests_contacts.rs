@@ -80,8 +80,8 @@ fn unopened_contacts(surfaces: &Arc<Mutex<Vec<Surface>>>) -> crate::App<fake::Ma
 
 #[tokio::test]
 async fn a_newly_added_account_brings_its_contacts_with_it() {
-    // A sender's face comes from a contact card, so a new account whose contacts waited for the
-    // Contacts tab showed its mail without any.
+    // A sender's face comes from a contact card, so a new account's mail needs its contacts
+    // before anyone opens the Contacts tab.
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = unopened_contacts(&surfaces);
 

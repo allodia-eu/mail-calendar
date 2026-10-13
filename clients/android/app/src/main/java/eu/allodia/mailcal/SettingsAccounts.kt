@@ -43,8 +43,8 @@ import uniffi.mailcal_bindings.MailServerKind
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 /**
- * What Settings → Accounts draws beyond the per-account mail settings it shares with the old
- * cards: the snapshot and the page open ([state]), which accounts' sign-in has expired, which take
+ * What Settings → Accounts draws beyond each account's mail settings: the snapshot and the page
+ * open ([state]), which accounts' sign-in has expired, which take
  * a pasted secret, and what each change asks the activity to do.
  */
 internal class AccountsSettingsUi(

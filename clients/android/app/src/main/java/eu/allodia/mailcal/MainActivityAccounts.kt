@@ -90,7 +90,7 @@ internal fun MainActivity.signInWithMicrosoft(
         )
         pendingMicrosoftLogin = start.pending
         // A new account, not one being signed in again: this redirect is the setup form's.
-        accountSettings.consent = null
+        accountSettings.yieldConsent()
         signingInMicrosoft = true
         openMicrosoftSignIn(this, start.authorizationUrl)
     } catch (e: Exception) {
@@ -153,7 +153,7 @@ internal fun MainActivity.signInWithGoogle(
             capabilities = capabilities,
         )
         pendingGoogleLogin = start.pending
-        accountSettings.consent = null
+        accountSettings.yieldConsent()
         signingInGoogle = true
         openGoogleSignIn(this, start.authorizationUrl)
     } catch (e: Exception) {
