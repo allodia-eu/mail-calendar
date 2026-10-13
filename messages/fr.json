@@ -412,6 +412,7 @@
 	"reading_webview_unavailable": "Impossible d’afficher ce message (le moteur WebView2 n’est pas disponible).",
 	"reading_empty": "Sélectionnez un message à lire.",
 	"thread_sent": "Envoyé",
+	"thread_draft": "Brouillon",
 	"thread_archive": "Archiver la conversation",
 
 	"connectivity_offline_banner": "Vous êtes hors ligne. Les messages enregistrés sont affichés.",

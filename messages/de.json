@@ -412,6 +412,7 @@
 	"reading_webview_unavailable": "Diese Nachricht kann nicht angezeigt werden (die WebView2-Laufzeit ist nicht verfügbar).",
 	"reading_empty": "Wählen Sie eine Nachricht zum Lesen aus.",
 	"thread_sent": "Gesendet",
+	"thread_draft": "Entwurf",
 	"thread_archive": "Unterhaltung archivieren",
 
 	"connectivity_offline_banner": "Sie sind offline. Es werden gespeicherte E-Mails angezeigt.",

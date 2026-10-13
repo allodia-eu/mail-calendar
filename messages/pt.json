@@ -412,6 +412,7 @@
 	"reading_webview_unavailable": "Não foi possível apresentar esta mensagem (o motor WebView2 não está disponível).",
 	"reading_empty": "Selecione uma mensagem para ler.",
 	"thread_sent": "Enviada",
+	"thread_draft": "Rascunho",
 	"thread_archive": "Arquivar a conversa",
 
 	"connectivity_offline_banner": "Está offline: a mostrar o correio guardado.",

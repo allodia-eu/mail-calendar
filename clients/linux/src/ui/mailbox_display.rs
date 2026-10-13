@@ -63,6 +63,7 @@ pub(super) struct DisplayMessage {
     pub(super) date: String,
     pub(super) unread: bool,
     pub(super) outgoing: bool,
+    pub(super) draft: bool,
     pub(super) has_attachment: bool,
 }
 
@@ -120,6 +121,7 @@ pub(super) fn message_display(message: &ThreadMessage) -> DisplayMessage {
         date: message.date.clone(),
         unread: message.unread,
         outgoing: message.outgoing,
+        draft: message.draft,
         has_attachment: message.has_attachment,
     }
 }

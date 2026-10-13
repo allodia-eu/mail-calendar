@@ -201,6 +201,7 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
         && a.PreviewText == b.PreviewText
         && a.Unread == b.Unread
         && a.Outgoing == b.Outgoing
+        && a.Draft == b.Draft
         && a.HasAttachment == b.HasAttachment;
 
     /// <summary>

@@ -109,6 +109,7 @@ impl From<AppThreadMessage> for ThreadMessage {
             preview: message.preview,
             unread: message.unread,
             outgoing: message.outgoing,
+            draft: message.draft,
             has_attachment: message.has_attachment,
         }
     }

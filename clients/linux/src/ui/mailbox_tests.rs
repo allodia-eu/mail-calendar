@@ -110,6 +110,7 @@ fn reading_stops_expand_a_conversation_in_place_and_collapse_to_its_representati
             preview: String::new(),
             unread: false,
             outgoing: true,
+            draft: false,
             has_attachment: false,
         },
         ThreadMessage {
@@ -121,6 +122,7 @@ fn reading_stops_expand_a_conversation_in_place_and_collapse_to_its_representati
             preview: String::new(),
             unread: true,
             outgoing: false,
+            draft: false,
             has_attachment: false,
         },
     ];

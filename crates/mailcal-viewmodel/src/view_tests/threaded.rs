@@ -407,3 +407,34 @@ fn conversation_members_order_is_independent_of_the_supplied_order_when_instants
     // Newest first, then the `(account, key)` tiebreak among the two tied members.
     assert_eq!(forward, ["m3", "m1", "m2"]);
 }
+
+#[test]
+fn a_draft_in_a_conversation_is_badged_as_a_draft() {
+    // A reply left in Drafts, beside the message it answers: the draft says so, and the message it
+    // answers does not.
+    let inbound = at("a", &message("m1", "Re: report", 0, Some("t")));
+    let mut draft = message("m2", "Re: report", 30, Some("t"));
+    draft.keywords.insert(engine_api::Keyword::system(
+        engine_api::SystemKeyword::Draft,
+    ));
+    let draft = member("a", &draft, false);
+    let snapshot = build(
+        &[inbound, draft],
+        &[],
+        &[],
+        vec![],
+        Some("a"),
+        Some("inbox"),
+        ViewMode::Threaded,
+        ALL,
+    );
+    let SnapshotRow::Thread(thread) = &snapshot.rows[0] else {
+        panic!("expected a thread row");
+    };
+    let drafts: Vec<(&str, bool)> = thread
+        .messages
+        .iter()
+        .map(|m| (m.key.as_str(), m.draft))
+        .collect();
+    assert_eq!(drafts, vec![("m2", true), ("m1", false)]);
+}

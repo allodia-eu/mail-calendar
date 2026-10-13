@@ -17,7 +17,7 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
-use engine_api::{MailRow, UtcDateTime};
+use engine_api::{Keyword, MailRow, SystemKeyword, UtcDateTime};
 
 use crate::{
     avatar::{self, Avatar},
@@ -335,6 +335,10 @@ fn thread_message(item: &AccountMessage) -> ThreadMessage {
         preview: row.preview.clone().unwrap_or_default(),
         unread: row.flags.is_unread(),
         outgoing: item.outgoing,
+        draft: item
+            .row
+            .keywords
+            .contains(&Keyword::system(SystemKeyword::Draft)),
         has_attachment: row.has_attachment,
     }
 }

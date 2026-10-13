@@ -412,6 +412,7 @@
 	"reading_webview_unavailable": "Kan dit bericht niet weergeven (de webinhoudsweergave is niet beschikbaar).",
 	"reading_empty": "Selecteer een bericht om te lezen.",
 	"thread_sent": "Verzonden",
+	"thread_draft": "Concept",
 	"thread_archive": "Gesprek archiveren",
 
 	"connectivity_offline_banner": "Je bent offline, opgeslagen e-mail wordt getoond.",

@@ -387,6 +387,15 @@ extension ContentView {
 
     /// One message of an expanded conversation: an indented sub-row (sender, Sent badge, preview,
     /// date), highlighted when it is the message open in the reading pane. Tapping opens it.
+    /// The "Sent" or "Draft" capsule beside a conversation message's sender.
+    private func threadBadge(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(.quaternary, in: Capsule())
+    }
+
     private func threadMessageRow(_ thread: ThreadRow, _ message: ThreadMessage) -> some View {
         HStack(spacing: 8) {
             unreadDot(message.unread)
@@ -398,11 +407,10 @@ extension ContentView {
                         .fontWeight(message.unread ? .semibold : .regular)
                         .lineLimit(1)
                     if message.outgoing {
-                        Text(L10n.thread_sent())
-                            .font(.caption2)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(.quaternary, in: Capsule())
+                        threadBadge(L10n.thread_sent())
+                    }
+                    if message.draft {
+                        threadBadge(L10n.thread_draft())
                     }
                 }
                 if !message.preview.isEmpty {

@@ -412,6 +412,7 @@
 	"reading_webview_unavailable": "Impossibile visualizzare questo messaggio (il runtime WebView2 non è disponibile).",
 	"reading_empty": "Seleziona un messaggio da leggere.",
 	"thread_sent": "Inviato",
+	"thread_draft": "Bozza",
 	"thread_archive": "Archivia la conversazione",
 
 	"connectivity_offline_banner": "Sei offline: viene mostrata la posta salvata.",

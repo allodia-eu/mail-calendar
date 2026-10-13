@@ -456,8 +456,10 @@ pub struct ThreadMessage {
     pub preview: String,
     /// Whether the message is unread.
     pub unread: bool,
-    /// Whether the account owner sent this message (drives the "Sent" badge).
+    /// Whether the account owner sent this message (drives the "Sent" badge). Never a draft.
     pub outgoing: bool,
+    /// Whether the message is a draft, written but not sent (drives the "Draft" badge).
+    pub draft: bool,
     /// Whether the message has a non-inline attachment.
     pub has_attachment: bool,
 }

@@ -137,6 +137,7 @@ class AvatarSurfacesTest {
         preview = "Numbers and notes",
         unread = true,
         outgoing = false,
+        draft = false,
         hasAttachment = false,
     )
 

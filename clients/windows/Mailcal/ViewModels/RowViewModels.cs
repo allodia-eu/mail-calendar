@@ -59,6 +59,9 @@ public sealed class ThreadMessageItem
     /// <summary>Whether the account owner sent it (drives the "Sent" badge).</summary>
     public bool Outgoing { get; init; }
 
+    /// <summary>Whether it is a draft, written but not sent (drives the "Draft" badge).</summary>
+    public bool Draft { get; init; }
+
     /// <summary>Whether the message has a non-inline attachment.</summary>
     public bool HasAttachment { get; init; }
 
@@ -74,6 +77,12 @@ public sealed class ThreadMessageItem
 
     /// <summary>The "Sent" badge label.</summary>
     public string SentText => L10n.ThreadSent();
+
+    /// <summary>Show the "Draft" badge only on drafts.</summary>
+    public Visibility DraftVisibility => Draft ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>The "Draft" badge label.</summary>
+    public string DraftText => L10n.ThreadDraft();
 
     /// <summary>Show the preview line only when there is one.</summary>
     public Visibility PreviewVisibility =>

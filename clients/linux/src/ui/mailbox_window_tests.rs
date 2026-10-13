@@ -63,6 +63,7 @@ fn thread_message() -> ThreadMessage {
         preview: String::new(),
         unread: false,
         outgoing: false,
+        draft: false,
         has_attachment: false,
     }
 }

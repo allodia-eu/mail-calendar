@@ -210,6 +210,12 @@
                                                 <TextBlock Text="{x:Bind SentText}" Style="{StaticResource CaptionTextBlockStyle}"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                             </Border>
+                                            <Border Visibility="{x:Bind DraftVisibility}" VerticalAlignment="Center"
+                                                    Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                                    CornerRadius="8" Padding="6,0">
+                                                <TextBlock Text="{x:Bind DraftText}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </Border>
                                         </StackPanel>
                                         <TextBlock Text="{x:Bind PreviewText}" Visibility="{x:Bind PreviewVisibility}"
                                                    Style="{StaticResource CaptionTextBlockStyle}"

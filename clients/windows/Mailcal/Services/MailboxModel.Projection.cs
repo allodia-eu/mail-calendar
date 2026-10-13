@@ -430,6 +430,7 @@ public sealed partial class MailboxModel
                 PreviewText = m.Preview,
                 Unread = m.Unread,
                 Outgoing = m.Outgoing,
+                Draft = m.Draft,
                 HasAttachment = m.HasAttachment,
             }).ToList(),
         },

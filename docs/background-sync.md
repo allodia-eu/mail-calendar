@@ -53,10 +53,10 @@ pass exists precisely to report mail that arrived while nobody was looking.
   in a `budget_seconds` timeout (clamped to a sane band), then returns. The host blocks on it, then
   raises notifications and marks its OS task complete.
 - **New-mail detection is a persisted per-account high-water-mark.** After the pass, the core scans
-  each account's **Inbox** (resolved by role) for **inbound** messages (the owner's own Sent copies
-  excluded, identical to the list's "Sent" badge) received **strictly after** the stored mark, and
-  returns them as `NewMailPreview`s (sender, sender name, subject, body snippet, received, stable
-  message key).
+  each account's **Inbox** (resolved by role) for **inbound** messages (anything from the owner's
+  own address excluded, told as the list's "Sent" badge tells it) received **strictly after** the
+  stored mark, and returns them as `NewMailPreview`s (sender, sender name, subject, body snippet,
+  received, stable message key).
   "Received" is the delivery date, falling back to the `Date` header when the provider gave none:
   the same instant the list row is ordered by and shows, so a notification and its row can never
   disagree about when a message arrived. It

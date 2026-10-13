@@ -412,6 +412,7 @@
 	"reading_webview_unavailable": "Couldn't display this message (the web content renderer is unavailable).",
 	"reading_empty": "Select a message to read.",
 	"thread_sent": "Sent",
+	"thread_draft": "Draft",
 	"thread_archive": "Archive conversation",
 
 	"connectivity_offline_banner": "You're offline, showing saved mail.",

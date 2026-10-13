@@ -78,6 +78,21 @@ internal fun ConversationStrip(
     }
 }
 
+// The "Sent" or "Draft" label beside a message's sender.
+@Composable
+private fun ThreadBadge(text: String) {
+    Spacer(modifier = Modifier.width(6.dp))
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    )
+}
+
 // One collapsed message in the strip: avatar, sender, "Sent" badge, preview, date. Tapping it
 // opens that message in the reading screen (the same `OpenedMessage` a list row would produce).
 @Composable
@@ -125,16 +140,10 @@ private fun ConversationStripCard(
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 if (message.outgoing) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = L10n.thread_sent(ctx),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(horizontal = 6.dp, vertical = 1.dp),
-                    )
+                    ThreadBadge(L10n.thread_sent(ctx))
+                }
+                if (message.draft) {
+                    ThreadBadge(L10n.thread_draft(ctx))
                 }
                 if (message.hasAttachment) {
                     Spacer(modifier = Modifier.width(6.dp))

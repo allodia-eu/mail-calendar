@@ -310,6 +310,10 @@ pub struct ThreadRow {
 /// One message within an expanded conversation. A [`ThreadRow`] carries the full, ordered set
 /// so a host renders the whole thread; including the account owner's own Sent replies filed
 /// in another folder, and can open any message for reading by its `key`.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "mirrored one-for-one by a flat UniFFI record; `outgoing` and `draft` never both hold"
+)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ThreadMessage {
     /// The id of the account this message belongs to.
@@ -329,8 +333,10 @@ pub struct ThreadMessage {
     pub preview: String,
     /// Whether the message is unread.
     pub unread: bool,
-    /// Whether the account owner sent this message (drives the "Sent" badge).
+    /// Whether the account owner sent this message (drives the "Sent" badge). Never a draft.
     pub outgoing: bool,
+    /// Whether the message is a draft, written but not sent (drives the "Draft" badge).
+    pub draft: bool,
     /// Whether the message has a non-inline attachment.
     pub has_attachment: bool,
 }

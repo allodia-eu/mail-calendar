@@ -28,6 +28,7 @@ fn message(key: &str, from: &str, preview: &str, unread: bool, outgoing: bool) -
         preview: preview.to_owned(),
         unread,
         outgoing,
+        draft: false,
         has_attachment: false,
     }
 }

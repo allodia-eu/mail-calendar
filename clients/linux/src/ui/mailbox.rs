@@ -357,6 +357,9 @@ fn thread_message_row(
     if display.outgoing {
         widget.add_suffix(&badge(l10n::thread_sent()));
     }
+    if display.draft {
+        widget.add_suffix(&badge(l10n::thread_draft()));
+    }
     if display.has_attachment {
         widget.add_suffix(&attachment_icon());
     }

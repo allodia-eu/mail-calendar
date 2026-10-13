@@ -412,6 +412,7 @@
 	"reading_webview_unavailable": "No se ha podido mostrar este mensaje (el entorno WebView2 no está disponible).",
 	"reading_empty": "Selecciona un mensaje para leerlo.",
 	"thread_sent": "Enviado",
+	"thread_draft": "Borrador",
 	"thread_archive": "Archivar la conversación",
 
 	"connectivity_offline_banner": "Estás sin conexión: se muestra el correo guardado.",
