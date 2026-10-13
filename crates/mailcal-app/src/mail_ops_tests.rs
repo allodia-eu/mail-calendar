@@ -15,6 +15,8 @@ use super::{
 
 // The submitting fake every test here drives, in its own file so this one stays under the
 // 500-line limit. A child module, so it reaches the parent's imports through `super`.
+#[path = "compose_open_tests.rs"]
+mod compose_open_tests;
 #[path = "draft_ops_leave_tests.rs"]
 mod draft_ops_leave_tests;
 #[path = "draft_ops_tests.rs"]

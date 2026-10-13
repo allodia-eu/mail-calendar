@@ -9,9 +9,7 @@ use mailcal_composer::{
 };
 
 use crate::{
-    MailcalApp, MailcalError, Recipients,
-    composer::{message_ref, send_account},
-    drafts::sent_composition,
+    MailcalApp, MailcalError, Recipients, composer::send_account, drafts::sent_composition,
 };
 
 /// The `data:image/…;base64,…` URI for the picture at `path`, for a client to hand to the shared
@@ -88,29 +86,35 @@ pub(crate) struct PreparedFiles {
 
 #[uniffi::export]
 impl MailcalApp {
-    /// Sends a rich composer document with regular file attachments read from host-selected
-    /// paths. The document is parsed and validated synchronously; the attachment bytes are
-    /// read in Rust on the internal runtime (never on the host's calling thread) and do not
-    /// cross FFI.
+    /// Sends what a composer holds: the one send every composer makes, whichever way it was
+    /// opened (`MailcalApp::open_composer`).
     ///
-    /// `from` names the sending account (the composer's From dropdown), as in
-    /// [`MailcalApp::submit_rich_mail`]; omit it to let the core derive it. `composition`
-    /// likewise: this is the path a **resumed** draft sends through, its staged files being
-    /// ordinary file attachments, so passing it is what takes the stored copy out of Drafts.
-    #[allow(clippy::too_many_arguments)]
-    #[uniffi::method(default(from = None, composition = None))]
-    pub fn submit_rich_mail_with_files(
+    /// `composition` is the one the composer opened on. It is what the send knows the message
+    /// by: the conversation a reply or forward belongs to and the parts its quoted pictures came
+    /// from were joined to it when the composer opened, and an accepted send takes the stored
+    /// draft it may have saved out of Drafts. `from` is the composer's From dropdown; omit it to
+    /// let the core derive the sending account.
+    ///
+    /// The document is parsed and validated synchronously; the attachment bytes are read in Rust
+    /// on the internal runtime (never on the host's calling thread) and do not cross FFI.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Composer`] for an invalid document or a file that cannot be read,
+    /// or [`MailcalError::Engine`] if `composition` is blank or `from` is malformed.
+    #[uniffi::method(default(from = None))]
+    pub fn submit_composition(
         &self,
+        composition: String,
         recipients: Recipients,
         subject: String,
         document_json: String,
         files: Vec<ComposerFileAttachment>,
         from: Option<String>,
-        composition: Option<String>,
     ) -> Result<(), MailcalError> {
         let prepared = prepare_with_files(&document_json, files)?;
         let from = send_account(from)?;
-        let composition = sent_composition(composition)?;
+        let composition = sent_composition(Some(composition))?;
         let Recipients { to, cc, bcc } = recipients;
         self.spawn_with_files(prepared, move |document, blobs| AppIntent::SubmitRichMail {
             from,
@@ -121,88 +125,6 @@ impl MailcalApp {
             document,
             blobs,
             composition,
-        });
-        Ok(())
-    }
-
-    /// Replies with a rich composer document plus regular file attachments. `from` names the
-    /// sending account (the composer's From dropdown); omit it to reply from `account`.
-    /// `subject` is the composer's editable Subject field; omit it to derive `Re:`.
-    // Nine because a reply names nine things, not because two concerns are tangled: the
-    // original (account + key), the recipients, the subject, the body, its attachments, the
-    // sending account and the composer it was written in. Bundling any of them into a record
-    // would only rename the arity.
-    #[allow(clippy::too_many_arguments)]
-    #[uniffi::method(default(from = None, subject = None, composition = None))]
-    pub fn submit_rich_reply_with_files(
-        &self,
-        account: String,
-        key: String,
-        recipients: Recipients,
-        document_json: String,
-        files: Vec<ComposerFileAttachment>,
-        from: Option<String>,
-        subject: Option<String>,
-        composition: Option<String>,
-    ) -> Result<(), MailcalError> {
-        let message = message_ref(&account, key)?;
-        let prepared = prepare_with_files(&document_json, files)?;
-        let from = send_account(from)?;
-        let composition = sent_composition(composition)?;
-        let Recipients { to, cc, bcc } = recipients;
-        self.spawn_with_files(prepared, move |document, blobs| {
-            AppIntent::SubmitRichReply {
-                message,
-                from,
-                to,
-                cc,
-                bcc,
-                subject,
-                document,
-                blobs,
-                composition,
-            }
-        });
-        Ok(())
-    }
-
-    /// Forwards with a rich composer document plus regular file attachments. `from` names the
-    /// sending account (the composer's From dropdown); omit it to forward from `account`.
-    /// `subject` is the composer's editable Subject field; omit it to derive `Fwd:`.
-    // Nine because a reply names nine things, not because two concerns are tangled: the
-    // original (account + key), the recipients, the subject, the body, its attachments, the
-    // sending account and the composer it was written in. Bundling any of them into a record
-    // would only rename the arity.
-    #[allow(clippy::too_many_arguments)]
-    #[uniffi::method(default(from = None, subject = None, composition = None))]
-    pub fn submit_rich_forward_with_files(
-        &self,
-        account: String,
-        key: String,
-        recipients: Recipients,
-        document_json: String,
-        files: Vec<ComposerFileAttachment>,
-        from: Option<String>,
-        subject: Option<String>,
-        composition: Option<String>,
-    ) -> Result<(), MailcalError> {
-        let message = message_ref(&account, key)?;
-        let prepared = prepare_with_files(&document_json, files)?;
-        let from = send_account(from)?;
-        let composition = sent_composition(composition)?;
-        let Recipients { to, cc, bcc } = recipients;
-        self.spawn_with_files(prepared, move |document, blobs| {
-            AppIntent::SubmitRichForward {
-                message,
-                from,
-                to,
-                cc,
-                bcc,
-                subject,
-                document,
-                blobs,
-                composition,
-            }
         });
         Ok(())
     }

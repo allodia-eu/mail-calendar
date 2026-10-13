@@ -8,8 +8,8 @@
 use engine_api::ContentIdHeader;
 use mailcal_composer::{Block, ComposerDocument, Paragraph, Quote, QuoteAttribution, QuoteStyle};
 
-use super::{dispatch_until, original_message, reply_app};
-use crate::{Intent, MessageRef, SendStatus};
+use super::{dispatch_until, original_message, reply_app, reply_origin, send_from_composer};
+use crate::{Intent, SendStatus};
 
 #[tokio::test(start_paused = true)]
 async fn rich_reply_re_sanitizes_a_quoted_original_before_sending() {
@@ -36,17 +36,18 @@ async fn rich_reply_re_sanitizes_a_quoted_original_before_sending() {
         ],
         attachments: Vec::new(),
     };
-    let intent = Intent::SubmitRichReply {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        from: None,
-        to: "reply@remote.test".to_owned(),
-        cc: String::new(),
-        bcc: String::new(),
-        subject: None,
+    let intent = send_from_composer(
+        &app,
+        reply_origin("m1"),
+        None,
+        "reply@remote.test",
+        "",
+        "",
+        None,
         document,
-        blobs: Vec::new(),
-        composition: None,
-    };
+        Vec::new(),
+    )
+    .await;
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
     assert_eq!(app.send_status(), SendStatus::Sent);
 
@@ -93,17 +94,18 @@ async fn rich_reply_reattaches_quoted_inline_images_as_cid_keeping_the_original_
         ],
         attachments: Vec::new(),
     };
-    let intent = Intent::SubmitRichReply {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        from: None,
-        to: "reply@remote.test".to_owned(),
-        cc: String::new(),
-        bcc: String::new(),
-        subject: None,
+    let intent = send_from_composer(
+        &app,
+        reply_origin("m1"),
+        None,
+        "reply@remote.test",
+        "",
+        "",
+        None,
         document,
-        blobs: Vec::new(),
-        composition: None,
-    };
+        Vec::new(),
+    )
+    .await;
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
     assert_eq!(app.send_status(), SendStatus::Sent);
 
@@ -167,17 +169,18 @@ async fn rich_reply_keeps_the_line_breaks_of_a_quoted_plain_text_original() {
         ],
         attachments: Vec::new(),
     };
-    let intent = Intent::SubmitRichReply {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        from: None,
-        to: "reply@remote.test".to_owned(),
-        cc: String::new(),
-        bcc: String::new(),
-        subject: None,
+    let intent = send_from_composer(
+        &app,
+        reply_origin("m1"),
+        None,
+        "reply@remote.test",
+        "",
+        "",
+        None,
         document,
-        blobs: Vec::new(),
-        composition: None,
-    };
+        Vec::new(),
+    )
+    .await;
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 
     let submissions = submissions.lock().unwrap();

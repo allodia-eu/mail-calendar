@@ -16,6 +16,8 @@ public struct ReadingWindow: View {
 
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismiss) private var dismiss
+    /// What to say about a composer raised from this window that could not open.
+    @State private var composeOpenFailed: String?
 
     public init(session: AppSession, window: ReadingWindowID) {
         self.model = session.model
@@ -35,9 +37,9 @@ public struct ReadingWindow: View {
                     model: model,
                     message: opened.message,
                     source: .window(readerID),
-                    onReply: { reply(to: opened, all: false) },
-                    onReplyAll: { reply(to: opened, all: true) },
-                    onForward: { forward(opened) },
+                    onReply: { reply(all: false) },
+                    onReplyAll: { reply(all: true) },
+                    onForward: { forward() },
                     // Archive and delete move the message out of the folder, so there is nothing
                     // left for this window to be about. The pane advances to the next message
                     // down (Mailcal.AutoAdvance.swift) because it is a place in a list; a window
@@ -64,6 +66,15 @@ public struct ReadingWindow: View {
             }
         }
         .frame(minWidth: 520, minHeight: 400)
+        .alert(
+            composeOpenFailed ?? "",
+            isPresented: Binding(
+                get: { composeOpenFailed != nil },
+                set: { if !$0 { composeOpenFailed = nil } }
+            )
+        ) {
+            Button(L10n.action_close(), role: .cancel) {}
+        }
         // Both halves of the close: the host forgets the header, and the core drops the body it
         // was holding for this reader.
         .onDisappear { model.closeReadingWindow(readerID) }
@@ -72,30 +83,25 @@ public struct ReadingWindow: View {
     /// Replying from a window opens a composer window, which is where a reply raised out of a
     /// window belongs: the shell's inline composer would put the draft in a different window from
     /// the message it answers, behind whatever the user has in front of them.
-    private func reply(to opened: DetachedReading, all: Bool) {
-        openDraft(
-            model.replyDraft(
-                account: window.account, key: window.key,
-                subject: opened.message.subject, all: all,
-                quotingFrom: opened.message, body: opened.body
-            )
-        )
+    private func reply(all: Bool) {
+        let (origin, prefill) = replyOrigin(account: window.account, key: window.key, all: all)
+        openDraft(origin, prefill: prefill)
     }
 
-    private func forward(_ opened: DetachedReading) {
+    private func forward() {
+        openDraft(.forward(account: window.account, key: window.key))
+    }
+
+    /// Asks the core for the composer, as every route does (`MailboxModel.openComposer`), and
+    /// opens its window once the answer is in.
+    private func openDraft(_ origin: ComposeOrigin, prefill: ComposePrefill? = nil) {
         Task { @MainActor in
-            openDraft(
-                await model.forwardDraft(
-                    account: window.account, key: window.key,
-                    subject: opened.message.subject,
-                    quotingFrom: opened.message, body: opened.body
-                )
-            )
+            guard let context = await model.openComposer(origin, prefill: prefill) else {
+                composeOpenFailed = composeOpenFailedMessage(for: origin)
+                return
+            }
+            openWindow(id: DesktopWindow.composer, value: drafts.open(context))
         }
-    }
-
-    private func openDraft(_ context: ComposeContext) {
-        openWindow(id: DesktopWindow.composer, value: drafts.open(context))
     }
 }
 #endif

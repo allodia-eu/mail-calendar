@@ -126,6 +126,38 @@ the state of the composer beside it. This is the rule the reading windows follow
 reply in a window of its own, so two composers saving different drafts is the ordinary case, not
 an edge.
 
+## Every composer opens the same way
+
+**One call opens every composer, and one call sends from it.** A new message, a reply, a reply to
+all, a forward and a draft resumed from Drafts all open through `open_composer`, and a queued send
+moved back out of the Outbox raises the same answer, `ComposeOpening`. A mail link, a share and an
+assistant's draft are a new message, or a reply when the assistant names the message it answers,
+with a prefill laid over it field by field. A client builds its composer from that one record in
+one way, and every composer sends through `submit_composition` on the composition it opened on.
+No route can open a composer holding less than another.
+
+**The composition is joined when the composer opens, not when it sends.** The core takes the
+conversation the message belongs to (a reply's original as the message it answers and the chain
+behind it, a forward's chain alone, a stored message's own headers) and the parts its quoted
+original's pictures came from, and puts both on every save and on the send. So a reply saved
+before it was ever sent is stored as a reply, still one when it is resumed, and still one when it
+finally goes; Thunderbird and Outlook, opening the same draft, see the same `In-Reply-To` and
+`References`.
+
+**What the composer opens with comes from the message, not from the screen.** A reply quotes the
+message as the core reads it, so one raised from a list row nobody opened quotes its original as
+fully as one raised from the reading pane. The quoted original travels as `ComposeOpening::quote`
+and the host words its attribution in the user's language, both styles of it, because the core
+carries no runtime locale.
+
+**The kind is the message's.** `ComposeOpening::kind` names what the composer is doing. A stored
+message in a conversation is a forward when its subject opens with a forward prefix (`Fwd:`,
+Outlook's `FW:` and its translations) or when it only continues the conversation without answering
+a message, and a reply when it answers one; one in no conversation is new. The subject is needed
+because Thunderbird and Outlook both set `In-Reply-To` on a forward, to the message forwarded. So a
+resumed reply opens as a reply, titled as one, rather than as a new message. Which reply it was is
+not something any header says, so it reopens as a reply.
+
 ## Picking one back up
 
 A draft in the Drafts folder opens into a composer, not into the reading view, and the
@@ -158,7 +190,7 @@ composer appears when the answer does.
 
 **The body comes back as it was written.** The core hands the composer the draft's HTML,
 sanitised as a reading view's is, with every picture the draft carries as a part already turned
-into the `data:` URI the editor shows it from (`ComposeRequest::body_html`). The editor reads it
+into the `data:` URI the editor shows it from (`ComposeOpening::body_html`). The editor reads it
 back into its own document (`setComposerBody`, `clients/composer/src/read_html.ts`): the
 formatting, the lists and tables, the pictures, the quoted original and the signature. What another
 client wrote reads as closely as the editor's schema allows (see the known gaps). A draft with no
@@ -186,15 +218,25 @@ passes each through the save's own builder and the reopen's own sanitiser, and w
 to `clients/composer/tests/fixtures/reopened.json`; the editor's suite then reads every entry back
 and requires the document it was saved from.
 
-**The composition keeps what the editor cannot.** A reply's `In-Reply-To` and `References` go on
-every save and on the send, so a resumed reply stays in its conversation. And the parts its
-quoted original's pictures came from are put back on every save and the send, exactly as a
-reply's own quote has its original's restored, so a quoted picture leaves as a part rather than
-as a `data:` URI a reader may refuse to show.
+**A reopened quote shows both attributions.** A stored quote carries the style it was saved in,
+the one-line "On … wrote:" or the header block, and nothing of the other. When the message it
+quotes is still in the store, found in the draft's own conversation by the `Message-ID` its
+headers name, it comes with the opening, and the host completes the missing style from it
+(`completeComposerQuoteAttribution`). Only the empty half is filled, so the half the draft was
+saved with stays exactly as it was written. The style picker opens on the style the quote was
+saved in. A quote whose original cannot be found (a queued send moved back out of the Outbox is not
+stored yet, and an original can have left the synced window) keeps the one style it has, and no
+picker is offered for it, since switching would show an empty attribution.
 
-**A resumed composer seeds no signature.** The body already carries the one it was written with,
-so seeding one would put a second under it, and the next save would store that. It is the same
-reason a message withdrawn from the Outbox seeds none ([`sending.md`](sending.md)).
+**A resumed composer seeds no signature, and never touches the one it opened with.** The body
+already carries the signature it was written with: seeding one would put a second under it, and
+resolving "none" for it, on open or when the sender changes, would take that signature off and the
+next save would store the draft without it. It is the same reason a message withdrawn from the
+Outbox seeds none ([`sending.md`](sending.md)).
+
+**Files it opened with are not something written.** A resumed draft's files, like a forward's,
+are already in the mailbox, so a composer closed over them unchanged is a composer nothing was
+written in and writes nothing on the way out.
 
 **The first save after a resume always writes.** The unchanged check compares against what
 this app last put on the server, and the composer renders its own document rather than the
@@ -268,6 +310,10 @@ and the removal below runs on whatever key the composition had.
 | Discard removes the server copy | ✅ | ✅ | ✅ | ✅ |
 | Resume from the Drafts folder | ✅ | ✅ | ✅ | ✅ |
 | A resumed draft opens formatted, its pictures and quote included | ✅ | ✅ | ✅ | ✅ |
+| Every composer opens through `open_composer` and sends through `submit_composition` | ✅ | ✅ | ✅ | ✅ |
+| A reply or forward saved as a draft keeps its conversation | ✅ | ✅ | ✅ | ✅ |
+| A resumed reply opens as a reply, both attributions known | ✅ | ✅ | ✅ | ✅ |
+| A resumed draft keeps the signature it opened with | ✅ | ✅ | ✅ | ✅ |
 | Sending takes the draft away | ✅ | ✅ | ✅ | ✅ |
 | Leaving the composer keeps the draft, unasked | ✅ | ✅ | ✅ | ✅ |
 | Discard asks only when something would be lost | ✅ | ✅ | ✅ | ✅ |
@@ -310,9 +356,6 @@ second name for leaving.
   font size other than the composer's four as the body's size, a named colour as no colour, and a
   picture linked from the web, which the composer cannot send, not at all. The next save stores
   what the composer opened with, so those are gone from the draft once it is saved.
-- **A reopened quote keeps one attribution.** The message carries only the style it was sent in,
-  the one-line "On … wrote:" or the header block, so switching a reopened quote to the other style
-  shows that style's attribution empty.
 - **A draft written from an alias reopens on its account.** This app sends from an account's own
   address only, so a draft another client wrote from an alias goes out from the account if it is
   sent from here.

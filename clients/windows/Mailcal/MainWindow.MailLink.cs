@@ -72,24 +72,17 @@ public sealed partial class MainWindow
             // calendar or Contacts would otherwise open it behind them and the click would look
             // like it did nothing.
             Model.ShowMail();
-            BeginCompose(new ComposeContext(
-                RichComposeKind.New,
-                Account: null,
-                Key: null,
-                // A link never names a sender, `from` is the header Gate 12 drops first, so the
-                // app-level default decides, exactly as a user-initiated new message does.
-                InitialFrom: Model.SendAccount(Model.SelectedAccount)?.Id,
-                InitialTo: prefill.To,
-                InitialCc: prefill.Cc,
-                Quote: null,
-                QuoteStyle: Model.QuoteSettings.Style,
-                QuoteStylePerMessage: Model.QuoteSettings.PerMessage,
-                InitialBcc: prefill.Bcc,
-                InitialSubject: prefill.Subject,
-                // Empty means "no body seed", a bare link opens the composer as blank as the New
-                // button does, rather than seeding an empty paragraph over the signature.
-                InitialBody: string.IsNullOrEmpty(prefill.Body) ? null : prefill.Body));
-            // The request came from a browser or another app, so this process does not hold
+            // A link never names a sender, `from` is the header Gate 12 drops first, so it opens as
+            // a new message from the account the user is in, exactly as the New button does. A
+            // bare link brings no body, and the composer opens as blank as New does.
+            var opened = await OpenComposerAsync(
+                new ComposeOrigin.New(Model.SelectedAccount),
+                new ComposePrefill(prefill.To, prefill.Cc, prefill.Bcc, prefill.Subject, prefill.Body, false));
+            if (opened is not { } context)
+            {
+                return;
+            }
+            BeginCompose(context);            // The request came from a browser or another app, so this process does not hold
             // foreground rights and a bare Activate() would be ignored.
             BringToForeground();
         }

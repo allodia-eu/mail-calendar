@@ -69,7 +69,14 @@ async fn resumed() -> (
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![rich_stored_draft("rich-1")]));
     app.dispatch(Intent::RefreshMail).await;
     let request = app
-        .resume_draft(composition(), draft_ref(), &staging_dir("resumed"))
+        .open_composer(
+            composition(),
+            crate::ComposeOrigin::Draft {
+                message: draft_ref(),
+            },
+            None,
+            &staging_dir("resumed"),
+        )
         .await
         .expect("the draft resumes");
     assert!(
@@ -118,7 +125,14 @@ async fn a_resumed_draft_opens_formatted_with_its_pictures_inline() {
     app.dispatch(Intent::RefreshMail).await;
 
     let request = app
-        .resume_draft(composition(), draft_ref(), &staging_dir("formatted"))
+        .open_composer(
+            composition(),
+            crate::ComposeOrigin::Draft {
+                message: draft_ref(),
+            },
+            None,
+            &staging_dir("formatted"),
+        )
         .await
         .expect("the draft resumes");
 

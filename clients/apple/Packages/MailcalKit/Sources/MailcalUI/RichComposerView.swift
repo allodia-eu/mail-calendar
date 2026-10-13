@@ -1,6 +1,6 @@
-// The rich new-message composer for the shared Apple client. The editor document is
-// trusted bundled code loaded in a dedicated WKWebView; the body output is still produced
-// by shared Rust (`submitRichMail` validates and renders before queuing the send).
+// The rich composer for the shared Apple client. The editor document is trusted bundled code
+// loaded in a dedicated WKWebView; the body output is still produced by shared Rust
+// (`submitComposition` validates and renders before queuing the send).
 
 import Foundation
 import MailcalBindings
@@ -29,11 +29,9 @@ private struct RichComposerWebView: PlatformViewRepresentable {
 /// a frame shorter than its content would overflow with nothing able to reach it.
 private let minimumEditorHeight: CGFloat = 280
 
-/// What the rich composer is for. Every mode exposes editable To/Cc/Bcc/Subject fields; a
-/// reply and reply-all open with To/Cc pre-filled from the core (`replyRecipients`) and the
-/// Subject with the core's derived `Re:`/`Fwd:`, a forward and new message open with empty
-/// addresses, so the user can adjust anything before sending. Every mode shares the one hardened
-/// editor host.
+/// What the rich composer is for: its heading and its signature slot. Every mode exposes editable
+/// To/Cc/Bcc/Subject fields, opened with what the core answered (`ComposeOpening`), so the user
+/// can adjust anything before sending. Every mode shares the one hardened editor host.
 enum RichComposeMode {
     case new
     case reply
@@ -42,12 +40,10 @@ enum RichComposeMode {
 }
 
 /// Rich composer for a new message, reply, reply-all, or forward: the shared local editor
-/// bundle plus the editable From/To/Cc/Bcc header fields (and Subject for a new message). `send`
-/// receives the entered [`Recipients`], the Subject (used only for a new message), the
-/// rendered document JSON, the attachments, and the id of the account picked in the From
-/// dropdown; the parent routes it to the matching `submitRich*` call. Reply and reply-all pass
-/// `initialTo`/`initialCc` to pre-fill the derived recipients, and every mode passes the
-/// `accounts` to choose a sender from plus the `initialFrom` it opens on.
+/// bundle plus the editable From/To/Cc/Bcc/Subject header fields. `send` receives the entered
+/// [`Recipients`], the Subject as edited, the rendered document JSON, the attachments, and the id
+/// of the account picked in the From dropdown; the parent sends it through `submitComposition`. Every mode passes the `accounts` to
+/// choose a sender from plus the `initialFrom` it opens on.
 struct RichComposeView: View {
     let title: String
     var mode: RichComposeMode = .new
@@ -79,12 +75,9 @@ struct RichComposeView: View {
     /// Whether the Cc/Bcc rows are revealed. Collapsed unless the caller pre-filled one.
     @State private var showsCcBcc: Bool
     @State var subject: String
-    /// This composer's composition, for as long as it is open: the host's handle on one composer,
-    /// and what every draft call names. Minted here because the core mints none, and per composer
+    /// This composer's composition, for as long as it is open: the one the core joined to the
+    /// message when the composer opened, and what every draft call and the send name. Per composer
     /// because a desktop can have several open at once (`docs/reading-window.md`).
-    ///
-    /// A **resumed** draft is the exception and arrives with one: the core has already joined that
-    /// id to the copy on the server, so a fresh one here would save a second draft beside it.
     @State var composition: String
     /// The most recent save's state, re-pulled whenever the core says some composition's moved.
     @State var draftStatus: DraftStatus = .idle
@@ -128,20 +121,22 @@ struct RichComposeView: View {
         initialBcc: String = "",
         initialSubject: String = "",
         initialBody: String = "",
-        /// The HTML of a message this composer reopens (`ComposeRequest.bodyHtml`), which the
+        /// The HTML of a message this composer reopens (`ComposeOpening.bodyHtml`), which the
         /// editor reads back into its document; `initialBody` is then that message's text.
         initialHTML: String = "",
-        /// Files the composer opens already holding: the ones a forwarded message carries,
-        /// staged by the core. Removable like any picked file: a forward proposes them, it does
-        /// not impose them.
+        /// Files the core staged for the composer to open holding: a forward's originals, a stored
+        /// draft's own. Removable like any picked file.
         initialAttachments: [ComposerFileAttachment] = [],
+        /// Files the host adds on top: a share's (`ComposeOpeningSeed.baselineAttachmentCount`).
+        addedAttachments: [ComposerFileAttachment] = [],
         /// An error the composer opens showing, for a failure that happened before it did: the
         /// files a forward was to carry could not be read.
         initialError: String? = nil,
-        /// The composition to save under, for a composer the core has already joined to a stored
-        /// draft. Every other composer mints its own.
-        composition: String? = nil,
+        /// The composition the core opened this composer on (`ComposeOpening.composition`).
+        composition: String,
         quote: String? = nil,
+        /// The `completeComposerQuoteAttribution` argument for a reopened quote, or `nil`.
+        quoteAttribution: String? = nil,
         quoteStyle: QuoteStyleKind = .indented,
         quoteStylePerMessage: Bool = false,
         suggestionsFor: ((String) async -> [RecipientMatch])? = nil,
@@ -159,7 +154,7 @@ struct RichComposeView: View {
         self.signatures = signatures
         self.drafts = drafts
         self.showsStylePicker = ComposerQuote.showsStylePicker(
-            hasQuote: quote != nil,
+            hasQuote: quote != nil || quoteAttribution != nil,
             perMessage: quoteStylePerMessage
         )
         self.focusesTo = !Self.opensInBody(mode: mode, to: initialTo)
@@ -167,6 +162,7 @@ struct RichComposeView: View {
         editor.pendingQuote = quote
         editor.pendingPlainBody = initialBody.isEmpty ? nil : initialBody
         editor.pendingStoredHTML = initialHTML.isEmpty ? nil : initialHTML
+        editor.pendingQuoteAttribution = quoteAttribution
         // The opening signature is resolved here, not in `onAppear`: it has to be injected before
         // the editor snapshots its "nothing written yet" seed, or the composer opens dirty. The
         // account is resolved the same way `resolvedFrom` does below, the From dropdown and the
@@ -200,11 +196,15 @@ struct RichComposeView: View {
             cc: seededRecipientField(initialCc),
             bcc: seededRecipientField(initialBcc),
             subject: initialSubject,
-            attachments: initialAttachments.count
+            attachments: ComposeOpeningSeed.baselineAttachmentCount(
+                opening: initialAttachments, added: addedAttachments
+            )
         )
-        _composition = State(initialValue: composition ?? UUID().uuidString)
+        _composition = State(initialValue: composition)
         _quoteStyle = State(initialValue: quoteStyle)
-        _attachments = State(initialValue: initialAttachments.map(PickedAttachment.init(staged:)))
+        _attachments = State(
+            initialValue: (initialAttachments + addedAttachments).map(PickedAttachment.init(staged:))
+        )
         _composerError = State(initialValue: initialError)
     }
 
@@ -376,6 +376,10 @@ struct RichComposeView: View {
             .onChange(of: quoteStyle) { _, style in
                 editor.setQuoteStyle(ComposerQuote.token(style))
             }
+            // A reopened quote keeps the style it was saved in, so the picker opens on that one.
+            .onChange(of: editor.storedQuoteStyle) { _, style in
+                if let style { quoteStyle = style }
+            }
         }
     }
 
@@ -457,10 +461,7 @@ struct RichComposeView: View {
                     documentJson: documentJson,
                     files: attachments.map(\.composerFile),
                     from: resolvedFrom,
-                    // Named whenever this composer keeps a draft, so the send takes the stored
-                    // copy away; a send that omitted it would leave a duplicate in Drafts of a
-                    // message already on its way (`docs/drafts.md`).
-                    composition: drafts == nil ? nil : composition
+                    composition: composition
                 )
                 if send(submission) {
                     draftReleased = true

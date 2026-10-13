@@ -29,12 +29,14 @@ use crate::{
 
 mod digest;
 mod from_outbox;
+mod open;
 mod reopen;
-pub(crate) mod resume;
+mod resume;
 mod state;
 
-pub(crate) use state::DraftState;
-use state::{Composition, Threading};
+pub use open::{ComposeOrigin, ComposePrefill};
+use state::Composition;
+pub(crate) use state::{DraftState, Threading};
 
 /// How long a composer sits untouched before its draft is saved.
 ///

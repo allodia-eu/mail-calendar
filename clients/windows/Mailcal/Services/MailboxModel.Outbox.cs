@@ -84,7 +84,7 @@ public sealed partial class MailboxModel
             return;
         }
         Log.Info(LogLineFor(action));
-        var intent = OutboxRows.IntentFor(action, row.Account, row.Op, DraftStagingDirectory());
+        var intent = OutboxRows.IntentFor(action, row.Account, row.Op, ComposerStagingDirectory());
         _app?.Dispatch(new Intent.Outbox(intent));
     }
 
@@ -110,7 +110,7 @@ public sealed partial class MailboxModel
     /// files (MainWindow.Compose.cs). Not a snapshot field: it is a standing request, and it stands
     /// until <see cref="DismissComposeRequest"/> says the composer has the message.
     /// </remarks>
-    internal event Action<ComposeRequest>? ComposeRequested;
+    internal event Action<ComposeOpening>? ComposeRequested;
 
     /// <summary>
     /// Pulls the message the core is asking this host to compose (on a

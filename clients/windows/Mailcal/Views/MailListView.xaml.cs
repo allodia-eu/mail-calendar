@@ -275,7 +275,7 @@ public sealed partial class MailListView : UserControl
             return;
         }
         await LeaveComposerForDraftAsync();
-        App.Shell?.ComposeReply(row.Account, row.Key, replyAll, row.RawSubject);
+        App.Shell?.ComposeReply(row.Account, row.Key, replyAll);
     }
 
     private async void OnForward(object sender, RoutedEventArgs e)
@@ -285,7 +285,7 @@ public sealed partial class MailListView : UserControl
             return;
         }
         await LeaveComposerForDraftAsync();
-        App.Shell?.ComposeForward(row.Account, row.Key, row.RawSubject);
+        App.Shell?.ComposeForward(row.Account, row.Key);
     }
 
     private void OnToggleRead(object sender, RoutedEventArgs e)

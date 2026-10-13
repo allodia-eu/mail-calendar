@@ -12,8 +12,11 @@ use std::sync::{Arc, Mutex};
 use engine_api::{AccountId, Draft, EmailAddress, Engine, MessageIdHeader, TimeZoneId};
 use engine_core::mail::Message;
 
-use super::{SilentObserver, ThreadProvider, dispatch_until, original_message, reply_document};
-use crate::{Account, App, Intent, MessageRef, SendStatus, Telemetry, TimeZoneInit};
+use super::{
+    SilentObserver, ThreadProvider, dispatch_until, forward_origin, original_message,
+    reply_document, reply_origin, send_from_composer,
+};
+use crate::{Account, App, Intent, SendStatus, Telemetry, TimeZoneInit};
 
 /// The submission logs of a two-account app, one per account.
 struct Outboxes {
@@ -179,19 +182,20 @@ async fn a_reply_from_another_account_still_threads_off_the_original() {
     app.dispatch(Intent::RefreshMail).await;
 
     let (document, blobs) = reply_document();
-    let intent = Intent::SubmitRichReply {
-        // The original lives in acct-1 …
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        // … but the user picked acct-2 in the From dropdown.
-        from: Some(AccountId::try_from("acct-2").unwrap()),
-        to: "reply@remote.test".to_owned(),
-        cc: String::new(),
-        bcc: String::new(),
-        subject: None,
+    // The original lives in acct-1 …
+    // … but the user picked acct-2 in the From dropdown.
+    let intent = send_from_composer(
+        &app,
+        reply_origin("m1"),
+        Some("acct-2"),
+        "reply@remote.test",
+        "",
+        "",
+        None,
         document,
         blobs,
-        composition: None,
-    };
+    )
+    .await;
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 
     // It goes out from acct-2 …
@@ -219,18 +223,19 @@ async fn a_reply_without_a_from_still_sends_from_the_receiving_account() {
     app.dispatch(Intent::RefreshMail).await;
 
     let (document, blobs) = reply_document();
-    let intent = Intent::SubmitRichReply {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        // No dropdown choice: the account that received the original replies (the default).
-        from: None,
-        to: "reply@remote.test".to_owned(),
-        cc: String::new(),
-        bcc: String::new(),
-        subject: None,
+    // No dropdown choice: the account that received the original replies (the default).
+    let intent = send_from_composer(
+        &app,
+        reply_origin("m1"),
+        None,
+        "reply@remote.test",
+        "",
+        "",
+        None,
         document,
         blobs,
-        composition: None,
-    };
+    )
+    .await;
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 
     assert_eq!(outboxes.counts(), (1, 0));
@@ -243,17 +248,18 @@ async fn a_forward_from_another_account_sends_through_that_accounts_outbox() {
     app.dispatch(Intent::RefreshMail).await;
 
     let (document, blobs) = reply_document();
-    let intent = Intent::SubmitRichForward {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        from: Some(AccountId::try_from("acct-2").unwrap()),
-        to: "elsewhere@remote.test".to_owned(),
-        cc: String::new(),
-        bcc: String::new(),
-        subject: None,
+    let intent = send_from_composer(
+        &app,
+        forward_origin("m1"),
+        Some("acct-2"),
+        "elsewhere@remote.test",
+        "",
+        "",
+        None,
         document,
         blobs,
-        composition: None,
-    };
+    )
+    .await;
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 
     assert_eq!(outboxes.counts(), (0, 1));

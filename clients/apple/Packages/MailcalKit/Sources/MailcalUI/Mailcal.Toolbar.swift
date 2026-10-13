@@ -20,7 +20,7 @@ extension ContentView {
                 // pane exists only on the mail surface, so writing from the calendar has to
                 // bring the mailbox back with it or the draft would open behind the grid.
                 showMail()
-                compose = .new
+                beginNewMessage()
             } label: {
                 // Two nudges, both measured against the window buttons rather than judged.
                 //

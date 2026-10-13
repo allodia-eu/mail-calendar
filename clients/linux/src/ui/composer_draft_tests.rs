@@ -56,8 +56,6 @@ pub(crate) fn a_reply_nobody_typed_into_is_not_a_draft(window: &adw::Application
     let request = ComposeContext {
         kind: ComposeKind::Reply,
         host: ComposerHost::Pane,
-        account: Some("fixture".to_owned()),
-        key: Some("message".to_owned()),
         initial_to: "recipient@example.test".to_owned(),
         initial_cc: String::new(),
         initial_bcc: String::new(),
@@ -65,10 +63,14 @@ pub(crate) fn a_reply_nobody_typed_into_is_not_a_draft(window: &adw::Application
         initial_body: None,
         stored_html: None,
         quote: None,
+        quote_attribution: None,
+        has_quote: false,
         initial_from: Some("fixture".to_owned()),
         seeds_signature: true,
         composition: new_composition(),
         files: Vec::new(),
+        opening_files: 0,
+        attachments_failed: false,
     };
     pane.show(
         42,

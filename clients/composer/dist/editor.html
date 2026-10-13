@@ -1288,6 +1288,18 @@
     caretInto(lead, !initialText);
     focusEditor(editor);
   }
+  function completeComposerQuoteAttribution(editor, attribution) {
+    const container = Array.from(editor.children).find((child) => child.classList.contains("allodia-quote"));
+    if (!container)
+      return;
+    if (!container.dataset.quoteLine && attribution.line) {
+      container.dataset.quoteLine = attribution.line;
+    }
+    if (readHeaders(container.dataset.quoteHeaders).length === 0 && attribution.headers?.length) {
+      container.dataset.quoteHeaders = JSON.stringify(attribution.headers);
+    }
+    renderQuoteAttribution(container);
+  }
   function setComposerQuoteStyle(editor, style) {
     const container = editor.querySelector(".allodia-quote");
     if (!container)
@@ -3620,6 +3632,7 @@
   };
   window.setComposerQuote = (quote) => setComposerQuote(editor, parsed(quote));
   window.setComposerQuoteStyle = (style) => setComposerQuoteStyle(editor, style);
+  window.completeComposerQuoteAttribution = (attribution) => completeComposerQuoteAttribution(editor, parsed(attribution) ?? {});
   window.setComposerSignature = (signature) => setComposerSignature(editor, signature == null ? null : parsed(signature));
   window.setSignatureBody = (html, placeholder) => setSignatureBody(editor, html, placeholder);
   window.signatureBody = () => JSON.stringify(signatureBody(editor));

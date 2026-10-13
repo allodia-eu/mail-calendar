@@ -1,10 +1,10 @@
 // The rich compose / reply / forward surface. A FULL-SCREEN dialog (not the old AlertDialog, which
 // only used part of the viewport): a top app bar with Close + Send, the address fields, and the
 // editor filling everything that's left. The WebView loads only the bundled editor asset; Rust owns
-// validation/rendering through submitRichMail.
+// validation/rendering through submitComposition.
 //
-// It stays a `Dialog` rather than a screen swapped into MainActivity's `when`, so the caller keeps
-// owning "is the composer open" as per-row state (see MailRows/ReadingScreen) and the system back
+// It stays a `Dialog` rather than a screen swapped into MainActivity's `when`, so it sits over
+// whichever screen raised it (MainActivityComposer.kt decides whether it is open) and the system back
 // button routes to onDismissRequest, full-screen chrome without restructuring navigation.
 package eu.allodia.mailcal
 
@@ -45,9 +45,7 @@ import androidx.compose.ui.window.DialogProperties
 import java.io.File
 import org.json.JSONObject
 import uniffi.mailcal_bindings.AccountRow
-import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.DraftStatus
-import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.Recipients
 import uniffi.mailcal_bindings.senderLabel
@@ -55,47 +53,16 @@ import uniffi.mailcal_bindings.senderLabel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun RichComposeMessageDialog(
-    mode: RichComposeMode,
+    // What the core opened this composer with, and what the host derived from it
+    // (`composeContext`). Every route into a composer arrives as one of these.
+    request: ComposeContext,
     onDismiss: () -> Unit,
     // Everything the send names, in one value: the account picked in the From dropdown, the
     // recipients, the subject, the rendered document, the files, and the composition it was
     // written in (`ComposerSubmission`).
     onSubmitRich: (ComposerSubmission) -> Boolean,
-    // Every configured account, for the From dropdown, and the one it opens on: the account that
-    // received the mail being replied to/forwarded, else the selected mailbox's account, else the
-    // app-level default send account (all resolved by the caller).
+    // Every configured account, for the From dropdown, which opens on `request.initialFrom`.
     accounts: List<AccountRow>,
-    initialFrom: String? = null,
-    initialTo: String = "",
-    initialCc: String = "",
-    // Bcc and Subject are pre-fillable for the same reason To/Cc are: a mail link (`mailto:`)
-    // may name them. Every field stays editable, and nothing is sent without the user's Send.
-    initialBcc: String = "",
-    initialSubject: String = "",
-    // A plain-text body the composer opens with, a mail link's `body=`. Seeded into the editor
-    // as text, never markup (docs/composer-security.md, Gate 12), with the caret left after it
-    // so the user writes on from there.
-    initialBody: String = "",
-    // The HTML of a message this composer reopens (`ComposeRequest.bodyHtml`), which the editor
-    // reads back into its document; `initialBody` is then that message's text.
-    initialHtml: String = "",
-    // Files the composer opens already holding: a share (docs/os-integration.md), or the files a
-    // forwarded message carries. Each is the shared core's answer about one file, name and media
-    // type included, so this list is displayed as given and never re-derived here. Removable like
-    // any picked file: neither a share nor a forward imposes an attachment.
-    initialAttachments: List<ComposerFileAttachment> = emptyList(),
-    // An error the composer opens showing, for a failure that happened before it did: the files
-    // a forward was to carry could not be read. Written to the same line as every other failure.
-    initialError: String? = null,
-    // The quoted-original seed (a `Block::Quote`-shaped JSON) injected once the editor finishes
-    // loading, or null for a new message / a reply with no body loaded; `quoteStyle` is the app
-    // default the quote is seeded with.
-    quote: String? = null,
-    quoteStyle: QuoteStyleKind = QuoteStyleKind.INDENTED,
-    // Whether the user has opted into choosing the quote style per message (Settings ▸ Composing).
-    // Off by default, and then the composer shows no style picker at all, the quote just uses the
-    // app default above.
-    quoteStylePerMessage: Boolean = false,
     // Ranked recipient suggestions for a partially-typed address, answered by the core from synced
     // contacts and from people the user has written to. Null disables autosuggest (screenshot runs
     // and tests, which must not depend on a populated people index).
@@ -106,9 +73,6 @@ internal fun RichComposeMessageDialog(
     // The core verbs this composer keeps its message on the server with, or null to turn draft
     // saving off (a screenshot run, a test).
     drafts: ComposerDrafts? = null,
-    // The composition to save under, for a composer the core has already joined to a stored draft.
-    // Every other composer mints its own, which is what the `remember` below does.
-    composition: String? = null,
 ) {
     val ctx = LocalContext.current
     val density = LocalDensity.current
@@ -119,29 +83,34 @@ internal fun RichComposeMessageDialog(
     val labelsJson = remember(ctx) { composerLabelsJson(ctx) }
     // The From account. Falls back to the first configured account when the caller's preferred id
     // names none (it was removed while the list was stale), the dropdown must never open blank.
-    var from by remember(initialFrom, accounts) {
-        mutableStateOf(accounts.firstOrNull { it.id == initialFrom } ?: accounts.firstOrNull())
+    var from by remember(request.initialFrom, accounts) {
+        mutableStateOf(accounts.firstOrNull { it.id == request.initialFrom } ?: accounts.firstOrNull())
     }
     // Every address the caller pre-filled is finished, nothing here is being typed, so the fields
     // open with all of them committed and each renders as its own pill (see `seededRecipientField`).
     // The normalised values are what the dirty check below compares against, too: compare against
     // the RAW ones and every reply would open already counting as an edited draft, and ask before
     // closing something nobody typed into.
-    val seededTo = seededRecipientField(initialTo)
-    val seededCc = seededRecipientField(initialCc)
-    val seededBcc = seededRecipientField(initialBcc)
+    val opening = request.opening
+    val seededTo = seededRecipientField(opening.to)
+    val seededCc = seededRecipientField(opening.cc)
+    val seededBcc = seededRecipientField(opening.bcc)
     var to by remember { mutableStateOf(seededTo) }
     var cc by remember { mutableStateOf(seededCc) }
     var bcc by remember { mutableStateOf(seededBcc) }
-    var subject by remember { mutableStateOf(initialSubject) }
+    var subject by remember { mutableStateOf(opening.subject) }
     // Cc/Bcc are tucked away by default (matching Gmail/Thunderbird) and revealed by the chevron on
     // the To row. Opened from the start when either arrives pre-filled, so those addresses are
     // never hidden behind a tap the user doesn't know to make.
-    var showCcBcc by remember { mutableStateOf(revealsCcBcc(initialCc, initialBcc)) }
+    var showCcBcc by remember { mutableStateOf(revealsCcBcc(opening.cc, opening.bcc)) }
     // The one error line under the composer, which more than one failure writes to: a send that
     // couldn't be prepared, a dropped picture that couldn't be shown, a forward whose files
-    // couldn't be read. It carries the message rather than a flag, so each says which it is.
-    var composerError by remember { mutableStateOf(initialError) }
+    // couldn't be read. It carries the message rather than a flag, so each says which it is. A
+    // forward whose originals could not be staged opens saying so: silence would be a message the
+    // user sends believing the original had nothing attached.
+    var composerError by remember {
+        mutableStateOf(L10n.compose_forward_attachments_failed(ctx).takeIf { opening.attachmentsFailed })
+    }
     var webView by remember { mutableStateOf<WebView?>(null) }
     val linkHost = rememberComposerLinkHost()
     // The single-scroll model: the WebView owns the one scroll (so its native caret-following and
@@ -151,15 +120,11 @@ internal fun RichComposeMessageDialog(
     // so the text starts just below the overlay and the two move in lockstep.
     var scrollY by remember { mutableIntStateOf(0) }
     var headerHeightPx by remember { mutableIntStateOf(0) }
-    // Seeded once, from a share; every other route opens with nothing and fills this from the
-    // picker below. Deliberately NOT keyed on the seed: the dialog leaves composition when the
-    // composer closes, so the next one reseeds from whatever it is opened with anyway, while a
-    // key would let a share arriving over an OPEN composer replace the files the user had
-    // picked. A share reaching a busy composer waits (MailboxScreen), it does not overwrite.
-    var attachments by remember { mutableStateOf(initialAttachments.map(::seededComposerFile)) }
-    // A forward's staged files are the baseline the written-work check measures against: they are
-    // still in the mailbox, so abandoning the forward loses nothing. A share's are the user's own choice.
-    val baselineAttachments = if (mode == RichComposeMode.Forward) initialAttachments.size else 0
+    // Seeded once, from what the core staged (a forward's originals, a stored draft's own) and a
+    // share's files. Deliberately NOT keyed on the seed: a key would let a share arriving over an
+    // OPEN composer replace the files the user had picked. A share reaching a busy composer waits
+    // (MainActivityComposer.kt), it does not overwrite.
+    var attachments by remember { mutableStateOf(request.attachments.map(::seededComposerFile)) }
     // Pictures dropped on the composer, waiting on the one question they raise. Held rather than
     // acted on, because the answer decides whether they become body content or attachments.
     var droppedPictures by remember { mutableStateOf<List<PickedComposerFile>>(emptyList()) }
@@ -169,7 +134,7 @@ internal fun RichComposeMessageDialog(
     )
     // The per-message style override of the persisted default, re-styles the quoted original in
     // place without disturbing the user's typed message.
-    var style by remember { mutableStateOf(quoteStyle) }
+    var style by remember { mutableStateOf(request.quoteStyle) }
     // The user's explicit signature choice for this message, or null to follow the From account.
     var signatureChoice by remember { mutableStateOf<SignatureChoice?>(null) }
     var signatureMenuOpen by remember { mutableStateOf(false) }
@@ -178,11 +143,10 @@ internal fun RichComposeMessageDialog(
     // not open already written in. Null until the editor answers, which reads as "nothing to lose".
     var seedDocument by remember { mutableStateOf<String?>(null) }
     var confirmingDiscard by remember { mutableStateOf(false) }
-    // This composer's composition, for as long as it is open: the host's handle on one composer,
-    // and what every draft call names. Minted here because the core mints none; a resumed draft
-    // arrives with the one the core already joined to the copy on the server, and taking a fresh
-    // one would store a second draft beside it (`docs/drafts.md`).
-    val compositionId = remember { composition ?: java.util.UUID.randomUUID().toString() }
+    // The composition the core joined to this composer when it opened: every save, the discard
+    // and the send name it. One minted here would store a second draft beside a resumed one, and
+    // send a reply that had lost its conversation (`docs/drafts.md`).
+    val compositionId = opening.composition
     // How many changes the composer has seen, header and body alike. Every one restarts the idle
     // interval; the value itself is never read for anything else.
     var draftChanges by remember { mutableIntStateOf(0) }
@@ -200,10 +164,14 @@ internal fun RichComposeMessageDialog(
     // Whether the composer was left through a call that already finished with the composition: a
     // save-and-close or a discard. Disposal then has nothing left to forget.
     var draftLeft by remember { mutableStateOf(false) }
+    // A stored message carries its own signature, so a composer the core says seeds none never
+    // touches the signature region: not on open, not on a From change, and it offers no picker.
+    val signing = ComposeOpeningSeed.signing(signatures, opening)
+    val mode = request.mode
     // Resolved fresh on every read rather than held in state: the account's assignment can change
     // under an open composer (Settings is reachable from the notification shade), and this is a
     // cheap in-memory core lookup.
-    val signature = signatures?.resolve(signatureChoice, from?.id, mode)
+    val signature = signing?.resolve(signatureChoice, from?.id, mode)
     // The factory below runs once, but the editor finishes parsing later, and `from` can still
     // settle in between (the account list arrives after the composer opened). Hold the latest
     // resolution so the page-finished seed is the current one, not the first one.
@@ -230,9 +198,8 @@ internal fun RichComposeMessageDialog(
         RichComposeMode.Forward -> L10n.action_forward(ctx)
     }
 
-    // What the composer holds, for a send or a save. `composition` is named whenever this composer
-    // keeps a draft, so an accepted send takes the stored copy away; a send that omitted it would
-    // leave a duplicate in Drafts of a message already on its way (`docs/drafts.md`).
+    // What the composer holds, for a send or a save, always on the composition it opened on, so an
+    // accepted send takes the stored copy away (`docs/drafts.md`).
     val contentOf = { documentJson: String ->
         ComposerSubmission(
             from = from?.id,
@@ -240,7 +207,7 @@ internal fun RichComposeMessageDialog(
             subject = subject,
             documentJson = documentJson,
             files = attachments.map { it.composerFile },
-            composition = compositionId.takeIf { drafts != null },
+            composition = compositionId,
         )
     }
 
@@ -267,8 +234,8 @@ internal fun RichComposeMessageDialog(
         composition = compositionId,
         headersEdited = {
             composerHeadersEdited(
-                to, seededTo, cc, seededCc, bcc, seededBcc, subject, initialSubject,
-                attachments.size, baselineAttachments,
+                to, seededTo, cc, seededCc, bcc, seededBcc, subject, opening.subject,
+                attachments.size, request.baselineAttachments,
             )
         },
         readDocument = { answer ->
@@ -312,7 +279,7 @@ internal fun RichComposeMessageDialog(
                         title = title,
                         onClose = exits::leave,
                         onAttach = { pickAttachments.launch(arrayOf("*/*")) },
-                        signaturePicker = signatures
+                        signaturePicker = signing
                             ?.takeIf { it.library.isNotEmpty() }
                             ?.let { library ->
                                 {
@@ -366,7 +333,7 @@ internal fun RichComposeMessageDialog(
                 // under them would undo that. On the first composition the editor has not parsed
                 // yet, so this call is dropped and the page-finished seed is what lands.
                 LaunchedEffect(from?.id) {
-                    if (signatureChoice == null) {
+                    if (signing != null && signatureChoice == null) {
                         webView?.setComposerSignature(signature)
                     }
                 }
@@ -384,20 +351,28 @@ internal fun RichComposeMessageDialog(
                     ComposerEditorView(
                         html = html,
                         linkHost = linkHost,
-                        quote = quote,
-                        body = initialBody,
-                        storedHtml = initialHtml,
+                        quote = request.quote,
+                        body = request.initialBody,
+                        storedHtml = request.storedHtml,
+                        quoteAttribution = request.quoteAttribution,
                         labelsJson = labelsJson,
                         // The caret opens where the work starts, the body here, the To field
                         // otherwise (`composerOpensInBody`). Raising the keyboard is part of it,
                         // rather than making the user tap first.
-                        focusBody = composerOpensInBody(mode, initialTo),
+                        focusBody = request.opensInBody,
                         // Read at page-finished time, not captured now: the header has been
                         // measured by then, so the editor gets its real inset.
                         topInsetDp = { headerHeightPx / density.density },
                         signature = { signatureSeedJson(currentSignature.value) },
                         onScroll = { y -> scrollY = y },
-                        onSeeded = { seeded -> seedDocument = seeded },
+                        onSeeded = { seeded ->
+                            seedDocument = seeded
+                            // A reopened quote keeps the style it was saved in, so the picker
+                            // opens on that rather than on the app default.
+                            if (request.storedHtml.isNotEmpty()) {
+                                ComposeOpeningSeed.quoteStyleOf(seeded)?.let { style = it }
+                            }
+                        },
                         onReady = { webView = it },
                     )
                     // The address-field header, overlaid on the WebView and offset by the scroll so
@@ -429,9 +404,7 @@ internal fun RichComposeMessageDialog(
                             onSubject = { subject = it },
                             showCcBcc = showCcBcc,
                             onToggleCcBcc = { showCcBcc = !showCcBcc },
-                            style = style.takeIf {
-                                ComposerQuote.showsStylePicker(quote != null, quoteStylePerMessage)
-                            },
+                            style = style.takeIf { request.showsStylePicker },
                             onStyle = { picked ->
                                 style = picked
                                 webView?.evaluateJavascript(
@@ -440,7 +413,7 @@ internal fun RichComposeMessageDialog(
                                 )
                             },
                             suggestionsFor = suggestionsFor,
-                            focusesTo = !composerOpensInBody(mode, initialTo),
+                            focusesTo = !request.opensInBody,
                         )
                         ComposerAttachmentList(
                             attachments = attachments,

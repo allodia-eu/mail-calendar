@@ -1,12 +1,11 @@
-// Builds the seed for the composer's quoted original on reply/forward. The quoted body is the
-// reading view's already-sanitised HTML (and plain text) for the open message; the attribution
-// is localised here, the Rust core carries no runtime localisation, so, like date display, the
-// client formats it (L10n + the date already localised onto OpenedMessage). The shape matches the
-// Rust composer's Block::Quote so it round-trips through the shared editor; the core re-sanitises
-// the body on submit (docs/composer-security.md, Gate 10). The Windows twin of macOS's QuoteSeed.swift.
+// The words of a quoted original's attribution, in the user's language. The core hands the
+// composer the message it quotes (ComposeOpening.Quote); the Rust core carries no runtime
+// localisation, so, like date display, the client words it. Services/ComposeOpeningSeed.cs turns
+// the words into what the editor is seeded with. The Windows twin of macOS's QuoteSeed.swift.
 
-using System.Text.Json.Nodes;
+using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Dialogs;
 
@@ -25,63 +24,30 @@ internal readonly record struct QuoteExample(
 internal static class ComposerQuote
 {
     /// <summary>
-    /// The seed JSON for <c>window.setComposerQuote</c>, or <c>null</c> when there is nothing to
-    /// quote yet (the body hasn't loaded for this message). <paramref name="isForward"/> swaps the
-    /// one-line attribution for a "Forwarded message" marker; the header block is the
-    /// same either way. <paramref name="initialText"/> pre-fills the paragraph above the quote; only
-    /// showcase mode passes it, and the editor assigns it as text, never markup (Gate 11).
+    /// A quote's attribution in both styles, in the user's language, built from the message it
+    /// quotes. <paramref name="isForward"/> swaps the one-line attribution for a "Forwarded
+    /// message" marker; the header block is the same either way. <paramref name="dateText"/> is the
+    /// original's date as the reading header shows it.
     /// </summary>
-    public static string? SeedJson(
-        QuoteStyleChoice style,
-        OpenedMessage message,
-        ReadingBody? reading,
-        bool isForward,
-        string? initialText = null)
+    public static QuoteWords Words(QuoteSource quote, string dateText, bool isForward)
     {
-        if (reading is null || reading.Key != message.Key)
+        var line = isForward ? L10n.QuoteForwarded() : L10n.QuoteAttribution(dateText, quote.From);
+        var headers = new List<(string, string)>
         {
-            return null;
-        }
-        var bodyHtml = reading.Html ?? string.Empty;
-        var bodyPlain = reading.Plain ?? string.Empty;
-        if (bodyHtml.Length == 0 && bodyPlain.Length == 0)
-        {
-            return null;
-        }
-
-        var line = isForward
-            ? L10n.QuoteForwarded()
-            : L10n.QuoteAttribution(message.DateText, message.From);
-
-        var headers = new JsonArray
-        {
-            Header(L10n.QuoteFrom(), message.From),
-            Header(L10n.QuoteSent(), message.DateText),
+            (L10n.QuoteFrom(), quote.From),
+            (L10n.QuoteSent(), dateText),
         };
-        if (reading.To.Length > 0)
+        if (quote.To.Length > 0)
         {
-            headers.Add(Header(L10n.QuoteTo(), reading.To));
+            headers.Add((L10n.QuoteTo(), quote.To));
         }
-        if (reading.Cc.Length > 0)
+        if (quote.Cc.Length > 0)
         {
-            headers.Add(Header(L10n.QuoteCc(), reading.Cc));
+            headers.Add((L10n.QuoteCc(), quote.Cc));
         }
-        headers.Add(Header(L10n.QuoteSubject(), message.Subject));
-
-        var payload = new JsonObject
-        {
-            ["style"] = Token(style),
-            ["attribution"] = new JsonObject { ["line"] = line, ["headers"] = headers },
-            ["body_html"] = bodyHtml,
-            ["body_plain"] = bodyPlain,
-        };
-        if (!string.IsNullOrEmpty(initialText))
-        {
-            payload["initial_text"] = initialText;
-        }
-        return payload.ToJsonString();
+        headers.Add((L10n.QuoteSubject(), quote.Subject));
+        return new QuoteWords(line, headers);
     }
-
     /// <summary>The style token the editor's <c>setComposerQuote</c>/<c>setComposerQuoteStyle</c>
     /// expect. These are the Rust <c>QuoteStyle</c> variant names, which serialize verbatim into the
     /// seed JSON, a rename on either side has to move both (mailcal-composer pins them with a
@@ -114,6 +80,4 @@ internal static class ComposerQuote
             },
             L10n.QuotePreviewBody());
     }
-
-    private static JsonObject Header(string label, string value) => new() { ["label"] = label, ["value"] = value };
 }

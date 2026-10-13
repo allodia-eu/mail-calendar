@@ -1,17 +1,12 @@
-// Builds the seed for the composer's quoted original on reply/forward. The quoted body is the
-// reading view's already-sanitised HTML (and plain text) for the open message; the attribution
-// is localised here, the Rust core carries no runtime localisation, so, like date display, the
-// client formats it (L10n + the device-formatted date already on `OpenedMessage`). The shape
-// matches the Rust composer's `Block::Quote` so it round-trips through the shared composer; the
-// core re-sanitises the body on submit (docs/composer-security.md, Gate 10). The Android twin of
-// macOS's QuoteSeed.swift.
+// The words of a quoted original's attribution, in the user's language. The core hands the
+// composer the message it quotes (`ComposeOpening.quote`); the Rust core carries no runtime
+// localisation, so, like date display, the client words it. ComposeOpeningSeed.kt turns the words
+// into what the editor is seeded with. The Android twin of macOS's QuoteSeed.swift.
 package eu.allodia.mailcal
 
 import android.content.Context
-import org.json.JSONArray
-import org.json.JSONObject
+import uniffi.mailcal_bindings.QuoteSource
 import uniffi.mailcal_bindings.QuoteStyleKind
-import uniffi.mailcal_bindings.ReadingSnapshot
 
 // A worked example of a quoted original, for the settings screen to render so the user can see
 // what each style looks like instead of guessing from its name. Assembled by `ComposerQuote.example`
@@ -26,51 +21,23 @@ internal data class QuoteExample(
 )
 
 internal object ComposerQuote {
-    // The seed JSON for `window.setComposerQuote`, or `null` when there is nothing to quote yet
-    // (the body hasn't loaded for this message). `isForward` swaps the one-line attribution for a
-    // "Forwarded message" marker; the header block is the same either way.
-    // `initialText` pre-fills the paragraph above the quote; only showcase mode passes it, and the
-    // editor assigns it as text, never markup (docs/composer-security.md, Gate 11).
-    fun seedJson(
-        ctx: Context,
-        style: QuoteStyleKind,
-        message: OpenedMessage,
-        reading: ReadingSnapshot?,
-        isForward: Boolean,
-        initialText: String? = null,
-    ): String? {
-        val snapshot = reading?.takeIf { it.key == message.key } ?: return null
-        val bodyHtml = snapshot.html ?: ""
-        val bodyPlain = snapshot.plain ?: ""
-        if (bodyHtml.isEmpty() && bodyPlain.isEmpty()) {
-            return null
-        }
-
+    // A quote's attribution in both styles, built from the message it quotes. `isForward` swaps
+    // the one-line attribution for a "Forwarded message" marker; the header block is the same
+    // either way. `dateText` is the original's date as the reading header shows it.
+    fun words(ctx: Context, quote: QuoteSource, dateText: String, isForward: Boolean): QuoteWords {
         val line = if (isForward) {
             L10n.quote_forwarded(ctx)
         } else {
-            L10n.quote_attribution(ctx, message.date, message.from)
+            L10n.quote_attribution(ctx, dateText, quote.from)
         }
-
-        val headers = JSONArray()
-        headers.put(header(L10n.quote_from(ctx), message.from))
-        headers.put(header(L10n.quote_sent(ctx), message.date))
-        if (snapshot.to.isNotEmpty()) {
-            headers.put(header(L10n.quote_to(ctx), snapshot.to))
+        val headers = buildList {
+            add(L10n.quote_from(ctx) to quote.from)
+            add(L10n.quote_sent(ctx) to dateText)
+            if (quote.to.isNotEmpty()) add(L10n.quote_to(ctx) to quote.to)
+            if (quote.cc.isNotEmpty()) add(L10n.quote_cc(ctx) to quote.cc)
+            add(L10n.quote_subject(ctx) to quote.subject)
         }
-        if (snapshot.cc.isNotEmpty()) {
-            headers.put(header(L10n.quote_cc(ctx), snapshot.cc))
-        }
-        headers.put(header(L10n.quote_subject(ctx), message.subject))
-
-        val attribution = JSONObject().put("line", line).put("headers", headers)
-        return JSONObject()
-            .put("style", token(style))
-            .put("attribution", attribution)
-            .put("body_html", bodyHtml)
-            .put("body_plain", bodyPlain)
-            .apply { if (!initialText.isNullOrEmpty()) put("initial_text", initialText) }
-            .toString()
+        return QuoteWords(line, headers)
     }
 
     // The style token the editor's `setComposerQuote`/`setComposerQuoteStyle` expect. These are the
@@ -87,7 +54,7 @@ internal object ComposerQuote {
 
     // The sample quote the settings screen renders under each style. Only the sender, date, subject
     // and body are stand-ins: the attribution line and the header *labels* come from the very keys
-    // `seedJson` uses above, so what settings shows is what a real reply produces.
+    // `words` uses above, so what settings shows is what a real reply produces.
     fun example(ctx: Context): QuoteExample {
         val sender = L10n.quote_preview_sender(ctx)
         val date = L10n.quote_preview_date(ctx)
@@ -102,7 +69,4 @@ internal object ComposerQuote {
             body = L10n.quote_preview_body(ctx),
         )
     }
-
-    private fun header(label: String, value: String): JSONObject =
-        JSONObject().put("label", label).put("value", value)
 }

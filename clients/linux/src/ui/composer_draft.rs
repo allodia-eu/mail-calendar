@@ -21,13 +21,14 @@
 use std::{cell::RefCell, rc::Rc};
 
 use gtk::{gio, prelude::EditableExt};
-use mailcal_bindings::{ComposeRequest as CoreComposeRequest, Intent};
+use mailcal_bindings::{ComposeOpening, Intent, MailcalApp};
 use webkit6::prelude::WebViewExt;
 
 use super::{
     AppInput, AppModel, PrimaryView,
     composer_fields::{ComposerFields, read_document},
     composer_model::{ComposeContext, ComposerSubmission},
+    composer_notice::ComposerNotice,
     model::OpenedMessage,
     reader::ComposerHost,
 };
@@ -73,10 +74,11 @@ pub(crate) enum PendingNavigation {
 /// back on the opening values and counts as clean, which is true; there is nothing left to lose.
 ///
 /// The attachment count is measured the same way, against `opened_with`, which is **not** simply
-/// what the composer opened holding. A forward's staged originals are still in the mailbox, so
-/// abandoning one loses nothing and must not be worth a prompt; a share's files the user chose in
-/// their file manager and would have to share again, so those count from the start. Removing a
-/// forwarded file, like adding any file, changes the count and does count.
+/// what the composer opened holding: it is the files the core staged. A forward's originals and a
+/// stored draft's own are still in the mailbox, so abandoning the composer loses nothing and must
+/// not be worth a prompt; a share's files the user chose in their file manager and would have to
+/// share again, so those count from the start. Removing a staged file, like adding any file,
+/// changes the count and does count.
 pub(crate) fn headers_edited(
     current: &HeaderValues,
     opening: &HeaderValues,
@@ -99,10 +101,10 @@ pub(crate) struct DraftGuard {
     editor: webkit6::WebView,
     fields: ComposerFields,
     opening: HeaderValues,
-    /// How many of the files the composer opened holding are **not** the user's own work: a
-    /// forward's staged originals, which are still in the mailbox. The baseline the live count is
-    /// measured against. Zero for a share, whose files the user did choose and would have to
-    /// share again.
+    /// How many of the files the composer opened holding are **not** the user's own work: the ones
+    /// the core staged, which are still in the mailbox. The baseline the live count is measured
+    /// against. A share's files are not among them: the user chose those and would have to share
+    /// them again.
     opening_files: usize,
     seed: Rc<RefCell<Option<String>>>,
 }
@@ -220,55 +222,11 @@ impl AppModel {
         self.primary = PrimaryView::Mail;
     }
 
-    pub(super) fn open_mailto(&mut self, prefill: mailcal_bindings::MailtoPrefill) {
-        if self.snapshot.accounts.is_empty() {
-            self.pending_mailto = Some(prefill);
-            self.primary = PrimaryView::Mail;
-            return;
-        }
-        let initial_from = self.app.as_ref().and_then(|app| {
-            super::composer_model::initial_sender(
-                None,
-                self.snapshot.selected_account.as_deref(),
-                app.default_send_account(),
-            )
-        });
-        let request = ComposeContext::from_mailto(prefill, initial_from);
-        if self.composer.is_some() {
-            self.queue_navigation(PendingNavigation::Composer(request));
-        } else {
-            self.commit_composer(request);
-        }
-    }
-
-    pub(super) fn open_agent_draft(&mut self, draft: mailcal_bindings::AgentDraft) {
-        let initial_from = draft.account.clone().or_else(|| {
-            self.app.as_ref().and_then(|app| {
-                super::composer_model::initial_sender(
-                    None,
-                    self.snapshot.selected_account.as_deref(),
-                    app.default_send_account(),
-                )
-            })
-        });
-        let request = ComposeContext::from_agent(draft, initial_from);
-        if self.composer.is_some() {
-            self.queue_navigation(PendingNavigation::Composer(request));
-        } else {
-            self.commit_composer(request);
-        }
-    }
-
-    pub(super) fn try_open_pending_mailto(&mut self) {
-        if !self.snapshot.accounts.is_empty()
-            && let Some(prefill) = self.pending_mailto.take()
-        {
-            self.open_mailto(prefill);
-        }
-    }
-
     pub(super) fn queue_navigation(&mut self, navigation: PendingNavigation) {
-        self.pending_navigation = Some(navigation);
+        if let Some(composition) = dropped_composition(self.pending_navigation.replace(navigation))
+        {
+            self.close_composition(&composition);
+        }
         self.draft_check_seq = self.draft_check_seq.wrapping_add(1);
         self.draft_check = Some(self.draft_check_seq);
     }
@@ -278,6 +236,11 @@ impl AppModel {
         self.composer_generation = self.composer_generation.wrapping_add(1);
         // The composer being replaced is gone, whatever takes its place.
         self.clear_pane_composer();
+        // A forward whose files could not be read opens saying so: silence would be a message
+        // the user sends believing the original had nothing attached.
+        self.composer_error = request
+            .attachments_failed
+            .then_some(ComposerNotice::ForwardAttachments);
         self.composer = Some(request);
     }
 
@@ -345,14 +308,21 @@ impl AppModel {
     /// keeps the offer standing precisely because the message exists nowhere else until a host
     /// answers. Leaving the open composer refuses no navigation, so the withdrawn message always
     /// reaches the pane (`docs/sending.md`).
-    pub(super) fn open_withdrawn_message(&mut self, request: CoreComposeRequest) {
-        let context = ComposeContext::reopening(request);
-        if self.composer.is_some() {
-            self.queue_navigation(PendingNavigation::Composer(context));
-        } else {
-            self.commit_composer(context);
-        }
+    pub(super) fn open_withdrawn_message(&mut self, app: &MailcalApp, opening: ComposeOpening) {
+        let request = self.compose_context(app, opening, ComposerHost::Pane);
+        self.place_composer(request);
         self.dispatch(Intent::DismissComposeRequest);
+    }
+}
+
+/// The composition a navigation replaced before it ran leaves behind, for the core to forget.
+///
+/// Every composer the core opened joined a composition there, so a waiting composer superseded by
+/// a later click would otherwise hold its record for the life of the process.
+fn dropped_composition(replaced: Option<PendingNavigation>) -> Option<String> {
+    match replaced? {
+        PendingNavigation::Composer(request) => Some(request.composition),
+        PendingNavigation::Message(_) => None,
     }
 }
 
@@ -362,7 +332,10 @@ pub(crate) mod widget_tests;
 
 #[cfg(test)]
 mod tests {
-    use super::{HeaderValues, body_edited, headers_edited};
+    use super::{
+        HeaderValues, PendingNavigation, body_edited, dropped_composition, headers_edited,
+    };
+    use crate::ui::composer_header::tests::request;
 
     fn reply_opened_with() -> HeaderValues {
         HeaderValues {
@@ -473,5 +446,31 @@ mod tests {
     #[test]
     fn a_missing_seed_asks() {
         assert!(body_edited(None, r#"{"blocks":[]}"#));
+    }
+
+    /// A composer waiting to open that a later click replaces was joined to a composition in the
+    /// core, and nothing else will ever close it.
+    #[test]
+    fn a_waiting_composer_replaced_before_it_opened_is_forgotten() {
+        let waiting = request("");
+        let composition = waiting.composition.clone();
+        assert_eq!(
+            dropped_composition(Some(PendingNavigation::Composer(waiting))),
+            Some(composition)
+        );
+        assert_eq!(dropped_composition(None), None);
+        let message = crate::ui::model::OpenedMessage {
+            account: "account".to_owned(),
+            key: "message".to_owned(),
+            subject: String::new(),
+            from: String::new(),
+            date: String::new(),
+            avatar: crate::ui::avatar::AvatarData::from(&crate::ui::model::blank_avatar()),
+        };
+        assert_eq!(
+            dropped_composition(Some(PendingNavigation::Message(message))),
+            None,
+            "a message open joined nothing"
+        );
     }
 }

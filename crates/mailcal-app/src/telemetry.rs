@@ -408,9 +408,19 @@ impl<P: Provider> App<P> {
             Intent::RefreshCalendar => (Feature::Calendar, None),
             Intent::CreateEvent { .. } => (Feature::EventCreate, None),
             Intent::SubmitMail { .. } => (Feature::ComposerNew, None),
-            Intent::SubmitRichMail { blobs, .. } => (Feature::ComposerNew, Some(blobs)),
-            Intent::SubmitRichReply { blobs, .. } => (Feature::ComposerReply, Some(blobs)),
-            Intent::SubmitRichForward { blobs, .. } => (Feature::ComposerForward, Some(blobs)),
+            // What the composer was doing is the composition's, joined when it opened.
+            Intent::SubmitRichMail {
+                blobs, composition, ..
+            } => {
+                let feature = match self.composition_kind(composition.as_ref()) {
+                    crate::ComposeKind::New => Feature::ComposerNew,
+                    crate::ComposeKind::Reply | crate::ComposeKind::ReplyAll => {
+                        Feature::ComposerReply
+                    }
+                    crate::ComposeKind::Forward => Feature::ComposerForward,
+                };
+                (feature, Some(blobs))
+            }
             _ => return,
         };
         self.track(Event::FeatureUsed { feature });

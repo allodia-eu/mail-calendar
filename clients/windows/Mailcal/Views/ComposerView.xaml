@@ -29,6 +29,7 @@
         </Grid.RowDefinitions>
 
         <TextBlock x:Name="TitleText" Grid.Row="0" Style="{StaticResource SubtitleTextBlockStyle}"
+                   AutomationProperties.AutomationId="ComposerTitle"
                    TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
 
         <!-- Which account the message is sent from. The core sends as, and through, that account

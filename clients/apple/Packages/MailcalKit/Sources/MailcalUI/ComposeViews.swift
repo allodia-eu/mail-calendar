@@ -1,6 +1,6 @@
-// The compose-context plus the `SnapshotRow` list-identity helper: `ComposeContext` describes what
-// the rich compose sheet is for (new / reply / forward). Split out of Mailcal.swift to keep each
-// file under the 500-line limit. (The calendar editor lives in Calendar/EventEditorView.swift.)
+// The compose-context plus the `SnapshotRow` list-identity helper: `ComposeContext` is what an open
+// composer was opened with. Split out of Mailcal.swift to keep each file under the 500-line limit.
+// (The calendar editor lives in Calendar/EventEditorView.swift.)
 
 import Foundation
 import MailcalBindings
@@ -26,31 +26,12 @@ extension EventRow {
     var rowID: String { "\(account):\(key)" }
 }
 
-/// What the rich compose sheet is for: a new message, a reply, a reply-all, or a forward.
-/// Reply/reply-all/forward carry the original's owning `account` + `key`; reply and reply-all
-/// also carry the `to`/`cc` recipients the core suggested (`replyRecipients`), computed once
-/// when the sheet is opened rather than on every recomposition. The app derives the
-/// `Re:`/`Fwd:` subject and (for a reply) threads from the stored original.
-/// Reply/reply-all/forward also carry the quoted-original `quote` seed (a `Block::Quote`-shaped
-/// JSON, or `nil` when the body isn't loaded for the message) and the `quoteStyle` to open the
-/// composer's style toggle on, both computed once when the sheet opens.
-/// `agentDraft` is a new message an AI assistant composed and asked the app to open, **unsent**
-/// (docs/mcp.md). It carries its request's own id, so asking twice for the same message opens the
-/// composer twice rather than the second request looking like the first and doing nothing.
-/// What a forward composer opens holding: the files the original carries, already staged by the
-/// core, and whether staging failed. The two travel together because an empty list means opposite
-/// things either way: nothing was attached, or everything was and none of it could be read.
-struct ForwardAttachments {
-    var files: [ComposerFileAttachment] = []
-    var failed = false
-}
-
-/// What the composer hands its parent when the user presses Send: everything the three
-/// `submitRich*` calls name, in one value.
+/// What the composer hands its parent when the user presses Send: everything
+/// `submitComposition` names, in one value.
 ///
-/// A value rather than six positional arguments, because the last two read alike at a call site
-/// and mean opposite things: `from` is which account sends, `composition` is which composer wrote
-/// it. Transposing them compiles.
+/// A value rather than positional arguments, because `from` and `composition` read alike at a call
+/// site and mean opposite things: `from` is which account sends, `composition` is which composer
+/// wrote it. Transposing them compiles.
 struct ComposerSubmission {
     let recipients: Recipients
     /// The Subject field as edited. A reply and a forward open with the core's derived
@@ -58,64 +39,68 @@ struct ComposerSubmission {
     let subject: String
     /// The rendered editor document.
     let documentJson: String
-    /// The files the composer holds: picked, dropped, forwarded or resumed.
+    /// The files the composer holds: picked, dropped, forwarded, shared or resumed.
     let files: [ComposerFileAttachment]
     /// The account picked in the From dropdown, or `nil` to let the core derive it.
     let from: String?
-    /// The composition this message was written in, so an accepted send takes its stored draft
-    /// out of Drafts (`docs/drafts.md`). `nil` only from a composer that keeps no draft.
-    let composition: String?
+    /// The composition the composer opened on: the core joined it to the message a reply answers
+    /// or a forward passes on, and an accepted send takes its stored draft out of Drafts
+    /// (`docs/drafts.md`).
+    let composition: String
 }
 
-/// A message the core has opened back up: a draft resumed from Drafts, or a queued send the user
-/// asked to edit, which the core has saved back into Drafts. The core answers both with one
-/// `ComposeRequest`, so both open the same composer the same way.
+/// One open composer: the core's answer about the message it opens on (`ComposeOpening`), and what
+/// the host derived from it in the user's language.
 ///
-/// The composition travels with it because the core has already joined that id to the copy on the
-/// server: a composer that minted one of its own would save a second draft beside the one it is
-/// showing, and neither would supersede the other (`docs/drafts.md`).
+/// One value for every way into a composer (a new message, a reply, a forward, a resumed draft, a
+/// mail link, a share, an assistant's draft and an Outbox edit), so no route can open a composer
+/// holding less than another (`docs/drafts.md`). Built by `MailboxModel.composeContext(for:)`.
 ///
-/// Carries its own id for the reason `MailLinkRequest` does: opening the same draft twice must
-/// open the composer twice rather than compare equal to the first and appear to do nothing.
-struct ResumedDraftRequest: Identifiable, Equatable {
+/// Carries its own id: opening the same message twice is two composers, and iOS presents this
+/// with `.fullScreenCover(item:)`, which does nothing for an item whose id equals the one already
+/// presented. Equal by that id alone, for the same reason.
+struct ComposeContext: Identifiable, Equatable {
     let id = UUID()
-    let draft: ComposeRequest
-
-    init(_ draft: ComposeRequest) {
-        self.draft = draft
-    }
-
-    var composition: String { draft.composition }
-
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
-}
-
-enum ComposeContext: Identifiable {
-    case new
-    case reply(account: String, key: String, to: String, cc: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind)
-    case replyAll(account: String, key: String, to: String, cc: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind)
-    case forward(account: String, key: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind, attachments: ForwardAttachments)
-    case agentDraft(AgentDraftRequest)
-    case mailLink(MailLinkRequest)
-    case share(ShareOpenRequest)
-    case resumedDraft(ResumedDraftRequest)
-
+    /// What the core opened the composer with, on the composition it joined.
+    let opening: ComposeOpening
+    /// The account id the From picker opens on: the opening's account as a sending account.
+    let initialFrom: String?
+    /// The style a fresh quote is seeded in (the persisted app default).
+    let quoteStyle: QuoteStyleKind
+    /// Whether the user opted into choosing the style per message.
+    let quoteStylePerMessage: Bool
+    /// The `setComposerQuote` seed for a fresh reply or forward, or `nil`.
+    let quote: String?
+    /// The `completeComposerQuoteAttribution` argument for a reopened message whose original is
+    /// known, or `nil`.
+    let quoteAttribution: String?
+    /// Files the host adds to what the core staged: a share's.
+    var addedAttachments: [ComposerFileAttachment] = []
+    /// A line the composer opens showing, for something the route could not bring: files a share
+    /// could not hand over.
+    var notice: String?
     /// Whether this composer holds a share another app handed over.
-    var isShare: Bool {
-        if case .share = self { return true }
-        return false
+    var isShare = false
+
+    /// Whether this is a new message, a reply, a reply-all or a forward.
+    var mode: RichComposeMode { ComposeOpeningSeed.mode(opening.kind) }
+
+    /// The text the editor opens with (`ComposeOpeningSeed.plainBody`).
+    var plainBody: String? { ComposeOpeningSeed.plainBody(opening, quoteSeed: quote) }
+
+    /// The error line the composer opens with: a forward whose originals could not be staged,
+    /// else what the route brought.
+    var initialError: String? {
+        opening.attachmentsFailed ? L10n.compose_forward_attachments_failed() : notice
     }
 
-    var id: String {
-        switch self {
-        case .new: return "new"
-        case .reply(_, let key, _, _, _, _, _): return "reply:\(key)"
-        case .replyAll(_, let key, _, _, _, _, _): return "replyAll:\(key)"
-        case .forward(_, let key, _, _, _, _): return "forward:\(key)"
-        case .agentDraft(let request): return "agent:\(request.id)"
-        case .mailLink(let request): return "mailLink:\(request.id)"
-        case .share(let request): return "share:\(request.id)"
-        case .resumedDraft(let request): return "draft:\(request.id)"
+    /// The composer's heading, the action it is performing.
+    var title: String {
+        switch mode {
+        case .new: return L10n.compose_title_new()
+        case .reply: return L10n.action_reply()
+        case .replyAll: return L10n.action_reply_all()
+        case .forward: return L10n.action_forward()
         }
     }
 
@@ -123,24 +108,16 @@ enum ComposeContext: Identifiable {
     /// ⌘-Tab and Mission Control read, and the only thing that tells two open drafts apart there
     /// (`docs/reading-window.md`). A draft that has no subject yet is named for what it is.
     var windowTitle: String {
-        switch self {
-        case let .reply(_, _, _, _, subject, _, _),
-             let .replyAll(_, _, _, _, subject, _, _),
-             let .forward(_, _, subject, _, _, _):
-            return subject.isEmpty ? L10n.compose_title_new() : subject
-        case let .resumedDraft(request):
-            return request.draft.subject.isEmpty ? L10n.compose_title_new() : request.draft.subject
-        case .new, .agentDraft, .mailLink, .share:
-            return L10n.compose_title_new()
-        }
+        opening.subject.isEmpty ? L10n.compose_title_new() : opening.subject
     }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 }
 
 /// One `mailto:` link the OS handed us, already decoded by the shared core.
 ///
-/// Carries its own id for the same reason `AgentDraftRequest` does: tapping the same link twice
-/// must open the composer twice, and without an id the second request would compare equal to the
-/// first and appear to do nothing.
+/// Carries its own id, so two arrivals of the same link are two requests rather than one value
+/// seen twice; each opens a composer of its own (`ComposeContext.id`).
 struct MailLinkRequest: Identifiable, Equatable {
     let id = UUID()
     let prefill: MailtoPrefill

@@ -84,9 +84,17 @@ internal fun composerLabelsJson(ctx: android.content.Context): String = JSONObje
 // entire typing area underneath the opaque header overlay, where it is untappable and anything
 // typed is invisible.
 //
-// The signature goes LAST, after the quote: the editor decides where to place it on first insert:
+// One body seed, whichever way the composer was reached: a stored message's own HTML, else a fresh
+// reply's or forward's quote, else the text a mail link or a share brought. Each assigns the WHOLE
+// body, so exactly one is sent, and before the signature: anything seeded ahead of it would be
+// overwritten. The text is seeded as text, never markup (docs/composer-security.md, Gate 12), and a
+// stored message's text rides beside its HTML for when it has none.
+//
+// The signature comes after the body because the editor decides where to place it on first insert:
 // above the quoted original when there is one, so seeding it before the quote exists would put a
-// reply's signature at the bottom, under the message it is replying to.
+// reply's signature at the bottom, under the message it is replying to. Last of all, a reopened
+// quote's missing attribution is completed from its original, so the style picker can switch it to
+// a full one (docs/drafts.md).
 internal fun composerPageFinishedScripts(
     labelsJson: String,
     quote: String?,
@@ -94,41 +102,37 @@ internal fun composerPageFinishedScripts(
     signature: String? = null,
     body: String = "",
     storedHtml: String = "",
+    quoteAttribution: String? = null,
 ): List<String> = buildList {
     add("window.useNativeComposerChrome()")
     if (topInsetDp > 0f) {
         add("window.setComposerTopInset($topInsetDp)")
     }
     add("window.setComposerLabels($labelsJson)")
-    if (quote != null) {
-        add("window.setComposerQuote(${JSONObject.quote(quote)})")
-    }
-    // A mail link's `body=`, seeded as text (docs/composer-security.md, Gate 12). It goes before
-    // the signature and after the quote because `setPlainText` assigns the WHOLE body: anything
-    // seeded before it is overwritten, so the signature would be gone and the quote would have to
-    // be re-seeded. In practice a link never carries a quote, a quote only ever seeds a
-    // reply/forward, but the order makes the editor's state defined rather than call-order luck.
-    //
-    // A message reopened in the composer (a resumed draft, or one moved back out of the Outbox)
-    // seeds through the same slot with its HTML, which the editor reads back into its document:
-    // its formatting, its pictures, its quote and its signature. The text rides along for when the
-    // message has no HTML.
     if (storedHtml.isNotBlank()) {
         add("window.setComposerBody(${JSONObject.quote(reopenedBodySeed(storedHtml, body))})")
+    } else if (quote != null) {
+        add("window.setComposerQuote(${JSONObject.quote(quote)})")
     } else if (body.isNotEmpty()) {
         add("window.setPlainText(${JSONObject.quote(body)})")
     }
     if (signature != null) {
         add("window.setComposerSignature(${JSONObject.quote(signature)})")
     }
+    if (quoteAttribution != null) {
+        add("window.completeComposerQuoteAttribution(${JSONObject.quote(quoteAttribution)})")
+    }
 }
 
 internal fun WebView.configureComposerWebView(
     quote: String?,
-    // The plain-text body the composer opens with, a mail link's `body=`, empty otherwise.
+    // The plain-text body the composer opens with (a mail link's or a share's), or a stored
+    // message's text beside its HTML; empty otherwise.
     body: String = "",
     // The HTML of a message the composer reopens, empty otherwise.
     storedHtml: String = "",
+    // The attribution a reopened quote is completed with, or null.
+    quoteAttribution: String? = null,
     labelsJson: String,
     focusBody: Boolean,
     topInsetDp: () -> Float,
@@ -153,8 +157,9 @@ internal fun WebView.configureComposerWebView(
         // not right after loadDataWithBaseURL, and not from a layout-time effect, is what
         // guarantees they are defined. See composerPageFinishedScripts for the contract.
         override fun onPageFinished(view: WebView?, url: String?) {
-            val scripts =
-                composerPageFinishedScripts(labelsJson, quote, topInsetDp(), signature(), body, storedHtml)
+            val scripts = composerPageFinishedScripts(
+                labelsJson, quote, topInsetDp(), signature(), body, storedHtml, quoteAttribution,
+            )
             for (script in scripts) {
                 view?.evaluateJavascript(script, null)
             }
@@ -188,6 +193,7 @@ internal fun ComposerEditorView(
     quote: String?,
     body: String,
     storedHtml: String,
+    quoteAttribution: String?,
     labelsJson: String,
     focusBody: Boolean,
     topInsetDp: () -> Float,
@@ -211,6 +217,7 @@ internal fun ComposerEditorView(
                     quote = quote,
                     body = body,
                     storedHtml = storedHtml,
+                    quoteAttribution = quoteAttribution,
                     labelsJson = labelsJson,
                     focusBody = focusBody,
                     topInsetDp = topInsetDp,

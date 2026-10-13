@@ -64,7 +64,7 @@ mod boot;
 mod composer;
 mod composer_files;
 mod composer_host;
-mod composer_reply;
+mod composer_open;
 mod connected_account;
 mod connection_log;
 mod connector;
@@ -159,9 +159,7 @@ pub use autodetect::{
 };
 use background::BackgroundManager;
 pub use background_sync::{AccountNewMail, BackgroundSyncOutcome, NewMailPreview};
-pub use composer::{
-    ComposerBlob, Recipients, forward_subject, render_composer_document_json, reply_subject,
-};
+pub use composer::{ComposerBlob, Recipients, render_composer_document_json, reply_subject};
 pub use composer_files::{
     ComposerFileAttachment, MAX_INLINE_IMAGE_BYTES, composer_image_data_url,
     composer_image_data_url_from_bytes,
@@ -171,6 +169,7 @@ pub use composer_host::{
     composer_host_requests_script, composer_link_address, composer_link_answer_script,
     parse_composer_host_request,
 };
+pub use composer_open::{ComposeKind, ComposeOpening, ComposeOrigin, ComposePrefill, QuoteSource};
 pub(crate) use connected_account::ConnectedAccount;
 pub use credential_store::{AccountCredentialStore, CredentialStoreError};
 // Re-exported, not merely `#[uniffi::export]`ed: the generated languages see one flat
@@ -192,9 +191,8 @@ pub use protocol::{
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
     AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, EmptyReason, FlatRow,
-    MailboxListSnapshot, ReadingSnapshot, RecipientSuggestion, SearchHorizon, SnapshotRow,
-    SyncProgressSnapshot, ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot,
-    UnfiledCopy, ViewMode,
+    MailboxListSnapshot, ReadingSnapshot, SearchHorizon, SnapshotRow, SyncProgressSnapshot,
+    ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot, UnfiledCopy, ViewMode,
     settings::{
         AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
         McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow,
@@ -226,7 +224,7 @@ pub use records_folders::{
 pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
 };
-pub use records_outbox::{ComposeRequest, QueuedRow, QueuedState, SendStatus};
+pub use records_outbox::{QueuedRow, QueuedState, SendStatus};
 pub use records_recurrence::{
     EventRecurrence, ProposedEdit, RecurrenceChange, RecurrenceDay, RecurrenceEnd,
     RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SeriesEditWarning, SimpleRecurrence,

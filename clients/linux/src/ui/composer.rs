@@ -2,7 +2,6 @@
 
 use std::{
     cell::{Cell, RefCell},
-    fmt::Write as _,
     rc::Rc,
     sync::Arc,
 };
@@ -23,7 +22,8 @@ use super::{
     composer_drafts::Autosave,
     composer_fields::{ComposerFields, connect_save_draft, connect_send, read_document},
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
-    composer_model::{ComposeContext, ComposeKind, body_seed_script},
+    composer_model::{ComposeContext, attribution_script, body_seed_script, compose_title},
+    composer_quote_style::QuoteStylePicker,
     composer_signature::SignatureControl,
     editor_paste,
     reader::ComposerHost,
@@ -170,8 +170,8 @@ impl ComposerPane {
         let file_list = gtk::ListBox::new();
         file_list.add_css_class("boxed-list");
         content.append(&file_list);
-        // A share opens the composer already holding its files; every other route starts
-        // empty and fills this from the picker or a drop below (docs/os-integration.md).
+        // What the core staged (a forward's originals, a stored draft's own) and a share's files
+        // on top; the picker and a drop below add to it (docs/os-integration.md).
         let files = Rc::new(RefCell::new(request.files.clone()));
         render_files(&file_list, &files);
         connect_file_picker(&attach, &file_list, &files, window);
@@ -220,6 +220,10 @@ impl ComposerPane {
         if let Some(control) = &signature {
             actions.append(control.widget());
         }
+        let quote_style = QuoteStylePicker::for_composer(request.has_quote, app, web.widget());
+        if let Some(picker) = &quote_style {
+            actions.append(picker.widget());
+        }
         let editor_host = gtk::Box::new(gtk::Orientation::Vertical, 0);
         editor_host.set_accessible_role(AccessibleRole::Group);
         editor_host.set_hexpand(true);
@@ -234,6 +238,7 @@ impl ComposerPane {
             request,
             &editor_host,
             signature.as_ref(),
+            quote_style,
             Rc::clone(&seed),
         );
         content.append(&editor_host);
@@ -259,13 +264,7 @@ impl ComposerPane {
             web.widget().clone(),
             fields.clone(),
             HeaderValues::on_screen(&fields),
-            // A forward's staged files are not work to lose: they are still in the mailbox, so
-            // they are the baseline rather than a draft. A share's are the user's own choice.
-            if request.kind == ComposeKind::Forward {
-                request.files.len()
-            } else {
-                0
-            },
+            request.opening_files,
             seed,
         ));
         let input = sender.clone();
@@ -421,19 +420,21 @@ pub(super) fn editor_labels() -> serde_json::Value {
 ///
 /// This is an **ordering** contract, and one that fails silently. A `window.*` hook called before
 /// the bundle parses lands on an undefined function and `evaluate_javascript` reports nothing, so
-/// every open-time hook belongs in this one batch. Within it the quote goes first and the
-/// signature second: the seam places the region above `.allodia-quote` when there is one, which is
-/// what makes a reply read message → signature → original.
+/// every open-time hook belongs in this one batch. Within it the body goes first, since each seed
+/// assigns the whole body, and the signature second: the seam places the region above
+/// `.allodia-quote` when there is one, which is what makes a reply read message → signature →
+/// original. A reopened quote's attribution is completed last, once the body holding it is in.
 fn seed_editor(
     web: &SecureWebView,
     request: &ComposeContext,
     editor_host: &gtk::Box,
     signature: Option<&Rc<SignatureControl>>,
+    quote_style: Option<QuoteStylePicker>,
     seed: Rc<RefCell<Option<String>>>,
 ) {
     let labels = editor_labels();
-    let quote = request.quote.clone();
     let body = body_seed_script(request);
+    let attribution = attribution_script(request);
     // Read here, not in the closure: the request is borrowed, the closure outlives this call.
     let opens_in_body = request.opens_in_body();
     let editor_host = editor_host.clone();
@@ -443,20 +444,22 @@ fn seed_editor(
         editor_host.update_property(&[AccessibleProperty::Label(l10n::editor_placeholder())]);
         let mut script = format!("window.setComposerLabels({labels});");
         script.push_str(&super::composer_host::announce_script());
-        if let Some(quote) = &quote
-            && let Ok(encoded) = serde_json::to_string(quote)
-        {
-            let _ = write!(script, "window.setComposerQuote({encoded});");
-        } else if let Some(body) = &body {
+        if let Some(body) = &body {
             script.push_str(body);
         }
+        // Only a composer that seeds a signature has a control; one that does not never touches
+        // the region its body already carries.
         if let Some(control) = signature.as_ref().and_then(std::rc::Weak::upgrade) {
             script.push_str(&control.seed_script());
+        }
+        if let Some(attribution) = &attribution {
+            script.push_str(attribution);
         }
         if opens_in_body {
             script.push_str("window.focusComposerBody();");
         }
         let seed = Rc::clone(&seed);
+        let quote_style = quote_style.clone();
         let seeded_view = view.clone();
         view.evaluate_javascript(&script, None, None, None::<&gio::Cancellable>, move |_| {
             let seed = Rc::clone(&seed);
@@ -467,21 +470,18 @@ fn seed_editor(
                 None::<&gio::Cancellable>,
                 move |result| {
                     if let Ok(value) = result {
-                        seed.replace(Some(value.to_str().to_string()));
+                        let document = value.to_str().to_string();
+                        // The picker opens on the style the quote is in, which for a reopened
+                        // message is the one it was saved in, not the app default.
+                        if let Some(picker) = &quote_style {
+                            picker.reflect(&document);
+                        }
+                        seed.replace(Some(document));
                     }
                 },
             );
         });
     });
-}
-
-fn compose_title(kind: ComposeKind) -> &'static str {
-    match kind {
-        ComposeKind::New => l10n::compose_title_new(),
-        ComposeKind::Reply => l10n::action_reply(),
-        ComposeKind::ReplyAll => l10n::action_reply_all(),
-        ComposeKind::Forward => l10n::action_forward(),
-    }
 }
 
 #[cfg(test)]

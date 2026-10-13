@@ -13,16 +13,15 @@ use mailcal_app::{
     BulkAction as AppBulkAction, CalendarWriteStatus as AppCalendarWriteStatus,
     ContactWriteStatus as AppContactWriteStatus, ContactsIntent as AppContactsIntent, EventRef,
     FolderRef, Intent as AppIntent, InvitationResponse as AppInvitationResponse, MessageRef,
-    OutboxIntent as AppOutboxIntent, QueuedRef, ReaderId as AppReaderId,
-    RecipientSuggestion as AppRecipientSuggestion, RowRef, SearchScope as AppSearchScope,
-    SendStatus as AppSendStatus, Surface as AppSurface, ThreadRef,
+    OutboxIntent as AppOutboxIntent, QueuedRef, ReaderId as AppReaderId, RowRef,
+    SearchScope as AppSearchScope, SendStatus as AppSendStatus, Surface as AppSurface, ThreadRef,
 };
 use mailcal_viewmodel::{CalendarSnapshot as AppCalendarSnapshot, EventRow as AppEventRow};
 
 use crate::{
     BulkAction, CalendarSnapshot, CalendarWriteStatus, ContactWriteStatus, EventEdge, EventRow,
-    Intent, InvitationResponse, OutboxIntent, RecipientSuggestion, SearchScope, SelectedRow,
-    SendStatus, Surface, convert_folders::folder_intent,
+    Intent, InvitationResponse, OutboxIntent, SearchScope, SelectedRow, SendStatus, Surface,
+    convert_folders::folder_intent,
 };
 
 impl From<AppSurface> for Surface {
@@ -397,15 +396,6 @@ impl From<AppCalendarSnapshot> for CalendarSnapshot {
         Self {
             events: snapshot.events.into_iter().map(EventRow::from).collect(),
             timezone: snapshot.timezone,
-        }
-    }
-}
-
-impl From<AppRecipientSuggestion> for RecipientSuggestion {
-    fn from(suggestion: AppRecipientSuggestion) -> Self {
-        Self {
-            to: suggestion.to,
-            cc: suggestion.cc,
         }
     }
 }

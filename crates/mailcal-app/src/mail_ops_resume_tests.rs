@@ -81,7 +81,14 @@ async fn a_resumed_draft_opens_with_what_the_stored_copy_holds() {
     app.dispatch(Intent::RefreshMail).await;
 
     let resumed = app
-        .resume_draft(composition("c1"), draft_ref("d1"), &staging_dir("opens"))
+        .open_composer(
+            composition("c1"),
+            crate::ComposeOrigin::Draft {
+                message: draft_ref("d1"),
+            },
+            None,
+            &staging_dir("opens"),
+        )
         .await
         .expect("the draft resumes");
 
@@ -103,9 +110,12 @@ async fn a_resumed_draft_opens_with_what_the_stored_copy_holds() {
 async fn a_save_from_a_resumed_composer_supersedes_the_stored_draft() {
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
-    app.resume_draft(
+    app.open_composer(
         composition("c1"),
-        draft_ref("d1"),
+        crate::ComposeOrigin::Draft {
+            message: draft_ref("d1"),
+        },
+        None,
         &staging_dir("supersede"),
     )
     .await
@@ -132,9 +142,12 @@ async fn a_save_from_a_resumed_composer_supersedes_the_stored_draft() {
 async fn a_resumed_composition_keeps_the_drafts_own_message_id() {
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
-    app.resume_draft(
+    app.open_composer(
         composition("c1"),
-        draft_ref("d1"),
+        crate::ComposeOrigin::Draft {
+            message: draft_ref("d1"),
+        },
+        None,
         &staging_dir("message-id"),
     )
     .await
@@ -161,7 +174,14 @@ async fn a_resumed_draft_opens_holding_its_files() {
     app.dispatch(Intent::RefreshMail).await;
 
     let resumed = app
-        .resume_draft(composition("c1"), draft_ref("d1"), &staging_dir("files"))
+        .open_composer(
+            composition("c1"),
+            crate::ComposeOrigin::Draft {
+                message: draft_ref("d1"),
+            },
+            None,
+            &staging_dir("files"),
+        )
         .await
         .expect("the draft resumes");
 
@@ -184,9 +204,12 @@ async fn a_draft_whose_content_cannot_be_read_is_not_resumed() {
     app.dispatch(Intent::RefreshMail).await;
 
     let refused = app
-        .resume_draft(
+        .open_composer(
             composition("c1"),
-            draft_ref("d1"),
+            crate::ComposeOrigin::Draft {
+                message: draft_ref("d1"),
+            },
+            None,
             &staging_dir("unreadable"),
         )
         .await;
@@ -219,7 +242,14 @@ async fn a_draft_whose_files_cannot_be_staged_is_not_resumed() {
     let directory = blocked.join("inside").to_string_lossy().into_owned();
 
     let refused = app
-        .resume_draft(composition("c1"), draft_ref("d1"), &directory)
+        .open_composer(
+            composition("c1"),
+            crate::ComposeOrigin::Draft {
+                message: draft_ref("d1"),
+            },
+            None,
+            &directory,
+        )
         .await;
     assert!(
         refused.is_err(),
@@ -246,9 +276,12 @@ async fn a_message_that_is_not_a_draft_is_never_resumed() {
     app.dispatch(Intent::RefreshMail).await;
 
     let refused = app
-        .resume_draft(
+        .open_composer(
             composition("c1"),
-            draft_ref("m1"),
+            crate::ComposeOrigin::Draft {
+                message: draft_ref("m1"),
+            },
+            None,
             &staging_dir("not-a-draft"),
         )
         .await;
@@ -272,9 +305,16 @@ async fn a_message_that_is_not_a_draft_is_never_resumed() {
 async fn discarding_a_resumed_draft_removes_the_stored_copy() {
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
-    app.resume_draft(composition("c1"), draft_ref("d1"), &staging_dir("discard"))
-        .await
-        .expect("the draft resumes");
+    app.open_composer(
+        composition("c1"),
+        crate::ComposeOrigin::Draft {
+            message: draft_ref("d1"),
+        },
+        None,
+        &staging_dir("discard"),
+    )
+    .await
+    .expect("the draft resumes");
 
     app.dispatch(Intent::Drafts(DraftsIntent::Discard {
         composition: composition("c1"),
@@ -295,9 +335,12 @@ async fn discarding_a_resumed_draft_removes_the_stored_copy() {
 async fn a_save_keeps_the_file_the_composer_is_holding() {
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
-    app.resume_draft(
+    app.open_composer(
         composition("c1"),
-        draft_ref("d1"),
+        crate::ComposeOrigin::Draft {
+            message: draft_ref("d1"),
+        },
+        None,
         &staging_dir("keeps-files"),
     )
     .await

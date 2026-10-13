@@ -169,13 +169,13 @@ internal fun mailLinkPrefill(intent: AndroidIntent?): MailtoPrefill? {
     return parseMailtoUri(data.toString())?.also { logUiInfo("mail link received") }
 }
 
-// Opens the composer on a mail link that arrived while the app was running. The mailbox hosts
-// the composer, so whatever was in front of it is dismissed first, otherwise the composer is
-// mounted behind the reading view, the calendar, Contacts or Settings and the tap looks like it
+// Opens the composer on a mail link that arrived while the app was running. The mailbox is what
+// opens the composer for a link, so whatever was in front of it is dismissed first, otherwise the
+// link waits behind the reading view, the calendar, Contacts or Settings and the tap looks like it
 // did nothing. `homeDestination` is deliberately left where it was: a mail link is not the user
 // choosing which surface the app opens on, so system back must still walk down to the floor
-// they picked. A composer already open is also left alone: `pendingMailto` only seeds a freshly
-// opened one, so a link can never discard a draft the user is in the middle of.
+// they picked. A composer already open or on its way is left alone: the link stays pending until
+// it closes, so a link can never replace a draft the user is in the middle of.
 internal fun MainActivity.openMailLink(prefill: MailtoPrefill) {
     openedMessage = null
     openedConversation = null
@@ -222,8 +222,8 @@ internal fun MainActivity.routeNewIntent(intent: AndroidIntent) {
 // sending app's provider. A share carrying nothing usable is ignored rather than answered with a
 // blank composer over whatever the user was doing: they asked to send *those files*.
 //
-// The surfaces are cleared exactly as a mail link clears them, and for the same reason: a composer
-// mounted behind Settings or the calendar looks like the share did nothing. `homeDestination` is
+// The surfaces are cleared exactly as a mail link clears them, and for the same reason: a share
+// waiting behind Settings or the calendar looks like it did nothing. `homeDestination` is
 // left alone, so system back still walks down to the floor the user picked.
 internal fun MainActivity.openShare(intent: AndroidIntent) {
     readShare(this, intent) { prefill ->

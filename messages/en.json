@@ -185,6 +185,7 @@
 	"compose_draft_queued": "Waiting to save.",
 	"compose_draft_failed": "Couldn't save this draft.",
 	"compose_draft_open_failed": "Couldn't open this draft.",
+	"compose_open_failed": "Couldn't open the message to write. Try again in a moment.",
 	"editor_placeholder": "Write your message",
 	"editor_bold": "Bold",
 	"editor_italic": "Italic",

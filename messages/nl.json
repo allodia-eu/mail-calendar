@@ -185,6 +185,7 @@
 	"compose_draft_queued": "Wacht op opslaan.",
 	"compose_draft_failed": "Kon dit concept niet opslaan.",
 	"compose_draft_open_failed": "Kon dit concept niet openen.",
+	"compose_open_failed": "Kon het bericht niet openen om te schrijven. Probeer het zo opnieuw.",
 	"editor_placeholder": "Schrijf je bericht",
 	"editor_bold": "Vet",
 	"editor_italic": "Cursief",

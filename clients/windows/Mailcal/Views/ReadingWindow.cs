@@ -72,8 +72,8 @@ internal sealed class ReadingWindow : Window
     // nothing left for the window to be about; the pane advances to the next message down instead,
     // being a place in a list, but a window is one message.
     private ReadingActions WindowActions() => new(
-        (opened, all) => App.Shell?.ComposeReplyInWindow(opened, _reader.Body, all),
-        opened => App.Shell?.ComposeForwardInWindow(opened, _reader.Body),
+        (opened, all) => App.Shell?.ComposeReplyInWindow(opened, all),
+        opened => App.Shell?.ComposeForwardInWindow(opened),
         opened =>
         {
             _model.Archive(opened.Account, opened.Key);

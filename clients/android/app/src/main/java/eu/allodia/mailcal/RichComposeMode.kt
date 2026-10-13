@@ -2,10 +2,10 @@
 // pure decisions without composing anything.
 package eu.allodia.mailcal
 
-// What the rich composer is for. Every mode exposes editable From/To/Cc/Bcc/Subject fields; a reply
-// and reply-all open with To/Cc pre-filled from the core (`replyRecipients`) and the Subject with
-// the core's derived `Re:`/`Fwd:`, a forward and new message open with empty addresses, so the user
-// can adjust anything before sending. Every mode shares the one hardened editor host below.
+// What the rich composer is for: its heading and the signature slot it seeds from, read from the
+// core's `ComposeOpening.kind` (`ComposeOpeningSeed.modeOf`). Every mode exposes editable
+// From/To/Cc/Bcc/Subject fields, filled with what the core opened it with, and shares the one
+// hardened editor host.
 internal enum class RichComposeMode {
     New,
     Reply,

@@ -110,12 +110,10 @@ pub(crate) fn a_mail_link_opens_with_its_bcc_on_screen() {
     assert_eq!(rows.bcc.text(), "snoop@example.test, ");
 }
 
-fn request(initial_cc: &str) -> ComposeContext {
+pub(crate) fn request(initial_cc: &str) -> ComposeContext {
     ComposeContext {
         kind: ComposeKind::New,
         host: crate::ui::reader::ComposerHost::Pane,
-        account: None,
-        key: None,
         initial_to: String::new(),
         initial_cc: initial_cc.to_owned(),
         initial_bcc: String::new(),
@@ -123,10 +121,14 @@ fn request(initial_cc: &str) -> ComposeContext {
         initial_body: None,
         stored_html: None,
         quote: None,
+        quote_attribution: None,
+        has_quote: false,
         initial_from: None,
         seeds_signature: true,
         composition: new_composition(),
         files: Vec::new(),
+        opening_files: 0,
+        attachments_failed: false,
     }
 }
 

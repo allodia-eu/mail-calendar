@@ -47,17 +47,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.AttachmentRow
 import uniffi.mailcal_bindings.Avatar
 import uniffi.mailcal_bindings.CalendarWriteStatus
-import uniffi.mailcal_bindings.ComposerFileAttachment
+import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.InvitationResponse
-import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.ReadingSnapshot
-import uniffi.mailcal_bindings.Recipients
-import uniffi.mailcal_bindings.RecipientMatch
-import uniffi.mailcal_bindings.RecipientSuggestion
 import uniffi.mailcal_bindings.ThreadMessage
 import uniffi.mailcal_bindings.messageCanvas
 
@@ -138,7 +133,6 @@ internal fun ReadingScreen(
     conversation: List<ThreadMessage>?,
     // The active display zone, to localise the strip cards' dates.
     activeZoneId: String?,
-    quoteSettings: QuoteSettings,
     // The calendar write indicator, which an invitation answer drives too, it changes the
     // calendar, so it reports on the same one every other calendar write does.
     calendarWriteStatus: CalendarWriteStatus,
@@ -158,21 +152,10 @@ internal fun ReadingScreen(
     // Opens another message of the same conversation from the strip (accordion, one body shown
     // at a time), keeping the conversation context so the strip persists.
     onOpenThreadMessage: (OpenedMessage) -> Unit,
-    onReply: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
-    onForward: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
-    replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
-    // The core verbs a composer raised from here keeps its message on the server with
-    // (`docs/drafts.md`); null turns draft saving off (a screenshot run, a test).
-    drafts: ComposerDrafts? = null,
-    // Writes the files a message carries into the given directory, for a forward to carry them
-    // on. Blocking, so it is called off the main thread; throws when they cannot be read.
-    stageForwardFiles: (account: String, key: String, directory: String) -> List<ComposerFileAttachment>,
-    suggestionsFor: ((String) -> List<RecipientMatch>)? = null,
-    // The signature library + lookups for the reply/forward composer, or null to leave signatures
-    // out (a screenshot run, a test).
-    signatures: ComposerSignatures? = null,
-    // Every configured account, for the composer's From dropdown.
-    accounts: List<AccountRow>,
+    // Opens the composer on a reply, a reply to all or a forward of this message. The composer is
+    // the activity's (MainActivityComposer.kt), and quotes what the core fetches, so it does not
+    // wait for this screen's body.
+    onCompose: (ComposeOrigin) -> Unit,
     onSaveAttachment: (
         account: String,
         key: String,
@@ -182,25 +165,23 @@ internal fun ReadingScreen(
     onExportMessage: (account: String, key: String, destinationPath: String) -> Boolean,
     onArchive: (account: String, key: String) -> Unit,
     onDelete: (account: String, key: String) -> Unit,
-    // Screenshot only: opens the composer in this mode as soon as the message is shown, so the
-    // showcase's reply screenshot needs no tap. Null in every normal launch.
-    initialComposing: RichComposeMode? = null,
-    // Screenshot only: sample text to pre-fill the reply composer's body with (plain text).
-    composerInitialText: String? = null,
+    // Screenshot only: opens a reply as soon as the message's body is shown, so the showcase's
+    // reply screenshot needs no tap. False in every normal launch.
+    opensReplyOnShow: Boolean = false,
 ) {
     BackHandler(onBack = onBack)
     val ctx = LocalContext.current
     // Whether the user chose to load this message's remote images (reset per message).
     var loadRemoteImages by remember(message.key) { mutableStateOf(false) }
-    // The open rich composer (null = closed, else the active mode), like the list rows.
-    var composing by remember(message.key) { mutableStateOf<RichComposeMode?>(null) }
-    // The original's files, staged before the forward composer opens (see the Forward action).
-    var forwardSeed by remember(message.key) { mutableStateOf(ForwardSeed()) }
-    // Screenshot only: open it once the body has loaded, the quoted original (and the sample reply
-    // text seeded above it) only exist then, exactly as for a user-driven reply.
-    if (initialComposing != null) {
+    // Screenshot only: opened once, after the body, so the reading view behind the composer is
+    // the finished one.
+    if (opensReplyOnShow) {
+        var replied by remember(message.key) { mutableStateOf(false) }
         LaunchedEffect(message.key, reading?.key) {
-            if (composing == null && reading?.key == message.key) composing = initialComposing
+            if (!replied && reading?.key == message.key) {
+                replied = true
+                onCompose(ComposeOrigin.Reply(message.account, message.key, false))
+            }
         }
     }
     var pendingSave by remember(message.key) { mutableStateOf<AttachmentRow?>(null) }
@@ -215,8 +196,7 @@ internal fun ReadingScreen(
     }
     // This screen renders outside the Scaffold (which would pad its content), so it must clear
     // BOTH system bars itself, otherwise the header draws under the status bar and the end of the
-    // message body under the navigation bar (edge-to-edge default). The composer overlay below is
-    // a sibling of this Column, not a child, so it keeps its own Scaffold + imePadding.
+    // message body under the navigation bar (edge-to-edge default).
     Column(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
         ReadingIdentityHeader(message = message, reading = reading, onBack = onBack)
         // Message actions as a compact icon toolbar: reply/reply-all/forward on the left,
@@ -231,20 +211,17 @@ internal fun ReadingScreen(
                 .padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = { composing = RichComposeMode.Reply }) {
+            IconButton(onClick = {
+                onCompose(ComposeOrigin.Reply(message.account, message.key, false))
+            }) {
                 Icon(painterResource(R.drawable.ic_reply), contentDescription = L10n.action_reply(ctx))
             }
-            IconButton(onClick = { composing = RichComposeMode.ReplyAll }) {
+            IconButton(onClick = {
+                onCompose(ComposeOrigin.Reply(message.account, message.key, true))
+            }) {
                 Icon(painterResource(R.drawable.ic_reply_all), contentDescription = L10n.action_reply_all(ctx))
             }
-            // Forward opens once the original's files are staged, not before: a composer on screen
-            // holding nothing can be sent in the window before they arrive.
-            IconButton(onClick = {
-                stageForwardAttachments(ctx, message.account, message.key, stageForwardFiles) {
-                    forwardSeed = it
-                    composing = RichComposeMode.Forward
-                }
-            }) {
+            IconButton(onClick = { onCompose(ComposeOrigin.Forward(message.account, message.key)) }) {
                 Icon(painterResource(R.drawable.ic_forward), contentDescription = L10n.action_forward(ctx))
             }
             Spacer(modifier = Modifier.weight(1f))
@@ -407,23 +384,5 @@ internal fun ReadingScreen(
                 }
             }
         }
-    }
-    composing?.let { mode ->
-        ReadingComposerOverlay(
-            mode = mode,
-            message = message,
-            reading = reading,
-            accounts = accounts,
-            quoteSettings = quoteSettings,
-            forwardSeed = forwardSeed,
-            replyRecipients = replyRecipients,
-            suggestionsFor = suggestionsFor,
-            signatures = signatures,
-            composerInitialText = composerInitialText,
-            onClose = { composing = null },
-            onReply = onReply,
-            onForward = onForward,
-            drafts = drafts,
-        )
     }
 }

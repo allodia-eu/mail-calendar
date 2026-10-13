@@ -72,23 +72,18 @@ public sealed partial class MainWindow
             // The composer lives in the mail surface's detail column, so a share arriving over
             // the calendar or Contacts would otherwise open it behind them.
             Model.ShowMail();
-            BeginCompose(new ComposeContext(
-                RichComposeKind.New,
-                Account: null,
-                Key: null,
-                InitialFrom: Model.SendAccount(Model.SelectedAccount)?.Id,
-                // Non-empty only when the shared text was itself a mail link: a sharing app
-                // cannot otherwise address a message.
-                InitialTo: prefill.To,
-                InitialCc: prefill.Cc,
-                Quote: null,
-                QuoteStyle: Model.QuoteSettings.Style,
-                QuoteStylePerMessage: Model.QuoteSettings.PerMessage,
-                InitialBcc: prefill.Bcc,
-                InitialSubject: prefill.Subject,
-                InitialBody: string.IsNullOrEmpty(prefill.Body) ? null : prefill.Body,
-                Attachments: prefill.Attachments.ToList()));
-            // The request came from another app, so this process does not hold foreground
+            // `to` is non-empty only when the shared text was itself a mail link: a sharing app
+            // cannot otherwise address a message. The files are the share's, added to the
+            // composer like picked ones.
+            var opened = await OpenComposerAsync(
+                new ComposeOrigin.New(Model.SelectedAccount),
+                new ComposePrefill(prefill.To, prefill.Cc, prefill.Bcc, prefill.Subject, prefill.Body, false),
+                prefill.Attachments.ToList());
+            if (opened is not { } context)
+            {
+                return;
+            }
+            BeginCompose(context);            // The request came from another app, so this process does not hold foreground
             // rights and a bare Activate() would be ignored.
             BringToForeground();
         }

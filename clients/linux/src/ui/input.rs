@@ -3,9 +3,8 @@
 use std::path::PathBuf;
 
 use mailcal_bindings::{
-    AccountCapability, AgentDraft, BulkAction, ComposeRequest, ContactDetail, ContactEdit,
-    ContactTarget, DetectedSetup, ImapAuthOffer, Intent, MailtoPrefill, SearchScope, SharePrefill,
-    Surface,
+    AccountCapability, AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget,
+    DetectedSetup, ImapAuthOffer, Intent, MailtoPrefill, SearchScope, SharePrefill, Surface,
 };
 
 use super::{
@@ -13,7 +12,8 @@ use super::{
     allodia_subscription::SubscriptionInput,
     allodia_sync::AllodiaSyncOutcome,
     calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
-    composer_model::{ComposerSubmission, PickedFile},
+    composer_model::ComposerSubmission,
+    composer_open::ComposerOpened,
     contacts::EditTarget,
     folder_actions::FolderInput,
     folder_pane::SidebarTarget,
@@ -189,10 +189,11 @@ pub(crate) enum AppInput {
         all: bool,
     },
     BeginForward(ReadingSource),
-    /// The files the forwarded message carries, staged off the GTK thread, or `Err` when they
-    /// could not be read. The composer opens on this rather than on `BeginForward`: on screen
-    /// holding nothing it can be sent in the window before they arrive.
-    ForwardStaged(ReadingSource, Result<Vec<PickedFile>, ()>),
+    /// What the core opened a composer with, asked off the GTK thread. The composer opens on this
+    /// rather than on the input that asked: on screen before its files arrived, it could be sent
+    /// or saved without them. `Err` is said, never shown as an empty composer, which on a stored
+    /// draft would replace it on its next save.
+    ComposerOpened(Box<ComposerOpened>),
     /// The composer's Discard button: its host, and whether anything was written in it.
     DiscardComposer(ComposerHost, bool),
     /// Leaving a composer nothing was written in: close it, then take any waiting navigation.
@@ -207,9 +208,6 @@ pub(crate) enum AppInput {
     /// Store the composer's message in Drafts over this composition's previous save. The Save
     /// button and the idle timer both emit it; the core cannot tell them apart (`docs/drafts.md`).
     SaveComposerDraft(Box<ComposerSubmission>),
-    /// A draft the core opened back up, under the composition it was adopted into. `Err` is said,
-    /// never shown as an empty composer, which would replace the draft on its next save.
-    DraftResumed(Box<Result<ComposeRequest, ()>>),
     SaveAttachment {
         source: ReadingSource,
         id: u32,

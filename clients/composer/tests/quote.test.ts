@@ -4,7 +4,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { documentBlocks } from "../src/document";
-import { setComposerQuote } from "../src/quote";
+import { completeComposerQuoteAttribution, setComposerQuote, setComposerQuoteStyle } from "../src/quote";
 import type { Block, QuoteValue } from "../src/types";
 import { harness } from "./support";
 
@@ -65,5 +65,33 @@ describe("an HTML original", () => {
     });
 
     expect(quoteOf(editor).body_html).toBe("<p>Already sanitised</p>");
+  });
+});
+
+describe("a reopened quote's attribution", () => {
+  test("is completed in the half it does not carry, and the half it carries is left as written", () => {
+    const { editor } = harness(
+      '<p>reply</p><div class="allodia-quote" data-quote-style="Indented" data-quote-line="Op maandag schreef Bob:" data-quote-headers="[]">' +
+        '<div class="aq-attr" contenteditable="false">Op maandag schreef Bob:</div><div class="aq-body"><p>original</p></div></div>',
+    );
+
+    completeComposerQuoteAttribution(editor, {
+      line: "On Monday, Bob wrote:",
+      headers: [{ label: "From", value: "Bob" }],
+    });
+
+    const quote = editor.querySelector<HTMLElement>(".allodia-quote")!;
+    expect(quote.dataset.quoteLine).toBe("Op maandag schreef Bob:");
+    expect(JSON.parse(quote.dataset.quoteHeaders!)).toEqual([{ label: "From", value: "Bob" }]);
+    setComposerQuoteStyle(editor, "LineAndHeader");
+    expect(quote.querySelector(".aq-attr")!.textContent).toBe("From: Bob");
+  });
+
+  test("is not touched in a quote nested inside the quoted original", () => {
+    const { editor } = harness(
+      '<p>reply</p><div class="aq-holder"><div class="allodia-quote" data-quote-line="" data-quote-headers="[]"></div></div>',
+    );
+    completeComposerQuoteAttribution(editor, { line: "On Monday, Bob wrote:" });
+    expect(editor.querySelector<HTMLElement>(".allodia-quote")!.dataset.quoteLine).toBe("");
   });
 });

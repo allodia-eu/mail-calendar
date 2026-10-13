@@ -1,15 +1,14 @@
 // The composer, as a view rather than as a method on the shell.
 //
-// One `ComposeContext` in, the right `RichComposeView` out, and `dismiss` when the draft is gone.
-// It was `ContentView.composeContent(_:)`, which is why the shell is still where a *new* draft is
-// decided on; what moved here is the part that has three hosts and no business knowing which one
-// it is in: the macOS detail column, the iPhone and iPad full-screen cover, and a detached
-// composer window on the desktop (`docs/reading-window.md`).
+// One `ComposeContext` in, the `RichComposeView` it describes out, and `dismiss` when the draft is
+// gone. Three hosts mount it and none of them needs to know which it is: the macOS detail column,
+// the iPhone and iPad full-screen cover, and a detached composer window on the desktop
+// (`docs/reading-window.md`).
 //
-// Every mode opens its From dropdown on `model.sendAccount(preferring:)`: the account that
-// received the mail for a reply/forward, the selected mailbox's account for a new message (in the
-// unified inbox there is no such context, so the app-level default send account decides), and the
-// first configured account as the last resort.
+// Every composer is built the same way, from what the core opened it with, whichever route reached
+// it: the From dropdown opens on the opening's account as a sending account
+// (`model.sendAccount(preferring:)`), and every composer sends through `submitComposition` on the
+// composition it opened on.
 
 import MailcalBindings
 import SwiftUI
@@ -21,15 +20,13 @@ struct ComposeHost: View {
     /// or the window is the host's to do, because only the host knows which of those it is.
     let dismiss: () -> Void
 
-    /// The composer's recipient autosuggest, handed to every compose mode. Built once here rather
-    /// than inline at each call site so all four modes ask the core the same way.
+    /// The composer's recipient autosuggest.
     private var recipientSuggestions: (String) async -> [RecipientMatch] {
         { query in await model.recipientSuggestions(query) }
     }
 
-    /// The signature library + the two lookups, handed to every compose mode. Built once here so
-    /// all four modes seed, swap, and override signatures the same way; the composer decides which
-    /// slot its mode reads (`MailboxModel.signatureSlot`).
+    /// The signature library + the two lookups; the composer decides which slot its mode reads
+    /// (`signatureSlot(for:)`).
     private var signatures: ComposerSignatures {
         ComposerSignatures(
             library: model.signatures.signatures,
@@ -38,9 +35,8 @@ struct ComposeHost: View {
         )
     }
 
-    /// The core verbs this composer keeps its message on the server with, handed to every mode.
-    /// Built once here so all four save, discard and close through the same calls; the composition
-    /// each one names is the composer's own, minted when it opens.
+    /// The core verbs this composer keeps its message on the server with; the composition each
+    /// one names is the one the composer opened on.
     private var drafts: ComposerDrafts {
         ComposerDrafts(
             save: { composition, recipients, subject, documentJson, files, from in
@@ -60,176 +56,34 @@ struct ComposeHost: View {
     }
 
     var body: some View {
-        switch context {
-        case .new:
-            newMessage(title: L10n.compose_title_new(), from: model.selectedAccount)
-        case let .reply(account, key, to, cc, subject, quote, quoteStyle):
-            replyMessage(
-                title: L10n.action_reply(), mode: .reply, account: account, key: key,
-                to: to, cc: cc, subject: subject, quote: quote, quoteStyle: quoteStyle
-            )
-        case let .replyAll(account, key, to, cc, subject, quote, quoteStyle):
-            replyMessage(
-                title: L10n.action_reply_all(), mode: .replyAll, account: account, key: key,
-                to: to, cc: cc, subject: subject, quote: quote, quoteStyle: quoteStyle
-            )
-        case let .agentDraft(request):
-            // An assistant's draft, opened UNSENT so the user reads the recipients and the body
-            // before anything leaves the machine. Structurally a new message, the same composer,
-            // the same Send button, the same submit path, merely arriving prefilled.
-            prefilled(
-                from: request.draft.account,
-                to: request.draft.to, cc: request.draft.cc, bcc: request.draft.bcc,
-                subject: request.draft.subject, bodyText: request.draft.bodyText
-            )
-        case let .mailLink(request):
-            // A mail link opens a new message someone else addressed. The core has already
-            // dropped every header a link may not set (docs/composer-security.md, Gate 12), so
-            // what reaches here is only To/Cc/Bcc/Subject/Body, and every field stays editable.
-            // Nothing is sent: the user still presses Send.
-            prefilled(
-                from: nil,
-                to: request.prefill.to, cc: request.prefill.cc, bcc: request.prefill.bcc,
-                subject: request.prefill.subject, bodyText: request.prefill.body
-            )
-        case let .share(request):
-            // Another app asked to send these files. The composer opens holding them, and every
-            // field stays editable; nothing is sent until the user presses Send. `to` is non-blank
-            // only when the shared text was itself a mail link, which the core decoded through the
-            // same allowlist a tapped link goes through: a sharing app cannot address a message
-            // (docs/os-integration.md).
-            prefilled(
-                from: nil,
-                to: request.prefill.to, cc: request.prefill.cc, bcc: request.prefill.bcc,
-                subject: request.prefill.subject, bodyText: request.prefill.body,
-                attachments: request.prefill.attachments,
-                error: shareRefusalNotice(request.prefill.rejected)
-            )
-        case let .resumedDraft(request):
-            resumedDraft(request)
-        case let .forward(account, key, subject, quote, quoteStyle, attachments):
-            forwardMessage(
-                account: account, key: key, subject: subject,
-                quote: quote, quoteStyle: quoteStyle, attachments: attachments
-            )
-        }
-    }
-
-    private func newMessage(title: String, from: String?) -> some View {
+        let opening = context.opening
         RichComposeView(
-            title: title,
-            mode: .new,
+            title: context.title,
+            mode: context.mode,
             accounts: model.accounts,
-            initialFrom: model.sendAccount(preferring: from)?.id,
+            initialFrom: context.initialFrom,
+            initialTo: opening.to,
+            initialCc: opening.cc,
+            initialBcc: opening.bcc,
+            initialSubject: opening.subject,
+            initialBody: context.plainBody ?? "",
+            initialHTML: opening.bodyHtml,
+            initialAttachments: opening.attachments,
+            addedAttachments: context.addedAttachments,
+            initialError: context.initialError,
+            composition: opening.composition,
+            quote: context.quote,
+            quoteAttribution: context.quoteAttribution,
+            quoteStyle: context.quoteStyle,
+            quoteStylePerMessage: context.quoteStylePerMessage,
             suggestionsFor: recipientSuggestions,
-            signatures: signatures,
+            // A stored message carries the signature it was written with, and an assistant's
+            // draft its author's own sign-off: neither is seeded one, offered the picker, or has
+            // its signature region touched on a From change (`ComposeOpening.seedsSignature`).
+            signatures: opening.seedsSignature ? signatures : nil,
             drafts: drafts
         ) { submission in
-            submitted(model.submitRich(submission))
-        } cancel: { dismiss() }
-    }
-
-    /// A new message someone else addressed: an assistant's draft, a `mailto:` link, or a share.
-    ///
-    /// A share is the only one of the three that arrives with files, and the only one that can
-    /// arrive with something to say about what it could not bring.
-    private func prefilled(
-        from: String?,
-        to: String, cc: String, bcc: String, subject: String, bodyText: String,
-        attachments: [ComposerFileAttachment] = [],
-        error: String? = nil
-    ) -> some View {
-        RichComposeView(
-            title: L10n.compose_title_new(),
-            mode: .new,
-            accounts: model.accounts,
-            initialFrom: model.sendAccount(preferring: from)?.id,
-            initialTo: to,
-            initialCc: cc,
-            initialBcc: bcc,
-            initialSubject: subject,
-            initialBody: bodyText,
-            initialAttachments: attachments,
-            initialError: error,
-            suggestionsFor: recipientSuggestions,
-            signatures: signatures,
-            drafts: drafts
-        ) { submission in
-            submitted(model.submitRich(submission))
-        } cancel: { dismiss() }
-    }
-
-    /// A draft that was already on the server, opened into a composer that saves **over** it.
-    ///
-    /// Two things separate it from every other new message. The composition is the one the core
-    /// adopted the stored draft into, never a fresh one, or the composer's first save would store
-    /// a second copy beside the one it is showing. And no signature is seeded: the body already
-    /// carries the signature it was written with, so seeding one would put a second under it, and
-    /// the next save would write that to the server.
-    private func resumedDraft(_ request: ResumedDraftRequest) -> some View {
-        RichComposeView(
-            title: L10n.compose_title_new(),
-            mode: .new,
-            accounts: model.accounts,
-            initialFrom: model.sendAccount(preferring: request.draft.account)?.id,
-            initialTo: request.draft.to,
-            initialCc: request.draft.cc,
-            initialBcc: request.draft.bcc,
-            initialSubject: request.draft.subject,
-            initialBody: request.draft.bodyText,
-            initialHTML: request.draft.bodyHtml,
-            initialAttachments: request.draft.attachments,
-            composition: request.composition,
-            suggestionsFor: recipientSuggestions,
-            drafts: drafts
-        ) { submission in
-            submitted(model.submitRich(submission))
-        } cancel: { dismiss() }
-    }
-
-    private func replyMessage(
-        title: String, mode: RichComposeMode, account: String, key: String,
-        to: String, cc: String, subject: String, quote: String?, quoteStyle: QuoteStyleKind
-    ) -> some View {
-        RichComposeView(
-            title: title,
-            mode: mode,
-            accounts: model.accounts,
-            initialFrom: model.sendAccount(preferring: account)?.id,
-            initialTo: to,
-            initialCc: cc,
-            initialSubject: subject,
-            quote: quote,
-            quoteStyle: quoteStyle,
-            quoteStylePerMessage: model.quoteSettings.perMessage,
-            suggestionsFor: recipientSuggestions,
-            signatures: signatures,
-            drafts: drafts
-        ) { submission in
-            submitted(model.submitRichReply(account, key, submission))
-        } cancel: { dismiss() }
-    }
-
-    private func forwardMessage(
-        account: String, key: String, subject: String,
-        quote: String?, quoteStyle: QuoteStyleKind, attachments: ForwardAttachments
-    ) -> some View {
-        RichComposeView(
-            title: L10n.action_forward(),
-            mode: .forward,
-            accounts: model.accounts,
-            initialFrom: model.sendAccount(preferring: account)?.id,
-            initialSubject: subject,
-            initialAttachments: attachments.files,
-            initialError: attachments.failed ? L10n.compose_forward_attachments_failed() : nil,
-            quote: quote,
-            quoteStyle: quoteStyle,
-            quoteStylePerMessage: model.quoteSettings.perMessage,
-            suggestionsFor: recipientSuggestions,
-            signatures: signatures,
-            drafts: drafts
-        ) { submission in
-            submitted(model.submitRichForward(account, key, submission))
+            submitted(model.submitComposition(submission))
         } cancel: { dismiss() }
     }
 

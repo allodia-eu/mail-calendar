@@ -24,8 +24,6 @@ impl AppModel {
                 // reads its own slot back beside the pane (`docs/reading-window.md`).
                 self.reload_reading_windows(&app);
                 self.reading_generation = self.reading_generation.wrapping_add(1);
-                #[cfg(any(debug_assertions, feature = "dev-harness"))]
-                self.continue_showcase();
             }
             Surface::Sending => {
                 self.notice = match app.send_status() {
@@ -56,8 +54,8 @@ impl AppModel {
             // A message the core withdrew from the Outbox so the user could change it. It
             // exists nowhere else by the time this arrives, so this may not refuse.
             Surface::ComposeRequest => {
-                if let Some(request) = app.compose_request() {
-                    self.open_withdrawn_message(request);
+                if let Some(opening) = app.compose_request() {
+                    self.open_withdrawn_message(&app, opening);
                 }
             }
             Surface::UnfiledCopy => {

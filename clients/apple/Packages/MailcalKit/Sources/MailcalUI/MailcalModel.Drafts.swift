@@ -111,40 +111,4 @@ extension MailboxModel {
         }
         return status
     }
-
-    /// Opens the stored draft `key` (on `account`) into `composition`, so the composer about to
-    /// show it saves over that copy rather than beside it.
-    ///
-    /// `nil` means the draft could not be opened, which the caller says rather than showing an
-    /// empty composer: nothing is adopted on a failure, and a composer opened without the
-    /// draft's content would replace it with what is on screen.
-    ///
-    /// Off the main actor, and unlike a forward's staging it cannot count on a warm cache: a
-    /// draft is opened from a list row, so the first open of one fetches the message.
-    func resumeDraft(_ composition: String, _ account: String, _ key: String) async -> ComposeRequest? {
-        guard let app else { return nil }
-        let directory = draftStagingDirectory().path
-        return await Task.detached {
-            do {
-                return try app.resumeDraft(
-                    composition: composition,
-                    account: account,
-                    key: key,
-                    stagingDirectory: directory
-                )
-            } catch {
-                print("[Mailcal] draft resume failed: \(type(of: error))")
-                return nil
-            }
-        }.value
-    }
-
-    /// A directory of this composer's own under the app's temporary storage, so two resumed
-    /// drafts never share a staged file. A queued send moved back into Drafts for editing stages
-    /// its files here too. The OS reclaims what is left behind, as it does for a forward's.
-    func draftStagingDirectory() -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("resumed-drafts", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    }
 }

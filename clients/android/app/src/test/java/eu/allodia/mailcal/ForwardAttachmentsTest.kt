@@ -18,6 +18,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import uniffi.mailcal_bindings.ComposeKind
 import uniffi.mailcal_bindings.ComposerFileAttachment
 
 @RunWith(RobolectricTestRunner::class)
@@ -67,14 +68,22 @@ class ForwardAttachmentsTest {
         assertEquals("invoice.pdf", removed?.fileName)
     }
 
-    // Staging failing and staging finding nothing are different answers, and the seed keeps them
-    // apart: an empty list with no failure says the message had nothing attached, which is the one
-    // claim a failure must not be allowed to make.
+    // The files the core staged are the baseline for every kind, so a forward or a resumed draft
+    // closed untouched is not "written"; a share's files the user chose and would have to share
+    // again, so they are not.
     @Test
-    fun `an empty seed is not the same as a failed one`() {
-        assertTrue(ForwardSeed().files.isEmpty())
-        assertFalse(ForwardSeed().failed)
-        assertTrue(ForwardSeed(failed = true).failed)
+    fun `the staged files are the baseline and a share's are not`() {
+        val forward = ComposeContext(
+            testOpening(kind = ComposeKind.FORWARD, attachments = staged),
+            initialFrom = null,
+        )
+        assertEquals(2, forward.baselineAttachments)
+        assertEquals(staged, forward.attachments)
+
+        val shared = ComposerFileAttachment("/cache/share/photo.jpg", "photo.jpg", "image/jpeg")
+        val share = ComposeContext(testOpening(), initialFrom = null, extraAttachments = listOf(shared))
+        assertEquals(0, share.baselineAttachments)
+        assertEquals(listOf(shared), share.attachments)
     }
 
     // Abandoning a forward loses nothing: the files are still in the mailbox. Measured against

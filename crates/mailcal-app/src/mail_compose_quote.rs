@@ -26,17 +26,6 @@ pub(super) fn sanitize_quote_bodies(document: &mut ComposerDocument) {
     }
 }
 
-/// Whether any quote block carries a resolved inline `data:` image (what the reading view
-/// produces from the original's `cid:` parts) worth re-attaching, so the inline-parts fetch (a
-/// raw-source blob read + MIME parse, or a provider round-trip) is skipped for the common
-/// reply/forward whose quoted original had no inline images.
-pub(super) fn quotes_reference_inline_images(document: &ComposerDocument) -> bool {
-    document
-        .blocks
-        .iter()
-        .any(|block| matches!(block, Block::Quote(quote) if quote.body_html.contains("data:image")))
-}
-
 /// Rewrites each quoted original's inline `data:` images back to `cid:` references to their
 /// original parts (`crate::html::restore_cid_images`), returning one inline [`DraftAttachment`]
 /// per distinct part so the sent message carries them as `multipart/related` `cid:` parts with

@@ -1,6 +1,6 @@
 // The reading-view branch of MainScreen, split out of MainActivity.kt: the ReadingScreen call
 // alone carries every mail action a read message offers (reply/forward, archive/delete,
-// attachments, invitation response, recipient autosuggest).
+// attachments, invitation response).
 package eu.allodia.mailcal
 
 import android.util.Log
@@ -19,7 +19,6 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                             reading = reading,
                             conversation = openedConversation,
                             activeZoneId = timeZone?.active,
-                            quoteSettings = quoteSettings,
                             calendarWriteStatus = calendarWriteStatus,
                             onRespondToInvitation = {
                                 account, key, response, comment, notify, replySubject ->
@@ -47,45 +46,9 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                             // the conversation context so the strip persists (accordion, one body
                             // at a time).
                             onOpenThreadMessage = { next -> openMessage(instance, next, openedConversation) },
-                            // Reply/reply-all/forward open the SAME shared rich composer as the
-                            // list rows; the user-confirmed recipients ride the submit, and the
-                            // core derives the Re:/Fwd: subject + threading from the original.
-                            // `from` is the account picked in the composer's From dropdown; the
-                            // core sends as, and through, it, defaulting to `account`.
-                            onReply = { account, key, submission -> submitReply(instance, account, key, submission) },
-                            onForward = { account, key, submission -> submitForward(instance, account, key, submission) },
-                            // Pre-fill a reply/reply-all's To/Cc from the core (empty on failure).
-                            // Composer autosuggest: ranked addresses for a partially-typed
-                            // recipient, drawn from synced contacts AND from people the user has
-                            // written to before, so it works on an account with no address book.
-                            // A local in-memory read in the core, safe to call per keystroke.
-                            suggestionsFor = { query ->
-                                try {
-                                    instance.recipientSuggestions(query)
-                                } catch (e: Exception) {
-                                    Log.w(TAG, "recipient suggestions failed: ${e.javaClass.simpleName}")
-                                    emptyList()
-                                }
-                            },
-                            // The composer's signature: seeded from the From account's slot for
-                            // this mode, re-resolved when From changes, overridable per message.
-                            signatures = composerSignatures(instance, signatures?.signatures.orEmpty()),
-                            drafts = composerDrafts(instance),
-                            replyRecipients = { account, key, replyAll ->
-                                try {
-                                    instance.replyRecipients(account, key, replyAll)
-                                } catch (e: Exception) {
-                                    Log.w(TAG, "reply recipients lookup failed: ${e.javaClass.simpleName}")
-                                    null
-                                }
-                            },
-                            // Straight through: the caller runs it off the main thread and turns a
-                            // throw into the composer's "couldn't attach the files" line.
-                            stageForwardFiles = { account, key, directory ->
-                                instance.stageForwardedAttachments(account, key, directory)
-                            },
-                            // The From dropdown lists every configured account.
-                            accounts = accounts,
+                            // Reply, reply all and forward open the one composer every route
+                            // opens, on this message (MainActivityComposer.kt).
+                            onCompose = { origin -> openComposer(instance, origin) },
                             onSaveAttachment = { account, key, attachmentId, destinationPath ->
                                 try {
                                     instance.saveAttachment(account, key, attachmentId, destinationPath)
@@ -109,13 +72,9 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                             onArchive = { account, key -> instance.dispatch(Intent.Archive(account, key)) },
                             onDelete = { account, key -> instance.dispatch(Intent.Delete(account, key)) },
                             // Screenshot only: MAILCAL_SHOWCASE_SCREEN=reply opened this message, so
-                            // open its reply composer too, pre-filled with the sample reply text.
-                            initialComposing = RichComposeMode.Reply.takeIf {
-                                ShowcaseMode.isOn(this@ReadingTabContent) &&
-                                    ShowcaseMode.screen(this@ReadingTabContent) == ShowcaseScreen.REPLY
-                            },
-                            composerInitialText = ShowcaseMode.replyText(
-                                this@ReadingTabContent, opened.account, opened.key,
-                            ),
+                            // open its reply composer too; `openComposer` lays the sample reply
+                            // text over it.
+                            opensReplyOnShow = ShowcaseMode.isOn(this@ReadingTabContent) &&
+                                ShowcaseMode.screen(this@ReadingTabContent) == ShowcaseScreen.REPLY,
                         )
 }

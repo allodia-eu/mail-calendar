@@ -58,13 +58,14 @@ extension MailboxModel {
             unfiledCopy = app?.unfiledCopy()
             return
         }
-        // A queued message the user asked to edit. The core has moved it back into Drafts
-        // under the request's composition and withdrawn it from the Outbox, so it opens the
-        // way a resumed draft does: the composer saves over that copy, and its send takes it
-        // away (`docs/drafts.md`). Then the core is told the request is taken.
+        // A queued message the user asked to edit. The core has moved it back into Drafts,
+        // withdrawn it from the Outbox and joined it to the composition the opening names, so it
+        // opens through the same context every composer does: the composer saves over that copy,
+        // and its send takes it away (`docs/drafts.md`). Then the core is told the request is
+        // taken.
         if case .composeRequest = surface {
-            if let request = app?.composeRequest() {
-                pendingResumedDraft = ResumedDraftRequest(request)
+            if let opening = app?.composeRequest() {
+                pendingOutboxEdit = composeContext(for: opening)
                 app?.dispatch(intent: .dismissComposeRequest)
             }
             return

@@ -31,9 +31,9 @@ public struct ContentView: View {
     /// that already accounts for both. iOS/iPadOS hands it to the Settings cover; see there.
     @Environment(\.colorScheme) var windowScheme
     @State var compose: ComposeContext?
-    /// Whether to say that a draft could not be opened back into a composer. Raised instead of
-    /// opening an empty one, whose next save would replace the draft (`docs/drafts.md`).
-    @State var draftOpenFailed = false
+    /// What to say about a composer that could not open, raised instead of opening an empty one:
+    /// for a draft, its next save would replace the stored copy (`docs/drafts.md`).
+    @State var composeOpenFailed: String?
     @State var searchText = ""
     /// Settings is showing on this category, or `nil` when it is closed.
     ///
@@ -93,6 +93,7 @@ public struct ContentView: View {
     @SceneStorage("mailcal.viewMode") var sceneViewMode = ""
     #if DEBUG
     @State private var didAutoReply = false // one-shot guard for the MAILCAL_REPLY verification flag
+    @State var didAutoCompose = false // one-shot guard for the MAILCAL_COMPOSE verification flag
     #endif
     @State var didShowcaseDrive = false // one-shot guards for the MAILCAL_SHOWCASE_SCREEN driver
     @State var didShowcaseReply = false
@@ -164,8 +165,8 @@ public struct ContentView: View {
             #endif
             #endif
             #if DEBUG
-            // Verification: open the composer / calendar on launch (for simulator screenshots).
-            if ProcessInfo.processInfo.environment["MAILCAL_COMPOSE"] == "1" { compose = .new }
+            // Verification: open the calendar / contacts on launch (for simulator screenshots). The
+            // composer waits for the core instead (`autoComposeIfRequested`).
             if ProcessInfo.processInfo.environment["MAILCAL_CALENDAR"] == "1" { showCalendar() }
             if ProcessInfo.processInfo.environment["MAILCAL_CONTACTS"] == "1" { showContacts() }
             #endif
@@ -179,7 +180,10 @@ public struct ContentView: View {
             autoOpenFirstIfRequested()
             showcaseDriveIfNeeded()
         }
-        .onChange(of: model.accounts.count) { _, _ in restoreSceneIfPossible() }
+        .onChange(of: model.accounts.count) { _, count in
+            restoreSceneIfPossible()
+            autoComposeIfRequested(accounts: count)
+        }
         .onChange(of: model.folders.count) { _, _ in restoreSceneIfPossible() }
         .onChange(of: model.mode) { _, _ in restoreSceneIfPossible() }
         .onChange(of: model.destination) { _, _ in restoreSceneIfPossible() }
@@ -232,7 +236,7 @@ public struct ContentView: View {
     }
 
     /// DEBUG/verification only: with `MAILCAL_REPLY=1`, open the reply composer once the opened
-    /// message's body has loaded (so the quoted original is available to seed).
+    /// message's body has loaded.
     private func autoReplyIfRequested(readingKey: String?) {
         #if DEBUG
         guard !didAutoReply,
@@ -240,7 +244,7 @@ public struct ContentView: View {
               compose == nil, readingKey != nil, let opened = openedMessage
         else { return }
         didAutoReply = true // fire once per launch, so opening later messages doesn't re-reply
-        beginReply(opened.account, opened.key, subject: opened.subject, all: false)
+        beginReply(opened.account, opened.key, all: false)
         #endif
     }
 
@@ -310,10 +314,10 @@ public struct ContentView: View {
             openDraft(request)
         }
         // A queued send the user asked to edit, which the core has moved back into Drafts.
-        .onChange(of: model.pendingResumedDraft) { _, request in
-            guard let request else { return }
-            model.pendingResumedDraft = nil
-            openGuardingDraft { compose = .resumedDraft(request) }
+        .onChange(of: model.pendingOutboxEdit) { _, context in
+            guard let context else { return }
+            model.pendingOutboxEdit = nil
+            openGuardingDraft { compose = context }
         }
         // The OS handing us a `mailto:` link, and the link that had to wait for an account. Both
         // are attached here rather than to the `WindowGroup` because the model is this view's own
@@ -331,11 +335,11 @@ public struct ContentView: View {
         // The one-time offer to become the default mail app: when to raise it and the alert
         // itself, both in the modifier (docs/os-integration.md).
         .modifier(DefaultMailAppOfferDialog(model: model))
-        // A Drafts row that could not be opened back into a composer. The message opens for
-        // reading behind this, so nothing is lost; what it cannot do is be edited.
+        // A composer that could not open. For a Drafts row the message opens for reading behind
+        // this, so nothing is lost; what it cannot do is be edited.
         .alert(
-            L10n.compose_draft_open_failed(),
-            isPresented: $draftOpenFailed
+            composeOpenFailed ?? "",
+            isPresented: composeOpenFailedShown
         ) {
             Button(L10n.action_close(), role: .cancel) {}
         }

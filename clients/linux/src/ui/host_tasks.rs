@@ -285,16 +285,16 @@ impl AppModel {
     pub(super) fn account_added(
         &mut self,
         result: Result<String, ConnectFailure>,
-        sender: relm4::Sender<AppInput>,
+        sender: &relm4::Sender<AppInput>,
     ) {
         match result {
             Ok(account) => {
                 if let Some(app) = &self.app {
                     self.snapshot = app.mailbox_list();
                 }
-                self.after_account_added(&account, sender);
-                self.try_open_pending_mailto();
-                self.try_open_pending_share();
+                self.after_account_added(&account, sender.clone());
+                self.try_open_pending_mailto(sender);
+                self.try_open_pending_share(sender);
             }
             Err(failure) => self.setup.connect_failed(ConnectFailure {
                 message: failure

@@ -16,7 +16,7 @@ use crate::ComposerFileAttachment;
 /// `content://` URI, a Windows `StorageFile`, an `NSItemProvider`) stages the bytes into its own
 /// private storage first and passes that path. The core never learns what the original handle
 /// was, and never reads the file here: the bytes are read at submit, by
-/// [`crate::MailcalApp::submit_rich_mail_with_files`], and do not cross FFI.
+/// [`crate::MailcalApp::submit_composition`], and do not cross FFI.
 #[derive(uniffi::Record)]
 pub struct SharedFile {
     /// Where the bytes are, on this device, now.
@@ -68,7 +68,7 @@ pub struct RejectedShare {
 /// The five text fields are [`crate::MailtoPrefill`]'s, in the same shape, so a client that
 /// already opens a composer from a mail link seeds one from a share through the same code.
 /// `attachments` are [`ComposerFileAttachment`]s, which is what
-/// [`crate::MailcalApp::submit_rich_mail_with_files`] already consumes, so a seeded attachment
+/// [`crate::MailcalApp::submit_composition`] already consumes, so a seeded attachment
 /// and a picked one are indistinguishable by the time either is sent.
 ///
 /// **Nothing here is ever sent**: a share pre-fills an editable composer, and the user is still
@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn a_shared_file_crosses_the_ffi_as_a_composer_attachment() {
         // The point of the conversion: what comes back is the exact type
-        // `submit_rich_mail_with_files` already takes, so a host seeds its attachment list with
+        // `submit_composition` already takes, so a host seeds its attachment list with
         // it and its send path is unchanged.
         let prefill = prefill_from_share(ShareRequest {
             files: vec![file("/cache/stage-1", "report.pdf", "application/pdf")],

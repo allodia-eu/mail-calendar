@@ -134,6 +134,31 @@ export function setComposerQuote(editor: HTMLElement, seed: QuoteSeed): void {
   focusEditor(editor);
 }
 
+/// Fills in whichever half of a reopened quote's attribution it does not carry, from the one the
+/// host builds out of the original message.
+///
+/// A stored quote shows one style, so it carries only that style's attribution: the one-line
+/// "On … wrote:" or the labelled header block. Switching it to the other style would show an empty
+/// attribution, so the host completes it once the original is known. Only the empty half is
+/// filled: the half the message was saved with stays exactly as it was written, so a draft reopens
+/// as it was even when the host would word it differently today.
+export function completeComposerQuoteAttribution(
+  editor: HTMLElement,
+  attribution: Partial<QuoteAttribution>,
+): void {
+  const container = Array.from(editor.children).find((child) =>
+    child.classList.contains("allodia-quote"),
+  ) as HTMLElement | undefined;
+  if (!container) return;
+  if (!container.dataset.quoteLine && attribution.line) {
+    container.dataset.quoteLine = attribution.line;
+  }
+  if (readHeaders(container.dataset.quoteHeaders).length === 0 && attribution.headers?.length) {
+    container.dataset.quoteHeaders = JSON.stringify(attribution.headers);
+  }
+  renderQuoteAttribution(container);
+}
+
 /// Flips the quoted original between the two styles in place, preserving the user's message and
 /// any trimming of the body; only the attribution and indent change.
 export function setComposerQuoteStyle(editor: HTMLElement, style: string): void {

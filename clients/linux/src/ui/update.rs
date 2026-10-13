@@ -41,12 +41,8 @@ impl AppModel {
                 if matches!(surface, Surface::Contacts) {
                     self.reopen_contact(sender.input_sender().clone());
                 }
-                // Once the rows exist, and not before: the hook names a person, and the list is
-                // filled asynchronously after the surface is entered.
                 #[cfg(any(debug_assertions, feature = "dev-harness"))]
-                if matches!(surface, Surface::Contacts) {
-                    self.apply_debug_open_contact_hook(sender.input_sender().clone());
-                }
+                self.apply_surface_hooks(&surface, sender.input_sender());
             }
             AppInput::NetworkReachabilityChanged(reachable) => {
                 self.dispatch(Intent::ReportNetworkReachable { reachable });
@@ -149,7 +145,7 @@ impl AppModel {
             AppInput::SetSearchScope(scope) => self.set_search_scope(scope),
             AppInput::OpenSyncDepthSettings => self.open_sync_depth_settings(),
             AppInput::OpenThreadMessage(message) => {
-                self.open_or_resume(*message, sender.input_sender().clone());
+                self.open_or_resume(*message, sender.input_sender());
             }
             AppInput::SetThreadExpanded { thread, expanded } => {
                 self.set_thread_expanded(&thread, expanded);
@@ -226,15 +222,21 @@ impl AppModel {
                 }
             }
             AppInput::RetryOpen(source) => self.retry_open(&source),
-            AppInput::OpenMailto(prefill) => self.open_mailto(*prefill),
-            AppInput::OpenShare(prefill) => self.open_share(*prefill),
+            AppInput::OpenMailto(prefill) => self.open_mailto(*prefill, sender.input_sender()),
+            AppInput::OpenShare(prefill) => self.open_share(*prefill, sender.input_sender()),
             AppInput::OpenAgentDraft(draft) => {
-                self.open_agent_draft(*draft);
+                self.open_agent_draft(*draft, sender.input_sender());
                 if let Some(window) = relm4::main_adw_application().active_window() {
                     window.present();
                 }
             }
-            AppInput::BeginNew => self.begin_compose(&ReadingSource::Pane, ComposeKind::New),
+            AppInput::BeginNew => {
+                self.begin_compose(
+                    &ReadingSource::Pane,
+                    ComposeKind::New,
+                    sender.input_sender(),
+                );
+            }
             AppInput::BeginReply { source, all } => self.begin_compose(
                 &source,
                 if all {
@@ -242,11 +244,12 @@ impl AppModel {
                 } else {
                     ComposeKind::Reply
                 },
+                sender.input_sender(),
             ),
             AppInput::BeginForward(source) => {
-                self.stage_forward(source, sender.input_sender().clone());
+                self.begin_compose(&source, ComposeKind::Forward, sender.input_sender());
             }
-            AppInput::ForwardStaged(source, staged) => self.begin_forward(&source, staged),
+            AppInput::ComposerOpened(opened) => self.composer_opened(*opened),
             AppInput::DiscardComposer(host, edited) => self.discard_composer(host, edited),
             AppInput::ComposerUntouched(host) => self.composer_untouched(host),
             AppInput::LeaveComposer(submission) => self.leave_composer(&submission),
@@ -254,9 +257,6 @@ impl AppModel {
             AppInput::KeepEditing => self.keep_editing(),
             AppInput::SubmitComposer(submission) => self.submit_composer(&submission),
             AppInput::SaveComposerDraft(submission) => self.save_composer_draft(&submission),
-            AppInput::DraftResumed(resumed) => {
-                self.draft_resumed(*resumed);
-            }
             AppInput::SaveAttachment {
                 source,
                 id,
@@ -375,7 +375,7 @@ impl AppModel {
                 self.submit_account(*submission, sender.input_sender().clone());
             }
             AppInput::AccountAdded(result) => {
-                self.account_added(result, sender.input_sender().clone());
+                self.account_added(result, sender.input_sender());
                 // The account list changed, so the person's other devices should hear about it now
                 // rather than at the next launch. A no-op when nobody is signed in.
                 self.sync_after_account_change(sender.input_sender().clone());

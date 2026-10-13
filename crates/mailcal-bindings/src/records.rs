@@ -93,19 +93,6 @@ pub struct AttachmentRow {
     pub size: u64,
 }
 
-/// Suggested recipients for a reply or reply-all, for a host to pre-fill the composer's
-/// editable `To`/`Cc` fields (which the user may then edit). Each is a comma-separated
-/// address list; a plain reply has an empty `cc`, and both are empty when the original
-/// can't be resolved. Pulled via [`crate::MailcalApp::reply_recipients`].
-#[derive(uniffi::Record)]
-pub struct RecipientSuggestion {
-    /// The suggested `To` field: the original's `Reply-To`, else its `From`.
-    pub to: String,
-    /// The suggested `Cc` field: for a reply-all, the other original recipients; empty
-    /// for a plain reply.
-    pub cc: String,
-}
-
 /// An immutable snapshot of mail-sync progress for a host to render; two surfaces, for two
 /// different questions.
 ///
@@ -291,7 +278,7 @@ pub struct MailboxListSnapshot {
     /// Whether the open folder is the account's **Drafts** folder.
     ///
     /// Switch a row's click on it: in Drafts a row opens a composer through
-    /// `MailcalApp::resume_draft`, everywhere else the reading view. The folder's **role**
+    /// `MailcalApp::open_composer`, everywhere else the reading view. The folder's **role**
     /// decides it, never its name, and it is false in the all-mail, unified and search views,
     /// which list drafts among received mail (`docs/drafts.md`).
     pub showing_drafts: bool,

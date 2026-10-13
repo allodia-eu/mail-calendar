@@ -8,25 +8,17 @@ extension ContentView {
     /// Opens the reply (or reply-all) composer for a message, in the shell's own composer: the
     /// detail column on macOS, a full-screen cover on iOS.
     ///
-    /// What the draft opens *with* is `MailboxModel.replyDraft`, shared with the detached reading
-    /// window's action row (`docs/reading-window.md`). The pane's own open message is what the
-    /// quote comes from, when it is this one.
-    func beginReply(_ account: String, _ key: String, subject: String, all: Bool) {
-        compose = model.replyDraft(
-            account: account, key: key, subject: subject, all: all,
-            quotingFrom: openedMessage, body: model.reading
-        )
+    /// The core answers with the recipients, the subject and the quoted original, so a reply
+    /// raised from a list row that was never opened quotes too.
+    func beginReply(_ account: String, _ key: String, all: Bool) {
+        let (origin, prefill) = replyOrigin(account: account, key: key, all: all)
+        beginCompose(origin, prefill: prefill)
     }
 
-    /// Opens the forward composer in the shell, once the original's files have been staged into
-    /// it (`MailboxModel.forwardDraft` says why the wait is on this side of the open).
-    func beginForward(_ account: String, _ key: String, subject: String) {
-        Task { @MainActor in
-            compose = await model.forwardDraft(
-                account: account, key: key, subject: subject,
-                quotingFrom: openedMessage, body: model.reading
-            )
-        }
+    /// Opens the forward composer in the shell, holding the original's files, which the core has
+    /// staged before it answers.
+    func beginForward(_ account: String, _ key: String) {
+        beginCompose(.forward(account: account, key: key))
     }
 
     /// Opens a message for reading: records the header and asks the core to fetch its body. In
@@ -51,11 +43,10 @@ extension ContentView {
     /// carry it, so a draft met in a search result or inside a thread opens read-only
     /// (`docs/drafts.md`, known gaps).
     ///
-    /// Resuming is a round trip and, unlike a forward, cannot count on the message being cached:
-    /// a draft is opened from a list row, so the first open of one fetches it. The composer
-    /// appears when the answer does. A draft that could not be opened is **said**, and the
-    /// message opens for reading: a composer opened without the draft's content would replace it
-    /// with what was on screen the next time it saved.
+    /// Resuming is a round trip: a draft is opened from a list row, so the first open of one
+    /// fetches it. The composer appears when the answer does. A draft that could not be opened is
+    /// **said**, and the message opens for reading: a composer opened without the draft's content
+    /// would replace it with what was on screen the next time it saved.
     private func resumeOrRead(
         _ account: String,
         _ key: String,
@@ -65,15 +56,7 @@ extension ContentView {
             read()
             return
         }
-        Task { @MainActor in
-            let composition = UUID().uuidString
-            guard let draft = await model.resumeDraft(composition, account, key) else {
-                draftOpenFailed = true
-                read()
-                return
-            }
-            compose = .resumedDraft(ResumedDraftRequest(draft))
-        }
+        beginCompose(.draft(account: account, key: key), failed: read)
     }
 
     /// Opens a conversation: expands the thread inline in the list (showing its whole
@@ -246,13 +229,13 @@ extension ContentView {
         }
         #endif
         Divider()
-        Button { beginReply(message.account, message.key, subject: message.subject, all: false) } label: {
+        Button { beginReply(message.account, message.key, all: false) } label: {
             Label(L10n.action_reply(), systemImage: "arrowshape.turn.up.left")
         }
-        Button { beginReply(message.account, message.key, subject: message.subject, all: true) } label: {
+        Button { beginReply(message.account, message.key, all: true) } label: {
             Label(L10n.action_reply_all(), systemImage: "arrowshape.turn.up.left.2")
         }
-        Button { beginForward(message.account, message.key, subject: message.subject) } label: {
+        Button { beginForward(message.account, message.key) } label: {
             Label(L10n.action_forward(), systemImage: "arrowshape.turn.up.right")
         }
         Divider()

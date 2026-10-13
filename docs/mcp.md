@@ -244,6 +244,11 @@ not exist, which is exactly what a client with no composer should report: **no `
 anywhere** for a platform to lack it. Implementations must not block: this is called from the
 server's connection task, so hop to the UI thread and return.
 
+The host opens the draft the way every composer opens ([`drafts.md`](drafts.md)): as a reply to the
+message `reply_to` names, so it joins that conversation and quotes it, or as a new message, with
+the assistant's fields laid over it as a prefill marked **signed**. A signed prefill brings its own
+sign-off, so the core answers that the account's signature is not seeded under it.
+
 The endpoint is likewise **set by the host**, never derived in the core
 (`MailcalApp::set_mcp_endpoint`). A platform that never calls it can never listen, and the path is
 derived once, by the layer that knows the answer: deriving it in the core *and* in the relay
@@ -451,11 +456,11 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable (ex
 
 ## Known gaps
 
-- **An assistant's draft carries no signature**, on macOS, Windows and Linux alike. The composer is handed
-  no signature library for an agent draft, so the account's signature is neither seeded nor
-  offered: the body is one the assistant wrote, with whatever sign-off it chose, and appending a
-  second one under it is the likelier wrong answer. Deliberate, and the two desktops agree; revisit
-  if it turns out people expect otherwise.
+- **An assistant's draft carries no signature**, on every client, because the core answers it: the
+  prefill is marked signed (`ComposePrefill::signed`), so the account's signature is neither seeded
+  nor offered. The body is one the assistant wrote, with whatever sign-off it chose, and appending a
+  second one under it is the likelier wrong answer. Deliberate; revisit if it turns out people
+  expect otherwise.
 - **Mac App Store: accepted by App Store Connect validation; the runtime round trip is still
   owed.** `xcrun altool --validate-app` **passed with no errors** (2026-08-03) on a `.pkg` built by
   `Scripts/package.sh --app-store`, which settles the question this gap was opened for: the nested

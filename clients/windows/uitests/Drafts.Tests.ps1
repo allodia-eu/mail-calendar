@@ -289,6 +289,31 @@ $Suite = @{
       }
     },
     @{
+      Name = 'a reply left as a draft reopens as a reply'
+      Body = {
+        # The reply's conversation is joined when its composer opens, so even a save made before
+        # it was ever sent stores In-Reply-To, and the reopened composer is a reply again. Given a
+        # subject of its own so it can be found; the threading headers are what make it a reply.
+        $subject = "Draft suite $DraftRun reply"
+        try {
+          Open-DraftAccountFolder -Folder 'Inbox'
+          Invoke-UiaElement (Get-MailRowByTitle 'Harness baseline message') -SettleMs 2000 | Out-Null
+          $reply = Wait-UiaElement -AutomationId 'ReadingReply' -TimeoutSec 30
+          if (-not $reply) { throw 'the reading pane never offered Reply' }
+          Invoke-UiaElement $reply
+          if (-not (Wait-UiaElement -AutomationId 'SendButton' -TimeoutSec 30)) { throw 'no composer within 30s of pressing Reply' }
+          Set-UiaText (Find-UiaElement -AutomationId 'SubjectBox') $subject
+          Invoke-UiaElement (Find-UiaElement -AutomationId 'SaveDraftButton' -Type 'Button')
+          if (-not (Wait-DraftSaved)) { throw "the reply was never reported saved; the hint reads '$(Get-DraftHint)'" }
+          Close-DraftComposer
+          Open-StoredDraft -Subject $subject
+          Assert-Equal $DraftCatalog.action_reply (Find-UiaElement -AutomationId 'ComposerTitle').Current.Name `
+            'the reply saved as a draft reopened as something else: its save did not carry the message it answers (docs/drafts.md)'
+        }
+        finally { Clear-StoredDraft -Subject $subject }
+      }
+    },
+    @{
       Name = 'a double-click on a Drafts row resumes it and opens no reading window'
       Body = {
         $subject = "Draft suite $DraftRun window"

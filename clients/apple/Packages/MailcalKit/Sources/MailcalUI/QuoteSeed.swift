@@ -1,9 +1,7 @@
-// Builds the seed for the composer's quoted original on reply/forward. The quoted body is the
-// reading view's already-sanitised HTML (and plain text) for the open message; the attribution
-// is localised here, the Rust core carries no runtime localisation, so, like date display, the
-// client formats it (L10n + the device's formatted date already on `OpenedMessage`). The shape
-// matches the Rust composer's `Block::Quote` so it round-trips through the shared composer; the
-// core re-sanitises the body on submit (docs/composer-security.md, Gate 10).
+// The words of a quoted original's attribution, in the user's language. The core hands the
+// composer the message it quotes (`ComposeOpening.quote`); the Rust core carries no runtime
+// localisation, so, like date display, the client words it. `ComposeOpeningSeed` turns the words
+// into what the editor is seeded with.
 
 import Foundation
 import MailcalBindings
@@ -21,54 +19,25 @@ struct QuoteExample {
 }
 
 enum ComposerQuote {
-    /// The seed JSON for `setComposerQuote`, or `nil` when there is nothing to quote yet (the
-    /// body hasn't loaded for this message). `isForward` swaps the one-line attribution for a
-    /// "Forwarded message" marker; the header block is the same either way.
-    /// `initialText` pre-fills the paragraph above the quote; only showcase mode passes it, and
-    /// the editor assigns it as text, never markup (`docs/composer-security.md`, Gate 11).
-    static func seedJSON(
-        style: QuoteStyleKind,
-        message: OpenedMessage,
-        reading: ReadingSnapshot?,
-        isForward: Bool,
-        initialText: String? = nil
-    ) -> String? {
-        guard let reading, reading.key == message.key else { return nil }
-        let bodyHTML = reading.html ?? ""
-        let bodyPlain = reading.plain ?? ""
-        guard !(bodyHTML.isEmpty && bodyPlain.isEmpty) else { return nil }
-
+    /// A quote's attribution in both styles, built from the message it quotes. `isForward` swaps
+    /// the one-line attribution for a "Forwarded message" marker; the header block is the same
+    /// either way. `date` is the original's date as the reading header shows it.
+    static func words(_ quote: QuoteSource, date: String, isForward: Bool) -> QuoteWords {
         let line = isForward
             ? L10n.quote_forwarded()
-            : L10n.quote_attribution(date: message.date, sender: message.from)
-
-        var headers: [[String: String]] = [
-            ["label": L10n.quote_from(), "value": message.from],
-            ["label": L10n.quote_sent(), "value": message.date],
+            : L10n.quote_attribution(date: date, sender: quote.from)
+        var headers: [(label: String, value: String)] = [
+            (label: L10n.quote_from(), value: quote.from),
+            (label: L10n.quote_sent(), value: date),
         ]
-        if !reading.to.isEmpty {
-            headers.append(["label": L10n.quote_to(), "value": reading.to])
+        if !quote.to.isEmpty {
+            headers.append((label: L10n.quote_to(), value: quote.to))
         }
-        if !reading.cc.isEmpty {
-            headers.append(["label": L10n.quote_cc(), "value": reading.cc])
+        if !quote.cc.isEmpty {
+            headers.append((label: L10n.quote_cc(), value: quote.cc))
         }
-        headers.append(["label": L10n.quote_subject(), "value": message.subject])
-
-        var payload: [String: Any] = [
-            "style": token(style),
-            "attribution": ["line": line, "headers": headers],
-            "body_html": bodyHTML,
-            "body_plain": bodyPlain,
-        ]
-        if let initialText, !initialText.isEmpty {
-            payload["initial_text"] = initialText
-        }
-        guard let data = try? JSONSerialization.data(withJSONObject: payload),
-              let json = String(data: data, encoding: .utf8)
-        else {
-            return nil
-        }
-        return json
+        headers.append((label: L10n.quote_subject(), value: quote.subject))
+        return QuoteWords(line: line, headers: headers)
     }
 
     /// The style token the editor's `setComposerQuote`/`setComposerQuoteStyle` expect. These are
@@ -88,7 +57,7 @@ enum ComposerQuote {
 
     /// The sample quote the settings screen renders under each style. Only the sender, date, subject
     /// and body are stand-ins: the attribution line and the header *labels* come from the very keys
-    /// `seedJSON` uses above, so what settings shows is what a real reply produces.
+    /// `words` uses above, so what settings shows is what a real reply produces.
     static func example() -> QuoteExample {
         let sender = L10n.quote_preview_sender()
         let date = L10n.quote_preview_date()

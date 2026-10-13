@@ -17,7 +17,7 @@ enum OutboxRowAction: Hashable {
     case sendNow
     /// Move the message back into Drafts and open it in the composer. The core saves it as a
     /// draft and withdraws it from the Outbox, then offers it back through
-    /// `Surface::ComposeRequest`, which the shell opens as a resumed draft.
+    /// `Surface::ComposeRequest`, which the shell opens like any other composer.
     case edit
     /// Withdraw a waiting message so it is never delivered.
     case cancelSend
@@ -94,7 +94,7 @@ extension MailboxModel {
         let intent = action.intent(
             account: row.account,
             op: row.op,
-            stagingDirectory: draftStagingDirectory().path
+            stagingDirectory: composerStagingDirectory().path
         )
         app?.dispatch(intent: .outbox(intent: intent))
     }

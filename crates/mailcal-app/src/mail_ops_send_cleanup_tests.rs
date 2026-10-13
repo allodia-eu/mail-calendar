@@ -30,9 +30,16 @@ use crate::DraftsIntent;
 async fn an_accepted_send_takes_the_stored_draft_away() {
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
-    app.resume_draft(composition("c1"), draft_ref("d1"), &staging_dir("sent"))
-        .await
-        .expect("the draft resumes");
+    app.open_composer(
+        composition("c1"),
+        crate::ComposeOrigin::Draft {
+            message: draft_ref("d1"),
+        },
+        None,
+        &staging_dir("sent"),
+    )
+    .await
+    .expect("the draft resumes");
 
     let intent = Intent::SubmitRichMail {
         from: None,
@@ -64,9 +71,16 @@ async fn an_accepted_send_takes_the_stored_draft_away() {
 async fn a_refused_send_moves_the_message_out_of_drafts_and_into_the_outbox() {
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]).failing_send());
     app.dispatch(Intent::RefreshMail).await;
-    app.resume_draft(composition("c1"), draft_ref("d1"), &staging_dir("failed"))
-        .await
-        .expect("the draft resumes");
+    app.open_composer(
+        composition("c1"),
+        crate::ComposeOrigin::Draft {
+            message: draft_ref("d1"),
+        },
+        None,
+        &staging_dir("failed"),
+    )
+    .await
+    .expect("the draft resumes");
 
     let intent = Intent::SubmitRichMail {
         from: None,
@@ -134,9 +148,16 @@ async fn a_send_from_a_composer_that_never_saved_removes_nothing() {
 async fn a_queued_send_takes_the_stored_draft_away_as_well() {
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]).queueing_send());
     app.dispatch(Intent::RefreshMail).await;
-    app.resume_draft(composition("c1"), draft_ref("d1"), &staging_dir("queued"))
-        .await
-        .expect("the draft resumes");
+    app.open_composer(
+        composition("c1"),
+        crate::ComposeOrigin::Draft {
+            message: draft_ref("d1"),
+        },
+        None,
+        &staging_dir("queued"),
+    )
+    .await
+    .expect("the draft resumes");
 
     let intent = Intent::SubmitRichMail {
         from: None,
@@ -166,9 +187,12 @@ async fn a_queued_send_takes_the_stored_draft_away_as_well() {
 async fn a_refused_send_forgets_the_composition() {
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]).failing_send());
     app.dispatch(Intent::RefreshMail).await;
-    app.resume_draft(
+    app.open_composer(
         composition("c1"),
-        draft_ref("d1"),
+        crate::ComposeOrigin::Draft {
+            message: draft_ref("d1"),
+        },
+        None,
         &staging_dir("failed-forget"),
     )
     .await

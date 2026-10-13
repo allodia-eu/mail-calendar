@@ -2,103 +2,36 @@ import Foundation
 import MailcalBindings
 
 extension MailboxModel {
-    /// Send a rich composer document to the entered `recipients`. Validation happens
-    /// synchronously in Rust; attachment bytes are read by Rust from the host-selected file
-    /// paths so they do not cross Swift FFI memory.
+    /// Sends what a composer holds, the one send every composer makes, on the composition it
+    /// opened on. Validation happens synchronously in Rust; attachment bytes are read by Rust from
+    /// the host-selected file paths so they do not cross Swift FFI memory.
+    ///
+    /// The core joined `submission.composition` to the message a reply answers or a forward passes
+    /// on when the composer opened, so the send threads and carries the quoted pictures whichever
+    /// way the composer was reached, and an accepted send takes its stored draft out of Drafts
+    /// (`docs/drafts.md`).
     ///
     /// `submission.from` is the account the user picked in the composer's From dropdown; it
-    /// decides both the `From:` identity and the outbox the draft goes out through. `nil` lets the
-    /// core derive it. An id naming an account that is no longer configured fails the send rather
-    /// than substituting another sender.
-    ///
-    /// `submission.composition` names the composer this was written in, so an accepted send takes
-    /// its stored draft out of Drafts. Omitting it sends correctly and leaves a copy of the
-    /// message behind in the user's Drafts folder (`docs/drafts.md`).
+    /// decides both the `From:` identity and the outbox the message goes out through. `nil` lets
+    /// the core derive it. An id naming an account that is no longer configured fails the send
+    /// rather than substituting another sender.
     @discardableResult
-    func submitRich(_ submission: ComposerSubmission) -> Bool {
+    func submitComposition(_ submission: ComposerSubmission) -> Bool {
         guard let app else { return false }
         do {
-            try app.submitRichMailWithFiles(
+            try app.submitComposition(
+                composition: submission.composition,
                 recipients: submission.recipients,
                 subject: submission.subject,
                 documentJson: submission.documentJson,
                 files: submission.files,
-                from: submission.from,
-                composition: submission.composition
+                from: submission.from
             )
             return true
         } catch {
-            print("[Mailcal] rich composer submit failed: \(type(of: error))")
+            print("[Mailcal] composer submit failed: \(type(of: error))")
             return false
         }
-    }
-
-    /// Rich reply (or reply-all) to a message (by key, on its owning `account`): renders the
-    /// shared composer document and submits to the user-confirmed `recipients`, letting the
-    /// app derive the `Re:` subject and threading from the original.
-    ///
-    /// `submission.from` is the sending account (the composer's From dropdown), which may differ
-    /// from `account`: the core still resolves the original, and its `Re:` subject and
-    /// `In-Reply-To`/`References` chain, in the account that holds it, so a cross-account
-    /// reply still threads. `nil` replies from `account`.
-    @discardableResult
-    func submitRichReply(
-        _ account: String,
-        _ key: String,
-        _ submission: ComposerSubmission
-    ) -> Bool {
-        guard let app else { return false }
-        do {
-            try app.submitRichReplyWithFiles(
-                account: account,
-                key: key,
-                recipients: submission.recipients,
-                documentJson: submission.documentJson,
-                files: submission.files,
-                from: submission.from,
-                subject: submission.subject,
-                composition: submission.composition
-            )
-            return true
-        } catch {
-            print("[Mailcal] rich reply submit failed: \(type(of: error))")
-            return false
-        }
-    }
-
-    /// Rich forward of a message (by key, on its owning `account`) to the entered
-    /// `recipients`: renders the shared composer document and submits with a `Fwd:` subject.
-    /// `submission.from` is the sending account (the composer's From dropdown); `nil` forwards
-    /// from `account`.
-    @discardableResult
-    func submitRichForward(
-        _ account: String,
-        _ key: String,
-        _ submission: ComposerSubmission
-    ) -> Bool {
-        guard let app else { return false }
-        do {
-            try app.submitRichForwardWithFiles(
-                account: account,
-                key: key,
-                recipients: submission.recipients,
-                documentJson: submission.documentJson,
-                files: submission.files,
-                from: submission.from,
-                subject: submission.subject,
-                composition: submission.composition
-            )
-            return true
-        } catch {
-            print("[Mailcal] rich forward submit failed: \(type(of: error))")
-            return false
-        }
-    }
-
-    /// The recipients to pre-fill a reply (`replyAll == false`) or reply-all composer for the
-    /// message `key` (on its owning `account`): the core returns the suggested To and Cc.
-    func replyRecipients(_ account: String, _ key: String, _ replyAll: Bool) -> RecipientSuggestion? {
-        app?.replyRecipients(account: account, key: key, replyAll: replyAll)
     }
 
     /// Save one decoded message attachment to the destination path chosen by the host. The
@@ -134,32 +67,6 @@ extension MailboxModel {
             } catch {
                 print("[Mailcal] message export failed: \(type(of: error))")
                 return false
-            }
-        }.value
-    }
-
-    /// The files the message `key` carries, staged for its forward composer to open holding
-    /// them. `nil` means they could not be read, which the composer says: an empty list would
-    /// read as a message with nothing attached.
-    ///
-    /// Off the main actor for the same reason as `saveAttachment`: the core decodes and writes
-    /// every file, and a large one must not block the UI.
-    func stageForwardedAttachments(
-        _ account: String,
-        _ key: String,
-        into directory: URL
-    ) async -> [ComposerFileAttachment]? {
-        guard let app else { return nil }
-        return await Task.detached {
-            do {
-                return try app.stageForwardedAttachments(
-                    account: account,
-                    key: key,
-                    stagingDirectory: directory.path
-                )
-            } catch {
-                print("[Mailcal] forward attachment staging failed: \(type(of: error))")
-                return nil
             }
         }.value
     }

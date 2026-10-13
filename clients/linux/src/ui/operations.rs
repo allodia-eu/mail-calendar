@@ -12,7 +12,7 @@ use mailcal_bindings::{ComposerFileAttachment, MailcalApp, Recipients};
 
 use super::{
     AppInput, AppModel,
-    composer_model::{ComposeKind, ComposerSubmission, PickedFile},
+    composer_model::{ComposerSubmission, PickedFile},
     composer_notice::ComposerNotice,
     reader::{ComposerHost, ReadingSource},
     web_security::safe_extension,
@@ -212,45 +212,17 @@ fn submit(
         .iter()
         .map(file_attachment)
         .collect::<Vec<_>>();
-    match submission.request.kind {
-        ComposeKind::New => app.submit_rich_mail_with_files(
-            recipients,
-            submission.subject.clone(),
-            submission.document_json.clone(),
-            files,
-            submission.from.clone(),
-            // The composer this was written in, so an accepted send takes its stored draft out of
-            // Drafts. A send that omitted it would leave a duplicate there of a message already
-            // on its way (`docs/drafts.md`).
-            Some(submission.request.composition.clone()),
-        ),
-        ComposeKind::Reply | ComposeKind::ReplyAll => app.submit_rich_reply_with_files(
-            submission.request.account.clone().unwrap_or_default(),
-            submission.request.key.clone().unwrap_or_default(),
-            recipients,
-            submission.document_json.clone(),
-            files,
-            submission.from.clone(),
-            // The Subject field is editable here too, so what it holds is what goes out; the
-            // core's derived `Re:`/`Fwd:` is only the value it opened with.
-            Some(submission.subject.clone()),
-            // The composition, as above.
-            Some(submission.request.composition.clone()),
-        ),
-        ComposeKind::Forward => app.submit_rich_forward_with_files(
-            submission.request.account.clone().unwrap_or_default(),
-            submission.request.key.clone().unwrap_or_default(),
-            recipients,
-            submission.document_json.clone(),
-            files,
-            submission.from.clone(),
-            // The Subject field is editable here too, so what it holds is what goes out; the
-            // core's derived `Re:`/`Fwd:` is only the value it opened with.
-            Some(submission.subject.clone()),
-            // The composition, as above.
-            Some(submission.request.composition.clone()),
-        ),
-    }
+    // The composition the composer opened on: the conversation a reply or forward belongs to
+    // was joined to it then, and an accepted send takes its stored draft out of Drafts
+    // (`docs/drafts.md`).
+    app.submit_composition(
+        submission.request.composition.clone(),
+        recipients,
+        submission.subject.clone(),
+        submission.document_json.clone(),
+        files,
+        submission.from.clone(),
+    )
 }
 
 fn file_attachment(file: &PickedFile) -> ComposerFileAttachment {
@@ -265,7 +237,7 @@ fn file_attachment(file: &PickedFile) -> ComposerFileAttachment {
 mod tests {
     use std::time::{Duration, Instant};
 
-    use mailcal_bindings::{SendStatus, SnapshotRow};
+    use mailcal_bindings::{ComposeOrigin, QuoteStyleKind, SendStatus, SnapshotRow};
 
     use super::opened_attachment_dir;
 
@@ -288,11 +260,14 @@ mod tests {
         );
     }
 
-    use super::{ComposeKind, ComposerSubmission, submit};
+    use super::{ComposerSubmission, submit};
     use crate::{
         boot,
         observer::SurfaceObserver,
-        ui::composer_model::{ComposeContext, new_composition},
+        ui::{
+            composer_model::{ComposeContext, new_composition},
+            reader::ComposerHost,
+        },
     };
 
     const DOCUMENT: &str = r#"{
@@ -338,32 +313,33 @@ mod tests {
             );
             std::thread::sleep(Duration::from_millis(100));
         };
-        let recipients = app.reply_recipients(account.clone(), key.clone(), false);
+        let opening = app
+            .open_composer(
+                new_composition(),
+                ComposeOrigin::Reply {
+                    account: account.clone(),
+                    key,
+                    all: false,
+                },
+                std::env::temp_dir().to_string_lossy().into_owned(),
+                None,
+            )
+            .expect("open the harness reply");
+        let request = ComposeContext::from_opening(
+            opening,
+            ComposerHost::Pane,
+            &QuoteStyleKind::Indented,
+            "UTC",
+        );
         let submission = ComposerSubmission {
-            request: ComposeContext {
-                kind: ComposeKind::Reply,
-                host: crate::ui::reader::ComposerHost::Pane,
-                account: Some(account.clone()),
-                key: Some(key),
-                initial_to: recipients.to.clone(),
-                initial_cc: recipients.cc.clone(),
-                initial_bcc: String::new(),
-                subject: String::new(),
-                initial_body: None,
-                stored_html: None,
-                quote: None,
-                initial_from: Some(account.clone()),
-                seeds_signature: true,
-                composition: new_composition(),
-                files: Vec::new(),
-            },
-            to: recipients.to,
-            cc: recipients.cc,
+            to: request.initial_to.clone(),
+            cc: request.initial_cc.clone(),
             bcc: String::new(),
-            subject: String::new(),
+            subject: request.subject.clone(),
             document_json: DOCUMENT.to_owned(),
             files: Vec::new(),
             from: Some(account),
+            request,
         };
 
         submit(&app, &submission).expect("schedule harness reply");

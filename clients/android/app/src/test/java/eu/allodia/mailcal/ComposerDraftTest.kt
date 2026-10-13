@@ -69,13 +69,13 @@ class ComposerDraftTest {
      */
     private var open = true
 
-    private fun composer(recorder: Recorder, composition: String? = null) {
+    private fun composer(recorder: Recorder, composition: String = "c-0") {
         compose.setContent {
             var shown by remember { mutableStateOf(true) }
             AppTheme {
                 if (shown) {
                     RichComposeMessageDialog(
-                        mode = RichComposeMode.New,
+                        request = ComposeContext(testOpening(composition = composition), initialFrom = null),
                         onDismiss = {
                             shown = false
                             open = false
@@ -83,7 +83,6 @@ class ComposerDraftTest {
                         onSubmitRich = { _ -> true },
                         accounts = emptyList(),
                         drafts = recorder.drafts(),
-                        composition = composition,
                     )
                 }
             }

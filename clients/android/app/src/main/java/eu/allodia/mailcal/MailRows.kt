@@ -35,14 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import uniffi.mailcal_bindings.AccountRow
+import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.FlatRow
-import uniffi.mailcal_bindings.ComposerFileAttachment
-import uniffi.mailcal_bindings.Recipients
-import uniffi.mailcal_bindings.RecipientMatch
-import uniffi.mailcal_bindings.RecipientSuggestion
-import uniffi.mailcal_bindings.forwardSubject
-import uniffi.mailcal_bindings.replySubject
 
 // Amber for the flagged star, mirroring the macOS client's orange `flag.fill`. Only the filled
 // star is vendored, so flagged state is shown by tint/alpha on the one glyph rather than by
@@ -57,7 +51,6 @@ internal fun FlatMessageRow(
     message: FlatRow,
     activeZoneId: String?,
     inJunkFolder: Boolean,
-    accounts: List<AccountRow>,
     // The list's selection mode: whether this row is picked, whether the mode is on at all (a tap
     // then toggles rather than opens), and how to toggle it (docs/list-selection.md).
     selected: Boolean,
@@ -70,31 +63,15 @@ internal fun FlatMessageRow(
     onPermanentlyDelete: (account: String, key: String) -> Unit,
     onMarkAsSpam: (account: String, key: String) -> Unit,
     onMarkAsNotSpam: (account: String, key: String) -> Unit,
-    onReply: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
-    onForward: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
-    replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
-    // The core verbs a composer raised from here keeps its message on the server with
-    // (`docs/drafts.md`); null turns draft saving off (a screenshot run, a test).
-    drafts: ComposerDrafts? = null,
-    // Writes the files a message carries into the given directory, for a forward to carry them
-    // on. Blocking, so it is called off the main thread; throws when they cannot be read.
-    stageForwardFiles: (account: String, key: String, directory: String) -> List<ComposerFileAttachment>,
-    suggestionsFor: ((String) -> List<RecipientMatch>)? = null,
-    // The signature library + lookups for the reply/forward composer, or null to leave signatures
-    // out (a screenshot run, a test).
-    signatures: ComposerSignatures? = null,
+    // Opens the composer on a reply, a reply to all or a forward of this message. The composer is
+    // the activity's (MainActivityComposer.kt), so it outlives this row scrolling out of the list.
+    onCompose: (ComposeOrigin) -> Unit,
     // Where the overflow's Move to folder… may file this message, or null to leave it out.
     messageFiling: MessageFiling? = null,
 ) {
     val ctx = LocalContext.current
     // The Move to folder… list while its dialog is open.
     var filing by remember { mutableStateOf<List<MoveTarget>?>(null) }
-    // The open rich composer for this row (null = closed, else the active mode). One dialog
-    // serves reply/reply-all/forward; the mode picks the pre-filled recipients and which rich
-    // submit Send calls. State lives per-row (cf. FlatMessageOverflow's own `expanded`).
-    var composing by remember { mutableStateOf<RichComposeMode?>(null) }
-    // The original's files, staged before the forward composer opens (see `onForward` below).
-    var forwardSeed by remember { mutableStateOf(ForwardSeed()) }
     // Read the ambient clock setting here, in the composable body: the `clickable` lambda below is
     // not a composition scope and cannot read a CompositionLocal.
     val use24Hour = LocalUse24Hour.current
@@ -197,17 +174,9 @@ internal fun FlatMessageRow(
             inJunkFolder = inJunkFolder,
             onToggleRead = { onSetRead(message.account, message.key, message.unread) },
             onToggleFlag = { onSetFlagged(message.account, message.key, !message.flagged) },
-            onReply = { composing = RichComposeMode.Reply },
-            onReplyAll = { composing = RichComposeMode.ReplyAll },
-            // Forward opens once the original's files are staged, not before: a composer on
-            // screen holding nothing can be sent in the window before they arrive, which is the
-            // forward-without-its-attachments this staging exists to prevent.
-            onForward = {
-                stageForwardAttachments(ctx, message.account, message.key, stageForwardFiles) {
-                    forwardSeed = it
-                    composing = RichComposeMode.Forward
-                }
-            },
+            onReply = { onCompose(ComposeOrigin.Reply(message.account, message.key, false)) },
+            onReplyAll = { onCompose(ComposeOrigin.Reply(message.account, message.key, true)) },
+            onForward = { onCompose(ComposeOrigin.Forward(message.account, message.key)) },
             moveTargets = messageFiling?.let { { it.targets(message.account) } },
             onMoveToFolder = { filing = it },
             onDelete = { onDelete(message.account, message.key) },
@@ -225,58 +194,6 @@ internal fun FlatMessageRow(
                 target.key?.let { messageFiling?.move(message.account, message.key, it) }
             },
             onClose = { filing = null },
-        )
-    }
-
-    // Rendered as an overlay (own window), so calling it after the Row is fine. Reply/reply-all/
-    // forward open the SAME hardened rich composer as new mail; the editor's rendered document
-    // rides `submitRichReply`/`submitRichForward`, which dismiss on success. Reply/reply-all open
-    // with To/Cc pre-filled from the core.
-    composing?.let { mode ->
-        val prefill = remember(mode) {
-            if (mode == RichComposeMode.Reply || mode == RichComposeMode.ReplyAll) {
-                replyRecipients(message.account, message.key, mode == RichComposeMode.ReplyAll)
-            } else {
-                null
-            }
-        }
-        // Only a forward opens holding the original's files; a reply after one must not inherit
-        // the seed left behind, which is what reading it through the mode rather than directly
-        // prevents.
-        val seed = if (mode == RichComposeMode.Forward) forwardSeed else ForwardSeed()
-        RichComposeMessageDialog(
-            suggestionsFor = suggestionsFor,
-            signatures = signatures,
-            mode = mode,
-            accounts = accounts,
-            // A reply/forward opens on the account that received the mail, the address it was
-            // sent to. The user can switch it in the From dropdown.
-            initialFrom = message.account,
-            initialTo = prefill?.to ?: "",
-            initialCc = prefill?.cc ?: "",
-            // Derived by the CORE, not here: the field is editable, so what it opens with is what
-            // gets sent unless the user changes it, and a client-side "Re: " + subject differs
-            // from the core's on a reply to a reply.
-            initialSubject = if (mode == RichComposeMode.Forward) {
-                forwardSubject(message.subject)
-            } else {
-                replySubject(message.subject)
-            },
-            initialAttachments = seed.files,
-            initialError = if (seed.failed) L10n.compose_forward_attachments_failed(ctx) else null,
-            onDismiss = { composing = null },
-            drafts = drafts,
-            onSubmitRich = { submission ->
-                val sent = if (mode == RichComposeMode.Forward) {
-                    onForward(message.account, message.key, submission)
-                } else {
-                    onReply(message.account, message.key, submission)
-                }
-                if (sent) {
-                    composing = null
-                }
-                sent
-            },
         )
     }
 }

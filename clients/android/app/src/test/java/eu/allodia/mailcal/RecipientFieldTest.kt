@@ -24,6 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import uniffi.mailcal_bindings.ComposeKind
 
 @RunWith(RobolectricTestRunner::class)
 class RecipientFieldTest {
@@ -99,12 +100,17 @@ class RecipientFieldTest {
         compose.setContent {
             AppTheme {
                 RichComposeMessageDialog(
-                    mode = RichComposeMode.ReplyAll,
+                    request = ComposeContext(
+                        testOpening(
+                            kind = ComposeKind.REPLY_ALL,
+                            to = "bestuur@example.test, tc@example.test",
+                            cc = "rene@example.test",
+                        ),
+                        initialFrom = null,
+                    ),
                     onDismiss = {},
                     onSubmitRich = { _ -> true },
                     accounts = emptyList(),
-                    initialTo = "bestuur@example.test, tc@example.test",
-                    initialCc = "rene@example.test",
                 )
             }
         }

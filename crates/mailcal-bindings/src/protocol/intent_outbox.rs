@@ -50,7 +50,7 @@ pub enum OutboxIntent {
         /// The queued send's op id, from `QueuedRow::op`.
         op: u64,
         /// The host's staging directory, where the message's files are written for the
-        /// composer to attach, as for `resume_draft`.
+        /// composer to attach, as for a resumed draft (`open_composer`).
         staging_directory: String,
     },
     /// Answer a send awaiting confirmation: it reached its recipients. It leaves the Outbox and

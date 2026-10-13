@@ -6,8 +6,6 @@
 // lets two composers save without superseding each other's draft.
 package eu.allodia.mailcal
 
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
@@ -19,8 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import java.io.File
 import java.util.UUID
-import kotlin.concurrent.thread
-import uniffi.mailcal_bindings.ComposeRequest
+import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.DraftStatus
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
@@ -107,42 +104,16 @@ private fun saveDraft(
     }
 }
 
-/**
- * Opens the stored draft `key` (on `account`) into a composition of its own, so the composer about
- * to show it saves over that copy rather than beside it.
- *
- * Null means the draft could not be opened, which the caller says rather than showing an empty
- * composer: nothing is adopted on a failure, and a composer opened without the draft's content
- * would replace it with what is on screen the next time it saved.
- *
- * Blocks on the core's runtime, so it is called off the main thread; unlike a forward's staging it
- * cannot count on a warm cache, because a draft is opened from a list row rather than from the
- * reading view, so the first open of one fetches the message.
- */
-internal fun resumeDraft(
-    instance: MailcalApp,
-    composition: String,
-    account: String,
-    key: String,
-    stagingDirectory: File,
-): ComposeRequest? = try {
-    stagingDirectory.mkdirs()
-    instance.resumeDraft(composition, account, key, stagingDirectory.absolutePath)
-} catch (e: MailcalException) {
-    Log.w(TAG, "draft resume failed: ${e.javaClass.simpleName}")
-    null
-}
-
 /** A fresh composition id, minted as a composer opens. */
 internal fun newComposition(): String = UUID.randomUUID().toString()
 
 /**
- * Where the core writes the files of a draft about to reopen in a composer: a Drafts-folder row,
- * or a queued send moved back into Drafts. A directory of each composer's own, so two of them never
- * share a staged file; the cache is reclaimed by the OS, as a forward's staging is.
+ * Where the core writes the files a composer opens holding: a forward's originals, a Drafts-folder
+ * row's, or a queued send's moved back into Drafts. A directory of each composer's own, so two of
+ * them never share a staged file; the cache is reclaimed by the OS.
  */
-internal fun MainActivity.resumedDraftDirectory(name: String): File =
-    File(File(cacheDir, "resumed-drafts"), name)
+internal fun MainActivity.composerStagingDirectory(name: String): File =
+    File(File(cacheDir, "composer-staging"), name)
 
 /** What the activity holds about Drafts between snapshots. */
 internal class DraftUiState {
@@ -154,9 +125,6 @@ internal class DraftUiState {
     // composition's state. The signal says that *some* composition's save moved, not which, and
     // there is nothing else to publish.
     var draftStatusVersion by mutableStateOf(0)
-    // A draft the core has opened back up, waiting for its composer to be drawn. Null the rest of
-    // the time; set only by a tap on a Drafts-folder row (docs/drafts.md).
-    var resumedDraft by mutableStateOf<ComposeRequest?>(null)
     // Whether to say that a draft could not be opened back into a composer. Raised instead of
     // opening an empty one, whose next save would replace the draft.
     var draftOpenFailed by mutableStateOf(false)
@@ -169,11 +137,9 @@ internal class DraftUiState {
  * it, so a draft met in a search result or inside a thread opens read-only (`docs/drafts.md`,
  * known gaps).
  *
- * Resuming is a round trip and, unlike a forward, cannot count on the message being cached: a
- * draft is opened from a list row, so the first open of one fetches it. It runs on a thread of its
- * own for that reason, and the composer appears when the answer does. A draft that could not be
- * opened is **said**, and the message opens for reading instead: a composer opened without the
- * draft's content would replace it with what was on screen the next time it saved.
+ * A draft that could not be opened is **said**, and the message opens for reading instead: a
+ * composer opened without the draft's content would replace it with what was on screen the next
+ * time it saved.
  */
 internal fun MainActivity.openOrResume(
     instance: MailcalApp,
@@ -184,18 +150,9 @@ internal fun MainActivity.openOrResume(
         openMessage(instance, opened, conversation)
         return
     }
-    val composition = newComposition()
-    val directory = resumedDraftDirectory(composition)
-    thread(name = "mailcal-resume-draft") {
-        val resumed = resumeDraft(instance, composition, opened.account, opened.key, directory)
-        Handler(Looper.getMainLooper()).post {
-            if (resumed == null) {
-                drafts.draftOpenFailed = true
-                openMessage(instance, opened, conversation)
-            } else {
-                drafts.resumedDraft = resumed
-            }
-        }
+    openComposer(instance, ComposeOrigin.Draft(opened.account, opened.key)) {
+        drafts.draftOpenFailed = true
+        openMessage(instance, opened, conversation)
     }
 }
 
@@ -212,58 +169,20 @@ internal fun MainActivity.openOrResumeThread(instance: MailcalApp, thread: Threa
 }
 
 /**
- * What a draft that could not be opened back into a composer says.
+ * What a composer that could not be opened says: `title` is the draft-specific line for a
+ * Drafts-folder row, and the general one for every other way in.
  *
- * One button, because there is nothing to decide: the message opens for reading behind it either
- * way, and the only thing it cannot do is be edited.
+ * One button, because there is nothing to decide. A draft opens for reading behind it, and
+ * nothing else was lost: no composer was shown, so nothing was written.
  */
 @Composable
-internal fun DraftOpenFailedDialog(onDismiss: () -> Unit) {
+internal fun ComposerOpenFailedDialog(title: String, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(L10n.compose_draft_open_failed(ctx)) },
+        title = { Text(title) },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(L10n.action_close(ctx)) }
         },
-    )
-}
-
-/**
- * The composer a draft already on the server opens in, saving **over** that copy rather than
- * beside it.
- *
- * Two things separate it from every other new message. The composition is the one the core adopted
- * the stored draft into, never a fresh one, or the composer's first save would store a second copy
- * beside the one it is showing. And it seeds no signature, for the reason [WithdrawnMessagePane]
- * does: the body already carries the signature it was written with, so seeding one would put a
- * second under it and the next save would store that.
- */
-@Composable
-internal fun MainActivity.ResumedDraftPane(instance: MailcalApp) {
-    val seed = reopenedSeed(drafts.resumedDraft ?: return)
-    RichComposeMessageDialog(
-        mode = RichComposeMode.New,
-        accounts = accounts,
-        initialFrom = seed.from,
-        initialTo = seed.to,
-        initialCc = seed.cc,
-        initialBcc = seed.bcc,
-        initialSubject = seed.subject,
-        initialBody = seed.text,
-        initialHtml = seed.html,
-        initialAttachments = seed.attachments,
-        composition = seed.composition,
-        drafts = composerDrafts(instance),
-        suggestionsFor = { prefix ->
-            try {
-                instance.recipientSuggestions(prefix)
-            } catch (e: Exception) {
-                Log.w(TAG, "recipient suggestions failed: ${e.javaClass.simpleName}")
-                emptyList()
-            }
-        },
-        onSubmitRich = { submission -> submitMail(instance, submission) },
-        onDismiss = { drafts.resumedDraft = null },
     )
 }

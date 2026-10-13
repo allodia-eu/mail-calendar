@@ -105,8 +105,8 @@ impl AppModel {
 
     /// The id the next detached draft would be raised under.
     ///
-    /// Read before the request is built, because the request carries its host; the counter moves
-    /// only once the window actually opens, so a compose that turns back has spent nothing.
+    /// Read when the core has answered and the request is built, because the request carries its
+    /// host; the counter moves only once the window actually opens.
     pub(super) fn next_composer_window(&self) -> u64 {
         self.composer_window_seq.wrapping_add(1)
     }
@@ -114,11 +114,12 @@ impl AppModel {
     pub(super) fn open_composer_window(&mut self, id: u64, request: ComposeContext) {
         debug_assert_eq!(request.host, ComposerHost::Window(id));
         self.composer_window_seq = id;
-        self.composer_windows.push(DetachedDraft {
-            id,
-            request,
-            error: None,
-        });
+        // A forward whose files could not be read opens saying so.
+        let error = request
+            .attachments_failed
+            .then_some(ComposerNotice::ForwardAttachments);
+        self.composer_windows
+            .push(DetachedDraft { id, request, error });
     }
 
     /// A composer window closing with nothing written in it, or one whose draft has already

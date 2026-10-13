@@ -9,7 +9,8 @@ import SwiftUI
 /// Everything the composer needs to seed, swap, and override signatures, the library to list, and
 /// the two lookups the core answers (the account's signature for this mode, and one by id). Passed
 /// as a value rather than the model so `RichComposeView` stays free of it; `nil` turns the feature
-/// off entirely, which is what a preview or a screenshot run wants.
+/// off entirely: no seed, no picker, and the message's signature region is never touched. That is
+/// what a composer whose opening seeds no signature gets, and what a preview wants.
 struct ComposerSignatures {
     /// The library, for the picker.
     let library: [SignatureRow]
@@ -81,8 +82,12 @@ extension RichComposeView {
 
     /// Re-seeds the signature after the From account changed. A no-op once the user has picked one
     /// explicitly: they chose it for this message, and swapping it under them would undo that.
+    ///
+    /// Also a no-op in a composer with signatures off. A stored message carries the signature it
+    /// was written with, and resolving "none" for it would take that signature off the message,
+    /// and the next save would store it without.
     func fromAccountChanged() {
-        guard signatureChoice == nil else { return }
+        guard signatures != nil, signatureChoice == nil else { return }
         editor.setSignature(accountSignature.flatMap(Self.signatureSeed))
     }
 

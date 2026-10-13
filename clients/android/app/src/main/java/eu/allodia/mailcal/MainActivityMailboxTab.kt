@@ -370,48 +370,14 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             onActOnSelection = { rows, action ->
                                 instance.dispatch(Intent.ActOnSelection(rows, action))
                             },
-                            // Reply/reply-all/forward go through the SAME shared rich composer as
-                            // new mail: the user-confirmed recipients ride the submit, and the
-                            // Rust core derives the Re:/Fwd: subject + threading from the original.
-                            onReply = { account, key, submission -> submitReply(instance, account, key, submission) },
-                            onForward = { account, key, submission -> submitForward(instance, account, key, submission) },
-                            // Pre-fill a reply/reply-all's To/Cc from the core (empty on failure).
-                            // Composer autosuggest: ranked addresses for a partially-typed
-                            // recipient, drawn from synced contacts AND from people the user has
-                            // written to before, so it works on an account with no address book.
-                            // A local in-memory read in the core, safe to call per keystroke.
-                            suggestionsFor = { query ->
-                                try {
-                                    instance.recipientSuggestions(query)
-                                } catch (e: Exception) {
-                                    Log.w(TAG, "recipient suggestions failed: ${e.javaClass.simpleName}")
-                                    emptyList()
-                                }
-                            },
-                            // The composer's signature: seeded from the From account's slot for
-                            // this mode, re-resolved when From changes, overridable per message.
-                            signatures = composerSignatures(instance, signatures?.signatures.orEmpty()),
-                            drafts = composerDrafts(instance),
+                            // Reply, reply all and forward open the one composer every route
+                            // opens, on the message the row names (MainActivityComposer.kt).
+                            onCompose = { origin -> openComposer(instance, origin) },
                             messageFiling = MessageFiling.of(instance, this@MailboxTabContent),
-                            replyRecipients = { account, key, replyAll ->
-                                try {
-                                    instance.replyRecipients(account, key, replyAll)
-                                } catch (e: Exception) {
-                                    Log.w(TAG, "reply recipients lookup failed: ${e.javaClass.simpleName}")
-                                    null
-                                }
-                            },
-                            // Straight through: the caller runs it off the main thread and turns a
-                            // throw into the composer's "couldn't attach the files" line.
-                            stageForwardFiles = { account, key, directory ->
-                                instance.stageForwardedAttachments(account, key, directory)
-                            },
-                            onSubmitRich = { submission -> submitMail(instance, submission) },
                             // Swipe actions (per direction) + the archive intent a swipe may run;
                             // both come from the core, which persists the choice.
                             swipe = swipeSettings,
                             onArchive = { account, key -> instance.dispatch(Intent.Archive(account, key)) },
-                            defaultSendAccount = defaultSendAccount,
                             // Display-timezone change prompt (an overlay). The zone *selector*
                             // now lives in the Settings screen; the accept/dismiss of a device-zone
                             // change stays here as a prompt. State lives in Rust.
@@ -456,30 +422,11 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 settingsCategory = null
                                 showingSettings = true
                             },
-                            // A mail link (`mailto:`) opens the composer pre-filled; clearing it
-                            // when the composer closes is what stops it re-opening on the next
-                            // recomposition.
-                            mailtoPrefill = pendingMailto,
-                            onMailtoConsumed = { pendingMailto = null },
-                            sharePrefill = pendingShare,
-                            onShareConsumed = { pendingShare = null },
                             )
                             }
-                            // A message the core withdrew from the Outbox, over whichever list
-                            // is behind it. At this level rather than inside either screen,
-                            // because Edit is pressed on the Outbox and the composer that answers
-                            // it is the mailbox's: the message belongs to neither list once it
-                            // has left the queue.
-                            WithdrawnMessagePane(instance, signatures?.signatures.orEmpty())
-                            // A draft opened back up from the Drafts folder, over the same list,
-                            // and for the same reason: the message belongs to the composer now,
-                            // not to the row that was tapped.
-                            ResumedDraftPane(instance)
-                            // A draft that could not be opened. The message opens for reading
-                            // behind this, so nothing is lost; what it cannot do is be edited.
-                            if (drafts.draftOpenFailed) {
-                                DraftOpenFailedDialog(onDismiss = { drafts.draftOpenFailed = false })
-                            }
+                            // A mail link or a share opens its composer from here, so neither
+                            // opens over the welcome or setup screens.
+                            LinkAndShareComposers(instance)
                             } // FolderDrawerScaffold
                           }
                           }

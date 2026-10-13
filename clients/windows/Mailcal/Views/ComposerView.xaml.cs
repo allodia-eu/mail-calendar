@@ -78,7 +78,10 @@ public sealed partial class ComposerView : UserControl
         {
             _attachments.Add(new PickedComposerAttachment(file));
         }
-        _baselineAttachments = request.Kind == RichComposeKind.Forward ? _attachments.Count : 0;
+        // The files the core staged are still in the mailbox, a forward's originals or a stored
+        // draft's own, so closing over them unchanged loses nothing; a share's the user chose and
+        // would have to share again, so those count from the start.
+        _baselineAttachments = request.Opening.Attachments.Length;
         // `_attachments` is a plain list and the ListView is not bound to it in XAML, so the
         // picker re-assigns ItemsSource after every change. A seeded list needs the same
         // assignment, or the rows exist only in the list and the user sees, and can remove,
@@ -92,6 +95,10 @@ public sealed partial class ComposerView : UserControl
         if (request.AttachmentsFailed)
         {
             ShowError(L10n.ComposeForwardAttachmentsFailed());
+        }
+        else if (request.InitialError is { } error)
+        {
+            ShowError(error);
         }
         _onDone = onDone;
 
@@ -273,27 +280,13 @@ public sealed partial class ComposerView : UserControl
         PrepareError.Visibility = Visibility.Visible;
     }
 
-    // Route the rendered document to the submit call this request is for. A reply/forward carries
-    // the original's (account, key) so the core can derive the threading; `from` may name a
-    // different account, and the core still resolves the original in the one that holds it, so a
-    // cross-account reply still threads. The Subject rides every call: the field is editable, so
-    // what it holds is what goes out, and the core's derivation is only what it opened with.
-    // `composition` names the composer this was written in whenever it keeps a draft, so an
-    // accepted send takes the stored copy away; a send that omitted it would leave a duplicate in
-    // Drafts of a message already on its way (docs/drafts.md).
-    private bool Submit(Recipients recipients, string documentJson, ComposerFileAttachment[] files, string? from)
-    {
-        var composition = _keepsDraft ? _composition : null;
-        return _request! switch
-        {
-            { Kind: RichComposeKind.Forward, Account: { } account, Key: { } key } =>
-                _model!.SubmitRichForward(account, key, recipients, SubjectBox.Text, documentJson, files, from, composition),
-            { Kind: RichComposeKind.Reply or RichComposeKind.ReplyAll, Account: { } account, Key: { } key } =>
-                _model!.SubmitRichReply(account, key, recipients, SubjectBox.Text, documentJson, files, from, composition),
-            _ => _model!.SubmitRich(recipients, SubjectBox.Text, documentJson, files, from, composition),
-        };
-    }
-
+    // Every composer sends the same way, on the composition it opened on: the core joined it to the
+    // message it answers or passes on when the composer opened, so a reply threads and a quoted
+    // picture goes out as its part whichever way the composer was reached, and an accepted send
+    // takes the stored draft away (docs/drafts.md). The Subject rides along because the field is
+    // editable and what it holds is what goes out.
+    private bool Submit(Recipients recipients, string documentJson, ComposerFileAttachment[] files, string? from) =>
+        _model!.SubmitComposition(_composition, recipients, SubjectBox.Text, documentJson, files, from);
     private void OnToggleCcBcc(object sender, RoutedEventArgs e) => ApplyCcBcc();
 
     // Cc/Bcc follow the toggle, and the chevron points the way it would move them.
@@ -334,6 +327,26 @@ public sealed partial class ComposerView : UserControl
                 ? QuoteStyleChoice.LineAndHeader
                 : QuoteStyleChoice.Indented);
         await _editor.RunAsync($"window.setComposerQuoteStyle({EditorWebViewHost.Arg(token)})");
+    }
+
+    // A reopened quote keeps the style it was saved in, so the picker shows that one rather than the
+    // app default. Selecting the radio re-styles the quote to the style it already has, which
+    // changes nothing in the document.
+    private void ReflectQuoteStyle(string? document)
+    {
+        if (QuoteStylePanel.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+        switch (ComposeOpeningSeed.QuoteStyleOf(document))
+        {
+            case "LineAndHeader":
+                QuoteLineHeaderRadio.IsChecked = true;
+                break;
+            case "Indented":
+                QuoteIndentedRadio.IsChecked = true;
+                break;
+        }
     }
 
     private Task<string?> ReadDocumentAsync() => _editor.ReadStringAsync("composerDocument()");
@@ -410,19 +423,28 @@ public sealed partial class ComposerView : UserControl
             // does not touch, but sending them first matches the other clients' open-time order.
             await _editor.RunAsync(ComposerLabels.Script());
             await _editor.RunAsync(MailcalBindingsMethods.ComposerHostRequestsScript());
+            // One body seed, whichever way the composer was reached: a fresh reply's or forward's
+            // quote, a stored message's own HTML, or the text a link, a share or an assistant
+            // brought. Each assigns the WHOLE body, so it goes ahead of the signature. Nothing about
+            // it is logged (docs/logging.md).
             if (_request?.Quote is { } quote)
             {
                 await _editor.RunAsync($"window.setComposerQuote({EditorWebViewHost.Arg(quote)})");
             }
-            // An assistant's draft body, or a reopened message's, seeded in the quote's place and
-            // for the same reason ahead of the signature: either call assigns the WHOLE body, so
-            // anything injected first is overwritten. Nothing about it is logged (docs/logging.md).
-            if (ComposerBodySeed.Script(_request?.StoredHtml, _request?.InitialBody) is { } body)
+            else if (ComposerBodySeed.Script(_request?.StoredHtml, _request?.InitialBody) is { } body)
             {
                 await _editor.RunAsync(body);
             }
             await ApplySignatureAsync();
+            // A reopened quote shows one style's attribution; the other is completed from its
+            // original, so the style picker switches it to a full one (docs/drafts.md).
+            if (_request?.QuoteAttribution is { } attribution)
+            {
+                await _editor.RunAsync(
+                    $"window.completeComposerQuoteAttribution({EditorWebViewHost.Arg(attribution)})");
+            }
             _seedDocument = await ReadDocumentAsync();
+            ReflectQuoteStyle(_seedDocument);
             // The caret opens where the work starts, and here rather than earlier: after the seed
             // snapshot, never before, moving it must not be mistaken for the user having typed, or
             // the composer opens already dirty and prompts to discard on close.

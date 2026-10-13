@@ -1,18 +1,16 @@
-// What the reading-pane composer is currently composing. One context replaces the five
-// dialog-construction call sites the composer used to have (three in MailListView, two in
-// ReadingView): the shell holds at most one of these, and it is the single thing that decides
-// whether the detail column shows the reading pane or the composer.
+// What the reading-pane composer is currently composing: the core's answer about the message
+// (ComposeOpening, from open_composer, or raised when a queued send is edited), plus the little the
+// host adds to it. One way in for every composer, a new message, a reply, a forward, a resumed
+// draft, a link, a share, an assistant's draft and an Outbox edit, so no route can open a composer
+// that holds less than another (docs/drafts.md).
 //
-// The Windows twin of the Apple client's `ComposeContext` (Mailcal.swift's `@State var compose`),
-// deliberately the same shape, an optional context, not a presented modal.
-//
-// Not `ComposeRequest`: the core has a record of that name, and it is a different thing. Theirs is
-// the core ASKING this host to open a composer over a message it has withdrawn from the Outbox
-// (docs/sending.md); this one is what the composer that then opens is holding. Both are in scope
-// in most of the files below.
+// The Windows twin of the Apple client's `ComposeContext`, deliberately the same shape, an optional
+// context, not a presented modal.
 
 using System.Collections.Generic;
+using System.Linq;
 using Allodia.Mailcal.Dialogs;
+using Allodia.Mailcal.Services;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.ViewModels;
@@ -20,72 +18,65 @@ namespace Allodia.Mailcal.ViewModels;
 // RichComposeKind itself lives in RichComposeKind.cs, WinUI- and L10n-free, so the rules it drives
 // (the signature slot) can be linked into the test project.
 
-/// <summary>
-/// One open composer: what it is for, the original it answers (reply/forward), and the state it
-/// opens with. <paramref name="Account"/>/<paramref name="Key"/> identify the original message and
-/// are <c>null</c> for a new message. <paramref name="InitialFrom"/> is the account the From picker
-/// opens on, the one that received the mail for a reply/forward, the selected mailbox's for a new
-/// message. <paramref name="Quote"/> is the quoted-original seed, <c>null</c> when there is nothing
-/// to quote (a new message, or a reply to a row whose body hasn't been read yet).
-/// </summary>
-/// <param name="Kind">Whether this is a new message, reply, reply-all, or forward.</param>
-/// <param name="Account">The original's owning account, or <c>null</c> for a new message.</param>
-/// <param name="Key">The original's message key, or <c>null</c> for a new message.</param>
-/// <param name="InitialFrom">The account id the From picker opens on.</param>
-/// <param name="InitialTo">The pre-filled To recipients (reply/reply-all), else empty.</param>
-/// <param name="InitialCc">The pre-filled Cc recipients (reply-all), else empty.</param>
-/// <param name="Quote">The quoted-original seed JSON, or <c>null</c>.</param>
-/// <param name="QuoteStyle">The style the quote is seeded in (the persisted app default).</param>
+/// <summary>One open composer: the core's answer about the message it opens on, and what the host
+/// derived from it in the user's language.</summary>
+/// <param name="Opening">What the core opened the composer with, on the composition it joined.</param>
+/// <param name="InitialFrom">The account id the From picker opens on: the opening's account as a
+/// sending account.</param>
+/// <param name="QuoteStyle">The style a fresh quote is seeded in (the persisted app default).</param>
 /// <param name="QuoteStylePerMessage">Whether the user opted into choosing the style per message,
 /// which is the only case where the composer shows a style picker at all.</param>
-/// <param name="InitialBcc">The pre-filled Bcc recipients. Only an assistant's draft
-/// (docs/mcp.md) fills this, the user's own compose paths open it empty.</param>
-/// <param name="InitialSubject">The Subject the composer opens with. Editable in every kind: a
-/// reply and a forward open with the core's derived <c>Re:</c>/<c>Fwd:</c>, and what the field
-/// holds on Send is what goes out.</param>
-/// <param name="InitialBody">A plain-text body to seed the editor with, or <c>null</c>. Mutually
-/// exclusive with <paramref name="Quote"/> in practice: an assistant's draft is a new message.</param>
-/// <param name="SeedsSignature">Whether the account's signature is seeded and the picker offered.
-/// False for an assistant's draft, which arrives with a body someone else wrote and its own
-/// sign-off, matching macOS, which passes the composer no signature library at all in that case.</param>
-/// <param name="Attachments">Files the composer opens already holding: a share
-/// (<c>docs/os-integration.md</c>), or the files a forwarded message carries. Each is the shared
-/// core's answer about one file, name and media type included, so the list is displayed as given
-/// and never re-derived. Empty for every other route: the picker fills it. Removable like any
-/// picked file, neither a share nor a forward imposes an attachment.</param>
-/// <param name="Composition">The composition to save under, for a composer the core has already
-/// joined to a stored draft (<c>docs/drafts.md</c>). Every other composer mints its own: the core
-/// has already joined this id to the copy on the server, so a fresh one would store a second
-/// draft beside the one the composer is showing.</param>
-/// <param name="StoredHtml">The HTML of a message this composer reopens (a resumed draft, or one
-/// moved back out of the Outbox), which the editor reads back into its document; <paramref
-/// name="InitialBody"/> is then that message's text, for when it has none.</param>
-/// <param name="AttachmentsFailed">Whether the files a forward was to carry could not be read, so
-/// the composer opens saying so. It travels beside <paramref name="Attachments"/> because an empty
-/// list means opposite things either way: nothing was attached, or everything was and none of it
-/// could be read.</param>
-// Internal, not public: `Attachments` carries the generated `ComposerFileAttachment`, and every
-// record the C# bindgen emits is internal. The public types in this directory are the ones XAML
-// binds to; this one is only ever constructed and read from code-behind.
+/// <param name="Quote">The <c>setComposerQuote</c> seed for a fresh reply or forward, or
+/// <c>null</c>.</param>
+/// <param name="QuoteAttribution">The <c>completeComposerQuoteAttribution</c> argument for a
+/// reopened message whose original is known, or <c>null</c>.</param>
+/// <param name="ExtraAttachments">Files the host adds to what the core staged: a share's.</param>
+/// <param name="InitialError">A line the composer opens showing, for something the route could not
+/// bring: files a share could not hand over.</param>
+// Internal, not public: it carries generated records, and every record the C# bindgen emits is
+// internal. The public types in this directory are the ones XAML binds to; this one is only ever
+// constructed and read from code-behind.
 internal sealed record ComposeContext(
-    RichComposeKind Kind,
-    string? Account,
-    string? Key,
+    ComposeOpening Opening,
     string? InitialFrom,
-    string InitialTo,
-    string InitialCc,
-    string? Quote,
     QuoteStyleChoice QuoteStyle,
     bool QuoteStylePerMessage,
-    string InitialBcc = "",
-    string InitialSubject = "",
-    string? InitialBody = null,
-    bool SeedsSignature = true,
-    IReadOnlyList<ComposerFileAttachment>? Attachments = null,
-    bool AttachmentsFailed = false,
-    string? Composition = null,
-    string? StoredHtml = null)
+    string? Quote,
+    string? QuoteAttribution,
+    IReadOnlyList<ComposerFileAttachment>? ExtraAttachments = null,
+    string? InitialError = null)
 {
+    /// <summary>Whether this is a new message, reply, reply-all, or forward.</summary>
+    public RichComposeKind Kind => ComposeOpeningSeed.KindOf(Opening.Kind);
+
+    /// <summary>The composition the composer opens on: every save, the discard and the send name
+    /// it, because the core joined it to the message when the composer opened.</summary>
+    public string Composition => Opening.Composition;
+
+    public string InitialTo => Opening.To;
+    public string InitialCc => Opening.Cc;
+    public string InitialBcc => Opening.Bcc;
+    public string InitialSubject => Opening.Subject;
+
+    /// <summary>A stored message's HTML, which the editor reads back into its document.</summary>
+    public string? StoredHtml => Opening.BodyHtml.Length > 0 ? Opening.BodyHtml : null;
+
+    /// <summary>The text the editor opens with when there is neither a stored body nor a quote.
+    /// With a stored body it is that body's text, for one with no HTML.</summary>
+    public string? InitialBody => StoredHtml is not null
+        ? Opening.BodyText
+        : ComposeOpeningSeed.PlainBody(Opening, Quote);
+
+    /// <summary>Whether the account's signature is seeded: a stored message carries its own.</summary>
+    public bool SeedsSignature => Opening.SeedsSignature;
+
+    /// <summary>Every file the composer opens holding: what the core staged, and a share's.</summary>
+    public IReadOnlyList<ComposerFileAttachment> Attachments =>
+        Opening.Attachments.Concat(ExtraAttachments ?? []).ToList();
+
+    /// <summary>Whether a forward's originals could not be staged, so the composer says so.</summary>
+    public bool AttachmentsFailed => Opening.AttachmentsFailed;
+
     /// <summary>The composer's heading, the action it is performing.</summary>
     public string Title => Kind switch
     {
@@ -95,9 +86,11 @@ internal sealed record ComposeContext(
         _ => L10n.ComposeTitleNew(),
     };
 
-    /// <summary>Whether the composer shows the per-message quote-style picker: there is a quoted
-    /// original to style, and the user opted into per-message styling in Settings.</summary>
-    public bool ShowsStylePicker => ComposerQuote.ShowsStylePicker(Quote is not null, QuoteStylePerMessage);
+    /// <summary>Whether the composer shows the per-message quote-style picker: there is a quote
+    /// whose both attributions are known, a fresh one or a reopened one whose original is still
+    /// here, and the user opted into per-message styling in Settings.</summary>
+    public bool ShowsStylePicker =>
+        ComposerQuote.ShowsStylePicker(Opening.Quote is not null, QuoteStylePerMessage);
 
     /// <summary>Whether the composer opens with the caret in the message body. A reply/forward
     /// already has its From/To/Subject filled in, so writing is the only thing left to do; a new

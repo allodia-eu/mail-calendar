@@ -51,13 +51,13 @@ public sealed partial class ComposerView
     /// hint, and the two timers.
     /// </summary>
     /// <remarks>
-    /// A <b>resumed</b> draft arrives with its composition, because the core has already joined
-    /// that id to the copy on the server; a fresh one here would store a second draft beside the
-    /// one the composer is showing. Every other composer mints its own.
+    /// The composition is the one the composer was opened on: the core joined it to the message
+    /// when it opened (and, for a resumed draft, to the copy on the server), so a fresh one here
+    /// would save beside that copy and send without the conversation it belongs to.
     /// </remarks>
     private void InitDrafts(MailboxModel model, ComposeContext request)
     {
-        _composition = request.Composition ?? Guid.NewGuid().ToString();
+        _composition = request.Composition;
         _keepsDraft = true;
         SaveDraftButton.Visibility = Visibility.Visible;
         model.DraftStatusChanged += OnDraftStatusChanged;

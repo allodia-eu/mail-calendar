@@ -24,6 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import uniffi.mailcal_bindings.ComposeKind
 
 @RunWith(RobolectricTestRunner::class)
 class ComposerDiscardTest {
@@ -161,23 +162,26 @@ class ComposerDiscardTest {
     /** Renders the real composer, recording whether it actually closed. */
     private fun composer(
         closed: MutableList<Unit>,
-        mode: RichComposeMode = RichComposeMode.New,
+        kind: ComposeKind = ComposeKind.NEW,
         initialTo: String = "",
         initialCc: String = "",
         initialBcc: String = "",
         initialSubject: String = "",
     ) {
+        val opening = testOpening(
+            kind = kind,
+            to = initialTo,
+            cc = initialCc,
+            bcc = initialBcc,
+            subject = initialSubject,
+        )
         compose.setContent {
             AppTheme {
                 RichComposeMessageDialog(
-                    mode = mode,
+                    request = ComposeContext(opening, initialFrom = null),
                     onDismiss = { closed += Unit },
                     onSubmitRich = { _ -> true },
                     accounts = emptyList(),
-                    initialTo = initialTo,
-                    initialCc = initialCc,
-                    initialBcc = initialBcc,
-                    initialSubject = initialSubject,
                 )
             }
         }
@@ -258,7 +262,7 @@ class ComposerDiscardTest {
         val closed = mutableListOf<Unit>()
         composer(
             closed,
-            mode = RichComposeMode.ReplyAll,
+            kind = ComposeKind.REPLY_ALL,
             initialTo = "bob@test.local, carol@test.local",
             initialCc = "dave@test.local",
         )

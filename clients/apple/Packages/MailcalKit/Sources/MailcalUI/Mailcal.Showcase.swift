@@ -116,14 +116,14 @@ extension ContentView {
         model.setMcpAllowDirectSend(true)
     }
 
-    /// Opens the reply composer once the target message's body has loaded, the quoted original (and
-    /// the sample reply text seeded above it) is only available then. Fires once per launch.
+    /// Opens the reply composer, with the sample reply text above its quote, once the target message
+    /// is open in the reading pane. Fires once per launch.
     func showcaseReplyIfNeeded(readingKey: String?) {
         guard ShowcaseMode.isOn, ShowcaseMode.screen == .reply, !didShowcaseReply,
               compose == nil, readingKey != nil, let opened = openedMessage
         else { return }
         didShowcaseReply = true
-        beginReply(opened.account, opened.key, subject: opened.subject, all: false)
+        beginReply(opened.account, opened.key, all: false)
     }
 
     /// Opens the showcase's designated message. It is a standalone (unthreaded) message in both

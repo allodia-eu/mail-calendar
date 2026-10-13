@@ -185,6 +185,7 @@
 	"compose_draft_queued": "Wartet auf Speicherung.",
 	"compose_draft_failed": "Dieser Entwurf konnte nicht gespeichert werden.",
 	"compose_draft_open_failed": "Dieser Entwurf konnte nicht geöffnet werden.",
+	"compose_open_failed": "Die Nachricht konnte nicht zum Schreiben geöffnet werden. Versuchen Sie es gleich noch einmal.",
 	"editor_placeholder": "Schreiben Sie Ihre Nachricht",
 	"editor_bold": "Fett",
 	"editor_italic": "Kursiv",

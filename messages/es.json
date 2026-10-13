@@ -185,6 +185,7 @@
 	"compose_draft_queued": "Esperando para guardar.",
 	"compose_draft_failed": "No se ha podido guardar este borrador.",
 	"compose_draft_open_failed": "No se ha podido abrir este borrador.",
+	"compose_open_failed": "No se ha podido abrir el mensaje para escribir. Vuelva a intentarlo en un momento.",
 	"editor_placeholder": "Escribe tu mensaje",
 	"editor_bold": "Negrita",
 	"editor_italic": "Cursiva",

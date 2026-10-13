@@ -149,6 +149,7 @@ struct ComposerOnScreen: View {
                 ],
                 initialFrom: "work",
                 initialTo: kind == .reply ? "sender@example.test" : "",
+                composition: "c-release",
                 quote: kind == .reply ? "<p>Earlier</p>" : nil,
                 quoteStylePerMessage: kind == .reply,
                 signatures: kind == .signed ? Self.signatures : nil,
@@ -182,7 +183,9 @@ private struct RerenderingParent: View {
     var body: some View {
         VStack {
             Text("\(renders.value)")
-            RichComposeView(title: "New Message", send: { _ in true }, cancel: {})
+            RichComposeView(
+                title: "New Message", composition: "c-render", send: { _ in true }, cancel: {}
+            )
         }
     }
 }

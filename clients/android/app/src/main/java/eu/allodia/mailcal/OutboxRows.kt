@@ -142,7 +142,7 @@ internal fun queuedActionNeedsConfirming(action: QueuedAction): Boolean =
  *
  * Edit moves the message back into Drafts: the core saves it there, writes its files into
  * `stagingDirectory` and offers it back through `Surface::ComposeRequest`, which
- * `WithdrawnMessagePane` answers. The directory is read by no other action.
+ * `ComposerPane` answers. The directory is read by no other action.
  */
 internal fun outboxIntent(
     account: String,

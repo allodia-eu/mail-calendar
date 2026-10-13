@@ -34,9 +34,8 @@ public sealed partial class ComposerView
     private void InitSignatures()
     {
         _signatureChoice = null;
-        // An assistant's draft carries a body someone else wrote, with its own sign-off, so it gets
-        // no signature and no picker, the same call macOS makes by handing that composer no
-        // signature library at all (docs/mcp.md).
+        // A stored message (a resumed draft, an Outbox edit) carries the signature it was written
+        // with, so it gets no seed and no picker (ComposeOpening.SeedsSignature).
         _signatureLibrary = _request?.SeedsSignature == true
             ? _model?.Signatures.Signatures ?? (IReadOnlyList<SignatureRow>)Array.Empty<SignatureRow>()
             : Array.Empty<SignatureRow>();
@@ -109,8 +108,16 @@ public sealed partial class ComposerView
     // the seam replaces only THIS message's signature region, the one that is a direct child of the
     // editor, never a quoted original's, so the user's typed text, their trimming of the quote, and
     // the caret all stay where they are.
+    //
+    // A composer that seeds no signature never touches the region at all: a stored message carries
+    // the signature it was written with, and resolving "none" for it would take that signature off
+    // the message on open, or on a From change, and the next save would store it without.
     private async Task ApplySignatureAsync()
     {
+        if (_request?.SeedsSignature != true)
+        {
+            return;
+        }
         var seed = ComposerSignatures.SeedJson(CurrentSignature());
         var argument = seed is null ? "null" : EditorWebViewHost.Arg(seed);
         await _editor.RunAsync($"window.setComposerSignature({argument})");

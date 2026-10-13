@@ -6,10 +6,10 @@
 // window must never throw away what they were writing. Windows and Linux each do the same.
 //
 // What differs is the payload, and how it gets here. The composer opens already holding
-// attachments, which only a forward otherwise does; and the share was read by a separate process,
-// the Share Extension, which left it in the App Group container (MailcalShareBox). So no URL
-// carries it: the extension's doorbell and the app being activated each only make it look in its
-// box.
+// attachments, added on top of what the core opened it with; and the share was read by a separate
+// process, the Share Extension, which left it in the App Group container (MailcalShareBox). So no
+// URL carries it: the extension's doorbell and the app being activated each only make it look in
+// its box.
 
 import MailcalBindings
 import MailcalShareBox
@@ -23,9 +23,8 @@ import UIKit
 
 /// One share the extension left for us, already decoded by the shared core.
 ///
-/// Carries its own id for the same reason `MailLinkRequest` does: sharing twice must open the
-/// composer twice, and without an id the second request would compare equal to the first and
-/// appear to do nothing.
+/// Carries its own id for the reason `MailLinkRequest` does: two shares of the same files are two
+/// requests, and each opens a composer of its own.
 struct ShareOpenRequest: Identifiable, Equatable {
     let id = UUID()
     let prefill: SharePrefill
@@ -118,8 +117,9 @@ struct ShareRouting: ViewModifier {
 /// When a share may leave the box for the composer.
 ///
 /// One share is on screen at a time. Taking a share spends it, and opening one over another would
-/// replace a composer holding files the user watched leave a share sheet and has not seen since:
-/// one nobody has written in closes without a draft, and its files go with it. So while a share's
+/// take a composer holding files the user watched leave a share sheet off the screen before they
+/// had looked at it: its files are kept in Drafts, because they count as written from the start,
+/// but the user did not ask for that and would have to find them there. So while a share's
 /// composer is open the box is left alone, and the next share opens once no composer is open, so
 /// it never replaces one the user opened in its place.
 enum ShareGate {
@@ -173,7 +173,17 @@ extension ContentView {
             model.pendingShare = request
             return
         }
-        openGuardingDraft { compose = .share(request) }
+        let share = request.prefill
+        beginCompose(
+            .new(account: model.selectedAccount),
+            prefill: ComposePrefill(
+                to: share.to, cc: share.cc, bcc: share.bcc, subject: share.subject,
+                bodyText: share.body, signed: false
+            ),
+            addedAttachments: share.attachments,
+            notice: shareRefusalNotice(share.rejected),
+            isShare: true
+        )
     }
 }
 

@@ -133,14 +133,14 @@ use background_sync::NotifyMarksState;
 pub use background_sync::{AccountNewMail, BackgroundNewMail, NewMailPreview};
 pub use calendar_cache::{CalendarPage, MonthPage};
 use calendar_prefs::CalendarPrefsState;
-pub use compose_request::ComposeRequest;
+pub use compose_request::{ComposeKind, ComposeOpening, QuoteSource};
 pub use composer_image::{MAX_INLINE_IMAGE_BYTES, image_data_url, image_data_url_from_bytes};
 pub use connector::MailboxConnector;
 pub use contacts_write::ContactTarget;
 pub use display_settings::DisplaySettings;
 use display_settings::DisplaySettingsState;
-pub use draft_ops::DRAFT_AUTOSAVE_IDLE;
 use draft_ops::DraftState;
+pub use draft_ops::{ComposeOrigin, ComposePrefill, DRAFT_AUTOSAVE_IDLE};
 pub use helpers::{export_file_name, forward_subject, reply_subject};
 pub use html::{Canvas, MESSAGE_CANVAS, print, render_document, should_open_external_link};
 pub use invitations_fallback::ReplyPrompt;
@@ -244,7 +244,7 @@ pub struct App<P> {
     /// A queued send the user asked to edit, waiting for the host to open its composer.
     /// Standing, like `unfiled_copy`: the outbox no longer holds the message, so nothing
     /// else does.
-    compose_request: Mutex<Option<compose_request::ComposeRequest>>,
+    compose_request: Mutex<Option<compose_request::ComposeOpening>>,
     view_mode: Mutex<ViewMode>,
     /// The preferences-file path (shared with the sub-settings states), or `None` for the
     /// in-memory demo/tests. Used to persist the message-list grouping across launches.

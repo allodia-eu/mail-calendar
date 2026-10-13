@@ -47,6 +47,61 @@ extension ContentView {
         open()
     }
 
+    /// Opens a composer on `origin` in the shell's own slot: the detail column on macOS, the
+    /// full-screen cover on iOS. Every route into the shell's composer comes through here, so each
+    /// one asks the core the same way (`MailboxModel.openComposer`).
+    ///
+    /// The composer appears when the core answers, through the same handover a message click uses.
+    /// One that could not open is said instead, and `failed` runs: a Drafts row then opens for
+    /// reading.
+    func beginCompose(
+        _ origin: ComposeOrigin,
+        prefill: ComposePrefill? = nil,
+        addedAttachments: [ComposerFileAttachment] = [],
+        notice: String? = nil,
+        isShare: Bool = false,
+        failed: (() -> Void)? = nil
+    ) {
+        Task { @MainActor in
+            guard let context = await model.openComposer(
+                origin, prefill: prefill, addedAttachments: addedAttachments,
+                notice: notice, isShare: isShare
+            ) else {
+                composeOpenFailed = composeOpenFailedMessage(for: origin)
+                failed?()
+                return
+            }
+            openGuardingDraft { compose = context }
+        }
+    }
+
+    /// Opens a new message. Composing while one mailbox is open sends from that account; in the
+    /// combined inbox there is no such context, and the core decides.
+    func beginNewMessage() {
+        beginCompose(.new(account: model.selectedAccount))
+    }
+
+    /// DEBUG/verification only: with `MAILCAL_COMPOSE=1`, open a new message once the core has
+    /// loaded an account to write from. Asked any earlier, the core is not there to answer.
+    func autoComposeIfRequested(accounts: Int) {
+        #if DEBUG
+        guard accounts > 0, !didAutoCompose,
+              ProcessInfo.processInfo.environment["MAILCAL_COMPOSE"] == "1"
+        else { return }
+        didAutoCompose = true
+        beginNewMessage()
+        #endif
+    }
+
+    /// Whether the "could not open" alert is up, for the alert's own binding.
+    var composeOpenFailedShown: Binding<Bool> {
+        let failed = $composeOpenFailed
+        return Binding(
+            get: { failed.wrappedValue != nil },
+            set: { if !$0 { failed.wrappedValue = nil } }
+        )
+    }
+
     /// Opens a `mailto:` link in the composer, pre-filled (docs/os-integration.md).
     ///
     /// Through the same handover a message click uses: a link arrives unprompted, from a web page
@@ -61,16 +116,28 @@ extension ContentView {
             model.pendingMailLink = request
             return
         }
-        openGuardingDraft { compose = .mailLink(request) }
+        let link = request.prefill
+        beginCompose(
+            .new(account: model.selectedAccount),
+            prefill: ComposePrefill(
+                to: link.to, cc: link.cc, bcc: link.bcc, subject: link.subject,
+                bodyText: link.body, signed: false
+            )
+        )
     }
 
-    /// Opens an assistant's draft in the composer, unsent (docs/mcp.md).
+    /// Opens an assistant's draft in the composer, unsent (docs/mcp.md): a reply when it names the
+    /// message it answers, so it stays in that conversation, and a new message otherwise
+    /// (`ComposeOpeningSeed.agentDraftOpening`).
     ///
     /// Through the same handover a message click uses. An assistant's draft arrives from another
     /// process, unprompted, at any moment, so the composer it replaces must keep what the user was
     /// writing, which it does by saving it to Drafts on the way out.
     func openDraft(_ request: AgentDraftRequest) {
-        openGuardingDraft { compose = .agentDraft(request) }
+        let (origin, prefill) = ComposeOpeningSeed.agentDraftOpening(
+            request.draft, selected: model.selectedAccount
+        )
+        beginCompose(origin, prefill: prefill)
     }
 }
 

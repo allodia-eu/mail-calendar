@@ -8,25 +8,17 @@
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
-    os::unix::fs::PermissionsExt as _,
-    path::PathBuf,
     rc::Rc,
     time::Duration,
 };
 
 use gtk::gio;
-use mailcal_bindings::{DraftStatus, draft_autosave_idle_seconds};
+use mailcal_bindings::{ComposeOrigin, DraftStatus, draft_autosave_idle_seconds};
 use webkit6::prelude::WebViewExt;
 
 use super::{
-    AppModel,
-    composer_draft::PendingNavigation,
-    composer_fields::ComposerFields,
-    composer_model::{
-        ComposeContext, ComposeKind, ComposerSubmission, PickedFile, new_composition,
-    },
-    model,
-    reader::ComposerHost,
+    AppModel, composer_fields::ComposerFields, composer_model::ComposerSubmission,
+    composer_open::ComposerTarget, model, reader::ComposerHost,
 };
 use crate::l10n;
 
@@ -151,62 +143,25 @@ impl AppModel {
     /// Told by the **folder**, not by the row: the core answers per message but the list does not
     /// carry it, so a draft met in a search result or in another folder's thread opens read-only
     /// (`docs/drafts.md`, known gaps).
-    ///
-    /// Resuming is a round trip and, unlike a forward, cannot count on the message being cached:
-    /// a draft is opened from a list row, so the first open of one fetches it. It runs on a
-    /// thread of its own for that reason, and the composer appears when the answer does.
     pub(super) fn open_or_resume(
         &mut self,
         message: model::OpenedMessage,
-        sender: relm4::Sender<super::AppInput>,
+        sender: &relm4::Sender<super::AppInput>,
     ) {
         if !self.snapshot.showing_drafts {
             self.open_message(message);
             return;
         }
-        let Some(app) = self.app.clone() else {
-            return;
-        };
-        let composition = new_composition();
-        let directory = resume_staging_dir(&composition);
-        let account = message.account.clone();
-        let key = message.key.clone();
-        let id = composition.clone();
-        std::thread::spawn(move || {
-            // Owner-only, before the core writes any of the user's mail into it, exactly as for
-            // a forward's files and for an attachment decoded to be opened.
-            let prepared = std::fs::create_dir_all(&directory).map(|()| {
-                let _ =
-                    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700));
-            });
-            let resumed = prepared.map_err(|_| ()).and_then(|()| {
-                app.resume_draft(
-                    id.clone(),
-                    account,
-                    key,
-                    directory.to_string_lossy().into_owned(),
-                )
-                .map_err(|_| ())
-            });
-            sender.emit(super::AppInput::DraftResumed(Box::new(resumed)));
-        });
-    }
-
-    /// Shows a resumed draft, or says that it could not be opened.
-    ///
-    /// Nothing is adopted on a failure, so the message is left alone rather than opened into a
-    /// composer whose next save would replace it with whatever was on screen.
-    pub(super) fn draft_resumed(&mut self, resumed: Result<mailcal_bindings::ComposeRequest, ()>) {
-        match resumed {
-            // A composer already in the pane is left first, so what it holds is kept in Drafts.
-            Ok(draft) if self.composer.is_some() => {
-                self.queue_navigation(PendingNavigation::Composer(ComposeContext::reopening(
-                    draft,
-                )));
-            }
-            Ok(draft) => self.commit_composer(ComposeContext::reopening(draft)),
-            Err(()) => self.notice = Some(l10n::compose_draft_open_failed().to_owned()),
-        }
+        self.open_composer_on(
+            ComposeOrigin::Draft {
+                account: message.account,
+                key: message.key,
+            },
+            None,
+            ComposerTarget::Pane,
+            Vec::new(),
+            sender,
+        );
     }
 
     /// How the draft in the composer hosted by `host` was last saved, or `None` when that
@@ -253,57 +208,6 @@ fn save_arguments(
         })
         .collect();
     (recipients, files)
-}
-
-/// A directory of this composer's own under the user's cache, so two resumed drafts never share
-/// a staged file.
-///
-/// Under the **cache** directory rather than `/tmp`, which inside a Flatpak is the sandbox's own:
-/// the same rule a forward's staging and an opened attachment follow.
-fn resume_staging_dir(composition: &str) -> PathBuf {
-    gtk::glib::user_cache_dir().join("mailcal").join(format!(
-        "resumed-draft-{}-{composition}",
-        std::process::id()
-    ))
-}
-
-impl ComposeContext {
-    /// What a composer reopened on a message that already exists opens with: a draft resumed
-    /// from Drafts, or a message moved back out of the Outbox. One constructor for both, because
-    /// the core answers both with one record and the composer must open each holding all of it.
-    ///
-    /// Two things separate it from every other new message. The composition is the one the core
-    /// joined the stored copy to, never a fresh one, or the composer's first save would store a
-    /// second copy beside the one it is showing. And it seeds **no signature**: the body already
-    /// carries whatever signature it was written with, so seeding one would put a second under
-    /// it, and the next save would store that.
-    pub(crate) fn reopening(request: mailcal_bindings::ComposeRequest) -> Self {
-        Self {
-            kind: ComposeKind::New,
-            host: ComposerHost::Pane,
-            account: None,
-            key: None,
-            initial_to: request.to,
-            initial_cc: request.cc,
-            initial_bcc: request.bcc,
-            subject: request.subject,
-            initial_body: (!request.body_text.is_empty()).then_some(request.body_text),
-            stored_html: (!request.body_html.is_empty()).then_some(request.body_html),
-            quote: None,
-            initial_from: Some(request.account).filter(|account| !account.is_empty()),
-            seeds_signature: false,
-            files: request
-                .attachments
-                .into_iter()
-                .map(|file| PickedFile {
-                    path: file.path,
-                    file_name: file.file_name,
-                    media_type: file.media_type,
-                })
-                .collect(),
-            composition: request.composition,
-        }
-    }
 }
 
 /// The quiet line under the editor, or `None` when there is nothing to say.
@@ -421,71 +325,3 @@ fn sample_editor(editor: &webkit6::WebView, seen: &Rc<Cell<i32>>, moved: &Rc<Cel
 
 /// Every composition a host is holding a status for, so the map does not grow with the session.
 pub(crate) type DraftStatuses = HashMap<String, DraftStatus>;
-
-#[cfg(test)]
-mod tests {
-    use mailcal_bindings::{ComposeRequest, ComposerFileAttachment};
-
-    use crate::ui::composer_model::{ComposeContext, body_seed_script};
-
-    /// A reopened message opens on the composition the core joined it to, with its files, its
-    /// account and its formatted body: the editor is seeded with the HTML, which it reads back
-    /// into its document, rather than with the words alone.
-    #[test]
-    fn a_reopened_message_opens_whole_on_its_own_composition() {
-        let context = ComposeContext::reopening(ComposeRequest {
-            account: "work".to_owned(),
-            composition: "outbox-7-1".to_owned(),
-            to: "ada@example.test".to_owned(),
-            cc: String::new(),
-            bcc: String::new(),
-            subject: "Re: Plans".to_owned(),
-            body_html: "<p><strong>Agreed</strong></p>".to_owned(),
-            body_text: "Agreed".to_owned(),
-            attachments: vec![ComposerFileAttachment {
-                path: "/staged/plan.pdf".to_owned(),
-                file_name: "plan.pdf".to_owned(),
-                media_type: "application/pdf".to_owned(),
-            }],
-        });
-
-        assert_eq!(context.composition, "outbox-7-1");
-        assert_eq!(context.initial_from.as_deref(), Some("work"));
-        assert_eq!(context.files.len(), 1);
-        assert!(
-            !context.seeds_signature,
-            "its body already carries its signature"
-        );
-        assert_eq!(
-            body_seed_script(&context).as_deref(),
-            Some(
-                "window.setComposerBody({\"html\":\"<p><strong>Agreed</strong></p>\",\"text\":\
-                 \"Agreed\"});"
-            )
-        );
-    }
-
-    /// The twin of the forward staging assertion, and it fails the same way: a path under the
-    /// sandbox's private `/tmp` looks right in a host build and is not there in the Flatpak the
-    /// user runs, so the composer opens without the files the draft carries and the next save
-    /// takes them off the server.
-    #[test]
-    fn a_staged_draft_file_never_lands_in_the_sandboxs_private_tmp() {
-        let directory = super::resume_staging_dir("composer-1");
-        assert!(
-            directory.starts_with(gtk::glib::user_cache_dir()),
-            "staged under {}, which a Flatpak does not share with the host",
-            directory.display()
-        );
-    }
-
-    /// Two resumed drafts never share a directory, so removing one composer's staged file cannot
-    /// take another composer's.
-    #[test]
-    fn each_resumed_draft_stages_into_a_directory_of_its_own() {
-        assert_ne!(
-            super::resume_staging_dir("composer-1"),
-            super::resume_staging_dir("composer-2")
-        );
-    }
-}

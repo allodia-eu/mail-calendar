@@ -3,13 +3,10 @@
 use std::sync::Arc;
 
 use engine_api::AccountId;
-use mailcal_app::{
-    ComposerBlob as AppComposerBlob, Intent as AppIntent, MessageRef,
-    RecipientSuggestion as AppRecipientSuggestion,
-};
+use mailcal_app::{ComposerBlob as AppComposerBlob, Intent as AppIntent, MessageRef};
 use mailcal_composer::{ComposerDocument, ComposerOutput, DraftBlobHandle};
 
-use crate::{MailcalApp, MailcalError, drafts::sent_composition};
+use crate::{MailcalApp, MailcalError};
 
 /// Host-resolved bytes for one composer blob handle.
 #[derive(uniffi::Record)]
@@ -22,8 +19,8 @@ pub struct ComposerBlob {
 
 /// The recipient fields a host's composer collects, each a comma-separated address list
 /// the core splits on send. `cc`/`bcc` may be empty; `bcc` recipients are delivered but
-/// hidden from every other recipient. A host pre-fills `to`/`cc` for a reply from
-/// [`MailcalApp::reply_recipients`]; `bcc` is always the user's own addition.
+/// hidden from every other recipient. A host pre-fills them from what the composer opened with
+/// ([`MailcalApp::open_composer`]).
 #[derive(uniffi::Record)]
 pub struct Recipients {
     /// The `To` recipients (comma-separated addresses).
@@ -40,7 +37,7 @@ pub struct Recipients {
 ///
 /// Clients keep editor UX native-to-WebView while asking Rust for the canonical HTML,
 /// text fallback, and attachment manifest. Hosts may call this before
-/// [`MailcalApp::submit_rich_mail`] to validate and preview the exact output contract.
+/// [`MailcalApp::submit_composition`] to validate and preview the exact output contract.
 ///
 /// # Errors
 ///
@@ -70,91 +67,8 @@ pub fn reply_subject(original: String) -> String {
     mailcal_app::reply_subject(Some(&original))
 }
 
-/// The subject a forward of `original` opens with: `Fwd: <original>`, on the same terms as
-/// [`reply_subject`].
-#[must_use]
 #[uniffi::export]
-pub fn forward_subject(original: String) -> String {
-    mailcal_app::forward_subject(Some(&original))
-}
-
-#[uniffi::export]
-impl MailcalApp {
-    /// Sends a rich composer document through the durable outbox. `document_json` is a
-    /// serialized [`mailcal_composer::ComposerDocument`]; `blobs` supplies the bytes for
-    /// attachment handles referenced by that document. Fire-and-forget: this returns
-    /// once the document validates and every required blob handle has bytes, and the
-    /// observer fires when the async send/refresh completes.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MailcalError::Composer`] if `document_json` is invalid, document
-    /// validation fails, a blob handle is blank, a required blob is missing, or a
-    /// supplied byte length disagrees with known attachment metadata. Provider send
-    /// failures are recorded through the outbox like existing plain-text submission and
-    /// are not returned synchronously.
-    ///
-    /// `from` is the account id the user picked in the composer's From dropdown. Omit it (the
-    /// default) to let the core derive the sending account: the selected account, else the
-    /// app-level default send account, else the first configured one.
-    ///
-    /// `composition` is the composer's own id, the one its saves and its `close_composition`
-    /// use. Pass it whenever the composer could have saved a draft: an accepted send then
-    /// takes that stored copy out of Drafts, and a failed one leaves it where the user can
-    /// still find their words.
-    #[allow(clippy::too_many_arguments)]
-    #[uniffi::method(default(from = None, composition = None))]
-    pub fn submit_rich_mail(
-        &self,
-        recipients: Recipients,
-        subject: String,
-        document_json: String,
-        blobs: Vec<ComposerBlob>,
-        from: Option<String>,
-        composition: Option<String>,
-    ) -> Result<(), MailcalError> {
-        let (document, blobs) = prepare_rich(&document_json, blobs)?;
-        let Recipients { to, cc, bcc } = recipients;
-        self.spawn_dispatch(AppIntent::SubmitRichMail {
-            from: send_account(from)?,
-            to,
-            cc,
-            bcc,
-            subject,
-            document,
-            blobs,
-            composition: sent_composition(composition)?,
-        });
-        Ok(())
-    }
-
-    /// Suggests the recipients to pre-fill a reply's editable `To`/`Cc` fields for the
-    /// message `key` (in `account`): `reply_all = false` suggests just the `To` (the
-    /// original's `Reply-To`, else `From`), `reply_all = true` additionally puts every other
-    /// thread participant in `Cc`, minus the user's own identity. The user may edit the
-    /// fields before sending; `Bcc` is never suggested (always the user's own addition).
-    /// Returns empty fields when the original isn't in the account's synced set.
-    ///
-    /// Blocks briefly on the internal runtime (it reads the stored original), like
-    /// [`MailcalApp::add_account`]; a malformed `account`/`key` yields an empty suggestion.
-    #[must_use]
-    pub fn reply_recipients(
-        &self,
-        account: String,
-        key: String,
-        reply_all: bool,
-    ) -> crate::RecipientSuggestion {
-        let Ok(message) = message_ref(&account, key) else {
-            // A malformed account/key yields an empty suggestion (the composer opens blank),
-            // built through the same conversion the success path uses.
-            return AppRecipientSuggestion::default().into();
-        };
-        let app = Arc::clone(&self.app);
-        self.runtime
-            .block_on(|| async move { app.reply_recipients(message, reply_all).await })
-            .into()
-    }
-}
+impl MailcalApp {}
 
 impl MailcalApp {
     /// Schedules a fire-and-forget rich dispatch on the internal runtime: the shared
@@ -307,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn rich_submit_rejects_a_missing_blob_before_scheduling() {
+    fn a_save_with_a_missing_blob_is_refused_before_scheduling() {
         struct NoopObserver;
 
         impl Observer for NoopObserver {
@@ -353,7 +267,8 @@ mod tests {
         }"#;
 
         let err = app
-            .submit_rich_mail(
+            .save_draft(
+                "composer-1".to_owned(),
                 Recipients {
                     to: "you@test.local".to_owned(),
                     cc: String::new(),
@@ -365,7 +280,6 @@ mod tests {
                     handle: "other".to_owned(),
                     bytes: vec![1, 2, 3],
                 }],
-                None,
                 None,
             )
             .unwrap_err();

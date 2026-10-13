@@ -4,15 +4,13 @@
 //! Its own file rather than an addition to [`crate::composer`], which is at the 500-line
 //! limit. The rules these expose are in `docs/drafts.md`.
 
-use std::sync::Arc;
-
 use mailcal_app::{
     CompositionId, DraftStatus as AppDraftStatus, DraftsIntent, Intent as AppIntent,
 };
 
 use crate::{
     MailcalApp, MailcalError,
-    composer::{ComposerBlob, Recipients, message_ref, prepare_rich, send_account},
+    composer::{ComposerBlob, Recipients, prepare_rich, send_account},
     composer_files::{ComposerFileAttachment, prepare_with_files},
 };
 
@@ -68,7 +66,7 @@ impl MailcalApp {
     /// `composition` names the composer, and the host keeps one id per open composer for as
     /// long as it lives: that is what lets two composers save without superseding each
     /// other's draft. `document_json` and `blobs` carry the body exactly as
-    /// [`MailcalApp::submit_rich_mail`] does.
+    /// [`MailcalApp::submit_composition`] does.
     ///
     /// Both the explicit "Save as draft" and the idle timer call this, and the core cannot
     /// tell them apart. Fire-and-forget: it returns once the document validates, and the
@@ -118,7 +116,7 @@ impl MailcalApp {
     /// picked, and the ones a resumed draft opened with.
     ///
     /// The byte read happens here rather than in the host, exactly as on
-    /// [`MailcalApp::submit_rich_mail_with_files`], so file content does not cross the FFI.
+    /// [`MailcalApp::submit_composition`], so file content does not cross the FFI.
     ///
     /// **A composer holding files saves through this one, never the other.** A save replaces
     /// the copy on the server, so a save that left the files out would take them off it: the
@@ -247,48 +245,6 @@ impl MailcalApp {
     /// Returns [`MailcalError::Engine`] if `composition` is blank.
     pub fn draft_is_stored(&self, composition: String) -> Result<bool, MailcalError> {
         Ok(self.app.draft_is_stored(&composition_id(composition)?))
-    }
-
-    /// Opens the stored draft `key` (in `account`) into `composition`, so the composer the
-    /// host is about to show saves over that copy rather than beside it.
-    ///
-    /// `composition` is the host's own, minted for that composer exactly as for a reply, and
-    /// used from then on by `save_draft`, `discard_draft` and `close_composition`.
-    ///
-    /// **Open the composer with what this returns, not before it.** The draft's files are
-    /// staged into `staging_directory` before it answers, and the composer must hold them:
-    /// its next save replaces the stored copy, so a file it opened without is a file that
-    /// save takes out of the user's mailbox. `staging_directory` is the host's own private
-    /// area and the host owns what is left in it, as for a forward.
-    ///
-    /// **Call this off the UI thread.** It blocks on the internal runtime, and unlike
-    /// staging a forward's files it cannot count on a warm cache: a draft is opened from a
-    /// list row rather than from the reading view, so the first open of one fetches the
-    /// message from the server.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MailcalError::Engine`] if `composition` is blank, the `account`/`key`
-    /// reference is malformed, the draft cannot be resolved, **the message is not a draft**,
-    /// its body cannot be read, or a file cannot be staged. Nothing is adopted on an error:
-    /// show it rather than opening an empty composer, which would save over the draft.
-    pub fn resume_draft(
-        &self,
-        composition: String,
-        account: String,
-        key: String,
-        staging_directory: String,
-    ) -> Result<crate::ComposeRequest, MailcalError> {
-        let composition = composition_id(composition)?;
-        let message = message_ref(&account, key)?;
-        let app = Arc::clone(&self.app);
-        self.runtime
-            .block_on(|| async move {
-                app.resume_draft(composition, message, &staging_directory)
-                    .await
-            })
-            .map(crate::ComposeRequest::from)
-            .map_err(MailcalError::Engine)
     }
 }
 

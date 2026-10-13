@@ -30,7 +30,7 @@ import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.AnalyticsConsent
 import uniffi.mailcal_bindings.Appearance
-import uniffi.mailcal_bindings.ComposeRequest
+import uniffi.mailcal_bindings.ComposeOpening
 import uniffi.mailcal_bindings.ConnectivitySnapshot
 import uniffi.mailcal_bindings.CalendarLayout
 import uniffi.mailcal_bindings.CalendarWriteStatus
@@ -96,14 +96,15 @@ class MainActivity : AppCompatActivity() {
     // Outbox *and* on the unified inbox (docs/folder-pane.md, rule 18).
     internal var outbox by mutableStateOf<List<QueuedRow>>(emptyList())
     internal var showingOutbox by mutableStateOf(false)
-    // The Drafts folder's state on this screen: whether it is open, and a draft on its way back
-    // into a composer (MainActivityDrafts.kt).
+    // The Drafts folder's state on this screen (MainActivityDrafts.kt), and the composer on screen
+    // or on its way (MainActivityComposer.kt).
     internal val drafts = DraftUiState()
+    internal val composer = ComposerUiState()
     // A folder change the server refused, until the user closes it (docs/folder-pane.md, rule 28).
     internal var folderNotice by mutableStateOf<FolderNotice?>(null)
     // A message the core withdrew from the Outbox so the user can change it. It exists nowhere
     // else by the time it arrives, so it is held until this client's composer has it.
-    internal var withdrawnMessage by mutableStateOf<ComposeRequest?>(null)
+    internal var withdrawnMessage by mutableStateOf<ComposeOpening?>(null)
     // The selected folder key within the selected account (null = all mail). Pulled with the snapshot.
     internal var selectedFolder by mutableStateOf<String?>(null)
     // How far back the active search looked, or null when the list is not a search.
@@ -327,10 +328,9 @@ class MainActivity : AppCompatActivity() {
     // drained and cleared in connect() once `app` is ready.
     internal var pendingNotificationOpen: Pair<String, String>? = null
     // The composer prefill from a mail link (`mailto:`), set from the launch intent (cold start)
-    // or onNewIntent (resumed) and cleared when the composer closes. Compose state, not a plain
-    // field: the mailbox screen opens its composer by observing it. It needs no connect() drain
-    // like the deep-link above, parsing is pure and account-free, and the mailbox (which hosts
-    // the composer) is only composed once the core is up anyway.
+    // or onNewIntent (resumed) and cleared when its composer is asked for. Compose state, not a
+    // plain field: the mailbox opens the composer by observing it, and is only composed once the
+    // core is up, so it needs no connect() drain like the deep-link above.
     internal var pendingMailto by mutableStateOf<MailtoPrefill?>(null)
     // The same, for a share (docs/os-integration.md): set once its files have been staged.
     internal var pendingShare by mutableStateOf<SharePrefill?>(null)

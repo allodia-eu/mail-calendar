@@ -1,9 +1,8 @@
 // Opening a `mailto:` link in the composer (docs/os-integration.md).
 //
 // The URI *parsing* is the shared core's and is held by its own Rust tests. What is Apple's, and
-// what is covered here, is the identity of the request: a link that arrives twice must open the
-// composer twice. That fails silently, the second tap simply appears to do nothing, which is why
-// it earns a test rather than a comment.
+// what is covered here, is the identity of the request: a link that arrives twice is two requests,
+// and keeps every field the core decoded.
 //
 // The other client-side rule Gate 12 binds, that a pre-filled Cc/Bcc opens the collapsed row, is
 // held by `RecipientTokenTests.aPreFilledCcOrBccOpensTheCollapsedRow` and is shared with every
@@ -22,22 +21,11 @@ import Testing
     }
 
     @Test func theSameLinkTwiceIsTwoRequests() {
-        // `ComposeContext` is `Identifiable` and iOS presents it with `.fullScreenCover(item:)`,
-        // which does nothing when the new item's id equals the one already presented. Without a
-        // per-request id, tapping the same link again would compare equal and never reopen.
+        // Two taps on one link are two requests, never one value seen twice.
         let first = MailLinkRequest(prefill: prefill(to: "ada@example.test"))
         let second = MailLinkRequest(prefill: prefill(to: "ada@example.test"))
 
         #expect(first != second)
-        #expect(ComposeContext.mailLink(first).id != ComposeContext.mailLink(second).id)
-    }
-
-    @Test func aMailLinkIsItsOwnComposeContext() {
-        // It must not collide with the blank composer's id: `.new` is a constant, so a link
-        // opening while a new message is up would otherwise read as the same presentation.
-        let request = MailLinkRequest(prefill: prefill(to: "ada@example.test"))
-        #expect(ComposeContext.mailLink(request).id != ComposeContext.new.id)
-        #expect(ComposeContext.mailLink(request).id.hasPrefix("mailLink:"))
     }
 
     @Test func aRequestKeepsEveryFieldTheCoreDecoded() {

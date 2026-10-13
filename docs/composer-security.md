@@ -46,9 +46,9 @@ Every client sends the editor document to Rust before mail submission:
 - Inline images are `cid:` references only; remote image URLs are not composer body content.
 - Attachment-only images/files stay in the attachment manifest and are not rendered into the body.
 - The output is a MIME-ready manifest, not byte content. A host-staged file stays behind its blob
-  handle until the host calls `submit_rich_mail` with resolved bytes. Regular native file
-  attachments use `submit_rich_*_with_files`: hosts pass selected file paths/metadata and Rust
-  reads the bytes locally while preparing the MIME draft, so file content does not cross FFI.
+  handle until the host saves it with resolved bytes. Regular native file attachments go through
+  `submit_composition` and the file-carrying saves: hosts pass selected file paths/metadata and
+  Rust reads the bytes locally while preparing the MIME draft, so file content does not cross FFI.
 - **One exception, and it is bounded: a picture the editor captured itself** (a paste, or the
   "show it in the message" answer to a dropped image) has no staged file to hand a handle for, so
   its bytes ride in the document as a base64 `data:` URI and Rust decodes them on submit. Gate 13
@@ -305,7 +305,7 @@ port:
       type is used only when well formed; `*/*` is not one.
     - **Bytes are staged by the host and read by Rust.** A client holding an OS handle copies it
       into its own private storage and passes a path; the core reads it at submit
-      (`submit_rich_*_with_files`), so file content still does not cross FFI, exactly as for a
+      (`submit_composition`), so file content still does not cross FFI, exactly as for a
       picked file.
     - **Nothing is ever sent**, and nothing is dropped silently: a file the core refuses comes back
       with a reason, because one the user watched disappear from a share sheet is one they will
@@ -338,7 +338,7 @@ port:
     A draft resumed from Drafts, or a message moved back out of the Outbox, opens through
     `setComposerBody` with the message's own HTML ([`drafts.md`](drafts.md)). That HTML is mail the
     server handed back, so it is hostile input like any other:
-    - **The core sanitises it before any host sees it** (`ComposeRequest::body_html`), with the
+    - **The core sanitises it before any host sees it** (`ComposeOpening::body_html`), with the
       reading view's allowlist, and turns each `cid:` picture into the `data:` URI of its part,
       noting the part's `Content-ID` beside it as `data-cid` for the editor to keep. A host passes it
       on as data: one JSON string the editor parses, never spliced into a script.
@@ -383,17 +383,17 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | Dropped picture asks show-or-attach | `confirmationDialog` | Material `AlertDialog` | `ContentDialog` (three answers) | `AdwAlertDialog`; a **pasted** picture is not asked about, because a paste is aimed at the caret and has already answered (Gate 13) |
 | Right-click menu filtered to the editing actions | macOS: `EditorWebView.willOpenMenu` keeps the four `WKMenuItemIdentifier`s and `validRequestor` answers `nil` to keep Services off (AppKit's AutoFill survives both: see "Known gaps"); iPhone/iPad get the system edit menu, which carries the editing actions but **no link item at all** (see "Known gaps") | selection bar for Cut/Copy/Paste; `installEditorLinkMenu` adds Copy link on a long press | `ContextMenuRequested` keeps `cut`/`copy`/`paste`/`selectAll`/`copyLinkLocation` | `connect_context_menu` rebuilds it from the stock `ContextMenuAction`s, **except Paste**, which is the app's own so the host can read a picture off the clipboard (Gate 13) |
 | Editor chrome localised | shared catalog via `setComposerLabels` (`ComposerLabels.swift`), in the composer **and** the signature editor | shared catalog via `setComposerLabels` | shared catalog via `setComposerLabels` (`ComposerLabels.cs`), in the composer **and** the signature editor | shared catalog via `setComposerLabels` |
-| Rust canonical output | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | call `submit_rich_*_with_files` for regular file attachments; use `render_composer_document_json` for preview when needed | calls `submit_rich_*_with_files`; selected files are native metadata, never WebKit uploads |
+| Rust canonical output | send through `submit_composition`, regular file attachments included; use `render_composer_document_json` for preview when needed | send through `submit_composition`, regular file attachments included; use `render_composer_document_json` for preview when needed | send through `submit_composition`, regular file attachments included; use `render_composer_document_json` for preview when needed | sends through `submit_composition`; selected files are native metadata, never WebKit uploads |
 | No body-content logging | lengths/counts only | lengths/counts only | lengths/counts only | no composer body is logged |
 | Quoted-original sanitisation | shared core re-sanitises every quote body on submit (`rich_draft`); the host editor is never trusted | (same: shared core) | (same: shared core) | same shared-core `rich_draft` re-sanitisation |
 | Signature sanitisation + `data:`→`cid:` | shared core sanitises on store **and** on submit, then rewrites inline `data:` images to `cid:` parts | (same: shared core) | (same: shared core) | (same: shared core) |
 | `initial_text` is plain text | host passes only `showcase_reply(locale).text`; the shared editor assigns it as `textContent` | (same: shared editor) | (same: shared editor) | (same: shared editor) |
 | `mailto:` link decoded by the core, never the client | `CFBundleURLTypes` scheme `mailto` → the shell's `onOpenURL` → `parseMailtoUri`. No scheme gate is needed: the OAuth redirects are captured inside their own `ASWebAuthenticationSession` and never reach it. **macOS only in practice**: iOS routes a mail link to the *default* mail app alone, which needs an Apple-granted entitlement ([`os-integration.md`](os-integration.md)) | `ACTION_VIEW` + `ACTION_SENDTO` on scheme `mailto` → `parseMailtoUri` (`MailtoLaunch` gates action + scheme so an OAuth redirect is never mistaken for a link) | MSIX `windows.protocol` `mailto` → `ParseMailtoUri` (`MailLink` gates the scheme, for the same reason; the URI reaches the core as `OriginalString`, still percent-encoded) | desktop `MimeType=x-scheme-handler/mailto` + raw GApplication command-line activation → `parse_mailto_uri`; cold and redirected warm activations share one broker path |
 | `Cc`/`Bcc` collapsed by default, revealed when pre-filled | `revealsCcBcc(cc:bcc:)` seeds `showsCcBcc`; held by `RecipientTokenTests`, and on a mail link's own shape by `MailLinkTests` | `revealsCcBcc(cc, bcc)` opens the row; held by a JVM test | `RecipientTokens.RevealsCcBcc` sets the chevron's `IsChecked`; the rule is held by `Mailcal.Tests` and the collapse itself by a UI test that asks the running window for the fields, plus the mail-link suite that reads the pre-filled pills off it | `reveals_cc_bcc` sets the chevron; held by the crate's GTK test, which reads the row's visibility off the widget |
-| Reopened message seeded from sanitised HTML (Gate 17) | `ComposeRequest.bodyHtml` → `RichComposerEditor.bodySeedScript` → the shared editor's `setComposerBody` | `ComposeRequest.bodyHtml` → `composerPageFinishedScripts` → `setComposerBody` | `ComposeRequest.BodyHtml` → `ComposerBodySeed.Script` → `setComposerBody` | `ComposeRequest::body_html` → `body_seed_script` → `setComposerBody` |
+| Reopened message seeded from sanitised HTML (Gate 17) | `ComposeOpening.bodyHtml` → `RichComposerEditor.openingSeedScript` → the shared editor's `setComposerBody` | `ComposeOpening.bodyHtml` → `composerPageFinishedScripts` → `setComposerBody` | `ComposeOpening.BodyHtml` → `ComposerBodySeed.Script` → `setComposerBody` | `ComposeOpening::body_html` → `body_seed_script` → `setComposerBody` |
 | `mailto:` body seeded as text | `initialBody` → the shared editor's `setPlainText`, as `textContent` | `window.setPlainText` (shared editor) assigns one paragraph per line via `textContent` | (same: shared editor, the same call the assistant-draft path uses) | (same: shared editor; the body is JSON-encoded data, never script) |
-| Shared files named and typed by the core (Gate 15) | a Share Extension (`com.apple.share-services`) stages the shared bytes into a drop box and asks for the app, which calls `prefillFromShare`; the extension holds no core and never sends, and the box is an App Group container where a profile grants one and a narrowly granted directory under the user's home otherwise | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` on `*/*` → `prefillFromShare`; `ShareLaunch` gates the action, the bytes are copied out of the sender's provider into app cache first | MSIX `windows.shareTarget` (any file type, plus Text and WebLink) → `PrefillFromShare`; the shared bytes are staged out of the `ShareOperation` before it reports complete, since its access ends there | desktop `MimeType=` + `%U` and `--attach` → `prefill_from_share`; the composer opens holding `ComposeRequest::files` |
-| A forward's own files, staged by the core | `stageForwardedAttachments` into the app's temporary directory, seeded through `initialAttachments` | (same call) into the app cache, seeded through `initialAttachments` | (same call) into the temp directory, seeded through `ComposeRequest.Attachments` | (same call) into the app cache (owner-only), seeded through `ComposeRequest::files` |
+| Shared files named and typed by the core (Gate 15) | a Share Extension (`com.apple.share-services`) stages the shared bytes into a drop box and asks for the app, which calls `prefillFromShare`; the extension holds no core and never sends, and the box is an App Group container where a profile grants one and a narrowly granted directory under the user's home otherwise | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` on `*/*` → `prefillFromShare`; `ShareLaunch` gates the action, the bytes are copied out of the sender's provider into app cache first | MSIX `windows.shareTarget` (any file type, plus Text and WebLink) → `PrefillFromShare`; the shared bytes are staged out of the `ShareOperation` before it reports complete, since its access ends there | desktop `MimeType=` + `%U` and `--attach` → `prefill_from_share`; the composer opens holding the share's files on top of `ComposeOpening::attachments` |
+| A forward's own files, staged by the core | `openComposer` (a `Forward` origin) into the app's temporary directory, seeded through `ComposeOpening.attachments` | (same call) into the app cache, seeded through `ComposeOpening.attachments` | (same call) into the temp directory, seeded through `ComposeOpening.Attachments` | (same call) into the app cache (owner-only), seeded through `ComposeOpening::attachments` |
 
 ## Known gaps / follow-ups
 
@@ -469,15 +469,14 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 
 - **iOS/iPadOS composer newly ported (Apple multiplatform migration).** It hosts the **same**
   hardened editor `WKWebView` as macOS (JS for the composer only, navigation + new windows blocked, Rust
-  canonical output via `submit_rich_*`, no body-content logging); only native file picking differs:
+  canonical output via `submit_composition`, no body-content logging); only native file picking differs:
   `UIDocumentPicker` in place of `NSOpenPanel`. **Build-green and real-account verified on the
   iPhone/iPad simulators;** background delivery remains the coordinated iOS/Android follow-up before
   iOS/iPadOS ship to users.
 - Apple, Android, and Windows host the shared local editor bundle for new message, **reply, and
   forward** body formatting; all three open the **same** hardened editor host (no new surface) and
-  call `submit_rich_mail` / `submit_rich_reply` / `submit_rich_forward` with the editor document; the
-  Rust use-case layer derives the reply recipient/`Re:` subject/threading and the forward `Fwd:`
-  subject.
+  send with `submit_composition`; the Rust use-case layer derives the reply recipients, the `Re:` and
+  `Fwd:` subjects and the threading when the composer opens (`open_composer`).
 - **Auto-quoting the original** into the reply/forward body now ships on **all three clients** (the
   reading-view reply/forward seeds a `Block::Quote` with the original's already-sanitised body and
   either an indented one-line attribution or a line-and-header block, chosen by a persisted default
@@ -513,7 +512,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   Windows that was a deliberate refactor: the gates had been inlined in `ComposerView.xaml.cs`, and
   a second host would have meant a second copy of them.
 - Native regular-file pickers and byte wiring now ship on Apple, Android, and Windows:
-  `submit_rich_*_with_files` validates the document, appends the selected files as regular MIME
+  `submit_composition` validates the document, appends the selected files as regular MIME
   attachments, and reads bytes in Rust from host-selected/staged paths. Inline images now reach the
   body two ways (Gate 13): a paste, handled in the shared bundle, and the "show it in the message"
   answer to a dropped picture. Neither is a *picker*: a toolbar button that browses for a picture

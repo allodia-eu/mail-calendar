@@ -24,12 +24,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import uniffi.mailcal_bindings.AccountRow
-import uniffi.mailcal_bindings.ComposerFileAttachment
+import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.FlatRow
-import uniffi.mailcal_bindings.Recipients
-import uniffi.mailcal_bindings.RecipientMatch
-import uniffi.mailcal_bindings.RecipientSuggestion
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 
@@ -53,7 +49,6 @@ internal fun SwipeableFlatMessageRow(
     inJunkFolder: Boolean,
     swipe: SwipeSettings,
     onSwipe: (account: String, key: String, action: SwipeActionKind) -> Unit,
-    accounts: List<AccountRow>,
     selected: Boolean,
     selecting: Boolean,
     onToggleSelect: () -> Unit,
@@ -64,17 +59,8 @@ internal fun SwipeableFlatMessageRow(
     onPermanentlyDelete: (account: String, key: String) -> Unit,
     onMarkAsSpam: (account: String, key: String) -> Unit,
     onMarkAsNotSpam: (account: String, key: String) -> Unit,
-    onReply: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
-    onForward: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
-    replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
-    // The core verbs a composer raised from here keeps its message on the server with
-    // (`docs/drafts.md`); null turns draft saving off (a screenshot run, a test).
-    drafts: ComposerDrafts? = null,
-    stageForwardFiles: (account: String, key: String, directory: String) -> List<ComposerFileAttachment>,
-    suggestionsFor: ((String) -> List<RecipientMatch>)? = null,
-    // The signature library + lookups for the reply/forward composer, or null to leave signatures
-    // out (a screenshot run, a test).
-    signatures: ComposerSignatures? = null,
+    // Opens the composer on a reply, a reply to all or a forward of this row's message.
+    onCompose: (ComposeOrigin) -> Unit,
     messageFiling: MessageFiling? = null,
 ) {
     // `onDismiss` is remembered once (see below), so reading `swipe`/`onSwipe`/`message` directly
@@ -139,7 +125,6 @@ internal fun SwipeableFlatMessageRow(
             message = message,
             activeZoneId = activeZoneId,
             inJunkFolder = inJunkFolder,
-            accounts = accounts,
             selected = selected,
             selecting = selecting,
             onToggleSelect = onToggleSelect,
@@ -150,13 +135,7 @@ internal fun SwipeableFlatMessageRow(
             onPermanentlyDelete = onPermanentlyDelete,
             onMarkAsSpam = onMarkAsSpam,
             onMarkAsNotSpam = onMarkAsNotSpam,
-            onReply = onReply,
-            onForward = onForward,
-            drafts = drafts,
-            replyRecipients = replyRecipients,
-            stageForwardFiles = stageForwardFiles,
-            suggestionsFor = suggestionsFor,
-            signatures = signatures,
+            onCompose = onCompose,
             messageFiling = messageFiling,
         )
     }

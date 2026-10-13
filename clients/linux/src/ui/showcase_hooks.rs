@@ -4,6 +4,8 @@
 //! Compiled out of a release build with the rest of that path, and kept beside the model rather
 //! than inside it so the shell's own file stays the shell's.
 
+use mailcal_bindings::Surface;
+
 use super::{AppInput, AppModel, ComposeKind, OpenedMessage};
 use crate::showcase::ShowcaseScreen;
 
@@ -12,8 +14,8 @@ impl AppModel {
     ///
     /// The screens that need only local state are set here; the ones that need a window go through
     /// the input sender, because `init` runs before the widgets exist. `Reply` is the one that
-    /// cannot finish here at all: the composer seeds itself from the opened message's *body*, which
-    /// arrives on the observer, so it opens the message now and finishes in
+    /// cannot finish here at all: it waits for the opened message's *body*, which arrives on the
+    /// observer, so it opens the message now and finishes in
     /// [`Self::continue_showcase`]. Waiting on the event rather than on a timer is what keeps the
     /// capture honest on a slow, cold launch.
     pub(super) fn begin_showcase(&mut self, input: &relm4::Sender<AppInput>) {
@@ -78,17 +80,35 @@ impl AppModel {
         self.open_row(index);
     }
 
+    /// The hooks that wait on a surface the core has just published. An open-contact hook waits
+    /// for the rows, because it names a person and the list is filled asynchronously after the
+    /// surface is entered; a showcase reply waits for the opened message's body.
+    pub(super) fn apply_surface_hooks(
+        &mut self,
+        surface: &Surface,
+        input: &relm4::Sender<AppInput>,
+    ) {
+        match surface {
+            Surface::Contacts => self.apply_debug_open_contact_hook(input.clone()),
+            Surface::Reading => self.continue_showcase(input),
+            _ => {}
+        }
+    }
+
     /// Finishes a `reply` screenshot once the opened message's body has arrived.
-    pub(super) fn continue_showcase(&mut self) {
+    fn continue_showcase(&mut self, input: &relm4::Sender<AppInput>) {
         // `body_arrived`, not `matches_opened`: the core publishes the reading surface as soon as
-        // the selection changes, and `quote_seed` refuses a snapshot with no body: so replying on
-        // the first notification opens an empty composer with neither the quote nor the sample
-        // text, which is a well-formed screenshot of the wrong thing.
+        // the selection changes, and a reply raised before the body is cached sends the core to
+        // the server for the message it quotes, which a capture on a cold launch then waits on.
         if self.showcase_pending != Some(ShowcaseScreen::Reply) || !self.reading.body_arrived() {
             return;
         }
         self.showcase_pending = None;
-        self.begin_compose(&crate::ui::reader::ReadingSource::Pane, ComposeKind::Reply);
+        self.begin_compose(
+            &crate::ui::reader::ReadingSource::Pane,
+            ComposeKind::Reply,
+            input,
+        );
     }
 
     pub(super) fn apply_debug_open_hook(&mut self) {
@@ -115,7 +135,7 @@ impl AppModel {
     ///
     /// Matched on the **displayed** name, which is what a test can read off the screen: a
     /// nameless card carries the client's placeholder there, and so does this.
-    pub(super) fn apply_debug_open_contact_hook(&mut self, sender: relm4::Sender<AppInput>) {
+    fn apply_debug_open_contact_hook(&mut self, sender: relm4::Sender<AppInput>) {
         if self.contacts.opened().is_some() {
             return;
         }

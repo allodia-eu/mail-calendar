@@ -7,7 +7,8 @@
 use engine_api::MessageIdHeader;
 
 use super::{
-    ThreadProvider, app_over, dispatch_until, original_message, reply_app, reply_document,
+    ThreadProvider, app_over, dispatch_until, forward_origin, original_message, reply_app,
+    reply_document, send_from_composer,
 };
 use crate::{Intent, MessageRef, SendStatus};
 
@@ -29,17 +30,18 @@ async fn rich_forward_sets_fwd_subject_and_threads_on_references() {
     app.dispatch(Intent::RefreshMail).await;
 
     let (document, blobs) = reply_document();
-    let intent = Intent::SubmitRichForward {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        from: None,
-        to: "dest@forward.test".to_owned(),
-        cc: "watcher@forward.test".to_owned(),
-        bcc: String::new(),
-        subject: None,
+    let intent = send_from_composer(
+        &app,
+        forward_origin("m1"),
+        None,
+        "dest@forward.test",
+        "watcher@forward.test",
+        "",
+        None,
         document,
         blobs,
-        composition: None,
-    };
+    )
+    .await;
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
     assert_eq!(app.send_status(), SendStatus::Sent);
 

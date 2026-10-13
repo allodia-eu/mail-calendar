@@ -185,6 +185,7 @@
 	"compose_draft_queued": "In attesa di salvataggio.",
 	"compose_draft_failed": "Impossibile salvare questa bozza.",
 	"compose_draft_open_failed": "Impossibile aprire questa bozza.",
+	"compose_open_failed": "Impossibile aprire il messaggio da scrivere. Riprovi tra un momento.",
 	"editor_placeholder": "Scrivi il tuo messaggio",
 	"editor_bold": "Grassetto",
 	"editor_italic": "Corsivo",

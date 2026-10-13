@@ -18,7 +18,12 @@ import { editLinkThroughHost } from "./link_menu";
 import { autolinkBeforeCaret } from "./links";
 import { indentSelection } from "./lists";
 import { pastedHtml, pasteContent } from "./paste";
-import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
+import {
+  completeComposerQuoteAttribution,
+  setComposerQuote,
+  setComposerQuoteStyle,
+  type QuoteSeed,
+} from "./quote";
 import { installImageResize } from "./resize";
 import { installRevisionCounter } from "./revision";
 import { type BodySeed, focusComposerBody, setComposerBody, setPlainText } from "./seeds";
@@ -30,7 +35,7 @@ import {
 } from "./signature";
 import { moveToAdjacentCell } from "./tables";
 import { installToolbar } from "./toolbar";
-import type { SignatureValue } from "./types";
+import type { QuoteAttribution, SignatureValue } from "./types";
 
 const doc = document;
 const editor = doc.getElementById("editor") as HTMLElement;
@@ -153,6 +158,7 @@ declare global {
     pasteComposerHtml: (html: unknown) => boolean;
     setComposerQuote: (quote: string | QuoteSeed) => void;
     setComposerQuoteStyle: (style: string) => void;
+    completeComposerQuoteAttribution: (attribution: string | Partial<QuoteAttribution>) => void;
     setComposerSignature: (signature: string | SignatureValue | null) => void;
     setSignatureBody: (html: unknown, placeholder?: unknown) => void;
     signatureBody: () => string;
@@ -190,6 +196,8 @@ window.pasteComposerHtml = (html) => {
 };
 window.setComposerQuote = (quote) => setComposerQuote(editor, parsed<QuoteSeed>(quote));
 window.setComposerQuoteStyle = (style) => setComposerQuoteStyle(editor, style);
+window.completeComposerQuoteAttribution = (attribution) =>
+  completeComposerQuoteAttribution(editor, parsed<Partial<QuoteAttribution>>(attribution) ?? {});
 window.setComposerSignature = (signature) =>
   setComposerSignature(editor, signature == null ? null : parsed<SignatureValue>(signature));
 window.setSignatureBody = (html, placeholder) => setSignatureBody(editor, html, placeholder);

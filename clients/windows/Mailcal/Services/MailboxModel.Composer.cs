@@ -1,5 +1,5 @@
-// Rich composer commands for the Windows spike. Kept separate so MailboxModel.cs stays
-// below the repo's 500-line file limit.
+// Opening a composer and sending from it. Kept separate so MailboxModel.cs stays below the repo's
+// 500-line file limit.
 
 using uniffi.mailcal_bindings;
 
@@ -8,122 +8,20 @@ namespace Allodia.Mailcal.Services;
 public sealed partial class MailboxModel
 {
     /// <summary>
-    /// Validate and queue a rich composer document to the entered <paramref name="recipients"/>.
-    /// The body text/HTML is never logged; only the error category is surfaced for diagnostics.
-    /// <paramref name="from"/> is the account the user picked in the composer's From dropdown; it
-    /// decides both the <c>From:</c> identity and the outbox the draft goes out through.
-    /// <c>null</c> lets the core derive it. An id naming an account that is no longer configured
-    /// fails the send rather than substituting another sender.
-    /// <para><paramref name="composition"/> names the composer this was written in, so an accepted
-    /// send takes its stored draft out of Drafts. Omitting it sends correctly and leaves a copy of
-    /// the message behind in the user's Drafts folder (<c>docs/drafts.md</c>).</para>
+    /// Opens a composer on <paramref name="origin"/>: the one way every composer opens, a new
+    /// message, a reply, a forward or a stored draft (docs/drafts.md). The core joins
+    /// <paramref name="composition"/> to the message and answers with everything the composer opens
+    /// holding; a forward's or a draft's files are staged into <paramref name="stagingDirectory"/>.
+    /// Returns <c>null</c> when it cannot open, and the caller says so rather than opening an empty
+    /// composer, which for a draft would save over it.
     /// </summary>
-    internal bool SubmitRich(
-        Recipients recipients,
-        string subject,
-        string documentJson,
-        ComposerFileAttachment[] files,
-        string? from,
-        string? composition)
-    {
-        if (_app is null || BlockedByHarnessGate(recipients))
-        {
-            return false;
-        }
-        try
-        {
-            _app.SubmitRichMailWithFiles(recipients, subject, documentJson, files, from, composition);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"rich composer submit failed: {ex.GetType().Name}");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Validate and queue a rich reply (or reply-all) to a message (by owning account + key)
-    /// with the user-confirmed <paramref name="recipients"/> and <paramref name="subject"/>; the
-    /// app derives the threading from the original. Only the error category is surfaced
-    /// for diagnostics, the body is never logged.
-    /// <paramref name="from"/> is the sending account (the composer's From dropdown), which may
-    /// differ from <paramref name="account"/>: the core still resolves the original, and its
-    /// <c>Re:</c> subject and <c>In-Reply-To</c>/<c>References</c> chain, in the account that
-    /// holds it, so a cross-account reply still threads. <c>null</c> replies from the original's
-    /// account.
-    /// <para><paramref name="composition"/> names the composer this was written in, so an accepted
-    /// send takes its stored draft out of Drafts. Omitting it sends correctly and leaves a copy of
-    /// the message behind in the user's Drafts folder (<c>docs/drafts.md</c>).</para>
-    /// </summary>
-    internal bool SubmitRichReply(
-        string account,
-        string key,
-        Recipients recipients,
-        string subject,
-        string documentJson,
-        ComposerFileAttachment[] files,
-        string? from,
-        string? composition)
-    {
-        if (_app is null || BlockedByHarnessGate(recipients))
-        {
-            return false;
-        }
-        try
-        {
-            _app.SubmitRichReplyWithFiles(account, key, recipients, documentJson, files, from, subject, composition);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"rich reply submit failed: {ex.GetType().Name}");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Validate and queue a rich forward of a message (by owning account + key) to the entered
-    /// <paramref name="recipients"/> under <paramref name="subject"/>. Only the error category is
-    /// surfaced for diagnostics, the body is never logged. <paramref name="from"/> is the sending
-    /// account (the composer's From dropdown); <c>null</c> forwards from the original's account.
-    /// <para><paramref name="composition"/> names the composer this was written in, so an accepted
-    /// send takes its stored draft out of Drafts. Omitting it sends correctly and leaves a copy of
-    /// the message behind in the user's Drafts folder (<c>docs/drafts.md</c>).</para>
-    /// </summary>
-    internal bool SubmitRichForward(
-        string account,
-        string key,
-        Recipients recipients,
-        string subject,
-        string documentJson,
-        ComposerFileAttachment[] files,
-        string? from,
-        string? composition)
-    {
-        if (_app is null || BlockedByHarnessGate(recipients))
-        {
-            return false;
-        }
-        try
-        {
-            _app.SubmitRichForwardWithFiles(account, key, recipients, documentJson, files, from, subject, composition);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"rich forward submit failed: {ex.GetType().Name}");
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// The recipients to pre-fill a reply (<paramref name="replyAll"/> false) or reply-all
-    /// composer for a message (by owning account + key): the core returns the suggested To
-    /// and Cc (reply-all adds the other thread participants, minus the user). Returns
-    /// <c>null</c> if the app isn't ready, so the composer opens with empty fields.
-    /// </summary>
-    internal RecipientSuggestion? ReplyRecipients(string account, string key, bool replyAll)
+    /// <remarks>Blocks on the core and may fetch the original from the server, so call it off the
+    /// UI thread.</remarks>
+    internal ComposeOpening? OpenComposer(
+        string composition,
+        ComposeOrigin origin,
+        ComposePrefill? prefill,
+        string stagingDirectory)
     {
         if (_app is null)
         {
@@ -131,15 +29,45 @@ public sealed partial class MailboxModel
         }
         try
         {
-            return _app.ReplyRecipients(account, key, replyAll);
+            return _app.OpenComposer(composition, origin, stagingDirectory, prefill);
         }
         catch (Exception ex)
         {
-            Log.Warn($"reply recipients lookup failed: {ex.GetType().Name}");
+            Log.Warn($"composer: could not open ({ex.GetType().Name})");
             return null;
         }
     }
 
+    /// <summary>
+    /// Validate and queue what a composer holds, on the composition it opened on. The one send
+    /// every composer makes: the core already knows what the message replies to or passes on, so a
+    /// reply threads however the composer was reached, and an accepted send takes its stored draft
+    /// out of Drafts. <paramref name="from"/> is the composer's From dropdown; <c>null</c> lets the
+    /// core derive it. The body is never logged; only the error category is.
+    /// </summary>
+    internal bool SubmitComposition(
+        string composition,
+        Recipients recipients,
+        string subject,
+        string documentJson,
+        ComposerFileAttachment[] files,
+        string? from)
+    {
+        if (_app is null || BlockedByHarnessGate(recipients))
+        {
+            return false;
+        }
+        try
+        {
+            _app.SubmitComposition(composition, recipients, subject, documentJson, files, from);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"composer submit failed: {ex.GetType().Name}");
+            return false;
+        }
+    }
     // Refuses a send that would leave the local harness, in a DEBUG build connected to one. See
     // HarnessRecipientGate for why this is a gate rather than a rule: every reply to a fixture
     // opens with an external address already in To.
@@ -167,29 +95,5 @@ public sealed partial class MailboxModel
         _ = recipients;
         return false;
 #endif
-    }
-
-    /// <summary>The files a message carries, staged into <paramref name="stagingDirectory"/> for
-    /// its forward composer to open holding them. <c>null</c> means they could not be read, which
-    /// the composer says: an empty list would read as a message with nothing attached.</summary>
-    /// <remarks>Decodes and writes every file, so call it off the UI thread.</remarks>
-    internal IReadOnlyList<ComposerFileAttachment>? StageForwardedAttachments(
-        string account,
-        string key,
-        string stagingDirectory)
-    {
-        if (_app is null)
-        {
-            return null;
-        }
-        try
-        {
-            return _app.StageForwardedAttachments(account, key, stagingDirectory);
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"forward attachment staging failed: {ex.GetType().Name}");
-            return null;
-        }
     }
 }

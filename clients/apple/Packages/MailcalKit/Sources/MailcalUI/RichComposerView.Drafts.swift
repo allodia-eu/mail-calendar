@@ -8,8 +8,8 @@ import Foundation
 import MailcalBindings
 import SwiftUI
 
-/// The core verbs a composer keeps its draft with, each naming the composition the composer minted
-/// for itself.
+/// The core verbs a composer keeps its draft with, each naming the composition the composer opened
+/// on.
 ///
 /// Passed as a value rather than the model, as `ComposerSignatures` is, so `RichComposeView` stays
 /// free of the model; `nil` turns draft saving off entirely, which is what a preview and a
@@ -42,7 +42,7 @@ struct ComposerDrafts {
 /// them is easy to run.
 struct ComposerDraftSavingModifier: ViewModifier {
     let drafts: ComposerDrafts?
-    /// The composition every call names, minted by the composer and kept until it closes.
+    /// The composition every call names, the one the composer opened on, kept until it closes.
     let composition: String
     /// How many changes the composer has seen, header and body alike. Every one restarts the idle
     /// interval; the value itself is never read for anything else.

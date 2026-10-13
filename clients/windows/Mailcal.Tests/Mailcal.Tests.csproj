@@ -255,6 +255,9 @@
     <Compile Include="..\Mailcal\Services\ComposerExit.cs" Link="Services\ComposerExit.cs" />
     <!-- The call that seeds a composer's body, a reopened message's HTML or a text. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\ComposerBodySeed.cs" Link="Services\ComposerBodySeed.cs" />
+    <!-- How a composer opens from the core's ComposeOpening: its kind, the quote seed, the
+         attribution a reopened quote is completed with. Pure BCL over the generated records. -->
+    <Compile Include="..\Mailcal\Services\ComposeOpeningSeed.cs" Link="Services\ComposeOpeningSeed.cs" />
     <!-- The embedded-image cap and the media-type refusal, enforced client-side, where the user can
          still be told, so the core never sees an oversized logo. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />

@@ -42,16 +42,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.BulkAction
-import uniffi.mailcal_bindings.ComposerFileAttachment
+import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.EmptyReason
-import uniffi.mailcal_bindings.MailtoPrefill
-import uniffi.mailcal_bindings.RecipientMatch
-import uniffi.mailcal_bindings.RecipientSuggestion
-import uniffi.mailcal_bindings.Recipients
 import uniffi.mailcal_bindings.SelectedRow
 import uniffi.mailcal_bindings.SendStatus
 import uniffi.mailcal_bindings.SearchHorizon
-import uniffi.mailcal_bindings.SharePrefill
 import uniffi.mailcal_bindings.SnapshotRow
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
@@ -98,25 +93,14 @@ internal fun MailboxScreen(
     // One action over every selected row, as a single batch in the core: one optimistic hide and
     // one sync per account, rather than one of each per row (docs/list-selection.md, rule 8).
     onActOnSelection: (rows: List<SelectedRow>, action: BulkAction) -> Unit,
-    onReply: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
-    onForward: (account: String, key: String, submission: ComposerSubmission) -> Boolean,
-    replyRecipients: (account: String, key: String, replyAll: Boolean) -> RecipientSuggestion?,
-    // The core verbs a composer raised from here keeps its message on the server with
-    // (`docs/drafts.md`); null turns draft saving off (a screenshot run, a test).
-    drafts: ComposerDrafts? = null,
-    stageForwardFiles: (account: String, key: String, directory: String) -> List<ComposerFileAttachment>,
-    suggestionsFor: ((String) -> List<RecipientMatch>)? = null,
-    // The signature library + lookups for the reply/forward composer, or null to leave signatures
-    // out (a screenshot run, a test).
-    signatures: ComposerSignatures? = null,
+    // Opens the composer on what a row asks for: a reply, a reply to all or a forward of its
+    // message, or, from the compose button, a new message (MainActivityComposer.kt).
+    onCompose: (ComposeOrigin) -> Unit,
     // Where a row's Move to folder… may file its message, or null to leave the item out.
     messageFiling: MessageFiling? = null,
-    onSubmitRich: (submission: ComposerSubmission) -> Boolean,
-    // The persisted per-direction swipe actions, and the app-level default send account (the
-    // composer's From opens on it in the unified inbox). Both live in the Rust core.
+    // The persisted per-direction swipe actions, which live in the Rust core.
     swipe: SwipeSettings,
     onArchive: (account: String, key: String) -> Unit,
-    defaultSendAccount: String?,
     timeZone: TimeZoneSnapshot?,
     onAcceptTimeZoneChange: () -> Unit,
     onDismissTimeZoneChange: () -> Unit,
@@ -135,43 +119,9 @@ internal fun MailboxScreen(
     // The accounts losing their link when an account is removed, for its confirmation.
     unlinkedBy: (accountId: String) -> String? = { null },
     onOpenSettings: () -> Unit,
-    // A mail link (`mailto:`) the OS handed us, already decoded by the shared core: non-null
-    // opens the composer pre-filled with it. `onMailtoConsumed` is called when that composer
-    // closes, so the link is spent and does not re-open on the next recomposition.
-    mailtoPrefill: MailtoPrefill? = null,
-    onMailtoConsumed: () -> Unit = {},
-    // A share another app handed us, its files already staged and named by the shared core:
-    // non-null opens the composer holding them. Spent on the same terms as a mail link.
-    sharePrefill: SharePrefill? = null,
-    onShareConsumed: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var showingCompose by remember { mutableStateOf(false) }
-    // A mail link opens the composer. Guarded on `!showingCompose` rather than opening
-    // unconditionally: the dialog reads its initial values once, so re-entering here while a
-    // draft is up would neither pre-fill it nor warn, leaving the draft untouched is the
-    // honest outcome, and the link stays pending until that composer closes.
-    LaunchedEffect(mailtoPrefill) {
-        if (mailtoPrefill != null && !showingCompose) {
-            showingCompose = true
-        }
-    }
-    // A share opens the composer on exactly the same terms, including leaving an open draft
-    // alone: the files stay pending until that composer closes, which is why `showingCompose`
-    // is a key here, the effect has to run again when it does.
-    //
-    // `composerHoldsShare` is what stops the wait from becoming a loss. Only the composer that
-    // was opened FOR a share may seed itself from it or spend it; one that was already up when
-    // the share arrived neither takes the files (it would replace what the user had picked) nor
-    // clears them on its own dismissal (the share would vanish having attached nothing).
-    var composerHoldsShare by remember { mutableStateOf(false) }
-    LaunchedEffect(sharePrefill, showingCompose) {
-        if (sharePrefill != null && !showingCompose) {
-            composerHoldsShare = true
-            showingCompose = true
-        }
-    }
     // The swipe undo window. Delete/Archive dispatch nothing until the Snackbar settles, so Undo is
     // exact; Star applies at once and Undo un-stars. The rules live in SwipeUndoController.
     val snackbarHostState = remember { SnackbarHostState() }
@@ -332,7 +282,6 @@ internal fun MailboxScreen(
                                 inJunkFolder = inJunkFolder,
                                 swipe = swipe,
                                 onSwipe = onSwipe,
-                                accounts = accounts,
                                 selected = selection.contains(row),
                                 selecting = selection.active,
                                 onToggleSelect = { selection.toggle(row) },
@@ -343,13 +292,7 @@ internal fun MailboxScreen(
                                 onPermanentlyDelete = onPermanentlyDelete,
                                 onMarkAsSpam = onMarkAsSpam,
                                 onMarkAsNotSpam = onMarkAsNotSpam,
-                                onReply = onReply,
-                                onForward = onForward,
-                                drafts = drafts,
-                                replyRecipients = replyRecipients,
-                                stageForwardFiles = stageForwardFiles,
-                                suggestionsFor = suggestionsFor,
-                                signatures = signatures,
+                                onCompose = onCompose,
                                 messageFiling = messageFiling,
                             )
                             is SnapshotRow.Thread -> ThreadConversationRow(
@@ -400,7 +343,9 @@ internal fun MailboxScreen(
         }
         // The familiar bottom-right floating action button for composing a new message.
         FloatingActionButton(
-            onClick = { showingCompose = true },
+            // A new message on the selected account; in the unified inbox the core decides, from
+            // the app-level default send account.
+            onClick = { onCompose(ComposeOrigin.New(selectedAccount)) },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp),
@@ -417,44 +362,6 @@ internal fun MailboxScreen(
         ) { data ->
             Snackbar(snackbarData = data)
         }
-    }
-
-    if (showingCompose) {
-        // Null unless this composer was opened for the share: see `composerHoldsShare` above.
-        val share = sharePrefill?.takeIf { composerHoldsShare }
-        RichComposeMessageDialog(
-            suggestionsFor = suggestionsFor,
-            signatures = signatures,
-            mode = RichComposeMode.New,
-            accounts = accounts,
-            // Composing while one mailbox is open sends from that account; in the unified inbox
-            // there is no such context, so the app-level default send account decides (and the
-            // composer falls back to the first account when none is set).
-            initialFrom = selectedAccount ?: defaultSendAccount,
-            // Empty for the FAB's blank composer; a mail link fills what it named. The core has
-            // already dropped every header a link may not set.
-            initialTo = mailtoPrefill?.to.orEmpty().ifEmpty { share?.to.orEmpty() },
-            initialCc = mailtoPrefill?.cc.orEmpty().ifEmpty { share?.cc.orEmpty() },
-            initialBcc = mailtoPrefill?.bcc.orEmpty().ifEmpty { share?.bcc.orEmpty() },
-            initialSubject = mailtoPrefill?.subject.orEmpty()
-                .ifEmpty { share?.subject.orEmpty() },
-            initialBody = mailtoPrefill?.body.orEmpty().ifEmpty { share?.body.orEmpty() },
-            // The one thing no other route supplies: a composer that opens already holding
-            // files. Their names and media types are the core's answers, not this client's.
-            initialAttachments = share?.attachments.orEmpty(),
-            onDismiss = {
-                showingCompose = false
-                onMailtoConsumed()
-                // Only the composer opened for the share spends it; one that was already up
-                // leaves it pending, and the effect above opens it now that this has closed.
-                if (composerHoldsShare) {
-                    composerHoldsShare = false
-                    onShareConsumed()
-                }
-            },
-            drafts = drafts,
-            onSubmitRich = onSubmitRich,
-        )
     }
 
     // Shown (as an overlay) only when the core reports a pending device-zone change.

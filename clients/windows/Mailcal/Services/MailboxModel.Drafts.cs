@@ -170,44 +170,11 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>
-    /// Where a draft opened back into a composer has its files written: a directory of its own,
-    /// so two composers never share a staged file. A resumed draft and a queued send moved back
-    /// into Drafts both stage here.
+    /// Where a composer's files are written when it opens holding some: a directory of its own,
+    /// so two composers never share a staged file. A forward's originals, a resumed draft's files
+    /// and a queued send moved back into Drafts all stage here.
     /// </summary>
-    internal static string DraftStagingDirectory() =>
-        Path.Combine(Path.GetTempPath(), "resumed-drafts", Guid.NewGuid().ToString("N"));
+    internal static string ComposerStagingDirectory() =>
+        Path.Combine(Path.GetTempPath(), "composer-files", Guid.NewGuid().ToString("N"));
 
-    /// <summary>
-    /// Opens the stored draft <paramref name="key"/> (on <paramref name="account"/>) into
-    /// <paramref name="composition"/>, so the composer about to show it saves over that copy
-    /// rather than beside it.
-    /// </summary>
-    /// <remarks>
-    /// <c>null</c> means the draft could not be opened, which the caller says rather than showing
-    /// an empty composer: nothing is adopted on a failure, and a composer opened without the
-    /// draft's content would replace it with what is on screen the next time it saved.
-    /// <para>Blocks on the core's runtime, and unlike a forward's staging it cannot count on a
-    /// warm cache: a draft is opened from a list row, so the first open of one fetches the
-    /// message. Run it off the UI thread.</para>
-    /// </remarks>
-    internal ComposeRequest? ResumeDraft(
-        string composition,
-        string account,
-        string key,
-        string stagingDirectory)
-    {
-        if (_app is null)
-        {
-            return null;
-        }
-        try
-        {
-            return _app.ResumeDraft(composition, account, key, stagingDirectory);
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"draft resume failed: {ex.GetType().Name}");
-            return null;
-        }
-    }
 }

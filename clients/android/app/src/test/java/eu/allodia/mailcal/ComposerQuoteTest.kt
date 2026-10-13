@@ -1,6 +1,6 @@
-// The quoted-original seed the composer injects into the editor on reply/forward. It is assembled
-// client-side (the core carries no runtime localisation), so its shape and its guard against
-// seeding a body that hasn't arrived are the client's to get right.
+// The quoted original's seed, worded client-side (the core carries no runtime localisation) from
+// the message the core says a reply or forward quotes (`ComposeOpening.quote`). Its shape and its
+// guard against seeding an empty body are the client's to get right.
 //
 // Robolectric, because the attribution line comes from the generated L10n catalog.
 package eu.allodia.mailcal
@@ -16,39 +16,13 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import uniffi.mailcal_bindings.ComposeKind
+import uniffi.mailcal_bindings.QuoteSource
 import uniffi.mailcal_bindings.QuoteStyleKind
-import uniffi.mailcal_bindings.ReadingSnapshot
 
-private val MESSAGE = OpenedMessage(
-    account = "acct-1",
-    key = "m1",
-    subject = "Quarterly report",
-    from = "sender@remote.test",
-    avatar = stubAvatar(),
-    // What this field actually holds: `localDateTime` output, applied where the message is
-    // built. Not an engine instant, and not display prose either.
-    date = "2026-07-10 15:34",
-)
-
-private fun snapshot(
-    key: String = "m1",
-    html: String? = "<p>Original</p>",
-    plain: String? = "Original",
-) = ReadingSnapshot(
-    key = key,
-    from = "sender@remote.test",
-    avatar = stubAvatar(),
-    to = "me@allodia.local",
-    cc = "",
-    bcc = "",
-    html = html,
-    plain = plain,
-    hasRemoteImages = false,
-    loadError = false,
-    attachments = emptyList(),
-    invitation = null,
-    pending = false,
-)
+// What the reading header shows for the original's date: `localDateTime` output, applied by the
+// host before the words are built.
+private const val DATE_TEXT = "2026-07-10 15:34"
 
 // Robolectric's own accessor, so the suite needs no androidx.test:core dependency.
 private fun ctx(): Context = RuntimeEnvironment.getApplication()
@@ -57,59 +31,49 @@ private fun ctx(): Context = RuntimeEnvironment.getApplication()
 class ComposerQuoteTest {
 
     private fun seed(
-        reading: ReadingSnapshot?,
+        quote: QuoteSource = testQuote(),
         style: QuoteStyleKind = QuoteStyleKind.INDENTED,
         isForward: Boolean = false,
         initialText: String? = null,
-    ): String? = ComposerQuote.seedJson(ctx(), style, MESSAGE, reading, isForward, initialText)
+    ): String? {
+        val kind = if (isForward) ComposeKind.FORWARD else ComposeKind.REPLY
+        val words = ComposerQuote.words(ctx(), quote, DATE_TEXT, isForward)
+        return ComposeOpeningSeed.quoteSeed(testOpening(kind = kind, quote = quote), words, style, initialText)
+    }
 
     @Test
-    fun the_already_localised_date_reaches_the_quote_intact() {
-        // `OpenedMessage.date` is localised where the message is built (MainActivityCore.kt), so
-        // the quote passes it through. Running `localDateTime` over it a second time is the
-        // failure this guards: it finds no `Z` and no `T` in `2026-07-10 15:34`, falls to
-        // `take(10)`, and the recipient gets the date with the time silently removed.
-        val json = JSONObject(seed(snapshot())!!)
+    fun the_date_the_host_formatted_reaches_the_quote_intact() {
+        // The words carry the date as the reading header shows it, in both styles. Formatting it a
+        // second time here is the failure this guards: the recipient would get a different date
+        // from the one the user read, or the date with its time removed.
+        val json = JSONObject(seed()!!)
         val attribution = json.getJSONObject("attribution")
         val line = attribution.getString("line")
         val sent = attribution.getJSONArray("headers").getJSONObject(1).getString("value")
-        assertTrue("the time was dropped from the attribution: $line", line.contains(MESSAGE.date))
-        assertEquals(MESSAGE.date, sent)
-    }
-
-    @Test
-    fun there_is_nothing_to_quote_before_the_body_has_loaded() {
-        assertNull(seed(null))
-    }
-
-    @Test
-    fun a_snapshot_for_a_different_message_is_never_quoted() {
-        // The reading snapshot lags the open message by a beat; quoting it would paste the
-        // PREVIOUS message's body into this reply.
-        assertNull(seed(snapshot(key = "some-other-message")))
+        assertTrue("the time was dropped from the attribution: $line", line.contains(DATE_TEXT))
+        assertEquals(DATE_TEXT, sent)
     }
 
     @Test
     fun an_empty_body_yields_no_quote() {
-        assertNull(seed(snapshot(html = null, plain = null)))
-        assertNull(seed(snapshot(html = "", plain = "")))
+        assertNull(seed(testQuote(bodyHtml = "", bodyPlain = "")))
     }
 
     @Test
     fun a_reply_carries_the_body_and_a_one_line_attribution() {
-        val json = JSONObject(seed(snapshot())!!)
+        val json = JSONObject(seed()!!)
 
         assertEquals("Indented", json.getString("style"))
         assertEquals("<p>Original</p>", json.getString("body_html"))
         assertEquals("Original", json.getString("body_plain"))
         val line = json.getJSONObject("attribution").getString("line")
         assertTrue("attribution names the sender and date: $line", line.contains("sender@remote.test"))
-        assertTrue("attribution carries the localised date: $line", line.contains("2026-07-10"))
+        assertTrue("attribution carries the formatted date: $line", line.contains("2026-07-10"))
     }
 
     @Test
     fun a_forward_replaces_the_attribution_with_the_forwarded_marker() {
-        val json = JSONObject(seed(snapshot(), isForward = true)!!)
+        val json = JSONObject(seed(isForward = true)!!)
         val line = json.getJSONObject("attribution").getString("line")
 
         assertEquals("Forwarded message", line)
@@ -117,22 +81,32 @@ class ComposerQuoteTest {
 
     @Test
     fun the_line_and_header_style_carries_a_labeled_header_block() {
-        val json = JSONObject(seed(snapshot(), style = QuoteStyleKind.LINE_AND_HEADER)!!)
+        val json = JSONObject(seed(style = QuoteStyleKind.LINE_AND_HEADER)!!)
 
         assertEquals("LineAndHeader", json.getString("style"))
         val headers = json.getJSONObject("attribution").getJSONArray("headers")
         val labels = (0 until headers.length()).map { headers.getJSONObject(it).getString("label") }
-        // Cc is empty on this snapshot, so it is omitted rather than rendered blank.
+        // Cc is empty on this original, so it is omitted rather than rendered blank.
         assertEquals(listOf("From", "Sent", "To", "Subject"), labels)
     }
 
     @Test
+    fun a_cc_on_the_original_gets_its_own_header() {
+        val words = ComposerQuote.words(ctx(), testQuote(cc = "carol@remote.test"), DATE_TEXT, false)
+
+        assertEquals(listOf("From", "Sent", "To", "Cc", "Subject"), words.headers.map { it.first })
+        assertEquals("carol@remote.test", words.headers[3].second)
+    }
+
+    @Test
     fun initial_text_is_omitted_unless_supplied() {
-        // Only showcase mode pre-fills the body; a real reply must not carry an `initial_text` key.
-        assertFalse(JSONObject(seed(snapshot())!!).has("initial_text"))
+        // A prefill (the showcase's sample answer) goes above the quote; a plain reply carries no
+        // `initial_text` key.
+        assertFalse(JSONObject(seed()!!).has("initial_text"))
+        assertFalse(JSONObject(seed(initialText = "")!!).has("initial_text"))
         assertEquals(
             "Sounds good",
-            JSONObject(seed(snapshot(), initialText = "Sounds good")!!).getString("initial_text"),
+            JSONObject(seed(initialText = "Sounds good")!!).getString("initial_text"),
         )
     }
 
@@ -140,7 +114,7 @@ class ComposerQuoteTest {
     @Config(qualifiers = "nl")
     fun the_attribution_is_localized_from_the_shared_catalog() {
         // Proves the l10n codegen wired BOTH catalogs into resources, not just the default one.
-        val json = JSONObject(seed(snapshot(), isForward = true)!!)
+        val json = JSONObject(seed(isForward = true)!!)
 
         assertEquals("Doorgestuurd bericht", json.getJSONObject("attribution").getString("line"))
     }
@@ -170,9 +144,10 @@ class ComposerQuoteTest {
     fun the_settings_example_reuses_the_same_labels_a_real_quote_carries() {
         // The settings preview exists to show the user what each style looks like, so it must not
         // drift from the real thing: its attribution and header labels come from the same catalog
-        // keys seedJson uses. Assert they line up against an actual seed rather than hardcoding.
+        // keys a real quote's words use. Assert they line up against an actual seed rather than
+        // hardcoding.
         val example = ComposerQuote.example(ctx())
-        val real = JSONObject(seed(snapshot(), style = QuoteStyleKind.LINE_AND_HEADER)!!)
+        val real = JSONObject(seed(style = QuoteStyleKind.LINE_AND_HEADER)!!)
         val realHeaders = real.getJSONObject("attribution").getJSONArray("headers")
         val realLabels =
             (0 until realHeaders.length()).map { realHeaders.getJSONObject(it).getString("label") }

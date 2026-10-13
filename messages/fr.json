@@ -185,6 +185,7 @@
 	"compose_draft_queued": "En attente d'enregistrement.",
 	"compose_draft_failed": "Impossible d'enregistrer ce brouillon.",
 	"compose_draft_open_failed": "Impossible d'ouvrir ce brouillon.",
+	"compose_open_failed": "Impossible d'ouvrir le message à rédiger. Réessayez dans un instant.",
 	"editor_placeholder": "Écrivez votre message",
 	"editor_bold": "Gras",
 	"editor_italic": "Italique",

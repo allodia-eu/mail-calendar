@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use engine_api::{AccountId, InlinePart, MessageIdHeader, PendingOpId, ProviderKey};
 
-use crate::{CompositionId, DraftStatus};
+use crate::{ComposeKind, CompositionId, DraftStatus};
 
 /// What the core knows about one composition, for as long as its composer is open.
 pub(super) struct Composition {
@@ -28,13 +28,17 @@ pub(super) struct Composition {
     /// Without it a composer that stayed open through the outage would save again with
     /// `replacing` empty and leave a second draft on the server.
     pub(super) queued: Option<PendingOpId>,
-    /// The message this one answers, for a composition reopened on a reply: every save and
-    /// the send carry it, so the reply stays in its conversation.
+    /// The conversation the message belongs to, joined when the composer opened: a reply's or a
+    /// forward's from its original, a reopened message's from its own headers. Every save and the
+    /// send carry it, so the message stays in its conversation however it is left and resumed.
     pub(super) threading: Option<Threading>,
-    /// The pictures the message it was reopened on carried as parts. The quoted original
-    /// shows them as `data:` URIs, and every save and the send turn those back into the parts
-    /// they came from, as a reply's own quote does with its original's.
+    /// The parts the pictures in its quoted original came from: the original's, for a reply or
+    /// forward, or the reopened message's own. The quote shows them as `data:` URIs, and every
+    /// save and the send turn those back into the parts they came from.
     pub(super) pictures: Arc<[InlinePart]>,
+    /// What its composer is doing, for the feature-adoption count a send makes
+    /// (`docs/analytics.md`).
+    pub(super) kind: ComposeKind,
 }
 
 impl Composition {
@@ -48,15 +52,17 @@ impl Composition {
             queued: None,
             threading: None,
             pictures: Arc::from([]),
+            kind: ComposeKind::New,
         }
     }
 }
 
-/// The headers that place a reply in its conversation.
-#[derive(Clone)]
-pub(super) struct Threading {
-    pub(super) in_reply_to: MessageIdHeader,
-    pub(super) references: Vec<MessageIdHeader>,
+/// The headers that place a message in its conversation. A reply names the message it answers; a
+/// forward carries only the chain, because it continues the conversation without answering anyone.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Threading {
+    pub(crate) in_reply_to: Option<MessageIdHeader>,
+    pub(crate) references: Vec<MessageIdHeader>,
 }
 
 /// The open compositions, keyed by the id their host minted.

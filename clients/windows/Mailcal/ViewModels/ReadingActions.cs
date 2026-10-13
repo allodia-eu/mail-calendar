@@ -44,8 +44,8 @@ internal sealed record ReadingActions(
     /// </para>
     /// </remarks>
     public static ReadingActions ForPane(MailboxModel model) => new(
-        (opened, all) => App.Shell?.ComposeReply(opened.Account, opened.Key, all, opened.RawSubject),
-        opened => App.Shell?.ComposeForward(opened.Account, opened.Key, opened.RawSubject),
+        (opened, all) => App.Shell?.ComposeReply(opened.Account, opened.Key, all),
+        opened => App.Shell?.ComposeForward(opened.Account, opened.Key),
         opened => Settle(model, opened, archive: true),
         opened => Settle(model, opened, archive: false),
         model.RetryOpen);

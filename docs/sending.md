@@ -121,11 +121,11 @@ withdrawal is refused the draft is taken away again and nothing opens. The reque
 **composition** the draft was saved under and carries the message's **files**, already staged
 where the host named on `Edit`: the composer opens on that composition holding all of them,
 exactly as a resumed draft does, so its saves replace the draft rather than add one and its
-first save cannot take a file off it. It is the same `ComposeRequest` a resumed draft answers
-with, built on the same path, so the message also opens formatted, its pictures, quote and
-signature included ([`drafts.md`](drafts.md)). A reply stays a reply: the composition keeps the
-message's `In-Reply-To` and `References`, and the parts its quoted pictures came from, for every
-save and for the send. A message carrying an
+first save cannot take a file off it. It is the same `ComposeOpening` every composer opens
+from, built on the same path, so the message also opens formatted, its pictures, quote and
+signature included, and as the kind of message it was ([`drafts.md`](drafts.md)). A reply stays
+a reply: the composition keeps the message's `In-Reply-To` and `References`, and the parts its
+quoted pictures came from, for every save and for the send. A message carrying an
 invitation's answer is not editable, because no composer holds its calendar part, so no client
 offers Edit on it.
 
@@ -142,7 +142,7 @@ path.
 
 ## The three surfaces
 
-| | `Surface::Sending` → `SendStatus` | `Surface::UnfiledCopy` → `UnfiledCopy` | `Surface::ComposeRequest` → `ComposeRequest` |
+| | `Surface::Sending` → `SendStatus` | `Surface::UnfiledCopy` → `UnfiledCopy` | `Surface::ComposeRequest` → `ComposeOpening` |
 |---|---|---|---|
 | Lifetime | Transient; the core auto-clears it after 2.5s | **Standing**, until the user answers | **Standing**, until the host's composer holds it |
 | Shape | An inline hint | A modal, or the loudest thing the client has | The client's own composer, opened |
@@ -223,8 +223,8 @@ mail client they have used does.
 
 Four rules hold it together:
 
-1. **The core stages, the client shows.** `stage_forwarded_attachments` writes the files into a
-   directory the client names and answers with a name, media type and path for each. From there
+1. **The core stages, the client shows.** Opening a forward (`open_composer`) writes the files
+   into a directory the client names and answers with a name, media type and path for each. From there
    they are indistinguishable from a picked file or a shared one: same list, same removal, same
    submit. No client decides which parts of a message are files, and none reads a MIME part.
 2. **The composer opens after staging, never before.** A composer on screen holding nothing can

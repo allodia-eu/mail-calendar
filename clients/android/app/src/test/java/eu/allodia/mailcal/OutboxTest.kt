@@ -15,17 +15,19 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import uniffi.mailcal_bindings.AccountRow
-import uniffi.mailcal_bindings.ComposeRequest
 import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.OutboxIntent
 import uniffi.mailcal_bindings.QueuedRow
 import uniffi.mailcal_bindings.QueuedState
+import uniffi.mailcal_bindings.QuoteSettings
+import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.SendStatus
 
 private fun ctx(): Context = RuntimeEnvironment.getApplication()
@@ -299,54 +301,62 @@ class OutboxTest {
     }
 
     /**
-     * Every field the core hands back reaches the composer. The composition is the one the core
-     * saved the draft under, so the composer saves over it rather than beside it, and every staged
-     * file is held, because the first save replaces the draft and a file left out is taken off it.
+     * Every field the core hands back reaches the composer, through the same factory every other
+     * composer is built by. The composition is the one the core saved the draft under, so the
+     * composer saves over it rather than beside it, and every staged file is held and counts as
+     * the baseline, because the first save replaces the draft and a file left out is taken off it.
      * From is the account the message was **queued on**: on a device with two accounts, the
-     * selected mailbox's would send it as an identity the recipient has never seen it from.
+     * selected mailbox's would send it as an identity the recipient has never seen it from. And
+     * no fresh signature is seeded over the one the body already carries.
      */
     @Test
     fun `a withdrawn message opens holding everything it was queued with`() {
         val files = listOf(
             ComposerFileAttachment(
-                path = "/cache/resumed-drafts/x/agenda.pdf",
+                path = "/cache/composer-staging/x/agenda.pdf",
                 fileName = "agenda.pdf",
                 mediaType = "application/pdf",
             ),
             ComposerFileAttachment(
-                path = "/cache/resumed-drafts/x/map.png",
+                path = "/cache/composer-staging/x/map.png",
                 fileName = "map.png",
                 mediaType = "image/png",
             ),
         )
-        val seed = reopenedSeed(
-            ComposeRequest(
-                account = "home",
-                composition = "draft-7",
-                to = "ada@example.test",
-                cc = "copy@example.test",
-                bcc = "audit@example.test",
-                subject = "Lunch",
-                bodyHtml = "<p><strong>One</strong> o'clock?</p>",
-                bodyText = "One o'clock?",
-                attachments = files,
-            ),
+        val opening = testOpening(
+            account = "home",
+            composition = "draft-7",
+            to = "ada@example.test",
+            cc = "copy@example.test",
+            bcc = "audit@example.test",
+            subject = "Lunch",
+            bodyHtml = "<p><strong>One</strong> o'clock?</p>",
+            bodyText = "One o'clock?",
+            attachments = files,
+            seedsSignature = false,
         )
-        assertEquals(
-            ReopenedSeed(
-                composition = "draft-7",
-                from = "home",
-                to = "ada@example.test",
-                cc = "copy@example.test",
-                bcc = "audit@example.test",
-                subject = "Lunch",
-                html = "<p><strong>One</strong> o'clock?</p>",
-                text = "One o'clock?",
-                attachments = files,
-            ),
-            seed,
+        val accounts = listOf(account("work"), account("home"))
+        val request = composeContext(
+            ctx = ctx(),
+            opening = opening,
+            initialFrom = sendAccountFor(opening.account, defaultSendAccount = "work", accounts = accounts),
+            quoteSettings = QuoteSettings(QuoteStyleKind.INDENTED, perMessage = false),
+            dateText = { it },
         )
+
+        assertEquals(opening, request.opening)
+        assertEquals("home", request.initialFrom)
+        assertEquals("<p><strong>One</strong> o'clock?</p>", request.storedHtml)
+        assertEquals("One o'clock?", request.initialBody)
+        assertEquals(files, request.attachments)
+        assertEquals(2, request.baselineAttachments)
+        assertEquals(null, request.quote)
+        assertEquals(RichComposeMode.New, request.mode)
+        val library = ComposerSignatures(library = emptyList(), forAccount = { _, _ -> null }, byId = { null })
+        assertNull(ComposeOpeningSeed.signing(library, opening))
     }
+
+    private fun account(id: String) = AccountRow(id = id, email = "$id@example.test", name = "", expanded = false)
 
     /** A refused message says where it now is, rather than only that it failed. */
     @Test

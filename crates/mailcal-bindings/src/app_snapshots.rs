@@ -10,7 +10,7 @@ use engine_api::AccountId;
 use mailcal_app::{Intent as AppIntent, ReaderId as AppReaderId};
 
 use crate::{
-    AccountProvider, CalendarSnapshot, CalendarWriteStatus, ComposeRequest, ConnectionInfo,
+    AccountProvider, CalendarSnapshot, CalendarWriteStatus, ComposeOpening, ConnectionInfo,
     ConnectivitySnapshot, ContactWriteStatus, Intent, MailboxListSnapshot, MailcalApp,
     QuoteSettings, QuoteStyleKind, ReadingSnapshot, ReplyPrompt, SendStatus, SyncProgressSnapshot,
     TimeZoneSnapshot, UnfiledCopy, joined,
@@ -252,7 +252,7 @@ impl MailcalApp {
     /// Raised when a user edits a queued send. The message has already been withdrawn from
     /// the Outbox, so this is the **only** copy of it: a host that ignores the request loses
     /// it. Dismiss it with `Intent::DismissComposeRequest` once the composer holds it.
-    pub fn compose_request(&self) -> Option<ComposeRequest> {
+    pub fn compose_request(&self) -> Option<ComposeOpening> {
         self.app.compose_request().map(Into::into)
     }
 

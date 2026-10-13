@@ -36,7 +36,6 @@ class AvatarSurfacesTest {
                             right = SwipeActionKind.DELETE,
                         ),
                         onSwipe = { _, _, _ -> },
-                        accounts = emptyList(),
                         selected = false,
                         selecting = false,
                         onToggleSelect = {},
@@ -47,10 +46,7 @@ class AvatarSurfacesTest {
                         onPermanentlyDelete = { _, _ -> },
                         onMarkAsSpam = { _, _ -> },
                         onMarkAsNotSpam = { _, _ -> },
-                        onReply = { _, _, _ -> true },
-                        onForward = { _, _, _ -> true },
-                        replyRecipients = { _, _, _ -> null },
-                        stageForwardFiles = { _, _, _ -> emptyList() },
+                        onCompose = {},
                     )
                 }
             }

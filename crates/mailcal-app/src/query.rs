@@ -176,7 +176,7 @@ impl<P: Provider> App<P> {
 
 /// Formats a UTC instant as a whole-second `…Z` string, matching what the mailbox-list rows
 /// carry so a client's date parser sees one shape from both surfaces.
-fn format_instant(instant: UtcDateTime) -> String {
+pub(crate) fn format_instant(instant: UtcDateTime) -> String {
     format!(
         "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
         instant.year(),

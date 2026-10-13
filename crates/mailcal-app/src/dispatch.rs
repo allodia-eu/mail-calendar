@@ -160,54 +160,6 @@ impl<P: Provider> App<P> {
             Intent::MarkAsNotSpam { message } => {
                 let _ = self.mark_as_not_spam(message).await;
             }
-            Intent::SubmitRichReply {
-                message,
-                from,
-                to,
-                cc,
-                bcc,
-                subject,
-                document,
-                blobs,
-                composition,
-            } => {
-                self.submit_rich_reply(
-                    message,
-                    from,
-                    to,
-                    cc,
-                    bcc,
-                    subject,
-                    document,
-                    blobs,
-                    composition,
-                )
-                .await;
-            }
-            Intent::SubmitRichForward {
-                message,
-                from,
-                to,
-                cc,
-                bcc,
-                subject,
-                document,
-                blobs,
-                composition,
-            } => {
-                self.submit_rich_forward(
-                    message,
-                    from,
-                    to,
-                    cc,
-                    bcc,
-                    subject,
-                    document,
-                    blobs,
-                    composition,
-                )
-                .await;
-            }
             Intent::CreateEvent {
                 title,
                 start,

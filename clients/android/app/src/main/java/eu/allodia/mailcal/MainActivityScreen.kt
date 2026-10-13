@@ -1,7 +1,8 @@
 // The Compose tree onCreate hands to setContent, split out of MainActivity.kt: which top-level
 // screen is showing (welcome, reading, add-account, diagnostics, settings, or the running app's
-// mail/calendar/contacts tabs), the two standing prompts (an unfiled copy, an invitation reply)
-// that can be raised from any of them, and the "your name" step an account's arrival raises.
+// mail/calendar/contacts tabs), the composer over any of them, the two standing prompts (an
+// unfiled copy, an invitation reply) that can be raised from any of them, and the "your name" step
+// an account's arrival raises.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.fillMaxSize
@@ -85,6 +86,11 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
                         instance != null -> MailboxTabContent(instance)
                         error != null -> ConnectionStatus(L10n.status_connect_failed(ctx, error), isError = true)
                         else -> LaunchStatus(launchStatusAfterMs().toLong())
+                    }
+                    // The composer, over whichever screen raised it: a reply from the reading view,
+                    // a new message from the list and an Outbox edit open the same one.
+                    if (instance != null) {
+                        ComposerPane(instance)
                     }
                     // The account connected: ask what to call its sender. Rendered here rather
                     // than inside the setup screen because that screen is gone by now, and the

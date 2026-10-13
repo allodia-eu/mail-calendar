@@ -23,8 +23,8 @@ import uniffi.mailcal_bindings.DraftStatus
 import uniffi.mailcal_bindings.Recipients
 
 /**
- * What the composer hands its host when the user presses Send: everything the three submit calls
- * name, in one value.
+ * What the composer hands its host when the user presses Send: everything `submitComposition` and
+ * a draft save name, in one value.
  *
  * A value rather than six positional arguments, because it is passed down four layers of
  * composables that do nothing with it but forward it, and because two of its fields read alike at
@@ -42,15 +42,15 @@ internal data class ComposerSubmission(
     /** The files the composer holds: picked, dropped, shared, forwarded or resumed. */
     val files: List<ComposerFileAttachment>,
     /**
-     * The composition this message was written in, so an accepted send takes its stored draft out
-     * of Drafts. Null only from a composer that keeps no draft.
+     * The composition the composer opened on, so the send carries the conversation and quoted
+     * pictures joined to it and an accepted send takes its stored draft out of Drafts.
      */
-    val composition: String?,
+    val composition: String,
 )
 
 /**
- * The core verbs a composer keeps its draft with, each naming the composition the composer minted
- * for itself.
+ * The core verbs a composer keeps its draft with, each naming the composition the composer opened
+ * on.
  *
  * Passed as a value rather than the activity, as [ComposerSignatures] is, so the composer stays
  * free of it; null turns draft saving off entirely, which is what a screenshot run and a test

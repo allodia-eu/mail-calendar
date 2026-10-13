@@ -12,8 +12,8 @@ use std::path::Path;
 
 use engine_api::{AccountId, Draft, DraftAttachmentDisposition, InlinePart, PendingOpId, Provider};
 
-use super::reopen::{Reopening, threading_of};
-use crate::{App, ComposeRequest, CompositionId, protocol::StagedAttachment};
+use super::reopen::{Opening, kind_of, threading_of};
+use crate::{App, ComposeOpening, CompositionId, protocol::StagedAttachment};
 
 /// Rising counter for the staged files' names, as for a forward's.
 static STAGE_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -47,7 +47,7 @@ impl NotMoved {
 
 impl<P: Provider> App<P> {
     /// Saves `draft` as a draft of a new composition, staging its files into `staging`, and
-    /// answers with the request a host opens its composer from.
+    /// answers with what a host opens its composer from.
     ///
     /// The caller withdraws the send only after this succeeded, and calls
     /// [`discard_draft`](Self::discard_draft) on the composition it names if the withdrawal is
@@ -58,7 +58,7 @@ impl<P: Provider> App<P> {
         op: PendingOpId,
         draft: &Draft,
         staging: &str,
-    ) -> Result<ComposeRequest, NotMoved> {
+    ) -> Result<ComposeOpening, NotMoved> {
         if draft.calendar.is_some() {
             return Err(NotMoved::NotEditable);
         }
@@ -67,13 +67,15 @@ impl<P: Provider> App<P> {
         else {
             return Err(NotMoved::Save("could not name the composition".to_owned()));
         };
+        let threading = threading_of(draft.in_reply_to.as_ref(), &draft.references);
         let request = self.open_composition(
             &composition,
-            Reopening {
+            Opening {
                 account: account.clone(),
                 message_id: draft.message_id.clone(),
                 key: None,
-                threading: threading_of(draft.in_reply_to.as_ref(), &draft.references),
+                kind: kind_of(threading.as_ref(), &draft.subject),
+                threading,
                 pictures: pictures_of(draft),
                 to: join(&draft.to),
                 cc: join(&draft.cc),
@@ -81,7 +83,13 @@ impl<P: Provider> App<P> {
                 subject: draft.subject.clone(),
                 html: draft.html_body.clone(),
                 text: draft.text_body.clone(),
+                // The message it quotes is found through the stored one's thread, and a queued
+                // send is not stored. Its quote opens with the attribution it was sent with.
+                quote: None,
                 attachments,
+                attachments_failed: false,
+                // It carries the signature it was written with.
+                seeds_signature: false,
             },
         );
         match self.put_draft(account, draft, None).await {

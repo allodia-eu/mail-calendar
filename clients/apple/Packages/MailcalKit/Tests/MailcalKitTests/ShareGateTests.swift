@@ -43,11 +43,7 @@ import Testing
 
     @Test func theSlotIsReadFromTheComposeContext() {
         #expect(ShareGate.Composer(nil) == .empty)
-        #expect(ShareGate.Composer(.new) == .other)
-        let prefill = SharePrefill(
-            to: "", cc: "", bcc: "", subject: "", body: "",
-            attachments: [], rejected: [], isEmpty: false
-        )
-        #expect(ShareGate.Composer(.share(ShareOpenRequest(prefill: prefill))) == .share)
+        #expect(ShareGate.Composer(composeContext(composeOpening())) == .other)
+        #expect(ShareGate.Composer(composeContext(composeOpening(), isShare: true)) == .share)
     }
 }

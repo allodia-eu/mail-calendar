@@ -10,7 +10,7 @@ use engine_api::{AccountId, Confirmation, OpRejection, PendingOpKind, PendingOpS
 
 use self::outbox_log::{log_action, log_drain_report, log_refusal};
 use crate::{
-    App, ComposeRequest, CompositionId, OutboxIntent, Scope, Surface, reference::QueuedRef,
+    App, ComposeOpening, CompositionId, OutboxIntent, Scope, Surface, reference::QueuedRef,
 };
 
 #[path = "outbox_log.rs"]
@@ -300,7 +300,7 @@ impl<P: Provider> App<P> {
     /// A lease-free pull, like every other standing question: the host reads it on a
     /// [`Surface::ComposeRequest`] signal and on relaunch.
     #[must_use]
-    pub fn compose_request(&self) -> Option<ComposeRequest> {
+    pub fn compose_request(&self) -> Option<ComposeOpening> {
         self.compose_request
             .lock()
             .expect("compose-request mutex poisoned")
@@ -323,7 +323,7 @@ impl<P: Provider> App<P> {
     /// Hands the message moved back into Drafts to the host's composer, as a standing
     /// request that stays until the host says the composer has it
     /// (`Intent::DismissComposeRequest`).
-    fn raise_compose_request(&self, request: ComposeRequest) {
+    fn raise_compose_request(&self, request: ComposeOpening) {
         *self
             .compose_request
             .lock()

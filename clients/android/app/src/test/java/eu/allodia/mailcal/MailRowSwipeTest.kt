@@ -69,7 +69,6 @@ private fun TestSwipeRow(
         inJunkFolder = false,
         swipe = swipe,
         onSwipe = { _, key, action -> onSwipe(key, action) },
-        accounts = emptyList(),
         selected = false,
         selecting = false,
         onToggleSelect = {},
@@ -80,10 +79,7 @@ private fun TestSwipeRow(
         onPermanentlyDelete = { _, _ -> },
         onMarkAsSpam = { _, _ -> },
         onMarkAsNotSpam = { _, _ -> },
-        onReply = { _, _, _ -> true },
-        onForward = { _, _, _ -> true },
-        replyRecipients = { _, _, _ -> null },
-        stageForwardFiles = { _, _, _ -> emptyList() },
+        onCompose = {},
     )
 }
 

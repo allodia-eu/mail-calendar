@@ -89,42 +89,6 @@ pub struct QueuedRow {
     pub editable: bool,
 }
 
-/// A message that already exists, to open unsent in the host's composer **on `composition`**,
-/// so its saves replace the stored copy and its send takes that copy away.
-///
-/// Two paths answer with it, and a host opens both the same way: `resume_draft` returns one
-/// for a draft opened from Drafts, and a user editing a queued send raises one (the core
-/// saves it back into Drafts, then withdraws it from the Outbox; the host dismisses it with
-/// `Intent::DismissComposeRequest` once open).
-///
-/// Seed the editor with `setComposerBody({html: body_html, text: body_text})`, which opens the
-/// formatting, the pictures, the quoted original and the signature this app wrote, and attach
-/// every file in `attachments`.
-#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
-pub struct ComposeRequest {
-    /// The account to send from.
-    pub account: String,
-    /// The composition the draft was saved under: the composer adopts it rather than minting
-    /// its own.
-    pub composition: String,
-    /// The `To` field, comma-joined.
-    pub to: String,
-    /// The `Cc` field, comma-joined.
-    pub cc: String,
-    /// The `Bcc` field, comma-joined.
-    pub bcc: String,
-    /// The subject.
-    pub subject: String,
-    /// The body's HTML: sanitised, with its pictures inline. Empty when the message has none.
-    pub body_html: String,
-    /// The body as text, which the editor opens when there is no HTML.
-    pub body_text: String,
-    /// The message's files, already written into the staging directory the host named. The
-    /// composer must open holding all of them: its first save replaces the draft, so a file
-    /// left out is taken off it.
-    pub attachments: Vec<crate::ComposerFileAttachment>,
-}
-
 impl From<AppQueuedState> for QueuedState {
     fn from(state: AppQueuedState) -> Self {
         match state {
@@ -147,30 +111,6 @@ impl From<AppQueuedRow> for QueuedRow {
             attempts: row.attempts,
             detail: row.detail,
             editable: row.editable,
-        }
-    }
-}
-
-impl From<mailcal_app::ComposeRequest> for ComposeRequest {
-    fn from(request: mailcal_app::ComposeRequest) -> Self {
-        Self {
-            account: request.account,
-            to: request.to,
-            cc: request.cc,
-            bcc: request.bcc,
-            composition: request.composition,
-            subject: request.subject,
-            body_html: request.body_html,
-            body_text: request.body_text,
-            attachments: request
-                .attachments
-                .into_iter()
-                .map(|file| crate::ComposerFileAttachment {
-                    path: file.path,
-                    file_name: file.file_name,
-                    media_type: file.media_type,
-                })
-                .collect(),
         }
     }
 }

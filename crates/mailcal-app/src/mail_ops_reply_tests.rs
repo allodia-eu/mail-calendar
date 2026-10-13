@@ -22,6 +22,55 @@ use super::{
 };
 use crate::{ComposerBlob, Intent, MessageRef, SendStatus};
 
+/// What every composer's Send dispatches, for a composer opened on `origin`: the composer opens
+/// first, joining its composition to the message it answers or passes on, and the send names that
+/// composition. `from` and `subject` are the composer's From and Subject fields; `None` leaves what
+/// the composer opened with.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn send_from_composer(
+    app: &crate::App<impl engine_api::Provider>,
+    origin: crate::ComposeOrigin,
+    from: Option<&str>,
+    to: &str,
+    cc: &str,
+    bcc: &str,
+    subject: Option<&str>,
+    document: ComposerDocument,
+    blobs: Vec<ComposerBlob>,
+) -> Intent {
+    static OPENED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let id = OPENED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let composition = crate::CompositionId::new(format!("composer-{id}")).unwrap();
+    let staging = std::env::temp_dir().join(format!("mailcal-send-{}-{id}", std::process::id()));
+    let opening = app
+        .open_composer(composition.clone(), origin, None, staging.to_str().unwrap())
+        .await
+        .expect("the composer opens");
+    Intent::SubmitRichMail {
+        from: Some(engine_api::AccountId::try_from(from.unwrap_or(&opening.account)).unwrap()),
+        to: to.to_owned(),
+        cc: cc.to_owned(),
+        bcc: bcc.to_owned(),
+        subject: subject.map_or(opening.subject, str::to_owned),
+        document,
+        blobs,
+        composition: Some(composition),
+    }
+}
+
+pub(super) fn reply_origin(key: &str) -> crate::ComposeOrigin {
+    crate::ComposeOrigin::Reply {
+        message: MessageRef::from_parts("acct-1", key.to_owned()).unwrap(),
+        all: false,
+    }
+}
+
+pub(super) fn forward_origin(key: &str) -> crate::ComposeOrigin {
+    crate::ComposeOrigin::Forward {
+        message: MessageRef::from_parts("acct-1", key.to_owned()).unwrap(),
+    }
+}
+
 /// A small rich document (bold text + an inline image + a file attachment) and the bytes
 /// for its blobs; shared by the reply and forward tests so they assert a real composer
 /// render (a plain draft would have no HTML body and no attachments).
@@ -50,17 +99,18 @@ async fn rich_reply_threads_and_carries_the_composer_html() {
     let (document, blobs) = reply_document();
     // The host pre-fills the recipients from `reply_recipients` (here a plain reply: To =
     // Reply-To, no Cc) and may add a Bcc; the reply send uses exactly what it is given.
-    let intent = Intent::SubmitRichReply {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        from: None,
-        to: "reply@remote.test".to_owned(),
-        cc: String::new(),
-        bcc: "discreet@remote.test".to_owned(),
-        subject: None,
+    let intent = send_from_composer(
+        &app,
+        reply_origin("m1"),
+        None,
+        "reply@remote.test",
+        "",
+        "discreet@remote.test",
+        None,
         document,
         blobs,
-        composition: None,
-    };
+    )
+    .await;
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
     assert_eq!(app.send_status(), SendStatus::Sent);
 
@@ -191,17 +241,18 @@ async fn rich_reply_with_no_recipients_fails_without_sending() {
     app.dispatch(Intent::RefreshMail).await;
 
     let (document, blobs) = reply_document();
-    let intent = Intent::SubmitRichReply {
-        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-        from: None,
-        to: String::new(),
-        cc: "   ".to_owned(),
-        bcc: String::new(),
-        subject: None,
+    let intent = send_from_composer(
+        &app,
+        reply_origin("m1"),
+        None,
+        "",
+        "   ",
+        "",
+        None,
         document,
         blobs,
-        composition: None,
-    };
+    )
+    .await;
     let _task = dispatch_until(&app, intent, SendStatus::Failed).await;
     assert_eq!(app.send_status(), SendStatus::Failed);
     assert!(submissions.lock().unwrap().is_empty());

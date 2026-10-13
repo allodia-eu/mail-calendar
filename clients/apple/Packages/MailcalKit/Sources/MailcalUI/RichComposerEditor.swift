@@ -29,8 +29,8 @@ final class RichComposerEditor: NSObject {
         makeView: { EditorWebView(frame: .zero, configuration: $0) }
     )
     /// The quoted-original seed (a `Block::Quote`-shaped JSON) to inject once the editor
-    /// finishes loading, set for a reply/forward, `nil` for a new message. Applied once the bundle
-    /// has loaded, because it loads asynchronously.
+    /// finishes loading: set for a fresh reply or forward, `nil` otherwise. Applied once the
+    /// bundle has loaded, because it loads asynchronously.
     var pendingQuote: String?
     /// The signature seed (a `Block::Signature`-shaped JSON) to inject once the editor finishes
     /// loading, `nil` when this account's slot is unassigned. Applied **after** the quote (the
@@ -38,15 +38,21 @@ final class RichComposerEditor: NSObject {
     /// **before** the seed snapshot, so a composer that opened with a signature is not already
     /// "dirty" and does not prompt to discard on close.
     var pendingSignature: String?
-    /// A plain-text body to seed once the bundle has loaded, an assistant's draft
-    /// (`AgentComposerBridge`). Mutually exclusive with `pendingQuote` in practice: an agent
-    /// draft is a new message. Seeded in the quote's place, and for the same reason before the
-    /// signature: `setPlainText` assigns the whole body.
+    /// A plain-text body to seed once the bundle has loaded: a link's, a share's or an assistant's.
+    /// Seeded only when there is neither a stored body nor a quote (a prefill's text above a quote
+    /// rides in the quote seed), and for the same reason before the signature: `setPlainText`
+    /// assigns the whole body.
     var pendingPlainBody: String?
     /// The HTML of a message this composer reopens (a resumed draft, or one moved back out of the
-    /// Outbox), seeded in the plain body's place through `setComposerBody`, which reads it back
+    /// Outbox), seeded ahead of everything else through `setComposerBody`, which reads it back
     /// into the editor's document; `pendingPlainBody` then rides beside it as that message's text.
     var pendingStoredHTML: String?
+    /// The attribution a reopened quote is completed with once the signature is in, so the style
+    /// picker switches it to a full one (`completeComposerQuoteAttribution`).
+    var pendingQuoteAttribution: String?
+    /// The style the reopened message's quote was saved in, read back from the document once it
+    /// is seeded, for the style picker to open on. `nil` for anything that is not reopened.
+    private(set) var storedQuoteStyle: QuoteStyleKind?
     /// Whether to put the caret in the message body once the editor has loaded. Set for a
     /// reply/forward, whose From/To/Subject are already filled in, so writing is the only thing
     /// left to do; a new message starts in its empty To field instead.
@@ -113,46 +119,56 @@ final class RichComposerEditor: NSObject {
         }
     }
 
-    // The editor bundle has finished loading; seed the quoted original and the signature now (if
-    // any). Doing it here, not right after the load starts, guarantees the `window.setComposer*`
-    // functions exist. Once both seeds are in, snapshot the document as the "nothing written yet"
-    // baseline the discard prompt compares against, after them, so a reply with a
-    // signature doesn't open already dirty.
+    // The editor bundle has finished loading; seed the body, the signature and a reopened quote's
+    // attribution now, in that order. Doing it here, not right after the load starts, guarantees
+    // the `window.setComposer*` functions exist. Once every seed is in, snapshot the document as
+    // the "nothing written yet" baseline the discard prompt compares against, after them, so a
+    // reply with a signature doesn't open already dirty.
     private func seedOnLoad() {
         // The chrome's own strings, before any content seed. They are independent of the seeds:
         // the placeholder lives on the editor element's dataset, which replacing the document does
         // not touch, but sending them first matches the other clients' open-time order.
         host.evaluate(ComposerLabels.script())
         host.channel.announce()
-        // An agent-composed draft seeds a plain body instead of a quote. `setPlainText` assigns
-        // it as TEXT, never markup (docs/composer-security.md, Gate 11), which matters more here
-        // than anywhere else, because this body was written by a model that may itself have been
-        // steered by a hostile message. It runs in the quote's slot, and for the same reason: it
-        // assigns the whole body, so a signature seeded first would be wiped.
-        if let body = Self.bodySeedScript(html: pendingStoredHTML, text: pendingPlainBody) {
-            host.evaluate(body) { [weak self] _, _ in
-                self?.seedSignatureThenCapture()
-            }
-            return
-        }
-        guard let quote = pendingQuote else {
+        // One body seed, whichever way the composer was reached. A plain body is assigned as
+        // TEXT, never markup (docs/composer-security.md, Gate 11), which matters most for an
+        // assistant's draft, written by a model that may itself have been steered by a hostile
+        // message. Each seed assigns the whole body, so a signature seeded first would be wiped.
+        guard let body = Self.openingSeedScript(
+            html: pendingStoredHTML, quote: pendingQuote, text: pendingPlainBody
+        ) else {
             seedSignatureThenCapture()
             return
         }
-        host.evaluate("window.setComposerQuote(\(EditorHost.jsString(quote)))") { [weak self] _, _ in
+        host.evaluate(body) { [weak self] _, _ in
             self?.seedSignatureThenCapture()
         }
     }
 
-    /// Injects the opening signature (if the account has one for this mode), then snapshots the
-    /// seed. Ordered strictly after the quote: `setComposerQuote` replaces the document wholesale.
+    /// Injects the opening signature (if the account has one for this mode), then completes a
+    /// reopened quote's attribution. Ordered strictly after the body: each body seed replaces the
+    /// document wholesale.
     private func seedSignatureThenCapture() {
         guard let signature = pendingSignature else {
-            captureSeed()
+            completeAttributionThenCapture()
             return
         }
         host.evaluate(
             "window.setComposerSignature(\(EditorHost.jsString(signature)))"
+        ) { [weak self] _, _ in
+            self?.completeAttributionThenCapture()
+        }
+    }
+
+    /// Fills the half of a reopened quote's attribution its stored HTML does not carry, then
+    /// snapshots the seed, so the completion is not mistaken for the user having written.
+    private func completeAttributionThenCapture() {
+        guard let attribution = pendingQuoteAttribution else {
+            captureSeed()
+            return
+        }
+        host.evaluate(
+            "window.completeComposerQuoteAttribution(\(EditorHost.jsString(attribution)))"
         ) { [weak self] _, _ in
             self?.captureSeed()
         }
@@ -174,6 +190,9 @@ final class RichComposerEditor: NSObject {
         documentJSON { [weak self] result in
             if case let .success(document) = result {
                 self?.seedDocument = document
+                if self?.pendingStoredHTML != nil {
+                    self?.storedQuoteStyle = ComposeOpeningSeed.quoteStyle(ofDocument: document)
+                }
             }
             if self?.focusBodyOnLoad == true {
                 self?.focusBody()
@@ -247,9 +266,21 @@ final class RichComposerEditor: NSObject {
         host.evaluate("window.setComposerQuoteStyle(\(EditorHost.jsString(token)))")
     }
 
-    /// The call that seeds the body: a reopened message's HTML through `setComposerBody`, else a
-    /// text through `setPlainText`, else nothing. Everything is passed as one JSON string the
-    /// editor parses, never spliced into the script, so no body can close the call and run.
+    /// The call that seeds the body, in the one order every client keeps: a reopened message's
+    /// HTML through `setComposerBody`, else a fresh reply's or forward's quote through
+    /// `setComposerQuote`, else a text through `setPlainText`, else nothing.
+    nonisolated static func openingSeedScript(html: String?, quote: String?, text: String?) -> String? {
+        let stored = html.map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? false
+        if !stored, let quote {
+            return "window.setComposerQuote(\(EditorHost.jsString(quote)))"
+        }
+        return bodySeedScript(html: html, text: text)
+    }
+
+    /// The call that seeds a stored or plain body: a reopened message's HTML through
+    /// `setComposerBody`, else a text through `setPlainText`, else nothing. Everything is passed
+    /// as one JSON string the editor parses, never spliced into the script, so no body can close
+    /// the call and run.
     nonisolated static func bodySeedScript(html: String?, text: String?) -> String? {
         if let html, !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            let data = try? JSONSerialization.data(withJSONObject: ["html": html, "text": text ?? ""]),

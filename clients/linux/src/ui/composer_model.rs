@@ -1,94 +1,128 @@
-//! Pure request state for the Linux composer host. The quoted original it opens holding is
+//! Pure request state for the Linux composer host: what a composer opens with, built from the
+//! core's answer in one place, and the heading it carries. The quoted original's wording is
 //! [`super::composer_quote`].
 
-use mailcal_bindings::{AgentDraft, MailtoPrefill};
+pub(crate) use mailcal_bindings::ComposeKind;
+use mailcal_bindings::{ComposeOpening, QuoteStyleKind};
 use serde_json::json;
 
-use super::{model::OpenedMessage, reader::ComposerHost};
-
-/// Which shared rich-submit path a composer session uses.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ComposeKind {
-    New,
-    Reply,
-    ReplyAll,
-    Forward,
-}
+use super::{
+    composer_quote::{attribution_completion, quote_seed, quote_words},
+    reader::ComposerHost,
+    timestamps,
+};
+use crate::l10n;
 
 /// Everything fixed when a single composer session opens.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ComposeContext {
+    /// What the composer is doing: its heading, and the signature slot it seeds from.
     pub(crate) kind: ComposeKind,
     /// Where this draft is being written: the pane, or a window of its own. Fixed when the
     /// composer opens like everything else here, and it is what Cancel, Send and the window's
     /// close all report back against (`docs/reading-window.md`).
     pub(crate) host: ComposerHost,
-    pub(crate) account: Option<String>,
-    pub(crate) key: Option<String>,
     pub(crate) initial_to: String,
     pub(crate) initial_cc: String,
     pub(crate) initial_bcc: String,
     pub(crate) subject: String,
+    /// A stored message's text, or the text a prefill brought.
     pub(crate) initial_body: Option<String>,
     /// The HTML of a message this composer reopens (a resumed draft, or one moved back out of
     /// the Outbox), which the editor reads back into its document; `initial_body` is then that
     /// message's text, for when it has none.
     pub(crate) stored_html: Option<String>,
+    /// The `setComposerQuote` payload of a fresh reply or forward.
     pub(crate) quote: Option<String>,
+    /// The `completeComposerQuoteAttribution` argument of a reopened message that quotes one.
+    pub(crate) quote_attribution: Option<String>,
+    /// Whether the message carries a quoted original, fresh or reopened: what the per-message
+    /// style picker is for.
+    pub(crate) has_quote: bool,
     pub(crate) initial_from: Option<String>,
-    /// Whether this client owns the body and should seed and offer its signature library.
+    /// Whether this composer seeds and offers the account's signature. A stored message, and an
+    /// assistant's draft, already carry their own.
     pub(crate) seeds_signature: bool,
-    /// The composition this composer saves its draft under: the host's handle on one composer,
-    /// kept for as long as it is open, and what every draft call names (`docs/drafts.md`).
-    ///
-    /// Minted per composer because the core mints none, and because a desktop can have several
-    /// open at once (`docs/reading-window.md`). A **resumed** draft is the exception and arrives
-    /// with the one the core has already joined to the copy on the server; a fresh one there
-    /// would store a second draft beside the one the composer is showing.
+    /// The composition the core joined to this composer as it opened: what every save, the
+    /// discard, the close and the send name (`docs/drafts.md`).
     pub(crate) composition: String,
-    /// Files the composer opens already holding: a share (`docs/os-integration.md`), or the files
-    /// a forwarded message carries. Empty for every other route: the picker fills the list itself.
+    /// Files the composer opens holding: the ones the core staged, and a share's on top.
     pub(crate) files: Vec<PickedFile>,
+    /// How many of `files` the core staged: a forward's originals or a stored message's own,
+    /// still in the mailbox, so closing over them unchanged loses nothing. A share's files are
+    /// counted from the start, because the user chose them.
+    pub(crate) opening_files: usize,
+    /// Whether a forward's originals could not be staged, so the composer opens saying so.
+    pub(crate) attachments_failed: bool,
 }
 
 impl ComposeContext {
-    pub(crate) fn from_mailto(prefill: MailtoPrefill, initial_from: Option<String>) -> Self {
+    /// The one way a composer's context is built, whichever way it was reached.
+    ///
+    /// The quote's attribution is worded here, in the user's language and with the original's
+    /// date as the reading header shows it: for a fresh reply or forward it seeds the quote, and
+    /// for a reopened one it completes the style the stored quote does not carry.
+    pub(crate) fn from_opening(
+        opening: ComposeOpening,
+        host: ComposerHost,
+        style: &QuoteStyleKind,
+        zone: &str,
+    ) -> Self {
+        let words = opening.quote.as_ref().map(|quote| {
+            quote_words(
+                quote,
+                &timestamps::local_date_time(&quote.date, zone),
+                opening.kind == ComposeKind::Forward,
+            )
+        });
+        let quote = words
+            .as_ref()
+            .and_then(|words| quote_seed(&opening, words, style));
+        let quote_attribution = words
+            .as_ref()
+            .and_then(|words| attribution_completion(&opening, words));
+        let has_quote = opening.quote.is_some();
+        let ComposeOpening {
+            composition,
+            kind,
+            account,
+            to,
+            cc,
+            bcc,
+            subject,
+            body_html,
+            body_text,
+            attachments,
+            attachments_failed,
+            seeds_signature,
+            ..
+        } = opening;
+        let files: Vec<PickedFile> = attachments
+            .into_iter()
+            .map(|file| PickedFile {
+                path: file.path,
+                file_name: file.file_name,
+                media_type: file.media_type,
+            })
+            .collect();
         Self {
-            kind: ComposeKind::New,
-            host: ComposerHost::Pane,
-            account: None,
-            key: None,
-            initial_to: prefill.to,
-            initial_cc: prefill.cc,
-            initial_bcc: prefill.bcc,
-            subject: prefill.subject,
-            initial_body: (!prefill.body.is_empty()).then_some(prefill.body),
-            stored_html: None,
-            quote: None,
-            initial_from,
-            seeds_signature: true,
-            composition: new_composition(),
-            files: Vec::new(),
-        }
-    }
-
-    pub(crate) fn from_agent(draft: AgentDraft, initial_from: Option<String>) -> Self {
-        Self {
-            kind: ComposeKind::New,
-            host: ComposerHost::Pane,
-            account: None,
-            key: None,
-            initial_to: draft.to,
-            initial_cc: draft.cc,
-            initial_bcc: draft.bcc,
-            subject: draft.subject,
-            initial_body: (!draft.body_text.is_empty()).then_some(draft.body_text),
-            stored_html: None,
-            quote: None,
-            initial_from,
-            seeds_signature: false,
-            composition: new_composition(),
-            files: Vec::new(),
+            kind,
+            host,
+            initial_to: to,
+            initial_cc: cc,
+            initial_bcc: bcc,
+            subject,
+            initial_body: (!body_text.is_empty()).then_some(body_text),
+            stored_html: (!body_html.is_empty()).then_some(body_html),
+            quote,
+            quote_attribution,
+            has_quote,
+            initial_from: Some(account).filter(|account| !account.is_empty()),
+            seeds_signature,
+            composition,
+            opening_files: files.len(),
+            files,
+            attachments_failed,
         }
     }
 
@@ -118,20 +152,43 @@ pub(crate) fn new_composition() -> String {
     )
 }
 
-/// The shared editor call that seeds the body, encoded as JavaScript data rather than code: a
-/// reopened message's HTML when it has some, else the text.
+/// The one editor call that seeds the body, encoded as JavaScript data rather than code: a
+/// reopened message's HTML, else a fresh quote, else the text a prefill brought.
 pub(crate) fn body_seed_script(request: &ComposeContext) -> Option<String> {
     let text = request.initial_body.as_deref().unwrap_or_default();
-    match request
+    if let Some(html) = request
         .stored_html
         .as_deref()
         .filter(|html| !html.trim().is_empty())
     {
-        Some(html) => Some(format!(
+        return Some(format!(
             "window.setComposerBody({});",
             json!({ "html": html, "text": text })
-        )),
-        None => (!text.is_empty()).then(|| format!("window.setPlainText({});", json!(text))),
+        ));
+    }
+    if let Some(quote) = &request.quote {
+        return Some(format!("window.setComposerQuote({});", json!(quote)));
+    }
+    (!text.is_empty()).then(|| format!("window.setPlainText({});", json!(text)))
+}
+
+/// The editor call that completes a reopened quote's attribution, sent after the signature.
+pub(crate) fn attribution_script(request: &ComposeContext) -> Option<String> {
+    request.quote_attribution.as_ref().map(|attribution| {
+        format!(
+            "window.completeComposerQuoteAttribution({});",
+            json!(attribution)
+        )
+    })
+}
+
+/// The heading a composer of `kind` carries.
+pub(crate) fn compose_title(kind: ComposeKind) -> &'static str {
+    match kind {
+        ComposeKind::New => l10n::compose_title_new(),
+        ComposeKind::Reply => l10n::action_reply(),
+        ComposeKind::ReplyAll => l10n::action_reply_all(),
+        ComposeKind::Forward => l10n::action_forward(),
     }
 }
 
@@ -156,340 +213,6 @@ pub(crate) struct ComposerSubmission {
     pub(crate) from: Option<String>,
 }
 
-/// Chooses the native From picker value using the same precedence as shared submission.
-pub(crate) fn initial_sender(
-    opened: Option<&OpenedMessage>,
-    selected_account: Option<&str>,
-    default_send_account: Option<String>,
-) -> Option<String> {
-    opened
-        .map(|message| message.account.clone())
-        .or_else(|| selected_account.map(str::to_owned))
-        .or(default_send_account)
-}
-
 #[cfg(test)]
-mod tests {
-    use mailcal_bindings::{AgentDraft, MailtoPrefill, QuoteStyleKind, ReadingSnapshot};
-    use serde_json::Value;
-
-    use super::{ComposeContext, ComposeKind, body_seed_script, initial_sender};
-    use crate::ui::{composer_quote::quote_seed, model::OpenedMessage};
-
-    #[test]
-    fn a_mail_link_becomes_an_editable_new_message_without_interpreting_its_body_as_code() {
-        let request = ComposeContext::from_mailto(
-            MailtoPrefill {
-                to: "ada@example.test".to_owned(),
-                cc: "copy@example.test".to_owned(),
-                bcc: "audit@example.test".to_owned(),
-                subject: "Lunch".to_owned(),
-                body: "Hello </script>\nSecond line".to_owned(),
-            },
-            Some("account".to_owned()),
-        );
-        assert_eq!(request.kind, ComposeKind::New);
-        assert_eq!(request.initial_bcc, "audit@example.test");
-        assert_eq!(
-            request.initial_body.as_deref(),
-            Some("Hello </script>\nSecond line")
-        );
-        assert_eq!(request.initial_from.as_deref(), Some("account"));
-        assert_eq!(
-            body_seed_script(&request).as_deref(),
-            Some("window.setPlainText(\"Hello </script>\\nSecond line\");")
-        );
-        let empty = ComposeContext {
-            initial_body: Some(String::new()),
-            ..request.clone()
-        };
-        assert_eq!(body_seed_script(&empty), None);
-        let reopened = ComposeContext {
-            stored_html: Some("<p>Hi</p>".to_owned()),
-            ..request.clone()
-        };
-        assert_eq!(
-            body_seed_script(&reopened).as_deref(),
-            Some(
-                "window.setComposerBody({\"html\":\"<p>Hi</p>\",\
-                 \"text\":\"Hello </script>\\nSecond line\"});"
-            ),
-            "a reopened message's HTML is handed over as data, never as code"
-        );
-        assert!(request.seeds_signature);
-    }
-
-    #[test]
-    fn an_assistant_draft_is_unsent_new_mail_without_a_second_signature() {
-        let request = ComposeContext::from_agent(
-            AgentDraft {
-                account: Some("work".to_owned()),
-                to: "ada@example.test".to_owned(),
-                cc: "copy@example.test".to_owned(),
-                bcc: "audit@example.test".to_owned(),
-                subject: "Planning".to_owned(),
-                body_text: "A complete body and sign-off".to_owned(),
-                reply_to_account: Some("work".to_owned()),
-                reply_to_key: Some("original".to_owned()),
-            },
-            Some("work".to_owned()),
-        );
-
-        assert_eq!(request.kind, ComposeKind::New);
-        assert_eq!(request.account, None);
-        assert_eq!(request.key, None);
-        assert_eq!(request.initial_from.as_deref(), Some("work"));
-        assert_eq!(request.initial_bcc, "audit@example.test");
-        assert_eq!(
-            request.initial_body.as_deref(),
-            Some("A complete body and sign-off")
-        );
-        assert!(!request.seeds_signature);
-    }
-
-    #[test]
-    fn quote_seed_preserves_sanitized_body_and_structures_headers_as_data() {
-        assert_ne!(ComposeKind::Reply, ComposeKind::Forward);
-        assert_ne!(ComposeKind::New, ComposeKind::ReplyAll);
-        let message = OpenedMessage {
-            account: "account".to_owned(),
-            key: "message".to_owned(),
-            subject: "Planning <script>".to_owned(),
-            from: "Sender <sender@example.test>".to_owned(),
-            date: "2026-07-20".to_owned(),
-            avatar: crate::ui::avatar::AvatarData::from(&crate::ui::model::blank_avatar()),
-        };
-        let reading = ReadingSnapshot {
-            avatar: crate::ui::model::blank_avatar(),
-            key: "message".to_owned(),
-            from: "Sender <sender@example.test>".to_owned(),
-            to: "recipient@example.test".to_owned(),
-            cc: "copy@example.test".to_owned(),
-            bcc: String::new(),
-            html: Some("<p>Already sanitized</p>".to_owned()),
-            plain: Some("Already sanitized".to_owned()),
-            has_remote_images: false,
-            load_error: false,
-            attachments: Vec::new(),
-            invitation: None,
-            pending: false,
-        };
-
-        let json = quote_seed(
-            &message,
-            &reading,
-            &QuoteStyleKind::Indented,
-            false,
-            None,
-            "Europe/Amsterdam",
-        )
-        .expect("matching body produces a quote");
-        let payload: Value = serde_json::from_str(&json).expect("valid JSON");
-
-        assert_eq!(payload["style"], "Indented");
-        assert_eq!(payload["body_html"], "<p>Already sanitized</p>");
-        assert_eq!(payload["body_plain"], "Already sanitized");
-        assert_eq!(
-            payload["attribution"]["headers"][2]["value"],
-            "recipient@example.test"
-        );
-        assert!(payload.get("initial_text").is_none());
-    }
-
-    #[test]
-    fn the_quoted_date_is_localised_before_it_is_sent_to_anyone() {
-        // The attribution and the `Sent:` header are read by the *recipient*, so a raw UTC instant
-        // from the core is a defect in their mailbox rather than in ours.
-        let message = OpenedMessage {
-            account: "account".to_owned(),
-            key: "message".to_owned(),
-            subject: "Planning".to_owned(),
-            from: "Sender <sender@example.test>".to_owned(),
-            date: "2026-08-31T05:01:00Z".to_owned(),
-            avatar: crate::ui::avatar::AvatarData::from(&crate::ui::model::blank_avatar()),
-        };
-        let reading = ReadingSnapshot {
-            avatar: crate::ui::model::blank_avatar(),
-            key: "message".to_owned(),
-            from: "Sender <sender@example.test>".to_owned(),
-            to: "recipient@example.test".to_owned(),
-            cc: String::new(),
-            bcc: String::new(),
-            html: Some("<p>Body</p>".to_owned()),
-            plain: Some("Body".to_owned()),
-            has_remote_images: false,
-            load_error: false,
-            attachments: Vec::new(),
-            invitation: None,
-            pending: false,
-        };
-
-        let json = quote_seed(
-            &message,
-            &reading,
-            &QuoteStyleKind::Indented,
-            false,
-            None,
-            "Europe/Amsterdam",
-        )
-        .expect("matching body produces a quote");
-        let payload: Value = serde_json::from_str(&json).expect("valid JSON");
-
-        let line = payload["attribution"]["line"]
-            .as_str()
-            .expect("an attribution line");
-        let sent = payload["attribution"]["headers"][1]["value"]
-            .as_str()
-            .expect("a Sent header");
-        for value in [line, sent] {
-            assert!(
-                !value.contains('T'),
-                "raw ISO instant reached the quote: {value}"
-            );
-            assert!(
-                !value.contains('Z'),
-                "raw ISO instant reached the quote: {value}"
-            );
-        }
-        // Amsterdam is UTC+2 on 31 August, so the localised hour is the visible proof that the
-        // instant was converted rather than merely reformatted.
-        assert!(
-            line.contains("07:01"),
-            "not converted to the display zone: {line}"
-        );
-        assert!(
-            sent.contains("07:01"),
-            "not converted to the display zone: {sent}"
-        );
-    }
-
-    #[test]
-    fn only_a_supplied_initial_text_reaches_the_seed() {
-        let message = OpenedMessage {
-            account: "account".to_owned(),
-            key: "message".to_owned(),
-            subject: "Subject".to_owned(),
-            from: "sender@example.test".to_owned(),
-            date: "2026-07-20".to_owned(),
-            avatar: crate::ui::avatar::AvatarData::from(&crate::ui::model::blank_avatar()),
-        };
-        let reading = ReadingSnapshot {
-            avatar: crate::ui::model::blank_avatar(),
-            key: "message".to_owned(),
-            from: String::new(),
-            to: String::new(),
-            cc: String::new(),
-            bcc: String::new(),
-            html: Some("<p>Body</p>".to_owned()),
-            plain: None,
-            has_remote_images: false,
-            load_error: false,
-            attachments: Vec::new(),
-            invitation: None,
-            pending: false,
-        };
-        let seed = |text| {
-            let json = quote_seed(
-                &message,
-                &reading,
-                &QuoteStyleKind::Indented,
-                false,
-                text,
-                "Europe/Amsterdam",
-            )
-            .expect("matching body produces a quote");
-            serde_json::from_str::<Value>(&json).expect("valid JSON")
-        };
-
-        assert_eq!(seed(Some("Sounds good"))["initial_text"], "Sounds good");
-        // An empty string is not a pre-filled body; it must leave the key off entirely, as on
-        // every other client.
-        assert!(seed(Some("")).get("initial_text").is_none());
-        assert!(seed(None).get("initial_text").is_none());
-    }
-
-    #[test]
-    fn quote_seed_rejects_a_stale_or_empty_reading_snapshot() {
-        let message = OpenedMessage {
-            account: "account".to_owned(),
-            key: "current".to_owned(),
-            subject: String::new(),
-            from: String::new(),
-            date: String::new(),
-            avatar: crate::ui::avatar::AvatarData::from(&crate::ui::model::blank_avatar()),
-        };
-        let mut reading = ReadingSnapshot {
-            avatar: crate::ui::model::blank_avatar(),
-            key: "stale".to_owned(),
-            from: String::new(),
-            to: String::new(),
-            cc: String::new(),
-            bcc: String::new(),
-            html: Some("<p>Body</p>".to_owned()),
-            plain: None,
-            has_remote_images: false,
-            load_error: false,
-            attachments: Vec::new(),
-            invitation: None,
-            pending: false,
-        };
-
-        assert!(
-            quote_seed(
-                &message,
-                &reading,
-                &QuoteStyleKind::Indented,
-                false,
-                None,
-                "Europe/Amsterdam"
-            )
-            .is_none()
-        );
-        reading.key = "current".to_owned();
-        reading.html = None;
-        assert!(
-            quote_seed(
-                &message,
-                &reading,
-                &QuoteStyleKind::Indented,
-                false,
-                None,
-                "Europe/Amsterdam"
-            )
-            .is_none()
-        );
-    }
-
-    #[test]
-    fn sender_prefers_message_then_selected_mailbox_then_app_default() {
-        let message = OpenedMessage {
-            account: "message-account".to_owned(),
-            key: "message".to_owned(),
-            subject: String::new(),
-            from: String::new(),
-            date: String::new(),
-            avatar: crate::ui::avatar::AvatarData::from(&crate::ui::model::blank_avatar()),
-        };
-
-        assert_eq!(
-            initial_sender(
-                Some(&message),
-                Some("selected-account"),
-                Some("default-account".to_owned()),
-            ),
-            Some("message-account".to_owned())
-        );
-        assert_eq!(
-            initial_sender(
-                None,
-                Some("selected-account"),
-                Some("default-account".to_owned()),
-            ),
-            Some("selected-account".to_owned())
-        );
-        assert_eq!(
-            initial_sender(None, None, Some("default-account".to_owned())),
-            Some("default-account".to_owned())
-        );
-    }
-}
+#[path = "composer_model_tests.rs"]
+mod tests;

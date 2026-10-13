@@ -68,7 +68,7 @@ pub(crate) fn sanitize(html: &str) -> Sanitized {
 
 /// Sanitises a stored message's `text/html` for the composer that reopens it, inlining the
 /// pictures `parts` carries as `data:` URIs so the editor can show them
-/// (`ComposeRequest::body_html`).
+/// (`ComposeOpening::body_html`).
 ///
 /// The reading view's allowlist, without its linkifying: an address the user typed as text stays
 /// text in their own draft rather than becoming a link they did not make. Each inlined picture

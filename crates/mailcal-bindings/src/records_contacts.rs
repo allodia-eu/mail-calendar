@@ -135,9 +135,6 @@ pub struct ContactValue {
 }
 
 /// One ranked recipient suggestion for the composer's To/Cc/Bcc fields.
-///
-/// Named apart from [`RecipientSuggestion`](crate::RecipientSuggestion), which is a different
-/// thing entirely: the To/Cc a **reply** is pre-filled with.
 #[derive(uniffi::Record)]
 pub struct RecipientMatch {
     /// The address to insert.

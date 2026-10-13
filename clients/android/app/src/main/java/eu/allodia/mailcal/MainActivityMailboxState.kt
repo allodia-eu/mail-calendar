@@ -70,7 +70,7 @@ internal fun MainActivity.reload() {
 // Screenshot only: the two screens that open a designated message once its row has loaded.
 //
 // `reply` opens the message the sample reply answers, the reading screen then opens its composer
-// straight away (initialComposing), pre-filled with the sample text. `invitation` opens the
+// straight away (opensReplyOnShow), pre-filled with the sample text. `invitation` opens the
 // meeting invitation and stops there: the card *is* the reading screen, and the core has already
 // primed the calendar, so it comes up with its day preview expanded.
 //

@@ -4,8 +4,8 @@
 // The composer used to be a ContentDialog, constructed independently at five call sites (three in
 // MailListView, two in ReadingView), a modal that blacked out the mailbox behind it. It now
 // REPLACES the reading pane: the sidebar and the message list stay live and clickable while you
-// write. The five call sites collapse into ComposeNew / ComposeReply / ComposeForward
-// here, so the quoted-original seed and the From account are derived in one place rather than five.
+// write. Every route into it opens through OpenComposerAsync (MainWindow.ComposeContexts.cs), so
+// what a composer holds is the core's one answer whichever way it was reached.
 //
 // The Windows twin of the Apple client's `@State var compose: ComposeContext?`, which the macOS
 // detail column renders the same way.
@@ -29,38 +29,37 @@ public sealed partial class MainWindow
     internal bool IsComposing => _composer is not null;
 
     /// <summary>Opens the composer for a brand-new message.</summary>
-    internal void ComposeNew()
+    internal async void ComposeNew()
     {
-        var quoting = Model.QuoteSettings;
         // Composing while one mailbox is open sends from that account; in the combined inbox there
-        // is no such context, so the app-level default send account decides.
-        BeginCompose(new ComposeContext(
-            RichComposeKind.New,
-            Account: null,
-            Key: null,
-            InitialFrom: Model.SendAccount(Model.SelectedAccount)?.Id,
-            InitialTo: string.Empty,
-            InitialCc: string.Empty,
-            Quote: null,
-            QuoteStyle: quoting.Style,
-            QuoteStylePerMessage: quoting.PerMessage));
+        // is no such context, and the core decides.
+        if (await OpenComposerAsync(new ComposeOrigin.New(Model.SelectedAccount)) is { } context)
+        {
+            BeginCompose(context);
+        }
     }
 
     /// <summary>Opens the reply (or reply-all) composer for a message in the reading pane's column,
     /// with the To/Cc the core suggests pre-filled and editable.</summary>
-    internal void ComposeReply(string account, string key, bool replyAll, string subject) =>
-        BeginCompose(ReplyContext(
-            account, key, replyAll, subject, Model.OpenedMessage, Model.Reading));
+    internal async void ComposeReply(string account, string key, bool replyAll)
+    {
+        var (origin, prefill) = ReplyOrigin(account, key, replyAll);
+        if (await OpenComposerAsync(origin, prefill) is { } context)
+        {
+            BeginCompose(context);
+        }
+    }
 
     /// <summary>Opens the reply (or reply-all) composer for a message read in a detached window, in
     /// a composer window of its own (docs/reading-window.md).</summary>
-    /// <remarks>
-    /// The quoted original is that window's body, not the pane's: the two are routinely on
-    /// different messages, which is the whole point of the window.
-    /// </remarks>
-    internal void ComposeReplyInWindow(OpenedMessage opened, ReadingBody? body, bool replyAll) =>
-        OpenComposerWindow(ReplyContext(
-            opened.Account, opened.Key, replyAll, opened.RawSubject, opened, body));
+    internal async void ComposeReplyInWindow(OpenedMessage opened, bool replyAll)
+    {
+        var (origin, prefill) = ReplyOrigin(opened.Account, opened.Key, replyAll);
+        if (await OpenComposerAsync(origin, prefill) is { } context)
+        {
+            OpenComposerWindow(context);
+        }
+    }
 
     /// <summary>
     /// Opens an assistant's draft in the composer, <b>unsent</b> (docs/mcp.md), and brings the
@@ -69,10 +68,11 @@ public sealed partial class MainWindow
     /// rights and a bare Activate() would be ignored.
     /// </summary>
     /// <remarks>
-    /// Structurally a new message: the same composer, the same Send button, the same submit path,
-    /// merely arriving prefilled. It leaves the open composer first, as every route into the
-    /// composer does: an assistant's draft arrives unprompted, at any moment, and whatever the
-    /// user was writing is kept in Drafts rather than replaced.
+    /// The same composer, the same Send button, the same submit path, merely arriving prefilled: a
+    /// reply when it names the message it answers, so it stays in that conversation, and a new
+    /// message otherwise. It leaves the open composer first, as every route into the composer does:
+    /// an assistant's draft arrives unprompted, at any moment, and whatever the user was writing is
+    /// kept in Drafts rather than replaced.
     /// </remarks>
     internal async void ComposeAgentDraft(AgentDraft draft)
     {
@@ -82,23 +82,17 @@ public sealed partial class MainWindow
         // The composer lives in the mail surface's detail column, and a draft can arrive while the
         // calendar or Contacts is up, where it would open behind them, unseen.
         Model.ShowMail();
-        BeginCompose(new ComposeContext(
-            RichComposeKind.New,
-            Account: null,
-            Key: null,
-            // The draft may name the account to send from; when it does not, the app-level default
-            // decides, exactly as a user-initiated new message does.
-            InitialFrom: Model.SendAccount(draft.Account ?? Model.SelectedAccount)?.Id,
-            InitialTo: draft.To,
-            InitialCc: draft.Cc,
-            Quote: null,
-            QuoteStyle: Model.QuoteSettings.Style,
-            QuoteStylePerMessage: Model.QuoteSettings.PerMessage,
-            InitialBcc: draft.Bcc,
-            InitialSubject: draft.Subject,
-            InitialBody: draft.BodyText,
-            SeedsSignature: false));
-        BringToForeground();
+        ComposeOrigin origin = draft is { ReplyToAccount: { } account, ReplyToKey: { } key }
+            ? new ComposeOrigin.Reply(account, key, false)
+            : new ComposeOrigin.New(draft.Account ?? Model.SelectedAccount);
+        // Signed: the assistant chose how to sign its words, so the account's signature is not seeded
+        // under them (docs/mcp.md).
+        var prefill = new ComposePrefill(draft.To, draft.Cc, draft.Bcc, draft.Subject, draft.BodyText, true);
+        if (await OpenComposerAsync(origin, prefill) is { } context)
+        {
+            BeginCompose(context);
+            BringToForeground();
+        }
     }
 
     /// <summary>
@@ -106,26 +100,18 @@ public sealed partial class MainWindow
     /// it and send it again (docs/sending.md).
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The core saved it as a draft under <c>Composition</c> and took it out of the queue before
-    /// raising the request, so a drain cannot deliver the message while it is being edited. This
-    /// may not refuse, and it does not need to: leaving the composer already in the pane keeps
-    /// that draft in Drafts.
-    /// </para>
-    /// <para>
-    /// It opens as a resumed draft does (<see cref="ReopenedContext"/>): on the composition
-    /// the core saved it under, never a fresh one, or the first save would store a second draft
-    /// beside it; holding every staged file, because that save replaces the draft and a file left
-    /// out is taken off it; and with no signature, because the body already carries whatever was
-    /// on it when it was queued.
-    /// </para>
+    /// The core saved it as a draft and took it out of the queue before raising the request, so a
+    /// drain cannot deliver the message while it is being edited, and joined it to the composition
+    /// the request names, which the composer opens on: never a fresh one, or the first save would
+    /// store a second draft beside it. It holds every staged file, because that save replaces the
+    /// draft and a file left out is taken off it. This may not refuse, and it does not need to:
+    /// leaving the composer already in the pane keeps that draft in Drafts.
     /// </remarks>
-    // Qualified for the reason ReopenedContext is (ComposeContext.cs).
-    internal async void ComposeWithdrawnMessage(uniffi.mailcal_bindings.ComposeRequest request)
+    internal async void ComposeWithdrawnMessage(ComposeOpening opening)
     {
         // The recipients, the subject and the body are the user's own mail; none is logged.
-        Log.Info($"outbox: a queued message is going back into the composer with {request.Attachments.Length} files");
-        var context = ReopenedContext(request);
+        Log.Info($"outbox: a queued message is going back into the composer with {opening.Attachments.Length} files");
+        var context = ContextFor(opening);
         await LeaveComposerAsync();
         // The composer lives in the mail surface's detail column, and Edit is reachable from the
         // Outbox while the calendar or Contacts is up, where it would open unseen.
@@ -139,16 +125,23 @@ public sealed partial class MainWindow
 
     /// <summary>Opens the forward composer for a message in the reading pane's column, holding the
     /// files the original carries (recipients entered fresh).</summary>
-    internal async void ComposeForward(string account, string key, string subject) =>
-        BeginCompose(await ForwardContextAsync(
-            account, key, subject, Model.OpenedMessage, Model.Reading));
+    internal async void ComposeForward(string account, string key)
+    {
+        if (await OpenComposerAsync(new ComposeOrigin.Forward(account, key)) is { } context)
+        {
+            BeginCompose(context);
+        }
+    }
 
     /// <summary>Opens the forward composer for a message read in a detached window, in a composer
     /// window of its own (docs/reading-window.md).</summary>
-    internal async void ComposeForwardInWindow(OpenedMessage opened, ReadingBody? body) =>
-        OpenComposerWindow(await ForwardContextAsync(
-            opened.Account, opened.Key, opened.RawSubject, opened, body));
-
+    internal async void ComposeForwardInWindow(OpenedMessage opened)
+    {
+        if (await OpenComposerAsync(new ComposeOrigin.Forward(opened.Account, opened.Key)) is { } context)
+        {
+            OpenComposerWindow(context);
+        }
+    }
     // Swap the detail column over to a freshly-built composer. Any composer already up is torn down
     // first: the caller has already left it (LeaveComposerAsync), so what was written there is in
     // Drafts.
