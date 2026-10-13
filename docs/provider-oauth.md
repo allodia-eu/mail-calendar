@@ -606,11 +606,11 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 
 | Gate | Shared core | Apple (macOS/iOS/iPadOS) | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| PKCE + no client secret | ✅ | ✅ | ✅ | 🚧 | ✅ |
-| System browser (no in-app WebView) | — | ✅ `ASWebAuthenticationSession` | ✅ default browser + protocol activation | 🚧 Chrome Custom Tabs | ✅ default browser + loopback |
-| Redirect capture | — | ✅ custom scheme | ✅ custom-scheme protocol activation | 🚧 custom-scheme `intent-filter` | ✅ `127.0.0.1` Rust `TcpListener` |
-| `state` validated on callback | ✅ | ✅ | ✅ | 🚧 | ✅ |
-| Refresh token only, in OS keystore | ✅ | ✅ Keychain | ✅ Credential Manager | 🚧 Android Keystore | ✅ Secret Service |
+| PKCE + no client secret | ✅ | ✅ | ✅ | ✅ | ✅ |
+| System browser (no in-app WebView) | — | ✅ `ASWebAuthenticationSession` | ✅ default browser + protocol activation | ✅ Chrome Custom Tabs | ✅ default browser + loopback |
+| Redirect capture | — | ✅ custom scheme | ✅ custom-scheme protocol activation | ✅ custom-scheme `intent-filter` | ✅ `127.0.0.1` Rust `TcpListener` |
+| `state` validated on callback | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Refresh token only, in OS keystore | ✅ | ✅ Keychain | ✅ Credential Manager | ✅ Android Keystore | ✅ Secret Service |
 | Token refresh + rotation persistence | ✅ refresh · rotation **verified live** (Graph + JMAP both rotate) | ✅ | ✅ refresh · rotation **verified live** `CredentialStoreSink` (Graph + JMAP) | ✅ verified on-device | ✅ verified live (Graph + JMAP) |
 | One refresh in flight per account (no replay on a ratcheting server, rule 5) | ✅ | — | — | — | — |
 | A rotation is persistable from the first refresh (the store is a constructor param on **both** constructors, rule 5) | ✅ | ✅ | ✅ (no worker; the app itself) | ✅ | ✅ |
@@ -621,14 +621,14 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 
 | Gate | Shared core | Apple (macOS/iOS/iPadOS) | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| PKCE state machine (`access_type=offline`) | ✅ | 🚧 | 🚧 | 🚧 | ✅ |
-| Client secret on token exchange | ✅ optional (sent on exchange + refresh when present) | 🚧 iOS none · macOS non-confidential Desktop secret | 🚧 non-confidential Desktop secret | 🚧 none (Android client) | ✅ non-confidential Desktop secret |
-| System browser (no in-app WebView) | — | 🚧 iOS `ASWebAuthenticationSession` · macOS default browser + loopback | 🚧 default browser + loopback | 🚧 Chrome Custom Tabs | ✅ default browser + loopback |
-| Redirect capture | — | 🚧 iOS reversed-client-id scheme · macOS `127.0.0.1` loopback `NWListener` | 🚧 `127.0.0.1` loopback `HttpListener` | 🚧 reversed-client-id `intent-filter` | ✅ `127.0.0.1` Rust `TcpListener` |
-| Refresh token only, in OS keystore | ✅ | 🚧 Keychain | 🚧 Credential Manager | 🚧 Android Keystore | ✅ Secret Service |
+| PKCE state machine (`access_type=offline`) | ✅ | 🚧 | 🚧 | ✅ | ✅ |
+| Client secret on token exchange | ✅ optional (sent on exchange + refresh when present) | 🚧 iOS none · macOS non-confidential Desktop secret | 🚧 non-confidential Desktop secret | ✅ none (Android client) | ✅ non-confidential Desktop secret |
+| System browser (no in-app WebView) | — | 🚧 iOS `ASWebAuthenticationSession` · macOS default browser + loopback | 🚧 default browser + loopback | ✅ Chrome Custom Tabs | ✅ default browser + loopback |
+| Redirect capture | — | 🚧 iOS reversed-client-id scheme · macOS `127.0.0.1` loopback `NWListener` | 🚧 `127.0.0.1` loopback `HttpListener` | ✅ reversed-client-id `intent-filter` | ✅ `127.0.0.1` Rust `TcpListener` |
+| Refresh token only, in OS keystore | ✅ | 🚧 Keychain | 🚧 Credential Manager | ✅ Android Keystore | ✅ Secret Service |
 | Rotation persistence (the shared `AccountCredentialStore`) | ✅ | 🚧 | 🚧 | 🚧 | ✅ |
-| Core-owned add/persist/rollback/erase (rule 5) | ✅ | 🚧 | 🚧 | 🚧 | ✅ |
-| Early Access notice + mandatory confirm checkbox | — | 🚧 | 🚧 | 🚧 | ✅ |
+| Core-owned add/persist/rollback/erase (rule 5) | ✅ | 🚧 | 🚧 | ✅ | ✅ |
+| Early Access notice + mandatory confirm checkbox | — | 🚧 | 🚧 | ✅ | ✅ |
 
 **Provider-agnostic** (rule 12: it fires for a dead credential of *any* kind, so it belongs to no
 single provider's table):
@@ -707,8 +707,13 @@ necessarily refreshes). A forged callback was also rejected as a possible CSRF, 
 row above proven rather than assumed. Two rows stay 🚧 there because this pass did not exercise
 them: **rotation** persistence (no server has rotated one yet) and the **re-consent prompt**. The
 Microsoft row in the capability matrix likewise stays 🚧 for Windows, since it also covers
-mail actions, send and calendar writes that were not touched. **Android is 🚧**: code-complete (it
-compiles via `assembleDebug`), pending a runtime sign-in. A new platform must meet every core-side
+mail actions, send and calendar writes that were not touched. **Android completed a runtime
+sign-in at both providers on 2026-10-13**, on a Samsung Galaxy Note 20 (Android 13): each account
+set up without its calendar, so the sign-in asked for mail and contacts alone, then the calendar
+switched on from the account's page. Google asked for it in the browser and signed the account in
+again in place; Microsoft opened it on the grant it already held. Rotation, the sign-in prompts in
+the main window and a use refused at the consent screen were not reached there, so the cells
+covering them keep their 🚧. A new platform must meet every core-side
 gate above and register its own redirect.
 
 For **Google**, each client fills its own **Google Cloud Console OAuth client** in
