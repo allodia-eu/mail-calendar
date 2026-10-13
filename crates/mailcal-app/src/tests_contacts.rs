@@ -64,6 +64,54 @@ async fn one_person_in_two_accounts_becomes_one_contact_row() {
     assert!(surfaces.lock().unwrap().contains(&Surface::Contacts));
 }
 
+/// One account with one card, nobody having opened Contacts.
+fn unopened_contacts(surfaces: &Arc<Mutex<Vec<Surface>>>) -> crate::App<fake::MailOnly> {
+    app(
+        vec![account(
+            "home",
+            vec![Box::new(FakeContacts::new(
+                "home-book",
+                vec![card("c1", "home-book", "Ada Lovelace", "ada@example.test")],
+            ))],
+        )],
+        surfaces,
+    )
+}
+
+#[tokio::test]
+async fn a_newly_added_account_brings_its_contacts_with_it() {
+    // A sender's face comes from a contact card, so a new account whose contacts waited for the
+    // Contacts tab showed its mail without any.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = unopened_contacts(&surfaces);
+
+    app.sync_added_account(&engine_api::AccountId::try_from("home").unwrap())
+        .await;
+
+    assert_eq!(
+        app.contacts().rows.len(),
+        1,
+        "the new account's card is listed"
+    );
+}
+
+#[tokio::test]
+async fn signing_in_again_brings_the_contacts_the_new_grant_reaches() {
+    // A use added at the provider's consent screen arrives through a replaced credential, not a
+    // new account, and nothing else fetches it until its tab is opened.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = unopened_contacts(&surfaces);
+
+    app.refresh_repaired_account(&engine_api::AccountId::try_from("home").unwrap())
+        .await;
+
+    assert_eq!(
+        app.contacts().rows.len(),
+        1,
+        "the card is listed after the sign-in"
+    );
+}
+
 #[tokio::test]
 async fn two_people_sharing_a_name_but_not_an_address_stay_separate() {
     // The conservative half of the same rule, and the one that would hurt if it were wrong:

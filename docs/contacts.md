@@ -88,6 +88,11 @@ means the person is genuinely gone, never merely renumbered.
   personal Microsoft or Google account is never used for colleagues ([`accounts.md`](accounts.md)
   rule 3).
 - An account **not used for contacts** binds no contact source at all.
+- **They are fetched because the app has the account, not because the user opened Contacts**, as
+  the calendar is ([`calendar.md`](calendar.md) §5): once every account has connected at launch, in
+  a new account's first download, and after an account is signed in again. A sender's face comes
+  from a contact card ([`avatars.md`](avatars.md)), so contacts that waited for the tab left the
+  mail list without faces.
 
 ### A client
 

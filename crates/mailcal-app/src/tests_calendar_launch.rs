@@ -207,6 +207,24 @@ async fn a_newly_added_accounts_first_sync_brings_its_calendar_with_it() {
     assert_eq!(page.grid.timed.len(), 1, "its meeting is on the grid");
 }
 
+/// Signing an account in again fetches the calendar the new grant reaches.
+///
+/// A calendar added at the provider's consent screen arrives through a replaced credential rather
+/// than a new account or a launch, so without this it stayed empty until the tab was opened.
+#[tokio::test]
+async fn signing_in_again_brings_the_calendar_the_new_grant_reaches() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = CalendarFake::with_events(vec![event_from_today("standup", 0, 9, 30)]);
+    let app = calendar_app(vec![calendar_account("acct", provider)], &surfaces);
+
+    app.refresh_repaired_account(&engine_api::AccountId::try_from("acct").unwrap())
+        .await;
+
+    let page = app.calendar_range(app.week_start_date(today()), 7);
+    assert!(page.is_materialized, "the account's week was read");
+    assert_eq!(page.grid.timed.len(), 1, "its meeting is on the grid");
+}
+
 /// A refresh over accounts nobody has dialed yet claims nothing.
 ///
 /// This is what an interactive launch looks like for its first second: the boot returns

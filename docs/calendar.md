@@ -465,7 +465,9 @@ places**, which is the part that has to be got right:
 
 **Adding an account does the same thing**, in the first download the user is already waiting on:
 a new account's store is empty by definition and the launch fetch has already been and gone, so
-without it the first session is exactly the one with no diary in it.
+without it the first session is exactly the one with no diary in it. **So does signing an account in
+again**, after its mail catch-up: a calendar added at the provider's consent screen arrives through
+a replaced credential rather than a new account or a launch, so it has nothing stored either.
 
 Two properties this must keep:
 

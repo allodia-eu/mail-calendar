@@ -58,10 +58,9 @@ struct PendingLogin {
 /// `redirect_uri` stays the host's: Microsoft registers it per platform against the host's own
 /// bundle/package identity, so unlike Google's it cannot be derived from the client id.
 ///
-/// Logs the (re-)request **privacy-safely**: the scopes asked for and whether it targets an
-/// existing account, never the address: so a support log shows a permission re-request was
-/// initiated and exactly which scopes it requested (the usual cause of a `403` is an old grant
-/// that predates `Mail.ReadWrite`/`Mail.Send`, which this call re-requests).
+/// Logs the request **privacy-safely**: the scopes asked for and whether a login hint was given,
+/// never the address, so a support log shows exactly which scopes a sign-in requested (the usual
+/// cause of a `403` is an old grant that predates `Mail.ReadWrite`/`Mail.Send`).
 ///
 /// A client reaches this only after [`oauth_routes`](crate::oauth_routes) said the route exists,
 /// so the no-registration error below is a wiring bug rather than something a user can provoke.
@@ -113,10 +112,12 @@ pub(crate) fn start(
     );
     log::info!(
         "oauth: starting Microsoft sign-in ({}); requesting {} Graph scope(s): [{}]",
+        // A new account carries the typed address as its hint too; a sign-in again for an
+        // existing account says so in its own line (`consent:`).
         if login_hint.is_some() {
-            "re-consent targeting an existing account"
+            "login hint present"
         } else {
-            "new account, account picker shown"
+            "account picker shown"
         },
         scopes.len(),
         scopes.join(", "),

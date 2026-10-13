@@ -147,7 +147,7 @@ impl MailcalApp {
         self.refresh_background(account_id);
         let app_sync = Arc::clone(&self.app);
         self.runtime
-            .spawn(async move { app_sync.refresh_reconnected_account(&id).await });
+            .spawn(async move { app_sync.refresh_repaired_account(&id).await });
         log::info!("credential repair: {family} account connected and stored; catch-up running");
         Ok(())
     }

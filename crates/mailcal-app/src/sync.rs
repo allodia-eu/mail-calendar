@@ -198,8 +198,8 @@ impl<P: Provider> App<P> {
         self.rebuild_snapshot().await;
     }
 
-    /// The second half of [`sync_added_account`](Self::sync_added_account): the calendar and the
-    /// body cache. On a large mailbox the body pass runs for many minutes.
+    /// The second half of [`sync_added_account`](Self::sync_added_account): the calendar, the
+    /// contacts and the body cache. On a large mailbox the body pass runs for many minutes.
     pub async fn warm_added_account(&self, id: &AccountId) {
         // Fetch the account's calendar too, for the same reason the bodies beside it are fetched:
         // the user asked for this account, not for its mail. Without it a brand-new account has
@@ -211,10 +211,14 @@ impl<P: Provider> App<P> {
         // and works offline, instead of each first open blocking on (or failing without) a
         // provider fetch. Runs after the list is on screen, so it never delays the first paint.
         //
+        // Its contacts likewise: a sender's face comes from a contact card, so without them the
+        // new account's mail shows monograms until the Contacts tab is opened.
+        //
         // Side by side, not one after the other: they talk to different servers and neither
         // needs the other, and a calendar refresh can take longer than the first mail sync did.
         futures::join!(
             self.refresh_calendar_in_background(),
+            self.refresh_contacts(),
             self.prefetch_account_bodies(id),
         );
     }
@@ -273,6 +277,23 @@ impl<P: Provider> App<P> {
         self.refresh_account_with_busy_retry(id, "reconnect", false)
             .await;
         self.prefetch_account_bodies(id).await;
+    }
+
+    /// The catch-up after an account's credential was replaced in place: a sign-in again, a new
+    /// password or new servers. Its mail as [`refresh_reconnected_account`] catches up, and its
+    /// calendar and contacts too, because the new grant may be the first to reach them: a use
+    /// added at the provider's consent screen has nothing stored, and nothing else fetches it
+    /// until its tab is opened.
+    ///
+    /// [`refresh_reconnected_account`]: Self::refresh_reconnected_account
+    pub async fn refresh_repaired_account(&self, id: &AccountId) {
+        self.refresh_account_with_busy_retry(id, "reconnect", false)
+            .await;
+        futures::join!(
+            self.refresh_calendar_in_background(),
+            self.refresh_contacts(),
+            self.prefetch_account_bodies(id),
+        );
     }
 
     /// Re-snapshots one account after a user changed its sync-depth window. If a poll, watch,
