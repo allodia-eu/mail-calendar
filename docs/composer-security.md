@@ -105,12 +105,15 @@ port:
    The shared bundle (`paste.ts`) never inserts the clipboard's markup: it parses it into an inert
    document, reads text and a closed set of marks out of it, and builds new markup in the editor's
    own shapes. What survives is what the schema holds: paragraphs, line breaks, bold, italic,
-   underline, links (only the schemes Gate 16 allows), lists and tables. Fonts, sizes and colours
-   from outside are dropped, because a word processor stamps one on every run and a page in dark
-   mode stamps a light one; the editor's own `data-*` colour, highlight and size stamps survive, so
-   text moved within a draft keeps them. A paste that asks for plain text carries no HTML and stays
-   plain, so every platform must offer one: WebKitGTK binds nothing to Ctrl+Shift+V, so the Linux
-   host gives that chord WebKit's `PasteAsPlainText` command itself.
+   underline, links (only the schemes Gate 16 allows), lists and tables. Bold, italic and underline
+   are read from a style sheet's class rules as well as from tags and inline styles, because Excel
+   marks every cell that way; the sheet is parsed into a stylesheet that is never applied, and
+   nothing else in it is read. Fonts, sizes and colours from outside are dropped, because a word
+   processor stamps one on every run and a page in dark mode stamps a light one; the editor's own
+   `data-*` colour, highlight and size stamps survive, so text moved within a draft keeps them. A
+   paste that asks for plain text carries no HTML and stays plain, so every platform must offer
+   one: WebKitGTK binds nothing to Ctrl+Shift+V, so the Linux host gives that chord WebKit's
+   `PasteAsPlainText` command itself.
 8. **Draft body text is sensitive.** Do not log editor JSON, rendered HTML, plain text, or pasted
    content. Logs may include lengths, counts, ids, and validation error categories.
 9. **External dispatches stay gated.** If a future feature fetches a remote image, uploads to a cloud

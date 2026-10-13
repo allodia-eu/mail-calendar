@@ -4,9 +4,10 @@
 // That markup is hostile input (`docs/composer-security.md` Gate 7), so none of it is inserted. It
 // is parsed into an inert document, and the walk below reads two things out of it, text and a
 // closed set of marks, and builds new markup in the editor's own shapes from those alone. Whatever
-// it does not name (a script, a style sheet, an event handler, a picture, a class, a font, a
-// colour) has no way through. What it keeps is what the document schema holds: paragraphs, line
-// breaks, bold, italic, underline, links, lists and tables.
+// it does not name (a script, an event handler, a picture, a font, a colour) has no way through.
+// What it keeps is what the document schema holds: paragraphs, line breaks, bold, italic,
+// underline, links, lists and tables. A style sheet is read for those three marks on a class and
+// nothing else, because that is how Excel marks a cell (`classRules`).
 //
 // Colour, highlight and size survive only as the editor's own `data-*` stamps, so text copied
 // within a draft keeps them. A foreign colour is dropped: Word stamps `color:#1A1A1A` on every run
@@ -59,6 +60,75 @@ const BLOCKS = new Set([
 const STRUCTURES = new Set(["ul", "ol", "table", "tbody", "thead", "tfoot", "tr", "td", "th"]);
 
 const HEADINGS = new Set(["h1", "h2", "h3", "h4", "h5", "h6"]);
+
+/// The style properties a mark is read from, and the only ones read from a style sheet.
+const MARK_PROPERTIES = ["font-weight", "font-style", "text-decoration-line", "text-decoration"];
+
+/// A rule in the pasted markup's style sheet that gives a class one of the marks: `.xl63` or
+/// `td.xl63`.
+interface ClassRule {
+  tag: string | null;
+  className: string;
+  style: CSSStyleDeclaration;
+}
+
+/// What the walk builds with: the editor's document, and the class rules of the markup it reads.
+interface Paste {
+  doc: Document;
+  classes: ClassRule[];
+}
+
+/// The class rules in `source`'s style sheets that name a mark.
+///
+/// Excel writes every cell's bold, italic and underline as a class (`.xl63 {font-weight:700}`), and
+/// a run inside a cell as `<font class="font5">`, so without these a sheet pastes with none of its
+/// formatting. Each sheet is parsed into a stylesheet that is never applied, so nothing in it loads
+/// or draws, and only `MARK_PROPERTIES` are read back. A selector counts when it is a single class,
+/// alone or on one tag; one that depends on an element's place in the document is skipped, since
+/// the walk does not keep that place.
+function classRules(view: Window & typeof globalThis, source: Document): ClassRule[] {
+  if (typeof view.CSSStyleSheet !== "function") return [];
+  const rules: ClassRule[] = [];
+  for (const element of Array.from(source.querySelectorAll("style"))) {
+    const sheet = new view.CSSStyleSheet();
+    try {
+      sheet.replaceSync(element.textContent ?? "");
+    } catch {
+      continue;
+    }
+    for (const rule of Array.from(sheet.cssRules)) {
+      if (!("selectorText" in rule) || !("style" in rule)) continue;
+      const style = rule.style as CSSStyleDeclaration;
+      if (!MARK_PROPERTIES.some((property) => style.getPropertyValue(property))) continue;
+      for (const selector of String(rule.selectorText).split(",")) {
+        const match = /^([a-z][a-z0-9]*)?\.(-?[_a-z][\w-]*)$/i.exec(selector.trim());
+        if (match) rules.push({ tag: match[1]?.toLowerCase() ?? null, className: match[2]!, style });
+      }
+    }
+  }
+  return rules;
+}
+
+/// `property` on `element` as the cascade would settle it among what is read: the inline style,
+/// else the class rule that names it, a rule on the element's tag over a bare class and a later
+/// rule over an earlier one.
+function declared(element: HTMLElement, property: string, classes: ClassRule[]): string {
+  const inline = element.style?.getPropertyValue(property) ?? "";
+  if (inline || classes.length === 0) return inline;
+  let value = "";
+  let rank = -1;
+  for (const rule of classes) {
+    if (rule.tag && rule.tag !== element.localName) continue;
+    if (!element.classList?.contains(rule.className)) continue;
+    const named = rule.style.getPropertyValue(property);
+    const ruleRank = rule.tag ? 1 : 0;
+    if (named && ruleRank >= rank) {
+      value = named;
+      rank = ruleRank;
+    }
+  }
+  return value;
+}
 
 /// Where the text of one line goes, and what ends a line there.
 ///
@@ -177,16 +247,13 @@ function wrapRun(doc: Document, text: Text, marks: PasteMarks): Node {
   return node;
 }
 
-/// The marks in force on `element`, from its tag and the few inline style properties that mean
-/// one of them. A style can take a mark away as well as add one: Google Docs wraps a whole copy in
-/// `<b style="font-weight:normal">`.
-function marksOf(element: HTMLElement, tag: string, inherited: PasteMarks): PasteMarks {
-  const style = element.style;
-  const weight = style?.getPropertyValue("font-weight") ?? "";
-  const fontStyle = style?.getPropertyValue("font-style") ?? "";
-  const decoration = `${style?.getPropertyValue("text-decoration-line") ?? ""} ${
-    style?.getPropertyValue("text-decoration") ?? ""
-  }`;
+/// The marks in force on `element`, from its tag and the few style properties that mean one of
+/// them, inline or from a class rule. A style can take a mark away as well as add one: Google Docs
+/// wraps a whole copy in `<b style="font-weight:normal">`.
+function marksOf(element: HTMLElement, tag: string, inherited: PasteMarks, classes: ClassRule[]): PasteMarks {
+  const [weight, fontStyle, decorationLine, decoration] = MARK_PROPERTIES.map((property) =>
+    declared(element, property, classes),
+  ) as [string, string, string, string];
 
   // Only a weight or a style that names one decides; `inherit`, `unset` and the like keep the tag's.
   let bold = inherited.bold || tag === "b" || tag === "strong" || tag === "th" || HEADINGS.has(tag);
@@ -196,7 +263,8 @@ function marksOf(element: HTMLElement, tag: string, inherited: PasteMarks): Past
   let italic = inherited.italic || ["i", "em", "cite", "var", "dfn"].includes(tag);
   if (fontStyle === "italic" || fontStyle === "oblique") italic = true;
   else if (fontStyle === "normal") italic = false;
-  const underline = inherited.underline || tag === "u" || tag === "ins" || decoration.includes("underline");
+  const underline =
+    inherited.underline || tag === "u" || tag === "ins" || `${decorationLine} ${decoration}`.includes("underline");
 
   const size = element.dataset?.size;
   return {
@@ -216,7 +284,7 @@ function hidden(element: HTMLElement): boolean {
 
 /// `pre` is true inside preformatted text, whose newlines are line breaks: code copied from a page
 /// keeps its lines.
-function walk(node: Node, marks: PasteMarks, flow: Flow, doc: Document, pre = false): void {
+function walk(node: Node, marks: PasteMarks, flow: Flow, paste: Paste, pre = false): void {
   if (node.nodeType === 3) {
     const value = node.nodeValue ?? "";
     if (!pre) {
@@ -238,22 +306,23 @@ function walk(node: Node, marks: PasteMarks, flow: Flow, doc: Document, pre = fa
     return;
   }
   if (!flow.inline && (tag === "ul" || tag === "ol")) {
-    const list = listFrom(element, marks, doc);
+    const list = listFrom(element, marks, paste);
     if (list) return flow.block(list);
   }
   if (!flow.inline && tag === "table") {
-    const table = tableFrom(element, marks, doc);
+    const table = tableFrom(element, marks, paste);
     if (table) return flow.block(table);
   }
-  const inner = marksOf(element, tag, marks);
+  const inner = marksOf(element, tag, marks, paste.classes);
   const inPre = pre || tag === "pre" || /^pre/.test(element.style?.getPropertyValue("white-space") ?? "");
   const block = BLOCKS.has(tag) || STRUCTURES.has(tag);
   if (block) flow.endLine();
-  for (const child of Array.from(element.childNodes)) walk(child, inner, flow, doc, inPre);
+  for (const child of Array.from(element.childNodes)) walk(child, inner, flow, paste, inPre);
   if (block) flow.endLine();
 }
 
-function listFrom(source: HTMLElement, marks: PasteMarks, doc: Document): HTMLElement | null {
+function listFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLElement | null {
+  const { doc } = paste;
   const list = doc.createElement(source.localName);
   for (const child of Array.from(source.children) as HTMLElement[]) {
     if (DROPPED.has(child.localName) || hidden(child)) continue;
@@ -263,7 +332,7 @@ function listFrom(source: HTMLElement, marks: PasteMarks, doc: Document): HTMLEl
     const own =
       previous && !Array.from(previous.children).some((node) => /^(ul|ol)$/.test(node.localName));
     if (own && (child.localName === "ul" || child.localName === "ol")) {
-      const sublist = listFrom(child, marks, doc);
+      const sublist = listFrom(child, marks, paste);
       if (sublist) previous.appendChild(sublist);
       continue;
     }
@@ -273,8 +342,8 @@ function listFrom(source: HTMLElement, marks: PasteMarks, doc: Document): HTMLEl
     const nodes = child.localName === "li" ? Array.from(child.childNodes) : [child];
     for (const node of nodes) {
       const name = (node as Element).localName;
-      if (!sublist && (name === "ul" || name === "ol")) sublist = listFrom(node as HTMLElement, marks, doc);
-      else walk(node, marksOf(child, child.localName, marks), flow, doc);
+      if (!sublist && (name === "ul" || name === "ol")) sublist = listFrom(node as HTMLElement, marks, paste);
+      else walk(node, marksOf(child, child.localName, marks, paste.classes), flow, paste);
     }
     flow.endLine();
     if (sublist) item.appendChild(sublist);
@@ -285,7 +354,8 @@ function listFrom(source: HTMLElement, marks: PasteMarks, doc: Document): HTMLEl
 
 /// A table's own rows, each its cells' inline content, padded to the widest row: Rust refuses a
 /// ragged table, and a merged cell (`colspan`) is what makes a pasted one ragged.
-function tableFrom(source: HTMLElement, marks: PasteMarks, doc: Document): HTMLElement | null {
+function tableFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLElement | null {
+  const { doc } = paste;
   const rows: HTMLElement[][] = [];
   const sections = [
     source,
@@ -299,8 +369,8 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, doc: Document): HTMLE
         if ((cell.localName !== "td" && cell.localName !== "th") || hidden(cell)) continue;
         const td = doc.createElement("td");
         const flow = new Flow(doc, td, true);
-        const cellMarks = marksOf(cell, cell.localName, marks);
-        for (const child of Array.from(cell.childNodes)) walk(child, cellMarks, flow, doc);
+        const cellMarks = marksOf(cell, cell.localName, marks, paste.classes);
+        for (const child of Array.from(cell.childNodes)) walk(child, cellMarks, flow, paste);
         flow.endLine();
         cells.push(td);
         // A merged cell keeps the columns after it in place: its content in the first, the rest
@@ -340,7 +410,8 @@ export function pastedHtml(doc: Document, html: string, inline = false): string 
   const source = new view.DOMParser().parseFromString(html, "text/html");
   const out = doc.createElement("div");
   const flow = new Flow(doc, out, inline);
-  for (const child of Array.from(source.body?.childNodes ?? [])) walk(child, PLAIN, flow, doc);
+  const paste = { doc, classes: classRules(view, source) };
+  for (const child of Array.from(source.body?.childNodes ?? [])) walk(child, PLAIN, flow, paste);
   flow.endLine();
   if (!out.textContent?.trim()) return null;
   const only = out.childNodes.length === 1 ? (out.firstChild as Element) : null;

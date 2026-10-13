@@ -84,7 +84,123 @@ describe("pasting from Word", () => {
   });
 });
 
+// Excel 365 for Windows' Copy of A1:B3, trimmed: every mark is a class its style sheet defines,
+// whole cells through `xl` classes and runs inside one through `<font class>`. The sheet sits inside
+// an HTML comment and carries type rules for `td` and `tr` too.
+const EXCEL = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head>
+<meta name=ProgId content=Excel.Sheet>
+<style>
+<!--table
+	{mso-displayed-decimal-separator:"\\.";}
+@page
+	{margin:.75in .7in .75in .7in;}
+.font0
+	{color:black;
+	font-weight:400;
+	font-style:normal;
+	text-decoration:none;}
+.font5
+	{color:black;
+	font-weight:700;
+	font-style:normal;
+	text-decoration:none;}
+.font6
+	{color:black;
+	font-weight:400;
+	font-style:italic;
+	text-decoration:none;}
+td
+	{color:black;
+	font-weight:400;
+	font-style:normal;
+	text-decoration:none;
+	white-space:nowrap;}
+.xl63
+	{font-weight:700;}
+.xl64
+	{font-style:italic;}
+.xl65
+	{text-decoration:underline;
+	text-underline-style:single;}
+-->
+</style></head>
+<body link="#467886" vlink="#96607D">
+<table border=0 cellpadding=0 cellspacing=0 width=136 style='border-collapse:collapse;width:102pt'>
+<!--StartFragment-->
+ <col width=68 span=2 style='width:51pt'>
+ <tr height=19 style='height:14.25pt'>
+  <td height=19 class=xl63 width=68 style='height:14.25pt;width:51pt'>Name</td>
+  <td class=xl63 width=68 style='width:51pt'>Amount</td>
+ </tr>
+ <tr height=19 style='height:14.25pt'>
+  <td height=19 class=xl64 style='height:14.25pt'>Apples</td>
+  <td class=xl65 align=right>42</td>
+ </tr>
+ <tr height=19 style='height:14.25pt'>
+  <td height=19 style='height:14.25pt'>Pears, <font class="font5">ripe</font><font
+  class="font0"> </font><font class="font6">and</font><font class="font0">
+  cheap</font></td>
+  <td align=right>7</td>
+ </tr>
+<!--EndFragment-->
+</table>
+</body></html>`;
+
+describe("pasting from Excel", () => {
+  test("keeps the bold, italic and underline its style sheet gives each cell and run", () => {
+    const [block] = pasted(EXCEL);
+    if (!block || !("Table" in block)) throw new Error("expected a table");
+    const cells = block.Table.rows.map((row) =>
+      row.cells.map((cell) =>
+        runs(cell.content).map((run) => [run.text, run.bold, run.italic, run.underline]),
+      ),
+    );
+    expect(cells).toEqual([
+      [[["Name", true, false, false]], [["Amount", true, false, false]]],
+      [[["Apples", false, true, false]], [["42", false, false, true]]],
+      [
+        [
+          ["Pears, ", false, false, false],
+          ["ripe", true, false, false],
+          [" ", false, false, false],
+          ["and", false, true, false],
+          [" cheap", false, false, false],
+        ],
+        [["7", false, false, false]],
+      ],
+    ]);
+  });
+});
+
 describe("pasted marks", () => {
+  test("a class rule counts as the class's tag names it, and an inline style beats it", () => {
+    const [line] = paragraphs(
+      pasted(
+        "<style>.strong{font-weight:bold} span.slant{font-style:italic} b.slant{font-style:normal}" +
+          " .plain, .loud{font-weight:700} .soft{text-decoration-line:underline}</style>" +
+          '<p><span class="strong">a </span><span class="strong" style="font-weight:400">b </span>' +
+          '<span class="slant">c </span><i class="other slant">d </i><span class="loud">e </span>' +
+          '<span class="soft">f</span></p>',
+      ),
+    );
+    expect(line!.map((run) => [run.text, run.bold, run.italic, run.underline])).toEqual([
+      ["a ", true, false, false],
+      ["b ", false, false, false],
+      // `b.slant` does not reach the `<i>`, so both stay italic and form one run.
+      ["c d ", false, true, false],
+      ["e ", true, false, false],
+      ["f", false, false, true],
+    ]);
+  });
+
+  test("a type rule and a compound selector give nothing: only a class is read", () => {
+    const [line] = paragraphs(
+      pasted("<style>p{font-weight:700} .a.b{font-style:italic} div .c{font-weight:700}</style>" +
+        '<p>one <span class="a b">two</span> <span class="c">three</span></p>'),
+    );
+    expect(line!.every((run) => !run.bold && !run.italic)).toBe(true);
+  });
+
   test("a style can take bold away as well as add it", () => {
     // Google Docs wraps a whole copy in a `<b>` that is not bold, and bolds with a style.
     const [line] = paragraphs(
