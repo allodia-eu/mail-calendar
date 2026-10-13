@@ -75,7 +75,7 @@ fn base_css() -> &'static str {
              font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;\
              font-size:15px;line-height:1.5;overflow-wrap:break-word;\
              -webkit-text-size-adjust:100%}}\
-             img{{max-width:100%;height:auto!important}}a{{color:#2864d6}}"
+             img{{max-width:100%;height:auto!important}}a[href]{{color:#2864d6}}"
         )
     })
 }

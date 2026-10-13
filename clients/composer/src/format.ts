@@ -1,4 +1,5 @@
-// The inline formatting commands: bold/italic/underline, font size, text colour and highlight.
+// The inline formatting commands: bold/italic/underline, font size and typeface, text colour and
+// highlight.
 //
 // These are the one place the editor still calls `document.execCommand`. Applying a mark to a
 // selection means splitting text nodes at both ends and re-wrapping every partially covered
@@ -12,8 +13,9 @@
 //: is the normalisation and `clearColor` below.
 
 import { documentOf, focusEditor, rangeTouches, rangeWithin } from "./dom";
-import { normalizeColor, normalizeFontElements } from "./marks";
-import { type FontSize, SIZE_PX } from "./types";
+import { normalizeColor, normalizeFontElements, stampFont, stampSize } from "./marks";
+import { familyCss } from "./typography";
+import type { FontSize } from "./types";
 
 type Legacy = Document & {
   execCommand?: (command: string, showUi?: boolean, value?: string) => boolean;
@@ -52,8 +54,27 @@ export function applyFontSize(editor: HTMLElement, size: FontSize): void {
   for (const span of Array.from(editor.querySelectorAll<HTMLElement>("span[style*='font-size']"))) {
     if (span.dataset.size || span.closest(".allodia-quote, .allodia-signature")) continue;
     if (!range || !rangeTouches(range, span)) continue;
-    span.dataset.size = size;
-    span.style.fontSize = `${SIZE_PX[size]}px`;
+    stampSize(span, size);
+  }
+}
+
+/// Sets the selection in the canonical family list `font`, or back in the body's typeface when
+/// `font` is `null`.
+export function applyFontFamily(editor: HTMLElement, font: string | null): void {
+  if (!font) {
+    clearMark(editor, "data-font", "fontFamily");
+    return;
+  }
+  preferCss(editor);
+  exec(editor, "fontName", familyCss(font));
+  normalizeFontElements(editor, null, font);
+  // The CSS path leaves a `<span style="font-family:…">` instead; stamp the ones the selection
+  // covers, for the same reason `applyFontSize` scopes its sweep.
+  const range = rangeWithin(editor);
+  for (const span of Array.from(editor.querySelectorAll<HTMLElement>("span[style*='font-family']"))) {
+    if (span.dataset.font || span.closest(".allodia-quote, .allodia-signature")) continue;
+    if (!range || !rangeTouches(range, span)) continue;
+    stampFont(span, font);
   }
 }
 
@@ -99,10 +120,19 @@ function stampColor(editor: HTMLElement, kind: ColorKind, color: string): void {
 /// `execCommand` exists to do and which has no command for *removing* one mark. Selecting the run
 /// and clearing it does the right thing, which is how the control is used.
 export function clearColor(editor: HTMLElement, kind: ColorKind): void {
+  if (kind === "color") clearMark(editor, "data-color", "color");
+  else clearMark(editor, "data-highlight", "backgroundColor");
+}
+
+/// Removes one mark, stamped as `attribute` and drawn as `property`, from the elements the
+/// selection touches.
+function clearMark(
+  editor: HTMLElement,
+  attribute: string,
+  property: "color" | "backgroundColor" | "fontFamily",
+): void {
   const range = rangeWithin(editor);
   if (!range) return;
-  const attribute = kind === "color" ? "data-color" : "data-highlight";
-  const property = kind === "color" ? "color" : "backgroundColor";
 
   for (const element of Array.from(editor.querySelectorAll<HTMLElement>("*"))) {
     if (element.closest(".allodia-quote, .allodia-signature")) continue;

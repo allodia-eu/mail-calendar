@@ -24,9 +24,7 @@ fn quote_headers() -> Vec<QuoteHeader> {
 fn quote_doc(style: QuoteStyle) -> ComposerDocument {
     ComposerDocument {
         blocks: vec![
-            Block::Paragraph(Paragraph {
-                content: vec![text("Sounds good.")],
-            }),
+            Block::Paragraph(Paragraph::new(vec![text("Sounds good.")])),
             Block::Quote(Quote {
                 style,
                 attribution: QuoteAttribution {
@@ -49,8 +47,8 @@ fn renders_the_indented_style_as_a_left_bordered_blockquote() {
     assert_eq!(
         output.html,
         html_doc(
-            "<p>Sounds good.</p>\
-             <p>On 30 Jun 2026 14:03, Alice &lt;alice@x.test&gt; wrote:</p>\
+            "<div>Sounds good.</div>\
+             <div>On 30 Jun 2026 14:03, Alice &lt;alice@x.test&gt; wrote:</div>\
              <blockquote style=\"margin:0 0 0 0.8ex;border-left:2px solid #cccccc;padding-left:1ex\">\
              <p>Are we still on for <strong>lunch</strong>?</p></blockquote>"
         )
@@ -71,7 +69,7 @@ fn renders_the_line_and_header_style_with_a_top_border_divider_and_header_block(
     assert_eq!(
         output.html,
         html_doc(
-            "<p>Sounds good.</p>\
+            "<div>Sounds good.</div>\
              <div style=\"padding:3pt 0 0;border-top:1pt solid rgb(181, 196, 223)\"><div>\
              <strong>From: </strong>Alice &lt;alice@x.test&gt;<br>\
              <strong>Sent: </strong>30 Jun 2026 14:03<br>\

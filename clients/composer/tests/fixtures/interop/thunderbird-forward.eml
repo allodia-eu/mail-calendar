@@ -1,0 +1,62 @@
+Message-ID: <d4cd4f54-05be-4049-b8e0-57c7515d3aaa@test.local>
+Date: Tue, 13 Oct 2026 11:48:59 +0200
+MIME-Version: 1.0
+User-Agent: Mozilla Thunderbird
+Subject: Fwd: Harness baseline message
+References: <baseline-0001@test.local>
+Content-Language: nl, en-GB
+To: alice@test.local
+From: Alice Tester <alice@test.local>
+X-Mozilla-Draft-Info: internal/draft; vcard=0; receipt=0; DSN=0; uuencode=0;
+ attachmentreminder=0; deliveryformat=0
+X-Identity-Key: id2
+Fcc: imap://alice%40test.local@127.0.0.1/Sent Items
+In-Reply-To: <baseline-0001@test.local>
+X-Forwarded-Message-Id: <baseline-0001@test.local>
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<!DOCTYPE html>
+<html>
+  <head>
+
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  </head>
+  <body>
+    <p>This is a forward of the baseline message.</p>
+    <div class="moz-forward-container"><br>
+      <br>
+      -------- Doorgestuurd bericht --------
+      <table cellpadding="0" cellspacing="0" border="0"
+        class="moz-email-headers-table">
+        <tbody>
+          <tr>
+            <th valign="BASELINE" align="RIGHT" nowrap="nowrap">Onderwerp:
+            </th>
+            <td>Harness baseline message</td>
+          </tr>
+          <tr>
+            <th valign="BASELINE" align="RIGHT" nowrap="nowrap">Datum: </th>
+            <td>Mon, 05 Jan 2026 09:00:00 +0000</td>
+          </tr>
+          <tr>
+            <th valign="BASELINE" align="RIGHT" nowrap="nowrap">Van: </th>
+            <td>Alice Tester <a class="moz-txt-link-rfc2396E" href="mailto:alice@test.local">&lt;alice@test.local&gt;</a></td>
+          </tr>
+          <tr>
+            <th valign="BASELINE" align="RIGHT" nowrap="nowrap">Aan: </th>
+            <td>Bob Tester <a class="moz-txt-link-rfc2396E" href="mailto:bob@test.local">&lt;bob@test.local&gt;</a></td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      <br>
+      Baseline plaintext message with a unique Message-ID.<br>
+      <br>
+      This one is also COPYed into Archive by the seeder, so the same
+      content has two<br>
+      mailbox memberships (two distinct provider objects) — the IMAP
+      copy invariant.<br>
+    </div>
+  </body>
+</html>

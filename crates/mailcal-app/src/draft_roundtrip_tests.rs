@@ -20,7 +20,7 @@ use serde_json::{Value, json};
 
 use crate::{helpers::new_message_id, html::sanitize_for_composer, mail_compose::rich_draft};
 
-const ENTRIES: usize = 60;
+const ENTRIES: usize = 80;
 
 fn fixture_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -142,7 +142,19 @@ const GAPS: &[&str] = &[" ", " ", " ", "  ", "   ", "\t", " \t "];
 /// Spaces at a line's ends, which only survive if the HTML says so.
 const EDGES: &[&str] = &["", "", "", " ", "  ", "\t"];
 
-const SIZES: &[&str] = &["Small", "Normal", "Large", "Huge"];
+/// The toolbar's four sizes, and sizes only another client's draft carries.
+const SIZES: &[u16] = &[13, 15, 18, 24, 11, 21, 32];
+/// Family lists as the document holds them: the toolbar's, and ones another client's draft names.
+const FONTS: &[&str] = &[
+    "Arial, Helvetica, sans-serif",
+    "Georgia, serif",
+    "Comic Sans MS",
+    "Segoe UI Emoji, sans-serif",
+];
+const HEADINGS: &[&str] = &["H1", "H2", "H3", "H4", "H5", "H6"];
+const ALIGNMENTS: &[&str] = &["Center", "Right", "Justify"];
+/// The editor's own indent steps, and Outlook's quarter inch and 35.4pt.
+const INDENTS: &[u16] = &[40, 80, 24, 47];
 const COLOURS: &[&str] = &["#d93025", "#1a73e8", "#188038", "#000000"];
 const LINKS: &[&str] = &["https://example.test/agenda", "mailto:ada@example.test"];
 
@@ -190,12 +202,13 @@ impl<'a> Generator<'a> {
     fn document(mut self) -> Value {
         let mut blocks = Vec::new();
         for _ in 0..=self.rng.below(6) {
-            let block = match self.rng.below(10) {
+            let block = match self.rng.below(11) {
                 0..=4 => self.paragraph(),
                 5 | 6 => json!({ "List": self.list(0) }),
                 7 => self.table(),
                 8 => self.quote(),
-                _ => self.signature(),
+                9 => self.signature(),
+                _ => json!({ "Rule": {} }),
             };
             blocks.push(block);
         }
@@ -203,7 +216,19 @@ impl<'a> Generator<'a> {
     }
 
     fn paragraph(&mut self) -> Value {
-        json!({ "Paragraph": { "content": self.line() } })
+        let mut paragraph = json!({ "content": self.line() });
+        if self.rng.chance(10) {
+            paragraph["heading"] = json!(self.rng.pick(HEADINGS));
+        } else if self.rng.chance(35) {
+            paragraph["spaced"] = json!(true);
+        }
+        if self.rng.chance(15) {
+            paragraph["align"] = json!(self.rng.pick(ALIGNMENTS));
+        }
+        if self.rng.chance(15) {
+            paragraph["indent_px"] = json!(self.rng.pick(INDENTS));
+        }
+        json!({ "Paragraph": paragraph })
     }
 
     /// A line's inline content, in the editor's one form for it: no two neighbouring runs with the
@@ -252,6 +277,9 @@ impl<'a> Generator<'a> {
         });
         if self.rng.chance(20) {
             marks["font_size"] = json!(self.rng.pick(SIZES));
+        }
+        if self.rng.chance(15) {
+            marks["font"] = json!(self.rng.pick(FONTS));
         }
         if self.rng.chance(15) {
             marks["color"] = json!(self.rng.pick(COLOURS));
@@ -383,6 +411,7 @@ fn same_marks(a: &Value, b: &Value) -> bool {
         "italic",
         "underline",
         "font_size",
+        "font",
         "color",
         "highlight",
         "link",

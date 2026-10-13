@@ -39,10 +39,33 @@
     </div>
 
     <select id="font-size" title="Font size" aria-label="Font size">
-      <option value="Normal">Normal</option>
-      <option value="Small">Small</option>
-      <option value="Large">Large</option>
-      <option value="Huge">Huge</option>
+      <option value="15" data-label="sizeNormal">Normal</option>
+      <option value="13" data-label="sizeSmall">Small</option>
+      <option value="18" data-label="sizeLarge">Large</option>
+      <option value="24" data-label="sizeHuge">Huge</option>
+    </select>
+
+    <!-- Each value is a family list in the document's canonical spelling. The names are the fonts'
+         own, so only the first option is translated. -->
+    <select id="font-family" title="Font" aria-label="Font">
+      <option value="" data-label="fontDefault">Default font</option>
+      <option value="Arial, Helvetica, sans-serif">Arial</option>
+      <option value="Calibri, Carlito, sans-serif">Calibri</option>
+      <option value="Courier New, Courier, monospace">Courier New</option>
+      <option value="Georgia, serif">Georgia</option>
+      <option value="Times New Roman, Times, serif">Times New Roman</option>
+      <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
+      <option value="Verdana, Geneva, sans-serif">Verdana</option>
+    </select>
+
+    <select id="block-style" title="Paragraph style" aria-label="Paragraph style">
+      <option value="" data-label="blockNormal">Normal text</option>
+      <option value="H1" data-label="heading1">Heading 1</option>
+      <option value="H2" data-label="heading2">Heading 2</option>
+      <option value="H3" data-label="heading3">Heading 3</option>
+      <option value="H4" data-label="heading4">Heading 4</option>
+      <option value="H5" data-label="heading5">Heading 5</option>
+      <option value="H6" data-label="heading6">Heading 6</option>
     </select>
 
     <span class="sep"></span>
@@ -55,6 +78,13 @@
     <button type="button" id="indent" title="Increase indent">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 3.5h7M7 8h7M7 12.5h7M2 6l2.5 2L2 10"/></svg>
     </button>
+
+    <div class="menu">
+      <button type="button" id="align" title="Alignment" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8"/></svg>
+      </button>
+      <div class="popover" id="align-menu" role="menu" hidden></div>
+    </div>
 
     <span class="sep"></span>
 
@@ -71,6 +101,10 @@
       </button>
       <div class="popover" id="table-menu" role="menu" hidden></div>
     </div>
+
+    <button type="button" id="rule" title="Horizontal line">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8h13"/></svg>
+    </button>
   </div>
   <main id="editor" class="editor" contenteditable="true" data-placeholder="Write your message" aria-label="Write your message"></main>
   <!--EDITOR_BUNDLE-->

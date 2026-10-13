@@ -129,6 +129,15 @@ fn sanitizer() -> &'static Builder<'static> {
             // collides: the reading document holds one message and no script, and in the
             // composer a quoted original's ids sit inside the contenteditable, after the
             // editor's own, where `getElementById` never reaches them.
+            // The presentational markup older editors write and Thunderbird's still does: a
+            // `<font>` with a colour, a typeface and a size, none of which loads or runs anything.
+            // A quote is marked `<blockquote type="cite">` by Thunderbird and Apple Mail, and Word
+            // names the signature it inserted with an `<a name>` bookmark; the composer reads both
+            // to tell a reopened draft's quote and signature from its text (`read_regions.ts`).
+            .add_tags(["font"])
+            .add_tag_attributes("font", ["color", "face", "size"])
+            .add_tag_attributes("blockquote", ["type"])
+            .add_tag_attributes("a", ["name"])
             .add_generic_attributes([
                 "style",
                 "class",

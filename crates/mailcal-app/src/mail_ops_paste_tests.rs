@@ -20,6 +20,10 @@ fn pasted_image_document() -> ComposerDocument {
     let id = AttachmentId::new("pasted-0").unwrap();
     ComposerDocument {
         blocks: vec![Block::Paragraph(Paragraph {
+            heading: None,
+            align: None,
+            indent_px: 0,
+            spaced: false,
             content: vec![InlineContent::Image(InlineImage {
                 attachment_id: id.clone(),
                 alt_text: String::new(),

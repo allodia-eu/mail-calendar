@@ -1,0 +1,72 @@
+Content-Type: multipart/mixed; boundary="------------0AufJHWjGJNphABDcMBmeNtR"
+Message-ID: <f29e13e7-504c-405c-b2c0-05769d14b761@test.local>
+Date: Tue, 13 Oct 2026 11:52:52 +0200
+MIME-Version: 1.0
+User-Agent: Mozilla Thunderbird
+Subject: Fwd: Message with a text attachment
+References: <attachment-0004@test.local>
+Content-Language: nl, en-GB
+To: bob@test.local
+From: Alice Tester <alice@test.local>
+X-Mozilla-Draft-Info: internal/draft; vcard=0; receipt=0; DSN=0; uuencode=0;
+ attachmentreminder=0; deliveryformat=0
+X-Identity-Key: id2
+Fcc: imap://alice%40test.local@127.0.0.1/Sent Items
+In-Reply-To: <attachment-0004@test.local>
+X-Forwarded-Message-Id: <attachment-0004@test.local>
+
+This is a multi-part message in MIME format.
+--------------0AufJHWjGJNphABDcMBmeNtR
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+<!DOCTYPE html>
+<html>
+  <head>
+
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  </head>
+  <body>
+    <p>This is the forwarded CSV message in Thunderbird.</p>
+    <div class="moz-forward-container"><br>
+      <br>
+      -------- Doorgestuurd bericht --------
+      <table cellpadding="0" cellspacing="0" border="0"
+        class="moz-email-headers-table">
+        <tbody>
+          <tr>
+            <th valign="BASELINE" align="RIGHT" nowrap="nowrap">Onderwerp:
+            </th>
+            <td>Message with a text attachment</td>
+          </tr>
+          <tr>
+            <th valign="BASELINE" align="RIGHT" nowrap="nowrap">Datum: </th>
+            <td>Fri, 09 Jan 2026 14:15:00 +0000</td>
+          </tr>
+          <tr>
+            <th valign="BASELINE" align="RIGHT" nowrap="nowrap">Van: </th>
+            <td>Reports <a class="moz-txt-link-rfc2396E" href="mailto:reports@example.com">&lt;reports@example.com&gt;</a></td>
+          </tr>
+          <tr>
+            <th valign="BASELINE" align="RIGHT" nowrap="nowrap">Aan: </th>
+            <td>Alice Tester <a class="moz-txt-link-rfc2396E" href="mailto:alice@test.local">&lt;alice@test.local&gt;</a></td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      <br>
+      Body part. A file attachment follows; attachments span
+      file/item/reference/inline<br>
+      kinds and this protects the file-attachment path end to end.<br>
+      <br>
+    </div>
+  </body>
+</html>
+--------------0AufJHWjGJNphABDcMBmeNtR
+Content-Type: text/csv; charset=UTF-8; name="report.csv"
+Content-Disposition: attachment; filename="report.csv"
+Content-Transfer-Encoding: base64
+
+cXVhcnRlcixyZXZlbnVlCjEsMTAwCjIsMTUwCg==
+
+--------------0AufJHWjGJNphABDcMBmeNtR--

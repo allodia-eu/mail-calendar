@@ -118,6 +118,31 @@ fn preserves_presentational_table_attributes() {
     assert!(out.contains(r#"cellpadding="0""#));
 }
 
+/// Thunderbird still writes colours, sizes and typefaces as `<font>`; dropped, its text arrives in
+/// the body's colour and size, in the reading view and in a reopened draft alike.
+#[test]
+fn preserves_the_font_element_thunderbird_writes() {
+    let out = sanitize(
+        r##"<font color="#ff0000" size="5" face="Comic Sans MS" onclick="x()">red</font>"##,
+    )
+    .html;
+    assert!(out.contains(r##"color="#ff0000""##), "{out}");
+    assert!(out.contains(r#"size="5""#), "{out}");
+    assert!(out.contains(r#"face="Comic Sans MS""#), "{out}");
+    assert!(!out.contains("onclick"), "{out}");
+}
+
+/// The markers a composer reads a reopened draft's quote and signature by.
+#[test]
+fn preserves_the_quote_and_signature_markers_other_clients_write() {
+    let out = sanitize(
+        r#"<blockquote type="cite" cite="mid:x@y">quoted</blockquote><a name="_MailAutoSig">Ada</a>"#,
+    )
+    .html;
+    assert!(out.contains(r#"type="cite""#), "{out}");
+    assert!(out.contains(r#"name="_MailAutoSig""#), "{out}");
+}
+
 #[test]
 fn preserves_the_id_a_responsive_media_query_selects_on() {
     // A newsletter's whole mobile layout hangs off `id`: the container table is a fixed 600px

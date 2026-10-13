@@ -1,6 +1,7 @@
 // Reading the editor's DOM back out as a `ComposerDocument`: the JSON `composerDocument()`
 // returns and Rust validates, renders and sends.
 
+import { contextWithin, type LineContext, lineStyleOf, NO_CONTEXT, paragraph } from "./lines";
 import { elementMarks } from "./marks";
 import { quoteBlock } from "./quote";
 import { signatureBlock } from "./signature";
@@ -44,6 +45,7 @@ export function sameMarks(a: TextRun, b: TextRun): boolean {
     a.italic === b.italic &&
     a.underline === b.underline &&
     a.font_size === b.font_size &&
+    a.font === b.font &&
     a.color === b.color &&
     a.highlight === b.highlight &&
     a.link === b.link
@@ -60,6 +62,7 @@ function inlineText(text: string, marks: Marks): InlineContent {
   // Omitted rather than sent as null: Rust defaults them, and the discard probe diffs this
   // document on every close, so absent keys keep an untouched draft byte-identical to its seed.
   if (marks.size) run.font_size = marks.size;
+  if (marks.font) run.font = marks.font;
   if (marks.color) run.color = marks.color;
   if (marks.highlight) run.highlight = marks.highlight;
   if (marks.link) run.link = marks.link;
@@ -109,20 +112,24 @@ function isBr(node: Node): boolean {
 /// Emits a leaf line as one paragraph per `<br>`-separated run, so a soft break (Shift+Enter, or a
 /// `<br>` in pasted text) becomes a real line break instead of gluing the two sides into one run.
 /// A single trailing `<br>` is `contenteditable`'s placeholder for an empty or last line and is
-/// dropped, so it adds no spurious paragraph.
-function leafParagraphs(element: Element, blocks: Block[], marks: Marks): void {
+/// dropped, so it adds no spurious paragraph. Each line takes the element's style in `context`,
+/// except that only the last line of a paragraph is set apart from the next: a `<br>` inside one
+/// breaks the line, not the paragraph.
+function leafParagraphs(element: Element, blocks: Block[], marks: Marks, context: LineContext): void {
+  const style = lineStyleOf(element, context);
+  const { spaced: _, ...line } = style;
   const children = Array.from(element.childNodes);
   if (children.length > 0 && isBr(children[children.length - 1]!)) children.pop();
   let content: InlineContent[] = [];
-  const flush = () => {
-    blocks.push({ Paragraph: { content: canonicalLine(content) } });
+  const flush = (last: boolean) => {
+    blocks.push({ Paragraph: paragraph(canonicalLine(content), last ? style : line) });
     content = [];
   };
   for (const child of children) {
-    if (isBr(child)) flush();
+    if (isBr(child)) flush(false);
     else content.push(...inlinesFrom(child, marks));
   }
-  flush();
+  flush(true);
 }
 
 /// A `<ul>`/`<ol>` as a `List`: its kind, plus one item per `<li>`. An `<li>` may carry inline
@@ -220,13 +227,18 @@ function hasBlockChild(element: Element): boolean {
 /// `contenteditable` wraps lines (and often lists and tables) in `<div>`s, so a list or table can
 /// be nested rather than a direct editor child; recursing into block wrappers keeps them
 /// structured instead of flattening them into one paragraph. Adjacent inline nodes (text, `<b>`,
-/// `<img>`, …) accumulate into a single paragraph.
-function collectBlocks(container: Element, blocks: Block[], marks: Marks = emptyMarks()): void {
+/// `<img>`, …) accumulate into a single paragraph, laid out in the container's `context`.
+function collectBlocks(
+  container: Element,
+  blocks: Block[],
+  marks: Marks = emptyMarks(),
+  context: LineContext = NO_CONTEXT,
+): void {
   let inlineRun: Node[] = [];
   const flush = () => {
     if (inlineRun.length === 0) return;
     const content = canonicalLine(inlineRun.flatMap((node) => inlinesFrom(node, marks)));
-    if (content.length > 0) blocks.push({ Paragraph: { content } });
+    if (content.length > 0) blocks.push({ Paragraph: paragraph(content, lineStyleOf(null, context)) });
     inlineRun = [];
   };
 
@@ -261,13 +273,16 @@ function collectBlocks(container: Element, blocks: Block[], marks: Marks = empty
       blocks.push(tableBlock(element!));
     } else if (tag && LINE_TAGS.has(tag)) {
       flush();
-      // A line's own marks reach its words: a heading is bold, and another client's
-      // `<div style="color:…">` colours everything inside it.
+      // A line's own marks reach its words: another client's `<div style="color:…">` colours
+      // everything inside it.
       const lineMarks = elementMarks(element!, marks);
-      if (hasBlockChild(element!)) collectBlocks(element!, blocks, lineMarks);
-      else leafParagraphs(element!, blocks, lineMarks);
-    } else if (tag === "BR" || tag === "HR") {
-      // A top-level `<br>` ends the current line, and so does a rule.
+      if (hasBlockChild(element!)) collectBlocks(element!, blocks, lineMarks, contextWithin(element!, context));
+      else leafParagraphs(element!, blocks, lineMarks, context);
+    } else if (tag === "HR") {
+      flush();
+      blocks.push({ Rule: {} });
+    } else if (tag === "BR") {
+      // A top-level `<br>` ends the current line.
       flush();
     } else {
       inlineRun.push(child);

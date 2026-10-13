@@ -50,7 +50,7 @@
                 "Text": {
                   "bold": false,
                   "color": "#c00000",
-                  "font_size": "Large",
+                  "font_size": 18,
                   "highlight": "#ffff00",
                   "italic": false,
                   "text": "large red on yellow",
@@ -111,7 +111,7 @@
               {
                 "Text": {
                   "bold": false,
-                  "font_size": "Small",
+                  "font_size": 13,
                   "italic": false,
                   "text": "Small",
                   "underline": false
@@ -120,7 +120,7 @@
               {
                 "Text": {
                   "bold": false,
-                  "font_size": "Normal",
+                  "font_size": 15,
                   "italic": false,
                   "text": "Normal",
                   "underline": false
@@ -129,7 +129,7 @@
               {
                 "Text": {
                   "bold": true,
-                  "font_size": "Huge",
+                  "font_size": 24,
                   "italic": false,
                   "text": "Huge",
                   "underline": false
@@ -140,7 +140,7 @@
         }
       ]
     },
-    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><p>Plain, <strong>bold</strong>, <strong><em><u>all three</u></em></strong> and <span style=\"font-size:18px;color:#c00000;background-color:#ffff00\">large red on yellow</span></p><p></p><p>See <a href=\"https://example.test/schedule\">the schedule</a> or write to <a href=\"mailto:ada@example.test\">ada@example.test</a></p><p><span style=\"font-size:13px\">Small</span><span style=\"font-size:15px\">Normal</span><span style=\"font-size:24px\"><strong>Huge</strong></span></p></body></html>",
+    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><div>Plain, <strong>bold</strong>, <strong><em><u>all three</u></em></strong> and <span style=\"font-size:18px;color:#c00000;background-color:#ffff00\">large red on yellow</span></div><div><br></div><div>See <a href=\"https://example.test/schedule\">the schedule</a> or write to <a href=\"mailto:ada@example.test\">ada@example.test</a></div><div><span style=\"font-size:13px\">Small</span><span style=\"font-size:15px\">Normal</span><span style=\"font-size:24px\"><strong>Huge</strong></span></div></body></html>",
     "name": "marked runs and a blank line"
   },
   {
@@ -279,7 +279,7 @@
         }
       ]
     },
-    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><ul><li>First</li><li><strong>Second</strong><ol><li>Inner one</li><li>Inner two</li></ol></li></ul><table style=\"border-collapse:collapse\"><tr><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\"><strong>Name</strong></td><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\"><strong>Room</strong></td></tr><tr><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\">Ada</td><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\"></td></tr></table><p>After the table</p></body></html>",
+    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><ul><li>First</li><li><strong>Second</strong><ol><li>Inner one</li><li>Inner two</li></ol></li></ul><table style=\"border-collapse:collapse\"><tr><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\"><strong>Name</strong></td><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\"><strong>Room</strong></td></tr><tr><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\">Ada</td><td style=\"border:1px solid #d8dde3;padding:6px;vertical-align:top\"></td></tr></table><div>After the table</div></body></html>",
     "name": "nested lists and a table"
   },
   {
@@ -347,7 +347,7 @@
         }
       ]
     },
-    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><p>The chart: <img src=\"cid:img0.1@allodia.local\" alt=\"Quarterly chart\" width=\"320\" style=\"width: 320px; max-width: 100%\"></p><p><img src=\"cid:img1.1@allodia.local\" alt=\"\" style=\"max-width: 100%\"></p></body></html>",
+    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><div>The chart: <img src=\"cid:img0.1@allodia.local\" alt=\"Quarterly chart\" width=\"320\" style=\"width: 320px; max-width: 100%\"></div><div><img src=\"cid:img1.1@allodia.local\" alt=\"\" style=\"max-width: 100%\"></div></body></html>",
     "name": "a picture in the message"
   },
   {
@@ -387,7 +387,7 @@
         }
       ]
     },
-    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><p>Thursday works for me.</p><div class=\"allodia-signature\"><p>Ada Lovelace</p><p><em>Analytical Engines</em></p></div><p>On 2 October 2026, Charles wrote:</p><blockquote style=\"margin:0 0 0 0.8ex;border-left:2px solid #cccccc;padding-left:1ex\"><p>Can we meet on Thursday?</p><p>Charles</p></blockquote></body></html>",
+    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><div>Thursday works for me.</div><div class=\"allodia-signature\"><p>Ada Lovelace</p><p><em>Analytical Engines</em></p></div><div>On 2 October 2026, Charles wrote:</div><blockquote style=\"margin:0 0 0 0.8ex;border-left:2px solid #cccccc;padding-left:1ex\"><p>Can we meet on Thursday?</p><p>Charles</p></blockquote></body></html>",
     "name": "a reply with a signature over the indented original"
   },
   {
@@ -434,7 +434,7 @@
         }
       ]
     },
-    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><p>For your records.</p><div style=\"padding:3pt 0 0;border-top:1pt solid rgb(181, 196, 223)\"><div><strong>From: </strong>Charles &lt;charles@example.test&gt;<br><strong>Sent: </strong>2 October 2026 09:30<br><strong>Subject: </strong>Minutes &amp; actions<br></div></div><div><p>The minutes are attached.</p></div></body></html>",
+    "html": "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body><div>For your records.</div><div style=\"padding:3pt 0 0;border-top:1pt solid rgb(181, 196, 223)\"><div><strong>From: </strong>Charles &lt;charles@example.test&gt;<br><strong>Sent: </strong>2 October 2026 09:30<br><strong>Subject: </strong>Minutes &amp; actions<br></div></div><div><p>The minutes are attached.</p></div></body></html>",
     "name": "a forward under its header block"
   }
 ]

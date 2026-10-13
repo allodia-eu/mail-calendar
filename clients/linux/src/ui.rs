@@ -31,6 +31,7 @@ mod composer_drafts;
 mod composer_fields;
 mod composer_header;
 mod composer_host;
+mod composer_labels;
 mod composer_model;
 mod composer_notice;
 mod composer_open;

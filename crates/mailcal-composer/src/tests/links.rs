@@ -5,6 +5,7 @@ use crate::{Block, ComposerDocument, InlineContent, LinkUrl, Paragraph, TextRun,
 
 fn run(text: &str, bold: bool, link: Option<&str>) -> InlineContent {
     InlineContent::Text(TextRun {
+        font: None,
         text: text.to_owned(),
         bold,
         italic: false,
@@ -18,7 +19,7 @@ fn run(text: &str, bold: bool, link: Option<&str>) -> InlineContent {
 
 fn document(content: Vec<InlineContent>) -> ComposerDocument {
     ComposerDocument {
-        blocks: vec![Block::Paragraph(Paragraph { content })],
+        blocks: vec![Block::Paragraph(Paragraph::new(content))],
         attachments: Vec::new(),
     }
 }
@@ -33,7 +34,7 @@ fn a_linked_run_becomes_an_anchor_and_names_its_target_in_the_plain_text() {
     .expect("renders");
     assert_eq!(
         output.html,
-        html_doc("<p>See <a href=\"https://example.com/a?b=1&amp;c=2\">the agenda</a>.</p>")
+        html_doc("<div>See <a href=\"https://example.com/a?b=1&amp;c=2\">the agenda</a>.</div>")
     );
     assert_eq!(
         output.plain_text,
@@ -52,7 +53,7 @@ fn runs_sharing_a_target_are_one_link() {
     .expect("renders");
     assert_eq!(
         output.html,
-        html_doc("<p><a href=\"https://example.com\">the <strong>new</strong> plan</a></p>")
+        html_doc("<div><a href=\"https://example.com\">the <strong>new</strong> plan</a></div>")
     );
     assert_eq!(output.plain_text, "the new plan <https://example.com>");
 }
@@ -67,7 +68,7 @@ fn adjacent_links_to_different_targets_stay_apart() {
     assert_eq!(
         output.html,
         html_doc(
-            "<p><a href=\"https://one.example\">one</a><a href=\"https://two.example\">two</a></p>"
+            "<div><a href=\"https://one.example\">one</a><a href=\"https://two.example\">two</a></div>"
         )
     );
 }
@@ -93,7 +94,7 @@ fn a_hostile_target_in_the_document_sends_the_words_without_a_link() {
     ]}}]}"#;
     let document: ComposerDocument = serde_json::from_str(json).expect("parses");
     let output = render(&document).expect("renders");
-    assert_eq!(output.html, html_doc("<p>clickme</p>"));
+    assert_eq!(output.html, html_doc("<div>clickme</div>"));
     assert_eq!(output.plain_text, "clickme");
 }
 
@@ -107,6 +108,6 @@ fn a_target_holding_quotes_is_escaped_in_the_attribute() {
     .expect("renders");
     assert_eq!(
         output.html,
-        html_doc("<p><a href=\"https://example.com/&#39;q&#39;\">x</a></p>")
+        html_doc("<div><a href=\"https://example.com/&#39;q&#39;\">x</a></div>")
     );
 }

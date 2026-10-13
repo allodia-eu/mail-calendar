@@ -78,7 +78,12 @@ fn save(composition: &str, text: &str) -> Intent {
         subject: "Re: Plans".to_owned(),
         document: ComposerDocument {
             blocks: vec![Block::Paragraph(Paragraph {
+                heading: None,
+                align: None,
+                indent_px: 0,
+                spaced: false,
                 content: vec![InlineContent::Text(TextRun {
+                    font: None,
                     text: text.to_owned(),
                     bold: false,
                     italic: false,

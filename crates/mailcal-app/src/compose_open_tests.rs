@@ -31,9 +31,7 @@ fn staging_dir(name: &str) -> String {
 
 fn empty_document() -> ComposerDocument {
     ComposerDocument {
-        blocks: vec![Block::Paragraph(Paragraph {
-            content: Vec::new(),
-        })],
+        blocks: vec![Block::Paragraph(Paragraph::new(Vec::new()))],
         attachments: Vec::new(),
     }
 }

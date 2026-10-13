@@ -7,7 +7,7 @@ use crate::{Block, ComposerDocument, InlineContent, Paragraph, TextRun, render};
 
 fn line(content: Vec<InlineContent>) -> String {
     let document = ComposerDocument {
-        blocks: vec![Block::Paragraph(Paragraph { content })],
+        blocks: vec![Block::Paragraph(Paragraph::new(content))],
         attachments: Vec::new(),
     };
     render(&document).expect("renders").html
@@ -15,6 +15,7 @@ fn line(content: Vec<InlineContent>) -> String {
 
 fn bold(value: &str) -> InlineContent {
     InlineContent::Text(TextRun {
+        font: None,
         text: value.to_owned(),
         bold: true,
         italic: false,
@@ -28,26 +29,29 @@ fn bold(value: &str) -> InlineContent {
 
 #[test]
 fn a_single_space_between_words_stays_an_ordinary_one() {
-    assert_eq!(line(vec![text("a b")]), html_doc("<p>a b</p>"));
+    assert_eq!(line(vec![text("a b")]), html_doc("<div>a b</div>"));
 }
 
 #[test]
 fn a_run_of_spaces_alternates_so_none_collapses() {
-    assert_eq!(line(vec![text("a  b")]), html_doc("<p>a &nbsp;b</p>"));
-    assert_eq!(line(vec![text("a   b")]), html_doc("<p>a &nbsp; b</p>"));
+    assert_eq!(line(vec![text("a  b")]), html_doc("<div>a &nbsp;b</div>"));
+    assert_eq!(line(vec![text("a   b")]), html_doc("<div>a &nbsp; b</div>"));
 }
 
 #[test]
 fn a_space_at_either_end_of_a_line_is_a_hard_one() {
     assert_eq!(
         line(vec![text("  indented")]),
-        html_doc("<p>&nbsp; indented</p>")
+        html_doc("<div>&nbsp; indented</div>")
     );
     assert_eq!(
         line(vec![text("trailing ")]),
-        html_doc("<p>trailing&nbsp;</p>")
+        html_doc("<div>trailing&nbsp;</div>")
     );
-    assert_eq!(line(vec![text("   ")]), html_doc("<p>&nbsp; &nbsp;</p>"));
+    assert_eq!(
+        line(vec![text("   ")]),
+        html_doc("<div>&nbsp; &nbsp;</div>")
+    );
 }
 
 #[test]
@@ -55,12 +59,12 @@ fn spaces_are_counted_across_the_runs_of_one_line() {
     // Two runs, one space each, side by side: a browser would collapse them into one.
     assert_eq!(
         line(vec![text("a "), bold(" b")]),
-        html_doc("<p>a <strong>&nbsp;b</strong></p>")
+        html_doc("<div>a <strong>&nbsp;b</strong></div>")
     );
     // A space with formatting of its own between two words is still the one between them.
     assert_eq!(
         line(vec![text("a"), bold(" "), text("b")]),
-        html_doc("<p>a<strong> </strong>b</p>")
+        html_doc("<div>a<strong> </strong>b</div>")
     );
 }
 
@@ -68,6 +72,6 @@ fn spaces_are_counted_across_the_runs_of_one_line() {
 fn a_tab_keeps_its_width() {
     assert_eq!(
         line(vec![text("a\tb")]),
-        html_doc("<p>a<span style=\"white-space:pre\">\t</span>b</p>")
+        html_doc("<div>a<span style=\"white-space:pre\">\t</span>b</div>")
     );
 }

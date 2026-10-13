@@ -1,10 +1,11 @@
 // Wiring the toolbar: the formatting buttons, and the two popovers (colour palette, table menu).
 
 import { documentOf, windowOf } from "./dom";
-import { applyColor, applyFontSize, applyMark, type ColorKind } from "./format";
+import { applyColor, applyFontFamily, applyFontSize, applyMark, type ColorKind } from "./format";
 import { buildLinkMenu } from "./link_menu";
 import { indentSelection } from "./lists";
 import { type Labels } from "./labels";
+import { indentLines, insertRule, setAlign, setHeading } from "./paragraphs";
 import {
   cellAtCaret,
   deleteColumn,
@@ -14,7 +15,7 @@ import {
   insertRow,
   insertTable,
 } from "./tables";
-import { isFontSize } from "./types";
+import { type Align, fontSizeOf, HEADINGS, type Heading } from "./types";
 
 /// Two rows of six. Named by nothing but their value: naming twelve colours would be twelve more
 /// catalog keys in seven locales for information the swatch already conveys, and "Automatic" and
@@ -85,13 +86,23 @@ export function installToolbar(
 
   const fontSize = byId<HTMLSelectElement>("font-size");
   fontSize.addEventListener("change", () => {
-    if (isFontSize(fontSize.value)) applyFontSize(editor, fontSize.value);
+    const size = fontSizeOf(Number(fontSize.value));
+    if (size) applyFontSize(editor, size);
+  });
+  const fontFamily = byId<HTMLSelectElement>("font-family");
+  fontFamily.addEventListener("change", () => applyFontFamily(editor, fontFamily.value || null));
+  const blockStyle = byId<HTMLSelectElement>("block-style");
+  blockStyle.addEventListener("change", () => {
+    const value = blockStyle.value;
+    setHeading(editor, (HEADINGS as readonly string[]).includes(value) ? (value as Heading) : null);
   });
 
   byId("bullet-list").addEventListener("click", () => legacy(editor, "insertUnorderedList"));
   byId("ordered-list").addEventListener("click", () => legacy(editor, "insertOrderedList"));
-  byId("indent").addEventListener("click", () => indentSelection(editor, false));
-  byId("outdent").addEventListener("click", () => indentSelection(editor, true));
+  // A list item moves within its list; any other line moves its own margin.
+  byId("indent").addEventListener("click", () => indentSelection(editor, false) || indentLines(editor, false));
+  byId("outdent").addEventListener("click", () => indentSelection(editor, true) || indentLines(editor, true));
+  byId("rule").addEventListener("click", () => insertRule(editor));
 
   // --- Popovers ---
 
@@ -209,6 +220,7 @@ export function installToolbar(
   swatchBar("highlight-bar", HIGHLIGHTS[0]!);
 
   register("table", "table-menu", (panel) => buildTableMenu(panel, editor, doc, labels(), closeAll));
+  register("align", "align-menu", (panel) => buildAlignMenu(panel, editor, doc, labels(), closeAll));
   const link: Popover = {
     button: byId("link"),
     panel: byId("link-menu"),
@@ -251,16 +263,18 @@ export function installToolbar(
       title("#highlight", current.highlight);
       title("#table", current.table);
       title("#link", current.link);
-      fontSize.title = current.fontSize;
-      fontSize.setAttribute("aria-label", current.fontSize);
-      const sizeText: Record<string, string> = {
-        Normal: current.sizeNormal,
-        Small: current.sizeSmall,
-        Large: current.sizeLarge,
-        Huge: current.sizeHuge,
-      };
-      for (const option of Array.from(fontSize.options)) {
-        const text = sizeText[option.value];
+      title("#align", current.align);
+      title("#rule", current.horizontalRule);
+      for (const [select, text] of [
+        [fontSize, current.fontSize],
+        [fontFamily, current.fontFamily],
+        [blockStyle, current.blockStyle],
+      ] as const) {
+        select.title = text;
+        select.setAttribute("aria-label", text);
+      }
+      for (const option of Array.from(root.querySelectorAll<HTMLOptionElement>("option[data-label]"))) {
+        const text = current[option.dataset.label as keyof Labels];
         if (text) option.textContent = text;
       }
       closeAll();
@@ -334,6 +348,36 @@ function buildTableMenu(
   action(labels.deleteRow, () => deleteRow(editor, cell));
   action(labels.deleteColumn, () => deleteColumn(editor, cell));
   action(labels.deleteTable, () => deleteTable(editor, cell));
+  panel.appendChild(items);
+}
+
+/// The four alignments, each a command on the selected lines.
+function buildAlignMenu(
+  panel: HTMLElement,
+  editor: HTMLElement,
+  doc: Document,
+  labels: Labels,
+  close: () => void,
+): void {
+  panel.textContent = "";
+  const items = doc.createElement("div");
+  items.className = "menu-items";
+  const choices: [string, Align | null][] = [
+    [labels.alignLeft, null],
+    [labels.alignCentre, "Center"],
+    [labels.alignRight, "Right"],
+    [labels.alignJustify, "Justify"],
+  ];
+  for (const [text, align] of choices) {
+    const button = doc.createElement("button");
+    button.type = "button";
+    button.textContent = text;
+    button.addEventListener("click", () => {
+      setAlign(editor, align);
+      close();
+    });
+    items.appendChild(button);
+  }
   panel.appendChild(items);
 }
 

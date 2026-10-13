@@ -64,19 +64,19 @@ describe("outdent", () => {
   test("a top-level item leaves the list, splitting it around the paragraph", () => {
     const h = harness("<ul><li id=a>a</li><li id=b>b</li><li id=c>c</li></ul>");
     outdentItem(h.caret("#b"));
-    expect(h.html()).toBe('<ul><li id="a">a</li></ul><p>b</p><ul><li id="c">c</li></ul>');
+    expect(h.html()).toBe('<ul><li id="a">a</li></ul><div>b</div><ul><li id="c">c</li></ul>');
   });
 
   test("a top-level item's own sub-list is promoted rather than dropped", () => {
     const h = harness("<ul><li id=a>a<ul><li id=b>b</li></ul></li></ul>");
     outdentItem(h.caret("#a"));
-    expect(h.html()).toBe('<p>a</p><ul><li id="b">b</li></ul>');
+    expect(h.html()).toBe('<div>a</div><ul><li id="b">b</li></ul>');
   });
 
   test("outdenting the only item removes the empty list", () => {
     const h = harness("<ul><li id=a>a</li></ul>");
     outdentItem(h.caret("#a"));
-    expect(h.html()).toBe("<p>a</p>");
+    expect(h.html()).toBe("<div>a</div>");
   });
 
   test("a selected run outdents to a flat list", () => {
@@ -163,7 +163,7 @@ describe("the caret follows the item, not the structure", () => {
     const caret = saveSelection(h.editor);
     outdentItem(a);
     restoreSelection(h.editor, caret);
-    expect(h.caretHost()?.tagName).toBe("P");
+    expect(h.caretHost()?.tagName).toBe("DIV");
   });
 
   test("outdenting leaves the caret in the item that moved", () => {

@@ -4,6 +4,10 @@ use super::*;
 fn renders_inline_images_as_cid_parts_and_keeps_regular_attachments_separate() {
     let document = ComposerDocument {
         blocks: vec![Block::Paragraph(Paragraph {
+            heading: None,
+            align: None,
+            indent_px: 0,
+            spaced: false,
             content: vec![
                 text("See "),
                 InlineContent::Image(InlineImage {
@@ -26,8 +30,8 @@ fn renders_inline_images_as_cid_parts_and_keeps_regular_attachments_separate() {
     assert_eq!(
         output.html,
         html_doc(
-            "<p>See <img src=\"cid:chart-1@example.test\" alt=\"quarterly chart\" \
-             width=\"320\" style=\"width: 320px; max-width: 100%\"></p>"
+            "<div>See <img src=\"cid:chart-1@example.test\" alt=\"quarterly chart\" \
+             width=\"320\" style=\"width: 320px; max-width: 100%\"></div>"
         )
     );
     assert_eq!(output.plain_text, "See [quarterly chart]");
@@ -67,6 +71,10 @@ fn inline_image_sharing_a_blob_with_an_attachment_still_emits_its_cid_part() {
     };
     let document = ComposerDocument {
         blocks: vec![Block::Paragraph(Paragraph {
+            heading: None,
+            align: None,
+            indent_px: 0,
+            spaced: false,
             content: vec![InlineContent::Image(InlineImage {
                 attachment_id: aid("img-1"),
                 alt_text: "chart".to_owned(),
@@ -115,6 +123,10 @@ fn two_inline_images_sharing_a_blob_under_distinct_cids_emit_both_parts() {
     };
     let document = ComposerDocument {
         blocks: vec![Block::Paragraph(Paragraph {
+            heading: None,
+            align: None,
+            indent_px: 0,
+            spaced: false,
             content: vec![
                 InlineContent::Image(InlineImage {
                     attachment_id: aid("img-1"),
@@ -148,6 +160,10 @@ fn two_inline_images_sharing_a_blob_under_distinct_cids_emit_both_parts() {
 fn rejects_inline_image_without_matching_cid_attachment() {
     let document = ComposerDocument {
         blocks: vec![Block::Paragraph(Paragraph {
+            heading: None,
+            align: None,
+            indent_px: 0,
+            spaced: false,
             content: vec![InlineContent::Image(InlineImage {
                 attachment_id: aid("missing"),
                 alt_text: String::new(),
@@ -166,9 +182,9 @@ fn rejects_inline_image_without_matching_cid_attachment() {
 #[test]
 fn rejects_unreferenced_inline_attachment_so_it_never_reaches_the_manifest() {
     let document = ComposerDocument {
-        blocks: vec![Block::Paragraph(Paragraph {
-            content: vec![text("no image here")],
-        })],
+        blocks: vec![Block::Paragraph(Paragraph::new(vec![text(
+            "no image here",
+        )]))],
         attachments: vec![inline_attachment("img-1")],
     };
 
@@ -184,6 +200,10 @@ const PASTED_PNG: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB
 fn pasted_document(attachment: DraftAttachment) -> ComposerDocument {
     ComposerDocument {
         blocks: vec![Block::Paragraph(Paragraph {
+            heading: None,
+            align: None,
+            indent_px: 0,
+            spaced: false,
             content: vec![InlineContent::Image(InlineImage {
                 attachment_id: aid("img-1"),
                 alt_text: "screenshot".to_owned(),
@@ -271,9 +291,9 @@ fn shared_blob_handle_is_listed_once_in_the_manifest() {
     // `regular_attachment` always uses the `blob://file` handle, so the two
     // distinct attachment ids below share a single blob.
     let document = ComposerDocument {
-        blocks: vec![Block::Paragraph(Paragraph {
-            content: vec![text("two attachments, one blob")],
-        })],
+        blocks: vec![Block::Paragraph(Paragraph::new(vec![text(
+            "two attachments, one blob",
+        )]))],
         attachments: vec![regular_attachment("file-1"), regular_attachment("file-2")],
     };
 
@@ -290,6 +310,10 @@ fn a_picture_nobody_resized_is_still_held_inside_the_reading_pane() {
     // image, which is exactly why this was invisible to us; a recipient's need not.
     let document = ComposerDocument {
         blocks: vec![Block::Paragraph(Paragraph {
+            heading: None,
+            align: None,
+            indent_px: 0,
+            spaced: false,
             content: vec![InlineContent::Image(InlineImage {
                 attachment_id: aid("img-1"),
                 alt_text: String::new(),
@@ -304,8 +328,8 @@ fn a_picture_nobody_resized_is_still_held_inside_the_reading_pane() {
     assert_eq!(
         output.html,
         html_doc(
-            "<p><img src=\"cid:chart-1@example.test\" alt=\"\" \
-             style=\"max-width: 100%\"></p>"
+            "<div><img src=\"cid:chart-1@example.test\" alt=\"\" \
+             style=\"max-width: 100%\"></div>"
         )
     );
 }

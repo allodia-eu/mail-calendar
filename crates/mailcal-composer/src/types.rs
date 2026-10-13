@@ -2,7 +2,15 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{color::TextColor, link::LinkUrl, list::List, quote::Quote, signature::Signature};
+use crate::{
+    color::TextColor,
+    font::{FontFamily, FontSize},
+    link::LinkUrl,
+    list::List,
+    paragraph::{Paragraph, Rule},
+    quote::Quote,
+    signature::Signature,
+};
 
 /// Stable client-generated attachment id used inside the compose document.
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -164,43 +172,6 @@ impl fmt::Debug for DraftAttachment {
     }
 }
 
-/// A constrained font-size set so clients render and emit the same values.
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FontSize {
-    /// Small body text.
-    Small,
-    /// Default body text.
-    Normal,
-    /// Larger body text.
-    Large,
-    /// Heading-like body text.
-    Huge,
-}
-
-impl FontSize {
-    /// Pixel value used in outgoing HTML.
-    #[must_use]
-    pub const fn css_px(self) -> u8 {
-        match self {
-            Self::Small => 13,
-            Self::Normal => 15,
-            Self::Large => 18,
-            Self::Huge => 24,
-        }
-    }
-}
-
-impl fmt::Debug for FontSize {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Small => "Small",
-            Self::Normal => "Normal",
-            Self::Large => "Large",
-            Self::Huge => "Huge",
-        })
-    }
-}
-
 /// A text run and its marks.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TextRun {
@@ -215,9 +186,13 @@ pub struct TextRun {
     /// Underline mark.
     #[serde(default)]
     pub underline: bool,
-    /// Optional constrained font size.
+    /// Optional font size.
     #[serde(default)]
     pub font_size: Option<FontSize>,
+    /// Optional typeface. A list [`FontFamily`] refuses deserializes to `None`, on the same terms
+    /// as `color`.
+    #[serde(default, deserialize_with = "crate::font::deserialize_family")]
+    pub font: Option<FontFamily>,
     /// Optional text colour. A value [`TextColor`] cannot represent deserializes to `None` rather
     /// than failing the whole document: colour is presentation, and refusing to send a message
     /// over one run's spelling trades a cosmetic loss for a functional one.
@@ -241,6 +216,7 @@ impl fmt::Debug for TextRun {
             .field("italic", &self.italic)
             .field("underline", &self.underline)
             .field("font_size", &self.font_size)
+            .field("font", &self.font)
             .field("color", &self.color)
             .field("highlight", &self.highlight)
             .field("link", &self.link)
@@ -300,21 +276,6 @@ impl fmt::Debug for InlineImage {
     }
 }
 
-/// A paragraph block.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Paragraph {
-    /// Inline content in order.
-    pub content: Vec<InlineContent>,
-}
-
-impl fmt::Debug for Paragraph {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Paragraph")
-            .field("content_len", &self.content.len())
-            .finish()
-    }
-}
-
 /// A table cell.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TableCell {
@@ -363,8 +324,10 @@ impl fmt::Debug for Table {
 /// A block in the composer document.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Block {
-    /// Paragraph block.
+    /// Paragraph block: body text or a heading.
     Paragraph(Paragraph),
+    /// A horizontal rule.
+    Rule(Rule),
     /// Bulleted or ordered list, whose items may nest further sub-lists.
     List(List),
     /// Table block.
@@ -379,6 +342,7 @@ impl fmt::Debug for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Paragraph(p) => f.debug_tuple("Paragraph").field(p).finish(),
+            Self::Rule(rule) => f.debug_tuple("Rule").field(rule).finish(),
             Self::List(list) => f.debug_tuple("List").field(list).finish(),
             Self::Table(t) => f.debug_tuple("Table").field(t).finish(),
             Self::Quote(quote) => f.debug_tuple("Quote").field(quote).finish(),

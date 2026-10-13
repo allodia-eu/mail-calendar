@@ -150,8 +150,10 @@ pub(crate) fn validate(document: &ComposerDocument) -> ComposerResult<Validated<
                 validate_list(list, &attachments, &mut referenced_inline)?;
             }
             // A quote and a signature each carry an opaque HTML fragment (sanitised by the core on
-            // submit) and no draft attachments to cross-check, nothing to validate here.
-            crate::types::Block::Quote(_) | crate::types::Block::Signature(_) => {}
+            // submit) and no draft attachments to cross-check, and a rule carries nothing at all.
+            crate::types::Block::Quote(_)
+            | crate::types::Block::Signature(_)
+            | crate::types::Block::Rule(_) => {}
             crate::types::Block::Table(table) => {
                 validate_table(table)?;
                 for row in &table.rows {

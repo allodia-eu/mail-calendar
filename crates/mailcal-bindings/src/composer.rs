@@ -197,7 +197,7 @@ mod tests {
         let output = render_composer_document_json(document.to_owned()).expect("rendered");
 
         assert!(output.contains(r#""html":"<!DOCTYPE html><html><head>"#));
-        assert!(output.contains(r#"<body><p><strong>Hello</strong></p></body></html>"#));
+        assert!(output.contains(r#"<body><div><strong>Hello</strong></div></body></html>"#));
         assert!(output.contains(r#""plain_text":"Hello""#));
     }
 
@@ -212,7 +212,7 @@ mod tests {
 
         let output = render_composer_document_json(document.to_owned()).expect("rendered");
 
-        assert!(output.contains(r#"<p><a href=\"https://example.com/a\">agenda</a> x</p>"#));
+        assert!(output.contains(r#"<div><a href=\"https://example.com/a\">agenda</a> x</div>"#));
         assert!(!output.contains("javascript"));
         assert!(output.contains(r#""plain_text":"agenda <https://example.com/a> x""#));
     }

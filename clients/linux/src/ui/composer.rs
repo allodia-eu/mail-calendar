@@ -9,7 +9,6 @@ use std::{
 use adw::prelude::*;
 use gtk::{AccessibleRole, accessible::Property as AccessibleProperty, gio};
 use mailcal_bindings::MailcalApp;
-use serde_json::json;
 use webkit6::prelude::WebViewExt;
 
 use super::{
@@ -22,6 +21,7 @@ use super::{
     composer_drafts::Autosave,
     composer_fields::{ComposerFields, connect_save_draft, connect_send, read_document},
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
+    composer_labels::editor_labels,
     composer_model::{ComposeContext, attribution_script, body_seed_script, compose_title},
     composer_quote_style::QuoteStylePicker,
     composer_signature::SignatureControl,
@@ -373,47 +373,6 @@ impl ComposerPane {
         self.error.replace(None);
         self.send.replace(None);
     }
-}
-
-/// Every string the shared editor's own chrome draws, in the bundle's key names.
-///
-/// One map for the composer **and** the Settings signature editor: the bundle keeps no
-/// translations of its own, and a host that sends a partial map leaves those controls in English
-/// with nothing to say so (`cargo xtask check-composer-labels`).
-pub(super) fn editor_labels() -> serde_json::Value {
-    json!({
-        "placeholder": l10n::editor_placeholder(),
-        "bold": l10n::editor_bold(),
-        "italic": l10n::editor_italic(),
-        "underline": l10n::editor_underline(),
-        "fontSize": l10n::editor_font_size(),
-        "sizeNormal": l10n::editor_size_normal(),
-        "sizeSmall": l10n::editor_size_small(),
-        "sizeLarge": l10n::editor_size_large(),
-        "sizeHuge": l10n::editor_size_huge(),
-        "bulletedList": l10n::editor_bulleted_list(),
-        "numberedList": l10n::editor_numbered_list(),
-        "indent": l10n::editor_indent(),
-        "outdent": l10n::editor_outdent(),
-        "textColour": l10n::editor_text_colour(),
-        "colourAutomatic": l10n::editor_colour_automatic(),
-        "highlight": l10n::editor_highlight(),
-        "highlightNone": l10n::editor_highlight_none(),
-        "table": l10n::editor_table(),
-        "insertTable": l10n::editor_insert_table(),
-        "insertRowAbove": l10n::editor_insert_row_above(),
-        "insertRowBelow": l10n::editor_insert_row_below(),
-        "insertColumnLeft": l10n::editor_insert_column_left(),
-        "insertColumnRight": l10n::editor_insert_column_right(),
-        "deleteRow": l10n::editor_delete_row(),
-        "deleteColumn": l10n::editor_delete_column(),
-        "deleteTable": l10n::editor_delete_table(),
-        "link": l10n::editor_link(),
-        "linkText": l10n::editor_link_text(),
-        "linkAddress": l10n::editor_link_address(),
-        "linkApply": l10n::editor_link_apply(),
-        "linkRemove": l10n::editor_link_remove(),
-    })
 }
 
 /// Sends the editor everything an open draft needs, once the bundle has parsed.

@@ -8,10 +8,12 @@
 
 mod color;
 mod file_meta;
+mod font;
 mod host_request;
 mod link;
 mod list;
 mod mailto;
+mod paragraph;
 mod quote;
 mod render;
 mod render_inline;
@@ -22,6 +24,7 @@ mod validate;
 
 pub use color::TextColor;
 pub use file_meta::{safe_file_name, safe_media_type};
+pub use font::{FontFamily, FontSize};
 pub use host_request::{
     HostAnswer, HostRequest, HostRequestKind, LinkAnswer, LinkRequest, answer_script, link_address,
     parse_host_request,
@@ -29,6 +32,7 @@ pub use host_request::{
 pub use link::{LINK_SCHEMES, LinkUrl, has_link_scheme};
 pub use list::{List, ListItem, ListKind};
 pub use mailto::{MailtoPrefill, parse_mailto};
+pub use paragraph::{Align, Heading, Paragraph, Rule};
 pub use quote::{Quote, QuoteAttribution, QuoteHeader, QuoteStyle};
 pub use render::render;
 pub use share::{
@@ -38,8 +42,8 @@ pub use share::{
 pub use signature::Signature;
 pub use types::{
     AttachmentDisposition, AttachmentId, Block, ComposerDocument, ComposerOutput, ContentId,
-    DraftAttachment, DraftBlobHandle, FontSize, InlineContent, InlineImage, OutputAttachment,
-    Paragraph, Table, TableCell, TableRow, TextRun,
+    DraftAttachment, DraftBlobHandle, InlineContent, InlineImage, OutputAttachment, Table,
+    TableCell, TableRow, TextRun,
 };
 pub use validate::{ComposerError, ComposerResult};
 

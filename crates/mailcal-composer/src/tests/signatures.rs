@@ -3,9 +3,7 @@ use super::*;
 fn signature_doc() -> ComposerDocument {
     ComposerDocument {
         blocks: vec![
-            Block::Paragraph(Paragraph {
-                content: vec![text("See you Thursday.")],
-            }),
+            Block::Paragraph(Paragraph::new(vec![text("See you Thursday.")])),
             Block::Signature(Signature {
                 body_html: "<p>Alice Doe<br><em>Allodia</em></p>".to_owned(),
                 body_plain: "Alice Doe\nAllodia".to_owned(),
@@ -24,7 +22,7 @@ fn renders_the_signature_inside_its_wrapper_with_the_body_verbatim() {
     assert_eq!(
         output.html,
         html_doc(
-            "<p>See you Thursday.</p>\
+            "<div>See you Thursday.</div>\
              <div class=\"allodia-signature\">\
              <p>Alice Doe<br><em>Allodia</em></p></div>"
         )
@@ -67,9 +65,7 @@ fn a_signature_sits_above_the_quoted_original_when_the_editor_put_it_there() {
     // quote would read as part of the original message).
     let document = ComposerDocument {
         blocks: vec![
-            Block::Paragraph(Paragraph {
-                content: vec![text("Sounds good.")],
-            }),
+            Block::Paragraph(Paragraph::new(vec![text("Sounds good.")])),
             Block::Signature(Signature {
                 body_html: "<p>Alice</p>".to_owned(),
                 body_plain: "Alice".to_owned(),
@@ -120,4 +116,20 @@ fn the_signature_block_serializes_under_the_tag_the_editor_emits() {
         json,
         "{\"Signature\":{\"body_html\":\"<p>x</p>\",\"body_plain\":\"x\"}}"
     );
+}
+
+/// Thunderbird writes the delimiter into the signature itself; a reopened draft's text part still
+/// carries it once.
+#[test]
+fn a_signature_carrying_its_own_delimiter_has_it_once() {
+    let document = ComposerDocument {
+        blocks: vec![Block::Signature(Signature {
+            body_html: "-- <br>Kind regards, Alice".to_owned(),
+            body_plain: "--\nKind regards, Alice".to_owned(),
+        })],
+        attachments: Vec::new(),
+    };
+
+    let output = render(&document).expect("valid document");
+    assert_eq!(output.plain_text, "-- \nKind regards, Alice");
 }

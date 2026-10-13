@@ -192,9 +192,8 @@ composer appears when the answer does.
 sanitised as a reading view's is, with every picture the draft carries as a part already turned
 into the `data:` URI the editor shows it from (`ComposeOpening::body_html`). The editor reads it
 back into its own document (`setComposerBody`, `clients/composer/src/read_html.ts`): the
-formatting, the lists and tables, the pictures, the quoted original and the signature. What another
-client wrote reads as closely as the editor's schema allows (see the known gaps). A draft with no
-HTML opens as its text.
+formatting, the lists and tables, the pictures, the quoted original and the signature. A draft with
+no HTML opens as its text.
 
 **What this app saved reopens as exactly the document it was saved from.** Every part of that is
 carried in the HTML itself, in markup any client reads, so nothing about it is particular to this
@@ -217,6 +216,35 @@ This is checked rather than assumed. The core generates documents across the edi
 passes each through the save's own builder and the reopen's own sanitiser, and writes the result
 to `clients/composer/tests/fixtures/reopened.json`; the editor's suite then reads every entry back
 and requires the document it was saved from.
+
+**What Thunderbird and Outlook saved reopens as they show it.** A draft is one more message in
+the user's mailbox, and the same person picks it up in whichever client is in front of them, so a
+draft started in either opens here holding what that client showed, and one saved here opens there
+the same way, because everything the editor writes is standard HTML:
+
+- **Lines and paragraphs.** A line is set without spacing, as Enter makes one here and as Outlook
+  and Gmail write every line, spacing a message with blank lines; a paragraph is set apart from the
+  next, as Thunderbird writes one. The renderer writes a line as a `<div>` and a paragraph as a `<p>`
+  with its spacing stated inline, because Word, which every Windows Outlook renders with, gives a
+  bare `<p>` 14pt above and below, and an Outlook draft saved here would come back spread across
+  the page. A `<br>` inside a paragraph breaks the line, not the paragraph.
+- **Formatting.** Headings, alignment, an indent at the depth the other client gave it (Outlook
+  indents by a quarter or half inch, Thunderbird and Gmail by 40px), a horizontal rule, a typeface,
+  and a size at the exact size it was set, read from pixels, points or `<font size>`. Thunderbird's
+  `<blockquote>` used as an indent is an indent; Word's paragraph holding a single no-break space is
+  a blank line; a list written directly inside another list belongs to the item above it.
+- **The quoted original.** Thunderbird's `.moz-cite-prefix` over `<blockquote type="cite">`, Gmail's
+  `.gmail_attr` over `.gmail_quote`, Thunderbird's forward container with its header table, and
+  Outlook's top-bordered block of bold `Label:` lines all become the quote region, with the
+  attribution they show. A `<blockquote>` nobody marks as a quote is an indent.
+- **The signature.** Thunderbird's `.moz-signature`, Outlook on the web's `#Signature`, and the
+  paragraphs Word bookmarks `_MailAutoSig` become the signature region, kept as they were written.
+
+The core's sanitiser keeps the markup each of these is read by: `<font>`'s colour, face and size,
+`type` on a blockquote, and `name` on an anchor ([`composer-security.md`](composer-security.md)).
+This is checked against drafts each client stored by hand on the harness, kept byte for byte under
+`clients/composer/tests/fixtures/interop/`: the core opens each through `open_composer` and writes
+what the editor receives to `interop.json`, and the editor's suite requires what that client drew.
 
 **A reopened quote shows both attributions.** A stored quote carries the style it was saved in,
 the one-line "On … wrote:" or the header block, and nothing of the other. When the message it
@@ -352,12 +380,12 @@ second name for leaving.
   and the Outbox shows sends only ([`sending.md`](sending.md)), so a draft saved with no network
   is in neither list until the network returns. It is not lost, and the composer's hint says so,
   but a user who closes the composer has nowhere to look.
-- **A draft another client wrote opens as the editor's schema can hold it.** Its words, lines,
-  marks, lists, tables, links, quotes and the pictures it carries all come back, but a construct
-  the schema has no place for is read as the nearest thing it has: a heading as a bold line, a
-  font size other than the composer's four as the body's size, a named colour as no colour, and a
-  picture linked from the web, which the composer cannot send, not at all. The next save stores
-  what the composer opened with, so those are gone from the draft once it is saved.
+- **A draft another client wrote loses what the editor's schema has no place for.** Strikethrough,
+  subscript and superscript, a block's background or border, line spacing, a table's borders,
+  widths and merged cells, a size given relative to its surroundings (`em`, `%`), and a colour named
+  other than CSS 2.1's seventeen. Each is read as the nearest thing the schema has, and the next
+  save stores what the composer opened with. A picture linked from the web is not kept, because the
+  composer sends pictures only as parts of the message.
 - **A draft written from an alias reopens on its account.** This app sends from an account's own
   address only, so a draft another client wrote from an alias goes out from the account if it is
   sent from here.

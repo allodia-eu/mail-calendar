@@ -106,7 +106,7 @@ describe("an empty document still has a paragraph", () => {
   });
 
   test("a lone placeholder <br>", () => {
-    expect(blocks("<p><br></p>")).toEqual([{ Paragraph: { content: [] } }]);
+    expect(blocks("<div><br></div>")).toEqual([{ Paragraph: { content: [] } }]);
   });
 });
 
@@ -199,7 +199,7 @@ describe("a text run omits the marks it does not carry", () => {
 
   test("a sized and highlighted run adds only those", () => {
     const [run] = runsOf(
-      paragraphs('<p><span data-size="Large" data-highlight="#ffff00">hi</span></p>')[0]!,
+      paragraphs('<p><span data-size="18" data-highlight="#ffff00">hi</span></p>')[0]!,
     );
     expect(Object.keys(run!).sort()).toEqual([
       "bold",

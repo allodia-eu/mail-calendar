@@ -76,8 +76,8 @@ const CLIENTS: &[Client] = &[
     },
     Client {
         name: "linux",
-        map: "clients/linux/src/ui/composer.rs",
-        key: ("\"", "\": l10n::"),
+        map: "clients/linux/src/ui/composer_labels.rs",
+        key: ("(\"", "\", l10n::"),
         call: ("clients/linux/src", "window.setComposerLabels("),
     },
     Client {
@@ -187,7 +187,7 @@ fn bundle_keys(text: &str) -> Result<Vec<String>, String> {
         let trimmed = line.trim_start();
         let name: String = trimmed
             .chars()
-            .take_while(char::is_ascii_alphabetic)
+            .take_while(char::is_ascii_alphanumeric)
             .collect();
         if !name.is_empty() && trimmed[name.len()..].starts_with(": string;") {
             keys.push(name);
@@ -212,7 +212,7 @@ fn keys_in(text: &str, (before, after): (&str, &str)) -> Vec<String> {
             let candidate = &rest[at + before.len()..];
             let name: String = candidate
                 .chars()
-                .take_while(char::is_ascii_alphabetic)
+                .take_while(char::is_ascii_alphanumeric)
                 .collect();
             if !name.is_empty() && candidate[name.len()..].starts_with(after) {
                 keys.push(name.clone());
@@ -256,6 +256,16 @@ mod tests {
         assert_eq!(bundle_keys(LABELS).unwrap(), ["bold", "italic", "link"]);
     }
 
+    /// A key with a digit in it is read whole: read up to the digit, `heading1` was a name neither
+    /// side could match, and the check passed over a label no client sent.
+    #[test]
+    fn a_key_with_a_digit_is_read_whole() {
+        let labels = "export interface Labels {\n  heading1: string;\n}\n";
+        assert_eq!(bundle_keys(labels).unwrap(), ["heading1"]);
+        let kotlin = "        put(\"heading1\", L10n.editor_heading(ctx, \"1\"))\n";
+        assert_eq!(keys_in(kotlin, ("put(\"", "\"")), ["heading1"]);
+    }
+
     #[test]
     fn a_renamed_or_empty_interface_is_an_error_not_an_empty_list() {
         // Comparing an empty list to an empty list is the check that cannot fail.
@@ -271,8 +281,8 @@ mod tests {
         let swift = "        \"bold\": L10n.editorBold,\n        \"link\": L10n.editorLink,\n";
         assert_eq!(keys_in(swift, ("\"", "\": L10n.")), ["bold", "link"]);
 
-        let rust = "        \"bold\": l10n::editor_bold(),\n";
-        assert_eq!(keys_in(rust, ("\"", "\": l10n::")), ["bold"]);
+        let rust = "        (\"bold\", l10n::editor_bold()),\n";
+        assert_eq!(keys_in(rust, ("(\"", "\", l10n::")), ["bold"]);
 
         let csharp = "        [\"bold\"] = L10n.EditorBold,\n";
         assert_eq!(keys_in(csharp, ("[\"", "\"] = L10n.")), ["bold"]);

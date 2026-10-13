@@ -1,0 +1,32 @@
+To: <alice@test.local>
+References: <baseline-0001@test.local>
+In-Reply-To: <baseline-0001@test.local>
+Subject: FW: Harness baseline message
+Message-ID: <004801dd5af7$fc08a5b0$f419f110$@Domain>
+MIME-Version: 1.0
+Content-Type: text/plain;
+	charset="utf-8"
+Content-Transfer-Encoding: 8bit
+X-Mailer: Microsoft Outlook 16.0
+Content-Language: en-us
+Thread-Index: AQMUU1eValb93pzf+4iiUbO3NmvA9rSNSS9g
+X-OlkEid: 0000000017419D82725F454EA81D6E051C6E6FA8070034AD76187591974DBF6C4F76951C873A0100000000000000C0FAE77A27A8F544B672898DA98209580000000006030000F5154CE8C215F44BAFAB3BC834855C2D
+
+This is a forward of the baseline message.
+Kind regards,
+Alice
+This is my bold signature, pretty cool right?
+
+
+
+-----Oorspronkelijk bericht-----
+Van: Alice Tester <alice@test.local>
+Verzonden: Monday, January 5, 2026 10:00 AM
+Aan: Bob Tester <bob@test.local>
+Onderwerp: Harness baseline message
+
+Baseline plaintext message with a unique Message-ID.
+
+This one is also COPYed into Archive by the seeder, so the same content has 
+two mailbox memberships (two distinct provider objects) — the IMAP copy 
+invariant.

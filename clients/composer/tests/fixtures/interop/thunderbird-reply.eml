@@ -1,0 +1,39 @@
+Message-ID: <e8700986-f0f7-48a6-8a3e-99f3405fa56a@test.local>
+Date: Tue, 13 Oct 2026 11:47:31 +0200
+MIME-Version: 1.0
+User-Agent: Mozilla Thunderbird
+Subject: Re: Duplicate Message-ID (copy B)
+To: Newsletter <news@example.com>
+References: <shared-dup-msgid@example.com>
+Content-Language: nl
+From: Alice Tester <alice@test.local>
+X-Mozilla-Draft-Info: internal/draft; vcard=0; receipt=0; DSN=0; uuencode=0;
+ attachmentreminder=0; deliveryformat=0
+X-Identity-Key: id2
+Fcc: imap://alice%40test.local@127.0.0.1/Sent Items
+In-Reply-To: <shared-dup-msgid@example.com>
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  </head>
+  <body>
+    <p>This is a draft reply from Thunderbird to the baseline message.</p>
+    <div class="moz-cite-prefix">Op 7-1-2026 om 11:00 schreef
+      Newsletter:<br>
+    </div>
+    <blockquote type="cite" cite="mid:shared-dup-msgid@example.com">
+      <pre wrap="" class="moz-quote-pre">Second of two messages that share the same Message-ID as copy A. Different
+Subject and Date so the two are distinguishable by content the harness controls,
+never by the server-assigned IMAP UID.
+</pre>
+    </blockquote>
+    <div class="moz-signature">-- <br>
+      Kind regards,
+      Alice
+      <b>This is my bold signature, pretty cool right?</b></div>
+  </body>
+</html>

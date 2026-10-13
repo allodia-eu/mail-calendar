@@ -122,7 +122,7 @@ export function setComposerQuote(editor: HTMLElement, seed: QuoteSeed): void {
   editor.innerHTML = "";
 
   const initialText = typeof seed.initial_text === "string" ? seed.initial_text : "";
-  const lead = doc.createElement("p");
+  const lead = doc.createElement("div");
   if (initialText) lead.textContent = initialText;
   else lead.appendChild(doc.createElement("br"));
   editor.appendChild(lead);

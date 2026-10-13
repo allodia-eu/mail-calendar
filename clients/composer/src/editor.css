@@ -74,6 +74,7 @@ button:focus {
 
 select {
   padding: 0 8px;
+  max-width: 9em;
 }
 
 /* A hairline between groups of related controls, so eleven buttons read as four groups. */
@@ -348,9 +349,20 @@ p {
   margin: 0 0 10px;
 }
 
-/* The reading view's link colour (`mailcal-app`'s base sheet), so a link looks the same written
-   as read. The underline is drawn here only: `elementMarks` does not read it as a mark. */
-.editor a {
+/* Headings keep the sizes and weight a browser gives them, which is how they read in every client
+   the message reaches; only the margins follow the body's rhythm. */
+.editor :is(h1, h2, h3, h4, h5, h6) {
+  margin: 0 0 10px;
+}
+
+/* A rule keeps the look a browser gives it, which is what the recipient sees. */
+.editor hr {
+  margin: 10px 0;
+}
+
+/* The reading view's link colour (`mailcal-app`'s base sheet); a bookmark with no target is no
+   link. The underline is drawn here only: `elementMarks` does not read it as a mark. */
+.editor a[href] {
   color: #2864d6;
   text-decoration: underline;
 }

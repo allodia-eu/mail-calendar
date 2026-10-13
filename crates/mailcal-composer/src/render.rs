@@ -1,5 +1,6 @@
 use crate::{
     list::{List, ListKind},
+    paragraph::Paragraph,
     quote::{Quote, QuoteStyle},
     render_inline::{escape_html_text, render_inlines_html, render_inlines_text},
     signature::Signature,
@@ -17,6 +18,12 @@ const INDENTED_QUOTE_STYLE: &str =
 
 /// The plain-text divider a line-and-header quote opens with.
 const PLAIN_DIVIDER: &str = "________________________________";
+
+/// The plain-text line a horizontal rule is written as.
+const PLAIN_RULE: &str = "------------------------------";
+
+/// The plain-text spaces one CSS pixel of indent is worth: a 40px step, the editor's own, is four.
+const INDENT_PX_PER_SPACE: u16 = 10;
 
 /// The RFC 3676 §4.3 signature separator: a line of exactly `--` followed by a space. Readers and
 /// list software key trailing-signature detection off this exact byte sequence, so the trailing
@@ -116,11 +123,8 @@ fn render_block_html(
     attachments: &std::collections::HashMap<&crate::types::AttachmentId, &DraftAttachment>,
 ) {
     match block {
-        Block::Paragraph(paragraph) => {
-            out.push_str("<p>");
-            render_inlines_html(&paragraph.content, out, attachments);
-            out.push_str("</p>");
-        }
+        Block::Paragraph(paragraph) => render_paragraph_html(paragraph, out, attachments),
+        Block::Rule(_) => out.push_str("<hr>"),
         Block::List(list) => render_list_html(list, out, attachments),
         Block::Quote(quote) => render_quote_html(quote, out),
         Block::Signature(signature) => render_signature_html(signature, out),
@@ -142,6 +146,52 @@ fn render_block_html(
             out.push_str("</table>");
         }
     }
+}
+
+/// The spacing a paragraph is set apart by, stated inline: the editor draws a `<p>` with it, and
+/// Word, which every Windows Outlook renders with, gives a bare `<p>` 14pt above and below.
+const PARAGRAPH_SPACING: &str = "margin:0 0 10px";
+
+// A line is a `<div>`, a paragraph a `<p>` with its spacing stated, a heading the element it is.
+// None of the three is left to a reader's default margins, which differ: a line has none anywhere,
+// and a paragraph's are written out. An empty one holds a `<br>`: an empty block has no height, so
+// without it a blank line between two others vanishes in every client that reads the message.
+fn render_paragraph_html(
+    paragraph: &Paragraph,
+    out: &mut String,
+    attachments: &std::collections::HashMap<&crate::types::AttachmentId, &DraftAttachment>,
+) {
+    let tag = match paragraph.heading {
+        Some(heading) => heading.html_tag(),
+        None if paragraph.spaced => "p",
+        None => "div",
+    };
+    out.push('<');
+    out.push_str(tag);
+    let mut style = Vec::new();
+    if tag == "p" {
+        style.push(PARAGRAPH_SPACING.to_owned());
+    }
+    if let Some(align) = paragraph.align {
+        style.push(format!("text-align:{}", align.css()));
+    }
+    if paragraph.indent_px > 0 {
+        style.push(format!("margin-left:{}px", paragraph.indent_px));
+    }
+    if !style.is_empty() {
+        out.push_str(" style=\"");
+        out.push_str(&style.join(";"));
+        out.push('"');
+    }
+    out.push('>');
+    if paragraph.content.is_empty() {
+        out.push_str("<br>");
+    } else {
+        render_inlines_html(&paragraph.content, out, attachments);
+    }
+    out.push_str("</");
+    out.push_str(tag);
+    out.push('>');
 }
 
 // Lists render with the browser's intrinsic `<ul>`/`<ol>` markers; unlike tables
@@ -177,9 +227,9 @@ fn render_list_html(
 fn render_quote_html(quote: &Quote, out: &mut String) {
     match quote.style {
         QuoteStyle::Indented => {
-            out.push_str("<p>");
+            out.push_str("<div>");
             escape_html_text(&quote.attribution.line, out);
-            out.push_str("</p><blockquote style=\"");
+            out.push_str("</div><blockquote style=\"");
             out.push_str(INDENTED_QUOTE_STYLE);
             out.push_str("\">");
             out.push_str(&quote.body_html);
@@ -216,10 +266,16 @@ fn render_signature_html(signature: &Signature, out: &mut String) {
 
 // The plain-text signature is delimited by RFC 3676's `-- ` line, which is how a reader knows
 // where the message ends and the signature begins (and how a mailing list knows what to trim).
-// The body's own text is used as-is: the composer never strips tags out of `body_html`.
+// The body's own text is used as-is: the composer never strips tags out of `body_html`. A signature
+// Thunderbird wrote opens with that delimiter itself, so it stands in for the body's first line
+// rather than being written twice.
 fn render_signature_text(signature: &Signature, out: &mut String) {
     out.push_str(PLAIN_SIGNATURE_DELIMITER);
-    for line in signature.body_plain.lines() {
+    let mut lines = signature.body_plain.lines().peekable();
+    if lines.peek().is_some_and(|first| first.trim_end() == "--") {
+        lines.next();
+    }
+    for line in lines {
         out.push('\n');
         out.push_str(line);
     }
@@ -227,7 +283,13 @@ fn render_signature_text(signature: &Signature, out: &mut String) {
 
 fn render_block_text(block: &Block, out: &mut String) {
     match block {
-        Block::Paragraph(paragraph) => render_inlines_text(&paragraph.content, out),
+        Block::Paragraph(paragraph) => {
+            for _ in 0..paragraph.indent_px / INDENT_PX_PER_SPACE {
+                out.push(' ');
+            }
+            render_inlines_text(&paragraph.content, out);
+        }
+        Block::Rule(_) => out.push_str(PLAIN_RULE),
         Block::List(list) => {
             let mut first = true;
             render_list_text(list, out, 0, &mut first);

@@ -11,6 +11,7 @@ fn colour(value: &str) -> TextColor {
 
 fn run(text: &str, color: Option<TextColor>, highlight: Option<TextColor>) -> InlineContent {
     InlineContent::Text(TextRun {
+        font: None,
         text: text.to_owned(),
         bold: false,
         italic: false,
@@ -24,7 +25,7 @@ fn run(text: &str, color: Option<TextColor>, highlight: Option<TextColor>) -> In
 
 fn document(content: Vec<InlineContent>) -> ComposerDocument {
     ComposerDocument {
-        blocks: vec![Block::Paragraph(Paragraph { content })],
+        blocks: vec![Block::Paragraph(Paragraph::new(content))],
         attachments: Vec::new(),
     }
 }
@@ -38,7 +39,7 @@ fn a_text_colour_becomes_an_inline_style() {
     let html = body_of(&document(vec![run("red", Some(colour("#ff0000")), None)]));
     assert_eq!(
         html,
-        html_doc("<p><span style=\"color:#ff0000\">red</span></p>")
+        html_doc("<div><span style=\"color:#ff0000\">red</span></div>")
     );
 }
 
@@ -51,7 +52,7 @@ fn a_highlight_becomes_a_background_colour() {
     )]));
     assert_eq!(
         html,
-        html_doc("<p><span style=\"background-color:#ffff00\">marked</span></p>")
+        html_doc("<div><span style=\"background-color:#ffff00\">marked</span></div>")
     );
 }
 
@@ -60,11 +61,12 @@ fn size_colour_and_highlight_share_one_span() {
     // A run that is large, red and highlighted must not ship three nested wrappers: mail clients
     // that rewrite or flatten CSS are likelier to lose a mark the deeper it is nested.
     let document = document(vec![InlineContent::Text(TextRun {
+        font: None,
         text: "all".to_owned(),
         bold: true,
         italic: false,
         underline: false,
-        font_size: Some(FontSize::Large),
+        font_size: Some(FontSize::LARGE),
         color: Some(colour("#0070c0")),
         highlight: Some(colour("#ffff00")),
         link: None,
@@ -72,8 +74,8 @@ fn size_colour_and_highlight_share_one_span() {
     assert_eq!(
         body_of(&document),
         html_doc(
-            "<p><span style=\"font-size:18px;color:#0070c0;background-color:#ffff00\">\
-             <strong>all</strong></span></p>"
+            "<div><span style=\"font-size:18px;color:#0070c0;background-color:#ffff00\">\
+             <strong>all</strong></span></div>"
         )
     );
 }
@@ -83,7 +85,7 @@ fn an_uncoloured_run_emits_no_span() {
     // The common case: colour must not add a wrapper to every run in every message.
     assert_eq!(
         body_of(&document(vec![run("plain", None, None)])),
-        html_doc("<p>plain</p>")
+        html_doc("<div>plain</div>")
     );
 }
 
@@ -102,7 +104,7 @@ fn a_malformed_colour_is_dropped_rather_than_failing_the_send() {
         {"Text":{"text":"x","bold":false,"italic":false,"underline":false,
                  "color":"rgb(255,0,0)","highlight":"chartreuse"}}]}}],"attachments":[]}"#;
     let document: ComposerDocument = serde_json::from_str(json).expect("parses");
-    assert_eq!(body_of(&document), html_doc("<p>x</p>"));
+    assert_eq!(body_of(&document), html_doc("<div>x</div>"));
 }
 
 #[test]
@@ -115,7 +117,7 @@ fn a_colour_cannot_inject_a_second_declaration_or_escape_the_attribute() {
     let document: ComposerDocument = serde_json::from_str(json).expect("parses");
     let html = body_of(&document);
     assert!(!html.contains("tracker.test"), "{html}");
-    assert_eq!(html, html_doc("<p>x</p>"));
+    assert_eq!(html, html_doc("<div>x</div>"));
 }
 
 #[test]
@@ -126,7 +128,7 @@ fn a_short_hex_is_expanded_so_the_wire_carries_one_spelling() {
     let document: ComposerDocument = serde_json::from_str(json).expect("parses");
     assert_eq!(
         body_of(&document),
-        html_doc("<p><span style=\"color:#ff0000\">x</span></p>")
+        html_doc("<div><span style=\"color:#ff0000\">x</span></div>")
     );
 }
 
@@ -136,5 +138,5 @@ fn an_absent_colour_key_is_not_an_error() {
     let json = r#"{"blocks":[{"Paragraph":{"content":[
         {"Text":{"text":"x","bold":false,"italic":false,"underline":false}}]}}],"attachments":[]}"#;
     let document: ComposerDocument = serde_json::from_str(json).expect("parses");
-    assert_eq!(body_of(&document), html_doc("<p>x</p>"));
+    assert_eq!(body_of(&document), html_doc("<div>x</div>"));
 }

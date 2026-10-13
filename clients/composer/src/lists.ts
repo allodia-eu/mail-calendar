@@ -130,7 +130,7 @@ export function outdentItem(li: HTMLLIElement): boolean {
   const promoted = trailingList(li);
   promoted?.remove();
 
-  const paragraph = doc.createElement("p");
+  const paragraph = doc.createElement("div");
   while (li.firstChild) paragraph.appendChild(li.firstChild);
   if (paragraph.childNodes.length === 0) paragraph.appendChild(doc.createElement("br"));
 

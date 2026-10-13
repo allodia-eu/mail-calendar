@@ -5,9 +5,9 @@
 // l10n catalog. The core carries no runtime locale and the editor is one asset shared across
 // platforms, so the strings cannot be baked per-language here.
 //
-// Every field is optional: a missing one keeps the English default. The font-size `<option>`
-// *values* are never touched: they are the `FontSize` tokens the document is keyed on; only their
-// visible text changes.
+// Every field is optional: a missing one keeps the English default. An `<option>`'s *value* is
+// never touched: it is the size, family or heading the document is keyed on; only its visible text
+// changes, through the label its `data-label` names.
 
 export interface Labels {
   placeholder: string;
@@ -19,10 +19,26 @@ export interface Labels {
   sizeSmall: string;
   sizeLarge: string;
   sizeHuge: string;
+  fontFamily: string;
+  fontDefault: string;
+  blockStyle: string;
+  blockNormal: string;
+  heading1: string;
+  heading2: string;
+  heading3: string;
+  heading4: string;
+  heading5: string;
+  heading6: string;
   bulletedList: string;
   numberedList: string;
   indent: string;
   outdent: string;
+  align: string;
+  alignLeft: string;
+  alignCentre: string;
+  alignRight: string;
+  alignJustify: string;
+  horizontalRule: string;
   textColour: string;
   colourAutomatic: string;
   highlight: string;
@@ -53,10 +69,26 @@ export const DEFAULT_LABELS: Labels = {
   sizeSmall: "Small",
   sizeLarge: "Large",
   sizeHuge: "Huge",
+  fontFamily: "Font",
+  fontDefault: "Default font",
+  blockStyle: "Paragraph style",
+  blockNormal: "Normal text",
+  heading1: "Heading 1",
+  heading2: "Heading 2",
+  heading3: "Heading 3",
+  heading4: "Heading 4",
+  heading5: "Heading 5",
+  heading6: "Heading 6",
   bulletedList: "Bulleted list",
   numberedList: "Numbered list",
   indent: "Increase indent",
   outdent: "Decrease indent",
+  align: "Alignment",
+  alignLeft: "Align left",
+  alignCentre: "Centre",
+  alignRight: "Align right",
+  alignJustify: "Justify",
+  horizontalRule: "Horizontal line",
   textColour: "Text colour",
   colourAutomatic: "Automatic",
   highlight: "Highlight",

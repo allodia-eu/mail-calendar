@@ -176,7 +176,7 @@ export function rangeTouches(range: Range, node: Node): boolean {
 
 /// An empty editable line. `contenteditable` needs the `<br>` to give the element height and to
 /// let the caret land in it; without one an "empty" cell or paragraph cannot be clicked into.
-export function emptyLine(doc: Document, tag = "p"): HTMLElement {
+export function emptyLine(doc: Document, tag = "div"): HTMLElement {
   const node = doc.createElement(tag);
   node.appendChild(doc.createElement("br"));
   return node;

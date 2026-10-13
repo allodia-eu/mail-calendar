@@ -112,8 +112,9 @@ fn hard_spaces(inlines: &[InlineContent]) -> Vec<bool> {
 /// One span carries all of them rather than one span each: a run that is large, red and highlighted
 /// would otherwise ship three nested wrappers, and mail clients that rewrite or flatten CSS are
 /// more likely to lose a mark the deeper it is nested. Empty when the run has none, which is the
-/// common case and emits no span at all. Every value is machine-produced: a `u8` of pixels, or a
-/// [`TextColor`](crate::TextColor) validated to `#rrggbb`: so none of it needs escaping.
+/// common case and emits no span at all. Every value is machine-produced: a number of pixels, a
+/// [`TextColor`](crate::TextColor) validated to `#rrggbb`, or a [`FontFamily`](crate::FontFamily)
+/// whose names hold no quote, colon or semicolon: so none of it needs escaping.
 fn run_style(run: &TextRun) -> String {
     let mut style = String::new();
     let mut push = |property: &str, value: &str| {
@@ -126,6 +127,9 @@ fn run_style(run: &TextRun) -> String {
     };
     if let Some(size) = run.font_size {
         push("font-size", &format!("{}px", size.css_px()));
+    }
+    if let Some(font) = &run.font {
+        push("font-family", &font.css());
     }
     if let Some(color) = &run.color {
         push("color", color.as_str());

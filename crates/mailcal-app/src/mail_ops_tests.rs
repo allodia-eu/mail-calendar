@@ -17,6 +17,8 @@ use super::{
 // 500-line limit. A child module, so it reaches the parent's imports through `super`.
 #[path = "compose_open_tests.rs"]
 mod compose_open_tests;
+#[path = "draft_interop_tests.rs"]
+mod draft_interop_tests;
 #[path = "draft_ops_leave_tests.rs"]
 mod draft_ops_leave_tests;
 #[path = "draft_ops_tests.rs"]
@@ -273,8 +275,8 @@ async fn rich_submit_renders_composer_and_resolves_blob_bytes() {
     assert!(html.starts_with("<!DOCTYPE html><html><head>"));
     assert!(html.ends_with("</body></html>"));
     assert!(html.contains(
-        "<p><strong>Hello </strong><img src=\"cid:chart@test.local\" alt=\"Chart\" \
-         width=\"320\" style=\"width: 320px; max-width: 100%\"></p>"
+        "<div><strong>Hello </strong><img src=\"cid:chart@test.local\" alt=\"Chart\" \
+         width=\"320\" style=\"width: 320px; max-width: 100%\"></div>"
     ));
     assert_eq!(draft.attachments.len(), 2);
     assert_eq!(draft.attachments[0].content, vec![1, 2, 3]);
@@ -433,8 +435,13 @@ fn rich_document(
 ) -> ComposerDocument {
     ComposerDocument {
         blocks: vec![Block::Paragraph(Paragraph {
+            heading: None,
+            align: None,
+            indent_px: 0,
+            spaced: false,
             content: vec![
                 InlineContent::Text(TextRun {
+                    font: None,
                     text: "Hello ".to_owned(),
                     bold: true,
                     italic: false,

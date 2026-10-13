@@ -8,9 +8,18 @@
 
 import type { Attachments } from "./attachments";
 import { documentOf } from "./dom";
+import { applyLineStyle, lineTag } from "./lines";
+import { stampFont, stampSize } from "./marks";
 import { quoteContainer } from "./quote";
 import { signatureContainer } from "./signature";
-import { type Block, type InlineContent, type ListValue, SIZE_PX, type TableValue, type TextRun } from "./types";
+import {
+  type Block,
+  type InlineContent,
+  type ListValue,
+  type ParagraphValue,
+  type TableValue,
+  type TextRun,
+} from "./types";
 
 /// Replaces the editor's content with `blocks`. `attachments` is where each inline picture's bytes
 /// are looked up; a picture it does not hold is left out rather than drawn broken, and the document
@@ -25,7 +34,7 @@ export function setBlocks(editor: HTMLElement, blocks: Block[], attachments: Att
   // something is written in it the document reads back without it (`document.ts`).
   const first = editor.firstElementChild;
   if (!first || first.classList.contains("allodia-signature") || first.classList.contains("allodia-quote")) {
-    const lead = doc.createElement("p");
+    const lead = doc.createElement("div");
     lead.setAttribute("data-lead", "");
     lead.appendChild(doc.createElement("br"));
     editor.insertBefore(lead, first);
@@ -33,11 +42,19 @@ export function setBlocks(editor: HTMLElement, blocks: Block[], attachments: Att
 }
 
 function blockNode(doc: Document, block: Block, attachments: Attachments): HTMLElement {
-  if ("Paragraph" in block) return lineNode(doc, "p", block.Paragraph.content, attachments);
+  if ("Paragraph" in block) return paragraphNode(doc, block.Paragraph, attachments);
+  if ("Rule" in block) return doc.createElement("hr");
   if ("List" in block) return listNode(doc, block.List, attachments);
   if ("Table" in block) return tableNode(doc, block.Table, attachments);
   if ("Quote" in block) return quoteContainer(doc, block.Quote);
   return signatureContainer(doc, block.Signature);
+}
+
+/// A paragraph, as the element its heading level makes it, carrying its alignment and indent.
+function paragraphNode(doc: Document, value: ParagraphValue, attachments: Attachments): HTMLElement {
+  const element = lineNode(doc, lineTag(value), value.content, attachments);
+  applyLineStyle(element, value);
+  return element;
 }
 
 /// An element holding one line of inline content. An empty one holds the `<br>` that gives it
@@ -68,12 +85,10 @@ function runNode(doc: Document, run: TextRun): Node {
   if (run.underline) node = wrap(doc, "u", node);
   if (run.italic) node = wrap(doc, "em", node);
   if (run.bold) node = wrap(doc, "strong", node);
-  if (run.font_size || run.color || run.highlight) {
+  if (run.font_size || run.font || run.color || run.highlight) {
     const span = doc.createElement("span");
-    if (run.font_size) {
-      span.dataset.size = run.font_size;
-      span.style.fontSize = `${SIZE_PX[run.font_size]}px`;
-    }
+    if (run.font_size) stampSize(span, run.font_size);
+    if (run.font) stampFont(span, run.font);
     if (run.color) {
       span.dataset.color = run.color;
       span.style.color = run.color;

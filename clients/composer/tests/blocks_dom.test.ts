@@ -38,7 +38,7 @@ describe("a document built into the editor", () => {
     const { editor } = harness("");
     const blocks: Block[] = [{ Signature: { body_html: "<p>Ada</p>", body_plain: "Ada" } }];
     setBlocks(editor, blocks, new Attachments());
-    expect(editor.firstElementChild?.tagName).toBe("P");
+    expect(editor.firstElementChild?.tagName).toBe("DIV");
     expect(editor.children[1]?.classList.contains("allodia-signature")).toBe(true);
   });
 
@@ -57,13 +57,13 @@ describe("a document built into the editor", () => {
     const blocks: Block[] = [
       {
         Paragraph: {
-          content: [{ Text: { text: "big", bold: false, italic: false, underline: false, font_size: "Large" } }],
+          content: [{ Text: { text: "big", bold: false, italic: false, underline: false, font_size: 18 } }],
         },
       },
     ];
     setBlocks(editor, blocks, new Attachments());
     const span = editor.querySelector("span")!;
-    expect(span.dataset.size).toBe("Large");
+    expect(span.dataset.size).toBe("18");
     expect(span.style.fontSize).toBe("18px");
   });
 });

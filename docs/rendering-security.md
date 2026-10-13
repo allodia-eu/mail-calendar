@@ -37,7 +37,10 @@ core sanitises it **once** for every client (never re-implemented per platform):
   `table[id=templateContainer]{width:100% !important}`, inside a `max-width:480px` `@media` block,
   narrows. It is kept **unprefixed**, or that rule would match nothing and the message would lay
   out 600px wide in a phone's ~384px viewport. Nothing here collides: the reading document holds
-  one message and no script.
+  one message and no script. So is `<font>` with its `color`, `face` and `size`, which Thunderbird
+  still writes for a colour, a typeface and a size, and the markers a composer reads a reopened
+  draft's quote and signature by: `type` on a `<blockquote>` and `name` on an `<a>`
+  ([`composer-security.md`](composer-security.md) Gate 17).
 - **Linked:** after sanitising, a web or mail address written as text (`http://`, `https://`,
   `mailto:`, or a `www.` host, opened over `https`) is wrapped in an `<a href>`
   (`html/links.rs`). Text already inside a link, attribute values and `<style>` are left alone.

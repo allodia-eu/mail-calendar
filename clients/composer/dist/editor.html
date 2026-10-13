@@ -98,6 +98,7 @@
 
     select {
       padding: 0 8px;
+      max-width: 9em;
     }
 
     /* A hairline between groups of related controls, so eleven buttons read as four groups. */
@@ -372,9 +373,20 @@
       margin: 0 0 10px;
     }
 
-    /* The reading view's link colour (`mailcal-app`'s base sheet), so a link looks the same written
-       as read. The underline is drawn here only: `elementMarks` does not read it as a mark. */
-    .editor a {
+    /* Headings keep the sizes and weight a browser gives them, which is how they read in every client
+       the message reaches; only the margins follow the body's rhythm. */
+    .editor :is(h1, h2, h3, h4, h5, h6) {
+      margin: 0 0 10px;
+    }
+
+    /* A rule keeps the look a browser gives it, which is what the recipient sees. */
+    .editor hr {
+      margin: 10px 0;
+    }
+
+    /* The reading view's link colour (`mailcal-app`'s base sheet); a bookmark with no target is no
+       link. The underline is drawn here only: `elementMarks` does not read it as a mark. */
+    .editor a[href] {
       color: #2864d6;
       text-decoration: underline;
     }
@@ -539,10 +551,33 @@
     </div>
 
     <select id="font-size" title="Font size" aria-label="Font size">
-      <option value="Normal">Normal</option>
-      <option value="Small">Small</option>
-      <option value="Large">Large</option>
-      <option value="Huge">Huge</option>
+      <option value="15" data-label="sizeNormal">Normal</option>
+      <option value="13" data-label="sizeSmall">Small</option>
+      <option value="18" data-label="sizeLarge">Large</option>
+      <option value="24" data-label="sizeHuge">Huge</option>
+    </select>
+
+    <!-- Each value is a family list in the document's canonical spelling. The names are the fonts'
+         own, so only the first option is translated. -->
+    <select id="font-family" title="Font" aria-label="Font">
+      <option value="" data-label="fontDefault">Default font</option>
+      <option value="Arial, Helvetica, sans-serif">Arial</option>
+      <option value="Calibri, Carlito, sans-serif">Calibri</option>
+      <option value="Courier New, Courier, monospace">Courier New</option>
+      <option value="Georgia, serif">Georgia</option>
+      <option value="Times New Roman, Times, serif">Times New Roman</option>
+      <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
+      <option value="Verdana, Geneva, sans-serif">Verdana</option>
+    </select>
+
+    <select id="block-style" title="Paragraph style" aria-label="Paragraph style">
+      <option value="" data-label="blockNormal">Normal text</option>
+      <option value="H1" data-label="heading1">Heading 1</option>
+      <option value="H2" data-label="heading2">Heading 2</option>
+      <option value="H3" data-label="heading3">Heading 3</option>
+      <option value="H4" data-label="heading4">Heading 4</option>
+      <option value="H5" data-label="heading5">Heading 5</option>
+      <option value="H6" data-label="heading6">Heading 6</option>
     </select>
 
     <span class="sep"></span>
@@ -555,6 +590,13 @@
     <button type="button" id="indent" title="Increase indent">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 3.5h7M7 8h7M7 12.5h7M2 6l2.5 2L2 10"/></svg>
     </button>
+
+    <div class="menu">
+      <button type="button" id="align" title="Alignment" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8"/></svg>
+      </button>
+      <div class="popover" id="align-menu" role="menu" hidden></div>
+    </div>
 
     <span class="sep"></span>
 
@@ -571,6 +613,10 @@
       </button>
       <div class="popover" id="table-menu" role="menu" hidden></div>
     </div>
+
+    <button type="button" id="rule" title="Horizontal line">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8h13"/></svg>
+    </button>
   </div>
   <main id="editor" class="editor" contenteditable="true" data-placeholder="Write your message" aria-label="Write your message"></main>
   <script>
@@ -680,7 +726,7 @@
     nodeRange.selectNodeContents(node);
     return rangeOverlaps(range, nodeRange);
   }
-  function emptyLine(doc, tag = "p") {
+  function emptyLine(doc, tag = "div") {
     const node = doc.createElement(tag);
     node.appendChild(doc.createElement("br"));
     return node;
@@ -829,6 +875,170 @@
       editor.appendChild(list);
     caretInto(item, true);
     return true;
+  }
+
+  // src/types.ts
+  function emptyMarks() {
+    return {
+      bold: false,
+      italic: false,
+      underline: false,
+      size: null,
+      font: null,
+      color: null,
+      highlight: null,
+      link: null
+    };
+  }
+  var MIN_SIZE_PX = 6;
+  var MAX_SIZE_PX = 96;
+  function fontSizeOf(px) {
+    if (!Number.isFinite(px) || px <= 0)
+      return null;
+    return Math.min(MAX_SIZE_PX, Math.max(MIN_SIZE_PX, Math.round(px)));
+  }
+  var MAX_INDENT_PX = 400;
+  var INDENT_STEP_PX = 40;
+  var HEADINGS = ["H1", "H2", "H3", "H4", "H5", "H6"];
+
+  // src/typography.ts
+  var LEGACY_SIZES = [10, 13, 16, 18, 24, 32, 48];
+  var KEYWORD_SIZES = {
+    "xx-small": 9,
+    "x-small": 10,
+    small: 13,
+    medium: 16,
+    large: 18,
+    "x-large": 24,
+    "xx-large": 32,
+    "xxx-large": 48
+  };
+  var UNIT_PX = {
+    px: 1,
+    pt: 4 / 3,
+    pc: 16,
+    in: 96,
+    cm: 96 / 2.54,
+    mm: 96 / 25.4,
+    em: 16,
+    rem: 16
+  };
+  function pxOfLength(value, relative = true) {
+    const match = /^(-?\d*\.?\d+)\s*([a-z]*)$/.exec((value ?? "").trim().toLowerCase());
+    if (!match)
+      return null;
+    const unit = match[2] || "px";
+    if (!relative && (unit === "em" || unit === "rem"))
+      return null;
+    const perUnit = UNIT_PX[unit];
+    if (perUnit === undefined)
+      return null;
+    return Number.parseFloat(match[1]) * perUnit;
+  }
+  function sizeOfCss(value) {
+    const raw = (value ?? "").trim().toLowerCase();
+    const keyword = KEYWORD_SIZES[raw];
+    if (keyword !== undefined)
+      return keyword;
+    const px = pxOfLength(raw, false);
+    return px === null ? null : fontSizeOf(px);
+  }
+  function sizeOfLegacy(value) {
+    const raw = (value ?? "").trim();
+    const match = /^([+-]?)(\d)$/.exec(raw);
+    if (!match)
+      return null;
+    const step = Number(match[2]);
+    const level = match[1] === "+" ? 3 + step : match[1] === "-" ? 3 - step : step;
+    return LEGACY_SIZES[Math.min(7, Math.max(1, level)) - 1];
+  }
+  var GENERIC_FAMILIES = new Set(["serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"]);
+  var MAX_NAMES = 8;
+  var MAX_NAME_LEN = 64;
+  function canonicalFamily(value) {
+    const names = [];
+    for (const raw of (value ?? "").split(",")) {
+      const name = raw.trim().replace(/^["']+|["']+$/g, "").trim();
+      if (!name)
+        continue;
+      if ([...name].length > MAX_NAME_LEN || !/^[\p{L}\p{N} ._-]+$/u.test(name))
+        return null;
+      names.push(name.split(/\s+/).join(" "));
+    }
+    if (names.length === 0 || names.length > MAX_NAMES)
+      return null;
+    return names.join(", ");
+  }
+  function familyCss(canonical) {
+    return canonical.split(", ").map((name) => GENERIC_FAMILIES.has(name.toLowerCase()) ? name : `'${name}'`).join(", ");
+  }
+
+  // src/lines.ts
+  var NO_CONTEXT = { indent_px: 0 };
+  function contextWithin(element, outer) {
+    return {
+      align: alignOf(element) ?? outer.align,
+      indent_px: outer.indent_px + ownIndent(element)
+    };
+  }
+  function lineStyleOf(element, context) {
+    const within = element ? contextWithin(element, context) : context;
+    const style = {};
+    const heading = element ? headingOf(element) : null;
+    if (heading)
+      style.heading = heading;
+    else if (element && isParagraph(element))
+      style.spaced = true;
+    if (within.align)
+      style.align = within.align;
+    const indent = Math.min(MAX_INDENT_PX, Math.round(within.indent_px));
+    if (indent > 0)
+      style.indent_px = indent;
+    return style;
+  }
+  function paragraph(content, style) {
+    return { content, ...style };
+  }
+  function isParagraph(element) {
+    if (element.tagName !== "P" || /(^|\s)Mso/.test(element.getAttribute("class") ?? ""))
+      return false;
+    const style = element.style;
+    const top = pxOfLength(style?.marginTop);
+    const bottom = pxOfLength(style?.marginBottom);
+    return !(top === 0 && bottom === 0);
+  }
+  function headingOf(element) {
+    const tag = element.tagName;
+    return HEADINGS.includes(tag) ? tag : null;
+  }
+  function alignOf(element) {
+    if (element.tagName === "CENTER")
+      return "Center";
+    const raw = (element.style?.textAlign || element.getAttribute("align") || "").trim().toLowerCase();
+    if (raw === "center" || raw === "middle")
+      return "Center";
+    if (raw === "right" || raw === "end")
+      return "Right";
+    if (raw === "justify")
+      return "Justify";
+    return null;
+  }
+  function ownIndent(element) {
+    const margin = pxOfLength(element.style?.marginLeft);
+    if (margin !== null && margin > 0)
+      return margin;
+    return element.tagName === "BLOCKQUOTE" ? 40 : 0;
+  }
+  function applyLineStyle(element, style) {
+    element.style.textAlign = style.align ? style.align.toLowerCase() : "";
+    element.style.marginLeft = style.indent_px ? `${style.indent_px}px` : "";
+    if (!element.getAttribute("style"))
+      element.removeAttribute("style");
+  }
+  function lineTag(style) {
+    if (style.heading)
+      return style.heading.toLowerCase();
+    return style.spaced ? "p" : "div";
   }
 
   // src/links.ts
@@ -1029,33 +1239,14 @@
     selection.addRange(range);
   }
 
-  // src/types.ts
-  function emptyMarks() {
-    return {
-      bold: false,
-      italic: false,
-      underline: false,
-      size: null,
-      color: null,
-      highlight: null,
-      link: null
-    };
-  }
-  var SIZE_PX = {
-    Small: 13,
-    Normal: 15,
-    Large: 18,
-    Huge: 24
-  };
-  function isFontSize(value) {
-    return value === "Small" || value === "Normal" || value === "Large" || value === "Huge";
-  }
-
   // src/marks.ts
   function normalizeColor(value) {
     const raw = (value ?? "").trim().toLowerCase();
     if (!raw || raw === "transparent" || raw === "initial" || raw === "inherit")
       return null;
+    const named = NAMED_COLOURS[raw];
+    if (named)
+      return named;
     const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(raw);
     if (hex) {
       const digits = hex[1];
@@ -1078,11 +1269,32 @@
     }
     return null;
   }
+  var NAMED_COLOURS = {
+    black: "#000000",
+    silver: "#c0c0c0",
+    gray: "#808080",
+    grey: "#808080",
+    white: "#ffffff",
+    maroon: "#800000",
+    red: "#ff0000",
+    purple: "#800080",
+    fuchsia: "#ff00ff",
+    green: "#008000",
+    lime: "#00ff00",
+    olive: "#808000",
+    yellow: "#ffff00",
+    navy: "#000080",
+    blue: "#0000ff",
+    teal: "#008080",
+    aqua: "#00ffff",
+    orange: "#ffa500"
+  };
   function elementMarks(element, inherited) {
     const tag = element.tagName;
-    const style = element.style;
+    const html = element;
+    const style = html.style;
     const computed = element.ownerDocument.defaultView?.getComputedStyle(element);
-    const fontWeight = computed?.fontWeight || style?.fontWeight || "";
+    const fontWeight = style?.fontWeight || "";
     const weight = fontWeight.startsWith("bold") ? 700 : Number.parseInt(fontWeight, 10);
     const decoration = [
       computed?.textDecorationLine,
@@ -1090,35 +1302,42 @@
       style?.textDecorationLine,
       style?.textDecoration
     ].join(" ");
-    const size = element.dataset.size;
-    const color = normalizeColor(element.dataset.color ?? style?.color);
-    const highlight = normalizeColor(element.dataset.highlight ?? style?.backgroundColor);
+    const inlineHeading = tag in HEADING_SIZES && !!element.parentElement?.closest("li, td, th");
+    const color = normalizeColor(html.dataset.color ?? (style?.color || (tag === "FONT" ? element.getAttribute("color") : null)));
+    const highlight = normalizeColor(html.dataset.highlight ?? style?.backgroundColor);
     return {
-      bold: inherited.bold || tag === "B" || tag === "STRONG" || tag in HEADING_SIZES || weight >= 600,
+      bold: inherited.bold || tag === "B" || tag === "STRONG" || inlineHeading || weight >= 600,
       italic: inherited.italic || tag === "I" || tag === "EM" || style?.fontStyle === "italic",
       underline: inherited.underline || tag === "U" || tag !== "A" && decoration.includes("underline"),
-      size: isFontSize(size) ? size : sizeOfCss(style?.fontSize) ?? HEADING_SIZES[tag] ?? inherited.size,
+      size: sizeOf(element) ?? (inlineHeading ? HEADING_SIZES[tag] : null) ?? inherited.size,
+      font: fontOf(element) ?? inherited.font,
       color: color ?? inherited.color,
       highlight: highlight ?? inherited.highlight,
       link: tag === "A" ? safeLinkHref(element.getAttribute("href")) : inherited.link
     };
   }
   var HEADING_SIZES = {
-    H1: "Huge",
-    H2: "Large",
+    H1: 24,
+    H2: 18,
     H3: null,
     H4: null,
     H5: null,
     H6: null
   };
-  function sizeOfCss(value) {
-    const px = /^(\d+)px$/.exec((value ?? "").trim());
-    if (!px)
-      return null;
-    const sizes = Object.keys(SIZE_PX);
-    return sizes.find((key) => SIZE_PX[key] === Number(px[1])) ?? null;
+  function sizeOf(element) {
+    const stamped = Number(element.dataset.size);
+    if (stamped > 0)
+      return fontSizeOf(stamped);
+    const css = sizeOfCss(element.style?.fontSize);
+    if (css !== null)
+      return css;
+    return element.tagName === "FONT" ? sizeOfLegacy(element.getAttribute("size")) : null;
   }
-  function normalizeFontElements(editor, pendingSize) {
+  function fontOf(element) {
+    const html = element;
+    return canonicalFamily(html.dataset.font) ?? canonicalFamily(html.style?.fontFamily) ?? (element.tagName === "FONT" ? canonicalFamily(element.getAttribute("face")) : null);
+  }
+  function normalizeFontElements(editor, pendingSize, pendingFont = null) {
     for (const node of Array.from(editor.querySelectorAll("font"))) {
       if (node.closest(".allodia-quote, .allodia-signature"))
         continue;
@@ -1127,9 +1346,11 @@
       if (inline)
         span.setAttribute("style", inline);
       if (node.getAttribute("size") === "7" && pendingSize) {
-        span.dataset.size = pendingSize;
-        span.style.fontSize = `${SIZE_PX[pendingSize]}px`;
+        stampSize(span, pendingSize);
       }
+      const face = pendingFont ?? canonicalFamily(node.getAttribute("face"));
+      if (node.hasAttribute("face") && face)
+        stampFont(span, face);
       const color = normalizeColor(node.getAttribute("color"));
       if (color) {
         span.dataset.color = color;
@@ -1139,6 +1360,14 @@
         span.appendChild(node.firstChild);
       node.replaceWith(span);
     }
+  }
+  function stampSize(span, size) {
+    span.dataset.size = String(size);
+    span.style.fontSize = `${size}px`;
+  }
+  function stampFont(span, font) {
+    span.dataset.font = font;
+    span.style.fontFamily = familyCss(font);
   }
 
   // src/plain_text.ts
@@ -1278,7 +1507,7 @@
     const doc = documentOf(editor);
     editor.innerHTML = "";
     const initialText = typeof seed.initial_text === "string" ? seed.initial_text : "";
-    const lead = doc.createElement("p");
+    const lead = doc.createElement("div");
     if (initialText)
       lead.textContent = initialText;
     else
@@ -1338,7 +1567,7 @@
       else
         editor.appendChild(container);
       if (!container.previousElementSibling) {
-        const lead = doc.createElement("p");
+        const lead = doc.createElement("div");
         lead.appendChild(doc.createElement("br"));
         editor.insertBefore(lead, container);
       }
@@ -1363,7 +1592,7 @@
       return false;
     let anchor = signature.previousElementSibling;
     if (!anchor) {
-      const lead = documentOf(editor).createElement("p");
+      const lead = documentOf(editor).createElement("div");
       lead.appendChild(documentOf(editor).createElement("br"));
       editor.insertBefore(lead, signature);
       anchor = lead;
@@ -1401,7 +1630,7 @@
     return merged;
   }
   function sameMarks(a, b) {
-    return a.bold === b.bold && a.italic === b.italic && a.underline === b.underline && a.font_size === b.font_size && a.color === b.color && a.highlight === b.highlight && a.link === b.link;
+    return a.bold === b.bold && a.italic === b.italic && a.underline === b.underline && a.font_size === b.font_size && a.font === b.font && a.color === b.color && a.highlight === b.highlight && a.link === b.link;
   }
   function inlineText(text, marks) {
     const run = {
@@ -1412,6 +1641,8 @@
     };
     if (marks.size)
       run.font_size = marks.size;
+    if (marks.font)
+      run.font = marks.font;
     if (marks.color)
       run.color = marks.color;
     if (marks.highlight)
@@ -1456,22 +1687,24 @@
   function isBr(node) {
     return node.nodeType === 1 && node.tagName === "BR";
   }
-  function leafParagraphs(element, blocks, marks) {
+  function leafParagraphs(element, blocks, marks, context) {
+    const style = lineStyleOf(element, context);
+    const { spaced: _, ...line } = style;
     const children = Array.from(element.childNodes);
     if (children.length > 0 && isBr(children[children.length - 1]))
       children.pop();
     let content = [];
-    const flush = () => {
-      blocks.push({ Paragraph: { content: canonicalLine(content) } });
+    const flush = (last) => {
+      blocks.push({ Paragraph: paragraph(canonicalLine(content), last ? style : line) });
       content = [];
     };
     for (const child of children) {
       if (isBr(child))
-        flush();
+        flush(false);
       else
         content.push(...inlinesFrom(child, marks));
     }
-    flush();
+    flush(true);
   }
   function listValue(element) {
     return {
@@ -1544,14 +1777,14 @@
   function hasBlockChild(element) {
     return Array.from(element.children).some((child) => BLOCK_TAGS2.has(child.tagName));
   }
-  function collectBlocks(container, blocks, marks = emptyMarks()) {
+  function collectBlocks(container, blocks, marks = emptyMarks(), context = NO_CONTEXT) {
     let inlineRun = [];
     const flush = () => {
       if (inlineRun.length === 0)
         return;
       const content = canonicalLine(inlineRun.flatMap((node) => inlinesFrom(node, marks)));
       if (content.length > 0)
-        blocks.push({ Paragraph: { content } });
+        blocks.push({ Paragraph: paragraph(content, lineStyleOf(null, context)) });
       inlineRun = [];
     };
     for (const child of Array.from(container.childNodes)) {
@@ -1579,10 +1812,13 @@
         flush();
         const lineMarks = elementMarks(element, marks);
         if (hasBlockChild(element))
-          collectBlocks(element, blocks, lineMarks);
+          collectBlocks(element, blocks, lineMarks, contextWithin(element, context));
         else
-          leafParagraphs(element, blocks, lineMarks);
-      } else if (tag === "BR" || tag === "HR") {
+          leafParagraphs(element, blocks, lineMarks, context);
+      } else if (tag === "HR") {
+        flush();
+        blocks.push({ Rule: {} });
+      } else if (tag === "BR") {
         flush();
       } else {
         inlineRun.push(child);
@@ -1649,8 +1885,24 @@
         continue;
       if (!range || !rangeTouches(range, span))
         continue;
-      span.dataset.size = size;
-      span.style.fontSize = `${SIZE_PX[size]}px`;
+      stampSize(span, size);
+    }
+  }
+  function applyFontFamily(editor, font) {
+    if (!font) {
+      clearMark(editor, "data-font", "fontFamily");
+      return;
+    }
+    preferCss(editor);
+    exec(editor, "fontName", familyCss(font));
+    normalizeFontElements(editor, null, font);
+    const range = rangeWithin(editor);
+    for (const span of Array.from(editor.querySelectorAll("span[style*='font-family']"))) {
+      if (span.dataset.font || span.closest(".allodia-quote, .allodia-signature"))
+        continue;
+      if (!range || !rangeTouches(range, span))
+        continue;
+      stampFont(span, font);
     }
   }
   function applyColor(editor, kind, color) {
@@ -1679,11 +1931,15 @@
     }
   }
   function clearColor(editor, kind) {
+    if (kind === "color")
+      clearMark(editor, "data-color", "color");
+    else
+      clearMark(editor, "data-highlight", "backgroundColor");
+  }
+  function clearMark(editor, attribute, property) {
     const range = rangeWithin(editor);
     if (!range)
       return;
-    const attribute = kind === "color" ? "data-color" : "data-highlight";
-    const property = kind === "color" ? "color" : "backgroundColor";
     for (const element of Array.from(editor.querySelectorAll("*"))) {
       if (element.closest(".allodia-quote, .allodia-signature"))
         continue;
@@ -1883,10 +2139,26 @@
     sizeSmall: "Small",
     sizeLarge: "Large",
     sizeHuge: "Huge",
+    fontFamily: "Font",
+    fontDefault: "Default font",
+    blockStyle: "Paragraph style",
+    blockNormal: "Normal text",
+    heading1: "Heading 1",
+    heading2: "Heading 2",
+    heading3: "Heading 3",
+    heading4: "Heading 4",
+    heading5: "Heading 5",
+    heading6: "Heading 6",
     bulletedList: "Bulleted list",
     numberedList: "Numbered list",
     indent: "Increase indent",
     outdent: "Decrease indent",
+    align: "Alignment",
+    alignLeft: "Align left",
+    alignCentre: "Centre",
+    alignRight: "Align right",
+    alignJustify: "Justify",
+    horizontalRule: "Horizontal line",
     textColour: "Text colour",
     colourAutomatic: "Automatic",
     highlight: "Highlight",
@@ -2114,7 +2386,7 @@
       tail.appendChild(node);
     const promoted = trailingList(li);
     promoted?.remove();
-    const paragraph = doc.createElement("p");
+    const paragraph = doc.createElement("div");
     while (li.firstChild)
       paragraph.appendChild(li.firstChild);
     if (paragraph.childNodes.length === 0)
@@ -2757,7 +3029,7 @@
       editor.appendChild(blockNode(doc, block, attachments));
     const first = editor.firstElementChild;
     if (!first || first.classList.contains("allodia-signature") || first.classList.contains("allodia-quote")) {
-      const lead = doc.createElement("p");
+      const lead = doc.createElement("div");
       lead.setAttribute("data-lead", "");
       lead.appendChild(doc.createElement("br"));
       editor.insertBefore(lead, first);
@@ -2765,7 +3037,9 @@
   }
   function blockNode(doc, block, attachments) {
     if ("Paragraph" in block)
-      return lineNode(doc, "p", block.Paragraph.content, attachments);
+      return paragraphNode(doc, block.Paragraph, attachments);
+    if ("Rule" in block)
+      return doc.createElement("hr");
     if ("List" in block)
       return listNode(doc, block.List, attachments);
     if ("Table" in block)
@@ -2773,6 +3047,11 @@
     if ("Quote" in block)
       return quoteContainer(doc, block.Quote);
     return signatureContainer(doc, block.Signature);
+  }
+  function paragraphNode(doc, value, attachments) {
+    const element = lineNode(doc, lineTag(value), value.content, attachments);
+    applyLineStyle(element, value);
+    return element;
   }
   function lineNode(doc, tag, content, attachments) {
     const element = doc.createElement(tag);
@@ -2797,12 +3076,12 @@
       node = wrap(doc, "em", node);
     if (run.bold)
       node = wrap(doc, "strong", node);
-    if (run.font_size || run.color || run.highlight) {
+    if (run.font_size || run.font || run.color || run.highlight) {
       const span = doc.createElement("span");
-      if (run.font_size) {
-        span.dataset.size = run.font_size;
-        span.style.fontSize = `${SIZE_PX[run.font_size]}px`;
-      }
+      if (run.font_size)
+        stampSize(span, run.font_size);
+      if (run.font)
+        stampFont(span, run.font);
       if (run.color) {
         span.dataset.color = run.color;
         span.style.color = run.color;
@@ -2865,25 +3144,8 @@
     return element;
   }
 
-  // src/read_html.ts
-  function blocksFromHtml(editor, html, attachments) {
-    const parsed = new (windowOf(editor)).DOMParser().parseFromString(html, "text/html");
-    const body = parsed.body;
-    readQuotes(body);
-    for (const node of Array.from(body.querySelectorAll(INERT_TAGS))) {
-      if (!inRegion(node))
-        node.remove();
-    }
-    adoptPictures(body, attachments);
-    breakPreformattedLines(body);
-    collapseWhitespace(body);
-    return documentBlocks(body).map(tidy);
-  }
-  var INERT_TAGS = "style, title, template, noscript, script";
+  // src/read_regions.ts
   var REGIONS = ".allodia-quote, .allodia-signature";
-  function inRegion(node) {
-    return !!node.parentElement?.closest(REGIONS);
-  }
   var OWN_INDENTED_BORDER = "border-left:2px solid #cccccc";
   var OWN_HEADER_DIVIDER = "rgb(181, 196, 223)";
   function styleOf(element) {
@@ -2891,52 +3153,123 @@
   }
   function readQuotes(body) {
     for (const element of Array.from(body.querySelectorAll("blockquote, div"))) {
-      if (element.closest(REGIONS))
+      if (!element.isConnected || element.closest(REGIONS))
         continue;
-      if (element.tagName === "BLOCKQUOTE") {
-        if (styleOf(element).includes(OWN_INDENTED_BORDER)) {
-          const attribution = element.previousElementSibling;
-          let line = "";
-          if (attribution?.tagName === "P") {
-            line = attribution.textContent ?? "";
-            attribution.remove();
-          }
-          replaceWithQuote(element, { style: "Indented", line, headers: [] }, element);
-        } else if (!element.parentElement?.closest("li, td, th")) {
-          replaceWithQuote(element, { style: "Indented", line: "", headers: [] }, element);
-        }
-      } else if (styleOf(element).includes(OWN_HEADER_DIVIDER)) {
-        const quoted = element.nextElementSibling;
-        if (quoted?.tagName !== "DIV")
-          continue;
-        const headers = headersOf(element);
-        element.remove();
-        replaceWithQuote(quoted, { style: "LineAndHeader", line: "", headers }, quoted);
-      }
+      if (element.tagName === "BLOCKQUOTE")
+        readBlockquote(element);
+      else
+        readDiv(element);
     }
   }
-  function replaceWithQuote(element, attribution, content) {
-    const doc = element.ownerDocument;
-    const region = quoteContainer(doc, {
-      style: attribution.style,
-      attribution: { line: attribution.line, headers: attribution.headers }
-    });
+  function readBlockquote(element) {
+    if (styleOf(element).includes(OWN_INDENTED_BORDER)) {
+      const attribution = element.previousElementSibling;
+      let line = "";
+      if (attribution?.tagName === "DIV" || attribution?.tagName === "P") {
+        line = attribution.textContent ?? "";
+        attribution.remove();
+      }
+      replaceWithQuote(element, "Indented", line, [], childrenOf(element));
+      return;
+    }
+    if (element.parentElement?.closest("li, td, th"))
+      return;
+    const cited = element.getAttribute("type")?.toLowerCase() === "cite" || element.classList.contains("gmail_quote");
+    if (!cited)
+      return;
+    const prefix = element.previousElementSibling;
+    let line = "";
+    if (prefix?.matches(".moz-cite-prefix, .gmail_attr")) {
+      line = flatText(prefix);
+      prefix.remove();
+    }
+    replaceWithQuote(element, "Indented", line, [], childrenOf(element));
+  }
+  function readDiv(element) {
+    if (styleOf(element).includes(OWN_HEADER_DIVIDER)) {
+      const quoted = element.nextElementSibling;
+      if (quoted?.tagName !== "DIV")
+        return;
+      const headers = headersOf(element, true);
+      element.remove();
+      replaceWithQuote(quoted, "LineAndHeader", "", headers, childrenOf(quoted));
+      return;
+    }
+    if (element.classList.contains("moz-forward-container")) {
+      readThunderbirdForward(element);
+      return;
+    }
+    if (isOutlookHeader(element))
+      readOutlookHeader(element);
+  }
+  function readThunderbirdForward(container) {
+    const table = container.querySelector(":scope > table.moz-email-headers-table");
+    if (!table)
+      return;
+    const headers = [];
+    for (const row of Array.from(table.querySelectorAll("tr"))) {
+      const label = row.querySelector("th");
+      const value = row.querySelector("td");
+      if (!label || !value)
+        continue;
+      headers.push({ label: flatText(label).replace(/:$/, "").trim(), value: flatText(value) });
+    }
+    while (container.firstChild && container.firstChild !== table)
+      container.firstChild.remove();
+    table.remove();
+    dropLeadingBreaks(container);
+    replaceWithQuote(container, "LineAndHeader", "", headers, childrenOf(container));
+  }
+  function isOutlookHeader(element) {
+    if (element.id === "divRplyFwdMsg")
+      return true;
+    if (!/border-top:[^;]*solid/i.test(styleOf(element)))
+      return false;
+    return headersOf(element, false).length >= 2;
+  }
+  function readOutlookHeader(header) {
+    const headers = headersOf(header, false);
+    if (headers.length === 0)
+      return;
+    let anchor = header;
+    while (anchor.parentElement && anchor.parentElement.tagName !== "BODY" && onlyElement(anchor.parentElement, anchor)) {
+      anchor = anchor.parentElement;
+    }
+    const rule = anchor.previousElementSibling;
+    if (rule?.tagName === "HR")
+      rule.remove();
+    const quoted = [];
+    for (let node = anchor.nextSibling;node; node = node.nextSibling)
+      quoted.push(node);
+    replaceWithQuote(anchor, "LineAndHeader", "", headers, quoted);
+  }
+  function onlyElement(parent, child) {
+    return Array.from(parent.childNodes).every((node) => node === child || node.nodeType === 3 && !(node.nodeValue ?? "").trim());
+  }
+  function childrenOf(element) {
+    return Array.from(element.childNodes);
+  }
+  function replaceWithQuote(element, style, line, headers, content) {
+    const region = quoteContainer(element.ownerDocument, { style, attribution: { line, headers } });
     const quoted = region.querySelector(".aq-body");
     quoted.textContent = "";
-    while (content.firstChild)
-      quoted.appendChild(content.firstChild);
+    for (const node of content)
+      quoted.appendChild(node);
     element.replaceWith(region);
   }
-  function headersOf(divider) {
+  function headersOf(divider, own) {
     const headers = [];
     let current = null;
     const walk = (node) => {
       for (const child of Array.from(node.childNodes)) {
         const tag = child.nodeType === 1 ? child.tagName : null;
-        if (tag === "STRONG" || tag === "B") {
+        if ((tag === "STRONG" || tag === "B") && (own || /:\s*$/.test(child.textContent ?? ""))) {
           current = { label: (child.textContent ?? "").replace(/:\s*$/, "").trim(), value: "" };
           headers.push(current);
-        } else if (tag === "BR") {
+        } else if (tag === "BR" || tag === "P" || tag === "DIV") {
+          current = null;
+          if (tag !== "BR")
+            walk(child);
           current = null;
         } else if (tag) {
           walk(child);
@@ -2946,7 +3279,77 @@
       }
     };
     walk(divider);
+    if (!own)
+      for (const header of headers)
+        header.value = header.value.replace(/\s+/g, " ").trim();
     return headers;
+  }
+  function flatText(element) {
+    return (element.textContent ?? "").replace(/\s+/g, " ").trim();
+  }
+  function dropLeadingBreaks(container) {
+    for (let node = container.firstChild;node; node = container.firstChild) {
+      const blank = node.nodeType === 3 && !(node.nodeValue ?? "").trim();
+      const br = node.nodeType === 1 && node.tagName === "BR";
+      if (!blank && !br)
+        return;
+      node.remove();
+    }
+  }
+  function readSignatures(body) {
+    const containers = body.querySelectorAll("div.moz-signature, div#Signature, div[id^='Signature_']");
+    for (const element of Array.from(containers)) {
+      if (!element.isConnected || element.closest(REGIONS))
+        continue;
+      replaceWithSignature([element], element.innerHTML);
+    }
+    readWordSignature(body);
+  }
+  function readWordSignature(body) {
+    const markers = Array.from(body.querySelectorAll("a[name='_MailAutoSig'], [style*='_MailAutoSig']")).filter((marker) => !marker.closest(REGIONS));
+    const lines = [];
+    for (const marker of markers) {
+      const line = marker.closest("p, div, h1, h2, h3, h4, h5, h6");
+      if (line && !line.closest(REGIONS) && !lines.includes(line) && !line.querySelector("p, div"))
+        lines.push(line);
+      else if (!line && !(marker.textContent ?? "").trim())
+        marker.remove();
+    }
+    if (lines.length === 0)
+      return;
+    const parent = lines[0].parentElement;
+    const run = lines.filter((line) => line.parentElement === parent);
+    replaceWithSignature(run, run.map((line) => line.outerHTML).join(""));
+  }
+  function replaceWithSignature(elements, html) {
+    const first = elements[0];
+    const region = signatureContainer(first.ownerDocument, { body_html: html, body_plain: "" });
+    first.replaceWith(region);
+    for (const element of elements.slice(1))
+      element.remove();
+  }
+
+  // src/read_html.ts
+  function blocksFromHtml(editor, html, attachments) {
+    const parsed = new (windowOf(editor)).DOMParser().parseFromString(html, "text/html");
+    const body = parsed.body;
+    readQuotes(body);
+    readSignatures(body);
+    for (const node of Array.from(body.querySelectorAll(INERT_TAGS))) {
+      if (!inRegion(node))
+        node.remove();
+    }
+    adoptPictures(body, attachments);
+    adoptStrayLists(body);
+    emptyWordBlankLines(body);
+    liftRules(body);
+    breakPreformattedLines(body);
+    collapseWhitespace(body);
+    return documentBlocks(body).map(tidy);
+  }
+  var INERT_TAGS = "style, title, template, noscript, script";
+  function inRegion(node) {
+    return !!node.parentElement?.closest(REGIONS);
   }
   function adoptPictures(body, attachments) {
     for (const image of Array.from(body.querySelectorAll("img"))) {
@@ -2965,6 +3368,42 @@
         media_type: "",
         content_id: image.getAttribute("data-cid") ?? ""
       });
+    }
+  }
+  function adoptStrayLists(body) {
+    for (const list of Array.from(body.querySelectorAll("ul > ul, ul > ol, ol > ul, ol > ol"))) {
+      if (inRegion(list))
+        continue;
+      let item = list.previousElementSibling;
+      if (item?.tagName !== "LI") {
+        item = list.ownerDocument.createElement("li");
+        list.before(item);
+      }
+      item.appendChild(list);
+    }
+  }
+  function emptyWordBlankLines(body) {
+    for (const line of Array.from(body.querySelectorAll("p[class^='Mso'], div[class^='Mso']"))) {
+      if (inRegion(line) || line.querySelector("img, hr, table, ul, ol"))
+        continue;
+      if ((line.textContent ?? "").replace(/[\s ]/g, "") === "")
+        line.textContent = "";
+    }
+  }
+  function liftRules(body) {
+    for (const rule of Array.from(body.querySelectorAll("hr"))) {
+      if (inRegion(rule))
+        continue;
+      let holder = rule;
+      for (let parent = rule.parentElement;parent && parent !== body; parent = parent.parentElement) {
+        if ((parent.textContent ?? "").trim() !== "" || parent.querySelectorAll("img, hr").length > 1)
+          break;
+        if (parent.tagName === "LI" || parent.tagName === "TD" || parent.tagName === "TH")
+          break;
+        holder = parent;
+      }
+      if (holder !== rule)
+        holder.replaceWith(rule);
     }
   }
   function breakPreformattedLines(body) {
@@ -3042,7 +3481,7 @@
   var BLOCK_TAG = /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|BODY|BR|CENTER|DD|DIV|DL|DT|FIGCAPTION|FIGURE|FOOTER|H[1-6]|HEADER|HR|LI|MAIN|NAV|OL|P|PRE|SECTION|TABLE|TBODY|TD|TH|THEAD|TFOOT|TR|UL)$/;
   function tidy(block) {
     if ("Paragraph" in block)
-      return { Paragraph: { content: tidyLine(block.Paragraph.content) } };
+      return { Paragraph: { ...block.Paragraph, content: tidyLine(block.Paragraph.content) } };
     if ("List" in block) {
       const list = (value) => ({
         kind: value.kind,
@@ -3287,6 +3726,101 @@
     return true;
   }
 
+  // src/paragraphs.ts
+  var LINE_TAGS2 = new Set(["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6"]);
+  var OUTSIDE_LINES = "li, td, th, .allodia-quote, .allodia-signature";
+  function selectedLines(editor) {
+    const range = rangeWithin(editor);
+    if (!range)
+      return [];
+    const doc = documentOf(editor);
+    return Array.from(editor.querySelectorAll("p, div, h1, h2, h3, h4, h5, h6")).filter((line) => {
+      if (line.closest(OUTSIDE_LINES))
+        return false;
+      if (Array.from(line.children).some((child) => LINE_TAGS2.has(child.tagName) || child.tagName === "UL" || child.tagName === "OL" || child.tagName === "TABLE")) {
+        return false;
+      }
+      const own = doc.createRange();
+      own.selectNodeContents(line);
+      return rangeOverlaps(range, own);
+    });
+  }
+  function eachLine(editor, change) {
+    const lines = selectedLines(editor);
+    if (lines.length === 0)
+      return false;
+    const caret = saveSelection(editor);
+    for (const line of lines) {
+      const current = lineStyleOf(line, NO_CONTEXT);
+      const next = change(line, current);
+      const element = lineTag(next) === lineTag(current) ? line : retag(line, lineTag(next));
+      applyLineStyle(element, next);
+    }
+    restoreSelection(editor, caret);
+    focusEditor(editor);
+    return true;
+  }
+  function retag(line, tag) {
+    const element = documentOf(line).createElement(tag);
+    for (const attribute of Array.from(line.attributes))
+      element.setAttribute(attribute.name, attribute.value);
+    while (line.firstChild)
+      element.appendChild(line.firstChild);
+    line.replaceWith(element);
+    return element;
+  }
+  function setHeading(editor, heading) {
+    return eachLine(editor, (_, style) => {
+      const next = { ...style };
+      if (heading)
+        next.heading = heading;
+      else
+        delete next.heading;
+      return next;
+    });
+  }
+  function setAlign(editor, align) {
+    return eachLine(editor, (_, style) => {
+      const next = { ...style };
+      if (align)
+        next.align = align;
+      else
+        delete next.align;
+      return next;
+    });
+  }
+  function indentLines(editor, outdent) {
+    return eachLine(editor, (_, style) => {
+      const current = style.indent_px ?? 0;
+      const indent = outdent ? Math.max(0, current - INDENT_STEP_PX) : Math.min(MAX_INDENT_PX, current + INDENT_STEP_PX);
+      const next = { ...style };
+      if (indent > 0)
+        next.indent_px = indent;
+      else
+        delete next.indent_px;
+      return next;
+    });
+  }
+  function insertRule(editor) {
+    const range = rangeWithin(editor);
+    const doc = documentOf(editor);
+    let block = range?.startContainer ?? null;
+    while (block && block.parentNode !== editor)
+      block = block.parentNode;
+    const rule = doc.createElement("hr");
+    if (block)
+      editor.insertBefore(rule, block.nextSibling);
+    else
+      editor.appendChild(rule);
+    let next = rule.nextElementSibling;
+    if (!next || !LINE_TAGS2.has(next.tagName)) {
+      next = emptyLine(doc);
+      editor.insertBefore(next, rule.nextSibling);
+    }
+    caretInto(next, true);
+    focusEditor(editor);
+  }
+
   // src/toolbar.ts
   var TEXT_COLOURS = [
     "#000000",
@@ -3329,13 +3863,22 @@
     }
     const fontSize = byId("font-size");
     fontSize.addEventListener("change", () => {
-      if (isFontSize(fontSize.value))
-        applyFontSize(editor, fontSize.value);
+      const size = fontSizeOf(Number(fontSize.value));
+      if (size)
+        applyFontSize(editor, size);
+    });
+    const fontFamily = byId("font-family");
+    fontFamily.addEventListener("change", () => applyFontFamily(editor, fontFamily.value || null));
+    const blockStyle = byId("block-style");
+    blockStyle.addEventListener("change", () => {
+      const value = blockStyle.value;
+      setHeading(editor, HEADINGS.includes(value) ? value : null);
     });
     byId("bullet-list").addEventListener("click", () => legacy(editor, "insertUnorderedList"));
     byId("ordered-list").addEventListener("click", () => legacy(editor, "insertOrderedList"));
-    byId("indent").addEventListener("click", () => indentSelection(editor, false));
-    byId("outdent").addEventListener("click", () => indentSelection(editor, true));
+    byId("indent").addEventListener("click", () => indentSelection(editor, false) || indentLines(editor, false));
+    byId("outdent").addEventListener("click", () => indentSelection(editor, true) || indentLines(editor, true));
+    byId("rule").addEventListener("click", () => insertRule(editor));
     const alignPopover = (popover) => {
       popover.panel.classList.remove("align-end");
       popover.panel.style.left = "";
@@ -3418,6 +3961,7 @@
     register("highlight", "highlight-menu", paletteBuilder("highlight", HIGHLIGHTS, "highlight-bar", () => labels().highlightNone));
     swatchBar("highlight-bar", HIGHLIGHTS[0]);
     register("table", "table-menu", (panel) => buildTableMenu(panel, editor, doc, labels(), closeAll));
+    register("align", "align-menu", (panel) => buildAlignMenu(panel, editor, doc, labels(), closeAll));
     const link = {
       button: byId("link"),
       panel: byId("link-menu"),
@@ -3462,16 +4006,18 @@
         title("#highlight", current.highlight);
         title("#table", current.table);
         title("#link", current.link);
-        fontSize.title = current.fontSize;
-        fontSize.setAttribute("aria-label", current.fontSize);
-        const sizeText = {
-          Normal: current.sizeNormal,
-          Small: current.sizeSmall,
-          Large: current.sizeLarge,
-          Huge: current.sizeHuge
-        };
-        for (const option of Array.from(fontSize.options)) {
-          const text = sizeText[option.value];
+        title("#align", current.align);
+        title("#rule", current.horizontalRule);
+        for (const [select, text] of [
+          [fontSize, current.fontSize],
+          [fontFamily, current.fontFamily],
+          [blockStyle, current.blockStyle]
+        ]) {
+          select.title = text;
+          select.setAttribute("aria-label", text);
+        }
+        for (const option of Array.from(root.querySelectorAll("option[data-label]"))) {
+          const text = current[option.dataset.label];
           if (text)
             option.textContent = text;
         }
@@ -3533,6 +4079,28 @@
     action(labels.deleteRow, () => deleteRow(editor, cell));
     action(labels.deleteColumn, () => deleteColumn(editor, cell));
     action(labels.deleteTable, () => deleteTable(editor, cell));
+    panel.appendChild(items);
+  }
+  function buildAlignMenu(panel, editor, doc, labels, close) {
+    panel.textContent = "";
+    const items = doc.createElement("div");
+    items.className = "menu-items";
+    const choices = [
+      [labels.alignLeft, null],
+      [labels.alignCentre, "Center"],
+      [labels.alignRight, "Right"],
+      [labels.alignJustify, "Justify"]
+    ];
+    for (const [text, align] of choices) {
+      const button = doc.createElement("button");
+      button.type = "button";
+      button.textContent = text;
+      button.addEventListener("click", () => {
+        setAlign(editor, align);
+        close();
+      });
+      items.appendChild(button);
+    }
     panel.appendChild(items);
   }
   function legacy(editor, command) {

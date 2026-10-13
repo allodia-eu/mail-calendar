@@ -68,7 +68,7 @@ export function setComposerSignature(editor: HTMLElement, signature: SignatureVa
     // their own signature with nowhere above it to write. Give them the empty line the composer
     // would otherwise have had.
     if (!container.previousElementSibling) {
-      const lead = doc.createElement("p");
+      const lead = doc.createElement("div");
       lead.appendChild(doc.createElement("br"));
       editor.insertBefore(lead, container);
     }
@@ -111,7 +111,7 @@ export function routeClickBelowSignature(editor: HTMLElement, target: EventTarge
 
   let anchor = signature.previousElementSibling;
   if (!anchor) {
-    const lead = documentOf(editor).createElement("p");
+    const lead = documentOf(editor).createElement("div");
     lead.appendChild(documentOf(editor).createElement("br"));
     editor.insertBefore(lead, signature);
     anchor = lead;

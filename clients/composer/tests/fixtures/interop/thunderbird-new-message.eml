@@ -1,0 +1,108 @@
+Content-Type: multipart/mixed; boundary="------------B37hTb9CBdkOAPTRCpjcFBn8"
+Message-ID: <bd53acba-6b06-46b4-8bbf-d400568f3cfe@test.local>
+Date: Tue, 13 Oct 2026 11:45:05 +0200
+MIME-Version: 1.0
+User-Agent: Mozilla Thunderbird
+From: Alice Tester <alice@test.local>
+Subject: Test mail from Thunderbird!
+To: alice@test.local
+Content-Language: nl, en-GB
+Cc: bob@test.local
+Bcc: dennis@test.local
+X-Mozilla-Draft-Info: internal/draft; vcard=0; receipt=0; DSN=0; uuencode=0;
+ attachmentreminder=0; deliveryformat=0
+X-Identity-Key: id2
+Fcc: imap://alice%40test.local@127.0.0.1/Sent Items
+
+This is a multi-part message in MIME format.
+--------------B37hTb9CBdkOAPTRCpjcFBn8
+Content-Type: multipart/related;
+ boundary="------------oRXS9e3roQaJNHLuxfD02G0R"
+
+--------------oRXS9e3roQaJNHLuxfD02G0R
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <title>Test mail from Thunderbird!</title>
+  </head>
+  <body>
+    <p>Hey there,</p>
+    <p>This is <b>bold</b> text, and <u>underlined</u> is quite nice
+      too. What about <i>italic?</i></p>
+    <p>This is regular size. <font size="6">Larger now. <font size="5">Slightly
+          smaller.<font size="4"> Smaller. </font></font></font>Regular
+      again. <font size="2">Very small. <font size="1">Tiny.</font></font></p>
+    <p>Wow and what about emoji? 🙂😉😛</p>
+    <h1>Heading 1</h1>
+    <p>That's a big one. <a href="https://allodia.eu">Here's a link</a>
+      by the way.</p>
+    <p>And also <font color="#ff0000">different </font><font
+        color="#00ff80">colors <font color="#ff00ff">are <font
+            color="#0080ff">nice <font color="#000000">to play with.</font></font></font></font></p>
+    <p><font color="#00ff80"><font color="#ff00ff"><font color="#0080ff"><font
+              color="#000000">W<font face="Comic Sans MS">hat about a
+                different font? Famous Comic Sans!</font></font></font></font></font></p>
+    Here's a list.
+    <ul>
+      <li>Bullet item 1</li>
+      <ol>
+        <li>Numbered list nested inside it</li>
+        <li>Second numbered list item</li>
+        <li>Third one</li>
+      </ol>
+      <li>Bullet item 2</li>
+      <li>Bullet item 3</li>
+    </ul>
+    <blockquote>
+      <p>Indentation also works!</p>
+      <blockquote>
+        <p>Indented even further.</p>
+      </blockquote>
+    </blockquote>
+    <p>Now back to normal.</p>
+    <p align="center">Even centered text works!</p>
+    <p align="left">Here's an inline image:</p>
+    <p align="left"><img src="cid:part1.4SZidU38.gCsiX4EV@test.local"
+        title="This is a tooltip" alt="Alternate text here" width="373"
+        height="240" class=""></p>
+    <p align="left">And a small table:</p>
+    <table cellpadding="2" cellspacing="2" border="1" width="100%">
+      <tbody>
+        <tr>
+          <td valign="top">Heading 1</td>
+          <td valign="top">Heading 2</td>
+        </tr>
+        <tr>
+          <td valign="top">Row 2, first cell</td>
+          <td valign="top">Row 2, second cell</td>
+        </tr>
+      </tbody>
+    </table>
+    <hr width="100%" size="2">Wow that's a horizontal line right above
+    me.
+    <div class="moz-signature">-- <br>
+      Kind regards, Alice <b>This is my bold signature, pretty cool
+        right?</b></div>
+  </body>
+</html>
+--------------oRXS9e3roQaJNHLuxfD02G0R
+Content-Type: image/png; name="Screenshot+2026-09-03+141530.png"
+Content-Disposition: inline; filename="Screenshot+2026-09-03+141530.png"
+Content-Id: <part1.4SZidU38.gCsiX4EV@test.local>
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGPQz1+BFTEMLQkAullR
+gdV+/FYAAAAASUVORK5CYII=
+--------------oRXS9e3roQaJNHLuxfD02G0R--
+--------------B37hTb9CBdkOAPTRCpjcFBn8
+Content-Type: text/plain; charset=UTF-8; name="allodia-mail-diagnostics.log"
+Content-Disposition: attachment; filename="allodia-mail-diagnostics.log"
+Content-Transfer-Encoding: base64
+
+U3RhbmRzIGluIGZvciB0aGUgZGlhZ25vc3RpY3MgbG9nIHRoaXMgZHJhZnQgd2FzIHdyaXR0ZW4g
+d2l0aC4NCg==
+--------------B37hTb9CBdkOAPTRCpjcFBn8--

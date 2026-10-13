@@ -1,0 +1,44 @@
+To: <bob@test.local>
+References: <attachment-0004@test.local>
+In-Reply-To: <attachment-0004@test.local>
+Subject: FW: Message with a text attachment
+Message-ID: <004901dd5af8$39230ad0$ab692070$@Domain>
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+	boundary="----=_NextPart_000_004A_01DD5B08.FCAC01E0"
+X-Mailer: Microsoft Outlook 16.0
+Content-Language: en-us
+Thread-Index: AQIOhjBzceY5CphjuVtgA58Gplul3LaY4/cw
+X-OlkEid: 0000000017419D82725F454EA81D6E051C6E6FA8070034AD76187591974DBF6C4F76951C873A0100000000000000C0FAE77A27A8F544B672898DA98209580000000006040000707981DE9473F4488FD1498F3BE74AC0
+
+This is a multipart message in MIME format.
+
+------=_NextPart_000_004A_01DD5B08.FCAC01E0
+Content-Type: text/plain;
+	charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+This is the forwarded CSV message in Outlook.
+
+-----Oorspronkelijk bericht-----
+Van: Reports <reports@example.com>
+Verzonden: Friday, January 9, 2026 3:15 PM
+Aan: Alice Tester <alice@test.local>
+Onderwerp: Message with a text attachment
+
+Body part. A file attachment follows; attachments span 
+file/item/reference/inline kinds and this protects the file-attachment path 
+end to end.
+
+------=_NextPart_000_004A_01DD5B08.FCAC01E0
+Content-Type: text/csv;
+	name="report.csv"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment;
+	filename="report.csv"
+
+quarter,revenue=0A=
+1,100=0A=
+2,150=0A=
+
+------=_NextPart_000_004A_01DD5B08.FCAC01E0--

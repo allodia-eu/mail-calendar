@@ -37,7 +37,12 @@ fn reply_document() -> ComposerDocument {
     ComposerDocument {
         blocks: vec![
             Block::Paragraph(Paragraph {
+                heading: None,
+                align: None,
+                indent_px: 0,
+                spaced: false,
                 content: vec![InlineContent::Text(TextRun {
+                    font: None,
                     text: "A whole sentence".to_owned(),
                     bold: true,
                     italic: false,

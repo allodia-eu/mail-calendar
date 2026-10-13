@@ -44,7 +44,7 @@ describe("insert", () => {
     h.caret("#p");
     insertTable(h.editor, 1, 2);
     const children = Array.from(h.editor.children).map((c) => c.tagName);
-    expect(children).toEqual(["P", "TABLE", "P"]);
+    expect(children).toEqual(["P", "TABLE", "DIV"]);
   });
 
   test("clamps a degenerate size to a real table", () => {
@@ -62,7 +62,7 @@ describe("insert", () => {
     h.caret("#r0c0");
     insertTable(h.editor, 1, 1);
     const children = Array.from(h.editor.children).map((c) => c.tagName);
-    expect(children).toEqual(["TABLE", "TABLE", "P", "P"]);
+    expect(children).toEqual(["TABLE", "TABLE", "DIV", "P"]);
     expect(h.editor.querySelector("td table")).toBeNull();
   });
 
@@ -74,7 +74,7 @@ describe("insert", () => {
     h.caret("#b");
     insertTable(h.editor, 2, 2);
     expect(h.editor.querySelector("li table")).toBeNull();
-    expect(Array.from(h.editor.children).map((c) => c.tagName)).toEqual(["UL", "TABLE", "P"]);
+    expect(Array.from(h.editor.children).map((c) => c.tagName)).toEqual(["UL", "TABLE", "DIV"]);
     expect(shape(h.editor)).toBe("2x2");
   });
 
@@ -85,7 +85,7 @@ describe("insert", () => {
     h.caret("#d");
     insertTable(h.editor, 1, 1);
     expect(h.editor.querySelector("td table")).toBeNull();
-    expect(Array.from(h.editor.children).map((c) => c.tagName)).toEqual(["TABLE", "TABLE", "P"]);
+    expect(Array.from(h.editor.children).map((c) => c.tagName)).toEqual(["TABLE", "TABLE", "DIV"]);
   });
 });
 
@@ -129,7 +129,7 @@ describe("the last row or column takes the table with it", () => {
     const h = harness("<table><tbody><tr><td id=only>x</td></tr></tbody></table>");
     deleteRow(h.editor, h.caret("#only"));
     expect(shape(h.editor)).toBe("none");
-    expect(h.html()).toBe("<p><br></p>");
+    expect(h.html()).toBe("<div><br></div>");
   });
 
   test("deleting the only column removes the table", () => {
@@ -143,7 +143,7 @@ describe("the last row or column takes the table with it", () => {
   test("deleting the table leaves a paragraph to type into", () => {
     const h = harness(GRID);
     deleteTable(h.editor, h.caret("#r0c0"));
-    expect(h.html()).toBe("<p><br></p>");
+    expect(h.html()).toBe("<div><br></div>");
   });
 });
 

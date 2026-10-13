@@ -18,8 +18,9 @@ The editor runtime is bundled with the app and loaded from app assets:
 - No CDN scripts, stylesheets, fonts, images, or extension packages.
 - No runtime package downloads.
 - No network access from the composer document.
-- The editor schema is the product schema: bold, italic, underline, constrained font sizes, **text
-  and highlight colour**, **links** (Gate 16), bullets **nested to any depth**, tables, inline
+- The editor schema is the product schema: bold, italic, underline, a font size in pixels (clamped
+  to 6–96px), a **typeface**, **text and highlight colour**, **links** (Gate 16), lines and
+  paragraphs, headings, alignment, an indent in pixels, horizontal rules, bullets **nested to any depth**, tables, inline
   images, and regular attachments. Unsupported pasted constructs are dropped or normalised before they enter the shared
   document.
 - **Colour is `#rrggbb` and nothing else.** The editor normalises what the DOM hands it (engines
@@ -27,6 +28,11 @@ The editor runtime is bundled with the app and loaded from app assets:
   on submit, because the value is placed straight into a `style="…"` attribute. A value that fails is
   dropped, not rejected: the run renders in the inherited colour rather than the message refusing to
   send.
+- **A typeface is a list of font names and nothing else.** Each name may hold letters, digits,
+  spaces, `-`, `_` and `.`, which is every font name in use and leaves no quote, colon, semicolon
+  or bracket to end a declaration or the `style` attribute it is written into. The editor
+  normalises to that spelling (`canonicalFamily`) and `mailcal_composer::FontFamily` re-validates on
+  submit, dropping a list it refuses as a colour is dropped.
 
 **The bundle is built, not hand-written.** Sources are TypeScript ESM modules under
 [`clients/composer/src/`](../clients/composer/src); `bun run build` inlines them into the single
@@ -339,7 +345,10 @@ port:
     `setComposerBody` with the message's own HTML ([`drafts.md`](drafts.md)). That HTML is mail the
     server handed back, so it is hostile input like any other:
     - **The core sanitises it before any host sees it** (`ComposeOpening::body_html`), with the
-      reading view's allowlist, and turns each `cid:` picture into the `data:` URI of its part,
+      reading view's allowlist, which keeps the markup another client's draft is read by and that
+      can neither load nor run anything: `<font>` with its `color`, `face` and `size`, `type` on a
+      `<blockquote>`, and `name` on an `<a>` (`read_regions.ts`, [`drafts.md`](drafts.md)). It
+      turns each `cid:` picture into the `data:` URI of its part,
       noting the part's `Content-ID` beside it as `data-cid` for the editor to keep. A host passes it
       on as data: one JSON string the editor parses, never spliced into a script.
     - **The editor parses it into a document of its own with no window** (`DOMParser`), so nothing

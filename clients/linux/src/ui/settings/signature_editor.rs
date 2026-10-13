@@ -24,7 +24,8 @@ use super::{PageContext, page_box};
 use crate::{
     l10n,
     ui::{
-        composer::{EDITOR_HTML, editor_labels},
+        composer::EDITOR_HTML,
+        composer_labels::editor_labels,
         editor_paste::{self, PasteAnswer, PastedPicture},
         signature_image::{self, SignatureImage},
         webview::{DocumentKind, SecureWebView},

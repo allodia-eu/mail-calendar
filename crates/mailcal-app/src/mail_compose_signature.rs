@@ -195,9 +195,7 @@ mod tests {
     fn document(body_html: &str) -> ComposerDocument {
         ComposerDocument {
             blocks: vec![
-                Block::Paragraph(Paragraph {
-                    content: Vec::new(),
-                }),
+                Block::Paragraph(Paragraph::new(Vec::new())),
                 Block::Signature(Signature {
                     body_html: body_html.to_owned(),
                     body_plain: "Alice".to_owned(),
@@ -325,9 +323,7 @@ mod tests {
     #[test]
     fn a_signature_free_document_is_untouched() {
         let mut doc = ComposerDocument {
-            blocks: vec![Block::Paragraph(Paragraph {
-                content: Vec::new(),
-            })],
+            blocks: vec![Block::Paragraph(Paragraph::new(Vec::new()))],
             attachments: Vec::new(),
         };
         let before = doc.clone();

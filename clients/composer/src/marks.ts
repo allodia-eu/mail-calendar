@@ -1,8 +1,9 @@
-// Reading the inline marks (bold/italic/underline/size/colour) off the DOM, and normalising the
-// markup `execCommand` leaves behind so those marks are readable at all.
+// Reading the inline marks (bold/italic/underline/size/typeface/colour) off the DOM, and normalising
+// the markup `execCommand` leaves behind so those marks are readable at all.
 
 import { safeLinkHref } from "./links";
-import { type FontSize, type HexColor, type Marks, isFontSize, SIZE_PX } from "./types";
+import { canonicalFamily, familyCss, sizeOfCss, sizeOfLegacy } from "./typography";
+import { type FontSize, type HexColor, type Marks, fontSizeOf } from "./types";
 
 /// Normalises any colour the DOM might hand back into the `#rrggbb` Rust accepts, or `null` when
 /// it is not a colour we can represent.
@@ -18,6 +19,8 @@ import { type FontSize, type HexColor, type Marks, isFontSize, SIZE_PX } from ".
 export function normalizeColor(value: string | null | undefined): HexColor | null {
   const raw = (value ?? "").trim().toLowerCase();
   if (!raw || raw === "transparent" || raw === "initial" || raw === "inherit") return null;
+  const named = NAMED_COLOURS[raw];
+  if (named) return named;
 
   const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(raw);
   if (hex) {
@@ -46,21 +49,45 @@ export function normalizeColor(value: string | null | undefined): HexColor | nul
   return null;
 }
 
+/// The colours CSS 2.1 names, which is the set older editors write into `<font color>`.
+const NAMED_COLOURS: Record<string, HexColor> = {
+  black: "#000000",
+  silver: "#c0c0c0",
+  gray: "#808080",
+  grey: "#808080",
+  white: "#ffffff",
+  maroon: "#800000",
+  red: "#ff0000",
+  purple: "#800080",
+  fuchsia: "#ff00ff",
+  green: "#008000",
+  lime: "#00ff00",
+  olive: "#808000",
+  yellow: "#ffff00",
+  navy: "#000080",
+  blue: "#0000ff",
+  teal: "#008080",
+  aqua: "#00ffff",
+  orange: "#ffa500",
+};
+
 /// The marks in force on `element`, given those inherited from its ancestors.
 ///
-/// Size and colour are read from the element's OWN markers: the `data-*` stamps the toolbar
-/// writes, else its inline `style` attribute: never from `getComputedStyle`. Computed colour is
-/// always set (every element inherits one), so reading it would stamp an explicit colour on every
-/// run in every message and bloat the document with a colour nobody chose.
+/// Every mark is read from the element's OWN markers: its tag, the `data-*` stamps the toolbar
+/// writes, its inline `style`, and a `<font>`'s attributes; never from `getComputedStyle`. A
+/// computed value is inherited by everything inside the element that set it, so reading one would
+/// stamp a colour nobody chose on every run, and would read every word of a heading as bold: a
+/// heading is a line's style (`lines.ts`), not a mark on its words. Underline is the exception,
+/// because `text-decoration` is not inherited and an engine may express it no other way.
 ///
-/// A body being reopened (`read_html.ts`) is parsed into a document with no window, so nothing in it
-/// has a computed style: there the element's own `style` attribute answers instead, and a heading
-/// stands for the bold, larger run it looks like.
+/// A heading that sits where no line can be one, inside a list item or a table cell, is read as
+/// the bold, larger run it looks like, since the document has no other way to hold it there.
 export function elementMarks(element: Element, inherited: Marks): Marks {
   const tag = element.tagName;
-  const style = (element as HTMLElement).style;
+  const html = element as HTMLElement;
+  const style = html.style;
   const computed = element.ownerDocument.defaultView?.getComputedStyle(element);
-  const fontWeight = computed?.fontWeight || style?.fontWeight || "";
+  const fontWeight = style?.fontWeight || "";
   const weight = fontWeight.startsWith("bold") ? 700 : Number.parseInt(fontWeight, 10);
   const decoration = [
     computed?.textDecorationLine,
@@ -68,46 +95,56 @@ export function elementMarks(element: Element, inherited: Marks): Marks {
     style?.textDecorationLine,
     style?.textDecoration,
   ].join(" ");
+  const inlineHeading = tag in HEADING_SIZES && !!element.parentElement?.closest("li, td, th");
 
-  const size = (element as HTMLElement).dataset.size;
-  const color = normalizeColor((element as HTMLElement).dataset.color ?? style?.color);
-  const highlight = normalizeColor(
-    (element as HTMLElement).dataset.highlight ?? style?.backgroundColor,
+  const color = normalizeColor(
+    html.dataset.color ?? (style?.color || (tag === "FONT" ? element.getAttribute("color") : null)),
   );
+  const highlight = normalizeColor(html.dataset.highlight ?? style?.backgroundColor);
 
   return {
-    bold: inherited.bold || tag === "B" || tag === "STRONG" || tag in HEADING_SIZES || weight >= 600,
+    bold: inherited.bold || tag === "B" || tag === "STRONG" || inlineHeading || weight >= 600,
     italic: inherited.italic || tag === "I" || tag === "EM" || style?.fontStyle === "italic",
     // A link's underline is how the editor draws a link, not a mark the user chose: read from
     // the computed style it would send every link out underlined twice.
     underline:
       inherited.underline || tag === "U" || (tag !== "A" && decoration.includes("underline")),
-    size: isFontSize(size) ? size : (sizeOfCss(style?.fontSize) ?? HEADING_SIZES[tag] ?? inherited.size),
+    size: sizeOf(element) ?? (inlineHeading ? HEADING_SIZES[tag]! : null) ?? inherited.size,
+    font: fontOf(element) ?? inherited.font,
     color: color ?? inherited.color,
     highlight: highlight ?? inherited.highlight,
     link: tag === "A" ? safeLinkHref(element.getAttribute("href")) : inherited.link,
   };
 }
 
-/// The run size a heading reads as. `H3` to `H6` are bold at the body's size, which is what they
-/// look like beside the two larger ones.
+/// The run size a heading inside a list item or a table cell reads as. `H3` to `H6` are bold at
+/// the body's size, which is what they look like beside the two larger ones.
 const HEADING_SIZES: Record<string, FontSize | null> = {
-  H1: "Huge",
-  H2: "Large",
+  H1: 24,
+  H2: 18,
   H3: null,
   H4: null,
   H5: null,
   H6: null,
 };
 
-/// The size a CSS `font-size` is, when it is exactly one the editor emits (`SIZE_PX`). Anything
-/// else is another client's typography, which the closed set of sizes has no honest answer for, so
-/// the run keeps the body's size.
-function sizeOfCss(value: string | null | undefined): FontSize | null {
-  const px = /^(\d+)px$/.exec((value ?? "").trim());
-  if (!px) return null;
-  const sizes = Object.keys(SIZE_PX) as FontSize[];
-  return sizes.find((key) => SIZE_PX[key] === Number(px[1])) ?? null;
+/// The size `element` itself sets: the toolbar's stamp, its `font-size`, or a `<font size>`.
+function sizeOf(element: Element): FontSize | null {
+  const stamped = Number((element as HTMLElement).dataset.size);
+  if (stamped > 0) return fontSizeOf(stamped);
+  const css = sizeOfCss((element as HTMLElement).style?.fontSize);
+  if (css !== null) return css;
+  return element.tagName === "FONT" ? sizeOfLegacy(element.getAttribute("size")) : null;
+}
+
+/// The typeface `element` itself sets: the toolbar's stamp, its `font-family`, or a `<font face>`.
+function fontOf(element: Element): string | null {
+  const html = element as HTMLElement;
+  return (
+    canonicalFamily(html.dataset.font) ??
+    canonicalFamily(html.style?.fontFamily) ??
+    (element.tagName === "FONT" ? canonicalFamily(element.getAttribute("face")) : null)
+  );
 }
 
 /// Rewrites the `<font>` elements `execCommand` leaves behind into marked-up `<span>`s.
@@ -121,7 +158,11 @@ function sizeOfCss(value: string | null | undefined): FontSize | null {
 ///
 /// `.allodia-quote` and `.allodia-signature` are left alone: both round-trip to Rust as verbatim
 /// HTML, so rewriting inside them would edit content the user never touched.
-export function normalizeFontElements(editor: HTMLElement, pendingSize: FontSize | null): void {
+export function normalizeFontElements(
+  editor: HTMLElement,
+  pendingSize: FontSize | null,
+  pendingFont: string | null = null,
+): void {
   for (const node of Array.from(editor.querySelectorAll("font"))) {
     if (node.closest(".allodia-quote, .allodia-signature")) continue;
 
@@ -134,9 +175,12 @@ export function normalizeFontElements(editor: HTMLElement, pendingSize: FontSize
     // execCommand("fontSize", "7") is how a size is applied: 7 is the largest legacy value, used
     // as a marker to find the runs the command just touched. The real size is `pendingSize`.
     if (node.getAttribute("size") === "7" && pendingSize) {
-      span.dataset.size = pendingSize;
-      span.style.fontSize = `${SIZE_PX[pendingSize]}px`;
+      stampSize(span, pendingSize);
     }
+    // execCommand("fontName") leaves a `<font face>` naming what it was given, which is
+    // `pendingFont` in the CSS spelling; the stamp holds the canonical one.
+    const face = pendingFont ?? canonicalFamily(node.getAttribute("face"));
+    if (node.hasAttribute("face") && face) stampFont(span, face);
     const color = normalizeColor(node.getAttribute("color"));
     if (color) {
       span.dataset.color = color;
@@ -145,4 +189,16 @@ export function normalizeFontElements(editor: HTMLElement, pendingSize: FontSize
     while (node.firstChild) span.appendChild(node.firstChild);
     node.replaceWith(span);
   }
+}
+
+/// Marks `span` as `size` pixels, the shape the reader and the toolbar both know.
+export function stampSize(span: HTMLElement, size: FontSize): void {
+  span.dataset.size = String(size);
+  span.style.fontSize = `${size}px`;
+}
+
+/// Marks `span` as set in the canonical family list `font`.
+export function stampFont(span: HTMLElement, font: string): void {
+  span.dataset.font = font;
+  span.style.fontFamily = familyCss(font);
 }

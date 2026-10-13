@@ -170,3 +170,13 @@ fn the_reading_document_has_no_title() {
     // The title is the print page's, named for the print job; the reading pane names nothing.
     assert!(!render_document("<p>x</p>", false).contains("<title>"));
 }
+
+/// Word marks the signature it inserted with a bookmark, an `<a name>` with no target, around the
+/// signature's first line. A browser styles only a link, so the base sheet does too: coloured, a
+/// received signature's "Kind regards," reads as a link nobody can follow.
+#[test]
+fn the_base_sheet_colours_links_and_leaves_a_bookmark_alone() {
+    let doc = render_document("<a name=\"_MailAutoSig\">Kind regards,</a>", false);
+    assert!(doc.contains("a[href]{color:#2864d6}"), "{doc}");
+    assert!(!doc.contains("}a{color"), "{doc}");
+}

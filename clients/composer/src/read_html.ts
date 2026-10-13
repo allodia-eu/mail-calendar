@@ -4,10 +4,11 @@
 // What this app wrote reads back as the document it was rendered from: the core's renderer and
 // this reader are held to each other by fixtures both test suites read (`tests/fixtures/`), one of
 // them generated across the whole schema and passed through the core's own save and reopen path.
-// Another client's markup is read as closely as the editor's closed schema can hold it, and what it
-// cannot hold is dropped here rather than shown, because the composer saves what it opened with: a
-// construct drawn on screen but absent from the document would vanish from the draft on the next
-// save without the user having touched it.
+// What Thunderbird and Outlook write reads back as they show it, held by the drafts each of them
+// stored (`tests/fixtures/interop/`). Any other markup is read as closely as the editor's closed
+// schema can hold it, and what it cannot hold is dropped here rather than shown, because the
+// composer saves what it opened with: a construct drawn on screen but absent from the document
+// would vanish from the draft on the next save without the user having touched it.
 //
 // The HTML arrives sanitised by the core, its `cid:` pictures already turned into `data:` URIs
 // (`docs/composer-security.md`, Gate 17). It is parsed into a document of its own, which has no
@@ -20,8 +21,8 @@ import { canonicalLine, documentBlocks } from "./document";
 import { windowOf } from "./dom";
 import { isShowableImage } from "./images";
 import { isPreformatted } from "./plain_text";
-import { quoteContainer } from "./quote";
-import type { Block, InlineContent, QuoteHeader } from "./types";
+import { readQuotes, readSignatures, REGIONS } from "./read_regions";
+import type { Block, InlineContent } from "./types";
 
 /// The blocks `html` holds, for the composer `editor`. Pictures it carries as `data:` URIs are added
 /// to `attachments`, and the blocks reference them by the ids minted there.
@@ -29,10 +30,14 @@ export function blocksFromHtml(editor: HTMLElement, html: string, attachments: A
   const parsed = new (windowOf(editor).DOMParser)().parseFromString(html, "text/html");
   const body = parsed.body;
   readQuotes(body);
+  readSignatures(body);
   for (const node of Array.from(body.querySelectorAll(INERT_TAGS))) {
     if (!inRegion(node)) node.remove();
   }
   adoptPictures(body, attachments);
+  adoptStrayLists(body);
+  emptyWordBlankLines(body);
+  liftRules(body);
   breakPreformattedLines(body);
   collapseWhitespace(body);
   return documentBlocks(body).map(tidy);
@@ -43,97 +48,8 @@ export function blocksFromHtml(editor: HTMLElement, html: string, attachments: A
 /// original or a signature they are that region's markup, and stay.
 const INERT_TAGS = "style, title, template, noscript, script";
 
-const REGIONS = ".allodia-quote, .allodia-signature";
-
 function inRegion(node: Node): boolean {
   return !!node.parentElement?.closest(REGIONS);
-}
-
-/// The indented quote's left border, which only this app's renderer writes (`INDENTED_QUOTE_STYLE`
-/// in `crates/mailcal-composer`): the mark that the paragraph before it is that quote's attribution
-/// rather than the user's last line.
-const OWN_INDENTED_BORDER = "border-left:2px solid #cccccc";
-
-/// The colour of the divider over a line-and-header quote's header block, which this app's renderer
-/// writes (`HEADER_DIVIDER_OPEN`).
-const OWN_HEADER_DIVIDER = "rgb(181, 196, 223)";
-
-function styleOf(element: Element): string {
-  return (element.getAttribute("style") ?? "").replace(/\s+/g, " ").replace(/:\s/g, ":");
-}
-
-/// Turns each quoted original into a quote region, outermost first and in one pass, so a message
-/// quoted inside it, which carries its own quote and perhaps its own signature, stays part of the
-/// quoted markup rather than being read as a second region of this message.
-///
-/// The two shapes this app's renderer writes come back with their attribution. A quote another
-/// client wrote is any `<blockquote>` not inside a list or a table; its attribution, if it has one,
-/// is ordinary text above it and stays that way.
-function readQuotes(body: HTMLElement): void {
-  for (const element of Array.from(body.querySelectorAll("blockquote, div"))) {
-    if (element.closest(REGIONS)) continue;
-    if (element.tagName === "BLOCKQUOTE") {
-      if (styleOf(element).includes(OWN_INDENTED_BORDER)) {
-        const attribution = element.previousElementSibling;
-        let line = "";
-        if (attribution?.tagName === "P") {
-          line = attribution.textContent ?? "";
-          attribution.remove();
-        }
-        replaceWithQuote(element, { style: "Indented", line, headers: [] }, element);
-      } else if (!element.parentElement?.closest("li, td, th")) {
-        replaceWithQuote(element, { style: "Indented", line: "", headers: [] }, element);
-      }
-    } else if (styleOf(element).includes(OWN_HEADER_DIVIDER)) {
-      const quoted = element.nextElementSibling;
-      if (quoted?.tagName !== "DIV") continue;
-      const headers = headersOf(element);
-      element.remove();
-      replaceWithQuote(quoted, { style: "LineAndHeader", line: "", headers }, quoted);
-    }
-  }
-}
-
-interface Attribution {
-  style: "Indented" | "LineAndHeader";
-  line: string;
-  headers: QuoteHeader[];
-}
-
-/// Replaces `element` with a quote region whose body is `content`'s children.
-function replaceWithQuote(element: Element, attribution: Attribution, content: Element): void {
-  const doc = element.ownerDocument;
-  const region = quoteContainer(doc, {
-    style: attribution.style,
-    attribution: { line: attribution.line, headers: attribution.headers },
-  });
-  const quoted = region.querySelector(".aq-body")!;
-  quoted.textContent = "";
-  while (content.firstChild) quoted.appendChild(content.firstChild);
-  element.replaceWith(region);
-}
-
-/// The `<strong>Label: </strong>value<br>` lines of a header block.
-function headersOf(divider: Element): QuoteHeader[] {
-  const headers: QuoteHeader[] = [];
-  let current: QuoteHeader | null = null;
-  const walk = (node: Node) => {
-    for (const child of Array.from(node.childNodes)) {
-      const tag = child.nodeType === 1 ? (child as Element).tagName : null;
-      if (tag === "STRONG" || tag === "B") {
-        current = { label: (child.textContent ?? "").replace(/:\s*$/, "").trim(), value: "" };
-        headers.push(current);
-      } else if (tag === "BR") {
-        current = null;
-      } else if (tag) {
-        walk(child);
-      } else if (current) {
-        current.value += child.textContent ?? "";
-      }
-    }
-  };
-  walk(divider);
-  return headers;
 }
 
 /// Gives each picture in the message's own lines the attachment it is shown from, and takes out
@@ -160,6 +76,45 @@ function adoptPictures(body: HTMLElement, attachments: Attachments): void {
       media_type: "",
       content_id: image.getAttribute("data-cid") ?? "",
     });
+  }
+}
+
+/// A list written directly inside another list rather than inside one of its items, which is how
+/// Thunderbird and Outlook both nest a list: it belongs to the item above it, which is where a
+/// browser draws it.
+function adoptStrayLists(body: HTMLElement): void {
+  for (const list of Array.from(body.querySelectorAll("ul > ul, ul > ol, ol > ul, ol > ol"))) {
+    if (inRegion(list)) continue;
+    let item = list.previousElementSibling;
+    if (item?.tagName !== "LI") {
+      item = list.ownerDocument.createElement("li");
+      list.before(item);
+    }
+    item.appendChild(list);
+  }
+}
+
+/// Word writes a blank line as a paragraph holding one no-break space (`<o:p>&nbsp;</o:p>`, whose
+/// wrapper the sanitiser has already dropped). It is drawn as an empty line, so it reads as one.
+function emptyWordBlankLines(body: HTMLElement): void {
+  for (const line of Array.from(body.querySelectorAll("p[class^='Mso'], div[class^='Mso']"))) {
+    if (inRegion(line) || line.querySelector("img, hr, table, ul, ol")) continue;
+    if ((line.textContent ?? "").replace(/[\s ]/g, "") === "") line.textContent = "";
+  }
+}
+
+/// A rule another client wrapped in a line of its own (Word puts it in a centred paragraph and a
+/// span), lifted out to stand where that line stood, which is how it is drawn.
+function liftRules(body: HTMLElement): void {
+  for (const rule of Array.from(body.querySelectorAll("hr"))) {
+    if (inRegion(rule)) continue;
+    let holder: Element = rule;
+    for (let parent = rule.parentElement; parent && parent !== body; parent = parent.parentElement) {
+      if ((parent.textContent ?? "").trim() !== "" || parent.querySelectorAll("img, hr").length > 1) break;
+      if (parent.tagName === "LI" || parent.tagName === "TD" || parent.tagName === "TH") break;
+      holder = parent;
+    }
+    if (holder !== rule) holder.replaceWith(rule);
   }
 }
 
@@ -248,7 +203,7 @@ const BLOCK_TAG =
 
 /// One block made tidy the way a browser lays it out.
 function tidy(block: Block): Block {
-  if ("Paragraph" in block) return { Paragraph: { content: tidyLine(block.Paragraph.content) } };
+  if ("Paragraph" in block) return { Paragraph: { ...block.Paragraph, content: tidyLine(block.Paragraph.content) } };
   if ("List" in block) {
     const list = (value: typeof block.List): typeof block.List => ({
       kind: value.kind,

@@ -12,6 +12,7 @@ mod inline_images;
 mod links;
 mod lists;
 mod mailto;
+mod paragraphs;
 mod quotes;
 mod rendered_fixture;
 mod share;
@@ -43,6 +44,7 @@ const CELL: &str = " style=\"border:1px solid #d8dde3;padding:6px;vertical-align
 
 fn text(value: &str) -> InlineContent {
     InlineContent::Text(TextRun {
+        font: None,
         text: value.to_owned(),
         bold: false,
         italic: false,
@@ -56,11 +58,12 @@ fn text(value: &str) -> InlineContent {
 
 fn rich_text(value: &str) -> InlineContent {
     InlineContent::Text(TextRun {
+        font: None,
         text: value.to_owned(),
         bold: true,
         italic: true,
         underline: true,
-        font_size: Some(FontSize::Large),
+        font_size: Some(FontSize::LARGE),
         color: None,
         highlight: None,
         link: None,
@@ -120,9 +123,7 @@ fn regular_attachment(id: &str) -> DraftAttachment {
 fn renders_marks_lists_tables_and_html_escapes_text() {
     let document = ComposerDocument {
         blocks: vec![
-            Block::Paragraph(Paragraph {
-                content: vec![text("Hello "), rich_text("<world>")],
-            }),
+            Block::Paragraph(Paragraph::new(vec![text("Hello "), rich_text("<world>")])),
             Block::List(List {
                 kind: ListKind::Bullet,
                 items: vec![item(vec![text("one")]), item(vec![text("two")])],
@@ -160,7 +161,7 @@ fn renders_marks_lists_tables_and_html_escapes_text() {
     assert_eq!(
         output.html,
         html_doc(&format!(
-            "<p>Hello <span style=\"font-size:18px\"><strong><em><u>&lt;world&gt;</u></em></strong></span></p>\
+            "<div>Hello <span style=\"font-size:18px\"><strong><em><u>&lt;world&gt;</u></em></strong></span></div>\
              <ul><li>one</li><li>two</li></ul>\
              <table style=\"border-collapse:collapse\">\
              <tr><td{CELL}>A1</td><td{CELL}>B1</td></tr>\
@@ -251,9 +252,7 @@ fn over_large_width_px_clamps_to_u16_max_at_ingestion() {
 #[test]
 fn document_schema_round_trips_through_json() {
     let document = ComposerDocument {
-        blocks: vec![Block::Paragraph(Paragraph {
-            content: vec![text("hello")],
-        })],
+        blocks: vec![Block::Paragraph(Paragraph::new(vec![text("hello")]))],
         attachments: vec![regular_attachment("file-1")],
     };
 

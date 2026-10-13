@@ -30,10 +30,17 @@ describe("normalizeColor", () => {
     expect(normalizeColor("rgba(0, 0, 0, 0)")).toBeNull();
   });
 
+  test("a colour CSS 2.1 names is the colour it names", () => {
+    // What an older editor writes into `<font color>`, and still arrives in a reopened draft.
+    expect(normalizeColor("Red")).toBe("#ff0000");
+    expect(normalizeColor("navy")).toBe("#000080");
+    expect(normalizeColor("grey")).toBe("#808080");
+  });
+
   test("a colour we cannot represent is dropped rather than passed to Rust", () => {
     // Rust rejects anything but #rrggbb and fails the whole document; the run simply renders in the
     // inherited colour instead.
-    expect(normalizeColor("red")).toBeNull();
+    expect(normalizeColor("rebeccapurple")).toBeNull();
     expect(normalizeColor("color-mix(in srgb, red, blue)")).toBeNull();
     expect(normalizeColor("")).toBeNull();
     expect(normalizeColor(null)).toBeNull();
@@ -95,9 +102,9 @@ describe("reading colour off the document", () => {
 describe("normalizeFontElements", () => {
   test("rewrites the <font> execCommand leaves behind into a marked span", () => {
     const h = harness('<p><font size="7">big</font></p>');
-    normalizeFontElements(h.editor, "Large");
-    expect(h.html()).toBe('<p><span data-size="Large" style="font-size: 18px;">big</span></p>');
-    expect(runs(h.editor)[0]!.font_size).toBe("Large");
+    normalizeFontElements(h.editor, 18);
+    expect(h.html()).toBe('<p><span data-size="18" style="font-size: 18px;">big</span></p>');
+    expect(runs(h.editor)[0]!.font_size).toBe(18);
   });
 
   test("rewrites a legacy colour attribute", () => {
@@ -121,7 +128,7 @@ describe("normalizeFontElements", () => {
       '<div class="allodia-quote"><div class="aq-body"><font size="7">q</font></div></div>' +
         '<div class="allodia-signature"><font color="#ff0000">s</font></div>',
     );
-    normalizeFontElements(h.editor, "Huge");
+    normalizeFontElements(h.editor, 24);
     expect(h.html()).toContain('<font size="7">q</font>');
     expect(h.html()).toContain('<font color="#ff0000">s</font>');
   });
@@ -139,14 +146,14 @@ describe("applyFontSize", () => {
         '<p id=second><span style="font-size: 13px">disclaimer</span></p>',
     );
     h.select("#first", "#first");
-    applyFontSize(h.editor, "Large");
-    expect(runs(h.editor)[0]!.font_size).toBe("Large");
+    applyFontSize(h.editor, 18);
+    expect(runs(h.editor)[0]!.font_size).toBe(18);
     expect(h.html()).toContain("font-size: 13px");
   });
 
   test("with no caret in the editor it rewrites nothing", () => {
     const h = harness('<p><span style="font-size: 24px">name</span></p>');
-    applyFontSize(h.editor, "Small");
+    applyFontSize(h.editor, 13);
     expect(h.html()).toContain("font-size: 24px");
   });
 });
@@ -163,12 +170,12 @@ describe("clearColor", () => {
 
   test("keeps a wrapper that still carries other formatting", () => {
     const h = harness(
-      '<p id=p><span data-color="#ff0000" data-size="Large" style="color: #ff0000; font-size: 18px">x</span></p>',
+      '<p id=p><span data-color="#ff0000" data-size="18" style="color: #ff0000; font-size: 18px">x</span></p>',
     );
     h.select("#p", "#p");
     clearColor(h.editor, "color");
     expect(runs(h.editor)[0]!.color).toBeUndefined();
-    expect(runs(h.editor)[0]!.font_size).toBe("Large");
+    expect(runs(h.editor)[0]!.font_size).toBe(18);
   });
 
   test("leaves colour outside the selection untouched", () => {

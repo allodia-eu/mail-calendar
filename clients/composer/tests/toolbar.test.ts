@@ -100,15 +100,23 @@ describe("labels", () => {
     expect(document.getElementById("outdent")!.title).toBe("Decrease indent");
   });
 
-  test("rename the font sizes without touching the tokens the document is keyed on", () => {
+  test("rename the font sizes without touching the sizes the document is keyed on", () => {
     labels = { ...DEFAULT_LABELS, sizeLarge: "Groot" };
     toolbar.applyLabels(labels);
     const select = document.getElementById("font-size") as HTMLSelectElement;
-    const large = Array.from(select.options).find((option) => option.value === "Large")!;
+    const large = Array.from(select.options).find((option) => option.value === "18")!;
     expect(large.textContent).toBe("Groot");
-    expect(Array.from(select.options).map((o) => o.value)).toEqual([
-      "Normal", "Small", "Large", "Huge",
-    ]);
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(["15", "13", "18", "24"]);
+  });
+
+  test("rename the headings and the default font, and leave the fonts' own names", () => {
+    labels = { ...DEFAULT_LABELS, heading2: "Kop 2", fontDefault: "Standaardlettertype" };
+    toolbar.applyLabels(labels);
+    const heading = document.querySelector<HTMLOptionElement>('#block-style option[value="H2"]')!;
+    expect(heading.textContent).toBe("Kop 2");
+    const fonts = Array.from((document.getElementById("font-family") as HTMLSelectElement).options);
+    expect(fonts[0]!.textContent).toBe("Standaardlettertype");
+    expect(fonts.map((option) => option.textContent)).toContain("Georgia");
   });
 });
 
