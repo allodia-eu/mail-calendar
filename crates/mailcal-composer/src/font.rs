@@ -54,11 +54,12 @@ impl<'de> Deserialize<'de> for FontSize {
         #[derive(Deserialize)]
         #[serde(untagged)]
         enum Raw {
-            Px(u64),
+            // Read as a float so a fractional size rounds rather than failing the document.
+            Px(f64),
             Named(String),
         }
         Ok(match Raw::deserialize(deserializer)? {
-            Raw::Px(px) => Self::from_px(u16::try_from(px).unwrap_or(u16::MAX)),
+            Raw::Px(px) => Self::from_px(rounded_px(px)),
             Raw::Named(name) => match name.as_str() {
                 "Small" => Self::SMALL,
                 "Large" => Self::LARGE,
@@ -67,6 +68,16 @@ impl<'de> Deserialize<'de> for FontSize {
             },
         })
     }
+}
+
+/// `px` rounded to whole pixels, saturating at both ends of `u16`; `NaN` reads as zero.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "clamped to u16's range first"
+)]
+pub(crate) fn rounded_px(px: f64) -> u16 {
+    px.round().clamp(0.0, f64::from(u16::MAX)) as u16
 }
 
 /// The generic families CSS names without quotes.
@@ -87,10 +98,11 @@ const MAX_NAME_LEN: usize = 64;
 
 /// A CSS font-family list: one or more font names, most preferred first.
 ///
-/// Held in one canonical spelling, the names unquoted and joined by `", "`, so a family read back
-/// from the HTML it was rendered into compares equal to the one that was rendered. A name may hold
-/// letters, digits, spaces, `-`, `_` and `.`, which is every font name in use and leaves nothing
-/// that could end a declaration or the `style` attribute it is written into.
+/// Held in one canonical spelling, the names unquoted and joined by `", "`, with any run of
+/// whitespace in a name (a full-width space in a Japanese one included) as one space, so a family
+/// read back from the HTML it was rendered into compares equal to the one that was rendered. A
+/// name may hold letters, digits, whitespace, `-`, `_` and `.`, which is every font name in use and
+/// leaves nothing that could end a declaration or the `style` attribute it is written into.
 #[derive(Clone, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
 pub struct FontFamily(String);
@@ -107,9 +119,9 @@ impl FontFamily {
                 continue;
             }
             if name.chars().count() > MAX_NAME_LEN
-                || !name
-                    .chars()
-                    .all(|ch| ch.is_alphanumeric() || matches!(ch, ' ' | '-' | '_' | '.'))
+                || !name.chars().all(|ch| {
+                    ch.is_alphanumeric() || ch.is_whitespace() || matches!(ch, '-' | '_' | '.')
+                })
             {
                 return None;
             }
@@ -179,6 +191,8 @@ mod tests {
                 "{spelling}"
             );
         }
+        let japanese = FontFamily::new("\"ＭＳ\u{3000}ゴシック\"").expect("a full-width space");
+        assert_eq!(japanese.as_str(), "ＭＳ ゴシック");
         let list = FontFamily::new("\"Segoe UI Emoji\",sans-serif").expect("a list");
         assert_eq!(list.as_str(), "Segoe UI Emoji, sans-serif");
         assert_eq!(list.css(), "'Segoe UI Emoji', sans-serif");
@@ -204,6 +218,8 @@ mod tests {
         assert_eq!(size.css_px(), 21);
         let named: FontSize = serde_json::from_str("\"Huge\"").expect("a name");
         assert_eq!(named, FontSize::HUGE);
+        let fractional: FontSize = serde_json::from_str("14.6").expect("rounded");
+        assert_eq!(fractional.css_px(), 15);
         let huge: FontSize = serde_json::from_str("100000").expect("clamped");
         assert_eq!(huge.css_px(), FontSize::MAX_PX);
         assert_eq!(serde_json::to_string(&FontSize::SMALL).expect("json"), "13");

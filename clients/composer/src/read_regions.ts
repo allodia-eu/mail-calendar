@@ -222,8 +222,12 @@ function readWordSignature(body: HTMLElement): void {
     else if (!line && !(marker.textContent ?? "").trim()) marker.remove();
   }
   if (lines.length === 0) return;
-  const parent = lines[0]!.parentElement;
-  const run = lines.filter((line) => line.parentElement === parent);
+  // The run of bookmarked lines from the first, up to the first line that is not one: a line
+  // further on, past an unmarked one, stays where it is rather than moving up into the region.
+  const run: Element[] = [lines[0]!];
+  for (let next = lines[0]!.nextElementSibling; next && lines.includes(next); next = next.nextElementSibling) {
+    run.push(next);
+  }
   replaceWithSignature(run, run.map((line) => line.outerHTML).join(""));
 }
 

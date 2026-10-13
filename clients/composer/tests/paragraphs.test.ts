@@ -101,6 +101,7 @@ describe("typography", () => {
     expect(canonicalFamily('"Comic Sans MS"')).toBe("Comic Sans MS");
     expect(canonicalFamily(" 'Segoe UI Emoji' ,sans-serif")).toBe("Segoe UI Emoji, sans-serif");
     expect(familyCss("Segoe UI Emoji, sans-serif")).toBe("'Segoe UI Emoji', sans-serif");
+    expect(canonicalFamily('"ＭＳ　ゴシック"')).toBe("ＭＳ ゴシック");
     expect(canonicalFamily("Arial;color:red")).toBeNull();
     expect(canonicalFamily("")).toBeNull();
   });

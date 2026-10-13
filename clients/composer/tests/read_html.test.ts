@@ -82,6 +82,21 @@ describe("a body another client wrote", () => {
     ]);
   });
 
+  test("Word's signature is the bookmarked run, and a line past a break in it stays put", () => {
+    const { blocks } = reopen(
+      '<p class="MsoNormal"><a name="_MailAutoSig">Kind regards,</a></p>' +
+        '<p class="MsoNormal"><span style="mso-bookmark:_MailAutoSig">Alice</span></p>' +
+        '<p class="MsoNormal">Written later</p>' +
+        '<p class="MsoNormal"><span style="mso-bookmark:_MailAutoSig">Stray</span></p>',
+    );
+    expect(blocks.map((block) => Object.keys(block)[0])).toEqual(["Signature", "Paragraph", "Paragraph"]);
+    expect((blocks[0] as { Signature: { body_plain: string } }).Signature.body_plain).toBe("Kind regards,\nAlice");
+    expect(blocks.slice(1)).toEqual([
+      { Paragraph: { content: [run("Written later")] } },
+      { Paragraph: { content: [run("Stray")] } },
+    ]);
+  });
+
   test("a heading is a line's style, not a mark on its words", () => {
     const { blocks } = reopen("<h1>Agenda</h1><h3>Items</h3><p>One</p>");
     expect(blocks).toEqual([

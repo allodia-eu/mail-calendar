@@ -83,7 +83,7 @@ export function canonicalFamily(value: string | null | undefined): string | null
   for (const raw of (value ?? "").split(",")) {
     const name = raw.trim().replace(/^["']+|["']+$/g, "").trim();
     if (!name) continue;
-    if ([...name].length > MAX_NAME_LEN || !/^[\p{L}\p{N} ._-]+$/u.test(name)) return null;
+    if ([...name].length > MAX_NAME_LEN || !/^[\p{L}\p{N}\s._-]+$/u.test(name)) return null;
     names.push(name.split(/\s+/).join(" "));
   }
   if (names.length === 0 || names.length > MAX_NAMES) return null;

@@ -961,7 +961,7 @@
       const name = raw.trim().replace(/^["']+|["']+$/g, "").trim();
       if (!name)
         continue;
-      if ([...name].length > MAX_NAME_LEN || !/^[\p{L}\p{N} ._-]+$/u.test(name))
+      if ([...name].length > MAX_NAME_LEN || !/^[\p{L}\p{N}\s._-]+$/u.test(name))
         return null;
       names.push(name.split(/\s+/).join(" "));
     }
@@ -3317,8 +3317,10 @@
     }
     if (lines.length === 0)
       return;
-    const parent = lines[0].parentElement;
-    const run = lines.filter((line) => line.parentElement === parent);
+    const run = [lines[0]];
+    for (let next = lines[0].nextElementSibling;next && lines.includes(next); next = next.nextElementSibling) {
+      run.push(next);
+    }
     replaceWithSignature(run, run.map((line) => line.outerHTML).join(""));
   }
   function replaceWithSignature(elements, html) {

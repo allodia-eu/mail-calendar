@@ -78,16 +78,14 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
-/// Reads an indent through a wider integer and clamps it, so an over-deep one sends shallower
-/// rather than failing the document.
+/// Reads an indent as a number of any width and rounds and clamps it, so a fractional or over-deep
+/// one sends as the nearest indent kept rather than failing the document.
 fn deserialize_indent<'de, D>(deserializer: D) -> Result<u16, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
-    let raw = u64::deserialize(deserializer)?;
-    Ok(u16::try_from(raw)
-        .unwrap_or(u16::MAX)
-        .min(Paragraph::MAX_INDENT_PX))
+    let raw = f64::deserialize(deserializer)?;
+    Ok(crate::font::rounded_px(raw).min(Paragraph::MAX_INDENT_PX))
 }
 
 /// A heading level, as HTML's `<h1>` to `<h6>`.
