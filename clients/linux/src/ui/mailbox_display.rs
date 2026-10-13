@@ -55,6 +55,10 @@ pub(super) struct DisplayRow {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is a separate fact the row draws; `outgoing` and `draft` never both hold"
+)]
 pub(super) struct DisplayMessage {
     pub(super) key: String,
     pub(super) avatar: AvatarData,
