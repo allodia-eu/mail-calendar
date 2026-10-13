@@ -98,24 +98,35 @@ fn swift_args(message: &crate::model::Message) -> String {
     format!("[{pairs}]")
 }
 
+/// One `let` per locale, then a table of those. Nested as one literal, swiftc spends 37s on the
+/// whole catalog where this shape costs it 6s, and the file is on every Apple build's path.
 fn render_tables(catalog: &Catalog, out: &mut String) {
-    out.push_str("    private static let tables: [String: [String: String]] = [\n");
     for loc in &catalog.locales {
-        out.push_str("        \"");
-        out.push_str(loc);
-        out.push_str("\": [\n");
+        let _ = writeln!(
+            out,
+            "    private static let {}: [String: String] = [",
+            table_name(loc)
+        );
         for message in &catalog.messages {
             if let Some(value) = message.values.get(loc) {
-                out.push_str("            \"");
+                out.push_str("        \"");
                 out.push_str(&message.key);
                 out.push_str("\": \"");
                 out.push_str(&swift_escape(value));
                 out.push_str("\",\n");
             }
         }
-        out.push_str("        ],\n");
+        out.push_str("    ]\n\n");
+    }
+    out.push_str("    private static let tables: [String: [String: String]] = [\n");
+    for loc in &catalog.locales {
+        let _ = writeln!(out, "        \"{loc}\": {},", table_name(loc));
     }
     out.push_str("    ]\n");
+}
+
+fn table_name(locale: &str) -> String {
+    format!("table_{}", locale.replace('-', "_"))
 }
 
 fn render_runtime(catalog: &Catalog, out: &mut String) {

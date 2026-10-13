@@ -242,6 +242,20 @@ fn swift_emits_typed_accessors_and_tables() {
 }
 
 #[test]
+fn swift_gives_each_locale_table_a_let_of_its_own() {
+    // One nested `[String: [String: String]]` literal holding every locale cost swiftc 37s for
+    // the real catalog on an M2, and minutes on a CI runner; a `let` per locale costs 6s.
+    let src = &emit_swift::render(&Catalog::from_raw(&raw()), &fixture_brand())[0].1;
+    assert!(src.contains("    private static let table_en: [String: String] = [\n"));
+    assert!(src.contains("    private static let table_nl: [String: String] = [\n"));
+    assert!(src.contains("        \"nl\": table_nl,\n"));
+    assert!(
+        !src.contains("\"nl\": [\n"),
+        "no locale's table may be a literal nested in another: {src}"
+    );
+}
+
+#[test]
 fn swift_derives_the_formatting_locale_from_the_resolved_language() {
     // Apple's dates must follow the app's Language setting, and `Locale.current` cannot carry
     // it: the bundle ships no `.lproj`, so the OS resolves the app to English and a Dutch build
