@@ -171,6 +171,12 @@ port:
       reaches. Formatted text is mapped onto the schema (Gate 7). One implementation, so a pasted
       screenshot behaves identically on all four hosts.
 
+      **Formatted text beats a picture beside it.** A spreadsheet, a word processor or a
+      presentation puts a rendering of the selection on the clipboard next to its HTML (ONLYOFFICE
+      offers a PNG of the copied cells), so a picture offered with HTML that holds text is a
+      picture *of* that text, and the HTML is what is pasted. A browser's Copy Image offers HTML
+      too, but only an `<img>` with no text, so the picture arrives there (`pasteContent`).
+
       ⚠️ **Except where the WebView tells the page nothing.** WebKitGTK's paste `DataTransfer`
       answers `getData` for the text flavours and nothing else: `types`, `items` and `files` are
       empty whatever is on the clipboard, and `getData("image/png")` is the empty string. The
@@ -182,8 +188,11 @@ port:
       `composer_image_data_url_from_bytes`: the byte-shaped twin of the call a dropped file makes,
       same cap, same closed raster set, because a picture with no path on it is not a picture with
       fewer rules. It takes a paste **only** when the clipboard actually holds a picture, so text
-      is still the page's, and so is the plain-text paste Ctrl+Shift+V asks for (Gate 7). A host whose
-      WebView *does* deliver files must not do this: it would paste the picture twice.
+      is still the page's, and so is the plain-text paste Ctrl+Shift+V asks for (Gate 7). When HTML
+      is offered beside the picture, the host first hands that HTML to the bundle's
+      `pasteComposerHtml`, which applies the rule above and answers whether it pasted anything; the
+      picture is read only when it did not. A host whose WebView *does* deliver files must not do
+      this: it would paste the picture twice.
 
       **A clipboard carries a picture two ways, and both are ordinary.** A screenshot tool or a
       browser's Copy Image puts the *pixels* there. A file manager's Copy puts a *reference to the
@@ -346,7 +355,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | No arbitrary file/content access | file picking via native panel/picker only; no web file URLs; Rust reads selected paths on submit | `allowFileAccess = false`, `allowContentAccess = false`; native picker stages content to app cache; Rust reads staged paths on submit | no arbitrary file access; native picker only; Rust reads selected paths on submit | file/universal access disabled; native `GtkFileDialog` paths are passed to Rust only on submit |
 | Paste/import sanitisation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | shared editor paste rules plus Rust validation |
 | Plain-text paste carries no HTML (Gate 7) | Paste and Match Style, WebKit's own | the selection menu's Paste as plain text, Chromium's own | Ctrl+Shift+V, Chromium's own | Ctrl+Shift+V, which WebKitGTK leaves unbound, given `PasteAsPlainText` by the host (`editor_paste`) |
-| Pasted picture → inline `cid:` | shared bundle (`imageFilesFrom` + `insertCapturedImage`) | (same: shared bundle) | (same: shared bundle) | shared bundle **plus a host clipboard read**: this WebView hands the page no files at all, so `composer_paste` takes the chord and the context menu's Paste, sniffs the bytes through the core and feeds the same seam a drop does |
+| Pasted picture → inline `cid:`, unless HTML with text is beside it | shared bundle (`pasteContent` + `insertCapturedImage`) | (same: shared bundle) | (same: shared bundle) | shared bundle **plus a host clipboard read**: this WebView hands the page no files at all, so `editor_paste` takes the chord and the context menu's Paste, offers any HTML to `pasteComposerHtml` first, then sniffs the picture's bytes through the core and feeds the same seam a drop does |
 | Link editor drawn by the host, over its window (Gate 16) | `LinkDialog` in a sheet: a labelled form on macOS, a medium-height sheet on iPhone/iPad | Material `AlertDialog` inside the composer's own `Dialog` | `ContentDialog` in the composer; the signature editor keeps the bundle's popover (see "Known gaps") | `AdwAlertDialog` with two entry rows |
 | Links made in the bundle, target re-checked in Rust (Gate 16) | shared bundle (`links.ts`, `link_menu.ts`) plus `mailcal_composer::LinkUrl` on submit | (same: shared bundle and core) | (same: shared bundle and core) | (same: shared bundle and core) |
 | Picture resized by dragging a corner | shared bundle (`installImageResize`), Pointer Events for mouse, trackpad, pen and finger alike | (same: shared bundle) | (same: shared bundle) | (same: shared bundle) |

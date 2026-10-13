@@ -2346,6 +2346,15 @@
     const only = out.childNodes.length === 1 ? out.firstChild : null;
     return only?.localName === "p" ? only.innerHTML : out.innerHTML;
   }
+  function pasteContent(doc, transfer, inline) {
+    const html = pastedHtml(doc, transfer?.getData("text/html") ?? "", inline);
+    if (html !== null)
+      return { html };
+    const images = imageFilesFrom(transfer);
+    if (images.length > 0)
+      return { images };
+    return { text: transfer?.getData("text/plain") ?? "" };
+  }
 
   // src/resize.ts
   var MIN_WIDTH_PX = 24;
@@ -2989,19 +2998,26 @@
   var revision = installRevisionCounter(editor);
   editor.addEventListener("paste", (event) => {
     event.preventDefault();
-    const images = imageFilesFrom(event.clipboardData);
-    if (images.length > 0) {
-      insertImageFiles(editor, attachments, images, saveSelection(editor));
+    const content = pasteContent(doc, event.clipboardData, caretHoldsInlineOnly());
+    if ("images" in content) {
+      insertImageFiles(editor, attachments, content.images, saveSelection(editor));
       return;
     }
-    const exec = doc.execCommand;
-    const caret = rangeWithin(editor)?.startContainer ?? null;
-    const inline = ancestorOf(caret, editor, "li", "td", "th") !== null;
-    const html = pastedHtml(doc, event.clipboardData?.getData("text/html") ?? "", inline);
-    if (html !== null && exec?.call(doc, "insertHTML", false, html))
+    if ("html" in content && insertHtml(content.html))
       return;
-    exec?.call(doc, "insertText", false, event.clipboardData?.getData("text/plain") ?? "");
+    execCommand("insertText", event.clipboardData?.getData("text/plain") ?? "");
   });
+  function caretHoldsInlineOnly() {
+    const caret = rangeWithin(editor)?.startContainer ?? null;
+    return ancestorOf(caret, editor, "li", "td", "th") !== null;
+  }
+  function insertHtml(html) {
+    return execCommand("insertHTML", html);
+  }
+  function execCommand(command, value) {
+    const exec = doc.execCommand;
+    return exec?.call(doc, command, false, value) ?? false;
+  }
   editor.addEventListener("dragover", (event) => event.preventDefault());
   editor.addEventListener("drop", (event) => event.preventDefault());
   editor.addEventListener("keydown", (event) => {
@@ -3040,9 +3056,8 @@
       return;
     if (moveToAdjacentCell(editor, event.shiftKey))
       return;
-    if (!event.shiftKey) {
-      doc.execCommand?.("insertText", false, "\t");
-    }
+    if (!event.shiftKey)
+      execCommand("insertText", "\t");
   });
   editor.addEventListener("mousedown", (event) => {
     if (routeClickBelowSignature(editor, event.target))
@@ -3054,6 +3069,10 @@
   window.addComposerAttachment = (meta) => attachments.add(meta);
   window.addComposerInlineImage = (meta) => attachments.addInlineImage(editor, meta);
   window.insertComposerImage = (image) => insertCapturedImage(editor, attachments, parsed(image));
+  window.pasteComposerHtml = (html) => {
+    const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly());
+    return markup !== null && insertHtml(markup);
+  };
   window.setComposerQuote = (quote) => setComposerQuote(editor, parsed(quote));
   window.setComposerQuoteStyle = (style) => setComposerQuoteStyle(editor, style);
   window.setComposerSignature = (signature) => setComposerSignature(editor, signature == null ? null : parsed(signature));

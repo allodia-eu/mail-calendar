@@ -7,6 +7,8 @@ Bump: minor
 > onto the document schema by rebuilding it from text and a closed set of marks, so nothing from
 > the source markup is inserted. Foreign fonts and colours are dropped on purpose: Word stamps one
 > on every run. Word's own list markup still pastes as lines (composer-security.md, Known gaps).
+> HTML that holds text now wins over a picture beside it, so cells copied from a spreadsheet,
+> which also offers a picture of them, paste as a table.
 
 **English**
 

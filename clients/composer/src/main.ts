@@ -12,17 +12,12 @@ import { ancestorOf, focusEditor, rangeWithin, saveSelection } from "./dom";
 import { applyMark } from "./format";
 import { installNativeChrome } from "./host";
 import { HostRequests } from "./host_requests";
-import {
-  type CapturedImage,
-  imageFilesFrom,
-  insertCapturedImage,
-  insertImageFiles,
-} from "./images";
+import { type CapturedImage, insertCapturedImage, insertImageFiles } from "./images";
 import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
 import { editLinkThroughHost } from "./link_menu";
 import { autolinkBeforeCaret } from "./links";
 import { indentSelection } from "./lists";
-import { pastedHtml } from "./paste";
+import { pastedHtml, pasteContent } from "./paste";
 import { setComposerQuote, setComposerQuoteStyle, type QuoteSeed } from "./quote";
 import { installImageResize } from "./resize";
 import { installRevisionCounter } from "./revision";
@@ -54,29 +49,41 @@ const chrome = installNativeChrome(editor, toolbarRoot);
 installImageResize(editor);
 const revision = installRevisionCounter(editor);
 
-// Paste. A picture on the clipboard goes into the body where the caret is, as an inline image the
-// core turns into a `cid:` part on send: what Outlook does with a pasted screenshot, and what the
-// user means by pasting one into a message. Formatted text keeps what the document can hold of its
-// formatting (`paste.ts`), and anything else arrives as plain text. A paste that asks for plain
-// text (Paste and Match Style) carries no `text/html`, so it stays plain.
+// Paste. Formatted text keeps what the document can hold of its formatting (`paste.ts`), and wins
+// over a picture beside it, which is a rendering of that text (`pasteContent`). A picture on its
+// own goes into the body where the caret is, as an inline image the core turns into a `cid:` part
+// on send: what Outlook does with a pasted screenshot, and what the user means by pasting one into
+// a message. Anything else arrives as plain text. A paste that asks for plain text (Paste and Match
+// Style) carries no `text/html`, so it stays plain.
 //
 // The picture is read asynchronously, so the caret is captured first: without it a slow read would
 // drop the image wherever the selection had moved to by the time the bytes arrived.
 editor.addEventListener("paste", (event) => {
   event.preventDefault();
-  const images = imageFilesFrom(event.clipboardData);
-  if (images.length > 0) {
-    void insertImageFiles(editor, attachments, images, saveSelection(editor));
+  const content = pasteContent(doc, event.clipboardData, caretHoldsInlineOnly());
+  if ("images" in content) {
+    void insertImageFiles(editor, attachments, content.images, saveSelection(editor));
     return;
   }
+  if ("html" in content && insertHtml(content.html)) return;
+  execCommand("insertText", event.clipboardData?.getData("text/plain") ?? "");
+});
+
+/// Whether the caret is in a list item or a table cell, which hold inline content only.
+function caretHoldsInlineOnly(): boolean {
+  const caret = rangeWithin(editor)?.startContainer ?? null;
+  return ancestorOf(caret, editor, "li", "td", "th") !== null;
+}
+
+function insertHtml(html: string): boolean {
+  return execCommand("insertHTML", html);
+}
+
+function execCommand(command: string, value: string): boolean {
   const exec = (doc as Document & { execCommand?: (c: string, ui: boolean, v: string) => boolean })
     .execCommand;
-  const caret = rangeWithin(editor)?.startContainer ?? null;
-  const inline = ancestorOf(caret, editor, "li", "td", "th") !== null;
-  const html = pastedHtml(doc, event.clipboardData?.getData("text/html") ?? "", inline);
-  if (html !== null && exec?.call(doc, "insertHTML", false, html)) return;
-  exec?.call(doc, "insertText", false, event.clipboardData?.getData("text/plain") ?? "");
-});
+  return exec?.call(doc, command, false, value) ?? false;
+}
 
 // A drop is refused HERE and handled by the host, which is what lets a dropped file become a real
 // attachment: the page sees a `File` with no path, while the host gets the path Rust reads the
@@ -131,13 +138,7 @@ editor.addEventListener("keydown", (event) => {
   // Outside both, forward Tab is a literal tab and Shift+Tab does nothing.
   if (indentSelection(editor, event.shiftKey)) return;
   if (moveToAdjacentCell(editor, event.shiftKey)) return;
-  if (!event.shiftKey) {
-    (doc as Document & { execCommand?: (c: string, ui: boolean, v: string) => boolean }).execCommand?.(
-      "insertText",
-      false,
-      "\t",
-    );
-  }
+  if (!event.shiftKey) execCommand("insertText", "\t");
 });
 
 editor.addEventListener("mousedown", (event) => {
@@ -149,6 +150,7 @@ declare global {
     addComposerAttachment: (meta: AttachmentMeta) => void;
     addComposerInlineImage: (meta: InlineImageMeta) => void;
     insertComposerImage: (image: string | CapturedImage) => void;
+    pasteComposerHtml: (html: unknown) => boolean;
     setComposerQuote: (quote: string | QuoteSeed) => void;
     setComposerQuoteStyle: (style: string) => void;
     setComposerSignature: (signature: string | SignatureValue | null) => void;
@@ -178,6 +180,13 @@ window.addComposerInlineImage = (meta) => attachments.addInlineImage(editor, met
 /// supplies the bytes because only it can resolve a dropped file to something readable.
 window.insertComposerImage = (image) =>
   insertCapturedImage(editor, attachments, parsed<CapturedImage>(image));
+/// Pastes formatted text the HOST read off the clipboard, answering whether any went in. Only a host
+/// whose WebView hides the clipboard's pictures from the page calls it: it holds the picture back
+/// until this says the HTML beside it carried nothing (`pasteContent`).
+window.pasteComposerHtml = (html) => {
+  const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly());
+  return markup !== null && insertHtml(markup);
+};
 window.setComposerQuote = (quote) => setComposerQuote(editor, parsed<QuoteSeed>(quote));
 window.setComposerQuoteStyle = (style) => setComposerQuoteStyle(editor, style);
 window.setComposerSignature = (signature) =>

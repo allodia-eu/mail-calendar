@@ -16,7 +16,8 @@
 //! has the core sniff the bytes, and hands the picture to the editor through
 //! `insertComposerImage`, the seam a dropped picture already arrives by. **Only a paste that
 //! actually carries a picture is taken.** Anything else stays the page's, so pasting text is
-//! untouched, and so is the plain-text paste a Ctrl+Shift+V asks for.
+//! untouched, and so is the plain-text paste a Ctrl+Shift+V asks for. A picture offered beside
+//! formatted text is offered to the editor second, because it is usually a rendering of that text.
 //!
 //! ⚠️ **WebKitGTK binds no plain-text paste.** Ctrl+Shift+V reaches the page as nothing at all, so
 //! with formatted text keeping its formatting (`docs/composer-security.md` Gate 7) a user on this
@@ -49,6 +50,9 @@ use crate::l10n;
 /// `mailcal_app::composer_image::raster_media_type`; a type missing here is one the core would
 /// refuse anyway, and one missing there cannot reach the message however it is asked for.
 const PICTURE_TYPES: [&str; 4] = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+/// The formatted-text flavour, which a picture on the same clipboard may be a rendering of.
+const HTML: &str = "text/html";
 
 /// How much is read at a time out of the clipboard's stream.
 const CHUNK_BYTES: usize = 64 * 1024;
@@ -223,7 +227,12 @@ fn take_clipboard(editor: &WebView, answer: &PasteAnswer) -> bool {
     // Pixels first: they are the picture itself, and Gate 13 says a pasted image goes in at the
     // caret with nothing to ask. A file reference is the other shape, and is a file.
     if let Some(mime) = picture_type(&clipboard) {
-        read_picture(clipboard, mime, Rc::clone(&answer.picture));
+        let paste = Rc::clone(&answer.picture);
+        if formats.contain_mime_type(HTML) {
+            read_formatted_text_first(editor, clipboard, mime, paste);
+        } else {
+            read_picture(clipboard, mime, paste);
+        }
         return true;
     }
     if formats.contains_type(gdk::FileList::static_type()) {
@@ -234,6 +243,41 @@ fn take_clipboard(editor: &WebView, answer: &PasteAnswer) -> bool {
         "paste: nothing on the clipboard for the editor, so the keystroke stays the page's"
     );
     false
+}
+
+/// Offers the editor the clipboard's HTML first, and the picture beside it only when the HTML held
+/// no text.
+///
+/// ⚠️ **A spreadsheet's Copy offers a picture too.** ONLYOFFICE and LibreOffice put a PNG rendering
+/// of the cells next to their HTML, so taking pixels first pasted a table as a screenshot of one.
+/// The editor decides which of the two a paste is, the way it does on every other host
+/// (`pasteContent` in the bundle); it cannot see the picture here, so the host asks it about the
+/// HTML and keeps the picture back until the answer is no.
+fn read_formatted_text_first(
+    editor: &WebView,
+    clipboard: gdk::Clipboard,
+    mime: &'static str,
+    paste: PastePicture,
+) {
+    let editor = editor.clone();
+    glib::MainContext::default().spawn_local(async move {
+        let html = read_clipboard(&clipboard, HTML)
+            .await
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
+        let script = format!(
+            "window.pasteComposerHtml({});",
+            serde_json::Value::String(html.unwrap_or_default())
+        );
+        let took = editor
+            .evaluate_javascript_future(&script, None, None)
+            .await
+            .is_ok_and(|value| value.to_boolean());
+        if took {
+            log::debug!("paste: the editor took the formatted text beside the picture");
+            return;
+        }
+        read_picture(clipboard, mime, paste);
+    });
 }
 
 /// Reads the clipboard's pixels and hands them to the editor, which decides what it makes of them.
@@ -289,7 +333,7 @@ fn picture_type(clipboard: &gdk::Clipboard) -> Option<&'static str> {
         .find(|mime| formats.contain_mime_type(mime))
 }
 
-/// Reads the clipboard's picture, giving up past the core's cap.
+/// Reads one of the clipboard's flavours, giving up past the core's cap.
 ///
 /// Bounded because a clipboard, unlike a file, has no length to ask for first: without this a
 /// pathological one would be pulled into memory in full only to be refused for its size. The cap

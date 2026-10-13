@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { documentBlocks } from "../src/document";
-import { pastedHtml } from "../src/paste";
+import { pastedHtml, pasteContent } from "../src/paste";
 import type { Block, InlineContent, TextRun } from "../src/types";
 import { harness } from "./support";
 
@@ -243,5 +243,54 @@ describe("pasted structure", () => {
     expect(block.Table.rows.map((row) => row.cells.map((cell) => text(cell.content)))).toEqual([
       ["outer a b"],
     ]);
+  });
+});
+
+describe("what a paste carries", () => {
+  const png = new File(["x"], "image.png", { type: "image/png" });
+
+  function transfer(flavours: Record<string, string>, files: File[] = []): DataTransfer {
+    return {
+      items: [],
+      files,
+      getData: (type: string) => flavours[type] ?? "",
+    } as unknown as DataTransfer;
+  }
+
+  test("a spreadsheet's cells arrive as a table, not as the picture of them beside it", () => {
+    // ONLYOFFICE's Copy of A1:B2, trimmed: the HTML table, the tab-separated text and a PNG
+    // rendering of the same cells, all on the clipboard at once.
+    const { editor } = harness("");
+    const content = pasteContent(
+      editor.ownerDocument,
+      transfer(
+        {
+          "text/html":
+            '<table class="xslData;XLSY;v2"><tbody><tr><td><span>Row 1 column 1</span></td>' +
+            "<td><span>Row 1 column 2</span></td></tr></tbody></table>",
+          "text/plain": "Row 1 column 1\tRow 1 column 2",
+        },
+        [png],
+      ),
+      false,
+    );
+    expect("html" in content && content.html).toContain("<table");
+  });
+
+  test("a browser's Copy Image arrives as the picture", () => {
+    // The HTML beside it names the picture by URL and holds no text.
+    const { editor } = harness("");
+    const content = pasteContent(
+      editor.ownerDocument,
+      transfer({ "text/html": '<meta charset="utf-8"><img src="https://example.com/a.png">' }, [png]),
+      false,
+    );
+    expect(content).toEqual({ images: [png] });
+  });
+
+  test("text with no formatting arrives as text", () => {
+    const { editor } = harness("");
+    const content = pasteContent(editor.ownerDocument, transfer({ "text/plain": "plain" }), false);
+    expect(content).toEqual({ text: "plain" });
   });
 });

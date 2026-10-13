@@ -12,6 +12,7 @@
 // within a draft keeps them. A foreign colour is dropped: Word stamps `color:#1A1A1A` on every run
 // and a page in dark mode stamps a light one, and either would follow the text into the message.
 
+import { imageFilesFrom } from "./images";
 import { safeLinkHref } from "./links";
 import { normalizeColor } from "./marks";
 import { type FontSize, type HexColor, isFontSize, SIZE_PX } from "./types";
@@ -344,4 +345,26 @@ export function pastedHtml(doc: Document, html: string, inline = false): string 
   if (!out.textContent?.trim()) return null;
   const only = out.childNodes.length === 1 ? (out.firstChild as Element) : null;
   return only?.localName === "p" ? only.innerHTML : out.innerHTML;
+}
+
+/// What one paste puts in the message.
+export type PasteContent = { html: string } | { images: File[] } | { text: string };
+
+/// Decides what a paste carries, the same way on every host.
+///
+/// **Formatted text beats a picture beside it.** A spreadsheet, a word processor or a presentation
+/// puts a rendering of the selection on the clipboard next to its HTML, so a picture offered with
+/// HTML that holds text is a picture *of* that text, and taking it would paste a table as a
+/// screenshot of one. A browser's Copy Image offers HTML too, but only an `<img>`, which holds no
+/// text, so the picture is what arrives there.
+export function pasteContent(
+  doc: Document,
+  transfer: DataTransfer | null | undefined,
+  inline: boolean,
+): PasteContent {
+  const html = pastedHtml(doc, transfer?.getData("text/html") ?? "", inline);
+  if (html !== null) return { html };
+  const images = imageFilesFrom(transfer);
+  if (images.length > 0) return { images };
+  return { text: transfer?.getData("text/plain") ?? "" };
 }
