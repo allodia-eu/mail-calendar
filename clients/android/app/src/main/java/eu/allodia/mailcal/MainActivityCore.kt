@@ -96,9 +96,11 @@ internal class SecureStoreCredentialStore(context: Context) : AccountCredentialS
 
 // The isolated engine-store subdirectory a debug launch mode uses, or null for a normal one. One
 // place, so the store the core opens and the preferences file read ahead of it (the launch
-// appearance) can never name different directories.
+// appearance) can never name different directories. Every harness mode has one: a null here is
+// also what lets a launch sync its accounts to the person's Allodia account.
 internal fun devDataSubdir(devMode: String?): String? = when (devMode) {
     "stalwart" -> "dev"
+    "stalwart-multi" -> "dev-multi"
     "stalwart-imap" -> "dev-imap"
     DEV_LINKED -> "dev-linked"
     else -> null
