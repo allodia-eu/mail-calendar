@@ -3543,8 +3543,7 @@
   function setPlainText(editor, text) {
     const doc = documentOf(editor);
     editor.textContent = "";
-    for (const line of String(text ?? "").split(`
-`)) {
+    for (const line of String(text ?? "").split(/\r\n|\r|\n/)) {
       const div = doc.createElement("div");
       if (line.length > 0)
         div.textContent = line;

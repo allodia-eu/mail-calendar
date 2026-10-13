@@ -265,4 +265,19 @@ describe("a draft Outlook stored", () => {
       expect(entry.text).toContain("-----Oorspronkelijk bericht-----");
     },
   );
+
+  test.each(["outlook-reply", "outlook-forward", "outlook-forward-with-file"])(
+    "%s reopens line for line, blank lines included",
+    (name) => {
+      const entry = (interop as Entry[]).find((candidate) => candidate.name === name)!;
+      const { editor } = harness("");
+      setComposerBody(editor, new Attachments(), { html: entry.html, text: entry.text });
+      const lines = documentBlocks(editor).map((block) =>
+        "Paragraph" in block
+          ? block.Paragraph.content.map((inline) => ("Text" in inline ? inline.Text.text : "")).join("")
+          : "",
+      );
+      expect(lines).toEqual(entry.text.split("\r\n"));
+    },
+  );
 });

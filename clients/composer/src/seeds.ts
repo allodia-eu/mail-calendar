@@ -32,7 +32,9 @@ export function focusComposerBody(editor: HTMLElement): void {
 export function setPlainText(editor: HTMLElement, text: unknown): void {
   const doc = documentOf(editor);
   editor.textContent = "";
-  for (const line of String(text ?? "").split("\n")) {
+  // Any line ending: a stored message's text keeps the CRLF its MIME part was written in, and a
+  // `\r` left on a line is written back by the next save and gives an empty line no height.
+  for (const line of String(text ?? "").split(/\r\n|\r|\n/)) {
     const div = doc.createElement("div");
     if (line.length > 0) div.textContent = line;
     else div.appendChild(doc.createElement("br"));
