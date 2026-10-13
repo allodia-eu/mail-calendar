@@ -117,7 +117,7 @@ private fun ConversationStripCard(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = message.from.ifEmpty { L10n.mail_no_subject(ctx) },
+                    text = message.from,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (message.unread) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,

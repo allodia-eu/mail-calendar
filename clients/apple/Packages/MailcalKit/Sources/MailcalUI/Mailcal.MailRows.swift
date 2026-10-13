@@ -389,7 +389,7 @@ extension ContentView {
             AvatarView(avatar: message.avatar, diameter: 26)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(message.from.isEmpty ? L10n.mail_no_subject() : message.from)
+                    Text(message.from)
                         .font(.subheadline)
                         .fontWeight(message.unread ? .semibold : .regular)
                         .lineLimit(1)
