@@ -129,10 +129,22 @@ class SetupFlowTest {
         val step = flow.uses!!
         assertFalse(flow.showsLinks)
         // What was on and is no longer chosen is switched off.
-        assertEquals(listOf(CONTACTS), step.dropped(listOf(MAIL, CALENDAR)))
+        assertEquals(listOf(CONTACTS to false), step.changes(listOf(MAIL, CALENDAR)))
         assertTrue(flow.usesChosen(stepsOf(snapshot())))
         assertNull(flow.uses)
         assertTrue(flow.showsLinks)
+    }
+
+    @Test
+    fun a_use_ticked_in_the_uses_step_is_switched_on_before_any_is_switched_off() {
+        // A use the account was not set up for starts off, and ticking it is a choice like any other.
+        val step = UsesStep.of(
+            "alice@jmap",
+            "alice@jmap",
+            listOf(choice(MAIL, true), choice(CALENDAR, true), choice(CONTACTS, false, found = true)),
+        )!!
+        assertEquals(listOf(CONTACTS to true, CALENDAR to false), step.changes(listOf(MAIL, CONTACTS)))
+        assertTrue(step.changes(listOf(MAIL, CALENDAR)).isEmpty())
     }
 
     @Test

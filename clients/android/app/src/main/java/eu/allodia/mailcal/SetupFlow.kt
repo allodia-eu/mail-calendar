@@ -19,9 +19,15 @@ import uniffi.mailcal_bindings.SetupChoice
  * follows: the one an "Add another account" left, or this one.
  */
 internal data class UsesStep(val account: String, val next: String, val offer: UseOffer) {
-    /** The uses to switch off: offered, on now, and not chosen. */
-    fun dropped(chosen: List<AccountCapability>): List<AccountCapability> =
-        offer.choices.filter { it.on && it.capability !in chosen }.map { it.capability }
+    /**
+     * What [chosen] switches, as (use, on): each use chosen that is off now, then each use on now
+     * and not chosen. On first, so the account never passes through being used for nothing.
+     */
+    fun changes(chosen: List<AccountCapability>): List<Pair<AccountCapability, Boolean>> {
+        val on = offer.choices.filter { !it.on && it.capability in chosen }.map { it.capability to true }
+        val off = offer.choices.filter { it.on && it.capability !in chosen }.map { it.capability to false }
+        return on + off
+    }
 
     companion object {
         /** The step for [account], or null when the core offers nothing to choose. */

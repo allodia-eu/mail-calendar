@@ -29,16 +29,46 @@ fn step() -> UsesStep {
 fn nothing_to_choose_is_no_step_and_what_is_not_chosen_is_switched_off() {
     assert!(UsesStep::new("a".to_owned(), "a".to_owned(), Vec::new()).is_none());
     assert_eq!(
-        step().dropped(&[AccountCapability::Mail, AccountCapability::Contacts]),
-        [AccountCapability::Calendar]
+        step().changes(&[AccountCapability::Mail, AccountCapability::Contacts]),
+        [(AccountCapability::Calendar, false)]
     );
     assert!(
         step()
-            .dropped(&[
+            .changes(&[
                 AccountCapability::Mail,
                 AccountCapability::Calendar,
                 AccountCapability::Contacts,
             ])
+            .is_empty()
+    );
+}
+
+/// A use the account was not set up for starts off, and ticking it is a choice like any other: it
+/// is switched on, before anything is switched off.
+#[test]
+fn a_use_ticked_in_the_step_is_switched_on_before_any_is_switched_off() {
+    let step = UsesStep::new(
+        "alice@jmap".to_owned(),
+        "alice@jmap".to_owned(),
+        vec![
+            on(AccountCapability::Mail),
+            on(AccountCapability::Calendar),
+            SetupChoice {
+                on: false,
+                ..on(AccountCapability::Contacts)
+            },
+        ],
+    )
+    .expect("three uses to choose from");
+    assert_eq!(
+        step.changes(&[AccountCapability::Mail, AccountCapability::Contacts]),
+        [
+            (AccountCapability::Contacts, true),
+            (AccountCapability::Calendar, false)
+        ]
+    );
+    assert!(
+        step.changes(&[AccountCapability::Mail, AccountCapability::Calendar])
             .is_empty()
     );
 }

@@ -46,7 +46,7 @@ impl AppModel {
     }
 
     /// Stores what the uses step chose, off the main thread: switching a use off deletes what the
-    /// device holds of it.
+    /// device holds of it, and switching one on reconnects the account.
     fn choose_uses(
         &mut self,
         chosen: &[mailcal_bindings::AccountCapability],
@@ -55,17 +55,17 @@ impl AppModel {
         let Some(step) = self.setup.take_uses() else {
             return;
         };
-        let dropped = step.dropped(chosen);
-        let Some(app) = self.app.clone().filter(|_| !dropped.is_empty()) else {
+        let changes = step.changes(chosen);
+        let Some(app) = self.app.clone().filter(|_| !changes.is_empty()) else {
             self.onward(&step.account, &step.next, sender);
             return;
         };
         std::thread::spawn(move || {
-            for capability in dropped {
-                if let Err(err) =
-                    app.set_account_capability(step.account.clone(), capability, false)
-                {
-                    log::warn!("setup: a use could not be switched off ({err})");
+            for (capability, on) in changes {
+                match app.set_account_capability(step.account.clone(), capability, on) {
+                    Ok(mailcal_bindings::CapabilityChange::Applied) => {}
+                    Ok(change) => log::warn!("setup: a use was not switched on ({change:?})"),
+                    Err(err) => log::warn!("setup: a use could not be switched ({err})"),
                 }
             }
             sender.emit(AppInput::SetupUsesApplied(step.account, step.next));

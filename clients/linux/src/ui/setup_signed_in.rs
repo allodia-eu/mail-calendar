@@ -35,14 +35,19 @@ impl UsesStep {
         })
     }
 
-    /// The uses to switch off: offered, on now, and not chosen.
-    pub(super) fn dropped(&self, chosen: &[AccountCapability]) -> Vec<AccountCapability> {
-        self.offer
-            .choices
+    /// What `chosen` switches, as (use, on): each use chosen that is off now, then each use on
+    /// now and not chosen. On first, so the account never passes through being used for nothing.
+    pub(super) fn changes(&self, chosen: &[AccountCapability]) -> Vec<(AccountCapability, bool)> {
+        let choices = &self.offer.choices;
+        let on = choices
+            .iter()
+            .filter(|choice| !choice.on && chosen.contains(&choice.capability))
+            .map(|choice| (choice.capability, true));
+        let off = choices
             .iter()
             .filter(|choice| choice.on && !chosen.contains(&choice.capability))
-            .map(|choice| choice.capability)
-            .collect()
+            .map(|choice| (choice.capability, false));
+        on.chain(off).collect()
     }
 }
 

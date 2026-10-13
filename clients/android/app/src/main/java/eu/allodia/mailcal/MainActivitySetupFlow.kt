@@ -7,6 +7,7 @@ package eu.allodia.mailcal
 import kotlin.concurrent.thread
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
+import uniffi.mailcal_bindings.CapabilityChange
 import uniffi.mailcal_bindings.offersSetupLinks
 
 /** The link step for [account], from the snapshot last read. */
@@ -38,19 +39,23 @@ internal fun MainActivity.afterAccountAdded(account: String, signedInAtProvider:
     if (!goesOn) finishSetup()
 }
 
-/** The uses step answered: what was not chosen is switched off, which deletes, so off this thread. */
+/**
+ * The uses step answered: what was chosen is switched on and what was not is switched off, which
+ * deletes, so off this thread.
+ */
 internal fun MainActivity.chooseSetupUses(chosen: List<AccountCapability>) {
     val step = setupFlow.uses ?: return
     val instance = app
-    val dropped = step.dropped(chosen)
-    if (instance == null || dropped.isEmpty()) {
+    val changes = step.changes(chosen)
+    if (instance == null || changes.isEmpty()) {
         if (!setupFlow.usesChosen(::linkStepFor)) finishSetup()
         return
     }
     thread(name = "mailcal-setup-uses") {
-        dropped.forEach { capability ->
-            runCatching { instance.setAccountCapability(step.account, capability, false) }
-                .onFailure { logUiWarn("setup: a use could not be switched off: ${coreErrorText(it)}") }
+        changes.forEach { (capability, on) ->
+            runCatching { instance.setAccountCapability(step.account, capability, on) }
+                .onSuccess { if (it != CapabilityChange.APPLIED) logUiWarn("setup: a use was not switched on: $it") }
+                .onFailure { logUiWarn("setup: a use could not be switched: ${coreErrorText(it)}") }
         }
         mainHandler.post {
             refreshAccountsSnapshot()

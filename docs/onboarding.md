@@ -97,9 +97,11 @@ about a new Allodia account, and somebody adding their second mail account has o
 
 A JMAP session says which of mail, calendar and contacts the account has only once it is signed
 in, so that is when the choice is offered, where every other route offers it before. When the
-session offers more than one, the window asks which the account is used for, each on to start
-with, the last one held on; one it does not offer is not shown. Continuing switches off what was
-unticked, and closing the window keeps everything on. The choices are the core's
+session offers more than one, the window asks which the account is used for, each starting as
+the account is used for it (`SetupChoice::on`, every use for an account just added), the last one
+held on; one it does not offer is not shown. Continuing switches on what was ticked and then off
+what was unticked, so the account is never used for nothing on the way, and closing the window
+keeps what it started with. The choices are the core's
 (`signed_in_setup_choices`), empty when there is nothing to choose, so a mail-only server goes
 straight on. The step comes before the link step and the name, as for any account.
 
