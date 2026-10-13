@@ -5,7 +5,7 @@
 //!
 //! A child of [`super`] (the rich-submit tests), over [`super::mail_fake`]'s provider.
 
-use engine_api::{Draft, MessageIdHeader};
+use engine_api::{Draft, Message, MessageIdHeader, ThreadId, ThreadRef};
 use mailcal_composer::{Block, ComposerDocument, Paragraph};
 
 use super::mail_fake::{ThreadProvider, app_and_logs, original_message, rich_stored_draft};
@@ -193,6 +193,56 @@ async fn a_stored_reply_reopens_as_a_reply() {
 
     assert_eq!(opening.kind, ComposeKind::Reply);
     assert!(!opening.seeds_signature);
+}
+
+/// A stored message opens with its quoted original only beside its HTML, where the editor
+/// completes the attribution the stored quote carries one style of. A stored text has no quote to
+/// complete, and a host reads a quote beside no HTML as a fresh reply's: it would quote the
+/// original a second time under text that already quotes it, and the next save would store both.
+#[tokio::test]
+async fn only_a_stored_message_with_html_opens_with_its_quote() {
+    let threaded = |mut message: Message| {
+        message.thread = Some(ThreadRef::provider_assigned(
+            ThreadId::try_from("t1").expect("a thread id"),
+        ));
+        message
+    };
+    let (app, _logs) = app_and_logs(ThreadProvider::with(vec![
+        threaded(original_message("m1")),
+        threaded(rich_stored_draft("rich-1")),
+        threaded(rich_stored_draft("plain-1")),
+    ]));
+    app.dispatch(Intent::RefreshMail).await;
+    let resume = |key: &'static str| {
+        let app = std::sync::Arc::clone(&app);
+        async move {
+            app.open_composer(
+                composition(key),
+                ComposeOrigin::Draft {
+                    message: MessageRef::from_parts("acct-1", key.to_owned()).unwrap(),
+                },
+                None,
+                &staging_dir(key),
+            )
+            .await
+            .expect("the draft resumes")
+        }
+    };
+
+    let html = resume("rich-1").await;
+    assert!(!html.body_html.is_empty());
+    assert!(
+        html.quote.is_some(),
+        "a stored HTML reply opens with its original"
+    );
+
+    let text = resume("plain-1").await;
+    assert!(text.body_html.is_empty());
+    assert!(!text.body_text.is_empty());
+    assert!(
+        text.quote.is_none(),
+        "a stored text reply opened with a quote of its own"
+    );
 }
 
 /// A reply's send counts as a reply in the feature-adoption count, however the composer was

@@ -87,8 +87,9 @@ pub struct ComposeOpening {
     /// else put in a new message (a link, a share, an assistant).
     pub body_text: String,
     /// The quoted original: a reply's or forward's, and a reopened one's when the message it
-    /// quotes is still in the store, so the host can complete the attribution the stored quote
-    /// carries only one style of.
+    /// quotes is still in the store and it has `body_html`, so the host can complete the
+    /// attribution the stored quote carries only one style of. A quote beside an empty
+    /// `body_html` is therefore always a fresh reply's or forward's.
     pub quote: Option<QuoteSource>,
     /// The files the composer opens holding, already written into the staging directory the host
     /// named: a forward's originals, or a stored message's own.

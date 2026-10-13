@@ -60,7 +60,15 @@ impl<P: Provider> App<P> {
         };
         let envelope = &stored.envelope;
         let threading = threading_of(envelope.in_reply_to.first(), &envelope.references);
-        let quote = self.quoted_original_of(message, &stored).await;
+        // Only beside HTML, where the editor completes the attribution its stored quote carries
+        // one style of. A text has no quote to complete, and every host reads a quote beside no
+        // HTML as a fresh reply's, which would quote the original again under the stored text.
+        let quote = match body.html() {
+            Some(html) if !html.trim().is_empty() => {
+                self.quoted_original_of(message, &stored).await
+            }
+            _ => None,
+        };
         // No digest is recorded. The composer renders its own document, which is not byte for
         // byte the stored one, so claiming the two match would skip a save the user can see
         // is needed. The first save after a resume therefore always writes.
