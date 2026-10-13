@@ -151,10 +151,14 @@ internal fun RichComposeMessageDialog(
     // interval; the value itself is never read for anything else.
     var draftChanges by remember { mutableIntStateOf(0) }
     // The header fields, as one value, so one effect covers all of them rather than one per field.
-    // The pre-fill arrives as each field's *initial* value, so it raises no change and no composer
-    // opens counting as edited.
+    // The effect's first run is the fields opening with their pre-fill, which is not a change: a
+    // reopened draft's first save always writes, so counting it would save a draft another client
+    // stored over with nothing typed.
     val draftHeaders = listOf(to, cc, bcc, subject, attachments.size.toString())
-    LaunchedEffect(draftHeaders) { draftChanges += 1 }
+    var headersOpened by remember { mutableStateOf(false) }
+    LaunchedEffect(draftHeaders) {
+        if (headersOpened) draftChanges += 1 else headersOpened = true
+    }
     // The most recent save's state, re-pulled whenever the core says some composition's moved.
     var draftStatus by remember { mutableStateOf(DraftStatus.IDLE) }
     // Whether this composer's message was submitted. From then on the send owns the composition

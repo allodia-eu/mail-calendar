@@ -69,13 +69,17 @@ class ComposerDraftTest {
      */
     private var open = true
 
-    private fun composer(recorder: Recorder, composition: String = "c-0") {
+    private fun composer(
+        recorder: Recorder,
+        composition: String = "c-0",
+        opening: uniffi.mailcal_bindings.ComposeOpening = testOpening(composition = composition),
+    ) {
         compose.setContent {
             var shown by remember { mutableStateOf(true) }
             AppTheme {
                 if (shown) {
                     RichComposeMessageDialog(
-                        request = ComposeContext(testOpening(composition = composition), initialFrom = null),
+                        request = ComposeContext(opening, initialFrom = null),
                         onDismiss = {
                             shown = false
                             open = false
@@ -222,5 +226,26 @@ class ComposerDraftTest {
         // Never zero, whatever the core's interval is: a sampler on a zero delay is a spin.
         assertTrue(draftSampleMillis(1u) > 0L)
         assertTrue(draftSampleMillis(0u) > 0L)
+    }
+
+    @Test
+    fun a_composer_nobody_touched_is_not_saved_when_the_idle_interval_passes() {
+        // A draft reopened from Drafts opens holding its own headers, and its first save always
+        // writes: the core has saved nothing for the composition yet to compare against. So the
+        // fields opening with what they hold must start no idle timer, or a draft another client
+        // stored is saved over, in this app's markup, with nothing typed.
+        val recorder = Recorder()
+        composer(
+            recorder,
+            opening = testOpening(composition = "c-9", to = "ada@example.org", subject = "Numbers"),
+        )
+
+        compose.mainClock.advanceTimeBy(31_000)
+        compose.waitForIdle()
+
+        val editor = webViewIn(checkNotNull(ShadowDialog.getLatestDialog().window).decorView)
+        val asked = shadowOf(checkNotNull(editor)).lastEvaluatedJavascript
+        assertTrue("nothing asked the editor for a document to save: $asked", asked != "composerDocument()")
+        assertTrue(recorder.saved.isEmpty())
     }
 }
