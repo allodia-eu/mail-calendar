@@ -1,6 +1,6 @@
 ---
 name: verify-windows-ui
-description: Drive and ASSERT on the running WinUI (Windows) client from a script: UI Automation via clients/windows/uia.ps1, plus the MAILCAL_* launch hooks for what UIA cannot reach (gestures, context menus). Use when verifying that a Windows UI change actually works, not just that it compiles. Covers the traps that produce silent FALSE PASSES, and which dataset proves what.
+description: Drive and ASSERT on the running WinUI (Windows) client from a script: find and read through UI Automation (clients/windows/uia.ps1), press through Microsoft's winapp CLI (winapp.ps1), read the composer's message body over DevTools (composer.ps1), and paste real Word and Excel clipboards (office-clipboard.ps1). Use when verifying that a Windows UI change actually works, not just that it compiles. Covers the traps that produce silent FALSE PASSES, and which dataset proves what.
 ---
 
 # verify-windows-ui: prove a Windows UI change actually works
@@ -8,16 +8,28 @@ description: Drive and ASSERT on the running WinUI (Windows) client from a scrip
 Windows-only (needs the built client and a desktop session). To *boot* a client, see **debug-app**;
 this skill is about **asserting** on it afterwards.
 
-The client is driven by **UI Automation**, never by synthetic mouse input. The primitives live in
-[`clients/windows/uia.ps1`](../../../clients/windows/uia.ps1): **dot-source it, don't reimplement
-it.** Its header documents traps that a hand-rolled walk will hit, and three of them hand you a
-**green assertion for something that is not on screen**. That is worse than a crash, because you
-believe it and move on.
+Two instruments, one job each, and **neither is reimplemented in a script**:
+
+- **Finding and reading** is UI Automation, in-process:
+  [`clients/windows/uia.ps1`](../../../clients/windows/uia.ps1). Its header documents traps that a
+  hand-rolled walk will hit, and three of them hand you a **green assertion for something that is
+  not on screen**. That is worse than a crash, because you believe it and move on.
+- **Pressing** is Microsoft's `winapp` CLI (`winget install Microsoft.WinAppCLI`, 0.7 or later),
+  through [`clients/windows/winapp.ps1`](../../../clients/windows/winapp.ps1), which `uia.ps1`
+  dot-sources. Every click, double-click, right-click, hover, drag, wheel and keystroke goes through
+  it: it is DPI-aware and injects real pointer and keyboard input, so a press lands where it was
+  aimed at any scale, a flyout opens, a tooltip rises. A suite does not P/Invoke `mouse_event` or
+  call `SendKeys` of its own; the three places that still do say why, in place.
+
+Reading does not move to `winapp` too, and `uia.ps1`'s header says why with the numbers: each
+`winapp` verb is a process of its own, a text selector is a substring match, and while a composer
+is open `winapp`'s walk of the window never ends.
 
 ## 0. Prerequisites
 
 ```powershell
 ./clients/windows/build-and-run.ps1 -NoRun     # build first; assertions run against the built exe
+winget install Microsoft.WinAppCLI             # 0.7 or later, once: every press goes through it
 scripts/dev/harness.sh up                      # only if you need a REAL transport (see §3)
 ```
 
@@ -81,7 +93,16 @@ $send = Wait-UiaElement -AutomationId 'SendButton'    # poll; never a fixed Star
 Set-UiaText (Find-UiaElement -AutomationId 'ToBox') 'someone@example.com'
 Invoke-UiaElement (Find-UiaElement -Name 'Discard' -Type Button)
 Wait-UiaGone -AutomationId 'SendButton'
+
+Invoke-WinappClick $rows[1] -Right                    # found here, pressed by winapp: the row's flyout
+Send-WinappKeys esc                                   # real keystrokes, so accelerators fire
+Invoke-WinappHover (Find-UiaElement -AutomationId 'SelectionClear' -Type Button)   # raises its tooltip
 ```
+
+**Pattern before pointer.** Where an automation pattern does what the user does (Invoke, Toggle,
+Select, Set), use it: it is milliseconds and needs no window in front. Reach for a `winapp` press
+when the thing under test *is* the pointer or the keyboard: a flyout, a double-click, a drag, a
+hover, an accelerator, a drawn surface with no patterns.
 
 Discovery: `./control.ps1 ui-dump` prints the live tree (control type / name / `#automationId`).
 Start there: assert on `AutomationId` where one exists, since names are localised.
@@ -117,21 +138,47 @@ because the core never removed it. Verify anything destructive against the **har
 
 ## 4. What UIA cannot reach, and what to use instead
 
-UIA drives *controls*. It has no notion of a gesture, so for anything gesture-shaped you need one of
-the two tools below. Pick by what you are actually trying to prove.
+### The pointer and the keyboard: `winapp`, through `winapp.ps1`
+
+`Invoke-WinappClick` (with `-Right` or `-Double`), `Invoke-WinappHover`, `Invoke-WinappDrag`,
+`Invoke-WinappWheel` and `Send-WinappKeys` each take the element a suite already found and press it.
+Each costs about 2 s, most of it `winapp` looking the element up again, so put presses where the test
+needs them, never in a polling loop. Three traps, each of which pressed the wrong thing or nothing at
+all; `winapp.ps1`'s header has the detail:
+
+- **A text selector is a substring match**, and `click`, `hover` and `invoke` take no `--root` or
+  `--type`. `winapp ui click 'Allodia Mail & Calendar'` pressed the mail row "Welcome to Allodia
+  Mail & Calendar". The bridge never presses by text: it matches name, control type **and** bounds,
+  and fails unless exactly one element answers.
+- **`-a <pid>` picks the foreground window** when the app has more than one. The bridge names the
+  element's own window with `-w`; a flyout's items resolve through it too.
+- **While a composer is open, `winapp`'s walk of that window never returns.** It finds a cycle
+  through the editor's WebView2 (the WebView2 lists the window's own `InputSiteWindowClass` among its
+  children) that UI Automation does not have. A lookup that finds its element returns in seconds; a
+  search for every match, or for something absent, does not return at all. The bridge caps every
+  call and says so. Keystrokes need no lookup, so `Send-WinappKeys` types into a composer; a click
+  into the body uses `Invoke-ClicksAt` (`uitests/appwindows.ps1`).
+
+What still uses in-process input, and why: `Search.Tests` times the moment of one keystroke, which a
+`winapp` call cannot place inside its own process; `CalendarWheel.Tests` needs a horizontal wheel,
+which `winapp` does not have; touch is below.
+
+For exploring by hand, `winapp ui` on its own is a good instrument: `inspect -i` for the interactive
+elements with their slugs, `search <text> --root <selector> --type <type>`, `get-property -p
+FontWeight`, `invoke --action toggle-on` (idempotent, and fails rather than falling back),
+`screenshot --capture-screen` for a popup (`screenshot.ps1` captures the window, so a menu is not in
+it), and `record` for a video. An element with an AutomationId has that id as its selector, stable
+across runs; the others get per-run hashes. Read `inspect --json` under `windows[].elements[]`:
+`.elements` at the root is `$null`, and an audit over `$null` passes having examined nothing.
 
 ### Gestures: inject real touch (`touch.ps1`)
 
-**This skill used to say a WinUI gesture "cannot be synthesized". That was wrong** (corrected
-2026-07-13, verified against a packaged WinUI 3 app). Win32's `InitializeTouchInjection` /
-`InjectTouchInput` inject at the **pointer-device** level, so the OS delivers them as genuine touch
-and they drive the real gesture pipeline (`SwipeControl`, `ScrollView`, and the calendar grid's own
-pointer owner) from an ordinary **unelevated, unpackaged** process. No capability, no package
-identity, no elevation, no Store approval.
-
-(The *WinRT* `Windows.UI.Input.Preview.Injection.InputInjector` **does** need the
-`inputInjectionBrokered` restricted capability *and* package identity, which the unpackaged dev loop
-has not got. That is almost certainly where the "impossible" came from.)
+Win32's `InitializeTouchInjection` / `InjectTouchInput` inject at the **pointer-device** level, so
+the OS delivers them as genuine touch and they drive the real gesture pipeline (`SwipeControl`,
+`ScrollView`, and the calendar grid's own pointer owner) from an ordinary **unelevated, unpackaged**
+process. No capability, no package identity, no elevation, no Store approval. (The *WinRT*
+`Windows.UI.Input.Preview.Injection.InputInjector` **does** need the `inputInjectionBrokered`
+restricted capability *and* package identity, which the unpackaged dev loop has not got.)
 
 ```powershell
 . ./clients/windows/touch.ps1
@@ -140,6 +187,10 @@ $w = Get-MailcalBounds                                   # foregrounds the app; 
 Invoke-TouchFlick -FromX ($w.Right-300) -ToX ($w.Left+300) -Y $w.MidY    # turn the calendar week
 Invoke-TouchPinch -CenterX $w.MidX -CenterY $w.MidY -FromSpread 150 -ToSpread 700 -AngleDeg 45
 ```
+
+`winapp ui touch` does taps, swipes and a pinch along one axis. `touch.ps1` stays for the
+**diagonal** pinch, the only way to exercise the grid's two-axis zoom, and for the frame-paced
+gestures `calendar-perf.ps1` measures.
 
 Its header documents the five traps (each an afternoon): `POINTER_FLAG_NEW` on the DOWN frame → error
 87; coordinates are **physical** screen pixels, so the injector must be DPI-aware; the UP frame must
@@ -151,10 +202,10 @@ previous gesture's *animation*, and that race is where the calendar's swallowed 
 tests the case that already worked (`docs/calendar.md` §9). Put that race in a **unit** test that owns
 the clock (`Mailcal.Tests/CalendarFlickTests.cs`). Use both.
 
-### The system save/open picker: reachable, but only by keyboard
+### The system save/open picker: answered by keyboard
 
 `FileSavePicker` (e.g. Settings → Diagnostics → *Export log…*) opens the classic Save As dialog,
-and three things about it defeat the obvious approaches (each cost a retry, 2026-07-16):
+and three things about it defeat the obvious approaches:
 
 - It is a **child** window (class `#32770`) of the app window, **never** a top-level window, so
   polling `RootElement`'s children for a new window finds nothing. Find it as
@@ -163,63 +214,42 @@ and three things about it defeat the obvious approaches (each cost a retry, 2026
   `#FileNameControlHost`) and the Save button (`#1`) are patternless Panes, with no `ValuePattern`, no
   `InvokePattern`, and `SetFocus()` throws. Raw `TreeScope.Descendants` also under-walks it
   (trap 1 all over again).
-- What **works** is the keyboard: `SetForegroundWindow` on the dialog's `NativeWindowHandle`, then
-  plain keystrokes, since the filename box has default focus, so `SendKeys` `^a`, the full target path,
-  `{ENTER}` saves. Assert on the **written file** afterwards (bytes, not existence), never on the
-  dialog.
+- What **works** is the keyboard, since the filename box has default focus: Ctrl+A, the path typed
+  as written, Enter (`Save-ThroughFilePicker`, through `Send-WinappKeys`). Assert on the **written
+  file** afterwards (bytes, not existence), never on the dialog.
 
-### Context flyouts, file pickers, video: Microsoft's `winapp` CLI
+### The composer's message body: DevTools (`composer.ps1`)
 
-**This skill used to say context flyouts were "genuinely out of reach". That was wrong** (corrected
-2026-07-31). Microsoft's `winapp` CLI (`winget install Microsoft.WinAppCLI`, and the skill suite in
-the `microsoft/win-dev-skills` plugin) opens the mail row's flyout on the first try:
+The body is a page in a WebView2, which UI Automation sees as one group named "Write your message":
+whether a paste kept its bold, or where a picture landed, is not in that tree. Launch with the
+DevTools port and read the page itself:
 
 ```powershell
-winapp ui inspect "RowsList" -a $AppPid -d 3          # discover the row slugs
-winapp ui click "itm-…" -a $AppPid --right            # opens it: PopupHost + "Archive conversation"
-winapp ui invoke "mnu-archiveconversa-…" -a $AppPid
+./clients/windows/control.ps1 home -DevToolsPort 9222   # or showcase.ps1 … -DevToolsPort 9222
+. ./clients/windows/uia.ps1; . ./clients/windows/composer.ps1
+Reset-ComposerBody '<p>Before |after</p>'               # the caret goes where the | is
+Send-WinappKeys 'ctrl+v'
+Get-ComposerHtml                                         # the markup the editor now holds
 ```
 
-The old diagnosis (the flyout hangs off an inner `Grid`, so `ContextRequested` never reaches it) was
-simply not the obstacle. `winapp` is **DPI-aware** and clicks the real physical point, which is the
-same reason "the mouse generally" was written off here. Reach for it for the three things `uia.ps1`
-still can't do: **context flyouts**, the **system file picker** (`-w <HWND>` + `set-value
-"FileNameControlHost"`, likely simpler than the keyboard dance above, untested here), and
-**`winapp ui record`** for an H.264 repro clip.
+`-DevToolsPort` sets `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` for that one launch and removes it,
+because the variable is process-wide and every later launch from the shell would open the port too.
 
-Two traps before you lean on it:
+**Test a paste with what the source application really writes**, not a clipboard you built:
+`clients/windows/office-clipboard.ps1 -From Word` or `-From Excel` puts a formatted document or a
+range of cells on the clipboard through the installed Office, and `-Close` afterwards. Word and Excel
+write several flavours at once, and their HTML carries markup no fixture writer would think of
+(Excel names a cell's bold as a class in a style sheet). Excel renders its clipboard only when asked,
+so close it **after** the paste; the script's header has the other traps.
 
-- **The slugs are per-run hashes** (`itm-allodiamailcalv-f83c`). Discover-then-click in one script;
-  never hardcode one in a suite.
-- **`winapp ui inspect --json` nests its tree under `windows[].elements[]`.** Reading `.elements` at
-  the root yields `$null`, and `@($null | Where-Object …).Count -eq 0` then reports a confident
-  PASS having examined nothing. Microsoft's own `winui-ui-testing` skill ships this bug in its
-  accessibility-audit template; verified against `winapp` 0.5.0.
+### Microsoft's other WinUI tooling
 
-**Keep `uia.ps1` as the default.** `winapp` exposes exactly 10 UIA properties and no text
-attributes, so it **cannot read font weight**: `Get-UiaFontWeight` is what
-`uitests/UnreadEmphasis.Tests.ps1` asserts on, and that is the suite guarding the never-assigned
-`MailRow.Unread` binding. It also selects only by name/automationId, so
-`winapp ui search "CalendarSurface"` finds **0 matches** where our `ClassName` walk finds the
-surface and 48 nodes under it. Use it as a second instrument, not a replacement.
-
-**Don't adopt the rest of that plugin's workflow.** Its `winui-dev-workflow` assumes `dotnet new
-winui-mvvm` and forbids `<WindowsPackageType>None`, which is the opposite of this client (unpackaged
-+ self-contained for the dev loop, Rust cdylib built first); its `winui-code-review` MVVM section
-assumes `CommunityToolkit.Mvvm` ViewModels, which this client does not use (it renders immutable
-snapshots from the core), and its theming rule flags `ReadingView.xaml`'s deliberate literal white
-message canvas. Its `winui-packaging` is dev-cert grade, not `.msixupload`.
-
-**`Microsoft.WindowsAppSDK.Analyzers` is worth revisiting, but not yet** (checked 2026-07-31). The
-WUI0xxx–WUI4xxx rules are a real build-time gate we have no equivalent of: `x:Bind` without `Mode`,
-missing AutomationId, UWP-era APIs. But it is **not on nuget.org**: the only copy is a loose 49 KB
-DLL inside the plugin's own version-pinned cache directory, so wiring it means either a
-machine-specific path (dead on CI and on the Mac) or vendoring an undocumented binary that a plugin
-update moves. Adopt it when Microsoft ships the package.
-
-### Still genuinely out of reach
-
-- **The mouse from `uia.ps1` itself.** UIA drives patterns, not pointers; use `winapp` above.
+**Don't adopt the rest of the `win-dev-skills` plugin's workflow.** Its `winui-dev-workflow` assumes
+`dotnet new winui-mvvm` and forbids `<WindowsPackageType>None`, which is the opposite of this client
+(unpackaged + self-contained for the dev loop, Rust cdylib built first); its `winui-code-review` MVVM
+section assumes `CommunityToolkit.Mvvm` ViewModels, which this client does not use (it renders
+immutable snapshots from the core), and its theming rule flags `ReadingView.xaml`'s deliberate
+literal white message canvas. Its `winui-packaging` is dev-cert grade, not `.msixupload`.
 
 The `MAILCAL_*` launch hooks (`MailboxModel.Debug.cs`, and the swipe hook in `MailListView.Swipe.cs`)
 remain useful as **deterministic** shortcuts past a gesture you are not trying to test, and are
@@ -239,7 +269,9 @@ $surface = (Get-MailcalWindow).FindFirst([System.Windows.Automation.TreeScope]::
 ```
 
 Each node's `BoundingRectangle` is computed by **the renderer's own geometry**, so it is also how you
-check that what is announced is where it is drawn.
+check that what is announced is where it is drawn, and it is where a press lands: the nodes have no
+Invoke pattern, and `Invoke-WinappClick` on one opens that event, because `winapp` aims at the
+published rectangle. (UIA's own `GetClickablePoint()` hit-tests onto the canvas and reports none.)
 
 ## 5. Gotchas that are not UIA's fault
 

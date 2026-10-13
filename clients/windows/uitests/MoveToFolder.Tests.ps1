@@ -66,7 +66,7 @@ function Open-MoveToFolder {
     if (-not $item) { Start-Sleep -Milliseconds 200 }
   }
   if (-not $item) {
-    [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+    Send-WinappKeys esc
     throw "the row menu offers no '$($Catalog.action_move_to_folder)'"
   }
   Invoke-UiaElement -Element $item | Out-Null

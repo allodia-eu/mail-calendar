@@ -5,15 +5,12 @@
 #
 #     . (Join-Path $PSScriptRoot 'appwindows.ps1')
 #
-# Separate from uia.ps1 because UI Automation is not what any of this uses. A second top-level
-# window is a Win32 fact: which windows exist and in what order is EnumWindows, whether one carries
-# an icon is WM_GETICON, who owns it is GetWindow, and a double-click is a gesture no automation
-# pattern can raise, so the presses are injected with mouse_event. Nothing here needs a UIA tree.
+# Separate from uia.ps1 because a second top-level window is a Win32 fact rather than a UI
+# Automation one: which windows exist and in what order is EnumWindows, whether one carries an icon
+# is WM_GETICON, who owns it is GetWindow. A double-click is a gesture no automation pattern can
+# raise, so the presses go through winapp (winapp.ps1), like every other press in these suites.
 
 Add-Type -Namespace ReadWin -Name Input -MemberDefinition @'
-[DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
-[DllImport("user32.dll")] public static extern void mouse_event(uint f, int dx, int dy, int data, UIntPtr extra);
-[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
 [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
 [DllImport("user32.dll")] public static extern int GetWindowLongW(IntPtr h, int index);
 [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
@@ -64,18 +61,14 @@ asking. The title bar because it is the part of the mailbox a message window nev
 because a press there reaches no control.
 #>
 function Show-Mailbox {
-  $main = Get-MainWindow
-  if (-not $main) { throw 'the mailbox window is not open' }
-  [void][ReadWin.Input]::SetForegroundWindow($main.Handle)
-  $rect = New-Object ReadWin.Input+RECT
-  [void][ReadWin.Input]::GetWindowRect($main.Handle, [ref] $rect)
+  $window = Get-MailcalWindow
+  if (-not $window) { throw 'the mailbox window is not open' }
   # The app's NAME in the title bar, well left of the search box that sits in the middle of it:
   # pressing that opens search and takes the message list off screen, which reads as the mailbox
-  # having no list at all. Physical pixels, so this stays left of the search box at any scale.
-  [void][ReadWin.Input]::SetCursorPos($rect.Left + 150, $rect.Top + 20)
-  Start-Sleep -Milliseconds 120
-  [ReadWin.Input]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
-  [ReadWin.Input]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+  # having no list at all.
+  $title = Find-UiaElement -Root $window -Name (Get-BrandAppTitle) -Type 'Text'
+  if (-not $title) { throw "the mailbox's title bar shows no '$(Get-BrandAppTitle)'" }
+  Invoke-WinappClick $title
   Start-Sleep -Milliseconds 300
 }
 
@@ -137,26 +130,15 @@ function Close-ExtraWindows {
 
 <#
 .SYNOPSIS
-Click the row whose title is -Subject, -Times times in quick succession.
+Click the row whose title is -Subject, once, or twice as a double-click.
 .DESCRIPTION
-The presses are 60ms apart, comfortably inside any double-click setting, and the app is brought
-forward first: injected input goes to whatever has focus, so without that the clicks land on
-whichever window the previous case left in front.
+The app is brought forward first: a press goes to whatever is under the pointer, so without that it
+lands on whichever window the previous case left in front.
 #>
 function Invoke-RowClicks {
-  param([Parameter(Mandatory)] [string] $Subject, [int] $Times = 1)
+  param([Parameter(Mandatory)] [string] $Subject, [ValidateSet(1, 2)] [int] $Times = 1)
   Show-Mailbox
-  $row = Get-MailRowByTitle $Subject
-  $bounds = $row.Current.BoundingRectangle
-  $x = [int] ($bounds.X + $bounds.Width / 2)
-  $y = [int] ($bounds.Y + $bounds.Height / 2)
-  [void][ReadWin.Input]::SetCursorPos($x, $y)
-  Start-Sleep -Milliseconds 120
-  foreach ($i in 1..$Times) {
-    [ReadWin.Input]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)   # LEFTDOWN
-    [ReadWin.Input]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)   # LEFTUP
-    if ($i -lt $Times) { Start-Sleep -Milliseconds 60 }
-  }
+  Invoke-WinappClick (Get-MailRowByTitle $Subject) -Double:($Times -eq 2)
   # The window is opened on the double-tap and the pane is corrected after the trailing click, so
   # settle past both before reading anything.
   Start-Sleep -Milliseconds 1500
@@ -164,21 +146,17 @@ function Invoke-RowClicks {
 
 <#
 .SYNOPSIS
-Click -Times times at a screen point, with the mailbox window in front.
+Click once at a screen point in the mailbox window.
+.DESCRIPTION
+For the composer's message body. Everywhere else a press is aimed at an element; while a composer
+is open winapp cannot look one up (winapp.ps1 says why), and the body is a web page whose parts UI
+Automation does not see anyway, so this one is aimed at a point.
 #>
 function Invoke-ClicksAt {
-  param([Parameter(Mandatory)] [int] $X, [Parameter(Mandatory)] [int] $Y, [int] $Times = 1)
+  param([Parameter(Mandatory)] [int] $X, [Parameter(Mandatory)] [int] $Y)
   $main = Get-MainWindow
   if (-not $main) { throw 'the mailbox window is not open' }
-  [void][ReadWin.Input]::SetForegroundWindow($main.Handle)
-  Start-Sleep -Milliseconds 300
-  [void][ReadWin.Input]::SetCursorPos($X, $Y)
-  Start-Sleep -Milliseconds 120
-  foreach ($i in 1..$Times) {
-    [ReadWin.Input]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)   # LEFTDOWN
-    [ReadWin.Input]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)   # LEFTUP
-    if ($i -lt $Times) { Start-Sleep -Milliseconds 60 }
-  }
+  Invoke-WinappPress -Point $X, $Y -Window ([long] $main.Handle)
   Start-Sleep -Milliseconds 1500
 }
 
@@ -194,13 +172,7 @@ item under test.
 function Show-RowContextMenu {
   param([Parameter(Mandatory)] [string] $Subject)
   Show-Mailbox
-  $row = Get-MailRowByTitle $Subject
-  $bounds = $row.Current.BoundingRectangle
-  [void][ReadWin.Input]::SetCursorPos(
-    [int] ($bounds.X + $bounds.Width / 2), [int] ($bounds.Y + $bounds.Height / 2))
-  Start-Sleep -Milliseconds 120
-  [ReadWin.Input]::mouse_event(0x0008, 0, 0, 0, [UIntPtr]::Zero)   # RIGHTDOWN
-  [ReadWin.Input]::mouse_event(0x0010, 0, 0, 0, [UIntPtr]::Zero)   # RIGHTUP
+  Invoke-WinappClick (Get-MailRowByTitle $Subject) -Right
   Start-Sleep -Milliseconds 600
 }
 

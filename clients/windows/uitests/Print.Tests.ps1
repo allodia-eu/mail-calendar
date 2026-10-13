@@ -154,22 +154,20 @@ patternless (uia.ps1, Save-ThroughFilePicker).
 #>
 function Save-PrintedPdf {
   param([Parameter(Mandatory)] [string] $Destination)
-  Add-Type -AssemblyName System.Windows.Forms
   $save = $null
   for ($i = 0; $i -lt 30 -and -not $save; $i++) {
     Start-Sleep -Seconds 1
     $save = Get-PrintSaveDialogs | Select-Object -First 1
   }
   if (-not $save) { throw "the PDF printer never asked where to save, so nothing was printed" }
-  [void][Allodia.UiaDpi]::SetForegroundWindow([IntPtr] $save.Current.NativeWindowHandle)
-  Start-Sleep -Milliseconds 600
-  [System.Windows.Forms.SendKeys]::SendWait('%n')
+  $handle = [long] $save.Current.NativeWindowHandle
+  Send-WinappKeys 'alt+n' -Window $handle
   Start-Sleep -Milliseconds 300
-  [System.Windows.Forms.SendKeys]::SendWait('^a')
+  Send-WinappKeys 'ctrl+a' -Window $handle
   Start-Sleep -Milliseconds 300
-  [System.Windows.Forms.SendKeys]::SendWait(($Destination -replace '([+^%~()\[\]{}])', '{$1}'))
+  Send-WinappKeys $Destination -Window $handle -Text
   Start-Sleep -Milliseconds 400
-  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Send-WinappKeys enter -Window $handle
   # Settled length rather than existence: the file appears empty first.
   $previous = -1
   for ($i = 0; $i -lt 60; $i++) {

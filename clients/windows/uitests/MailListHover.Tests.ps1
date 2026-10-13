@@ -15,9 +15,10 @@
 #
 # WHY THIS SUITE AND NOT `Mailcal.Tests`. A tooltip the framework raises is not in the markup at
 # all: nothing is bound, nothing is assigned, and the only way to know it is there is to put a
-# pointer on a row in a running window and look. That is also why the pointer is moved by injection
-# rather than by warping the cursor; uia.ps1's Move-UiaPointerOnto says what a warp measures
-# instead.
+# pointer on a row in a running window and look. That is also why the pointer is moved with real
+# input rather than by warping the cursor: a warp leaves the element under it with no pointer-over
+# at all, so it raises no tooltip and this suite would pass against a list that raised one. The
+# first case proves the hover is real before the second leans on it.
 #
 # Dataset is `showcase`: rows are all this needs, and hovering one dispatches nothing.
 
@@ -41,14 +42,28 @@ $Suite = @{
   Dataset = 'showcase'
   Cases   = @(
     @{
+      Name = 'the hover is real: a toolbar button that has a tooltip raises it'
+      Body = {
+        # The control for the case below, which asserts that NOTHING appears and so passes as
+        # readily against a pointer that never arrived. Clear selection carries a tooltip of its
+        # own, so a hover that reaches the window raises it.
+        $button = Find-UiaElement -AutomationId 'SelectionClear' -Type 'Button'
+        Invoke-WinappHover $button -DwellMs $HoverSettleMs
+        $tips = @(Get-UiaToolTips | ForEach-Object { $_.Current.Name })
+        Assert-Equal 1 $tips.Count (
+          'resting the pointer on Clear selection raised no tooltip, so the pointer is not reaching ' +
+          'the window and the case below would pass whatever the list draws')
+      }
+    },
+    @{
       Name = 'hovering a message row says nothing'
       Body = {
         $row = Get-HoverTargetRow
-        $at = Move-UiaPointerOnto -Element $row -What 'a message row'
-        Start-Sleep -Milliseconds $HoverSettleMs
+        Invoke-WinappHover $row -DwellMs $HoverSettleMs
+        $at = $row.Current.BoundingRectangle
         $tips = @(Get-UiaToolTips | ForEach-Object { $_.Current.Name })
         Assert-Equal 0 $tips.Count (
-          "the pointer resting on a message row at $($at[0]),$($at[1]) raised: $($tips -join ' | '). " +
+          "the pointer resting on a message row at $($at.X + $at.Width / 2),$($at.Y + $at.Height / 2) raised: $($tips -join ' | '). " +
           'A pointer passing over a message is not asking a question, and a label that follows it ' +
           'down the list covers the rows being scanned. The framework raises one of its own for a ' +
           'keyboard accelerator unless the list says not to')
@@ -67,7 +82,7 @@ $Suite = @{
         $selection = $list.GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern)
         Assert-Equal 1 $selection.Current.GetSelection().Length 'a row is selected to clear'
 
-        [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+        Send-WinappKeys esc
         Wait-UiaQuiet -CapMs 1200
         Assert-Equal 0 $selection.Current.GetSelection().Length (
           'Escape must still clear the selection. KeyboardAcceleratorPlacementMode decides whether ' +

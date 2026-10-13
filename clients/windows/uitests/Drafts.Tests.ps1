@@ -371,8 +371,7 @@ $Suite = @{
         try {
           $editor = Get-RenderedBounds -Element (Find-UiaElement -AutomationId 'Editor') -What 'the message editor'
           Invoke-ClicksAt -X ([int]($editor.X + 60)) -Y ([int]($editor.Y + 30))
-          Add-Type -AssemblyName System.Windows.Forms
-          [System.Windows.Forms.SendKeys]::SendWait('Written in the body and nowhere else')
+          Send-WinappKeys 'Written in the body and nowhere else' -Text
           # The core's interval is 30s and the host samples at a third of it, so a save is due
           # within 40s of the last keystroke; the rest is the round trip.
           Assert-True (Wait-DraftSaved -TimeoutSec 50) `

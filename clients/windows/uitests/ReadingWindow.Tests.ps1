@@ -193,7 +193,7 @@ $Suite = @{
         Close-ExtraWindows
         $unread = Find-RowMenuItem -Subject $RowSubject -Key 'action_mark_unread'
         if ($unread) { Invoke-UiaElement $unread }
-        else { [System.Windows.Forms.SendKeys]::SendWait('{ESC}') }
+        else { Send-WinappKeys esc }
         # Let the mark-UNREAD rewrite land before the gesture, so the only row rewrite left is the
         # mark-READ the double-click itself causes. Without this the row moves under the pointer
         # mid-gesture and the case fails one step earlier, on a window that never opens, which is
@@ -410,12 +410,16 @@ $Suite = @{
         Assert-True ($null -ne $count) `
           "'$ThreadSubject' is a conversation row, carrying the count that makes it one"
 
-        # Clicked near its TOP edge, because the header expands on the first click and the sub-rows
-        # it reveals are drawn below it: a click at the row's centre would land on the first
-        # sub-row, which IS a message and would correctly open a window.
-        $bounds = $thread.Current.BoundingRectangle
-        Invoke-ClicksAt -X ([int] ($bounds.X + $bounds.Width / 2)) `
-                        -Y ([int] ($bounds.Y + 12)) -Times 2
+        # Clicked on its SUBJECT, because the header expands on the first click and the sub-rows it
+        # reveals are drawn below it: a click at the row's centre would land on the first sub-row,
+        # which IS a message and would correctly open a window.
+        $subject = Get-UiaTree $thread |
+          Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Text } |
+          Where-Object { $_.Current.Name -like $ThreadSubject } | Select-Object -First 1
+        Assert-True ($null -ne $subject) "the conversation row draws its subject, '$ThreadSubject'"
+        Show-Mailbox
+        Invoke-WinappClick $subject -Double
+        Start-Sleep -Milliseconds 1500
         Assert-Equal 0 (Get-ExtraWindows).Count `
           'a conversation is not a message, so double-clicking its header opens no window'
       }

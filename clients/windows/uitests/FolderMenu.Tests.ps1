@@ -17,8 +17,6 @@
 $CatalogDir = Join-Path $PSScriptRoot '../../../messages'
 $Account = 'alice@test.local'
 
-. (Join-Path $PSScriptRoot 'appwindows.ps1')
-
 $Catalog = Get-Content -LiteralPath (Join-Path $CatalogDir 'en.json') -Raw -Encoding utf8 | ConvertFrom-Json
 
 # Right-clicks a pane row and returns its open menu, or $null when it raised none.
@@ -26,19 +24,16 @@ $Catalog = Get-Content -LiteralPath (Join-Path $CatalogDir 'en.json') -Raw -Enco
 # element holds focus, which is not the row under test.
 function Open-PaneRowMenu {
   param([Parameter(Mandatory)] [object] $Row)
+  # On the row's own header line, never its middle: an expanded row's bounds take in its whole
+  # subtree, so their middle is one of its folders. The header is the part above its first child row,
+  # and the child row is not the row's first child in the control view, so it is looked for.
   $bounds = $Row.Current.BoundingRectangle
-  # An expanded row's bounds take in its whole subtree, so their middle is one of its folders.
-  # The row's own header is the part above its first child row.
-  # The child row is not the row's first child in the control view, so it is looked for.
   $header = $bounds.Height
   $child = @(Find-UiaElements -Root $Row -Type 'ListItem') |
     Where-Object { -not $_.Current.BoundingRectangle.IsEmpty -and $_.Current.BoundingRectangle.Y -gt $bounds.Y } |
     Select-Object -First 1
   if ($child) { $header = $child.Current.BoundingRectangle.Y - $bounds.Y }
-  [void][ReadWin.Input]::SetCursorPos([int] ($bounds.X + 40), [int] ($bounds.Y + $header / 2))
-  Start-Sleep -Milliseconds 120
-  [ReadWin.Input]::mouse_event(0x0008, 0, 0, 0, [UIntPtr]::Zero)   # RIGHTDOWN
-  [ReadWin.Input]::mouse_event(0x0010, 0, 0, 0, [UIntPtr]::Zero)   # RIGHTUP
+  Invoke-WinappPress -Point ([int] ($bounds.X + 40)), ([int] ($bounds.Y + $header / 2)) -Window (Get-UiaWindowHandle $Row) -Right
   Start-Sleep -Milliseconds 600
   # Scoped to the flyout, by its language-free class name: a sweep of the desktop for MenuItem
   # collects every window's system menu too (Attendees.Tests.ps1 says how that read).
@@ -53,7 +48,7 @@ function Get-PaneRowMenu {
   $names = @()
   if ($flyout) {
     $names = @(Find-UiaElements -Type 'MenuItem' -Root $flyout | ForEach-Object { $_.Current.Name })
-    [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+    Send-WinappKeys esc
     Start-Sleep -Milliseconds 300
   }
   , $names
@@ -85,7 +80,7 @@ function Get-FolderMoveTargets {
   if (-not $flyout) { throw 'the row raised no menu' }
   $item = Find-UiaElement -Root $flyout -Name $Catalog.folder_action_move -Type 'MenuItem'
   if (-not $item) {
-    [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+    Send-WinappKeys esc
     throw "the row menu offers no '$($Catalog.folder_action_move)'"
   }
   Invoke-UiaElement -Element $item | Out-Null

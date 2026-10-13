@@ -168,6 +168,9 @@ if (-not $IsWindows) {
 }
 
 . (Join-Path $windows 'uia.ps1')
+# Every press goes through winapp (winapp.ps1). Asked once here, so a host without it, or with one
+# too old, fails before the first launch, naming the command that fixes it, rather than case by case.
+[void](Get-WinappPath)
 # Reading the core's own log, which several suites and the dataset launcher do, and which is not
 # `Get-Content app.log`: see its header for the rotation that carries a running session's banner
 # out of the current file.

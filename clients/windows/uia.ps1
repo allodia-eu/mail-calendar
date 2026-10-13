@@ -37,15 +37,27 @@
 # and it catches a binding that was never wired as well as one bound to the wrong property. The
 # suites in uitests/ are built on it.
 #
-# WHAT UIA CANNOT REACH, do not burn time trying:
-#   * Gestures. UIA drives controls, not fingers, but real touch CAN be injected at the
-#     pointer-device level: use touch.ps1 (Invoke-TouchFlick / Invoke-TouchPinch), or the
-#     MAILCAL_SWIPE launch hook (control.ps1 swipe <action>) to skip past a gesture you are not
-#     testing. (This header used to say a gesture "cannot be synthesized", corrected 2026-07-13;
-#     see the verify-windows-ui skill §4.)
-#   * Anything needing the mouse FROM THIS SCRIPT. UIA drives patterns, not pointers, and the
-#     cursor-moving approaches tried here all addressed the cursor in 96-DPI space while UIA
-#     reports physical pixels, so on a scaled display they click somewhere else entirely.
+# FINDING HERE, PRESSING THROUGH winapp.ps1. This file finds and reads; it never moves the pointer
+# or types. Every click, double-click, right-click, hover, drag, wheel and keystroke goes through
+# winapp.ps1 (Invoke-WinappClick, Send-WinappKeys, …), which hands the element found here to
+# Microsoft's `winapp` CLI. That is how a context flyout opens, how a canvas peer with no Invoke
+# pattern is pressed, and how a tooltip is raised, at any display scale.
+#
+# Why reading does not move to winapp as well (measured on winapp 0.7.1 against this app, which now
+# does what 0.6.1 could not: --root and --type scoping, FontWeight through get-property, explicit
+# --action, the window's DPI in `status`):
+#   * EVERY VERB IS A PROCESS: 140 ms to start, 0.2 to 0.7 s a call, where an in-process read takes
+#     milliseconds. A suite reads the tree hundreds of times; it presses a handful.
+#   * A TEXT SELECTOR IS A SUBSTRING, and --class-name only narrows a text match, so "the element of
+#     class CalendarSurface" cannot be asked at all.
+#   * WHILE A COMPOSER IS OPEN, winapp's walk of the window never ends (winapp.ps1 says why), and
+#     eleven of the 49 suites open one.
+# Batched in-process use is upstream work (microsoft/winappCli#824); revisit this when it ships.
+#
+# WHAT NOTHING HERE REACHES, do not burn time trying:
+#   * A MULTI-TOUCH GESTURE. touch.ps1 injects real contacts, a diagonal pinch included, which no
+#     touchpad and no winapp verb produces; the MAILCAL_SWIPE launch hook (control.ps1 swipe
+#     <action>) skips past a swipe you are not testing.
 #   * A BARE LAYOUT PANEL. A Grid, StackPanel or BORDER holding only other controls gets no
 #     automation peer, so it is not in the tree and an AutomationProperties.AutomationId on it
 #     reaches nothing, a wait for that id can only time out, however long you give it. Measure the
@@ -55,42 +67,16 @@
 #     and SelectionBar.Tests waited thirty seconds for it, twice a run, then DISCARDED the $null
 #     and passed on elements it found by other means. A whole minute of every run, and nothing on
 #     screen or in the summary said so. If a wait's result is not read, it is not a wait.
+#   * THE COMPOSER'S MESSAGE BODY. It is a web page, one group named "Write your message" here;
+#     composer.ps1 reads and sets it over DevTools.
 #
-# CONTEXT FLYOUTS ARE REACHABLE, with the right tool (corrected 2026-07-31). This header used to
-# say they were not: "neither a synthetic right-click nor the Apps key opens one; the row's
-# ContextFlyout hangs off an inner Grid, so ContextRequested from the focused ListViewItem never
-# reaches it." The diagnosis was wrong. Microsoft's `winapp` CLI (winget Microsoft.WinAppCLI, and
-# the win-dev-skills plugin) opens the mail row's flyout first try:
-#
-#     winapp ui click <row-slug> -a <PID> --right     # -> PopupHost window + "Archive conversation"
-#
-# It works because it is DPI-aware and clicks the real physical point; nothing about WinUI or the
-# inner Grid was ever the obstacle. Discover the row slug with `winapp ui inspect RowsList -a <PID>`.
-# Two things to know before leaning on it: the slugs are per-run hashes, so they are for a scripted
-# discover-then-click, never a hardcoded selector; and `winapp ui inspect --json` nests its tree
-# under windows[].elements[], code that reads `.elements` at the ROOT silently gets $null, which
-# is a green assertion over nothing (Microsoft's own skill template has this bug).
-#
-# WHAT `winapp ui` CANNOT DO, so nobody re-runs this evaluation (measured 2026-08-25, winapp 0.6.1,
-# against this app). Reach for it for the physical-input jobs above; do NOT port assertions onto it.
-#   * NO FONT WEIGHT. `get-property -p FontWeight` returns null on the element whose TextPattern
-#     answers 600 here. That is the assertion this whole suite was built for.
-#   * NO SCOPED OR TYPED QUERY. There is no --root and no --type, so a selector matches the whole
-#     window by name, traps 2 and 3 above, unmitigated. Asking for the subject Text of a mail row
-#     returns the ROW: bounds 506,184,905,94 where the text is 708,196,573,38. A geometry assertion
-#     written that way measures the wrong element and PASSES.
-#   * EVERY VERB IS A PROCESS. 456ms per attached call (161ms of that is process start alone),
-#     against 5-7ms for the in-process equivalent. There is no batch or session mode, so a suite
-#     of a few hundred primitives would spend minutes in process startup.
-#
-# THE SYSTEM SAVE/OPEN PICKER (FileSavePicker) IS REACHABLE, BUT ONLY BY KEYBOARD (2026-07-16):
-#   the Save As dialog is a CHILD window (class '#32770') of the app window, never top-level, so
-#   don't poll RootElement for it: (Get-MailcalWindow).FindFirst(Children, ClassName '#32770').
-#   Its DirectUI controls expose a degenerate tree, the filename box (#1001 under
-#   #FileNameControlHost) and the Save button (#1) are patternless Panes (no ValuePattern, no
-#   InvokePattern; SetFocus throws). What works: SetForegroundWindow on the dialog's
-#   NativeWindowHandle, then keystrokes, the filename box has default focus, so SendKeys '^a',
-#   the full target path, '{ENTER}'. Assert on the written file's BYTES afterwards, not the dialog.
+# THE SYSTEM SAVE/OPEN PICKER (FileSavePicker) IS ANSWERED BY KEYBOARD: the Save As dialog is a
+#   CHILD window (class '#32770') of the app window, never top-level, so don't poll RootElement for
+#   it: (Get-MailcalWindow).FindFirst(Children, ClassName '#32770'). Its DirectUI controls expose a
+#   degenerate tree, the filename box (#1001 under #FileNameControlHost) and the Save button (#1)
+#   are patternless Panes (no ValuePattern, no InvokePattern; SetFocus throws). The filename box has
+#   default focus, so Ctrl+A, the path and Enter save (Save-ThroughFilePicker). Assert on the
+#   written file's BYTES afterwards, not the dialog.
 #
 # CHOOSING A DATASET, this decides whether your test proves anything:
 #   * showcase (MAILCAL_SHOWCASE=en, via showcase.ps1), TWO accounts, in-memory, deterministic.
@@ -101,6 +87,9 @@
 # ---------------------------------------------------------------------------------------------
 
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes -ErrorAction Stop
+
+# Pressing, as against finding: every click, hover, drag, wheel and keystroke goes through winapp.
+. (Join-Path $PSScriptRoot 'winapp.ps1')
 
 # Guarded because this file is dot-sourced: adding the same type twice in one session throws.
 if (-not ('Allodia.UiaDpi' -as [type])) {
@@ -119,29 +108,10 @@ namespace Allodia
         [DllImport("user32.dll")] public static extern uint GetDpiForSystem();
 
         /// <summary>
-        /// Focus a window before typing at it. Only the system file picker needs this: it is the
-        /// one surface here driven by keystrokes rather than by an automation pattern, and
-        /// SendKeys goes to whatever holds focus.
+        /// Focus a window before typing at it in-process. Only Search.Tests does: it times the
+        /// moment of one keystroke, which a winapp call cannot place within its own process.
         /// </summary>
         [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
-    }
-}
-'@
-}
-
-# Guarded like UiaDpi above, and separate from it because moving the pointer is a different
-# question from measuring a window.
-if (-not ('Allodia.UiaPointer' -as [type])) {
-  Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-
-namespace Allodia
-{
-    /// <summary>Moving the pointer, for the rules about what a surface draws underneath it.</summary>
-    public static class UiaPointer
-    {
-        [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, int data, UIntPtr extra);
     }
 }
 '@
@@ -318,44 +288,6 @@ function Get-RenderedBounds {
     throw "$What is in the tree but not rendered (bounds $rect), a collapsed element cannot be measured"
   }
   $rect
-}
-
-<#
-.SYNOPSIS
-Put the pointer on the centre of $Element, the way a hand arrives at it, and return @(x, y).
-.DESCRIPTION
-ABSOLUTE `mouse_event` injections, never SetCursorPos. WinUI's pointer stack acts on an injected
-move, and a bare cursor warp leaves the element with no pointer-over at all: measured 4 times out of
-4, a row that the cursor was sitting on top of drew no hover state and raised no tooltip. A hover
-rule written that way passes against a build that draws whatever it likes under the pointer, which
-is the exact shape of false pass this whole suite exists to refuse.
-
-It travels in steps for a second reason: a tooltip's delay starts when the pointer ENTERS, so a
-single jump that lands already inside can leave nothing to wait for.
-#>
-function Move-UiaPointerOnto {
-  param(
-    [object] $Element,
-    [Parameter(Mandatory)] [string] $What,
-    [int] $Steps = 14,
-    [int] $StepMs = 80
-  )
-  Add-Type -AssemblyName System.Windows.Forms
-  $bounds = Get-RenderedBounds -Element $Element -What $What
-  $toX = [int]($bounds.X + ($bounds.Width * 0.45))
-  $toY = [int]($bounds.Y + ($bounds.Height / 2))
-  $fromX = [int]($bounds.X + ($bounds.Width * 0.08))
-  $screen = [System.Windows.Forms.SystemInformation]::VirtualScreen
-  foreach ($step in 0..$Steps) {
-    $x = [int]($fromX + ($step * (($toX - $fromX) / $Steps)))
-    # Normalised to the whole virtual desktop, which is what MOUSEEVENTF_VIRTUALDESK reads.
-    $nx = [int](($x - $screen.Left) * 65535 / ($screen.Width - 1))
-    $ny = [int](($toY - $screen.Top) * 65535 / ($screen.Height - 1))
-    # MOVE | ABSOLUTE | VIRTUALDESK
-    [Allodia.UiaPointer]::mouse_event((0x0001 -bor 0x8000 -bor 0x4000), $nx, $ny, 0, [UIntPtr]::Zero)
-    Start-Sleep -Milliseconds $StepMs
-  }
-  @($toX, $toY)
 }
 
 <#
@@ -776,10 +708,8 @@ dialog, and three things about it defeat every obvious approach:
   * Its controls expose a DEGENERATE tree: the filename box (#1001 under #FileNameControlHost) and
     the Save button (#1) are patternless Panes, with no ValuePattern, no InvokePattern, and
     SetFocus() throws. So there is nothing here to Invoke or Set-UiaText.
-  * The keyboard works. The filename box has default focus, so ^a plus the path plus ENTER saves.
-
-The path is escaped for SendKeys: +, ^, %, ~ and the bracket characters are all operators there,
-and a path holding one would otherwise be typed as a chord and land the file somewhere else.
+  * The keyboard works. The filename box has default focus, so Ctrl+A, the path typed as written,
+    and Enter saves.
 .EXAMPLE
 Save-ThroughFilePicker -Destination (Join-Path $env:TEMP 'export.eml')
 #>
@@ -788,10 +718,9 @@ function Save-ThroughFilePicker {
     [Parameter(Mandatory)] [string] $Destination,
     [int] $TimeoutSec = 20,
     # Receives the name the app PRE-FILLED, before it is replaced. The suggested name is the only
-    # evidence of what the client asked the core to call the file, and it is gone once ^a lands.
+    # evidence of what the client asked the core to call the file, and it is gone once Ctrl+A lands.
     [ref] $SuggestedName
   )
-  Add-Type -AssemblyName System.Windows.Forms
   $condition = New-Object System.Windows.Automation.PropertyCondition(
     $script:UiaElement::ClassNameProperty, '#32770')
   $dialog = $null
@@ -815,15 +744,12 @@ function Save-ThroughFilePicker {
     # text is what the Pane reports as its Name.
     $SuggestedName.Value = $box.Current.Name
   }
-  $handle = [IntPtr] $dialog.Current.NativeWindowHandle
-  [void][Allodia.UiaDpi]::SetForegroundWindow($handle)
-  Start-Sleep -Milliseconds 600
-  $keys = $Destination -replace '([+^%~()\[\]{}])', '{$1}'
-  [System.Windows.Forms.SendKeys]::SendWait('^a')
+  $handle = [long] $dialog.Current.NativeWindowHandle
+  Send-WinappKeys 'ctrl+a' -Window $handle
   Start-Sleep -Milliseconds 300
-  [System.Windows.Forms.SendKeys]::SendWait($keys)
+  Send-WinappKeys $Destination -Window $handle -Text
   Start-Sleep -Milliseconds 400
-  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+  Send-WinappKeys enter -Window $handle
   for ($i = 0; $i -lt $TimeoutSec * 2; $i++) {
     Start-Sleep -Milliseconds 500
     $still = $null

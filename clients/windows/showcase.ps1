@@ -62,6 +62,9 @@ param(
   # shot whose left column is off-screen black. A capture there needs a smaller frame or a bigger
   # display; a TEST there needs neither.
   [switch] $NoCapture,
+  # Opens the WebView2 DevTools protocol on this port, so composer.ps1 can read the message body of
+  # the reply screen. Off unless asked for, and never part of a capture.
+  [int] $DevToolsPort,
   [int] $SettleSeconds = 7
 )
 if (-not $NoCapture -and -not $Out) {
@@ -184,7 +187,11 @@ $env:MAILCAL_SHOWCASE_SCREEN = $Screen
 $env:MAILCAL_APPEARANCE = $Appearance
 
 $launchedAt = Get-Date
-Start-Process $exe
+# Process-wide, so set for this one launch and removed at once (control.ps1 says why).
+Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue
+if ($DevToolsPort) { $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$DevToolsPort" }
+try { Start-Process $exe }
+finally { Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue }
 Assert-ShowcaseRunning $launchedAt
 
 if ($NoCapture) { return }

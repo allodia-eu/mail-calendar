@@ -13,11 +13,10 @@
 # is the second case below, and the control for the first). The grid is a canvas, its events are
 # automation peers with **no Invoke pattern**, so UIA can read one and cannot open it.
 #
-# What UIA cannot do, the OS can. Every event peer publishes a live BOUNDING RECTANGLE in screen
-# pixels, computed by the renderer's own geometry at the display's real scale
-# (`CalendarItemPeer.GetBoundingRectangleCore`), and a left click injected with `mouse_event` lands
-# on the surface's own pointer owner, the same instrument `CalendarWheel.Tests.ps1` uses on this
-# same canvas. So the peer says where the block is and the OS does the clicking.
+# What UIA cannot do, real pointer input can. Every event peer publishes a live BOUNDING RECTANGLE
+# in screen pixels, computed by the renderer's own geometry at the display's real scale
+# (`CalendarItemPeer.GetBoundingRectangleCore`), and a click at its middle (winapp.ps1) lands on the
+# surface's own pointer owner. So the peer says where the block is and the click goes there.
 #
 # NOT `GetClickablePoint()`, though the peer overrides `GetClickablePointCore`. UIA computes that
 # property by hit-testing, and a hit test on a drawn node lands on the canvas that owns the pointer
@@ -51,19 +50,6 @@
 # Thursday and runs ten days is drawn on BOTH, whatever day the suite is run; the fortnightly one
 # falls on Tuesday, and a today-anchored window on a Thursday leaves it behind.
 $Repeating = 'Onboarding'   # FREQ=DAILY;COUNT=10, from this week's Thursday
-
-Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class SeriesScopeInput {
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
-  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
-  [DllImport("user32.dll")] public static extern void mouse_event(uint f, int dx, int dy, int data, UIntPtr extra);
-  public const uint LEFTDOWN = 0x0002;
-  public const uint LEFTUP   = 0x0004;
-  public const uint WHEEL    = 0x0800;
-}
-'@ -ErrorAction SilentlyContinue
 
 <#
 .SYNOPSIS
@@ -128,17 +114,8 @@ function Open-GridEvent {
   param([Parameter(Mandatory)] [string] $Title)
 
   Set-CalendarShape 'CalendarViewWeek'
-  $app = Get-Process Mailcal -ErrorAction SilentlyContinue | Select-Object -First 1
-  if (-not $app) { throw 'the app is not running' }
-  [SeriesScopeInput]::SetForegroundWindow($app.MainWindowHandle) | Out-Null
-  Start-Sleep -Milliseconds 500
-
   $peer = Show-GridBlock -Title $Title
-  $r = $peer.Current.BoundingRectangle
-  [SeriesScopeInput]::SetCursorPos([int]($r.X + ($r.Width / 2)), [int]($r.Y + ($r.Height / 2))) | Out-Null
-  Start-Sleep -Milliseconds 200
-  [SeriesScopeInput]::mouse_event([SeriesScopeInput]::LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
-  [SeriesScopeInput]::mouse_event([SeriesScopeInput]::LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+  Invoke-WinappClick $peer
   Start-Sleep -Milliseconds 900
   $dialog = Get-DialogRoot
   # The click is aimed by geometry, so what it opened is checked rather than assumed: a detail for
@@ -184,7 +161,7 @@ would follow into the window chrome. Wheeling until the block's middle sits in t
 the grid clears the day headers and the all-day band in one rule, and is what makes this case
 independent of the clock.
 
-The wheel goes to whatever is under the pointer, so the pointer is parked on the grid first.
+The wheel turns over the grid's middle; its selector is looked up once and reused for every notch.
 #>
 function Show-GridBlock {
   param([Parameter(Mandatory)] [string] $Title)
@@ -192,8 +169,7 @@ function Show-GridBlock {
   $grid = Find-UiaElement -AutomationId 'CalendarGrid'
   if (-not $grid) { throw 'the calendar grid is not on screen' }
   $g = $grid.Current.BoundingRectangle
-  [SeriesScopeInput]::SetCursorPos([int]($g.X + ($g.Width / 2)), [int]($g.Y + ($g.Height / 2))) | Out-Null
-  Start-Sleep -Milliseconds 200
+  $wheel = Get-WinappSelector $grid
 
   $floor = $g.Y + ($g.Height * 0.35)
   $ceiling = $g.Y + ($g.Height * 0.85)
@@ -212,8 +188,8 @@ function Show-GridBlock {
     $r = $peer.Current.BoundingRectangle
     $middle = $r.Y + ($r.Height / 2)
     if ($middle -ge $floor -and $middle -le $ceiling) { return $peer }
-    $notch = if ($middle -lt $floor) { 120 } else { -120 }
-    [SeriesScopeInput]::mouse_event([SeriesScopeInput]::WHEEL, 0, 0, $notch, [UIntPtr]::Zero)
+    $notch = if ($middle -lt $floor) { 1 } else { -1 }
+    Invoke-WinappWheel $grid -Notches $notch -Selector $wheel
     Start-Sleep -Milliseconds 250
   }
   throw "the block for '$Title' would not scroll into the timed area"

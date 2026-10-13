@@ -147,6 +147,9 @@ versa.
   version is pinned in `Cargo.lock` (the tag tracks the core's UniFFI 0.31, a generator built
   against a different UniFFI can't read the cdylib's metadata). It's excluded from the workspace
   `default-members`, so a bare `cargo build` and non-Windows hosts never compile it.
+- **`winapp`** 0.7 or later, for the UI suite only: `winget install Microsoft.WinAppCLI`. Every
+  click, hover, drag and keystroke the suite makes goes through it ([`winapp.ps1`](winapp.ps1)), and
+  `run-ui-tests.ps1` refuses to start without it.
 
 Latest-only, no legacy: the app's compile + runtime closure is **.NET 10** exclusively (no
 .NET Framework). Verified on an `aarch64-pc-windows-msvc` host: Windows 11, VS Community
@@ -298,8 +301,8 @@ remove the old package first (MSIX blocks reinstalling the same `1.0.0.0` with c
   the whole class of bug `Mailcal.Tests` cannot see (a binding nothing assigns, a control that
   opens in the wrong state). `run-ui-tests.ps1`'s header is the guide to writing one, and reading
   it first is not optional: the dataset a suite declares decides whether it proves anything.
-  `set-desktop-resolution.ps1` and `install-windows-app-runtime.ps1` are the two things a CI runner
-  needs that a developer machine already has.
+  `set-desktop-resolution.ps1`, `install-windows-app-runtime.ps1` and `install-winapp.ps1` are the
+  three things a CI runner needs that a developer machine already has.
 - `build-and-run.ps1`, cdylib → bindings → gate → WinUI app → launch (the dev loop).
 - `package.ps1`, cdylib (both arches) → bindings → MSIX bundle → `.msixupload` (the Store path),
   or `-Channel Direct` → an unsigned `.msixbundle` plus the staged Windows App Runtime, for the

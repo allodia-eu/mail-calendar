@@ -8,9 +8,9 @@
 # WHY THE HARNESS. The showcase engine performs no mail writes, so a drop there proves only that
 # something was dispatched. The harness moves the message on a real server and the list shows it.
 #
-# WHY A REAL DRAG. No automation pattern starts a drag, so the gesture is injected with
-# mouse_event: button down on the message, stepped ABSOLUTE moves (a cursor warp starts no drag;
-# uia.ps1's Move-UiaPointerOnto says why), button up on the folder.
+# WHY A REAL DRAG. No automation pattern starts a drag, so the gesture is real pointer input
+# (winapp.ps1): button down on the message, a move across the window, a rest on the folder so its
+# DragOver has answered, and the button up there.
 #
 # The seed's "Filed under Projects" travels to the Inbox and back, so the suite leaves the mailbox
 # as it found it.
@@ -57,39 +57,18 @@ function Wait-SubjectRow {
   $false
 }
 
-# Presses on $From, travels to $To in steps, and lets go there.
+# Presses on $From and lets go on $To's own line.
 function Invoke-PointerDrag {
   param([Parameter(Mandatory)] [object] $From, [Parameter(Mandatory)] [object] $To)
-  Add-Type -AssemblyName System.Windows.Forms
-  $a = Get-RenderedBounds -Element $From -What 'the dragged message'
   $b = Get-RenderedBounds -Element $To -What 'the folder dropped on'
-  $screen = [System.Windows.Forms.SystemInformation]::VirtualScreen
-  $moveTo = {
-    param([double] $x, [double] $y)
-    $nx = [int](($x - $screen.Left) * 65535 / ($screen.Width - 1))
-    $ny = [int](($y - $screen.Top) * 65535 / ($screen.Height - 1))
-    # MOVE | ABSOLUTE | VIRTUALDESK
-    [Allodia.UiaPointer]::mouse_event((0x0001 -bor 0x8000 -bor 0x4000), $nx, $ny, 0, [UIntPtr]::Zero)
-  }
-  $fromX = $a.X + $a.Width / 2; $fromY = $a.Y + $a.Height / 2
   # Onto the label, clear of the chevron and the unread count at either end of the row. Onto the
   # row's own line, 20 epx down: an open folder's bounds take in its subfolders' rows, and the
   # middle of those is one of them.
-  $toX = $b.X + [Math]::Min(120, $b.Width / 3); $toY = $b.Y + [Math]::Min($b.Height / 2, (ConvertTo-UiaPixels 20))
-  & $moveTo $fromX $fromY
-  Start-Sleep -Milliseconds 200
-  [Allodia.UiaPointer]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)   # LEFTDOWN
-  Start-Sleep -Milliseconds 200
-  $steps = 30
-  foreach ($step in 1..$steps) {
-    & $moveTo ($fromX + ($toX - $fromX) * $step / $steps) ($fromY + ($toY - $fromY) * $step / $steps)
-    Start-Sleep -Milliseconds 30
-  }
-  # A last small move over the target, so DragOver has answered for this row before the release.
-  Start-Sleep -Milliseconds 400
-  & $moveTo ($toX + 4) $toY
-  Start-Sleep -Milliseconds 400
-  [Allodia.UiaPointer]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)   # LEFTUP
+  $toX = [int]($b.X + [Math]::Min(120, $b.Width / 3))
+  $toY = [int]($b.Y + [Math]::Min($b.Height / 2, (ConvertTo-UiaPixels 20)))
+  # The rest before the release is what lets DragOver answer for this row; without it the drop can
+  # land before the row has said it takes one.
+  Invoke-WinappDrag -From $From -ToPoint $toX, $toY -DwellMs 800
   Start-Sleep -Milliseconds 300
 }
 

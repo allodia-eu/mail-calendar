@@ -13,6 +13,7 @@
 #                                   #   re-syncs the INBOX, so this is how you pick up delivered mail
 #   ./control.ps1 swipe archive     # relaunch + swipe the first row (delete | archive | star)
 #   ./control.ps1 ui-dump           # print the live window's UI Automation tree (control/name/id)
+#   ./control.ps1 home -DevToolsPort 9222   # also open the composer's page to composer.ps1
 #
 # To ASSERT on the UI (rather than just look at it), dot-source ./uia.ps1, it carries the walk and
 # the match rules that keep WinUI's automation tree from handing you a false PASS. Read its header
@@ -22,7 +23,10 @@ param(
   [Parameter(Mandatory, Position = 0)][string] $Action,
   # The swipe verb's action: delete | archive | star. (Both positions are explicit: once ANY
   # parameter declares a Position, the ones without it stop binding positionally.)
-  [Parameter(Position = 1)][string] $Value
+  [Parameter(Position = 1)][string] $Value,
+  # Opens the WebView2 DevTools protocol on this port for the relaunched process, so composer.ps1
+  # can read the message body. Off unless asked for.
+  [int] $DevToolsPort
 )
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
@@ -87,9 +91,19 @@ function Invoke-Relaunch([string] $Hook, [string] $HookValue = '1') {
       throw "MAILCAL_DEV_ACCOUNT=$env:MAILCAL_DEV_ACCOUNT needs the harness certificates, and there are none at $ca, run scripts/dev/harness.sh up."
     }
   }
-  Start-Process $exe
+  Start-DevToolsProcess -Exe $exe -Port $DevToolsPort
   $state = if ($Hook) { "$Hook=$HookValue" } else { '(default view)' }
   Write-Host "==> relaunched: $state, account=$env:MAILCAL_DEV_ACCOUNT" -ForegroundColor Green
+}
+
+# WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS is how the WebView2 runtime is asked for the port, and it is
+# process-wide, so it is set for this one launch and removed at once: left behind, every later launch
+# from this shell would open the port too. showcase.ps1 does the same.
+function Start-DevToolsProcess([string] $Exe, [int] $Port) {
+  Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue
+  if ($Port) { $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$Port" }
+  try { Start-Process $Exe }
+  finally { Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue }
 }
 
 function Invoke-UiDump {

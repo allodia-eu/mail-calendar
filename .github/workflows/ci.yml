@@ -744,6 +744,12 @@ jobs:
       - name: Register the Windows App Runtime
         run: ./clients/windows/uitests/install-windows-app-runtime.ps1 -Arch x64
 
+      # Every press the UI suites make goes through Microsoft's winapp CLI (clients/windows/winapp.ps1).
+      # The script installs the release it pins and checks it against GitHub's published digest,
+      # rather than taking whatever winget serves that day.
+      - name: Install winapp
+        run: ./clients/windows/uitests/install-winapp.ps1 -Arch x64
+
       # A runner comes up at 1024x768 and the showcase suites measure a 1440x900 window. Clipped,
       # the two ways they lie are both silent: a screen grab past the edge returns black, so every
       # theme reads as dark, and a NavigationView below its own breakpoint changes display mode, so
