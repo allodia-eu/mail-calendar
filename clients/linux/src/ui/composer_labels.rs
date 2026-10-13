@@ -25,12 +25,6 @@ pub(super) fn editor_labels() -> Value {
         ("fontDefault", l10n::editor_font_default()),
         ("blockStyle", l10n::editor_block_style()),
         ("blockNormal", l10n::editor_block_normal()),
-        ("heading1", l10n::editor_heading("1")),
-        ("heading2", l10n::editor_heading("2")),
-        ("heading3", l10n::editor_heading("3")),
-        ("heading4", l10n::editor_heading("4")),
-        ("heading5", l10n::editor_heading("5")),
-        ("heading6", l10n::editor_heading("6")),
         ("bulletedList", l10n::editor_bulleted_list()),
         ("numberedList", l10n::editor_numbered_list()),
         ("indent", l10n::editor_indent()),
@@ -60,10 +54,24 @@ pub(super) fn editor_labels() -> Value {
         ("linkApply", l10n::editor_link_apply()),
         ("linkRemove", l10n::editor_link_remove()),
     ];
+    // A heading's name carries its level, so the catalog answers it with an owned string.
+    let headings = [
+        ("heading1", l10n::editor_heading("1")),
+        ("heading2", l10n::editor_heading("2")),
+        ("heading3", l10n::editor_heading("3")),
+        ("heading4", l10n::editor_heading("4")),
+        ("heading5", l10n::editor_heading("5")),
+        ("heading6", l10n::editor_heading("6")),
+    ];
     Value::Object(
         labels
             .into_iter()
-            .map(|(key, text)| (key.to_owned(), Value::String(text)))
+            .map(|(key, text)| (key.to_owned(), Value::String(text.to_owned())))
+            .chain(
+                headings
+                    .into_iter()
+                    .map(|(key, text)| (key.to_owned(), Value::String(text))),
+            )
             .collect(),
     )
 }
