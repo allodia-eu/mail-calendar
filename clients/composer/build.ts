@@ -54,10 +54,17 @@ async function bundle(): Promise<string> {
   return (await artifact.text()).trimEnd();
 }
 
+/// The stylesheets, in this order, as one sheet. The popovers come last: nothing in the editor's
+/// own sheet reaches inside one, so the order changes no rule.
+const STYLESHEETS = ["editor.css", "popovers.css"];
+
 /// The stylesheet, indented back to where it sat when it lived in the shell, so the artifact reads
 /// as one document rather than as two files stapled together.
 async function styles(): Promise<string> {
-  const css = (await Bun.file(`${ROOT}src/editor.css`).text()).trimEnd();
+  const sheets = await Promise.all(
+    STYLESHEETS.map(async (name) => (await Bun.file(`${ROOT}src/${name}`).text()).trimEnd()),
+  );
+  const css = sheets.join("\n\n");
   const indented = css.replace(/^(?=.)/gm, "    ");
   return `<style>\n${indented}\n  </style>`;
 }
