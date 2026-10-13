@@ -252,3 +252,37 @@ pub(crate) fn source_for(
         crate::CredentialOrigin::Stored,
     )
 }
+
+/// Asserts that `provider`, built over a token source whose grant is dead, takes both draft verbs
+/// to its delegate rather than answering them with the trait's rejecting default.
+///
+/// The two are told apart by their error: reaching the delegate means minting a token first,
+/// which the dead grant refuses as an authentication failure, while the default answers
+/// `InvalidState` without asking anyone. So the test needs no mail server, and still fails on
+/// exactly the wrapper that advertises drafts and does not forward them.
+pub(crate) async fn assert_drafts_reach_the_delegate(provider: &dyn engine_provider::Provider) {
+    use engine_core::{error::FailureClass, ids::MessageIdHeader, mail::EmailAddress};
+    use engine_provider::Draft;
+
+    assert!(
+        provider.connection_info().capabilities.mail_drafts(),
+        "drafts are forwarded, so they must be advertised"
+    );
+    let account = unique_account();
+    let draft = Draft::new(
+        MessageIdHeader::new("draft@example.com").expect("valid message id"),
+        EmailAddress::new("from@example.com"),
+        vec![EmailAddress::new("to@example.com")],
+        "Subject",
+        "Body",
+    );
+    let key = engine_core::ids::ProviderKey::new("draft-1").expect("valid key");
+
+    let saved = provider
+        .put_draft(&account, &draft, None)
+        .await
+        .unwrap_err();
+    assert_eq!(saved.class(), FailureClass::Authentication, "{saved}");
+    let removed = provider.delete_draft(&account, &key).await.unwrap_err();
+    assert_eq!(removed.class(), FailureClass::Authentication, "{removed}");
+}

@@ -4,7 +4,7 @@
 //! delegate cache, and the connect entry points, to keep both files under the 500-line cap.
 
 use async_trait::async_trait;
-use engine_api::CalendarWrites;
+use engine_api::{CalendarWrites, ProviderKey};
 use engine_core::{
     ids::AccountId,
     mail::{Mailbox, Message},
@@ -200,6 +200,45 @@ impl Provider for RefreshingGraphProvider {
                     self.invalidate_delegate();
                 }
             })
+    }
+
+    /// Saving a draft is **not** re-issued on a dropped connection, for the reason a send is not:
+    /// it is a `POST` that creates a message, and one that landed before the socket died would be
+    /// stored a second time by a replay. The outbox op behind it retries on a fresh connection
+    /// instead.
+    async fn put_draft(
+        &self,
+        account: &AccountId,
+        draft: &Draft,
+        replacing: Option<&ProviderKey>,
+    ) -> ProviderResult<ProviderKey> {
+        let provider = self.delegate().await?;
+        provider
+            .put_draft(account, draft, replacing)
+            .await
+            .inspect_err(|err| {
+                if should_reconnect(err) {
+                    self.invalidate_delegate();
+                }
+            })
+    }
+
+    /// Removing one is retried on a dropped connection: the trait requires an absent draft to
+    /// settle as done, so a repeat of a removal that already landed is a no-op.
+    async fn delete_draft(&self, account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {
+        let mut provider = self.delegate().await?;
+        let mut reconnected = false;
+        loop {
+            match provider.delete_draft(account, draft).await {
+                Ok(()) => return Ok(()),
+                Err(err) if !reconnected && should_reconnect(&err) => {
+                    self.invalidate_delegate();
+                    provider = self.delegate().await?;
+                    reconnected = true;
+                }
+                Err(err) => return Err(err),
+            }
+        }
     }
 
     /// Graph reports a message through `POST /messages/{id}/reportMessage`, forwarded on the same

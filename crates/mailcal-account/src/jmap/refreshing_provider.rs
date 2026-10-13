@@ -12,7 +12,7 @@
 //! to keep both files under the 500-line cap.
 
 use async_trait::async_trait;
-use engine_api::CalendarWrites;
+use engine_api::{CalendarWrites, ProviderKey};
 use engine_core::{
     calendar::{Calendar, Event},
     ids::AccountId,
@@ -214,6 +214,24 @@ impl Provider for RefreshingJmapProvider {
             .await?
             .set_sender_name(account, identity, name)
             .await
+    }
+
+    /// Forwarded whenever the session advertised drafts, which is when this wrapper's capabilities
+    /// say so: advertising and forwarding move together (see `sender_identities`).
+    async fn put_draft(
+        &self,
+        account: &AccountId,
+        draft: &Draft,
+        replacing: Option<&ProviderKey>,
+    ) -> ProviderResult<ProviderKey> {
+        self.delegate()
+            .await?
+            .put_draft(account, draft, replacing)
+            .await
+    }
+
+    async fn delete_draft(&self, account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {
+        self.delegate().await?.delete_draft(account, draft).await
     }
 
     /// JMAP reports a message by setting the RFC 8621 `$junk`/`$notjunk` keyword, forwarded to the

@@ -89,6 +89,8 @@ impl RefreshingGraphProvider {
                     verdicts: ReportVerdicts::all(),
                     evidence: ReportEvidence::Acknowledged,
                 })
+                // Forwarded by this wrapper's `Provider`: `put_draft` and `delete_draft`.
+                .with_mail_drafts()
                 .with_submission()
                 // The whole `Draft` is forwarded to the delegate untouched, so whatever it can
                 // send, this wrapper can. Graph submits assembled RFC 5322 bytes and therefore
@@ -262,9 +264,23 @@ mod tests {
     use engine_core::sync::SyncScope;
 
     use super::{
-        token_source::test_support::{mock_token_endpoint, source_at},
+        token_source::test_support::{
+            assert_drafts_reach_the_delegate, dead_grant_token_endpoint, mock_token_endpoint,
+            source_at,
+        },
         *,
     };
+
+    /// A draft saved in an Outlook account reached the trait's default and failed with "provider
+    /// does not support mail drafts", although the Graph adapter implements both verbs: this
+    /// wrapper reports a capability set of its own and forwards each verb by hand, and drafts
+    /// were in neither.
+    #[tokio::test]
+    async fn drafts_are_advertised_and_forwarded_to_graph() {
+        let (endpoint, _hits) = dead_grant_token_endpoint();
+        let provider = connect_graph_folder(source_at(endpoint, None), "drafts", None).unwrap();
+        assert_drafts_reach_the_delegate(provider.as_ref()).await;
+    }
 
     #[test]
     fn a_retryable_transport_error_triggers_a_reconnect_but_a_rate_limit_or_auth_does_not() {

@@ -18,7 +18,10 @@
 
 mod live_oauth;
 
+use std::time::{Duration, Instant};
+
 use live_oauth::{LOGIN as EMAIL, PASSWORD, RecordingStore, app, param, sign_in_as_the_user};
+use mailcal_bindings::{DraftStatus, Recipients};
 
 /// A custom-scheme redirect of the shape every client registers (`<app id>://jmap-oauth`). Nothing
 /// dereferences it: the code travels back in the callback URL this test builds.
@@ -104,11 +107,44 @@ fn a_jmap_account_signs_in_through_discovery_and_registration() {
         .add_account(config)
         .expect("the signed-in account connects");
     assert_eq!(row.email, EMAIL);
-    let persisted = store.0.lock().expect("store mutex poisoned");
-    assert!(
-        persisted.iter().any(|toml| toml.contains("[jmap.oauth]")),
-        "the host was asked to keep the grant, or the account is gone at the next launch",
-    );
+    {
+        let persisted = store.0.lock().expect("store mutex poisoned");
+        assert!(
+            persisted.iter().any(|toml| toml.contains("[jmap.oauth]")),
+            "the host was asked to keep the grant, or the account is gone at the next launch",
+        );
+    }
+
+    // A signed-in account is wrapped so its token is refreshed on every call, and that wrapper
+    // forwards each verb by hand: a draft verb it left out answered every save with "provider
+    // does not support mail drafts" while the session advertised drafts.
+    let composition = "live-oauth-draft".to_owned();
+    app.save_draft(
+        composition.clone(),
+        Recipients {
+            to: EMAIL.to_owned(),
+            cc: String::new(),
+            bcc: String::new(),
+        },
+        "Saved through a signed-in account".to_owned(),
+        r#"{"blocks":[{"Paragraph":{"content":[{"Text":{"text":"draft","bold":false,"italic":false,"underline":false}}]}}],"attachments":[]}"#.to_owned(),
+        Vec::new(),
+        Some(row.id.clone()),
+    )
+    .expect("the save is accepted");
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let status = loop {
+        let status = app
+            .draft_status(composition.clone())
+            .expect("a composition id");
+        if matches!(status, DraftStatus::Saved | DraftStatus::Failed) || Instant::now() > deadline {
+            break status;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    };
+    assert_eq!(status, DraftStatus::Saved, "the draft reaches the server");
+    app.discard_draft(composition)
+        .expect("the draft is discarded");
 }
 
 /// The main harness must *not* offer sign-in: the clients' setup-form tests run against it and

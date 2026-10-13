@@ -115,6 +115,8 @@ impl RefreshingGmailProvider {
                     verdicts: ReportVerdicts::without_phishing(),
                     evidence: ReportEvidence::Convention,
                 })
+                // Forwarded by this wrapper's `Provider`: `put_draft` and `delete_draft`.
+                .with_mail_drafts()
                 .with_submission()
                 // This wrapper reports its own capabilities rather than the delegate's, so a
                 // flag omitted here is a flag the account does not have; however loudly the
@@ -238,6 +240,19 @@ mod tests {
             "google",
             crate::CredentialOrigin::FreshSignIn,
         )
+    }
+
+    /// The same gap as the Graph wrapper's: Gmail's adapter saves and removes drafts, and this
+    /// wrapper neither advertised nor forwarded either verb, so every save was refused.
+    #[tokio::test]
+    async fn drafts_are_advertised_and_forwarded_to_gmail() {
+        use crate::graph::test_support::{
+            assert_drafts_reach_the_delegate, dead_grant_token_endpoint, source_at,
+        };
+
+        let (endpoint, _hits) = dead_grant_token_endpoint();
+        let provider = connect_google_folder(source_at(endpoint, None), None).unwrap();
+        assert_drafts_reach_the_delegate(provider.as_ref()).await;
     }
 
     #[test]
