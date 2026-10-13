@@ -360,11 +360,12 @@
       flex: none;
       overflow: visible;
       box-sizing: border-box;
-      /* Filling the viewport when empty; so tapping anywhere focuses the body; is done in JS
-         (`fillViewport`), NOT here. Viewport-percentage units are dead in this WebView: it is laid
-         out after the page loads, so its layout viewport is fixed at zero height and both
+      /* Filling the viewport when empty, so tapping anywhere focuses the body, is measured in JS
+         (`fillViewport`) and only applied here. Viewport-percentage units are dead in this WebView:
+         it is laid out after the page loads, so its layout viewport is fixed at zero height and both
          `100vh` and `100%` compute to `0px` with no warning. Do not "simplify" this back to
          `min-height: 100vh`; it silently does nothing and the body stops being tappable. */
+      min-height: var(--composer-fill-height, 0px);
       /* 16px sides to line up with the native header fields' inset. */
       padding: var(--composer-top-inset, 14px) 16px var(--composer-bottom-inset, 56px);
     }
@@ -430,6 +431,14 @@
     img {
       max-width: 100%;
       height: auto !important;
+    }
+
+    /* Preformatted text keeps its line breaks and wraps at the editor's edge, which is how
+       Thunderbird shows the `<pre wrap>` its quotes are written in. Unwrapped, one long line on a
+       phone widens the whole page, and the pinned toolbar ends up beside the screen. The editor's
+       view only: the message keeps the markup it was written in. */
+    pre {
+      white-space: pre-wrap;
     }
 
     /* The quoted original on reply/forward. The attribution is display-only; the body stays
@@ -1972,7 +1981,7 @@
       doc.documentElement.style.setProperty("--composer-bottom-inset", `${toolbar.offsetHeight}px`);
     };
     const fillViewport = () => {
-      editor.style.minHeight = `${doc.documentElement.clientHeight}px`;
+      doc.documentElement.style.setProperty("--composer-fill-height", `${doc.documentElement.clientHeight}px`);
     };
     return {
       useNativeComposerChrome() {

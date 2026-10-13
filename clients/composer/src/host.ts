@@ -35,8 +35,15 @@ export function installNativeChrome(editor: HTMLElement, toolbar: HTMLElement): 
   // merely fragile here, it is dead, and the editor collapses to the height of its one empty line
   // while the rest of the composer looks like a body you cannot tap. `clientHeight` reports the true
   // height, so size from that, and re-measure on resize (the keyboard opening changes it).
+  //
+  // Set on the root, never on the editor: the revision counter watches the editor's attributes,
+  // so a height written there would read as an edit every time the keyboard moved, and a stored
+  // draft would be saved over with nothing typed.
   const fillViewport = () => {
-    editor.style.minHeight = `${doc.documentElement.clientHeight}px`;
+    doc.documentElement.style.setProperty(
+      "--composer-fill-height",
+      `${doc.documentElement.clientHeight}px`,
+    );
   };
 
   return {

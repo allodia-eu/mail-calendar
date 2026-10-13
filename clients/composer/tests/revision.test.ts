@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { installNativeChrome } from "../src/host";
 import { installRevisionCounter } from "../src/revision";
 import { harness } from "./support";
 
@@ -46,5 +47,21 @@ describe("the revision counter", () => {
     paragraph.firstChild!.textContent = "two";
     await settled();
     expect(revision()).toBeGreaterThan(after);
+  });
+
+  test("does not count the editor being fitted to the screen", async () => {
+    // Android sizes the editor to the viewport every time the keyboard moves. Counted, that read
+    // as an edit, and a draft another client stored was saved over with nothing typed.
+    const { editor } = harness("<p>Half a sentence</p>");
+    const toolbar = editor.ownerDocument.createElement("div");
+    editor.ownerDocument.body.appendChild(toolbar);
+    const chrome = installNativeChrome(editor, toolbar);
+    const revision = installRevisionCounter(editor);
+    chrome.useNativeComposerChrome();
+    chrome.setComposerTopInset(48);
+    const window = editor.ownerDocument.defaultView!;
+    window.dispatchEvent(new window.Event("resize"));
+    await settled();
+    expect(revision()).toBe(0);
   });
 });
