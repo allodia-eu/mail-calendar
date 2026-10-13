@@ -42,9 +42,6 @@ impl<P: Provider> App<P> {
             return Err("that message is not a draft".to_owned());
         }
         let (body, pictures) = self.draft_content(message, &stored).await?;
-        let attachments = self
-            .stage_attachments_of(message, &stored, staging_directory)
-            .await?;
         // A draft written elsewhere may carry no `Message-ID` at all, and a new one then
         // serves as well: what the header has to be is the *same* on every save of this
         // composition, which is what the engine leases a queued save's resource on. It is
@@ -58,6 +55,11 @@ impl<P: Provider> App<P> {
         else {
             return Err("the draft has no id to save under".to_owned());
         };
+        // Staged last, so a refusal above leaves nothing of the user's mail in the host's
+        // directory.
+        let attachments = self
+            .stage_attachments_of(message, &stored, staging_directory)
+            .await?;
         let envelope = &stored.envelope;
         let threading = threading_of(envelope.in_reply_to.first(), &envelope.references);
         // Only beside HTML, where the editor completes the attribution its stored quote carries
@@ -155,6 +157,6 @@ impl<P: Provider> App<P> {
             key: row.mail.key,
         };
         let original = self.find_message_in(&original_ref).await?;
-        self.quote_source(&original_ref, &original).await
+        Some(super::open::quote_headers(&original))
     }
 }

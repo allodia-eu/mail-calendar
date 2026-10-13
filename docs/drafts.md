@@ -221,9 +221,11 @@ and requires the document it was saved from.
 **A reopened quote shows both attributions.** A stored quote carries the style it was saved in,
 the one-line "On … wrote:" or the header block, and nothing of the other. When the message it
 quotes is still in the store, found in the draft's own conversation by the `Message-ID` its
-headers name, it comes with the opening, and the host completes the missing style from it
-(`completeComposerQuoteAttribution`). Only the empty half is filled, so the half the draft was
-saved with stays exactly as it was written. The style picker opens on the style the quote was
+headers name, its headers come with the opening (read from the store, so this works offline, and
+without its body, which the draft already holds), and the host completes the missing style from
+them (`completeComposerQuoteAttribution`). Only the empty half is filled, so the half the draft was
+saved with stays exactly as it was written. A draft stored as text alone holds its quote in its
+words, so it is handed no original to quote again. The style picker opens on the style the quote was
 saved in. A quote whose original cannot be found (a queued send moved back out of the Outbox is not
 stored yet, and an original can have left the synced window) keeps the one style it has, and no
 picker is offered for it, since switching would show an empty attribution.

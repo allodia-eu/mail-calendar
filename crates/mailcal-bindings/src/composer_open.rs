@@ -143,6 +143,7 @@ pub struct ComposeOpening {
     /// The quoted original: a reply's or forward's, and a stored one's when it has `body_html`
     /// and the message it quotes is still here. Beside an empty `body_html` it is always a fresh
     /// reply's or forward's, which is what lets the seed order above tell the two apart.
+    /// A stored one carries the original's headers and no body: the stored quote holds the body.
     pub quote: Option<QuoteSource>,
     /// The files the composer opens holding, already in the staging directory the host named.
     /// It must open holding all of them: a stored message's next save replaces it, so a file left

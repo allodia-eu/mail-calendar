@@ -50,6 +50,9 @@ pub(super) struct ThreadProvider {
     /// When set, `submit_email` fails **retryably**, so the engine parks the message in the
     /// outbox: sent from a train, not lost.
     send_queues: bool,
+    /// Raw sources served for particular messages, by id, ahead of every built-in one: a draft
+    /// another client stored, byte for byte.
+    sources: Vec<(String, Vec<u8>)>,
 }
 
 /// One recorded draft save: what was stored, and the key it said it was superseding.
@@ -81,7 +84,14 @@ impl ThreadProvider {
             draft_deletes: Arc::new(Mutex::new(Vec::new())),
             send_fails: false,
             send_queues: false,
+            sources: Vec::new(),
         }
+    }
+
+    /// A provider that serves `source` as the raw message `id`.
+    pub(super) fn serving(mut self, id: &str, source: &[u8]) -> Self {
+        self.sources.push((id.to_owned(), source.to_vec()));
+        self
     }
 
     /// A provider whose every send fails outright, with nothing queued behind it.
@@ -230,6 +240,13 @@ impl Provider for ThreadProvider {
             return Err(engine_provider::ProviderError::retryable(
                 "message source unavailable",
             ));
+        }
+        if let Some((_, source)) = self
+            .sources
+            .iter()
+            .find(|(id, _)| id == message.id.as_str())
+        {
+            return Ok(RawMime::new(source.clone()));
         }
         // A stored draft is a half-written message with a file on it: the shape a resume has
         // to carry back into the composer whole (`docs/drafts.md`).

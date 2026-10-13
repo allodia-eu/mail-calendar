@@ -49,7 +49,8 @@ pub enum ComposeOrigin {
 
 /// What someone other than the user put in the composer before it opened: a mail link, a share,
 /// an assistant's draft. Laid over what the origin opens with, field by field; an empty field
-/// leaves the origin's alone.
+/// leaves the origin's alone. A stored draft opens holding its own body, which a prefill's text
+/// does not replace: the body applies only to a composer that opens on none.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ComposePrefill {
     /// The `To` field, comma-joined.
@@ -165,6 +166,7 @@ impl<P: Provider> App<P> {
             .find_message_in(message)
             .await
             .ok_or_else(|| "message is not available".to_owned())?;
+        let message_id = fresh_message_id()?;
         let (quote, pictures) = self.quoted(message, &original).await;
         // A forward opens even when its originals cannot be staged, saying so: the words are still
         // worth sending, and the user decides whether to without the files.
@@ -178,7 +180,7 @@ impl<P: Provider> App<P> {
             quote,
             attachments: staged.unwrap_or_default(),
             attachments_failed,
-            ..blank(message.account.clone(), fresh_message_id()?)
+            ..blank(message.account.clone(), message_id)
         })
     }
 
@@ -202,8 +204,8 @@ impl<P: Provider> App<P> {
     }
 
     /// The message a composer quotes, as the reading view shows it, without the parts its
-    /// pictures came from: what a reopened message needs, whose own parts already carry them.
-    pub(super) async fn quote_source(
+    /// pictures came from.
+    async fn quote_source(
         &self,
         message: &MessageRef,
         original: &engine_api::Message,
@@ -215,17 +217,32 @@ impl<P: Provider> App<P> {
             return None;
         }
         Some(QuoteSource {
-            from: reading.from,
-            date: original
-                .received_at
-                .or(original.sent_at)
-                .map_or_else(String::new, crate::query::format_instant),
-            to: reading.to,
-            cc: reading.cc,
-            subject: original.envelope.subject.clone().unwrap_or_default(),
             body_html: reading.html.unwrap_or_default(),
             body_plain: reading.plain.unwrap_or_default(),
+            ..quote_headers(original)
         })
+    }
+}
+
+/// The message a quote names, by its stored headers alone, its body left empty: all a reopened
+/// composer needs to complete the attribution its stored quote carries one style of, since the
+/// draft holds the quoted body itself. Nothing is fetched, so it works offline.
+pub(super) fn quote_headers(original: &engine_api::Message) -> QuoteSource {
+    let envelope = &original.envelope;
+    QuoteSource {
+        from: envelope
+            .from
+            .first()
+            .map_or_else(String::new, crate::reading::format_address),
+        date: original
+            .received_at
+            .or(original.sent_at)
+            .map_or_else(String::new, crate::query::format_instant),
+        to: crate::reading::format_addresses(&envelope.to),
+        cc: crate::reading::format_addresses(&envelope.cc),
+        subject: envelope.subject.clone().unwrap_or_default(),
+        body_html: String::new(),
+        body_plain: String::new(),
     }
 }
 

@@ -443,7 +443,7 @@ fn attachment_row(attachment: &MessageAttachment) -> AttachmentRow {
 
 /// Formats an address list for display: each as `Name <email>` (when a display name is
 /// present) or bare `email`, comma-joined. Empty for an empty list.
-fn format_addresses(addresses: &[EmailAddress]) -> String {
+pub(crate) fn format_addresses(addresses: &[EmailAddress]) -> String {
     addresses
         .iter()
         .map(format_address)
@@ -452,7 +452,7 @@ fn format_addresses(addresses: &[EmailAddress]) -> String {
 }
 
 /// Formats one address as `Name <email>` when it has a non-blank display name, else `email`.
-fn format_address(address: &EmailAddress) -> String {
+pub(crate) fn format_address(address: &EmailAddress) -> String {
     match &address.name {
         Some(name) if !name.trim().is_empty() => format!("{name} <{}>", address.email),
         _ => address.email.clone(),

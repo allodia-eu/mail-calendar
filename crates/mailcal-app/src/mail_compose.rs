@@ -25,10 +25,11 @@ use crate::{
 impl<P: Provider> App<P> {
     /// Renders a shared composer document, resolves host blob bytes, and submits the
     /// resulting rich draft through the durable outbox. `from` is the account the user picked in
-    /// the composer's From dropdown; `None` derives it ([`App::compose_account`]: the selected
-    /// account, else the default send account, else the first). The `to`/`cc`/`bcc` fields are
-    /// the host's comma-separated recipient lists (see [`parse_addresses`]); Bcc recipients are
-    /// delivered but hidden by the engine.
+    /// the composer's From dropdown; `None` sends from the account `composition` opened on, and
+    /// derives one for a composition the core was never told of ([`App::compose_account`]: the
+    /// selected account, else the default send account, else the first). The `to`/`cc`/`bcc` fields
+    /// are the host's comma-separated recipient lists (see [`parse_addresses`]); Bcc recipients
+    /// are delivered but hidden by the engine.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn submit_rich_mail(
         &self,
@@ -41,7 +42,12 @@ impl<P: Provider> App<P> {
         blobs: Vec<ComposerBlob>,
         composition: Option<CompositionId>,
     ) {
-        let account = match from {
+        // Without a From, a composition goes out from the account it opened on, the one its
+        // saves go to: a reply from the account that received the original.
+        let opened_on = composition
+            .as_ref()
+            .and_then(|composition| self.composition_account(composition));
+        let account = match from.or(opened_on) {
             Some(account) => account,
             // No accounts configured at all, nothing to send from, and nothing to report.
             None => match self.compose_account().await {

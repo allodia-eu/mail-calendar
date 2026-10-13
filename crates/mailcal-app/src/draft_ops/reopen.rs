@@ -118,14 +118,9 @@ impl<P: Provider> App<P> {
         composition: Option<&CompositionId>,
         draft: Draft,
     ) -> Draft {
-        let threading = composition.and_then(|composition| {
-            self.drafts
-                .lock()
-                .expect("drafts mutex poisoned")
-                .open
-                .get(composition)
-                .and_then(|open| open.threading.clone())
-        });
+        let threading = self
+            .joined(composition, |open| open.threading.clone())
+            .flatten();
         match threading {
             Some(Threading {
                 in_reply_to: Some(parent),
@@ -141,15 +136,7 @@ impl<P: Provider> App<P> {
 
     /// What `composition`'s composer is doing: a new message for one the core was never told of.
     pub(crate) fn composition_kind(&self, composition: Option<&CompositionId>) -> ComposeKind {
-        composition
-            .and_then(|composition| {
-                self.drafts
-                    .lock()
-                    .expect("drafts mutex poisoned")
-                    .open
-                    .get(composition)
-                    .map(|open| open.kind)
-            })
+        self.joined(composition, |open| open.kind)
             .unwrap_or(ComposeKind::New)
     }
 
@@ -159,16 +146,24 @@ impl<P: Provider> App<P> {
         &self,
         composition: Option<&CompositionId>,
     ) -> Arc<[InlinePart]> {
-        composition
-            .and_then(|composition| {
-                self.drafts
-                    .lock()
-                    .expect("drafts mutex poisoned")
-                    .open
-                    .get(composition)
-                    .map(|open| Arc::clone(&open.pictures))
-            })
+        self.joined(composition, |open| Arc::clone(&open.pictures))
             .unwrap_or_else(|| Arc::from([]))
+    }
+
+    /// `read` of what the core knows of `composition`, or `None` for a composition it was never
+    /// told of: the one lock and lookup every accessor of an open composer goes through.
+    pub(super) fn joined<T>(
+        &self,
+        composition: Option<&CompositionId>,
+        read: impl FnOnce(&super::state::Composition) -> T,
+    ) -> Option<T> {
+        let composition = composition?;
+        self.drafts
+            .lock()
+            .expect("drafts mutex poisoned")
+            .open
+            .get(composition)
+            .map(read)
     }
 }
 

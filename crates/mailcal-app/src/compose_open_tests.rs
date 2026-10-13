@@ -8,7 +8,9 @@
 use engine_api::{Draft, Message, MessageIdHeader, ThreadId, ThreadRef};
 use mailcal_composer::{Block, ComposerDocument, Paragraph};
 
-use super::mail_fake::{ThreadProvider, app_and_logs, original_message, rich_stored_draft};
+use super::mail_fake::{
+    ThreadProvider, app_and_logs, original_message, rich_stored_draft, stored_draft,
+};
 use crate::{
     ComposeKind, ComposeOrigin, ComposePrefill, CompositionId, DraftsIntent, Intent, MessageRef,
 };
@@ -364,4 +366,55 @@ async fn a_prefill_names_the_account_to_write_from() {
 
     assert_eq!(opening.account, "acct-2");
     assert_eq!(opening.kind, ComposeKind::Reply);
+}
+
+/// A reply stored with an HTML body, its quote a region of it.
+const HTML_REPLY: &[u8] = b"From: me@allodia.local
+To: reply@remote.test
+Subject: Re: Quarterly report
+Message-ID: <html-reply@allodia.local>
+In-Reply-To: <parent@remote>
+References: <root@remote> <parent@remote>
+Content-Type: text/html; charset=utf-8
+
+<p>Thanks, looks good.</p><blockquote type=\"cite\">The report.</blockquote>
+";
+
+/// Reopens the stored reply `key`, served as `source`, beside the message it answers.
+async fn reopen_reply(key: &str, source: &[u8]) -> crate::ComposeOpening {
+    let mut draft = stored_draft(key);
+    draft.envelope.subject = Some("Re: Quarterly report".to_owned());
+    let parent = MessageIdHeader::new("parent@remote").expect("a Message-ID");
+    draft.envelope.in_reply_to = vec![parent.clone()];
+    draft.envelope.references = vec![
+        MessageIdHeader::new("root@remote").expect("a Message-ID"),
+        parent,
+    ];
+    let provider = ThreadProvider::with(vec![original_message("m1"), draft]).serving(key, source);
+    let (app, _logs) = app_and_logs(provider);
+    app.dispatch(Intent::RefreshMail).await;
+    app.open_composer(
+        composition(key),
+        ComposeOrigin::Draft {
+            message: MessageRef::from_parts("acct-1", key.to_owned()).unwrap(),
+        },
+        None,
+        &staging_dir(key),
+    )
+    .await
+    .expect("the draft resumes")
+}
+
+/// A reopened quote is completed from the original's headers in the store, and not its body, which
+/// the draft already holds: so completing the attribution fetches nothing and works offline.
+#[tokio::test]
+async fn a_reopened_quote_carries_the_originals_headers_and_no_body() {
+    let html = reopen_reply("html-reply", HTML_REPLY).await;
+    assert!(!html.body_html.is_empty());
+    let quote = html
+        .quote
+        .expect("a reopened HTML reply completes its attribution from the original");
+    assert_eq!(quote.from, "sender@remote.test");
+    assert_eq!(quote.subject, "Quarterly report");
+    assert!(quote.body_html.is_empty() && quote.body_plain.is_empty());
 }

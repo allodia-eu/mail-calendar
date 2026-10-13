@@ -221,10 +221,12 @@ async fn a_reply_from_another_account_still_threads_off_the_original() {
 async fn a_reply_without_a_from_still_sends_from_the_receiving_account() {
     let (app, outboxes) = two_account_app(vec![original_message("m1")]);
     app.dispatch(Intent::RefreshMail).await;
+    // The default send account names acct-2, which a send without a From would otherwise take.
+    app.set_default_send_account(Some("acct-2".to_owned()))
+        .await;
 
     let (document, blobs) = reply_document();
-    // No dropdown choice: the account that received the original replies (the default).
-    let intent = send_from_composer(
+    let mut intent = send_from_composer(
         &app,
         reply_origin("m1"),
         None,
@@ -236,6 +238,10 @@ async fn a_reply_without_a_from_still_sends_from_the_receiving_account() {
         blobs,
     )
     .await;
+    // No dropdown choice: the account the composer opened on, which received the original.
+    if let Intent::SubmitRichMail { from, .. } = &mut intent {
+        *from = None;
+    }
     let _task = dispatch_until(&app, intent, SendStatus::Sent).await;
 
     assert_eq!(outboxes.counts(), (1, 0));
