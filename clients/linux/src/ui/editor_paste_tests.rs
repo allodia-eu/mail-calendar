@@ -2,7 +2,7 @@
 
 use gtk::gdk;
 
-use super::is_paste_chord;
+use super::{is_paste_chord, is_plain_paste_chord};
 
 const NONE: gdk::ModifierType = gdk::ModifierType::empty();
 const CTRL: gdk::ModifierType = gdk::ModifierType::CONTROL_MASK;
@@ -23,10 +23,21 @@ fn shift_insert_is_a_paste() {
 }
 
 #[test]
-fn plain_text_paste_is_left_to_the_page() {
+fn plain_text_paste_is_not_a_picture_paste() {
     // Ctrl+Shift+V asks for the text without its formatting. A user asking for plain text is not
-    // asking for the picture beside it, so this chord must reach the editor untouched.
+    // asking for the picture beside it.
     assert!(!is_paste_chord(gdk::Key::v, CTRL | SHIFT));
+}
+
+#[test]
+fn ctrl_shift_v_is_the_plain_text_paste() {
+    // WebKitGTK binds nothing to it, so without the host it would do nothing at all. With Shift
+    // held the key arrives upper-case.
+    assert!(is_plain_paste_chord(gdk::Key::V, CTRL | SHIFT));
+    assert!(is_plain_paste_chord(gdk::Key::v, CTRL | SHIFT));
+    assert!(!is_plain_paste_chord(gdk::Key::v, CTRL));
+    assert!(!is_plain_paste_chord(gdk::Key::V, SHIFT));
+    assert!(!is_plain_paste_chord(gdk::Key::v, CTRL | SHIFT | ALT));
 }
 
 #[test]

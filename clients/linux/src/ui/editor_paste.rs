@@ -18,6 +18,11 @@
 //! actually carries a picture is taken.** Anything else stays the page's, so pasting text is
 //! untouched, and so is the plain-text paste a Ctrl+Shift+V asks for.
 //!
+//! ⚠️ **WebKitGTK binds no plain-text paste.** Ctrl+Shift+V reaches the page as nothing at all, so
+//! with formatted text keeping its formatting (`docs/composer-security.md` Gate 7) a user on this
+//! toolkit would have no way left to paste without it. The host gives the chord WebKit's own
+//! `PasteAsPlainText` command, whose paste event carries the text flavour alone.
+//!
 //! **A clipboard carries a picture two ways, and both are ordinary.** A screenshot tool or a
 //! browser's Copy Image puts the pixels there, as `image/png` and friends. A file manager's Copy
 //! puts a *reference* to the file instead, as `text/uri-list` and the portal's own types, with no
@@ -106,7 +111,8 @@ pub(super) fn paste_into_message(editor: &WebView, error: &gtk::Label) -> PasteP
     })
 }
 
-/// Takes Ctrl+V (and the X11 convention Shift+Insert) when the clipboard holds a picture.
+/// Takes Ctrl+V (and the X11 convention Shift+Insert) when the clipboard holds a picture, and
+/// Ctrl+Shift+V always, as the plain-text paste WebKitGTK does not bind (see the module header).
 ///
 /// ⚠️ **The controller goes on the editor's HOST, not on the view**, and in the **capture** phase.
 /// WebKitGTK installs key controllers of its own when it builds a `WebView`, and controllers on one
@@ -123,6 +129,11 @@ pub(super) fn install(host: &impl IsA<gtk::Widget>, editor: &WebView, answer: Pa
     keys.set_propagation_phase(gtk::PropagationPhase::Capture);
     let view = editor.clone();
     keys.connect_key_pressed(move |_, key, _, state| {
+        if is_plain_paste_chord(key, state) {
+            log::debug!("paste: plain text requested from the keyboard");
+            view.execute_editing_command(webkit6::EDITING_COMMAND_PASTE_AS_PLAIN_TEXT);
+            return glib::Propagation::Stop;
+        }
         if !is_paste_chord(key, state) {
             return glib::Propagation::Proceed;
         }
@@ -148,6 +159,14 @@ fn is_paste_chord(key: gdk::Key, state: gdk::ModifierType) -> bool {
     }
     (ctrl && !shift && matches!(key, gdk::Key::v | gdk::Key::V))
         || (shift && !ctrl && key == gdk::Key::Insert)
+}
+
+/// Whether this keystroke is the paste-as-plain-text every toolkit binds to Ctrl+Shift+V.
+fn is_plain_paste_chord(key: gdk::Key, state: gdk::ModifierType) -> bool {
+    let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
+    let shift = state.contains(gdk::ModifierType::SHIFT_MASK);
+    let alt = state.contains(gdk::ModifierType::ALT_MASK);
+    ctrl && shift && !alt && matches!(key, gdk::Key::v | gdk::Key::V)
 }
 
 /// The context menu's Paste, which reaches the page the same way the chord does and so needs the
