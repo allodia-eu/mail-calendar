@@ -584,6 +584,8 @@ jobs:
       # Measured, against the macOS leg as the control, which boots nothing: started before these
       # steps, the DerivedData restore and the rustup install went from 1s and 10s to 105-152s and
       # 129-136s; started after them, this core build went from 63s for two slices to 242s for one.
+      # Caching a booted device is no way round it either: its second boot cost as much CPU as its
+      # first (~450 CPU-seconds in two minutes on an M2), and the device is 1.9 GB by then.
       - name: Build the Rust core -> XCFramework + bindings
         run: ./clients/apple/Scripts/build-core.sh --slices ${{ matrix.slice }}
 
