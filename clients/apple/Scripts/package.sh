@@ -456,6 +456,8 @@ if [[ "$BUILD_CORE" -eq 1 ]]; then
   [[ "$FLOW" == ios-app-store || "$FLOW" == ios-device ]] || CORE_ARGS+=(--no-device)
   echo "==> Building the release Rust XCFramework (build-core.sh ${CORE_ARGS[*]})"
   "$HERE/Scripts/build-core.sh" "${CORE_ARGS[@]}"
+else
+  "$HERE/Scripts/composer-resource.sh"
 fi
 echo "==> Regenerating the Xcode project (xcodegen)"
 (cd "$HERE" && xcodegen generate >/dev/null)

@@ -90,7 +90,11 @@ else
   CORE_ARGS=(--no-device)
 fi
 
-[[ "$BUILD_CORE" -eq 1 ]] && "$HERE/Scripts/build-core.sh" "${CORE_ARGS[@]}"
+if [[ "$BUILD_CORE" -eq 1 ]]; then
+  "$HERE/Scripts/build-core.sh" "${CORE_ARGS[@]}"
+else
+  "$HERE/Scripts/composer-resource.sh"
+fi
 
 # The brand has to be in the environment before the project is generated, or every id in it is the
 # literal `${MAILCAL_APP_ID}` (docs/branding.md); lib.sh has already loaded it.

@@ -303,6 +303,8 @@ resolve_destination
 
 if [[ "$BUILD_CORE" -eq 1 ]]; then
   "$HERE/Scripts/build-core.sh"
+else
+  "$HERE/Scripts/composer-resource.sh"
 fi
 
 if command -v xcodegen >/dev/null 2>&1; then

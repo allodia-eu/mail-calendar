@@ -6,8 +6,9 @@
 # the client build would make bun a prerequisite of cargo, MSBuild and Gradle. This is the other
 # half of that bargain. The client *dev* scripts may depend on bun, and they call this first, so an
 # edit under clients/composer/src reaches the app you are about to run instead of the app silently
-# running the previous artifact; the same failure `--no-core` used to produce on Apple: green
-# build, app launches, and you verify the OLD behaviour believing you tested the new one.
+# running the previous artifact; the same failure `--no-core` would produce on Apple without
+# clients/apple/Scripts/composer-resource.sh: green build, app launches, and you verify the OLD
+# behaviour believing you tested the new one.
 #
 # Without bun it says so and continues. Loudly, because a skip that reads like a pass is exactly how
 # a stale editor gets signed off.
