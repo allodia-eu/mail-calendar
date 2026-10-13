@@ -77,15 +77,9 @@ else
   if [[ -n "$SIMULATOR" ]]; then
     UDID="$(sim_udid_by_name "$SIMULATOR")" || die "no available simulator named '$SIMULATOR'"
   else
-    UDID="$(booted_sim_udid iphone)" || {
-      # A UI test needs a booted simulator, and booting one is not something to make the caller do
-      # by hand for a gate that is otherwise self-contained.
-      UDID="$(first_iphone_sim)" || die "no iPhone simulator available; pass --simulator <name>"
-      info "booting simulator $UDID"
-      xcrun simctl boot "$UDID"
-    }
+    UDID="$(booted_sim_udid iphone)" || UDID="$(first_iphone_sim)" ||
+      die "no iPhone simulator available; pass --simulator <name>"
   fi
-  info "simulator: $UDID"
   TEAM=""
   CORE_ARGS=(--no-device)
 fi
@@ -115,14 +109,26 @@ ARGS=(
   -project "$PROJECT" -scheme AllodiaMail
   -destination "id=$UDID" -configuration Debug
   -derivedDataPath "$DERIVED_DATA" COMPILER_INDEX_STORE_ENABLE=NO
-  -collect-test-diagnostics never
 )
-if [[ "${#ONLY[@]}" -gt 0 ]]; then
-  for test in "${ONLY[@]}"; do ARGS+=(-only-testing:"$TARGET/$test"); done
-else
-  ARGS+=(-only-testing:"$TARGET")
-fi
 [[ -n "$TEAM" ]] && ARGS+=(DEVELOPMENT_TEAM="$TEAM")
+TEST_ARGS=(-collect-test-diagnostics never)
+if [[ "${#ONLY[@]}" -gt 0 ]]; then
+  for test in "${ONLY[@]}"; do TEST_ARGS+=(-only-testing:"$TARGET/$test"); done
+else
+  TEST_ARGS+=(-only-testing:"$TARGET")
+fi
+
+# Built before the simulator boots, never while it does. A booting simulator takes a three-core
+# runner for itself: booted first, as one `xcodebuild test` needs, it put ten minutes on GitHub's
+# `xcode-27` image into a build the macOS leg finishes in under two. `test-without-building`
+# reuses these products, so the split costs one more package resolution and nothing else.
+info "building $TARGET"
+xcodebuild build-for-testing "${ARGS[@]}"
+
+if [[ "$ON_DEVICE" -eq 0 ]]; then
+  info "simulator: $UDID (booting it if it is not already)"
+  xcrun simctl bootstatus "$UDID" -b >/dev/null
+fi
 
 info "running $TARGET $([[ "${#ONLY[@]}" -gt 0 ]] && printf '%s ' "${ONLY[@]}" || printf '(every test)')"
-exec xcodebuild test "${ARGS[@]}"
+exec xcodebuild test-without-building "${ARGS[@]}" "${TEST_ARGS[@]}"
