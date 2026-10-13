@@ -192,10 +192,10 @@ function collapseWhitespace(body: HTMLElement): void {
     if (inRegion(text)) continue;
     const value = text.nodeValue ?? "";
     if (preformatted(text)) {
-      text.nodeValue = value.replace(/[  ]/g, HARD_SPACE);
+      text.nodeValue = value.replace(/[ \u00A0]/g, HARD_SPACE);
       continue;
     }
-    const collapsed = value.replace(/[\t\n\r ]+/g, " ").replace(/ /g, HARD_SPACE);
+    const collapsed = value.replace(/[\t\n\r ]+/g, " ").replace(/\u00A0/g, HARD_SPACE);
     if (collapsed === " " && atLineEdge(text)) text.remove();
     else text.nodeValue = collapsed;
   }
@@ -203,7 +203,7 @@ function collapseWhitespace(body: HTMLElement): void {
 
 /// Stands for a space no layout collapses while a line is being tidied. A private-use character,
 /// so nothing a message carries can be mistaken for it.
-const HARD_SPACE = "";
+const HARD_SPACE = "\uE000";
 
 function textNodes(root: Node): Text[] {
   const walker = root.ownerDocument!.createTreeWalker(root, 4);

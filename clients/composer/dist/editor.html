@@ -2977,10 +2977,10 @@
         continue;
       const value = text.nodeValue ?? "";
       if (preformatted(text)) {
-        text.nodeValue = value.replace(/[  ]/g, HARD_SPACE);
+        text.nodeValue = value.replace(/[ \u00A0]/g, HARD_SPACE);
         continue;
       }
-      const collapsed = value.replace(/[\t\n\r ]+/g, " ").replace(/ /g, HARD_SPACE);
+      const collapsed = value.replace(/[\t\n\r ]+/g, " ").replace(/\u00A0/g, HARD_SPACE);
       if (collapsed === " " && atLineEdge(text))
         text.remove();
       else

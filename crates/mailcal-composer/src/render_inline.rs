@@ -251,24 +251,25 @@ fn escape_run_text(value: &str, out: &mut String, spaces: &mut impl Iterator<Ite
         match ch {
             ' ' if spaces.next().unwrap_or(false) => out.push_str("&nbsp;"),
             '\t' => out.push_str("<span style=\"white-space:pre\">\t</span>"),
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            _ => out.push(ch),
+            _ => escape_html_char(ch, out),
         }
     }
 }
 
 pub(crate) fn escape_html_text(value: &str, out: &mut String) {
+    for ch in value.chars() {
+        escape_html_char(ch, out);
+    }
+}
+
+fn escape_html_char(ch: char, out: &mut String) {
     // Element-text context: only these three are significant. Quotes need no escaping here
     // (attribute values go through `escape_html_attr`).
-    for ch in value.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            _ => out.push(ch),
-        }
+    match ch {
+        '&' => out.push_str("&amp;"),
+        '<' => out.push_str("&lt;"),
+        '>' => out.push_str("&gt;"),
+        _ => out.push(ch),
     }
 }
 
