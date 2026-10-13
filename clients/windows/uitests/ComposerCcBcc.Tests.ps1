@@ -40,6 +40,34 @@ function Close-Composer {
 # popup after the input, so the field's bottom edge is not the input's.
 $CentreToleranceDip = 2
 
+# The least height the editor may be left with once Cc and Bcc are open on a short window, in
+# device-independent pixels. Before the header fields scrolled, a 640-epx window left it about 20:
+# a sliver nobody can write in, with the toolbar's own scrollbar where the message should be.
+$EditorFloorDip = 120
+
+# Shrinks the main window to $Width x $Height epx for the length of $Body, then puts it back as it
+# was, maximised or not.
+function Use-ShortWindow {
+  param([int] $Width, [int] $Height, [scriptblock] $Body)
+  $window = Get-MailcalWindow
+  $states = $window.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern)
+  $was = $states.Current.WindowVisualState
+  $before = $window.Current.BoundingRectangle
+  $states.SetWindowVisualState([System.Windows.Automation.WindowVisualState]::Normal)
+  $transform = $window.GetCurrentPattern([System.Windows.Automation.TransformPattern]::Pattern)
+  $transform.Resize((ConvertTo-UiaPixels $Width), (ConvertTo-UiaPixels $Height))
+  Start-Sleep -Milliseconds 800
+  try { & $Body }
+  finally {
+    if ($was -eq [System.Windows.Automation.WindowVisualState]::Maximized) {
+      $states.SetWindowVisualState($was)
+    } else {
+      $transform.Resize($before.Width, $before.Height)
+      $transform.Move($before.X, $before.Y)
+    }
+  }
+}
+
 $Suite = @{
   Dataset = 'showcase'
   Cases   = @(
@@ -92,6 +120,25 @@ $Suite = @{
             'Cc stayed on screen after the chevron was unchecked, the reveal is one-way'
         }
         finally { Close-Composer }
+      }
+    },
+    @{
+      Name = 'on a short window the message keeps room to write in, with Cc and Bcc open'
+      Body = {
+        Use-ShortWindow -Width 1100 -Height 640 -Body {
+          Open-Composer
+          try {
+            Set-UiaToggle (Find-UiaElement -AutomationId 'CcBccToggle') -On
+            Start-Sleep -Milliseconds 500
+            $editor = Get-RenderedBounds -Element (Find-UiaElement -AutomationId 'Editor') -What 'the message editor'
+            $floor = ConvertTo-UiaPixels $EditorFloorDip
+            Assert-True ($editor.Height -ge $floor) `
+              "the editor is $($editor.Height)px tall against a ${floor}px floor: the header fields took the height the message needs instead of scrolling"
+            Assert-True ($null -ne (Find-UiaElement -AutomationId 'SendButton')) `
+              'Send is gone from the composer on a short window'
+          }
+          finally { Close-Composer }
+        }
       }
     }
   )
