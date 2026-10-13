@@ -106,6 +106,10 @@ fn rewrite_data_images(
 /// The `Content-ID` for one `data:` URI; reusing the id already minted for identical bytes, or
 /// decoding and minting a new one (appending its part). `None` when the URI is not a base64
 /// `image/*` we can decode, or when the minted id fails header validation.
+///
+/// Two URIs can carry the same bytes (one picture encoded twice, or under two spellings of its
+/// media type), and the id is made from the bytes, so the second reuses the part the first
+/// attached: two parts under one `Content-ID` would leave a reader to pick either.
 fn cid_for(
     uri: &str,
     minted: &mut HashMap<String, String>,
@@ -116,6 +120,10 @@ fn cid_for(
     }
     let (media, bytes) = decode_data_image(uri)?;
     let id = content_id_for(&bytes);
+    if minted.values().any(|existing| *existing == id) {
+        minted.insert(uri.to_owned(), id.clone());
+        return Some(id);
+    }
     let content_id = ContentIdHeader::new(&id).ok()?;
     attachments.push(DraftAttachment::inline(
         file_name(&media, attachments.len()),
@@ -244,6 +252,20 @@ mod tests {
         assert_eq!(attachments.len(), 1);
         let html = signature_html(&doc);
         assert_eq!(html.matches("src=\"cid:").count(), 2);
+    }
+
+    #[test]
+    fn the_same_bytes_under_two_spellings_attach_one_part() {
+        // A reopened draft's logo and a freshly seeded one can spell the media type differently;
+        // the bytes, and so the id, are the same, and two parts under one id would leave a reader
+        // to pick either.
+        let mut doc = document(&format!(
+            "<img src=\"data:image/png;base64,{PNG}\"><img src=\"data:image/PNG;base64,{PNG}\">"
+        ));
+        let attachments = reattach_signature_cids(&mut doc);
+
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(signature_html(&doc).matches("src=\"cid:").count(), 2);
     }
 
     #[test]

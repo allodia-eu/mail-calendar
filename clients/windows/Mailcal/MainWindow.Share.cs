@@ -77,7 +77,7 @@ public sealed partial class MainWindow
             // composer like picked ones.
             var opened = await OpenComposerAsync(
                 new ComposeOrigin.New(Model.SelectedAccount),
-                new ComposePrefill(prefill.To, prefill.Cc, prefill.Bcc, prefill.Subject, prefill.Body, false),
+                new ComposePrefill(prefill.To, prefill.Cc, prefill.Bcc, prefill.Subject, prefill.Body, false, null),
                 prefill.Attachments.ToList());
             if (opened is not { } context)
             {

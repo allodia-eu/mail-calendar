@@ -42,7 +42,9 @@ impl<P: Provider> App<P> {
         message: &MessageRef,
         trace: &mut OpenTrace,
     ) -> ReadingSnapshot {
-        let mut snapshot = self.fetch_reading_traced(message.clone(), trace).await;
+        let mut snapshot = self
+            .fetch_reading_traced(message.clone(), None, trace)
+            .await;
         // A cold open (e.g. tapped from a notification) can beat the account's mail provider,
         // which dials asynchronously a moment after boot: the body fetch then fails for lack of a
         // provider, not because the message is unavailable. Keep waiting and retry while the
@@ -57,7 +59,9 @@ impl<P: Provider> App<P> {
             tokio::time::sleep(OPEN_DIAL_POLL).await;
             waited += OPEN_DIAL_POLL;
             trace.lap = Instant::now();
-            snapshot = self.fetch_reading_traced(message.clone(), trace).await;
+            snapshot = self
+                .fetch_reading_traced(message.clone(), None, trace)
+                .await;
         }
         snapshot
     }
@@ -174,7 +178,18 @@ impl<P: Provider> App<P> {
     }
 
     pub(crate) async fn fetch_reading(&self, message: MessageRef) -> ReadingSnapshot {
-        self.fetch_reading_traced(message, &mut OpenTrace::new())
+        self.fetch_reading_traced(message, None, &mut OpenTrace::new())
+            .await
+    }
+
+    /// [`fetch_reading`](Self::fetch_reading) for a caller that has already resolved the message,
+    /// so it is not looked up again: a composer quoting it, which opens while the user waits.
+    pub(crate) async fn fetch_reading_of(
+        &self,
+        message: MessageRef,
+        original: Message,
+    ) -> ReadingSnapshot {
+        self.fetch_reading_traced(message, Some(original), &mut OpenTrace::new())
             .await
     }
 
@@ -183,6 +198,7 @@ impl<P: Provider> App<P> {
     async fn fetch_reading_traced(
         &self,
         message: MessageRef,
+        known: Option<Message>,
         trace: &mut OpenTrace,
     ) -> ReadingSnapshot {
         let key = message.key.as_str().to_owned();
@@ -191,7 +207,11 @@ impl<P: Provider> App<P> {
             load_error: true,
             ..Default::default()
         };
-        let Some(original) = self.find_message_in(&message).await else {
+        let original = if let Some(original) = known {
+            original
+        } else if let Some(original) = self.find_message_in(&message).await {
+            original
+        } else {
             trace.step("gave up: the message is not in that account's synced set");
             return load_error(key);
         };

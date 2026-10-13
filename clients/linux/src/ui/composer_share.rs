@@ -86,6 +86,7 @@ fn share_prefill(prefill: SharePrefill) -> (ComposePrefill, Vec<PickedFile>) {
         subject: prefill.subject,
         body_text: prefill.body,
         signed: false,
+        account: None,
     };
     (fields, files)
 }

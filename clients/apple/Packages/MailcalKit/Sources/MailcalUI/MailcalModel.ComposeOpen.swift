@@ -97,5 +97,5 @@ func composeOpenFailedMessage(for origin: ComposeOrigin) -> String {
 func replyOrigin(account: String, key: String, all: Bool) -> (ComposeOrigin, ComposePrefill?) {
     let origin = ComposeOrigin.reply(account: account, key: key, all: all)
     guard let text = ShowcaseMode.replyText(account: account, key: key) else { return (origin, nil) }
-    return (origin, ComposePrefill(to: "", cc: "", bcc: "", subject: "", bodyText: text, signed: false))
+    return (origin, ComposePrefill(to: "", cc: "", bcc: "", subject: "", bodyText: text, signed: false, account: nil))
 }

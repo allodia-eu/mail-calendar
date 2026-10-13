@@ -18,14 +18,19 @@ namespace Allodia.Mailcal;
 
 public sealed partial class MainWindow
 {
+    private bool _composerOpening;
+
     /// <summary>
     /// Opens a composer on <paramref name="origin"/> and answers with what it holds, or <c>null</c>
-    /// when it could not open, which this has already said.
+    /// when it could not open, which this has already said, or when another open is still waiting
+    /// on the core.
     /// </summary>
     /// <remarks>
     /// The core is asked off the UI thread: a reply may have to fetch the message it quotes, and a
     /// draft the copy on the server. The composer appears when the answer does, holding everything:
     /// a composer shown before its files arrived could be sent, or a draft saved, without them.
+    /// One open at a time: a second Reply pressed while the first fetches would otherwise open over
+    /// it, and whichever answer arrived last would hold the pane.
     /// </remarks>
     private async Task<ComposeContext?> OpenComposerAsync(
         ComposeOrigin origin,
@@ -33,9 +38,22 @@ public sealed partial class MainWindow
         IReadOnlyList<ComposerFileAttachment>? extraAttachments = null,
         string? initialError = null)
     {
-        var composition = Guid.NewGuid().ToString("N");
-        var directory = MailboxModel.ComposerStagingDirectory();
-        var opening = await Task.Run(() => Model.OpenComposer(composition, origin, prefill, directory));
+        if (_composerOpening)
+        {
+            return null;
+        }
+        _composerOpening = true;
+        ComposeOpening? opening;
+        try
+        {
+            var composition = Guid.NewGuid().ToString("N");
+            var directory = MailboxModel.ComposerStagingDirectory();
+            opening = await Task.Run(() => Model.OpenComposer(composition, origin, prefill, directory));
+        }
+        finally
+        {
+            _composerOpening = false;
+        }
         if (opening is null)
         {
             await DialogHelper.TellAsync(
@@ -81,7 +99,7 @@ public sealed partial class MainWindow
     {
         var origin = new ComposeOrigin.Reply(account, key, replyAll);
         return ShowcaseMode.ReplyText(account, key) is { } text
-            ? (origin, new ComposePrefill(string.Empty, string.Empty, string.Empty, string.Empty, text, false))
+            ? (origin, new ComposePrefill(string.Empty, string.Empty, string.Empty, string.Empty, text, false, null))
             : (origin, null);
     }
 }

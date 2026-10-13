@@ -87,6 +87,20 @@ describe("a reopened quote's attribution", () => {
     expect(quote.querySelector(".aq-attr")!.textContent).toBe("From: Bob");
   });
 
+  test("is not added to another client's quote, which carries neither half", () => {
+    const { editor } = harness(
+      '<p>On Monday, Bob wrote:</p><div class="allodia-quote" data-quote-style="Indented" data-quote-line="" data-quote-headers="[]">' +
+        '<div class="aq-attr" contenteditable="false"></div><div class="aq-body"><p>original</p></div></div>',
+    );
+    completeComposerQuoteAttribution(editor, {
+      line: "On Monday, Bob wrote:",
+      headers: [{ label: "From", value: "Bob" }],
+    });
+    const quote = editor.querySelector<HTMLElement>(".allodia-quote")!;
+    expect(quote.dataset.quoteLine).toBe("");
+    expect(quote.querySelector(".aq-attr")!.textContent).toBe("");
+  });
+
   test("is not touched in a quote nested inside the quoted original", () => {
     const { editor } = harness(
       '<p>reply</p><div class="aq-holder"><div class="allodia-quote" data-quote-line="" data-quote-headers="[]"></div></div>',

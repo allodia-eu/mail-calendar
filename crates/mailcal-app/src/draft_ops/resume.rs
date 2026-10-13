@@ -147,6 +147,6 @@ impl<P: Provider> App<P> {
             key: row.mail.key,
         };
         let original = self.find_message_in(&original_ref).await?;
-        self.quoted(&original_ref, &original).await.0
+        self.quote_source(&original_ref, &original).await
     }
 }

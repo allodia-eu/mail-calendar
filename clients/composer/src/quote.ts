@@ -150,10 +150,15 @@ export function completeComposerQuoteAttribution(
     child.classList.contains("allodia-quote"),
   ) as HTMLElement | undefined;
   if (!container) return;
+  const headers = readHeaders(container.dataset.quoteHeaders);
+  // A quote that carries neither half is another client's blockquote, whose attribution, if it
+  // has one, is ordinary text above it. Completing it would draw a second one under that text,
+  // and the next save would store it.
+  if (!container.dataset.quoteLine && headers.length === 0) return;
   if (!container.dataset.quoteLine && attribution.line) {
     container.dataset.quoteLine = attribution.line;
   }
-  if (readHeaders(container.dataset.quoteHeaders).length === 0 && attribution.headers?.length) {
+  if (headers.length === 0 && attribution.headers?.length) {
     container.dataset.quoteHeaders = JSON.stringify(attribution.headers);
   }
   renderQuoteAttribution(container);

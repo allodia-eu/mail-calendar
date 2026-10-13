@@ -87,7 +87,7 @@ public sealed partial class MainWindow
             : new ComposeOrigin.New(draft.Account ?? Model.SelectedAccount);
         // Signed: the assistant chose how to sign its words, so the account's signature is not seeded
         // under them (docs/mcp.md).
-        var prefill = new ComposePrefill(draft.To, draft.Cc, draft.Bcc, draft.Subject, draft.BodyText, true);
+        var prefill = new ComposePrefill(draft.To, draft.Cc, draft.Bcc, draft.Subject, draft.BodyText, true, draft.Account);
         if (await OpenComposerAsync(origin, prefill) is { } context)
         {
             BeginCompose(context);

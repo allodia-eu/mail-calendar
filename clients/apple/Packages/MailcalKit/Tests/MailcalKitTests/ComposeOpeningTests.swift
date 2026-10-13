@@ -177,6 +177,8 @@ func composeContext(_ opening: ComposeOpening, isShare: Bool = false) -> Compose
         #expect(prefill.bodyText == "Yes.\n\nBob")
         // Its author signed it, so the account's signature is not seeded under it.
         #expect(prefill.signed)
+        // It answers from the account it names, which need not be the one the message is in.
+        #expect(prefill.account == "acct-2")
     }
 
     @Test func anAssistantsNewMessageOpensFromTheAccountItNames() {

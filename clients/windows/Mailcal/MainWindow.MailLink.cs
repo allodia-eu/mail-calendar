@@ -77,7 +77,7 @@ public sealed partial class MainWindow
             // bare link brings no body, and the composer opens as blank as New does.
             var opened = await OpenComposerAsync(
                 new ComposeOrigin.New(Model.SelectedAccount),
-                new ComposePrefill(prefill.To, prefill.Cc, prefill.Bcc, prefill.Subject, prefill.Body, false));
+                new ComposePrefill(prefill.To, prefill.Cc, prefill.Bcc, prefill.Subject, prefill.Body, false, null));
             if (opened is not { } context)
             {
                 return;

@@ -97,6 +97,18 @@ impl<P: Provider> App<P> {
         let Some(original) = self.find_message_in(&message).await else {
             return RecipientSuggestion::default();
         };
+        self.reply_recipients_of(&message, &original, reply_all)
+            .await
+    }
+
+    /// [`reply_recipients`](Self::reply_recipients) for a caller that has already resolved the
+    /// original, so it is not looked up again.
+    pub(crate) async fn reply_recipients_of(
+        &self,
+        message: &MessageRef,
+        original: &Message,
+        reply_all: bool,
+    ) -> RecipientSuggestion {
         let mut seen: HashSet<String> = HashSet::new();
         // The To leads with ALL the primary recipients: the original's Reply-To if it has any,
         // else its From. They go in unconditionally (a reply must have a recipient) even when

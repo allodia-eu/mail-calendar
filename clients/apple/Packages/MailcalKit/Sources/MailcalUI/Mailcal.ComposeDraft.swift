@@ -121,7 +121,7 @@ extension ContentView {
             .new(account: model.selectedAccount),
             prefill: ComposePrefill(
                 to: link.to, cc: link.cc, bcc: link.bcc, subject: link.subject,
-                bodyText: link.body, signed: false
+                bodyText: link.body, signed: false, account: nil
             )
         )
     }

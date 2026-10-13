@@ -245,3 +245,73 @@ async fn a_signed_prefill_seeds_no_signature() {
     assert!(!open("assistant", true).await.seeds_signature);
     assert!(open("link", false).await.seeds_signature);
 }
+
+/// An assistant's reply to a message that cannot be found opens as a new message holding its words;
+/// a reply the user started, which brings no words of its own, refuses.
+#[tokio::test]
+async fn a_prefilled_reply_whose_original_is_gone_opens_as_a_new_message() {
+    let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
+    app.dispatch(Intent::RefreshMail).await;
+    let gone = || ComposeOrigin::Reply {
+        message: MessageRef::from_parts("acct-1", "gone".to_owned()).unwrap(),
+        all: false,
+    };
+
+    let opening = app
+        .open_composer(
+            composition("assistant-reply"),
+            gone(),
+            Some(ComposePrefill {
+                to: "ada@remote.test".to_owned(),
+                body_text: "Thursday works.".to_owned(),
+                signed: true,
+                ..ComposePrefill::default()
+            }),
+            &staging_dir("assistant-reply"),
+        )
+        .await
+        .expect("the assistant's words are not lost");
+    assert_eq!(opening.kind, ComposeKind::New);
+    assert_eq!(opening.to, "ada@remote.test");
+    assert_eq!(opening.body_text, "Thursday works.");
+
+    let refused = app
+        .open_composer(
+            composition("user-reply"),
+            gone(),
+            None,
+            &staging_dir("user-reply"),
+        )
+        .await;
+    assert!(
+        refused.is_err(),
+        "a reply the user started still needs its message"
+    );
+}
+
+/// An assistant may answer a message in one account from another: the prefill's account is the one
+/// the reply goes out from, while it stays in the original's conversation.
+#[tokio::test]
+async fn a_prefill_names_the_account_to_write_from() {
+    let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
+    app.dispatch(Intent::RefreshMail).await;
+
+    let opening = app
+        .open_composer(
+            composition("from-elsewhere"),
+            ComposeOrigin::Reply {
+                message: original(),
+                all: false,
+            },
+            Some(ComposePrefill {
+                account: Some(engine_api::AccountId::try_from("acct-2").unwrap()),
+                ..ComposePrefill::default()
+            }),
+            &staging_dir("from-elsewhere"),
+        )
+        .await
+        .expect("the reply opens");
+
+    assert_eq!(opening.account, "acct-2");
+    assert_eq!(opening.kind, ComposeKind::Reply);
+}

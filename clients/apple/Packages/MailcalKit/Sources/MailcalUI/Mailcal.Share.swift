@@ -178,7 +178,7 @@ extension ContentView {
             .new(account: model.selectedAccount),
             prefill: ComposePrefill(
                 to: share.to, cc: share.cc, bcc: share.bcc, subject: share.subject,
-                bodyText: share.body, signed: false
+                bodyText: share.body, signed: false, account: nil
             ),
             addedAttachments: share.attachments,
             notice: shareRefusalNotice(share.rejected),

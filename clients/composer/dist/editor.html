@@ -1292,10 +1292,13 @@
     const container = Array.from(editor.children).find((child) => child.classList.contains("allodia-quote"));
     if (!container)
       return;
+    const headers = readHeaders(container.dataset.quoteHeaders);
+    if (!container.dataset.quoteLine && headers.length === 0)
+      return;
     if (!container.dataset.quoteLine && attribution.line) {
       container.dataset.quoteLine = attribution.line;
     }
-    if (readHeaders(container.dataset.quoteHeaders).length === 0 && attribution.headers?.length) {
+    if (headers.length === 0 && attribution.headers?.length) {
       container.dataset.quoteHeaders = JSON.stringify(attribution.headers);
     }
     renderQuoteAttribution(container);

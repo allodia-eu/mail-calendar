@@ -39,7 +39,7 @@ enum ComposeOpeningSeed {
         }
         let prefill = ComposePrefill(
             to: draft.to, cc: draft.cc, bcc: draft.bcc, subject: draft.subject,
-            bodyText: draft.bodyText, signed: true
+            bodyText: draft.bodyText, signed: true, account: draft.account
         )
         return (origin, prefill)
     }

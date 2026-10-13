@@ -61,6 +61,7 @@ fn mailto_prefill(prefill: MailtoPrefill) -> ComposePrefill {
         subject: prefill.subject,
         body_text: prefill.body,
         signed: false,
+        account: None,
     }
 }
 
@@ -92,6 +93,7 @@ fn agent_prefill(draft: AgentDraft) -> ComposePrefill {
         subject: draft.subject,
         body_text: draft.body_text,
         signed: true,
+        account: draft.account,
     }
 }
 
@@ -132,6 +134,7 @@ mod tests {
                 subject: "Lunch".to_owned(),
                 body_text: "Hello </script>".to_owned(),
                 signed: false,
+                account: None,
             }
         );
     }
@@ -178,5 +181,13 @@ mod tests {
         assert!(prefill.signed);
         assert_eq!(prefill.bcc, "audit@example.test");
         assert_eq!(prefill.body_text, "A complete body and sign-off");
+    }
+
+    /// An assistant answering a message in one account may write from another: the account it
+    /// names travels with its fields rather than being lost to the reply's.
+    #[test]
+    fn an_assistant_draft_writes_from_the_account_it_names() {
+        let prefill = agent_prefill(draft(Some("home"), Some("original")));
+        assert_eq!(prefill.account.as_deref(), Some("work"));
     }
 }

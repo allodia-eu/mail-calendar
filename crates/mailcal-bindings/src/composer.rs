@@ -67,9 +67,6 @@ pub fn reply_subject(original: String) -> String {
     mailcal_app::reply_subject(Some(&original))
 }
 
-#[uniffi::export]
-impl MailcalApp {}
-
 impl MailcalApp {
     /// Schedules a fire-and-forget rich dispatch on the internal runtime: the shared
     /// back half of the rich submit/reply/forward methods, after the document has

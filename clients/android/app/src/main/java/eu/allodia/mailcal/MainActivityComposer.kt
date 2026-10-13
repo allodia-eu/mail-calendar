@@ -22,7 +22,6 @@ import uniffi.mailcal_bindings.ComposePrefill
 import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
-import uniffi.mailcal_bindings.MailcalException
 
 private const val TAG = "Mailcal"
 
@@ -77,7 +76,9 @@ internal fun MainActivity.openComposer(
         val opening = try {
             directory.mkdirs()
             instance.openComposer(composition, origin, directory.absolutePath, laidOver)
-        } catch (e: MailcalException) {
+        } catch (e: Exception) {
+            // Any exception, not only the core's own: one that escaped would leave `pending`
+            // set, and with it every later composer, link and share waiting forever.
             Log.w(TAG, "composer open failed: ${e.javaClass.simpleName}")
             null
         }
@@ -99,7 +100,7 @@ internal fun MainActivity.openComposer(
 private fun MainActivity.showcaseReplyPrefill(origin: ComposeOrigin): ComposePrefill? {
     val reply = origin as? ComposeOrigin.Reply ?: return null
     val text = ShowcaseMode.replyText(this, reply.account, reply.key) ?: return null
-    return ComposePrefill("", "", "", "", text, false)
+    return ComposePrefill("", "", "", "", text, false, null)
 }
 
 /**
@@ -120,7 +121,7 @@ internal fun MainActivity.LinkAndShareComposers(instance: MailcalApp) {
             openComposer(
                 instance,
                 ComposeOrigin.New(selectedAccount),
-                ComposePrefill(link.to, link.cc, link.bcc, link.subject, link.body, false),
+                ComposePrefill(link.to, link.cc, link.bcc, link.subject, link.body, false, null),
             )
         }
     }
@@ -131,7 +132,7 @@ internal fun MainActivity.LinkAndShareComposers(instance: MailcalApp) {
             openComposer(
                 instance,
                 ComposeOrigin.New(selectedAccount),
-                ComposePrefill(share.to, share.cc, share.bcc, share.subject, share.body, false),
+                ComposePrefill(share.to, share.cc, share.bcc, share.subject, share.body, false, null),
                 share.attachments,
             )
         }

@@ -71,6 +71,10 @@ pub struct ComposePrefill {
     /// Whether the body brings its own sign-off, so the account's signature is not seeded under
     /// it: an assistant's draft, whose author chose how to sign it.
     pub signed: bool,
+    /// The account to write from, laid over the origin's: an assistant may answer a message in one
+    /// account from another. `None` leaves the origin's.
+    #[uniffi(default = None)]
+    pub account: Option<String>,
 }
 
 /// What a composer is doing: its heading, and the signature slot it seeds from.
@@ -162,6 +166,9 @@ impl MailcalApp {
     /// **Call this off the UI thread.** It blocks on the internal runtime, and may fetch the
     /// message a reply quotes or the draft being resumed from the server.
     ///
+    /// A reply carrying a prefill opens as a new message holding it when the message it answers
+    /// cannot be found, so an assistant's words are never lost for want of the message they answer.
+    ///
     /// # Errors
     ///
     /// Returns [`MailcalError::Engine`] if `composition` is blank, a reference or account id is
@@ -180,7 +187,7 @@ impl MailcalApp {
         let composition = CompositionId::new(composition)
             .ok_or_else(|| MailcalError::Engine("composition id is blank".to_owned()))?;
         let origin = app_origin(origin)?;
-        let prefill = prefill.map(app_prefill);
+        let prefill = prefill.map(app_prefill).transpose()?;
         let app = Arc::clone(&self.app);
         self.runtime
             .block_on(|| async move {
@@ -210,15 +217,16 @@ fn app_origin(origin: ComposeOrigin) -> Result<AppComposeOrigin, MailcalError> {
     })
 }
 
-fn app_prefill(prefill: ComposePrefill) -> AppComposePrefill {
-    AppComposePrefill {
+fn app_prefill(prefill: ComposePrefill) -> Result<AppComposePrefill, MailcalError> {
+    Ok(AppComposePrefill {
         to: prefill.to,
         cc: prefill.cc,
         bcc: prefill.bcc,
         subject: prefill.subject,
         body_text: prefill.body_text,
         signed: prefill.signed,
-    }
+        account: send_account(prefill.account)?,
+    })
 }
 
 impl From<AppComposeKind> for ComposeKind {

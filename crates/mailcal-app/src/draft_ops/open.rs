@@ -65,6 +65,9 @@ pub struct ComposePrefill {
     /// Whether the body brings its own sign-off, so the account's signature is not seeded under
     /// it: an assistant's draft, whose author chose how to sign it (`docs/mcp.md`).
     pub signed: bool,
+    /// The account to write from, laid over the origin's: an assistant may answer a message in one
+    /// account from another.
+    pub account: Option<AccountId>,
 }
 
 impl<P: Provider> App<P> {
@@ -75,6 +78,11 @@ impl<P: Provider> App<P> {
     ///
     /// `staging_directory` is where a forward's or a draft's files are written for the composer to
     /// hold; the host owns what is left in it, as for an attachment opened from the reading view.
+    ///
+    /// A reply carrying a prefill opens as a new message holding it when the message it answers
+    /// cannot be found: the prefill is words someone else wrote (an assistant, a link), and it is
+    /// not lost for want of the message they answer. A reply the user started has no such words,
+    /// and refuses.
     ///
     /// # Errors
     ///
@@ -91,7 +99,17 @@ impl<P: Provider> App<P> {
     ) -> Result<ComposeOpening, String> {
         let mut opening = match origin {
             ComposeOrigin::New { account } => self.new_message(account).await?,
-            ComposeOrigin::Reply { message, all } => self.reply_to(&message, all).await?,
+            ComposeOrigin::Reply { message, all } => match self.reply_to(&message, all).await {
+                Ok(opening) => opening,
+                Err(err) if prefill.is_some() => {
+                    log::info!(
+                        "composer: the message a prefilled reply answers cannot be found ({err}); \
+                         it opens as a new message"
+                    );
+                    self.new_message(None).await?
+                }
+                Err(err) => return Err(err),
+            },
             ComposeOrigin::Forward { message } => {
                 self.forward_of(&message, staging_directory).await?
             }
@@ -124,7 +142,7 @@ impl<P: Provider> App<P> {
             .find_message_in(message)
             .await
             .ok_or_else(|| "message is not available".to_owned())?;
-        let recipients = self.reply_recipients(message.clone(), all).await;
+        let recipients = self.reply_recipients_of(message, &original, all).await;
         let (quote, pictures) = self.quoted(message, &original).await;
         Ok(Opening {
             kind: if all {
@@ -167,22 +185,36 @@ impl<P: Provider> App<P> {
     /// The message a composer quotes, as the reading view shows it, and the parts its pictures
     /// came from. `None` when its body cannot be read: the composer still opens, quoting nothing,
     /// rather than refusing to answer a message because it is slow to load.
-    pub(super) async fn quoted(
+    async fn quoted(
         &self,
         message: &MessageRef,
         original: &engine_api::Message,
     ) -> (Option<QuoteSource>, Vec<engine_api::InlinePart>) {
-        let reading = self.fetch_reading(message.clone()).await;
-        if reading.load_error {
+        let Some(quote) = self.quote_source(message, original).await else {
             return (None, Vec::new());
-        }
-        let html = reading.html.unwrap_or_default();
-        let pictures = if html.contains("src=\"data:") {
+        };
+        let pictures = if quote.body_html.contains("src=\"data:") {
             self.original_inline_parts(message, original).await
         } else {
             Vec::new()
         };
-        let quote = QuoteSource {
+        (Some(quote), pictures)
+    }
+
+    /// The message a composer quotes, as the reading view shows it, without the parts its
+    /// pictures came from: what a reopened message needs, whose own parts already carry them.
+    pub(super) async fn quote_source(
+        &self,
+        message: &MessageRef,
+        original: &engine_api::Message,
+    ) -> Option<QuoteSource> {
+        let reading = self
+            .fetch_reading_of(message.clone(), original.clone())
+            .await;
+        if reading.load_error {
+            return None;
+        }
+        Some(QuoteSource {
             from: reading.from,
             date: original
                 .received_at
@@ -191,10 +223,9 @@ impl<P: Provider> App<P> {
             to: reading.to,
             cc: reading.cc,
             subject: original.envelope.subject.clone().unwrap_or_default(),
-            body_html: html,
+            body_html: reading.html.unwrap_or_default(),
             body_plain: reading.plain.unwrap_or_default(),
-        };
-        (Some(quote), pictures)
+        })
     }
 }
 
@@ -245,9 +276,13 @@ fn lay_over(opening: &mut Opening, prefill: ComposePrefill) {
         subject,
         body_text,
         signed,
+        account,
     } = prefill;
     if signed {
         opening.seeds_signature = false;
+    }
+    if let Some(account) = account {
+        opening.account = account;
     }
     for (field, value) in [
         (&mut opening.to, to),
