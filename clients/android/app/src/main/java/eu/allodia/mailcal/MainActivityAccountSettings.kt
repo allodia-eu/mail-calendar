@@ -77,7 +77,7 @@ internal fun MainActivity.setAccountUse(accountId: String, capability: AccountCa
             accountSettings.pendingUse = null
             answer.onFailure {
                 logUiWarn("accounts: switching a use failed: ${coreErrorText(it)}")
-                accountSettings.notice = changeFailed(coreErrorText(it))
+                accountSettings.notice = changeFailed(coreErrorSaid(it, this))
             }
             answer.onSuccess { change ->
                 when (AccountSettingsRules.outcome(change)) {
@@ -103,7 +103,7 @@ internal fun MainActivity.setAccountLink(accountId: String, slot: LinkSlot, targ
         mainHandler.post {
             answer.onFailure {
                 logUiWarn("accounts: linking an account failed: ${coreErrorText(it)}")
-                accountSettings.notice = changeFailed(coreErrorText(it))
+                accountSettings.notice = changeFailed(coreErrorSaid(it, this))
             }
             refreshAccountsSnapshot()
         }
@@ -139,7 +139,7 @@ internal fun MainActivity.saveAccountEndpoints(accountId: String, endpoints: Acc
                 accountSettings.notice = AccountNotice(
                     NoticeKind.FAILURE,
                     L10n.settings_account_servers_failed(this),
-                    coreErrorText(it) ?: L10n.error_unknown(this),
+                    coreErrorSaid(it, this) ?: L10n.error_unknown(this),
                 )
             }
             refreshAccountsSnapshot()
@@ -168,7 +168,7 @@ internal fun MainActivity.replaceAccountSecret(accountId: String, secret: String
                 accountSettings.notice = AccountNotice(
                     NoticeKind.FAILURE,
                     L10n.settings_account_signin_failed(this),
-                    coreErrorText(it) ?: L10n.error_unknown(this),
+                    coreErrorSaid(it, this) ?: L10n.error_unknown(this),
                 )
             }
         }
@@ -189,7 +189,7 @@ internal fun MainActivity.removeAccount(id: String) {
         mainHandler.post {
             answer.onFailure {
                 logUiWarn("remove account: the credential could not be erased: ${coreErrorText(it)}")
-                val said = L10n.remove_account_failed(this, coreErrorText(it) ?: L10n.error_unknown(this))
+                val said = L10n.remove_account_failed(this, coreErrorSaid(it, this) ?: L10n.error_unknown(this))
                 say(AccountNotice(NoticeKind.FAILURE, "", said))
             }
             refreshAccountsSnapshot()
@@ -234,7 +234,7 @@ internal fun MainActivity.signInAgain(accountId: String, adding: List<AccountCap
             AccountNotice(
                 NoticeKind.FAILURE,
                 L10n.settings_account_signin_failed(this),
-                coreErrorText(e) ?: L10n.account_signin_browser_failed(this),
+                coreErrorSaid(e, this) ?: L10n.account_signin_browser_failed(this),
             ),
         )
     }
@@ -265,7 +265,7 @@ internal fun MainActivity.completeAccountConsent(callbackUrl: String) {
                     AccountNotice(
                         NoticeKind.FAILURE,
                         L10n.settings_account_signin_failed(this),
-                        coreErrorText(it) ?: L10n.signin_expired_failed(this),
+                        coreErrorSaid(it, this) ?: L10n.signin_expired_failed(this),
                     ),
                 )
             }

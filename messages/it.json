@@ -418,6 +418,7 @@
 	"signin_expired_prompt_settings": "L’accesso per {accounts} non funziona più. Aggiornalo nelle Impostazioni per continuare a sincronizzare.",
 	"signin_expired_action": "Accedi di nuovo",
 	"signin_expired_failed": "Non è stato possibile accedere di nuovo. Riprova.",
+	"signin_refused": "Il server non ha accettato questo accesso. Controlla i dati inseriti e riprova.",
 
 	"tz_changed_title": "Fuso orario cambiato",
 	"tz_changed_message": "Il tuo dispositivo si trova ora nel fuso {zone}. Vuoi aggiornare il fuso orario di visualizzazione?",

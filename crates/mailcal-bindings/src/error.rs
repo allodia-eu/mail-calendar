@@ -32,6 +32,17 @@ pub enum MailcalError {
         /// What the server presented, for the person deciding.
         certificate: RejectedCertificate,
     },
+    /// The server answered and refused the sign-in: a wrong password or API token, or a grant it
+    /// no longer accepts.
+    ///
+    /// Its own outcome rather than a [`MailcalError::Connect`] so a client can say so in the
+    /// person's language: the server's reply is a status and a body meant for a developer.
+    /// `reason` is that reply, for the diagnostic log, and the display carries it alone.
+    #[error("sign-in refused: {reason}")]
+    SignInRefused {
+        /// What the server said, for the diagnostic log.
+        reason: String,
+    },
     /// The engine could not be opened (or the account id was invalid).
     #[error("engine: {0}")]
     Engine(String),

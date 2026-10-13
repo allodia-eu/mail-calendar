@@ -23,9 +23,11 @@ impl MailcalApp {
     ///
     /// Returns [`MailcalError::Config`] for an unknown account, one that signs in through its
     /// provider, a use left without its server, an empty login or password, or servers that
-    /// belong to another account already set up. Returns [`MailcalError::Connect`] (or
-    /// [`MailcalError::CertificateRejected`]) when the new servers do not connect, and when the
-    /// host's store refuses them. On every failure the account is left exactly as it was.
+    /// belong to another account already set up. Returns [`MailcalError::SignInRefused`] when the
+    /// new servers refuse the login, [`MailcalError::Connect`] (or
+    /// [`MailcalError::CertificateRejected`]) when they do not connect, and
+    /// [`MailcalError::Connect`] when the host's store refuses them. On every failure the account
+    /// is left exactly as it was.
     pub fn update_account_endpoints(
         &self,
         account_id: String,

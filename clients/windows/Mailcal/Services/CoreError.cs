@@ -34,8 +34,19 @@ internal static class CoreError
     {
         uniffi.mailcal_bindings.MailcalException.CertificateRejected refused =>
             Describe(refused.@reason, error.GetType().Name),
+        uniffi.mailcal_bindings.MailcalException.SignInRefused refused =>
+            Describe(refused.@reason, error.GetType().Name),
         _ => Describe(error.Message, error.GetType().Name),
     };
+
+    /// <summary>
+    /// What to show a person for <paramref name="error"/>: <paramref name="signInRefused"/> when
+    /// the server refused the sign-in, since its reply is meant for a developer, and
+    /// <see cref="Describe(Exception)"/> otherwise. The sentence is passed in because L10n
+    /// cannot be linked into the test assembly; callers pass <c>L10n.SigninRefused()</c>.
+    /// </summary>
+    internal static string Said(Exception error, string signInRefused) =>
+        error is uniffi.mailcal_bindings.MailcalException.SignInRefused ? signInRefused : Describe(error);
 
     /// <summary>
     /// The wrapper-stripping itself, split from the exception so it can be tested directly.

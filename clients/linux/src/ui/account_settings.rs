@@ -71,7 +71,7 @@ fn endpoints_saved(result: Result<(), MailcalError>) -> AccountsInput {
         ))),
         Err(error) => AccountsInput::Refused(Notice::Error {
             title: l10n::settings_account_servers_failed().to_owned(),
-            detail: error.to_string(),
+            detail: super::core_error::said(&error),
         }),
     }
 }

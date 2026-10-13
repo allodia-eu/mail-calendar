@@ -66,7 +66,7 @@ public sealed partial class MailboxModel
             _ui.TryEnqueue(() =>
             {
                 _connecting = false;
-                SetupError = L10n.StatusConnectFailed(CoreError.Describe(ex));
+                SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused()));
                 NeedsSetup = true;
             });
         }

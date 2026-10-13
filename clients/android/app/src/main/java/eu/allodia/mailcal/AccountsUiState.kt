@@ -4,6 +4,7 @@
 // and the page has to still be open when it does.
 package eu.allodia.mailcal
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -93,7 +94,17 @@ internal fun coreErrorText(error: Throwable): String? = when (error) {
     is MailcalException.Config -> error.v1
     is MailcalException.Connect -> error.v1
     is MailcalException.CertificateRejected -> error.reason
+    is MailcalException.SignInRefused -> error.reason
     is MailcalException.Engine -> error.v1
     is MailcalException.Composer -> error.v1
     else -> error.message
+}
+
+/**
+ * What to show a person for a core refusal: a refused sign-in in their language, since the
+ * server's reply is meant for a developer; anything else as [coreErrorText] has it.
+ */
+internal fun coreErrorSaid(error: Throwable, ctx: Context): String? = when (error) {
+    is MailcalException.SignInRefused -> L10n.signin_refused(ctx)
+    else -> coreErrorText(error)
 }

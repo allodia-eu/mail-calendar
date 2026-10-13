@@ -113,7 +113,7 @@ impl AppModel {
                 CallbackOutcome::Received(callback_url) => {
                     match app.complete_account_consent(start.pending, callback_url) {
                         Ok(()) => ConsentOutcome::SignedIn,
-                        Err(error) => ConsentOutcome::Failed(error.to_string()),
+                        Err(error) => ConsentOutcome::Failed(super::core_error::said(&error)),
                     }
                 }
                 CallbackOutcome::Cancelled => ConsentOutcome::Cancelled,

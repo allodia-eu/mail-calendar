@@ -418,6 +418,7 @@
 	"signin_expired_prompt_settings": "De aanmelding voor {accounts} is niet meer geldig. Werk deze bij in Instellingen om te blijven synchroniseren.",
 	"signin_expired_action": "Opnieuw aanmelden",
 	"signin_expired_failed": "Opnieuw aanmelden is niet gelukt. Probeer het nog een keer.",
+	"signin_refused": "De server heeft deze aanmelding niet geaccepteerd. Controleer wat je hebt ingevuld en probeer het opnieuw.",
 
 	"tz_changed_title": "Tijdzone gewijzigd",
 	"tz_changed_message": "Je apparaat staat nu in {zone}. De weergavetijdzone bijwerken?",

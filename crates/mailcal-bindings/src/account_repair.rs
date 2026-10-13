@@ -26,9 +26,10 @@ impl MailcalApp {
     /// # Errors
     ///
     /// Returns [`MailcalError::Config`] for an unknown or OAuth account, an empty secret, or a
-    /// replacement that would change the account id. Returns [`MailcalError::Connect`] when the
-    /// server refuses the candidate or the secure store cannot persist it. The existing registry
-    /// entry and stored credential remain unchanged on every failure.
+    /// replacement that would change the account id. Returns [`MailcalError::SignInRefused`] when
+    /// the server refuses the candidate, and [`MailcalError::Connect`] when it cannot be reached
+    /// or the secure store cannot persist it. The existing registry entry and stored credential
+    /// remain unchanged on every failure.
     pub fn replace_account_secret(
         &self,
         account_id: String,
@@ -95,6 +96,11 @@ impl MailcalApp {
             Ok(outcome) => outcome,
             Err(error) => {
                 registered.rollback(&self.registry);
+                log::warn!(
+                    "credential repair: [{}] the {family} replacement did not connect ({error}); \
+                     the account and its stored credential are unchanged",
+                    mailcal_account::account_log_handle(account_id),
+                );
                 return Err(MailcalError::from(error));
             }
         };

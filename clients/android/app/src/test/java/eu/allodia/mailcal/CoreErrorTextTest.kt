@@ -1,16 +1,31 @@
 // A core refusal says what went wrong in its own words, never the generated record's `v1=...` form,
-// which is what the setup form and an account's page put in front of somebody.
+// which is what the setup form and an account's page put in front of somebody. A refused sign-in
+// is said in the person's language, and the server's reply is kept for the log.
 package eu.allodia.mailcal
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.MailcalException
 
+@RunWith(RobolectricTestRunner::class)
 class CoreErrorTextTest {
     @Test
     fun a_refusal_reads_as_its_message() {
-        assertEquals("sign-in rejected", coreErrorText(MailcalException.Connect("sign-in rejected")))
+        assertEquals("no route to host", coreErrorText(MailcalException.Connect("no route to host")))
         assertEquals("no such account", coreErrorText(MailcalException.Config("no such account")))
         assertEquals("plain", coreErrorText(IllegalStateException("plain")))
+    }
+
+    @Test
+    fun a_refused_sign_in_is_said_in_words_and_logged_as_the_server_put_it() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val refused = MailcalException.SignInRefused("JMAP HTTP 401: {\"status\":401}")
+        assertEquals(L10n.signin_refused(ctx), coreErrorSaid(refused, ctx))
+        assertEquals("JMAP HTTP 401: {\"status\":401}", coreErrorText(refused))
+        assertEquals("no route to host", coreErrorSaid(MailcalException.Connect("no route to host"), ctx))
     }
 }

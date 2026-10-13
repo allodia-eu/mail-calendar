@@ -107,3 +107,17 @@ fn an_account_without_mail_offers_the_certificate_its_calendar_refused() {
             if certificate.server_name == "cloud.example"
     ));
 }
+
+/// A caller waiting on a dial is told a refused sign-in apart from an outage, the server's reply
+/// kept for the log alone, so a client can say it in the person's language rather than show it.
+#[test]
+fn a_refused_sign_in_reaches_the_caller_as_its_own_error() {
+    assert!(matches!(
+        crate::MailcalError::from(signin_expired()),
+        crate::MailcalError::SignInRefused { reason } if reason.contains("invalid_grant")
+    ));
+    assert!(matches!(
+        crate::MailcalError::from(unreachable("mail")),
+        crate::MailcalError::Connect(_)
+    ));
+}

@@ -222,7 +222,7 @@ fn connect_failure(
             certificate: offers_exception.then_some(certificate),
         },
         other => ConnectFailure {
-            message: Some(other.to_string()),
+            message: Some(super::core_error::said(&other)),
             certificate: None,
         },
     }

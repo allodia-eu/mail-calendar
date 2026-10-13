@@ -418,6 +418,7 @@
 	"signin_expired_prompt_settings": "The sign-in for {accounts} no longer works. Update it in Settings to keep syncing.",
 	"signin_expired_action": "Sign in again",
 	"signin_expired_failed": "Signing in again didn’t work. Please try again.",
+	"signin_refused": "The server didn’t accept this sign-in. Check what you entered and try again.",
 
 	"tz_changed_title": "Time zone changed",
 	"tz_changed_message": "Your device is now in {zone}. Update the display time zone?",

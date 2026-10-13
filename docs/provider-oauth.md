@@ -401,6 +401,12 @@ capturing the redirect), because that is inherently platform-specific.
     replaces the credential through `AccountCredentialStore` and runs a catch-up. A refusal leaves
     both the registered account and its stored credential untouched.
 
+    **A refused sign-in is said, not shown.** Wherever a sign-in the person typed or granted is
+    tried (setup, a replaced secret, edited servers, signing in again), a server that answers and
+    refuses it reaches the client as `MailcalError::SignInRefused`, which every client says in the
+    person's language (`signin_refused`). The server's reply, a status and a body meant for a
+    developer, goes to the log alone.
+
     **A refusal that something else contradicts never reaches the user.** One credential serves
     every scope on an account, so a scope that authenticated in the same pass disproves an expired
     one; and servers do refuse a valid credential (a rejection deliberately delayed by ~2s is not a

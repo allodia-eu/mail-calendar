@@ -120,13 +120,17 @@ impl From<AccountError> for ConnectFailure {
 }
 
 /// The FFI error for a caller that was waiting on this dial. A refused certificate is its
-/// own outcome, because it is the one such a caller can put to the user and settle.
+/// own outcome, because it is the one such a caller can put to the user and settle; so is a
+/// refused sign-in, which a client says in the person's language.
 impl From<ConnectFailure> for crate::MailcalError {
     fn from(failure: ConnectFailure) -> Self {
         match failure.certificate {
             Some(certificate) => Self::CertificateRejected {
                 reason: failure.detail,
                 certificate: (*certificate).into(),
+            },
+            None if failure.signin_expired => Self::SignInRefused {
+                reason: failure.detail,
             },
             None => Self::Connect(failure.detail),
         }

@@ -63,4 +63,17 @@ public class CoreErrorTests
         Assert.Equal("MailcalException", CoreError.Describe("@v1=", "MailcalException"));
         Assert.Equal("MailcalException", CoreError.Describe("@v1=   ", "MailcalException"));
     }
+
+    [Fact]
+    public void A_refused_sign_in_is_said_in_words_and_logged_as_the_server_put_it()
+    {
+        // The server's reply is a status and a body meant for a developer: the person is told in
+        // their own language, and the log keeps what the server said.
+        var refused = new uniffi.mailcal_bindings.MailcalException.SignInRefused("JMAP HTTP 401: {\"status\":401}");
+        Assert.Equal("not accepted", CoreError.Said(refused, "not accepted"));
+        Assert.Equal("JMAP HTTP 401: {\"status\":401}", CoreError.Describe(refused));
+        Assert.Equal(
+            "no route to host",
+            CoreError.Said(new uniffi.mailcal_bindings.MailcalException.Connect("no route to host"), "not accepted"));
+    }
 }

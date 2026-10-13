@@ -40,6 +40,7 @@ mod composer_signature;
 mod connectivity;
 mod contacts;
 mod contacts_actions;
+mod core_error;
 pub(crate) mod destinations;
 mod detached;
 pub(crate) mod dns;

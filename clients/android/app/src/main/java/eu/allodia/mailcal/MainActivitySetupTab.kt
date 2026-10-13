@@ -22,7 +22,7 @@ internal fun connectFailure(error: MailcalException, ctx: Context): ConnectFailu
     when (error) {
         is MailcalException.CertificateRejected ->
             ConnectFailure(error.reason, error.certificate)
-        else -> ConnectFailure(coreErrorText(error) ?: L10n.error_invalid_config(ctx))
+        else -> ConnectFailure(coreErrorSaid(error, ctx) ?: L10n.error_invalid_config(ctx))
     }
 
 // First run (no account yet) or adding another: collect + validate the

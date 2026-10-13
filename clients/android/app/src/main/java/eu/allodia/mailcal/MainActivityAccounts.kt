@@ -61,7 +61,7 @@ internal fun MainActivity.addAccount(configToml: String) {
                 // twice, so only what the panel cannot carry is left as a message (rule 7).
                 activity.addError = when {
                     failure?.certificate != null -> null
-                    else -> coreErrorText(e) ?: L10n.error_unknown(activity)
+                    else -> coreErrorSaid(e, activity) ?: L10n.error_unknown(activity)
                 }
             }
         }
@@ -95,7 +95,7 @@ internal fun MainActivity.signInWithMicrosoft(
         openMicrosoftSignIn(this, start.authorizationUrl)
     } catch (e: Exception) {
         logUiWarn("microsoft sign-in start failed: ${e.message}")
-        addError = coreErrorText(e) ?: "Microsoft sign-in failed to start"
+        addError = coreErrorSaid(e, this) ?: "Microsoft sign-in failed to start"
     }
 }
 
@@ -124,7 +124,7 @@ internal fun MainActivity.completeMicrosoftLogin(callbackUrl: String) {
             logUiWarn("microsoft complete failed: ${e.message}")
             activity.mainHandler.post {
                 activity.signingInMicrosoft = false
-                activity.addError = coreErrorText(e) ?: "Microsoft sign-in failed"
+                activity.addError = coreErrorSaid(e, activity) ?: "Microsoft sign-in failed"
             }
         }
     }
@@ -158,7 +158,7 @@ internal fun MainActivity.signInWithGoogle(
         openGoogleSignIn(this, start.authorizationUrl)
     } catch (e: Exception) {
         logUiWarn("google sign-in start failed: ${e.message}")
-        addError = coreErrorText(e) ?: "Google sign-in failed to start"
+        addError = coreErrorSaid(e, this) ?: "Google sign-in failed to start"
     }
 }
 
@@ -186,7 +186,7 @@ internal fun MainActivity.completeGoogleLogin(callbackUrl: String) {
             logUiWarn("google complete failed: ${e.message}")
             activity.mainHandler.post {
                 activity.signingInGoogle = false
-                activity.addError = coreErrorText(e) ?: "Google sign-in failed"
+                activity.addError = coreErrorSaid(e, activity) ?: "Google sign-in failed"
             }
         }
     }

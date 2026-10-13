@@ -418,6 +418,7 @@
 	"signin_expired_prompt_settings": "La sesión de {accounts} ya no funciona. Actualízala en Ajustes para seguir sincronizando.",
 	"signin_expired_action": "Volver a iniciar sesión",
 	"signin_expired_failed": "No se ha podido volver a iniciar sesión. Inténtalo de nuevo.",
+	"signin_refused": "El servidor no ha aceptado este inicio de sesión. Comprueba lo que has introducido e inténtalo de nuevo.",
 
 	"tz_changed_title": "La zona horaria ha cambiado",
 	"tz_changed_message": "Tu dispositivo está ahora en {zone}. ¿Quieres actualizar la zona horaria de visualización?",
