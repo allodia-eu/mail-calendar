@@ -20,7 +20,7 @@ use mailcal_viewmodel::{
 
 use crate::{
     App, SEARCH_FETCH_LIMIT, SEARCH_LIMIT, SearchScope,
-    snapshot::{is_outgoing, owner_email},
+    snapshot::{is_sent, owner_email},
 };
 
 impl<P: Provider> App<P> {
@@ -190,7 +190,7 @@ impl<P: Provider> App<P> {
                         // conversation is listed only if a message in it matched, and it sorts
                         // on its newest *matching* message, so a thread does not climb the
                         // results because of a reply that has nothing to do with the query.
-                        outgoing: is_outgoing(&row, owner),
+                        outgoing: is_sent(&row, owner),
                         row: Arc::new(row),
                         in_scope: true,
                     }),
@@ -249,7 +249,7 @@ impl<P: Provider> App<P> {
                     ))
             })
             .map(|row| AccountMessage {
-                outgoing: is_outgoing(&row, owner_email(account_rows, row.account.as_str())),
+                outgoing: is_sent(&row, owner_email(account_rows, row.account.as_str())),
                 row: Arc::new(row),
                 in_scope: false,
             })

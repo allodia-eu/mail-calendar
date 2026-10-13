@@ -15,7 +15,7 @@ use std::{
     time::Instant,
 };
 
-use engine_api::{AccountId, MailListRow, MailboxRole, Provider};
+use engine_api::{AccountId, Keyword, MailListRow, MailboxRole, Provider, SystemKeyword};
 use mailcal_viewmodel::{
     AccountMessage, AccountRow, EmptyReason, MailboxListSnapshot, ViewMode, view,
 };
@@ -466,15 +466,14 @@ pub(crate) fn account_message(
     let owner = owner_email(account_rows, row.account.as_str());
     AccountMessage {
         in_scope: in_view.holds(row),
-        outgoing: is_outgoing(row, owner),
+        outgoing: is_sent(row, owner),
         row: Arc::clone(row),
     }
 }
 
-/// Whether `row` was sent by the account owner; its `From` address is the owner's own
-/// (case-insensitive). Drives the conversation's "Sent" badge, and (reused by
-/// [`background_sync`](crate::background_sync)) excludes the owner's own mail from new-mail
-/// notifications.
+/// Whether `row` is the account owner's own mail: its `From` address is the owner's
+/// (case-insensitive). Excludes it from new-mail notifications
+/// ([`background_sync`](crate::background_sync)).
 pub(crate) fn is_outgoing(row: &MailListRow, owner: Option<&str>) -> bool {
     owner.is_some_and(|owner| {
         row.mail
@@ -483,3 +482,16 @@ pub(crate) fn is_outgoing(row: &MailListRow, owner: Option<&str>) -> bool {
             .is_some_and(|from| from.eq_ignore_ascii_case(owner))
     })
 }
+
+/// Whether the account owner sent `row`: their own mail, and not a draft, which carries their
+/// address but has not gone anywhere. Drives the conversation's "Sent" badge.
+pub(crate) fn is_sent(row: &MailListRow, owner: Option<&str>) -> bool {
+    is_outgoing(row, owner)
+        && !row
+            .keywords
+            .contains(&Keyword::system(SystemKeyword::Draft))
+}
+
+#[cfg(test)]
+#[path = "snapshot_sent_tests.rs"]
+mod sent_tests;
