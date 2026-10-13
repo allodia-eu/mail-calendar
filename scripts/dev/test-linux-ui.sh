@@ -731,10 +731,11 @@ PY
   capture forward-left-in-drafts
 
   # Reopened, it has a copy in Drafts to lose, so Discard asks; Keep editing changes nothing, and
-  # Discard takes the copy off the server. The question carries a Discard of its own beside the
-  # composer's, hence `--within`.
+  # Discard takes the copy off the server. A saved forward keeps its conversation, so its Drafts
+  # row is a conversation's, opened by its Open button. The question carries a Discard of its own
+  # beside the composer's, hence `--within`.
   "$PYTHON" "$ATSPI" activate \
-    --name "Fwd: $ATTACHMENT_SUBJECT" --role "push button" \
+    --name "Open" --role "push button" \
     --within "Fwd: $ATTACHMENT_SUBJECT" --within-role "list item" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Write your message" --showing --timeout 30
   "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
