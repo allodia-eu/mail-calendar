@@ -189,7 +189,7 @@ impl<P: Provider> App<P> {
         message: MessageRef,
         original: Message,
     ) -> ReadingSnapshot {
-        self.fetch_reading_traced(message, Some(original), &mut OpenTrace::new())
+        self.fetch_reading_traced(message, Some(Box::new(original)), &mut OpenTrace::new())
             .await
     }
 
@@ -198,7 +198,9 @@ impl<P: Provider> App<P> {
     async fn fetch_reading_traced(
         &self,
         message: MessageRef,
-        known: Option<Message>,
+        // Boxed: a `Message` held by value here sits in every reading future, and lifts them
+        // past the size clippy allows.
+        known: Option<Box<Message>>,
         trace: &mut OpenTrace,
     ) -> ReadingSnapshot {
         let key = message.key.as_str().to_owned();
@@ -208,7 +210,7 @@ impl<P: Provider> App<P> {
             ..Default::default()
         };
         let original = if let Some(original) = known {
-            original
+            *original
         } else if let Some(original) = self.find_message_in(&message).await {
             original
         } else {
