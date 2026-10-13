@@ -40,7 +40,7 @@ extension ContentView {
     /// Opens a Drafts-folder row back into its composer, and every other row for reading.
     ///
     /// Told by the **folder**, not by the row: the core answers per message but the list does not
-    /// carry it, so a draft met in a search result or inside a thread opens read-only
+    /// carry it, so a draft met in a search result or in another folder's thread opens read-only
     /// (`docs/drafts.md`, known gaps).
     ///
     /// Resuming is a round trip: a draft is opened from a list row, so the first open of one
@@ -62,7 +62,9 @@ extension ContentView {
     /// Opens a conversation: expands the thread inline in the list (showing its whole
     /// conversation as sub-rows) and auto-opens its representative message in the reading pane:
     /// the latest **in-scope** message (`latestKey`, the one the row summarises), so a Sent reply
-    /// filed elsewhere doesn't steal focus. Tapping again collapses it and leaves the pane as-is.
+    /// filed elsewhere doesn't steal focus. In Drafts that message is a draft, and it opens back
+    /// into its composer as a flat row's does. Tapping again collapses it and leaves the pane
+    /// as-is.
     ///
     /// The whole thing goes through the handover, expansion included, so a thread opened beside a
     /// composer replaces it like any other open.
@@ -77,7 +79,9 @@ extension ContentView {
             let representative = thread.messages.first(where: { $0.key == thread.latestKey })
                 ?? thread.messages.first
             if let representative {
-                openThreadMessageNow(thread, representative)
+                resumeOrRead(representative.account, representative.key) {
+                    openThreadMessageNow(thread, representative)
+                }
             }
         }
     }

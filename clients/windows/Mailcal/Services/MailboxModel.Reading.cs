@@ -94,15 +94,19 @@ public sealed partial class MailboxModel
     /// <summary>
     /// Toggles a conversation's inline expansion (revealing its whole thread as sub-rows).
     /// Expanding also opens its latest message in the reading pane, the desktop 3-pane behaviour,
-    /// like macOS; collapsing leaves the pane as-is.
+    /// like macOS; collapsing leaves the pane as-is. <paramref name="openLatest"/> false leaves the
+    /// opening to the caller, which in Drafts opens that message into its composer instead.
     /// </summary>
-    public void ToggleThread(MailRow row)
+    public void ToggleThread(MailRow row, bool openLatest = true)
     {
         row.IsExpanded = !row.IsExpanded;
         if (row.IsExpanded)
         {
             _expandedThreads.Add(row.Id);
-            OpenMessage(row);
+            if (openLatest)
+            {
+                OpenMessage(row);
+            }
         }
         else
         {

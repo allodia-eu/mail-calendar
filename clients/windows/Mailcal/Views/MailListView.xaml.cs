@@ -196,12 +196,29 @@ public sealed partial class MailListView : UserControl
         // don't reach here, only the header does.
         if (row.IsThread)
         {
-            Model?.ToggleThread(row);
+            await ToggleThreadAsync(row);
         }
         else
         {
             await OpenOrResumeAsync(row);
         }
+    }
+
+    // A conversation opening in Drafts opens its latest message, which there is a draft, back
+    // into its composer, as a flat row does (docs/drafts.md).
+    private async Task ToggleThreadAsync(MailRow row)
+    {
+        if (Model is not { } model)
+        {
+            return;
+        }
+        if (row.IsExpanded || !model.ShowingDrafts || App.Shell is not { } shell)
+        {
+            model.ToggleThread(row);
+            return;
+        }
+        model.ToggleThread(row, openLatest: false);
+        await shell.OpenOrResumeAsync(row.Account, row.LatestKey, () => model.OpenMessage(row));
     }
 
     // In the Drafts folder a row opens the composer it was written in; everywhere else it opens

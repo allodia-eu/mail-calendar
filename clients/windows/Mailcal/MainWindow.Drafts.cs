@@ -18,8 +18,8 @@ public sealed partial class MainWindow
     /// </summary>
     /// <remarks>
     /// Told by the <b>folder</b>, not by the row: the core answers per message but the list does
-    /// not carry it, so a draft met in a search result or inside a thread opens read-only
-    /// (<c>docs/drafts.md</c>, known gaps).
+    /// not carry it, so a draft met in a search result or in another folder's thread opens
+    /// read-only (<c>docs/drafts.md</c>, known gaps).
     /// <para>Resuming is a round trip and, unlike a forward, cannot count on the message being
     /// cached: a draft is opened from a list row, so the first open of one fetches it. It runs off
     /// the UI thread for that reason, and the composer appears when the answer does. A draft that

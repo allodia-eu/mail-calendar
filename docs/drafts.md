@@ -160,13 +160,13 @@ not something any header says, so it reopens as a reply.
 
 ## Picking one back up
 
-A draft in the Drafts folder opens into a composer, not into the reading view, and the
-composer it opens saves **over** that copy rather than beside it. The core joins the two: the
-composition takes the stored draft's key, so its first save supersedes and a discard removes,
-and the draft's own `Message-ID`, so every save of it goes on naming the one message. A draft
-written elsewhere may carry no `Message-ID`, and a new one serves as well: what that header
-has to be is the same on every save of one composition, and it is the key that names the copy
-being replaced.
+A draft in the Drafts folder opens into a composer, not into the reading view, and the composer it
+opens saves **over** that copy rather than beside it. A conversation's own row in Drafts does the
+same with its latest message, which in Drafts is a draft. The core joins the two: the composition
+takes the stored draft's key, so its first save supersedes and a discard removes, and the draft's
+own `Message-ID`, so every save of it goes on naming the one message. A draft written elsewhere may
+carry no `Message-ID`, and a new one serves as well: what that header has to be is the same on
+every save of one composition, and it is the key that names the copy being replaced.
 
 **Everything the composer does not open with, its next save deletes.** That is what makes a
 resume stricter than a forward, which only shows less when it carries less. Three gates follow
@@ -339,6 +339,7 @@ and the removal below runs on whatever key the composition had.
 | "Save as draft" | ✅ | ✅ | ✅ | ✅ |
 | Discard removes the server copy | ✅ | ✅ | ✅ | ✅ |
 | Resume from the Drafts folder | ✅ | ✅ | ✅ | ✅ |
+| A conversation's row in Drafts resumes its latest draft | ✅ | ✅ | ✅ | ✅ |
 | A resumed draft opens formatted, its pictures and quote included | ✅ | ✅ | ✅ | ✅ |
 | Every composer opens through `open_composer` and sends through `submit_composition` | ✅ | ✅ | ✅ | ✅ |
 | A reply or forward saved as a draft keeps its conversation | ✅ | ✅ | ✅ | ✅ |
