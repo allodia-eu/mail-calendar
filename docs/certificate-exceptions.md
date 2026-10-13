@@ -116,7 +116,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Acceptance stored with the account, asked once | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Detected card **and** manual form | ✅ | ✅ | ✅ | 🚧 | 🚧 |
 | Exception applies to IMAP, SMTP and CalDAV of that account | ✅ | ✅ | ✅ | ✅ | ✅ |
-| A calendar or address-book server's refusal carries its certificate, for an account without mail | ✅ | ✅ | ✅ | 🚧 | ✅ |
+| A calendar or address-book server's refusal carries its certificate, for an account without mail | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The **shared TLS config is per account**, so an accepted certificate covers every provider of that
 account whose server name it matches. Proton Mail Bridge serves the same certificate on its IMAP
@@ -146,8 +146,10 @@ is rule 4 holding: the `subjectAltName` is what a verifier matches and what the 
 Android is verified against a running Proton Mail Bridge over STARTTLS: the connect was refused
 and named the server, the panel drew the subject, issuer, validity window and SHA-256 that
 `openssl` read off the listener, and Connect stayed inert until the acceptance was turned on.
-Only its **manual form** has been driven, and no second launch has been checked, so those two
-rows keep their 🚧.
+On 2026-10-13 the manual form's "Calendar and contacts" type met the harness's untrusted DAV
+listener on an emulator: the panel named `localhost, 127.0.0.1` and the fingerprint, and once
+accepted the calendar and the address book both connected through it. Only its **manual form**
+has been driven, and no second launch has been checked, so those two rows keep their 🚧.
 
 ⚠️ **A 🚧 is worth as little as an unrun check.** Android's panel was written, wired into both
 surfaces and unit-tested, and was nonetheless unreachable: the connect runs on a thread of its

@@ -639,9 +639,9 @@ single provider's table):
 | Prompt routes to the right sign-in via `MailcalApp::account_provider` (Settings where there is no browser flow) | ✅ | ✅ | ✅ Google · OAuth JMAP · Microsoft untested | ✅ | ✅ Microsoft · Google · OAuth JMAP runtime-verified; stored-secret repair code-complete |
 | A second sign-in request supersedes one abandoned in the browser (rule 13) | — | ✅ never guarded; a sign-in in place ends the one before it | ✅ `SignInFlight` | ✅ never guarded | ✅ `AttemptSlot` |
 | OAuth **JMAP** re-authentication in place from the prompt (rule 14: `begin_jmap_reauth` / `complete_jmap_reauth`) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Microsoft and Google signed in again in place, from the prompts and the account's Settings page, a withheld use asked for when switched on (rule 11: `begin_account_consent` / `complete_account_consent`) | ✅ | ✅ | ✅ | 🚧 | ✅ |
-| Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`replace_account_secret`) | ✅ | ✅ | ✅ | 🚧 | ✅ |
-| The uses chosen before the browser opens, the sign-in asking for those alone, and a use the grant withheld said after it (rule 10) | ✅ | ✅ | ✅ | 🚧 | ✅ |
+| Microsoft and Google signed in again in place, from the prompts and the account's Settings page, a withheld use asked for when switched on (rule 11: `begin_account_consent` / `complete_account_consent`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`replace_account_secret`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The uses chosen before the browser opens, the sign-in asking for those alone, and a use the grant withheld said after it (rule 10) | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 Each client fills its Azure **client id** in its `MicrosoftOAuth.{swift,kt,cs}` and registers a
 redirect: **Apple** the custom scheme `msauth.eu.allodia.mailcal://auth` across macOS, iOS,
@@ -711,9 +711,12 @@ mail actions, send and calendar writes that were not touched. **Android complete
 sign-in at both providers on 2026-10-13**, on a Samsung Galaxy Note 20 (Android 13): each account
 set up without its calendar, so the sign-in asked for mail and contacts alone, then the calendar
 switched on from the account's page. Google asked for it in the browser and signed the account in
-again in place; Microsoft opened it on the grant it already held. Rotation, the sign-in prompts in
-the main window and a use refused at the consent screen were not reached there, so the cells
-covering them keep their 🚧. A new platform must meet every core-side
+again in place; Microsoft opened it on the grant it already held. The same day, on the same phone,
+Google's calendar unticked on its consent screen was said on the account's page and asked for
+again when switched on, and a grant revoked at each provider raised the main window's prompt,
+whose sign-in kept the account and its mail. A JMAP pasted secret was replaced on an emulator
+against the harness, a wrong one refused first. Google never rotates its refresh token, so its
+rotation cell keeps its 🚧. A new platform must meet every core-side
 gate above and register its own redirect.
 
 For **Google**, each client fills its own **Google Cloud Console OAuth client** in
