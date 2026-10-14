@@ -166,6 +166,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             args.notes,
                                             args.location,
                                             args.recurrence,
+                                            args.invitees,
                                         )),
                                     )
                                 },
@@ -182,6 +183,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             args.occurrence,
                                             args.recurrence,
                                             args.timesFromOccurrence,
+                                            args.invitees,
                                         )),
                                     )
                                 },
@@ -210,6 +212,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 // What a whole-series save would cost the occurrences the user
                                 // singled out, asked with the payload about to be dispatched, so
                                 // the answer is about this edit rather than the worst one.
+                                inviteeSuggestionsFor = recipientSuggestionsFor(instance),
                                 seriesWarningFor = { args ->
                                     instance.seriesEditWarning(
                                         args.account,

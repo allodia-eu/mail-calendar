@@ -67,7 +67,7 @@ internal fun CalendarPickerSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onPick(CalendarChoice(calendar.account, calendar.id, calendar.name)) }
+                            .clickable { onPick(calendar.choice()) }
                             .padding(horizontal = 24.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

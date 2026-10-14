@@ -11,20 +11,23 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.EventAttendee
 import uniffi.mailcal_bindings.EventDetail
+import uniffi.mailcal_bindings.MeetingInviteeRole
 import uniffi.mailcal_bindings.ResponseStatus
 
 private const val ORGANIZER = "Organiser"
+private const val OPTIONAL = "Optional"
 
 private fun attendee(
     name: String,
     email: String,
     isOrganizer: Boolean = false,
     response: ResponseStatus = ResponseStatus.ACCEPTED,
+    role: MeetingInviteeRole? = null,
 ) = EventAttendee(
     name = name,
     email = email,
     isOrganizer = isOrganizer,
-    role = null,
+    role = role,
     response = response,
 )
 
@@ -34,20 +37,20 @@ class EventAttendeesTest {
     fun a_named_attendee_gets_their_address_on_the_second_line() {
         assertEquals(
             "anna@example.com",
-            attendeeSubtitle(attendee("Anna Jansen", "anna@example.com"), ORGANIZER),
+            attendeeSubtitle(attendee("Anna Jansen", "anna@example.com"), ORGANIZER, OPTIONAL),
         )
     }
 
     @Test
     fun an_unnamed_attendee_has_no_second_line_because_the_first_is_their_address() {
-        assertNull(attendeeSubtitle(attendee("", "b@example.com"), ORGANIZER))
+        assertNull(attendeeSubtitle(attendee("", "b@example.com"), ORGANIZER, OPTIONAL))
     }
 
     @Test
     fun an_unnamed_organizer_still_says_they_called_the_meeting() {
         assertEquals(
             ORGANIZER,
-            attendeeSubtitle(attendee("", "chair@example.com", isOrganizer = true), ORGANIZER),
+            attendeeSubtitle(attendee("", "chair@example.com", isOrganizer = true), ORGANIZER, OPTIONAL),
         )
     }
 
@@ -58,6 +61,26 @@ class EventAttendeesTest {
             attendeeSubtitle(
                 attendee("Chair Person", "chair@example.com", isOrganizer = true),
                 ORGANIZER,
+                OPTIONAL,
+            ),
+        )
+    }
+
+    @Test
+    fun an_optional_invitee_is_marked_and_a_required_one_is_not() {
+        assertEquals(
+            "ada@example.com · $OPTIONAL",
+            attendeeSubtitle(
+                attendee("Ada", "ada@example.com", role = MeetingInviteeRole.OPTIONAL),
+                ORGANIZER,
+                OPTIONAL,
+            ),
+        )
+        assertNull(
+            attendeeSubtitle(
+                attendee("", "grace@example.com", role = MeetingInviteeRole.REQUIRED),
+                ORGANIZER,
+                OPTIONAL,
             ),
         )
     }

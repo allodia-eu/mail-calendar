@@ -17,9 +17,13 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import uniffi.mailcal_bindings.CalendarRow
 import uniffi.mailcal_bindings.EventAttendee
 import uniffi.mailcal_bindings.EventDetail
 import uniffi.mailcal_bindings.EventRecurrence
+import uniffi.mailcal_bindings.InviteeCheck
+import uniffi.mailcal_bindings.MeetingInvitee
+import uniffi.mailcal_bindings.MeetingInviteePatch
 import uniffi.mailcal_bindings.RecurrenceChange
 import uniffi.mailcal_bindings.RepeatDraft
 import uniffi.mailcal_bindings.RepeatSummary
@@ -36,8 +40,40 @@ internal typealias RepeatChangeOf = (RepeatDraft?, Boolean) -> RecurrenceChange?
 internal val coreRepeatChangeOf: RepeatChangeOf =
     { draft, wasRepeating -> uniffi.mailcal_bindings.repeatChangeOf(draft, wasRepeating) }
 
-/** A calendar a create can target, or the calendar an edited event sits in. */
-internal data class CalendarChoice(val account: String, val id: String, val name: String)
+/**
+ * What an edited invitee list changes, decided by the core: see `meeting_invitee_patch`. A
+ * function for the reason [RepeatChangeOf] is one.
+ */
+internal typealias InviteePatchOf = (List<EventAttendee>, List<MeetingInvitee>) -> MeetingInviteePatch?
+
+/** Whether a typed address can be invited, decided by the core: see `check_meeting_invitee`. */
+internal typealias InviteeCheckOf = (String, List<String>, String) -> InviteeCheck
+
+/** The real ones. The defaults everywhere but a test. */
+internal val coreInviteePatchOf: InviteePatchOf =
+    { attendees, invitees -> uniffi.mailcal_bindings.meetingInviteePatch(attendees, invitees) }
+
+internal val coreInviteeCheckOf: InviteeCheckOf =
+    { typed, invited, organiser ->
+        uniffi.mailcal_bindings.checkMeetingInvitee(typed, invited, organiser)
+    }
+
+/**
+ * A calendar a create can target, or the calendar an edited event sits in. [address] is the owning
+ * account's, the organiser of a meeting created here, and [canInvite] is the core's
+ * `CalendarRow.canInvite`: whether a meeting may be organised here at all.
+ */
+internal data class CalendarChoice(
+    val account: String,
+    val id: String,
+    val name: String,
+    val address: String = "",
+    val canInvite: Boolean = false,
+)
+
+/** The choice a calendar row offers. */
+internal fun CalendarRow.choice(): CalendarChoice =
+    CalendarChoice(account, id, name, accountAddress, canInvite)
 
 /** The event an editor is editing (absent when creating). */
 internal data class EditTarget(
@@ -60,8 +96,10 @@ internal data class EditTarget(
      * opened on the series. Non-empty is what makes Save **ask** which occurrences it meant.
      */
     val occurrence: String,
-    /** Everyone on the event, organiser first. Shown read-only, see [AttendeeList]. */
+    /** Everyone on the event, organiser first. See [AttendeeList]. */
     val attendees: List<EventAttendee>,
+    /** Whether this account organises the meeting and may change who is invited. */
+    val canEditInvitees: Boolean = false,
 )
 
 /** The arguments a create dispatches (`EventIntent.Create`). */
@@ -77,6 +115,8 @@ internal data class CreateArgs(
     val location: String?,
     /** The rule a new event starts with, or `null` for a one-off. */
     val recurrence: SimpleRecurrence?,
+    /** The people to invite, or `null` for an appointment. Never an empty list. */
+    val invitees: List<MeetingInvitee>? = null,
 )
 
 /** The arguments an edit dispatches (`EventIntent.Update`). */
@@ -104,6 +144,8 @@ internal data class UpdateArgs(
      * start there and every earlier occurrence stops existing.
      */
     val timesFromOccurrence: String?,
+    /** What changed about who is invited, or `null` to leave the roster alone. Series only. */
+    val invitees: MeetingInviteePatch? = null,
 )
 
 /**
@@ -125,6 +167,8 @@ internal class EventEditorState private constructor(
     initialCalendar: CalendarChoice?,
     initialRepeat: RepeatDraft?,
     private val repeatChangeOf: RepeatChangeOf,
+    private val inviteePatchOf: InviteePatchOf,
+    inviteeCheckOf: InviteeCheckOf,
 ) {
     var title by mutableStateOf(initialTitle)
     var allDay by mutableStateOf(initialAllDay)
@@ -169,16 +213,33 @@ internal class EventEditorState private constructor(
         }
 
     /**
+     * Whether the invitee controls are offered: on a create, where the chosen calendar's server
+     * sends invitations; on an edit, where this account organises the meeting.
+     */
+    val canInvite: Boolean
+        get() = editing?.canEditInvitees ?: (calendar?.canInvite == true)
+
+    /** Who is invited, as the controls hold it. */
+    val roster = InviteeRoster(editing, inviteeCheckOf) {
+        editing?.attendees?.firstOrNull { it.isOrganizer }?.email ?: calendar?.address.orEmpty()
+    }
+
+    /** What a save changes about who is invited, or `null` to leave the roster alone. */
+    val inviteeChange: MeetingInviteePatch?
+        get() = editing?.takeIf { it.canEditInvitees }?.let { inviteePatchOf(it.attendees, roster.invitees) }
+
+    /**
      * Whether saving has to ask *This event / All events* first, true exactly when this editor
      * was opened on one occurrence of a series. The same question [asksAboutTheSeries] puts for a
      * drag, about the same thing.
      *
-     * **A changed repeat settles the question**, so it is not put: a rule belongs to the series,
-     * and one occurrence is an instance of a rule rather than a holder of one. The controls say so
-     * before the user touches them.
+     * **A changed repeat or a changed roster settles the question**, so it is not put: both belong
+     * to the series, and one occurrence is an instance of a rule rather than a holder of one. The
+     * controls say so before the user touches them.
      */
     val asksAboutTheSeries: Boolean
-        get() = editing?.occurrence?.isNotEmpty() == true && repeatChange == null
+        get() = editing?.occurrence?.isNotEmpty() == true && repeatChange == null &&
+            inviteeChange == null
 
     // All-day and the calendar are set at create and are display-only on edit: the engine's patcher
     // refuses a form change (all-day↔timed) or a calendar move. So the toggle and the picker are
@@ -209,6 +270,7 @@ internal class EventEditorState private constructor(
                 notes = notes.ifBlank { null },
                 location = location.ifBlank { null },
                 recurrence = newRule(),
+                invitees = newInvitees(),
             )
         } else {
             CreateArgs(
@@ -223,6 +285,7 @@ internal class EventEditorState private constructor(
                 notes = notes.ifBlank { null },
                 location = location.ifBlank { null },
                 recurrence = newRule(),
+                invitees = newInvitees(),
             )
         }
 
@@ -231,6 +294,9 @@ internal class EventEditorState private constructor(
      * three answers an edit gives.
      */
     private fun newRule(): SimpleRecurrence? = (repeatChange as? RecurrenceChange.Set)?.rule
+
+    /** The people a create invites: none on a calendar that cannot, and none is an appointment. */
+    private fun newInvitees(): List<MeetingInvitee>? = roster.invitees.takeIf { canInvite && it.isNotEmpty() }
 
     /** The update-intent arguments for the current fields. Only valid while [isEditing]. */
     /**
@@ -267,6 +333,8 @@ internal class EventEditorState private constructor(
             // The clocks above are this occurrence's, so a save meant for the series says where
             // they came from and the core shifts the series by that much instead of moving it.
             timesFromOccurrence = target.occurrence.takeIf { !thisOccurrenceOnly && it.isNotEmpty() },
+            // A roster belongs to the series, as a rule does.
+            invitees = if (thisOccurrenceOnly) null else inviteeChange,
         )
     }
 
@@ -291,6 +359,8 @@ internal class EventEditorState private constructor(
             minutes: Int = 60,
             exact: Boolean = false,
             repeatChangeOf: RepeatChangeOf = coreRepeatChangeOf,
+            inviteePatchOf: InviteePatchOf = coreInviteePatchOf,
+            inviteeCheckOf: InviteeCheckOf = coreInviteeCheckOf,
         ): EventEditorState {
             val start = if (exact) now else now.plusHours(1).withMinute(0).withSecond(0).withNano(0)
             return EventEditorState(
@@ -305,6 +375,8 @@ internal class EventEditorState private constructor(
                 initialCalendar = default,
                 initialRepeat = null,
                 repeatChangeOf = repeatChangeOf,
+                inviteePatchOf = inviteePatchOf,
+                inviteeCheckOf = inviteeCheckOf,
             )
         }
 
@@ -313,6 +385,8 @@ internal class EventEditorState private constructor(
             detail: EventDetail,
             calendarName: String,
             repeatChangeOf: RepeatChangeOf = coreRepeatChangeOf,
+            inviteePatchOf: InviteePatchOf = coreInviteePatchOf,
+            inviteeCheckOf: InviteeCheckOf = coreInviteeCheckOf,
         ): EventEditorState {
             val start = parseWall(detail.start)
             // The detail's all-day end is exclusive; show the inclusive last day.
@@ -329,6 +403,7 @@ internal class EventEditorState private constructor(
                     seededRepeat = detail.repeatDraft,
                     occurrence = detail.occurrenceStart,
                     attendees = detail.attendees,
+                    canEditInvitees = detail.canEditInvitees,
                 ),
                 zone = detail.timezone,
                 initialTitle = detail.title,
@@ -340,6 +415,8 @@ internal class EventEditorState private constructor(
                 initialCalendar = CalendarChoice(detail.account, detail.calendar, calendarName),
                 initialRepeat = detail.repeatDraft,
                 repeatChangeOf = repeatChangeOf,
+                inviteePatchOf = inviteePatchOf,
+                inviteeCheckOf = inviteeCheckOf,
             )
         }
     }

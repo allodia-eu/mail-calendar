@@ -1,9 +1,6 @@
 // Who is on an event. Shared by the detail screen and the editor, because the two must not describe
-// the same meeting differently.
-//
-// Read-only everywhere: changing an attendee list means sending iTIP updates to the people on it,
-// which is a separate feature. The editor therefore shows the list and says it cannot be changed
-// here, rather than offering a control that would silently drop the change.
+// the same meeting differently. The organiser edits the list in the editor (EventInvitees.kt);
+// everywhere else it is read.
 //
 // Every string on these rows is attacker-controlled, it came from whoever sent the invitation. The
 // core has already stripped control characters and bidi overrides and bounded the length, and
@@ -24,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.EventAttendee
+import uniffi.mailcal_bindings.MeetingInviteeRole
 import uniffi.mailcal_bindings.ResponseStatus
 
 /** The attendee rows, in the order the core put them (organiser first). */
@@ -44,7 +42,11 @@ internal fun AttendeeList(attendees: List<EventAttendee>, modifier: Modifier = M
                         text = attendee.name.ifEmpty { attendee.email },
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    attendeeSubtitle(attendee, L10n.event_attendee_organizer(ctx))?.let {
+                    attendeeSubtitle(
+                        attendee,
+                        L10n.event_attendee_organizer(ctx),
+                        L10n.event_attendee_optional(ctx),
+                    )?.let {
                         Text(
                             text = it,
                             style = MaterialTheme.typography.bodySmall,
@@ -64,15 +66,21 @@ internal fun AttendeeList(attendees: List<EventAttendee>, modifier: Modifier = M
 }
 
 /**
- * The second line under an attendee: their address (when the first line used their name) and
- * whether they called the meeting. `null` when there is nothing left to say.
+ * The second line under an attendee: their address (when the first line used their name), and
+ * whether they called the meeting or were invited as optional. `null` when there is nothing left
+ * to say. Required is what an invitation assumes, so only the exception is said.
  *
- * Takes the organiser label rather than a Context so the rule is a plain function a test can drive.
+ * Takes the labels rather than a Context so the rule is a plain function a test can drive.
  */
-internal fun attendeeSubtitle(attendee: EventAttendee, organizerLabel: String): String? {
+internal fun attendeeSubtitle(
+    attendee: EventAttendee,
+    organizerLabel: String,
+    optionalLabel: String,
+): String? {
     val parts = buildList {
         if (attendee.name.isNotEmpty()) add(attendee.email)
         if (attendee.isOrganizer) add(organizerLabel)
+        if (attendee.role == MeetingInviteeRole.OPTIONAL) add(optionalLabel)
     }
     return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }

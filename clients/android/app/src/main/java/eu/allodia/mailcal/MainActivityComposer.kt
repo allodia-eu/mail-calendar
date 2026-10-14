@@ -22,6 +22,7 @@ import uniffi.mailcal_bindings.ComposePrefill
 import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
+import uniffi.mailcal_bindings.RecipientMatch
 
 private const val TAG = "Mailcal"
 
@@ -197,19 +198,24 @@ private fun MainActivity.ComposerFor(
     RichComposeMessageDialog(
         request = request,
         accounts = accounts,
-        // Ranked addresses for a partially-typed recipient, drawn from synced contacts and from
-        // people the user has written to. A local in-memory read, safe per keystroke.
-        suggestionsFor = { prefix ->
-            try {
-                instance.recipientSuggestions(prefix)
-            } catch (e: Exception) {
-                Log.w(TAG, "recipient suggestions failed: ${e.javaClass.simpleName}")
-                emptyList()
-            }
-        },
+        suggestionsFor = recipientSuggestionsFor(instance),
         signatures = composerSignatures(instance, signatures?.signatures.orEmpty()),
         drafts = composerDrafts(instance),
         onSubmitRich = { submission -> submitComposition(instance, submission) },
         onDismiss = onDismiss,
     )
+}
+
+/**
+ * Ranked addresses for a partially-typed recipient, drawn from synced contacts and from people the
+ * user has written to. A local in-memory read, safe per keystroke. The composer's recipient fields
+ * and the event editor's invitee field ask the same question.
+ */
+internal fun recipientSuggestionsFor(instance: MailcalApp): (String) -> List<RecipientMatch> = { prefix ->
+    try {
+        instance.recipientSuggestions(prefix)
+    } catch (e: Exception) {
+        Log.w(TAG, "recipient suggestions failed: ${e.javaClass.simpleName}")
+        emptyList()
+    }
 }

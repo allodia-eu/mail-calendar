@@ -110,8 +110,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar: create with a **calendar picker** (grouped by account) · all-day · notes · location | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: tap an event to **view** its detail and **edit** it (title, time, notes, location) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: an event's **attendee list** (who called it, and who accepted / declined / answered maybe / hasn't replied), on the detail **and** read-only in the editor | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Calendar: **invite people** to a new event, as required or optional, on a calendar whose server sends the invitations; and **change who is invited** to a meeting you organise ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
-| Calendar: an **optional** invitee is marked as such in the attendee list | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| Calendar: **invite people** to a new event, as required or optional, on a calendar whose server sends the invitations; and **change who is invited** to a meeting you organise ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
+| Calendar: an **optional** invitee is marked as such in the attendee list | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
 | Calendar, **drag on the grid**: draw out a new slot on empty space (opening the editor prefilled), and move or resize an event by dragging it. Only your own: your appointments and the meetings you organise; a repeating event asks *This event · All events* first ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ✅ | ✅ | ⬜ | ✅ | ✅ (create only) |
 | Calendar: deleting one occurrence of a repeating event asks *This event · All events* first, so cancelling one Tuesday does not cancel the standup; an agenda row stands for the whole series and says so ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: editing a whole repeating event **warns first** where the account's server would throw away what you changed on a single occurrence (a time you moved, a name you gave it) and says which of the two it would lose ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

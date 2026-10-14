@@ -54,6 +54,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
 import uniffi.mailcal_bindings.CalendarRow
+import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.SeriesEditWarning
 
 @Composable
@@ -68,6 +69,8 @@ internal fun EventEditorScreen(
      * edit in hand. A lambda so the editor stays a pure form with no reach into the app.
      */
     warningFor: (UpdateArgs) -> SeriesEditWarning?,
+    /** The invitee field's completions, the composer's own; `null` offers none. */
+    suggestionsFor: ((String) -> List<RecipientMatch>)? = null,
 ) {
     val ctx = LocalContext.current
     val locale = currentLocale()
@@ -110,6 +113,9 @@ internal fun EventEditorScreen(
                 TextButton(
                     enabled = editor.valid,
                     onClick = {
+                        // An address typed but not added is meant to be on the list; one that
+                        // cannot be invited stops the save, with the field saying why.
+                        if (!editor.roster.takeTyped()) return@TextButton
                         // Straight through on a create, and on an edit of something that can only
                         // mean the whole series. An occurrence of a series is asked about first:
                         // which occurrences, and then what saving all of them costs.
@@ -249,20 +255,7 @@ internal fun EventEditorScreen(
                     )
                 }
 
-                // Attendees: shown so an edit is not made blind to who is coming, and stated to be
-                // read-only rather than offered as a field that would quietly drop the change:
-                // editing them means sending iTIP updates, which is its own feature.
-                val attendees = editor.editing?.attendees.orEmpty()
-                if (attendees.isNotEmpty()) {
-                    ReadOnlyLabel(L10n.event_attendees(ctx))
-                    AttendeeList(attendees)
-                    Text(
-                        text = L10n.event_attendees_read_only(ctx),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                }
+                InviteeSection(editor, suggestionsFor)
             }
         }
     }
@@ -382,17 +375,6 @@ private fun ReadOnlyRow(label: String, value: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-}
-
-// The heading over a read-only block that is a list rather than a single value (attendees), so it
-// lines up with the label column of the ReadOnlyRows above it.
-@Composable
-private fun ReadOnlyLabel(label: String) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier.padding(top = 14.dp),
-    )
 }
 
 // A labelled date (+ time when not all-day) row. Tapping a value opens the platform picker.

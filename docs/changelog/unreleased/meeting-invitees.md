@@ -1,6 +1,6 @@
 # Invite people to an event
 
-Platforms: linux
+Platforms: android, linux
 Bump: minor
 
 > The editor over the core's meeting commands. It is offered only on a calendar whose server sends

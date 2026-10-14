@@ -47,9 +47,10 @@ import uniffi.mailcal_bindings.CalendarPage
 import uniffi.mailcal_bindings.CalendarWriteStatus
 import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.EventDetail
-import uniffi.mailcal_bindings.SeriesEditWarning
 import uniffi.mailcal_bindings.EventRow
 import uniffi.mailcal_bindings.MonthPage
+import uniffi.mailcal_bindings.RecipientMatch
+import uniffi.mailcal_bindings.SeriesEditWarning
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.WeekStart
 
@@ -85,6 +86,8 @@ internal fun CalendarScreen(
     // A synchronous detail pull (App.eventDetail): opens the detail sheet and prefills the editor.
     eventDetailFor: (account: String, key: String, occurrence: String) -> EventDetail?,
     seriesWarningFor: (UpdateArgs) -> SeriesEditWarning?,
+    /** The editor's invitee completions, the composer's own. */
+    inviteeSuggestionsFor: ((String) -> List<RecipientMatch>)? = null,
     // The device's IANA zone, so a created timed event is created in it (not UTC).
     deviceZoneId: String,
     onSetVisibleHours: (Int) -> Unit,
@@ -217,7 +220,7 @@ internal fun CalendarScreen(
     // so there is no fallback rule here to drift from Settings' idea of the same thing.
     val defaultCalendarRow = remember(calendars) { calendars.firstOrNull { it.isDefault } }
     val defaultCalendar = remember(defaultCalendarRow) {
-        defaultCalendarRow?.let { CalendarChoice(it.account, it.id, it.name) }
+        defaultCalendarRow?.choice()
     }
     // A slot drawn out on the grid wears the colour of the calendar it is on its way to. Derived from
     // the same row as `defaultCalendar` rather than looked up again, so the block on screen and the
@@ -452,6 +455,7 @@ internal fun CalendarScreen(
                 editor = null
             },
             warningFor = seriesWarningFor,
+            suggestionsFor = inviteeSuggestionsFor,
         )
     }
 }
