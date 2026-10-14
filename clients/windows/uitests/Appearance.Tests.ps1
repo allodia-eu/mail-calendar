@@ -61,10 +61,8 @@ function Get-CaptionLuminance {
   $x = [int]($r.X + ($r.Width * $SampleXFraction))
   $y = [int]($r.Y + $SampleTop)
 
-  $bmp = New-Object System.Drawing.Bitmap $SampleWidthPx, $SampleHeight
+  $bmp = Get-UiaScreenPixels -Element $window -X $x -Y $y -Width $SampleWidthPx -Height $SampleHeight
   try {
-    $g = [System.Drawing.Graphics]::FromImage($bmp)
-    try { $g.CopyFromScreen($x, $y, 0, 0, $bmp.Size) } finally { $g.Dispose() }
     $lums = for ($px = 0; $px -lt $SampleWidthPx; $px++) {
       for ($py = 0; $py -lt $SampleHeight; $py++) {
         $c = $bmp.GetPixel($px, $py)
@@ -101,10 +99,8 @@ function Get-SettingsLuminance {
   $x = [int]($r.X + ($r.Width * 0.62))
   $y = [int]($r.Y + 18)
 
-  $bmp = New-Object System.Drawing.Bitmap $width, $height
+  $bmp = Get-UiaScreenPixels -Element $dialog -X $x -Y $y -Width $width -Height $height
   try {
-    $g = [System.Drawing.Graphics]::FromImage($bmp)
-    try { $g.CopyFromScreen($x, $y, 0, 0, $bmp.Size) } finally { $g.Dispose() }
     $lums = for ($px = 0; $px -lt $width; $px++) {
       for ($py = 0; $py -lt $height; $py++) {
         $c = $bmp.GetPixel($px, $py)

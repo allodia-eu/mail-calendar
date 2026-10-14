@@ -48,6 +48,10 @@
 # the caller's session, and strict mode turns their perfectly normal unset `$LASTEXITCODE` into a
 # hard error. A helper does not get to change the rules of the shell that loaded it.
 
+# The window lookup and Show-WinappWindow, which brings a window to the front when Windows would
+# refuse a plain request.
+. (Join-Path $PSScriptRoot 'uia.ps1')
+
 if (-not ('Allodia.Touch' -as [type])) {
   Add-Type -TypeDefinition @'
 using System;
@@ -97,7 +101,6 @@ namespace Allodia
     /// <summary>Window lookup, in the SAME assembly as RECT, a second Add-Type block cannot see it.</summary>
     public static class Win
     {
-        [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
         [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     }
 
@@ -293,13 +296,11 @@ function Invoke-TouchPinch {
   whatever happened to be on top.
 #>
 function Get-MailcalBounds {
-  $p = Get-Process -Name 'Mailcal' -ErrorAction SilentlyContinue | Select-Object -First 1
-  if (-not $p) { throw 'Mailcal is not running.' }
+  $window = Get-MailcalWindow
+  if (-not $window) { throw 'Mailcal is not running, or has no main window yet.' }
 
-  $h = $p.MainWindowHandle
-  if ($h -eq [IntPtr]::Zero) { throw 'Mailcal has no main window yet.' }
-  [void][Allodia.Win]::SetForegroundWindow($h)
-  Start-Sleep -Milliseconds 300
+  $h = [IntPtr] $window.Current.NativeWindowHandle
+  Show-WinappWindow ([long] $h)
 
   $r = New-Object Allodia.RECT
   [void][Allodia.Win]::GetWindowRect($h, [ref] $r)

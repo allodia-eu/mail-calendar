@@ -26,7 +26,9 @@ $DraftRun = Get-Date -Format 'HHmmss'
 
 $DraftCatalog = Get-Content -LiteralPath (Join-Path $CatalogDir 'en.json') -Raw -Encoding utf8 | ConvertFrom-Json
 
-# Opens one of the account's folders, by the row the pane draws for it under the account.
+# Opens one of the account's folders, by the row the pane draws for it under the account. Drafts
+# is empty whenever the suite has tidied up after itself, and every caller goes on to wait for the
+# row it expects, so an empty list is a settled one.
 function Open-DraftAccountFolder {
   param([Parameter(Mandatory)] [string] $Folder)
   $accountRow = Find-UiaElement -Root (Get-MailcalWindow) -Name $DraftAccount -Type 'ListItem'
@@ -34,7 +36,7 @@ function Open-DraftAccountFolder {
   $row = Find-UiaElement -Root $accountRow -Name $Folder -Type 'ListItem'
   if (-not $row) { throw "$DraftAccount shows no $Folder row; is its tree open?" }
   Invoke-UiaElement -Element $row | Out-Null
-  [void](Wait-MailRowCount)
+  [void](Wait-MailRowCount -AllowEmpty)
 }
 
 # Whether the open list shows a row titled $Subject. A bare `-like` on every row, rather than
@@ -189,11 +191,11 @@ function Add-ForeignDraft {
 
 # How many pixels inside the open composer's editor are the fixture's red.
 function Get-EditorRedPixels {
-  $editor = Get-RenderedBounds -Element (Find-UiaElement -AutomationId 'Editor') -What 'the message editor'
-  $bmp = New-Object System.Drawing.Bitmap ([int]$editor.Width), ([int]$editor.Height)
+  $element = Find-UiaElement -AutomationId 'Editor'
+  $editor = Get-RenderedBounds -Element $element -What 'the message editor'
+  $bmp = Get-UiaScreenPixels -Element $element -X ([int]$editor.X) -Y ([int]$editor.Y) `
+    -Width ([int]$editor.Width) -Height ([int]$editor.Height)
   try {
-    $g = [System.Drawing.Graphics]::FromImage($bmp)
-    try { $g.CopyFromScreen([int]$editor.X, [int]$editor.Y, 0, 0, $bmp.Size) } finally { $g.Dispose() }
     $red = 0
     for ($x = 0; $x -lt $bmp.Width; $x += 2) {
       for ($y = 0; $y -lt $bmp.Height; $y += 2) {

@@ -52,7 +52,8 @@ function Get-WinappPath {
 .SYNOPSIS
 Runs one `winapp ui` verb against -Window and returns its JSON answer as an object.
 .DESCRIPTION
-Throws when winapp reports an error, and when it has not answered within -TimeoutSec, killing it.
+Throws when winapp reports an error or exits non-zero, and when it has not answered within
+-TimeoutSec, killing it.
 #>
 function Invoke-Winapp {
   param(
@@ -86,6 +87,11 @@ function Invoke-Winapp {
     throw "winapp ui $Verb answered with no JSON (exit $($process.ExitCode)): $($out.Result.Trim()) $($err.Result.Trim())"
   }
   if ($answer.error) { throw "winapp ui ${Verb}: $($answer.error.message)" }
+  # A failure without an error object is still a failure. The one non-zero exit that is an answer is
+  # a search that matched nothing, which exits 1 (winapp 0.7.1) and leaves the count to the caller.
+  if ($process.ExitCode -ne 0 -and -not ($Verb -eq 'search' -and $answer.matchCount -eq 0)) {
+    throw "winapp ui $Verb $($Arguments -join ' ') exited $($process.ExitCode): $($out.Result.Trim()) $($err.Result.Trim())"
+  }
   $answer
 }
 
@@ -115,15 +121,26 @@ Brings -Window to the front, unless it is there already.
 winapp refuses to press or type into a window that is not in front, rather than act on the wrong
 one. Windows in turn lets a process take the front only when it was the last to send input, so a
 plain SetForegroundWindow from this script, and winapp's own `screenshot --focus`, are refused
-while the user, or the launch that just failed to take the front, owns it. A bare Alt press makes
-this script the last to send input, and the request after it is granted.
+while the user, or the launch that just failed to take the front, owns it. When it is refused, a
+keystroke makes this script the last to send input, and the request after it is granted. That key
+reaches whichever window is in front, which is then someone else's, so it is 0xE8: Windows assigns
+it to nothing, and no window acts on it.
+Throws when the window is still not in front, because every press after it would be refused.
 #>
 function Show-WinappWindow {
   param([Parameter(Mandatory, Position = 0)] [long] $Window)
-  if ([Allodia.UiaDpi]::GetForegroundWindow() -eq [IntPtr] $Window) { return }
-  [Allodia.UiaDpi]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero)   # VK_MENU down
-  [Allodia.UiaDpi]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)   # VK_MENU up
-  [void][Allodia.UiaDpi]::SetForegroundWindow([IntPtr] $Window)
+  $target = [IntPtr] $Window
+  if ([Allodia.UiaDpi]::GetForegroundWindow() -eq $target) { return }
+  if (-not [Allodia.UiaDpi]::SetForegroundWindow($target)) {
+    [Allodia.UiaDpi]::keybd_event(0xE8, 0, 0, [UIntPtr]::Zero)   # down
+    [Allodia.UiaDpi]::keybd_event(0xE8, 0, 2, [UIntPtr]::Zero)   # KEYEVENTF_KEYUP
+    [void][Allodia.UiaDpi]::SetForegroundWindow($target)
+  }
+  $timer = [Diagnostics.Stopwatch]::StartNew()
+  while ([Allodia.UiaDpi]::GetForegroundWindow() -ne $target) {
+    if ($timer.ElapsedMilliseconds -gt 2000) { throw "window $Window would not come to the front" }
+    Start-Sleep -Milliseconds 50
+  }
   Start-Sleep -Milliseconds 300
 }
 

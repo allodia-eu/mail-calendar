@@ -260,8 +260,7 @@ $Suite = @{
         $null = Set-Search -Query ''
 
         $box = Get-SearchBox
-        $app = Get-Process Mailcal | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-        $null = [Allodia.UiaDpi]::SetForegroundWindow($app.MainWindowHandle)
+        Show-WinappWindow ([long] (Get-MailcalWindow).Current.NativeWindowHandle)
         $box.SetFocus()
         Start-Sleep -Milliseconds 300
         Add-Type -AssemblyName System.Windows.Forms

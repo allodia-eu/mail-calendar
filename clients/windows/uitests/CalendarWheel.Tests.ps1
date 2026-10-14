@@ -33,7 +33,6 @@ Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 public static class CalWheelInput {
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint f, int dx, int dy, int data, UIntPtr extra);
   public const uint HWHEEL = 0x01000;
@@ -45,10 +44,9 @@ public static class CalWheelInput {
 function Invoke-GridWheel {
   param([int]$Notches, [int]$GapMs = 120)
 
-  $app = Get-Process Mailcal -ErrorAction SilentlyContinue | Select-Object -First 1
+  $app = Get-MailcalWindow
   if (-not $app) { throw 'the app is not running' }
-  [CalWheelInput]::SetForegroundWindow($app.MainWindowHandle) | Out-Null
-  Start-Sleep -Milliseconds 500
+  Show-WinappWindow ([long] $app.Current.NativeWindowHandle)
 
   # The middle of the grid, derived from the header buttons rather than hard-coded: they sit at the
   # grid's top-right, so their row gives the content's left edge and the window's width.

@@ -70,10 +70,8 @@ function Get-CaptionLuminance {
     throw "no bare caption to sample: the search field ends at $($field.Right) and the window at $($r.Right)"
   }
 
-  $bmp = New-Object System.Drawing.Bitmap $SampleWidthPx, $SampleHeight
+  $bmp = Get-UiaScreenPixels -Element $window -X $x -Y $y -Width $SampleWidthPx -Height $SampleHeight
   try {
-    $g = [System.Drawing.Graphics]::FromImage($bmp)
-    try { $g.CopyFromScreen($x, $y, 0, 0, $bmp.Size) } finally { $g.Dispose() }
     $lums = for ($px = 0; $px -lt $SampleWidthPx; $px++) {
       for ($py = 0; $py -lt $SampleHeight; $py++) {
         $c = $bmp.GetPixel($px, $py)

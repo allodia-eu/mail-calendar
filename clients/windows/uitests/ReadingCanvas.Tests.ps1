@@ -61,10 +61,8 @@ The median, lightest and darkest luminance (0..255) of a band of screen pixels.
 #>
 function Get-BandLuminance {
   param([int] $X, [int] $Y, [int] $Width, [int] $Height)
-  $bmp = New-Object System.Drawing.Bitmap $Width, $Height
+  $bmp = Get-UiaScreenPixels -Element (Get-MailcalWindow) -X $X -Y $Y -Width $Width -Height $Height
   try {
-    $g = [System.Drawing.Graphics]::FromImage($bmp)
-    try { $g.CopyFromScreen($X, $Y, 0, 0, $bmp.Size) } finally { $g.Dispose() }
     $lums = New-Object 'System.Collections.Generic.List[double]'
     for ($px = 0; $px -lt $Width; $px++) {
       for ($py = 0; $py -lt $Height; $py++) {

@@ -132,10 +132,8 @@ function Get-LineInk {
   $w = [int] $r.Width
   $h = [int] $r.Height
 
-  $bmp = New-Object System.Drawing.Bitmap $w, $h
+  $bmp = Get-UiaScreenPixels -Element $Line -X ([int] $r.X) -Y ([int] $r.Y) -Width $w -Height $h
   try {
-    $g = [System.Drawing.Graphics]::FromImage($bmp)
-    try { $g.CopyFromScreen([int] $r.X, [int] $r.Y, 0, 0, $bmp.Size) } finally { $g.Dispose() }
     $lums = for ($px = 0; $px -lt $w; $px++) {
       for ($py = 0; $py -lt $h; $py++) {
         $c = $bmp.GetPixel($px, $py)

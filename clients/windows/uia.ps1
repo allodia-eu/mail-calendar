@@ -91,9 +91,7 @@ Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes -ErrorAction Stop
 # Pressing, as against finding: every click, hover, drag, wheel and keystroke goes through winapp.
 . (Join-Path $PSScriptRoot 'winapp.ps1')
 
-# Guarded because this file is dot-sourced: adding the same type twice in one session throws.
-if (-not ('Allodia.UiaDpi' -as [type])) {
-  Add-Type -TypeDefinition @'
+$uiaDpiSource = @'
 using System;
 using System.Runtime.InteropServices;
 
@@ -117,13 +115,26 @@ namespace Allodia
         [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
 
         /// <summary>
-        /// A bare Alt press, which makes this process the last to send input: Windows grants
-        /// SetForegroundWindow only then (Show-WinappWindow).
+        /// A keystroke, which makes this process the last to send input:
+        /// Windows grants SetForegroundWindow only then (Show-WinappWindow).
         /// </summary>
         [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
     }
 }
 '@
+# Guarded because this file is dot-sourced: adding the same type twice in one session throws. A
+# type cannot be replaced once loaded either, so a session that dot-sourced an older copy of this
+# file keeps that copy's type, and a member added since would fail at its first call as "method not
+# found". It is named here instead.
+$uiaDpiType = 'Allodia.UiaDpi' -as [type]
+if (-not $uiaDpiType) {
+  Add-Type -TypeDefinition $uiaDpiSource
+} else {
+  $missing = @([regex]::Matches($uiaDpiSource, 'extern \w+ (\w+)\(') |
+      ForEach-Object { $_.Groups[1].Value } | Where-Object { -not $uiaDpiType.GetMethod($_) })
+  if ($missing) {
+    throw "this PowerShell session loaded an older uia.ps1, whose Allodia.UiaDpi has no $($missing -join ', '); start a new session"
+  }
 }
 
 Set-Variable -Name UiaElement -Value ([System.Windows.Automation.AutomationElement]) -Scope Script
@@ -680,20 +691,48 @@ function Wait-UiaGone {
 
 <#
 .SYNOPSIS
+The screen pixels of a rectangle (physical pixels) as a Bitmap the caller disposes, read with
+-Element's window in front.
+.DESCRIPTION
+The pixels come off the composited desktop, so they are whatever is drawn there: any window lying
+over the app is read as the app's own colours. The window is brought to the front first.
+#>
+function Get-UiaScreenPixels {
+  param(
+    [Parameter(Mandatory)] [object] $Element,
+    [Parameter(Mandatory)] [int] $X, [Parameter(Mandatory)] [int] $Y,
+    [Parameter(Mandatory)] [int] $Width, [Parameter(Mandatory)] [int] $Height
+  )
+  Show-WinappWindow (Get-UiaWindowHandle $Element)
+  Add-Type -AssemblyName System.Drawing
+  $bmp = New-Object System.Drawing.Bitmap $Width, $Height
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  try { $g.CopyFromScreen($X, $Y, 0, 0, $bmp.Size) } finally { $g.Dispose() }
+  $bmp
+}
+
+<#
+.SYNOPSIS
 Wait until the message list settles on a stable, non-zero row count, and return it.
 .DESCRIPTION
 Against the harness the rows arrive over the wire in several snapshots, so "count the rows after
 N seconds" is a race. This waits for the count to hold still.
+
+An empty list never settles, and waits out -TimeoutSec, unless -AllowEmpty: then none counts too,
+once the list draws its empty panel. That panel is up for any list without rows, a folder whose
+first sync has not arrived included, so pass it only for a folder that may rightly be empty, and go
+on to wait for whatever is expected in it.
 #>
 function Wait-MailRowCount {
-  param([int] $TimeoutSec = 40, [int] $StableChecks = 4)
+  param([int] $TimeoutSec = 40, [int] $StableChecks = 4, [switch] $AllowEmpty)
   $stable = 0
   $last = -1
   for ($i = 0; $i -lt $TimeoutSec * 2; $i++) {
     Start-Sleep -Milliseconds 500
     $n = -1
     try { $n = @(Get-MailRows).Count } catch { }
-    if ($n -gt 0 -and $n -eq $last) {
+    $settled = $n -gt 0 -or ($AllowEmpty -and $n -eq 0 -and (Find-UiaElement -AutomationId 'EmptyMailboxText'))
+    if ($settled -and $n -eq $last) {
       $stable++
       if ($stable -ge $StableChecks) { return $n }
     } else {
