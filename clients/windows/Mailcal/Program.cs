@@ -43,6 +43,10 @@ public static class Program
     {
         WinRT.ComWrappersSupport.InitializeComWrappers();
 
+        // Before anything can create a web view: a release build reads none of the WebView2 loader's
+        // variables, one of which opens a remote-debugging port on every page (WebViewInspection).
+        var closedVariables = WebViewInspection.Close(WebViewInspection.DevToolsEnabled);
+
         // Unpackaged dev (build-and-run.ps1) has no MSIX manifest to declare the protocol, so
         // register it against the current exe at runtime, and withdraw every other dev build's
         // claim on it. Packaged/Store builds get it from Package.appxmanifest instead, skip there.
@@ -70,6 +74,10 @@ public static class Program
         if (_devSchemeNote is { } note)
         {
             Log.Info(note);
+        }
+        if (closedVariables > 0)
+        {
+            Log.Info($"web views: ignored {closedVariables} WebView2 environment variable(s), as a release build does");
         }
         if (Log.FilePath is string logPath)
         {

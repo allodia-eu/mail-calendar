@@ -121,6 +121,7 @@ internal sealed class EditorWebViewHost
         // in this WebView2 (the reading pane keeps its own, with scripting off).
         settings.IsScriptEnabled = true;
         settings.AreHostObjectsAllowed = false;
+        settings.AreDevToolsEnabled = WebViewInspection.DevToolsEnabled;
         settings.IsWebMessageEnabled = HostRequested is not null;
         if (HostRequested is not null)
         {

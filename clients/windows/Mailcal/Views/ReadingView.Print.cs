@@ -106,6 +106,7 @@ public sealed partial class ReadingView
         var settings = core.Settings;
         settings.IsScriptEnabled = false;
         settings.AreHostObjectsAllowed = false;
+        settings.AreDevToolsEnabled = WebViewInspection.DevToolsEnabled;
         settings.IsWebMessageEnabled = false;
         settings.AreDefaultContextMenusEnabled = false;
         core.NavigationStarting += (_, args) =>

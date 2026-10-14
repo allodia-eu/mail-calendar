@@ -124,6 +124,7 @@ public sealed partial class ReadingView
         // Defence in depth atop the core's sanitisation: no scripting, no host bridge.
         settings.IsScriptEnabled = false;
         settings.AreHostObjectsAllowed = false;
+        settings.AreDevToolsEnabled = WebViewInspection.DevToolsEnabled;
         settings.IsWebMessageEnabled = false;
         settings.AreDefaultContextMenusEnabled = false;
         // The reader's zoom: touch pinch, and Ctrl+scroll / Ctrl +/- (docs/reading-zoom.md). Both

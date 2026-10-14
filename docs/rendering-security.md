@@ -113,6 +113,11 @@ can't leak data:
 
 1. **Scripting disabled** in the web view.
 2. **No host/script bridge**: no JS↔native channel, no injected host objects.
+   - **2a. No inspector in a release build.** Neither the platform's developer tools nor a
+     remote-inspection channel reaches a web view in a build a user installs, including one the
+     platform opens from an environment variable: a remote-debugging port hands every page, a
+     message being read included, to any process on the machine that connects. A debug build may
+     keep both; the dev scripts read the composer's page through one.
 3. **All in-view navigation blocked**: redirects, form posts, and link taps never load inside the
    web view; the rendered document is inert. The one exception is a **user-activated** link tap,
    which is handed to the OS default handler (see gate 4a) rather than navigated in place; the
@@ -184,6 +189,7 @@ cell is filled.
 |---|---|---|---|---|
 | Scripting off | `allowsContentJavaScript = false` | `settings.javaScriptEnabled = false` | `Settings.IsScriptEnabled = false` | `Settings.enable_javascript = false` on the dedicated reading host |
 | No host/script bridge | (no message handlers added) | (no `addJavascriptInterface`) | `AreHostObjectsAllowed = false`, `IsWebMessageEnabled = false` | fresh `UserContentManager`; no script-message handlers or host objects |
+| **2a**: no inspector in a release build | `isInspectable` is never set, and it is off by default | `setWebContentsDebuggingEnabled` is never called, so the platform allows it only in a debuggable (debug) build | `AreDevToolsEnabled` is off outside `DEBUG`, and every `WEBVIEW2_*` variable is removed from the process before the first web view (`WebViewInspection`), because the loader appends `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` to the app's own options | `enable_developer_extras` is never set, and `WEBKIT_INSPECTOR_SERVER` exposes no page without it |
 | In-view navigation blocked | `decidePolicyFor` cancels all but the initial in-memory load | `shouldOverrideUrlLoading → true` | `NavigationStarting` cancels all but our `NavigateToString` | `decide-policy` permits only the expected initial `about:blank` load; all later navigation is ignored |
 | New windows blocked | navigation policy cancels; no `WKUIDelegate` opens windows | (navigation cancelled) | `NewWindowRequested.Handled = true` | `create → None`; `NewWindowAction` is ignored |
 | External link handoff (user-activated; scheme decided by shared Rust `should_open_external_link`: `http`/`https`/`mailto` only) | `.linkActivated` → `NSWorkspace.shared.open` | `hasGesture()` → `Intent.ACTION_VIEW` | `IsUserInitiated` (nav + `NewWindowRequested`) → `Launcher.LaunchUriAsync` | `is_user_gesture` → shared gate → `GAppInfo` OS handler; WebKit navigation stays cancelled |
