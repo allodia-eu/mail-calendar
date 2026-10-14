@@ -391,6 +391,13 @@ every call site fails at once. So a change to an FFI signature is exactly the sh
 `--clients` on a Mac and turns the Linux job red: read each call site's argument list against
 the new signature before pushing, position for position.
 
+⚠️ **C# absorbs a new method parameter but not a new enum-variant field.** `uniffi-bindgen-cs`
+emits a variant such as `EventIntent.Create` as a positional record and drops the field's
+`#[uniffi(default = …)]`, so a field added to a variant is a required argument at every
+`new EventIntent.Create(…)` in the WinUI app. Nothing on a Linux or Mac host compiles that app
+(`Mailcal.Tests` and `MailcalVerify` do not include it), so only the Windows job sees it: grep
+`clients/windows/Mailcal` for the variant before pushing.
+
 ⚠️ **A host build compiles against the distribution's GTK, not the runtime's**, so it proves the
 code compiles and its logic holds, not that the toolkit the user gets behaves. What runs against
 the shipped runtime is `test-linux-ui.sh` and `build-and-run.sh`, both defaulting to it via
