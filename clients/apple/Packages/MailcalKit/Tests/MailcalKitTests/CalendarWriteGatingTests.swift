@@ -22,6 +22,7 @@ import Testing
             color: CalendarColor(hex: "#16598d", light: swatch, dark: swatch),
             visible: true,
             canWrite: canWrite,
+            canInvite: false,
             isDefault: canWrite
         )
     }

@@ -70,6 +70,8 @@ pub(crate) struct CachedCalendar {
     pub(crate) server_color: Option<String>,
     /// Whether this account's calendar provider supports writes.
     pub(crate) can_write: bool,
+    /// Whether a meeting may be organised here (`App::account_can_invite`).
+    pub(crate) can_invite: bool,
 }
 
 /// The occurrences and calendars a grid renders from, and the window they cover.
@@ -202,13 +204,8 @@ impl<P: Provider> App<P> {
             let account_id = account.id.as_str().to_owned();
             expects_calendars |= !account.calendar_providers.is_empty();
             every_account_connected &= account.dialled;
-            let can_write = account.calendar_providers.first().is_some_and(|provider| {
-                provider
-                    .connection_info()
-                    .capabilities
-                    .calendar_write_guard()
-                    .is_some()
-            });
+            let can_write = Self::account_can_write(&account);
+            let can_invite = Self::account_can_invite(&account);
             for calendar in self.engine.calendars(&account.id).await.unwrap_or_default() {
                 calendars.push(CachedCalendar {
                     account: account_id.clone(),
@@ -217,6 +214,7 @@ impl<P: Provider> App<P> {
                     name: calendar.name,
                     server_color: calendar.color,
                     can_write,
+                    can_invite,
                 });
             }
             // The account's own addresses; primary plus configured aliases. The *persisted* set

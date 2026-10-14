@@ -18,7 +18,7 @@ public class CalendarWriteGatingTests
         var swatch = new Swatch("#336699", "#ffffff", "#224466");
         return new CalendarRow(
             "acct-1", "me@example.org", id, "Calendar " + id, new CalendarColor("#336699", swatch, swatch),
-            true, canWrite, canWrite);
+            true, canWrite, false, canWrite);
     }
 
     // `participation` is inert here, write-gating reads `can_write` and nothing else, so these

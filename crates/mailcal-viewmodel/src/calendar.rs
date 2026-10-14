@@ -30,6 +30,10 @@ pub use agenda::{AccountEvent, CalendarSnapshot, EventRow, build};
 
 /// One calendar a user can see, colour, and toggle: the row a calendar manager lists and
 /// the grid colours its blocks from.
+// Four independent facts about one calendar: drawn or not, writable, able to host a meeting, and
+// the default. Writable does not imply a server that sends invitations, so no enum names their
+// combinations, and the UniFFI record mirrors this one field for field.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CalendarRow {
     /// The owning account's id.
@@ -48,6 +52,9 @@ pub struct CalendarRow {
     /// Whether this account's calendar provider supports writes. The host uses this to
     /// hide edit affordances on read-only calendars.
     pub can_write: bool,
+    /// Whether a meeting may be organised here: the calendar can be written **and** its server
+    /// sends the invitations a meeting write implies. A client offers invitees only then.
+    pub can_invite: bool,
     /// Whether a new event lands here unless the user picks another calendar.
     ///
     /// The **effective** default, already resolved against what exists: the user's stored choice

@@ -56,6 +56,7 @@ private fun calendarRow(id: String, canWrite: Boolean) = CalendarRow(
     ),
     visible = true,
     canWrite = canWrite,
+    canInvite = false,
     isDefault = canWrite,
 )
 

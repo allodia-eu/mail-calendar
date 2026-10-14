@@ -127,6 +127,7 @@ impl<P: Provider> App<P> {
                     visible: decided.visible,
                     color,
                     can_write: calendar.can_write,
+                    can_invite: calendar.can_invite,
                     is_default: false,
                 }
             })
@@ -178,6 +179,7 @@ mod default_calendar_tests {
             color: resolve(None, None, 0),
             visible: true,
             can_write,
+            can_invite: false,
             is_default: false,
         }
     }

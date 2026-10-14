@@ -43,6 +43,9 @@ mod calendar;
 #[path = "tests_fakes/calendar_builders.rs"]
 mod calendar_builders;
 #[allow(clippy::duplicate_mod)]
+#[path = "tests_fakes/calendar_variants.rs"]
+mod calendar_variants;
+
 #[path = "tests_fakes/connectors.rs"]
 mod connectors;
 #[allow(clippy::duplicate_mod)]

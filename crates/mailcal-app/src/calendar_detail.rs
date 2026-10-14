@@ -42,13 +42,11 @@ impl<P: Provider> App<P> {
             Some(token) => self.resolve_occurrence(event, &stored, token).await,
             None => None,
         };
-        let addresses = self.account_address_set(&event.account).await;
-        let invitee_editability =
-            if can_write && crate::invitations::may_edit_roster(&stored, &addresses) {
-                InviteeEditability::Editable
-            } else {
-                InviteeEditability::ReadOnly
-            };
+        let invitee_editability = if self.may_change_roster(&event.account, &stored).await {
+            InviteeEditability::Editable
+        } else {
+            InviteeEditability::ReadOnly
+        };
         let detail = project_event_detail(
             event.account.as_str(),
             &stored,

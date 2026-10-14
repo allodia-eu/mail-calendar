@@ -8,7 +8,8 @@ use std::sync::{
 };
 
 use engine_api::{
-    AccountId, CalendarWrites, EmailAddress, Engine, InviteePatch, MeetingDraft, TimeZoneId,
+    AccountId, CalendarUserAddresses, CalendarWrites, EmailAddress, Engine, InviteePatch,
+    MeetingDraft, TimeZoneId,
 };
 use engine_core::{
     calendar::{Calendar, Event},
@@ -59,7 +60,7 @@ type RecordedRsvps = Arc<Mutex<Vec<(String, RsvpResponse, Option<String>, bool)>
 /// What a server-scheduled transport (CalDAV auto-schedule, JMAP) lets a user control about
 /// an RSVP: the answer, and nothing else. The fake's default, because it is the harness's
 /// reality; both dev accounts are server-scheduled.
-const SERVER_SCHEDULED_RSVP: RsvpControls = RsvpControls {
+pub(super) const SERVER_SCHEDULED_RSVP: RsvpControls = RsvpControls {
     comment: false,
     suppress_notification: false,
     guard: WriteGuard::Enforced,
@@ -78,56 +79,59 @@ pub(crate) const FULL_RSVP_CONTROLS: RsvpControls = RsvpControls {
 /// delete so a test can assert the app routed [`EventIntent::Delete`](crate::EventIntent::Delete)
 /// to the right account's provider.
 pub(crate) struct CalendarFake {
-    caps: Capabilities,
-    calendars: Vec<Calendar>,
-    events: Vec<Event>,
+    pub(super) caps: Capabilities,
+    pub(super) calendars: Vec<Calendar>,
+    pub(super) events: Vec<Event>,
     /// The uid of each draft this provider was asked to create, so a test can prove which
     /// account's provider a create was routed to.
-    creations: Arc<Mutex<Vec<String>>>,
+    pub(super) creations: Arc<Mutex<Vec<String>>>,
     /// The calendar key each draft was created **in**, so a test can prove a create routed to
     /// the *chosen* calendar rather than simply the first.
-    create_targets: Arc<Mutex<Vec<String>>>,
+    pub(super) create_targets: Arc<Mutex<Vec<String>>>,
     /// The repeat rule each draft carried, by value: a create that repeats has to be
     /// distinguishable from one that does not, and by more than "a field was populated".
-    create_rules: Arc<Mutex<Vec<Option<DraftRecurrence>>>>,
+    pub(super) create_rules: Arc<Mutex<Vec<Option<DraftRecurrence>>>>,
     /// The scheduling data each create carried, or `None` for an appointment.
-    create_meetings: Arc<Mutex<Vec<Option<MeetingDraft>>>>,
-    deletions: Arc<Mutex<Vec<String>>>,
+    pub(super) create_meetings: Arc<Mutex<Vec<Option<MeetingDraft>>>>,
+    pub(super) deletions: Arc<Mutex<Vec<String>>>,
     /// What each delete removed: the whole event, or one named occurrence. By value, for the
     /// reason [`RecordedPatch`] is: cancelling one Tuesday and cancelling the standup are
     /// different requests, and a substring match cannot tell them apart.
-    delete_targets: Arc<Mutex<Vec<DeleteTarget>>>,
+    pub(super) delete_targets: Arc<Mutex<Vec<DeleteTarget>>>,
     /// The revision guard each delete carried, so a test can prove a delete is conditioned on
     /// the revision the caller read (CalDAV `If-Match`) rather than issued unconditionally.
-    delete_guards: Arc<Mutex<Vec<Option<RevisionTokens>>>>,
+    pub(super) delete_guards: Arc<Mutex<Vec<Option<RevisionTokens>>>>,
     /// Every edit this provider was asked to patch: so a test can assert what an edit actually
     /// sent *by value*, not by matching a `Debug` string.
-    patches: RecordedPatches,
+    pub(super) patches: RecordedPatches,
     /// Every RSVP this provider was asked to send, by value: the answering address above
     /// all, since an alias invitation answering as the account's primary is the bug D5 exists
     /// to prevent and a `Debug` string would not pin it.
-    rsvps: RecordedRsvps,
+    pub(super) rsvps: RecordedRsvps,
     /// What this fake advertises it can control about an RSVP. Defaults to the
     /// server-scheduled shape (CalDAV/JMAP): no note, no choosing to stay quiet.
-    rsvp_controls: Option<RsvpControls>,
+    pub(super) rsvp_controls: Option<RsvpControls>,
     /// What this fake reports about getting an RSVP to the organiser (RFC 6638 §3.2.9), on the
     /// write receipt. Defaults to [`ReplyDelivery::NotReported`], which is what the great
     /// majority of servers say; including auto-scheduling ones that deliver perfectly.
-    reply_delivery: ReplyDelivery,
+    pub(super) reply_delivery: ReplyDelivery,
     /// When set, every patch fails. The write path has no outbox behind it, so a failed edit
     /// is simply a lost edit: a test has to be able to prove the app says so.
-    reject_patches: bool,
+    pub(super) reject_patches: bool,
     /// When set, every read fails before it reaches anything: the account is there, the network
     /// is not. The store therefore stays as empty as it was, which is the shape a first launch
     /// with no connection has and the one case where claiming a materialized window is a lie.
-    unreachable: bool,
+    pub(super) unreachable: bool,
     /// When set, an **event delta** (a `sync_events` with a cursor) fails. The initial
     /// snapshot still succeeds, so this fails *only* the post-write reconcile: the path that
     /// turns a landed write into `Reconciled::Failed`, and the calendar status into `Failed`.
-    reject_event_delta: bool,
+    pub(super) reject_event_delta: bool,
     /// How many times this provider has been asked to go to the "network". The grid must paint
     /// from the store, so "did opening the calendar cost a round-trip?" has to be answerable.
-    syncs: Arc<AtomicUsize>,
+    pub(super) syncs: Arc<AtomicUsize>,
+    /// What the server says it schedules as, for an organiser check. Defaults to
+    /// [`CalendarUserAddresses::Unknown`], the trait's own default.
+    pub(super) calendar_users: CalendarUserAddresses,
 }
 
 impl CalendarFake {
@@ -162,6 +166,7 @@ impl CalendarFake {
             unreachable: false,
             reject_event_delta: false,
             syncs: Arc::new(AtomicUsize::new(0)),
+            calendar_users: CalendarUserAddresses::Unknown,
         }
     }
 
@@ -185,78 +190,6 @@ impl CalendarFake {
             calendars,
             events: Vec::new(),
             ..Self::with_event("unused")
-        }
-    }
-
-    /// The same, but the RSVP write receipt carries `delivery`; what the server reported
-    /// about getting the reply to the organiser.
-    ///
-    /// This is the one knob that turns a stored answer into a *question for the user*, so it
-    /// takes the whole verdict rather than a bool: "the server said nothing" and "the server
-    /// said 5.2" must be distinguishable in a test, because conflating them is exactly the bug
-    /// (`docs/invitations.md`).
-    pub(crate) fn reporting_delivery(events: Vec<Event>, delivery: ReplyDelivery) -> Self {
-        Self {
-            reply_delivery: delivery,
-            ..Self::with_events(events)
-        }
-    }
-
-    /// The same, but every patch is rejected: the server said no.
-    pub(crate) fn rejecting_writes(events: Vec<Event>) -> Self {
-        Self {
-            reject_patches: true,
-            ..Self::with_events(events)
-        }
-    }
-
-    /// A calendar account that cannot be reached: no network. Its capabilities are unchanged, so
-    /// the app still expects a calendar from it; it simply never gets one.
-    pub(crate) fn unreachable() -> Self {
-        Self {
-            unreachable: true,
-            ..Self::with_events(Vec::new())
-        }
-    }
-
-    /// A writable account whose **post-write reconcile fails**: the create/edit/delete lands,
-    /// but the event delta the engine runs to confirm it comes back an error, so the write
-    /// settles as `Reconciled::Failed` and the calendar status as `Failed`.
-    pub(crate) fn failing_reconcile(events: Vec<Event>) -> Self {
-        Self {
-            reject_event_delta: true,
-            ..Self::with_events(events)
-        }
-    }
-
-    /// A **read-only** calendar account: it syncs calendars and events but advertises no
-    /// calendar writes, so `Capabilities::calendar_write_guard()` is `None` and every row it
-    /// contributes must come back `can_write: false`. This is the subscribed-feed / read-only
-    /// share case a client hides its edit affordances for.
-    pub(crate) fn read_only(events: Vec<Event>) -> Self {
-        Self {
-            caps: Capabilities::none().with_calendars(),
-            ..Self::with_events(events)
-        }
-    }
-
-    /// A writable calendar account whose server **discards** what the user changed about a
-    /// single occurrence when the series is edited: the Graph shape, and the case a client
-    /// has to warn about before it lets the edit through.
-    pub(crate) fn losing_overrides(events: Vec<Event>) -> Self {
-        Self {
-            caps: Capabilities::none()
-                .with_calendars()
-                .with_calendar_writes(
-                    WriteGuard::Enforced,
-                    OverrideSurvival {
-                        survives_time_change: false,
-                        survives_rule_change: false,
-                        clobbers_own_fields: false,
-                    },
-                )
-                .with_calendar_rsvp(SERVER_SCHEDULED_RSVP),
-            ..Self::with_events(events)
         }
     }
 
@@ -373,6 +306,13 @@ impl engine_api::MailboxWrites for CalendarFake {}
 
 #[async_trait::async_trait]
 impl CalendarWrites for CalendarFake {
+    async fn calendar_user_addresses(
+        &self,
+        _account: &AccountId,
+    ) -> ProviderResult<CalendarUserAddresses> {
+        Ok(self.calendar_users.clone())
+    }
+
     async fn create_event(
         &self,
         _account: &AccountId,

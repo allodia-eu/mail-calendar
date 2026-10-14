@@ -61,6 +61,7 @@ internal val GRID_WORK = CalendarRow(
     ),
     visible = true,
     canWrite = true,
+    canInvite = false,
     isDefault = true,
 )
 

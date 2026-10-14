@@ -39,6 +39,7 @@ private val CALENDARS = listOf(
         ),
         visible = true,
         canWrite = true,
+        canInvite = false,
         isDefault = true,
     ),
 )

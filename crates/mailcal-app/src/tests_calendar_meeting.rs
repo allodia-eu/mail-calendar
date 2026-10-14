@@ -36,7 +36,7 @@ fn create(invitees: Option<Vec<Invitee>>) -> Intent {
 
 #[tokio::test]
 async fn creating_a_meeting_uses_the_calendar_accounts_identity() {
-    let provider = CalendarFake::with_events(Vec::new());
+    let provider = CalendarFake::scheduling(Vec::new());
     let meetings = provider.create_meetings();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
@@ -58,7 +58,7 @@ async fn creating_a_meeting_uses_the_calendar_accounts_identity() {
 
 #[tokio::test]
 async fn an_empty_roster_is_refused_before_the_provider() {
-    let provider = CalendarFake::with_events(Vec::new());
+    let provider = CalendarFake::scheduling(Vec::new());
     let meetings = provider.create_meetings();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
@@ -72,7 +72,7 @@ async fn an_empty_roster_is_refused_before_the_provider() {
 
 #[tokio::test]
 async fn inviting_the_organiser_is_refused_before_the_provider() {
-    let provider = CalendarFake::with_events(Vec::new());
+    let provider = CalendarFake::scheduling(Vec::new());
     let meetings = provider.create_meetings();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
@@ -94,7 +94,7 @@ async fn an_invitee_cannot_change_the_meeting_roster() {
     event
         .participants
         .push(Participant::attendee("me@acct-a.local"));
-    let provider = CalendarFake::with_events(vec![event]);
+    let provider = CalendarFake::scheduling(vec![event]);
     let patches = provider.patches();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
@@ -125,7 +125,7 @@ async fn an_organiser_can_change_the_meeting_roster() {
     let mut organiser = Participant::attendee("me@acct-a.local");
     organiser.roles.insert(ParticipantRole::Owner);
     event.participants.push(organiser);
-    let provider = CalendarFake::with_events(vec![event]);
+    let provider = CalendarFake::scheduling(vec![event]);
     let patches = provider.patches();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
@@ -160,7 +160,7 @@ async fn a_jmap_chair_can_change_the_meeting_roster_when_no_owner_exists() {
     let mut organiser = Participant::attendee("me@acct-a.local");
     organiser.roles.insert(ParticipantRole::Chair);
     event.participants.push(organiser);
-    let provider = CalendarFake::with_events(vec![event]);
+    let provider = CalendarFake::scheduling(vec![event]);
     let patches = provider.patches();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);

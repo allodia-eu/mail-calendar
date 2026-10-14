@@ -111,6 +111,7 @@ mod records_folders;
 mod records_outbox;
 pub mod sync_state;
 // The meeting-invitation card: its own file, since `records.rs` is at the 500-line limit.
+mod meeting_editor;
 mod records_invitation;
 mod records_meeting;
 mod records_recurrence;
@@ -184,6 +185,7 @@ pub use imap_oauth::{ImapAuthOffer, ImapLoginRequest, ImapLoginStart};
 pub use launch::launch_status_after_ms;
 pub use logging::{LogLevel, Logger};
 pub use mailto::{MailtoPrefill, parse_mailto_uri};
+pub use meeting_editor::{InviteeCheck, check_meeting_invitee, meeting_invitee_patch};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
 pub use oauth_routes::{OAuthRoutes, oauth_routes};

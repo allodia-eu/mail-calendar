@@ -26,6 +26,7 @@ private fun row(account: String, id: String, name: String, hex: String) = Calend
     ),
     visible = true,
     canWrite = true,
+    canInvite = false,
     isDefault = false,
 )
 

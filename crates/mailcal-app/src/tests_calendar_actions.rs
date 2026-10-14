@@ -382,6 +382,9 @@ async fn a_create_routes_to_the_chosen_calendar_not_the_first() {
 #[path = "tests_calendar_meeting.rs"]
 mod meeting;
 
+#[path = "tests_calendar_meeting_gate.rs"]
+mod meeting_gate;
+
 #[tokio::test]
 async fn a_create_with_an_unknown_calendar_still_lands_rather_than_dropping() {
     // A stale picker choice (a calendar since removed) must fall back to a real calendar of

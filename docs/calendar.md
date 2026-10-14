@@ -378,10 +378,43 @@ Every name and address is **attacker-controlled** (it came from whoever sent the
 been through `plain_text`: control characters and bidi overrides out, whitespace collapsed, length
 bounded. A client renders it as **text, never markup**: `use_markup(false)` on GTK.
 
-**Attendees are read-only in every client.** The core accepts organiser-authored meeting creates
-and whole-series roster changes, and exposes whether the account may edit that roster. No client
-offers those controls yet. The editor therefore **shows** the list and states that it cannot be
-changed there, and the detail view shows no add/remove affordance.
+**An optional invitee is marked.** Each row carries `role`: `Required` or `Optional` for an
+invitee, `None` for the organiser and for a role the editor cannot state (a chair, a non-participant).
+A client prints "Optional" beside an optional invitee and nothing beside a required one, which is
+the default an invitation assumes.
+
+### Organising a meeting
+
+A new event becomes a **meeting** when it is created with invitees, and a meeting the account
+organises can have invitees added, removed or switched between required and optional. Four rules,
+each enforced by the core and mirrored by every client's controls:
+
+- **Only where the server sends the invitations.** Storing a meeting and telling the people on it
+  are separate facts, and only the server decides the second: Graph, Google and JMAP always do, and
+  a CalDAV server does when it advertises RFC 6638 auto-scheduling. A plain CalDAV server stores the
+  meeting and tells nobody, while the organiser's calendar says they were invited, which is the
+  failure [`invitations.md`](invitations.md) forbids for an answer. Sending the iTIP `REQUEST`
+  ourselves would make this app the scheduler for every later change to the meeting, which the
+  engine does not do. So a calendar row carries **`can_invite`** (writable, and its server
+  schedules), the editor offers invitees only on such a calendar, and the core refuses a meeting
+  written anywhere else.
+- **The organiser is the calendar's account, never a client's choice.** The core takes the account's
+  own sender identity, and refuses it when the server named the addresses it schedules as
+  (`calendar_user_addresses`) and this is not one of them: RFC 6638 §3.1 has a server act only for an
+  organiser in that set, and say nothing about one outside it.
+- **Only the organiser changes the roster.** `EventDetail.can_edit_invitees` is `true` when this
+  account organises the meeting (`Owner`, or `Chair` where no `Owner` exists, the JMAP shape) and
+  `can_invite` holds for its calendar. Anyone else sees the list read-only, with the sentence saying
+  so, and the detail view never offers an add or remove affordance.
+- **A roster belongs to the series.** A changed roster settles *This event · All events* the way a
+  changed repeat rule does (§10): it is saved for the whole series without asking, because one
+  occurrence with a different guest list is not something an invitation can describe.
+
+A client sends what changed, never the whole list: `MeetingInviteePatch` names the invitees added or
+re-roled (`upsert`) and the addresses removed (`remove`), so an answer already given survives a
+change to somebody else's row. An invitee is typed as an address; the core validates it, refuses a
+duplicate, an empty roster and the organiser inviting themselves, and the editor rejects the same
+before Save.
 
 **The picture is per surface; the disclosure is not.** A grid block and an all-day bar take the dashed
 border, the hatched gutter and a faded fill. A **month chip** is a few points tall, so the hatch
@@ -1497,6 +1530,9 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | **View** an event (tap → detail) and **edit** it: title, time, notes, location ⁶ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An event's **attendee list**: organiser first, each with their answer ⁹ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The same list, **read-only, in the editor** ⁹ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| An **optional** invitee marked as such in both lists ⁹ | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **Invite people** to a new event, on a calendar whose server sends the invitations (§4) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **Add, remove, or make optional** the invitees of a meeting you organise (§4) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | A **new** event opens with the caret in its title ¹¹ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Write affordances gated on `can_write`: a read-only row offers no delete; "New event" disabled without a writable calendar | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Drag-to-create**: draw a slot out on empty grid, opening the editor prefilled ¹⁰ | ✅ | ✅ | ✅ | ⬜ | ✅ | ✅ |
@@ -1613,10 +1649,10 @@ the two lines under a name say; that rule (an unnamed attendee is shown by addre
 is not repeated beneath it) is small, entirely about what a user reads, and therefore unit-tested on
 each client: `EventAttendeesTests` (Apple), `EventAttendeesTest` (Android), `AttendeeSummaryTests`
 (Windows), `attendees_tests.rs` (Linux, which also holds that neither line is parsed as Pango
-markup). **Read-only everywhere**, so the editor's copy carries the sentence saying so.
+markup). Read-only unless the account organises the meeting (§4, "Organising a meeting"), and then
+the editor carries the controls instead of the sentence.
 
-Not shown, deliberately: **required vs optional** (`ROLE=OPT-PARTICIPANT`), and **which row is
-you**: see "Known gaps".
+Not shown, deliberately: **which row is you**: see "Known gaps".
 
 ¹⁰ **Dragging.** §10 owns the semantics. The **core** half is shared and inherited with no client
 code: `can_move` and `occurrence_start` are stamped onto every `TimedSegment`, and `EventIntent::Move`
@@ -1742,13 +1778,10 @@ Stated, not buried.
   and tab visit keep the offline floor, but a client left open on Calendar can still remain stale.
   Linux now refreshes every five minutes after connection; the other clients need an equivalent
   host timer or a shared runtime watch.
-- **The attendee list says who and how, not what kind.** The core carries whether each editable
-  invitee is required or optional, but clients draw both identically. Outlook and Apple Calendar
-  distinguish them. Nor is **your own row marked**; you find yourself by address. Neither is hidden
-  information (both are in the list either way), and adding either needs client controls and copy.
-  **No attendee can be added, removed or answered *for* from the calendar UI**: the core write
-  exists, but no client exposes it. The invitation card is where an answer is given today
-  ([`invitations.md`](invitations.md)).
+- **Your own row in the attendee list is not marked**; you find yourself by address. It is not
+  hidden information, and marking it means a field, a catalog key and four clients. **No attendee
+  can be answered *for* from the calendar**: that is iTIP, and the invitation card is where an
+  answer is given today ([`invitations.md`](invitations.md)).
 - **Samsung is still ahead, though not by much.** Their 2.4% against our **3.6%**: the shipped number,
   after the week was banked on decision (§7's last column). This entry used to quote 6.5–7.4%, the
   canvas *before* that fix, and so overstated the remaining distance by about double; the p99 gap came

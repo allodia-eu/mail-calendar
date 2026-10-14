@@ -42,6 +42,7 @@ private fun calendar(
     color = CalendarColor(hex = "#2f6fa8", light = swatch(), dark = swatch()),
     visible = true,
     canWrite = canWrite,
+    canInvite = false,
     isDefault = isDefault,
 )
 

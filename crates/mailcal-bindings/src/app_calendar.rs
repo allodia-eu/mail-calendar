@@ -230,6 +230,7 @@ impl From<AppCalendarRow> for CalendarRow {
             color: row.color.into(),
             visible: row.visible,
             can_write: row.can_write,
+            can_invite: row.can_invite,
             is_default: row.is_default,
         }
     }

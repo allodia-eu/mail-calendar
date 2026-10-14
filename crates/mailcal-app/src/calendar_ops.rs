@@ -205,12 +205,7 @@ impl<P: Provider> App<P> {
             return;
         };
         if let Some(invitees) = invitees {
-            let Some(organiser) = self.sender_identity(&account).await else {
-                self.set_calendar_write_status(CalendarWriteStatus::Failed);
-                return;
-            };
-            let Ok(meeting) = mailcal_account::attach_meeting(draft, &organiser, invitees) else {
-                log::warn!("create_calendar_event: the meeting fields were invalid");
+            let Some(meeting) = self.meeting_draft(&account, draft, invitees).await else {
                 self.set_calendar_write_status(CalendarWriteStatus::Failed);
                 return;
             };
@@ -282,12 +277,10 @@ impl<P: Provider> App<P> {
             .invitees
             .as_ref()
             .is_some_and(|changes| !changes.is_empty())
+            && !self.may_change_roster(&event.account, &stored).await
         {
-            let addresses = self.account_address_set(&event.account).await;
-            if !crate::invitations::may_edit_roster(&stored, &addresses) {
-                self.set_calendar_write_status(CalendarWriteStatus::Failed);
-                return Err("this account does not organise the meeting".to_owned());
-            }
+            self.set_calendar_write_status(CalendarWriteStatus::Failed);
+            return Err("this account may not change the meeting's invitees".to_owned());
         }
 
         let (target, patch) = mailcal_account::build_event_patch(&stored, edit, now_utc()?)
@@ -492,3 +485,7 @@ impl<P: Provider> App<P> {
         self.calendar_account().await
     }
 }
+
+/// Where a meeting may be organised, and as whom: the create and the roster edit above both ask.
+#[path = "calendar_meeting.rs"]
+mod meeting;
