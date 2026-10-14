@@ -9,8 +9,9 @@
 # A suite finds an element in-process, with exact names and a scoped walk, and hands it here to be
 # clicked, hovered, dragged or typed at. `winapp` does the pressing because it is DPI-aware and
 # injects real pointer and keyboard input, so a press lands where it was aimed at any display
-# scale. It is the one implementation of input this repository keeps: a suite does not P/Invoke
-# mouse_event or SendKeys of its own.
+# scale. It is the one implementation of input this repository keeps, with two exceptions that
+# measure the input itself: CalendarWheel.Tests injects a horizontal wheel no winapp verb sends, and
+# Search.Tests times a keystroke a winapp process start would delay.
 #
 # Why finding stays in-process: every `winapp` verb is a process of its own, 0.2–0.7 s a call
 # (winapp 0.7.1, measured against this app), where an in-process read takes milliseconds. A suite
@@ -148,8 +149,11 @@ function Get-WinappSelector {
   }
   $type = $current.ControlType.ProgrammaticName -replace '^ControlType\.', ''
   $found = Invoke-Winapp search @($query, '--type', $type, '--max', '200') -Window (Get-UiaWindowHandle $Element)
+  # An empty name or AutomationId can be absent from winapp's answer rather than empty, and $null
+  # is not equal to '', so both sides are compared as strings.
   $same = @($found.matches | Where-Object {
-      $_.name -eq $current.Name -and $_.automationId -eq $current.AutomationId -and
+      [string] $_.name -eq [string] $current.Name -and
+      [string] $_.automationId -eq [string] $current.AutomationId -and
       [Math]::Abs($_.x - $bounds.X) -le 2 -and [Math]::Abs($_.y - $bounds.Y) -le 2 -and
       [Math]::Abs($_.width - $bounds.Width) -le 2 -and [Math]::Abs($_.height - $bounds.Height) -le 2
     })

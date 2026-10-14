@@ -369,9 +369,20 @@ public sealed partial class ComposerView : UserControl
 
     private async void OnAttachFiles(object sender, RoutedEventArgs e)
     {
-        var picker = new FileOpenPicker(PickerOwner.For(this));
-        picker.FileTypeFilter.Add("*");
-        foreach (var picked in await picker.PickMultipleFilesAsync())
+        IReadOnlyList<PickFileResult> results;
+        try
+        {
+            var picker = new FileOpenPicker(PickerOwner.For(this));
+            picker.FileTypeFilter.Add("*");
+            results = await picker.PickMultipleFilesAsync();
+        }
+        catch (Exception ex)
+        {
+            // An async void handler: a throw here would take the app down with it.
+            Log.Warn($"composer: attach picker failed ({ex.GetType().Name})");
+            return;
+        }
+        foreach (var picked in results)
         {
             if (string.IsNullOrEmpty(picked.Path))
             {

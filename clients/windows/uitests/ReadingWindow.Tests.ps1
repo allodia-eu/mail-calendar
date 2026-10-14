@@ -13,10 +13,9 @@
 #
 # WHY SYNTHETIC MOUSE INPUT. A double-click is the gesture under test and UI Automation has no
 # pattern for one: Invoke raises a click, never two, and the whole point is what the SECOND press
-# does. So the presses are injected at the OS level with mouse_event, the same way
-# CalendarWheel.Tests injects a wheel. The context-menu route beside it needs none of that, which
-# is the point of having it: it is the route a keyboard or a screen reader takes, and it is what
-# the capability matrix claims.
+# does. So the presses are real pointer input, through winapp (winapp.ps1). The context-menu route
+# beside it needs none of that, which is the point of having it: it is the route a keyboard or a
+# screen reader takes, and it is what the capability matrix claims.
 
 $CatalogDir = Join-Path $PSScriptRoot '../../../messages'
 $RowSubject = 'Quarterly planning'      # seeded, has an invitation card, so the window has content

@@ -69,8 +69,8 @@ public sealed partial class ReadingView
                 if (await DecodeToAsync(opened.Account, opened.Key, attachment.Id, temp))
                 {
                     await using var input = File.OpenRead(temp);
-                    written = true;
                     await using var output = File.Create(path);
+                    written = true;
                     await input.CopyToAsync(output);
                     ok = true;
                 }

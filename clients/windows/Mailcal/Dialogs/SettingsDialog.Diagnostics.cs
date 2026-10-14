@@ -227,12 +227,17 @@ public sealed partial class SettingsDialog
             return; // the user cancelled the picker
         }
         var ok = false;
+        var written = false;
         try
         {
             // Buffered under the log gate (rotation caps it at ~1 MB), so this write never
             // races the logger.
             var bytes = Log.ExportSnapshot();
-            await File.WriteAllBytesAsync(path, bytes);
+            await using (var output = File.Create(path))
+            {
+                written = true;
+                await output.WriteAsync(bytes);
+            }
             ok = true;
             Log.Info($"diagnostics: log exported ({bytes.Length} bytes)");
         }
@@ -243,10 +248,14 @@ public sealed partial class SettingsDialog
         }
         if (!ok)
         {
-            // Don't leave a half-written or empty file at the user's chosen path.
+            // Don't leave a half-written file at the user's chosen path. Only one this export
+            // began writing: a failure before that leaves a file being replaced as it was.
             try
             {
-                File.Delete(path);
+                if (written)
+                {
+                    File.Delete(path);
+                }
             }
             catch
             {
