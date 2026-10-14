@@ -421,6 +421,23 @@ change to somebody else's row. An invitee is typed as an address; the core valid
 duplicate, an empty roster and the organiser inviting themselves, and the editor rejects the same
 before Save.
 
+### Answering from the calendar
+
+An invitee answers a meeting from its event as well as from the invitation email: the detail says
+what they answered (`EventDetail.my_answer`) and offers Accept, Maybe and Decline, the answer
+already given shown chosen and inert. Three rules:
+
+- **Offered only where an answer reaches the organiser.** `my_answer` is set when the account is on
+  the meeting, does not organise it, and has a route to tell the organiser; the same routes the
+  invitation card has ([`invitations.md`](invitations.md), "Who delivers the answer"). Where the
+  server schedules, storing the answer sends it, and a server that reports it could not deliver
+  asks the same question the card does; where it does not, the core writes the answer and emails
+  the `REPLY` itself. Without a route there are no buttons, never three that tell nobody.
+- **The answer is for the whole meeting**, a series included: the engine's RSVP writes an event as
+  a whole. One occurrence is answered from its own invitation, which names it.
+- **The organiser is always told.** A note to the organiser and a quiet answer stay on the
+  invitation card, where the transport says whether it can carry them.
+
 **The picture is per surface; the disclosure is not.** A grid block and an all-day bar take the dashed
 border, the hatched gutter and a faded fill. A **month chip** is a few points tall, so the hatch
 carries it and the dashes are decoration. An **agenda row** is a list item with no border to dash at
@@ -1538,6 +1555,7 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | An **optional** invitee marked as such in both lists ⁹ | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
 | **Invite people** to a new event, on a calendar whose server sends the invitations (§4) | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
 | **Add, remove, or make optional** the invitees of a meeting you organise (§4) | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
+| **Answer a meeting** from its event (Accept · Maybe · Decline), for the whole meeting (§4) | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
 | A **new** event opens with the caret in its title ¹¹ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Write affordances gated on `can_write`: a read-only row offers no delete; "New event" disabled without a writable calendar | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Drag-to-create**: draw a slot out on empty grid, opening the editor prefilled ¹⁰ | ✅ | ✅ | ✅ | ⬜ | ✅ | ✅ |
@@ -1784,9 +1802,7 @@ Stated, not buried.
   Linux now refreshes every five minutes after connection; the other clients need an equivalent
   host timer or a shared runtime watch.
 - **Your own row in the attendee list is not marked**; you find yourself by address. It is not
-  hidden information, and marking it means a field, a catalog key and four clients. **No attendee
-  can be answered *for* from the calendar**: that is iTIP, and the invitation card is where an
-  answer is given today ([`invitations.md`](invitations.md)).
+  hidden information, and marking it means a field, a catalog key and four clients.
 - **Samsung is still ahead, though not by much.** Their 2.4% against our **3.6%**: the shipped number,
   after the week was banked on decision (§7's last column). This entry used to quote 6.5–7.4%, the
   canvas *before* that fix, and so overstated the remaining distance by about double; the p99 gap came

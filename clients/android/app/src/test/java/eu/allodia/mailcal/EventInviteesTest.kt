@@ -64,6 +64,7 @@ private fun meeting(occurrence: String = "", canEditInvitees: Boolean = true) = 
     isRecurring = occurrence.isNotEmpty(),
     canWrite = true,
     canEditInvitees = canEditInvitees,
+    myAnswer = null,
     occurrenceStart = occurrence,
     attendees = listOf(
         attendee("me@example.org", null, isOrganizer = true),

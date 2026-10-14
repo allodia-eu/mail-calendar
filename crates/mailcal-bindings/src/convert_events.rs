@@ -101,6 +101,16 @@ pub(crate) fn event_intent(intent: EventIntent) -> Result<AppEventIntent, String
             // for one Tuesday.
             occurrence: parse_local(occurrence)?,
         },
+        EventIntent::Respond {
+            account,
+            key,
+            response,
+            reply_subject,
+        } => AppEventIntent::Respond {
+            event: event(account, key)?,
+            response: response.into(),
+            reply_subject,
+        },
     })
 }
 

@@ -47,13 +47,14 @@ impl<P: Provider> App<P> {
         } else {
             InviteeEditability::ReadOnly
         };
-        let detail = project_event_detail(
+        let mut detail = project_event_detail(
             event.account.as_str(),
             &stored,
             can_write,
             at.as_ref(),
             invitee_editability,
         );
+        detail.my_answer = self.answer_from_calendar(&event.account, &stored).await;
         log::info!(
             "event_detail: resolved in {}ms",
             started.elapsed().as_millis()
@@ -98,3 +99,7 @@ impl<P: Provider> App<P> {
         )
     }
 }
+
+/// Answering a meeting from its event rather than from its invitation.
+#[path = "calendar_rsvp.rs"]
+mod rsvp;

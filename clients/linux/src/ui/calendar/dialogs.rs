@@ -8,12 +8,13 @@ use mailcal_bindings::MailcalApp;
 
 use super::{
     super::AppInput,
+    answer,
     attendees::attendee_group,
     date::date_from_wall,
     dialogs_series,
     editor::{EventDetails, EventEditor, EventForm},
     invitees_editor,
-    model::{CalendarDialog, DeleteRequest},
+    model::{CalendarDialog, DeleteRequest, EventIdentity},
     repeat, repeat_editor,
 };
 use crate::l10n;
@@ -101,6 +102,25 @@ fn present_detail(
     let attendees = attendee_group(&detail.attendees);
     let body = gtk::Box::new(gtk::Orientation::Vertical, 12);
     body.append(&group);
+    if let Some(current) = detail.my_answer {
+        let on_answer: answer::OnAnswer = {
+            let (input, closing, dialog) = (sender.clone(), Rc::clone(&replacing), window.clone());
+            let event = EventIdentity {
+                account: detail.account.clone(),
+                key: detail.key.clone(),
+                occurrence: String::new(),
+            };
+            Rc::new(move |response, subject| {
+                closing.set(true);
+                input.emit(AppInput::RespondToEvent(event.clone(), response, subject));
+                dialog.close();
+            })
+        };
+        let answer = answer::answer_group(current, &title, &on_answer);
+        answer.set_margin_start(18);
+        answer.set_margin_end(18);
+        body.append(&answer);
+    }
     if let Some(attendees) = attendees {
         attendees.set_margin_start(18);
         attendees.set_margin_end(18);

@@ -48,6 +48,7 @@ import java.time.format.FormatStyle
 import java.util.Locale
 import uniffi.mailcal_bindings.CalendarRow
 import uniffi.mailcal_bindings.EventDetail
+import uniffi.mailcal_bindings.InvitationResponse
 
 @Composable
 internal fun EventDetailScreen(
@@ -56,6 +57,8 @@ internal fun EventDetailScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    /** Answers the meeting from here, with the reply subject; used only where `myAnswer` is set. */
+    onAnswer: (InvitationResponse, String) -> Unit = { _, _ -> },
     /**
      * Whether the user opened one **occurrence** of a series, so a delete has a scope question to
      * put ([EventSeriesScopeDialog], raised by the caller). When it has, this screen's own generic
@@ -146,6 +149,7 @@ internal fun EventDetailScreen(
                         locale,
                     ),
                 )
+                detail.myAnswer?.let { current -> EventAnswer(current, detail.title, onAnswer) }
                 // No heading at all for an appointment nobody was invited to, an empty
                 // "Attendees" label would read as "we looked and found none", which is a different
                 // statement from "this is not a meeting".

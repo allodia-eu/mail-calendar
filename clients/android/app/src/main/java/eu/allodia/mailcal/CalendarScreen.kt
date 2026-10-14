@@ -48,6 +48,7 @@ import uniffi.mailcal_bindings.CalendarWriteStatus
 import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.EventDetail
 import uniffi.mailcal_bindings.EventRow
+import uniffi.mailcal_bindings.InvitationResponse
 import uniffi.mailcal_bindings.MonthPage
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.SeriesEditWarning
@@ -79,6 +80,8 @@ internal fun CalendarScreen(
     palette: List<String>,
     onRefreshCalendar: () -> Unit,
     onDeleteEvent: (account: String, key: String, occurrence: String?) -> Unit,
+    /** Answers a meeting from its detail: the event, the answer, and the reply subject. */
+    onRespondToEvent: (account: String, key: String, InvitationResponse, String) -> Unit = { _, _, _, _ -> },
     onCreateEvent: (CreateArgs) -> Unit,
     onUpdateEvent: (UpdateArgs) -> Unit,
     // A drag on the grid: move or resize an event the user owns (`EventIntent.Move`).
@@ -417,6 +420,10 @@ internal fun CalendarScreen(
             detail = detail,
             calendars = calendars,
             onBack = { openEventRef = null },
+            onAnswer = { response, subject ->
+                openEventRef = null
+                onRespondToEvent(detail.account, detail.key, response, subject)
+            },
             onEdit = {
                 val name = calendars
                     .firstOrNull { it.account == detail.account && it.id == detail.calendar }

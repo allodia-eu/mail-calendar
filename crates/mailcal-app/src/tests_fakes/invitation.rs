@@ -70,7 +70,7 @@ pub(crate) struct InvitationFake {
     controls: Option<RsvpControls>,
     /// When false, the calendar is empty: the `ClientImip` case, where the mail arrived but
     /// nothing put the meeting in a calendar and there is nothing to answer on.
-    materialized: bool,
+    pub(crate) materialized: bool,
     /// The `SEQUENCE` the **calendar** holds. The mail's iCalendar carries none, so it reads as
     /// `0`; anything higher here is the organiser having re-sent the meeting since.
     stored_sequence: u32,

@@ -1,6 +1,6 @@
 //! Calendar actions and refresh coordination on the top-level Relm4 model.
 
-use mailcal_bindings::{Intent, MailcalApp};
+use mailcal_bindings::{EventIntent, Intent, InvitationResponse, MailcalApp};
 
 use super::{
     AppModel, PrimaryView,
@@ -44,6 +44,37 @@ impl CalendarRefreshGate {
 }
 
 impl AppModel {
+    pub(super) fn delete_calendar_event(&mut self, event: EventIdentity) {
+        self.dispatch(Intent::Events {
+            intent: EventIntent::Delete {
+                account: event.account,
+                key: event.key,
+                // Empty means the whole series: the surface drew no single occurrence, or the user
+                // answered *All events*, which clears it.
+                occurrence: Some(event.occurrence).filter(|at| !at.is_empty()),
+            },
+        });
+        self.calendar.dismiss_dialog();
+    }
+
+    /// Answers a meeting from its event, for the whole meeting (`docs/calendar.md`).
+    pub(super) fn respond_to_event(
+        &mut self,
+        event: EventIdentity,
+        response: InvitationResponse,
+        reply_subject: String,
+    ) {
+        self.dispatch(Intent::Events {
+            intent: EventIntent::Respond {
+                account: event.account,
+                key: event.key,
+                response,
+                reply_subject: Some(reply_subject),
+            },
+        });
+        self.calendar.dismiss_dialog();
+    }
+
     pub(super) fn show_calendar(&mut self) {
         self.primary = PrimaryView::Calendar;
         if self.calendar_refresh.calendar_opened() {

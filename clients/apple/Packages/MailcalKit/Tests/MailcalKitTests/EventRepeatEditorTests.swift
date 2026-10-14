@@ -59,6 +59,7 @@ import Testing
             isRecurring: isRecurring,
             canWrite: true,
             canEditInvitees: false,
+            myAnswer: nil,
             occurrenceStart: occurrenceStart,
             attendees: []
         )

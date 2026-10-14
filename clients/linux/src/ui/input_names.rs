@@ -76,6 +76,7 @@ impl fmt::Debug for AppInput {
             Self::Folder(_) => "Folder",
             Self::QueuedSendAction { .. } => "QueuedSendAction",
             Self::RespondToInvitation(..) => "RespondToInvitation",
+            Self::RespondToEvent(..) => "RespondToEvent",
             Self::AnswerReplyPrompt { .. } => "AnswerReplyPrompt",
             Self::LoadRemoteImages(_) => "LoadRemoteImages",
             Self::RetryOpen(_) => "RetryOpen",

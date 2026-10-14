@@ -30,8 +30,9 @@ use engine_api::{AccountId, Provider, ReplyDelivery};
 use mailcal_account::ReplyFallback;
 
 use crate::{
-    App, invitations_imip::ClientAnswer, invitations_rsvp::InvitationResponse,
-    reference::MessageRef,
+    App,
+    invitations_imip::{ClientAnswer, ReplyLetter, ReplySource},
+    invitations_rsvp::InvitationResponse,
 };
 
 /// What became of the reply the calendar server was supposed to send.
@@ -65,8 +66,8 @@ pub(crate) enum ReplyOutcome {
 pub struct ReplyPrompt {
     /// The account whose server failed, and whose standing choice a "remember" would set.
     pub account: AccountId,
-    /// The invitation being answered, so the send can re-derive the reply from it.
-    pub message: MessageRef,
+    /// Where the answer was given, so the send can re-derive the reply from it.
+    pub(crate) source: ReplySource,
     /// The meeting's title, for the sentence naming what is being confirmed.
     pub summary: String,
     /// The organiser's address; who the email would go to. A user consenting to send mail on
@@ -95,7 +96,8 @@ impl<P: Provider> App<P> {
     /// "we never asked", and the two look identical in a log that only speaks up on failure.
     pub(crate) async fn resolve_reply_delivery(
         &self,
-        answer: &ClientAnswer<'_>,
+        account: &AccountId,
+        letter: Result<ReplyLetter, String>,
         delivery: &ReplyDelivery,
     ) -> ReplyOutcome {
         // A debug build can be told to pretend the server said something else, because no
@@ -135,7 +137,7 @@ impl<P: Provider> App<P> {
             "respond_to_invitation: the calendar server could not deliver the reply (status {code})"
         );
 
-        match self.reply_fallback_for(&answer.message.account) {
+        match self.reply_fallback_for(account) {
             ReplyFallback::Never => {
                 log::info!(
                     "respond_to_invitation: not emailing the organizer; the account says never"
@@ -146,7 +148,11 @@ impl<P: Provider> App<P> {
                 log::info!(
                     "respond_to_invitation: emailing the reply ourselves; the account says always"
                 );
-                match self.send_imip_reply(answer, answer.stored.as_ref()).await {
+                let sent = match &letter {
+                    Ok(letter) => self.send_reply_letter(letter).await,
+                    Err(reason) => Err(reason.clone()),
+                };
+                match sent {
                     Ok(()) => ReplyOutcome::SentOurselves,
                     Err(reason) => {
                         log::warn!(
@@ -158,23 +164,24 @@ impl<P: Provider> App<P> {
                 }
             }
             ReplyFallback::Ask => {
-                // No organiser means no address to send to, so there is no question to ask;
-                // offering to email nobody would be a control that cannot work.
-                let Some(organizer) = answer.scheduling.message.organizer() else {
+                // No reply can be written (the meeting names no organiser), so there is no
+                // address to send to and no question to ask; offering to email nobody would be
+                // a control that cannot work.
+                let Ok(letter) = letter else {
                     log::info!(
-                        "respond_to_invitation: not asking; the invitation names no organizer to \
+                        "respond_to_invitation: not asking; the meeting names no organizer to \
                          email"
                     );
                     return ReplyOutcome::NotSentByChoice;
                 };
                 log::info!("respond_to_invitation: asking whether to email the organizer");
                 ReplyOutcome::Ask(ReplyPrompt {
-                    account: answer.message.account.clone(),
-                    message: answer.message.clone(),
-                    summary: answer.scheduling.message.event.title.clone(),
-                    organizer: strip_mailto(organizer).to_owned(),
-                    response: answer.response,
-                    comment: answer.comment.map(str::to_owned),
+                    account: account.clone(),
+                    source: letter.source,
+                    summary: letter.summary,
+                    organizer: strip_mailto(&letter.organizer).to_owned(),
+                    response: letter.response,
+                    comment: letter.comment,
                     status_code: code,
                 })
             }
@@ -278,12 +285,26 @@ impl<P: Provider> App<P> {
         prompt: &ReplyPrompt,
         reply_subject: Option<String>,
     ) -> Result<(), String> {
+        let message = match &prompt.source {
+            ReplySource::Message(message) => message,
+            ReplySource::Event(event) => {
+                let letter = self
+                    .event_reply_letter(
+                        event,
+                        prompt.response,
+                        prompt.comment.clone(),
+                        reply_subject,
+                    )
+                    .await?;
+                return self.send_reply_letter(&letter).await;
+            }
+        };
         let original = self
-            .find_message_in(&prompt.message)
+            .find_message_in(message)
             .await
             .ok_or_else(|| "the message is no longer in the store".to_owned())?;
         let scheduling = self
-            .fetch_scheduling(&prompt.message, &original)
+            .fetch_scheduling(message, &original)
             .await
             .ok_or_else(|| "the message carries no invitation to answer".to_owned())?;
         let event = &scheduling.message.event;
@@ -303,7 +324,7 @@ impl<P: Provider> App<P> {
 
         self.send_imip_reply(
             &ClientAnswer {
-                message: &prompt.message,
+                message,
                 original: &original,
                 scheduling: &scheduling,
                 attendee: &attendee,

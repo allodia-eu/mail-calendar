@@ -430,6 +430,10 @@ pub struct EventDetail {
     pub can_write: bool,
     /// Whether this account organises the meeting and may change its invitees.
     pub can_edit_invitees: bool,
+    /// This account's own answer, when it may change it here (`EventIntent::Respond`): it is
+    /// invited, does not organise the meeting, and has a way to tell the organiser. `None`
+    /// offers no answer.
+    pub my_answer: Option<crate::records_invitation::ResponseStatus>,
     /// The occurrence this detail describes, as the token that named it; empty when it
     /// describes the **series**, which is what an agenda row and a one-off event always do.
     ///

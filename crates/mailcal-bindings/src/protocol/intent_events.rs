@@ -2,7 +2,10 @@
 //! for the reason `FolderIntent` is: [`Intent`](super::Intent) is at its 500-line limit. It
 //! mirrors the core's own `EventIntent`.
 
-use crate::{EventEdge, MeetingInvitee, MeetingInviteePatch, RecurrenceChange, SimpleRecurrence};
+use crate::{
+    EventEdge, InvitationResponse, MeetingInvitee, MeetingInviteePatch, RecurrenceChange,
+    SimpleRecurrence,
+};
 
 /// A write to a stored calendar event, or a new one.
 #[derive(uniffi::Enum)]
@@ -158,5 +161,22 @@ pub enum EventIntent {
         /// standup are different requests.
         #[uniffi(default = None)]
         occurrence: Option<String>,
+    },
+    /// Answer an invitation from its event in the calendar: accept, maybe or decline, for the
+    /// whole meeting. Offered only where [`EventDetail::my_answer`](crate::EventDetail) is set,
+    /// and delivered the way the invitation card's answer is: the server schedules it, or the
+    /// core emails the reply itself, and a server that could not deliver asks the same
+    /// `ReplyPrompt` question.
+    Respond {
+        /// The owning account's id.
+        account: String,
+        /// The event's provider key.
+        key: String,
+        /// The answer.
+        response: InvitationResponse,
+        /// The localised subject for a reply the core emails itself ("Accepted: Planning"),
+        /// as on `Intent::RespondToInvitation`. `None` quotes the meeting's title.
+        #[uniffi(default = None)]
+        reply_subject: Option<String>,
     },
 }

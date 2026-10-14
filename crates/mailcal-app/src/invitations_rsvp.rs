@@ -268,21 +268,23 @@ impl<P: Provider> App<P> {
         // is known by the time this returns: no second round trip, and nothing to poll. Acting
         // on it is what stops "You accepted" from being the only thing a user ever sees when
         // the organiser was never told (`docs/invitations.md`).
+        let answer = ClientAnswer {
+            message,
+            original: &original,
+            scheduling: &scheduling,
+            attendee: &attendee,
+            response,
+            comment: comment.as_deref(),
+            notify_organizer,
+            reply_subject: reply_subject.as_deref(),
+            starts_at,
+            ends_at,
+            stored: Some(stored.clone()),
+        };
         let outcome = self
             .resolve_reply_delivery(
-                &ClientAnswer {
-                    message,
-                    original: &original,
-                    scheduling: &scheduling,
-                    attendee: &attendee,
-                    response,
-                    comment: comment.as_deref(),
-                    notify_organizer,
-                    reply_subject: reply_subject.as_deref(),
-                    starts_at,
-                    ends_at,
-                    stored: Some(stored.clone()),
-                },
+                &message.account,
+                self.letter_for_answer(&answer, Some(&stored)),
                 &write.write.reply_delivery,
             )
             .await;

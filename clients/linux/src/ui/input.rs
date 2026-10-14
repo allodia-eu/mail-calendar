@@ -167,6 +167,13 @@ pub(crate) enum AppInput {
     /// this is dispatched, never the event: the answer goes out as the address the invitation
     /// matched, and only the core knows the address set (`docs/invitations.md` §4).
     RespondToInvitation(ReadingSource, Box<InvitationAnswer>),
+    /// Answer a meeting from its event in the calendar: the event, the answer, and the localised
+    /// subject for a reply the core emails itself.
+    RespondToEvent(
+        crate::ui::calendar::EventIdentity,
+        mailcal_bindings::InvitationResponse,
+        String,
+    ),
     /// Answer the standing "the organiser wasn't told" question. Carries no handle on the meeting,
     /// the core holds the question and clears it as this arrives, so pressing twice cannot email
     /// the organiser twice.

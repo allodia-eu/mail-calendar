@@ -44,6 +44,7 @@ private fun detail(
     isRecurring = isRecurring,
     canWrite = true,
     canEditInvitees = false,
+    myAnswer = null,
     occurrenceStart = "",
     attendees = attendees,
 )

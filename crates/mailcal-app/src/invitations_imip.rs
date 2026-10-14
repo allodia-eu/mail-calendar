@@ -26,17 +26,18 @@
 //! the attendee address and the user's note are exactly what `docs/logging.md` forbids.
 
 use engine_api::{
-    AccountId, ApiError, Draft, DraftCalendar, EmailAddress, Event, EventId, EventRsvp, EventWrite,
-    InboundScheduling, Message, MessageIdHeader, Provider, RawIcal, ScheduleMethod, UtcDateTime,
-    addresses_match, resolve_instant_in,
+    AccountId, ApiError, Event, EventId, EventRsvp, EventWrite, InboundScheduling, Message,
+    Provider, RawIcal, UtcDateTime, addresses_match, resolve_instant_in,
 };
 
 use crate::{
-    App, CalendarWriteStatus,
-    helpers::{generated_idempotency, generated_message_id, now_utc},
-    invitations_rsvp::InvitationResponse,
+    App, CalendarWriteStatus, helpers::generated_idempotency, invitations_rsvp::InvitationResponse,
     reference::MessageRef,
 };
+
+#[path = "invitations_letter.rs"]
+pub(crate) mod letter;
+pub(crate) use letter::{ReplyLetter, ReplySource};
 
 /// One answer, with everything the two writes and the one send need already resolved.
 #[derive(Debug)]
@@ -275,11 +276,6 @@ impl<P: Provider> App<P> {
     /// Builds the iTIP `REPLY` and sends it as an iMIP message: the step the organiser
     /// actually sees.
     ///
-    /// The `SEQUENCE` and `UID` come from the **invitation**, not from the stored copy, because
-    /// they are what the organiser's scheduler matches on and the mail is the thing being
-    /// answered. Everything else that can differ (the attendee's own display name) is read
-    /// from whichever copy has it.
-    ///
     /// # Errors
     ///
     /// Returns the reason the reply did not go out: no organiser to answer, no mail provider,
@@ -290,6 +286,26 @@ impl<P: Provider> App<P> {
         answer: &ClientAnswer<'_>,
         stored: Option<&Event>,
     ) -> Result<(), String> {
+        let letter = self.letter_for_answer(answer, stored)?;
+        self.send_reply_letter(&letter).await
+    }
+
+    /// The reply `answer` gives, read from the invitation it answers.
+    ///
+    /// The `SEQUENCE` and `UID` come from the **invitation**, not from the stored copy, because
+    /// they are what the organiser's scheduler matches on and the mail is the thing being
+    /// answered. Everything else that can differ (the attendee's own display name) is read
+    /// from whichever copy has it.
+    ///
+    /// # Errors
+    ///
+    /// Returns why no reply can be written: the invitation names no organiser, or the
+    /// occurrence it answers cannot be placed.
+    pub(crate) fn letter_for_answer(
+        &self,
+        answer: &ClientAnswer<'_>,
+        stored: Option<&Event>,
+    ) -> Result<ReplyLetter, String> {
         let event = &answer.scheduling.message.event;
         let organizer = answer.scheduling.message.organizer().ok_or_else(|| {
             "this invitation names no organizer, so there is nobody to reply to.".to_owned()
@@ -305,85 +321,27 @@ impl<P: Provider> App<P> {
                 })?),
                 None => None,
             };
-        let document = crate::itip::reply(&crate::itip::Reply {
-            uid: event.uid.as_str(),
+        Ok(ReplyLetter {
+            account: answer.message.account.clone(),
+            source: ReplySource::Message(answer.message.clone()),
+            summary: event.title.clone(),
+            uid: event.uid.as_str().to_owned(),
             sequence: event.sequence,
-            organizer,
-            attendee: answer.attendee,
+            organizer: organizer.to_owned(),
+            attendee: answer.attendee.to_owned(),
             attendee_name: attendee_name(event, answer.attendee)
-                .or_else(|| stored.and_then(|stored| attendee_name(stored, answer.attendee))),
-            status: answer.response.partstat(),
+                .or_else(|| stored.and_then(|stored| attendee_name(stored, answer.attendee)))
+                .map(str::to_owned),
+            response: answer.response,
+            comment: answer.comment.map(str::to_owned),
             starts_at: answer.starts_at,
             recurrence_id,
-            stamp: now_utc().map_err(|err| format!("the reply cannot be timestamped: {err}"))?,
-            comment: answer.comment,
-        });
-
-        let subject = answer
-            .reply_subject
-            .map_or_else(|| reply_subject(answer.original), str::to_owned);
-        let draft = reply_draft(answer, organizer, subject, document)
-            .ok_or_else(|| "the reply could not be addressed".to_owned())?;
-
-        if self
-            .send_draft_result(&answer.message.account, &draft, None)
-            .await
-        {
-            log::info!("respond_to_invitation: the iTIP reply was submitted");
-            Ok(())
-        } else {
-            Err(
-                "your answer could not be emailed to the organizer. Check the connection and \
-                 try again."
-                    .to_owned(),
-            )
-        }
+            subject: answer
+                .reply_subject
+                .map_or_else(|| reply_subject(answer.original), str::to_owned),
+            thread: answer.original.envelope.message_id.first().cloned(),
+        })
     }
-}
-
-/// Assembles the message the reply travels in.
-///
-/// The `From` is the **matched attendee**, not the account identity: RFC 6047 §3 has the reply
-/// come from the party answering, and an organiser's scheduler that finds no `ATTENDEE` for the
-/// sender is entitled to ignore it. On an aliased account those are different addresses, which
-/// is the whole reason the alias is resolved before we get here.
-///
-/// The text body repeats the subject rather than being empty. RFC 6047 §2.4 asks a scheduling
-/// message to carry a human-readable alternative for the recipients whose client does not
-/// understand `text/calendar`, and one line naming the answer and the meeting is that.
-fn reply_draft(
-    answer: &ClientAnswer<'_>,
-    organizer: &str,
-    subject: String,
-    document: String,
-) -> Option<Draft> {
-    let message_id = MessageIdHeader::new(generated_message_id()).ok()?;
-    let organizer = organizer
-        .strip_prefix("mailto:")
-        .or_else(|| organizer.strip_prefix("MAILTO:"))
-        .unwrap_or(organizer);
-    let body = match answer
-        .comment
-        .map(str::trim)
-        .filter(|note| !note.is_empty())
-    {
-        Some(note) => format!("{subject}\r\n\r\n{note}"),
-        None => subject.clone(),
-    };
-    let draft = Draft::new(
-        message_id,
-        EmailAddress::new(answer.attendee),
-        vec![EmailAddress::new(organizer)],
-        subject,
-        body,
-    )
-    .with_calendar(DraftCalendar::new(ScheduleMethod::Reply, document));
-    // Thread the reply onto the invitation, so an organiser reading their mailbox sees the
-    // answer beside what they sent rather than as a stray message.
-    Some(match answer.original.envelope.message_id.first() {
-        Some(parent) => draft.in_reply_to(parent.clone(), vec![parent.clone()]),
-        None => draft,
-    })
 }
 
 /// The fallback subject: the invitation's own, prefixed the RFC 5322 way.
@@ -405,7 +363,7 @@ fn reply_subject(original: &Message) -> String {
 }
 
 /// The display name the invitation gave this attendee, if it gave one.
-fn attendee_name<'a>(event: &'a Event, attendee: &str) -> Option<&'a str> {
+pub(crate) fn attendee_name<'a>(event: &'a Event, attendee: &str) -> Option<&'a str> {
     event
         .participants
         .iter()

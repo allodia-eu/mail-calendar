@@ -90,6 +90,7 @@ fn detail(is_recurring: bool) -> EventDetails {
         is_recurring,
         can_write: true,
         can_edit_invitees: false,
+        my_answer: None,
         occurrence: String::new(),
         attendees: Vec::new(),
     }

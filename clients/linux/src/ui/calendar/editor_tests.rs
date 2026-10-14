@@ -151,6 +151,7 @@ fn edit_keeps_wall_clocks_and_blank_optional_fields_clear_properties() {
         is_recurring: false,
         can_write: true,
         can_edit_invitees: false,
+        my_answer: None,
         occurrence: String::new(),
         attendees: Vec::new(),
     };
@@ -238,6 +239,7 @@ pub(super) fn editing_with(occurrence: &str, repeat_draft: Option<RepeatDraft>) 
             is_recurring: true,
             can_write: true,
             can_edit_invitees: false,
+            my_answer: None,
             occurrence: occurrence.to_owned(),
             attendees: Vec::new(),
         },

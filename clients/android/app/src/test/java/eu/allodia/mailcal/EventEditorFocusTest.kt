@@ -62,6 +62,7 @@ private fun standup() = EventDetail(
     isRecurring = false,
     canWrite = true,
     canEditInvitees = false,
+    myAnswer = null,
     occurrenceStart = "",
     attendees = emptyList(),
 )

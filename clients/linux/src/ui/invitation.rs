@@ -98,7 +98,7 @@ pub(super) fn notice(kind: InvitationKind) -> Option<&'static str> {
 }
 
 /// How this account has answered so far, in words.
-pub(super) fn response(status: ResponseStatus) -> &'static str {
+pub(in crate::ui) fn response(status: ResponseStatus) -> &'static str {
     match status {
         ResponseStatus::Accepted => l10n::invitation_response_accepted(),
         ResponseStatus::Declined => l10n::invitation_response_declined(),
@@ -113,7 +113,7 @@ pub(super) fn response(status: ResponseStatus) -> &'static str {
 ///
 /// Composed here rather than in the core because the core carries no locale (`AGENTS.md` →
 /// "Localisation is client-side") and this is copy a stranger reads in their inbox.
-pub(super) fn reply_subject(response: InvitationResponse, summary: &str) -> String {
+pub(in crate::ui) fn reply_subject(response: InvitationResponse, summary: &str) -> String {
     let summary = if summary.trim().is_empty() {
         l10n::invitation_no_title()
     } else {

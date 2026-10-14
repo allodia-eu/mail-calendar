@@ -78,6 +78,7 @@ import Testing
             isRecurring: false,
             canWrite: true,
             canEditInvitees: false,
+            myAnswer: nil,
             occurrenceStart: "",
             attendees: rows
         )

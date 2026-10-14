@@ -124,6 +124,7 @@ class EventAttendeesTest {
             isRecurring = false,
             canWrite = true,
             canEditInvitees = false,
+            myAnswer = null,
             occurrenceStart = "",
             attendees = rows,
         )

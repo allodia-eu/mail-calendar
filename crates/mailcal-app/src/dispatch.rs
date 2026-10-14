@@ -190,6 +190,21 @@ impl<P: Provider> App<P> {
                     log::error!("update_event: the edit was not saved: {err}");
                 }
             }
+            Intent::Events(EventIntent::Respond {
+                event,
+                response,
+                reply_subject,
+            }) => {
+                // As with the invitation card's answer: the write drives `CalendarWriteStatus`
+                // to `Failed`, and the reason names no address and no meeting.
+                // Boxed, as the card's answer below is: both carry a whole reply letter, and
+                // inline they make every `dispatch` future too large to await on the stack.
+                if let Err(err) =
+                    Box::pin(self.respond_to_event(&event, response, reply_subject)).await
+                {
+                    log::warn!("respond_to_event: the answer was not sent: {err}");
+                }
+            }
             Intent::Events(EventIntent::Move { event, drag }) => {
                 // As with `EventIntent::Update`: not durable yet, so a failure means the drag did
                 // not happen. `update_event` underneath has already driven
@@ -211,15 +226,14 @@ impl<P: Provider> App<P> {
                 // for the host to surface, and logging the reason is the least this can do
                 // until the write becomes durable. The reason names no addresses and no
                 // meeting: the errors this returns are all about *shape*, never content.
-                if let Err(err) = self
-                    .respond_to_invitation(
-                        &message,
-                        response,
-                        comment,
-                        notify_organizer,
-                        reply_subject,
-                    )
-                    .await
+                if let Err(err) = Box::pin(self.respond_to_invitation(
+                    &message,
+                    response,
+                    comment,
+                    notify_organizer,
+                    reply_subject,
+                ))
+                .await
                 {
                     log::error!("respond_to_invitation: the answer was not sent: {err}");
                 }

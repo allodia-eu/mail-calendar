@@ -151,6 +151,11 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 onDeleteEvent = { account, key, occurrence ->
                                     instance.dispatch(Intent.Events(EventIntent.Delete(account, key, occurrence)))
                                 },
+                                onRespondToEvent = { account, key, response, subject ->
+                                    instance.dispatch(
+                                        Intent.Events(EventIntent.Respond(account, key, response, subject)),
+                                    )
+                                },
                                 // The editor builds the payload (calendar target, all-day, notes,
                                 // device-zone wall clock); we just dispatch it.
                                 onCreateEvent = { args ->

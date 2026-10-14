@@ -385,6 +385,9 @@ mod meeting;
 #[path = "tests_calendar_meeting_gate.rs"]
 mod meeting_gate;
 
+#[path = "tests_calendar_rsvp.rs"]
+mod rsvp;
+
 #[tokio::test]
 async fn a_create_with_an_unknown_calendar_still_lands_rather_than_dropping() {
     // A stale picker choice (a calendar since removed) must fall back to a real calendar of

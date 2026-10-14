@@ -8,7 +8,7 @@
 use engine_api::{Invitee, LocalDateTime};
 use mailcal_account::{EventDrag, EventEdit};
 
-use crate::reference::EventRef;
+use crate::{InvitationResponse, reference::EventRef};
 
 /// A write to a stored calendar event, or a new one.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,5 +106,19 @@ pub enum EventIntent {
         /// cancelling one Tuesday and cancelling the standup are different requests, and
         /// only the user knows which they meant: so ask them.
         occurrence: Option<LocalDateTime>,
+    },
+    /// Answer an invitation from its event in the calendar: accept, maybe or decline, for the
+    /// whole meeting. Delivered the way the invitation card's answer is
+    /// ([`Intent::RespondToInvitation`](super::Intent::RespondToInvitation)); offered only where
+    /// the event detail carries `my_answer`.
+    Respond {
+        /// The meeting; its account and provider key bound together.
+        event: EventRef,
+        /// The answer.
+        response: InvitationResponse,
+        /// The localised subject for a reply this core emails itself, as on
+        /// [`Intent::RespondToInvitation`](super::Intent::RespondToInvitation). `None` quotes the
+        /// meeting's title.
+        reply_subject: Option<String>,
     },
 }

@@ -70,6 +70,8 @@ AWAITING_LABEL="Awaiting your response"
 CALENDAR_CRUD_TITLE="${CALENDAR_CRUD_TITLE:-}"
 # The meeting leg's own event: Alice invites the harness's Bob and Dave, then changes and cancels it.
 MEETING_TITLE="${MEETING_TITLE:-}"
+# The answer leg's: Bob invites Alice, and she answers from the event in her calendar.
+ANSWER_TITLE="${ANSWER_TITLE:-}"
 # The message the mail-action leg delivers for itself and archives again, so the leg leaves the
 # seeded mailbox as it found it however often the suite runs.
 MAIL_ACTION_SUBJECT="${MAIL_ACTION_SUBJECT:-}"
@@ -271,6 +273,30 @@ sys.exit(1)
 PY
 }
 
+# Bob writes a meeting inviting Alice to his own calendar over CalDAV, and the harness's scheduler
+# puts it on hers: an invitation that exists only for this run, so answering it leaves the seed as
+# it was. Tomorrow, so it is inside the agenda's window wherever the run's clock is.
+bob_invites_alice() { # <title>
+  local start
+  start="$(date -u -d "tomorrow 10:00" '+%Y%m%dT%H%M%SZ')"
+  printf 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//mailcal//ui-suite//EN\r\nBEGIN:VEVENT\r\nUID:%s\r\nDTSTAMP:%s\r\nDTSTART:%s\r\nDURATION:PT1H\r\nSUMMARY:%s\r\nORGANIZER;CN=Bob Tester:mailto:bob@test.local\r\nATTENDEE;CN=Bob Tester;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:bob@test.local\r\nATTENDEE;CN=Alice Tester;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:alice@test.local\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n' \
+    "$(answer_uid)" "$(date -u '+%Y%m%dT%H%M%SZ')" "$start" "$1" |
+    curl -sf -o /dev/null -u bob@test.local:harness-bob-pw -X PUT \
+      -H 'Content-Type: text/calendar' --data-binary @- \
+      "http://127.0.0.1:28080/dav/cal/bob@test.local/default/$(answer_uid).ics" ||
+    die "Bob could not write the meeting he invites Alice to"
+}
+
+# Bob calls the meeting off again, which takes it out of Alice's calendar too.
+bob_withdraws() {
+  curl -s -o /dev/null -u bob@test.local:harness-bob-pw -X DELETE \
+    "http://127.0.0.1:28080/dav/cal/bob@test.local/default/$(answer_uid).ics" || true
+}
+
+answer_uid() {
+  printf '%s@test.local' "$(printf '%s' "$ANSWER_TITLE" | tr -c 'A-Za-z0-9' '-')"
+}
+
 open_calendar_event() { # <title>
   # A saved event replaces its agenda row once the core snapshot arrives. AT-SPI can resolve the
   # outgoing button just before that replacement, so retry against the settled row until its
@@ -386,6 +412,7 @@ run_inside_session() {
   done
   [[ "$portal_ready" == 1 ]] || die "notification portal fixture did not become ready"
 
+  bob_invites_alice "$ANSWER_TITLE"
   launch_app "${MAILCAL_OPEN_SUBJECT:-}" "$ARTIFACT_DIR/app"
 
   cleanup() {
@@ -402,6 +429,7 @@ run_inside_session() {
       capture failure
     fi
     stop_app 0
+    bob_withdraws
     for pid in "${PORTAL_PID:-}" "${ATSPI_REGISTRY_PID:-}" "${ATSPI_BUS_PID:-}"; do
       [[ -z "$pid" ]] || kill -TERM "$pid" 2>/dev/null || true
     done
@@ -1009,6 +1037,15 @@ PY
     --name "$MEETING_TITLE" --role "push button" --absent --timeout 45
   wait_for_scheduling_mail bob@test.local "Cancelled: $MEETING_TITLE"
 
+  # An invitee answers from the event in her calendar, not only from the invitation email
+  # (docs/calendar.md, "Answering from the calendar"). Bob's own mailbox is the assertion: the
+  # answer a calendar stores and tells nobody about looks the same from Alice's side.
+  open_calendar_event "$ANSWER_TITLE"
+  "$PYTHON" "$ATSPI" wait --name "You haven't answered yet" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Maybe" --role "push button" \
+    --description "Answer maybe to this invitation" --timeout 20
+  wait_for_scheduling_mail bob@test.local "Tentative: $ANSWER_TITLE"
+
   # Meeting invitations. This leg runs AFTER the calendar leg on purpose: the card withholds its
   # day preview until the calendar has actually been read (`conflicts_known`), and "we have not
   # looked" is a different fact from "nothing else then"; so a run that asked before the agenda
@@ -1374,6 +1411,7 @@ if [[ -z "$ARTIFACT_DIR" ]]; then
 fi
 CALENDAR_CRUD_TITLE="Linux acceptance event $(date '+%s%N')"
 MEETING_TITLE="Linux acceptance meeting $(date '+%s%N')"
+ANSWER_TITLE="Linux acceptance answer $(date '+%s%N')"
 MAIL_ACTION_SUBJECT="Linux acceptance action $(date '+%s%N')"
 mkdir -p "$ARTIFACT_DIR/xdg-data" "$ARTIFACT_DIR/xdg-cache" "$ARTIFACT_DIR/xdg-config"
 ARTIFACT_DIR="$(cd "$ARTIFACT_DIR" && pwd)"
@@ -1437,6 +1475,7 @@ LIBGL_ALWAYS_SOFTWARE=1 \
     REMOTE_SENDER="$REMOTE_SENDER" \
     CALENDAR_CRUD_TITLE="$CALENDAR_CRUD_TITLE" \
     MEETING_TITLE="$MEETING_TITLE" \
+    ANSWER_TITLE="$ANSWER_TITLE" \
     MAIL_ACTION_SUBJECT="$MAIL_ACTION_SUBJECT" \
     MERGED_CONTACT="$MERGED_CONTACT" \
     WEBKIT_DISABLE_DMABUF_RENDERER=1 \

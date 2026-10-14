@@ -55,7 +55,7 @@ public class AttendeeSummaryTests
         var detail = new EventDetail(
             "acct", "/cal/e.ics", "work", "Standup", false, "Europe/Amsterdam",
             "2026-01-05T09:30:00", "2026-01-05T10:00:00", null, null, null, null, null, null, false,
-            true, false, string.Empty, attendees);
+            true, false, null, string.Empty, attendees);
 
         var editor = EventEditorState.Edit(detail, "Work");
 

@@ -22,6 +22,16 @@ use crate::{
     convert_events::event_intent, convert_folders::folder_intent,
 };
 
+impl From<InvitationResponse> for AppInvitationResponse {
+    fn from(response: InvitationResponse) -> Self {
+        match response {
+            InvitationResponse::Accept => Self::Accept,
+            InvitationResponse::Tentative => Self::Tentative,
+            InvitationResponse::Decline => Self::Decline,
+        }
+    }
+}
+
 impl From<AppSurface> for Surface {
     fn from(surface: AppSurface) -> Self {
         match surface {
@@ -252,11 +262,7 @@ impl TryFrom<Intent> for AppIntent {
                 reply_subject,
             } => Self::RespondToInvitation {
                 message: message(account, key)?,
-                response: match response {
-                    InvitationResponse::Accept => AppInvitationResponse::Accept,
-                    InvitationResponse::Tentative => AppInvitationResponse::Tentative,
-                    InvitationResponse::Decline => AppInvitationResponse::Decline,
-                },
+                response: response.into(),
                 comment,
                 notify_organizer,
                 reply_subject,

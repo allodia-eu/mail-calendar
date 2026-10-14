@@ -438,6 +438,10 @@ reaches no one is worse than no button**. So the RSVP affordance is gated on the
 being able to deliver a response, and it is **absent with an explanation**, never present and
 disabled.
 
+The same routes carry an answer given from the event in the calendar (`EventIntent::Respond`,
+[`calendar.md`](calendar.md) "Answering from the calendar"), with the reply read from the stored
+event instead of the message, and the delivery question below applies to it as well.
+
 Two engine capabilities decide it, and they answer *different questions*:
 
 - `Capabilities::calendar_scheduling`: **will anyone be told?** The server performs the scheduling a

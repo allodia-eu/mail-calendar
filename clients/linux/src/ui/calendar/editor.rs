@@ -53,6 +53,8 @@ pub(super) struct EventDetails {
     pub(super) can_write: bool,
     /// Whether this account organises the meeting and may change who is invited.
     pub(super) can_edit_invitees: bool,
+    /// This account's own answer, when it may change it from the detail.
+    pub(super) my_answer: Option<mailcal_bindings::ResponseStatus>,
     /// The occurrence this detail describes, as the **core resolved** it; empty when it
     /// describes the series, which is what an agenda row and a one-off event always do. Non-empty
     /// is what makes a write ask *This event · All events* first.
@@ -83,6 +85,7 @@ impl EventDetails {
             is_recurring: detail.is_recurring,
             can_write: detail.can_write,
             can_edit_invitees: detail.can_edit_invitees,
+            my_answer: detail.my_answer,
             occurrence: detail.occurrence_start,
             attendees: detail.attendees,
         }

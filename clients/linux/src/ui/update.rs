@@ -2,7 +2,7 @@
 //! surface signal makes the host read back is [`super::update_pull`].
 
 use adw::prelude::*;
-use mailcal_bindings::{EventIntent, Intent, Surface};
+use mailcal_bindings::{Intent, Surface};
 use relm4::ComponentSender;
 
 use super::{
@@ -130,17 +130,9 @@ impl AppModel {
             }
             AppInput::RequestDeleteEvent(event) => self.request_delete_event(event),
             AppInput::RequestDeleteCurrentEvent => self.calendar.request_delete_current(),
-            AppInput::DeleteCalendarEvent(event) => {
-                self.dispatch(Intent::Events {
-                    intent: EventIntent::Delete {
-                        account: event.account,
-                        key: event.key,
-                        // Empty means the whole series: the surface drew no single occurrence, or
-                        // the user answered *All events*, which clears it.
-                        occurrence: Some(event.occurrence).filter(|at| !at.is_empty()),
-                    },
-                });
-                self.calendar.dismiss_dialog();
+            AppInput::DeleteCalendarEvent(event) => self.delete_calendar_event(event),
+            AppInput::RespondToEvent(event, response, reply_subject) => {
+                self.respond_to_event(event, response, reply_subject);
             }
             AppInput::DismissCalendarDialog => self.calendar.dismiss_dialog(),
             AppInput::SearchMail(query) => self.search_mail(query),

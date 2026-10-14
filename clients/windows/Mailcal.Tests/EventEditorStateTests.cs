@@ -42,6 +42,7 @@ public class EventEditorStateTests
             isRecurring,
             true,
             false,
+            null,
             "",
             attendees ?? []);
 
