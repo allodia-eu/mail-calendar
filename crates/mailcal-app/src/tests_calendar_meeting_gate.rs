@@ -194,3 +194,27 @@ async fn the_roster_is_read_only_where_the_server_does_not_schedule() {
     assert!(patches.lock().unwrap().is_empty());
     assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
 }
+
+#[tokio::test]
+async fn a_roster_change_as_an_organiser_the_server_does_not_schedule_as_is_refused() {
+    let provider = CalendarFake::scheduling_as(
+        vec![organised_by_me()],
+        CalendarUserAddresses::Known(vec!["someone-else@acct-a.local".to_owned()]),
+    );
+    let patches = provider.patches();
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
+    app.dispatch(Intent::RefreshCalendar).await;
+
+    app.dispatch(Intent::Events(EventIntent::Update {
+        event: evt("acct-a", "planning"),
+        edit: mailcal_account::EventEdit {
+            invitees: Some(InviteePatch::new().upsert(guest())),
+            ..mailcal_account::EventEdit::default()
+        },
+    }))
+    .await;
+
+    assert!(patches.lock().unwrap().is_empty());
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+}

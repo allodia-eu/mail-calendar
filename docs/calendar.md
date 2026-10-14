@@ -399,13 +399,18 @@ each enforced by the core and mirrored by every client's controls:
   schedules), the editor offers invitees only on such a calendar, and the core refuses a meeting
   written anywhere else.
 - **The organiser is the calendar's account, never a client's choice.** The core takes the account's
-  own sender identity, and refuses it when the server named the addresses it schedules as
-  (`calendar_user_addresses`) and this is not one of them: RFC 6638 §3.1 has a server act only for an
-  organiser in that set, and say nothing about one outside it.
+  own sender identity, and refuses a create or a roster change when the server named the addresses
+  it schedules as (`calendar_user_addresses`) and the organiser is not one of them: RFC 6638 §3.1
+  has a server act only for an organiser in that set, and say nothing about one outside it. A
+  meeting is never moved to another account than the one picked, since that account is the one
+  that invites everybody.
 - **Only the organiser changes the roster.** `EventDetail.can_edit_invitees` is `true` when this
   account organises the meeting (`Owner`, or `Chair` where no `Owner` exists, the JMAP shape) and
   `can_invite` holds for its calendar. Anyone else sees the list read-only, with the sentence saying
   so, and the detail view never offers an add or remove affordance.
+- **A meeting keeps somebody invited.** A roster change that leaves nobody invited, or invites the
+  organiser, is refused as a create would be; a meeting is called off by deleting it, which tells
+  everyone on it. So an editor does not offer to remove the last invitee of an existing meeting.
 - **A roster belongs to the series.** A changed roster settles *This event · All events* the way a
   changed repeat rule does (§10): it is saved for the whole series without asking, because one
   occurrence with a different guest list is not something an invitation can describe.

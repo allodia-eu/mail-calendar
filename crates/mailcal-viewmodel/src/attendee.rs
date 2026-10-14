@@ -144,10 +144,12 @@ pub fn event_attendees(event: &Event) -> Vec<EventAttendee> {
     attendees
 }
 
+/// An `ATTENDEE` line with no `ROLE` decodes to no role at all, and RFC 5545 §3.2.16 makes that
+/// `REQ-PARTICIPANT`, so it is a required invitee rather than one the editor cannot state.
 fn editable_role(participant: &Participant) -> Option<EventAttendeeRole> {
     if participant.has_role(&ParticipantRole::Optional) {
         Some(EventAttendeeRole::Optional)
-    } else if participant.has_role(&ParticipantRole::Attendee) {
+    } else if participant.roles.is_empty() || participant.has_role(&ParticipantRole::Attendee) {
         Some(EventAttendeeRole::Required)
     } else {
         None

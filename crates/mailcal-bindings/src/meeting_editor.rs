@@ -53,8 +53,8 @@ pub fn check_meeting_invitee(
 ///
 /// Only the rows an organiser may edit take part: an attendee with no `role` (the organiser, a
 /// chair) is neither removed for being absent from `invitees` nor changed by appearing in it. A
-/// row is changed when its role moved; its name travels from the list as it stood, so a change
-/// of role does not rename anyone.
+/// row is changed when its role moved, and the change carries no name, so the name the server
+/// holds stays: the one on the row is the bounded display text, not the stored value.
 #[must_use]
 #[uniffi::export]
 pub fn meeting_invitee_patch(
@@ -74,13 +74,19 @@ pub fn meeting_invitee_patch(
     let upsert: Vec<MeetingInvitee> = invitees
         .iter()
         .filter(|invitee| !fixed(&invitee.email))
-        .filter(|invitee| {
-            editable
+        .filter_map(|invitee| {
+            match editable
                 .iter()
                 .find(|attendee| addresses_match(&attendee.email, &invitee.email))
-                .is_none_or(|attendee| attendee.role != Some(invitee.role))
+            {
+                None => Some(invitee.clone()),
+                Some(attendee) if attendee.role != Some(invitee.role) => Some(MeetingInvitee {
+                    name: None,
+                    ..invitee.clone()
+                }),
+                Some(_) => None,
+            }
         })
-        .cloned()
         .collect();
     let remove: Vec<String> = editable
         .iter()

@@ -177,3 +177,60 @@ async fn a_jmap_chair_can_change_the_meeting_roster_when_no_owner_exists() {
 
     assert_eq!(patches.lock().unwrap().len(), 1);
 }
+
+fn organised_with_guest() -> engine_core::calendar::Event {
+    let mut event = stored_event("planning", "\"v7\"");
+    let mut organiser = Participant::attendee("me@acct-a.local");
+    organiser.roles.insert(ParticipantRole::Owner);
+    event.participants.push(organiser);
+    event
+        .participants
+        .push(Participant::attendee("guest@example.com"));
+    event
+}
+
+#[tokio::test]
+async fn a_roster_change_the_create_would_refuse_is_refused_before_the_provider() {
+    let removal = InviteePatch::new().remove(CalendarAddress::parse("guest@example.com").unwrap());
+    let organiser = InviteePatch::new().upsert(required("ME@acct-a.local"));
+    for changes in [removal, organiser] {
+        let provider = CalendarFake::scheduling(vec![organised_with_guest()]);
+        let patches = provider.patches();
+        let surfaces = Arc::new(Mutex::new(Vec::new()));
+        let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
+        app.dispatch(Intent::RefreshCalendar).await;
+
+        app.dispatch(Intent::Events(EventIntent::Update {
+            event: evt("acct-a", "planning"),
+            edit: mailcal_account::EventEdit {
+                invitees: Some(changes),
+                ..mailcal_account::EventEdit::default()
+            },
+        }))
+        .await;
+
+        assert!(patches.lock().unwrap().is_empty());
+        assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    }
+}
+
+#[tokio::test]
+async fn a_meeting_never_falls_back_to_another_account() {
+    let scheduling = CalendarFake::scheduling(Vec::new());
+    let meetings = scheduling.create_meetings();
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = calendar_app(
+        vec![
+            calendar_account("acct-a", CalendarFake::read_only(Vec::new())),
+            calendar_account("acct-b", scheduling),
+        ],
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshCalendar).await;
+
+    app.dispatch(create(Some(vec![required("guest@example.com")])))
+        .await;
+
+    assert!(meetings.lock().unwrap().is_empty());
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+}

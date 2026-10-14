@@ -46,8 +46,15 @@ impl MailcalApp {
         }
         // A key-routed intent carries its row's owning-account id; an unparseable id (in
         // practice impossible; it is a real row's account) is dropped rather than risk
-        // routing the action to the wrong account.
+        // routing the action to the wrong account. A calendar write is still settled, because
+        // its editor waits on the write status, and an invitee that is not an address is a value
+        // a client can send.
+        let calendar_write = matches!(intent, Intent::Events { .. });
         let Ok(intent) = AppIntent::try_from(intent) else {
+            if calendar_write {
+                log::warn!("dispatch: a calendar write carried a value the core cannot read");
+                self.app.refuse_calendar_write();
+            }
             return;
         };
         let app = Arc::clone(&self.app);

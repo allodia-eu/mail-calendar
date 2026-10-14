@@ -94,4 +94,11 @@ impl<P: Provider> App<P> {
             self.observer.surface_changed(Surface::CalendarStatus);
         }
     }
+
+    /// Settles a calendar write the host sent but this core could not read, such as an invitee
+    /// that is not an address. The editor that sent it waits on this status, so the write ends as
+    /// [`CalendarWriteStatus::Failed`] rather than vanishing.
+    pub fn refuse_calendar_write(&self) {
+        self.set_calendar_write_status(CalendarWriteStatus::Failed);
+    }
 }

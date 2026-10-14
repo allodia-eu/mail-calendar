@@ -116,6 +116,17 @@ fn an_organizer_with_no_answer_has_accepted_their_own_meeting() {
 }
 
 #[test]
+fn an_attendee_with_no_role_is_a_required_invitee() {
+    let mut plain = attendee("plain@example.com", ParticipationStatus::NeedsAction);
+    plain.roles = BTreeSet::new();
+
+    assert_eq!(
+        event_attendees(&event_with(vec![plain]))[0].role,
+        Some(EventAttendeeRole::Required)
+    );
+}
+
+#[test]
 fn a_merged_organizer_is_not_an_editable_invitee() {
     let mut owner = organizer("a@example.com");
     owner.roles.insert(ParticipantRole::Attendee);

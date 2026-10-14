@@ -172,6 +172,7 @@ impl<P: Provider> App<P> {
         recurrence: Option<mailcal_account::SimpleRecurrence>,
         invitees: Option<Vec<engine_api::Invitee>>,
     ) {
+        let chosen = account.clone();
         let Some(account) = self.create_account(account).await else {
             return;
         };
@@ -205,7 +206,10 @@ impl<P: Provider> App<P> {
             return;
         };
         if let Some(invitees) = invitees {
-            let Some(meeting) = self.meeting_draft(&account, draft, invitees).await else {
+            let Some(meeting) = self
+                .meeting_draft(chosen.as_deref(), &account, draft, invitees)
+                .await
+            else {
                 self.set_calendar_write_status(CalendarWriteStatus::Failed);
                 return;
             };
@@ -273,11 +277,10 @@ impl<P: Provider> App<P> {
             self.set_calendar_write_status(CalendarWriteStatus::Failed);
             return Err("the edit names no occurrence of this series".to_owned());
         }
-        if edit
-            .invitees
-            .as_ref()
-            .is_some_and(|changes| !changes.is_empty())
-            && !self.may_change_roster(&event.account, &stored).await
+        if let Some(changes) = edit.invitees.as_ref().filter(|changes| !changes.is_empty())
+            && !self
+                .may_apply_roster(&event.account, &stored, changes)
+                .await
         {
             self.set_calendar_write_status(CalendarWriteStatus::Failed);
             return Err("this account may not change the meeting's invitees".to_owned());

@@ -98,3 +98,12 @@ fn a_row_the_organiser_cannot_edit_is_never_removed_or_changed() {
     ];
     assert_eq!(meeting_invitee_patch(meeting(), invitees), None);
 }
+
+#[test]
+fn a_changed_role_does_not_rename_the_invitee() {
+    let mut named = invitee("grace@example.org", OPTIONAL);
+    named.name = Some("Grace H".to_owned());
+    let patch = meeting_invitee_patch(meeting(), vec![named, invitee("ada@example.org", OPTIONAL)])
+        .expect("the list changed");
+    assert_eq!(patch.upsert, vec![invitee("grace@example.org", OPTIONAL)]);
+}
