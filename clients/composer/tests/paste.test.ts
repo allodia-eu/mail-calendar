@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { documentBlocks } from "../src/document";
-import { pastedHtml, pasteContent } from "../src/paste";
+import { dropHollowParagraphs, pastedHtml, pasteContent } from "../src/paste";
 import type { Block, InlineContent, TextRun } from "../src/types";
 import { harness } from "./support";
 
@@ -268,6 +268,20 @@ describe("pasted markup that is not kept", () => {
     const { editor } = harness("");
     expect(pastedHtml(editor.ownerDocument, '<img src="https://example.com/a.png">')).toBeNull();
     expect(pastedHtml(editor.ownerDocument, "")).toBeNull();
+  });
+});
+
+describe("after the markup is inserted", () => {
+  test("a paragraph holding nothing at all goes, and a blank line the user made stays", () => {
+    // Chromium's insertHTML leaves an empty <p></p> after a list or a table followed by a
+    // paragraph. It takes no height on screen, and the document would send it as a blank line.
+    const { editor, html } = harness("<ul><li>x</li></ul><p></p><p>b</p><p><br></p><p>c</p><p>&nbsp;</p>");
+    // The shape Chromium leaves in WebView2: not childless, but holding one empty text node.
+    const hollow = editor.ownerDocument.createElement("p");
+    hollow.appendChild(editor.ownerDocument.createTextNode(""));
+    editor.insertBefore(hollow, editor.querySelector("p:nth-of-type(3)"));
+    dropHollowParagraphs(editor);
+    expect(html()).toBe("<ul><li>x</li></ul><p>b</p><p><br></p><p>c</p><p>&nbsp;</p>");
   });
 });
 

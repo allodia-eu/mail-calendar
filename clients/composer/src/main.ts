@@ -17,7 +17,7 @@ import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
 import { editLinkThroughHost } from "./link_menu";
 import { autolinkBeforeCaret } from "./links";
 import { indentSelection } from "./lists";
-import { pastedHtml, pasteContent } from "./paste";
+import { dropHollowParagraphs, pastedHtml, pasteContent } from "./paste";
 import {
   completeComposerQuoteAttribution,
   setComposerQuote,
@@ -81,7 +81,9 @@ function caretHoldsInlineOnly(): boolean {
 }
 
 function insertHtml(html: string): boolean {
-  return execCommand("insertHTML", html);
+  const inserted = execCommand("insertHTML", html);
+  if (inserted) dropHollowParagraphs(editor);
+  return inserted;
 }
 
 function execCommand(command: string, value: string): boolean {

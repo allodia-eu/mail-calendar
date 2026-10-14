@@ -2954,6 +2954,12 @@
     const only = out.childNodes.length === 1 ? out.firstChild : null;
     return only?.localName === "p" ? only.innerHTML : out.innerHTML;
   }
+  function dropHollowParagraphs(editor) {
+    for (const child of Array.from(editor.children)) {
+      if (child.localName === "p" && child.childElementCount === 0 && child.textContent === "")
+        child.remove();
+    }
+  }
   function pasteContent(doc, transfer, inline, attachments = null) {
     const html = pastedHtml(doc, transfer?.getData("text/html") ?? "", inline, attachments);
     if (html !== null)
@@ -4270,7 +4276,10 @@
     return ancestorOf(caret, editor, "li", "td", "th") !== null;
   }
   function insertHtml(html) {
-    return execCommand("insertHTML", html);
+    const inserted = execCommand("insertHTML", html);
+    if (inserted)
+      dropHollowParagraphs(editor);
+    return inserted;
   }
   function execCommand(command, value) {
     const exec = doc.execCommand;

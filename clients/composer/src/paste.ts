@@ -423,6 +423,19 @@ export function pastedHtml(
   return only?.localName === "p" ? only.innerHTML : out.innerHTML;
 }
 
+/// Removes the paragraphs directly in `editor` that hold nothing at all, after a paste.
+///
+/// Chromium's `insertHTML` leaves an empty `<p>` after a list or a table that is followed by a
+/// paragraph, holding at most an empty text node. It takes no height on screen, so the user cannot
+/// see it to delete it, and the document reads it as a blank line that would go out with the
+/// message. A blank line the user made holds a `<br>`, and a typed space is a non-breaking one, so
+/// neither is ever one of these.
+export function dropHollowParagraphs(editor: HTMLElement): void {
+  for (const child of Array.from(editor.children)) {
+    if (child.localName === "p" && child.childElementCount === 0 && child.textContent === "") child.remove();
+  }
+}
+
 /// What one paste puts in the message.
 export type PasteContent = { html: string } | { images: File[] } | { text: string };
 
