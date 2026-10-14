@@ -55,6 +55,7 @@ internal fun CategoryDetail(
     onSetDefaultCalendar: (account: String?, calendar: String?) -> Unit,
     mode: ViewMode,
     onSetMode: (ViewMode) -> Unit,
+    onSetDarkMessages: (Boolean) -> Unit,
     quoteSettings: QuoteSettings,
     onSetQuoteStyle: (QuoteStyleKind) -> Unit,
     onSetQuoteStylePerMessage: (Boolean) -> Unit,
@@ -158,7 +159,8 @@ internal fun CategoryDetail(
             }
         }
 
-        // Reading, conversation grouping (list <-> thread) and the message-row swipe gestures.
+        // Reading, conversation grouping (list <-> thread), the message-row swipe gestures and the
+        // message background in a dark app.
         SettingsCategory.READING -> {
             SettingsGroupCard(L10n.settings_grouping_heading(ctx), L10n.settings_grouping_description(ctx)) {
                 StrategyRow(
@@ -173,6 +175,13 @@ internal fun CategoryDetail(
             Spacer(modifier = Modifier.height(8.dp))
             SettingsGroupCard(L10n.settings_swipe_heading(ctx), L10n.settings_swipe_description(ctx)) {
                 SwipeActionsCard(swipe, onSetSwipeLeft, onSetSwipeRight)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsGroupCard(
+                L10n.settings_dark_messages_heading(ctx),
+                L10n.settings_dark_messages_description(ctx),
+            ) {
+                DarkMessagesSwitch(display.darkMessageBackground, onSetDarkMessages)
             }
         }
 

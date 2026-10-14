@@ -32,6 +32,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -166,12 +167,18 @@ internal fun ReadingScreen(
     onExportMessage: (account: String, key: String, destinationPath: String) -> Boolean,
     onArchive: (account: String, key: String) -> Unit,
     onDelete: (account: String, key: String) -> Unit,
+    // Whether the reader left dark message backgrounds on, and how to change it: the sun/moon
+    // button sets the same preference as Settings → Reading (docs/reading-dark-mode.md).
+    darkMessages: Boolean,
+    onSetDarkMessages: (Boolean) -> Unit,
     // Screenshot only: opens a reply as soon as the message's body is shown, so the showcase's
     // reply screenshot needs no tap. False in every normal launch.
     opensReplyOnShow: Boolean = false,
 ) {
     BackHandler(onBack = onBack)
     val ctx = LocalContext.current
+    val appDark = LocalAppDark.current
+    val scheme = messageScheme(appDark, darkMessages)
     // Whether the user chose to load this message's remote images (reset per message).
     var loadRemoteImages by remember(message.key) { mutableStateOf(false) }
     // Screenshot only: opened once, after the body, so the reading view behind the composer is
@@ -226,6 +233,10 @@ internal fun ReadingScreen(
                 Icon(painterResource(R.drawable.ic_forward), contentDescription = L10n.action_forward(ctx))
             }
             Spacer(modifier = Modifier.weight(1f))
+            // Opens the trailing group, and only in a dark app (docs/reading-dark-mode.md).
+            if (appDark) {
+                MessageSchemeToggle(scheme = scheme, onSetDarkMessages = onSetDarkMessages)
+            }
             // Archive/delete move the message out of the folder; pop back to the list (the row
             // leaves it immediately via the core's optimistic removal).
             IconButton(onClick = {
@@ -331,18 +342,20 @@ internal fun ReadingScreen(
         // written on the page and never the page itself. Left transparent, the gap punched a hole
         // in it: in dark theme the body area went white, black, white on every message opened,
         // which reads as a flicker rather than as a message opening (docs/sync-progress.md). The
-        // colour is the core's, the same one it gives the HTML document, and it is this page in
-        // both themes because mail is authored for a white one, hence the ink to go with it, since
-        // the dark theme's own content colour over this would be white on white. The two accented
-        // controls drawn on it, the spinner and Retry, take the light scheme's own primary for the
-        // same reason: the dark scheme's is the pale lavender Material 3 pairs with a near-black
-        // surface, and on this page it is barely there.
+        // colour is the core's, the same one it gives the HTML document in this scheme, and the
+        // ink goes with the page rather than the app: a dark app reading with dark messages off
+        // draws a white page, where the dark theme's own content colour would be white on white.
+        // The two accented controls drawn on it, the spinner and Retry, take the page's scheme's
+        // primary for the same reason: the dark scheme's is the pale lavender Material 3 pairs
+        // with a near-black surface, and on a white page it is barely there.
         //
-        // Resolved once: the record crosses the FFI, and the page cannot change while the app runs.
-        val canvas = remember { messageCanvas(MessageScheme.LIGHT) }
+        // Resolved per scheme: the record crosses the FFI.
+        val canvas = remember(scheme) { messageCanvas(scheme) }
         val page = remember(canvas) { parseHexColor(canvas.background) }
         val ink = remember(canvas) { parseHexColor(canvas.foreground) }
-        val accent = remember { lightColorScheme().primary }
+        val accent = remember(scheme) {
+            if (scheme == MessageScheme.DARK) darkColorScheme().primary else lightColorScheme().primary
+        }
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -370,7 +383,7 @@ internal fun ReadingScreen(
                         }
                     }
                     !body.html.isNullOrEmpty() ->
-                        HtmlBody(fragment = body.html!!, loadRemoteImages = loadRemoteImages)
+                        HtmlBody(fragment = body.html!!, loadRemoteImages = loadRemoteImages, scheme = scheme)
                     !body.plain.isNullOrEmpty() -> LinkifiedText(
                         text = body.plain!!,
                         modifier = Modifier

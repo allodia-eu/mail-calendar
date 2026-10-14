@@ -45,6 +45,12 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             // Reading, conversation grouping.
                             mode = mode,
                             onSetMode = { instance.dispatch(Intent.SetViewMode(it)) },
+                            // Reading, the message background in a dark app; the same preference
+                            // as the reading screen's sun/moon button.
+                            onSetDarkMessages = { dark ->
+                                displaySettings = displaySettings.copy(darkMessageBackground = dark)
+                                instance.setDarkMessageBackground(dark)
+                            },
                             // Composing, quote style (+ the per-message opt-in), default send
                             // account, swipe actions.
                             quoteSettings = quoteSettings,

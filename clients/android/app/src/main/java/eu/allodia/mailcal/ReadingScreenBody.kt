@@ -103,6 +103,33 @@ private class RemotePolicy {
     var allowRemote = false
 }
 
+// Where the reader was when the same message was drawn again in another scheme, put back once
+// the new page is on screen (docs/reading-dark-mode.md, rule 9). Only the colours changed, so the
+// layout and the position are the same.
+//
+// Put back when the page commits, and only then. For an in-memory document `onPageFinished`
+// arrives first, and the new page's first frame then scrolls it to the top, so a place spent
+// there is overwritten before anyone sees it.
+internal class KeptPlace {
+    private var scrollY: Int? = null
+
+    // A document is about to load. `sameMessage` is the same message in another scheme, whose
+    // place is worth keeping; anything else opens at its top.
+    fun loading(currentScrollY: Int, sameMessage: Boolean) {
+        scrollY = currentScrollY.takeIf { sameMessage && it > 0 }
+    }
+
+    // The new page is on screen: where to scroll it, once.
+    fun committed(): Int? = scrollY.also { scrollY = null }
+}
+
+// What a document is built from; a change of any of them reloads it.
+private data class DocumentInputs(
+    val fragment: String,
+    val loadRemoteImages: Boolean,
+    val scheme: MessageScheme,
+)
+
 // Every WebSettings flag the reading host depends on, in one place so the JVM suite can state
 // them: each is a contract cell, and every one of them is a default this happens to agree or
 // disagree with, which a reader of the factory below cannot tell apart.
@@ -143,9 +170,10 @@ internal fun blockRemoteLoad(request: WebResourceRequest?, allowRemote: Boolean)
 // open in the default browser), and, as a second barrier to the document CSP, remote
 // sub-resource loads intercepted unless the user opted into images.
 @Composable
-internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean) {
+internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean, scheme: MessageScheme) {
     val policy = remember { RemotePolicy() }
     policy.allowRemote = loadRemoteImages
+    val kept = remember { KeptPlace() }
     // The Compose owner view, invalidated when the WebView commits its first frame (belt-and-
     // suspenders alongside the fade below).
     val hostView = LocalView.current
@@ -172,6 +200,7 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean) {
                 webViewClient = object : WebViewClient() {
                     // First frame is painted: reveal (fade in) and nudge the owner to redraw.
                     override fun onPageCommitVisible(view: WebView?, url: String?) {
+                        kept.committed()?.let { view?.scrollTo(0, it) }
                         painted = true
                         hostView.invalidate()
                     }
@@ -209,13 +238,16 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean) {
             }
         },
             // baseURL null → no origin to resolve relative resources against; the document CSP is
-            // the boundary. Reload only when the inputs change (fragment or load-images choice),
-            // so unrelated recompositions don't rebuild the document (an FFI call) or reload.
+            // the boundary. Reload only when the inputs change (fragment, load-images choice or
+            // scheme), so unrelated recompositions don't rebuild the document (an FFI call) or
+            // reload. A change of scheme alone keeps the reader's place.
             update = { webView ->
-                val inputs = fragment to loadRemoteImages
-                if (webView.tag != inputs) {
+                val inputs = DocumentInputs(fragment, loadRemoteImages, scheme)
+                val last = webView.tag as? DocumentInputs
+                if (last != inputs) {
                     webView.tag = inputs
-                    val document = renderMessageHtml(fragment, loadRemoteImages, MessageScheme.LIGHT)
+                    kept.loading(webView.scrollY, sameMessage = last?.copy(scheme = scheme) == inputs)
+                    val document = renderMessageHtml(fragment, loadRemoteImages, scheme)
                     webView.loadDataWithBaseURL(null, document, "text/html", "utf-8", null)
                 }
             },

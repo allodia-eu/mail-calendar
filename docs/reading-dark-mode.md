@@ -36,7 +36,8 @@ left it.
    row reads reply, reply all, forward, then the toggle, archive, delete and the overflow
    ([`reading-actions.md`](reading-actions.md)). Its glyph is what pressing it does: a **sun** on a
    dark message, a **moon** on a light one. Its accessible name says the same in words
-   (`reading_show_light_background`, `reading_show_dark_background`), and so does its tooltip.
+   (`reading_show_light_background`, `reading_show_dark_background`), and so does its tooltip
+   where the platform's row shows one.
 
 4. **The transform is the core's, and moves colours and nothing else.** A dark render
    (`render_message_html(…, MessageScheme::Dark)`, built in
@@ -110,10 +111,10 @@ not pretend to: the toggle is the answer, which is why it is on the row rather t
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Dark render while the app is dark | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| Canvas follows the scheme from the first frame | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| Sun/moon toggle on the action row, dark app only | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| Settings → Reading switch | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| Re-renders live on an appearance or preference change | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| A scheme change keeps the reader's place | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| Dark render while the app is dark | ✅ | ✅ | ⬜ | ✅ | ⬜ |
+| Canvas follows the scheme from the first frame | ✅ | ✅ | ⬜ | ✅ | ⬜ |
+| Sun/moon toggle on the action row, dark app only | ✅ | ✅ | ⬜ | ✅ | ⬜ |
+| Settings → Reading switch | ✅ | ✅ | ⬜ | ✅ | ⬜ |
+| Re-renders live on an appearance or preference change | ✅ | ✅ | ⬜ | ✅ | ⬜ |
+| A scheme change keeps the reader's place | ✅ | ✅ | ⬜ | ✅ | ⬜ |
 | Reading windows follow | ✅ | — | ⬜ | — | ⬜ |

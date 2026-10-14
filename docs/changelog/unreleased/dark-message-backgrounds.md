@@ -1,6 +1,6 @@
 # Messages follow a dark app
 
-Platforms: macos, ios
+Platforms: macos, ios, android
 Bump: minor
 
 > The core moves a message's colours by lightness and keeps their hue, leaving pictures as sent

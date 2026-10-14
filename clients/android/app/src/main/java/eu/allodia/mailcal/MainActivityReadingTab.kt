@@ -71,6 +71,14 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                             // the row optimistically, and the screen pops back to the list.
                             onArchive = { account, key -> instance.dispatch(Intent.Archive(account, key)) },
                             onDelete = { account, key -> instance.dispatch(Intent.Delete(account, key)) },
+                            // The sun/moon button: the preference Settings → Reading also shows.
+                            // Applied here as well, so the open message re-renders on the press
+                            // rather than on the SETTINGS pull that follows it.
+                            darkMessages = displaySettings.darkMessageBackground,
+                            onSetDarkMessages = { dark ->
+                                displaySettings = displaySettings.copy(darkMessageBackground = dark)
+                                instance.setDarkMessageBackground(dark)
+                            },
                             // Screenshot only: MAILCAL_SHOWCASE_SCREEN=reply opened this message, so
                             // open its reply composer too; `openComposer` lays the sample reply
                             // text over it.

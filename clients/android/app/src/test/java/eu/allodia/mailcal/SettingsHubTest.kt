@@ -92,6 +92,7 @@ class SettingsHubTest {
             onSetDefaultCalendar = { _, _ -> },
                 mode = ViewMode.THREADED,
                 onSetMode = {},
+                onSetDarkMessages = {},
                 quoteSettings = QuoteSettings(QuoteStyleKind.INDENTED, perMessage = false),
                 onSetQuoteStyle = {},
                 onSetQuoteStylePerMessage = {},

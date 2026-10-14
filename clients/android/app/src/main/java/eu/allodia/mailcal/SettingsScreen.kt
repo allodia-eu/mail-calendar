@@ -82,6 +82,7 @@ internal fun SettingsScreen(
     // Reading
     mode: ViewMode,
     onSetMode: (ViewMode) -> Unit,
+    onSetDarkMessages: (Boolean) -> Unit,
     // Composing
     quoteSettings: QuoteSettings,
     onSetQuoteStyle: (QuoteStyleKind) -> Unit,
@@ -228,6 +229,7 @@ internal fun SettingsScreen(
                     onSetDefaultCalendar = onSetDefaultCalendar,
                     mode = mode,
                     onSetMode = onSetMode,
+                    onSetDarkMessages = onSetDarkMessages,
                     quoteSettings = quoteSettings,
                     onSetQuoteStyle = onSetQuoteStyle,
                     onSetQuoteStylePerMessage = onSetQuoteStylePerMessage,
