@@ -108,10 +108,19 @@ namespace Allodia
         [DllImport("user32.dll")] public static extern uint GetDpiForSystem();
 
         /// <summary>
-        /// Focus a window before typing at it in-process. Only Search.Tests does: it times the
-        /// moment of one keystroke, which a winapp call cannot place within its own process.
+        /// Bring a window to the front before pressing or typing at it: real input goes to whatever
+        /// is in front (Show-WinappWindow, and Search.Tests' timed keystroke).
         /// </summary>
         [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+
+        /// <summary>The window in front, to bring another forward only when it is not.</summary>
+        [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+
+        /// <summary>
+        /// A bare Alt press, which makes this process the last to send input: Windows grants
+        /// SetForegroundWindow only then (Show-WinappWindow).
+        /// </summary>
+        [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
     }
 }
 '@

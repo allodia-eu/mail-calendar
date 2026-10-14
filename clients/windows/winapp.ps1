@@ -75,11 +75,14 @@ function Invoke-Winapp {
     throw ("winapp ui $Verb $($Arguments -join ' ') did not answer within ${TimeoutSec}s. With a composer " +
       'open this is winapp walking the cycle through the editor''s WebView2 (see winapp.ps1), not the app hanging')
   }
-  $text = $out.Result.Trim()
+  # An answer is JSON on stdout, but a refusal can arrive as JSON on stderr instead.
   $answer = $null
-  try { $answer = $text | ConvertFrom-Json -Depth 50 } catch { }
+  foreach ($text in @($out.Result.Trim(), $err.Result.Trim())) {
+    if ($answer) { break }
+    try { $answer = $text | ConvertFrom-Json -Depth 50 } catch { }
+  }
   if (-not $answer) {
-    throw "winapp ui $Verb answered with no JSON (exit $($process.ExitCode)): $text $($err.Result.Trim())"
+    throw "winapp ui $Verb answered with no JSON (exit $($process.ExitCode)): $($out.Result.Trim()) $($err.Result.Trim())"
   }
   if ($answer.error) { throw "winapp ui ${Verb}: $($answer.error.message)" }
   $answer
@@ -102,6 +105,25 @@ function Get-UiaWindowHandle {
   $handle = $node.Current.NativeWindowHandle
   if (-not $handle) { throw "'$($Element.Current.Name)' is in no window with a handle" }
   [long] $handle
+}
+
+<#
+.SYNOPSIS
+Brings -Window to the front, unless it is there already.
+.DESCRIPTION
+winapp refuses to press or type into a window that is not in front, rather than act on the wrong
+one. Windows in turn lets a process take the front only when it was the last to send input, so a
+plain SetForegroundWindow from this script, and winapp's own `screenshot --focus`, are refused
+while the user, or the launch that just failed to take the front, owns it. A bare Alt press makes
+this script the last to send input, and the request after it is granted.
+#>
+function Show-WinappWindow {
+  param([Parameter(Mandatory, Position = 0)] [long] $Window)
+  if ([Allodia.UiaDpi]::GetForegroundWindow() -eq [IntPtr] $Window) { return }
+  [Allodia.UiaDpi]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero)   # VK_MENU down
+  [Allodia.UiaDpi]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)   # VK_MENU up
+  [void][Allodia.UiaDpi]::SetForegroundWindow([IntPtr] $Window)
+  Start-Sleep -Milliseconds 300
 }
 
 <#
@@ -146,7 +168,9 @@ function Invoke-WinappClick {
   $arguments = @(Get-WinappSelector $Element)
   if ($Right) { $arguments += '--right' }
   if ($Double) { $arguments += '--double' }
-  [void](Invoke-Winapp click $arguments -Window (Get-UiaWindowHandle $Element))
+  $window = Get-UiaWindowHandle $Element
+  Show-WinappWindow $window
+  [void](Invoke-Winapp click $arguments -Window $window)
 }
 
 <#
@@ -164,6 +188,7 @@ function Invoke-WinappPress {
   $at = "$($Point[0]),$($Point[1])"
   $arguments = @($at, $at)
   if ($Right) { $arguments += '--right' }
+  Show-WinappWindow $Window
   [void](Invoke-Winapp drag $arguments -Window $Window)
 }
 
@@ -177,7 +202,9 @@ raises the tooltip. A cursor warp does not, which is why a hover is never a SetC
 function Invoke-WinappHover {
   param([Parameter(Mandatory, Position = 0)] [object] $Element, [int] $DwellMs = 800)
   $arguments = @(Get-WinappSelector $Element) + @('--dwell-time', "$DwellMs")
-  [void](Invoke-Winapp hover $arguments -Window (Get-UiaWindowHandle $Element))
+  $window = Get-UiaWindowHandle $Element
+  Show-WinappWindow $window
+  [void](Invoke-Winapp hover $arguments -Window $window)
 }
 
 <#
@@ -194,7 +221,9 @@ function Invoke-WinappDrag {
     [int] $DwellMs = 400
   )
   $arguments = @((Get-WinappSelector $From), "$($ToPoint[0]),$($ToPoint[1])", '--dwell-ms', "$DwellMs")
-  [void](Invoke-Winapp drag $arguments -Window (Get-UiaWindowHandle $From))
+  $window = Get-UiaWindowHandle $From
+  Show-WinappWindow $window
+  [void](Invoke-Winapp drag $arguments -Window $window)
 }
 
 <#
@@ -211,7 +240,9 @@ function Invoke-WinappWheel {
     [string] $Selector = (Get-WinappSelector $Element)
   )
   $arguments = @($Selector, '--wheel', "$Notches")
-  [void](Invoke-Winapp scroll $arguments -Window (Get-UiaWindowHandle $Element))
+  $window = Get-UiaWindowHandle $Element
+  Show-WinappWindow $window
+  [void](Invoke-Winapp scroll $arguments -Window $window)
 }
 
 <#
@@ -221,6 +252,8 @@ Types -Keys at whatever holds keyboard focus in -Window, as real keystrokes.
 winapp's key syntax: named keys and chords as tokens (`esc`, `ctrl+a`, `enter`), or -Text to type the
 argument as written. Sent as real input (`--via send-input`), because WinUI's controls are windowless
 and ignore the posted messages winapp sends by default, and an accelerator fires only on real input.
+Real input goes to whatever window is in front, so -Window is brought forward first
+(Show-WinappWindow).
 #>
 function Send-WinappKeys {
   param(
@@ -228,6 +261,7 @@ function Send-WinappKeys {
     [long] $Window = [long] (Get-MailcalWindow).Current.NativeWindowHandle,
     [switch] $Text
   )
+  Show-WinappWindow $Window
   $arguments = @($Keys, '--via', 'send-input')
   if ($Text) { $arguments += '--verbatim' }
   [void](Invoke-Winapp send-keys $arguments -Window $Window)
