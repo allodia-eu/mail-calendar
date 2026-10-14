@@ -87,7 +87,7 @@ case "$platform" in
     # renders perfectly while VoiceOver can no longer reach the buttons inside it.
     #
     # `describe-all` frames and `idb ui tap` are both in POINTS, so `find` composes straight into
-    # `tap` with no scaling and no Simulator-window arithmetic; which is what `press` does in one
+    # `tap` with no scaling and no Device Hub window arithmetic; which is what `press` does in one
     # call, since idb has no AXPress equivalent to invoke an element directly.
     #
     # Every call carries --udid and (re)starts the companion via lib.sh's idb_sim_udid; see there

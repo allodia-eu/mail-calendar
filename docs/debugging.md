@@ -801,7 +801,7 @@ trackpad): ask the user to test a swipe by hand rather than concluding it's unsu
 
 **iPhone/iPad** is driven through Meta's [idb](https://fbidb.io), and reads the same way macOS does,
 by label, never by pixel. `describe-all` frames and `idb ui tap` are both in **points**, so a
-label resolves straight into a tap with no scaling and no Simulator-window arithmetic;
+label resolves straight into a tap with no scaling and no Device Hub window arithmetic;
 [`scripts/dev/ios_ui_idb.py`](../scripts/dev/ios_ui_idb.py) prints the tree in the same
 `Role [x,y] Label` lines the macOS dump uses, so a grep ports between them:
 

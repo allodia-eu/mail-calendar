@@ -213,7 +213,7 @@ scripts/dev/control.sh macos find "Reply" --all     # every hit, when a label is
 
 **On iOS/iPadOS, drive by label too, never screenshot-and-guess.** `describe-all` frames and
 `idb ui tap` are both in **points**, so a label resolves straight into a tap with no scaling and no
-Simulator-window arithmetic. `ui-dump` prints the same `Role [x,y] Label` lines the macOS dump does,
+Device Hub window arithmetic. `ui-dump` prints the same `Role [x,y] Label` lines the macOS dump does,
 so a grep ports between them. Reaching for a screenshot to locate a control is the old, expensive
 loop; a dump and a `press` replace it:
 

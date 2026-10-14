@@ -246,7 +246,8 @@ ensure_simulator_booted() {
     xcrun simctl bootstatus "$udid" -b
   fi
 
-  open -a Simulator >/dev/null 2>&1 || true
+  # Device Hub, Xcode's window for showing and driving a simulator.
+  open -b com.apple.dt.Devices >/dev/null 2>&1 || true
 }
 
 if [[ "$LIST_DEVICES" -eq 1 ]]; then

@@ -1782,7 +1782,7 @@ content rather than its ancestor, so a recognizer attached there would only ever
 became the hit target, which would cost the grid every tap it has.
 
 **Hand-verified on 2026-09-03**, on a booted iPad simulator, by a real two-finger trackpad gesture
-over its window. ⚠️ It cannot be verified any other way: the Simulator does not forward a
+over its window. ⚠️ It cannot be verified any other way: the simulator does not forward a
 *synthetic* host scroll into the guest at all, as a real `UIScrollView` on the same screen proves by
 not moving either. A test that injects one passes while measuring nothing.
 
