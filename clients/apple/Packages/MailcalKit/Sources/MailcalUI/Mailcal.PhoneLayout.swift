@@ -75,6 +75,9 @@ extension ContentView {
                 }
                 .navigationDestination(item: $openedMessage) { opened in
                     readingView(for: opened)
+                        // An open message is read, not navigated away from: the height goes to
+                        // the message, and Back returns to the list, where the tabs are.
+                        .toolbar(.hidden, for: .tabBar)
                 }
         }
     }

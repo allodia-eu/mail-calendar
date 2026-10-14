@@ -32,4 +32,24 @@ final class NavigationBarTests: XCTestCase {
         }
         XCTAssertTrue(app.searchFields["Search mail"].exists, "the mailbox bar has no search field")
     }
+
+    /// An open message has the screen to itself: the tab bar goes while it is read, and comes back
+    /// with the list. Calendar stands for the bar, being a tab and nothing else on either screen.
+    func testAnOpenMessageHidesTheTabBarAndBackBringsItBack() {
+        let app = ShowcaseApp.launch()
+        ShowcaseApp.openFirstMessage(app)
+        XCTAssertTrue(
+            app.buttons["Reply"].waitForExistence(timeout: ShowcaseApp.timeout),
+            "no message was opened"
+        )
+        let calendar = app.buttons["Calendar"]
+        let gone = NSPredicate(format: "exists == false OR isHittable == false")
+        wait(for: [expectation(for: gone, evaluatedWith: calendar)], timeout: ShowcaseApp.timeout)
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(
+            calendar.waitForExistence(timeout: ShowcaseApp.timeout) && calendar.isHittable,
+            "the tab bar did not come back with the list"
+        )
+    }
 }
