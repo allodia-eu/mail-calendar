@@ -289,7 +289,7 @@ public sealed partial class MailboxModel
     /// user's per-message choice to load remote images; <paramref name="scheme"/> is the page it is
     /// drawn on (docs/reading-dark-mode.md).
     /// </summary>
-    public string RenderMessageHtml(string html, bool loadRemoteImages, MessageScheme scheme) =>
+    internal string RenderMessageHtml(string html, bool loadRemoteImages, MessageScheme scheme) =>
         MailcalBindingsMethods.RenderMessageHtml(html, loadRemoteImages, scheme);
 
     /// <summary>
