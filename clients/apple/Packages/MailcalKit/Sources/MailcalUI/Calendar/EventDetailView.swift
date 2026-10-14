@@ -83,12 +83,17 @@ struct EventDetailView: View {
                     Button(L10n.action_close()) { dismiss() }
                 }
                 if detail.canWrite {
-                    ToolbarItemGroup(placement: .primaryAction) {
-                        Button(L10n.action_edit(), systemImage: "pencil", action: onEdit)
-                        Button(L10n.action_delete(), systemImage: "trash", role: .destructive) {
-                            if asksAboutTheSeries { onDelete() } else { confirmingDelete = true }
+                    #if os(macOS)
+                        // A macOS sheet's bottom bar draws one primary action, so Delete takes the
+                        // destructive slot of its own; grouped with Edit it was never drawn.
+                        ToolbarItem(placement: .primaryAction) { editButton }
+                        ToolbarItem(placement: .destructiveAction) { deleteButton }
+                    #else
+                        ToolbarItemGroup(placement: .primaryAction) {
+                            editButton
+                            deleteButton
                         }
-                    }
+                    #endif
                 }
             }
             // An `alert`, not a `confirmationDialog`: iPadOS presents the latter as a popover, and a
@@ -123,6 +128,16 @@ struct EventDetailView: View {
         // the screen, and past a handful of people scrolling is the right answer anyway. An invitee's
         // answer row adds one step more.
         .frame(minWidth: 360, minHeight: detail.attendees.isEmpty ? 340 : detail.myAnswer == nil ? 480 : 560)
+    }
+
+    private var editButton: some View {
+        Button(L10n.action_edit(), systemImage: "pencil", action: onEdit)
+    }
+
+    private var deleteButton: some View {
+        Button(L10n.action_delete(), systemImage: "trash", role: .destructive) {
+            if asksAboutTheSeries { onDelete() } else { confirmingDelete = true }
+        }
     }
 
     private func labeled(_ label: String, _ value: String) -> some View {
