@@ -45,19 +45,19 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
                            Style="{StaticResource SubtitleTextBlockStyle}"
-                           Text="{x:Bind l10n:L10n.ContactsTitle()}" />
+                           Text="{x:Bind l10n:L10n.ContactsTitle(), Mode=OneTime}" />
                 <TextBox x:Name="SearchBox" Grid.Column="1" VerticalAlignment="Center"
                          AutomationProperties.AutomationId="ContactsSearch"
-                         AutomationProperties.Name="{x:Bind l10n:L10n.ContactsSearchPlaceholder()}"
-                         PlaceholderText="{x:Bind l10n:L10n.ContactsSearchPlaceholder()}"
+                         AutomationProperties.Name="{x:Bind l10n:L10n.ContactsSearchPlaceholder(), Mode=OneTime}"
+                         PlaceholderText="{x:Bind l10n:L10n.ContactsSearchPlaceholder(), Mode=OneTime}"
                          TextChanged="OnSearchChanged" />
                 <!-- Clearing resets the filter in the CORE as well as the field, as one action: a
                      narrowing the user can no longer see must never shrink the next search. -->
                 <Button x:Name="ClearSearchButton" Grid.Column="2" Click="OnClearSearch"
                         Visibility="Collapsed"
                         AutomationProperties.AutomationId="ContactsSearchClear"
-                        AutomationProperties.Name="{x:Bind l10n:L10n.ContactsSearchClear()}"
-                        ToolTipService.ToolTip="{x:Bind l10n:L10n.ContactsSearchClear()}">
+                        AutomationProperties.Name="{x:Bind l10n:L10n.ContactsSearchClear(), Mode=OneTime}"
+                        ToolTipService.ToolTip="{x:Bind l10n:L10n.ContactsSearchClear(), Mode=OneTime}">
                     <FontIcon Glyph="&#xE711;" FontSize="14" />
                 </Button>
                 <!-- Hidden until the core says there is a writable address book: offering a create
@@ -66,8 +66,8 @@
                 <Button x:Name="NewContactButton" Grid.Column="3" Click="OnNewContact"
                         Visibility="{x:Bind Model.CreateContactVisibility, Mode=OneWay}"
                         AutomationProperties.AutomationId="ContactsNew"
-                        AutomationProperties.Name="{x:Bind l10n:L10n.ContactsNew()}"
-                        ToolTipService.ToolTip="{x:Bind l10n:L10n.ContactsNew()}">
+                        AutomationProperties.Name="{x:Bind l10n:L10n.ContactsNew(), Mode=OneTime}"
+                        ToolTipService.ToolTip="{x:Bind l10n:L10n.ContactsNew(), Mode=OneTime}">
                     <FontIcon Glyph="&#xE710;" FontSize="14" />
                 </Button>
             </Grid>
@@ -86,7 +86,7 @@
 
             <ListView x:Name="PeopleList" Grid.Row="2" Padding="8,0,8,8"
                       AutomationProperties.AutomationId="ContactsList"
-                      AutomationProperties.Name="{x:Bind l10n:L10n.ContactsTitle()}"
+                      AutomationProperties.Name="{x:Bind l10n:L10n.ContactsTitle(), Mode=OneTime}"
                       ItemsSource="{x:Bind Model.Contacts, Mode=OneWay}"
                       Visibility="{x:Bind Model.ContactsListVisibility, Mode=OneWay}"
                       SelectionMode="Single" SelectionChanged="OnPersonSelected">
@@ -102,8 +102,8 @@
                                  core hands back one flat ordered list, and re-grouping it here would
                                  be a second ordering that could disagree with the first. The
                                  projection decides it by comparing with the row above. -->
-                            <TextBlock Text="{x:Bind SectionHeader}"
-                                       Visibility="{x:Bind SectionVisibility}"
+                            <TextBlock Text="{x:Bind SectionHeader, Mode=OneTime}"
+                                       Visibility="{x:Bind SectionVisibility, Mode=OneTime}"
                                        Margin="4,8,0,2"
                                        Style="{StaticResource CaptionTextBlockStyle}"
                                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
@@ -116,20 +116,20 @@
                                      else their initials on their own colour (docs/avatars.md). The
                                      same avatar the mail list draws for them, so the two screens
                                      cannot disagree about who someone is. -->
-                                <controls:AvatarView Grid.Column="0" Avatar="{x:Bind Avatar}"
+                                <controls:AvatarView Grid.Column="0" Avatar="{x:Bind Avatar, Mode=OneTime}"
                                                      VerticalAlignment="Center" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="{x:Bind DisplayName}" MaxLines="1"
+                                    <TextBlock Text="{x:Bind DisplayName, Mode=OneTime}" MaxLines="1"
                                                TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{x:Bind Email}" Visibility="{x:Bind EmailVisibility}"
+                                    <TextBlock Text="{x:Bind Email, Mode=OneTime}" Visibility="{x:Bind EmailVisibility, Mode=OneTime}"
                                                MaxLines="1" TextTrimming="CharacterEllipsis"
                                                Style="{StaticResource CaptionTextBlockStyle}"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <!-- The disclosure a merged row owes the user. Only above one,
                                          every ordinary contact would otherwise carry a meaningless
                                          "In 1 accounts". -->
-                                    <TextBlock Text="{x:Bind AccountCountText}"
-                                               Visibility="{x:Bind AccountCountVisibility}"
+                                    <TextBlock Text="{x:Bind AccountCountText, Mode=OneTime}"
+                                               Visibility="{x:Bind AccountCountVisibility, Mode=OneTime}"
                                                Style="{StaticResource CaptionTextBlockStyle}"
                                                Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
                                 </StackPanel>
@@ -166,6 +166,8 @@
         <ScrollViewer Grid.Column="2" Padding="20"
                       AutomationProperties.AutomationId="ContactsDetail"
                       Visibility="{x:Bind Model.ContactDetailVisibility, Mode=OneWay}">
+            <!-- Each binding through OpenedContact names what it shows when no contact is open, so
+                 closing one leaves nothing of it behind in the hidden pane. -->
             <StackPanel Spacing="16">
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <!-- The screen a photograph is most of, so it is drawn largest here. Read from
@@ -173,22 +175,22 @@
                          photograph and the page it opens showing initials is the same defect twice
                          (docs/avatars.md). -->
                     <controls:AvatarView Diameter="56" VerticalAlignment="Center"
-                                         Avatar="{x:Bind Model.OpenedContact.Avatar, Mode=OneWay}" />
-                    <TextBlock Text="{x:Bind Model.OpenedContact.DisplayName, Mode=OneWay}"
+                                         Avatar="{x:Bind Model.OpenedContact.Avatar, Mode=OneWay, FallbackValue={x:Null}}" />
+                    <TextBlock Text="{x:Bind Model.OpenedContact.DisplayName, Mode=OneWay, FallbackValue=''}"
                                VerticalAlignment="Center" TextWrapping="Wrap"
                                IsTextSelectionEnabled="True"
                                AutomationProperties.AutomationId="ContactName"
                                Style="{StaticResource SubtitleTextBlockStyle}" />
                 </StackPanel>
 
-                <ItemsControl ItemsSource="{x:Bind Model.OpenedContact.Groups, Mode=OneWay}">
+                <ItemsControl ItemsSource="{x:Bind Model.OpenedContact.Groups, Mode=OneWay, FallbackValue={x:Null}}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:ContactValueGroup">
                             <StackPanel Margin="0,0,0,12" Spacing="4">
-                                <TextBlock Text="{x:Bind Heading}"
+                                <TextBlock Text="{x:Bind Heading, Mode=OneTime}"
                                            Style="{StaticResource CaptionTextBlockStyle}"
                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                                <ItemsControl ItemsSource="{x:Bind Values}">
+                                <ItemsControl ItemsSource="{x:Bind Values, Mode=OneTime}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:ContactValueItem">
                                             <!-- Stacked, not side by side. Laid out as a row, the
@@ -197,10 +199,10 @@
                                                  the value to nothing. A column cannot do that
                                                  whatever either string's length. -->
                                             <StackPanel Margin="0,0,0,6">
-                                                <TextBlock Text="{x:Bind Value}" TextWrapping="Wrap"
+                                                <TextBlock Text="{x:Bind Value, Mode=OneTime}" TextWrapping="Wrap"
                                                            IsTextSelectionEnabled="True" />
-                                                <TextBlock Text="{x:Bind AccountsText}"
-                                                           Visibility="{x:Bind AccountsVisibility}"
+                                                <TextBlock Text="{x:Bind AccountsText, Mode=OneTime}"
+                                                           Visibility="{x:Bind AccountsVisibility, Mode=OneTime}"
                                                            TextWrapping="Wrap"
                                                            Style="{StaticResource CaptionTextBlockStyle}"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -217,11 +219,11 @@
                      came from is noise, and would make every contact look like a merge. -->
                 <StackPanel Spacing="4"
                             AutomationProperties.AutomationId="ContactAlsoIn"
-                            Visibility="{x:Bind Model.OpenedContact.AccountsVisibility, Mode=OneWay}">
-                    <TextBlock Text="{x:Bind l10n:L10n.ContactsSectionAccounts()}"
+                            Visibility="{x:Bind Model.OpenedContact.AccountsVisibility, Mode=OneWay, FallbackValue=Collapsed}">
+                    <TextBlock Text="{x:Bind l10n:L10n.ContactsSectionAccounts(), Mode=OneTime}"
                                Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                    <ItemsControl ItemsSource="{x:Bind Model.OpenedContact.Accounts, Mode=OneWay}" />
+                    <ItemsControl ItemsSource="{x:Bind Model.OpenedContact.Accounts, Mode=OneWay, FallbackValue={x:Null}}" />
                 </StackPanel>
 
                 <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
@@ -230,12 +232,12 @@
                      many words rather than leaving it to be inferred from an absence, or, worse,
                      from a disabled button they press twice (§3). -->
                 <Button x:Name="EditContactButton" Click="OnEditContact"
-                        Content="{x:Bind l10n:L10n.ContactsEdit()}"
-                        Visibility="{x:Bind Model.OpenedContact.EditVisibility, Mode=OneWay}"
+                        Content="{x:Bind l10n:L10n.ContactsEdit(), Mode=OneTime}"
+                        Visibility="{x:Bind Model.OpenedContact.EditVisibility, Mode=OneWay, FallbackValue=Collapsed}"
                         AutomationProperties.AutomationId="ContactEdit"
-                        AutomationProperties.Name="{x:Bind l10n:L10n.ContactsEdit()}" />
-                <TextBlock Text="{x:Bind l10n:L10n.ContactsNotEditable()}" TextWrapping="Wrap"
-                           Visibility="{x:Bind Model.OpenedContact.NotEditableVisibility, Mode=OneWay}"
+                        AutomationProperties.Name="{x:Bind l10n:L10n.ContactsEdit(), Mode=OneTime}" />
+                <TextBlock Text="{x:Bind l10n:L10n.ContactsNotEditable(), Mode=OneTime}" TextWrapping="Wrap"
+                           Visibility="{x:Bind Model.OpenedContact.NotEditableVisibility, Mode=OneWay, FallbackValue=Collapsed}"
                            AutomationProperties.AutomationId="ContactsNotEditable"
                            Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -249,7 +251,7 @@
                     Visibility="{x:Bind Model.ContactPlaceholderVisibility, Mode=OneWay}">
             <FontIcon Glyph="&#xE77B;" FontSize="36"
                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            <TextBlock Text="{x:Bind l10n:L10n.ContactsTitle()}" HorizontalAlignment="Center"
+            <TextBlock Text="{x:Bind l10n:L10n.ContactsTitle(), Mode=OneTime}" HorizontalAlignment="Center"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </StackPanel>
     </Grid>

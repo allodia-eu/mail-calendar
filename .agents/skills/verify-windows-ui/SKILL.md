@@ -251,6 +251,9 @@ section assumes `CommunityToolkit.Mvvm` ViewModels, which this client does not u
 immutable snapshots from the core), and its theming rule flags `ReadingView.xaml`'s deliberate
 literal white message canvas. Its `winui-packaging` is dev-cert grade, not `.msixupload`.
 
+**Its WinUI analyzer is part of the build**, warnings as errors; AGENTS.md ("Toolchain, lints and
+CI") says how its rules apply here, the explicit `x:Bind` mode among them.
+
 The `MAILCAL_*` launch hooks (`MailboxModel.Debug.cs`, and the swipe hook in `MailListView.Swipe.cs`)
 remain useful as **deterministic** shortcuts past a gesture you are not trying to test, and are
 debug-build only.

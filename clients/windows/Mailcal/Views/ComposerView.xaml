@@ -54,10 +54,10 @@
                      The label is SendLabel, `Name <address>`, which is how the recipient will read it
                      (docs/sending.md); an account with no name shows its address alone. -->
                 <ComboBox x:Name="FromBox" Grid.Row="1" HorizontalAlignment="Stretch"
-                          Header="{x:Bind l10n:L10n.ComposeFrom()}" DisplayMemberPath="SendLabel"
+                          Header="{x:Bind l10n:L10n.ComposeFrom(), Mode=OneTime}" DisplayMemberPath="SendLabel"
                           SelectionChanged="OnFromChanged" />
                 <StackPanel x:Name="FromRow" Grid.Row="1" Spacing="4" Visibility="Collapsed">
-                    <TextBlock Text="{x:Bind l10n:L10n.ComposeFrom()}" />
+                    <TextBlock Text="{x:Bind l10n:L10n.ComposeFrom(), Mode=OneTime}" />
                     <TextBlock x:Name="FromAddress" Opacity="0.7" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
 
@@ -81,8 +81,8 @@
                             <ToggleButton x:Name="CcBccToggle" MinWidth="0" Padding="10,6" Margin="8,0,0,0"
                                           Checked="OnToggleCcBcc" Unchecked="OnToggleCcBcc"
                                           AutomationProperties.AutomationId="CcBccToggle"
-                                          AutomationProperties.Name="{x:Bind l10n:L10n.ComposeShowCcBcc()}"
-                                          ToolTipService.ToolTip="{x:Bind l10n:L10n.ComposeShowCcBcc()}">
+                                          AutomationProperties.Name="{x:Bind l10n:L10n.ComposeShowCcBcc(), Mode=OneTime}"
+                                          ToolTipService.ToolTip="{x:Bind l10n:L10n.ComposeShowCcBcc(), Mode=OneTime}">
                                 <FontIcon x:Name="CcBccChevron" Glyph="&#xE70D;" FontSize="12" />
                             </ToggleButton>
                         </views:RecipientField.Trailing>
@@ -92,18 +92,18 @@
                         <views:RecipientField x:Name="BccField" />
                     </StackPanel>
                 </StackPanel>
-                <TextBox x:Name="SubjectBox" Grid.Row="3" Header="{x:Bind l10n:L10n.ComposeSubject()}" TextChanged="OnHeaderChanged" />
+                <TextBox x:Name="SubjectBox" Grid.Row="3" Header="{x:Bind l10n:L10n.ComposeSubject(), Mode=OneTime}" TextChanged="OnHeaderChanged" />
 
                 <!-- The per-message quote-style toggle. Shown only for a reply/forward that carries a
                      quoted original AND when the user opted into per-message styling in Settings, off by
                      default, so an ordinary reply just uses the app default. Flipping it re-styles the
                      quote in place; it does not change the persisted default. -->
                 <StackPanel x:Name="QuoteStylePanel" Grid.Row="4" Orientation="Horizontal" Spacing="12" Visibility="Collapsed">
-                    <TextBlock Text="{x:Bind l10n:L10n.QuoteStyleLabel()}" VerticalAlignment="Center" />
+                    <TextBlock Text="{x:Bind l10n:L10n.QuoteStyleLabel(), Mode=OneTime}" VerticalAlignment="Center" />
                     <RadioButton x:Name="QuoteIndentedRadio" GroupName="QuoteStyle"
-                                 Content="{x:Bind l10n:L10n.QuoteStyleIndented()}" Checked="OnQuoteStyleChanged" />
+                                 Content="{x:Bind l10n:L10n.QuoteStyleIndented(), Mode=OneTime}" Checked="OnQuoteStyleChanged" />
                     <RadioButton x:Name="QuoteLineHeaderRadio" GroupName="QuoteStyle"
-                                 Content="{x:Bind l10n:L10n.QuoteStyleLineHeader()}" Checked="OnQuoteStyleChanged" />
+                                 Content="{x:Bind l10n:L10n.QuoteStyleLineHeader(), Mode=OneTime}" Checked="OnQuoteStyleChanged" />
                 </StackPanel>
             </Grid>
         </ScrollViewer>
@@ -121,11 +121,11 @@
                  current choice shows as a checkmark inside the menu rather than on the button, so
                  the row stays a row of verbs. -->
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="{x:Bind l10n:L10n.ActionAttach()}" Click="OnAttachFiles" />
-                <Button x:Name="RemoveAttachmentButton" Content="{x:Bind l10n:L10n.ActionRemove()}"
+                <Button Content="{x:Bind l10n:L10n.ActionAttach(), Mode=OneTime}" Click="OnAttachFiles" />
+                <Button x:Name="RemoveAttachmentButton" Content="{x:Bind l10n:L10n.ActionRemove(), Mode=OneTime}"
                         Click="OnRemoveAttachment" IsEnabled="False" />
                 <DropDownButton x:Name="SignatureButton" Visibility="Collapsed"
-                                Content="{x:Bind l10n:L10n.ComposeSignatureLabel()}">
+                                Content="{x:Bind l10n:L10n.ComposeSignatureLabel(), Mode=OneTime}">
                     <DropDownButton.Flyout>
                         <MenuFlyout x:Name="SignatureMenu" />
                     </DropDownButton.Flyout>
@@ -135,7 +135,7 @@
                      reaches no server (docs/drafts.md). Hidden only where the composer keeps no
                      draft at all. -->
                 <Button x:Name="SaveDraftButton" Visibility="Collapsed"
-                        Content="{x:Bind l10n:L10n.ActionSaveDraft()}" Click="OnSaveDraft" />
+                        Content="{x:Bind l10n:L10n.ActionSaveDraft(), Mode=OneTime}" Click="OnSaveDraft" />
             </StackPanel>
             <ListView x:Name="AttachmentList" MaxHeight="92" SelectionMode="Single"
                       DisplayMemberPath="DisplayName" SelectionChanged="OnAttachmentSelectionChanged" />
@@ -144,7 +144,7 @@
         <TextBlock x:Name="PrepareError" Grid.Row="3" Visibility="Collapsed"
                    Foreground="{ThemeResource SystemFillColorCriticalBrush}"
                    Style="{StaticResource CaptionTextBlockStyle}"
-                   Text="{x:Bind l10n:L10n.ComposePrepareError()}" />
+                   Text="{x:Bind l10n:L10n.ComposePrepareError(), Mode=OneTime}" />
 
         <!-- How the draft's last save ended. A hint and never a gate: no state here stops the
              composer being closed, and none of it is worth a dialog (docs/drafts.md). Its own row
@@ -160,8 +160,8 @@
         <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
             <!-- Named like its sibling so a test can press it without knowing the app's language:
                  a harness run is in whatever the developer prefers, not a pinned locale. -->
-            <Button x:Name="DiscardButton" Content="{x:Bind l10n:L10n.ActionDiscard()}" Click="OnDiscard" />
-            <Button x:Name="SendButton" Content="{x:Bind l10n:L10n.ActionSend()}"
+            <Button x:Name="DiscardButton" Content="{x:Bind l10n:L10n.ActionDiscard(), Mode=OneTime}" Click="OnDiscard" />
+            <Button x:Name="SendButton" Content="{x:Bind l10n:L10n.ActionSend(), Mode=OneTime}"
                     Style="{StaticResource AccentButtonStyle}" Click="OnSend" IsEnabled="False" />
         </StackPanel>
     </Grid>

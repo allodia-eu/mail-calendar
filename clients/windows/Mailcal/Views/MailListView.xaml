@@ -36,31 +36,31 @@
                 </Grid.ColumnDefinitions>
                 <Grid.ContextFlyout>
                     <MenuFlyout Opening="OnRowMenuOpening">
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpen()}" Tag="{x:Bind}" Click="OnOpen" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpen(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnOpen" />
                         <!-- The same thing a double-click does (docs/reading-window.md). It is here
                              because the gesture is not an affordance for everyone: it cannot be
                              reached from the keyboard or invoked by a screen reader, so this named
                              item, not the double-click, is what the capability matrix claims. -->
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpenInWindow()}" Tag="{x:Bind}"
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpenInWindow(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}"
                                         Click="OnOpenInWindow" />
                         <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionReply()}" Tag="{x:Bind}" Click="OnReply" />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionReplyAll()}" Tag="{x:Bind}" Click="OnReplyAll" />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionForward()}" Tag="{x:Bind}" Click="OnForward" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionReply(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnReply" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionReplyAll(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnReplyAll" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionForward(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnForward" />
                         <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="{x:Bind MarkReadText, Mode=OneWay}" Tag="{x:Bind}" Click="OnToggleRead" />
-                        <MenuFlyoutItem Text="{x:Bind FlagToggleText, Mode=OneWay}" Tag="{x:Bind}" Click="OnToggleFlag" />
+                        <MenuFlyoutItem Text="{x:Bind MarkReadText, Mode=OneWay}" Tag="{x:Bind Mode=OneTime}" Click="OnToggleRead" />
+                        <MenuFlyoutItem Text="{x:Bind FlagToggleText, Mode=OneWay}" Tag="{x:Bind Mode=OneTime}" Click="OnToggleFlag" />
                         <MenuFlyoutSeparator />
                         <!-- Archive was missing entirely (it existed only on the *thread* menu), so a
                              mouse-only user could not reach a swipe action bound to it. -->
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionArchive()}" Tag="{x:Bind}" Click="OnArchive" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnArchive" />
                         <!-- Shown as the menu opens only when there is somewhere to move to
                              (MailListView.MoveToFolder.cs, docs/folder-pane.md rule 24). -->
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToFolder()}" Tag="{x:Bind}"
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToFolder(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}"
                                         AutomationProperties.AutomationId="MoveToFolderItem"
                                         Click="OnMoveToFolder" />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToTrash()}" Tag="{x:Bind}" Click="OnDelete" />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionDeletePermanently()}" Tag="{x:Bind}" Click="OnPermanentlyDelete" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToTrash(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnDelete" />
+                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionDeletePermanently(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnPermanentlyDelete" />
                     </MenuFlyout>
                 </Grid.ContextFlyout>
 
@@ -112,8 +112,8 @@
                 <Grid Padding="4,6" ColumnSpacing="10">
                     <Grid.ContextFlyout>
                         <MenuFlyout Opening="OnRowMenuOpening">
-                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.ThreadArchive()}" Tag="{x:Bind}" Click="OnArchiveThread" />
-                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToFolder()}" Tag="{x:Bind}"
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.ThreadArchive(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnArchiveThread" />
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToFolder(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}"
                                             AutomationProperties.AutomationId="MoveToFolderItem"
                                             Click="OnMoveToFolder" />
                         </MenuFlyout>
@@ -129,7 +129,7 @@
                     </Grid.ColumnDefinitions>
                     <FontIcon Grid.Column="0" Glyph="{x:Bind ChevronGlyph, Mode=OneWay}" FontSize="12"
                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                              Visibility="{x:Bind ChevronVisibility}"
+                              Visibility="{x:Bind ChevronVisibility, Mode=OneTime}"
                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <!-- The conversation's latest sender. The chevron and the count badge already
                          say this is a thread, so the bubble glyph that used to sit here said
@@ -172,7 +172,7 @@
                 <ItemsControl ItemsSource="{x:Bind Messages, Mode=OneWay}" Visibility="{x:Bind SubRowsVisibility, Mode=OneWay}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:ThreadMessageItem">
-                            <Button Tag="{x:Bind}" Click="OnThreadMessageOpen"
+                            <Button Tag="{x:Bind Mode=OneTime}" Click="OnThreadMessageOpen"
                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                     Background="Transparent" BorderThickness="0" Padding="30,4,4,4">
                                 <!-- One message inside a conversation is a message, so it opens in a
@@ -180,8 +180,8 @@
                                      The conversation HEADER is not, and has no such item. -->
                                 <Button.ContextFlyout>
                                     <MenuFlyout>
-                                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpenInWindow()}"
-                                                        Tag="{x:Bind}" Click="OnThreadMessageOpenInWindow" />
+                                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpenInWindow(), Mode=OneTime}"
+                                                        Tag="{x:Bind Mode=OneTime}" Click="OnThreadMessageOpenInWindow" />
                                     </MenuFlyout>
                                 </Button.ContextFlyout>
                                 <Grid ColumnSpacing="8">
@@ -196,36 +196,36 @@
                                         <Grid Width="7">
                                             <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                                                      Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                                                     Visibility="{x:Bind UnreadVisibility}" />
+                                                     Visibility="{x:Bind UnreadVisibility, Mode=OneTime}" />
                                         </Grid>
-                                        <controls:AvatarView Avatar="{x:Bind Avatar}" Diameter="26" />
+                                        <controls:AvatarView Avatar="{x:Bind Avatar, Mode=OneTime}" Diameter="26" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock Text="{x:Bind FromText}" FontWeight="{x:Bind FromWeight}"
+                                            <TextBlock Text="{x:Bind FromText, Mode=OneTime}" FontWeight="{x:Bind FromWeight, Mode=OneTime}"
                                                        TextTrimming="CharacterEllipsis" MaxLines="1" />
-                                            <Border Visibility="{x:Bind SentVisibility}" VerticalAlignment="Center"
+                                            <Border Visibility="{x:Bind SentVisibility, Mode=OneTime}" VerticalAlignment="Center"
                                                     Background="{ThemeResource ControlFillColorSecondaryBrush}"
                                                     CornerRadius="8" Padding="6,0">
-                                                <TextBlock Text="{x:Bind SentText}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                <TextBlock Text="{x:Bind SentText, Mode=OneTime}" Style="{StaticResource CaptionTextBlockStyle}"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                             </Border>
-                                            <Border Visibility="{x:Bind DraftVisibility}" VerticalAlignment="Center"
+                                            <Border Visibility="{x:Bind DraftVisibility, Mode=OneTime}" VerticalAlignment="Center"
                                                     Background="{ThemeResource ControlFillColorSecondaryBrush}"
                                                     CornerRadius="8" Padding="6,0">
-                                                <TextBlock Text="{x:Bind DraftText}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                <TextBlock Text="{x:Bind DraftText, Mode=OneTime}" Style="{StaticResource CaptionTextBlockStyle}"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                             </Border>
                                         </StackPanel>
-                                        <TextBlock Text="{x:Bind PreviewText}" Visibility="{x:Bind PreviewVisibility}"
+                                        <TextBlock Text="{x:Bind PreviewText, Mode=OneTime}" Visibility="{x:Bind PreviewVisibility, Mode=OneTime}"
                                                    Style="{StaticResource CaptionTextBlockStyle}"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                    TextTrimming="CharacterEllipsis" MaxLines="1" />
                                     </StackPanel>
                                     <FontIcon Grid.Column="2" Glyph="&#xE723;" FontSize="12" VerticalAlignment="Center"
                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                              Visibility="{x:Bind AttachmentVisibility}" />
-                                    <TextBlock Grid.Column="3" Text="{x:Bind DateText}" VerticalAlignment="Center"
+                                              Visibility="{x:Bind AttachmentVisibility, Mode=OneTime}" />
+                                    <TextBlock Grid.Column="3" Text="{x:Bind DateText, Mode=OneTime}" VerticalAlignment="Center"
                                                Style="{StaticResource CaptionTextBlockStyle}"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </Grid>
@@ -251,16 +251,16 @@
              which is what a list of messages sounds like, and this is not one. -->
         <DataTemplate x:Key="OutboxRowTemplate" x:DataType="vm:QueuedRowItem">
             <Grid Padding="4,6" RowSpacing="2"
-                  AutomationProperties.Name="{x:Bind A11yText}"
+                  AutomationProperties.Name="{x:Bind A11yText, Mode=OneTime}"
                   DataContextChanged="OnQueuedRowDataContextChanged">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Text="{x:Bind ToText}" FontWeight="SemiBold"
+                <TextBlock Text="{x:Bind ToText, Mode=OneTime}" FontWeight="SemiBold"
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Row="1" Text="{x:Bind SubjectText}"
+                <TextBlock Grid.Row="1" Text="{x:Bind SubjectText, Mode=OneTime}"
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <!-- Where it has got to, and which account it is going out from. The account is on
                      every row, not just a nameless one: this is the only list in the app holding
@@ -273,13 +273,13 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="{x:Bind StateGlyph}" FontSize="12"
+                        <FontIcon Glyph="{x:Bind StateGlyph, Mode=OneTime}" FontSize="12"
                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <TextBlock Text="{x:Bind StateText}"
+                        <TextBlock Text="{x:Bind StateText, Mode=OneTime}"
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
-                    <TextBlock Grid.Column="1" Text="{x:Bind AccountText}"
+                    <TextBlock Grid.Column="1" Text="{x:Bind AccountText, Mode=OneTime}"
                                Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
@@ -332,7 +332,7 @@
                            Text="{x:Bind Model.SearchHorizonText, Mode=OneWay}" />
                 <HyperlinkButton Grid.Column="1" HorizontalAlignment="Left" Padding="0"
                                  AutomationProperties.AutomationId="SearchHorizonChange"
-                                 Content="{x:Bind l10n:L10n.SearchHorizonChange()}"
+                                 Content="{x:Bind l10n:L10n.SearchHorizonChange(), Mode=OneTime}"
                                  Click="OnChangeSyncDepth" />
             </Grid>
 
@@ -349,7 +349,7 @@
                      AutomationProperties.AutomationId="MailReauthBanner"
                      Message="{x:Bind Model.MailReauthText, Mode=OneWay}">
                 <InfoBar.Content>
-                    <Button Content="{x:Bind l10n:L10n.MailReauthAction()}"
+                    <Button Content="{x:Bind l10n:L10n.MailReauthAction(), Mode=OneTime}"
                             Margin="0,8,0,12"
                             AutomationProperties.AutomationId="MailReauthAction"
                             Click="OnMailReauth" />
@@ -368,7 +368,7 @@
                      AutomationProperties.AutomationId="SignInExpiredBanner"
                      Message="{x:Bind Model.SignInExpiredText, Mode=OneWay}">
                 <InfoBar.Content>
-                    <Button Content="{x:Bind l10n:L10n.SigninExpiredAction()}"
+                    <Button Content="{x:Bind l10n:L10n.SigninExpiredAction(), Mode=OneTime}"
                             Margin="0,8,0,12"
                             Visibility="{x:Bind Model.SignInExpiredActionVisible, Mode=OneWay}"
                             AutomationProperties.AutomationId="SignInExpiredAction"
@@ -387,7 +387,7 @@
              row toggles its disclosure, which a selection change cannot express: clicking an
              already-selected row changes no selection and would leave it stuck open. The click
              handler ignores modified clicks so Ctrl-clicking twenty rows opens none of them. -->
-        <ListView Grid.Row="2" x:Name="RowsList" ItemsSource="{x:Bind Model.Rows}"
+        <ListView Grid.Row="2" x:Name="RowsList" ItemsSource="{x:Bind Model.Rows, Mode=OneTime}"
                   ItemTemplateSelector="{StaticResource RowSelector}" SelectionMode="Extended"
                   IsItemClickEnabled="True" ItemClick="OnRowClick"
                   SelectionChanged="OnSelectionChanged"
@@ -412,11 +412,11 @@
                      (which calls this "Move to Trash"). Nothing else here draws on hover, and
                      nothing should: a pointer passing over a message is not asking a question. -->
                 <KeyboardAccelerator Key="Delete" Invoked="OnDeleteSelection"
-                                     ScopeOwner="{x:Bind RowsList}" />
+                                     ScopeOwner="{x:Bind RowsList, Mode=OneTime}" />
                 <KeyboardAccelerator Key="Back" Invoked="OnDeleteSelection"
-                                     ScopeOwner="{x:Bind RowsList}" />
+                                     ScopeOwner="{x:Bind RowsList, Mode=OneTime}" />
                 <KeyboardAccelerator Key="Escape" Invoked="OnClearSelection"
-                                     ScopeOwner="{x:Bind RowsList}" />
+                                     ScopeOwner="{x:Bind RowsList, Mode=OneTime}" />
             </ListView.KeyboardAccelerators>
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
@@ -445,7 +445,7 @@
                        Visibility="{x:Bind Model.EmptyMailboxOffersSyncDepth, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
             <HyperlinkButton HorizontalAlignment="Center" Padding="0"
                              AutomationProperties.AutomationId="EmptyMailboxChange"
-                             Content="{x:Bind l10n:L10n.MailboxEmptyChange()}"
+                             Content="{x:Bind l10n:L10n.MailboxEmptyChange(), Mode=OneTime}"
                              Click="OnChangeSyncDepth"
                              Visibility="{x:Bind Model.EmptyMailboxOffersSyncDepth, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
         </StackPanel>
@@ -456,7 +456,7 @@
 
              The header above says "Outbox" through the same ListTitle the mail scopes use, so the
              two cannot disagree about what the column is showing. -->
-        <ListView Grid.Row="2" x:Name="OutboxList" ItemsSource="{x:Bind Model.Outbox}"
+        <ListView Grid.Row="2" x:Name="OutboxList" ItemsSource="{x:Bind Model.Outbox, Mode=OneTime}"
                   ItemTemplate="{StaticResource OutboxRowTemplate}" SelectionMode="Single"
                   AutomationProperties.AutomationId="OutboxList"
                   Visibility="{x:Bind Model.OutboxListVisible, Mode=OneWay}"
@@ -476,7 +476,7 @@
                    AutomationProperties.AutomationId="OutboxEmpty"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                    Visibility="{x:Bind Model.OutboxEmptyVisible, Mode=OneWay}"
-                   Text="{x:Bind l10n:L10n.OutboxEmpty()}" />
+                   Text="{x:Bind l10n:L10n.OutboxEmpty(), Mode=OneTime}" />
 
         <!-- Transient send hint: "Sending…" while in flight, then a brief Sent/Failed
              confirmation. Floats at the top of the list; the core auto-clears it. -->
@@ -500,7 +500,7 @@
         <InfoBar Grid.Row="2" x:Name="UndoBar" VerticalAlignment="Bottom" Margin="16,8"
                  IsOpen="False" IsClosable="False" Severity="Informational">
             <InfoBar.ActionButton>
-                <Button Content="{x:Bind l10n:L10n.ActionUndo()}" Click="OnUndoSwipe" />
+                <Button Content="{x:Bind l10n:L10n.ActionUndo(), Mode=OneTime}" Click="OnUndoSwipe" />
             </InfoBar.ActionButton>
         </InfoBar>
 
@@ -594,7 +594,7 @@
                                 <TextBlock Text="{x:Bind Model.ConnectionStatusDetail, Mode=OneWay}"
                                            IsTextSelectionEnabled="True" TextWrapping="Wrap"
                                            Style="{StaticResource CaptionTextBlockStyle}" />
-                                <Button Content="{x:Bind l10n:L10n.ActionRetry()}" Click="OnRefresh"
+                                <Button Content="{x:Bind l10n:L10n.ActionRetry(), Mode=OneTime}" Click="OnRefresh"
                                         HorizontalAlignment="Left" />
                             </StackPanel>
                         </Flyout>

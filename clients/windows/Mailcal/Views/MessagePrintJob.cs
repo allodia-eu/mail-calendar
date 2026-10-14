@@ -65,6 +65,10 @@ internal sealed class MessagePrintJob
     /// Shows the dialog and completes once the job has left it: submitted, cancelled or failed.
     /// <c>null</c> when the dialog did not open.
     /// </summary>
+    // WUI1002 reads PrintManager as the UWP API with no Windows App SDK counterpart. It is reached
+    // here through PrintManagerInterop for this window's handle, which is the supported route for a
+    // desktop window (Print.Tests.ps1 prints through it).
+#pragma warning disable WUI1002
     public async Task<PrintTaskCompletion?> RunAsync()
     {
         var manager = PrintManagerInterop.GetForWindow(_window);
@@ -86,6 +90,7 @@ internal sealed class MessagePrintJob
     }
 
     private void OnPrintTaskRequested(PrintManager sender, PrintTaskRequestedEventArgs args)
+#pragma warning restore WUI1002
     {
         var task = args.Request.CreatePrintTask(_title, source => source.SetSource(_source));
         task.Completed += (_, completed) => _completed.TrySetResult(completed.Completion);

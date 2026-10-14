@@ -19,6 +19,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Allodia.Mailcal.Tests</RootNamespace>
     <Nullable>enable</Nullable>
+    <!-- Warnings are hard errors, as they are in the app (Mailcal.csproj). -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <!-- The generated UniFFI bindings contain unsafe blocks (they marshal RustBuffer by pointer).

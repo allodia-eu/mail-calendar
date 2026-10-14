@@ -42,7 +42,7 @@
             <TitleBar
                 x:Name="AppTitleBar"
                 AutomationProperties.AutomationId="AppTitleBar"
-                Title="{x:Bind l10n:L10n.AppTitle()}"
+                Title="{x:Bind l10n:L10n.AppTitle(), Mode=OneTime}"
                 IsPaneToggleButtonVisible="{x:Bind IsVisible(Model.MainVisibility), Mode=OneWay}"
                 IconSource="{StaticResource AppCaptionIcon}"
                 SizeChanged="OnTitleBarSizeChanged"
@@ -58,7 +58,7 @@
             <AutoSuggestBox x:Name="SearchBox" QueryIcon="Find"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
                             Visibility="{x:Bind MailChromeShown(Model.MainVisibility, Model.MailVisibility), Mode=OneWay}"
-                            PlaceholderText="{x:Bind l10n:L10n.SearchPlaceholder()}"
+                            PlaceholderText="{x:Bind l10n:L10n.SearchPlaceholder(), Mode=OneTime}"
                             TextChanged="OnSearchChanged" />
         </Grid>
 
@@ -100,11 +100,11 @@
                     <Button x:Name="ComposeButton"
                             Style="{StaticResource AccentButtonStyle}"
                             AutomationProperties.AutomationId="ComposeButton"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionCompose()}"
+                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionCompose(), Mode=OneTime}"
                             Click="OnNewMail">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE70F;" FontSize="14" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionCompose()}" />
+                            <TextBlock Text="{x:Bind l10n:L10n.ActionCompose(), Mode=OneTime}" />
                         </StackPanel>
                     </Button>
                     <Border Width="1" Margin="4"
@@ -129,20 +129,20 @@
                     </Button>
                     <Button AutomationProperties.AutomationId="SelectionArchive"
                             IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionArchive()}"
+                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}"
                             Click="OnSelectionArchive">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE7B8;" FontSize="14" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionArchive()}" />
+                            <TextBlock Text="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}" />
                         </StackPanel>
                     </Button>
                     <Button AutomationProperties.AutomationId="SelectionDelete"
                             IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionMoveToTrash()}"
+                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionMoveToTrash(), Mode=OneTime}"
                             Click="OnSelectionDelete">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE74D;" FontSize="14" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionMoveToTrash()}" />
+                            <TextBlock Text="{x:Bind l10n:L10n.ActionMoveToTrash(), Mode=OneTime}" />
                         </StackPanel>
                     </Button>
                     <!-- The same trash glyph as the button beside it, in the
@@ -151,20 +151,20 @@
                          worse than the colour and the label saying it. -->
                     <Button AutomationProperties.AutomationId="SelectionDeletePermanently"
                             IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionDeletePermanently()}"
+                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionDeletePermanently(), Mode=OneTime}"
                             Click="OnSelectionPermanentlyDelete">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE74D;" FontSize="14"
                                       Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionDeletePermanently()}" />
+                            <TextBlock Text="{x:Bind l10n:L10n.ActionDeletePermanently(), Mode=OneTime}" />
                         </StackPanel>
                     </Button>
                     <Button AutomationProperties.AutomationId="SelectionSelectAll"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionSelectAll()}"
+                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionSelectAll(), Mode=OneTime}"
                             Click="OnSelectAll">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE8B3;" FontSize="14" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionSelectAll()}" />
+                            <TextBlock Text="{x:Bind l10n:L10n.ActionSelectAll(), Mode=OneTime}" />
                         </StackPanel>
                     </Button>
                     <!-- Stretched, unlike its siblings: the default button style
@@ -175,8 +175,8 @@
                     <Button AutomationProperties.AutomationId="SelectionClear"
                             VerticalAlignment="Stretch"
                             IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionClearSelection()}"
-                            ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionClearSelection()}"
+                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionClearSelection(), Mode=OneTime}"
+                            ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionClearSelection(), Mode=OneTime}"
                             Click="OnClearSelection">
                         <FontIcon Glyph="&#xE711;" FontSize="14" />
                     </Button>
@@ -190,11 +190,11 @@
                     <Border Width="1" Margin="4"
                             Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
                     <Button AutomationProperties.AutomationId="SelectionSync"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionRefresh()}"
+                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionRefresh(), Mode=OneTime}"
                             Click="OnSelectionSync">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE72C;" FontSize="14" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionRefresh()}" />
+                            <TextBlock Text="{x:Bind l10n:L10n.ActionRefresh(), Mode=OneTime}" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -219,7 +219,7 @@
             <ProgressRing Width="36" Height="36" HorizontalAlignment="Center"
                           AutomationProperties.AutomationId="LaunchView"
                           IsActive="{x:Bind IsVisible(Model.LaunchVisibility), Mode=OneWay}" />
-            <TextBlock Text="{x:Bind l10n:L10n.StatusOpeningMailbox()}" HorizontalAlignment="Center" />
+            <TextBlock Text="{x:Bind l10n:L10n.StatusOpeningMailbox(), Mode=OneTime}" HorizontalAlignment="Center" />
         </StackPanel>
 
         <!-- First boot: welcome + the usage-statistics question, ahead of setup and everything
@@ -258,8 +258,8 @@
             IsPaneToggleButtonVisible="False"
             PaneDisplayMode="Left"
             OpenPaneLength="240"
-            MenuItemsSource="{x:Bind SidebarItems}"
-            FooterMenuItemsSource="{x:Bind FooterItems}"
+            MenuItemsSource="{x:Bind SidebarItems, Mode=OneTime}"
+            FooterMenuItemsSource="{x:Bind FooterItems, Mode=OneTime}"
             ContextRequested="OnNavContextRequested"
             ItemInvoked="OnNavItemInvoked">
 
@@ -286,7 +286,7 @@
                  folder's own folders alike, each a child of its parent's item via
                  MenuItemsSource.
 
-                 {Binding}, NOT {x:Bind}, these are the only two in the app, so the reason has to
+                 {Binding}, NOT {x:Bind Mode=OneTime}, these are the only two in the app, so the reason has to
                  live here. x:Bind compiles a cast of the template's data root to its x:DataType, and
                  NavigationView hands an item template a raw WinRT.IInspectable rather than the
                  projected object: every row threw InvalidCastException before the sidebar drew a
@@ -475,7 +475,7 @@
                         Visibility="{x:Bind Shown(Model.IsOffline), Mode=OneWay}"
                         IsClosable="False"
                         Severity="Warning"
-                        Message="{x:Bind l10n:L10n.ConnectivityOfflineBanner()}" />
+                        Message="{x:Bind l10n:L10n.ConnectivityOfflineBanner(), Mode=OneTime}" />
 
                     <!-- One or more accounts can't reach their server (a provider outage, a stale
                          password): a friendly, self-healing banner naming the affected accounts,
@@ -490,7 +490,7 @@
                         Message="{x:Bind Model.ConnectionIssuesText, Mode=OneWay}">
                         <InfoBar.Content>
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,12">
-                                <Button Content="{x:Bind l10n:L10n.ConnectivityDetails()}">
+                                <Button Content="{x:Bind l10n:L10n.ConnectivityDetails(), Mode=OneTime}">
                                     <Button.Flyout>
                                         <Flyout>
                                             <TextBlock Text="{x:Bind Model.ConnectionIssuesDetail, Mode=OneWay}"
@@ -500,7 +500,7 @@
                                         </Flyout>
                                     </Button.Flyout>
                                 </Button>
-                                <Button Content="{x:Bind l10n:L10n.ActionRetry()}" Click="OnRetryConnections" />
+                                <Button Content="{x:Bind l10n:L10n.ActionRetry(), Mode=OneTime}" Click="OnRetryConnections" />
                             </StackPanel>
                         </InfoBar.Content>
                     </InfoBar>
@@ -512,11 +512,11 @@
                         Visibility="{x:Bind Shown(Model.HasPendingZone), Mode=OneWay}"
                         IsClosable="False"
                         Severity="Informational"
-                        Title="{x:Bind l10n:L10n.TzChangedTitle()}"
+                        Title="{x:Bind l10n:L10n.TzChangedTitle(), Mode=OneTime}"
                         Message="{x:Bind Model.ZonePromptText, Mode=OneWay}">
                         <InfoBar.Content>
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,12">
-                                <Button Content="{x:Bind l10n:L10n.ActionUpdate()}" Click="OnAcceptZone" />
+                                <Button Content="{x:Bind l10n:L10n.ActionUpdate(), Mode=OneTime}" Click="OnAcceptZone" />
                                 <Button Content="{x:Bind Model.KeepZoneText, Mode=OneWay}" Click="OnDismissZone" />
                             </StackPanel>
                         </InfoBar.Content>
@@ -537,17 +537,17 @@
                         Visibility="{x:Bind Shown(Model.HasReplyPrompt), Mode=OneWay}"
                         IsClosable="False"
                         Severity="Warning"
-                        Title="{x:Bind l10n:L10n.InvitationReplyUndeliveredTitle()}"
+                        Title="{x:Bind l10n:L10n.InvitationReplyUndeliveredTitle(), Mode=OneTime}"
                         Message="{x:Bind Model.ReplyPromptText, Mode=OneWay}">
                         <InfoBar.Content>
                             <StackPanel Spacing="8" Margin="0,8,0,12">
                                 <CheckBox x:Name="RememberReplyChoice"
-                                          Content="{x:Bind l10n:L10n.InvitationReplyUndeliveredRemember()}" />
+                                          Content="{x:Bind l10n:L10n.InvitationReplyUndeliveredRemember(), Mode=OneTime}" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Content="{x:Bind l10n:L10n.InvitationReplyUndeliveredSend()}"
+                                    <Button Content="{x:Bind l10n:L10n.InvitationReplyUndeliveredSend(), Mode=OneTime}"
                                             Style="{StaticResource AccentButtonStyle}"
                                             Click="OnSendUndeliveredReply" />
-                                    <Button Content="{x:Bind l10n:L10n.InvitationReplyUndeliveredDismiss()}"
+                                    <Button Content="{x:Bind l10n:L10n.InvitationReplyUndeliveredDismiss(), Mode=OneTime}"
                                             Click="OnDismissUndeliveredReply" />
                                 </StackPanel>
                             </StackPanel>
@@ -563,15 +563,15 @@
                         Visibility="{x:Bind Shown(Model.HasUnfiledCopy), Mode=OneWay}"
                         IsClosable="False"
                         Severity="Warning"
-                        Title="{x:Bind l10n:L10n.UnfiledCopyTitle()}"
+                        Title="{x:Bind l10n:L10n.UnfiledCopyTitle(), Mode=OneTime}"
                         Message="{x:Bind Model.UnfiledCopyText, Mode=OneWay}">
                         <InfoBar.Content>
                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,12">
-                                <Button Content="{x:Bind l10n:L10n.UnfiledCopyRetry()}"
+                                <Button Content="{x:Bind l10n:L10n.UnfiledCopyRetry(), Mode=OneTime}"
                                         Style="{StaticResource AccentButtonStyle}"
                                         IsEnabled="{x:Bind Model.UnfiledCopyActionable, Mode=OneWay}"
                                         Click="OnRetryUnfiledCopy" />
-                                <Button Content="{x:Bind l10n:L10n.UnfiledCopyDismiss()}"
+                                <Button Content="{x:Bind l10n:L10n.UnfiledCopyDismiss(), Mode=OneTime}"
                                         IsEnabled="{x:Bind Model.UnfiledCopyActionable, Mode=OneWay}"
                                         Click="OnDismissUnfiledCopy" />
                             </StackPanel>
@@ -646,7 +646,7 @@
                     HorizontalAlignment="Left"
                     Background="Transparent"
                     AutomationProperties.AutomationId="SidebarSplitter"
-                    AutomationProperties.Name="{x:Bind l10n:L10n.A11yResizeFolderPane()}"
+                    AutomationProperties.Name="{x:Bind l10n:L10n.A11yResizeFolderPane(), Mode=OneTime}"
                     PointerPressed="OnSidebarSplitterPressed"
                     PointerMoved="OnSidebarSplitterMoved"
                     PointerReleased="OnSidebarSplitterReleased"

@@ -10,9 +10,8 @@ using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.Windows.Storage.Pickers;
 using Windows.Storage;
-using Windows.Storage.Pickers;
-using WinRT.Interop;
 
 namespace Allodia.Mailcal.Views;
 
@@ -36,10 +35,10 @@ public sealed partial class ReadingView
         }
         try
         {
-            StorageFile? file;
+            string? path;
             try
             {
-                var picker = new FileSavePicker
+                var picker = new FileSavePicker(PickerOwner.For(this))
                 {
                     SuggestedFileName = string.IsNullOrEmpty(attachment.FileName)
                         ? "attachment"
@@ -50,11 +49,7 @@ public sealed partial class ReadingView
                 picker.FileTypeChoices.Add(
                     L10n.AttachmentsTitle(),
                     new List<string> { ExtensionFor(attachment.FileName) });
-                if (App.MainWindow is not null)
-                {
-                    InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
-                }
-                file = await picker.PickSaveFileAsync();
+                path = (await picker.PickSaveFileAsync())?.Path;
             }
             catch (Exception ex)
             {
@@ -62,19 +57,20 @@ public sealed partial class ReadingView
                 ShowAttachmentError(L10n.AttachmentSaveFailed());
                 return;
             }
-            if (file is null)
+            if (string.IsNullOrEmpty(path))
             {
                 return;
             }
             var temp = Path.Combine(Path.GetTempPath(), $"mailcal-attachment-{Guid.NewGuid():N}.part");
             var ok = false;
+            var written = false;
             try
             {
                 if (await DecodeToAsync(opened.Account, opened.Key, attachment.Id, temp))
                 {
                     await using var input = File.OpenRead(temp);
-                    await using var output = await file.OpenStreamForWriteAsync();
-                    output.SetLength(0);
+                    written = true;
+                    await using var output = File.Create(path);
                     await input.CopyToAsync(output);
                     ok = true;
                 }
@@ -90,10 +86,14 @@ public sealed partial class ReadingView
             }
             if (!ok)
             {
-                // Don't leave a half-written or empty file at the user's chosen path.
+                // Don't leave a half-written file at the user's chosen path. Only one this save
+                // began writing: a decode that failed first leaves a file being replaced as it was.
                 try
                 {
-                    await file.DeleteAsync();
+                    if (written)
+                    {
+                        File.Delete(path);
+                    }
                 }
                 catch
                 {

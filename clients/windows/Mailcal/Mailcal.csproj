@@ -99,6 +99,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Warnings are hard errors, as they are for Rust, Swift and Kotlin (AGENTS.md), which is
+         what makes the WinUI analyzer below a gate rather than advice. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- The generated UniFFI bindings carry their own doc/nullable shape; don't fail on it. -->
     <NoWarn>$(NoWarn);CS8632;CS0169;CS0649;CS8002</NoWarn>
     <!-- The Rust cdylib the generated P/Invokes load. build-and-run.ps1 overrides this
@@ -128,6 +131,10 @@
          single biggest thing docs/calendar.md §7 forbids. Measured on Android against the same diary:
          the composable grid dropped 20.7% of in-motion frames, the canvas 7.4%. -->
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
+    <!-- The WinUI analyzer: x:Bind without a Mode, nested bindings without a fallback, UWP APIs with
+         a Windows App SDK successor, a WebView2 never initialised. Every x:Bind states its Mode, so
+         one that should follow a change cannot default to OneTime unnoticed. -->
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools.WinUIAnalyzer" Version="0.7.1" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

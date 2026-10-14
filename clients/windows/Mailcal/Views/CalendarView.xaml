@@ -38,7 +38,7 @@
                      AutomationProperties.AutomationId="CalendarReauthBanner"
                      Message="{x:Bind Model.CalendarReauthText, Mode=OneWay}">
                 <InfoBar.Content>
-                    <Button Content="{x:Bind l10n:L10n.CalendarReauthAction()}"
+                    <Button Content="{x:Bind l10n:L10n.CalendarReauthAction(), Mode=OneTime}"
                             Margin="0,8,0,12"
                             AutomationProperties.AutomationId="CalendarReauthAction"
                             Click="OnCalendarReauth" />
@@ -127,8 +127,8 @@
                     <Button x:Name="TodayButton" Click="OnBackToToday"
                             Style="{StaticResource HeaderButton}"
                             AutomationProperties.AutomationId="CalendarToday"
-                            ToolTipService.ToolTip="{x:Bind l10n:L10n.CalendarBackToToday()}"
-                            Content="{x:Bind l10n:L10n.CalendarToday()}" />
+                            ToolTipService.ToolTip="{x:Bind l10n:L10n.CalendarBackToToday(), Mode=OneTime}"
+                            Content="{x:Bind l10n:L10n.CalendarToday(), Mode=OneTime}" />
                     <Button x:Name="NextButton" Click="OnNextPeriod"
                             Style="{StaticResource HeaderButton}"
                             AutomationProperties.AutomationId="CalendarNext">
@@ -139,32 +139,32 @@
                 <Button x:Name="ManageButton" Click="OnManageCalendars"
                         Style="{StaticResource HeaderButton}"
                         AutomationProperties.AutomationId="CalendarManage"
-                        AutomationProperties.Name="{x:Bind l10n:L10n.CalendarManage()}"
-                        ToolTipService.ToolTip="{x:Bind l10n:L10n.CalendarManage()}">
+                        AutomationProperties.Name="{x:Bind l10n:L10n.CalendarManage(), Mode=OneTime}"
+                        ToolTipService.ToolTip="{x:Bind l10n:L10n.CalendarManage(), Mode=OneTime}">
                     <FontIcon Glyph="&#xE8FD;" FontSize="14" />
                 </Button>
 
                 <DropDownButton x:Name="ViewButton"
                                 Style="{StaticResource HeaderDropDown}"
                                 AutomationProperties.AutomationId="CalendarViewMenu"
-                                Content="{x:Bind l10n:L10n.CalendarViewLabel()}">
+                                Content="{x:Bind l10n:L10n.CalendarViewLabel(), Mode=OneTime}">
                     <DropDownButton.Flyout>
                         <!-- Ids as well as labels: the zoom levels are the one place a test has to
                              name a view, and the app's language on a dev run is the developer's own
                              preference (docs/calendar.md §2). -->
                         <MenuFlyout Placement="Bottom">
-                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewDay()}" Tag="day" Click="OnPickView"
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewDay(), Mode=OneTime}" Tag="day" Click="OnPickView"
                                             AutomationProperties.AutomationId="CalendarViewDay" />
-                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewThreeDay()}" Tag="three" Click="OnPickView"
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewThreeDay(), Mode=OneTime}" Tag="three" Click="OnPickView"
                                             AutomationProperties.AutomationId="CalendarViewThreeDay" />
-                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewWorkWeek()}" Tag="work" Click="OnPickView"
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewWorkWeek(), Mode=OneTime}" Tag="work" Click="OnPickView"
                                             AutomationProperties.AutomationId="CalendarViewWorkWeek" />
-                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewWeek()}" Tag="week" Click="OnPickView"
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewWeek(), Mode=OneTime}" Tag="week" Click="OnPickView"
                                             AutomationProperties.AutomationId="CalendarViewWeek" />
-                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewMonth()}" Tag="month" Click="OnPickView"
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewMonth(), Mode=OneTime}" Tag="month" Click="OnPickView"
                                             AutomationProperties.AutomationId="CalendarViewMonth" />
                             <MenuFlyoutSeparator />
-                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewAgenda()}" Tag="agenda" Click="OnPickView"
+                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.CalendarViewAgenda(), Mode=OneTime}" Tag="agenda" Click="OnPickView"
                                             AutomationProperties.AutomationId="CalendarViewAgenda" />
                         </MenuFlyout>
                     </DropDownButton.Flyout>
@@ -177,7 +177,7 @@
                         AutomationProperties.AutomationId="CalendarNewEvent">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE787;" FontSize="14" />
-                        <TextBlock Text="{x:Bind l10n:L10n.ActionNewEvent()}" />
+                        <TextBlock Text="{x:Bind l10n:L10n.ActionNewEvent(), Mode=OneTime}" />
                     </StackPanel>
                 </Button>
             </StackPanel>
@@ -201,7 +201,7 @@
         <!-- The agenda, one zoom level out of the grid's world: a flat list, no geometry. -->
         <ListView x:Name="AgendaList" Grid.Row="1" Visibility="Collapsed"
                   AutomationProperties.AutomationId="CalendarAgenda"
-                  ItemsSource="{x:Bind Model.Events}" SelectionMode="None"
+                  ItemsSource="{x:Bind Model.Events, Mode=OneTime}" SelectionMode="None"
                   IsItemClickEnabled="True" ItemClick="OnAgendaEventClick" Padding="12,0,12,0">
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
@@ -221,31 +221,31 @@
                             <MenuFlyout>
                                 <!-- Hidden (not disabled) on a read-only row, per the cross-client
                                      write-gating policy, the flag on this exact record decides. -->
-                                <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionDeleteEvent()}" Tag="{x:Bind}" Click="OnDeleteEvent"
-                                                Visibility="{x:Bind DeleteVisibility}" />
+                                <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionDeleteEvent(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnDeleteEvent"
+                                                Visibility="{x:Bind DeleteVisibility, Mode=OneTime}" />
                             </MenuFlyout>
                         </Grid.ContextFlyout>
                         <FontIcon Grid.Column="0" Width="22" Glyph="&#xE787;" FontSize="16"
                                   VerticalAlignment="Center"
                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="{x:Bind Title}"
+                            <TextBlock Text="{x:Bind Title, Mode=OneTime}"
                                        TextTrimming="CharacterEllipsis" MaxLines="1" />
                             <!-- A list row has nothing to dash or hatch, so an unanswered invitation
                                  says so in words instead (docs/invitations.md). Collapsed, not blank,
                                  on an ordinary commitment. -->
-                            <TextBlock Text="{x:Bind AwaitingText}" Visibility="{x:Bind AwaitingVisibility}"
+                            <TextBlock Text="{x:Bind AwaitingText, Mode=OneTime}" Visibility="{x:Bind AwaitingVisibility, Mode=OneTime}"
                                        Style="{StaticResource CaptionTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        TextTrimming="CharacterEllipsis" MaxLines="1" />
                         </StackPanel>
-                        <TextBlock Grid.Column="2" Text="{x:Bind StartText}" VerticalAlignment="Center"
+                        <TextBlock Grid.Column="2" Text="{x:Bind StartText, Mode=OneTime}" VerticalAlignment="Center"
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <Button Grid.Column="3" Tag="{x:Bind}" Click="OnDeleteEvent"
-                                Visibility="{x:Bind DeleteVisibility}"
+                        <Button Grid.Column="3" Tag="{x:Bind Mode=OneTime}" Click="OnDeleteEvent"
+                                Visibility="{x:Bind DeleteVisibility, Mode=OneTime}"
                                 Background="Transparent" BorderThickness="0" Padding="6"
-                                ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionDeleteEvent()}">
+                                ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionDeleteEvent(), Mode=OneTime}">
                             <FontIcon Glyph="&#xE74D;" FontSize="14" />
                         </Button>
                     </Grid>
@@ -255,7 +255,7 @@
 
         <!-- Footer: refresh. -->
         <Grid Grid.Row="2" Padding="16,10">
-            <Button HorizontalAlignment="Right" Content="{x:Bind l10n:L10n.ActionRefresh()}" Click="OnRefresh" />
+            <Button HorizontalAlignment="Right" Content="{x:Bind l10n:L10n.ActionRefresh(), Mode=OneTime}" Click="OnRefresh" />
         </Grid>
     </Grid>
 </UserControl>

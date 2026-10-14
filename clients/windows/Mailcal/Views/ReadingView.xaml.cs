@@ -34,7 +34,11 @@ namespace Allodia.Mailcal.Views;
 /// knows which host it is in, which is what keeps a window from drifting away from the pane it was
 /// opened out of.
 /// </remarks>
+// WUI4002 looks for the WebView2's initialisation in this file only. It happens in another part of
+// this class, ReadingView.WebView.cs.
+#pragma warning disable WUI4002
 public sealed partial class ReadingView : UserControl
+#pragma warning restore WUI4002
 {
     private MailboxModel? _model;
 

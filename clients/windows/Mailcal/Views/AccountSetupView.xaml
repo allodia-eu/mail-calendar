@@ -12,7 +12,7 @@
                  provider's settings and routes to the prefilled form below. "Set up manually"
                  skips detection straight to the manual tabs. -->
             <StackPanel x:Name="DetectPanel" Spacing="12">
-                <TextBlock Text="{x:Bind l10n:L10n.SetupDetectTitle()}" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock Text="{x:Bind l10n:L10n.SetupDetectTitle(), Mode=OneTime}" Style="{StaticResource TitleTextBlockStyle}" />
 
                 <!-- First run only: the Allodia-account recommendation, the way back for someone
                      who already has one, and the divider that names what follows, above the
@@ -24,30 +24,30 @@
                 <StackPanel x:Name="OnboardingAllodiaPanel" Spacing="12" Visibility="Collapsed" />
 
                 <TextBlock
-                    Text="{x:Bind l10n:L10n.SetupDetectDescription()}"
+                    Text="{x:Bind l10n:L10n.SetupDetectDescription(), Mode=OneTime}"
                     Style="{StaticResource BodyTextBlockStyle}"
                     TextWrapping="Wrap"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <TextBox x:Name="DetectEmail" Header="{x:Bind l10n:L10n.SetupFieldEmail()}"
-                         PlaceholderText="{x:Bind l10n:L10n.SetupDetectEmailPlaceholder()}"
+                <TextBox x:Name="DetectEmail" Header="{x:Bind l10n:L10n.SetupFieldEmail(), Mode=OneTime}"
+                         PlaceholderText="{x:Bind l10n:L10n.SetupDetectEmailPlaceholder(), Mode=OneTime}"
                          TextChanged="OnDetectEmailChanged" KeyDown="OnDetectEmailKeyDown" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" VerticalAlignment="Center">
                     <ProgressRing x:Name="DetectSpinner" Width="20" Height="20" VerticalAlignment="Center"
                                   IsActive="False" Visibility="Collapsed" />
                     <TextBlock x:Name="DetectingText" VerticalAlignment="Center" Visibility="Collapsed"
-                               Text="{x:Bind l10n:L10n.SetupDetectLooking()}"
+                               Text="{x:Bind l10n:L10n.SetupDetectLooking(), Mode=OneTime}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <Button x:Name="DetectCancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}"
+                    <Button x:Name="DetectCancelButton" Content="{x:Bind l10n:L10n.ActionCancel(), Mode=OneTime}"
                             Visibility="{x:Bind Model.AddingAccountVisibility, Mode=OneWay}" Click="OnCancel" />
-                    <Button x:Name="ManualButton" Content="{x:Bind l10n:L10n.SetupDetectManual()}" Click="OnSetUpManually" />
-                    <Button x:Name="ContinueButton" Content="{x:Bind l10n:L10n.SetupDetectAction()}"
+                    <Button x:Name="ManualButton" Content="{x:Bind l10n:L10n.SetupDetectManual(), Mode=OneTime}" Click="OnSetUpManually" />
+                    <Button x:Name="ContinueButton" Content="{x:Bind l10n:L10n.SetupDetectAction(), Mode=OneTime}"
                             Style="{StaticResource AccentButtonStyle}" IsEnabled="False" Click="OnContinueDetect" />
                 </StackPanel>
             </StackPanel>
 
             <!-- The routed / manual form, revealed after detection (or via "Set up manually"). -->
             <StackPanel x:Name="SetupPanel" Spacing="12" Visibility="Collapsed">
-                <TextBlock x:Name="SetupTitleText" Text="{x:Bind l10n:L10n.SetupDetectFoundTitle()}" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock x:Name="SetupTitleText" Text="{x:Bind l10n:L10n.SetupDetectFoundTitle(), Mode=OneTime}" Style="{StaticResource TitleTextBlockStyle}" />
 
                 <!-- A found note or a "why manual" reason, set by the code-behind after routing. -->
                 <TextBlock x:Name="DetectNote"
@@ -62,18 +62,18 @@
                 <StackPanel x:Name="AccountTypeRow" Spacing="4">
                     <StackPanel Orientation="Horizontal" Spacing="16">
                         <RadioButton x:Name="ImapChoice" GroupName="AccountType" IsChecked="True"
-                                     Content="{x:Bind l10n:L10n.SetupAccountTypePassword()}" Checked="OnAccountTypeChanged" />
+                                     Content="{x:Bind l10n:L10n.SetupAccountTypePassword(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
                         <RadioButton x:Name="JmapChoice" GroupName="AccountType"
-                                     Content="{x:Bind l10n:L10n.SetupAccountTypeJmap()}" Checked="OnAccountTypeChanged" />
+                                     Content="{x:Bind l10n:L10n.SetupAccountTypeJmap(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
                         <RadioButton x:Name="MicrosoftChoice" GroupName="AccountType"
-                                     Content="{x:Bind l10n:L10n.SetupAccountTypeMicrosoft()}" Checked="OnAccountTypeChanged" />
+                                     Content="{x:Bind l10n:L10n.SetupAccountTypeMicrosoft(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
                         <RadioButton x:Name="GoogleChoice" GroupName="AccountType"
-                                     Content="{x:Bind l10n:L10n.SetupAccountTypeGoogle()}" Checked="OnAccountTypeChanged" />
+                                     Content="{x:Bind l10n:L10n.SetupAccountTypeGoogle(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
                     </StackPanel>
                     <!-- A server that holds a calendar and contacts but no mail. On a line of its
                          own: its name is the longest, and the row above is already full. -->
                     <RadioButton x:Name="DavChoice" GroupName="AccountType"
-                                 Content="{x:Bind l10n:L10n.SetupAccountTypeDav()}" Checked="OnAccountTypeChanged" />
+                                 Content="{x:Bind l10n:L10n.SetupAccountTypeDav(), Mode=OneTime}" Checked="OnAccountTypeChanged" />
                 </StackPanel>
 
                 <!-- What the account is used for: mail, calendar and contacts, as the core offered
@@ -84,7 +84,7 @@
 
                 <!-- IMAP / password account fields. -->
                 <StackPanel x:Name="ImapSection" Spacing="12">
-                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount()}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount(), Mode=OneTime}" Style="{StaticResource BodyStrongTextBlockStyle}" />
                     <!-- Server, port and security on one row: the port is the field a user must be
                          able to see and change, not a colon inside the server name. -->
                     <Grid x:Name="ImapServerRow" ColumnSpacing="12">
@@ -93,17 +93,17 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBox x:Name="ImapHost" Grid.Column="0" Header="{x:Bind l10n:L10n.SetupFieldMailServer()}"
-                                 PlaceholderText="{x:Bind l10n:L10n.SetupHintImap()}" TextChanged="OnFieldChanged" />
-                        <TextBox x:Name="ImapPort" Grid.Column="1" Width="88" Header="{x:Bind l10n:L10n.SetupFieldPort()}"
+                        <TextBox x:Name="ImapHost" Grid.Column="0" Header="{x:Bind l10n:L10n.SetupFieldMailServer(), Mode=OneTime}"
+                                 PlaceholderText="{x:Bind l10n:L10n.SetupHintImap(), Mode=OneTime}" TextChanged="OnFieldChanged" />
+                        <TextBox x:Name="ImapPort" Grid.Column="1" Width="88" Header="{x:Bind l10n:L10n.SetupFieldPort(), Mode=OneTime}"
                                  InputScope="Number" TextChanged="OnImapPortChanged" />
-                        <ComboBox x:Name="ImapSecurityPicker" Grid.Column="2" Width="132" Header="{x:Bind l10n:L10n.SetupFieldSecurity()}"
+                        <ComboBox x:Name="ImapSecurityPicker" Grid.Column="2" Width="132" Header="{x:Bind l10n:L10n.SetupFieldSecurity(), Mode=OneTime}"
                                   SelectionChanged="OnImapSecurityChanged">
-                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityImplicitTls()}" />
-                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityStarttls()}" />
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityImplicitTls(), Mode=OneTime}" />
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityStarttls(), Mode=OneTime}" />
                         </ComboBox>
                     </Grid>
-                    <TextBox x:Name="Username" Header="{x:Bind l10n:L10n.SetupFieldEmail()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail()}"
+                    <TextBox x:Name="Username" Header="{x:Bind l10n:L10n.SetupFieldEmail(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail(), Mode=OneTime}"
                              TextChanged="OnFieldChanged" />
 
                     <!-- Said while the server is being asked, so a slow server reads as a wait
@@ -111,7 +111,7 @@
                     <StackPanel x:Name="ImapCheckingPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
                         <ProgressRing x:Name="ImapCheckingRing" Width="16" Height="16" IsActive="False" />
                         <TextBlock x:Name="ImapCheckingText"
-                                   Text="{x:Bind l10n:L10n.SetupImapSigninChecking()}"
+                                   Text="{x:Bind l10n:L10n.SetupImapSigninChecking(), Mode=OneTime}"
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    VerticalAlignment="Center"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -127,19 +127,19 @@
                          AccountSetupView.ImapSignIn.cs drives it. -->
                     <StackPanel x:Name="ImapSignInPanel" Spacing="8" Visibility="Collapsed">
                         <TextBlock
-                            Text="{x:Bind l10n:L10n.SetupImapSigninNote()}"
+                            Text="{x:Bind l10n:L10n.SetupImapSigninNote(), Mode=OneTime}"
                             Style="{StaticResource CaptionTextBlockStyle}"
                             TextWrapping="Wrap"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <Button x:Name="ImapSignInButton" Content="{x:Bind l10n:L10n.SetupImapSigninButton()}"
+                        <Button x:Name="ImapSignInButton" Content="{x:Bind l10n:L10n.SetupImapSigninButton(), Mode=OneTime}"
                                 Style="{StaticResource AccentButtonStyle}"
                                 HorizontalAlignment="Left" Click="OnSignInImap" />
                         <HyperlinkButton x:Name="ImapUsePasswordButton"
-                                         Content="{x:Bind l10n:L10n.SetupImapSigninPasswordInstead()}"
+                                         Content="{x:Bind l10n:L10n.SetupImapSigninPasswordInstead(), Mode=OneTime}"
                                          Padding="0" Visibility="Collapsed" Click="OnUseImapPassword" />
                         <InfoBar x:Name="ImapSignInFailedBar" IsOpen="False" IsClosable="False"
                                  Severity="Warning"
-                                 Message="{x:Bind l10n:L10n.SetupImapSigninFailed()}" />
+                                 Message="{x:Bind l10n:L10n.SetupImapSigninFailed(), Mode=OneTime}" />
                     </StackPanel>
 
                     <!-- Said rather than left to be guessed at. Without this line, a provider
@@ -147,7 +147,7 @@
                          exactly like one with no sign-in at all, and somebody who has seen the
                          button elsewhere is left wondering where theirs went. -->
                     <TextBlock x:Name="ImapRegistrationNeededNote"
-                               Text="{x:Bind l10n:L10n.SetupImapSigninRegistrationNeeded()}"
+                               Text="{x:Bind l10n:L10n.SetupImapSigninRegistrationNeeded(), Mode=OneTime}"
                                Style="{StaticResource CaptionTextBlockStyle}"
                                TextWrapping="Wrap"
                                Visibility="Collapsed"
@@ -157,44 +157,44 @@
                          go and come back together, so neither line describes a field that is not
                          on screen. -->
                     <StackPanel x:Name="ImapPasswordPanel" Spacing="8" Visibility="Collapsed">
-                        <PasswordBox x:Name="Password" Header="{x:Bind l10n:L10n.SetupFieldPassword()}" PasswordChanged="OnPasswordChanged" />
+                        <PasswordBox x:Name="Password" Header="{x:Bind l10n:L10n.SetupFieldPassword(), Mode=OneTime}" PasswordChanged="OnPasswordChanged" />
                         <TextBlock
-                            Text="{x:Bind l10n:L10n.SetupDetectAppPasswordHint()}"
+                            Text="{x:Bind l10n:L10n.SetupDetectAppPasswordHint(), Mode=OneTime}"
                             Style="{StaticResource CaptionTextBlockStyle}"
                             TextWrapping="Wrap"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock
-                            Text="{x:Bind l10n:L10n.SetupCredentialsNote()}"
+                            Text="{x:Bind l10n:L10n.SetupCredentialsNote(), Mode=OneTime}"
                             Style="{StaticResource CaptionTextBlockStyle}"
                             TextWrapping="Wrap"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
 
-                    <TextBlock x:Name="AdvancedHeading" Text="{x:Bind l10n:L10n.SetupSectionAdvanced()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+                    <TextBlock x:Name="AdvancedHeading" Text="{x:Bind l10n:L10n.SetupSectionAdvanced(), Mode=OneTime}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
                     <Grid x:Name="SmtpServerRow" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBox x:Name="SmtpHost" Grid.Column="0" Header="{x:Bind l10n:L10n.SetupFieldSmtp()}"
-                                 PlaceholderText="{x:Bind l10n:L10n.SetupHintSmtp()}" />
-                        <TextBox x:Name="SmtpPort" Grid.Column="1" Width="88" Header="{x:Bind l10n:L10n.SetupFieldPort()}"
+                        <TextBox x:Name="SmtpHost" Grid.Column="0" Header="{x:Bind l10n:L10n.SetupFieldSmtp(), Mode=OneTime}"
+                                 PlaceholderText="{x:Bind l10n:L10n.SetupHintSmtp(), Mode=OneTime}" />
+                        <TextBox x:Name="SmtpPort" Grid.Column="1" Width="88" Header="{x:Bind l10n:L10n.SetupFieldPort(), Mode=OneTime}"
                                  InputScope="Number" TextChanged="OnSmtpPortChanged" />
-                        <ComboBox x:Name="SmtpSecurityPicker" Grid.Column="2" Width="132" Header="{x:Bind l10n:L10n.SetupFieldSecurity()}"
+                        <ComboBox x:Name="SmtpSecurityPicker" Grid.Column="2" Width="132" Header="{x:Bind l10n:L10n.SetupFieldSecurity(), Mode=OneTime}"
                                   SelectionChanged="OnSmtpSecurityChanged">
-                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityImplicitTls()}" />
-                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityStarttls()}" />
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityImplicitTls(), Mode=OneTime}" />
+                            <ComboBoxItem Content="{x:Bind l10n:L10n.SetupSecurityStarttls(), Mode=OneTime}" />
                         </ComboBox>
                     </Grid>
-                    <TextBox x:Name="CaldavUrl" Header="{x:Bind l10n:L10n.SetupFieldCaldav()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCaldav()}" />
+                    <TextBox x:Name="CaldavUrl" Header="{x:Bind l10n:L10n.SetupFieldCaldav(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCaldav(), Mode=OneTime}" />
                     <!-- An address book that is not on the calendar's server, or one without a
                          calendar. Contacts are otherwise looked for at the calendar's server. -->
-                    <TextBox x:Name="CarddavUrl" Header="{x:Bind l10n:L10n.SetupFieldCarddavOptional()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCarddav()}" />
+                    <TextBox x:Name="CarddavUrl" Header="{x:Bind l10n:L10n.SetupFieldCarddavOptional(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCarddav(), Mode=OneTime}" />
 
                     <TextBlock
                         x:Name="PortNote"
-                        Text="{x:Bind l10n:L10n.SetupPortNote()}"
+                        Text="{x:Bind l10n:L10n.SetupPortNote(), Mode=OneTime}"
                         Style="{StaticResource CaptionTextBlockStyle}"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
@@ -203,13 +203,13 @@
                      + (password or API token) + an optional server. -->
                 <StackPanel x:Name="JmapSection" Spacing="12" Visibility="Collapsed">
                     <TextBlock
-                        Text="{x:Bind l10n:L10n.SetupJmapNote()}"
+                        Text="{x:Bind l10n:L10n.SetupJmapNote(), Mode=OneTime}"
                         Style="{StaticResource CaptionTextBlockStyle}"
                         TextWrapping="Wrap"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
-                    <TextBox x:Name="JmapEmail" Header="{x:Bind l10n:L10n.SetupFieldEmail()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail()}"
+                    <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount(), Mode=OneTime}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+                    <TextBox x:Name="JmapEmail" Header="{x:Bind l10n:L10n.SetupFieldEmail(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail(), Mode=OneTime}"
                              TextChanged="OnJmapFieldChanged" />
 
                     <!-- "Sign in with your provider", shown ONLY once the core's pre-flight said
@@ -222,18 +222,18 @@
                          AccountSetupView.JmapSignIn.cs drives it. -->
                     <StackPanel x:Name="JmapSignInPanel" Spacing="8" Visibility="Collapsed">
                         <TextBlock
-                            Text="{x:Bind l10n:L10n.SetupJmapSigninNote()}"
+                            Text="{x:Bind l10n:L10n.SetupJmapSigninNote(), Mode=OneTime}"
                             Style="{StaticResource CaptionTextBlockStyle}"
                             TextWrapping="Wrap"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <Button x:Name="JmapSignInButton" Content="{x:Bind l10n:L10n.SetupJmapSigninButton()}"
+                        <Button x:Name="JmapSignInButton" Content="{x:Bind l10n:L10n.SetupJmapSigninButton(), Mode=OneTime}"
                                 Style="{StaticResource AccentButtonStyle}"
                                 HorizontalAlignment="Left" Click="OnSignInJmap" />
                         <!-- A failed sign-in says so here and leaves the field below usable,
                              never a dead end, and never a raw protocol error in front of the user. -->
                         <InfoBar x:Name="JmapSignInFailedBar" IsOpen="False" IsClosable="False"
                                  Severity="Warning"
-                                 Message="{x:Bind l10n:L10n.SetupJmapSigninFailed()}" />
+                                 Message="{x:Bind l10n:L10n.SetupJmapSigninFailed(), Mode=OneTime}" />
                     </StackPanel>
 
                     <!-- The manual way in: a secret, and the server to present it to. Grouped so it
@@ -247,15 +247,15 @@
                          send it to, or a note describing a field that isn't on screen, is worse
                          than either. -->
                     <StackPanel x:Name="JmapManualPanel" Spacing="12">
-                        <PasswordBox x:Name="JmapPassword" Header="{x:Bind l10n:L10n.SetupJmapSecretPlaceholder()}" PasswordChanged="OnPasswordChanged" />
+                        <PasswordBox x:Name="JmapPassword" Header="{x:Bind l10n:L10n.SetupJmapSecretPlaceholder(), Mode=OneTime}" PasswordChanged="OnPasswordChanged" />
 
-                        <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAdvanced()}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
-                        <TextBox x:Name="JmapServer" Header="{x:Bind l10n:L10n.SetupJmapServerPlaceholder()}"
-                                 PlaceholderText="{x:Bind l10n:L10n.SetupJmapServerPlaceholder()}"
+                        <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAdvanced(), Mode=OneTime}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
+                        <TextBox x:Name="JmapServer" Header="{x:Bind l10n:L10n.SetupJmapServerPlaceholder(), Mode=OneTime}"
+                                 PlaceholderText="{x:Bind l10n:L10n.SetupJmapServerPlaceholder(), Mode=OneTime}"
                                  TextChanged="OnJmapFieldChanged" />
 
                         <TextBlock
-                            Text="{x:Bind l10n:L10n.SetupJmapSecretNote()}"
+                            Text="{x:Bind l10n:L10n.SetupJmapSecretNote(), Mode=OneTime}"
                             Style="{StaticResource CaptionTextBlockStyle}"
                             TextWrapping="Wrap"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -270,15 +270,15 @@
                                Style="{StaticResource BodyTextBlockStyle}"
                                TextWrapping="Wrap"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBox x:Name="DavLogin" Header="{x:Bind l10n:L10n.SetupFieldUsername()}" TextChanged="OnDavFieldChanged" />
-                    <PasswordBox x:Name="DavPassword" Header="{x:Bind l10n:L10n.SetupFieldPassword()}" PasswordChanged="OnPasswordChanged" />
+                    <TextBox x:Name="DavLogin" Header="{x:Bind l10n:L10n.SetupFieldUsername(), Mode=OneTime}" TextChanged="OnDavFieldChanged" />
+                    <PasswordBox x:Name="DavPassword" Header="{x:Bind l10n:L10n.SetupFieldPassword(), Mode=OneTime}" PasswordChanged="OnPasswordChanged" />
                     <TextBlock
-                        Text="{x:Bind l10n:L10n.SetupCredentialsNote()}"
+                        Text="{x:Bind l10n:L10n.SetupCredentialsNote(), Mode=OneTime}"
                         Style="{StaticResource CaptionTextBlockStyle}"
                         TextWrapping="Wrap"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBox x:Name="DavCaldavUrl" Header="{x:Bind l10n:L10n.SetupFieldCaldavOptional()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCaldav()}" />
-                    <TextBox x:Name="DavCarddavUrl" Header="{x:Bind l10n:L10n.SetupFieldCarddavOptional()}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCarddav()}" />
+                    <TextBox x:Name="DavCaldavUrl" Header="{x:Bind l10n:L10n.SetupFieldCaldavOptional(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCaldav(), Mode=OneTime}" />
+                    <TextBox x:Name="DavCarddavUrl" Header="{x:Bind l10n:L10n.SetupFieldCarddavOptional(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCarddav(), Mode=OneTime}" />
                 </StackPanel>
 
                 <!-- Microsoft 365 branch: a note; the sign-in button lives in the shared footer.
@@ -286,7 +286,7 @@
                      says Microsoft is asked for that alone. -->
                 <StackPanel x:Name="MicrosoftSection" Spacing="12" Visibility="Collapsed">
                     <TextBlock
-                        Text="{x:Bind l10n:L10n.SetupMicrosoftChoiceNote()}"
+                        Text="{x:Bind l10n:L10n.SetupMicrosoftChoiceNote(), Mode=OneTime}"
                         Style="{StaticResource BodyTextBlockStyle}"
                         TextWrapping="Wrap"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -296,7 +296,7 @@
                      shared footer, disabled until the Early Access box is checked. -->
                 <StackPanel x:Name="GoogleSection" Spacing="12" Visibility="Collapsed">
                     <TextBlock
-                        Text="{x:Bind l10n:L10n.SetupGoogleNote()}"
+                        Text="{x:Bind l10n:L10n.SetupGoogleNote(), Mode=OneTime}"
                         Style="{StaticResource BodyTextBlockStyle}"
                         TextWrapping="Wrap"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -309,16 +309,16 @@
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1" CornerRadius="8" Padding="16">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="{x:Bind l10n:L10n.SetupGoogleEarlyAccessTitle()}"
+                            <TextBlock Text="{x:Bind l10n:L10n.SetupGoogleEarlyAccessTitle(), Mode=OneTime}"
                                        Style="{StaticResource BodyStrongTextBlockStyle}" />
-                            <TextBlock Text="{x:Bind l10n:L10n.SetupGoogleEarlyAccessBody()}"
+                            <TextBlock Text="{x:Bind l10n:L10n.SetupGoogleEarlyAccessBody(), Mode=OneTime}"
                                        Style="{StaticResource BodyTextBlockStyle}"
                                        TextWrapping="Wrap"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            <HyperlinkButton Content="{x:Bind l10n:L10n.SetupGoogleEarlyAccessLink()}"
+                            <HyperlinkButton Content="{x:Bind l10n:L10n.SetupGoogleEarlyAccessLink(), Mode=OneTime}"
                                              Padding="0" Click="OnOpenGoogleEarlyAccess" />
                             <CheckBox x:Name="GoogleEarlyAccessCheck"
-                                      Content="{x:Bind l10n:L10n.SetupGoogleEarlyAccessConfirm()}"
+                                      Content="{x:Bind l10n:L10n.SetupGoogleEarlyAccessConfirm(), Mode=OneTime}"
                                       Checked="OnGoogleEarlyAccessChanged" Unchecked="OnGoogleEarlyAccessChanged" />
                         </StackPanel>
                     </Border>
@@ -328,11 +328,11 @@
                      connection that isn't fully secure; Connect stays disabled until it's checked. -->
                 <StackPanel x:Name="ApprovalPanel" Spacing="8" Visibility="Collapsed">
                     <TextBlock
-                        Text="{x:Bind l10n:L10n.SetupDetectUntrustedWarning()}"
+                        Text="{x:Bind l10n:L10n.SetupDetectUntrustedWarning(), Mode=OneTime}"
                         Style="{StaticResource CaptionTextBlockStyle}"
                         TextWrapping="Wrap"
                         Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
-                    <CheckBox x:Name="ApprovalCheck" Content="{x:Bind l10n:L10n.SetupDetectTrustConfirm()}"
+                    <CheckBox x:Name="ApprovalCheck" Content="{x:Bind l10n:L10n.SetupDetectTrustConfirm(), Mode=OneTime}"
                               Checked="OnApprovalChanged" Unchecked="OnApprovalChanged" />
                 </StackPanel>
 
@@ -352,7 +352,7 @@
                         TextWrapping="Wrap"
                         IsTextSelectionEnabled="True"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <CheckBox x:Name="CertificateCheck" Content="{x:Bind l10n:L10n.SetupCertificateConfirm()}"
+                    <CheckBox x:Name="CertificateCheck" Content="{x:Bind l10n:L10n.SetupCertificateConfirm(), Mode=OneTime}"
                               Checked="OnCertificateAcceptedChanged" Unchecked="OnCertificateAcceptedChanged" />
                 </StackPanel>
 
@@ -360,7 +360,7 @@
                     IsOpen="{x:Bind Model.HasSetupError, Mode=OneWay}"
                     IsClosable="False"
                     Severity="Error"
-                    Title="{x:Bind l10n:L10n.SetupErrorTitle()}"
+                    Title="{x:Bind l10n:L10n.SetupErrorTitle(), Mode=OneTime}"
                     Message="{x:Bind Model.SetupError, Mode=OneWay}" />
 
                 <!-- Back to the address step at the start; Connect (IMAP/JMAP) or Sign in
@@ -372,24 +372,24 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Button x:Name="BackButton" Content="{x:Bind l10n:L10n.A11yBack()}"
+                    <Button x:Name="BackButton" Content="{x:Bind l10n:L10n.A11yBack(), Mode=OneTime}"
                             VerticalAlignment="Center"
                             IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnBackToDetect" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" VerticalAlignment="Center">
                         <ProgressRing Width="20" Height="20" VerticalAlignment="Center"
                                       IsActive="{x:Bind Model.IsSubmitting, Mode=OneWay}"
                                       Visibility="{x:Bind Model.SubmittingVisibility, Mode=OneWay}" />
-                        <Button x:Name="CancelButton" Content="{x:Bind l10n:L10n.ActionCancel()}"
+                        <Button x:Name="CancelButton" Content="{x:Bind l10n:L10n.ActionCancel(), Mode=OneTime}"
                                 Visibility="{x:Bind Model.CancelVisibility, Mode=OneWay}"
                                 IsEnabled="{x:Bind Model.CancelEnabled, Mode=OneWay}" Click="OnCancel" />
                         <Button x:Name="ConnectButton" Content="{x:Bind Model.ConnectButtonText, Mode=OneWay}"
                                 Style="{StaticResource AccentButtonStyle}"
                                 IsEnabled="False" Click="OnConnect" />
-                        <Button x:Name="MicrosoftButton" Content="{x:Bind l10n:L10n.SetupMicrosoftSignin()}"
+                        <Button x:Name="MicrosoftButton" Content="{x:Bind l10n:L10n.SetupMicrosoftSignin(), Mode=OneTime}"
                                 Style="{StaticResource AccentButtonStyle}"
                                 Visibility="Collapsed"
                                 IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnSignInMicrosoft" />
-                        <Button x:Name="GoogleButton" Content="{x:Bind l10n:L10n.SetupGoogleSignin()}"
+                        <Button x:Name="GoogleButton" Content="{x:Bind l10n:L10n.SetupGoogleSignin(), Mode=OneTime}"
                                 Style="{StaticResource AccentButtonStyle}"
                                 Visibility="Collapsed"
                                 IsEnabled="False" Click="OnSignInGoogle" />
@@ -399,7 +399,7 @@
                 <!-- Advanced escape from a detected result: reveal the full account-type picker with
                      the detected settings prefilled, for users who want to edit servers or choose a
                      different protocol. Hidden in manual mode (the picker is already showing). -->
-                <HyperlinkButton x:Name="SetupManualButton" Content="{x:Bind l10n:L10n.SetupDetectManual()}"
+                <HyperlinkButton x:Name="SetupManualButton" Content="{x:Bind l10n:L10n.SetupDetectManual(), Mode=OneTime}"
                                  HorizontalAlignment="Center" Visibility="Collapsed" Click="OnSetUpManuallyFromFound" />
             </StackPanel>
 

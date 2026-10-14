@@ -15,9 +15,8 @@ using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
+using Microsoft.Windows.Storage.Pickers;
 using Windows.Storage;
-using Windows.Storage.Pickers;
-using WinRT.Interop;
 
 namespace Allodia.Mailcal.Views;
 
@@ -26,7 +25,11 @@ namespace Allodia.Mailcal.Views;
 /// reply/reply-all open with To/Cc pre-filled from the core, new/forward open empty, and every
 /// kind edits the Subject (a reply/forward opens with the core's derived Re:/Fwd:). Every kind
 /// shares the one hardened editor host.</summary>
+// WUI4002 looks for the WebView2's initialisation in this file only. It happens in EditorWebView,
+// the host every composer and the signature editor share (Services/EditorWebView.cs).
+#pragma warning disable WUI4002
 public sealed partial class ComposerView : UserControl
+#pragma warning restore WUI4002
 {
     private readonly List<PickedComposerAttachment> _attachments = new();
     private MailboxModel? _model;
@@ -366,17 +369,24 @@ public sealed partial class ComposerView : UserControl
 
     private async void OnAttachFiles(object sender, RoutedEventArgs e)
     {
-        var picker = new FileOpenPicker();
+        var picker = new FileOpenPicker(PickerOwner.For(this));
         picker.FileTypeFilter.Add("*");
-        if (App.MainWindow is not null)
+        foreach (var picked in await picker.PickMultipleFilesAsync())
         {
-            InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
-        }
-        var files = await picker.PickMultipleFilesAsync();
-        foreach (var file in files)
-        {
-            if (string.IsNullOrEmpty(file.Path))
+            if (string.IsNullOrEmpty(picked.Path))
             {
+                continue;
+            }
+            // Opened as a StorageFile for the media type the system knows it by; the core reads
+            // the bytes from the path when the message is sent.
+            StorageFile file;
+            try
+            {
+                file = await StorageFile.GetFileFromPathAsync(picked.Path);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"composer: a picked file is unreadable ({ex.GetType().Name})");
                 continue;
             }
             _attachments.Add(new PickedComposerAttachment(

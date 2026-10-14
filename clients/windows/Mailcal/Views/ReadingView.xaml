@@ -86,47 +86,47 @@
                              labels also collapse to icon-only at narrow widths
                              (OnActionToolbarSizeChanged), which is exactly when the spoken name is
                              the only name left. Kept in sync by uitests/Accessibility.Tests.ps1. -->
-                        <Button Click="OnReply" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionReply()}"
+                        <Button Click="OnReply" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionReply(), Mode=OneTime}"
                                 AutomationProperties.AutomationId="ReadingReply"
-                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionReply()}">
+                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionReply(), Mode=OneTime}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE8CA;" FontSize="14" />
-                                <TextBlock x:Name="ReplyLabel" Text="{x:Bind l10n:L10n.ActionReply()}" />
+                                <TextBlock x:Name="ReplyLabel" Text="{x:Bind l10n:L10n.ActionReply(), Mode=OneTime}" />
                             </StackPanel>
                         </Button>
-                        <Button Click="OnReplyAll" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionReplyAll()}"
+                        <Button Click="OnReplyAll" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionReplyAll(), Mode=OneTime}"
                                 AutomationProperties.AutomationId="ReadingReplyAll"
-                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionReplyAll()}">
+                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionReplyAll(), Mode=OneTime}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE8C2;" FontSize="14" />
-                                <TextBlock x:Name="ReplyAllLabel" Text="{x:Bind l10n:L10n.ActionReplyAll()}" />
+                                <TextBlock x:Name="ReplyAllLabel" Text="{x:Bind l10n:L10n.ActionReplyAll(), Mode=OneTime}" />
                             </StackPanel>
                         </Button>
-                        <Button Click="OnForward" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionForward()}"
+                        <Button Click="OnForward" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionForward(), Mode=OneTime}"
                                 AutomationProperties.AutomationId="ReadingForward"
-                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionForward()}">
+                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionForward(), Mode=OneTime}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE72A;" FontSize="14" />
-                                <TextBlock x:Name="ForwardLabel" Text="{x:Bind l10n:L10n.ActionForward()}" />
+                                <TextBlock x:Name="ForwardLabel" Text="{x:Bind l10n:L10n.ActionForward(), Mode=OneTime}" />
                             </StackPanel>
                         </Button>
                         <!-- Subtle separator between the compose actions and the manage actions. -->
                         <Border Width="1" Margin="4,2" VerticalAlignment="Stretch"
                                 Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-                        <Button Click="OnArchive" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionArchive()}"
+                        <Button Click="OnArchive" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}"
                                 AutomationProperties.AutomationId="ReadingArchive"
-                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionArchive()}">
+                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE7B8;" FontSize="14" />
-                                <TextBlock x:Name="ArchiveLabel" Text="{x:Bind l10n:L10n.ActionArchive()}" />
+                                <TextBlock x:Name="ArchiveLabel" Text="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}" />
                             </StackPanel>
                         </Button>
-                        <Button Click="OnDelete" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionDelete()}"
+                        <Button Click="OnDelete" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionDelete(), Mode=OneTime}"
                                 AutomationProperties.AutomationId="ReadingDelete"
-                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionDelete()}">
+                                AutomationProperties.Name="{x:Bind l10n:L10n.ActionDelete(), Mode=OneTime}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE74D;" FontSize="14" />
-                                <TextBlock x:Name="DeleteLabel" Text="{x:Bind l10n:L10n.ActionDelete()}" />
+                                <TextBlock x:Name="DeleteLabel" Text="{x:Bind l10n:L10n.ActionDelete(), Mode=OneTime}" />
                             </StackPanel>
                         </Button>
                         <!-- Last of all, after both mailbox actions (docs/reading-actions.md).
@@ -141,9 +141,9 @@
                              icon-only one. Asserted by uitests/ReadingActionRow.Tests.ps1. -->
                         <DropDownButton x:Name="ReadingOverflow"
                                         VerticalAlignment="Stretch"
-                                        ToolTipService.ToolTip="{x:Bind l10n:L10n.A11yMoreActions()}"
+                                        ToolTipService.ToolTip="{x:Bind l10n:L10n.A11yMoreActions(), Mode=OneTime}"
                                         AutomationProperties.AutomationId="ReadingOverflow"
-                                        AutomationProperties.Name="{x:Bind l10n:L10n.A11yMoreActions()}">
+                                        AutomationProperties.Name="{x:Bind l10n:L10n.A11yMoreActions(), Mode=OneTime}">
                             <DropDownButton.Content>
                                 <FontIcon Glyph="&#xE712;" FontSize="14" />
                             </DropDownButton.Content>
@@ -151,12 +151,12 @@
                                 <MenuFlyout>
                                     <MenuFlyoutItem x:Name="ExportEmlItem"
                                                     Click="OnExportEml"
-                                                    Text="{x:Bind l10n:L10n.ActionSaveAsEml()}"
+                                                    Text="{x:Bind l10n:L10n.ActionSaveAsEml(), Mode=OneTime}"
                                                     AutomationProperties.AutomationId="ReadingExportEml" />
                                     <MenuFlyoutItem x:Name="PrintItem"
                                                     Click="OnPrint"
                                                     IsEnabled="False"
-                                                    Text="{x:Bind l10n:L10n.ActionPrint()}"
+                                                    Text="{x:Bind l10n:L10n.ActionPrint(), Mode=OneTime}"
                                                     AutomationProperties.AutomationId="ReadingPrint" />
                                 </MenuFlyout>
                             </DropDownButton.Flyout>
@@ -181,7 +181,7 @@
 
             <StackPanel Grid.Row="2" x:Name="AttachmentPanel" Visibility="Collapsed"
                         Padding="16,0,16,8" Spacing="6">
-                <TextBlock Text="{x:Bind l10n:L10n.AttachmentsTitle()}"
+                <TextBlock Text="{x:Bind l10n:L10n.AttachmentsTitle(), Mode=OneTime}"
                            Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <!-- Capped and scrolling, because this panel sits in an Auto row ABOVE the body's
@@ -206,17 +206,17 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{x:Bind FileName}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{x:Bind Detail}"
+                                        <TextBlock Text="{x:Bind FileName, Mode=OneTime}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{x:Bind Detail, Mode=OneTime}"
                                                    Style="{StaticResource CaptionTextBlockStyle}"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </StackPanel>
                                     <!-- Open hands the file to the OS default handler (OS scanning);
                                          Save writes it to a chosen location. Neither renders in-app. -->
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                        <Button Content="{x:Bind l10n:L10n.ActionOpen()}"
+                                        <Button Content="{x:Bind l10n:L10n.ActionOpen(), Mode=OneTime}"
                                                 Click="OnOpenAttachment" />
-                                        <Button Content="{x:Bind l10n:L10n.ActionSave()}"
+                                        <Button Content="{x:Bind l10n:L10n.ActionSave(), Mode=OneTime}"
                                                 Click="OnSaveAttachment" />
                                     </StackPanel>
                                 </Grid>
@@ -239,8 +239,8 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap"
                            Style="{StaticResource CaptionTextBlockStyle}"
-                           Text="{x:Bind l10n:L10n.ReadingRemoteBlocked()}" />
-                <Button Grid.Column="1" Content="{x:Bind l10n:L10n.ActionLoadImages()}" Click="OnLoadRemoteImages" />
+                           Text="{x:Bind l10n:L10n.ReadingRemoteBlocked(), Mode=OneTime}" />
+                <Button Grid.Column="1" Content="{x:Bind l10n:L10n.ActionLoadImages(), Mode=OneTime}" Click="OnLoadRemoteImages" />
             </Grid>
 
             <!-- Body: a spinner until the snapshot arrives, then the HTML WebView or plain text.
@@ -287,15 +287,15 @@
                 <TextBlock x:Name="EmptyText" Visibility="Collapsed"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           Text="{x:Bind l10n:L10n.ReadingNoContent()}" />
+                           Text="{x:Bind l10n:L10n.ReadingNoContent(), Mode=OneTime}" />
                 <!-- Fetch failed (provider/network), as distinct from a body-less message. -->
                 <StackPanel x:Name="ErrorPanel" Visibility="Collapsed" Spacing="8"
                             HorizontalAlignment="Center" VerticalAlignment="Center">
                     <FontIcon Glyph="&#xE7BA;" FontSize="24" HorizontalAlignment="Center"
                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBlock Text="{x:Bind l10n:L10n.ReadingLoadError()}" HorizontalAlignment="Center"
+                    <TextBlock Text="{x:Bind l10n:L10n.ReadingLoadError(), Mode=OneTime}" HorizontalAlignment="Center"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <Button Content="{x:Bind l10n:L10n.ActionRetry()}" HorizontalAlignment="Center" Click="OnRetry" />
+                    <Button Content="{x:Bind l10n:L10n.ActionRetry(), Mode=OneTime}" HorizontalAlignment="Center" Click="OnRetry" />
                 </StackPanel>
             </Grid>
         </Grid>
@@ -306,7 +306,7 @@
                     HorizontalAlignment="Center" VerticalAlignment="Center">
             <FontIcon Glyph="&#xE715;" FontSize="28" HorizontalAlignment="Center"
                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-            <TextBlock Text="{x:Bind l10n:L10n.ReadingEmpty()}"
+            <TextBlock Text="{x:Bind l10n:L10n.ReadingEmpty(), Mode=OneTime}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </StackPanel>
 

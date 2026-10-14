@@ -32,15 +32,15 @@
                 <Image
                     Source="ms-appx:///Images/welcome-art.png"
                     Width="140" Height="140"
-                    AutomationProperties.Name="{x:Bind l10n:L10n.A11yWelcomeArt()}" />
+                    AutomationProperties.Name="{x:Bind l10n:L10n.A11yWelcomeArt(), Mode=OneTime}" />
 
                 <TextBlock
-                    Text="{x:Bind l10n:L10n.WelcomeTitle()}"
+                    Text="{x:Bind l10n:L10n.WelcomeTitle(), Mode=OneTime}"
                     Style="{StaticResource TitleTextBlockStyle}"
                     TextWrapping="Wrap"
                     TextAlignment="Center" />
                 <TextBlock
-                    Text="{x:Bind l10n:L10n.WelcomeTagline()}"
+                    Text="{x:Bind l10n:L10n.WelcomeTagline(), Mode=OneTime}"
                     Style="{StaticResource BodyTextBlockStyle}"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     TextWrapping="Wrap"
@@ -56,14 +56,14 @@
                     <StackPanel Spacing="8">
                         <ToggleSwitch
                             x:Name="ShareStats"
-                            Header="{x:Bind l10n:L10n.WelcomeAnalyticsToggle()}" />
+                            Header="{x:Bind l10n:L10n.WelcomeAnalyticsToggle(), Mode=OneTime}" />
                         <TextBlock
-                            Text="{x:Bind l10n:L10n.WelcomeAnalyticsBody()}"
+                            Text="{x:Bind l10n:L10n.WelcomeAnalyticsBody(), Mode=OneTime}"
                             Style="{StaticResource CaptionTextBlockStyle}"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                             TextWrapping="Wrap" />
                         <HyperlinkButton
-                            Content="{x:Bind l10n:L10n.WelcomeAnalyticsPreview()}"
+                            Content="{x:Bind l10n:L10n.WelcomeAnalyticsPreview(), Mode=OneTime}"
                             Click="OnTogglePayload" />
                         <ScrollViewer
                             x:Name="PayloadPanel"
@@ -85,8 +85,8 @@
                 </Border>
 
                 <HyperlinkButton
-                    Content="{x:Bind l10n:L10n.WelcomePrivacyPolicy()}"
-                    NavigateUri="{x:Bind PrivacyUri}"
+                    Content="{x:Bind l10n:L10n.WelcomePrivacyPolicy(), Mode=OneTime}"
+                    NavigateUri="{x:Bind PrivacyUri, Mode=OneTime}"
                     HorizontalAlignment="Center" />
             </StackPanel>
         </ScrollViewer>
@@ -98,7 +98,7 @@
         <Button
             Grid.Row="1"
             AutomationProperties.AutomationId="WelcomeGetStarted"
-            Content="{x:Bind l10n:L10n.WelcomeGetStarted()}"
+            Content="{x:Bind l10n:L10n.WelcomeGetStarted(), Mode=OneTime}"
             Style="{StaticResource AccentButtonStyle}"
             HorizontalAlignment="Center"
             MinWidth="200"

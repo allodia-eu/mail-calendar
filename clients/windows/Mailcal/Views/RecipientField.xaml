@@ -33,14 +33,14 @@
                     <Border CornerRadius="12" Padding="8,2,2,2"
                             Background="{ThemeResource ControlFillColorSecondaryBrush}">
                         <StackPanel Orientation="Horizontal" Spacing="2">
-                            <TextBlock Text="{x:Bind Text}" VerticalAlignment="Center"
+                            <TextBlock Text="{x:Bind Text, Mode=OneTime}" VerticalAlignment="Center"
                                        MaxLines="1" TextTrimming="CharacterEllipsis" MaxWidth="240"
                                        Style="{StaticResource CaptionTextBlockStyle}" />
-                            <Button Tag="{x:Bind Index}" Click="OnRemoveRecipient"
+                            <Button Tag="{x:Bind Index, Mode=OneTime}" Click="OnRemoveRecipient"
                                     Background="Transparent" BorderThickness="0"
                                     Padding="4" MinWidth="0"
-                                    AutomationProperties.Name="{x:Bind RemoveLabel}"
-                                    ToolTipService.ToolTip="{x:Bind RemoveLabel}">
+                                    AutomationProperties.Name="{x:Bind RemoveLabel, Mode=OneTime}"
+                                    ToolTipService.ToolTip="{x:Bind RemoveLabel, Mode=OneTime}">
                                 <FontIcon Glyph="&#xE711;" FontSize="10" />
                             </Button>
                         </StackPanel>
@@ -81,7 +81,7 @@
              and the semi-transparent control fill it used to carry would render two texts on top of
              each other. -->
         <primitives:Popup x:Name="SuggestionPopup"
-                          PlacementTarget="{x:Bind Input}"
+                          PlacementTarget="{x:Bind Input, Mode=OneTime}"
                           DesiredPlacement="BottomEdgeAlignedLeft">
             <Border x:Name="SuggestionSurface"
                     Background="{ThemeResource FlyoutPresenterBackground}"
@@ -97,7 +97,7 @@
                 <ListView x:Name="SuggestionList" MaxHeight="160"
                           SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnSuggestionPicked"
                           AutomationProperties.AutomationId="RecipientSuggestions"
-                          AutomationProperties.Name="{x:Bind l10n:L10n.ComposeSuggestions()}">
+                          AutomationProperties.Name="{x:Bind l10n:L10n.ComposeSuggestions(), Mode=OneTime}">
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -107,9 +107,9 @@
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="vm:RecipientSuggestionItem">
                             <StackPanel Padding="0,4">
-                                <TextBlock Text="{x:Bind DisplayName}" Visibility="{x:Bind NameVisibility}"
+                                <TextBlock Text="{x:Bind DisplayName, Mode=OneTime}" Visibility="{x:Bind NameVisibility, Mode=OneTime}"
                                            MaxLines="1" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{x:Bind Email}" MaxLines="1"
+                                <TextBlock Text="{x:Bind Email, Mode=OneTime}" MaxLines="1"
                                            TextTrimming="CharacterEllipsis"
                                            Style="{StaticResource CaptionTextBlockStyle}"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

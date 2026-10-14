@@ -14,9 +14,8 @@
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.Windows.Storage.Pickers;
 using Windows.Storage;
-using Windows.Storage.Pickers;
-using WinRT.Interop;
 
 namespace Allodia.Mailcal.Dialogs;
 
@@ -179,18 +178,27 @@ public sealed partial class SettingsDialog
     private async Task InsertSignatureImageAsync(EditorWebViewHost host, TextBlock imageError)
     {
         imageError.Visibility = Visibility.Collapsed;
-        var picker = new FileOpenPicker();
+        var picker = new FileOpenPicker(PickerOwner.For(imageError));
         foreach (var extension in new[] { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp" })
         {
             picker.FileTypeFilter.Add(extension);
         }
-        if (App.MainWindow is not null)
+        var path = (await picker.PickSingleFileAsync())?.Path;
+        if (string.IsNullOrEmpty(path))
         {
-            InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
+            return;
         }
-        var file = await picker.PickSingleFileAsync();
-        if (file is null || string.IsNullOrEmpty(file.Path))
+        // Opened as a StorageFile for the content type the system knows it by, which the read
+        // below hands to the core alongside the bytes.
+        StorageFile file;
+        try
         {
+            file = await StorageFile.GetFileFromPathAsync(path);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"signature image unreadable: {ex.GetType().Name}");
+            Show(imageError, L10n.SettingsSignaturesImageFailed());
             return;
         }
         switch (await ReadSignatureImageAsync(file))

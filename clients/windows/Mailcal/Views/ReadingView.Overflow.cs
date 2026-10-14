@@ -7,9 +7,7 @@
 
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
-using Windows.Storage;
-using Windows.Storage.Pickers;
-using WinRT.Interop;
+using Microsoft.Windows.Storage.Pickers;
 
 namespace Allodia.Mailcal.Views;
 
@@ -26,7 +24,7 @@ public sealed partial class ReadingView
             return;
         }
         ClearExportError();
-        StorageFile? file;
+        string? path;
         try
         {
             // SubjectText.Text, not OpenedMessage.Subject: the contract is that the name comes
@@ -35,7 +33,7 @@ public sealed partial class ReadingView
             // (docs/reading-actions.md). Read off the control the user is looking at rather than
             // recomputing the placeholder here, which would be a second answer free to drift from
             // the one on screen.
-            var picker = new FileSavePicker
+            var picker = new FileSavePicker(PickerOwner.For(this))
             {
                 SuggestedFileName = MailboxModel.ExportFileName(SubjectText.Text),
             };
@@ -43,11 +41,7 @@ public sealed partial class ReadingView
             // filter is the one label that is an identifier, and ".eml" reads the same in every
             // language the app ships.
             picker.FileTypeChoices.Add(".eml", new List<string> { ".eml" });
-            if (App.MainWindow is not null)
-            {
-                InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
-            }
-            file = await picker.PickSaveFileAsync();
+            path = (await picker.PickSaveFileAsync())?.Path;
         }
         catch (Exception ex)
         {
@@ -55,22 +49,23 @@ public sealed partial class ReadingView
             ShowExportError(opened.Key);
             return;
         }
-        if (file is null)
+        if (string.IsNullOrEmpty(path))
         {
             return;
         }
         // Written to an app-owned temp file first and copied in, the same route the attachment
-        // save takes: the core writes by path, and the path a picker returns is not one this
-        // process may always open for writing.
+        // save takes: the chosen path is touched only once the whole message is in hand, so a
+        // fetch that fails leaves a file being replaced as it was.
         var temp = Path.Combine(Path.GetTempPath(), $"mailcal-export-{Guid.NewGuid():N}.eml");
         var ok = false;
+        var written = false;
         try
         {
             if (await WriteSourceAsync(opened.Account, opened.Key, temp))
             {
                 await using var input = File.OpenRead(temp);
-                await using var output = await file.OpenStreamForWriteAsync();
-                output.SetLength(0);
+                written = true;
+                await using var output = File.Create(path);
                 await input.CopyToAsync(output);
                 ok = true;
             }
@@ -89,7 +84,10 @@ public sealed partial class ReadingView
             // mail client as a damaged message rather than as nothing at all.
             try
             {
-                await file.DeleteAsync();
+                if (written)
+                {
+                    File.Delete(path);
+                }
             }
             catch
             {

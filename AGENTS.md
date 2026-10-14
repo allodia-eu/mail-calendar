@@ -484,6 +484,14 @@ were broken right now, would this tell me?*
   from the task that generates it. ⚠️ Gradle's console lists only the first fifteen compiler
   problems of a build and says nothing about the rest; the whole list is in
   `clients/android/build/reports/problems/problems-report.html`.
+- **C# warnings are hard errors too**, in the Windows app, `Mailcal.Tests` and `MailcalVerify`
+  (`TreatWarningsAsErrors` in each project), and that includes Microsoft's WinUI analyzer
+  (`Microsoft.Windows.SDK.BuildTools.WinUIAnalyzer`, referenced by
+  [`Mailcal.csproj`](clients/windows/Mailcal/Mailcal.csproj)). Its rules reach the XAML too, so
+  **every `x:Bind` states its `Mode`**: `OneTime` is the default and right for most of this
+  client, which renders snapshots, but a binding that should follow a change and is left without
+  `OneWay` draws its first value forever, and nothing else in the build notices. A rule that
+  misreads this code is suppressed beside the code with its reason, never project-wide.
 - **The Rust toolchain is pinned** in [`rust-toolchain.toml`](rust-toolchain.toml), which CI parses
   too. Bumping it is a **standalone PR**: a new stable that adds a default-warn lint turns the build
   red, and that PR is where it gets fixed.
