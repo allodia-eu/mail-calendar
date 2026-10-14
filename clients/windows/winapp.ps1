@@ -54,6 +54,12 @@ Runs one `winapp ui` verb against -Window and returns its JSON answer as an obje
 .DESCRIPTION
 Throws when winapp reports an error or exits non-zero, and when it has not answered within
 -TimeoutSec, killing it.
+
+A search walks the whole window while the app is free to change it, and an element that goes away
+under the walk fails the search with "Element is no longer accessible" (winapp 0.7.1), as a suite
+does right after the one before it closed a window. A search presses nothing, so that one failure
+is asked again, up to $WinappSearchAttempts times in all. Every other verb is asked once: a press
+that failed partway may already have landed, and repeating it would press twice.
 #>
 function Invoke-Winapp {
   param(
@@ -61,6 +67,27 @@ function Invoke-Winapp {
     [Parameter(Position = 1)] [string[]] $Arguments = @(),
     [Parameter(Mandatory)] [long] $Window,
     [int] $TimeoutSec = 30
+  )
+  $attempts = if ($Verb -eq 'search') { $script:WinappSearchAttempts } else { 1 }
+  for ($attempt = 1; ; $attempt++) {
+    try {
+      return Invoke-WinappOnce $Verb $Arguments -Window $Window -TimeoutSec $TimeoutSec
+    }
+    catch {
+      if ($attempt -ge $attempts -or $_.Exception.Message -notmatch 'Element is no longer accessible') { throw }
+      Start-Sleep -Milliseconds 250
+    }
+  }
+}
+
+$script:WinappSearchAttempts = 3
+
+function Invoke-WinappOnce {
+  param(
+    [Parameter(Mandatory, Position = 0)] [string] $Verb,
+    [Parameter(Position = 1)] [string[]] $Arguments = @(),
+    [Parameter(Mandatory)] [long] $Window,
+    [int] $TimeoutSec
   )
   $start = [Diagnostics.ProcessStartInfo]::new((Get-WinappPath))
   foreach ($argument in @('ui', $Verb) + $Arguments + @('-w', "$Window", '--json')) {

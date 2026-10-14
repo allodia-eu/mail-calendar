@@ -221,6 +221,12 @@ Write-Host "==> Running the app-log reader tests" -ForegroundColor Cyan
 & (Join-Path $here 'applog.tests.ps1')
 if ($LASTEXITCODE -ne 0) { throw "app-log reader tests failed" }
 
+# 5d. What the UI suites do when winapp's walk meets an element that went away under it. Here for
+#     5c's reason: the race cannot be timed against a running app, so winapp is replaced by a stub.
+Write-Host "==> Running the winapp driver tests" -ForegroundColor Cyan
+& (Join-Path $here 'winapp.tests.ps1')
+if ($LASTEXITCODE -ne 0) { throw "winapp driver tests failed" }
+
 # The shared composer editor is Content-included from clients/composer/dist by Mailcal.csproj, and
 # that bundle is a committed build output rather than one generated per build, so rebuild it from
 # its TypeScript sources before MSBuild copies it. Without bun it says so and carries on: the
