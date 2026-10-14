@@ -1,7 +1,8 @@
 // The event detail sheet, what a tap on any event opens. Title, time, calendar, location, notes,
 // and the reminder/recurrence summaries, with Edit + Delete (matching the platform calendar the user
-// knows). Edit and Delete are gated on the event's `canWrite`: a read-only calendar's event opens
-// read-only, with no actions (an affordance that can never fire is just a mystery).
+// knows), and an invitee's answer where the core offers one (EventAnswerView.swift). Edit and
+// Delete are gated on the event's `canWrite`: a read-only calendar's event opens read-only, with no
+// actions (an affordance that can never fire is just a mystery).
 
 import MailcalBindings
 import SwiftUI
@@ -15,6 +16,14 @@ struct EventDetailView: View {
     /// itself the confirmation, cancelling it writes nothing, so asking to confirm first would
     /// put two dialogs in a row for one delete.
     let asksAboutTheSeries: Bool
+    /// Answers the meeting from here, with the reply subject; used only where `myAnswer` is set.
+    var onAnswer: (InvitationResponse, String) -> Void = { _, _ in }
+    /// Whether a calendar write is on its way, which holds the answer buttons back.
+    var saving = false
+    /// The "organiser wasn't told" question, put from here while the detail is open, as the window
+    /// puts it otherwise; see `MailboxModel.eventDetailOpen`.
+    var replyPrompt: ReplyPrompt?
+    var onReplyPrompt: (Bool, Bool) -> Void = { _, _ in }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
@@ -39,6 +48,13 @@ struct EventDetailView: View {
                             .frame(width: 14, height: 14)
                         Text(row?.name ?? detail.calendar)
                     }
+                }
+                if let answer = EventAnswer(detail: detail, saving: saving) {
+                    EventAnswerSection(
+                        answer: answer,
+                        title: detail.title,
+                        onAnswer: onAnswer
+                    )
                 }
                 if let location = detail.location, !location.isEmpty {
                     labeled(L10n.event_location(), location)
@@ -87,6 +103,14 @@ struct EventDetailView: View {
             } message: {
                 if detail.isRecurring { Text(L10n.event_series_note()) }
             }
+            // The same contract as the window's: the core owns the question, so the binding only
+            // reads it and a swipe-away cannot orphan it.
+            .sheet(isPresented: Binding(get: { replyPrompt != nil }, set: { _ in })) {
+                if let replyPrompt {
+                    InvitationReplyPromptView(prompt: replyPrompt, answer: onReplyPrompt)
+                        .interactiveDismissDisabled()
+                }
+            }
         }
         // A macOS sheet sizes itself to its content, and a `List` has no intrinsic height to give it
         // so without this the sheet came up as a blank strip with only the toolbar on it: Close and
@@ -96,8 +120,9 @@ struct EventDetailView: View {
         // sheet how tall it wants to be. 340 was right until attendees arrived and then cut the third
         // one off mid-row behind a scrollbar, so a meeting asks for more. It stays a fixed step
         // rather than a per-row calculation: a 40-person invitation must not open a sheet taller than
-        // the screen, and past a handful of people scrolling is the right answer anyway.
-        .frame(minWidth: 360, minHeight: detail.attendees.isEmpty ? 340 : 480)
+        // the screen, and past a handful of people scrolling is the right answer anyway. An invitee's
+        // answer row adds one step more.
+        .frame(minWidth: 360, minHeight: detail.attendees.isEmpty ? 340 : detail.myAnswer == nil ? 480 : 560)
     }
 
     private func labeled(_ label: String, _ value: String) -> some View {

@@ -169,6 +169,9 @@ struct CalendarScreenView: View {
         }
         // Tap an event -> its detail; Edit there opens the editor prefilled, Delete removes it.
         .sheet(item: $openEvent) { ref in
+            // Read again whenever the calendar changes, so an answer given from the detail shows
+            // once the server holds it.
+            let _ = model.calendarVersion
             if let detail = model.eventDetail(ref.account, ref.key, ref.occurrence) {
                 EventDetailView(
                     detail: detail,
@@ -183,8 +186,19 @@ struct CalendarScreenView: View {
                         openEvent = nil
                         delete(detail)
                     },
-                    asksAboutTheSeries: !detail.occurrenceStart.isEmpty
+                    asksAboutTheSeries: !detail.occurrenceStart.isEmpty,
+                    // A decline takes the meeting off the calendar, so the detail goes with it; any
+                    // other answer leaves it open.
+                    onAnswer: { response, subject in
+                        if response == .decline { openEvent = nil }
+                        model.respondToEvent(detail.account, detail.key, response, replySubject: subject)
+                    },
+                    saving: model.calendarWriteStatus == .saving,
+                    replyPrompt: model.replyPrompt,
+                    onReplyPrompt: { send, remember in model.answerReplyPrompt(send: send, remember: remember) }
                 )
+                .onAppear { model.eventDetailOpen = true }
+                .onDisappear { model.eventDetailOpen = false }
             }
         }
         // The create/edit editor. One form, both jobs.

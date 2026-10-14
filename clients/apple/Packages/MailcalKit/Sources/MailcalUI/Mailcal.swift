@@ -427,7 +427,9 @@ public struct ContentView: View {
         // keeps the two in step: a swipe-away would leave the core still holding a question the
         // user can no longer see or answer.
         .sheet(
-            isPresented: Binding(get: { model.replyPrompt != nil }, set: { _ in })
+            isPresented: Binding(
+                get: { model.replyPrompt != nil && !model.eventDetailOpen }, set: { _ in }
+            )
         ) {
             if let prompt = model.replyPrompt {
                 InvitationReplyPromptView(prompt: prompt) { send, remember in

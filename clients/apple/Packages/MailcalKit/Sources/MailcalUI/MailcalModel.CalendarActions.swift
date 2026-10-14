@@ -1,5 +1,5 @@
 // The calendar surface's model calls: creating, editing, moving and deleting an event, answering
-// an invitation, and the two synchronous queries an editor asks before it commits.
+// an invitation or a meeting, and the two synchronous queries an editor asks before it commits.
 //
 // Split from `MailcalModel.Actions.swift` to keep each file under the 500-line limit; the mail
 // actions, the account settings and the MCP switches stay there.
@@ -108,6 +108,25 @@ extension MailboxModel {
                 comment: comment,
                 notifyOrganizer: notifyOrganizer,
                 replySubject: replySubject
+            )
+        )
+    }
+
+    /// Answer a meeting from its event in the calendar, for the whole meeting.
+    ///
+    /// Named by the **event**: the core reads the address the meeting invites from the stored
+    /// event, and delivers the answer the way the invitation card's goes, asking the same
+    /// `ReplyPrompt` question when a server could not (docs/calendar.md, "Answering from the
+    /// calendar").
+    func respondToEvent(
+        _ account: String,
+        _ key: String,
+        _ response: InvitationResponse,
+        replySubject: String
+    ) {
+        app?.dispatch(
+            intent: .events(
+                intent: .respond(account: account, key: key, response: response, replySubject: replySubject)
             )
         )
     }

@@ -1560,7 +1560,7 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | An **optional** invitee marked as such in both lists ⁹ | ✅ | ✅ | ✅ | ⬜ | ✅ | ✅ |
 | **Invite people** to a new event, on a calendar whose server sends the invitations (§4) | ✅ | ✅ | ✅ | ⬜ | ✅ | ✅ |
 | **Add, remove, or make optional** the invitees of a meeting you organise (§4) | ✅ | ✅ | ✅ | ⬜ | ✅ | ✅ |
-| **Answer a meeting** from its event (Accept · Maybe · Decline), for the whole meeting (§4) | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
+| **Answer a meeting** from its event (Accept · Maybe · Decline), for the whole meeting (§4) | ✅ | ✅ | ✅ | ⬜ | ✅ | ✅ |
 | A **new** event opens with the caret in its title ¹¹ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Write affordances gated on `can_write`: a read-only row offers no delete; "New event" disabled without a writable calendar | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Drag-to-create**: draw a slot out on empty grid, opening the editor prefilled ¹⁰ | ✅ | ✅ | ✅ | ⬜ | ✅ | ✅ |

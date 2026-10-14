@@ -159,6 +159,9 @@ final class MailboxModel {
     /// presents the modal; the core clears it the moment it is answered, so `nil` is also what
     /// closes it, the host never dismisses it on its own.
     var replyPrompt: ReplyPrompt?
+    /// Whether an event's detail sheet is open. It then puts `replyPrompt` itself, since the window
+    /// cannot present a sheet while another is up: the question would wait for the detail to close.
+    var eventDetailOpen = false
     /// The message that went out without a copy reaching Sent; `nil` when there is nothing to ask.
     var unfiledCopy: UnfiledCopy?
     /// Background mail-download progress (pulled on a `Surface::SyncProgress` signal): drives
