@@ -1,0 +1,43 @@
+From: Scheme Sender <schemes@example.com>
+To: Alice Tester <alice@test.local>
+Subject: A message that styles its own dark mode
+Date: Fri, 02 Jan 2026 09:20:00 +0000
+Message-ID: <schemes-0015@test.local>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="alt-0015"
+
+--alt-0015
+Content-Type: text/plain; charset=utf-8
+
+The plain-text alternative of the sender-dark fixture. The HTML part carries
+its own prefers-color-scheme rules and says in words which half is showing.
+
+--alt-0015
+Content-Type: text/html; charset=utf-8
+
+<html>
+  <head>
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <style>
+      .shell { background: #fff8e1; color: #3e2723; }
+      .when-dark { display: none; }
+      @media (prefers-color-scheme: dark) {
+        .shell { background: #2b2116 !important; color: #ffe0b2 !important; }
+        .when-light { display: none !important; }
+        .when-dark { display: block !important; }
+      }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;">
+    <div class="shell" style="padding:24px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;">
+      <p class="when-light" style="margin:0 0 12px;font-size:20px;">This is the sender's light design.</p>
+      <p class="when-dark" style="margin:0 0 12px;font-size:20px;">This is the sender's own dark design.</p>
+      <p style="margin:0;">The sentence above names which of the sender's two designs is applied.
+        A light page shows the light one and a dark page the dark one, whatever the system is set
+        to.</p>
+    </div>
+  </body>
+</html>
+
+--alt-0015--

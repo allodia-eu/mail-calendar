@@ -98,7 +98,7 @@ struct SettingsCategoryDetail: View {
         }
     }
 
-    // MARK: Reading, conversation grouping (list ↔ thread) + swipe actions
+    // MARK: Reading, conversation grouping (list ↔ thread), swipe actions, message background
 
     @ViewBuilder
     private var readingDetail: some View {
@@ -114,7 +114,20 @@ struct SettingsCategoryDetail: View {
             settingsGroup(L10n.settings_swipe_heading(), L10n.settings_swipe_description()) {
                 SwipeActionsPicker(model: model)
             }
+            settingsGroup(
+                L10n.settings_dark_messages_heading(), L10n.settings_dark_messages_description()
+            ) {
+                Toggle(L10n.settings_dark_messages_toggle(), isOn: darkMessagesBinding)
+            }
         }
+    }
+
+    /// The same preference as the reading pane's sun/moon button (docs/reading-dark-mode.md).
+    private var darkMessagesBinding: Binding<Bool> {
+        Binding(
+            get: { model.displaySettings.darkMessageBackground },
+            set: { model.setDarkMessageBackground($0) }
+        )
     }
 
     private var groupingBinding: Binding<ViewMode> {

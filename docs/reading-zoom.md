@@ -114,7 +114,9 @@ disagree about it show the reader two different newsletters from the same bytes.
 
    Where the scale is the *page's* it resets on load and the client does nothing. Where it is the
    *view's* it survives the load and the client MUST reset it: macOS's `magnification`, WebView2's
-   `ZoomFactor` and WebKitGTK's `zoom-level` are all of the second kind.
+   `ZoomFactor` and WebKitGTK's `zoom-level` are all of the second kind. The same message drawn
+   again in another colour scheme is still the message the zoom was made on, so that re-render
+   keeps the view's scale ([`reading-dark-mode.md`](reading-dark-mode.md), rule 9).
 
 6. **A message cannot change any of this.** The sanitiser drops `<meta>`
    ([`rendering-security.md`](rendering-security.md) → Layer 1), so the only viewport in the

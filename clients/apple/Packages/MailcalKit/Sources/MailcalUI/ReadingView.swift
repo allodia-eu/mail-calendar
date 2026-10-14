@@ -71,6 +71,9 @@ struct ReadingView: View {
     let onArchive: () -> Void
     let onDelete: () -> Void
 
+    /// The scheme the app is painted in, the window's resolved one. Not `private`:
+    /// ReadingView.Body.swift draws the page from it.
+    @Environment(\.colorScheme) var appScheme
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var hSizeClass
     #endif
@@ -94,9 +97,9 @@ struct ReadingView: View {
     /// hangs the app before its first window (ReadingView.Overflow.swift has the same trap from
     /// the other side), so nothing here may wrap a button in a frame that is a no-op.
     ///
-    /// Not `private`: ReadingView.Overflow.swift draws the overflow glyph in the same box, so it
-    /// stays the same control as the buttons beside it (`docs/reading-actions.md`).
-    var iconBox: CGFloat { compactActions ? 32 : 24 }
+    /// `actionRow` hands it to every button on the row, the overflow included, so that one stays
+    /// the same control as the buttons beside it (`docs/reading-actions.md`).
+    private var iconBox: CGFloat { compactActions ? 32 : 24 }
 
     /// Whether the user chose to load this message's remote images (reset per message, a fresh
     /// view is created for each opened message).
@@ -272,7 +275,7 @@ struct ReadingView: View {
     /// hang off both edges of the display. The size is set here rather than per button so
     /// `ViewThatFits` can offer the next one down, which is the same row drawn to fit, and the
     /// glyphs keep the box `iconBox` gives them, so a smaller control is a smaller *button* and
-    /// not a smaller target. Icons scale with the text size, so the third candidate is what a
+    /// not a smaller target. Icons scale with the text size, so the last candidate is what a
     /// large accessibility size lands on.
     private var actionToolbar: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -282,6 +285,10 @@ struct ReadingView: View {
                         actionRow(iconsOnly: true).controlSize(.large)
                         actionRow(iconsOnly: true).controlSize(.regular)
                         actionRow(iconsOnly: true).controlSize(.small)
+                        // A dark app adds the sun/moon button, a seventh, which fits a phone only
+                        // with the gaps closed up and the glyph box a little smaller; the button
+                        // the style draws around it is still wider than a 44-pt target.
+                        actionRow(iconsOnly: true, spacing: 4, box: 28).controlSize(.small)
                     }
                 } else {
                     ViewThatFits(in: .horizontal) {
@@ -301,31 +308,48 @@ struct ReadingView: View {
         .padding(.vertical, 8)
     }
 
-    private func actionRow(iconsOnly: Bool) -> some View {
-        HStack(spacing: 8) {
-            toolbarButton(L10n.action_reply(), "arrowshape.turn.up.left", iconsOnly, action: onReply)
-            toolbarButton(L10n.action_reply_all(), "arrowshape.turn.up.left.2", iconsOnly, action: onReplyAll)
-            toolbarButton(L10n.action_forward(), "arrowshape.turn.up.right", iconsOnly, action: onForward)
+    private func actionRow(iconsOnly: Bool, spacing: CGFloat = 8, box: CGFloat? = nil) -> some View {
+        let box = box ?? iconBox
+        return HStack(spacing: spacing) {
+            toolbarButton(L10n.action_reply(), "arrowshape.turn.up.left", iconsOnly, box, action: onReply)
+            toolbarButton(L10n.action_reply_all(), "arrowshape.turn.up.left.2", iconsOnly, box, action: onReplyAll)
+            toolbarButton(L10n.action_forward(), "arrowshape.turn.up.right", iconsOnly, box, action: onForward)
             // A flexible Spacer would let any row "fit", so ViewThatFits could never reject the
             // labelled one; a minimum length gives the row an honest ideal width to measure.
-            Spacer(minLength: 12)
-            toolbarButton(L10n.action_archive(), "archivebox", iconsOnly, action: onArchive)
-            toolbarButton(L10n.action_delete(), "trash", iconsOnly, role: .destructive, action: onDelete)
+            Spacer(minLength: spacing == 8 ? 12 : spacing)
+            // Opens the trailing group, and only in a dark app (docs/reading-dark-mode.md).
+            if appScheme == .dark {
+                messageSchemeToggle(box: box)
+            }
+            toolbarButton(L10n.action_archive(), "archivebox", iconsOnly, box, action: onArchive)
+            toolbarButton(L10n.action_delete(), "trash", iconsOnly, box, role: .destructive, action: onDelete)
             // Last of all, after both mailbox actions (docs/reading-actions.md).
-            overflowMenu(iconsOnly: iconsOnly)
+            overflowMenu(iconsOnly: iconsOnly, box: box)
         }
+    }
+
+    /// The sun/moon button: an icon at every width, like the overflow, showing what pressing it
+    /// does. It sets the one preference Settings → Reading also shows, so every message follows.
+    private func messageSchemeToggle(box: CGFloat) -> some View {
+        let dark = messageScheme == .dark
+        let title = dark ? L10n.reading_show_light_background() : L10n.reading_show_dark_background()
+        return toolbarButton(title, dark ? "sun.max" : "moon", true, box) {
+            model.setDarkMessageBackground(!dark)
+        }
+        .help(title)
     }
 
     private func toolbarButton(
         _ title: String,
         _ icon: String,
         _ iconsOnly: Bool,
+        _ box: CGFloat,
         role: ButtonRole? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(role: role, action: action) {
             if iconsOnly {
-                Image(systemName: icon).frame(minWidth: iconBox, minHeight: iconBox)
+                Image(systemName: icon).frame(minWidth: box, minHeight: box)
             } else {
                 // One line at its natural width, so the row's ideal width is what ViewThatFits
                 // measures, never a silently truncated or hyphenated label.

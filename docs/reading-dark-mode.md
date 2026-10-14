@@ -94,6 +94,13 @@ left it.
    attribute, no URL ([`rendering-security.md`](rendering-security.md), Layer 2).
    `a_dark_render_adds_no_markup` holds that.
 
+9. **A scheme change keeps the reader's place.** The colours are all that changed, so the layout is
+   the same: a re-render of the same message for a new scheme scrolls back to where the reader
+   was, before its first paint, and on macOS keeps the message's zoom. A different message still
+   opens at its top and at its own scale ([`reading-zoom.md`](reading-zoom.md)). Where the web view
+   offers no native scroll position, the app reads and sets it by script in a world of its own
+   that page script cannot reach ([`rendering-security.md`](rendering-security.md), gate 1).
+
 **What the toggle is for.** Images are drawn as sent, so a logo drawn in dark ink on a transparent
 background, or text baked into a picture, can sit badly on a dark page; so can a colour set on an
 element that frames a background picture further down. No client solves these, and this one does
@@ -103,9 +110,10 @@ not pretend to: the toggle is the answer, which is why it is on the row rather t
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Dark render while the app is dark | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Canvas follows the scheme from the first frame | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Sun/moon toggle on the action row, dark app only | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Settings → Reading switch | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Re-renders live on an appearance or preference change | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Reading windows follow | ⬜ | — | ⬜ | — | ⬜ |
+| Dark render while the app is dark | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| Canvas follows the scheme from the first frame | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| Sun/moon toggle on the action row, dark app only | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| Settings → Reading switch | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| Re-renders live on an appearance or preference change | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| A scheme change keeps the reader's place | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| Reading windows follow | ✅ | — | ⬜ | — | ⬜ |

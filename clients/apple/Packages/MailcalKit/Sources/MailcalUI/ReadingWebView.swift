@@ -77,9 +77,45 @@ func loadReadingDocument(_ webView: WKWebView, _ document: String) {
     #if os(macOS)
     webView.magnification = 1
     #endif
+    webView.configuration.userContentController.removeAllUserScripts()
     // baseURL nil → no origin to resolve remote/relative resources against; combined with the
     // document's CSP this guarantees no network access beyond opted-in images.
     webView.loadHTMLString(document, baseURL: nil)
+}
+
+/// The same message in the other scheme, where the reader left it (docs/reading-dark-mode.md).
+///
+/// Only the colours differ, so the layout is the same and the old scroll position is the right
+/// one. It is read and set by script the **app** runs in `WKContentWorld.defaultClient`: page
+/// script stays off, and an isolated world is one the page cannot see. The position is put back at
+/// document end, before the first paint, so the reader never sees the top of the message on the
+/// way. macOS's `WKWebView` has no scroll view to do this natively, and on iOS the scroll view's
+/// own offset, set once the load finishes, is reset by WebKit after it. A reader at the very top
+/// has nothing to restore, which leaves the iOS header resting where it always does. The macOS
+/// magnification stays, because the zoom belongs to this message and it is still the one on
+/// screen.
+///
+/// `stillCurrent` is asked once the position is in: a different message opened meanwhile has
+/// loaded its own document, and this one must not land over it.
+@MainActor
+func reloadKeepingPlace(
+    _ webView: WKWebView, _ document: String, stillCurrent: @escaping @MainActor () -> Bool
+) {
+    webView.evaluateJavaScript("[window.scrollX, window.scrollY]", in: nil, in: .defaultClient) { result in
+        guard stillCurrent() else { return }
+        let controller = webView.configuration.userContentController
+        controller.removeAllUserScripts()
+        if case .success(let value) = result, let point = value as? [Double], point.count == 2,
+            point != [0, 0] {
+            controller.addUserScript(WKUserScript(
+                source: "window.scrollTo(\(point[0]), \(point[1]))",
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true,
+                in: .defaultClient
+            ))
+        }
+        webView.loadHTMLString(document, baseURL: nil)
+    }
 }
 
 /// Renders the core's sanitised HTML in a hardened WKWebView. The full document (strict CSP,
@@ -89,11 +125,16 @@ func loadReadingDocument(_ webView: WKWebView, _ document: String) {
 struct SanitizedHTMLView: PlatformViewRepresentable {
     let fragment: String
     let loadRemoteImages: Bool
+    /// The page the message is drawn on; a change re-renders, as the remote-images choice does.
+    let scheme: MessageScheme
     #if os(iOS)
     /// The reading header, which rides this message's own scroll (ReadingView.Scroll.swift). It is
     /// handed over as a view rather than drawn above this one, so that it can be **hosted inside
     /// the web view's scroll view**: the one place from which WebKit's own pan gesture reaches it.
     let header: AnyView
+    /// The app's scheme, which the header keeps: its host's background is a UIKit colour, which
+    /// the SwiftUI environment does not reach.
+    let headerStyle: UIUserInterfaceStyle
     #endif
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -124,23 +165,37 @@ struct SanitizedHTMLView: PlatformViewRepresentable {
         #if os(iOS)
         // Every update, before the guard below: the header grows as the snapshot fills it in, and
         // that arrives on updates which change neither of the two inputs the guard is about.
-        coordinator.show(header, in: webView)
+        coordinator.show(header, style: headerStyle, in: webView)
         #endif
         // Skip entirely when the inputs are unchanged, so unrelated SwiftUI updates don't
-        // re-run the (FFI) document build or reload the page, only the fragment or the
-        // load-images choice changing matters.
+        // re-run the (FFI) document build or reload the page, only the fragment, the
+        // load-images choice or the scheme changing matters.
         guard coordinator.lastFragment != fragment
             || coordinator.lastLoadRemoteImages != loadRemoteImages
+            || coordinator.lastScheme != scheme
         else { return }
+        // The same message, only its colours changed: the reader keeps their place.
+        let schemeOnly = coordinator.lastFragment == fragment
+            && coordinator.lastLoadRemoteImages == loadRemoteImages
         coordinator.lastFragment = fragment
         coordinator.lastLoadRemoteImages = loadRemoteImages
-        let document = renderMessageHtml(html: fragment, loadRemoteImages: loadRemoteImages, scheme: .light)
-        loadReadingDocument(webView, document)
+        coordinator.lastScheme = scheme
+        let document = renderMessageHtml(html: fragment, loadRemoteImages: loadRemoteImages, scheme: scheme)
+        guard schemeOnly else {
+            loadReadingDocument(webView, document)
+            return
+        }
+        reloadKeepingPlace(webView, document) { [weak coordinator] in
+            coordinator?.lastFragment == fragment
+                && coordinator?.lastLoadRemoteImages == loadRemoteImages
+                && coordinator?.lastScheme == scheme
+        }
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         var lastFragment: String?
         var lastLoadRemoteImages: Bool?
+        var lastScheme: MessageScheme?
 
         #if os(iOS)
         /// The reading header, living in the web view's scroll view above the message.
@@ -170,8 +225,9 @@ struct SanitizedHTMLView: PlatformViewRepresentable {
         }
 
         /// Takes the header the reading view has just built, and puts it on screen.
-        func show(_ header: AnyView, in webView: ReadingBodyWebView) {
+        func show(_ header: AnyView, style: UIUserInterfaceStyle, in webView: ReadingBodyWebView) {
             self.header = header
+            host.overrideUserInterfaceStyle = style
             layOutHeader(in: webView)
         }
 
@@ -209,6 +265,11 @@ struct SanitizedHTMLView: PlatformViewRepresentable {
             }
         }
         #endif
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // A position restored at document end is spent; the next document starts at its top.
+            webView.configuration.userContentController.removeAllUserScripts()
+        }
 
         func webView(
             _ webView: WKWebView,

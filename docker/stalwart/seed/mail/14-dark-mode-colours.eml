@@ -1,0 +1,81 @@
+From: Colour Sender <colours@example.com>
+To: Alice Tester <alice@test.local>
+Subject: A designed message, for reading in a dark app
+Date: Fri, 02 Jan 2026 09:10:00 +0000
+Message-ID: <colours-0014@test.local>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="alt-0014"
+
+--alt-0014
+Content-Type: text/plain; charset=utf-8
+
+The plain-text alternative of the colour fixture. The HTML part sets its
+colours every way mail does: a style sheet, style attributes, bgcolor and
+font color, with a dark band, a coloured button and a transparent logo.
+
+--alt-0014
+Content-Type: text/html; charset=utf-8
+
+<html>
+  <head>
+    <style>
+      .page { background-color: #f1f3f4; }
+      .card { background: #ffffff; border: 1px solid #dadce0; }
+      .muted { color: #5f6368; }
+      a { color: #1a73e8; }
+      .button { background-color: #1a73e8; color: #ffffff; border-radius: 4px; }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" class="page">
+      <tr>
+        <td align="center" style="padding:24px;">
+          <table width="560" cellpadding="0" cellspacing="0" border="0" class="card">
+            <tr>
+              <td style="padding:20px 24px;">
+                <!-- Dark ink on a transparent background: the case a dark page cannot fix. -->
+                <img alt="Logo in dark ink" width="160" height="40"
+                  src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAAAoCAYAAAB5LPGYAAAAxUlEQVR42u3aWwqAIBRFUYdS0PynWCMIAh9Hc23o1+CyMEhLkSRJkqSVO87rNgUNw/b1MS1F4IGoKeCBqGnwQag4PggVxwehqgGOWkPwVcFptdaIHblm1/7L+6b4urVeGEAAY/harQvg5gB7ftoBBBBAAAEEEEAAAcwB7P3PrmZ9AO2AdkAAAQQQQAABBBBAJyFOQgB0FgzgZgBTt2HkSpb7gJoHoBvRWhqh6SqG0FQVQ2iaikA0PUUgmpaGoTQFSZIkSW89VzXNOJPKu5YAAAAASUVORK5CYII=">
+              </td>
+            </tr>
+            <tr>
+              <td bgcolor="#202124" style="padding:16px 24px;color:#ffffff;font-family:Helvetica,Arial,sans-serif;font-size:20px;">
+                A dark band with white text, which a dark page leaves alone
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#202124;">
+                <h1 style="margin:0 0 12px;font-size:22px;color:#000000;">Heading in black</h1>
+                <p style="margin:0 0 12px;">Body text in #202124 on white, with a
+                  <a href="https://example.com/">link in Google blue</a> and a
+                  <font color="#c5221f">warning written with font color</font>.</p>
+                <p class="muted" style="margin:0 0 16px;">Secondary text from the style sheet.</p>
+                <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;">
+                  <tr>
+                    <td bgcolor="#e8f0fe" style="padding:12px 16px;border-left:4px solid #1967d2;color:#174ea6;">
+                      A light blue callout with a darker blue rule
+                    </td>
+                  </tr>
+                </table>
+                <table cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td class="button" style="padding:10px 18px;">
+                      <a href="https://example.com/" style="color:#ffffff;text-decoration:none;">A coloured button</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td bgcolor="#f8f9fa" style="padding:16px 24px;border-top:1px solid #dadce0;font-family:Helvetica,Arial,sans-serif;font-size:12px;" class="muted">
+                A footer on #f8f9fa, between a light divider and the page.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+
+--alt-0014--

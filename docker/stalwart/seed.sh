@@ -220,6 +220,16 @@ imap_append "$MAIL_DIR/11-fixed-width-newsletter.eml" INBOX
 log "appending the banded newsletter to INBOX (reading-view reflow, full-bleed bands)"
 imap_append "$MAIL_DIR/12-banded-newsletter.eml" INBOX
 
+# Reading in a dark app (docs/reading-dark-mode.md). The first sets its colours every way mail does
+# (a style sheet, style attributes, `bgcolor`, `<font color>`) around a dark band, a coloured
+# button and a transparent logo drawn in dark ink, the one case a dark page cannot fix. The second
+# carries its own `prefers-color-scheme` rules and names in words which half is showing, so a
+# screenshot says whether the page or the web view decided it. Sequence-safe for the reason
+# 08-html.eml is.
+log "appending the dark-mode fixtures to INBOX (reading-view colour scheme; sequence-safe)"
+imap_append "$MAIL_DIR/14-dark-mode-colours.eml" INBOX
+imap_append "$MAIL_DIR/15-sender-dark-mode.eml" INBOX
+
 log "putting calendar fixtures into the default calendar"
 put_calendar "$CAL_DIR/one-off.ics" oneoff-2001
 put_calendar "$CAL_DIR/recurring-weekly.ics" weekly-2002

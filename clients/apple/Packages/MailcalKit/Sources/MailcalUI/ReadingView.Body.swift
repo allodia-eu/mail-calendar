@@ -27,13 +27,11 @@ extension ReadingView {
     /// against a dark appearance the body area went white, black, white on every message opened,
     /// which reads as a flicker rather than as a message opening (docs/sync-progress.md).
     ///
-    /// The light appearance goes with the page rather than decorating it. The canvas is white in
-    /// both themes because `base_css` pins the document to `color-scheme: light` (mail is authored
-    /// for a white page) so the dark appearance's own label colours over it would be white on
-    /// white. The chrome around it (header, toolbar, the remote-images banner) stays themed.
+    /// The page's appearance goes with the page rather than with the app: a dark app reading with
+    /// dark messages switched off draws a white page, and the dark appearance's own label colours
+    /// over it would be white on white. The chrome around it (header, toolbar, the remote-images
+    /// banner) stays in the app's scheme.
     ///
-    /// Not `private`: ReadingView.swift's `body` is what draws it (Swift's `private` in an
-    /// extension is file-scoped).
     /// The reading pane below the action row: the body on its page, with the header above it
     /// wherever that header is not travelling inside the body's own scroll view.
     ///
@@ -71,12 +69,19 @@ extension ReadingView {
     }
     #endif
 
+    /// The page this message is drawn on: dark exactly when the app is and the reader left dark
+    /// messages on (docs/reading-dark-mode.md). Known before the body arrives, so the canvas is
+    /// right from the first frame.
+    var messageScheme: MessageScheme {
+        appScheme == .dark && model.displaySettings.darkMessageBackground ? .dark : .light
+    }
+
     /// The body on the page the core says a message is drawn on.
     private var page: some View {
         bodyArea
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(parseHexColor(messageCanvas(scheme: .light).background))
-            .environment(\.colorScheme, .light)
+            .background(parseHexColor(messageCanvas(scheme: messageScheme).background))
+            .environment(\.colorScheme, messageScheme == .dark ? .dark : .light)
     }
 
     @ViewBuilder
@@ -120,13 +125,16 @@ extension ReadingView {
     @ViewBuilder
     private func htmlBody(_ html: String) -> some View {
         #if os(iOS)
+        // The header is chrome, so it keeps the app's scheme inside the message's page.
         SanitizedHTMLView(
             fragment: html,
             loadRemoteImages: loadRemoteImages,
-            header: AnyView(scrollingHeader)
+            scheme: messageScheme,
+            header: AnyView(scrollingHeader.environment(\.colorScheme, appScheme)),
+            headerStyle: appScheme == .dark ? .dark : .light
         )
         #else
-        SanitizedHTMLView(fragment: html, loadRemoteImages: loadRemoteImages)
+        SanitizedHTMLView(fragment: html, loadRemoteImages: loadRemoteImages, scheme: messageScheme)
         #endif
     }
 

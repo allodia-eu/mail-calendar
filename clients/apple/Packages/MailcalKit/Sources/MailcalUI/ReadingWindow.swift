@@ -66,6 +66,9 @@ public struct ReadingWindow: View {
             }
         }
         .frame(minWidth: 520, minHeight: 400)
+        // A window of its own does not inherit the main window's appearance, so it applies the
+        // app's here; without it an explicit Light or Dark reaches only the main window.
+        .preferredColorScheme(AppearanceMode.colorScheme(model.appearance))
         .alert(
             composeOpenFailed ?? "",
             isPresented: Binding(

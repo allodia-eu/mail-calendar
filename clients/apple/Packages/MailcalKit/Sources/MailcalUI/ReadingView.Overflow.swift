@@ -23,15 +23,16 @@ extension ReadingView {
     /// `_FlexFrameLayout` and the app dies on the first message opened.
     ///
     /// `iconsOnly` is the row's, not this button's: it shows no title either way, but the row's
-    /// buttons are as tall as their content, and the two rows carry different content.
-    func overflowMenu(iconsOnly: Bool) -> some View {
+    /// buttons are as tall as their content, and the two rows carry different content. `box` is the
+    /// row's glyph box, so the glyph sits in the same square as its neighbours'.
+    func overflowMenu(iconsOnly: Bool, box: CGFloat) -> some View {
         Button {
             overflowOpen = true
         } label: {
             if exporting {
                 ProgressView().controlSize(.small)
             } else if iconsOnly {
-                Image(systemName: "ellipsis").frame(minWidth: iconBox, minHeight: iconBox)
+                Image(systemName: "ellipsis").frame(minWidth: box, minHeight: box)
             } else {
                 Label(L10n.a11y_more_actions(), systemImage: "ellipsis")
                     .labelStyle(UntitledIconLabelStyle())
