@@ -12,13 +12,14 @@ import Testing
         name: String,
         email: String,
         isOrganizer: Bool = false,
+        role: MeetingInviteeRole? = nil,
         response: ResponseStatus = .accepted
     ) -> EventAttendee {
         EventAttendee(
             name: name,
             email: email,
             isOrganizer: isOrganizer,
-            role: nil,
+            role: role,
             response: response
         )
     }
@@ -40,6 +41,13 @@ import Testing
     @Test func aNamedOrganizerShowsBothTheAddressAndTheRole() {
         let row = attendee(name: "Chair Person", email: "chair@example.com", isOrganizer: true)
         #expect(attendeeSubtitle(row) == "chair@example.com · \(L10n.event_attendee_organizer())")
+    }
+
+    @Test func anOptionalInviteeIsMarkedAndARequiredOneIsNot() {
+        let optional = attendee(name: "Dave", email: "dave@example.com", role: .optional)
+        #expect(attendeeSubtitle(optional) == "dave@example.com · \(L10n.event_attendee_optional())")
+        #expect(attendeeSubtitle(attendee(name: "", email: "d@example.com", role: .optional)) == L10n.event_attendee_optional())
+        #expect(attendeeSubtitle(attendee(name: "", email: "b@example.com", role: .required)) == nil)
     }
 
     @Test func everyAnswerHasItsOwnWording() {

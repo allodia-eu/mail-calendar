@@ -1,6 +1,6 @@
 // The event editor, one form for both create and edit, matching the flow of the platform calendar
-// the user knows: title, all-day, start/end, calendar, location, notes, with reminder and recurrence
-// shown but not yet editable. Presented as a sheet; the calendar picker is a
+// the user knows: title, all-day, start/end, calendar, location, notes, repeat and invitees, with
+// the reminder shown but not yet editable. Presented as a sheet; the calendar picker is a
 // nested sheet grouped by account. The state and every decision live in EventEditorState.
 
 import MailcalBindings
@@ -22,6 +22,8 @@ struct EventEditorView: View {
     /// What a whole-series save of this payload would cost, the core's decision, asked with the
     /// edit in hand. A closure so the editor stays a pure form with no reach into the app.
     let warningFor: (UpdateArgs) -> SeriesEditWarning?
+    /// The invitee field's completions, the composer's own; `nil` offers none.
+    var suggestionsFor: ((String) async -> [RecipientMatch])?
 
     @State private var picking = false
     /// A Save on an occurrence of a series, waiting for the user to say which occurrences they
@@ -139,19 +141,7 @@ struct EventEditorView: View {
                     }
                 }
 
-                // Attendees: shown so an edit is not made blind to who is coming, and stated to be
-                // read-only rather than offered as a field that would quietly drop the change:
-                // editing them means sending iTIP updates, which is its own feature.
-                if let attendees = editor.editing?.attendees, !attendees.isEmpty {
-                    Section {
-                        EventAttendeesSection(attendees: attendees)
-                        Text(L10n.event_attendees_read_only())
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    } header: {
-                        Text(L10n.event_attendees())
-                    }
-                }
+                EventInviteesSection(editor: $editor, suggestionsFor: suggestionsFor)
             }
             .formStyle(.grouped)
             .navigationTitle(editor.isEditing ? L10n.event_edit_title() : L10n.event_new_title())
@@ -221,15 +211,26 @@ struct EventEditorView: View {
                 if let text = seriesWarningText(pending.warning) { Text(text) }
             }
         }
+        // The invitee field's suggestions float over the form rather than pushing it down; see
+        // RecipientSuggestionOverlay.swift.
+        .recipientSuggestionLayer()
         // See EventDetailView: a macOS sheet takes its size from its content, and a `Form` gives it
         // none. Taller than the detail sheet because this one is a full form.
         .frame(minWidth: 380, minHeight: 460)
+        #if os(macOS)
+            // Taller again with a meeting's people on it, which would otherwise start below the
+            // sheet's edge. macOS only: an iPhone or iPad sheet is sized by the system.
+            .frame(minHeight: hasPeople ? 640 : nil)
+        #endif
     }
 
     /// Save, straight through on a create, and on an edit of something that can only mean the
     /// whole series. An occurrence of a series is asked about first: which occurrences, and then,
     /// if the answer was all of them, what that costs.
     private func save() {
+        // An address typed but not added is meant to be on the list; one that cannot be invited
+        // stops the save, with the field saying why.
+        guard editor.takeTypedInvitee() else { return }
         guard editor.isEditing else {
             onCreate(editor.createArgs())
             return
@@ -256,6 +257,11 @@ struct EventEditorView: View {
         DispatchQueue.main.async {
             confirmingSave = PendingSeriesSave(args: args, warning: warning)
         }
+    }
+
+    /// Whether the form ends in a list of people, or the field to add them.
+    private var hasPeople: Bool {
+        editor.canInvite || !(editor.editing?.attendees.isEmpty ?? true)
     }
 
     private var calendarRow: some View {
@@ -301,7 +307,7 @@ struct CalendarPickerView: View {
                     Section(group.rows.first?.accountAddress ?? group.account) {
                         ForEach(group.rows, id: \.id) { calendar in
                             Button {
-                                onPick(CalendarChoice(account: calendar.account, id: calendar.id, name: calendar.name))
+                                onPick(calendar.choice)
                             } label: {
                                 HStack(spacing: 12) {
                                     Circle()

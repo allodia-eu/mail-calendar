@@ -86,7 +86,11 @@ struct RecipientField<Trailing: View>: View {
                 }
             }
             HStack(spacing: 8) {
-                TextField(label, text: $input).fieldConfig(.email).focused($inputFocused)
+                // The label doubles as the prompt, so a host that hides labels (a macOS `Form`, where
+                // a labelled field is pushed to the trailing edge) still says what goes here.
+                TextField(label, text: $input, prompt: Text(label))
+                    .fieldConfig(.email)
+                    .focused($inputFocused)
                 trailing
             }
             // The suggestions float OVER what follows rather than sitting in the layout, and the

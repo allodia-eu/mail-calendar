@@ -1,11 +1,11 @@
 # Invite people to an event
 
-Platforms: android, linux
+Platforms: macos, ios, android, linux
 Bump: minor
 
 > The editor over the core's meeting commands. It is offered only on a calendar whose server sends
 > the invitations (Graph, Google, JMAP, CalDAV with auto-scheduling), because a plain CalDAV server
-> stores a meeting and tells nobody on it. Apple and Windows follow in their own issues.
+> stores a meeting and tells nobody on it. Windows follows in its own issue.
 
 **English**
 

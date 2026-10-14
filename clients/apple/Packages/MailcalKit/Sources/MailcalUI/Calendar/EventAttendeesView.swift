@@ -1,9 +1,6 @@
 // Who is on an event. Shared by the detail sheet and the editor, because the two must not describe
-// the same meeting differently.
-//
-// Read-only everywhere: changing an attendee list means sending iTIP updates to the people on it,
-// which is a separate feature. The editor therefore *shows* the list and says it cannot be changed
-// here, rather than offering a control that would silently drop the change.
+// the same meeting differently. The organiser edits the list in the editor (EventInviteesView.swift);
+// everywhere else it is read.
 //
 // Every string on these rows is attacker-controlled, it came from whoever sent the invitation. The
 // core has already stripped control characters and bidi overrides and bounded the length; SwiftUI's
@@ -44,12 +41,14 @@ private struct AttendeeRow: View {
     }
 }
 
-/// The second line under an attendee: their address (when the first line used their name) and
-/// whether they called the meeting. `nil` when there is nothing left to say.
+/// The second line under an attendee: their address (when the first line used their name), and
+/// whether they called the meeting or were invited as optional. `nil` when there is nothing left
+/// to say. Required is what an invitation assumes, so only the exception is said.
 func attendeeSubtitle(_ attendee: EventAttendee) -> String? {
     var parts: [String] = []
     if !attendee.name.isEmpty { parts.append(attendee.email) }
     if attendee.isOrganizer { parts.append(L10n.event_attendee_organizer()) }
+    if attendee.role == .optional { parts.append(L10n.event_attendee_optional()) }
     return parts.isEmpty ? nil : parts.joined(separator: " · ")
 }
 

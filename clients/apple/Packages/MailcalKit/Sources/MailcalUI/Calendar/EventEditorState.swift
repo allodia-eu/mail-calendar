@@ -12,11 +12,22 @@
 import Foundation
 import MailcalBindings
 
-/// A calendar a create can target, or the calendar an edited event sits in.
+/// A calendar a create can target, or the calendar an edited event sits in. `address` is the
+/// owning account's, the organiser of a meeting created here, and `canInvite` is the core's
+/// `CalendarRow.canInvite`: whether a meeting may be organised here at all.
 struct CalendarChoice: Equatable {
     let account: String
     let id: String
     let name: String
+    var address = ""
+    var canInvite = false
+}
+
+extension CalendarRow {
+    /// The choice this calendar row offers.
+    var choice: CalendarChoice {
+        CalendarChoice(account: account, id: id, name: name, address: accountAddress, canInvite: canInvite)
+    }
 }
 
 /// The event an editor is editing (absent when creating).
@@ -36,9 +47,10 @@ struct EditTarget {
     /// The occurrence this editor was opened on, as the core resolved it, or empty when it was
     /// opened on the series. Non-empty is what makes Save **ask** which occurrences it meant.
     let occurrence: String
-    /// Everyone on the event, organiser first. Read-only, attendees change by iTIP, which is a
-    /// separate feature.
+    /// Everyone on the event, organiser first. See `EventAttendeesSection`.
     let attendees: [EventAttendee]
+    /// Whether this account organises the meeting and may change who is invited.
+    let canEditInvitees: Bool
 }
 
 /// The arguments a create dispatches.
@@ -54,6 +66,8 @@ struct CreateArgs: Equatable {
     let location: String?
     /// The rule a new event starts with, or `nil` for a one-off.
     let recurrence: SimpleRecurrence?
+    /// The people to invite, or `nil` for an appointment. Never an empty list.
+    let invitees: [MeetingInvitee]?
 }
 
 /// The arguments an edit dispatches.
@@ -75,6 +89,8 @@ struct UpdateArgs: Equatable {
     /// rather than writing an occurrence's clocks onto the series; without it a rule change from
     /// a later occurrence moves the series' start there and deletes every earlier one.
     let timesFromOccurrence: String?
+    /// What changed about who is invited, or `nil` to leave the roster alone. Series only.
+    let invitees: MeetingInviteePatch?
 }
 
 struct EventEditorState: Identifiable {
@@ -96,6 +112,8 @@ struct EventEditorState: Identifiable {
     /// passed back to it. The `stored` rule it carries is what tells a rule that changed from
     /// one that did not, and what keeps the parts no control here models.
     var repeatDraft: RepeatDraft?
+    /// Who is invited, as the controls hold it.
+    var roster: InviteeRoster
 
     var isEditing: Bool { editing != nil }
 
@@ -122,15 +140,43 @@ struct EventEditorState: Identifiable {
         )
     }
 
+    /// Whether the invitee controls are offered: on a create, where the chosen calendar's server
+    /// sends invitations; on an edit, where this account organises the meeting.
+    var canInvite: Bool { editing?.canEditInvitees ?? (calendar?.canInvite == true) }
+
+    /// Who organises the meeting: the organiser's row on an edit, and on a create the account of
+    /// the calendar picked, so it follows the picker.
+    var organiser: String {
+        editing?.attendees.first(where: \.isOrganizer)?.email ?? calendar?.address ?? ""
+    }
+
+    /// What a save changes about who is invited, or `nil` to leave the roster alone. The core
+    /// decides it from the stored rows and the list.
+    var inviteeChange: MeetingInviteePatch? {
+        guard let editing, editing.canEditInvitees else { return nil }
+        return meetingInviteePatch(attendees: editing.attendees, invitees: roster.invitees)
+    }
+
+    /// The invitee field changed; see `InviteeRoster.fieldChanged`.
+    mutating func inviteeFieldChanged(_ value: String) {
+        roster.fieldChanged(value, organiser: organiser)
+    }
+
+    /// Adds the address still being typed; `false` when it cannot be invited. Save calls this
+    /// first, so an address typed and not added is not lost, and a refused one stops the save.
+    mutating func takeTypedInvitee() -> Bool {
+        roster.takeTyped(organiser: organiser)
+    }
+
     /// Whether saving has to ask *This event · All events* first, true exactly when this editor
     /// was opened on one occurrence of a series. Mirrors `CalendarDragState.asksAboutTheSeries`,
     /// because it is the same question about the same thing.
     ///
-    /// **A changed repeat settles the question**, so it is not put: a rule belongs to the series,
-    /// and one occurrence is an instance of a rule rather than a holder of one. The controls say
-    /// so before the user touches them.
+    /// **A changed repeat or a changed roster settles the question**, so it is not put: both
+    /// belong to the series, and one occurrence is an instance of a rule rather than a holder of
+    /// one. The controls say so before the user touches them.
     var asksAboutTheSeries: Bool {
-        !(editing?.occurrence.isEmpty ?? true) && repeatChange == nil
+        !(editing?.occurrence.isEmpty ?? true) && repeatChange == nil && inviteeChange == nil
     }
 
     /// Title present, and the interval non-empty (all-day: end day ≥ start day).
@@ -156,7 +202,8 @@ struct EventEditorState: Identifiable {
                 timezone: nil,
                 notes: notes.isEmpty ? nil : notes,
                 location: location.isEmpty ? nil : location,
-                recurrence: newRule()
+                recurrence: newRule(),
+                invitees: newInvitees()
             )
         }
         return CreateArgs(
@@ -170,7 +217,8 @@ struct EventEditorState: Identifiable {
             timezone: zone.isEmpty ? nil : zone,
             notes: notes.isEmpty ? nil : notes,
             location: location.isEmpty ? nil : location,
-            recurrence: newRule()
+            recurrence: newRule(),
+            invitees: newInvitees()
         )
     }
 
@@ -179,6 +227,11 @@ struct EventEditorState: Identifiable {
     private func newRule() -> SimpleRecurrence? {
         guard case .set(let rule) = repeatChange else { return nil }
         return rule
+    }
+
+    /// The people a create invites: none on a calendar that cannot, and none is an appointment.
+    private func newInvitees() -> [MeetingInvitee]? {
+        canInvite && !roster.invitees.isEmpty ? roster.invitees : nil
     }
 
     /// The payload a Save dispatches.
@@ -208,7 +261,9 @@ struct EventEditorState: Identifiable {
             // A rule belongs to the series, so it never travels with an occurrence. `save()` does
             // not offer that combination, and this is the second place it cannot happen.
             recurrence: thisOccurrenceOnly ? nil : repeatChange,
-            timesFromOccurrence: thisOccurrenceOnly ? nil : target.occurrence.isEmpty ? nil : target.occurrence
+            timesFromOccurrence: thisOccurrenceOnly ? nil : target.occurrence.isEmpty ? nil : target.occurrence,
+            // A roster belongs to the series, as a rule does.
+            invitees: thisOccurrenceOnly ? nil : inviteeChange
         )
     }
 
@@ -244,7 +299,8 @@ struct EventEditorState: Identifiable {
             location: "",
             notes: "",
             calendar: defaultCalendar,
-            repeatDraft: nil
+            repeatDraft: nil,
+            roster: InviteeRoster(editing: nil)
         )
     }
 
@@ -253,19 +309,21 @@ struct EventEditorState: Identifiable {
         let start = Self.parseWall(detail.start)
         // The detail's all-day end is exclusive; show the inclusive last day.
         let end = detail.allDay ? Self.previousDay(Self.parseWall(detail.end)) : Self.parseWall(detail.end)
+        let target = EditTarget(
+            account: detail.account,
+            key: detail.key,
+            zone: detail.timezone,
+            isRecurring: detail.isRecurring,
+            reminderMinutes: detail.reminderMinutes,
+            recurrence: detail.recurrence,
+            repeatSummary: detail.repeatSummary,
+            seededRepeat: detail.repeatDraft,
+            occurrence: detail.occurrenceStart,
+            attendees: detail.attendees,
+            canEditInvitees: detail.canEditInvitees
+        )
         return EventEditorState(
-            editing: EditTarget(
-                account: detail.account,
-                key: detail.key,
-                zone: detail.timezone,
-                isRecurring: detail.isRecurring,
-                reminderMinutes: detail.reminderMinutes,
-                recurrence: detail.recurrence,
-                repeatSummary: detail.repeatSummary,
-                seededRepeat: detail.repeatDraft,
-                occurrence: detail.occurrenceStart,
-                attendees: detail.attendees
-            ),
+            editing: target,
             zone: detail.timezone,
             title: detail.title,
             allDay: detail.allDay,
@@ -274,7 +332,8 @@ struct EventEditorState: Identifiable {
             location: detail.location ?? "",
             notes: detail.notes ?? "",
             calendar: CalendarChoice(account: detail.account, id: detail.calendar, name: calendarName),
-            repeatDraft: detail.repeatDraft
+            repeatDraft: detail.repeatDraft,
+            roster: InviteeRoster(editing: target)
         )
     }
 

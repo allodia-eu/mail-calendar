@@ -23,7 +23,8 @@ extension MailboxModel {
                     timezone: args.timezone,
                     notes: args.notes,
                     location: args.location,
-                    recurrence: args.recurrence
+                    recurrence: args.recurrence,
+                    invitees: args.invitees
                 )
             )
         )
@@ -43,7 +44,8 @@ extension MailboxModel {
                     location: args.location,
                     occurrence: args.occurrence,
                     recurrence: args.recurrence,
-                    timesFromOccurrence: args.timesFromOccurrence
+                    timesFromOccurrence: args.timesFromOccurrence,
+                    invitees: args.invitees
                 )
             )
         )

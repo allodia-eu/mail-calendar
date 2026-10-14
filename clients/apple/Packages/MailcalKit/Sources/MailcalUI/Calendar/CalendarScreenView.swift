@@ -143,7 +143,7 @@ struct CalendarScreenView: View {
                 onNewEvent: {
                     let cals = currentCalendars(pager: pager, anchor: anchor)
                     let def = cals.first { $0.canWrite }
-                        .map { CalendarChoice(account: $0.account, id: $0.id, name: $0.name) }
+                        .map(\.choice)
                     editor = EventEditorState.create(
                         default: def, zone: TimeZone.current.identifier, now: today
                     )
@@ -201,7 +201,8 @@ struct CalendarScreenView: View {
                 onCancel: { editor = nil },
                 onCreate: { model.createEvent($0); editor = nil },
                 onUpdate: { model.updateEvent($0); editor = nil },
-                warningFor: { model.seriesEditWarning($0) }
+                warningFor: { model.seriesEditWarning($0) },
+                suggestionsFor: model.recipientSuggestions
             )
         }
         // "This event, or all of them?", the one question a drag on a series must ask, and the
@@ -274,7 +275,7 @@ struct CalendarScreenView: View {
             let days = model.calendarPage(from: anchor, columns: daysInWeek)?.days ?? []
             let cals = currentCalendars(pager: pager, anchor: anchor)
             let def = cals.first { $0.canWrite }
-                .map { CalendarChoice(account: $0.account, id: $0.id, name: $0.name) }
+                .map(\.choice)
             guard
                 preview.day >= 0, preview.day < days.count,
                 let date = parseISODate(days[preview.day].date, calendar: Calendar.current)
