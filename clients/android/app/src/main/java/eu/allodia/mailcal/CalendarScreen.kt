@@ -420,10 +420,13 @@ internal fun CalendarScreen(
             detail = detail,
             calendars = calendars,
             onBack = { openEventRef = null },
+            // A decline takes the meeting off the calendar, so the detail goes with it; any other
+            // answer leaves it open, and it shows the answer once the server holds it.
             onAnswer = { response, subject ->
-                openEventRef = null
+                if (response == InvitationResponse.DECLINE) openEventRef = null
                 onRespondToEvent(detail.account, detail.key, response, subject)
             },
+            saving = writeStatus == CalendarWriteStatus.SAVING,
             onEdit = {
                 val name = calendars
                     .firstOrNull { it.account == detail.account && it.id == detail.calendar }

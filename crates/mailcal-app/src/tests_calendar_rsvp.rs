@@ -67,7 +67,7 @@ async fn an_invitee_answers_from_the_calendar_where_the_server_schedules() {
     assert_eq!(rsvps[0].1, RsvpResponse::Accepted);
     assert!(rsvps[0].3, "and the server is asked to tell the organiser");
     assert!(sends.lock().unwrap().is_empty(), "storing it is sending it");
-    assert_ne!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Saved);
 }
 
 #[tokio::test]
@@ -92,6 +92,22 @@ async fn where_nobody_schedules_the_answer_is_written_and_emailed_from_the_event
         "an answer from the calendar is for the whole meeting"
     );
     assert_eq!(draft.subject, "Maybe: Planning");
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Saved);
+}
+
+/// A client holds the answer back while a write is `Saving`, so an answer that writes nothing
+/// must still leave that state, or the detail is left with no button to press.
+#[tokio::test]
+async fn an_answer_emailed_without_a_calendar_write_still_settles() {
+    let provider = InvitationFake::new().without_stored_answers();
+    let (rsvps, sends) = (provider.rsvps(), provider.sends());
+    let app = booted(provider, "imip-unstored").await;
+
+    app.dispatch(respond(InvitationResponse::Tentative)).await;
+
+    assert!(rsvps.lock().unwrap().is_empty(), "nothing could be stored");
+    assert_eq!(sends.lock().unwrap().len(), 1, "the reply was emailed");
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Idle);
 }
 
 #[tokio::test]

@@ -192,6 +192,11 @@ impl CalendarModel {
         self.page = app.calendar_range(self.week_anchor.to_string(), self.range_columns());
         self.month = app.month_page(self.focus.to_string());
         self.agenda = app.calendar_list();
+        if let Some(CalendarDialog::Detail(detail)) = &mut self.dialog
+            && let Some(fresh) = detail.reread(app)
+        {
+            *detail = fresh;
+        }
     }
 
     pub(crate) fn refresh_settings(&mut self, app: &MailcalApp) {

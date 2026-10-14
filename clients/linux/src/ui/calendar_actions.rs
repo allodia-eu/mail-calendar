@@ -72,7 +72,11 @@ impl AppModel {
                 reply_subject: Some(reply_subject),
             },
         });
-        self.calendar.dismiss_dialog();
+        // A decline takes the meeting off the calendar, so its detail closed with it; any other
+        // answer leaves the detail open to show the answer once the server holds it.
+        if matches!(response, InvitationResponse::Decline) {
+            self.calendar.dismiss_dialog();
+        }
     }
 
     pub(super) fn show_calendar(&mut self) {

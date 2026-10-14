@@ -8,10 +8,11 @@ use mailcal_bindings::{CalendarWriteStatus, MailcalApp};
 
 use super::{
     super::AppInput,
+    detail::DetailView,
     dialogs,
     grid::GridSurface,
     manager::CalendarManager,
-    model::{CalendarMode, CalendarModel},
+    model::{CalendarDialog, CalendarMode, CalendarModel},
     views,
 };
 use crate::{l10n, ui::icons};
@@ -36,6 +37,8 @@ pub(crate) struct CalendarPane {
     parent: adw::ApplicationWindow,
     sender: relm4::Sender<AppInput>,
     shown_dialog_generation: u64,
+    /// The detail window last presented, kept current by `render` while the model holds it.
+    detail: Option<DetailView>,
 }
 
 impl CalendarPane {
@@ -131,6 +134,7 @@ impl CalendarPane {
             parent: parent.clone(),
             sender,
             shown_dialog_generation: 0,
+            detail: None,
         }
     }
 
@@ -176,9 +180,16 @@ impl CalendarPane {
         }
         if model.dialog_generation != self.shown_dialog_generation {
             self.shown_dialog_generation = model.dialog_generation;
-            if let Some(dialog) = &model.dialog {
-                dialogs::present(&self.parent, dialog, self.sender.clone(), app);
+            self.detail = model.dialog.as_ref().and_then(|dialog| {
+                dialogs::present(&self.parent, dialog, self.sender.clone(), app)
+            });
+        }
+        match (&model.dialog, &self.detail) {
+            (Some(CalendarDialog::Detail(detail)), Some(view)) => {
+                view.show(detail, model.write_status == CalendarWriteStatus::Saving);
             }
+            (_, Some(_)) => self.detail = None,
+            _ => {}
         }
     }
 }

@@ -1045,6 +1045,17 @@ PY
   "$PYTHON" "$ATSPI" activate --name "Maybe" --role "push button" \
     --description "Answer maybe to this invitation" --timeout 20
   wait_for_scheduling_mail bob@test.local "Tentative: $ANSWER_TITLE"
+  # The detail stays open and says what the server now holds.
+  "$PYTHON" "$ATSPI" wait --name "You answered tentatively" --showing --timeout 45
+  # A decline asks first, because the meeting then leaves the calendar, and the detail with it.
+  "$PYTHON" "$ATSPI" activate --name "Decline" --role "push button" \
+    --description "Decline this invitation" --enabled --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Decline this meeting?" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Decline" --role "push button" \
+    --within "Decline this meeting?" --timeout 20
+  wait_for_scheduling_mail bob@test.local "Declined: $ANSWER_TITLE"
+  "$PYTHON" "$ATSPI" wait \
+    --name "$ANSWER_TITLE" --role "push button" --absent --timeout 45
 
   # Meeting invitations. This leg runs AFTER the calendar leg on purpose: the card withholds its
   # day preview until the calendar has actually been read (`conflicts_known`), and "we have not

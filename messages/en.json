@@ -294,6 +294,8 @@
 	"event_repeat": "Repeat",
 	"event_pick_calendar": "Select calendar",
 	"event_delete_confirm": "Delete this event?",
+	"event_decline_confirm_title": "Decline this meeting?",
+	"event_decline_confirm_body": "The organiser is told you declined, and the meeting no longer shows in your calendar.",
 	"event_series_note": "Changes apply to the whole series.",
 	"event_series_scope_title": "Change repeating event",
 	"event_series_scope_delete_title": "Delete repeating event",

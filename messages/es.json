@@ -294,6 +294,8 @@
 	"event_repeat": "Repetición",
 	"event_pick_calendar": "Seleccionar calendario",
 	"event_delete_confirm": "¿Eliminar este evento?",
+	"event_decline_confirm_title": "¿Rechazar esta reunión?",
+	"event_decline_confirm_body": "El organizador sabrá que la has rechazado, y la reunión dejará de aparecer en tu calendario.",
 	"event_series_note": "Los cambios se aplican a toda la serie.",
 	"event_series_scope_title": "Cambiar evento periódico",
 	"event_series_scope_delete_title": "Eliminar evento periódico",

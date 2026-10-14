@@ -102,9 +102,9 @@ impl<P: Provider> App<P> {
             Delivery::ClientImip => {
                 // The calendar's copy changes where it can be written, so the grid agrees with
                 // what the organiser is told; the reply is what tells them.
-                if let Some(provider) =
-                    provider.filter(|p| p.connection_info().capabilities.calendar_rsvp().is_some())
-                {
+                let answer_store =
+                    provider.filter(|p| p.connection_info().capabilities.calendar_rsvp().is_some());
+                if let Some(provider) = answer_store {
                     let rsvp = EventRsvp::to(&stored, letter.attendee.clone(), response.engine());
                     let write = self
                         .engine
@@ -123,6 +123,11 @@ impl<P: Provider> App<P> {
                     self.set_calendar_write_status(status);
                 }
                 self.send_reply_letter(&letter).await?;
+                if answer_store.is_none() {
+                    // Nothing was written, so there is no write to settle; a client holds the
+                    // answer back while `Saving`, and would hold it for good.
+                    self.set_calendar_write_status(CalendarWriteStatus::Idle);
+                }
                 self.rebuild_calendar_view().await;
                 Ok(())
             }

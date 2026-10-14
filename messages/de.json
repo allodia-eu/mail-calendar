@@ -294,6 +294,8 @@
 	"event_repeat": "Wiederholen",
 	"event_pick_calendar": "Kalender auswählen",
 	"event_delete_confirm": "Diesen Termin löschen?",
+	"event_decline_confirm_title": "Diese Besprechung ablehnen?",
+	"event_decline_confirm_body": "Der Organisator erfährt, dass Sie abgelehnt haben, und die Besprechung erscheint nicht mehr in Ihrem Kalender.",
 	"event_series_note": "Änderungen gelten für die gesamte Serie.",
 	"event_series_scope_title": "Wiederkehrenden Termin ändern",
 	"event_series_scope_delete_title": "Wiederkehrenden Termin löschen",

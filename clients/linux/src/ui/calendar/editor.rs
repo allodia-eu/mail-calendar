@@ -65,6 +65,17 @@ pub(super) struct EventDetails {
 }
 
 impl EventDetails {
+    /// This event as the store holds it now, for a detail that stays open across a write; `None`
+    /// when it is no longer there to read.
+    pub(super) fn reread(&self, app: &mailcal_bindings::MailcalApp) -> Option<Self> {
+        let detail = app.event_detail(
+            self.account.clone(),
+            self.key.clone(),
+            Some(self.occurrence.clone()),
+        )?;
+        Some(Self::from_binding(detail, self.calendar_name.clone()))
+    }
+
     pub(super) fn from_binding(detail: EventDetail, calendar_name: String) -> Self {
         Self {
             account: detail.account,

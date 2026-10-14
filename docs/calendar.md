@@ -425,7 +425,7 @@ before Save.
 
 An invitee answers a meeting from its event as well as from the invitation email: the detail says
 what they answered (`EventDetail.my_answer`) and offers Accept, Maybe and Decline, the answer
-already given shown chosen and inert. Three rules:
+already given shown chosen and inert. Four rules:
 
 - **Offered only where an answer reaches the organiser.** `my_answer` is set when the account is on
   the meeting, does not organise it, and has a route to tell the organiser; the same routes the
@@ -437,6 +437,11 @@ already given shown chosen and inert. Three rules:
   a whole. One occurrence is answered from its own invitation, which names it.
 - **The organiser is always told.** A note to the organiser and a quiet answer stay on the
   invitation card, where the transport says whether it can carry them.
+- **Only a decline asks, and only a decline closes the detail.** Accept and Maybe go at once and
+  leave the detail open; it shows the new answer once the server holds it, and no button can be
+  pressed while `CalendarWriteStatus` is `Saving`. Decline first asks "Decline this meeting?",
+  because a declined meeting is hidden from every calendar surface, and on confirming the detail
+  closes with it.
 
 **The picture is per surface; the disclosure is not.** A grid block and an all-day bar take the dashed
 border, the hatched gutter and a faded fill. A **month chip** is a few points tall, so the hatch

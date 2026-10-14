@@ -59,6 +59,8 @@ internal fun EventDetailScreen(
     onDelete: () -> Unit,
     /** Answers the meeting from here, with the reply subject; used only where `myAnswer` is set. */
     onAnswer: (InvitationResponse, String) -> Unit = { _, _ -> },
+    /** Whether a calendar write is on its way, which holds the answer buttons back. */
+    saving: Boolean = false,
     /**
      * Whether the user opened one **occurrence** of a series, so a delete has a scope question to
      * put ([EventSeriesScopeDialog], raised by the caller). When it has, this screen's own generic
@@ -149,7 +151,7 @@ internal fun EventDetailScreen(
                         locale,
                     ),
                 )
-                detail.myAnswer?.let { current -> EventAnswer(current, detail.title, onAnswer) }
+                detail.myAnswer?.let { current -> EventAnswer(current, detail.title, saving, onAnswer) }
                 // No heading at all for an appointment nobody was invited to, an empty
                 // "Attendees" label would read as "we looked and found none", which is a different
                 // statement from "this is not a meeting".

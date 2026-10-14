@@ -294,6 +294,8 @@
 	"event_repeat": "Récurrence",
 	"event_pick_calendar": "Choisir un calendrier",
 	"event_delete_confirm": "Supprimer cet événement ?",
+	"event_decline_confirm_title": "Refuser cette réunion ?",
+	"event_decline_confirm_body": "L’organisateur est informé de votre refus, et la réunion n’apparaît plus dans votre calendrier.",
 	"event_series_note": "Les modifications s’appliquent à toute la série.",
 	"event_series_scope_title": "Modifier l’événement récurrent",
 	"event_series_scope_delete_title": "Supprimer l’événement récurrent",

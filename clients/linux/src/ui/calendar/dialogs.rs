@@ -8,130 +8,31 @@ use mailcal_bindings::MailcalApp;
 
 use super::{
     super::AppInput,
-    answer,
-    attendees::attendee_group,
     date::date_from_wall,
+    detail::{DetailView, present_detail},
     dialogs_series,
     editor::{EventDetails, EventEditor, EventForm},
     invitees_editor,
-    model::{CalendarDialog, DeleteRequest, EventIdentity},
-    repeat, repeat_editor,
+    model::{CalendarDialog, DeleteRequest},
+    repeat_editor,
 };
 use crate::l10n;
 
+/// Presents `dialog`, and hands back the detail window for the pane to keep current.
 pub(super) fn present(
     parent: &adw::ApplicationWindow,
     dialog: &CalendarDialog,
     sender: relm4::Sender<AppInput>,
     app: Option<&Arc<MailcalApp>>,
-) {
+) -> Option<DetailView> {
     match dialog {
-        CalendarDialog::Detail(detail) => present_detail(parent, detail, &sender),
+        CalendarDialog::Detail(detail) => return Some(present_detail(parent, detail, &sender)),
         CalendarDialog::Editor(editor) => present_editor(parent, editor, sender, app),
         CalendarDialog::ConfirmDelete(request) => {
             present_delete(parent, request, sender);
         }
     }
-}
-
-fn present_detail(
-    parent: &adw::ApplicationWindow,
-    detail: &EventDetails,
-    sender: &relm4::Sender<AppInput>,
-) {
-    let title = title(&detail.title);
-    let (window, header) = modal(parent, &title, 520, 560);
-    let replacing = Rc::new(Cell::new(false));
-    connect_dismiss(&window, &replacing, sender.clone());
-    let shell = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    if detail.can_write {
-        let edit = gtk::Button::with_label(l10n::action_edit());
-        edit.update_property(&[AccessibleProperty::Label(l10n::action_edit())]);
-        let input = sender.clone();
-        let closing = Rc::clone(&replacing);
-        let dialog = window.clone();
-        edit.connect_clicked(move |_| {
-            closing.set(true);
-            input.emit(AppInput::BeginEditEvent);
-            dialog.close();
-        });
-        header.pack_start(&edit);
-        let delete = gtk::Button::with_label(l10n::action_delete());
-        delete.add_css_class("destructive-action");
-        delete.update_property(&[AccessibleProperty::Label(l10n::action_delete())]);
-        let input = sender.clone();
-        let closing = Rc::clone(&replacing);
-        let dialog = window.clone();
-        delete.connect_clicked(move |_| {
-            closing.set(true);
-            input.emit(AppInput::RequestDeleteCurrentEvent);
-            dialog.close();
-        });
-        header.pack_end(&delete);
-    }
-    let group = adw::PreferencesGroup::new();
-    group.set_margin_start(18);
-    group.set_margin_end(18);
-    group.set_margin_top(18);
-    group.add(&detail_row(l10n::event_start(), &detail_time(detail, true)));
-    group.add(&detail_row(l10n::event_end(), &detail_time(detail, false)));
-    group.add(&detail_row(l10n::event_calendar(), &detail.calendar_name));
-    if let Some(location) = detail.location.as_deref().filter(|value| !value.is_empty()) {
-        group.add(&detail_row(l10n::event_location(), location));
-    }
-    if let Some(notes) = detail.notes.as_deref().filter(|value| !value.is_empty()) {
-        group.add(&crate::ui::linked_text::row(l10n::event_notes(), notes));
-    }
-    group.add(&detail_row(
-        l10n::event_reminder(),
-        &reminder(detail.reminder_minutes),
-    ));
-    group.add(&detail_row(
-        l10n::event_repeat(),
-        &repeat::sentence(detail.repeat_summary.as_ref(), detail.is_recurring),
-    ));
-    if detail.is_recurring {
-        let note = gtk::Label::new(Some(l10n::event_series_note()));
-        note.set_wrap(true);
-        note.set_xalign(0.0);
-        note.set_margin_top(12);
-        group.add(&note);
-    }
-    // No group at all for an appointment nobody was invited to: an empty "Attendees" heading
-    // would read as "we looked and found none", a different statement from "this is not a meeting".
-    let attendees = attendee_group(&detail.attendees);
-    let body = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    body.append(&group);
-    if let Some(current) = detail.my_answer {
-        let on_answer: answer::OnAnswer = {
-            let (input, closing, dialog) = (sender.clone(), Rc::clone(&replacing), window.clone());
-            let event = EventIdentity {
-                account: detail.account.clone(),
-                key: detail.key.clone(),
-                occurrence: String::new(),
-            };
-            Rc::new(move |response, subject| {
-                closing.set(true);
-                input.emit(AppInput::RespondToEvent(event.clone(), response, subject));
-                dialog.close();
-            })
-        };
-        let answer = answer::answer_group(current, &title, &on_answer);
-        answer.set_margin_start(18);
-        answer.set_margin_end(18);
-        body.append(&answer);
-    }
-    if let Some(attendees) = attendees {
-        attendees.set_margin_start(18);
-        attendees.set_margin_end(18);
-        body.append(&attendees);
-    }
-    let scroll = gtk::ScrolledWindow::new();
-    scroll.set_child(Some(&body));
-    scroll.set_vexpand(true);
-    shell.append(&scroll);
-    window.set_child(Some(&shell));
-    window.present();
+    None
 }
 
 fn present_editor(
@@ -443,7 +344,7 @@ fn field_label(label: &str) -> gtk::Label {
     value
 }
 
-fn detail_row(label: &str, value: &str) -> adw::ActionRow {
+pub(super) fn detail_row(label: &str, value: &str) -> adw::ActionRow {
     adw::ActionRow::builder()
         .title(label)
         .subtitle(value)
@@ -451,7 +352,7 @@ fn detail_row(label: &str, value: &str) -> adw::ActionRow {
         .build()
 }
 
-fn title(value: &str) -> String {
+pub(super) fn title(value: &str) -> String {
     if value.trim().is_empty() {
         l10n::event_no_title().to_owned()
     } else {
@@ -459,7 +360,7 @@ fn title(value: &str) -> String {
     }
 }
 
-fn detail_time(detail: &EventDetails, start: bool) -> String {
+pub(super) fn detail_time(detail: &EventDetails, start: bool) -> String {
     if start {
         return detail.start.clone();
     }
@@ -471,7 +372,7 @@ fn detail_time(detail: &EventDetails, start: bool) -> String {
     detail.end.clone()
 }
 
-fn reminder(minutes: Option<i32>) -> String {
+pub(super) fn reminder(minutes: Option<i32>) -> String {
     match minutes {
         None => l10n::event_reminder_none().to_owned(),
         Some(value) if value <= 0 => l10n::event_reminder_at_start().to_owned(),

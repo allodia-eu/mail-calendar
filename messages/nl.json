@@ -294,6 +294,8 @@
 	"event_repeat": "Herhalen",
 	"event_pick_calendar": "Agenda selecteren",
 	"event_delete_confirm": "Deze afspraak verwijderen?",
+	"event_decline_confirm_title": "Deze vergadering afwijzen?",
+	"event_decline_confirm_body": "De organisator hoort dat je hebt afgewezen, en de vergadering staat niet meer in je agenda.",
 	"event_series_note": "Wijzigingen gelden voor de hele reeks.",
 	"event_series_scope_title": "Terugkerende afspraak wijzigen",
 	"event_series_scope_delete_title": "Terugkerende afspraak verwijderen",
