@@ -239,7 +239,7 @@ whatever the toolkit calls the thing that takes **no layout space**. Inline, the
 of the input: it appears and disappears on every keystroke and takes a field's worth of height with
 it, so Cc, Bcc, Subject, the editor and Send all jump down and back while the user is still typing
 the first recipient. On a phone it reaches further than it looks: the composer's header is
-*measured* and its height becomes the editor's top inset, so the message body moves too. Four
+*measured* and its height becomes the editor's top inset, so the message body moves too. Five
 things this binds:
 
 - The surface is **opaque and shadowed**. It now covers live content, and a translucent fill
@@ -256,6 +256,14 @@ things this binds:
   top edge, over the fields and under the message, and the layer had to move to the composer's
   outermost view. Assert it against a list long enough to reach the editor: one short enough to
   stop above it passes while the bug is still there.
+- On a phone or tablet it stays **clear of the on-screen keyboard**, and spans the window's width.
+  A popup is a window of its own, which the keyboard does not resize, so nothing keeps it off the
+  keyboard but the client: the list takes the room between the field and the keyboard and scrolls
+  past it, and where that room holds fewer than about three suggestions and the room above is
+  larger, it opens **above** the field. The event editor's invitee field is that case, scrolled to
+  rest on the keyboard. Full width, as the platform's own address pickers are: a phone's field is
+  narrower than most addresses. Desktops are out of scope: their window system keeps a popup on
+  screen.
 
 **The caret opens where the work starts.** A composer that is already addressed (a reply, a
 reply-all, a forward's quoted original, a mail link, an assistant's draft) opens with the caret in
@@ -302,6 +310,7 @@ change updates in every catalog locale.
 | Composer recipient autosuggest (contacts **+** sent-mail history) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer recipients as **pills**, with per-recipient removal | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Suggestions **float**: the form below them does not move | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Suggestions stay **clear of the on-screen keyboard**, full width | — | — | ⬜ | — | ✅ | — |
 | The caret opens in **To**, or in the body when already addressed | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | CardDAV contact sources (one adapter per address book) | ✅ | — | — | — | — | ✅ |
 | JMAP contact sources (account-global adapter) | ✅ | — | — | — | — | — |

@@ -19,6 +19,13 @@
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -26,7 +33,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +42,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -45,7 +50,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -58,6 +65,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.roundToIntRect
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
@@ -74,29 +82,66 @@ import uniffi.mailcal_bindings.RecipientMatch
  */
 private const val SUGGESTION_DEBOUNCE_MS = 120L
 
-/** The gap between a recipient input and the list hanging under it. */
+/** The gap between a recipient input and the list beside it. */
 private val SUGGESTION_GAP = 4.dp
 
+/** About three suggestions: less room than this under the field, and the list opens above it. */
+private val SUGGESTION_MIN_ROOM = 160.dp
+
+/** Which side of the field the list opens on, and the most height it may take there. */
+internal data class SuggestionPlacement(val above: Boolean, val maxHeightPx: Int)
+
 /**
- * Puts a field's suggestion list **under** the input, never over it.
+ * Where the list goes, from the room the field leaves in the **visible** part of the window: the
+ * part the keyboard does not cover (docs/contacts.md §4).
  *
- * It takes an explicit provider to get there, and nothing about the call site says so. A [Popup]'s
- * `alignment` positions it inside its PARENT's bounds, here the recipient field's whole column:
- * so the obvious `Alignment.TopStart` lands the list on top of the input, covering the very text it
- * is completing. The popup adds no height of its own, so that column's bottom edge *is* the bottom
- * of the input, which is the anchor wanted.
+ * Under the field when there is room for about three suggestions there, or at least as much as
+ * above it; otherwise above. Either way no taller than that room, so the list never reaches under
+ * the keyboard and scrolls instead. The event editor's invitee field is the case that needs the
+ * other side: the form scrolls it to just above the keyboard, which leaves no room under it.
+ */
+internal fun suggestionPlacement(
+    field: IntRect,
+    visibleTop: Int,
+    visibleBottom: Int,
+    gapPx: Int,
+    minRoomPx: Int,
+): SuggestionPlacement {
+    val below = visibleBottom - field.bottom - gapPx
+    val above = field.top - visibleTop - gapPx
+    return if (below >= minRoomPx || below >= above) {
+        SuggestionPlacement(above = false, maxHeightPx = below.coerceAtLeast(0))
+    } else {
+        SuggestionPlacement(above = true, maxHeightPx = above)
+    }
+}
+
+/**
+ * Puts a field's suggestion list on the side [placement] chose, across the window's whole width.
+ *
+ * The anchor is the field's whole column, because a [Popup] positions inside its PARENT's bounds;
+ * the popup adds no height of its own, so that column's bottom edge *is* the bottom of the input.
+ * The obvious `Alignment.TopStart` would land the list on top of the input, covering the very text
+ * it is completing.
+ *
+ * Full width, as the platform's own address pickers are: a phone's field is narrower than most
+ * addresses, and a list the field's width cuts them short.
  *
  * A named class rather than a lambda because Compose's test framework cannot see where a popup
  * actually lands, a popup owns its own root, so its bounds read as (0, 0) whatever the provider
  * did. The decision is therefore what gets asserted (`RecipientPopupPositionTest`).
  */
-internal class UnderTheInput(private val gapPx: Int) : PopupPositionProvider {
+internal class BesideTheInput(private val gapPx: Int, private val above: Boolean) : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: IntRect,
         windowSize: IntSize,
         layoutDirection: LayoutDirection,
         popupContentSize: IntSize,
-    ): IntOffset = IntOffset(anchorBounds.left, anchorBounds.bottom + gapPx)
+    ): IntOffset = if (above) {
+        IntOffset(0, anchorBounds.top - gapPx - popupContentSize.height)
+    } else {
+        IntOffset(0, anchorBounds.bottom + gapPx)
+    }
 }
 
 /**
@@ -124,8 +169,10 @@ internal fun RecipientField(
     val committed = committedRecipients(value)
     val token = currentRecipientToken(value)
     val focusRequester = remember { FocusRequester() }
-    // The input's own width, so the floating list below matches the field rather than the screen.
-    var inputWidthPx by remember { mutableIntStateOf(0) }
+    // Where the field is, and the window it is in, both in window coordinates: what the list's
+    // side and height are decided from.
+    var fieldBounds by remember { mutableStateOf(IntRect.Zero) }
+    var windowBounds by remember { mutableStateOf(IntRect.Zero) }
     // Only the focused field offers suggestions. Moving from To to Cc must close To's list:
     // harmless while it sat in the layout, and covering live content the moment it floats.
     var focused by remember { mutableStateOf(false) }
@@ -146,7 +193,12 @@ internal fun RecipientField(
         input = TextFieldValue(token, TextRange(token.length))
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(
+        modifier = modifier.fillMaxWidth().onGloballyPositioned { coordinates ->
+            fieldBounds = coordinates.boundsInWindow().roundToIntRect()
+            windowBounds = coordinates.findRootCoordinates().boundsInWindow().roundToIntRect()
+        },
+    ) {
         if (committed.isNotEmpty()) {
             FlowRow(modifier = Modifier.fillMaxWidth().testTag("recipient-pills")) {
                 committed.forEachIndexed { index, recipient ->
@@ -181,7 +233,6 @@ internal fun RecipientField(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("recipient-input-$label")
-                .onSizeChanged { inputWidthPx = it.width }
                 .onFocusChanged { focused = it.isFocused }
                 .focusRequester(focusRequester),
             singleLine = true,
@@ -193,7 +244,8 @@ internal fun RecipientField(
             field = value,
             suggestionsFor = suggestionsFor,
             onAccept = onValue,
-            widthPx = inputWidthPx,
+            fieldBounds = fieldBounds,
+            window = windowBounds,
             focused = focused,
         )
     }
@@ -239,13 +291,18 @@ internal fun RecipientField(
  * keystrokes the list is completing, which is also why tapping a suggestion does not clear
  * [focused] before the tap lands. Its surface is opaque and shadowed because it now covers live
  * content.
+ *
+ * A popup is its own window, which the keyboard does not resize, so nothing keeps it off the
+ * keyboard but [suggestionPlacement]: the list takes the room between the field and the keyboard,
+ * or above the field where that is too little, and scrolls past it.
  */
 @Composable
 private fun RecipientSuggestionList(
     field: String,
     suggestionsFor: ((String) -> List<RecipientMatch>)?,
     onAccept: (String) -> Unit,
-    widthPx: Int,
+    fieldBounds: IntRect,
+    window: IntRect,
     focused: Boolean,
 ) {
     if (suggestionsFor == null) {
@@ -269,26 +326,41 @@ private fun RecipientSuggestionList(
     if (!focused || !shouldShowSuggestions(field, matches.map { it.email })) {
         return
     }
-    val width = with(LocalDensity.current) { widthPx.toDp() }
-    val gapPx = with(LocalDensity.current) { SUGGESTION_GAP.roundToPx() }
+    val density = LocalDensity.current
+    // The keyboard's inset when it is up, the navigation bar's when it is not: the window is
+    // edge to edge, so both are drawn over it rather than taken out of it.
+    val bottomInset = maxOf(
+        WindowInsets.ime.getBottom(density),
+        WindowInsets.navigationBars.getBottom(density),
+    )
+    val placement = suggestionPlacement(
+        field = fieldBounds,
+        visibleTop = window.top + WindowInsets.statusBars.getTop(density),
+        visibleBottom = window.bottom - bottomInset,
+        gapPx = with(density) { SUGGESTION_GAP.roundToPx() },
+        minRoomPx = with(density) { SUGGESTION_MIN_ROOM.roundToPx() },
+    )
+    val gapPx = with(density) { SUGGESTION_GAP.roundToPx() }
     Popup(
-        popupPositionProvider = remember(gapPx) { UnderTheInput(gapPx) },
+        popupPositionProvider = remember(gapPx, placement.above) { BesideTheInput(gapPx, placement.above) },
         properties = PopupProperties(focusable = false),
     ) {
         Surface(
-            modifier = Modifier.width(width).testTag("recipient-suggestions"),
-            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier
+                .width(with(density) { window.width.toDp() })
+                .heightIn(max = with(density) { placement.maxHeightPx.toDp() })
+                .testTag("recipient-suggestions"),
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = 6.dp,
             tonalElevation = 3.dp,
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                 matches.forEach { match ->
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onAccept(acceptRecipientSuggestion(field, match.email)) }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
                     ) {
                         if (match.displayName.isNotEmpty()) {
                             Text(
