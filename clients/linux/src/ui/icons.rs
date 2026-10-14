@@ -70,6 +70,10 @@ icons! {
     SELECT_ALL = "edit-select-all-symbolic";
     SYNC = "view-refresh-symbolic";
     MORE = "view-more-symbolic";
+    /// The reading pane's sun/moon button, showing what pressing it does: the sun on a dark
+    /// message, the moon on a light one (docs/reading-dark-mode.md).
+    LIGHT_BACKGROUND = "mailcal-sun-symbolic";
+    DARK_BACKGROUND = "mailcal-moon-symbolic";
 
     // General controls.
     ADD = "list-add-symbolic";

@@ -24,6 +24,7 @@ pub(super) mod account_sync_mode;
 pub(super) mod accounts;
 pub(super) mod allodia;
 pub(super) mod allodia_sync;
+pub(super) mod dark_messages;
 pub(super) mod subscription;
 mod widgets;
 
@@ -161,6 +162,9 @@ impl SettingsWindow {
         preferences: Arc<HostPreferences>,
         sender: relm4::Sender<AppInput>,
     ) {
+        if let Some(app) = app {
+            dark_messages::follow(app);
+        }
         if state.generation == 0 || state.generation == self.rendered_generation {
             return;
         }

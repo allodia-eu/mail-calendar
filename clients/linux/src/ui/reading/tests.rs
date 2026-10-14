@@ -114,9 +114,10 @@ pub(crate) fn the_page_survives_the_gap_before_the_next_body_lands() {
         write_status: CalendarWriteStatus::Idle,
         generation: 1,
     };
+    // The page of the scheme the pane resolved, which follows the desktop the suite runs on.
     let drawn = |pane: &ReadingPane| {
         pane.body_stack
-            .has_css_class(crate::ui::reading::canvas::CANVAS_CLASS)
+            .has_css_class(crate::ui::reading::canvas::class_of(pane.scheme.get()))
     };
 
     // Nothing open: no message, so no page. The pane is chrome waiting to be given one.

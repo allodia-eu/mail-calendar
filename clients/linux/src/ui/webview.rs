@@ -6,13 +6,18 @@ use gtk::{gio, glib, prelude::*};
 use webkit6::{
     ContextMenuAction, ContextMenuItem, NavigationPolicyDecision, NetworkSession,
     PolicyDecisionType, Settings, UserContentFilter, UserContentFilterStore, UserContentManager,
-    WebView, prelude::*,
+    UserScript, WebView, prelude::*,
 };
 
 use super::{
     AppInput,
     web_security::{is_initial_document_uri, network_block_filter},
 };
+
+mod paint;
+mod place;
+
+use paint::PaintGate;
 
 /// Whether the local document is inert mail or the trusted editor bundle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -21,7 +26,9 @@ pub(crate) enum DocumentKind {
     Composer,
 }
 
-/// A WebView whose host-level gates are installed before any document is loaded.
+/// A WebView whose host-level gates are installed before any document is loaded. A clone is a
+/// second handle on the same view, for a callback that has to load into it later.
+#[derive(Clone)]
 pub(crate) struct SecureWebView {
     view: WebView,
     manager: UserContentManager,
@@ -36,55 +43,6 @@ pub(crate) struct SecureWebView {
     /// composer's own error line, and that does not exist until the composer is built around
     /// this view; a reading view never sets one.
     paste: Rc<std::cell::RefCell<Option<super::editor_paste::PasteAnswer>>>,
-}
-
-/// Whether the document last handed to [`SecureWebView::load`] has finished painting.
-///
-/// The page a message renders is white, but the surface WebKit composites it on is not: on a
-/// large view the web process presents a **black** frame until the document's first paint, and on
-/// a heavy message that is hundreds of milliseconds (467 ms, measured, at full screen). A host
-/// that reveals the view as soon as it asks for a document therefore shows black in the middle of
-/// the reading pane's page. `webkit_web_view_set_background_color` does not reach it: that colour
-/// is what the *page* renders on, not what the compositor presents before there is a page.
-///
-/// `Finished` alone does not answer the question, which is why this is a pair rather than a flag.
-/// A load cancelled by the next `load_html` still reaches `Finished`, and it arrives **after** the
-/// call that cancelled it, so the naive reading hands the previous message's completion to the
-/// message now loading and reveals an unpainted view. Requiring a `Started` since the last ask
-/// separates the two. The measured sequences are the fixtures this module's tests drive.
-#[derive(Default)]
-struct PaintGate {
-    /// Whether a load has begun since the last [`Self::asked`]. Only a `Finished` after one
-    /// belongs to the document we are waiting for.
-    started: bool,
-    painted: bool,
-}
-
-impl PaintGate {
-    /// A document was handed to the view: nothing on screen belongs to it yet.
-    fn asked(&mut self) {
-        self.started = false;
-        self.painted = false;
-    }
-
-    /// Folds in one `load-changed`, and reports whether the page just arrived.
-    fn observed(&mut self, event: webkit6::LoadEvent) -> bool {
-        match event {
-            webkit6::LoadEvent::Started => {
-                self.started = true;
-                false
-            }
-            webkit6::LoadEvent::Finished if self.started => {
-                self.painted = true;
-                true
-            }
-            _ => false,
-        }
-    }
-
-    fn painted(&self) -> bool {
-        self.painted
-    }
 }
 
 #[derive(Clone)]
@@ -118,7 +76,10 @@ impl SecureWebView {
             // answer: it is what the document is about to paint anyway
             // (`super::reading::canvas`). The composer's page is themed, not this canvas, so it
             // keeps the toolkit's default.
-            view.set_background_color(&super::reading::canvas::canvas_rgba());
+            // The reading pane sets it again for the scheme of each message it draws.
+            view.set_background_color(&super::reading::canvas::canvas_rgba(
+                mailcal_bindings::MessageScheme::Light,
+            ));
         }
 
         let expecting_load = Rc::new(Cell::new(false));
@@ -185,24 +146,58 @@ impl SecureWebView {
         &self.view
     }
 
+    /// The base the view presents until a document has painted: the page of the scheme the next
+    /// message is drawn in (`super::reading::canvas`).
+    pub(crate) fn set_page(&self, page: &gtk::gdk::RGBA) {
+        self.view.set_background_color(page);
+    }
+
     /// Loads an in-memory document with an opaque origin. `allow_remote_images` removes the
     /// native HTTP(S) filter only after the user's per-message opt-in; the shared document CSP
     /// still permits images alone and blocks every other remote resource type.
     pub(crate) fn load(&self, document: &str, allow_remote_images: bool) {
+        if self.claim(document, allow_remote_images) {
+            self.hand_over(document, allow_remote_images, None, false);
+        }
+    }
+
+    /// Records `document` as the one this view is showing, unless it already is (or the view
+    /// cannot load at all), and says whether the caller should go on and load it.
+    fn claim(&self, document: &str, allow_remote_images: bool) -> bool {
         if self.filter_failed.get() {
-            return;
+            return false;
         }
         let next = (document.to_owned(), allow_remote_images);
         if self.last_document.borrow().as_ref() == Some(&next) {
-            return;
+            return false;
         }
-        self.last_document.replace(Some(next.clone()));
+        self.last_document.replace(Some(next));
+        true
+    }
+
+    /// Hands a claimed document to WebKit, with `script` run in it at document end, in a world of
+    /// its own (`place`), or no script at all. `same_message` keeps the reader's zoom: the same
+    /// message drawn in another scheme is still the one the zoom was made on.
+    fn hand_over(
+        &self,
+        document: &str,
+        allow_remote_images: bool,
+        script: Option<&UserScript>,
+        same_message: bool,
+    ) {
         self.paint.borrow_mut().asked();
         // A zoom belongs to the message it was made on (`docs/reading-zoom.md`). `zoom-level` is
         // the view's, not the document's, so it outlives a load. Reset here rather than beside
         // each `load_html`: the deferred replay in `compile_filter` re-loads the document this
-        // call registered, so it is the same message and must keep nothing of its own.
-        self.view.set_zoom_level(1.0);
+        // call registered, so it is the same message and must keep nothing of its own. The script
+        // is installed before that replay can happen, for the same reason.
+        if !same_message {
+            self.view.set_zoom_level(1.0);
+        }
+        self.manager.remove_all_scripts();
+        if let Some(script) = script {
+            self.manager.add_script(script);
+        }
         if !self.filter_ready.get() {
             return;
         }
@@ -380,7 +375,12 @@ fn clamp_zoom(level: f64) -> f64 {
 
 fn hardened_settings(kind: DocumentKind) -> Settings {
     let settings = Settings::new();
-    settings.set_enable_javascript(kind == DocumentKind::Composer);
+    // The reading host runs no script of the page's: markup script is stripped as the document is
+    // parsed, and the CSP forbids script besides. The engine stays on only for the app's own,
+    // which keeps the reader's place across a scheme change in a world the page cannot reach
+    // (`place`, `docs/rendering-security.md` gate 1). The composer is the trusted editor bundle.
+    settings.set_enable_javascript(true);
+    settings.set_enable_javascript_markup(kind == DocumentKind::Composer);
     settings.set_allow_file_access_from_file_urls(false);
     settings.set_allow_universal_access_from_file_urls(false);
     settings.set_allow_modal_dialogs(false);

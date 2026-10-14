@@ -16,8 +16,10 @@
     <file alias="scalable/actions/mailcal-bell-symbolic.svg" preprocess="xml-stripblanks">idk/bell.svg</file>
     <file alias="scalable/actions/mailcal-cogged-wheel-symbolic.svg" preprocess="xml-stripblanks">idk/cogged-wheel.svg</file>
     <file alias="scalable/actions/mailcal-mail-read-symbolic.svg" preprocess="xml-stripblanks">idk/mail-read.svg</file>
+    <file alias="scalable/actions/mailcal-moon-symbolic.svg" preprocess="xml-stripblanks">idk/moon.svg</file>
     <file alias="scalable/actions/mailcal-signature-symbolic.svg" preprocess="xml-stripblanks">idk/signature.svg</file>
     <file alias="scalable/actions/mailcal-stethoscope-symbolic.svg" preprocess="xml-stripblanks">idk/stethoscope.svg</file>
+    <file alias="scalable/actions/mailcal-sun-symbolic.svg" preprocess="xml-stripblanks">idk/sun.svg</file>
     <file alias="scalable/actions/mailcal-wrench-symbolic.svg" preprocess="xml-stripblanks">idk/wrench.svg</file>
   </gresource>
 </gresources>

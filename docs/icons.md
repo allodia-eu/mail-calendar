@@ -98,8 +98,8 @@ noted beside it, and the two without one are this app's own drawings.
 | Forward | `arrowshape.turn.up.right` | `ic_forward` | `E72A` Forward | `mail-forward-symbolic` |
 | Archive | `archivebox` | `ic_archive` | `E7B8` Package | `mailcal-archive-symbolic` |
 | Move to Trash | `trash` | `ic_delete` | `E74D` Delete | `user-trash-symbolic` |
-| Messages on a light background (the sun, on a dark message) | `sun.max` | `ic_light_mode` | `E706` Brightness | — |
-| Messages on a dark background (the moon, on a light message) | `moon` | `ic_dark_mode` | `E708` QuietHours | — |
+| Messages on a light background (the sun, on a dark message) | `sun.max` | `ic_light_mode` | `E706` Brightness | `mailcal-sun-symbolic` (`sun`) |
+| Messages on a dark background (the moon, on a light message) | `moon` | `ic_dark_mode` | `E708` QuietHours | `mailcal-moon-symbolic` (`moon`) |
 | More actions | `ellipsis` | `ic_more_vert` | `E712` More | `view-more-symbolic` |
 | Save as a file | `square.and.arrow.down.on.square` | — | — | — |
 | Print | `printer` | — | — | — |

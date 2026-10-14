@@ -1,8 +1,10 @@
 //! The page a message is drawn on, behind the reading pane's body area.
 //!
 //! The colour is the core's ([`mailcal_bindings::message_canvas`]), the same one
-//! [`mailcal_bindings::render_message_html`] gives the document, so the sheet the pane paints and
-//! the page the WebView paints inside it are one white rather than two.
+//! [`mailcal_bindings::render_message_html`] gives the document in the same scheme, so the sheet
+//! the pane paints and the page the WebView paints inside it are one colour rather than two. Which
+//! scheme is the message's (`../../../../docs/reading-dark-mode.md`), so the sheet is one of two
+//! classes.
 //!
 //! The pane draws it for the whole of an open, not only once a body has arrived. Leaving the
 //! waiting gap transparent punches a hole in the page: the body area went white, black, white on
@@ -13,10 +15,21 @@
 use std::sync::Once;
 
 use adw::prelude::*;
+use mailcal_bindings::MessageScheme;
 
-/// The style class carrying the canvas. On the body stack, so every page of it (the gap before the
-/// body lands, a plain-text body, the spinner, a load error) is the same sheet.
+/// The style class carrying the light canvas. On the body stack, so every page of it (the gap
+/// before the body lands, a plain-text body, the spinner, a load error) is the same sheet.
 pub(super) const CANVAS_CLASS: &str = "mailcal-message-canvas";
+
+/// The style class carrying the dark canvas, in place of [`CANVAS_CLASS`].
+pub(super) const DARK_CANVAS_CLASS: &str = "mailcal-message-canvas-dark";
+
+pub(super) fn class_of(scheme: MessageScheme) -> &'static str {
+    match scheme {
+        MessageScheme::Light => CANVAS_CLASS,
+        MessageScheme::Dark => DARK_CANVAS_CLASS,
+    }
+}
 
 /// Installs the canvas stylesheet once per display.
 pub(super) fn install_styles() {
@@ -35,19 +48,25 @@ pub(super) fn install_styles() {
 }
 
 /// `color` as well as `background`: GTK inherits it, so the spinner, the plain-text body and the
-/// load error's wording are all legible ink on the sheet rather than the dark theme's own text
-/// colour on white.
+/// load error's wording are all legible ink on the sheet rather than the app theme's own text
+/// colour, which on a page of the other scheme would be white on white or black on black.
 fn canvas_css() -> String {
-    let canvas = mailcal_bindings::message_canvas(mailcal_bindings::MessageScheme::Light);
-    format!(
-        ".{CANVAS_CLASS} {{ background: {}; color: {}; }}",
-        canvas.background, canvas.foreground
-    )
+    [MessageScheme::Light, MessageScheme::Dark]
+        .map(|scheme| {
+            let canvas = mailcal_bindings::message_canvas(scheme);
+            format!(
+                ".{} {{ background: {}; color: {}; }}",
+                class_of(scheme),
+                canvas.background,
+                canvas.foreground
+            )
+        })
+        .join("\n")
 }
 
 /// The canvas as a colour, for anything that needs one rather than a stylesheet.
-pub(crate) fn canvas_rgba() -> gtk::gdk::RGBA {
-    let canvas = mailcal_bindings::message_canvas(mailcal_bindings::MessageScheme::Light);
+pub(crate) fn canvas_rgba(scheme: MessageScheme) -> gtk::gdk::RGBA {
+    let canvas = mailcal_bindings::message_canvas(scheme);
     canvas
         .background
         .parse()
@@ -56,11 +75,12 @@ pub(crate) fn canvas_rgba() -> gtk::gdk::RGBA {
 
 /// Whether the body area is showing a message's page at all: false only with nothing open, where
 /// there is no message and so no page to draw.
-pub(super) fn set_drawn(stack: &gtk::Stack, drawn: bool) {
+pub(super) fn set_drawn(stack: &gtk::Stack, drawn: bool, scheme: MessageScheme) {
+    for class in [CANVAS_CLASS, DARK_CANVAS_CLASS] {
+        stack.remove_css_class(class);
+    }
     if drawn {
-        stack.add_css_class(CANVAS_CLASS);
-    } else {
-        stack.remove_css_class(CANVAS_CLASS);
+        stack.add_css_class(class_of(scheme));
     }
 }
 
@@ -116,8 +136,9 @@ pub(super) fn painted_hex(widget: &impl IsA<gtk::Widget>, x: usize, y: usize) ->
 #[cfg(test)]
 pub(crate) mod tests {
     use adw::prelude::*;
+    use mailcal_bindings::MessageScheme;
 
-    use super::{CANVAS_CLASS, canvas_css, painted_hex, set_drawn};
+    use super::{canvas_css, class_of, painted_hex, set_drawn};
 
     /// The class is not decoration: drawn, the body area paints the core's page; not drawn, it
     /// paints nothing and whatever is behind the pane shows through.
@@ -127,13 +148,15 @@ pub(crate) mod tests {
     /// rule ever applied to it, so on its own it is a green light for a body area still full of
     /// holes.
     pub(crate) fn the_drawn_canvas_paints_the_page_the_core_names() {
-        let canvas = mailcal_bindings::message_canvas(mailcal_bindings::MessageScheme::Light);
-        assert_eq!(body_area(true), canvas.background);
-        assert_eq!(
-            body_area(false),
-            "",
-            "with nothing open the pane draws no page, so the chrome behind it shows"
-        );
+        for scheme in [MessageScheme::Light, MessageScheme::Dark] {
+            let canvas = mailcal_bindings::message_canvas(scheme);
+            assert_eq!(body_area(true, scheme), canvas.background, "{scheme:?}");
+            assert_eq!(
+                body_area(false, scheme),
+                "",
+                "with nothing open the pane draws no page, so the chrome behind it shows"
+            );
+        }
     }
 
     /// What a body area with the canvas `drawn`, or not, actually paints.
@@ -142,7 +165,7 @@ pub(crate) mod tests {
     /// live widget changes what it paints only once its style is revalidated, and an offscreen
     /// test has no frame clock to do that on demand, so toggling one in place reads back the
     /// frame it replaced, and both halves of this would pass while painting the same thing.
-    fn body_area(drawn: bool) -> String {
+    fn body_area(drawn: bool, scheme: MessageScheme) -> String {
         let stack = gtk::Stack::new();
         stack.add_named(&gtk::Box::new(gtk::Orientation::Vertical, 0), Some("body"));
         stack.set_visible_child_name("body");
@@ -150,8 +173,8 @@ pub(crate) mod tests {
         let window = adw::ApplicationWindow::builder().build();
         window.set_content(Some(&stack));
         super::install_styles();
-        set_drawn(&stack, drawn);
-        assert_eq!(stack.has_css_class(CANVAS_CLASS), drawn);
+        set_drawn(&stack, drawn, scheme);
+        assert_eq!(stack.has_css_class(class_of(scheme)), drawn);
         window.present();
         while gtk::glib::MainContext::default().iteration(false) {}
         let painted = painted_hex(&stack, 2, 2);
@@ -164,12 +187,12 @@ pub(crate) mod tests {
     /// Decoded here independently of `canvas_rgba`, so this compares the colour GDK was handed
     /// against the core's hex rather than against itself.
     pub(crate) fn the_web_view_base_is_the_same_page() {
-        let canvas = mailcal_bindings::message_canvas(mailcal_bindings::MessageScheme::Light);
+        let canvas = mailcal_bindings::message_canvas(MessageScheme::Light);
         let hex = u32::from_str_radix(canvas.background.trim_start_matches('#'), 16)
             .expect("the canvas is `#rrggbb`");
         let channel =
             |shift: u32| f32::from(u8::try_from((hex >> shift) & 0xff).expect("one byte")) / 255.0;
-        let rgba = super::canvas_rgba();
+        let rgba = super::canvas_rgba(MessageScheme::Light);
         assert!((rgba.red() - channel(16)).abs() < f32::EPSILON, "{rgba:?}");
         assert!((rgba.green() - channel(8)).abs() < f32::EPSILON, "{rgba:?}");
         assert!((rgba.blue() - channel(0)).abs() < f32::EPSILON, "{rgba:?}");
@@ -181,26 +204,25 @@ pub(crate) mod tests {
 
     #[test]
     fn the_sheet_is_the_core_s_canvas_rather_than_a_second_white() {
-        let canvas = mailcal_bindings::message_canvas(mailcal_bindings::MessageScheme::Light);
         let css = canvas_css();
-        assert!(
-            css.contains(&format!("background: {};", canvas.background)),
-            "{css}"
-        );
-        assert!(
-            css.contains(&format!("color: {};", canvas.foreground)),
-            "{css}"
-        );
-        // The same page the document gets. A seam here would show on every message; before the
-        // body lands it is the whole body area, so it would show as a flicker on every open.
-        let document = mailcal_bindings::render_message_html(
-            "<p>x</p>".to_owned(),
-            false,
-            mailcal_bindings::MessageScheme::Light,
-        );
-        assert!(
-            document.contains(&format!("background:{}", canvas.background)),
-            "{document}"
-        );
+        for scheme in [MessageScheme::Light, MessageScheme::Dark] {
+            let canvas = mailcal_bindings::message_canvas(scheme);
+            let rule = format!(
+                ".{} {{ background: {}; color: {}; }}",
+                class_of(scheme),
+                canvas.background,
+                canvas.foreground
+            );
+            assert!(css.contains(&rule), "{css}");
+            // The same page the document gets. A seam here would show on every message; before
+            // the body lands it is the whole body area, so it would show as a flicker on every
+            // open.
+            let document =
+                mailcal_bindings::render_message_html("<p>x</p>".to_owned(), false, scheme);
+            assert!(
+                document.contains(&format!("background:{}", canvas.background)),
+                "{document}"
+            );
+        }
     }
 }

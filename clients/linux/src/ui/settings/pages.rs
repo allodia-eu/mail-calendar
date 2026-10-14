@@ -200,6 +200,7 @@ pub(super) fn reading(ctx: &PageContext) -> gtk::Box {
         &settings.right,
     ));
     content.append(&swipe);
+    content.append(&super::dark_messages::section(ctx));
     content
 }
 

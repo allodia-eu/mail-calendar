@@ -79,6 +79,7 @@ impl fmt::Debug for AppInput {
             Self::RespondToEvent(..) => "RespondToEvent",
             Self::AnswerReplyPrompt { .. } => "AnswerReplyPrompt",
             Self::LoadRemoteImages(_) => "LoadRemoteImages",
+            Self::ToggleDarkMessages => "ToggleDarkMessages",
             Self::RetryOpen(_) => "RetryOpen",
             Self::OpenMailto(_) => "OpenMailto",
             Self::OpenShare(_) => "OpenShare",

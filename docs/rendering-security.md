@@ -114,11 +114,16 @@ The fragment is rendered in the platform's web view. The shared CSP is the prima
 native gates are mandatory defence in depth so a single weakness (e.g. a future CSP regression)
 can't leak data:
 
-1. **Scripting disabled** in the web view. Disabled for the **page**: where the platform gives
-   the app a script world of its own that the page cannot see, the app may run script there for
-   exactly one purpose, reading and restoring the scroll position when the same message is
-   re-rendered in another scheme ([`reading-dark-mode.md`](reading-dark-mode.md), rule 9). Two
-   numbers go each way, and nothing the page wrote is ever evaluated or returned.
+1. **Scripting disabled** in the web view, for the **page**: nothing the message carries ever
+   runs. The app may run script of its own for exactly one purpose, reading and restoring the
+   scroll position when the same message is re-rendered in another scheme
+   ([`reading-dark-mode.md`](reading-dark-mode.md), rule 9). Two numbers go each way, and nothing
+   the page wrote is ever evaluated or returned. It runs in a world the page cannot see where the
+   platform has one (Apple, Linux), and in the page's own on Windows, where the page has no script
+   running to meet it. Android needs none: its view reports the position natively. WebKitGTK has
+   no switch for page script alone, so the Linux reading host keeps the engine on and strips the
+   page's script as it is parsed (`enable-javascript-markup`), with the CSP forbidding script
+   besides.
 2. **No host/script bridge**: no JS↔native channel, no injected host objects.
    - **2a. No inspector in a release build.** Neither the platform's developer tools nor a
      remote-inspection channel reaches a web view in a build a user installs, including one the
@@ -194,7 +199,7 @@ cell is filled.
 
 | Gate | Apple · `WKWebView` | Android · `WebView` | Windows · `WebView2` | Linux · `WebKitGTK` |
 |---|---|---|---|---|
-| Scripting off | `allowsContentJavaScript = false`; the scroll position across a scheme change is read and set in `WKContentWorld.defaultClient` (`reloadKeepingPlace`), which page script cannot reach | `settings.javaScriptEnabled = false`; the scroll position across a scheme change is the view's own `scrollY`, no script | `Settings.IsScriptEnabled = false`, which stops the document's script and not `ExecuteScriptAsync`; the scroll position across a scheme change is read and set with the latter (`ReadPlaceAsync`) | `Settings.enable_javascript = false` on the dedicated reading host |
+| Scripting off | `allowsContentJavaScript = false`; the scroll position across a scheme change is read and set in `WKContentWorld.defaultClient` (`reloadKeepingPlace`), which page script cannot reach | `settings.javaScriptEnabled = false`; the scroll position across a scheme change is the view's own `scrollY`, no script | `Settings.IsScriptEnabled = false`, which stops the document's script and not `ExecuteScriptAsync`; the scroll position across a scheme change is read and set with the latter (`ReadPlaceAsync`) | on the dedicated reading host `Settings.enable_javascript_markup = false`, which strips the page's script as it is parsed; the engine itself stays on only for the app's read and restore of the scroll position across a scheme change, in an isolated world (`webview/place.rs`) |
 | No host/script bridge | (no message handlers added) | (no `addJavascriptInterface`) | `AreHostObjectsAllowed = false`, `IsWebMessageEnabled = false` | fresh `UserContentManager`; no script-message handlers or host objects |
 | **2a**: no inspector in a release build | `isInspectable` is never set, and it is off by default | `setWebContentsDebuggingEnabled` is never called, so the platform allows it only in a debuggable (debug) build | `AreDevToolsEnabled` is off outside `DEBUG`, and every `WEBVIEW2_*` variable is removed from the process before the first web view (`WebViewInspection`), because the loader appends `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` to the app's own options | `enable_developer_extras` is never set, and `WEBKIT_INSPECTOR_SERVER` exposes no page without it |
 | In-view navigation blocked | `decidePolicyFor` cancels all but the initial in-memory load | `shouldOverrideUrlLoading → true` | `NavigationStarting` cancels all but our `NavigateToString` | `decide-policy` permits only the expected initial `about:blank` load; all later navigation is ignored |

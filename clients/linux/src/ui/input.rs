@@ -183,6 +183,9 @@ pub(crate) enum AppInput {
         reply_subject: String,
     },
     LoadRemoteImages(ReadingSource),
+    /// The sun/moon button: flips whether messages are drawn on a dark background while the app is
+    /// dark, the preference Settings → Reading also shows (`docs/reading-dark-mode.md`).
+    ToggleDarkMessages,
     RetryOpen(ReadingSource),
     OpenMailto(Box<MailtoPrefill>),
     OpenShare(Box<SharePrefill>),

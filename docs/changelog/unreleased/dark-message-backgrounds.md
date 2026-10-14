@@ -1,11 +1,11 @@
 # Messages follow a dark app
 
-Platforms: macos, ios, windows, android
+Platforms: all
 Bump: minor
 
 > The core moves a message's colours by lightness and keeps their hue, leaving pictures as sent
 > (docs/reading-dark-mode.md). The sun/moon button and Settings → Reading set one persisted
-> preference, as Outlook does. Each client adds its platform to this fragment as it ships.
+> preference, as Outlook does.
 
 **English**
 

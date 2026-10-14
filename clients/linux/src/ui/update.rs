@@ -215,6 +215,12 @@ impl AppModel {
                     reading.load_remote_images = true;
                 }
             }
+            AppInput::ToggleDarkMessages => {
+                if let Some(app) = &self.app {
+                    let dark = app.display_settings().dark_message_background;
+                    app.set_dark_message_background(!dark);
+                }
+            }
             AppInput::RetryOpen(source) => self.retry_open(&source),
             AppInput::OpenMailto(prefill) => self.open_mailto(*prefill, sender.input_sender()),
             AppInput::OpenShare(prefill) => self.open_share(*prefill, sender.input_sender()),

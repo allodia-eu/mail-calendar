@@ -185,6 +185,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     super::thread_tests::every_mail_row_formats_its_timestamp();
     super::thread_tests::a_conversation_reports_what_the_reader_asked_for();
     crate::ui::icons::tests::every_icon_resolves_to_a_real_glyph();
+    crate::ui::settings::dark_messages::tests::the_switch_follows_a_press_made_elsewhere();
     super::thread_tests::a_rerender_rebuilds_only_the_row_that_changed();
     super::thread_tests::a_removed_row_leaves_its_neighbours_widgets_alone();
     super::thread_tests::mail_arriving_at_the_top_does_not_rebuild_the_list_below_it();

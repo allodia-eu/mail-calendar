@@ -26,6 +26,9 @@ pub(super) struct ActionRow {
     pub(super) export_name: ExportName,
     pub(super) print_source: PrintSource,
     pub(super) print_item: gtk::Button,
+    /// The sun/moon button, drawn only in a dark app; its glyph and name are set per render
+    /// (`super::scheme`).
+    pub(super) scheme_toggle: gtk::Button,
 }
 
 /// Builds the row for one reader. Every button names `source`, so a window acts on its own
@@ -107,6 +110,14 @@ pub(super) fn action_row(
         });
     });
     header.pack_end(&trash);
+    // Packed last of the end group, so it opens it: before archive and delete
+    // (`../../../docs/reading-dark-mode.md`, rule 3). It flips the core's preference, which is
+    // the same one Settings → Reading shows, so it needs no state of its own.
+    let scheme_toggle = action_button(icons::DARK_BACKGROUND, l10n::reading_show_dark_background());
+    scheme_toggle.set_visible(false);
+    let input_sender = sender.clone();
+    scheme_toggle.connect_clicked(move |_| input_sender.emit(AppInput::ToggleDarkMessages));
+    header.pack_end(&scheme_toggle);
 
     ActionRow {
         header,
@@ -114,6 +125,7 @@ pub(super) fn action_row(
         export_name,
         print_source,
         print_item,
+        scheme_toggle,
     }
 }
 

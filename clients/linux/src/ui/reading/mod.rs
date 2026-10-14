@@ -10,14 +10,16 @@ use std::{cell::Cell, sync::Arc};
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    AttachmentRow, CalendarWriteStatus, MailcalApp, ReadingSnapshot, render_message_html,
+    AttachmentRow, CalendarWriteStatus, MailcalApp, MessageScheme, ReadingSnapshot,
 };
 
 pub(crate) mod attachments;
 pub(crate) mod canvas;
+mod document;
 mod header;
 mod overflow;
 mod print;
+mod scheme;
 
 use self::{
     attachments::attachment_row,
@@ -72,6 +74,11 @@ pub(crate) struct ReadingPane {
     /// print.
     print_source: PrintSource,
     print_item: gtk::Button,
+    scheme_toggle: gtk::Button,
+    /// The page the open message is drawn on, decided at the top of each render.
+    scheme: Cell<MessageScheme>,
+    /// What the web view shows, so a render rebuilds the document only when it moved.
+    body_shown: document::ShownBody,
     remote_banner: adw::Banner,
     /// The meeting-invitation card, above the body. Whether there is one at all is the core's
     /// two-condition RSVP gate (`docs/invitations.md`), so a published `.ics` produces none here
@@ -108,7 +115,9 @@ impl ReadingPane {
             export_name,
             print_source,
             print_item,
+            scheme_toggle,
         } = header::action_row(&window, &source, &sender);
+        scheme::follow_the_style_manager(&sender);
         toolbar.add_top_bar(&header);
 
         let content = gtk::Box::new(gtk::Orientation::Vertical, 10);
@@ -202,6 +211,9 @@ impl ReadingPane {
             export_name,
             print_source,
             print_item,
+            scheme_toggle,
+            scheme: Cell::new(MessageScheme::Light),
+            body_shown: document::ShownBody::default(),
             remote_banner,
             invitation,
             invitation_generation: Cell::new(None),
@@ -222,6 +234,7 @@ impl ReadingPane {
 
     pub(crate) fn suspend(&self) {
         self.web.clear();
+        self.body_shown.forget();
     }
 
     pub(crate) fn render(
@@ -234,6 +247,12 @@ impl ReadingPane {
     ) {
         for action in &self.actions {
             action.set_sensitive(state.opened.is_some());
+        }
+        let scheme = scheme::current(app);
+        scheme::update_toggle(&self.scheme_toggle, scheme);
+        let scheme_moved = self.scheme.replace(scheme) != scheme;
+        if scheme_moved {
+            self.web.set_page(&reading_canvas::canvas_rgba(scheme));
         }
         let Some(opened) = state.opened.as_ref() else {
             self.print_item.set_sensitive(false);
@@ -307,14 +326,8 @@ impl ReadingPane {
             if webview_available && app.is_some() {
                 self.remote_banner
                     .set_revealed(reading.has_remote_images && !state.load_remote_images);
-                self.web.load(
-                    &render_message_html(
-                        html.to_owned(),
-                        state.load_remote_images,
-                        mailcal_bindings::MessageScheme::Light,
-                    ),
-                    state.load_remote_images,
-                );
+                self.body_shown
+                    .draw(&self.web, html, state.load_remote_images, scheme);
                 // Hold the page until the document is actually on it. The view composites on a
                 // surface of its own that arrives black, so revealing it the moment a load
                 // starts puts a black rectangle in the middle of the pane for as long as the
@@ -350,7 +363,7 @@ impl ReadingPane {
         self.spinner.set_spinning(name == "loading");
         // Every page but `idle` is a message's body area, so all of them sit on the same sheet
         // and an open changes what is written on the page rather than the page itself.
-        reading_canvas::set_drawn(&self.body_stack, name != "idle");
+        reading_canvas::set_drawn(&self.body_stack, name != "idle", self.scheme.get());
         self.body_stack.set_visible_child_name(name);
     }
 
