@@ -12,12 +12,10 @@
 //   ReadingView.Print.cs        Print: a hardened WebView2 per print, handed to MessagePrintJob
 
 using System.ComponentModel;
-using Allodia.Mailcal.Calendar;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Views;
@@ -77,12 +75,10 @@ public sealed partial class ReadingView : UserControl
     public ReadingView()
     {
         this.InitializeComponent();
-        // The page every state of the body area is drawn on. Taken from the core so the sheet
-        // this pane paints and the document the WebView paints inside it are one colour rather
-        // than two whites that drift apart: the reason it is not a literal here any more, and
-        // not a ThemeResource either (see the BodyArea comment in the XAML).
-        BodyArea.Background = new SolidColorBrush(
-            CalendarColors.Parse(MailcalBindingsMethods.MessageCanvas(MessageScheme.Light).Background));
+        // The page every state of the body area is drawn on, from the core, so the sheet this pane
+        // paints and the document the WebView paints inside it are one colour (ReadingView.Scheme.cs).
+        ApplyScheme();
+        ActualThemeChanged += (_, _) => ApplyScheme();
     }
 
     /// <summary>Binds the view to the shared model as the <b>reading pane</b>: it reads the pane's
@@ -100,6 +96,7 @@ public sealed partial class ReadingView : UserControl
         this.Bindings.Update();
         reader.Changed += OnReaderChanged;
         model.PropertyChanged += OnModelChanged;
+        ApplyScheme();
         // Set the initial resting state (the pane's placeholder; a window opens on its own row).
         Render();
     }
@@ -123,6 +120,12 @@ public sealed partial class ReadingView : UserControl
             // An invitation answer settles on the calendar's own write surface. Only the card's
             // respond row moves, see OnCalendarWriteChanged for why this is not a Render().
             OnCalendarWriteChanged();
+        }
+        else if (e.PropertyName == nameof(MailboxModel.DisplaySettingsVersion))
+        {
+            // The message background may have changed, from this view's button, another
+            // window's, or Settings.
+            ApplyScheme();
         }
     }
 

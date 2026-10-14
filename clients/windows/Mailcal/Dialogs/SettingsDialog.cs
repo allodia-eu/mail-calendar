@@ -360,6 +360,8 @@ public sealed partial class SettingsDialog : ContentDialog
         // The two per-direction swipe pickers (SettingsDialog.Swipe.cs), as on macOS and Android.
         panel.Children.Add(Group(
             L10n.SettingsSwipeHeading(), L10n.SettingsSwipeDescription(), SwipeActionControls()));
+        panel.Children.Add(Group(
+            L10n.SettingsDarkMessagesHeading(), L10n.SettingsDarkMessagesDescription(), DarkMessagesToggle()));
 
         return panel;
     }

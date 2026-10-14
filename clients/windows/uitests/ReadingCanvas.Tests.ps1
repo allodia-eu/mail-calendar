@@ -1,16 +1,19 @@
 #!/usr/bin/env pwsh
-# The reading pane's body area is the PAGE a message is drawn on, and it is that page in a dark
-# window too (docs/sync-progress.md). Two things have to be true of it, and neither can be seen
-# without a rendered window in a pinned appearance:
+# The reading pane's body area is the PAGE a message is drawn on (docs/sync-progress.md), and in a
+# dark window which page that is depends on the reader's choice (docs/reading-dark-mode.md): dark
+# with dark messages on, white once the sun/moon button sends messages back to their light page.
+# Three things have to be true of it, and none can be seen without a rendered window in a pinned
+# appearance:
 #
-#   * the page is painted. `BodyArea.Background` is assigned in the code-behind from the core's
-#     `message_canvas`, the class of wiring that compiles, renders and does nothing. Left unset,
-#     the area falls through to the pane's own background: white in a light window, so a
-#     light-mode developer sees nothing wrong, and the dark panel that was the defect in a dark
-#     one.
-#   * the ink on it is resolved FOR the page. `RequestedTheme="Light"` is what does that. Remove
-#     it and the dark theme's own label colours draw white on white, which is not a flicker but a
-#     body area that is simply blank, and blank reads as "this message has no text".
+#   * with dark messages on, the page is dark and the ink on it light. The page and the ink are set
+#     in ReadingView.Scheme.cs from the core's `message_canvas`, and the theme over the page is
+#     the page's, not the window's.
+#   * after the button, the page is painted white INSIDE A DARK WINDOW. This is the case the
+#     suite was written for: `BodyArea.Background` is wiring that compiles, renders and does
+#     nothing, and left unset the area falls through to the pane's own dark background, which is a
+#     hole in a white page rather than a page.
+#   * on that white page the ink is resolved FOR the page. `BodyArea.RequestedTheme` is what does
+#     that; left at the window's, the dark theme's label colours draw white on white.
 #
 # `Mailcal.Tests` cannot link WinUI, so it can see neither a brush nor a resolved foreground.
 #
@@ -18,21 +21,15 @@
 # Appearance.Tests.ps1 samples the caption. The sampler is this file's own: it measures a
 # different surface, and reading a body area means insetting from a ScrollViewer's own chrome.
 #
-# THE RUN IS PINNED TO DARK, which is the whole point: in a light window every assertion below
-# passes over a body area that was never painted at all. The first case is what makes the pin
-# mean something, the window's own chrome has to be dark while the page in it is white. Together
-# they are the contract: the page is the core's colour, the chrome around it stays themed.
+# THE RUN IS PINNED TO DARK, which is the whole point: in a light window there is no button and
+# every page is white. The first case is what makes the pin mean something.
 #
 # Dataset is `harness`: the assertion needs a message whose body is text/plain, so that what is on
-# the page is WinUI's own drawing rather than a WebView2 document painting its own white. The
-# showcase seeds HTML bodies only, which would hide a body area that is still a hole.
+# the page is WinUI's own drawing rather than a WebView2 document painting its own. The showcase
+# seeds HTML bodies only, which would hide a body area that is still a hole.
 #
-# A PLAIN-TEXT BODY IS THE OBSERVABLE, not the state the defect showed on. The flicker was in the
-# gap before a body lands, and the spinner, the load error and "no content" sit on the same page;
-# none of the four is reachable against a real server, which prefetches bodies and serves them. But
-# all five states are the one `BodyArea`, painted once in the constructor and themed once in the
-# XAML, so a plain-text body is where those two can be read off the screen. The other four were
-# read by hand in dark, against a build that forced each state.
+# THE PREFERENCE PERSISTS, so the case that presses the button presses it again before it ends,
+# and the next case, or the next suite, starts with dark messages on.
 
 Add-Type -AssemblyName System.Drawing
 
@@ -51,6 +48,9 @@ $CanvasPageFloor = 200
 # The ceiling for "there is ink on it". Light-theme body text is near-black; white-on-white leaves
 # the darkest pixel in the sample as light as the page itself.
 $CanvasInkCeiling = 100
+# The dark page's ceiling and its ink's floor: #1e1e1e under #e3e3e3, so a median below the
+# midpoint with nothing lighter than this in the band is a dark page with no text on it.
+$CanvasLightInkFloor = 170
 
 # A message whose body is text/plain, from docker/stalwart/seed/mail/01-plain.eml.
 $CanvasPlainSubject = 'Harness baseline message'
@@ -109,6 +109,36 @@ function Open-PlainBody {
   Get-RenderedBounds -Element $body -What "the plain-text body of '$CanvasPlainSubject'"
 }
 
+<#
+.SYNOPSIS
+The sun/moon button, waited for: it exists only in a dark window.
+#>
+function Get-SchemeToggle {
+  $toggle = Wait-UiaElement -AutomationId 'ReadingSchemeToggle' -TimeoutSec 15
+  if (-not $toggle) {
+    throw 'no ReadingSchemeToggle on the action row of a window pinned dark (docs/reading-dark-mode.md, rule 3)'
+  }
+  $toggle
+}
+
+<#
+.SYNOPSIS
+The page behind the plain-text body, and the ink over its first lines.
+#>
+function Get-PlainPage {
+  $r = Open-PlainBody
+  # Inset well past the ScrollViewer's own edge chrome, and below the first lines of text, so the
+  # page band is the page and nothing but the page.
+  $inset = ConvertTo-UiaPixels 40
+  $page = Get-BandLuminance ([int]($r.X + $inset)) ([int]($r.Y + $r.Height - $inset)) `
+    ([int][Math]::Min(240, $r.Width - (2 * $inset))) 24
+  # The body's first lines: the ScrollViewer pads 16, and the text starts at its top left.
+  $pad = ConvertTo-UiaPixels 16
+  $ink = Get-BandLuminance ([int]($r.X + $pad)) ([int]($r.Y + $pad)) `
+    ([int][Math]::Min(400, $r.Width - (2 * $pad))) ([int](ConvertTo-UiaPixels 44))
+  [pscustomobject]@{ Page = $page; Ink = $ink }
+}
+
 $Suite = @{
   Dataset = 'harness'
   Env     = @{ MAILCAL_APPEARANCE = 'dark' }
@@ -119,40 +149,57 @@ $Suite = @{
         $lum = Get-CanvasCaptionLuminance
         Assert-True ($lum -lt $CanvasMidLuminance) (
           "the caption sampled at luminance $lum, i.e. light, but this run is pinned to dark with " +
-          'MAILCAL_APPEARANCE. In a light window the page and the chrome are both white and every ' +
-          'case below passes over a body area that was never painted')
+          'MAILCAL_APPEARANCE. In a light window there is no sun/moon button and every page is ' +
+          'white, so every case below would pass having proved nothing')
       }
     },
     @{
-      Name = 'the body area is the page the core names, not the dark theme''s panel'
+      Name = 'with dark messages on, the page is dark and the ink on it light'
       Body = {
-        $r = Open-PlainBody
-        # Inset well past the ScrollViewer's own edge chrome, and below the first lines of text, so
-        # this band is the page and nothing but the page.
-        $inset = ConvertTo-UiaPixels 40
-        $band = Get-BandLuminance ([int]($r.X + $inset)) ([int]($r.Y + $r.Height - $inset)) `
-          ([int][Math]::Min(240, $r.Width - (2 * $inset))) 24
-        Assert-True ($band.Median -gt $CanvasPageFloor) (
-          "the body area sampled at luminance $($band.Median) behind a plain-text body in a dark " +
-          'window, so it is the pane''s own background showing through. The area is the page a ' +
-          'message is drawn on, in both themes (docs/sync-progress.md): the core hands the colour ' +
-          'over as message_canvas and ReadingView''s constructor paints it onto BodyArea. Nothing ' +
-          'else draws it, the ScrollViewer has no background of its own')
+        $sample = Get-PlainPage
+        Assert-True ($sample.Page.Median -lt $CanvasMidLuminance) (
+          "the page behind a plain-text body sampled at $($sample.Page.Median) in a dark window " +
+          'with dark messages on. The page follows the scheme (docs/reading-dark-mode.md, rule 5), ' +
+          'set in ReadingView.Scheme.cs from message_canvas')
+        Assert-True ($sample.Ink.Lightest -gt $CanvasLightInkFloor) (
+          "the lightest pixel over the message's first lines is $($sample.Ink.Lightest), so the " +
+          'text is dark on a dark page: BodyArea.RequestedTheme is not following the page')
       }
     },
     @{
-      Name = 'the ink on that page is resolved for the page, not for the theme around it'
+      Name = 'the button opens the trailing group, before archive'
       Body = {
-        $r = Open-PlainBody
-        # The body's first lines: the ScrollViewer pads 16, and the text starts at its top left.
-        $pad = ConvertTo-UiaPixels 16
-        $band = Get-BandLuminance ([int]($r.X + $pad)) ([int]($r.Y + $pad)) `
-          ([int][Math]::Min(400, $r.Width - (2 * $pad))) ([int](ConvertTo-UiaPixels 44))
-        Assert-True ($band.Darkest -lt $CanvasInkCeiling) (
-          "the darkest pixel over the message's own first lines is $($band.Darkest), so there is " +
-          'no ink on the page: the text resolved the DARK theme''s label colour and is drawing ' +
-          'white on white. RequestedTheme="Light" on BodyArea is what pairs with the page, and ' +
-          'nothing headless can see a resolved foreground')
+        $null = Open-PlainBody
+        $toggle = Get-RenderedBounds -Element (Get-SchemeToggle) -What 'the sun/moon button'
+        $forward = Get-RenderedBounds -Element (Find-UiaElement -AutomationId 'ReadingForward') -What 'Forward'
+        $archive = Get-RenderedBounds -Element (Find-UiaElement -AutomationId 'ReadingArchive') -What 'Archive'
+        Assert-True ($forward.X -lt $toggle.X -and $toggle.X -lt $archive.X) (
+          "Forward at $($forward.X), the button at $($toggle.X), Archive at $($archive.X): the " +
+          'button sits immediately before archive and delete (docs/reading-actions.md)')
+      }
+    },
+    @{
+      Name = 'the sun sends the message to its light page, painted, with ink resolved for it'
+      Body = {
+        $null = Open-PlainBody
+        $toggle = Get-SchemeToggle
+        $sun = $toggle.Current.Name
+        Invoke-UiaElement $toggle
+        try {
+          $sample = Get-PlainPage
+          Assert-True ($sample.Page.Median -gt $CanvasPageFloor) (
+            "after the sun, the body area sampled at $($sample.Page.Median) in a dark window, so " +
+            'it is the pane''s own background showing through: BodyArea.Background is not the ' +
+            'core''s light canvas (ReadingView.Scheme.cs)')
+          Assert-True ($sample.Ink.Darkest -lt $CanvasInkCeiling) (
+            "the darkest pixel over the message's first lines is $($sample.Ink.Darkest), so there " +
+            'is no ink on the white page: the text resolved the dark window''s label colour')
+          $moon = (Get-SchemeToggle).Current.Name
+          Assert-True ($moon -ne $sun) "the button still reads '$sun' after it was pressed"
+        } finally {
+          # The preference persists: put dark messages back on for whatever runs next.
+          Invoke-UiaElement (Get-SchemeToggle)
+        }
       }
     }
   )

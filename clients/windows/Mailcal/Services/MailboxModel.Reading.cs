@@ -286,10 +286,11 @@ public sealed partial class MailboxModel
     /// Wraps a sanitised HTML body fragment in the shared-Rust, strict-CSP document the
     /// locked-down WebView2 loads, built in the core so the security boundary and base
     /// styling are identical across clients. <paramref name="loadRemoteImages"/> reflects the
-    /// user's per-message choice to load remote images.
+    /// user's per-message choice to load remote images; <paramref name="scheme"/> is the page it is
+    /// drawn on (docs/reading-dark-mode.md).
     /// </summary>
-    public string RenderMessageHtml(string html, bool loadRemoteImages) =>
-        MailcalBindingsMethods.RenderMessageHtml(html, loadRemoteImages, MessageScheme.Light);
+    public string RenderMessageHtml(string html, bool loadRemoteImages, MessageScheme scheme) =>
+        MailcalBindingsMethods.RenderMessageHtml(html, loadRemoteImages, scheme);
 
     /// <summary>
     /// The page Print lays out for one message: <paramref name="lines"/> under the subject, as

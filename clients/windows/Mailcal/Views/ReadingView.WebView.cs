@@ -12,9 +12,12 @@
 // blocks remote http(s) sub-resources until the user opts into images, defence in depth atop the
 // document CSP, the WebView2 twin of Android's shouldInterceptRequest gate.
 
+using System.Globalization;
+using System.Text.Json;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.Web.WebView2.Core;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Views;
 
@@ -24,6 +27,12 @@ public sealed partial class ReadingView
     /// doesn't rebuild the document (an FFI call) or reload the page. Null forces a render.</summary>
     private string? _lastFragment;
     private bool _lastLoadRemoteImages;
+    private MessageScheme _lastScheme;
+
+    /// <summary>Where the reader was when the same message was re-rendered in another scheme, put
+    /// back once the new document's DOM is in, before its first paint (docs/reading-dark-mode.md,
+    /// rule 9). Null when there is nothing to restore.</summary>
+    private (double X, double Y)? _keptPlace;
 
     /// <summary>One-shot CoreWebView2 init (settings + navigation lock), awaited per HTML render.</summary>
     private Task? _coreInit;
@@ -66,20 +75,33 @@ public sealed partial class ReadingView
 
     // Wrap the sanitised fragment in the shared-Rust document and load it into the hardened
     // WebView2. Skip when the inputs are unchanged, so unrelated re-renders don't rebuild the
-    // document (an FFI call) or reload the page, only the fragment or the load-images choice
-    // matters.
+    // document (an FFI call) or reload the page, only the fragment, the load-images choice or the
+    // scheme matters. A change of scheme alone keeps the reader's place.
     private async void RenderHtml(string fragment)
     {
-        if (_lastFragment == fragment && _lastLoadRemoteImages == _loadRemoteImages)
+        var scheme = Scheme;
+        var loadRemoteImages = _loadRemoteImages;
+        var sameMessage = _lastFragment == fragment && _lastLoadRemoteImages == loadRemoteImages;
+        if (sameMessage && _lastScheme == scheme)
         {
             return;
         }
         _lastFragment = fragment;
-        _lastLoadRemoteImages = _loadRemoteImages;
-        var document = _model!.RenderMessageHtml(fragment, _loadRemoteImages);
+        _lastLoadRemoteImages = loadRemoteImages;
+        _lastScheme = scheme;
+        var document = _model!.RenderMessageHtml(fragment, loadRemoteImages, scheme);
         try
         {
             await EnsureCoreAsync();
+            var place = sameMessage ? await ReadPlaceAsync() : null;
+            // A newer render started while the place was being read; it loads its own document,
+            // and this place must not land on it.
+            if (_lastFragment != fragment || _lastLoadRemoteImages != loadRemoteImages
+                || _lastScheme != scheme)
+            {
+                return;
+            }
+            _keptPlace = place;
             _expectingLoad = true;
             Log.Debug("reading: loading the body into the web view");
             Body.CoreWebView2!.NavigateToString(document);
@@ -114,6 +136,47 @@ public sealed partial class ReadingView
 
     private Task EnsureCoreAsync() => _coreInit ??= InitCoreAsync();
 
+    /// <summary>
+    /// The page's scroll position, read by script the app runs: WebView2 offers no native one, and
+    /// <c>IsScriptEnabled = false</c> stops only the document's own script, never
+    /// <c>ExecuteScriptAsync</c> (docs/rendering-security.md, gate 1). Null at the very top, where
+    /// there is nothing to restore, and when the read fails.
+    /// </summary>
+    private async Task<(double X, double Y)?> ReadPlaceAsync()
+    {
+        try
+        {
+            var json = await Body.CoreWebView2!.ExecuteScriptAsync("[window.scrollX, window.scrollY]");
+            var point = JsonSerializer.Deserialize<double[]>(json);
+            return point is [var x, var y] && (x != 0 || y != 0) ? (x, y) : null;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug($"reading: couldn't read the scroll position ({ex.GetType().Name})");
+            return null;
+        }
+    }
+
+    // The new document's DOM is in and nothing has been painted yet: put the reader back.
+    private async void OnDomContentLoaded(CoreWebView2 sender, CoreWebView2DOMContentLoadedEventArgs args)
+    {
+        if (_keptPlace is not { } place)
+        {
+            return;
+        }
+        _keptPlace = null;
+        var x = place.X.ToString(CultureInfo.InvariantCulture);
+        var y = place.Y.ToString(CultureInfo.InvariantCulture);
+        try
+        {
+            await sender.ExecuteScriptAsync($"window.scrollTo({x}, {y})");
+        }
+        catch (Exception ex)
+        {
+            Log.Debug($"reading: couldn't restore the scroll position ({ex.GetType().Name})");
+        }
+    }
+
     private async Task InitCoreAsync()
     {
         Log.Debug("reading: creating the web view");
@@ -138,6 +201,8 @@ public sealed partial class ReadingView
         // Block in-view navigations; allow only our NavigateToString. A clicked link opens
         // in the default browser instead (OnNavigationStarting).
         core.NavigationStarting += OnNavigationStarting;
+        // A scheme change keeps the reader's place (RenderHtml).
+        core.DOMContentLoaded += OnDomContentLoaded;
         // Paired with the "loading" line above, this is how long a body takes to appear. It is also
         // what separates the two halves of this element in the window-order fault: NAVIGATING is
         // not part of it and completes long after, while CREATING the view is the interval the

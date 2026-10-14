@@ -173,6 +173,9 @@
          recognised. Both failures are silent, a second window stacked on the first holding a second
          copy of one body, and a pane that quietly moves when the contract says it must not. -->
     <Compile Include="..\Mailcal\Services\ReadingWindows.cs" Link="Services\ReadingWindows.cs" />
+    <!-- Which page a message is drawn on (docs/reading-dark-mode.md). WinUI-free so the rule is
+         pinned here; the reading view feeds it its own ActualTheme and the core's preference. -->
+    <Compile Include="..\Mailcal\Services\MessageSchemes.cs" Link="Services\MessageSchemes.cs" />
     <!-- What the message list's multi-selection means (docs/list-selection.md): which of the
          paired actions its bar offers, and what a conversation row becomes when the batch goes to
          the core. WinUI-free on purpose; both rules fail silently in the running app, a button

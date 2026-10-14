@@ -26,4 +26,22 @@ public sealed partial class MailboxModel
         Log.Info($"settings: set appearance={appearance}");
         _app?.SetAppearance(appearance);
     }
+
+    /// <summary>
+    /// Whether messages are drawn on a dark background while the app is dark: the reading view's
+    /// sun/moon button and Settings → Reading both show it (docs/reading-dark-mode.md). On while
+    /// the core is still connecting, which is the core's own default.
+    /// </summary>
+    internal bool DarkMessageBackground => _app?.DisplaySettings().DarkMessageBackground ?? true;
+
+    /// <summary>
+    /// Persists the message background, and bumps <see cref="DisplaySettingsVersion"/> now rather
+    /// than on the Settings signal that follows, so every open reading view re-renders on the press.
+    /// </summary>
+    internal void SetDarkMessageBackground(bool dark)
+    {
+        Log.Info($"settings: set dark message background={dark}");
+        _app?.SetDarkMessageBackground(dark);
+        BumpDisplaySettings();
+    }
 }

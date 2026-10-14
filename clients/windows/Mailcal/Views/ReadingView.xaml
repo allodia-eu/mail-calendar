@@ -113,6 +113,15 @@
                         <!-- Subtle separator between the compose actions and the manage actions. -->
                         <Border Width="1" Margin="4,2" VerticalAlignment="Stretch"
                                 Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <!-- The sun/moon button (docs/reading-dark-mode.md): only in a dark app, an
+                             icon at every width like the overflow, opening the trailing group. Its
+                             glyph, name and tooltip say what pressing it does, and are set with
+                             its visibility in ApplyScheme. Stretched for the overflow's reason. -->
+                        <Button x:Name="SchemeToggle" Click="OnToggleScheme"
+                                Visibility="Collapsed" VerticalAlignment="Stretch"
+                                AutomationProperties.AutomationId="ReadingSchemeToggle">
+                            <FontIcon x:Name="SchemeToggleGlyph" Glyph="&#xE706;" FontSize="14" />
+                        </Button>
                         <Button Click="OnArchive" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}"
                                 AutomationProperties.AutomationId="ReadingArchive"
                                 AutomationProperties.Name="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}">
@@ -252,12 +261,12 @@
                  punched a hole in the page and the body area went white, black, white on every
                  message opened in dark theme (docs/sync-progress.md).
 
-                 The colour is the CORE's (MessageCanvas, set in the code-behind), the same one it
-                 gives the HTML document, not a ThemeResource, because base_css pins that document
-                 to `color-scheme:light; background:#fff` in every theme: mail is authored for a
-                 white page. RequestedTheme="Light" is what goes with it, so the text and glyphs
-                 over this page resolve light rather than the dark theme's own white-on-white. The
-                 chrome around it (header, toolbar, remote-images bar) stays themed. -->
+                 The colour is the CORE's (MessageCanvas, set in ApplyScheme), the same one it gives
+                 the HTML document in the same scheme, not a ThemeResource: the page is the
+                 message's, and a dark app reading with dark messages off draws a white one
+                 (docs/reading-dark-mode.md). Its RequestedTheme goes with it, so the text and
+                 glyphs over this page resolve against the page rather than the app's theme. The
+                 chrome around it (header, toolbar, remote-images bar) stays in the app's. -->
             <Grid Grid.Row="4" x:Name="BodyArea" RequestedTheme="Light">
                 <ProgressRing x:Name="LoadingRing" IsActive="False" Width="36" Height="36"
                               HorizontalAlignment="Center" VerticalAlignment="Center" />

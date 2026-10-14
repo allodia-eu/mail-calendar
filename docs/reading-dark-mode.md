@@ -111,10 +111,10 @@ not pretend to: the toggle is the answer, which is why it is on the row rather t
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Dark render while the app is dark | ✅ | ✅ | ⬜ | ✅ | ⬜ |
-| Canvas follows the scheme from the first frame | ✅ | ✅ | ⬜ | ✅ | ⬜ |
-| Sun/moon toggle on the action row, dark app only | ✅ | ✅ | ⬜ | ✅ | ⬜ |
-| Settings → Reading switch | ✅ | ✅ | ⬜ | ✅ | ⬜ |
-| Re-renders live on an appearance or preference change | ✅ | ✅ | ⬜ | ✅ | ⬜ |
-| A scheme change keeps the reader's place | ✅ | ✅ | ⬜ | ✅ | ⬜ |
-| Reading windows follow | ✅ | — | ⬜ | — | ⬜ |
+| Dark render while the app is dark | ✅ | ✅ | ✅ | ✅ | ⬜ |
+| Canvas follows the scheme from the first frame | ✅ | ✅ | ✅ | ✅ | ⬜ |
+| Sun/moon toggle on the action row, dark app only | ✅ | ✅ | ✅ | ✅ | ⬜ |
+| Settings → Reading switch | ✅ | ✅ | ✅ | ✅ | ⬜ |
+| Re-renders live on an appearance or preference change | ✅ | ✅ | ✅ | ✅ | ⬜ |
+| A scheme change keeps the reader's place | ✅ | ✅ | ✅ | ✅ | ⬜ |
+| Reading windows follow | ✅ | — | ✅ | — | ⬜ |
