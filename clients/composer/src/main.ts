@@ -65,7 +65,7 @@ const revision = installRevisionCounter(editor);
 // drop the image wherever the selection had moved to by the time the bytes arrived.
 editor.addEventListener("paste", (event) => {
   event.preventDefault();
-  const content = pasteContent(doc, event.clipboardData, caretHoldsInlineOnly());
+  const content = pasteContent(doc, event.clipboardData, caretHoldsInlineOnly(), attachments);
   if ("images" in content) {
     void insertImageFiles(editor, attachments, content.images, saveSelection(editor));
     return;
@@ -191,7 +191,7 @@ window.insertComposerImage = (image) =>
 /// whose WebView hides the clipboard's pictures from the page calls it: it holds the picture back
 /// until this says the HTML beside it carried nothing (`pasteContent`).
 window.pasteComposerHtml = (html) => {
-  const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly());
+  const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly(), attachments);
   return markup !== null && insertHtml(markup);
 };
 window.setComposerQuote = (quote) => setComposerQuote(editor, parsed<QuoteSeed>(quote));

@@ -2435,6 +2435,122 @@
     return true;
   }
 
+  // src/paste_styles.ts
+  var MARK_PROPERTIES = ["font-weight", "font-style", "text-decoration-line", "text-decoration"];
+  function classRules(view, source) {
+    if (typeof view.CSSStyleSheet !== "function")
+      return [];
+    const rules = [];
+    for (const element of Array.from(source.querySelectorAll("style"))) {
+      const sheet = new view.CSSStyleSheet;
+      try {
+        sheet.replaceSync(element.textContent ?? "");
+      } catch {
+        continue;
+      }
+      for (const rule of Array.from(sheet.cssRules)) {
+        if (!("selectorText" in rule) || !("style" in rule))
+          continue;
+        const style = rule.style;
+        if (!MARK_PROPERTIES.some((property) => style.getPropertyValue(property)))
+          continue;
+        for (const selector of String(rule.selectorText).split(",")) {
+          const match = /^([a-z][a-z0-9]*)?\.(-?[_a-z][\w-]*)$/i.exec(selector.trim());
+          if (match)
+            rules.push({ tag: match[1]?.toLowerCase() ?? null, className: match[2], style });
+        }
+      }
+    }
+    return rules;
+  }
+  function declared(element, property, classes) {
+    const inline = element.style?.getPropertyValue(property) ?? "";
+    if (inline || classes.length === 0)
+      return inline;
+    let value = "";
+    let rank = -1;
+    for (const rule of classes) {
+      if (rule.tag && rule.tag !== element.localName)
+        continue;
+      if (!element.classList?.contains(rule.className))
+        continue;
+      const named = rule.style.getPropertyValue(property);
+      const ruleRank = rule.tag ? 1 : 0;
+      if (named && ruleRank >= rank) {
+        value = named;
+        rank = ruleRank;
+      }
+    }
+    return value;
+  }
+
+  // src/paste_word.ts
+  function levelOf(element) {
+    const match = /mso-list\s*:\s*l\d+\s+level(\d+)/i.exec(element.getAttribute("style") ?? "");
+    return match ? Number(match[1]) : null;
+  }
+  function isMarker(element) {
+    return /mso-list\s*:\s*ignore/i.test(element.getAttribute("style") ?? "");
+  }
+  function numbers(marker) {
+    return /^\(?([0-9]+|[a-z]{1,3})[.)]$/i.test(marker.replace(/[\s ]+/g, ""));
+  }
+  function wordLists(root) {
+    const doc = root.ownerDocument;
+    const parents = new Set;
+    for (const element of Array.from(root.querySelectorAll("[style]"))) {
+      if (levelOf(element) !== null && element.parentElement)
+        parents.add(element.parentElement);
+    }
+    for (const parent of parents) {
+      let run = [];
+      for (const node of Array.from(parent.childNodes)) {
+        const between = node.nodeType === 8 || node.nodeType === 3 && !node.nodeValue?.trim();
+        if (node.nodeType === 1 && levelOf(node) !== null) {
+          run.push(node);
+        } else if (!between) {
+          rewrite(doc, run);
+          run = [];
+        }
+      }
+      rewrite(doc, run);
+    }
+  }
+  function rewrite(doc, run) {
+    const first = run[0];
+    if (!first)
+      return;
+    const lists = doc.createDocumentFragment();
+    const open = [];
+    for (const paragraph of run) {
+      const level = levelOf(paragraph) ?? 1;
+      const markers = Array.from(paragraph.querySelectorAll("[style]")).filter(isMarker);
+      const ordered = numbers(markers[0]?.textContent ?? "");
+      for (const marker of markers)
+        marker.remove();
+      while (open.length > 0 && open[open.length - 1].level > level)
+        open.pop();
+      const top = open[open.length - 1];
+      if (top && top.level === level && top.ordered !== ordered)
+        open.pop();
+      let current = open[open.length - 1];
+      if (!current || current.level < level) {
+        const list = doc.createElement(ordered ? "ol" : "ul");
+        const host = current?.list.lastElementChild ?? current?.list;
+        (host ?? lists).appendChild(list);
+        current = { list, level, ordered };
+        open.push(current);
+      }
+      const item = doc.createElement("li");
+      while (paragraph.firstChild)
+        item.appendChild(paragraph.firstChild);
+      current.list.appendChild(item);
+    }
+    first.parentNode?.insertBefore(lists, first);
+    for (const paragraph of run)
+      paragraph.remove();
+  }
+
   // src/paste.ts
   var PLAIN = {
     bold: false,
@@ -2509,53 +2625,6 @@
   ]);
   var STRUCTURES = new Set(["ul", "ol", "table", "tbody", "thead", "tfoot", "tr", "td", "th"]);
   var HEADINGS2 = new Set(["h1", "h2", "h3", "h4", "h5", "h6"]);
-  var MARK_PROPERTIES = ["font-weight", "font-style", "text-decoration-line", "text-decoration"];
-  function classRules(view, source) {
-    if (typeof view.CSSStyleSheet !== "function")
-      return [];
-    const rules = [];
-    for (const element of Array.from(source.querySelectorAll("style"))) {
-      const sheet = new view.CSSStyleSheet;
-      try {
-        sheet.replaceSync(element.textContent ?? "");
-      } catch {
-        continue;
-      }
-      for (const rule of Array.from(sheet.cssRules)) {
-        if (!("selectorText" in rule) || !("style" in rule))
-          continue;
-        const style = rule.style;
-        if (!MARK_PROPERTIES.some((property) => style.getPropertyValue(property)))
-          continue;
-        for (const selector of String(rule.selectorText).split(",")) {
-          const match = /^([a-z][a-z0-9]*)?\.(-?[_a-z][\w-]*)$/i.exec(selector.trim());
-          if (match)
-            rules.push({ tag: match[1]?.toLowerCase() ?? null, className: match[2], style });
-        }
-      }
-    }
-    return rules;
-  }
-  function declared(element, property, classes) {
-    const inline = element.style?.getPropertyValue(property) ?? "";
-    if (inline || classes.length === 0)
-      return inline;
-    let value = "";
-    let rank = -1;
-    for (const rule of classes) {
-      if (rule.tag && rule.tag !== element.localName)
-        continue;
-      if (!element.classList?.contains(rule.className))
-        continue;
-      const named = rule.style.getPropertyValue(property);
-      const ruleRank = rule.tag ? 1 : 0;
-      if (named && ruleRank >= rank) {
-        value = named;
-        rank = ruleRank;
-      }
-    }
-    return value;
-  }
 
   class Flow {
     doc;
@@ -2569,6 +2638,15 @@
       this.doc = doc;
       this.root = root;
       this.inline = inline;
+    }
+    image(node) {
+      if (this.separated) {
+        this.target().appendChild(this.doc.createTextNode(" "));
+        this.separated = false;
+      }
+      this.target().appendChild(node);
+      this.spaced = false;
+      this.lastRun = null;
     }
     text(value, marks) {
       let text = value.replace(/[\t\n\f\r ]+/g, " ");
@@ -2712,6 +2790,12 @@
       return;
     const element = node;
     const tag = element.localName;
+    if (tag === "img" && !hidden(element)) {
+      const picture = inlinePicture(element, paste);
+      if (picture)
+        flow.image(picture);
+      return;
+    }
     if (DROPPED.has(tag) || hidden(element))
       return;
     if (tag === "br") {
@@ -2778,14 +2862,22 @@
       source,
       ...Array.from(source.children).filter((child) => /^(thead|tbody|tfoot)$/.test(child.localName))
     ];
+    const held = [];
     for (const section of sections) {
       for (const row of Array.from(section.children)) {
         if (row.localName !== "tr" || hidden(row))
           continue;
         const cells = [];
+        const taken = held[rows.length] ?? new Set;
+        const skipTaken = () => {
+          while (taken.has(cells.length))
+            cells.push(doc.createElement("td"));
+        };
         for (const cell of Array.from(row.children)) {
           if (cell.localName !== "td" && cell.localName !== "th" || hidden(cell))
             continue;
+          skipTaken();
+          const column = cells.length;
           const td = doc.createElement("td");
           const flow = new Flow(doc, td, true);
           const cellMarks = marksOf(cell, cell.localName, marks, paste.classes);
@@ -2796,7 +2888,14 @@
           const span = Math.min(Number.parseInt(cell.getAttribute("colspan") ?? "", 10) || 1, 1000);
           for (let extra = 1;extra < span; extra += 1)
             cells.push(doc.createElement("td"));
+          const down = Math.min(Number.parseInt(cell.getAttribute("rowspan") ?? "", 10) || 1, 1000);
+          for (let below = 1;below < down; below += 1) {
+            const later = held[rows.length + below] ??= new Set;
+            for (let at = column;at < column + span; at += 1)
+              later.add(at);
+          }
         }
+        skipTaken();
         if (cells.length > 0)
           rows.push(cells);
       }
@@ -2818,24 +2917,45 @@
     }
     return table;
   }
-  function pastedHtml(doc, html, inline = false) {
+  function inlinePicture(element, paste) {
+    const url = element.getAttribute("src") ?? "";
+    if (!paste.attachments || !url.startsWith("data:") || !isShowableImage(mediaTypeOf(url)))
+      return null;
+    const comma = url.indexOf(",");
+    const payload = url.length - comma - 1;
+    const bytes = url.slice(0, comma).endsWith(";base64") ? Math.floor(payload * 3 / 4) : payload;
+    if (bytes > MAX_CAPTURED_BYTES)
+      return null;
+    const id = paste.attachments.addCapturedImage({ data_url: url, file_name: "", media_type: "" });
+    const picture = paste.doc.createElement("img");
+    picture.dataset.attachmentId = id;
+    picture.setAttribute("src", url);
+    picture.setAttribute("alt", element.getAttribute("alt") ?? "");
+    const width = Number.parseInt(element.getAttribute("width") ?? "", 10);
+    if (width > 0)
+      picture.setAttribute("width", String(width));
+    return picture;
+  }
+  function pastedHtml(doc, html, inline = false, attachments = null) {
     const view = doc.defaultView;
     if (!view?.DOMParser)
       return null;
     const source = new view.DOMParser().parseFromString(html, "text/html");
+    if (source.body)
+      wordLists(source.body);
     const out = doc.createElement("div");
     const flow = new Flow(doc, out, inline);
-    const paste = { doc, classes: classRules(view, source) };
+    const paste = { doc, classes: classRules(view, source), attachments };
     for (const child of Array.from(source.body?.childNodes ?? []))
       walk(child, PLAIN, flow, paste);
     flow.endLine();
-    if (!out.textContent?.trim())
+    if (!out.textContent?.trim() && !out.querySelector("img"))
       return null;
     const only = out.childNodes.length === 1 ? out.firstChild : null;
     return only?.localName === "p" ? only.innerHTML : out.innerHTML;
   }
-  function pasteContent(doc, transfer, inline) {
-    const html = pastedHtml(doc, transfer?.getData("text/html") ?? "", inline);
+  function pasteContent(doc, transfer, inline, attachments = null) {
+    const html = pastedHtml(doc, transfer?.getData("text/html") ?? "", inline, attachments);
     if (html !== null)
       return { html };
     const images = imageFilesFrom(transfer);
@@ -4136,7 +4256,7 @@
   var revision = installRevisionCounter(editor);
   editor.addEventListener("paste", (event) => {
     event.preventDefault();
-    const content = pasteContent(doc, event.clipboardData, caretHoldsInlineOnly());
+    const content = pasteContent(doc, event.clipboardData, caretHoldsInlineOnly(), attachments);
     if ("images" in content) {
       insertImageFiles(editor, attachments, content.images, saveSelection(editor));
       return;
@@ -4208,7 +4328,7 @@
   window.addComposerInlineImage = (meta) => attachments.addInlineImage(editor, meta);
   window.insertComposerImage = (image) => insertCapturedImage(editor, attachments, parsed(image));
   window.pasteComposerHtml = (html) => {
-    const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly());
+    const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly(), attachments);
     return markup !== null && insertHtml(markup);
   };
   window.setComposerQuote = (quote) => setComposerQuote(editor, parsed(quote));

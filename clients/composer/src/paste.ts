@@ -13,9 +13,12 @@
 // within a draft keeps them. A foreign colour is dropped: Word stamps `color:#1A1A1A` on every run
 // and a page in dark mode stamps a light one, and either would follow the text into the message.
 
-import { imageFilesFrom } from "./images";
+import { type Attachments, mediaTypeOf } from "./attachments";
+import { imageFilesFrom, isShowableImage, MAX_CAPTURED_BYTES } from "./images";
 import { safeLinkHref } from "./links";
 import { normalizeColor } from "./marks";
+import { type ClassRule, classRules, declared, MARK_PROPERTIES } from "./paste_styles";
+import { wordLists } from "./paste_word";
 import { type FontSize, fontSizeOf, type HexColor } from "./types";
 
 interface PasteMarks {
@@ -61,73 +64,12 @@ const STRUCTURES = new Set(["ul", "ol", "table", "tbody", "thead", "tfoot", "tr"
 
 const HEADINGS = new Set(["h1", "h2", "h3", "h4", "h5", "h6"]);
 
-/// The style properties a mark is read from, and the only ones read from a style sheet.
-const MARK_PROPERTIES = ["font-weight", "font-style", "text-decoration-line", "text-decoration"];
-
-/// A rule in the pasted markup's style sheet that gives a class one of the marks: `.xl63` or
-/// `td.xl63`.
-interface ClassRule {
-  tag: string | null;
-  className: string;
-  style: CSSStyleDeclaration;
-}
-
 /// What the walk builds with: the editor's document, and the class rules of the markup it reads.
 interface Paste {
   doc: Document;
   classes: ClassRule[];
-}
-
-/// The class rules in `source`'s style sheets that name a mark.
-///
-/// Excel writes every cell's bold, italic and underline as a class (`.xl63 {font-weight:700}`), and
-/// a run inside a cell as `<font class="font5">`, so without these a sheet pastes with none of its
-/// formatting. Each sheet is parsed into a stylesheet that is never applied, so nothing in it loads
-/// or draws, and only `MARK_PROPERTIES` are read back. A selector counts when it is a single class,
-/// alone or on one tag; one that depends on an element's place in the document is skipped, since
-/// the walk does not keep that place.
-function classRules(view: Window & typeof globalThis, source: Document): ClassRule[] {
-  if (typeof view.CSSStyleSheet !== "function") return [];
-  const rules: ClassRule[] = [];
-  for (const element of Array.from(source.querySelectorAll("style"))) {
-    const sheet = new view.CSSStyleSheet();
-    try {
-      sheet.replaceSync(element.textContent ?? "");
-    } catch {
-      continue;
-    }
-    for (const rule of Array.from(sheet.cssRules)) {
-      if (!("selectorText" in rule) || !("style" in rule)) continue;
-      const style = rule.style as CSSStyleDeclaration;
-      if (!MARK_PROPERTIES.some((property) => style.getPropertyValue(property))) continue;
-      for (const selector of String(rule.selectorText).split(",")) {
-        const match = /^([a-z][a-z0-9]*)?\.(-?[_a-z][\w-]*)$/i.exec(selector.trim());
-        if (match) rules.push({ tag: match[1]?.toLowerCase() ?? null, className: match[2]!, style });
-      }
-    }
-  }
-  return rules;
-}
-
-/// `property` on `element` as the cascade would settle it among what is read: the inline style,
-/// else the class rule that names it, a rule on the element's tag over a bare class and a later
-/// rule over an earlier one.
-function declared(element: HTMLElement, property: string, classes: ClassRule[]): string {
-  const inline = element.style?.getPropertyValue(property) ?? "";
-  if (inline || classes.length === 0) return inline;
-  let value = "";
-  let rank = -1;
-  for (const rule of classes) {
-    if (rule.tag && rule.tag !== element.localName) continue;
-    if (!element.classList?.contains(rule.className)) continue;
-    const named = rule.style.getPropertyValue(property);
-    const ruleRank = rule.tag ? 1 : 0;
-    if (named && ruleRank >= rank) {
-      value = named;
-      rank = ruleRank;
-    }
-  }
-  return value;
+  /// Where a picture the markup carries is registered, or `null` when the caller keeps none.
+  attachments: Attachments | null;
 }
 
 /// Where the text of one line goes, and what ends a line there.
@@ -149,6 +91,17 @@ class Flow {
     private readonly root: Node,
     readonly inline: boolean,
   ) {}
+
+  /// A picture, inline among the text of the line.
+  image(node: HTMLElement): void {
+    if (this.separated) {
+      this.target().appendChild(this.doc.createTextNode(" "));
+      this.separated = false;
+    }
+    this.target().appendChild(node);
+    this.spaced = false;
+    this.lastRun = null;
+  }
 
   text(value: string, marks: PasteMarks): void {
     let text = value.replace(/[\t\n\f\r ]+/g, " ");
@@ -300,6 +253,11 @@ function walk(node: Node, marks: PasteMarks, flow: Flow, paste: Paste, pre = fal
   if (node.nodeType !== 1) return;
   const element = node as HTMLElement;
   const tag = element.localName;
+  if (tag === "img" && !hidden(element)) {
+    const picture = inlinePicture(element, paste);
+    if (picture) flow.image(picture);
+    return;
+  }
   if (DROPPED.has(tag) || hidden(element)) return;
   if (tag === "br") {
     flow.lineBreak();
@@ -361,12 +319,21 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLEl
     source,
     ...Array.from(source.children).filter((child) => /^(thead|tbody|tfoot)$/.test(child.localName)),
   ];
+  // The columns a cell merged down from an earlier row (`rowspan`) holds in each later one, by row:
+  // the rows it reaches get an empty cell there, so their own cells keep their columns.
+  const held: Set<number>[] = [];
   for (const section of sections) {
     for (const row of Array.from(section.children) as HTMLElement[]) {
       if (row.localName !== "tr" || hidden(row)) continue;
       const cells: HTMLElement[] = [];
+      const taken = held[rows.length] ?? new Set<number>();
+      const skipTaken = () => {
+        while (taken.has(cells.length)) cells.push(doc.createElement("td"));
+      };
       for (const cell of Array.from(row.children) as HTMLElement[]) {
         if ((cell.localName !== "td" && cell.localName !== "th") || hidden(cell)) continue;
+        skipTaken();
+        const column = cells.length;
         const td = doc.createElement("td");
         const flow = new Flow(doc, td, true);
         const cellMarks = marksOf(cell, cell.localName, marks, paste.classes);
@@ -377,7 +344,13 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLEl
         // empty. 1000 is the most a browser honours.
         const span = Math.min(Number.parseInt(cell.getAttribute("colspan") ?? "", 10) || 1, 1000);
         for (let extra = 1; extra < span; extra += 1) cells.push(doc.createElement("td"));
+        const down = Math.min(Number.parseInt(cell.getAttribute("rowspan") ?? "", 10) || 1, 1000);
+        for (let below = 1; below < down; below += 1) {
+          const later = (held[rows.length + below] ??= new Set<number>());
+          for (let at = column; at < column + span; at += 1) later.add(at);
+        }
       }
+      skipTaken();
       if (cells.length > 0) rows.push(cells);
     }
   }
@@ -397,23 +370,55 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLEl
   return table;
 }
 
-/// The editor markup for a clipboard's `text/html`, or `null` when it holds no text worth keeping
-/// (a copied picture, say), so the caller falls back to the plain-text flavour.
+/// The picture `element` carries inline, as a new inline attachment of this draft, or `null`.
+///
+/// Only a `data:` URI of a format a message body may carry, within the cap a pasted picture has
+/// (images.ts): what a picture copied from inside a draft looks like on the clipboard. One the
+/// markup names by URL, on the web or on disk, is dropped, because the composer fetches nothing and
+/// reads no file the user did not pick (docs/composer-security.md, Gate 7). An attachment id the
+/// markup carries is never reused: it names an attachment of another draft, or of none.
+function inlinePicture(element: HTMLElement, paste: Paste): HTMLElement | null {
+  const url = element.getAttribute("src") ?? "";
+  if (!paste.attachments || !url.startsWith("data:") || !isShowableImage(mediaTypeOf(url))) return null;
+  const comma = url.indexOf(",");
+  const payload = url.length - comma - 1;
+  const bytes = url.slice(0, comma).endsWith(";base64") ? Math.floor((payload * 3) / 4) : payload;
+  if (bytes > MAX_CAPTURED_BYTES) return null;
+  const id = paste.attachments.addCapturedImage({ data_url: url, file_name: "", media_type: "" });
+  const picture = paste.doc.createElement("img");
+  picture.dataset.attachmentId = id;
+  picture.setAttribute("src", url);
+  picture.setAttribute("alt", element.getAttribute("alt") ?? "");
+  const width = Number.parseInt(element.getAttribute("width") ?? "", 10);
+  if (width > 0) picture.setAttribute("width", String(width));
+  return picture;
+}
+
+/// The editor markup for a clipboard's `text/html`, or `null` when it holds neither text nor a
+/// picture worth keeping (a browser's copied picture, say), so the caller falls back to the
+/// clipboard's picture or its plain-text flavour.
 ///
 /// One paragraph comes back as its runs alone, so a phrase pasted mid-sentence joins that sentence
 /// rather than splitting it into three lines. `inline` is a paste into a list item or a table cell,
-/// which hold inline content only, so everything arrives as one line there.
-export function pastedHtml(doc: Document, html: string, inline = false): string | null {
+/// which hold inline content only, so everything arrives as one line there. A picture the markup
+/// carries is kept only when `attachments` is given to register it in.
+export function pastedHtml(
+  doc: Document,
+  html: string,
+  inline = false,
+  attachments: Attachments | null = null,
+): string | null {
   const view = doc.defaultView as (Window & typeof globalThis) | null;
   if (!view?.DOMParser) return null;
   // A parsed document has no browsing context: its scripts never run and its pictures never load.
   const source = new view.DOMParser().parseFromString(html, "text/html");
+  if (source.body) wordLists(source.body);
   const out = doc.createElement("div");
   const flow = new Flow(doc, out, inline);
-  const paste = { doc, classes: classRules(view, source) };
+  const paste = { doc, classes: classRules(view, source), attachments };
   for (const child of Array.from(source.body?.childNodes ?? [])) walk(child, PLAIN, flow, paste);
   flow.endLine();
-  if (!out.textContent?.trim()) return null;
+  if (!out.textContent?.trim() && !out.querySelector("img")) return null;
   const only = out.childNodes.length === 1 ? (out.firstChild as Element) : null;
   return only?.localName === "p" ? only.innerHTML : out.innerHTML;
 }
@@ -426,14 +431,15 @@ export type PasteContent = { html: string } | { images: File[] } | { text: strin
 /// **Formatted text beats a picture beside it.** A spreadsheet, a word processor or a presentation
 /// puts a rendering of the selection on the clipboard next to its HTML, so a picture offered with
 /// HTML that holds text is a picture *of* that text, and taking it would paste a table as a
-/// screenshot of one. A browser's Copy Image offers HTML too, but only an `<img>`, which holds no
-/// text, so the picture is what arrives there.
+/// screenshot of one. A browser's Copy Image offers HTML too, but only an `<img>` naming the
+/// picture by URL, which holds nothing kept, so the picture is what arrives there.
 export function pasteContent(
   doc: Document,
   transfer: DataTransfer | null | undefined,
   inline: boolean,
+  attachments: Attachments | null = null,
 ): PasteContent {
-  const html = pastedHtml(doc, transfer?.getData("text/html") ?? "", inline);
+  const html = pastedHtml(doc, transfer?.getData("text/html") ?? "", inline, attachments);
   if (html !== null) return { html };
   const images = imageFilesFrom(transfer);
   if (images.length > 0) return { images };

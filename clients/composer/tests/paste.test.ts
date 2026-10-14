@@ -322,6 +322,25 @@ describe("pasted structure", () => {
     ]);
   });
 
+  test("a cell merged across rows keeps the cells of the rows below it in place", () => {
+    const [block] = pasted(
+      "<table><tr><th>Day</th><th>Time</th><th>Room</th></tr>" +
+        '<tr><td rowspan="2">Monday</td><td>09:00</td><td>A</td></tr>' +
+        "<tr><td>14:00</td><td>B</td></tr>" +
+        '<tr><td>Tuesday</td><td colspan="2" rowspan="2">all day</td></tr>' +
+        "<tr><td>Wednesday</td></tr></table>",
+    );
+    if (!block || !("Table" in block)) throw new Error("expected a table");
+    const rows = block.Table.rows.map((row) => row.cells.map((cell) => text(cell.content)));
+    expect(rows).toEqual([
+      ["Day", "Time", "Room"],
+      ["Monday", "09:00", "A"],
+      ["", "14:00", "B"],
+      ["Tuesday", "all day", ""],
+      ["Wednesday", "", ""],
+    ]);
+  });
+
   test("a list written straight inside a list is the previous item's sub-list", () => {
     const [block] = pasted("<ul><li>a</li><ul><li>b</li></ul><li>c</li></ul>");
     if (!block || !("List" in block)) throw new Error("expected a list");

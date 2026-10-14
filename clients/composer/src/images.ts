@@ -28,7 +28,7 @@ import {
 /// file's size in memory on the way out. Well above any screenshot, well below what a mail server
 /// would accept. A file over it is dropped rather than truncated; see `docs/composer-security.md`
 /// under "Known gaps".
-const MAX_CAPTURED_BYTES = 20 * 1024 * 1024;
+export const MAX_CAPTURED_BYTES = 20 * 1024 * 1024;
 
 /// A picture ready to go into the document: its bytes as a `data:` URI, plus the metadata the
 /// outgoing MIME part needs.
