@@ -3,7 +3,7 @@
 //! CSP, base stylesheet and remote-image choice unchanged (`docs/reading-actions.md`, "Printing a
 //! message").
 
-use super::document::render_titled_document;
+use super::{document::render_titled_document, scheme::MessageScheme};
 
 /// One labelled line of a printed message's header, such as `From` and the sender.
 ///
@@ -64,7 +64,8 @@ pub fn render_print_document(
     }
     let mut title = String::new();
     escape_text(subject, &mut title);
-    render_titled_document(&title, &fragment, load_remote_images)
+    // Light whatever the app is: a printout is paper, and the message was written for white paper.
+    render_titled_document(&title, &fragment, load_remote_images, MessageScheme::Light)
 }
 
 fn escape_text(value: &str, out: &mut String) {

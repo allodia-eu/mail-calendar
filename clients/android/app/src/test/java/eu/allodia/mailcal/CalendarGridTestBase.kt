@@ -45,6 +45,7 @@ internal val GRID_DISPLAY =
         WeekStart.MONDAY,
         TimeFormat.TWENTY_FOUR_HOUR,
         Appearance.SYSTEM,
+        true,
         12u,
         CalendarLayout.WEEK,
     )

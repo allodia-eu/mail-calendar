@@ -1,14 +1,41 @@
 //! Shared message-rendering helpers exposed over UniFFI.
 
+/// Which page a message is drawn on (`docs/reading-dark-mode.md`).
+///
+/// [`MessageScheme::Dark`] exactly when the app is drawn dark **and** the reader has left
+/// `DisplaySettings::dark_message_background` on. A client decides it from those two alone, so it
+/// knows the scheme, and with it the [`message_canvas`], before the body arrives.
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MessageScheme {
+    /// The page the message was written for.
+    Light,
+    /// A dark page, with the message's colours moved to suit it.
+    Dark,
+}
+
+impl From<MessageScheme> for mailcal_app::MessageScheme {
+    fn from(scheme: MessageScheme) -> Self {
+        match scheme {
+            MessageScheme::Light => Self::Light,
+            MessageScheme::Dark => Self::Dark,
+        }
+    }
+}
+
 /// Wraps a [`crate::ReadingSnapshot::html`] body fragment in a complete, strict-CSP HTML
 /// document for a host to load into its WebView; shared in Rust so the security boundary
 /// and base styling are identical across every client. `load_remote_images` reflects the
 /// user's per-message choice: `false` (default) blocks all remote images, `true` loads
-/// them after the user accepts the "load remote images" prompt. The host still renders
-/// with JavaScript disabled and navigation blocked.
+/// them after the user accepts the "load remote images" prompt. `scheme` is the page it is
+/// drawn on; a client re-renders when it changes, as it does when the remote-images choice does.
+/// The host still renders with JavaScript disabled and navigation blocked.
 #[uniffi::export]
-pub fn render_message_html(html: String, load_remote_images: bool) -> String {
-    mailcal_app::render_document(&html, load_remote_images)
+pub fn render_message_html(
+    html: String,
+    load_remote_images: bool,
+    scheme: MessageScheme,
+) -> String {
+    mailcal_app::render_document(&html, load_remote_images, scheme.into())
 }
 
 /// One labelled line of a printed message's header: the client's localised label and what the
@@ -53,10 +80,10 @@ pub fn render_message_print_html(
 }
 
 /// The canvas the reading pane's body area is drawn on, `#rrggbb`: the same page
-/// [`render_message_html`] gives the document, so the client's half and the document's half
-/// are one colour rather than two whites that drift apart.
+/// [`render_message_html`] gives the document in the same [`MessageScheme`], so the client's half
+/// and the document's half are one colour rather than two that drift apart.
 ///
-/// It is the canvas in **both** themes, and the client paints it for the whole of an open:
+/// The client paints it for the whole of an open:
 /// while the body is still resolving, behind a plain-text body, behind a load error. A host
 /// that leaves the waiting gap transparent punches a hole in the page: on a dark theme the
 /// body area goes white, black, white on every message the user opens, which reads as a
@@ -70,12 +97,13 @@ pub struct MessageCanvas {
     pub foreground: String,
 }
 
-/// The canvas a message is drawn on; see [`MessageCanvas`].
+/// The canvas a message is drawn on in `scheme`; see [`MessageCanvas`].
 #[uniffi::export]
-pub fn message_canvas() -> MessageCanvas {
+pub fn message_canvas(scheme: MessageScheme) -> MessageCanvas {
+    let canvas = mailcal_app::MessageScheme::from(scheme).canvas();
     MessageCanvas {
-        background: mailcal_app::MESSAGE_CANVAS.background.to_owned(),
-        foreground: mailcal_app::MESSAGE_CANVAS.foreground.to_owned(),
+        background: canvas.background.to_owned(),
+        foreground: canvas.foreground.to_owned(),
     }
 }
 

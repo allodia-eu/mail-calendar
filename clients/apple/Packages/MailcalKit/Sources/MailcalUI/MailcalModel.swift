@@ -115,8 +115,8 @@ final class MailboxModel {
     /// (mail AND calendar), the light/dark appearance, and the calendar's default horizon. Seeded
     /// with the core's own defaults so the very first frame agrees with it.
     var displaySettings = DisplaySettings(
-        weekStart: .monday, timeFormat: .twentyFourHour, appearance: .system, visibleHours: 12,
-        layout: .week
+        weekStart: .monday, timeFormat: .twentyFourHour, appearance: .system,
+        darkMessageBackground: true, visibleHours: 12, layout: .week
     )
     /// The appearance the app is **painted** in. Settled here, at model construction, rather than
     /// read off `displaySettings`: the core is an engine open and a network dial away, so waiting

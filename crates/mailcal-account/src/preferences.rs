@@ -91,6 +91,11 @@ pub struct Preferences {
     /// following the host.
     #[serde(default)]
     pub appearance: Appearance,
+    /// Whether a message is drawn on a dark background while the app is dark. Defaults to on;
+    /// the reading pane's sun/moon toggle and Settings → Reading both set it
+    /// (`docs/reading-dark-mode.md`). It has no effect while the app is light.
+    #[serde(default = "default_true")]
+    pub dark_message_background: bool,
     /// How many hours of the day the calendar grid shows at once by default: the horizon a pinch
     /// zooms in and out of, persisted so it is where the user left it. Always within
     /// [`MIN_VISIBLE_HOURS`]..=[`MAX_VISIBLE_HOURS`]; read it through
@@ -286,6 +291,7 @@ impl Default for Preferences {
             week_start: WeekStart::default(),
             time_format: TimeFormat::default(),
             appearance: Appearance::default(),
+            dark_message_background: true,
             calendar_visible_hours: DEFAULT_VISIBLE_HOURS,
             calendar_layout: CalendarLayout::default(),
             calendars: BTreeMap::new(),

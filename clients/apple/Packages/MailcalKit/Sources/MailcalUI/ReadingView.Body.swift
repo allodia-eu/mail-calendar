@@ -75,7 +75,7 @@ extension ReadingView {
     private var page: some View {
         bodyArea
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(parseHexColor(messageCanvas().background))
+            .background(parseHexColor(messageCanvas(scheme: .light).background))
             .environment(\.colorScheme, .light)
     }
 

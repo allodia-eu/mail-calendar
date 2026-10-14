@@ -142,7 +142,7 @@ use display_settings::DisplaySettingsState;
 use draft_ops::DraftState;
 pub use draft_ops::{ComposeOrigin, ComposePrefill, DRAFT_AUTOSAVE_IDLE};
 pub use helpers::{export_file_name, forward_subject, reply_subject};
-pub use html::{Canvas, MESSAGE_CANVAS, print, render_document, should_open_external_link};
+pub use html::{Canvas, MessageScheme, print, render_document, should_open_external_link};
 pub use invitations_fallback::ReplyPrompt;
 pub use invitations_rsvp::InvitationResponse;
 pub use linkify::{FoundLink, TextSegment, find_links, segments as link_segments};

@@ -356,6 +356,10 @@ time = "0.3"
 # engine returns HTML unsanitized by design (mime.md); the product core sanitises here
 # (north-star.md: HTML is sanitised, remote images blocked by default).
 ammonia = "4"
+# Tokenises a message's CSS so a dark render can move its colours (`mailcal-app`'s
+# `html::scheme`). Already in the tree as ammonia's own dependency, at this version and with
+# these features, so it adds no crate.
+cssparser = { version = "0.38", default-features = false }
 # Streaming pull-parser for the Mozilla autoconfig XML (mailcal-autodetect). Pinned to the
 # minor version provider-caldav already locks, so it adds no new transitive crates; it does
 # not expand custom entities, so hostile config files can't balloon in memory.

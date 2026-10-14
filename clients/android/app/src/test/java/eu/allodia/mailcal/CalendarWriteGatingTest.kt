@@ -100,6 +100,7 @@ class CalendarWriteGatingTest {
                         WeekStart.MONDAY,
                         TimeFormat.TWENTY_FOUR_HOUR,
                         Appearance.SYSTEM,
+                        true,
                         12u,
                         layout,
                     ),

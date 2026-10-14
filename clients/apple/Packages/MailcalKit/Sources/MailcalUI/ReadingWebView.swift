@@ -134,7 +134,7 @@ struct SanitizedHTMLView: PlatformViewRepresentable {
         else { return }
         coordinator.lastFragment = fragment
         coordinator.lastLoadRemoteImages = loadRemoteImages
-        let document = renderMessageHtml(html: fragment, loadRemoteImages: loadRemoteImages)
+        let document = renderMessageHtml(html: fragment, loadRemoteImages: loadRemoteImages, scheme: .light)
         loadReadingDocument(webView, document)
     }
 

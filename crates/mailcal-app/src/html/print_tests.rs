@@ -93,3 +93,16 @@ fn the_subject_is_the_page_title_a_print_job_is_named_after() {
     let head = &doc[..doc.find("</head>").unwrap()];
     assert!(head.contains("<title>Q3 &lt;figures&gt; &amp; plans</title>"));
 }
+
+#[test]
+fn a_print_is_light_whatever_the_reader_was_reading_in() {
+    // Paper is white. A message with its own dark styling prints its light half, because the
+    // print pins the sender's colour-scheme queries to light rather than leaving them to a web
+    // view that may be following a dark system.
+    let fragment = "<style>@media (prefers-color-scheme: dark){p{color:#fff}}</style>\
+                    <p style=\"color:#000\">x</p>";
+    let doc = render_print_document("s", &[], Some(fragment), None, false);
+    assert!(doc.contains(":root{color-scheme:light}"), "{doc}");
+    assert!(doc.contains("@media (max-width:-1px)"), "{doc}");
+    assert!(doc.contains("style=\"color:#000\""), "{doc}");
+}

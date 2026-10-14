@@ -116,6 +116,9 @@ pub struct DisplaySettings {
     pub time_format: TimeFormat,
     /// Whether the app paints itself light, dark, or however the host is set.
     pub appearance: Appearance,
+    /// Whether a message is drawn on a dark background while the app is dark: the reading pane's
+    /// sun/moon toggle and Settings → Reading both show it. On by default.
+    pub dark_message_background: bool,
     /// How many hours of the day the calendar grid shows at once: the horizon a pinch zooms in
     /// and out of. Already clamped by the core, so a client may divide by it without checking.
     pub visible_hours: u8,

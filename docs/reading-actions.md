@@ -17,6 +17,11 @@ overflow: it is the end of the row on every platform, which is what makes it fin
 label. (Which of archive and delete comes first is each platform's own; only the overflow's place
 is fixed here.)
 
+In a dark app the **sun/moon toggle** sits immediately before archive and delete, an icon at every
+width like the overflow. It is a view of the message rather than an action on it, so it opens the
+trailing group instead of joining the replies, and it is absent in a light app
+([`reading-dark-mode.md`](reading-dark-mode.md), rule 3).
+
 Labels collapse to icons on a narrow pane ([`../clients/apple/Packages/MailcalKit/Sources/MailcalUI/ReadingView.swift`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/ReadingView.swift)
 and its Windows twin measure this); the overflow button is an icon at every width and carries the
 same accessible name, `a11y_more_actions`, everywhere.

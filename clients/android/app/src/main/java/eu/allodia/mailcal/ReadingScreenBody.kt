@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import uniffi.mailcal_bindings.MessageScheme
 import uniffi.mailcal_bindings.renderMessageHtml
 
 // The recipient headers (To / Cc / Bcc) shown below the subject/sender. Each row appears only
@@ -214,7 +215,7 @@ internal fun HtmlBody(fragment: String, loadRemoteImages: Boolean) {
                 val inputs = fragment to loadRemoteImages
                 if (webView.tag != inputs) {
                     webView.tag = inputs
-                    val document = renderMessageHtml(fragment, loadRemoteImages)
+                    val document = renderMessageHtml(fragment, loadRemoteImages, MessageScheme.LIGHT)
                     webView.loadDataWithBaseURL(null, document, "text/html", "utf-8", null)
                 }
             },

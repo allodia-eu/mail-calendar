@@ -59,13 +59,9 @@ Google Play takes at most **8** images per slot, so a second dark capture would 
 under the ceiling for every locale at once. The push enforces that where it lives, which is not
 this repository; the number is here because it decides what to capture.
 
-⚠️ **On the three-pane clients the dark capture carries a white panel, and that is the product, not
-the capture.** macOS, Windows, Linux and iPad show the reading pane on this screen, and a message's
-own body is HTML in a web view with no dark palette: `docs/settings.md` → Known gaps. So about a
-third of a desktop `list-dark` frame is white. Phones are unaffected: no
-reading pane, so the frame is dark throughout. Do not "fix" it by re-shooting, switching the dark
-screen to `calendar`, or editing the PNG: the first two hide a shipped gap and the third puts a
-hand-made asset in a set whose whole point is that a script produces it.
+On the three-pane clients the dark capture includes the reading pane, and the message in it is
+drawn dark like the rest of the frame ([`reading-dark-mode.md`](reading-dark-mode.md)). A
+`list-dark` frame with a white panel in it predates that, and is re-captured rather than edited.
 
 Windows is the one platform still at the old set (`en`/`nl`, five screens): it builds only on a
 Windows host, so it is re-captured there rather than in the same pass as the other four.

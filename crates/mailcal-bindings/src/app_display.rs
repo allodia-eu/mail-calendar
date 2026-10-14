@@ -61,6 +61,14 @@ impl MailcalApp {
             .block_on(|| self.app.set_appearance(appearance.into()));
     }
 
+    /// Sets whether a message is drawn on a dark background while the app is dark, and persists
+    /// it. The reading pane's sun/moon toggle and Settings → Reading both call this; a client
+    /// re-renders the open message on the `Surface::Settings` signal that follows.
+    pub fn set_dark_message_background(&self, dark: bool) {
+        self.runtime
+            .block_on(|| self.app.set_dark_message_background(dark));
+    }
+
     /// Sets the calendar's default horizon (how many hours the grid shows at once) and persists it.
     ///
     /// Clamped by the core, so a pinch that runs off the end of its gesture, which is normal, not
@@ -86,6 +94,7 @@ impl From<AppDisplaySettings> for DisplaySettings {
             week_start: settings.week_start.into(),
             time_format: settings.time_format.into(),
             appearance: settings.appearance.into(),
+            dark_message_background: settings.dark_message_background,
             visible_hours: settings.visible_hours,
             layout: settings.layout.into(),
         }

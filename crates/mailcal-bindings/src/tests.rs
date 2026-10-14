@@ -380,8 +380,10 @@ fn demo_app_dispatches_through_the_ffi_loop_and_notifies() {
 
     // The shared renderer wraps the fragment in a strict-CSP document; remote images
     // are blocked by default and load only once the user opts in.
-    assert!(render_message_html(html.clone(), false).contains("img-src data:"));
-    assert!(render_message_html(html, true).contains("http:"));
+    assert!(
+        render_message_html(html.clone(), false, MessageScheme::Light).contains("img-src data:")
+    );
+    assert!(render_message_html(html, true, MessageScheme::Light).contains("http:"));
 }
 
 #[test]
@@ -394,7 +396,7 @@ fn the_ffi_document_reflows_a_message_written_for_a_wider_pane() {
     // renderer is the whole of the feature and no client adds anything to it.
     let newsletter = r#"<table width="600" style="width:600px"><tr>
          <td width="200">a</td><td width="200">b</td><td width="200">c</td></tr></table>"#;
-    let doc = render_message_html(newsletter.to_owned(), false);
+    let doc = render_message_html(newsletter.to_owned(), false, MessageScheme::Light);
 
     // The breakpoint is what the message asks for plus the document's own inset on both edges.
     assert!(doc.contains("@media (max-width:628px)"), "{doc}");
@@ -402,7 +404,11 @@ fn the_ffi_document_reflows_a_message_written_for_a_wider_pane() {
     // left alone, or a full-bleed band would stop spanning the pane.
     assert!(doc.contains(r#"table[width]:not([width$="%"])"#), "{doc}");
     // Above it, and on a message with nothing fixed in it, nothing overrides the sender.
-    let note = render_message_html("<p>Just a note.</p>".to_owned(), false);
+    let note = render_message_html(
+        "<p>Just a note.</p>".to_owned(),
+        false,
+        MessageScheme::Light,
+    );
     assert!(!note.contains("@media"), "{note}");
 }
 

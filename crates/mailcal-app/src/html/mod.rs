@@ -401,8 +401,10 @@ mod document;
 mod links;
 pub mod print;
 mod reflow;
+mod scheme;
 
-pub use document::{Canvas, MESSAGE_CANVAS, render_document};
+pub use document::{Canvas, render_document};
+pub use scheme::MessageScheme;
 
 #[cfg(test)]
 mod tests;

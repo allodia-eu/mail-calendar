@@ -38,7 +38,7 @@ pub(super) fn install_styles() {
 /// load error's wording are all legible ink on the sheet rather than the dark theme's own text
 /// colour on white.
 fn canvas_css() -> String {
-    let canvas = mailcal_bindings::message_canvas();
+    let canvas = mailcal_bindings::message_canvas(mailcal_bindings::MessageScheme::Light);
     format!(
         ".{CANVAS_CLASS} {{ background: {}; color: {}; }}",
         canvas.background, canvas.foreground
@@ -47,7 +47,7 @@ fn canvas_css() -> String {
 
 /// The canvas as a colour, for anything that needs one rather than a stylesheet.
 pub(crate) fn canvas_rgba() -> gtk::gdk::RGBA {
-    let canvas = mailcal_bindings::message_canvas();
+    let canvas = mailcal_bindings::message_canvas(mailcal_bindings::MessageScheme::Light);
     canvas
         .background
         .parse()
@@ -127,7 +127,7 @@ pub(crate) mod tests {
     /// rule ever applied to it, so on its own it is a green light for a body area still full of
     /// holes.
     pub(crate) fn the_drawn_canvas_paints_the_page_the_core_names() {
-        let canvas = mailcal_bindings::message_canvas();
+        let canvas = mailcal_bindings::message_canvas(mailcal_bindings::MessageScheme::Light);
         assert_eq!(body_area(true), canvas.background);
         assert_eq!(
             body_area(false),
@@ -164,7 +164,7 @@ pub(crate) mod tests {
     /// Decoded here independently of `canvas_rgba`, so this compares the colour GDK was handed
     /// against the core's hex rather than against itself.
     pub(crate) fn the_web_view_base_is_the_same_page() {
-        let canvas = mailcal_bindings::message_canvas();
+        let canvas = mailcal_bindings::message_canvas(mailcal_bindings::MessageScheme::Light);
         let hex = u32::from_str_radix(canvas.background.trim_start_matches('#'), 16)
             .expect("the canvas is `#rrggbb`");
         let channel =
@@ -181,7 +181,7 @@ pub(crate) mod tests {
 
     #[test]
     fn the_sheet_is_the_core_s_canvas_rather_than_a_second_white() {
-        let canvas = mailcal_bindings::message_canvas();
+        let canvas = mailcal_bindings::message_canvas(mailcal_bindings::MessageScheme::Light);
         let css = canvas_css();
         assert!(
             css.contains(&format!("background: {};", canvas.background)),
@@ -193,7 +193,11 @@ pub(crate) mod tests {
         );
         // The same page the document gets. A seam here would show on every message; before the
         // body lands it is the whole body area, so it would show as a flicker on every open.
-        let document = mailcal_bindings::render_message_html("<p>x</p>".to_owned(), false);
+        let document = mailcal_bindings::render_message_html(
+            "<p>x</p>".to_owned(),
+            false,
+            mailcal_bindings::MessageScheme::Light,
+        );
         assert!(
             document.contains(&format!("background:{}", canvas.background)),
             "{document}"

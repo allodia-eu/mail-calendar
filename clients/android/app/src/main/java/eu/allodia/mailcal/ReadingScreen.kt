@@ -52,6 +52,7 @@ import uniffi.mailcal_bindings.Avatar
 import uniffi.mailcal_bindings.CalendarWriteStatus
 import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.InvitationResponse
+import uniffi.mailcal_bindings.MessageScheme
 import uniffi.mailcal_bindings.ReadingSnapshot
 import uniffi.mailcal_bindings.ThreadMessage
 import uniffi.mailcal_bindings.messageCanvas
@@ -338,7 +339,7 @@ internal fun ReadingScreen(
         // surface, and on this page it is barely there.
         //
         // Resolved once: the record crosses the FFI, and the page cannot change while the app runs.
-        val canvas = remember { messageCanvas() }
+        val canvas = remember { messageCanvas(MessageScheme.LIGHT) }
         val page = remember(canvas) { parseHexColor(canvas.background) }
         val ink = remember(canvas) { parseHexColor(canvas.foreground) }
         val accent = remember { lightColorScheme().primary }

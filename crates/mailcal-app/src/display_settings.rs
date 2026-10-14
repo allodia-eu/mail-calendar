@@ -31,6 +31,9 @@ pub struct DisplaySettings {
     /// Whether the app paints itself light, dark, or however the host is set. Follows the host by
     /// default.
     pub appearance: Appearance,
+    /// Whether a message is drawn on a dark background while the app is dark. On by default; it
+    /// changes nothing while the app is light (`docs/reading-dark-mode.md`).
+    pub dark_message_background: bool,
     /// How many hours of the day the calendar grid shows at once: the horizon a pinch zooms.
     /// Always within the core's clamp, so a host can divide by it without checking.
     pub visible_hours: u8,
@@ -55,6 +58,7 @@ impl DisplaySettingsState {
                 week_start: prefs.week_start,
                 time_format: prefs.time_format,
                 appearance: prefs.appearance,
+                dark_message_background: prefs.dark_message_background,
                 visible_hours: prefs.visible_hours(),
                 layout: prefs.calendar_layout,
             },
@@ -75,6 +79,7 @@ impl DisplaySettingsState {
             prefs.week_start = self.settings.week_start;
             prefs.time_format = self.settings.time_format;
             prefs.appearance = self.settings.appearance;
+            prefs.dark_message_background = self.settings.dark_message_background;
             prefs.calendar_visible_hours = self.settings.visible_hours;
             prefs.calendar_layout = self.settings.layout;
             let _ = save_preferences(path, &prefs);
@@ -123,6 +128,20 @@ impl<P: Provider> App<P> {
             .lock()
             .expect("display-settings mutex poisoned")
             .update(|settings| settings.appearance = appearance);
+        self.observer.surface_changed(Surface::Settings);
+    }
+
+    /// Sets and persists whether a message is drawn on a dark background while the app is dark.
+    ///
+    /// Signals only [`Surface::Settings`], for the reason [`Self::set_appearance`] does: the
+    /// reading snapshot does not change, only the document a client renders from it, so a client
+    /// re-renders the open message on the Settings pull.
+    #[allow(clippy::unused_async)]
+    pub async fn set_dark_message_background(&self, dark: bool) {
+        self.display_settings
+            .lock()
+            .expect("display-settings mutex poisoned")
+            .update(|settings| settings.dark_message_background = dark);
         self.observer.surface_changed(Surface::Settings);
     }
 
@@ -228,6 +247,9 @@ mod tests {
         assert_eq!(state.get().week_start, WeekStart::Monday);
         assert_eq!(state.get().time_format, TimeFormat::TwentyFourHour);
         assert_eq!(state.get().appearance, Appearance::System);
+        // On, although the field is a `bool`: a file from before the setting would otherwise
+        // read back as off and turn dark message backgrounds off for everyone who upgraded.
+        assert!(state.get().dark_message_background);
         assert_eq!(state.get().visible_hours, DEFAULT_VISIBLE_HOURS);
         // The whole week, and not a subset of it: a narrower default leaves the rest of the page
         // hanging off the screen as a scrollable overhang, which on a phone swallows the swipe.
@@ -236,6 +258,7 @@ mod tests {
         state.update(|settings| settings.week_start = WeekStart::Sunday);
         state.update(|settings| settings.time_format = TimeFormat::TwelveHour);
         state.update(|settings| settings.appearance = Appearance::Dark);
+        state.update(|settings| settings.dark_message_background = false);
         state.update(|settings| settings.visible_hours = 6);
         state.update(|settings| settings.layout = CalendarLayout::ThreeDay);
 
@@ -244,6 +267,7 @@ mod tests {
         assert_eq!(reloaded.week_start, WeekStart::Sunday);
         assert_eq!(reloaded.time_format, TimeFormat::TwelveHour);
         assert_eq!(reloaded.appearance, Appearance::Dark);
+        assert!(!reloaded.dark_message_background);
         assert_eq!(reloaded.visible_hours, 6);
         // The shape the user was last reading in, restored. Together with the horizon above, a
         // pinch down to three days over eight hours comes back exactly as it was left.

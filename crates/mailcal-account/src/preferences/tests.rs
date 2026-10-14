@@ -28,6 +28,7 @@ fn save_then_load_round_trips_the_preferences() {
         week_start: WeekStart::Sunday,
         time_format: TimeFormat::TwelveHour,
         appearance: Appearance::Dark,
+        dark_message_background: false,
         calendar_visible_hours: 8,
         calendar_layout: CalendarLayout::ThreeDay,
         calendars: BTreeMap::from([(
@@ -141,6 +142,8 @@ fn an_older_preferences_file_still_follows_the_host_appearance() {
     assert_eq!(older.appearance, Appearance::System);
     let stored: Preferences = toml::from_str("appearance = \"dark\"").unwrap();
     assert_eq!(stored.appearance, Appearance::Dark);
+    // Likewise dark message backgrounds, which are on by default although the field is a `bool`.
+    assert!(older.dark_message_background);
 }
 
 #[test]

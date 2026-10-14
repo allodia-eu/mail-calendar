@@ -22,7 +22,7 @@ cannot drift per client. The order below is the display order everywhere.
 | 1 | **Allodia account** | Sign in · Create an account · the plan the account is on · Manage account · Sign out | Present **only** in a build carrying the registration, on the same `allodia_sign_in_available()` question the setup screen asks ([`onboarding.md`](onboarding.md)); a build from source has no such category and General is first. It is not a mail account and never appears among them: no mailbox, no switcher entry, and its token cannot touch mail. First because it is the reader's own account with us, which is where every platform's own settings put it, and because what it will carry next is the plan. **Manage account** opens the service's own page in the same in-app browser tab the sign-in uses, so it opens already signed in; **Sign out** erases the local grant first and ends the session second, and forgets what this device had synced: the record ids belong to the account that is leaving, and a device that carries them into the next sign-in claims nothing and is offered back the mail accounts it is already running. The person's own per-account choices (on / paused / off) are not part of that and stay. Full contract: [`entitlement.md`](../allodia_license/entitlement.md). |
 | 2 | **General** | Language · Appearance (light/dark) · Time zone · Time format (12/24-hour) · Default mail app | In that order. Both the appearance and the clock sit here, **not** under Calendar or Reading: each spans the whole app, and one app must not disagree with itself. Appearance defaults to following the host and keeps following it live; Light and Dark are an explicit override. **Default mail app** is last, and is the permanent way back from the one-time offer: it appears **only where the build can act on it**, so it is absent on Linux and Android, where nothing in the platform can be asked, and in a sandboxed Mac App Store build, where the call is refused. Full contract: [`os-integration.md`](os-integration.md). |
 | 3 | **Calendar** | First day of the week · Default zoom (horizon) · Default calendar | All three persisted in the core (see [`calendar.md`](calendar.md)). The default calendar lists only calendars that can be **written** to, and the core resolves the stored choice against what exists, so a client shows `is_default` rather than keeping a fallback rule. |
-| 4 | **Reading** | Conversation grouping · Swipe actions | Swipe actions configure the mail list, which is read-side, even though clients also honour them elsewhere. |
+| 4 | **Reading** | Conversation grouping · Swipe actions · Dark background for messages | Swipe actions configure the mail list, which is read-side, even though clients also honour them elsewhere. **Dark background for messages** is the same persisted preference as the reading pane's sun/moon toggle, on by default, and changes nothing while the app is light ([`reading-dark-mode.md`](reading-dark-mode.md)); it sits here rather than beside Appearance because it is about reading a message, not about the app. |
 | 5 | **Composing** | Quote style (+ per-message opt-in) · Default send account | |
 | 6 | **Signatures** | The signature library (write / edit / delete) · per-account **For new messages** and **For replies or forwards** | Its own category, not a sub-screen of Composing: a signature is a standalone entity reused across accounts, and "Settings → Signatures" is the path people already look for (Outlook's arrangement). Library first, then the per-account defaults: an account picker with nothing to pick says nothing. Full contract: [`signatures.md`](signatures.md). |
 | 7 | **Notifications** | New-mail notification toggle · (Android) battery-exemption card | On every platform ([`background-sync.md`](background-sync.md)). The category appears only where the feature exists; it keeps this slot when a platform gains it. |
@@ -60,19 +60,11 @@ if another platform grows summaries it uses the same keys.
   against the running client, and the Linux widget suite asserts each button reaches its own input.
   Both stop at the launch. What the pages themselves show is unverified from here.
 
-- **Two surfaces stay light whatever the appearance says: the composer editor and a message's own
-  body.** Both are HTML in a web view: the shared editor bundle
-  ([`composer-security.md`](composer-security.md)) and the sanitised message
-  ([`rendering-security.md`](rendering-security.md)), and neither carries a dark palette, so in a
-  dark app they read as a white panel inside it. This predates the setting (it was already true on a
-  dark desktop), and the message body is the harder half: restyling a sender's mail is a rendering
-  decision, not a theming one. It applies on every platform. The two halves separate: the composer
-  editor is our own HTML and the easier one.
-
-  The store set now shows this: its dark capture is the mailbox list
-  ([`store-screenshots.md`](store-screenshots.md)), and on the
-  three-pane clients that screen includes the reading pane. Phones have none, so their frame is dark
-  throughout.
+- **The composer editor stays light whatever the appearance says.** It is the shared editor bundle
+  in a web view ([`composer-security.md`](composer-security.md)) and carries no dark palette, so in a
+  dark app it reads as a white panel inside it. This predates the setting (it was already true on a
+  dark desktop) and applies on every platform. A message's own body follows the app
+  ([`reading-dark-mode.md`](reading-dark-mode.md)).
 
 - **Android's Diagnostics row changed icon.** It borrowed the "info" symbol, which About now
   carries; Diagnostics uses Material's "troubleshoot". Apple already distinguished the two

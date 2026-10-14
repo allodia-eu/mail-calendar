@@ -95,6 +95,9 @@ the presentation are identical across clients**:
   loads").
 - No `script-src`: scripts never run, even if one survived sanitisation.
 - The document has **no resolvable base origin**, so relative/remote URLs can't be rebased.
+- A dark render moves the message's colours **after** sanitisation, writing only colour values and
+  `prefers-color-scheme` media features: never an element, an attribute or a URL, so it cannot
+  reopen anything Layer 1 closed ([`reading-dark-mode.md`](reading-dark-mode.md), rule 8).
 
 ⚠️ **The directives are one policy, separated by semicolons.** A `content` attribute holds a policy
 *list*, and a comma starts a second policy which is enforced alongside the first, so the document

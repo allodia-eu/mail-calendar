@@ -5,11 +5,14 @@
 //! Layer 2 of `docs/rendering-security.md` plus the sizing rules of `docs/reading-zoom.md`. What
 //! the sanitiser does to the fragment before any of this is next door, in `super::tests`.
 
-use super::{MESSAGE_CANVAS, render_document};
+use super::{
+    MessageScheme::{Dark, Light},
+    render_document,
+};
 
 #[test]
 fn render_document_embeds_the_body_and_a_strict_csp() {
-    let doc = render_document("<p>hi</p>", false);
+    let doc = render_document("<p>hi</p>", false, Light);
     assert!(doc.contains("<p>hi</p>"));
     // Scripts/frames/remote always blocked; inline styles allowed for presentation.
     assert!(doc.contains("default-src 'none'"));
@@ -30,7 +33,7 @@ fn the_document_carries_one_policy_rather_than_two() {
     // The test above cannot see that: every directive is still present, just in the wrong
     // half. Assert on the separators instead.
     for load_remote_images in [false, true] {
-        let doc = render_document("<p>hi</p>", load_remote_images);
+        let doc = render_document("<p>hi</p>", load_remote_images, Light);
         let policy = csp_of(&doc);
         assert!(
             !policy.contains(','),
@@ -62,7 +65,7 @@ fn the_viewport_pins_the_layout_width_and_leaves_the_scale_free() {
     // `initial-scale` fixes the page at 1:1, which is precisely how Blink decides not to shrink an
     // over-wide message to fit (docs/reading-zoom.md). A fixed-width newsletter would then hang off
     // the right edge of a phone with no way back.
-    let doc = render_document("<p>hi</p>", false);
+    let doc = render_document("<p>hi</p>", false, Light);
     let viewport = viewport_of(&doc);
     assert!(viewport.contains("width=device-width"), "{viewport}");
     assert!(!viewport.contains("initial-scale"), "{viewport}");
@@ -88,46 +91,73 @@ fn render_document_forces_proportional_image_height() {
     // A wide image shrunk to fit the pane must keep its aspect ratio: `height:auto` is
     // `!important` so a message that pins an image's height (corporate signatures do)
     // can't leave the height fixed while the width shrinks, which squashes it.
-    let doc = render_document("<img src=\"cid:x\">", false);
+    let doc = render_document("<img src=\"cid:x\">", false, Light);
     assert!(doc.contains("max-width:100%"), "{doc}");
     assert!(doc.contains("height:auto!important"), "{doc}");
 }
 
 #[test]
 fn the_canvas_is_the_page_a_message_is_drawn_on() {
-    // The client paints `MESSAGE_CANVAS` behind the body area for the whole of an open, and
+    // The client paints `MessageScheme::canvas` behind the body area for the whole of an open, and
     // the document paints its own page inside that. Two spellings of "white" would show as a
     // seam on every message, and, because the client's half is also what fills the gap before
-    // the body lands, as a flicker on every open. So they are one constant, and this is what
-    // stops a future restyle from moving only one of them.
-    let doc = render_document("<p>hi</p>", false);
-    assert!(
-        doc.contains(&format!("background:{}", MESSAGE_CANVAS.background)),
-        "{doc}"
-    );
-    assert!(
-        doc.contains(&format!("color:{}", MESSAGE_CANVAS.foreground)),
-        "{doc}"
-    );
-    // `#rrggbb`, the one form every client's hex parser already reads. `#fff` would render
-    // identically here and reach three of the four clients as nothing at all.
-    for channel in [MESSAGE_CANVAS.background, MESSAGE_CANVAS.foreground] {
-        assert_eq!(channel.len(), 7, "{channel}");
+    // the body lands, as a flicker on every open. So each scheme has one constant, and this is
+    // what stops a future restyle from moving only one half.
+    for scheme in [Light, Dark] {
+        let canvas = scheme.canvas();
+        let doc = render_document("<p>hi</p>", false, scheme);
         assert!(
-            channel.starts_with('#') && channel[1..].chars().all(|c| c.is_ascii_hexdigit()),
-            "{channel}"
+            doc.contains(&format!("background:{}", canvas.background)),
+            "{doc}"
         );
+        assert!(
+            doc.contains(&format!("color:{}", canvas.foreground)),
+            "{doc}"
+        );
+        assert!(
+            doc.contains(&format!("a[href]{{color:{}}}", canvas.link)),
+            "{doc}"
+        );
+        // `#rrggbb`, the one form every client's hex parser already reads. `#fff` would render
+        // identically here and reach three of the four clients as nothing at all.
+        for channel in [canvas.background, canvas.foreground, canvas.link] {
+            assert_eq!(channel.len(), 7, "{channel}");
+            assert!(
+                channel.starts_with('#') && channel[1..].chars().all(|c| c.is_ascii_hexdigit()),
+                "{channel}"
+            );
+        }
     }
+}
+
+#[test]
+fn the_document_names_the_scheme_it_is_drawn_in() {
+    // `color-scheme` is what puts the web view's own scrollbars and controls in the page's scheme,
+    // and what stops a web view from darkening a light page on its own.
+    assert!(render_document("<p>x</p>", false, Light).contains(":root{color-scheme:light}"));
+    assert!(render_document("<p>x</p>", false, Dark).contains(":root{color-scheme:dark}"));
+}
+
+#[test]
+fn a_dark_document_carries_the_messages_colours_moved() {
+    let fragment = r#"<p style="color:#000000">x</p>"#;
+    assert!(render_document(fragment, false, Light).contains("color:#000000"));
+    let dark = render_document(fragment, false, Dark);
+    assert!(!dark.contains("color:#000000"), "{dark}");
+    assert!(
+        dark.contains(&format!("color:{}", Dark.canvas().foreground)),
+        "{dark}"
+    );
 }
 
 #[test]
 fn render_document_gates_remote_images_on_the_flag() {
     // Blocked by default: only inline data: images.
-    let blocked = render_document("<img src=\"https://x/a.png\">", false);
+    let blocked = render_document("<img src=\"https://x/a.png\">", false, Light);
     assert!(blocked.contains("img-src data:"));
     assert!(!blocked.contains("img-src https:"));
     // Allowed once the user opts in: remote http(s) images load.
-    let allowed = render_document("<img src=\"https://x/a.png\">", true);
+    let allowed = render_document("<img src=\"https://x/a.png\">", true, Light);
     assert!(allowed.contains("https:"));
     assert!(allowed.contains("http:"));
 }
@@ -140,11 +170,15 @@ fn the_document_carries_the_message_its_own_breakpoint() {
     // 628 rather than 600: the width the message needs is what it asks for plus the room the
     // document takes from both edges, or there is a band of pane widths where it is clipped and
     // nothing reflows it (`reflow::breakpoint`).
-    let wide = render_document(r#"<table width="600"><tr><td>x</td></tr></table>"#, false);
+    let wide = render_document(
+        r#"<table width="600"><tr><td>x</td></tr></table>"#,
+        false,
+        Light,
+    );
     assert!(wide.contains("@media (max-width:628px)"), "{wide}");
 
     // A message with nothing fixed in it has nothing to reflow, and gets no query.
-    let plain = render_document("<p>a note</p>", false);
+    let plain = render_document("<p>a note</p>", false, Light);
     assert!(!plain.contains("@media"), "{plain}");
     // It still gets the half that can only shrink, which is what caps an over-wide image.
     assert!(plain.contains("max-width:100%"), "{plain}");
@@ -155,7 +189,7 @@ fn the_reflow_sheet_comes_after_the_base_one() {
     // Both set `max-width` on an image, at the same specificity, so the later rule is the one
     // that applies. Reversed, the base sheet's `max-width:100%` would still win by accident
     // today and stop winning the day the reflow sheet says anything about an image.
-    let doc = render_document(r#"<table width="600">x</table>"#, false);
+    let doc = render_document(r#"<table width="600">x</table>"#, false, Light);
     let styles = doc
         .split_once("<style>")
         .expect("the document carries a stylesheet")
@@ -168,7 +202,7 @@ fn the_reflow_sheet_comes_after_the_base_one() {
 #[test]
 fn the_reading_document_has_no_title() {
     // The title is the print page's, named for the print job; the reading pane names nothing.
-    assert!(!render_document("<p>x</p>", false).contains("<title>"));
+    assert!(!render_document("<p>x</p>", false, Light).contains("<title>"));
 }
 
 /// Word marks the signature it inserted with a bookmark, an `<a name>` with no target, around the
@@ -176,7 +210,7 @@ fn the_reading_document_has_no_title() {
 /// received signature's "Kind regards," reads as a link nobody can follow.
 #[test]
 fn the_base_sheet_colours_links_and_leaves_a_bookmark_alone() {
-    let doc = render_document("<a name=\"_MailAutoSig\">Kind regards,</a>", false);
+    let doc = render_document("<a name=\"_MailAutoSig\">Kind regards,</a>", false, Light);
     assert!(doc.contains("a[href]{color:#2864d6}"), "{doc}");
     assert!(!doc.contains("}a{color"), "{doc}");
 }

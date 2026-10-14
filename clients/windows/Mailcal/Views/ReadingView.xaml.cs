@@ -82,7 +82,7 @@ public sealed partial class ReadingView : UserControl
         // than two whites that drift apart: the reason it is not a literal here any more, and
         // not a ThemeResource either (see the BodyArea comment in the XAML).
         BodyArea.Background = new SolidColorBrush(
-            CalendarColors.Parse(MailcalBindingsMethods.MessageCanvas().Background));
+            CalendarColors.Parse(MailcalBindingsMethods.MessageCanvas(MessageScheme.Light).Background));
     }
 
     /// <summary>Binds the view to the shared model as the <b>reading pane</b>: it reads the pane's

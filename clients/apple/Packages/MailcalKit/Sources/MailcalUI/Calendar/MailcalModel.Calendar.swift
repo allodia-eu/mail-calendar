@@ -67,6 +67,7 @@ extension MailboxModel {
             weekStart: start,
             timeFormat: displaySettings.timeFormat,
             appearance: displaySettings.appearance,
+            darkMessageBackground: displaySettings.darkMessageBackground,
             visibleHours: displaySettings.visibleHours,
             layout: displaySettings.layout
         )
@@ -78,6 +79,7 @@ extension MailboxModel {
             weekStart: displaySettings.weekStart,
             timeFormat: format,
             appearance: displaySettings.appearance,
+            darkMessageBackground: displaySettings.darkMessageBackground,
             visibleHours: displaySettings.visibleHours,
             layout: displaySettings.layout
         )
@@ -93,11 +95,29 @@ extension MailboxModel {
             weekStart: displaySettings.weekStart,
             timeFormat: displaySettings.timeFormat,
             appearance: appearance,
+            darkMessageBackground: displaySettings.darkMessageBackground,
             visibleHours: displaySettings.visibleHours,
             layout: displaySettings.layout
         )
         self.appearance = appearance
         app?.setAppearance(appearance: appearance)
+    }
+
+    /// Sets whether messages are drawn on a dark background while the app is dark: the reading
+    /// pane's sun/moon button and Settings → Reading both call this (`docs/reading-dark-mode.md`).
+    ///
+    /// Applied here as well as in the core so the open message re-renders on this press rather
+    /// than on the `Surface::Settings` pull that follows it.
+    func setDarkMessageBackground(_ dark: Bool) {
+        displaySettings = DisplaySettings(
+            weekStart: displaySettings.weekStart,
+            timeFormat: displaySettings.timeFormat,
+            appearance: displaySettings.appearance,
+            darkMessageBackground: dark,
+            visibleHours: displaySettings.visibleHours,
+            layout: displaySettings.layout
+        )
+        app?.setDarkMessageBackground(dark: dark)
     }
 
     /// Remembers the shape the calendar is being read in, so it opens that way next time, and opens
@@ -108,6 +128,7 @@ extension MailboxModel {
             weekStart: displaySettings.weekStart,
             timeFormat: displaySettings.timeFormat,
             appearance: displaySettings.appearance,
+            darkMessageBackground: displaySettings.darkMessageBackground,
             visibleHours: displaySettings.visibleHours,
             layout: layout
         )
@@ -120,6 +141,7 @@ extension MailboxModel {
             weekStart: displaySettings.weekStart,
             timeFormat: displaySettings.timeFormat,
             appearance: displaySettings.appearance,
+            darkMessageBackground: displaySettings.darkMessageBackground,
             visibleHours: clamped,
             layout: displaySettings.layout
         )

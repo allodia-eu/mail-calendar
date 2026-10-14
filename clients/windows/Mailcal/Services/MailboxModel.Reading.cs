@@ -289,7 +289,7 @@ public sealed partial class MailboxModel
     /// user's per-message choice to load remote images.
     /// </summary>
     public string RenderMessageHtml(string html, bool loadRemoteImages) =>
-        MailcalBindingsMethods.RenderMessageHtml(html, loadRemoteImages);
+        MailcalBindingsMethods.RenderMessageHtml(html, loadRemoteImages, MessageScheme.Light);
 
     /// <summary>
     /// The page Print lays out for one message: <paramref name="lines"/> under the subject, as

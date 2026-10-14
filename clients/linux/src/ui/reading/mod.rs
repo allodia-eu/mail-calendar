@@ -308,7 +308,11 @@ impl ReadingPane {
                 self.remote_banner
                     .set_revealed(reading.has_remote_images && !state.load_remote_images);
                 self.web.load(
-                    &render_message_html(html.to_owned(), state.load_remote_images),
+                    &render_message_html(
+                        html.to_owned(),
+                        state.load_remote_images,
+                        mailcal_bindings::MessageScheme::Light,
+                    ),
                     state.load_remote_images,
                 );
                 // Hold the page until the document is actually on it. The view composites on a

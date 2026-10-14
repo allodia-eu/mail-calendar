@@ -219,17 +219,18 @@ white, black, white on every message opened, for as long as the open took (75–
 a real account). Every client painted a hole, because every client had only been told what *not*
 to draw.
 
-The colour is the core's, `MESSAGE_CANVAS`
-([`html/mod.rs`](../crates/mailcal-app/src/html/mod.rs), reaching a client as `message_canvas`),
-and it is the same constant `base_css` gives the reading document, so the sheet a client paints and
-the page a web view paints inside it cannot drift into two whites. It is that colour in **both**
-themes because the base stylesheet pins the document to `color-scheme: light` (mail is authored for
-a white page). So the ink over it has to be light too, or the dark theme's own label colours are
-white on white, and each client reaches that its own way: Apple and Windows force a light
-appearance over the area and let the platform resolve every colour in it, Android and Linux set the
-content colour from the record's `foreground` and let their toolkit inherit it down. Either way it
-is the accent as well as the text: a Material dark scheme's `primary` is a pale lavender that all
-but disappears on this page, and the spinner and the retry button are drawn in it. The chrome
+The colour is the core's, `MessageScheme::canvas` (reaching a client as `message_canvas(scheme)`)
+([`html/document.rs`](../crates/mailcal-app/src/html/document.rs)), and it is the same constant
+`base_css` gives the reading document in that scheme, so the sheet a client paints and the page a
+web view paints inside it cannot drift into two colours. The scheme is the **message's**, not the
+app's: a dark app reading with dark messages switched off draws a white page
+([`reading-dark-mode.md`](reading-dark-mode.md)). So the ink over the area follows the page rather
+than the app, or a dark theme's label colours are white on white, and each client reaches that its
+own way: Apple and Windows give the area the message's appearance and let the platform resolve every
+colour in it, Android and Linux set the content colour from the record's `foreground` and let their
+toolkit inherit it down. Either way it is the accent as well as the text: a Material dark scheme's
+`primary` is a pale lavender that all but disappears on a white page, and the spinner and the retry
+button are drawn in it. The chrome
 around the page stays themed: the header, the toolbar, the remote-images bar, and the "no message
 selected" state, which is not a message and so has no page.
 
@@ -244,10 +245,10 @@ it dropped to 16.
 
 | Platform | The page behind the body area | Draws nothing until `pending` | Indicator |
 |---|---|---|---|
-| macOS · iPadOS · iOS | `.background` + light `colorScheme` on `ReadingView.bodyArea` | `Color.clear` over it | `ProgressView` + `reading_loading` |
-| Windows | `BodyArea.Background` + `RequestedTheme="Light"` | `ShowState()` with every state off | `LoadingRing` |
-| Android | `.background` + `LocalContentColor` and the light scheme's `primary` on the body `Box` | `body == null -> Unit` | `CircularProgressIndicator` |
-| Linux | the `mailcal-message-canvas` class on the body stack | the `blank` stack page | the `loading` stack page |
+| macOS · iPadOS · iOS | `.background` + the message's `colorScheme` on `ReadingView.bodyArea` | `Color.clear` over it | `ProgressView` + `reading_loading` |
+| Windows | `BodyArea.Background` + the message's `RequestedTheme` | `ShowState()` with every state off | `LoadingRing` |
+| Android | `.background` + `LocalContentColor` and the message's scheme's `primary` on the body `Box` | `body == null -> Unit` | `CircularProgressIndicator` |
+| Linux | the message's canvas class on the body stack | the `blank` stack page | the `loading` stack page |
 
 The pause's own policy (raising, clearing, the rounding, and keeping it disjoint from the hint) is
 covered by `sync_progress_tests.rs` → `pauses`, and which pass verdicts raise it by
