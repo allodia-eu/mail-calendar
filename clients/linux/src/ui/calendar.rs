@@ -7,6 +7,7 @@ mod dialogs_series;
 mod drag;
 mod editor;
 mod grid;
+pub(super) mod invitees_editor;
 mod manager;
 mod model;
 pub(in crate::ui) mod paint;

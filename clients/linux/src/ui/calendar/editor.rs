@@ -1,8 +1,9 @@
 //! Pure calendar editor state and provider-neutral intent construction.
 
 use mailcal_bindings::{
-    EventAttendee, EventDetail, EventIntent, EventRecurrence, Intent, RecurrenceChange,
-    RepeatDraft, RepeatSummary, repeat_change_of,
+    EventAttendee, EventDetail, EventIntent, EventRecurrence, Intent, MeetingInvitee,
+    MeetingInviteePatch, RecurrenceChange, RepeatDraft, RepeatSummary, meeting_invitee_patch,
+    repeat_change_of,
 };
 use time::{Duration, PrimitiveDateTime, Time};
 
@@ -18,9 +19,15 @@ pub(super) struct CalendarChoice {
     pub(super) id: String,
     pub(super) label: String,
     pub(super) is_default: bool,
+    /// The owning account's address: the organiser of a meeting created here.
+    pub(super) address: String,
+    /// Whether a meeting may be organised here: the core's `CalendarRow::can_invite`.
+    pub(super) can_invite: bool,
 }
 
 /// One stored event, reduced to the fields the Linux detail/editor needs.
+// The four bools are the core's `EventDetail` flags, each read on its own by a different control.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct EventDetails {
     pub(super) account: String,
@@ -44,12 +51,14 @@ pub(super) struct EventDetails {
     pub(super) repeat_draft: Option<RepeatDraft>,
     pub(super) is_recurring: bool,
     pub(super) can_write: bool,
+    /// Whether this account organises the meeting and may change who is invited.
+    pub(super) can_edit_invitees: bool,
     /// The occurrence this detail describes, as the **core resolved** it; empty when it
     /// describes the series, which is what an agenda row and a one-off event always do. Non-empty
     /// is what makes a write ask *This event · All events* first.
     pub(super) occurrence: String,
-    /// Everyone on the event, organiser first. Read-only; attendees change by iTIP, which is a
-    /// separate feature.
+    /// Everyone on the event, organiser first. The organiser edits the rows that carry a `role`
+    /// when `can_edit_invitees` holds; everyone else reads them.
     pub(super) attendees: Vec<EventAttendee>,
 }
 
@@ -73,6 +82,7 @@ impl EventDetails {
             repeat_draft: detail.repeat_draft,
             is_recurring: detail.is_recurring,
             can_write: detail.can_write,
+            can_edit_invitees: detail.can_edit_invitees,
             occurrence: detail.occurrence_start,
             attendees: detail.attendees,
         }
@@ -93,6 +103,9 @@ pub(crate) struct EventForm {
     /// carries is what tells a rule that changed from one that did not, and what keeps the parts
     /// no control here models.
     pub(crate) repeat: Option<RepeatDraft>,
+    /// The invitee list as it stands, organiser excluded. Read only where `can_invite` says the
+    /// list was offered.
+    pub(crate) invitees: Vec<MeetingInvitee>,
 }
 
 /// An open create/edit form. All validation and date-shape decisions stay outside GTK.
@@ -221,11 +234,70 @@ impl EventEditor {
 
     /// Whether this save has to ask *This event · All events* first.
     ///
-    /// **A changed repeat settles the question**, so it is not put: a rule belongs to the series,
-    /// and one occurrence is an instance of a rule rather than a holder of one. The controls say
-    /// so before the user touches them.
+    /// **A changed repeat or a changed roster settles the question**, so it is not put: both
+    /// belong to the series, and one occurrence is an instance of a rule rather than a holder of
+    /// one. The controls say so before the user touches them.
     pub(super) fn save_asks_about_the_series(&self, form: &EventForm) -> bool {
-        self.asks_about_the_series() && self.repeat_change(form).is_none()
+        self.asks_about_the_series()
+            && self.repeat_change(form).is_none()
+            && self.invitee_change(form).is_none()
+    }
+
+    /// Whether the invitee controls are offered with the calendar at `index` picked: on a create,
+    /// where its server sends invitations; on an edit, where this account organises the meeting.
+    pub(super) fn can_invite(&self, index: u32) -> bool {
+        match &self.editing {
+            Some(detail) => detail.can_edit_invitees,
+            None => self.choice(index).is_some_and(|choice| choice.can_invite),
+        }
+    }
+
+    /// Who organises the meeting, so the field can say that typing it adds nobody.
+    pub(super) fn organiser(&self, index: u32) -> String {
+        match &self.editing {
+            Some(detail) => detail
+                .attendees
+                .iter()
+                .find(|attendee| attendee.is_organizer)
+                .map(|attendee| attendee.email.clone())
+                .unwrap_or_default(),
+            None => self
+                .choice(index)
+                .map(|choice| choice.address.clone())
+                .unwrap_or_default(),
+        }
+    }
+
+    /// The list the invitee controls open with: the rows of the meeting an organiser may edit.
+    pub(super) fn initial_invitees(&self) -> Vec<MeetingInvitee> {
+        self.editing
+            .iter()
+            .filter(|detail| detail.can_edit_invitees)
+            .flat_map(|detail| &detail.attendees)
+            .filter(|attendee| !attendee.is_organizer)
+            .filter_map(|attendee| {
+                Some(MeetingInvitee {
+                    name: Some(attendee.name.clone()).filter(|name| !name.is_empty()),
+                    email: attendee.email.clone(),
+                    role: attendee.role?,
+                })
+            })
+            .collect()
+    }
+
+    /// What a save of `form` changes about who is invited, or `None` to leave the roster alone.
+    pub(super) fn invitee_change(&self, form: &EventForm) -> Option<MeetingInviteePatch> {
+        let detail = self
+            .editing
+            .as_ref()
+            .filter(|detail| detail.can_edit_invitees)?;
+        meeting_invitee_patch(detail.attendees.clone(), form.invitees.clone())
+    }
+
+    fn choice(&self, index: u32) -> Option<&CalendarChoice> {
+        usize::try_from(index)
+            .ok()
+            .and_then(|index| self.choices.get(index))
     }
 
     /// The intent a Save dispatches.
@@ -283,13 +355,14 @@ impl EventEditor {
                     // moving its start onto this occurrence, which would delete every earlier one.
                     times_from_occurrence: (!this_occurrence_only && !detail.occurrence.is_empty())
                         .then(|| detail.occurrence.clone()),
-                    invitees: None,
+                    // A roster belongs to the series, as a rule does.
+                    invitees: (!this_occurrence_only)
+                        .then(|| self.invitee_change(form))
+                        .flatten(),
                 },
             });
         }
-        let choice = usize::try_from(form.calendar_index)
-            .ok()
-            .and_then(|index| self.choices.get(index));
+        let choice = self.choice(form.calendar_index);
         Ok(Intent::Events {
             intent: EventIntent::Create {
                 title: title.to_owned(),
@@ -307,7 +380,8 @@ impl EventEditor {
                     Some(RecurrenceChange::Set { rule }) => Some(rule),
                     Some(RecurrenceChange::Clear) | None => None,
                 },
-                invitees: None,
+                invitees: (self.can_invite(form.calendar_index) && !form.invitees.is_empty())
+                    .then(|| form.invitees.clone()),
             },
         })
     }
@@ -345,4 +419,8 @@ fn default_index(choices: &[CalendarChoice]) -> u32 {
 
 #[cfg(test)]
 #[path = "editor_tests.rs"]
-mod tests;
+pub(super) mod tests;
+
+#[cfg(test)]
+#[path = "editor_invitees_tests.rs"]
+mod invitees_tests;

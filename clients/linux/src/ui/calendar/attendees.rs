@@ -1,10 +1,8 @@
-//! The event detail's attendee list.
-//!
-//! Read-only, like every other client: changing an attendee list means sending iTIP updates to the
-//! people on it, which is a separate feature.
+//! The event detail's attendee list. The organiser edits it in the editor
+//! (`invitees_editor`); everywhere else it is read.
 
 use adw::prelude::*;
-use mailcal_bindings::{EventAttendee, ResponseStatus};
+use mailcal_bindings::{EventAttendee, MeetingInviteeRole, ResponseStatus};
 
 use crate::l10n;
 
@@ -25,8 +23,9 @@ pub(super) fn attendee_group(attendees: &[EventAttendee]) -> Option<adw::Prefere
     Some(group)
 }
 
-/// The second line under an attendee: their address (when the first line used their name) and
-/// whether they called the meeting. Empty when there is nothing left to say.
+/// The second line under an attendee: their address (when the first line used their name), and
+/// whether they called the meeting or were invited as optional. Empty when there is nothing left
+/// to say.
 ///
 /// A plain function, so the rule is testable without building a row; the twin of Android's
 /// `attendeeSubtitle`.
@@ -40,10 +39,13 @@ fn attendee_subtitle(attendee: &EventAttendee) -> String {
     if attendee.is_organizer {
         parts.push(l10n::event_attendee_organizer());
     }
+    if attendee.role == Some(MeetingInviteeRole::Optional) {
+        parts.push(l10n::event_attendee_optional());
+    }
     parts.join(" · ")
 }
 
-fn attendee_row(attendee: &EventAttendee) -> adw::ActionRow {
+pub(super) fn attendee_row(attendee: &EventAttendee) -> adw::ActionRow {
     // Setters, not the property builder: `g_object_new` applies properties in its own order, so
     // `.use_markup(false)` written last still lands after the title, and the markup-parsed first
     // attempt has already logged for every name carrying an ampersand (`../../AGENTS.md` →
@@ -64,7 +66,7 @@ fn attendee_row(attendee: &EventAttendee) -> adw::ActionRow {
 
 /// How one attendee answered. Third person; somebody else's answer, unlike the invitation card's
 /// "You accepted".
-fn attendee_response(response: ResponseStatus) -> &'static str {
+pub(super) fn attendee_response(response: ResponseStatus) -> &'static str {
     match response {
         ResponseStatus::Accepted => l10n::event_attendee_accepted(),
         ResponseStatus::Declined => l10n::event_attendee_declined(),

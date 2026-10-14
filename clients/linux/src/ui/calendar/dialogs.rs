@@ -12,6 +12,7 @@ use super::{
     date::date_from_wall,
     dialogs_series,
     editor::{EventDetails, EventEditor, EventForm},
+    invitees_editor,
     model::{CalendarDialog, DeleteRequest},
     repeat, repeat_editor,
 };
@@ -227,21 +228,8 @@ fn present_editor(
         note.set_xalign(0.0);
         form.append(&note);
     }
-    // Attendees: shown so an edit is not made blind to who is coming, and stated to be read-only
-    // rather than offered as a field that would quietly drop the change; editing them means
-    // sending iTIP updates, which is its own feature.
-    if let Some(attendees) = editor
-        .editing
-        .as_ref()
-        .and_then(|detail| attendee_group(&detail.attendees))
-    {
-        form.append(&attendees);
-        let note = gtk::Label::new(Some(l10n::event_attendees_read_only()));
-        note.add_css_class("dim-label");
-        note.set_wrap(true);
-        note.set_xalign(0.0);
-        form.append(&note);
-    }
+    let (invitees, take_typed) =
+        invitees_editor::append_invitee_section(&form, editor, &calendar, app.clone());
     let error = gtk::Label::new(Some(l10n::event_editor_invalid()));
     error.add_css_class("error");
     error.set_xalign(0.0);
@@ -258,6 +246,11 @@ fn present_editor(
     let dialog = window.clone();
     let host = parent.clone();
     save.connect_clicked(move |_| {
+        // An address typed but not yet added is meant to be on the list; one that cannot be
+        // invited stops the save, with the field saying why.
+        if !take_typed() {
+            return;
+        }
         let buffer = notes.buffer();
         let form = EventForm {
             title: title.text().to_string(),
@@ -270,6 +263,7 @@ fn present_editor(
                 .to_string(),
             calendar_index: calendar.selected(),
             repeat: repeat_draft.borrow().clone(),
+            invitees: invitees.borrow().clone(),
         };
         if editor.intent(&form, false).is_err() {
             error.set_visible(true);

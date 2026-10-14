@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Run the Linux reading/composer + search + calendar + invitations + contacts (incl. the editor's
-# refusal) + mail actions + printing +
+# Run the Linux reading/composer + search + calendar (incl. organising a meeting) + invitations +
+# contacts (incl. the editor's refusal) + mail actions + printing +
 # signatures + MCP + cross-account merge acceptance path on a private Wayland + D-Bus session. Controls
 # are selected through GTK's AT-SPI tree, never by screen coordinates. The only mailbox is the local
 # Stalwart fixture, and every screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
@@ -68,6 +68,8 @@ PUBLISH_SUBJECT="Annual general meeting"
 # range and a calendar name, so this is matched as a substring rather than pinning the fixture.
 AWAITING_LABEL="Awaiting your response"
 CALENDAR_CRUD_TITLE="${CALENDAR_CRUD_TITLE:-}"
+# The meeting leg's own event: Alice invites the harness's Bob and Dave, then changes and cancels it.
+MEETING_TITLE="${MEETING_TITLE:-}"
 # The message the mail-action leg delivers for itself and archives again, so the leg leaves the
 # seeded mailbox as it found it however often the suite runs.
 MAIL_ACTION_SUBJECT="${MAIL_ACTION_SUBJECT:-}"
@@ -211,6 +213,62 @@ open_mail_message() { # <subject>
   "$PYTHON" "$ATSPI" activate \
     --name "$1" --role "push button" \
     --within "$1" --within-role "list item" --timeout 20
+}
+
+# Wait until <address>'s harness mailbox holds a scheduling message (a `text/calendar` part) whose
+# subject contains <words>, which is what proves the server told an invitee rather than only storing
+# the meeting. Stalwart sends one per invitee for a create, a roster change and a cancellation.
+wait_for_scheduling_mail() { # <address> <words>
+  "$PYTHON" - "$1" "$2" <<'PY' || die "no scheduling message containing '$2' reached $1"
+import base64, json, sys, time, urllib.request
+
+address, words = sys.argv[1], sys.argv[2]
+auth = "Basic " + base64.b64encode(
+    f"{address}:harness-{address.split('@')[0]}-pw".encode()
+).decode()
+
+
+def fetch(url, body=None):
+    request = urllib.request.Request(
+        url,
+        data=None if body is None else json.dumps(body).encode(),
+        headers={"Authorization": auth, "Content-Type": "application/json"},
+    )
+    return json.load(urllib.request.urlopen(request, timeout=10))
+
+
+def calendar_parts(part):
+    found = "calendar" in (part.get("type") or "")
+    return found or any(calendar_parts(child) for child in part.get("subParts") or [])
+
+
+session = fetch("http://127.0.0.1:28080/jmap/session")
+account = session["primaryAccounts"]["urn:ietf:params:jmap:mail"]
+deadline = time.monotonic() + 60
+while time.monotonic() < deadline:
+    mails = fetch(
+        "http://127.0.0.1:28080/jmap/",
+        {
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
+            "methodCalls": [
+                ["Email/query", {"accountId": account, "limit": 50}, "q"],
+                [
+                    "Email/get",
+                    {
+                        "accountId": account,
+                        "#ids": {"resultOf": "q", "name": "Email/query", "path": "/ids"},
+                        "properties": ["subject", "bodyStructure"],
+                    },
+                    "g",
+                ],
+            ],
+        },
+    )["methodResponses"][1][1]["list"]
+    if any(words in (mail["subject"] or "") and calendar_parts(mail["bodyStructure"]) for mail in mails):
+        sys.exit(0)
+    time.sleep(1)
+sys.exit(1)
+PY
 }
 
 open_calendar_event() { # <title>
@@ -903,6 +961,54 @@ PY
     --name "$CALENDAR_CRUD_TITLE updated" --role "push button" --absent --timeout 45
   capture calendar-deleted
 
+  # A meeting, end to end through the organiser's editor (docs/calendar.md, "Organising a
+  # meeting"). The harness calendar is JMAP, whose server sends the invitations, so the list is
+  # offered; the assertions are on Bob's and Dave's own mailboxes, because a meeting stored on
+  # Alice's calendar and sent to nobody looks exactly like a working one from her side.
+  "$PYTHON" "$ATSPI" activate --name "New Event" --timeout 20
+  "$PYTHON" "$ATSPI" set-text --name "Title" --text "$MEETING_TITLE" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Attendees" --showing --timeout 20
+  for invitee in bob@test.local dave@test.local; do
+    "$PYTHON" "$ATSPI" set-text \
+      --name "Invite by email address" --role text --text "$invitee" --timeout 20
+    "$PYTHON" "$ATSPI" activate --name "Invite" --role "push button" --timeout 20
+    "$PYTHON" "$ATSPI" wait --name "Remove $invitee" --role "push button" --timeout 20
+  done
+  # Alice's own address adds nobody, and says why, rather than being dropped in silence.
+  "$PYTHON" "$ATSPI" set-text \
+    --name "Invite by email address" --role text --text "alice@test.local" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Invite" --role "push button" --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "That’s you: you attend as the organiser." --showing --timeout 20
+  "$PYTHON" "$ATSPI" set-text \
+    --name "Invite by email address" --role text --text "" --timeout 20
+  capture calendar-meeting-editor
+  "$PYTHON" "$ATSPI" activate --name "Save" --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "$MEETING_TITLE" --role "push button" --enabled --showing --timeout 45
+  wait_for_scheduling_mail bob@test.local "$MEETING_TITLE"
+  wait_for_scheduling_mail dave@test.local "$MEETING_TITLE"
+
+  # The organiser's edit: the roster opens with both, and taking Dave off cancels his invitation.
+  open_calendar_event "$MEETING_TITLE"
+  "$PYTHON" "$ATSPI" wait --name "Organiser" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Edit" --timeout 20
+  "$PYTHON" "$ATSPI" activate \
+    --name "Remove dave@test.local" --role "push button" --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "Remove dave@test.local" --role "push button" --absent --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Save" --timeout 20
+  wait_for_scheduling_mail dave@test.local "Cancelled: $MEETING_TITLE"
+
+  # Deleting the meeting tells whoever is still on it.
+  open_calendar_event "$MEETING_TITLE"
+  "$PYTHON" "$ATSPI" activate --name "Delete" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Delete this event?" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Delete" --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "$MEETING_TITLE" --role "push button" --absent --timeout 45
+  wait_for_scheduling_mail bob@test.local "Cancelled: $MEETING_TITLE"
+
   # Meeting invitations. This leg runs AFTER the calendar leg on purpose: the card withholds its
   # day preview until the calendar has actually been read (`conflicts_known`), and "we have not
   # looked" is a different fact from "nothing else then"; so a run that asked before the agenda
@@ -1028,7 +1134,7 @@ PY
   # Settings opens over a composer and stays until closed, and the composer is still there after.
   "$PYTHON" "$ATSPI" activate --name "Settings" --timeout 20
   "$PYTHON" "$ATSPI" activate \
-    --name "Done" --within "Settings" --within-role frame --timeout 20
+    --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Settings" --role frame --absent --timeout 20
   "$PYTHON" "$ATSPI" wait --name "To" --role text --enabled --showing --timeout 20
   # `--role text`: the caption label beside the field carries the same accessible name on purpose
@@ -1267,6 +1373,7 @@ if [[ -z "$ARTIFACT_DIR" ]]; then
   ARTIFACT_DIR="$REPO_ROOT/target/ui-test-artifacts/linux/$(date '+%Y%m%d-%H%M%S')"
 fi
 CALENDAR_CRUD_TITLE="Linux acceptance event $(date '+%s%N')"
+MEETING_TITLE="Linux acceptance meeting $(date '+%s%N')"
 MAIL_ACTION_SUBJECT="Linux acceptance action $(date '+%s%N')"
 mkdir -p "$ARTIFACT_DIR/xdg-data" "$ARTIFACT_DIR/xdg-cache" "$ARTIFACT_DIR/xdg-config"
 ARTIFACT_DIR="$(cd "$ARTIFACT_DIR" && pwd)"
@@ -1329,6 +1436,7 @@ LIBGL_ALWAYS_SOFTWARE=1 \
     MAILCAL_SHOWCASE_SCREEN=signatures \
     REMOTE_SENDER="$REMOTE_SENDER" \
     CALENDAR_CRUD_TITLE="$CALENDAR_CRUD_TITLE" \
+    MEETING_TITLE="$MEETING_TITLE" \
     MAIL_ACTION_SUBJECT="$MAIL_ACTION_SUBJECT" \
     MERGED_CONTACT="$MERGED_CONTACT" \
     WEBKIT_DISABLE_DMABUF_RENDERER=1 \

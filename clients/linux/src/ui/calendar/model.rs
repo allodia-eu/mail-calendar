@@ -464,6 +464,8 @@ impl CalendarModel {
                     id: calendar.id.clone(),
                     label: format!("{account} · {}", calendar.name),
                     is_default: calendar.is_default,
+                    address: calendar.account_address.clone(),
+                    can_invite: calendar.can_invite,
                 });
                 choices
             })

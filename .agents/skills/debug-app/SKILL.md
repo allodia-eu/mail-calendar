@@ -177,6 +177,16 @@ scripts/dev/control.sh linux click $(scripts/dev/control.sh linux locate "Lunch 
 scripts/dev/control.sh linux drag <x1> <y1> <x2> <y2> | scroll <x> <y> <dy>
 ```
 
+⚠️ **Each `key` or `text` call is a new virtual keyboard**, and the compositor moves keyboard focus
+off the window and back to give it one. Anything that closes when its window loses focus is gone
+before the key arrives: a recipient suggestion list (To, or a meeting's invitee field) is dismissed,
+and Down then moves focus instead of choosing a suggestion. To drive such a list, type and press in
+one `wtype` session: `WAYLAND_DISPLAY=<the headless display> wtype "bob" -s 1500 -k Down -k Return`.
+
+⚠️ **`locate` answers in the node's own window.** A dialog is a toplevel of its own, so a control
+inside one is reported relative to the dialog, and clicking that point lands on the main window
+behind it. Click a dialog's controls only where the dialog's position on the output is known.
+
 ⚠️ Do not reach for `wlrctl` here, whatever a search suggests: it cannot hold a pointer open long
 enough to deliver anything, while still creating the device and turning the capability on, so it
 looks like it is working. `clients/linux/README.md` has the measurements.
@@ -185,7 +195,8 @@ looks like it is working. `clients/linux/README.md` has the measurements.
 For the complete Linux proof, prefer `scripts/dev/test-linux-ui.sh --start-harness`. It owns a
 private compositor + D-Bus + AT-SPI session and asserts, against the seeded harness: blocked-image →
 opt-in → Reply → Send, a forward and the files it carries into the composer, search (narrowing, how
-far back, the scope filter, clearing it), the calendar agenda plus create → detail → edit → delete,
+far back, the scope filter, clearing it), the calendar agenda plus create → detail → edit → delete, a meeting whose invitations, roster
+change and cancellation reach the invitees' own mailboxes,
 three meeting-invitation fixtures, contacts, recipient autosuggest, signatures, and mail actions
 (read, flag, archive) on a message it delivers for itself. It preserves screenshots, tree, and logs
 under `target/ui-test-artifacts/linux/`. Spam and permanent delete it leaves alone: verify those by

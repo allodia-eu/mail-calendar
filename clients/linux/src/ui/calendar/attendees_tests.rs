@@ -3,7 +3,7 @@
 
 use adw::prelude::PreferencesRowExt;
 use gtk::prelude::{Cast, WidgetExt};
-use mailcal_bindings::{EventAttendee, ResponseStatus};
+use mailcal_bindings::{EventAttendee, MeetingInviteeRole, ResponseStatus};
 
 use super::{attendee_row, attendee_subtitle};
 use crate::l10n;
@@ -84,4 +84,18 @@ fn labels(root: &gtk::Widget) -> Vec<String> {
         child = node.next_sibling();
     }
     found
+}
+
+/// Required is what an invitation assumes, so only the exception is said.
+#[test]
+fn an_optional_invitee_is_marked_and_a_required_one_is_not() {
+    let mut optional = attendee("Ada", "ada@test.local", false);
+    optional.role = Some(MeetingInviteeRole::Optional);
+    assert_eq!(
+        attendee_subtitle(&optional),
+        format!("ada@test.local · {}", l10n::event_attendee_optional())
+    );
+    let mut required = attendee("", "grace@test.local", false);
+    required.role = Some(MeetingInviteeRole::Required);
+    assert_eq!(attendee_subtitle(&required), "");
 }

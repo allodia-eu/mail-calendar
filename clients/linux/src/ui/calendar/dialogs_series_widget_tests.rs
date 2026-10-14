@@ -121,6 +121,7 @@ fn recurring_detail(occurrence: &str) -> EventDetails {
         repeat_draft: None,
         is_recurring: true,
         can_write: true,
+        can_edit_invitees: false,
         occurrence: occurrence.to_owned(),
         attendees: Vec::new(),
     }

@@ -193,6 +193,7 @@ than duplicating. Add an account or a setting there, as another line of the plan
 | ------------------ | ------------------ | ----------------------------- |
 | `alice@test.local` | `harness-alice-pw` | primary (mail + calendar)     |
 | `bob@test.local`   | `harness-bob-pw`   | second party / event attendee |
+| `dave@test.local`  | `harness-dave-pw`  | a second invitee, so a meeting can add one person and remove another with both told |
 | `admin`            | `harness-admin-pw` | fallback admin (management)   |
 
 ## Layout

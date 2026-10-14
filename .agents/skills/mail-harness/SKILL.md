@@ -36,7 +36,8 @@ because a specific real message/provider behaviour triggers the bug. It's the sa
   reasoning: [`../../../docker/stalwart/README.md`](../../../docker/stalwart/README.md) → "Why these
   are not the engine's numbers".
 - **Seeded account:** `alice@test.local` / `harness-alice-pw` (mail + calendar). Also
-  `bob@test.local` / `harness-bob-pw` and `admin` / `harness-admin-pw`.
+  `bob@test.local` / `harness-bob-pw`, `dave@test.local` / `harness-dave-pw` (an empty mailbox to
+  invite) and `admin` / `harness-admin-pw`.
 - **Seed content:** threads, an attachment, flagged/read states, duplicate/missing Message-IDs,
   and calendar events (recurring + exceptions, attendees, all-day). `--bulk` adds a larger volume
   across dev-only folders (`Lists`, `Newsletters`, `Bulk`, `DeepThread`).

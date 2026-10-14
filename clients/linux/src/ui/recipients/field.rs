@@ -165,6 +165,41 @@ impl RecipientField {
             });
         }
     }
+
+    /// Takes the finished addresses out of the field, leaving what is still being typed. A
+    /// meeting's invitee list moves each one into a row of its own as soon as it is finished.
+    pub(crate) fn take_finished(&self) -> Vec<String> {
+        let text = self.text();
+        let finished: Vec<String> = tokens::committed(&text)
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        if !finished.is_empty() {
+            self.inner
+                .apply(&tokens::field_text(&[], tokens::current_token(&text)));
+        }
+        finished
+    }
+
+    pub(crate) fn set_placeholder(&self, text: &str) {
+        self.inner.entry.set_placeholder_text(Some(text));
+    }
+
+    /// The address still being typed, trimmed.
+    pub(crate) fn typed(&self) -> String {
+        tokens::current_token(&self.text()).to_owned()
+    }
+
+    /// Empties the field.
+    pub(crate) fn clear(&self) {
+        self.inner.apply("");
+    }
+
+    /// Called when Enter is pressed with no suggestion picked, which the field leaves to its
+    /// owner.
+    pub(crate) fn connect_activate(&self, on_activate: impl Fn() + 'static) {
+        self.inner.entry.connect_activate(move |_| on_activate());
+    }
 }
 
 /// A popover is parented to the entry but lives in its own surface, so it does **not** go away

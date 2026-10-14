@@ -11,16 +11,18 @@ use time::{Date, Month, PrimitiveDateTime, Time};
 
 use super::{CalendarChoice, EventDetails, EventEditor, EventForm};
 
-fn choice() -> CalendarChoice {
+pub(super) fn choice() -> CalendarChoice {
     CalendarChoice {
         account: "account-a".to_owned(),
         id: "calendar-a".to_owned(),
         label: "Account · Work".to_owned(),
         is_default: true,
+        address: "me@example.org".to_owned(),
+        can_invite: false,
     }
 }
 
-fn form(all_day: bool) -> EventForm {
+pub(super) fn form(all_day: bool) -> EventForm {
     EventForm {
         title: " Planning ".to_owned(),
         start: if all_day {
@@ -38,6 +40,7 @@ fn form(all_day: bool) -> EventForm {
         notes: String::new(),
         calendar_index: 0,
         repeat: None,
+        invitees: Vec::new(),
     }
 }
 
@@ -147,6 +150,7 @@ fn edit_keeps_wall_clocks_and_blank_optional_fields_clear_properties() {
         repeat_draft: None,
         is_recurring: false,
         can_write: true,
+        can_edit_invitees: false,
         occurrence: String::new(),
         attendees: Vec::new(),
     };
@@ -211,7 +215,7 @@ fn form_with(repeat: Option<RepeatDraft>) -> EventForm {
     }
 }
 
-fn editing_with(occurrence: &str, repeat_draft: Option<RepeatDraft>) -> EventEditor {
+pub(super) fn editing_with(occurrence: &str, repeat_draft: Option<RepeatDraft>) -> EventEditor {
     EventEditor::edit(
         EventDetails {
             account: "account-a".to_owned(),
@@ -233,6 +237,7 @@ fn editing_with(occurrence: &str, repeat_draft: Option<RepeatDraft>) -> EventEdi
             repeat_draft,
             is_recurring: true,
             can_write: true,
+            can_edit_invitees: false,
             occurrence: occurrence.to_owned(),
             attendees: Vec::new(),
         },

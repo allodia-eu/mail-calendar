@@ -107,7 +107,7 @@ Host ports (loopback only): the 12xxx/28080 block, kept clear of the engine repo
   Untrusted DAV          https://localhost:12443   (the seeded CalDAV + CardDAV, under a certificate
                          left out of MAILCAL_EXTRA_CA, so setup asks whether to accept it)
 
-Seeded account: alice@test.local / harness-alice-pw   (also bob@test.local, admin)
+Seeded account: alice@test.local / harness-alice-pw   (also bob@test.local, dave@test.local, admin)
 Certificates a debug build trusts via MAILCAL_EXTRA_CA: $HARNESS_CA
 EOF
 }
