@@ -263,7 +263,7 @@ fn read_formatted_text_first(
     glib::MainContext::default().spawn_local(async move {
         let html = read_clipboard(&clipboard, HTML)
             .await
-            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
+            .map(mailcal_bindings::composer_clipboard_html);
         let script = format!(
             "window.pasteComposerHtml({});",
             serde_json::Value::String(html.unwrap_or_default())

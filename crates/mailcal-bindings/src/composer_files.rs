@@ -55,6 +55,14 @@ pub fn composer_image_data_url_from_bytes(bytes: &[u8]) -> Result<String, Mailca
     })
 }
 
+/// The HTML a host read off the clipboard, as text for the shared editor's `pasteComposerHtml`,
+/// whatever encoding the app that put it there wrote it in (`mailcal_composer::clipboard_html`).
+#[uniffi::export]
+#[must_use]
+pub fn composer_clipboard_html(bytes: Vec<u8>) -> String {
+    mailcal_composer::clipboard_html(&bytes)
+}
+
 /// A host-selected file to attach to a rich composer submission.
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct ComposerFileAttachment {

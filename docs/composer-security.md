@@ -123,7 +123,13 @@ port:
    - **Word's lists are lists** (`paste_word.ts`). Word, and Outlook, which edits mail with Word,
      write a list as paragraphs that name their list and level in their style (`mso-list`) and draw
      the bullet or number as text; those paragraphs become nested `<ul>`/`<ol>`, ordered when the
-     marker numbers its item, and the marker itself is dropped. ⚠️ iOS WebKit rebuilds HTML from
+     marker numbers its item, and the marker itself is dropped. A list is the one Word names
+     (`l0 … lfo1`): two of Word's lists side by side stay two, and a list a paragraph interrupted
+     carries on from the number its marker shows (`<ol start>`, the document's `List.start`), so
+     what the sender numbered 3 is still 3. A heading Word numbers is not a list item. A host that
+     reads the clipboard's HTML itself decodes it through the core (`composer_clipboard_html`),
+     because apps write it as UTF-8, as UTF-16 or in whatever their `<meta>` names; decoded as
+     UTF-8 regardless, Word's "·" comes out as U+FFFD. ⚠️ iOS WebKit rebuilds HTML from
      another app through an attributed string before the page sees it, which keeps no `mso-list`,
      so on iPhone and iPad the host reads the clipboard's HTML itself on Paste and ⌘V and hands it
      to the bundle's `pasteComposerHtml` as written; WebKit's own paste runs only when there is no

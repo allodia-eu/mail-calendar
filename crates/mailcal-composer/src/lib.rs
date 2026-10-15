@@ -6,6 +6,7 @@
 //! tells MIME assembly which blobs are inline CID resources and which are regular
 //! attachments.
 
+mod clipboard;
 mod color;
 mod file_meta;
 mod font;
@@ -22,6 +23,7 @@ mod signature;
 mod types;
 mod validate;
 
+pub use clipboard::clipboard_html;
 pub use color::TextColor;
 pub use file_meta::{safe_file_name, safe_media_type};
 pub use font::{FontFamily, FontSize};

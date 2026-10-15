@@ -164,8 +164,8 @@ use background::BackgroundManager;
 pub use background_sync::{AccountNewMail, BackgroundSyncOutcome, NewMailPreview};
 pub use composer::{ComposerBlob, Recipients, render_composer_document_json, reply_subject};
 pub use composer_files::{
-    ComposerFileAttachment, MAX_INLINE_IMAGE_BYTES, composer_image_data_url,
-    composer_image_data_url_from_bytes,
+    ComposerFileAttachment, MAX_INLINE_IMAGE_BYTES, composer_clipboard_html,
+    composer_image_data_url, composer_image_data_url_from_bytes,
 };
 pub use composer_host::{
     COMPOSER_HOST_CHANNEL, ComposerHostRequest, ComposerLinkAnswer, composer_host_channel,

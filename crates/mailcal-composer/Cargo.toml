@@ -8,6 +8,7 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
+encoding_rs = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

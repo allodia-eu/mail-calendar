@@ -360,6 +360,10 @@ ammonia = "4"
 # `html::scheme`). Already in the tree as ammonia's own dependency, at this version and with
 # these features, so it adds no crate.
 cssparser = { version = "0.38", default-features = false }
+# Decodes HTML a host read off the clipboard, which carries no transport to name its encoding
+# (`mailcal-composer`'s `clipboard_html`). Already in the tree as the engine's MIME parser's own
+# dependency, at this version, so it adds no crate.
+encoding_rs = "0.8"
 # Streaming pull-parser for the Mozilla autoconfig XML (mailcal-autodetect). Pinned to the
 # minor version provider-caldav already locks, so it adds no new transitive crates; it does
 # not expand custom entities, so hostile config files can't balloon in memory.

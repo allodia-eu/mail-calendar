@@ -4,13 +4,14 @@ Platforms: all
 Bump: patch
 
 > Closes the four paste gaps composer-security.md listed. Word's list paragraphs (`mso-list`)
-> become real lists; a table cell merged across rows no longer shifts the row below it; and a
+> become real lists, keeping where an interrupted list's numbering carries on (`List.start`);
+> a table cell merged across rows no longer shifts the row below it; and a
 > picture the pasted markup carries inline (`data:`) is kept, so text and a picture copied together
 > inside a message move together. A picture the markup names by URL is still dropped, now stated
 > as a rule, as is the plain text an Android keyboard's clipboard strip types in. The empty
-> paragraph Chromium's insertHTML leaves after a pasted list or table, which went out as a blank
-> line, is removed. On iPhone and iPad the composer reads the clipboard's HTML itself, because iOS
-> WebKit rewrites another app's HTML and drops `mso-list`.
+> paragraph Chromium's insertHTML leaves after a pasted list or table is no longer sent as a blank
+> line. On iPhone and iPad the composer reads the clipboard's HTML itself, because iOS WebKit
+> rewrites another app's HTML and drops `mso-list`; there and on Linux the core decodes it.
 
 **English**
 

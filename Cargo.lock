@@ -2295,6 +2295,7 @@ version = "0.12.1"
 name = "mailcal-composer"
 version = "0.12.1"
 dependencies = [
+ "encoding_rs",
  "serde",
  "serde_json",
 ]
