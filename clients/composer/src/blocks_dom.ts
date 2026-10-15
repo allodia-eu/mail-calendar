@@ -134,6 +134,7 @@ function imageNode(
 
 function listNode(doc: Document, list: ListValue, attachments: Attachments): HTMLElement {
   const element = doc.createElement(list.kind === "Ordered" ? "ol" : "ul");
+  if (list.kind === "Ordered" && list.start) element.setAttribute("start", String(list.start));
   for (const item of list.items) {
     const li = doc.createElement("li");
     appendInlines(li, item.content, attachments);

@@ -23,6 +23,14 @@ function levelOf(element: Element): number | null {
   return match ? Number(match[1]) : null;
 }
 
+/// Which list a Word list paragraph belongs to: the list and the instance of it (`l0 … lfo1`). Two
+/// lists Word keeps apart are two instances even with nothing between them, and a list a paragraph
+/// interrupted is still the one it was.
+function listOf(element: Element): string {
+  const match = /mso-list\s*:\s*(l\d+)\s+level\d+(?:\s+(lfo\d+))?/i.exec(element.getAttribute("style") ?? "");
+  return match ? `${match[1]} ${match[2] ?? ""}`.toLowerCase() : "";
+}
+
 /// Whether `element` is the marker Word draws an item's bullet or number in.
 function isMarker(element: Element): boolean {
   return /mso-list\s*:\s*ignore/i.test(element.getAttribute("style") ?? "");
@@ -32,6 +40,13 @@ function isMarker(element: Element): boolean {
 /// A letter counts only with its "." or ")", because Word draws bullets in letters too ("o", "§").
 function numbers(marker: string): boolean {
   return /^\(?(\d+(\.\d+)*[.)]?|[a-z]{1,3}[.)])$/i.test(marker.replace(/[\s ]+/g, ""));
+}
+
+/// The number a numbered marker shows at its own level: 3 for "3.", 2 for "1.2.", and nothing for a
+/// letter or a numeral, whose list is numbered from 1.
+function numberOf(marker: string): number | null {
+  const match = /(\d+)[.)]*$/.exec(marker.replace(/[\s ]+/g, ""));
+  return match ? Number(match[1]) : null;
 }
 
 /// Rewrites every run of consecutive Word list paragraphs under `root` as nested lists.
@@ -62,18 +77,26 @@ function rewrite(doc: Document, run: Element[]): void {
   if (!first) return;
   const lists = doc.createDocumentFragment();
   const open: { list: Element; level: number; ordered: boolean }[] = [];
+  let belongsTo: string | null = null;
   for (const paragraph of run) {
     const level = levelOf(paragraph) ?? 1;
     const markers = Array.from(paragraph.querySelectorAll("[style]")).filter(isMarker);
-    const ordered = numbers(markers[0]?.textContent ?? "");
+    const marker = markers[0]?.textContent ?? "";
+    const ordered = numbers(marker);
     for (const marker of markers) marker.remove();
 
+    // Another of Word's lists starts a list of its own, however close it sits.
+    if (listOf(paragraph) !== belongsTo) open.length = 0;
+    belongsTo = listOf(paragraph);
     while (open.length > 0 && open[open.length - 1]!.level > level) open.pop();
     const top = open[open.length - 1];
     if (top && top.level === level && top.ordered !== ordered) open.pop();
     let current = open[open.length - 1];
     if (!current || current.level < level) {
       const list = doc.createElement(ordered ? "ol" : "ul");
+      // A list a paragraph interrupted carries on counting where Word did.
+      const start = ordered ? numberOf(marker) : null;
+      if (start !== null && start !== 1) list.setAttribute("start", String(start));
       const host = current?.list.lastElementChild ?? current?.list;
       (host ?? lists).appendChild(list);
       current = { list, level, ordered };

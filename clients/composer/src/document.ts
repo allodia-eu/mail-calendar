@@ -136,12 +136,23 @@ function leafParagraphs(element: Element, blocks: Block[], marks: Marks, context
 /// content AND a nested list, which becomes that item's `child` (recursively), so sub-lists stay
 /// structured rather than flattened into their parent.
 export function listValue(element: Element): ListValue {
-  return {
+  const list: ListValue = {
     kind: element.tagName === "OL" ? "Ordered" : "Bullet",
     items: Array.from(element.children)
       .filter((child) => child.tagName === "LI")
       .map(listItem),
   };
+  const start = listStart(element);
+  if (start !== null) list.start = start;
+  return list;
+}
+
+/// An `<ol>`'s first number when it is not 1. Anything that is not a whole number Rust's `u32` holds
+/// is no number at all, so a hostile `start` cannot make the document unreadable to the core.
+export function listStart(element: Element): number | null {
+  if (element.tagName !== "OL") return null;
+  const start = Number(element.getAttribute("start") ?? "");
+  return Number.isInteger(start) && start > 1 && start <= 0xffffffff ? start : null;
 }
 
 function listItem(li: Element): ListItem {
@@ -233,6 +244,7 @@ function collectBlocks(
   blocks: Block[],
   marks: Marks = emptyMarks(),
   context: LineContext = NO_CONTEXT,
+  stored = false,
 ): void {
   let inlineRun: Node[] = [];
   const flush = () => {
@@ -265,6 +277,12 @@ function collectBlocks(
       continue;
     }
 
+    // Chromium's `insertHTML` leaves a `<p>` holding nothing at all (at most an empty text node)
+    // after a pasted list or table. It takes no height, so it is no line anyone can see or delete;
+    // a blank line the user made holds a `<br>`. Skipped here rather than removed from the page,
+    // which would happen outside the undo history.
+    if (!stored && tag === "P" && element!.childElementCount === 0 && element!.textContent === "") continue;
+
     if (tag === "UL" || tag === "OL") {
       flush();
       blocks.push({ List: listValue(element!) });
@@ -276,7 +294,9 @@ function collectBlocks(
       // A line's own marks reach its words: another client's `<div style="color:…">` colours
       // everything inside it.
       const lineMarks = elementMarks(element!, marks);
-      if (hasBlockChild(element!)) collectBlocks(element!, blocks, lineMarks, contextWithin(element!, context));
+      if (hasBlockChild(element!)) {
+        collectBlocks(element!, blocks, lineMarks, contextWithin(element!, context), stored);
+      }
       else leafParagraphs(element!, blocks, lineMarks, context);
     } else if (tag === "HR") {
       flush();
@@ -305,9 +325,12 @@ function isUnwrittenLead(element: Element): boolean {
   );
 }
 
-export function documentBlocks(editor: HTMLElement): Block[] {
+/// The blocks `editor` holds. `stored` reads markup a client saved rather than the live editor
+/// (`read_html.ts`): there an empty `<p>` is a blank line its sender saw, since Outlook writes one
+/// as `<p><o:p>&nbsp;</o:p></p>` and it is emptied on the way here.
+export function documentBlocks(editor: HTMLElement, stored = false): Block[] {
   const blocks: Block[] = [];
-  collectBlocks(editor, blocks);
+  collectBlocks(editor, blocks, emptyMarks(), NO_CONTEXT, stored);
   return blocks.length > 0 ? blocks : [{ Paragraph: { content: [] } }];
 }
 

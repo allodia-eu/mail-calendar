@@ -118,6 +118,14 @@ fn preserves_presentational_table_attributes() {
     assert!(out.contains(r#"cellpadding="0""#));
 }
 
+/// A list that carries on from an earlier one is numbered from where it left off, in the reading
+/// view and in a draft reopened in the composer, which reads the number back into the document.
+#[test]
+fn preserves_an_ordered_lists_first_number() {
+    let out = sanitize(r#"<ol start="3"><li>three</li></ol>"#).html;
+    assert!(out.contains(r#"<ol start="3">"#), "{out}");
+}
+
 /// Thunderbird still writes colours, sizes and typefaces as `<font>`; dropped, its text arrives in
 /// the body's colour and size, in the reading view and in a reopened draft alike.
 #[test]

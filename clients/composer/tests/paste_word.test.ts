@@ -84,6 +84,32 @@ describe("a list pasted from Word", () => {
     expect(body).toHaveProperty("Paragraph");
   });
 
+  test("two of Word's lists side by side stay two lists", () => {
+    const definitions = pasted(item("l0", 1, "1.", "a") + item("l3", 1, "1.", "b"));
+    expect(definitions.map((block) => list(block).items.length)).toEqual([1, 1]);
+    // One list definition used twice is two instances, and Word numbers each from 1.
+    const instances = pasted(item("l0", 1, "1.", "a") + item("l0", 1, "1.", "b").replace("lfo1", "lfo2"));
+    expect(instances.map((block) => list(block).items.length)).toEqual([1, 1]);
+  });
+
+  test("a list a paragraph interrupted carries on counting", () => {
+    const blocks = pasted(
+      item("l1", 1, "1.", "One") +
+        item("l1", 1, "2.", "Two") +
+        "<p class=MsoNormal>An aside</p>" +
+        item("l1", 1, "3.", "Three") +
+        item("l1", 2, "a.", "Three a"),
+    );
+    expect(blocks.map((block) => Object.keys(block)[0])).toEqual(["List", "Paragraph", "List"]);
+    expect(list(blocks[0]).start).toBeUndefined();
+    expect(list(blocks[2]).start).toBe(3);
+    expect(list(blocks[2]).items[0]!.child!.start).toBeUndefined();
+  });
+
+  test("any pasted ordered list keeps the number it starts from", () => {
+    expect(list(pasted('<ol start="5"><li>five</li></ol>')[0]).start).toBe(5);
+  });
+
   test("two lists with a paragraph between them stay two lists", () => {
     const blocks = pasted(item("l0", 1, "·", "a") + "<p class=MsoNormal>between</p>" + item("l3", 1, "1.", "b"));
     expect(blocks.map((block) => Object.keys(block)[0])).toEqual(["List", "Paragraph", "List"]);

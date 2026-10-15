@@ -40,7 +40,7 @@ export function blocksFromHtml(editor: HTMLElement, html: string, attachments: A
   liftRules(body);
   breakPreformattedLines(body);
   collapseWhitespace(body);
-  return documentBlocks(body).map(tidy);
+  return documentBlocks(body, true).map(tidy);
 }
 
 /// Elements that are not message content. The core's sanitiser has already taken out what could

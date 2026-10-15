@@ -62,6 +62,8 @@ export interface ListItem {
 export interface ListValue {
   kind: ListKind;
   items: ListItem[];
+  /// An ordered list's first number when it is not 1 (`<ol start>`), absent otherwise.
+  start?: number;
 }
 
 export interface TableCell {

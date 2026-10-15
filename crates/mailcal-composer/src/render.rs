@@ -205,6 +205,11 @@ fn render_list_html(
     let tag = list.kind.html_tag();
     out.push('<');
     out.push_str(tag);
+    if let Some(start) = list.first_number() {
+        out.push_str(" start=\"");
+        out.push_str(&start.to_string());
+        out.push('"');
+    }
     out.push('>');
     for item in &list.items {
         out.push_str("<li>");
@@ -313,8 +318,8 @@ fn render_block_text(block: &Block, out: &mut String) {
 }
 
 // Plain-text lists: bullets render `- `, ordered items `1. `/`2. ` (numbering
-// restarts per sub-list), each nesting level indented two spaces. `first` tracks
-// whether any line has been written so the block never starts with a stray newline.
+// restarts per sub-list, from the list's own first number), each nesting level indented two spaces.
+// `first` tracks whether any line has been written so the block never starts with a stray newline.
 fn render_list_text(list: &List, out: &mut String, depth: usize, first: &mut bool) {
     for (index, item) in list.items.iter().enumerate() {
         if *first {
@@ -328,7 +333,8 @@ fn render_list_text(list: &List, out: &mut String, depth: usize, first: &mut boo
         match list.kind {
             ListKind::Bullet => out.push_str("- "),
             ListKind::Ordered => {
-                out.push_str(&(index + 1).to_string());
+                let first = u64::from(list.first_number().unwrap_or(1));
+                out.push_str(&(first + index as u64).to_string());
                 out.push_str(". ");
             }
         }

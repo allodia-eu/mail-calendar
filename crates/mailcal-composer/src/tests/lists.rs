@@ -5,6 +5,7 @@ fn renders_ordered_list_with_numbered_html_and_plain_text() {
     let document = ComposerDocument {
         blocks: vec![Block::List(List {
             kind: ListKind::Ordered,
+            start: None,
             items: vec![item(vec![text("first")]), item(vec![text("second")])],
         })],
         attachments: Vec::new(),
@@ -24,11 +25,13 @@ fn renders_bullet_sublist_nested_inside_an_ordered_item() {
     let document = ComposerDocument {
         blocks: vec![Block::List(List {
             kind: ListKind::Ordered,
+            start: None,
             items: vec![
                 ListItem {
                     content: vec![text("fruits")],
                     child: Some(List {
                         kind: ListKind::Bullet,
+                        start: None,
                         items: vec![item(vec![text("apple")]), item(vec![text("pear")])],
                     }),
                 },
@@ -56,10 +59,12 @@ fn renders_ordered_sublist_nested_inside_a_bullet_item() {
     let document = ComposerDocument {
         blocks: vec![Block::List(List {
             kind: ListKind::Bullet,
+            start: None,
             items: vec![ListItem {
                 content: vec![text("steps")],
                 child: Some(List {
                     kind: ListKind::Ordered,
+                    start: None,
                     items: vec![item(vec![text("a")]), item(vec![text("b")])],
                 }),
             }],
@@ -81,10 +86,12 @@ fn nested_list_schema_round_trips_through_json() {
     let document = ComposerDocument {
         blocks: vec![Block::List(List {
             kind: ListKind::Ordered,
+            start: None,
             items: vec![ListItem {
                 content: vec![text("outer")],
                 child: Some(List {
                     kind: ListKind::Bullet,
+                    start: None,
                     items: vec![item(vec![text("inner")])],
                 }),
             }],
@@ -105,10 +112,12 @@ fn validates_inline_image_carried_inside_a_nested_list_item() {
     let document = ComposerDocument {
         blocks: vec![Block::List(List {
             kind: ListKind::Ordered,
+            start: None,
             items: vec![ListItem {
                 content: vec![text("see")],
                 child: Some(List {
                     kind: ListKind::Bullet,
+                    start: None,
                     items: vec![item(vec![InlineContent::Image(InlineImage {
                         attachment_id: aid("img-1"),
                         alt_text: "chart".to_owned(),
@@ -138,10 +147,12 @@ fn rejects_missing_inline_image_inside_a_nested_list_item() {
     let document = ComposerDocument {
         blocks: vec![Block::List(List {
             kind: ListKind::Bullet,
+            start: None,
             items: vec![ListItem {
                 content: vec![text("outer")],
                 child: Some(List {
                     kind: ListKind::Bullet,
+                    start: None,
                     items: vec![item(vec![InlineContent::Image(InlineImage {
                         attachment_id: aid("missing"),
                         alt_text: String::new(),
@@ -157,4 +168,51 @@ fn rejects_missing_inline_image_inside_a_nested_list_item() {
         render(&document),
         Err(ComposerError::MissingInlineAttachment { .. })
     ));
+}
+
+#[test]
+fn an_ordered_list_carries_on_from_its_first_number() {
+    let list = |kind, start| ComposerDocument {
+        blocks: vec![Block::List(List {
+            kind,
+            start,
+            items: vec![item(vec![text("three")]), item(vec![text("four")])],
+        })],
+        attachments: Vec::new(),
+    };
+
+    let carried_on = render(&list(ListKind::Ordered, Some(3))).expect("valid document");
+    assert_eq!(
+        carried_on.html,
+        html_doc("<ol start=\"3\"><li>three</li><li>four</li></ol>")
+    );
+    assert_eq!(carried_on.plain_text, "3. three\n4. four");
+
+    // A first number of 1 is no first number, and a bulleted list has none to carry.
+    let from_one = render(&list(ListKind::Ordered, Some(1))).expect("valid document");
+    assert_eq!(
+        from_one.html,
+        html_doc("<ol><li>three</li><li>four</li></ol>")
+    );
+    let bullets = render(&list(ListKind::Bullet, Some(3))).expect("valid document");
+    assert_eq!(
+        bullets.html,
+        html_doc("<ul><li>three</li><li>four</li></ul>")
+    );
+    assert_eq!(bullets.plain_text, "- three\n- four");
+}
+
+#[test]
+fn a_list_saved_without_a_first_number_reads_back_as_starting_at_one() {
+    let json = r#"{"blocks":[{"List":{"kind":"Ordered","items":[{"content":[],"child":null}]}}],"attachments":[]}"#;
+    let document: ComposerDocument = serde_json::from_str(json).expect("parse");
+    let Block::List(list) = &document.blocks[0] else {
+        panic!("expected a list")
+    };
+    assert_eq!(list.start, None);
+    assert!(
+        !serde_json::to_string(&document)
+            .expect("serialise")
+            .contains("start")
+    );
 }

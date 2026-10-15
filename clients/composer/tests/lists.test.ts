@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import { Attachments } from "../src/attachments";
+import { setBlocks } from "../src/blocks_dom";
 import { documentBlocks } from "../src/document";
 import { restoreSelection, saveSelection } from "../src/dom";
 import { indentSelection, indentItem, outdentItem } from "../src/lists";
@@ -125,6 +127,24 @@ describe("round-trip into the composer document", () => {
     const list = (blocks[0] as { List: { kind: string; items: { child: { kind: string } | null }[] } }).List;
     expect(list.kind).toBe("Bullet");
     expect(list.items[0]!.child!.kind).toBe("Ordered");
+  });
+
+  test("an ordered list keeps the number it starts from, through the document and back", () => {
+    const h = harness('<ol start="3"><li>three</li></ol><ol start="1"><li>one</li></ol><ul start="3"><li>x</li></ul>');
+    const blocks = documentBlocks(h.editor);
+    const starts = blocks.map((block) => ("List" in block ? block.List.start : "not a list"));
+    expect(starts).toEqual([3, undefined, undefined]);
+    setBlocks(h.editor, blocks, new Attachments());
+    expect(h.editor.querySelector("ol")!.getAttribute("start")).toBe("3");
+    expect(documentBlocks(h.editor)).toEqual(blocks);
+  });
+
+  test("a start that is no whole number a u32 holds is no start", () => {
+    for (const start of ["0", "-2", "2.5", "x", "4294967296"]) {
+      const h = harness(`<ol start="${start}"><li>a</li></ol>`);
+      const [block] = documentBlocks(h.editor);
+      expect(block && "List" in block && block.List.start).toBeUndefined();
+    }
   });
 });
 

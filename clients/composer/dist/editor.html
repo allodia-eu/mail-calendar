@@ -1716,10 +1716,20 @@
     flush(true);
   }
   function listValue(element) {
-    return {
+    const list = {
       kind: element.tagName === "OL" ? "Ordered" : "Bullet",
       items: Array.from(element.children).filter((child) => child.tagName === "LI").map(listItem)
     };
+    const start = listStart(element);
+    if (start !== null)
+      list.start = start;
+    return list;
+  }
+  function listStart(element) {
+    if (element.tagName !== "OL")
+      return null;
+    const start = Number(element.getAttribute("start") ?? "");
+    return Number.isInteger(start) && start > 1 && start <= 4294967295 ? start : null;
   }
   function listItem(li) {
     const content = [];
@@ -1786,7 +1796,7 @@
   function hasBlockChild(element) {
     return Array.from(element.children).some((child) => BLOCK_TAGS2.has(child.tagName));
   }
-  function collectBlocks(container, blocks, marks = emptyMarks(), context = NO_CONTEXT) {
+  function collectBlocks(container, blocks, marks = emptyMarks(), context = NO_CONTEXT, stored = false) {
     let inlineRun = [];
     const flush = () => {
       if (inlineRun.length === 0)
@@ -1811,6 +1821,8 @@
         blocks.push(signatureBlock(element));
         continue;
       }
+      if (!stored && tag === "P" && element.childElementCount === 0 && element.textContent === "")
+        continue;
       if (tag === "UL" || tag === "OL") {
         flush();
         blocks.push({ List: listValue(element) });
@@ -1820,9 +1832,9 @@
       } else if (tag && LINE_TAGS.has(tag)) {
         flush();
         const lineMarks = elementMarks(element, marks);
-        if (hasBlockChild(element))
-          collectBlocks(element, blocks, lineMarks, contextWithin(element, context));
-        else
+        if (hasBlockChild(element)) {
+          collectBlocks(element, blocks, lineMarks, contextWithin(element, context), stored);
+        } else
           leafParagraphs(element, blocks, lineMarks, context);
       } else if (tag === "HR") {
         flush();
@@ -1839,9 +1851,9 @@
     const next = element.nextElementSibling;
     return element.hasAttribute("data-lead") && element.parentElement?.firstElementChild === element && !!next && (next.classList.contains("allodia-quote") || next.classList.contains("allodia-signature")) && (element.textContent ?? "") === "" && !element.querySelector("img");
   }
-  function documentBlocks(editor) {
+  function documentBlocks(editor, stored = false) {
     const blocks = [];
-    collectBlocks(editor, blocks);
+    collectBlocks(editor, blocks, emptyMarks(), NO_CONTEXT, stored);
     return blocks.length > 0 ? blocks : [{ Paragraph: { content: [] } }];
   }
   function referencedAttachmentIds(blocks) {
@@ -2494,11 +2506,19 @@
     const match = /mso-list\s*:\s*l\d+\s+level(\d+)/i.exec(element.getAttribute("style") ?? "");
     return match ? Number(match[1]) : null;
   }
+  function listOf(element) {
+    const match = /mso-list\s*:\s*(l\d+)\s+level\d+(?:\s+(lfo\d+))?/i.exec(element.getAttribute("style") ?? "");
+    return match ? `${match[1]} ${match[2] ?? ""}`.toLowerCase() : "";
+  }
   function isMarker(element) {
     return /mso-list\s*:\s*ignore/i.test(element.getAttribute("style") ?? "");
   }
   function numbers(marker) {
     return /^\(?(\d+(\.\d+)*[.)]?|[a-z]{1,3}[.)])$/i.test(marker.replace(/[\s ]+/g, ""));
+  }
+  function numberOf(marker) {
+    const match = /(\d+)[.)]*$/.exec(marker.replace(/[\s ]+/g, ""));
+    return match ? Number(match[1]) : null;
   }
   function wordLists(root) {
     const doc = root.ownerDocument;
@@ -2527,12 +2547,17 @@
       return;
     const lists = doc.createDocumentFragment();
     const open = [];
+    let belongsTo = null;
     for (const paragraph of run) {
       const level = levelOf(paragraph) ?? 1;
       const markers = Array.from(paragraph.querySelectorAll("[style]")).filter(isMarker);
-      const ordered = numbers(markers[0]?.textContent ?? "");
+      const marker = markers[0]?.textContent ?? "";
+      const ordered = numbers(marker);
       for (const marker of markers)
         marker.remove();
+      if (listOf(paragraph) !== belongsTo)
+        open.length = 0;
+      belongsTo = listOf(paragraph);
       while (open.length > 0 && open[open.length - 1].level > level)
         open.pop();
       const top = open[open.length - 1];
@@ -2541,6 +2566,9 @@
       let current = open[open.length - 1];
       if (!current || current.level < level) {
         const list = doc.createElement(ordered ? "ol" : "ul");
+        const start = ordered ? numberOf(marker) : null;
+        if (start !== null && start !== 1)
+          list.setAttribute("start", String(start));
         const host = current?.list.lastElementChild ?? current?.list;
         (host ?? lists).appendChild(list);
         current = { list, level, ordered };
@@ -2830,6 +2858,9 @@
   function listFrom(source, marks, paste) {
     const { doc } = paste;
     const list = doc.createElement(source.localName);
+    const start = listStart(source);
+    if (start !== null)
+      list.setAttribute("start", String(start));
     for (const child of Array.from(source.children)) {
       if (DROPPED.has(child.localName) || hidden(child))
         continue;
@@ -2962,12 +2993,6 @@
       return null;
     const only = out.childNodes.length === 1 ? out.firstChild : null;
     return only?.localName === "p" ? only.innerHTML : out.innerHTML;
-  }
-  function dropHollowParagraphs(editor) {
-    for (const child of Array.from(editor.children)) {
-      if (child.localName === "p" && child.childElementCount === 0 && child.textContent === "")
-        child.remove();
-    }
   }
   function pasteContent(doc, transfer, inline, attachments = null) {
     const html = pastedHtml(doc, transfer?.getData("text/html") ?? "", inline, attachments);
@@ -3264,6 +3289,8 @@
   }
   function listNode(doc, list, attachments) {
     const element = doc.createElement(list.kind === "Ordered" ? "ol" : "ul");
+    if (list.kind === "Ordered" && list.start)
+      element.setAttribute("start", String(list.start));
     for (const item of list.items) {
       const li = doc.createElement("li");
       appendInlines(li, item.content, attachments);
@@ -3491,7 +3518,7 @@
     liftRules(body);
     breakPreformattedLines(body);
     collapseWhitespace(body);
-    return documentBlocks(body).map(tidy);
+    return documentBlocks(body, true).map(tidy);
   }
   var INERT_TAGS = "style, title, template, noscript, script";
   function inRegion(node) {
@@ -4285,10 +4312,7 @@
     return ancestorOf(caret, editor, "li", "td", "th") !== null;
   }
   function insertHtml(html) {
-    const inserted = execCommand("insertHTML", html);
-    if (inserted)
-      dropHollowParagraphs(editor);
-    return inserted;
+    return execCommand("insertHTML", html);
   }
   function execCommand(command, value) {
     const exec = doc.execCommand;

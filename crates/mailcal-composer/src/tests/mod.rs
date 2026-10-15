@@ -126,6 +126,7 @@ fn renders_marks_lists_tables_and_html_escapes_text() {
             Block::Paragraph(Paragraph::new(vec![text("Hello "), rich_text("<world>")])),
             Block::List(List {
                 kind: ListKind::Bullet,
+                start: None,
                 items: vec![item(vec![text("one")]), item(vec![text("two")])],
             }),
             Block::Table(Table {

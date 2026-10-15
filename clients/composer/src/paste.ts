@@ -14,6 +14,7 @@
 // and a page in dark mode stamps a light one, and either would follow the text into the message.
 
 import type { Attachments } from "./attachments";
+import { listStart } from "./document";
 import { imageFilesFrom, isShowableDataUrl, MAX_CAPTURED_BYTES } from "./images";
 import { safeLinkHref } from "./links";
 import { normalizeColor } from "./marks";
@@ -282,6 +283,8 @@ function walk(node: Node, marks: PasteMarks, flow: Flow, paste: Paste, pre = fal
 function listFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLElement | null {
   const { doc } = paste;
   const list = doc.createElement(source.localName);
+  const start = listStart(source);
+  if (start !== null) list.setAttribute("start", String(start));
   for (const child of Array.from(source.children) as HTMLElement[]) {
     if (DROPPED.has(child.localName) || hidden(child)) continue;
     // A list straight inside a list (`<ul><li>a</li><ul>…</ul></ul>`, which some editors write)
@@ -426,19 +429,6 @@ export function pastedHtml(
   if (!out.textContent?.trim() && !out.querySelector("img")) return null;
   const only = out.childNodes.length === 1 ? (out.firstChild as Element) : null;
   return only?.localName === "p" ? only.innerHTML : out.innerHTML;
-}
-
-/// Removes the paragraphs directly in `editor` that hold nothing at all, after a paste.
-///
-/// Chromium's `insertHTML` leaves an empty `<p>` after a list or a table that is followed by a
-/// paragraph, holding at most an empty text node. It takes no height on screen, so the user cannot
-/// see it to delete it, and the document reads it as a blank line that would go out with the
-/// message. A blank line the user made holds a `<br>`, and a typed space is a non-breaking one, so
-/// neither is ever one of these.
-export function dropHollowParagraphs(editor: HTMLElement): void {
-  for (const child of Array.from(editor.children)) {
-    if (child.localName === "p" && child.childElementCount === 0 && child.textContent === "") child.remove();
-  }
 }
 
 /// What one paste puts in the message.
