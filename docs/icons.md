@@ -168,8 +168,9 @@ noted beside it, and the two without one are this app's own drawings.
 | Meaning | Apple | Android | Windows | Linux |
 |---|---|---|---|---|
 | Previous / next week | `chevron.left` / `chevron.right` | — | `E76B` ChevronLeft / `E76C` ChevronRight | `go-previous-symbolic` / `go-next-symbolic` |
-| New event | `calendar.badge.plus` | `ic_add` | `E787` Calendar | — |
-| The view menu | `ellipsis.circle` | `ic_more_vert` | — | — |
+| Back to today | the numbered calendar symbol for today's date (15.calendar on the 15th); before iOS and macOS 26, the date drawn in a box | — | — | — |
+| New event | `plus` | `ic_add` | `E787` Calendar | — |
+| The view menu | `ellipsis` | `ic_more_vert` | — | — |
 | Manage calendars | — | — | `E8FD` BulletedList | — |
 | The chosen mode or calendar | `checkmark` | `ic_check` | — | — |
 | An event in the agenda | `calendar` | `ic_calendar_month` | `E787` Calendar | — |

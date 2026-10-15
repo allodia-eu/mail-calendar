@@ -66,6 +66,10 @@ struct CalendarScreenView: View {
     /// A delete on one occurrence, waiting on the same question. Held apart from the drag because
     /// the two are presented differently, see the alert below.
     @State private var pendingDelete: PendingSeriesDelete?
+    #if os(iOS)
+        /// Whether the toolbar has room for the shape picker and the week arrows.
+        @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
 
     private let tick = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
@@ -128,34 +132,41 @@ struct CalendarScreenView: View {
         // moves as the user scrolls and moves the grid by exactly nothing when it does.
         let anchor = pager.anchor(forPage: pager.mode.isGrid ? strip.anchorWeek : page)
 
+        let header = CalendarHeaderState(
+            title: title(pager: pager, anchor: anchor, calendar: calendar),
+            mode: pager.mode,
+            today: today,
+            todayVisible: todayVisible(pager: pager, anchor: anchor, calendar: calendar),
+            calendar: calendar,
+            writeStatus: model.calendarWriteStatus,
+            canCreateEvent: calendarSupportsNewEvent(currentCalendars(pager: pager, anchor: anchor)),
+            onMode: { setMode($0, calendar: calendar) },
+            onBackToToday: { backToToday(today: today, calendar: calendar) },
+            onNewEvent: {
+                let def = currentCalendars(pager: pager, anchor: anchor).first { $0.canWrite }.map(\.choice)
+                editor = EventEditorState.create(default: def, zone: TimeZone.current.identifier, now: today)
+            },
+            onManage: { managing = true },
+            onRefresh: { model.showCalendar() },
+            onPrevious: { step(-1, mode: pager.mode) },
+            onNext: { step(1, mode: pager.mode) }
+        )
+
         VStack(spacing: 0) {
             reauthBanner
-            CalendarHeaderBar(
-                title: title(pager: pager, anchor: anchor, calendar: calendar),
-                mode: pager.mode,
-                today: today,
-                todayVisible: todayVisible(pager: pager, anchor: anchor, calendar: calendar),
-                calendar: calendar,
-                writeStatus: model.calendarWriteStatus,
-                canCreateEvent: calendarSupportsNewEvent(currentCalendars(pager: pager, anchor: anchor)),
-                onMode: { setMode($0, calendar: calendar) },
-                onBackToToday: { backToToday(today: today, calendar: calendar) },
-                onNewEvent: {
-                    let cals = currentCalendars(pager: pager, anchor: anchor)
-                    let def = cals.first { $0.canWrite }
-                        .map(\.choice)
-                    editor = EventEditorState.create(
-                        default: def, zone: TimeZone.current.identifier, now: today
-                    )
-                },
-                onManage: { managing = true },
-                onRefresh: { model.showCalendar() },
-                onPrevious: { step(-1, mode: pager.mode) },
-                onNext: { step(1, mode: pager.mode) }
-            )
-            Divider()
+            #if os(macOS)
+                CalendarHeaderBar(state: header)
+                Divider()
+            #endif
             content(pager: pager, anchor: anchor, calendar: calendar, today: today)
+                .movesThroughTime { step($0, mode: pager.mode) }
         }
+        #if os(iOS)
+            // The period is the bar's title (Apple's Human Interface Guidelines, "Toolbars": a
+            // title says where you are); the tab already says this is the calendar.
+            .navigationTitle(header.title)
+        #endif
+        .toolbar { CalendarToolbar(state: header, regular: toolbarIsRegular) }
         .onAppear { seed(calendar: calendar, today: today) }
         .onReceive(tick) { now = ShowcaseMode.now ?? $0 }
         .onChange(of: model.displaySettings.visibleHours) { _, hours in
@@ -260,6 +271,14 @@ struct CalendarScreenView: View {
         }
     }
 
+    private var toolbarIsRegular: Bool {
+        #if os(iOS)
+            horizontalSizeClass == .regular
+        #else
+            true
+        #endif
+    }
+
     /// Opens an event's detail sheet.
     func open(_ ref: EventRefID) {
         openEvent = ref
@@ -334,6 +353,7 @@ struct CalendarScreenView: View {
                     onOpen: open
                 )
                 .id(model.calendarVersion)
+                .monthSwipe { step($0, mode: .month) }
             }
         default:
             gridContent(pager: pager, calendar: calendar, today: today)
@@ -388,7 +408,7 @@ struct CalendarScreenView: View {
     }
 
     /// One step of the header's chevrons: a week along the strip, or a month of the month grid.
-    private func step(_ direction: Int, mode: CalendarMode) {
+    func step(_ direction: Int, mode: CalendarMode) {
         if mode.isGrid {
             // From wherever the strip is, so a chevron pressed mid-seam keeps the day it is framed
             // on rather than re-aligning the week under the user.

@@ -247,3 +247,47 @@ extension CalendarScreenView {
         }
     }
 }
+
+extension View {
+    /// A week (or a month) earlier or later when VoiceOver scrolls sideways, which is how a
+    /// screen-reader user turns a page the iPhone's bar has no arrows for.
+    func movesThroughTime(_ step: @escaping (Int) -> Void) -> some View {
+        accessibilityScrollAction { edge in
+            switch edge {
+            case .leading: step(-1)
+            case .trailing: step(1)
+            default: break
+            }
+        }
+    }
+
+    /// The month grid turns with a sideways swipe on iPhone and iPad, as the time grid's strip
+    /// does: the bar has no arrows for it on a phone.
+    func monthSwipe(_ step: @escaping (Int) -> Void) -> some View {
+        modifier(MonthSwipe(step: step))
+    }
+}
+
+/// Only a clearly sideways drag counts, so a tap on a day or an event still opens it. Simultaneous,
+/// because the days and events under the finger carry tap gestures of their own, which a plain one
+/// would wait behind; and the whole month takes the touch, because most of a day's cell is empty
+/// and empty space takes none.
+private struct MonthSwipe: ViewModifier {
+    let step: (Int) -> Void
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+            content
+                .contentShape(Rectangle())
+                .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded(swiped))
+        #else
+            content
+        #endif
+    }
+
+    private func swiped(_ drag: DragGesture.Value) {
+        let across = drag.translation.width
+        guard abs(across) > 60, abs(across) > abs(drag.translation.height) * 2 else { return }
+        step(across < 0 ? 1 : -1)
+    }
+}

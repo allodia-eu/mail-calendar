@@ -537,6 +537,13 @@ were broken right now, would this tell me?*
 
 ## Client conventions
 
+- **Apple UI follows Apple's [Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines).**
+  Before changing an Apple screen, read the HIG pages for what it touches (toolbars, buttons, menus,
+  layout) and follow them: system components and symbols, a 44 × 44 pt hit region on touch, the
+  placement Apple's own apps use, and the platform's own idiom on the Mac rather than the phone's.
+  The pages render only in a browser; the same text is at
+  `https://developer.apple.com/tutorials/data/design/human-interface-guidelines/<page>.json`. Where
+  a contract asks for something the HIG does not, the contract says why.
 - **Localisation is client-side.** The core has no runtime locale facility: it emits
   machine-readable data and owns validation plus the security gates, while each client assembles
   localised copy and formats dates. `mailcal-l10n` is **build-time** codegen from the inlang catalog

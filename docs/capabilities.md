@@ -98,6 +98,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar: **time grid** (day / 3-day / work-week / week), now line, week numbers, jump-to-today | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: all-day / multi-day banner, capped with a per-day "+N" that expands | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **month grid** (6×7 cells, "+N more") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Calendar: the month grid turns by a sideways **swipe** on a phone or tablet; a desktop turns it by the header arrows | — | — | ✅ | — | ✅ | — |
 | Calendar manager: per-calendar visibility + colour override, persisted ("Agenda's beheren") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Display settings: first day of the week, 12/24-hour clock (mail **and** calendar), **light or dark appearance** (follows the system by default, or pick one), calendar horizon | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar, pinch-to-zoom: hours, days, and **diagonal** (both at once) | — | ✅ | ✅ | ✅ | ✅ | ⬜ |

@@ -84,10 +84,8 @@ extension ContentView {
 
     private var phoneCalendar: some View {
         NavigationStack {
-            // The calendar carries its own header (shape picker, back-to-today, new event,
-            // manage), so the navigation bar stays out of its way.
+            // The calendar puts its own title (the period on screen) and items in this bar.
             calendarDetail
-                .navigationTitle(L10n.nav_calendar())
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .topBarLeading) { sidebarToggle } }
         }

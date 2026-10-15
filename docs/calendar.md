@@ -1530,6 +1530,7 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | Now line, initial vertical framing, week numbers, jump-to-today | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | All-day banner + per-day "+N" + expand | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Month grid (6×7, "+N more") | ✅ | ✅ | ✅ | ✅ ³ | ✅ | ✅ |
+| Month grid turns by a sideways **swipe** (a desktop turns it by the header arrows) | — | — | ✅ | — | ✅ | — |
 | Agenda list | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Unanswered holds drawn as holds: grid, all-day banner, month, agenda ⁸ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | "Awaiting your response" in the spoken label ⁸ | ✅ (string) | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -1911,8 +1912,9 @@ Stated, not buried.
   can be: no injected event carries real `NSTouch` data.
 - ~~**Apple pages weeks by header chevrons, not by a swipe.**~~ Closed, and not by adding a pager: the
   hand-off at a week's edge that SwiftUI would not do for free stopped existing when the days became
-  one strip (footnote ⁴). The chevrons remain, and step a **week** rather than the visible span, which
-  is the `< Today >` row still reading ⬜.
+  one strip (footnote ⁴). On the Mac and iPad the chevrons remain, and step a **week** rather than
+  the visible span, which is the `< Today >` row still reading ⬜; an iPhone's bar has none, its
+  strip and its month both turning by a swipe.
 - **The month grid repeats a multi-day event as a chip on each of its days** rather than drawing one
   continuous bar across the span. Google draws the bar.
 - **Saturday-start weeks** (much of the Middle East) are a real convention `WeekStart` does not cover.
