@@ -38,110 +38,114 @@ struct EventEditorView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                // `labelsHidden` is load-bearing, and it is the only thing here that is.
-                //
-                // A labelled `TextField` is a macOS Form's *value*, which the form lays out
-                // trailing-aligned and sized to its content. Trailing whitespace is not counted
-                // in either, so a typed space had no width, the field did not grow and the caret
-                // did not move: the space read as a keystroke the app had swallowed, until the
-                // next word pushed it into view. Hiding the label takes the field out of that
-                // treatment, and it fills the row leading-aligned like the setup screens' fields.
-                //
-                // Measured, because three plausible fixes are not fixes:
-                // `multilineTextAlignment(.leading)` never reaches the field, `roundedBorder`
-                // changes the border and not the alignment, and `frame(maxWidth: .infinity)`
-                // widens the box while leaving the text against its trailing edge. The label is
-                // still read by VoiceOver; `labelsHidden` hides it from the eye only, and the
-                // placeholder carries it for everyone else.
-                // The hidden label leaves the empty field saying nothing, so the same string is
-                // its `prompt`: the placeholder API, which a hidden label does not become.
-                TextField(
-                    L10n.event_title_label(),
-                    text: $editor.title,
-                    prompt: Text(L10n.event_title_label())
-                )
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: .infinity)
-                    .focused($titleFocused)
+            ScrollViewReader { proxy in
+                Form {
+                    // `labelsHidden` is load-bearing, and it is the only thing here that is.
+                    //
+                    // A labelled `TextField` is a macOS Form's *value*, which the form lays out
+                    // trailing-aligned and sized to its content. Trailing whitespace is not counted
+                    // in either, so a typed space had no width, the field did not grow and the caret
+                    // did not move: the space read as a keystroke the app had swallowed, until the
+                    // next word pushed it into view. Hiding the label takes the field out of that
+                    // treatment, and it fills the row leading-aligned like the setup screens' fields.
+                    //
+                    // Measured, because three plausible fixes are not fixes:
+                    // `multilineTextAlignment(.leading)` never reaches the field, `roundedBorder`
+                    // changes the border and not the alignment, and `frame(maxWidth: .infinity)`
+                    // widens the box while leaving the text against its trailing edge. The label is
+                    // still read by VoiceOver; `labelsHidden` hides it from the eye only, and the
+                    // placeholder carries it for everyone else.
+                    // The hidden label leaves the empty field saying nothing, so the same string is
+                    // its `prompt`: the placeholder API, which a hidden label does not become.
+                    TextField(
+                        L10n.event_title_label(),
+                        text: $editor.title,
+                        prompt: Text(L10n.event_title_label())
+                    )
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: .infinity)
+                        .focused($titleFocused)
 
-                // All-day is set at create and frozen on edit (the patcher refuses a form change).
-                Toggle(L10n.calendar_all_day(), isOn: $editor.allDay)
-                    .disabled(!editor.canEditForm)
+                    // All-day is set at create and frozen on edit (the patcher refuses a form change).
+                    Toggle(L10n.calendar_all_day(), isOn: $editor.allDay)
+                        .disabled(!editor.canEditForm)
 
-                DatePicker(
-                    L10n.event_start(),
-                    selection: $editor.start,
-                    displayedComponents: editor.allDay ? [.date] : [.date, .hourAndMinute]
-                )
-                DatePicker(
-                    L10n.event_end(),
-                    selection: $editor.end,
-                    displayedComponents: editor.allDay ? [.date] : [.date, .hourAndMinute]
-                )
+                    DatePicker(
+                        L10n.event_start(),
+                        selection: $editor.start,
+                        displayedComponents: editor.allDay ? [.date] : [.date, .hourAndMinute]
+                    )
+                    DatePicker(
+                        L10n.event_end(),
+                        selection: $editor.end,
+                        displayedComponents: editor.allDay ? [.date] : [.date, .hourAndMinute]
+                    )
 
-                // Calendar, a picker on create, display-only on edit (no cross-calendar move yet).
-                Button { if editor.canEditForm { picking = true } } label: { calendarRow }
-                    .disabled(!editor.canEditForm)
-                    .buttonStyle(.plain)
+                    // Calendar, a picker on create, display-only on edit (no cross-calendar move yet).
+                    Button { if editor.canEditForm { picking = true } } label: { calendarRow }
+                        .disabled(!editor.canEditForm)
+                        .buttonStyle(.plain)
 
-                // Location: settable on create and edit alike, the engine's create draft carries it.
-                TextField(
-                    L10n.event_location(),
-                    text: $editor.location,
-                    prompt: Text(L10n.event_location())
-                )
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: .infinity)
-                TextField(
-                    L10n.event_notes(),
-                    text: $editor.notes,
-                    prompt: Text(L10n.event_notes()),
-                    axis: .vertical
-                )
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: .infinity)
+                    // Location: settable on create and edit alike, the engine's create draft carries it.
+                    TextField(
+                        L10n.event_location(),
+                        text: $editor.location,
+                        prompt: Text(L10n.event_location())
+                    )
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: .infinity)
+                    TextField(
+                        L10n.event_notes(),
+                        text: $editor.notes,
+                        prompt: Text(L10n.event_notes()),
+                        axis: .vertical
+                    )
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: .infinity)
 
-                // Reminder: shown, not yet editable. The repeat is a set of controls when the
-                // core handed over a draft, and the sentence it already decided when it did not.
-                Section {
-                    LabeledContent(L10n.event_reminder(), value: reminderText(editor.editing?.reminderMinutes))
+                    // Reminder: shown, not yet editable. The repeat is a set of controls when the
+                    // core handed over a draft, and the sentence it already decided when it did not.
+                    Section {
+                        LabeledContent(L10n.event_reminder(), value: reminderText(editor.editing?.reminderMinutes))
 
-                    if editor.canEditRepeat {
-                        EventRepeatSection(
-                            draft: $editor.repeatDraft,
-                            start: editor.start,
-                            opensOnOneOccurrence: !(editor.editing?.occurrence.isEmpty ?? true)
-                        )
-                    } else {
-                        LabeledContent(
-                            L10n.event_repeat(),
-                            value: recurrenceText(
-                                editor.editing?.repeatSummary,
-                                isRecurring: editor.editing?.isRecurring ?? false
+                        if editor.canEditRepeat {
+                            EventRepeatSection(
+                                draft: $editor.repeatDraft,
+                                start: editor.start,
+                                opensOnOneOccurrence: !(editor.editing?.occurrence.isEmpty ?? true)
                             )
-                        )
-                        Text(L10n.event_repeat_locked())
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        } else {
+                            LabeledContent(
+                                L10n.event_repeat(),
+                                value: recurrenceText(
+                                    editor.editing?.repeatSummary,
+                                    isRecurring: editor.editing?.isRecurring ?? false
+                                )
+                            )
+                            Text(L10n.event_repeat_locked())
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        // Only when the answer is settled. An editor opened on one occurrence asks
+                        // at Save which occurrences were meant, so stating the answer up here would
+                        // be telling the user something the next dialog contradicts.
+                        if editor.editing?.isRecurring == true, !editor.asksAboutTheSeries,
+                            editor.editing?.occurrence.isEmpty == true
+                        {
+                            Text(L10n.event_series_note())
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
-                    // Only when the answer is settled. An editor opened on one occurrence asks
-                    // at Save which occurrences were meant, so stating the answer up here would
-                    // be telling the user something the next dialog contradicts.
-                    if editor.editing?.isRecurring == true, !editor.asksAboutTheSeries,
-                        editor.editing?.occurrence.isEmpty == true
-                    {
-                        Text(L10n.event_series_note())
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                    EventInviteesSection(editor: $editor, suggestionsFor: suggestionsFor) { focused in
+                        if focused { keepInviteeFieldInView(proxy) }
                     }
                 }
-
-                EventInviteesSection(editor: $editor, suggestionsFor: suggestionsFor)
             }
             .formStyle(.grouped)
             .navigationTitle(editor.isEditing ? L10n.event_edit_title() : L10n.event_new_title())
@@ -257,6 +261,20 @@ struct EventEditorView: View {
         DispatchQueue.main.async {
             confirmingSave = PendingSeriesSave(args: args, warning: warning)
         }
+    }
+
+    /// Brings the invitee field back into view once the keyboard has settled.
+    ///
+    /// On iPhone and iPad, focusing a field with the email keyboard and autocorrection off (the
+    /// recipient field's) scrolls this form to its top, which leaves a field at the bottom under
+    /// the keyboard. Either setting alone does not, and neither is wrong for an address, so the
+    /// field is scrolled back rather than configured differently. Nothing to do on a Mac.
+    private func keepInviteeFieldInView(_ proxy: ScrollViewProxy) {
+        #if os(iOS)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                withAnimation { proxy.scrollTo(EventInviteesSection.fieldID, anchor: .bottom) }
+            }
+        #endif
     }
 
     /// Whether the form ends in a list of people, or the field to add them.

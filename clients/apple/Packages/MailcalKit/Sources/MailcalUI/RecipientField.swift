@@ -38,6 +38,8 @@ struct RecipientField<Trailing: View>: View {
     var suggestionsFor: ((String) async -> [RecipientMatch])?
     /// Whether the composer opens with the caret in this field.
     var focusesOnAppear = false
+    /// Told when the input gains or loses focus, for a host that must keep it in view.
+    var onFocusChange: ((Bool) -> Void)?
     let trailing: Trailing
 
     /// The token being typed, held apart from `text` so the input shows only the address in
@@ -51,12 +53,14 @@ struct RecipientField<Trailing: View>: View {
         text: Binding<String>,
         suggestionsFor: ((String) async -> [RecipientMatch])? = nil,
         focusesOnAppear: Bool = false,
+        onFocusChange: ((Bool) -> Void)? = nil,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.label = label
         self._text = text
         self.suggestionsFor = suggestionsFor
         self.focusesOnAppear = focusesOnAppear
+        self.onFocusChange = onFocusChange
         self.trailing = trailing()
     }
 
@@ -121,6 +125,7 @@ struct RecipientField<Trailing: View>: View {
                 Task { @MainActor in inputFocused = true }
             }
         }
+        .onChange(of: inputFocused) { _, focused in onFocusChange?(focused) }
         .onChange(of: input) { _, typed in
             text = recipientFieldText(committed, typed)
         }
@@ -165,13 +170,15 @@ extension RecipientField where Trailing == EmptyView {
         label: String,
         text: Binding<String>,
         suggestionsFor: ((String) async -> [RecipientMatch])? = nil,
-        focusesOnAppear: Bool = false
+        focusesOnAppear: Bool = false,
+        onFocusChange: ((Bool) -> Void)? = nil
     ) {
         self.init(
             label: label,
             text: text,
             suggestionsFor: suggestionsFor,
-            focusesOnAppear: focusesOnAppear
+            focusesOnAppear: focusesOnAppear,
+            onFocusChange: onFocusChange
         ) { EmptyView() }
     }
 }

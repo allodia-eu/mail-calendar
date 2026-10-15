@@ -13,6 +13,11 @@ import SwiftUI
 struct EventInviteesSection: View {
     @Binding var editor: EventEditorState
     let suggestionsFor: ((String) async -> [RecipientMatch])?
+    /// Told when the address field gains or loses focus; see `EventEditorView`.
+    var onFieldFocus: ((Bool) -> Void)?
+
+    /// The address field's row, for a host scrolling it into view.
+    static let fieldID = "invitee-field"
 
     var body: some View {
         let attendees = editor.editing?.attendees ?? []
@@ -55,7 +60,8 @@ struct EventInviteesSection: View {
                             get: { editor.roster.field },
                             set: { editor.inviteeFieldChanged($0) }
                         ),
-                        suggestionsFor: suggestionsFor
+                        suggestionsFor: suggestionsFor,
+                        onFocusChange: onFieldFocus
                     )
                     // As the editor's other fields, and for the same reason: see EventEditorView.
                     .labelsHidden()
@@ -64,6 +70,7 @@ struct EventInviteesSection: View {
                     Button(L10n.event_invitee_add()) { _ = editor.takeTypedInvitee() }
                         .buttonStyle(.bordered)
                 }
+                .id(Self.fieldID)
                 if let refusal = editor.roster.refusal, let text = inviteeRefusal(refusal) {
                     Text(text)
                         .font(.footnote)
