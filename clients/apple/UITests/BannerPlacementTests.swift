@@ -1,8 +1,8 @@
 // A banner sits under the navigation bar it shares the screen with, never over it.
 //
 // On iPhone an inset outside a tab's navigation stack does not move that stack's bar down, so a
-// banner on the app's root drew over the bar and its buttons (`Mailcal.Banners.swift`). The offline
-// banner stands for all of them, being the one a launch hook can raise.
+// banner on the app's root draws over the bar and its buttons (`Mailcal.Banners.swift`). The
+// offline banner stands for all of them, being the one a launch hook can raise.
 //
 // ⚠️ Measured by frames, not by `isHittable`: with the banner drawn over the bar, XCUITest still
 // answered that the buttons under it were hittable.

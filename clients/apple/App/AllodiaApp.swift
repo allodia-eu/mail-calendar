@@ -72,13 +72,12 @@ struct AllodiaApp: App {
             await handleBackgroundRefresh()
         }
         #endif
-        #if os(macOS)
-        // **No File ▸ New Window.** SwiftUI offers ⌘N for a `WindowGroup` by default, and a second
-        // main window would build a second `ContentView`, a second core and a second connection to
-        // the store. The windows this app does open are the two below, and both share the session
-        // above (`docs/reading-window.md`). `MailcalCommands` puts New Mail where it was.
+        // **No File ▸ New Window.** SwiftUI offers ⌘N for a `WindowGroup` by default, and on the Mac
+        // a second main window would build a second `ContentView`, a second core and a second
+        // connection to the store. The windows this app does open are the two below, and both share
+        // the session above (`docs/reading-window.md`). `MailcalCommands` puts New Mail where it
+        // was, on every platform.
         .commands { MailcalCommands() }
-        #endif
 
         #if os(macOS)
         // One message, in a window of its own: opened by double-clicking a row, keyed by the

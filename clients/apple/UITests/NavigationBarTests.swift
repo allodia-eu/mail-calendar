@@ -30,7 +30,11 @@ final class NavigationBarTests: XCTestCase {
                 "the mailbox bar has no reachable \(name)"
             )
         }
-        XCTAssertTrue(app.searchFields["Search mail"].exists, "the mailbox bar has no search field")
+        // Waited for: after a switch from another tab the field arrives a moment after the buttons.
+        XCTAssertTrue(
+            app.searchFields["Search mail"].waitForExistence(timeout: ShowcaseApp.timeout),
+            "the mailbox bar has no search field"
+        )
     }
 
     /// An open message has the screen to itself: the tab bar goes while it is read, and comes back

@@ -74,7 +74,7 @@ extension ContentView {
                     }
                 }
                 .navigationDestination(item: $openedMessage) { opened in
-                    readingView(for: opened)
+                    bannered(readingView(for: opened))
                         // An open message is read, not navigated away from: the height goes to
                         // the message, and Back returns to the list, where the tabs are.
                         .toolbar(.hidden, for: .tabBar)
@@ -100,13 +100,13 @@ extension ContentView {
                 // Tapping a person pushes their detail; Back pops it. The same gesture the reading
                 // view uses, so the phone has one way of opening a row.
                 .navigationDestination(item: $openedContact) { opened in
-                    ContactDetailView(
+                    bannered(ContactDetailView(
                         detail: opened.detail,
                         accountLabels: model.contactAccountLabels,
                         onEdit: opened.detail.editableCards.isEmpty
                             ? nil
                             : { beginEditContact(opened.detail) }
-                    )
+                    ))
                     .navigationTitle(
                         opened.detail.displayName.isEmpty
                             ? L10n.contacts_no_name() : opened.detail.displayName

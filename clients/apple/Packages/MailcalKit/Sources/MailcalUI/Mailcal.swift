@@ -252,22 +252,25 @@ public struct ContentView: View {
     @Environment(\.horizontalSizeClass) var hSize
     #endif
 
-    @ViewBuilder private var shell: some View {
+    @ViewBuilder private var layout: some View {
         #if os(macOS)
         bannered(baseLayout)
             // New Mail and the search field, in the window's own top row (Mailcal.Toolbar.swift).
             // Attached here rather than to the `WindowGroup`, for the reason the mail-link
             // routing below is: both need this view's model.
             .toolbar { windowToolbar }
-            // The same for the menu bar (`MailcalCommands`).
-            .focusedSceneValue(\.mailCommands, MailCommandActions(
-                newMail: { showMail(); beginNewMessage() },
-                sync: { model.refresh() }
-            ))
         #else
         // Each navigation stack carries the banners under its own bar (`bannered`).
         baseLayout
         #endif
+    }
+
+    private var shell: some View {
+        // The mail surface's toolbar actions, for the keyboard (`MailcalCommands`).
+        layout.focusedSceneValue(\.mailCommands, MailCommandActions(
+            newMail: { showMail(); beginNewMessage() },
+            sync: model.destination == .mail ? { model.refresh() } : nil
+        ))
     }
 
     private var mainView: some View {

@@ -26,11 +26,13 @@ extension ContentView {
         } content: {
             // The list carries its own title and search field, so the navigation bar stays out of
             // its way rather than showing the heading twice.
-            bannered(contactsList)
+            contactsList
                 .navigationBarTitleDisplayMode(.inline)
                 .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 460)
         } detail: {
-            contactsDetailPane
+            // The detail column for the banners, as on every split here: iPadOS shows it in every
+            // orientation, so a banner there is on screen once and always.
+            bannered(contactsDetailPane)
         }
     }
 
@@ -55,7 +57,7 @@ extension ContentView {
                 // Keep the accounts/folders sidebar compact so the message list gets more room.
                 .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 300)
         } content: {
-            bannered(compactMessageList)
+            compactMessageList
                 .navigationTitle(currentFolderName)
                 // Large, for the reason the iPhone's is: see phoneMail.
                 .navigationBarTitleDisplayMode(.large)
@@ -73,7 +75,7 @@ extension ContentView {
                     }
                 }
         } detail: {
-            readingPane
+            bannered(readingPane)
         }
     }
 }

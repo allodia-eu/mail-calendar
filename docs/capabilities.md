@@ -100,7 +100,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar: all-day / multi-day banner, capped with a per-day "+N" that expands | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **month grid** (6×7 cells, "+N more") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: the month grid turns by a sideways **swipe** on a phone or tablet; a desktop turns it by the header arrows | — | — | ✅ | — | ✅ | — |
-| The toolbar's actions are also **menu-bar commands**, with Mail's and Calendar's shortcuts (⌘N, ⌥⌘N, ⌘1 to ⌘6, ⌘T, ⌘← ⌘→, ⌘R), as the macOS guidelines ask | — | ✅ | — | — | — | — |
+| The toolbar's actions are also **keyboard commands** with Mail's and Calendar's shortcuts (⌘N, ⌥⌘N, ⌘1 to ⌘6, ⌘T, ⇧⌘N, and ⌘← ⌘→ on the Mac): in the Mac's menu bar, and on iPad and iPhone with a hardware keyboard, as Apple's guidelines ask | — | ✅ | ✅ | — | — | — |
 | Calendar manager: per-calendar visibility + colour override, persisted ("Agenda's beheren") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Display settings: first day of the week, 12/24-hour clock (mail **and** calendar), **light or dark appearance** (follows the system by default, or pick one), calendar horizon | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar, pinch-to-zoom: hours, days, and **diagonal** (both at once) | — | ✅ | ✅ | ✅ | ✅ | ⬜ |
