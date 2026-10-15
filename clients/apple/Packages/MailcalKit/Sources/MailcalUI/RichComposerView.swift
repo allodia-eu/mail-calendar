@@ -218,7 +218,7 @@ struct RichComposeView: View {
         mode != .new || !to.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var sendDisabled: Bool {
+    var sendDisabled: Bool {
         to.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -263,12 +263,21 @@ struct RichComposeView: View {
             phoneComposerBody
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
+            // The standard Close symbol rather than the word, and Send as the bar's one prominent
+            // action on its trailing side (Apple's Human Interface Guidelines, "Toolbars"). Both keep
+            // their names for VoiceOver.
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(L10n.action_close(), role: .cancel) { cancel() }
+                    Button(role: .cancel) { cancel() } label: {
+                        Label(L10n.action_close(), systemImage: "xmark")
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(L10n.action_send()) { prepareAndSend() }.disabled(sendDisabled)
+                    Button { prepareAndSend() } label: {
+                        Label(L10n.action_send(), systemImage: "paperplane")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(sendDisabled)
                 }
             }
         }
@@ -398,59 +407,7 @@ struct RichComposeView: View {
         }
     }
 
-    /// The composer's action bar, above the editor, Outlook's arrangement, and the reason the
-    /// signature is *here* rather than as a labelled row among From/To/Cc: it is an action you take
-    /// on the message, not a field you address it with. Attaching a file is the same kind of thing,
-    /// so it moved out of its own row below the editor and joined it.
-    ///
-    /// Send and Discard lead the bar on macOS, where the composer is an inline pane with no window
-    /// chrome of its own. On iOS Send stays in the navigation bar beside Close, the platform puts
-    /// confirm/cancel there, and Discard joins Save as draft here, because Close is leaving and
-    /// keeps the draft (`docs/drafts.md`).
-    @ViewBuilder private var actionBar: some View {
-        HStack(spacing: 10) {
-            #if os(macOS)
-            Button {
-                prepareAndSend()
-            } label: {
-                Label(L10n.action_send(), systemImage: "paperplane")
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .disabled(sendDisabled)
-            discardButton
-            Divider().frame(height: 16)
-            #endif
-            Button {
-                chooseAttachments()
-            } label: {
-                Label(L10n.action_attach(), systemImage: "paperclip")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            if drafts != nil {
-                // Never disabled. A draft is unfinished by definition, so there is no state a
-                // composer can be in that this refuses, and pressing it on an unchanged message
-                // reaches no server.
-                Button {
-                    saveDraftNow()
-                } label: {
-                    Label(L10n.action_save_draft(), systemImage: "tray.and.arrow.down")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                #if !os(macOS)
-                discardButton
-                #endif
-            }
-            if showsSignaturePicker {
-                signatureMenu
-            }
-            Spacer()
-        }
-    }
-
-    private func prepareAndSend() {
+    func prepareAndSend() {
         composerError = nil
         editor.documentJSON { result in
             switch result {

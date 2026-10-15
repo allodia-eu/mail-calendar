@@ -19,7 +19,8 @@ struct FromAccountField: View {
             // Picker renders its label on macOS but drops it on iOS, and the From address must
             // never appear as a bare unlabeled email.
             HStack(spacing: 8) {
-                Text(L10n.compose_from()).foregroundStyle(.secondary)
+                // Its own width before the sender's: a long `Name <address>` truncates instead.
+                Text(L10n.compose_from()).foregroundStyle(.secondary).fixedSize()
                 field
                 Spacer(minLength: 0)
             }
@@ -31,16 +32,34 @@ struct FromAccountField: View {
     @ViewBuilder
     private var field: some View {
         if accounts.count > 1 {
-            Picker(L10n.compose_from(), selection: shown) {
-                ForEach(accounts, id: \.id) { account in
-                    Text(label(for: account)).tag(Optional(account.id))
+            #if os(macOS)
+            picker.pickerStyle(.menu).labelsHidden().fixedSize()
+            #else
+            // A menu of our own around the picker, because iOS draws a menu picker's label on as
+            // many lines as the sender takes and ignores a line limit. One line, the middle of a
+            // long address giving way, as the single-account text below does.
+            Menu {
+                picker.pickerStyle(.inline)
+            } label: {
+                HStack(spacing: 4) {
+                    Text(Self.sender(selection, in: accounts)
+                        .flatMap { id in accounts.first { $0.id == id } }
+                        .map(label(for:)) ?? "")
+                        .lineLimit(1).truncationMode(.middle)
+                    Image(systemName: "chevron.up.chevron.down").imageScale(.small)
                 }
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .fixedSize()
+            #endif
         } else if let only = accounts.first {
             Text(label(for: only)).lineLimit(1).truncationMode(.middle)
+        }
+    }
+
+    private var picker: some View {
+        Picker(L10n.compose_from(), selection: shown) {
+            ForEach(accounts, id: \.id) { account in
+                Text(label(for: account)).tag(Optional(account.id))
+            }
         }
     }
 

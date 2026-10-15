@@ -118,15 +118,29 @@ extension RichComposeView {
             }
             .pickerStyle(.inline)
         } label: {
-            Label(L10n.compose_signature_label(), systemImage: "signature")
+            Label(L10n.compose_signature_label(), systemImage: "signature").composerBarItem()
         }
+        #if os(macOS)
         // Styled as a button, not a borderless menu: it sits next to Attach files, and a plain
         // blue label beside a bordered capsule reads as two different kinds of control rather
-        // than two items in one bar (most visible on iOS).
+        // than two items in one bar.
         .menuStyle(.button)
         .buttonStyle(.bordered)
         .controlSize(.small)
         .fixedSize()
+        #endif
         .onChange(of: signatureChoice) { _, _ in signatureChoiceChanged() }
+    }
+}
+
+extension Label {
+    /// A symbol in the touch composer's action bar, given the 44 × 44 pt a finger needs. Nothing on
+    /// the Mac, where the bar's buttons carry their own frame.
+    func composerBarItem() -> some View {
+        #if os(macOS)
+        self
+        #else
+        frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+        #endif
     }
 }

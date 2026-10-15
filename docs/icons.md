@@ -156,10 +156,11 @@ noted beside it, and the two without one are this app's own drawings.
 |---|---|---|---|---|
 | Send | `paperplane` | `ic_send` | text | text |
 | Discard | `trash` | `ic_delete` | text | text |
-| Close, keeping the draft | text | `ic_close` | — | — |
+| Close, keeping the draft | `xmark` | `ic_close` | — | — |
 | Save as draft | `tray.and.arrow.down` | `ic_save_draft` | text | text |
 | Attach | `paperclip` | `ic_attachment` | text | text |
 | Choose a signature | `signature` | `ic_signature` | text | text |
+| The draft's actions (Save as draft, Discard), on iPhone and iPad | `ellipsis` | — | — | — |
 | The chosen signature | — | `ic_check` | — | — |
 | Show / hide Cc and Bcc | `chevron.down`, turned | `ic_keyboard_arrow_down`, turned | `E70D` ChevronDown / `E70E` ChevronUp | `pan-down-symbolic` / `pan-up-symbolic` |
 | Remove an attachment | `xmark.circle` | — | — | `user-trash-symbolic` |
