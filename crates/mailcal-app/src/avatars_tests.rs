@@ -167,13 +167,83 @@ async fn contacts_arriving_after_the_first_pass_still_get_their_photos() {
     app.mailbox_list.publish(snapshot_from("ada@example.test"));
 
     // Contacts arrive. Nothing else will rebuild the mail list, so this is the only moment
-    // that can put the face on the row: the whole path, not just the forgetting.
+    // that can put the face on the row: the whole path, not just the re-check.
     app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
         .await;
 
     assert!(
         image_path(&app.mailbox_list.get()).is_some(),
         "a card that synced after the first pass must still reach the row on screen"
+    );
+}
+
+/// A contacts sync asks again about every photo, and keeps drawing the ones it knew until the
+/// answer is in.
+///
+/// Dropping them put every row back to its monogram for the length of the re-resolve, a flash
+/// of initials across the whole list: seen on iPad, closing a composer that had saved a draft.
+#[tokio::test]
+async fn a_contacts_sync_keeps_drawing_a_known_face_while_it_asks_again() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(
+        FakeContacts {
+            card: card_with_photo("ada@example.test"),
+            photo: Some(PNG.to_vec()),
+        },
+        &surfaces,
+    );
+    app.mailbox_list.publish(snapshot_from("ada@example.test"));
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
+    let known = image_path(&app.mailbox_list.get()).expect("the face resolved");
+
+    app.recheck_sender_photos();
+    let mut snapshot = snapshot_from("ada@example.test");
+    let wanted = app.attach_photos(&mut snapshot);
+    assert_eq!(
+        image_path(&snapshot).as_ref(),
+        Some(&known),
+        "a rebuild during the re-check still draws the face"
+    );
+    assert_eq!(wanted.len(), 1, "and the address is asked about again");
+
+    app.resolve_sender_photos(wanted).await;
+    let mut snapshot = snapshot_from("ada@example.test");
+    assert!(
+        app.attach_photos(&mut snapshot).is_empty(),
+        "answered, so not asked again"
+    );
+    assert_eq!(image_path(&snapshot), Some(known));
+}
+
+/// A photo the re-check finds gone is taken off the rows on screen, not left drawn.
+#[tokio::test]
+async fn a_face_the_recheck_finds_gone_leaves_the_rows() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(
+        FakeContacts {
+            card: card_with_photo("ada@example.test"),
+            photo: None,
+        },
+        &surfaces,
+    );
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
+    // What an earlier pass had found, before the source dropped the photo.
+    app.avatar_photos.lock().unwrap().insert(
+        "ada@example.test".to_owned(),
+        super::PhotoState::Rechecking("/gone.png".to_owned()),
+    );
+    let mut snapshot = snapshot_from("ada@example.test");
+    let wanted = app.attach_photos(&mut snapshot);
+    app.mailbox_list.publish(snapshot);
+    assert!(image_path(&app.mailbox_list.get()).is_some());
+
+    app.resolve_sender_photos(wanted).await;
+    assert_eq!(
+        image_path(&app.mailbox_list.get()),
+        None,
+        "the row on screen loses the photo the source no longer has"
     );
 }
 

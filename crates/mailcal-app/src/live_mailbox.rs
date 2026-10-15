@@ -196,6 +196,10 @@ impl<P: Provider> App<P> {
         // Read rather than carried over: it is a lock away, and the authoritative rebuild
         // stamps it the same way (`restamp_expansion`).
         snapshot.unified_expanded = self.unified_expanded();
+        // The faces the authoritative rebuild would draw, from the same in-memory map: without
+        // them a live commit puts every row back to its monogram until that rebuild lands.
+        // Anything the map cannot answer is left to the rebuild, which queues it.
+        let _ = self.attach_photos(&mut snapshot);
         if snapshot == current {
             return false;
         }

@@ -167,15 +167,15 @@ impl<P: Provider> App<P> {
         // first snapshot is built before any card has synced, so without this every sender
         // gets recorded as "nobody has a card for them" and *stays* that way for the rest of
         // the session: contacts arrive half a second later and no face ever appears.
-        // Give up what was known about photos *before* rebuilding, so the rebuild's own
-        // resolution starts from nothing and re-asks. The sync just replaced the index every
-        // previous answer came from, and the first snapshot is built before any card exists,
-        // so without this every sender is recorded as "nobody has a card" and keeps it.
+        // Re-ask about every photo *before* rebuilding, so the rebuild's own resolution asks
+        // again. The sync just replaced the index every previous answer came from, and the
+        // first snapshot is built before any card exists, so without this every sender is
+        // recorded as "nobody has a card" and keeps it.
         //
         // The rebuild's pass is the only one needed: after a contacts sync the sole addresses
         // whose answer can have changed are the ones that now have a card, and every card is a
         // row in the snapshot it is about to build. It republishes the mail list too.
-        self.forget_sender_photos();
+        self.recheck_sender_photos();
         self.rebuild_contacts().await;
         // A full refresh clears the last write's word, the way the calendar's does: "Saved" is a
         // sentence about something the user just did, and one still on screen when they come back

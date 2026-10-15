@@ -39,6 +39,9 @@ pub(crate) enum PhotoState {
     None,
     /// A raster image on disk, already sniffed.
     File(String),
+    /// A photo found before the people index it came from was replaced: still drawn, and asked
+    /// about again. The answer replaces it, with a changed photo or with none.
+    Rechecking(String),
 }
 
 impl<P: Provider> App<P> {
@@ -58,8 +61,15 @@ impl<P: Provider> App<P> {
             };
             match photos.get(canonical.as_str()) {
                 Some(PhotoState::File(path)) => avatar.image_path = Some(path.clone()),
-                Some(PhotoState::None) => {}
+                Some(PhotoState::Rechecking(path)) => {
+                    avatar.image_path = Some(path.clone());
+                    wanted.push(canonical);
+                }
+                // Cleared, not left: a pass re-attaches onto the snapshot already on screen, and
+                // a photo the source has dropped must leave the row.
+                Some(PhotoState::None) => avatar.image_path = None,
                 Some(PhotoState::Unresolved) | None => {
+                    avatar.image_path = None;
                     // Mark it now so the same address queued from twenty rows is one lookup.
                     photos.insert(canonical.as_str().to_owned(), PhotoState::Unresolved);
                     wanted.push(canonical);
@@ -82,7 +92,7 @@ impl<P: Provider> App<P> {
             .expect("avatar mutex poisoned")
             .get(canonical.as_str())
         {
-            Some(PhotoState::File(path)) => Some(path.clone()),
+            Some(PhotoState::File(path) | PhotoState::Rechecking(path)) => Some(path.clone()),
             _ => None,
         }
     }
@@ -106,8 +116,13 @@ impl<P: Provider> App<P> {
             };
             match photos.get(canonical.as_str()) {
                 Some(PhotoState::File(path)) => row.avatar.image_path = Some(path.clone()),
-                Some(PhotoState::None) => {}
+                Some(PhotoState::Rechecking(path)) => {
+                    row.avatar.image_path = Some(path.clone());
+                    wanted.push(canonical);
+                }
+                Some(PhotoState::None) => row.avatar.image_path = None,
                 Some(PhotoState::Unresolved) | None => {
+                    row.avatar.image_path = None;
                     photos.insert(canonical.as_str().to_owned(), PhotoState::Unresolved);
                     wanted.push(canonical);
                 }
@@ -150,6 +165,8 @@ impl<P: Provider> App<P> {
 
         let mut resolved = 0usize;
         let mut found = 0usize;
+        // Whether any row would now draw something else: a new face, or a re-checked one gone.
+        let mut changed = false;
         for email in &batch {
             // A sender nobody has a card for is the common case, and it is an answer: record
             // it so the next pass does not ask again.
@@ -161,16 +178,19 @@ impl<P: Provider> App<P> {
                 found += 1;
             }
             resolved += 1;
-            self.avatar_photos
+            let drawn = state.drawn().map(str::to_owned);
+            let before = self
+                .avatar_photos
                 .lock()
                 .expect("avatar mutex poisoned")
                 .insert(email.as_str().to_owned(), state);
+            changed |= before.as_ref().and_then(PhotoState::drawn) != drawn.as_deref();
         }
         log::info!(
             "avatars: resolved {resolved} address(es), {found} with a photo, in {}ms",
             start.elapsed().as_millis(),
         );
-        if found > 0 {
+        if changed {
             // Re-attach onto the snapshots already published rather than rebuilding them. The
             // rows, their order and their contents are unchanged: only the faces are new;
             // so re-projecting would repeat every store read to arrive at the same lists. It
@@ -283,17 +303,24 @@ impl<P: Provider> App<P> {
         }
     }
 
-    /// Drops everything known about sender photos, so the next rebuild asks again.
+    /// Asks again about every sender photo, so the next rebuild re-resolves them all.
     ///
     /// Called when contacts sync, because that replaces the people index every answer was
-    /// derived from. Clearing the *positive* entries too is deliberate and nearly free: a
-    /// re-resolve reads the engine's own cache, which needs no provider and no network, and
+    /// derived from. Re-asking about the *positive* entries too is deliberate and nearly free:
+    /// a re-resolve reads the engine's own cache, which needs no provider and no network, and
     /// it is what picks up a photo that changed on the server.
-    pub(crate) fn forget_sender_photos(&self) {
-        self.avatar_photos
-            .lock()
-            .expect("avatar mutex poisoned")
-            .clear();
+    ///
+    /// A photo already found stays drawn while it is asked about (`Rechecking`). Dropped with
+    /// the rest, every row went back to its monogram until the pass answered, a flash of
+    /// initials across the whole list for photos that had not changed.
+    pub(crate) fn recheck_sender_photos(&self) {
+        let mut photos = self.avatar_photos.lock().expect("avatar mutex poisoned");
+        photos.retain(|_, state| state.drawn().is_some());
+        for state in photos.values_mut() {
+            if let PhotoState::File(path) = state {
+                *state = PhotoState::Rechecking(std::mem::take(path));
+            }
+        }
     }
 
     /// Marks a pass as running, or returns `None` when one already is.
@@ -309,6 +336,16 @@ impl<P: Provider> App<P> {
         Some(AvatarPassGuard {
             flag: &self.avatar_pass_running,
         })
+    }
+}
+
+impl PhotoState {
+    /// The photo a row draws for this state, if any.
+    fn drawn(&self) -> Option<&str> {
+        match self {
+            Self::File(path) | Self::Rechecking(path) => Some(path),
+            Self::Unresolved | Self::None => None,
+        }
     }
 }
 
