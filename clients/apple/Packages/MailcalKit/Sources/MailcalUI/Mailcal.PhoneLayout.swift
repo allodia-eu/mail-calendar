@@ -57,7 +57,7 @@ extension ContentView {
 
     private var phoneMail: some View {
         NavigationStack {
-            compactMessageList
+            bannered(compactMessageList)
                 .navigationTitle(currentFolderName)
                 // The folder name as a large title, which is what puts it and the search field
                 // under it inside the scroll view: a pull then carries the whole header down and
@@ -85,7 +85,7 @@ extension ContentView {
     private var phoneCalendar: some View {
         NavigationStack {
             // The calendar puts its own title (the period on screen) and items in this bar.
-            calendarDetail
+            bannered(calendarDetail)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .topBarLeading) { sidebarToggle } }
         }
@@ -93,7 +93,7 @@ extension ContentView {
 
     private var phoneContacts: some View {
         NavigationStack {
-            contactsList
+            bannered(contactsList)
                 .navigationTitle(L10n.contacts_title())
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .topBarLeading) { sidebarToggle } }

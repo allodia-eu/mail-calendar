@@ -179,6 +179,7 @@ struct AccountSetupDetectView: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(email.isEmpty)
             }
+            .setupActionsInView()
         }
     }
 

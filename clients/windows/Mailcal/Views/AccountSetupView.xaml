@@ -30,7 +30,7 @@
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <TextBox x:Name="DetectEmail" Header="{x:Bind l10n:L10n.SetupFieldEmail(), Mode=OneTime}"
                          PlaceholderText="{x:Bind l10n:L10n.SetupDetectEmailPlaceholder(), Mode=OneTime}"
-                         TextChanged="OnDetectEmailChanged" KeyDown="OnDetectEmailKeyDown" />
+                         TextChanged="OnDetectEmailChanged" KeyDown="OnDetectEmailKeyDown" InputScope="EmailSmtpAddress" IsSpellCheckEnabled="False" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" VerticalAlignment="Center">
                     <ProgressRing x:Name="DetectSpinner" Width="20" Height="20" VerticalAlignment="Center"
                                   IsActive="False" Visibility="Collapsed" />
@@ -104,7 +104,7 @@
                         </ComboBox>
                     </Grid>
                     <TextBox x:Name="Username" Header="{x:Bind l10n:L10n.SetupFieldEmail(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail(), Mode=OneTime}"
-                             TextChanged="OnFieldChanged" />
+                             TextChanged="OnFieldChanged" InputScope="EmailSmtpAddress" IsSpellCheckEnabled="False" />
 
                     <!-- Said while the server is being asked, so a slow server reads as a wait
                          rather than as a form with nothing on it. -->
@@ -210,7 +210,7 @@
 
                     <TextBlock Text="{x:Bind l10n:L10n.SetupSectionAccount(), Mode=OneTime}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,0" />
                     <TextBox x:Name="JmapEmail" Header="{x:Bind l10n:L10n.SetupFieldEmail(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintEmail(), Mode=OneTime}"
-                             TextChanged="OnJmapFieldChanged" />
+                             TextChanged="OnJmapFieldChanged" InputScope="EmailSmtpAddress" IsSpellCheckEnabled="False" />
 
                     <!-- "Sign in with your provider", shown ONLY once the core's pre-flight said
                          this server actually offers discoverable OAuth (jmap_oauth_available), so

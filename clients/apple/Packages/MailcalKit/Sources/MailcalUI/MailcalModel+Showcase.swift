@@ -63,6 +63,7 @@ extension MailboxModel {
         if !firstRun {
             app.dispatch(intent: .refreshMail)
         }
+        _ = reportsOfflineIfAsked()
         return true
     }
 }

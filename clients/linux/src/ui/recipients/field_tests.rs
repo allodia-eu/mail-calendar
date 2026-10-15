@@ -222,3 +222,19 @@ pub(crate) fn an_ampersand_survives_into_the_pill_and_the_suggestion() {
         "and so must its address: {shown:?}"
     );
 }
+
+/// The field asks an on-screen keyboard for its email layout, as every address field does.
+pub(crate) fn the_field_asks_for_the_email_keyboard() {
+    let to = field("To");
+
+    assert_eq!(to.inner.entry.input_purpose(), gtk::InputPurpose::Email);
+    let hints = to.inner.entry.input_hints();
+    assert!(
+        hints.contains(gtk::InputHints::NO_SPELLCHECK),
+        "an address is not a word"
+    );
+    assert!(
+        hints.contains(gtk::InputHints::LOWERCASE),
+        "an address is not a sentence"
+    );
+}

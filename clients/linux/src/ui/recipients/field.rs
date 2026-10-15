@@ -86,6 +86,8 @@ impl RecipientField {
         // without this the three fields are three unnamed entries and a screen reader
         // cannot tell To from Bcc.
         entry.update_property(&[AccessibleProperty::Label(label)]);
+        entry.set_input_purpose(gtk::InputPurpose::Email);
+        entry.set_input_hints(gtk::InputHints::NO_SPELLCHECK | gtk::InputHints::LOWERCASE);
 
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::Single);

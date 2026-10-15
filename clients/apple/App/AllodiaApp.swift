@@ -76,8 +76,8 @@ struct AllodiaApp: App {
         // **No File ▸ New Window.** SwiftUI offers ⌘N for a `WindowGroup` by default, and a second
         // main window would build a second `ContentView`, a second core and a second connection to
         // the store. The windows this app does open are the two below, and both share the session
-        // above (`docs/reading-window.md`).
-        .commands { CommandGroup(replacing: .newItem) {} }
+        // above (`docs/reading-window.md`). `MailcalCommands` puts New Mail where it was.
+        .commands { MailcalCommands() }
         #endif
 
         #if os(macOS)

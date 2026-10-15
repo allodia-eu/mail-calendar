@@ -2,6 +2,21 @@ import MailcalBindings
 import SwiftUI
 
 extension ContentView {
+    /// `content` with the banners stacked above it, newest concern on top.
+    ///
+    /// On the Mac that is the window's whole content, under the toolbar. On iPhone and iPad it is
+    /// each navigation stack's own content, under its bar: an inset outside a tab's or a column's
+    /// stack does not move that stack's bar down, so a banner there covers the bar and its
+    /// buttons.
+    func bannered(_ content: some View) -> some View {
+        content
+            .safeAreaInset(edge: .top) { offlineBanner }
+            .safeAreaInset(edge: .top) { mailReauthBanner }
+            .safeAreaInset(edge: .top) { signInExpiredBanner }
+            .safeAreaInset(edge: .top) { accountNoticeBanner }
+            .safeAreaInset(edge: .top) { folderNoticeBanner }
+    }
+
     /// A persistent banner shown while the device has no network, so the user knows the mail on
     /// screen is the last-synced copy (not stale silently). It clears itself the moment
     /// connectivity returns, when the core auto-refreshes.

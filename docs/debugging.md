@@ -648,6 +648,7 @@ without pixel-tapping (reliable and layout-independent), then screenshot:
 ```sh
 MAILCAL_OPEN_FIRST=1 scripts/dev/boot.sh macos     # open the first message
 MAILCAL_CALENDAR=1   scripts/dev/boot.sh iphone    # start on the calendar
+MAILCAL_OFFLINE=1    scripts/dev/boot.sh iphone    # Apple: the device reads as offline, banner up
 MAILCAL_OPEN_FIRST=1 scripts/dev/boot.sh windows   # same hooks on WinUI (env passes through)
 
 # Windows only: swipe the first message row (delete | archive | star), through the same code path

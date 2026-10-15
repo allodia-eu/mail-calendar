@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -58,6 +59,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -238,6 +241,12 @@ internal fun RecipientField(
             singleLine = true,
             label = { Text(label) },
             trailingIcon = trailing,
+            // The email keyboard, with `@` on its first page (`docs/contacts.md` §4).
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email,
+                capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false,
+            ),
         )
 
         RecipientSuggestionList(

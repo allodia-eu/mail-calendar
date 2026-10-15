@@ -253,24 +253,40 @@ impl<P: Provider> App<P> {
     /// re-dials the (now-dead) providers and pulls whatever arrived meanwhile. A report that
     /// doesn't change the state is a no-op; hosts may re-report the same value.
     pub(crate) async fn report_network_reachable(&self, reachable: bool) {
-        if self.is_online() == reachable {
-            return;
+        if self.note_network_reachable(reachable) {
+            self.network_returned().await;
         }
-        // `send_replace` updates the value and wakes every subscriber (the watch/poll loops),
-        // and (unlike `send`) succeeds even with no receivers yet (the demo / tests, or
-        // before the background manager subscribes), so the state always flips.
-        self.online.send_replace(reachable);
-        self.observer.surface_changed(Surface::Connectivity);
-        if reachable {
-            // Back online: the reconnecting providers re-dial on their next call, so this
-            // refresh both reconnects them and catches up on mail missed while offline.
-            self.refresh_mail(RefreshProgress::Background).await;
-            // And whatever the user wrote while there was no network goes out now, backoffs
-            // and all: this is the engine's wake signal (it holds no timer for the outbox,
-            // because one would wake a dead network on a battery), and the outage each
-            // message was waiting out is precisely what has just ended.
-            self.flush_outboxes().await;
+    }
+
+    /// The state half of a reachability report, which says whether the device has just come back
+    /// online. Synchronous, so a host's reports take effect in the order it made them: run as
+    /// tasks, an "offline" and an "online" a moment apart can land the other way round and leave
+    /// the app offline on a working network.
+    pub fn note_network_reachable(&self, reachable: bool) -> bool {
+        // `send_if_modified` wakes every subscriber (the watch/poll loops) only on a change, and
+        // succeeds even with no receivers yet (the demo, tests, or before the background manager
+        // subscribes), so the state always flips.
+        let changed = self.online.send_if_modified(|online| {
+            let changed = *online != reachable;
+            *online = reachable;
+            changed
+        });
+        if changed {
+            self.observer.surface_changed(Surface::Connectivity);
         }
+        changed && reachable
+    }
+
+    /// What coming back online sets going.
+    pub async fn network_returned(&self) {
+        // The reconnecting providers re-dial on their next call, so this refresh both reconnects
+        // them and catches up on mail missed while offline.
+        self.refresh_mail(RefreshProgress::Background).await;
+        // And whatever the user wrote while there was no network goes out now, backoffs and all:
+        // this is the engine's wake signal (it holds no timer for the outbox, because one would
+        // wake a dead network on a battery), and the outage each message was waiting out is
+        // precisely what has just ended.
+        self.flush_outboxes().await;
     }
 
     /// Records whether `account` reached its server on its last sync, updating the

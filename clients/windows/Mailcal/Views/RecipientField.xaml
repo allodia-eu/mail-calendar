@@ -65,8 +65,10 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
+            <!-- The touch keyboard's email layout, `@` on its first page (docs/contacts.md §4). -->
             <TextBox x:Name="Input" Grid.Column="0" TextChanged="OnInputChanged" KeyDown="OnInputKeyDown"
-                     LosingFocus="OnInputLosingFocus" SizeChanged="OnInputSizeChanged" />
+                     LosingFocus="OnInputLosingFocus" SizeChanged="OnInputSizeChanged"
+                     InputScope="EmailSmtpAddress" IsSpellCheckEnabled="False" />
             <ContentPresenter x:Name="TrailingHost" Grid.Column="1" VerticalAlignment="Center" />
         </Grid>
 

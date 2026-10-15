@@ -228,6 +228,13 @@ opening reads as an edit, and the "Discard draft?" prompt would then fire on eve
 and compare against the **normalised** opening value wherever a client asks whether anything was
 typed.
 
+**The field asks for the email keyboard.** To, Cc, Bcc and an event's invitee field each tell the
+platform they hold an address: on a touch keyboard that is the layout with `@` on its first page,
+and none of them capitalises, corrects or spell-checks what is typed, which would turn `ada@` into
+`Ada@`. A name typed to search for someone still types on that layout. (SwiftUI:
+`keyboardType(.emailAddress)`. Compose: `KeyboardType.Email`. WinUI: `InputScope` set to
+`EmailSmtpAddress`. GTK: `InputPurpose::Email`.)
+
 **The caret goes to the end after any programmatic change.** Accepting a suggestion rewrites the
 text; a field that keeps its old offset leaves the caret mid-address, and the next keystroke lands
 inside the address just inserted. (With pills this is mostly automatic: the accepted address
@@ -311,6 +318,7 @@ change updates in every catalog locale.
 | Composer recipients as **pills**, with per-recipient removal | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Suggestions **float**: the form below them does not move | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Suggestions stay **clear of the on-screen keyboard**, full width | — | — | ✅ | — | ✅ | — |
+| Address fields ask for the **email keyboard**, uncorrected | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The caret opens in **To**, or in the body when already addressed | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | CardDAV contact sources (one adapter per address book) | ✅ | — | — | — | — | ✅ |
 | JMAP contact sources (account-global adapter) | ✅ | — | — | — | — | — |

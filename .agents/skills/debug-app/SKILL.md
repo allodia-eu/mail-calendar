@@ -280,8 +280,8 @@ Device Hub's *Device > Keyboard > Simulate Hardware Keyboard* on, the first key 
 the device (the Mac's, or `idb ui text`, which types through the same path) makes iOS treat a
 keyboard as attached, and from then on no field raises the on-screen one, rebooting included. A
 screen with no keyboard is not what a phone shows: a field it would cover reads as visible, and a
-form that scrolls when the keyboard changes height never scrolls. `build-and-run.sh` turns it off
-when it boots a simulator; to turn it off by hand:
+form that scrolls when the keyboard changes height never scrolls. `build-and-run.sh` and
+`test-ui.sh` turn it off on the simulator they use; to turn it off by hand:
 
 ```
 scripts/dev/control.sh iphone hardware-keyboard off

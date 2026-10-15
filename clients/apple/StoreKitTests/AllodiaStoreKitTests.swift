@@ -22,28 +22,45 @@ import XCTest
 
 @testable import MailcalUI
 
+// ⚠️ **The test store is never cleared between tests.** `clearTransactions`, like a new
+// `SKTestSession` (which loads the configuration into the store again), reaches StoreKit's own view
+// of the transactions some time after it reaches the store, and replaces that view when it lands. A
+// purchase made in between is missing from `Transaction.unfinished`, or read once and then gone,
+// sometimes for good, although `allTransactions()` holds it unfinished throughout. Clearing before
+// each test failed about one test in twenty that way.
+//
+// So the store is cleared once, before the first test, and given time to land. Each test then
+// leaves the store as it found it the way an app would: it finishes the purchase it made, and
+// expires the subscription so the next test can buy it again. And each test follows its own
+// purchase by its id, so one an earlier test left behind cannot be mistaken for it.
 final class AllodiaStoreKitTests: XCTestCase {
+    nonisolated(unsafe) private static var shared: SKTestSession?
     private var session: SKTestSession!
+    private var bought: [String] = []
 
     override func setUp() async throws {
         try await super.setUp()
-        session = try SKTestSession(configurationFileNamed: "Allodia")
-        session.resetToDefaultState()
-        session.clearTransactions()
-        // The purchase sheet never appears, which is what lets this run without a UI.
-        session.disableDialogs = true
+        if Self.shared == nil {
+            let session = try SKTestSession(configurationFileNamed: "Allodia")
+            // The purchase sheet never appears, which is what lets this run without a UI.
+            session.disableDialogs = true
+            session.clearTransactions()
+            // Not something to wait on: nothing observable says the clear has landed.
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+            Self.shared = session
+        }
+        session = Self.shared
+        bought = []
     }
 
     override func tearDown() async throws {
-        // Finish whatever this test left outstanding, **then** clear the session. Most of these
-        // tests deliberately leave a purchase unfinished, which is the whole point of them, and
-        // `clearTransactions` alone does not take it out of StoreKit's own queue: the next test
-        // then starts with somebody else's purchase already waiting and fails for a reason that
-        // has nothing to do with what it asserts.
         for await verification in Transaction.unfinished {
-            await verification.unsafePayloadValue.finish()
+            let transaction = verification.unsafePayloadValue
+            if bought.contains(String(transaction.id)) { await transaction.finish() }
         }
-        session.clearTransactions()
+        for product in catalogue().map(\.productId) {
+            try? session.expireSubscription(productIdentifier: product)
+        }
         session = nil
         try await super.tearDown()
     }
@@ -71,14 +88,12 @@ final class AllodiaStoreKitTests: XCTestCase {
     /// the transaction id and the store's own purchase date in **seconds**.
     func testABoughtPurchaseIsReportedWithItsIdentifierAndSecondsTimestamp() async throws {
         let store = AllodiaStoreKit(catalogue: catalogue())
-        try await session.buyProduct(identifier: "eu.allodia.mailcal.services.yearly")
+        let bought = try await buy("eu.allodia.mailcal.services.yearly")
 
-        let outstanding = await outstandingOnceReported(store)
+        let found = await reported(bought, by: store)
 
-        XCTAssertEqual(outstanding.count, 1)
-        let purchase = try XCTUnwrap(outstanding.first)
+        let purchase = try XCTUnwrap(found, "StoreKit never offered the purchase")
         XCTAssertEqual(purchase.store, .apple)
-        XCTAssertFalse(purchase.purchase.isEmpty)
         // Seconds, not milliseconds: a purchase in 1970 reads as one stuck since the epoch.
         let now = Int64(Date().timeIntervalSince1970)
         XCTAssertLessThanOrEqual(abs(now - purchase.purchasedAt), 300)
@@ -89,41 +104,45 @@ final class AllodiaStoreKitTests: XCTestCase {
     /// only copy of it there is.
     func testReadingTheOutstandingSetFinishesNothing() async throws {
         let store = AllodiaStoreKit(catalogue: catalogue())
-        try await session.buyProduct(identifier: "eu.allodia.mailcal.services.monthly")
-        let reported = await outstandingOnceReported(store)
-        XCTAssertEqual(reported.count, 1, "the purchase is there before anything reads it twice")
+        let bought = try await buy("eu.allodia.mailcal.services.monthly")
+        let first = await reported(bought, by: store)
+        XCTAssertNotNil(first, "the purchase is there before anything reads it twice")
 
         _ = await store.unfinished()
         _ = await store.unfinished()
 
-        let stillThere = await store.unfinished()
-        XCTAssertEqual(stillThere.count, 1, "still offered, because nothing has attached it")
+        let stillThere = await reported(bought, by: store)
+        XCTAssertNotNil(stillThere, "still offered, because nothing has attached it")
     }
 
     /// And finishing takes only what it was named. Anything else would settle a purchase the
     /// service has not accepted.
     func testOnlyTheNamedPurchaseIsFinished() async throws {
         let store = AllodiaStoreKit(catalogue: catalogue())
-        try await session.buyProduct(identifier: "eu.allodia.mailcal.services.yearly")
-        let outstanding = await outstandingOnceReported(store)
-        let purchase = try XCTUnwrap(outstanding.first)
+        let bought = try await buy("eu.allodia.mailcal.services.yearly")
+        let found = await reported(bought, by: store)
+        let purchase = try XCTUnwrap(found, "StoreKit never offered the purchase")
 
         await store.finish(transactionIDs: ["not-this-one"])
-        let untouched = await store.unfinished()
-        XCTAssertEqual(untouched.count, 1, "a purchase nobody named stays outstanding")
+        let untouched = await reported(bought, by: store)
+        XCTAssertNotNil(untouched, "a purchase nobody named stays outstanding")
 
-        await store.finish(transactionIDs: [purchase.purchase])
-        let settled = await store.unfinished()
-        XCTAssertTrue(settled.isEmpty)
+        // `finish` looks the id up in the outstanding set, so it is named until it is gone: the
+        // core names it again at every pass until the store stops offering it.
+        var settled = false
+        for _ in 0..<attempts where !settled {
+            await store.finish(transactionIDs: [purchase.purchase])
+            settled = await !store.unfinished().contains { $0.purchase == bought }
+            if !settled { try? await Task.sleep(nanoseconds: 20_000_000) }
+        }
+        XCTAssertTrue(settled, "the named purchase is finished")
     }
 
-    // ⚠️ There is deliberately no test here for a purchase held for Ask to Buy.
-    //
-    // One was written and taken out: with the session's clean start asserted first, it still
-    // reported the held purchase as outstanding on roughly one run in three. So whether StoreKit
-    // surfaces a deferred transaction through `Transaction.unfinished` is not something this suite
-    // can state, and a test that fails a third of the time is worth less than none: it teaches
-    // people to re-run the gate rather than read it.
+    // ⚠️ There is deliberately no test here for a purchase held for Ask to Buy, because this suite
+    // cannot hold one. `SKTestSession.buyProduct` completes the purchase whatever
+    // `askToBuyEnabled` says, and `Product.purchase` fails with `invalidPresentationContext` in a
+    // host with no window. So whether StoreKit surfaces a deferred transaction through
+    // `Transaction.unfinished` is not something this suite can state.
     //
     // What it would cost if StoreKit does surface one: the purchase is handed over, the service
     // answers `unknown_purchase` because Apple has no completed transaction for it, and the ledger
@@ -131,25 +150,25 @@ final class AllodiaStoreKitTests: XCTestCase {
     // reach somebody who is simply waiting for a parent, which is the wrong thing to tell them.
     // `purchasing.md` carries this under its known gaps.
 
-    /// The outstanding set, once StoreKit has actually published what was just bought.
-    ///
-    /// ⚠️ **`SKTestSession.buyProduct` returns before the transaction is observable.**
-    /// `Transaction.unfinished` came back empty on roughly one run in four, and the run it happened
-    /// on took 1.6 seconds where a clean one takes 0.09, so the gap is StoreKit settling rather
-    /// than anything this suite does. Waiting for it is nobody's subject here: every test below
-    /// asserts what happens to a purchase that **is** outstanding, so the wait belongs in one place
-    /// instead of being raced in each of them.
-    ///
-    /// It waits for one purchase rather than a count, because that is all any caller buys, and it
-    /// returns whatever it has at the deadline so the assertion that follows reports the real
-    /// number rather than this helper's idea of it.
-    private func outstandingOnceReported(_ store: AllodiaStoreKit) async -> [AllodiaStorePurchase] {
-        for _ in 0..<100 {
-            let purchases = await store.unfinished()
-            if !purchases.isEmpty { return purchases }
+    /// How often a wait below asks StoreKit again, 20 ms apart: ten seconds in all.
+    private let attempts = 500
+
+    /// Buys `product` in the test store, and answers the transaction's id as the core sees it.
+    private func buy(_ product: String) async throws -> String {
+        let id = String(try await session.buyProduct(identifier: product).id)
+        bought.append(id)
+        return id
+    }
+
+    /// The purchase `id`, once StoreKit's own view offers it, or `nil` if it never does.
+    private func reported(_ id: String, by store: AllodiaStoreKit) async -> AllodiaStorePurchase? {
+        for _ in 0..<attempts {
+            if let purchase = await store.unfinished().first(where: { $0.purchase == id }) {
+                return purchase
+            }
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
-        return await store.unfinished()
+        return nil
     }
 
     /// What the core is told to ask the store for. The same ids `Plan::store_product` returns, and

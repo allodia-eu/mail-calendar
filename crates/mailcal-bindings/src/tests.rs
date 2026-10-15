@@ -386,6 +386,26 @@ fn demo_app_dispatches_through_the_ffi_loop_and_notifies() {
     assert!(render_message_html(html, true, MessageScheme::Light).contains("http:"));
 }
 
+/// Reachability reports take effect in the order the host made them, by the time `dispatch`
+/// returns. Run as tasks, an "offline" and an "online" a moment apart could land the other way
+/// round and leave the app offline on a working network.
+#[test]
+fn reachability_reports_apply_in_the_order_they_were_made() {
+    let (tx, _rx) = mpsc::channel();
+    let app = MailcalApp::new_demo(
+        Box::new(ChannelObserver { tx }),
+        Box::new(NullLogger),
+        LogLevel::Info,
+        "Etc/UTC".to_owned(),
+    );
+    for _ in 0..20 {
+        app.dispatch(Intent::ReportNetworkReachable { reachable: false });
+        assert!(app.connectivity().offline);
+        app.dispatch(Intent::ReportNetworkReachable { reachable: true });
+        assert!(!app.connectivity().offline);
+    }
+}
+
 #[test]
 fn the_ffi_document_reflows_a_message_written_for_a_wider_pane() {
     // The shape half of real mail still has: a container pinned in the markup and again inline,

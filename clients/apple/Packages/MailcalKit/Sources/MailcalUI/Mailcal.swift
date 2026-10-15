@@ -252,19 +252,26 @@ public struct ContentView: View {
     @Environment(\.horizontalSizeClass) var hSize
     #endif
 
-    private var mainView: some View {
-        baseLayout
-        // New Mail and the search field, in the window's own top row (Mailcal.Toolbar.swift).
-        // Attached here rather than to the `WindowGroup`, for the reason the mail-link routing
-        // below is: both need this view's model.
+    @ViewBuilder private var shell: some View {
         #if os(macOS)
-        .toolbar { windowToolbar }
+        bannered(baseLayout)
+            // New Mail and the search field, in the window's own top row (Mailcal.Toolbar.swift).
+            // Attached here rather than to the `WindowGroup`, for the reason the mail-link
+            // routing below is: both need this view's model.
+            .toolbar { windowToolbar }
+            // The same for the menu bar (`MailcalCommands`).
+            .focusedSceneValue(\.mailCommands, MailCommandActions(
+                newMail: { showMail(); beginNewMessage() },
+                sync: { model.refresh() }
+            ))
+        #else
+        // Each navigation stack carries the banners under its own bar (`bannered`).
+        baseLayout
         #endif
-        .safeAreaInset(edge: .top) { offlineBanner }
-        .safeAreaInset(edge: .top) { mailReauthBanner }
-        .safeAreaInset(edge: .top) { signInExpiredBanner }
-        .safeAreaInset(edge: .top) { accountNoticeBanner }
-        .safeAreaInset(edge: .top) { folderNoticeBanner }
+    }
+
+    private var mainView: some View {
+        shell
         .modifier(FolderDialogs(
             model: model, sheet: $folderSheet, deleting: $folderToDelete,
             fileMessages: { offer, key in fileMessages(offer, in: key) }

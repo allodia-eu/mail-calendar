@@ -16,6 +16,7 @@
 // and the rows on three different left edges, and stranded the explanatory footnote far below the
 // fields it explains.
 
+import Combine
 import MailcalBindings // L10n
 import SwiftUI
 
@@ -38,17 +39,41 @@ struct SetupScaffold<Content: View>: View {
         // keyboard, simply exceeds the floor and scrolls, which the old fixed layout could not do
         // at all (it clipped).
         GeometryReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    content()
+            ScrollViewReader { reader in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        content()
+                    }
+                    .frame(maxWidth: 480, alignment: .leading)
+                    .padding(24)
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height)
                 }
-                .frame(maxWidth: 480, alignment: .leading)
-                .padding(24)
-                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                .scrollDismissesKeyboard(.interactively)
+                // Keyboard avoidance scrolls the focused field into view and no further, so a step
+                // taller than the room above the keyboard rests with the field on the keyboard's
+                // edge and its actions behind it. A step whose actions sit just under its field
+                // marks them (`setupActionsInView`), and they are brought up too once the keyboard
+                // is in place.
+                .onReceive(NotificationCenter.default.publisher(
+                    for: UIResponder.keyboardDidShowNotification
+                )) { _ in
+                    withAnimation { reader.scrollTo(setupActionsID, anchor: .bottom) }
+                }
             }
-            .scrollDismissesKeyboard(.interactively)
         }
         #endif
+    }
+}
+
+/// The marked actions `SetupScaffold` keeps above the on-screen keyboard.
+private let setupActionsID = "setup-actions"
+
+extension View {
+    /// Keeps these actions above the on-screen keyboard while the step's field is being typed in.
+    /// Only for actions right under the field: on a longer form, bringing them up would scroll the
+    /// field being typed in out of view.
+    func setupActionsInView() -> some View {
+        id(setupActionsID)
     }
 }
 

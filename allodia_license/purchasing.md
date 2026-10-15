@@ -616,9 +616,9 @@ it is why the four writes are no longer the least proven half of this page.
 - **The four writes send no idempotency key**, unlike attaching a store purchase. `start_checkout`
   is the one that shows: a lost response retried by hand leaves a second `pending_first_payment`
   subscription at the service. Worth a key before they are first driven for real.
-- ⚠️ **What StoreKit does with a purchase held for Ask to Buy is not pinned down.** A test for it
-  reported the held purchase as outstanding on roughly one run in three, so the suite states
-  nothing about it. If it is surfaced, the purchase is handed over, the service answers
+- ⚠️ **What StoreKit does with a purchase held for Ask to Buy is not pinned down.** The StoreKit
+  suite cannot hold one: `SKTestSession.buyProduct` completes a purchase whatever
+  `askToBuyEnabled` says, and `Product.purchase` needs a window to present in. If it is surfaced, the purchase is handed over, the service answers
   `unknown_purchase` because Apple has no completed transaction for it, and the ledger retries
   until the approval lands: no money is lost, but the "not gone through" warning could reach
   somebody who is only waiting for a parent to approve, which is the wrong thing to tell them.

@@ -424,6 +424,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     recipients::the_key_handler_runs_before_the_entrys_own();
     recipients::a_recipients_own_text_is_never_parsed_as_markup();
     recipients::an_ampersand_survives_into_the_pill_and_the_suggestion();
+    recipients::the_field_asks_for_the_email_keyboard();
 
     search::the_filter_and_the_horizon_are_shown_for_a_search_and_nothing_else();
     search::the_filter_names_the_folder_it_would_narrow_to();

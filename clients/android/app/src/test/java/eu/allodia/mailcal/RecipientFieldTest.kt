@@ -9,6 +9,9 @@
 // every space the user types, and does it silently.
 package eu.allodia.mailcal
 
+import android.text.InputType
+import android.view.View
+import android.view.inputmethod.EditorInfo
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -16,7 +19,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -32,10 +37,14 @@ class RecipientFieldTest {
     @get:Rule
     val compose = createComposeRule()
 
+    /** The view the field is drawn in, which is what the keyboard asks about the focused field. */
+    private var view: View? = null
+
     /** The field wired to a parent-owned string, exactly as the composer holds it. */
     private fun field(onEach: (String) -> Unit = {}): () -> String {
         var value by mutableStateOf("")
         compose.setContent {
+            view = LocalView.current
             RecipientField(
                 label = "To",
                 value = value,
@@ -81,6 +90,26 @@ class RecipientFieldTest {
         compose.onNodeWithTag("recipient-input-To").performTextInput("gr")
         compose.waitForIdle()
         assertEquals("ada@example.test, gr", value())
+    }
+
+    @Test
+    fun `the field asks for the email keyboard`() {
+        // What the keyboard is told when the field takes focus: the email variation, which puts
+        // `@` on the first page, with no capitalising and no correcting of an address.
+        field()
+        compose.onNodeWithTag("recipient-input-To").performClick()
+        compose.waitForIdle()
+
+        val info = EditorInfo()
+        checkNotNull(checkNotNull(view).onCreateInputConnection(info)) { "no input session" }
+        val type = info.inputType
+        assertEquals(InputType.TYPE_CLASS_TEXT, type and InputType.TYPE_MASK_CLASS)
+        assertEquals(
+            InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
+            type and InputType.TYPE_MASK_VARIATION,
+        )
+        assertEquals(0, type and InputType.TYPE_TEXT_FLAG_AUTO_CORRECT)
+        assertEquals(0, type and InputType.TYPE_TEXT_FLAG_CAP_SENTENCES)
     }
 
     /** The pill's remove control names its recipient, the only node that exists per PILL. */

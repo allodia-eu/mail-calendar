@@ -27,8 +27,7 @@ impl MailcalApp {
         // nothing is disconnected. The core's own refresh (below) heals *live* dropped sockets;
         // this rebuilds accounts that never got providers at all.
         let retry_disconnected = match &intent {
-            // Coming back online: the device is up (the OS just reported it) even though our own
-            // `online` flag flips a beat later in the spawned handler: so always re-dial now.
+            // Coming back online: the device is up (the OS just reported it), so always re-dial.
             Intent::ReportNetworkReachable { reachable: true } => true,
             // A manual / boot refresh: only re-dial when we believe we're online, so repeatedly
             // pulling to refresh behind the offline banner doesn't storm a dead network each time
@@ -43,6 +42,16 @@ impl MailcalApp {
         }
         if retry_disconnected {
             self.retry_connections();
+        }
+        // Applied here, on the host's thread, rather than in the task below: tasks run in either
+        // order, so reports made in order must take effect before `dispatch` returns.
+        if let Intent::ReportNetworkReachable { reachable } = intent {
+            if self.app.note_network_reachable(reachable) {
+                let app = Arc::clone(&self.app);
+                self.runtime
+                    .spawn(async move { app.network_returned().await });
+            }
+            return;
         }
         // A key-routed intent carries its row's owning-account id; an unparseable id (in
         // practice impossible; it is a real row's account) is dropped rather than risk

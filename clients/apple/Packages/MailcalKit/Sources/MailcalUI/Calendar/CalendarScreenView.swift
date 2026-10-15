@@ -166,7 +166,8 @@ struct CalendarScreenView: View {
             // title says where you are); the tab already says this is the calendar.
             .navigationTitle(header.title)
         #endif
-        .toolbar { CalendarToolbar(state: header, regular: toolbarIsRegular) }
+        .calendarToolbar(header, regular: toolbarIsRegular,
+                         covered: managing || openEvent != nil || editor != nil || pendingMove != nil)
         .onAppear { seed(calendar: calendar, today: today) }
         .onReceive(tick) { now = ShowcaseMode.now ?? $0 }
         .onChange(of: model.displaySettings.visibleHours) { _, hours in

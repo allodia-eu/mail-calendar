@@ -100,6 +100,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar: all-day / multi-day banner, capped with a per-day "+N" that expands | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **month grid** (6×7 cells, "+N more") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: the month grid turns by a sideways **swipe** on a phone or tablet; a desktop turns it by the header arrows | — | — | ✅ | — | ✅ | — |
+| The toolbar's actions are also **menu-bar commands**, with Mail's and Calendar's shortcuts (⌘N, ⌥⌘N, ⌘1 to ⌘6, ⌘T, ⌘← ⌘→, ⌘R), as the macOS guidelines ask | — | ✅ | — | — | — | — |
 | Calendar manager: per-calendar visibility + colour override, persisted ("Agenda's beheren") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Display settings: first day of the week, 12/24-hour clock (mail **and** calendar), **light or dark appearance** (follows the system by default, or pick one), calendar horizon | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar, pinch-to-zoom: hours, days, and **diagonal** (both at once) | — | ✅ | ✅ | ✅ | ✅ | ⬜ |
@@ -140,6 +141,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Contacts: the same person in several accounts is **one** row (joined on a shared address, never on a name), and says so: "In N accounts" + the accounts named in the detail | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer **recipient autosuggest**: ranked addresses from synced contacts **and** from people you have written to, so it works on an account with no address book | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer recipients as **pills**: each finished address is its own removable chip, the one being typed stays editable text | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Address fields bring up the **email keyboard** (`@` on its first page) and leave what is typed uncorrected | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Search: `from:`/`to:` DSL, unified across accounts; **newest first**, every folder but Trash ([`docs/search.md`](docs/search.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Search scope filter: narrow an active search to the current folder (or, in the unified view, the inboxes) and back to all mail | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
 | Search says **how far back it looked**: results state the sync depth they cover ("Searching the last 3 months"), with a link to change it, so an empty answer never reads as "there is no such message" ([`docs/search.md`](docs/search.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

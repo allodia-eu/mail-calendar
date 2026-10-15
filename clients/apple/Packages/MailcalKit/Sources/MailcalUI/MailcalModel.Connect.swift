@@ -180,14 +180,31 @@ extension MailboxModel {
     /// catch-up refresh that also re-dials any dropped provider connections. The first update
     /// fires on start, so the core learns the initial state without a special-case launch call.
     private func observeNetworkReachability() {
+        if reportsOfflineIfAsked() { return }
         let monitor = NWPathMonitor()
         self.pathMonitor = monitor
+        // Delivered on the main queue and dispatched there, in order: a `Task` per change may run
+        // out of order, and an "offline" landing after the "online" that followed it leaves the
+        // app offline on a working network.
         monitor.pathUpdateHandler = { [weak self] path in
             let reachable = path.status == .satisfied
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 self?.app?.dispatch(intent: .reportNetworkReachable(reachable: reachable))
             }
         }
-        monitor.start(queue: DispatchQueue(label: "\(Brand.appID).network"))
+        monitor.start(queue: .main)
+    }
+
+    /// `MAILCAL_OFFLINE=1`: the device reads as offline for the whole session, which is what puts
+    /// the offline banner up for the UI suite and a screenshot (`docs/debugging.md`). `true` when it
+    /// took, so nothing then watches the real network.
+    func reportsOfflineIfAsked() -> Bool {
+        #if DEBUG
+        guard ProcessInfo.processInfo.environment["MAILCAL_OFFLINE"] == "1" else { return false }
+        app?.dispatch(intent: .reportNetworkReachable(reachable: false))
+        return true
+        #else
+        return false
+        #endif
     }
 }
