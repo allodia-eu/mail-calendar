@@ -323,6 +323,12 @@ only the macOS CI job installs anything ([`ci.yml`](.github/workflows/ci.yml)), 
 [`bashtools.py`](scripts/dev/bashtools.py) holds the same floor for the interpreter the Python
 suites spawn.
 
+**GNU coreutils is the other macOS prerequisite** (`brew install coreutils`), for `timeout`, which
+macOS lacks: a command that can hang (a simulator, `idb`, an AppleScript waiting on a hidden dialog)
+gets a deadline rather than a hand on Ctrl+C. Linux and Git Bash already ship it. No script in the
+tree calls it yet; the first that does adds `coreutils` to the macOS CI job's `brew install` in the
+same change.
+
 **On Windows the shell is Git Bash, a prerequisite rather than a preference.** The gate itself does
 not need it, which is most of why the checks live in a binary; what is still bash is the harness,
 the capture drivers, each client's own build script, and the scripts the Python suites drive.

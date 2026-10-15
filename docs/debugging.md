@@ -35,6 +35,8 @@ have it yet; there, the discipline is manual.
 - **bash 5.** Every script here checks `$BASH_VERSION` and refuses anything older, so on macOS,
   whose own `/bin/bash` is 3.2, `brew install bash` comes first (AGENTS.md, "Building &
   verifying"). Linux distributions and Git Bash already ship it.
+- **GNU coreutils on macOS** (`brew install coreutils`), for `timeout`, which macOS does not have
+  (AGENTS.md, "Building & verifying").
 - **Docker** (for the harness).
 - **macOS + Xcode** to run the Apple clients (`macos` / `iphone` / `ipad`); the iPhone/iPad run in
   the simulator, so no device is needed.

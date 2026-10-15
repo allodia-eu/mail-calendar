@@ -19,6 +19,9 @@
 #   scripts/dev/control.sh iphone hardware-keyboard off   # keep the on-screen keyboard up; see
 #                                                     #   scripts/dev/sim-keyboard.swift
 #   scripts/dev/control.sh macos tap <x> <y> | text "<s>" | key return|escape|...
+#   scripts/dev/control.sh macos key cmd+v            # a chord, sent to the debug build: never an
+#                                                     #   osascript keystroke, which goes to
+#                                                     #   whichever app is in front
 #   scripts/dev/control.sh macos drag <x1> <y1> <x2> <y2> [hold-ms]
 #                                                     #   a REAL mouse drag (down, dragged*, up),
 #                                                     #   the only way to exercise a drag gesture;
@@ -167,7 +170,7 @@ EOF
       tap)     [[ $# -ge 2 ]] || die "tap <x> <y>"; exec xcrun swift "$script" tap "$1" "$2" ;;
       drag)    [[ $# -ge 4 ]] || die "drag <x1> <y1> <x2> <y2> [hold-ms]"; exec xcrun swift "$script" drag "$@" ;;
       text)    [[ $# -ge 1 ]] || die "text <string>"; exec xcrun swift "$script" text "$1" ;;
-      key)     [[ $# -ge 1 ]] || die "key <return|escape|tab|delete|up|down|left|right>"; exec xcrun swift "$script" key "$1" ;;
+      key)     [[ $# -ge 1 ]] || die "key <return|escape|tab|delete|up|down|left|right|cmd+v|...>"; exec xcrun swift "$script" key "$1" ;;
       *) die "unknown macos action '$action' (press|tap|drag|text|key|find|ui-dump)" ;;
     esac
     ;;

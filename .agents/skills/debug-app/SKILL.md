@@ -310,6 +310,54 @@ click. `control.sh macos` fails loudly with that instruction instead (exit 3); a
 it. Known limit: SwiftUI **`.swipeActions` do not fire from synthetic events**: that gesture needs a
 real trackpad, so ask the user to test a swipe by hand rather than concluding it's unsupported.
 
+## 4b. Paste and the clipboard (macOS, iPhone, iPad)
+
+`scripts/dev/clipboard.sh` sets the Mac's clipboard (`set-html`, `set-png`, `set-text`) and reads it
+back (`html`, `types`). The read is also the oracle for what the **composer holds**: paste, Select
+All, Copy, then `clipboard.sh html`. WebKit copies the editor's own DOM, `data-attachment-id`s and
+`data:` pictures included, so no inspector is needed.
+
+```
+scripts/dev/clipboard.sh set-html word-list.html "Apples"
+scripts/dev/control.sh macos tap <x> <y>        # into the body
+scripts/dev/control.sh macos key cmd+v
+scripts/dev/control.sh macos key cmd+a && scripts/dev/control.sh macos key cmd+c
+scripts/dev/clipboard.sh html
+```
+
+⚠️ **Send chords with `control.sh macos key`, never `osascript … keystroke`.** `control.sh` brings
+the debug build forward first; `osascript` types into whichever app is in front, and a click on a
+window that was not frontmost may only activate it. A ⌘V meant for the composer has landed in Word.
+
+**An iOS simulator follows the Mac's clipboard both ways** (CoreDevice's pasteboard sync, Xcode 27),
+so the same calls set what the simulator pastes and read what it copied. Paste through the edit
+menu: tap the caret, then `Paste`. ⚠️ Two traps:
+
+- **`simctl pbcopy` / `pbsync` can report success and write nothing**, on a simulator that has been
+  up a long time; `xcrun simctl pbinfo <udid>` then says "Pasteboard is empty". Restart it
+  (`xcrun simctl shutdown <udid> && xcrun simctl boot <udid>`), which also brings the sync back.
+- **After that restart, every `idb ui tap` fails** with "The dtuhidd connection … has been
+  invalidated", and `idb kill` does not cure it. Drive the simulator with an XCUITest instead (a
+  scratch class under `clients/apple/UITests`, run with `Scripts/test-ui.sh --only <Class>`).
+
+⚠️ **An XCUITest must never read `UIPasteboard`.** Reading what another app put there raises iOS's
+"Allow Paste" prompt and the runner blocks on it for good. Writing is fine, so the runner seeds the
+clipboard and the result is read on the Mac with `clipboard.sh html`.
+
+**What a page receives is not what the clipboard holds on iOS.** iOS WebKit rebuilds HTML from
+another app through an attributed string before the paste event sees it (Word's `mso-list` is gone),
+which is why the composer reads it itself (`docs/composer-security.md`, Gate 7). To see what WebKit
+hands a page, temporarily return the raw `getData("text/html")` as escaped text from `pasteContent`
+in `clients/composer/src/paste.ts`, rebuild, paste, and read it back; then restore the file.
+
+**Capture a real clipboard rather than writing one from memory.** Word for Mac scripts well enough to
+produce fixtures: open a document, `copy object text object of document "<name>"`, then
+`clipboard.sh html out.html`. `apply list format template (list format of <range>) list template
+(list template 1 of (get list gallery bullet gallery))` makes a native list. Word is sandboxed:
+`save as` anywhere outside `~/Library/Containers/com.microsoft.Word/Data/Documents` opens a "Grant
+File Access" dialog behind its window and the script hangs until it times out. Close what you opened
+with `saving no`, and leave the user's own documents alone.
+
 ## 5. Debug the state source first
 
 For UI mismatches, first identify which Rust/FFI snapshot field drives the copy, then trace the

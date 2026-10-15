@@ -291,18 +291,41 @@ func type(_ text: String) {
     }
 }
 
+/// Key codes name physical keys at their ANSI positions. The five letters are the editing
+/// shortcuts' (Select All, Copy, Paste, Cut, Undo), which sit in the same place on QWERTY and QWERTZ.
 let keyCodes: [String: CGKeyCode] = [
     "return": 36, "enter": 36, "tab": 48, "space": 49, "delete": 51, "escape": 53, "esc": 53,
     "left": 123, "right": 124, "down": 125, "up": 126,
+    "a": 0, "c": 8, "v": 9, "x": 7, "z": 6,
 ]
 
-func key(_ name: String) {
-    guard let code = keyCodes[name.lowercased()] else {
+let modifiers: [String: CGEventFlags] = [
+    "cmd": .maskCommand, "shift": .maskShift, "alt": .maskAlternate, "option": .maskAlternate,
+    "ctrl": .maskControl,
+]
+
+/// One key, or a chord such as `cmd+v` or `cmd+shift+z`, sent to the debug build `appElement()`
+/// has just brought forward.
+///
+/// ⚠️ An `osascript` keystroke is no substitute: it goes to whichever app is frontmost, and a click
+/// on a window that was not frontmost may only activate it, so the chord lands in another app.
+func key(_ chord: String) {
+    var parts = chord.lowercased().split(separator: "+").map(String.init)
+    let name = parts.popLast() ?? ""
+    guard let code = keyCodes[name] else {
         fail("unknown key '\(name)' (\(keyCodes.keys.sorted().joined(separator: "|")))", 1)
     }
+    var flags: CGEventFlags = []
+    for part in parts {
+        guard let flag = modifiers[part] else {
+            fail("unknown modifier '\(part)' (\(modifiers.keys.sorted().joined(separator: "|")))", 1)
+        }
+        flags.insert(flag)
+    }
     for isDown in [true, false] {
-        CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: isDown)?
-            .post(tap: .cghidEventTap)
+        let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: isDown)
+        event?.flags = flags
+        event?.post(tap: .cghidEventTap)
         usleep(30_000)
     }
 }
@@ -358,7 +381,7 @@ case "text":
     guard arguments.count >= 2 else { fail("text <string>", 1) }
     type(arguments[1])
 case "key":
-    guard arguments.count >= 2 else { fail("key <return|escape|tab|delete|up|down|left|right>", 1) }
+    guard arguments.count >= 2 else { fail("key <return|escape|tab|...|cmd+v>", 1) }
     key(arguments[1])
 default:
     fail("unknown action '\(action)' (dump|find|press|tap|drag|text|key)", 1)
