@@ -1,4 +1,5 @@
-// The composer's editor web view on iPhone and iPad: taking a dropped file for the host.
+// The composer's editor web view on iPhone and iPad: taking a dropped file for the host, and a paste's
+// HTML as it was written (`paste(_:)`).
 //
 // The same hole as macOS, in the UIKit spelling. SwiftUI's `dropDestination` hit-tests its own view
 // tree, so the rectangle a representable occupies is not in it: a file dragged onto the message was
@@ -42,6 +43,31 @@ final class EditorWebView: WKWebView {
             addInteraction(interaction)
             installed = interaction
         }
+    }
+
+    /// ⚠️ **iOS WebKit never hands the page another app's HTML as it was written.** It rebuilds it
+    /// through an attributed string, which keeps no `mso-list`, so Word's lists reached the bundle as
+    /// paragraphs with the bullet typed in (docs/composer-security.md, Gate 7). The edit menu's Paste
+    /// and ⌘V both arrive here, and reading the clipboard for them raises no paste prompt. So the
+    /// clipboard's HTML goes to the bundle's `pasteComposerHtml` as written, and WebKit's own paste
+    /// runs when there is none or the bundle kept nothing of it, which is how the picture beside a
+    /// browser's Copy Image still arrives (Gate 13).
+    override func paste(_ sender: Any?) {
+        guard let html = UIPasteboard.general.data(forPasteboardType: UTType.html.identifier)
+            .flatMap({ String(data: $0, encoding: .utf8) })
+        else {
+            super.paste(sender)
+            return
+        }
+        evaluateJavaScript("window.pasteComposerHtml(\(EditorHost.jsString(html)))") { [weak self] took, _ in
+            if (took as? Bool) != true {
+                self?.pasteAsWebKit(sender)
+            }
+        }
+    }
+
+    private func pasteAsWebKit(_ sender: Any?) {
+        super.paste(sender)
     }
 
     private func removeDropInteractions(below view: UIView) {

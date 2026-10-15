@@ -189,9 +189,10 @@ window.addComposerInlineImage = (meta) => attachments.addInlineImage(editor, met
 /// supplies the bytes because only it can resolve a dropped file to something readable.
 window.insertComposerImage = (image) =>
   insertCapturedImage(editor, attachments, parsed<CapturedImage>(image));
-/// Pastes formatted text the HOST read off the clipboard, answering whether any went in. Only a host
-/// whose WebView hides the clipboard's pictures from the page calls it: it holds the picture back
-/// until this says the HTML beside it carried nothing (`pasteContent`).
+/// Pastes formatted text the HOST read off the clipboard, answering whether any went in. A host calls
+/// it where its WebView will not hand the page the clipboard as it is: Linux, whose WebView hides the
+/// pictures and holds one back until this says the HTML beside it carried nothing (`pasteContent`),
+/// and iPhone and iPad, whose WebView rewrites another app's HTML and loses Word's lists.
 window.pasteComposerHtml = (html) => {
   const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly(), attachments);
   return markup !== null && insertHtml(markup);

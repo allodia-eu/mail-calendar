@@ -123,7 +123,12 @@ port:
    - **Word's lists are lists** (`paste_word.ts`). Word, and Outlook, which edits mail with Word,
      write a list as paragraphs that name their list and level in their style (`mso-list`) and draw
      the bullet or number as text; those paragraphs become nested `<ul>`/`<ol>`, ordered when the
-     marker numbers its item, and the marker itself is dropped.
+     marker numbers its item, and the marker itself is dropped. ⚠️ iOS WebKit rebuilds HTML from
+     another app through an attributed string before the page sees it, which keeps no `mso-list`,
+     so on iPhone and iPad the host reads the clipboard's HTML itself on Paste and ⌘V and hands it
+     to the bundle's `pasteComposerHtml` as written; WebKit's own paste runs only when there is no
+     HTML or the bundle kept nothing of it, which is when a picture beside it is what was meant
+     (Gate 13).
    - **A merged table cell keeps every other cell in its column**, whether it spans columns
      (`colspan`, padded after it) or rows (`rowspan`, an empty cell in each row it reaches), so a
      pasted table is a rectangle with nothing shifted, which is also what Rust requires of one.
@@ -404,7 +409,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | New windows blocked | no popup-opening `WKUIDelegate` path | no popup path; navigation cancelled | `NewWindowRequested.Handled = true` | `create → None`; `NewWindowAction` is ignored |
 | No inspector in a release build ([`rendering-security.md`](rendering-security.md) gate 2a) | (as the reading view) | (as the reading view) | `EditorWebView` turns `AreDevToolsEnabled` off outside `DEBUG`; the variables are removed for the whole process | (as the reading view) |
 | No arbitrary file/content access | file picking via native panel/picker only; no web file URLs; Rust reads selected paths on submit | `allowFileAccess = false`, `allowContentAccess = false`; native picker stages content to app cache; Rust reads staged paths on submit | no arbitrary file access; native picker only; Rust reads selected paths on submit | file/universal access disabled; native `GtkFileDialog` paths are passed to Rust only on submit |
-| Paste/import sanitisation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | editor paste rules plus Rust validation | shared editor paste rules plus Rust validation |
+| Paste/import sanitisation | editor paste rules plus Rust validation; on iPhone/iPad `EditorWebView` reads the clipboard's HTML on Paste and hands it to `pasteComposerHtml` as written, because WebKit would rewrite it (Gate 7) | editor paste rules plus Rust validation | editor paste rules plus Rust validation | shared editor paste rules plus Rust validation |
 | Plain-text paste carries no HTML (Gate 7) | Paste and Match Style, WebKit's own | the selection menu's Paste as plain text, Chromium's own | Ctrl+Shift+V, Chromium's own | Ctrl+Shift+V, which WebKitGTK leaves unbound, given `PasteAsPlainText` by the host (`editor_paste`) |
 | Pasted picture → inline `cid:`, unless HTML with text or an inline picture is beside it | shared bundle (`pasteContent` + `insertCapturedImage`) | (same: shared bundle) | (same: shared bundle) | shared bundle **plus a host clipboard read**: this WebView hands the page no files at all, so `editor_paste` takes the chord and the context menu's Paste, offers any HTML to `pasteComposerHtml` first, then sniffs the picture's bytes through the core and feeds the same seam a drop does |
 | Link editor drawn by the host, over its window (Gate 16) | `LinkDialog` in a sheet: a labelled form on macOS, a medium-height sheet on iPhone/iPad | Material `AlertDialog` inside the composer's own `Dialog` | `ContentDialog` in the composer; the signature editor keeps the bundle's popover (see "Known gaps") | `AdwAlertDialog` with two entry rows |

@@ -9,7 +9,8 @@ Bump: patch
 > inside a message move together. A picture the markup names by URL is still dropped, now stated
 > as a rule, as is the plain text an Android keyboard's clipboard strip types in. The empty
 > paragraph Chromium's insertHTML leaves after a pasted list or table, which went out as a blank
-> line, is removed.
+> line, is removed. On iPhone and iPad the composer reads the clipboard's HTML itself, because iOS
+> WebKit rewrites another app's HTML and drops `mso-list`.
 
 **English**
 

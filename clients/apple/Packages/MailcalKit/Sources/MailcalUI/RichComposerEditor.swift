@@ -23,7 +23,8 @@ final class RichComposerEditor: NSObject {
     @ObservationIgnored let host = EditorHost(
         fallbackHTML: "<!doctype html><html><body><script>window.composerDocument=function(){return JSON.stringify({blocks:[],attachments:[]});};</script></body></html>",
         // `EditorWebView` on both, for the drop the SwiftUI composer cannot reach
-        // (EditorWebView.swift on macOS, EditorWebViewTouch.swift here). The macOS one also filters
+        // (EditorWebView.swift on macOS, EditorWebViewTouch.swift here). The touch one also takes a
+        // paste, to hand the bundle the clipboard's HTML as written. The macOS one also filters
         // its context menu down to the editing actions; iOS needs no such filter, an editable web
         // view already offers Cut/Copy/Paste in the system edit menu.
         makeView: { EditorWebView(frame: .zero, configuration: $0) }
