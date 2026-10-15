@@ -147,6 +147,11 @@ struct EventEditorView: View {
                     }
                 }
             }
+            // The invitee field's suggestions float over the form rather than pushing it down; see
+            // RecipientSuggestionOverlay.swift. Inside the navigation stack, unlike the composer's,
+            // because there is no web view here to clear: so the bar is part of the safe area and a
+            // list opened above the field stops under it rather than covering Cancel and Save.
+            .recipientSuggestionLayer()
             .formStyle(.grouped)
             .navigationTitle(editor.isEditing ? L10n.event_edit_title() : L10n.event_new_title())
             .toolbar {
@@ -215,9 +220,6 @@ struct EventEditorView: View {
                 if let text = seriesWarningText(pending.warning) { Text(text) }
             }
         }
-        // The invitee field's suggestions float over the form rather than pushing it down; see
-        // RecipientSuggestionOverlay.swift.
-        .recipientSuggestionLayer()
         // See EventDetailView: a macOS sheet takes its size from its content, and a `Form` gives it
         // none. Taller than the detail sheet because this one is a full form.
         .frame(minWidth: 380, minHeight: 460)

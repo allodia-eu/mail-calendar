@@ -310,7 +310,7 @@ change updates in every catalog locale.
 | Composer recipient autosuggest (contacts **+** sent-mail history) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer recipients as **pills**, with per-recipient removal | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Suggestions **float**: the form below them does not move | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Suggestions stay **clear of the on-screen keyboard**, full width | — | — | ⬜ | — | ✅ | — |
+| Suggestions stay **clear of the on-screen keyboard**, full width | — | — | ✅ | — | ✅ | — |
 | The caret opens in **To**, or in the body when already addressed | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | CardDAV contact sources (one adapter per address book) | ✅ | — | — | — | — | ✅ |
 | JMAP contact sources (account-global adapter) | ✅ | — | — | — | — | — |

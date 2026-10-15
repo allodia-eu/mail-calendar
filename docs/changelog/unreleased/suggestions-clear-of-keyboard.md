@@ -1,6 +1,6 @@
-# Address suggestions stay clear of the keyboard on Android
+# Address suggestions stay clear of the keyboard
 
-Platforms: android
+Platforms: ios, android
 Bump: patch
 
 > The list a recipient or invitee field offers is a popup, which the keyboard does not resize, so

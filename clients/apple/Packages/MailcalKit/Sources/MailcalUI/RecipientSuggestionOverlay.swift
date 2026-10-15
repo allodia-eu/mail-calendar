@@ -15,6 +15,7 @@
 //
 // At most one is ever published: a field offers suggestions only while it has focus.
 
+import Combine
 import MailcalBindings
 import SwiftUI
 
@@ -48,23 +49,110 @@ extension View {
     /// Apply it to the composer's outermost view. Nearer the field it loses to the editor's web
     /// view, that is the whole point; see this file's header.
     func recipientSuggestionLayer() -> some View {
-        overlayPreferenceValue(RecipientSuggestionOverlayKey.self) { open in
-            GeometryReader { proxy in
-                if let open {
-                    let input = proxy[open.anchor]
-                    RecipientSuggestionList(matches: open.matches, accept: open.accept)
-                        // The input's own width, so a long address cannot widen the list past the
-                        // field it belongs to.
-                        .frame(width: input.width, alignment: .leading)
-                        .offset(x: input.minX, y: input.maxY + 4)
-                }
-            }
-            // The layer spans the whole composer, so with no list open it must be transparent to
-            // touch: left hit-testable it swallows every tap meant for the fields under it, and
-            // Cc, Bcc and Subject stop responding while looking perfectly normal.
-            .allowsHitTesting(open != nil)
-        }
+        modifier(RecipientSuggestionLayer())
     }
+}
+
+private struct RecipientSuggestionLayer: ViewModifier {
+    #if os(iOS)
+        /// The on-screen keyboard's frame on screen, or `nil` while it is down. Read from the
+        /// keyboard itself rather than from the safe area: hosts disagree about whether the
+        /// keyboard has already shrunk this layer, and one that has still reports it as an inset.
+        @State private var keyboard: CGRect?
+    #endif
+
+    func body(content: Content) -> some View {
+        content
+            .overlayPreferenceValue(RecipientSuggestionOverlayKey.self) { open in
+                GeometryReader { proxy in
+                    if let open { list(open, in: proxy) }
+                }
+                // The layer spans the whole composer, so with no list open it must be transparent
+                // to touch: left hit-testable it swallows every tap meant for the fields under it,
+                // and Cc, Bcc and Subject stop responding while looking perfectly normal.
+                .allowsHitTesting(open != nil)
+            }
+        #if os(iOS)
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) {
+                keyboard = $0.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                keyboard = nil
+            }
+        #endif
+    }
+
+    @ViewBuilder
+    private func list(_ open: RecipientSuggestionOverlay, in proxy: GeometryProxy) -> some View {
+        let input = proxy[open.anchor]
+        #if os(iOS)
+            // Clear of the on-screen keyboard and across the window (docs/contacts.md §4): the
+            // layer is a sibling of the form, so the keyboard does not resize the list, and nothing
+            // but this keeps it off the keyboard.
+            let keyboardTop = keyboard.map { $0.minY - proxy.frame(in: .global).minY } ?? .infinity
+            let placement = recipientSuggestionPlacement(
+                field: input,
+                visibleTop: proxy.safeAreaInsets.top,
+                visibleBottom: min(proxy.size.height, keyboardTop)
+            )
+            RecipientSuggestionList(matches: open.matches, accept: open.accept)
+                // A box as tall as the room, with the list at the edge nearest the field: above,
+                // it then ends just over the input whatever its own height. The box's height is
+                // also what the list measures itself against, and scrolls past.
+                .frame(
+                    width: proxy.size.width - 2 * suggestionSideMargin,
+                    height: placement.maxHeight,
+                    alignment: placement.above ? .bottom : .top
+                )
+                .offset(
+                    x: suggestionSideMargin,
+                    y: placement.above
+                        ? input.minY - suggestionGap - placement.maxHeight
+                        : input.maxY + suggestionGap
+                )
+        #else
+            // A desktop's window keeps its content on screen, so the list stays the input's own
+            // width, under it, and a long address cannot widen it past the field it belongs to.
+            RecipientSuggestionList(matches: open.matches, accept: open.accept)
+                .frame(width: input.width, alignment: .leading)
+                .offset(x: input.minX, y: input.maxY + suggestionGap)
+        #endif
+    }
+}
+
+/// The space between the input and its list.
+private let suggestionGap: CGFloat = 4
+/// How far the list keeps from the window's sides on a phone or tablet.
+private let suggestionSideMargin: CGFloat = 8
+
+/// Where a field's list goes on a phone or tablet: which side of the input, and how tall it may be.
+struct RecipientSuggestionPlacement: Equatable {
+    let above: Bool
+    let maxHeight: CGFloat
+}
+
+/// The side and height of a field's list, from the room the field leaves in the **visible** part
+/// of the window: the part the keyboard does not cover (docs/contacts.md §4). Android's
+/// `suggestionPlacement` is the same rule.
+///
+/// Under the field when there is room for about three suggestions there (`minRoom`), or at least
+/// as much as above it; otherwise above. Either way no taller than that room, so the list never
+/// reaches under the keyboard and scrolls instead. The event editor's invitee field is the case
+/// that needs the other side: the form scrolls it to just above the keyboard, which leaves no room
+/// under it.
+func recipientSuggestionPlacement(
+    field: CGRect,
+    visibleTop: CGFloat,
+    visibleBottom: CGFloat,
+    gap: CGFloat = suggestionGap,
+    minRoom: CGFloat = 160
+) -> RecipientSuggestionPlacement {
+    let below = visibleBottom - field.maxY - gap
+    let above = field.minY - visibleTop - gap
+    if below >= minRoom || below >= above {
+        return RecipientSuggestionPlacement(above: false, maxHeight: max(below, 0))
+    }
+    return RecipientSuggestionPlacement(above: true, maxHeight: max(above, 0))
 }
 
 /// The list itself.
@@ -80,6 +168,28 @@ private struct RecipientSuggestionList: View {
     let accept: (String) -> Void
 
     var body: some View {
+        // As tall as its rows while they fit the height it is offered, and a scroll view of exactly
+        // that height when they do not, so a short list is not padded out to the full room.
+        ViewThatFits(in: .vertical) {
+            surface(rows)
+            surface(ScrollView { rows })
+        }
+    }
+
+    private func surface(_ content: some View) -> some View {
+        content
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.background)
+                    .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary)
+            }
+    }
+
+    private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(matches, id: \.email) { match in
                 Button { accept(match.email) } label: {
@@ -103,14 +213,6 @@ private struct RecipientSuggestionList: View {
                 }
                 .buttonStyle(.plain)
             }
-        }
-        .background {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(.background)
-                .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary)
         }
     }
 }
