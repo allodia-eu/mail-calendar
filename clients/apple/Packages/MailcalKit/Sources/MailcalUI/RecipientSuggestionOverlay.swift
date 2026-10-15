@@ -192,26 +192,31 @@ private struct RecipientSuggestionList: View {
     private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(matches, id: \.email) { match in
-                Button { accept(match.email) } label: {
-                    VStack(alignment: .leading, spacing: 1) {
-                        // A suggestion that came only from sent mail carries no name. It is as
-                        // valid as one from a saved card, and usually the more useful, so it
-                        // shows its address alone rather than being hidden (docs/contacts.md §4).
-                        if !match.displayName.isEmpty {
-                            Text(match.displayName).font(.callout)
-                        }
-                        Text(match.email)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    // A suggestion that came only from sent mail carries no name. It is as valid as
+                    // one from a saved card, and usually the more useful, so it shows its address
+                    // alone rather than being hidden (docs/contacts.md §4).
+                    if !match.displayName.isEmpty {
+                        Text(match.displayName).font(.callout)
                     }
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .contentShape(Rectangle())
+                    Text(match.email)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .contentShape(Rectangle())
+                // A tap, not a `Button`: a button fires when the finger lifts anywhere inside it,
+                // and a slow drag through the list is not always taken by the scroll view first,
+                // so scrolling picked whichever address the finger came to rest on. A tap fails
+                // the moment the finger moves. Still a button to assistive technology.
+                .onTapGesture { accept(match.email) }
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { accept(match.email) }
             }
         }
     }
