@@ -128,6 +128,11 @@ xcodebuild build-for-testing "${ARGS[@]}"
 if [[ "$ON_DEVICE" -eq 0 ]]; then
   info "simulator: $UDID (booting it if it is not already)"
   xcrun simctl bootstatus "$UDID" -b >/dev/null
+  # The suite was written against, and CI runs it with, a simulated hardware keyboard, under which
+  # typing raises no on-screen keyboard. build-and-run.sh turns it off for the dev loop, so a
+  # simulator last booted there would otherwise hide what the tests tap behind the keyboard.
+  xcrun swift "$ROOT/scripts/dev/sim-keyboard.swift" "$UDID" on >/dev/null ||
+    echo "warning: could not switch the simulated hardware keyboard on; tests run as the simulator is" >&2
 fi
 
 info "running $TARGET $([[ "${#ONLY[@]}" -gt 0 ]] && printf '%s ' "${ONLY[@]}" || printf '(every test)')"
