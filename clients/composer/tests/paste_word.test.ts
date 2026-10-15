@@ -89,6 +89,19 @@ describe("a list pasted from Word", () => {
     expect(steps.items[0]!.child!.kind).toBe("Ordered");
     expect(steps.items[0]!.child!.items.map((entry) => text(entry.content))).toEqual(["Rinse twice"]);
   });
+
+  test("Word for Mac's own clipboard: a list it holds as HTML is a list already, sub-list and all", () => {
+    const blocks = pasted(WORD_MAC_LISTS);
+    expect(blocks.map((block) => Object.keys(block)[0])).toEqual(["List", "Paragraph", "List"]);
+    const bullets = list(blocks[0]);
+    expect(bullets.kind).toBe("Bullet");
+    expect(bullets.items.map((entry) => text(entry.content))).toEqual(["Apples", "Pears"]);
+    const steps = list(blocks[2]);
+    expect(steps.kind).toBe("Ordered");
+    expect(steps.items.map((entry) => text(entry.content))).toEqual(["Wash", "Dry"]);
+    expect(steps.items[0]!.child!.kind).toBe("Ordered");
+    expect(steps.items[0]!.child!.items.map((entry) => text(entry.content))).toEqual(["Rinse twice"]);
+  });
 });
 
 // Word for Windows (Microsoft 365) copying a document with a bulleted list and an outline-numbered
@@ -132,3 +145,31 @@ style='mso-list:Ignore'>2)<span style='font:7.0pt "Times New Roman"'>&nbsp;&nbsp
 </span></span></span><![endif]>Dry<o:p></o:p></p>
 
 <p class=MsoNormal>Done.<o:p></o:p></p>`;
+
+// Word for Mac (Microsoft 365) copying lists that came to it as HTML: it writes `<ul>`/`<ol>` again,
+// with `mso-list` on every item and the lettered level as an `<ol>` straight inside the outer one.
+const WORD_MAC_LISTS = `<ul type=disc>
+ <li class=MsoNormal style='mso-margin-top-alt:auto;mso-margin-bottom-alt:auto;
+     mso-list:l1 level1 lfo1;tab-stops:list 36.0pt'><span style='mso-fareast-font-family:
+     "Times New Roman"'>Apples<o:p></o:p></span></li>
+ <li class=MsoNormal style='mso-margin-top-alt:auto;mso-margin-bottom-alt:auto;
+     mso-list:l1 level1 lfo1;tab-stops:list 36.0pt'><b><span style='mso-fareast-font-family:
+     "Times New Roman"'>Pears</span></b><span style='mso-fareast-font-family:
+     "Times New Roman"'><o:p></o:p></span></li>
+</ul>
+
+<p>Between<o:p></o:p></p>
+
+<ol start=1 type=1>
+ <li class=MsoNormal style='mso-margin-top-alt:auto;mso-margin-bottom-alt:auto;
+     mso-list:l0 level1 lfo2;tab-stops:list 36.0pt'><span style='mso-fareast-font-family:
+     "Times New Roman"'>Wash<o:p></o:p></span></li>
+ <ol start=1 type=a>
+  <li class=MsoNormal style='mso-margin-top-alt:auto;mso-margin-bottom-alt:
+      auto;mso-list:l0 level2 lfo2;tab-stops:list 72.0pt'><span
+      style='mso-fareast-font-family:"Times New Roman"'>Rinse twice<o:p></o:p></span></li>
+ </ol>
+ <li class=MsoNormal style='mso-margin-top-alt:auto;mso-margin-bottom-alt:auto;
+     mso-list:l0 level1 lfo2;tab-stops:list 36.0pt'><span style='mso-fareast-font-family:
+     "Times New Roman"'>Dry<o:p></o:p></span></li>
+</ol>`;

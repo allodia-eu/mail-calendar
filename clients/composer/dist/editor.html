@@ -2486,6 +2486,8 @@
 
   // src/paste_word.ts
   function levelOf(element) {
+    if (element.localName === "li")
+      return null;
     const match = /mso-list\s*:\s*l\d+\s+level(\d+)/i.exec(element.getAttribute("style") ?? "");
     return match ? Number(match[1]) : null;
   }

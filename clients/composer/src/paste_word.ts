@@ -13,8 +13,10 @@
 /// The level of a Word list paragraph, or `null` for any other element.
 ///
 /// Read from the `style` attribute as written: `mso-list` is no CSS property, so a parsed style
-/// declaration drops it.
+/// declaration drops it. An `<li>` is never one: Word for Mac writes a list that came to it as HTML
+/// as `<ul>`/`<ol>` again, with `mso-list` on each item, and that is a list already.
 function levelOf(element: Element): number | null {
+  if (element.localName === "li") return null;
   const match = /mso-list\s*:\s*l\d+\s+level(\d+)/i.exec(element.getAttribute("style") ?? "");
   return match ? Number(match[1]) : null;
 }
