@@ -30,7 +30,7 @@ extension ContentView {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .background(.thinMaterial)
+            .bannerBackground()
             .overlay(alignment: .bottom) { Divider() }
         }
     }
@@ -57,7 +57,7 @@ extension ContentView {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .background(.thinMaterial)
+            .bannerBackground()
             .overlay(alignment: .bottom) { Divider() }
         }
     }
@@ -105,7 +105,7 @@ extension ContentView {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .background(.thinMaterial)
+            .bannerBackground()
             .overlay(alignment: .bottom) { Divider() }
         }
     }
@@ -123,7 +123,7 @@ extension ContentView {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .background(.thinMaterial)
+            .bannerBackground()
             .overlay(alignment: .bottom) { Divider() }
         }
     }
@@ -178,5 +178,15 @@ extension ContentView {
         .padding(.top, 10)
         .transition(.move(edge: .top).combined(with: .opacity))
         .animation(.easeInOut(duration: 0.2), value: model.sendStatus)
+    }
+}
+
+extension View {
+    /// A banner's surface: a material, because the rows scroll on underneath it.
+    ///
+    /// ⚠️ Kept out of the top safe area, which a material fills by default: under a navigation bar
+    /// with a large title it spreads over the title's place, and the title is not drawn.
+    func bannerBackground() -> some View {
+        background(.thinMaterial, ignoresSafeAreaEdges: .horizontal)
     }
 }

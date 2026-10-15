@@ -355,7 +355,7 @@ extension ContentView {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .background(.thinMaterial)
+            .bannerBackground()
             .overlay(alignment: .bottom) { Divider() }
         }
     }
