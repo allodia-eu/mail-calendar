@@ -37,7 +37,7 @@ struct CalendarToolbar: ToolbarContent {
                 if !state.todayVisible {
                     CalendarBackToTodayButton(state: state)
                 }
-                if regular {
+                if regular && state.hasArrows {
                     Button(action: state.onPrevious) {
                         Label(state.previousLabel, systemImage: "chevron.left")
                     }
@@ -80,7 +80,7 @@ struct CalendarToolbar: ToolbarContent {
     }
 
     private var modes: some View {
-        Picker(L10n.calendar_view_label(), selection: Binding(get: { state.mode }, set: state.onMode)) {
+        Picker(L10n.calendar_view_label(), selection: Binding(get: { state.mode }, set: { state.onMode($0) })) {
             ForEach(CalendarMode.allCases) { mode in
                 Text(calendarModeLabel(mode)).tag(mode)
             }
@@ -90,15 +90,7 @@ struct CalendarToolbar: ToolbarContent {
     private func moreMenu(withModes: Bool) -> some View {
         Menu {
             if withModes {
-                Picker(
-                    L10n.calendar_view_label(),
-                    selection: Binding(get: { state.mode }, set: state.onMode)
-                ) {
-                    ForEach(CalendarMode.allCases) { mode in
-                        Text(calendarModeLabel(mode)).tag(mode)
-                    }
-                }
-                .pickerStyle(.inline)
+                modes.pickerStyle(.inline)
                 Divider()
             }
             Button(L10n.calendar_manage(), action: state.onManage)

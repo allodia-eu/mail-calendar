@@ -407,14 +407,14 @@ struct CalendarScreenView: View {
         return max(viewportHeight - calendarHeaderHeight - banner, 1)
     }
 
-    /// One step of the header's chevrons: a week along the strip, or a month of the month grid.
-    func step(_ direction: Int, mode: CalendarMode) {
+    /// A week along the strip, a month of the month grid; nothing in the agenda, which has no period.
+    private func step(_ direction: Int, mode: CalendarMode) {
         if mode.isGrid {
             // From wherever the strip is, so a chevron pressed mid-seam keeps the day it is framed
             // on rather than re-aligning the week under the user.
             gridHeld = true
             withAnimation(.easeOut(duration: 0.25)) { strip.weeks += CGFloat(direction) }
-        } else {
+        } else if mode != .agenda {
             page += direction
         }
     }

@@ -32,6 +32,10 @@ struct CalendarHeaderState {
     let onPrevious: () -> Void
     let onNext: () -> Void
 
+    /// Whether there is a period to step through: the agenda lists from today on and has none, so
+    /// arrows there would be buttons that do nothing.
+    var hasArrows: Bool { mode != .agenda }
+
     /// What the arrows step by, said: a month on the month grid, a week everywhere else.
     var previousLabel: String { mode.isMonth ? L10n.calendar_prev_month() : L10n.calendar_prev_week() }
     var nextLabel: String { mode.isMonth ? L10n.calendar_next_month() : L10n.calendar_next_week() }
@@ -55,14 +59,16 @@ struct CalendarHeaderBar: View {
                 CalendarBackToTodayButton(state: state).buttonStyle(.plain)
             }
 
-            Button(action: state.onPrevious) { Image(systemName: "chevron.left") }
-                .buttonStyle(.borderless)
-                .help(state.previousLabel)
-                .accessibilityLabel(state.previousLabel)
-            Button(action: state.onNext) { Image(systemName: "chevron.right") }
-                .buttonStyle(.borderless)
-                .help(state.nextLabel)
-                .accessibilityLabel(state.nextLabel)
+            if state.hasArrows {
+                Button(action: state.onPrevious) { Image(systemName: "chevron.left") }
+                    .buttonStyle(.borderless)
+                    .help(state.previousLabel)
+                    .accessibilityLabel(state.previousLabel)
+                Button(action: state.onNext) { Image(systemName: "chevron.right") }
+                    .buttonStyle(.borderless)
+                    .help(state.nextLabel)
+                    .accessibilityLabel(state.nextLabel)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
