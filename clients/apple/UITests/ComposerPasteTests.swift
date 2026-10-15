@@ -1,8 +1,8 @@
 // A list pasted from Word is a list on iPhone and iPad (docs/composer-security.md, Gate 7).
 //
 // iOS WebKit rebuilds another app's HTML through an attributed string before the page sees it, which
-// drops the `mso-list` style Word marks its list paragraphs with, so the bundle alone pasted each item
-// as a line starting with "·". The composer's web view reads the clipboard's HTML itself
+// drops the `mso-list` style Word marks its list paragraphs with, so the bundle alone would paste
+// each item as a line starting with "·". The composer's web view reads the clipboard's HTML itself
 // (`EditorWebViewTouch.swift`). Only this suite can see that: the bundle's own tests never meet
 // WebKit, and the rewrite happens on the way into the page.
 

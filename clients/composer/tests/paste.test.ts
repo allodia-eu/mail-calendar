@@ -355,6 +355,22 @@ describe("pasted structure", () => {
     ]);
   });
 
+  test("a cell merged down across a hidden row still reaches the rows it covers", () => {
+    // Excel writes a hidden row as `display:none`; the merge counts it all the same.
+    const [block] = pasted(
+      '<table><tr><td rowspan="3">A</td><td>B</td></tr>' +
+        "<tr style='display:none'><td>hidden</td></tr>" +
+        "<tr><td>C</td></tr><tr><td>D</td><td>E</td></tr></table>",
+    );
+    if (!block || !("Table" in block)) throw new Error("expected a table");
+    const rows = block.Table.rows.map((row) => row.cells.map((cell) => text(cell.content)));
+    expect(rows).toEqual([
+      ["A", "B"],
+      ["", "C"],
+      ["D", "E"],
+    ]);
+  });
+
   test("a list written straight inside a list is the previous item's sub-list", () => {
     const [block] = pasted("<ul><li>a</li><ul><li>b</li></ul><li>c</li></ul>");
     if (!block || !("List" in block)) throw new Error("expected a list");

@@ -46,12 +46,12 @@ final class EditorWebView: WKWebView {
     }
 
     /// ⚠️ **iOS WebKit never hands the page another app's HTML as it was written.** It rebuilds it
-    /// through an attributed string, which keeps no `mso-list`, so Word's lists reached the bundle as
-    /// paragraphs with the bullet typed in (docs/composer-security.md, Gate 7). The edit menu's Paste
-    /// and ⌘V both arrive here, and reading the clipboard for them raises no paste prompt. So the
-    /// clipboard's HTML goes to the bundle's `pasteComposerHtml` as written, and WebKit's own paste
-    /// runs when there is none or the bundle kept nothing of it, which is how the picture beside a
-    /// browser's Copy Image still arrives (Gate 13).
+    /// through an attributed string, which keeps no `mso-list`, so Word's lists would reach the
+    /// bundle as paragraphs with the bullet typed in (docs/composer-security.md, Gate 7). The edit
+    /// menu's Paste and ⌘V both arrive here, and reading the clipboard for them raises no paste
+    /// prompt. So the clipboard's HTML goes to the bundle's `pasteComposerHtml` as written, and
+    /// WebKit's own paste runs when there is none or the bundle kept nothing of it, which is how the
+    /// picture beside a browser's Copy Image still arrives (Gate 13).
     override func paste(_ sender: Any?) {
         guard let html = UIPasteboard.general.data(forPasteboardType: UTType.html.identifier)
             .flatMap({ String(data: $0, encoding: .utf8) })

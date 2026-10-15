@@ -13,8 +13,8 @@
 // within a draft keeps them. A foreign colour is dropped: Word stamps `color:#1A1A1A` on every run
 // and a page in dark mode stamps a light one, and either would follow the text into the message.
 
-import { type Attachments, mediaTypeOf } from "./attachments";
-import { imageFilesFrom, isShowableImage, MAX_CAPTURED_BYTES } from "./images";
+import type { Attachments } from "./attachments";
+import { imageFilesFrom, isShowableDataUrl, MAX_CAPTURED_BYTES } from "./images";
 import { safeLinkHref } from "./links";
 import { normalizeColor } from "./marks";
 import { type ClassRule, classRules, declared, MARK_PROPERTIES } from "./paste_styles";
@@ -320,13 +320,18 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLEl
     ...Array.from(source.children).filter((child) => /^(thead|tbody|tfoot)$/.test(child.localName)),
   ];
   // The columns a cell merged down from an earlier row (`rowspan`) holds in each later one, by row:
-  // the rows it reaches get an empty cell there, so their own cells keep their columns.
+  // the rows it reaches get an empty cell there, so their own cells keep their columns. Counted
+  // over every row of the markup, since a hidden one (Excel writes a hidden row as
+  // `display:none`) is still a row the merge reaches.
   const held: Set<number>[] = [];
+  let index = -1;
   for (const section of sections) {
     for (const row of Array.from(section.children) as HTMLElement[]) {
-      if (row.localName !== "tr" || hidden(row)) continue;
+      if (row.localName !== "tr") continue;
+      index += 1;
+      if (hidden(row)) continue;
       const cells: HTMLElement[] = [];
-      const taken = held[rows.length] ?? new Set<number>();
+      const taken = held[index] ?? new Set<number>();
       const skipTaken = () => {
         while (taken.has(cells.length)) cells.push(doc.createElement("td"));
       };
@@ -346,7 +351,7 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLEl
         for (let extra = 1; extra < span; extra += 1) cells.push(doc.createElement("td"));
         const down = Math.min(Number.parseInt(cell.getAttribute("rowspan") ?? "", 10) || 1, 1000);
         for (let below = 1; below < down; below += 1) {
-          const later = (held[rows.length + below] ??= new Set<number>());
+          const later = (held[index + below] ??= new Set<number>());
           for (let at = column; at < column + span; at += 1) later.add(at);
         }
       }
@@ -379,7 +384,7 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLEl
 /// markup carries is never reused: it names an attachment of another draft, or of none.
 function inlinePicture(element: HTMLElement, paste: Paste): HTMLElement | null {
   const url = element.getAttribute("src") ?? "";
-  if (!paste.attachments || !url.startsWith("data:") || !isShowableImage(mediaTypeOf(url))) return null;
+  if (!paste.attachments || !isShowableDataUrl(url)) return null;
   const comma = url.indexOf(",");
   const payload = url.length - comma - 1;
   const bytes = url.slice(0, comma).endsWith(";base64") ? Math.floor((payload * 3) / 4) : payload;

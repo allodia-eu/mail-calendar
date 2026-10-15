@@ -69,6 +69,21 @@ describe("a list pasted from Word", () => {
     expect(outer.items[0]!.child!.kind).toBe("Bullet");
   });
 
+  test("an outline numbered 1., 1.1., 2. is ordered at every level", () => {
+    const [block] = pasted(item("l4", 1, "1.", "One") + item("l4", 2, "1.1.", "One one") + item("l4", 1, "2.", "Two"));
+    expect(list(block).items[0]!.child!.kind).toBe("Ordered");
+  });
+
+  test("a heading Word numbers stays out of a list, and keeps its number", () => {
+    const [heading, body] = pasted(
+      "<h1 style='mso-list:l5 level1 lfo3'><![if !supportLists]><span style='mso-list:Ignore'>1." +
+        "<span>&nbsp;&nbsp; </span></span><![endif]>Introduction</h1><p class=MsoNormal>Body</p>",
+    );
+    if (!heading || !("Paragraph" in heading)) throw new Error(`expected a paragraph, got ${JSON.stringify(heading)}`);
+    expect(text(heading.Paragraph.content)).toMatch(/^1\.\s+Introduction$/);
+    expect(body).toHaveProperty("Paragraph");
+  });
+
   test("two lists with a paragraph between them stay two lists", () => {
     const blocks = pasted(item("l0", 1, "·", "a") + "<p class=MsoNormal>between</p>" + item("l3", 1, "1.", "b"));
     expect(blocks.map((block) => Object.keys(block)[0])).toEqual(["List", "Paragraph", "List"]);

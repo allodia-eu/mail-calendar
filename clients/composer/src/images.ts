@@ -52,6 +52,12 @@ export function isShowableImage(mediaType: string): boolean {
   return SHOWABLE_TYPES.includes(mediaType.trim().toLowerCase().split(";")[0] ?? "");
 }
 
+/// Whether `url` is a `data:` URI of a showable format: the one shape a picture may enter the body
+/// in, checked again by the core on submit.
+export function isShowableDataUrl(url: string): boolean {
+  return url.startsWith("data:") && isShowableImage(mediaTypeOf(url));
+}
+
 /// The image files a paste or a drop carried, in the order the platform listed them.
 ///
 /// Anything that is not a showable picture is left alone: a pasted `.docx` is not something the
@@ -113,7 +119,7 @@ export function insertCapturedImage(
   // The same check the core repeats on submit: a `data:text/html` here would be an executable
   // document, and only a picture of a showable format may end up behind the `cid:` an `<img>`
   // points at. An SVG fails it too, which is why the test is the closed list and not `image/`.
-  if (!url.startsWith("data:") || !isShowableImage(mediaTypeOf(url))) return false;
+  if (!isShowableDataUrl(url)) return false;
 
   const id = attachments.addCapturedImage({
     data_url: url,

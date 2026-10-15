@@ -14,9 +14,11 @@
 ///
 /// Read from the `style` attribute as written: `mso-list` is no CSS property, so a parsed style
 /// declaration drops it. An `<li>` is never one: Word for Mac writes a list that came to it as HTML
-/// as `<ul>`/`<ol>` again, with `mso-list` on each item, and that is a list already.
+/// as `<ul>`/`<ol>` again, with `mso-list` on each item, and that is a list already. Nor is a
+/// heading: Word numbers its headings with `mso-list` too, and a numbered heading pastes as the
+/// bold paragraph any heading does, its number kept as text.
 function levelOf(element: Element): number | null {
-  if (element.localName === "li") return null;
+  if (element.localName === "li" || /^h[1-6]$/.test(element.localName)) return null;
   const match = /mso-list\s*:\s*l\d+\s+level(\d+)/i.exec(element.getAttribute("style") ?? "");
   return match ? Number(match[1]) : null;
 }
@@ -26,9 +28,10 @@ function isMarker(element: Element): boolean {
   return /mso-list\s*:\s*ignore/i.test(element.getAttribute("style") ?? "");
 }
 
-/// Whether a marker's text numbers its item: "1.", "a)", "(iv)", rather than a bullet glyph.
+/// Whether a marker's text numbers its item: "1.", "1.2.", "a)", "(iv)", rather than a bullet glyph.
+/// A letter counts only with its "." or ")", because Word draws bullets in letters too ("o", "§").
 function numbers(marker: string): boolean {
-  return /^\(?([0-9]+|[a-z]{1,3})[.)]$/i.test(marker.replace(/[\s ]+/g, ""));
+  return /^\(?(\d+(\.\d+)*[.)]?|[a-z]{1,3}[.)])$/i.test(marker.replace(/[\s ]+/g, ""));
 }
 
 /// Rewrites every run of consecutive Word list paragraphs under `root` as nested lists.
