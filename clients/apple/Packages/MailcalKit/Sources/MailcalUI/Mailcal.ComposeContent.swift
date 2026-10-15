@@ -3,7 +3,7 @@ import SwiftUI
 
 extension ContentView {
     /// The composer, where the **shell** hosts it: in the detail column on macOS (in place of the
-    /// reading pane) and as a full-screen cover on iOS.
+    /// reading pane) and through `taskPresentation` on iOS.
     ///
     /// The composer itself is `ComposeHost`, shared with the detached composer window on the
     /// desktop (`docs/reading-window.md`); all this adds is what closing means here, which is

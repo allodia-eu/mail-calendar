@@ -294,7 +294,7 @@ struct RichComposeView: View {
 
     /// A dropped file is resolved natively: web code sees a `File` with no path, so only the host
     /// can hand the bytes to Rust and list the file for removal. The same modifier on both hosts,
-    /// so the macOS pane and the iPad cover cannot come to behave differently.
+    /// so the macOS pane and the iPad sheet cannot come to behave differently.
     private var composerDrop: ComposerDropModifier {
         ComposerDropModifier(
             attachments: $attachments,

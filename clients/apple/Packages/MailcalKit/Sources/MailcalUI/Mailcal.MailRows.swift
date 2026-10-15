@@ -6,7 +6,7 @@ import MailcalBindings
 
 extension ContentView {
     /// Opens the reply (or reply-all) composer for a message, in the shell's own composer: the
-    /// detail column on macOS, a full-screen cover on iOS.
+    /// detail column on macOS, `taskPresentation` on iOS.
     ///
     /// The core answers with the recipients, the subject and the quoted original, so a reply
     /// raised from a list row that was never opened quotes too.

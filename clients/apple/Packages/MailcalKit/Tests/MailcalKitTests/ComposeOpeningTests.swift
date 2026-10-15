@@ -213,8 +213,8 @@ func composeContext(_ opening: ComposeOpening, isShare: Bool = false) -> Compose
     }
 
     @Test func theSameMessageOpenedTwiceIsTwoComposers() {
-        // iOS presents a context with `.fullScreenCover(item:)`, which does nothing when the new
-        // item's id equals the one already presented.
+        // iOS presents a context with `.sheet(item:)` or `.fullScreenCover(item:)`, which do nothing
+        // when the new item's id equals the one already presented.
         let opening = composeOpening()
         #expect(composeContext(opening) != composeContext(opening))
     }

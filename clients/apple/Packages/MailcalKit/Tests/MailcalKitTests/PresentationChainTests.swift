@@ -1,5 +1,5 @@
 // The modal-presentation chain walk. This exists because presenting from the ROOT view controller
-// shipped: on iOS/iPadOS the composer is a `fullScreenCover`, so the root is already presenting,
+// shipped: on iOS/iPadOS the composer is a modal presentation, so the root is already presenting,
 // and UIKit refuses a second present on it *silently*, Apple's review reported it as "tapped
 // 'attach file' but there was no response" and rejected the build.
 //

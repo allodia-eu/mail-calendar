@@ -38,17 +38,18 @@ struct FromAccountField: View {
             // A menu of our own around the picker, because iOS draws a menu picker's label on as
             // many lines as the sender takes and ignores a line limit. One line, the middle of a
             // long address giving way, as the single-account text below does.
+            let sender = accounts.first { $0.id == shown.wrappedValue }.map(label(for:)) ?? ""
             Menu {
                 picker.pickerStyle(.inline)
             } label: {
                 HStack(spacing: 4) {
-                    Text(Self.sender(selection, in: accounts)
-                        .flatMap { id in accounts.first { $0.id == id } }
-                        .map(label(for:)) ?? "")
-                        .lineLimit(1).truncationMode(.middle)
+                    Text(sender).lineLimit(1).truncationMode(.middle)
                     Image(systemName: "chevron.up.chevron.down").imageScale(.small)
                 }
             }
+            // Named as the picker it stands in for was: "From", with the sender as its value.
+            .accessibilityLabel(L10n.compose_from())
+            .accessibilityValue(sender)
             #endif
         } else if let only = accounts.first {
             Text(label(for: only)).lineLimit(1).truncationMode(.middle)

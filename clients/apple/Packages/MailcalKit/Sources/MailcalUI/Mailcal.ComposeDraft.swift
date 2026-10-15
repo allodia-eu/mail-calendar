@@ -5,8 +5,8 @@
 // the composer, and the composer keeps its own draft on the way out: it saves what was written and
 // closes, without asking (`docs/drafts.md`). All the shell does is clear the column.
 //
-// iPhone and iPad keep the full-screen composer, where no row is clickable behind it, so the
-// guard short-circuits there.
+// iPhone and iPad keep the composer modal (`taskPresentation`), where no row is clickable behind
+// it, so the guard short-circuits there.
 
 import MailcalBindings
 import SwiftUI
@@ -48,7 +48,7 @@ extension ContentView {
     }
 
     /// Opens a composer on `origin` in the shell's own slot: the detail column on macOS, the
-    /// full-screen cover on iOS. Every route into the shell's composer comes through here, so each
+    /// `taskPresentation` on iOS. Every route into the shell's composer comes through here, so each
     /// one asks the core the same way (`MailboxModel.openComposer`).
     ///
     /// The composer appears when the core answers, through the same handover a message click uses.

@@ -238,7 +238,7 @@ final class MailboxModel {
     /// rather than re-deriving one. `nil` for every other way in.
     var setupStartOffer: AllodiaAccountOffer?
     /// An offer was pressed *inside* Settings, which is itself a modal here, a sheet on macOS and
-    /// a full-screen cover on iOS, and one modal cannot present another. So the press closes
+    /// `taskPresentation` on iOS, and one modal cannot present another. So the press closes
     /// Settings and this carries the intent across the dismissal, where `ContentView` spends it.
     ///
     /// One-shot on purpose: a flag left set would open the setup sheet the next time somebody

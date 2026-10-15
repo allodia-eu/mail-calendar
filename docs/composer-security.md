@@ -372,7 +372,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 
 | Gate | Apple · `WKWebView` | Android · `WebView` | Windows · `WebView2` | Linux · `WebKitGTK` |
 |---|---|---|---|---|
-| Host (layout only, not a gate) | macOS: inline in the detail column, in place of the reading pane. iPhone/iPad: full-screen cover | full-screen composer screen | inline in the reading-pane slot, behind the list\|reading splitter | inline in the detail column, in place of the reading pane |
+| Host (layout only, not a gate) | macOS: inline in the detail column, in place of the reading pane. iPhone: full-screen cover; iPad: page sheet | full-screen composer screen | inline in the reading-pane slot, behind the list\|reading splitter | inline in the detail column, in place of the reading pane |
 | Editor torn down per draft | SwiftUI drops the composer view (and its `WKWebView`) when `compose` clears | composer screen is popped | `ComposerView` is built per request and its `WebView2` closed on Send/Cancel | `ComposerPane` builds a fresh `SecureWebView` per request and removes it on Send/Cancel |
 | Reading body not left loaded behind the composer | the reading view is out of the view tree while composing | composer is a separate screen | `ReadingView.SuspendBody()` unloads the message document; it re-renders on return | `ReadingPane::suspend` replaces the message with an empty filtered document; it re-renders on return |
 | Local editor assets only | load packaged bundle with an app-owned base URL | load packaged `android_asset` bundle | load packaged app asset / virtual host mapping | shared `clients/composer/dist/editor.html` is compiled with `include_str!` and loaded in memory |

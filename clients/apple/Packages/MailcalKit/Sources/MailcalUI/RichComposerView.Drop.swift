@@ -38,7 +38,7 @@ enum DroppedFileName {
 }
 
 /// Makes the composer accept dropped files, wherever it is mounted: the macOS detail column and
-/// the iPad's full-screen cover apply the same modifier, so the two cannot come to behave
+/// the iPad's page sheet apply the same modifier, so the two cannot come to behave
 /// differently.
 struct ComposerDropModifier: ViewModifier {
     @Binding var attachments: [PickedAttachment]

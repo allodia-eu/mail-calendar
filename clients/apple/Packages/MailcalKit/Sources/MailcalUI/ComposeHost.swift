@@ -2,7 +2,7 @@
 //
 // One `ComposeContext` in, the `RichComposeView` it describes out, and `dismiss` when the draft is
 // gone. Three hosts mount it and none of them needs to know which it is: the macOS detail column,
-// the iPhone and iPad full-screen cover, and a detached composer window on the desktop
+// the iPhone full-screen cover and iPad page sheet (`taskPresentation`), and a detached composer window on the desktop
 // (`docs/reading-window.md`).
 //
 // Every composer is built the same way, from what the core opened it with, whichever route reached
