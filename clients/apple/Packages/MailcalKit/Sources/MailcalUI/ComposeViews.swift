@@ -57,8 +57,8 @@ struct ComposerSubmission {
 /// holding less than another (`docs/drafts.md`). Built by `MailboxModel.composeContext(for:)`.
 ///
 /// Carries its own id: opening the same message twice is two composers, and iOS presents this
-/// with `.fullScreenCover(item:)`, which does nothing for an item whose id equals the one already
-/// presented. Equal by that id alone, for the same reason.
+/// with `.sheet(item:)` or `.fullScreenCover(item:)` (`taskPresentation`), which do nothing for an
+/// item whose id equals the one already presented. Equal by that id alone, for the same reason.
 struct ComposeContext: Identifiable, Equatable {
     let id = UUID()
     /// What the core opened the composer with, on the composition it joined.

@@ -93,7 +93,7 @@ protocol PresentationChainNode: AnyObject {
 ///
 /// UIKit refuses, **silently**, with no error and no callback, a second `present` on a controller
 /// that is already presenting. Every modal this app raises is asked for from inside another one:
-/// Attach files from the composer (a `fullScreenCover`), the file picker again from the
+/// Attach files from the composer (a modal presentation), the file picker again from the
 /// add-account sheet, the log share from the Diagnostics settings. Presenting from the *root*
 /// therefore does nothing at all, which is exactly how it gets reported, "tapped it, no response".
 @MainActor

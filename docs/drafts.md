@@ -313,9 +313,10 @@ as it was.
 
 **Where Discard sits follows from whether anything else leads out.** On a desktop the composer is
 a pane or a window, and a click elsewhere or the window's own close is the way out, so Discard
-takes the place of the composer's Cancel. Where the composer fills the screen (iPhone, iPad and
-Android) its close control is the only way out, so it stays and means leaving, labelled Close, and
-Discard joins Save as draft as a control of its own.
+takes the place of the composer's Cancel. Where the composer takes over the app (the whole screen
+on iPhone and Android, a page sheet on iPad that nothing but its close control dismisses) that
+control is the only way out, so it stays and means leaving, labelled Close, and Discard joins Save
+as draft as a control of its own.
 
 ## Discarding
 

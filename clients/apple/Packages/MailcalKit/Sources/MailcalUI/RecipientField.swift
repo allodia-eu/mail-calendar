@@ -118,9 +118,9 @@ struct RecipientField<Trailing: View>: View {
             input = token
             // The caret opens in the field the user has to start in, an empty To on a new message.
             //
-            // Deferred by one turn rather than set here: on iOS the composer is a
-            // `fullScreenCover`, and focus assigned while the presentation is still animating is
-            // dropped on the floor. The keyboard then never rises and the field only *looks* ready.
+            // Deferred by one turn rather than set here: on iOS the composer is a modal
+            // presentation, and focus assigned while it is still animating is dropped on the
+            // floor. The keyboard then never rises and the field only *looks* ready.
             if focusesOnAppear {
                 Task { @MainActor in inputFocused = true }
             }
