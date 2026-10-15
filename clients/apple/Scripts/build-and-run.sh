@@ -248,6 +248,9 @@ ensure_simulator_booted() {
 
   # Device Hub, Xcode's window for showing and driving a simulator.
   open -b com.apple.dt.Devices >/dev/null 2>&1 || true
+  # A phone has no keyboard attached, so neither does its simulator: otherwise the first key typed
+  # from the Mac hides the on-screen keyboard for good (scripts/dev/sim-keyboard.swift).
+  xcrun swift "$ROOT/scripts/dev/sim-keyboard.swift" "$udid" off >/dev/null 2>&1 || true
 }
 
 if [[ "$LIST_DEVICES" -eq 1 ]]; then
