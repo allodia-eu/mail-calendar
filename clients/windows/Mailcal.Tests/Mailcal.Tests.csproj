@@ -68,6 +68,9 @@
     <Compile Include="..\Mailcal\Calendar\EventEditorState.cs" Link="Calendar\EventEditorState.cs" />
     <Compile Include="..\Mailcal\Calendar\ReminderBucket.cs" Link="Calendar\ReminderBucket.cs" />
     <Compile Include="..\Mailcal\Calendar\InviteeRoster.cs" Link="Calendar\InviteeRoster.cs" />
+    <!-- An invitee's answer from the event detail: which button is the answer already given, and
+         whether the buttons can be pressed while a write is settling. -->
+    <Compile Include="..\Mailcal\Calendar\EventAnswer.cs" Link="Calendar\EventAnswer.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarHitTest.cs" Link="Calendar\CalendarHitTest.cs" />
     <!-- What a tap yielded, and so which question a write from it owes the user. WinUI-free and
          L10n-free on purpose: the rule is which occurrence was drawn, and getting it wrong deletes

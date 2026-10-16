@@ -1,12 +1,11 @@
 # Answer a meeting from the calendar
 
-Platforms: macos, ios, android, linux
+Platforms: all
 Bump: minor
 
 > The calendar's answer takes the invitation card's delivery routes, read from the stored event, so
 > the organiser hears it the same way and a server that cannot deliver asks the same question. It
-> is for the whole meeting, because the engine's RSVP writes an event as a whole. Windows follows in
-> its own issue.
+> is for the whole meeting, because the engine's RSVP writes an event as a whole.
 
 **English**
 

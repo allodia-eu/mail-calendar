@@ -1,13 +1,14 @@
 // The event detail, what a tap on any event opens, the Windows twin of Android's EventDetailScreen
 // and Apple's EventDetailView. Title, the time range in the event's own wall clock, the calendar with
-// its colour dot, location, notes, and the reminder/recurrence summaries. Edit and Delete are the
-// dialog's Primary and Secondary buttons, and are offered only for a writable calendar's event
-// (canWrite): an affordance that can never fire is just a mystery. A read-only event
-// opens with a Close button alone.
+// its colour dot, an invitee's answer (EventDetailDialog.Answer.cs), location, notes, the
+// reminder/recurrence summaries and the attendee list. Edit and Delete are the dialog's Primary and
+// Secondary buttons, and are offered only for a writable calendar's event (canWrite): an affordance
+// that can never fire is just a mystery. A read-only event opens with a Close button alone.
 //
 // The dialog returns which action the user chose via its ContentDialogResult (Primary = edit,
-// Secondary = delete, None = close); the caller (CalendarView) opens the editor or confirms the
-// delete. Built imperatively in code-behind, like the calendar manager and the editor.
+// Secondary = delete, None = close, or Declining); the caller (CalendarView) opens the editor or
+// confirms the delete or the decline. Built imperatively in code-behind, like the calendar manager
+// and the editor.
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -24,10 +25,12 @@ using uniffi.mailcal_bindings;
 namespace Allodia.Mailcal.Dialogs;
 
 /// <summary>A read-only event detail with Edit / Delete actions (gated on <c>canWrite</c>).</summary>
-public sealed class EventDetailDialog : ContentDialog
+public sealed partial class EventDetailDialog : ContentDialog
 {
-    private readonly EventDetail _detail;
+    private readonly MailboxModel _model;
     private readonly CalendarRow[] _calendars;
+    private readonly ScrollViewer _scroller = new() { MinWidth = 340, MaxHeight = 460 };
+    private EventDetail _detail;
 
     // Built before DialogHelper mirrors the window's theme onto this dialog, so the colours are
     // handed out as brushes that follow it rather than read once (ThemePalette.cs).
@@ -36,14 +39,18 @@ public sealed class EventDetailDialog : ContentDialog
     // The links in the notes, which the dialog's initial focus must not land on.
     private Hyperlink[] _noteLinks = [];
 
+    // Set while Rebuild hands focus on to an answer, the one programmatic move into the content
+    // this dialog makes itself.
+    private bool _handingOnFocus;
+
     /// <summary>Builds the detail over the core's <paramref name="detail"/> read.</summary>
     internal EventDetailDialog(EventDetail detail, MailboxModel model)
     {
         _detail = detail;
+        _model = model;
         _calendars = model.Calendars();
         _brushes = new ThemeBrushes(this);
 
-        Title = detail.Title.Length == 0 ? L10n.EventNoTitle() : detail.Title;
         CloseButtonText = L10n.ActionClose();
         DefaultButton = ContentDialogButton.Close;
 
@@ -55,26 +62,101 @@ public sealed class EventDetailDialog : ContentDialog
             DefaultButton = ContentDialogButton.Primary;
         }
 
-        Content = new ScrollViewer { Content = BuildBody(), MinWidth = 340, MaxHeight = 460 };
-        if (_noteLinks.Length > 0)
+        BuildReplyBar();
+        Content = new StackPanel { Children = { _replyBar, _scroller } };
+        Rebuild();
+        FocusManager.GettingFocus += KeepInitialFocusOffTheContent;
+        model.PropertyChanged += OnModelChanged;
+        Closed += (_, _) =>
         {
-            FocusManager.GettingFocus += KeepInitialFocusOffTheNotes;
-            Closed += (_, _) => FocusManager.GettingFocus -= KeepInitialFocusOffTheNotes;
-        }
+            FocusManager.GettingFocus -= KeepInitialFocusOffTheContent;
+            model.PropertyChanged -= OnModelChanged;
+        };
     }
 
-    // A ContentDialog gives its initial focus to the first focusable element of its content, which
-    // is a link in the notes when they carry one, so Enter would stop pressing the default button.
-    // That focus is programmatic, and nothing here focuses a link programmatically, so such a move
-    // goes to the default button instead; Tab and a click still reach a link. Redirected as it
-    // happens rather than corrected on Opened, which the dialog's own focus can follow, and through
-    // FocusManager because a Hyperlink is not a UIElement and raises no GettingFocus of its own. The
-    // parts are named in ContentDialog's own template.
-    private void KeepInitialFocusOffTheNotes(object? sender, GettingFocusEventArgs args)
+    /// <summary>The event as last read, which a re-read after an answer moves on.</summary>
+    internal EventDetail Detail => _detail;
+
+    // Draws the detail from the current read, at the scroll it was read at. Focus inside the old
+    // body, or an answer pressed from the keyboard, goes to the answer row's first live button, so
+    // a keyboard user who answered is not left on a control that is gone.
+    private void Rebuild()
     {
+        var hadFocus = XamlRoot is { } root
+            && FocusManager.GetFocusedElement(root) is DependencyObject focused
+            && IsWithin(focused, _scroller);
+        var offset = _scroller.VerticalOffset;
+        Title = _detail.Title.Length == 0 ? L10n.EventNoTitle() : _detail.Title;
+        _scroller.Content = BuildBody();
+        _scroller.ChangeView(null, offset, null, disableAnimation: true);
+        if (hadFocus)
+        {
+            _answeredFromKeyboard = true;
+        }
+        HandFocusToAnswers();
+    }
+
+    // Puts the focus on the first answer that can be pressed, once, after a keyboard answer.
+    private void HandFocusToAnswers()
+    {
+        if (!_answeredFromKeyboard || FirstLiveAnswer() is not { } button)
+        {
+            return;
+        }
+        _answeredFromKeyboard = false;
+        _handingOnFocus = true;
+        button.Focus(FocusState.Programmatic);
+        _handingOnFocus = false;
+    }
+
+    // A Hyperlink is a text element, outside the visual tree VisualTreeHelper walks.
+    private static bool IsWithin(DependencyObject element, DependencyObject ancestor)
+    {
+        if (element is not UIElement)
+        {
+            return false;
+        }
+        for (var node = element; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (ReferenceEquals(node, ancestor))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Button? FirstLiveAnswer() => EventAnswer.Choices
+        .Select(response => _answerButtons.GetValueOrDefault(response))
+        .FirstOrDefault(button => button is { IsEnabled: true });
+
+    // A ContentDialog gives its initial focus to the first focusable element of its content: a
+    // meeting's Accept, the reply question's Send, or a link in the notes. Enter would then answer a
+    // meeting, email an organiser or open a page, where it should press the default button. That
+    // focus is programmatic, and the only programmatic move into the content this dialog makes is
+    // Rebuild's, so any other goes to the default button instead; Tab and a click still reach every
+    // control. Redirected as it happens rather than corrected on Opened, which the dialog's own focus
+    // can follow, and through FocusManager because a Hyperlink is not a UIElement and raises no
+    // GettingFocus of its own. The parts are named in ContentDialog's own template.
+    private void KeepInitialFocusOffTheContent(object? sender, GettingFocusEventArgs args)
+    {
+        // A move away from the content (a pressed answer going inert while it saves, or one a
+        // redraw took out of the tree) is not the dialog's initial focus, and stays where WinUI
+        // puts it.
         if (args.FocusState != FocusState.Programmatic
-            || args.NewFocusedElement is not Hyperlink link
-            || !_noteLinks.Contains(link))
+            || _handingOnFocus
+            || (args.OldFocusedElement is UIElement old
+                && ((old is Button retired && _retiredAnswers.Contains(retired))
+                    || (Content is DependencyObject owner && IsWithin(old, owner)))))
+        {
+            return;
+        }
+        var intoContent = args.NewFocusedElement is Hyperlink link
+            ? _noteLinks.Contains(link)
+            : args.NewFocusedElement is DependencyObject element
+                && Content is DependencyObject content
+                && IsWithin(element, content);
+        if (!intoContent)
         {
             return;
         }
@@ -127,6 +209,13 @@ public sealed class EventDetailDialog : ContentDialog
             VerticalAlignment = VerticalAlignment.Center,
         });
         panel.Children.Add(calendarLine);
+
+        _retiredAnswers.UnionWith(_answerButtons.Values);
+        _answerButtons.Clear();
+        if (AnswerBlock() is { } answer)
+        {
+            panel.Children.Add(answer);
+        }
 
         if (!string.IsNullOrWhiteSpace(_detail.Location))
         {

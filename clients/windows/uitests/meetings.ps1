@@ -1,6 +1,6 @@
-# Helpers for the suites that organise meetings against the harness as two accounts
-# (MAILCAL_DEV_ACCOUNT=stalwart-multi: Alice and Bob in one app): MeetingInvitees.Tests.ps1.
-# Dot-sourced by a suite file; defines functions and nothing else.
+# Helpers for the suites that organise and answer meetings against the harness as two accounts
+# (MAILCAL_DEV_ACCOUNT=stalwart-multi: Alice and Bob in one app): MeetingInvitees.Tests.ps1 and
+# EventAnswer.Tests.ps1. Dot-sourced by a suite file; defines functions and nothing else.
 #
 # A meeting's real outcome is mail in somebody else's mailbox, which no surface of this app shows
 # for an account it is not signed in to, so Wait-SchedulingMail reads it from the harness server

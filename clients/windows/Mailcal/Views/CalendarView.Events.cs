@@ -39,24 +39,73 @@ public sealed partial class CalendarView
     }
 
     // A tap on an event (grid block, all-day bar, month chip, or agenda row) opens its detail.
+    //
+    // A loop for the reason ShowEditor is one: a decline is asked about once the detail has closed,
+    // so backing out of the question reopens the detail rather than leaving the user nowhere.
     private async void OnOpenEvent(EventOpen open)
     {
-        if (Model?.EventDetail(open.Account, open.Key, open.Occurrence) is not { } detail)
+        while (true)
         {
-            // The event is gone, the store changed under a stale page. Nothing to open.
+            if (Model?.EventDetail(open.Account, open.Key, open.Occurrence) is not { } detail)
+            {
+                // The event is gone, the store changed under a stale page. Nothing to open.
+                return;
+            }
+            Log.Info($"cal: open detail id={open.Key}");
+            var dialog = new EventDetailDialog(detail, Model) { XamlRoot = this.XamlRoot };
+            var result = await DialogHelper.ShowAsync(dialog);
+            // The detail re-reads the event while it is open, so act on what it last showed.
+            detail = dialog.Detail;
+            if (dialog.Declining)
+            {
+                if (await ConfirmDecline(detail))
+                {
+                    return;
+                }
+                continue;
+            }
+            switch (result)
+            {
+                case ContentDialogResult.Primary:
+                    await ShowEditor(detail);
+                    break;
+                case ContentDialogResult.Secondary:
+                    await ConfirmDelete(detail);
+                    break;
+            }
             return;
         }
-        Log.Info($"cal: open detail id={open.Key}");
-        var dialog = new EventDetailDialog(detail, Model) { XamlRoot = this.XamlRoot };
-        switch (await DialogHelper.ShowAsync(dialog))
+    }
+
+    // "Decline this meeting?", and the answer on a yes. A declined meeting is hidden from every
+    // calendar surface (docs/calendar.md, "Answering from the calendar"), so the detail stays closed.
+    private async Task<bool> ConfirmDecline(EventDetail detail)
+    {
+        if (Model is null)
         {
-            case ContentDialogResult.Primary:
-                await ShowEditor(detail);
-                break;
-            case ContentDialogResult.Secondary:
-                await ConfirmDelete(detail);
-                break;
+            return true;
         }
+        var answer = await DialogHelper.ConfirmAsync(
+            this.XamlRoot,
+            L10n.EventDeclineConfirmTitle(),
+            L10n.EventDeclineConfirmBody(),
+            L10n.InvitationDecline(),
+            automationId: "EventDeclineConfirm");
+        if (answer != ContentDialogResult.Primary)
+        {
+            return false;
+        }
+        // Asked again on the event as it is now: the question was up long enough for a write to
+        // start or a sync to change the meeting, and a decline that is no longer offered, or would
+        // race a write still saving, goes back to the detail instead.
+        const InvitationResponse response = InvitationResponse.Decline;
+        var now = Model.EventDetail(detail.Account, detail.Key, detail.OccurrenceStart);
+        if (now is null || EventAnswer.Of(now, Model.CalendarWrite)?.CanPress(response) != true)
+        {
+            return now is null;
+        }
+        Model.RespondToEvent(now.Account, now.Key, response, InvitationText.ReplySubject(response, now.Title));
+        return true;
     }
 
     // Opens the editor prefilled from a stored event's detail, and dispatches the edit on Save.

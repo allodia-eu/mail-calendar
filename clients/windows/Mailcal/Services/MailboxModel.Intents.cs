@@ -306,6 +306,23 @@ public sealed partial class MailboxModel
             // discarding every override, so the warning has to be asked knowing about it.
             args.Title, args.Start, args.End, args.Notes, args.Location, args.Recurrence));
 
+    /// <summary>
+    /// Answer a meeting from its event in the calendar, for the whole meeting. The core delivers it
+    /// the way the invitation card's answer goes, and raises the reply question where a server
+    /// could not.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="replySubject"/> is composed in the shell, as the card's is: the core carries
+    /// no locale, and it is copy the organiser reads in their inbox.
+    /// </remarks>
+    internal void RespondToEvent(
+        string account, string key, InvitationResponse response, string replySubject)
+    {
+        // The answer only; the subject carries the meeting's title, which is message content.
+        Log.Info($"cal: answer from the calendar response={response}");
+        _app?.Dispatch(new Intent.Events(new EventIntent.Respond(account, key, response, replySubject)));
+    }
+
     /// <summary>Delete a calendar event by its owning account + provider key, then refresh the
     /// agenda. <paramref name="occurrence"/> names a single occurrence of a repeating event,
     /// the token the surface that drew it carried; <c>null</c> removes the whole series.</summary>
