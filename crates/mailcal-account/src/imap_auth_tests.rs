@@ -158,3 +158,44 @@ async fn an_issuer_that_never_answers_cannot_hold_the_setup_screen() {
         .expect("the issuer search outlived its own budget");
     assert!(found.is_none());
 }
+
+fn metadata_offering(scopes: &[&str]) -> AuthServerMetadata {
+    AuthServerMetadata {
+        issuer: "https://example.net".to_owned(),
+        authorization_endpoint: "https://example.net/oauth/authorize".to_owned(),
+        token_endpoint: "https://example.net/oauth/token".to_owned(),
+        registration_endpoint: Some("https://example.net/oauth/register".to_owned()),
+        revocation_endpoint: None,
+        userinfo_endpoint: None,
+        scopes_supported: scopes.iter().map(|scope| (*scope).to_owned()).collect(),
+        end_session_endpoint: None,
+        prompt_values_supported: Vec::new(),
+        issuer_parameter_supported: false,
+    }
+}
+
+#[test]
+fn an_issuer_is_offered_only_where_its_sign_in_covers_imap_and_smtp() {
+    // The setup screen and the sign-in button ask the same question of the same metadata. When
+    // they disagreed, the screen drew "Sign in with your provider" for an issuer the button then
+    // refused, and the person met an error for a choice the app had offered them.
+    assert!(covers_imap_mail(&metadata_offering(&[
+        "urn:ietf:params:oauth:scope:mail",
+        "offline_access",
+    ])));
+    // The earlier drafts' names, as `soverin.net` advertises them.
+    assert!(covers_imap_mail(&metadata_offering(&[
+        "imap",
+        "smtp",
+        "pop",
+        "offline_access",
+    ])));
+    assert!(!covers_imap_mail(&metadata_offering(&[
+        "urn:ietf:params:oauth:scope:calendars",
+        "offline_access",
+    ])));
+    assert!(!covers_imap_mail(&metadata_offering(&[
+        "imap",
+        "offline_access"
+    ])));
+}

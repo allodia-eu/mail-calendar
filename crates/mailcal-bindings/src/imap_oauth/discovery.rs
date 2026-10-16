@@ -96,14 +96,14 @@ pub(super) async fn discover_registration(
             .unwrap_or("(none; sign-in cannot be offered)"),
     );
 
-    let scopes = mailcal_oauth::select_scopes(&metadata);
+    let scopes = mailcal_oauth::select_scopes(&metadata, mailcal_oauth::MailProtocol::Imap);
     log::info!(
         "imap oauth: server offers {} scope(s); requesting {}: [{}]",
         metadata.scopes_supported.len(),
         scopes.len(),
         scopes.join(", "),
     );
-    if !mailcal_oauth::grants_mail_access(&metadata, &scopes) {
+    if !mailcal_oauth::grants_mail_access(&metadata, &scopes, mailcal_oauth::MailProtocol::Imap) {
         log::warn!(
             "imap oauth: gave up: no mail scope among [{}]; the password field still works",
             metadata.scopes_supported.join(", "),

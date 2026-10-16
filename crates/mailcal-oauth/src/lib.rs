@@ -51,7 +51,9 @@ pub use mail_providers::{StaticMailProvider, provider_for_host, static_mail_prov
 pub use pkce::{Pkce, random_state};
 pub use provider::{AuthStyle, GOOGLE_SCOPES, MICROSOFT_GRAPH_SCOPES, OAuthProviderConfig};
 pub use reach::TokenRequestReach;
-pub use register::{RegisteredClient, grants_mail_access, register_client, select_scopes};
+pub use register::{
+    MailProtocol, RegisteredClient, grants_mail_access, register_client, select_scopes,
+};
 use time::OffsetDateTime;
 pub use token::{TokenSet, exchange_code, refresh};
 

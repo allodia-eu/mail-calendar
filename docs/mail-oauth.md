@@ -129,6 +129,18 @@ is recorded here.
     response missing the parameter from a server that advertised it is refused, because
     deleting a query parameter must not be all it takes to switch the check off.
 
+12. **A sign-in is offered only where it would grant mail**, and the setup decision and the
+    sign-in ask that of the same metadata with the same function
+    (`mailcal_oauth::grants_mail_access`), so a card never draws a sign-in that the button then
+    refuses. An issuer whose scopes cover no mail is no usable authorization server: rule 2's
+    middle row. What covers mail is the profile's `urn:ietf:params:oauth:scope:mail` or, failing
+    that, the protocol-named scopes of its `-00` and `-01` revisions, which deployed servers
+    still advertise (`soverin.net` does): an IMAP account needs both `imap` and `smtp`, because
+    it reads over one and sends over the other, and a JMAP account needs `jmap`. `caldav` and
+    `carddav` stand in for `calendars` and `contacts` the same way. Where a server offers both
+    forms only the standard name is asked for, and an earlier name is matched whole, never as
+    the last segment of a vendor's URL.
+
 ## What is deliberately not done
 
 - **No RFC 7628 challenge probe.** §3.2.2 lets a server describe its OAuth configuration,

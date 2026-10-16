@@ -18,8 +18,8 @@
 //! account as a side effect of running the test suite.
 
 use mailcal_oauth::{
-    discover_auth_server, discover_protected_resource, discovery_client, grants_mail_access,
-    select_scopes,
+    MailProtocol, discover_auth_server, discover_protected_resource, discovery_client,
+    grants_mail_access, select_scopes,
 };
 
 /// The JMAP session path the resource lives behind (RFC 8620 §2).
@@ -62,14 +62,14 @@ async fn a_real_server_advertises_a_usable_authorization_server() {
 
     // A server we would actually offer sign-in for must support dynamic registration (we have no
     // pre-registered client) and grant mail access.
-    let scopes = select_scopes(&metadata);
+    let scopes = select_scopes(&metadata, MailProtocol::Jmap);
     println!("scopes:    {scopes:?}");
     assert!(
         metadata.registration_endpoint.is_some(),
         "no registration endpoint; sign-in could not be offered for this server",
     );
     assert!(
-        grants_mail_access(&metadata, &scopes),
+        grants_mail_access(&metadata, &scopes, MailProtocol::Jmap),
         "the selected scopes grant no mail access: {scopes:?}",
     );
     // RFC 8707: a server that publishes a canonical resource URI generally *requires* it as the

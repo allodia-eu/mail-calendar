@@ -101,14 +101,14 @@ pub(super) async fn discover_and_register(
             .unwrap_or("(none; sign-in cannot be offered)"),
     );
 
-    let scopes = mailcal_oauth::select_scopes(&metadata);
+    let scopes = mailcal_oauth::select_scopes(&metadata, mailcal_oauth::MailProtocol::Jmap);
     log::info!(
         "jmap oauth: step 3/4; server offers {} scope(s); requesting {}: [{}]",
         metadata.scopes_supported.len(),
         scopes.len(),
         scopes.join(", "),
     );
-    if !mailcal_oauth::grants_mail_access(&metadata, &scopes) {
+    if !mailcal_oauth::grants_mail_access(&metadata, &scopes, mailcal_oauth::MailProtocol::Jmap) {
         log::warn!(
             "jmap oauth: step 3/4 gave up: no mail scope among [{}]; the manual secret still works",
             metadata.scopes_supported.join(", "),

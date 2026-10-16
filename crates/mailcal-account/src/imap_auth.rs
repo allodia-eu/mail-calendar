@@ -213,9 +213,10 @@ async fn imap_issuer_within(query: &ImapAuthQuery, budget: Duration) -> Option<A
 /// autoconfig named and falling back to the well-known locations of the domains the account
 /// actually involves.
 ///
-/// A candidate is only accepted when its metadata advertises a `registration_endpoint`: that
-/// is what mints this install's client id, and a server without one has told us it does not
-/// admit clients it has not met ([`ImapAuth::RegistrationNeeded`]).
+/// A candidate is only accepted when its metadata advertises a `registration_endpoint`, which
+/// is what mints this install's client id, and a scope covering IMAP and SMTP. A server without
+/// the first has told us it does not admit clients it has not met; one without the second would
+/// issue a token the mailbox refuses. Either is [`ImapAuth::RegistrationNeeded`].
 ///
 /// Returns the **metadata**, not just the issuer, because the caller that goes on to register
 /// needs every field of it and re-fetching would be a second round trip that could disagree
@@ -225,15 +226,32 @@ pub async fn imap_issuer(query: &ImapAuthQuery) -> Option<AuthServerMetadata> {
     let host = host_of(&query.imap_host);
     for issuer in issuer_candidates(query, host) {
         match mailcal_oauth::discover_auth_server(&http, &issuer).await {
-            Ok(metadata) if metadata.registration_endpoint.is_some() => return Some(metadata),
-            Ok(metadata) => log::info!(
+            Ok(metadata) if metadata.registration_endpoint.is_none() => log::info!(
                 "imap auth: {} publishes metadata but no registration endpoint",
                 metadata.issuer,
             ),
+            Ok(metadata) if !covers_imap_mail(&metadata) => log::info!(
+                "imap auth: {} offers no scope covering IMAP and SMTP among [{}]",
+                metadata.issuer,
+                metadata.scopes_supported.join(", "),
+            ),
+            Ok(metadata) => return Some(metadata),
             Err(err) => log::debug!("imap auth: no authorization server at {issuer}; {err}"),
         }
     }
     None
+}
+
+/// Whether a sign-in at `metadata` would grant what an IMAP account needs: the same test the
+/// sign-in applies before it registers, so the setup screen never offers a sign-in that the
+/// button then refuses.
+fn covers_imap_mail(metadata: &AuthServerMetadata) -> bool {
+    let protocol = mailcal_oauth::MailProtocol::Imap;
+    mailcal_oauth::grants_mail_access(
+        metadata,
+        &mailcal_oauth::select_scopes(metadata, protocol),
+        protocol,
+    )
 }
 
 /// The issuers to try, in order: the one the provider's own autoconfig named, then the email

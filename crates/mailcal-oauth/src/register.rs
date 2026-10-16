@@ -21,24 +21,74 @@ use crate::discovery::{AuthServerMetadata, DiscoveryError};
 /// expires in an hour and the account dies with it, so it is always requested.
 const OFFLINE_ACCESS: &str = "offline_access";
 
-/// The capability scopes a mail-and-calendar client needs, matched against what a server
-/// advertises.
-///
-/// These are matched on a scope's **last segment**, so both the URN form JMAP servers use
-/// (`urn:ietf:params:oauth:scope:mail`) and a bare `mail` are recognised: the pattern is the
-/// IETF-registered naming, not one provider's spelling.
-///
-/// `contacts` is now among them. It was deliberately absent while the only thing it bought was
-/// a Contacts list, because adding it re-prompts every already-connected JMAP account, and the
-/// same account added with an app password showed a full list while the OAuth one showed an
-/// empty one, which was the sharper half of the cost. Two things changed the balance: contacts
-/// now also decide whether a sender's face appears beside their mail, and the Microsoft and
-/// Google sets moved in the same release, so a user who reconnects pays one prompt across every
-/// provider rather than one per provider per release.
-///
-/// A server that advertises no `contacts` scope is unaffected: the selection only ever asks for
-/// what the metadata offers.
-const WANTED_CAPABILITIES: &[&str] = &["mail", "calendars", "calendar", "contacts"];
+/// One kind of data the app asks a server for, and the names a server may advertise for it.
+struct Capability {
+    /// The profile's names, matched on a scope's **last segment** so the URN form
+    /// (`urn:ietf:params:oauth:scope:mail`), a bare `mail` and a URL form are all recognised.
+    standard: &'static [&'static str],
+    /// The protocol-named scopes of `draft-ietf-mailmaint-oauth-public-00` and `-01`, matched
+    /// whole. Later revisions replaced them with the names above, and deployed servers still
+    /// advertise them, so they are asked for only where the standard name is not offered.
+    earlier_draft: &'static [&'static str],
+}
+
+/// Mail, as the account's protocol names it in the earlier drafts.
+const fn mail(protocol: MailProtocol) -> Capability {
+    Capability {
+        standard: &["mail"],
+        earlier_draft: match protocol {
+            MailProtocol::Imap => &["imap", "smtp"],
+            MailProtocol::Jmap => &["jmap"],
+        },
+    }
+}
+
+/// Calendars and contacts are asked for too: the account presents the same grant to CalDAV and
+/// CardDAV, and contacts decide whether a sender's face appears beside their mail. A server
+/// that advertises neither is unaffected, since the selection only asks for what it offers.
+const CALENDARS: Capability = Capability {
+    standard: &["calendars", "calendar"],
+    earlier_draft: &["caldav"],
+};
+const CONTACTS: Capability = Capability {
+    standard: &["contacts"],
+    earlier_draft: &["carddav"],
+};
+
+/// Which protocol carries the account's mail, which decides the earlier drafts' mail scopes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MailProtocol {
+    /// IMAP for reading and SMTP submission for sending.
+    Imap,
+    /// JMAP for both.
+    Jmap,
+}
+
+/// A scope's last segment: `mail` for `urn:ietf:params:oauth:scope:mail` and for `mail`.
+fn last_segment(scope: &str) -> &str {
+    scope.rsplit([':', '/']).next().unwrap_or(scope)
+}
+
+/// The advertised scopes that name `capability`: the standard names when any is offered, the
+/// earlier drafts' otherwise. Never both, so a server offering the two forms shows one
+/// permission per kind of data on its consent screen.
+fn advertised<'a>(metadata: &'a AuthServerMetadata, capability: &Capability) -> Vec<&'a str> {
+    let standard: Vec<&str> = metadata
+        .scopes_supported
+        .iter()
+        .map(String::as_str)
+        .filter(|scope| capability.standard.contains(&last_segment(scope)))
+        .collect();
+    if !standard.is_empty() {
+        return standard;
+    }
+    metadata
+        .scopes_supported
+        .iter()
+        .map(String::as_str)
+        .filter(|scope| capability.earlier_draft.contains(scope))
+        .collect()
+}
 
 /// What a completed registration gave us.
 #[derive(Debug, Clone)]
@@ -103,40 +153,48 @@ struct RegistrationResponse {
 /// Chooses the scopes to request from what the server advertises.
 ///
 /// Always includes `offline_access` (no refresh token, no account an hour later). Beyond
-/// that it requests **only** the advertised scopes whose last segment names a capability we
-/// actually use; never the whole `scopes_supported` list, which on a real server includes
-/// admin and other grants we have no business holding.
+/// that it requests **only** the advertised scopes naming mail, calendars or contacts, in the
+/// order the server lists them; never the whole `scopes_supported` list, which on a real server
+/// includes admin and other grants we have no business holding.
 ///
 /// A server that advertises no scopes at all gets `offline_access` alone and is left to apply
 /// its own default grant, which is the RFC 6749 §3.3 behaviour.
 #[must_use]
-pub fn select_scopes(metadata: &AuthServerMetadata) -> Vec<String> {
+pub fn select_scopes(metadata: &AuthServerMetadata, protocol: MailProtocol) -> Vec<String> {
+    let wanted: Vec<&str> = [mail(protocol), CALENDARS, CONTACTS]
+        .iter()
+        .flat_map(|capability| advertised(metadata, capability))
+        .collect();
     let mut scopes = vec![OFFLINE_ACCESS.to_owned()];
-    for scope in &metadata.scopes_supported {
-        if scope == OFFLINE_ACCESS {
-            continue;
-        }
-        let segment = scope.rsplit([':', '/']).next().unwrap_or(scope);
-        if WANTED_CAPABILITIES.contains(&segment) {
-            scopes.push(scope.clone());
-        }
-    }
+    scopes.extend(
+        metadata
+            .scopes_supported
+            .iter()
+            .filter(|scope| *scope != OFFLINE_ACCESS && wanted.contains(&scope.as_str()))
+            .cloned(),
+    );
     scopes
 }
 
-/// Whether the selected scopes include a mail capability: the minimum for a usable mail
-/// account.
+/// Whether the selected scopes cover mail: the minimum for a usable mail account.
 ///
 /// A server that advertises scopes but none we recognise as mail would hand us a token good
 /// for nothing, and the failure would surface much later as an empty mailbox. Treat it as
 /// "discovery didn't work here" and fall back. A server advertising **no** scopes is a
 /// different case (it applies its own default), so it passes.
+///
+/// An IMAP account needs the earlier drafts' `imap` **and** `smtp`: it reads over one and sends
+/// over the other, and a token for only the first fails at the first message sent.
 #[must_use]
-pub fn grants_mail_access(metadata: &AuthServerMetadata, selected: &[String]) -> bool {
+pub fn grants_mail_access(
+    metadata: &AuthServerMetadata,
+    selected: &[String],
+    protocol: MailProtocol,
+) -> bool {
+    let has = |name: &str| selected.iter().any(|scope| scope == name);
     metadata.scopes_supported.is_empty()
-        || selected
-            .iter()
-            .any(|scope| scope.rsplit([':', '/']).next().unwrap_or(scope) == "mail")
+        || selected.iter().any(|scope| last_segment(scope) == "mail")
+        || mail(protocol).earlier_draft.iter().all(|name| has(name))
 }
 
 /// Registers this app as a new public client with the authorization server (RFC 7591).
@@ -199,110 +257,5 @@ pub async fn register_client(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn metadata(scopes: &[&str]) -> AuthServerMetadata {
-        AuthServerMetadata {
-            issuer: "https://as.example.com".to_owned(),
-            authorization_endpoint: "https://as.example.com/authorize".to_owned(),
-            token_endpoint: "https://as.example.com/token".to_owned(),
-            registration_endpoint: Some("https://as.example.com/register".to_owned()),
-            revocation_endpoint: None,
-            userinfo_endpoint: None,
-            scopes_supported: scopes.iter().map(|s| (*s).to_owned()).collect(),
-            end_session_endpoint: None,
-            prompt_values_supported: Vec::new(),
-            issuer_parameter_supported: false,
-        }
-    }
-
-    #[test]
-    fn the_software_id_is_a_fixed_uuid() {
-        // It identifies the *software*, not an install, so it must never be generated per device
-        // or per run: a server keying on it would then see every install as different software.
-        assert_eq!(SOFTWARE_ID, "df16a4a8-25e5-428c-907a-a789a3a7b52e");
-        assert_eq!(SOFTWARE_ID.len(), 36);
-    }
-
-    #[test]
-    fn offline_access_is_always_requested() {
-        // Without it the server issues no refresh token and the account breaks an hour after
-        // setup: the single most expensive thing to get wrong here.
-        assert!(select_scopes(&metadata(&[])).contains(&OFFLINE_ACCESS.to_owned()));
-        assert_eq!(
-            select_scopes(&metadata(&["urn:ietf:params:oauth:scope:mail"]))[0],
-            OFFLINE_ACCESS
-        );
-    }
-
-    #[test]
-    fn only_the_capabilities_we_use_are_requested() {
-        // The shape a real JMAP server advertises. Mail, calendars and contacts are all
-        // exercised by the app; admin is not, and an over-broad consent screen is a
-        // user-visible harm; we cannot honestly ask for a permission we never use.
-        let selected = select_scopes(&metadata(&[
-            "urn:ietf:params:oauth:scope:mail",
-            "urn:ietf:params:oauth:scope:contacts",
-            "urn:ietf:params:oauth:scope:calendars",
-            "https://example.com/auth/admin",
-            "offline_access",
-        ]));
-        assert_eq!(
-            selected,
-            vec![
-                "offline_access",
-                "urn:ietf:params:oauth:scope:mail",
-                "urn:ietf:params:oauth:scope:contacts",
-                "urn:ietf:params:oauth:scope:calendars",
-            ]
-        );
-        assert!(
-            !selected.iter().any(|scope| scope.ends_with("admin")),
-            "a capability the app never exercises must not reach the consent screen"
-        );
-    }
-
-    #[test]
-    fn bare_and_path_style_scope_names_are_recognised_too() {
-        // The match is on the last segment, so the URN form, a bare word and a URL form all
-        // work: this is the "generic from the standards" rule, not one provider's spelling.
-        assert!(select_scopes(&metadata(&["mail"])).contains(&"mail".to_owned()));
-        assert!(
-            select_scopes(&metadata(&["https://example.com/auth/calendar"]))
-                .contains(&"https://example.com/auth/calendar".to_owned())
-        );
-    }
-
-    #[test]
-    fn offline_access_is_never_duplicated_when_the_server_advertises_it() {
-        let selected = select_scopes(&metadata(&["offline_access", "mail"]));
-        assert_eq!(
-            selected.iter().filter(|s| *s == OFFLINE_ACCESS).count(),
-            1,
-            "a duplicated scope is rejected outright by some servers: {selected:?}"
-        );
-    }
-
-    #[test]
-    fn a_server_offering_no_mail_scope_is_not_usable() {
-        // A token good for calendars alone would surface much later as a permanently empty
-        // mailbox. Catch it at discovery and fall back to the manual secret instead.
-        let meta = metadata(&["urn:ietf:params:oauth:scope:calendars"]);
-        let selected = select_scopes(&meta);
-        assert!(!grants_mail_access(&meta, &selected));
-
-        let meta = metadata(&["urn:ietf:params:oauth:scope:mail"]);
-        let selected = select_scopes(&meta);
-        assert!(grants_mail_access(&meta, &selected));
-    }
-
-    #[test]
-    fn a_server_advertising_no_scopes_at_all_is_allowed_through() {
-        // RFC 6749 §3.3: with no scope advertised the server applies its own default grant.
-        // That is legal and common on small self-hosted servers, so it must not be mistaken
-        // for "no mail access".
-        let meta = metadata(&[]);
-        assert!(grants_mail_access(&meta, &select_scopes(&meta)));
-    }
-}
+#[path = "register_tests.rs"]
+mod register_tests;
