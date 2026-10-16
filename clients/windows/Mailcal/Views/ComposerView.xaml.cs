@@ -65,6 +65,7 @@ public sealed partial class ComposerView : UserControl
     {
         this.InitializeComponent();
         _editor = new EditorWebViewHost(Editor) { PageReady = OnEditorReadyAsync, HostRequested = OnHostRequested };
+        HistoryKeys.RedoOnShiftChord(SubjectBox);
     }
 
     /// <summary>Binds the composer to a request and starts loading the editor. <paramref name="onDone"/>

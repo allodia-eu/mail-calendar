@@ -81,6 +81,16 @@ describe("undo and redo", () => {
     expect(e.history.redo()).toBe(false);
   });
 
+  test("say what there is to take back and to put back, for a host's own menu", async () => {
+    const e = editing("<p id=p>one</p>");
+    expect(e.history.steps()).toEqual({ undo: false, redo: false });
+    // Not yet delivered by the observer: a menu opened straight after a change still offers it.
+    e.editor.querySelector("#p")!.append(" two");
+    expect(e.history.steps()).toEqual({ undo: true, redo: false });
+    e.history.undo();
+    expect(e.history.steps()).toEqual({ undo: false, redo: true });
+  });
+
   test("a new change after an undo leaves nothing to redo", async () => {
     const e = editing("<p id=p>one</p>");
     e.editor.querySelector("#p")!.append(" two");

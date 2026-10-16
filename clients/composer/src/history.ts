@@ -56,6 +56,9 @@ interface Step {
 export interface History {
   undo(): boolean;
   redo(): boolean;
+  /// Whether there is a step to take back and one to put back, for a host that draws Undo and Redo
+  /// in a menu of its own and has to say whether each can be chosen.
+  steps(): { undo: boolean; redo: boolean };
   /// Marks the change just made as the editor's reading of `text` the user typed: undoing it puts
   /// back what they typed rather than what the editor made of it.
   typed(text: string): void;
@@ -277,6 +280,10 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
   const history: History = {
     undo: () => move(undone, redone),
     redo: () => move(redone, undone),
+    steps() {
+      flush();
+      return { undo: undone.length > 0, redo: redone.length > 0 };
+    },
     typed(text) {
       flush();
       const last = undone.at(-1);

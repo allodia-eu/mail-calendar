@@ -2263,6 +2263,10 @@
     const history = {
       undo: () => move(undone, redone),
       redo: () => move(redone, undone),
+      steps() {
+        flush();
+        return { undo: undone.length > 0, redo: redone.length > 0 };
+      },
       typed(text) {
         flush();
         const last = undone.at(-1);
@@ -4689,6 +4693,8 @@
   window.focusComposerBody = () => focusComposerBody(editor);
   window.setPlainText = (text) => history.restart(() => setPlainText(editor, text));
   window.setComposerBody = (seed) => history.restart(() => setComposerBody(editor, attachments, parsed(seed) ?? {}));
+  window.composerHistorySteps = () => JSON.stringify(history.steps());
+  window.stepComposerHistory = (step) => step === "undo" ? history.undo() : step === "redo" ? history.redo() : false;
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerHostRequests = (kinds) => hostRequests.setAnswered(kinds);

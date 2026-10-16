@@ -1,11 +1,12 @@
 # Undo and redo while writing
 
-Platforms: linux
+Platforms: linux, windows
 Bump: minor
 
 > The composer's body keeps its own history in the shared bundle (`history.ts`) rather than the
-> WebView's, so this reaches every platform's editor; the note is Linux's alone until the other
-> columns of `docs/undo.md` are verified. Linux's recipient fields keep a history per address.
+> WebView's, so this reaches every platform's editor; the note covers the columns of
+> `docs/undo.md` that are verified. Linux's and Windows' recipient fields keep a history per
+> address, and on Windows the right-click menus' Undo and Redo reach the same histories.
 
 **English**
 

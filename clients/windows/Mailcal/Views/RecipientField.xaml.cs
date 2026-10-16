@@ -55,8 +55,15 @@ public sealed partial class RecipientField : UserControl
     /// <summary>The whole field, comma-separated, the composer's source of truth.</summary>
     private string _text = string.Empty;
 
-    /// <summary>Suppresses the edit handler while the input is being re-seeded programmatically.</summary>
-    private bool _settingInput;
+    /// <summary>What the input holds as far as the field has accounted for it.</summary>
+    /// <remarks>
+    /// <c>TextChanged</c> is raised asynchronously, after the write has returned, and two writes in
+    /// quick succession (a held Ctrl+Z) can both report after the second. So a change is the user's
+    /// only when the input holds something other than this. Left unrecognised, the field's own write
+    /// reads as a keystroke: the field files it in its history, which clears what there was to redo,
+    /// and costs an undo that changes nothing on screen.
+    /// </remarks>
+    private string _accounted = string.Empty;
 
     /// <summary>
     /// Bumped on every change of the token, so a debounced query whose token has been superseded
@@ -70,6 +77,7 @@ public sealed partial class RecipientField : UserControl
         this.InitializeComponent();
         Pills.ItemsSource = _pills;
         SuggestionList.ItemsSource = _matches;
+        InstallHistory();
         // A Popup lives in its own layer, rooted at the XamlRoot rather than at this control, so
         // it does NOT go away with the composer that owned it. Close it explicitly, or a draft
         // cancelled with the list open leaves it floating over the reading pane.
@@ -136,10 +144,18 @@ public sealed partial class RecipientField : UserControl
     /// The whole field as one comma-separated string, what the send path parses. Setting it
     /// re-renders the pills and the token; reading it gives exactly what is on screen.
     /// </summary>
+    /// <remarks>
+    /// A value set here comes from outside the field (a reply's recipients), so the field's history
+    /// starts again from it: it is where undo stops, not a step.
+    /// </remarks>
     public string Text
     {
         get => _text;
-        set => Apply(value);
+        set
+        {
+            Show(value);
+            _history.Restart(_text);
+        }
     }
 
     /// <summary>
@@ -163,9 +179,23 @@ public sealed partial class RecipientField : UserControl
     /// </summary>
     public event EventHandler? Submitted;
 
-    // The one place the field's value moves. Everything else, a keystroke, an accepted suggestion,
-    // a removed pill, computes the new string with RecipientTokens and comes through here.
-    private void Apply(string value)
+    // The one place the user changes the field. A keystroke, an accepted suggestion and a removed
+    // pill all compute the new string with RecipientTokens and come through here, and each is filed
+    // in the history as it goes; `typed` is a keystroke in the input.
+    private void Change(string value, bool typed)
+    {
+        if (_text == value)
+        {
+            return;
+        }
+        _history.Record(value, typed);
+        Show(value);
+    }
+
+    // Puts `value` on screen and tells the composer. A history step does not `suggest`: it is not
+    // the user typing, and a list opening over Cc for a token they did not just type covers it for
+    // nothing.
+    private void Show(string value, bool suggest = true)
     {
         if (_text == value)
         {
@@ -182,33 +212,48 @@ public sealed partial class RecipientField : UserControl
         var token = RecipientTokens.CurrentToken(_text);
         if (Input.Text.Trim() != token)
         {
-            _settingInput = true;
+            _accounted = token;
             Input.Text = token;
             // The caret goes to the end after any programmatic change (docs/contacts.md §4).
             Input.SelectionStart = Input.Text.Length;
-            _settingInput = false;
+            Input.ClearUndoRedoHistory();
         }
 
         RecipientsChanged?.Invoke(this, EventArgs.Empty);
-        _ = QuerySuggestionsAsync(token, ++_generation);
+        if (suggest)
+        {
+            _ = QuerySuggestionsAsync(token, ++_generation);
+        }
+        else
+        {
+            _generation++;
+            SuggestionPopup.IsOpen = false;
+        }
     }
 
     private void OnInputChanged(object sender, TextChangedEventArgs e)
     {
-        if (_settingInput)
+        if (Input.Text == _accounted)
         {
             return;
         }
+        _accounted = Input.Text;
+        // The field keeps the history, so the input's own is emptied as it fills: what it holds is
+        // only the address being typed, and its undo would type a finished one back in.
+        Input.ClearUndoRedoHistory();
         // Only the trailing token is the user's to edit; the recipients already finished are carried
         // over verbatim rather than re-parsed out of the box.
-        Apply(RecipientTokens.FieldText(RecipientTokens.Committed(_text), Input.Text));
+        Change(RecipientTokens.FieldText(RecipientTokens.Committed(_text), Input.Text), typed: true);
     }
 
+    // The caret goes back to the input: the button that was pressed is gone with its pill, and the
+    // chord that brings the recipient back is heard only there.
     private void OnRemoveRecipient(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: int index })
         {
-            Apply(RecipientTokens.Remove(_text, index));
+            Change(RecipientTokens.Remove(_text, index), typed: false);
+            Input.Focus(FocusState.Programmatic);
         }
     }
 
@@ -266,7 +311,7 @@ public sealed partial class RecipientField : UserControl
         // The address goes in BARE, not as `Name <address>`: the core parses addresses, a display
         // name adds nothing it uses, and a name containing a comma would split into two invalid
         // recipients, which the user would not discover until the send failed.
-        Apply(RecipientTokens.Accept(_text, match.Email));
+        Change(RecipientTokens.Accept(_text, match.Email), typed: false);
         Input.Focus(FocusState.Programmatic);
     }
 

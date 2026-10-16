@@ -188,6 +188,8 @@ declare global {
     answerComposerRequest: (id: unknown, answer: unknown) => void;
     composerDocument: () => string;
     composerRevision: () => number;
+    composerHistorySteps: () => string;
+    stepComposerHistory: (step: unknown) => boolean;
   }
 }
 
@@ -236,6 +238,12 @@ window.focusComposerBody = () => focusComposerBody(editor);
 window.setPlainText = (text) => history.restart(() => setPlainText(editor, text));
 window.setComposerBody = (seed) =>
   history.restart(() => setComposerBody(editor, attachments, parsed<BodySeed>(seed) ?? {}));
+/// The body's history for a host whose right-click menu carries Undo and Redo (Windows): the
+/// WebView's own items would read the engine's stack, which this editor never uses
+/// (`docs/undo.md` rule 3), so the host draws them and asks here.
+window.composerHistorySteps = () => JSON.stringify(history.steps());
+window.stepComposerHistory = (step) =>
+  step === "undo" ? history.undo() : step === "redo" ? history.redo() : false;
 window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 

@@ -2,6 +2,7 @@
 // address is completed and checked by the core as it is typed (ComposerLinkAddress), the same rule
 // the answer is held to, so Apply is enabled exactly when the link can be made.
 
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -27,6 +28,8 @@ internal static class LinkDialog
             InputScope = urlScope,
             IsSpellCheckEnabled = false,
         };
+        HistoryKeys.RedoOnShiftChord(text);
+        HistoryKeys.RedoOnShiftChord(address);
         var hint = new InfoBar
         {
             Message = L10n.EditorLinkInvalid(),

@@ -294,14 +294,22 @@ port:
     WebView ships a default menu built for browsing, and the composer must not offer what is on it:
     opening a link (navigation is blocked, so the item would silently do nothing), downloading one,
     reloading the document, and the web inspector. Each host therefore **filters its own menu** down
-    to the editing actions: **Cut, Copy, Paste**, **Copy link** when the click landed on one, and
+    to the editing actions: **Cut, Copy, Paste**, **Copy link** when the click landed on one,
     **Select All** where the platform's own menu carries it (Windows and Linux; macOS and the iOS
-    edit menu do not).
+    edit menu do not), and **Undo and Redo** where the platform's own text fields carry them in
+    this menu (Windows; [`undo.md`](undo.md) rule 2).
 
     Filtering rather than drawing our own is deliberate: each surviving item keeps the platform's
     label, keyboard equivalent and behaviour, so it is already in the user's language and does what
     that platform's users expect. The bundle draws no menu of its own, and a page-level menu could
     not reach the clipboard anyway.
+
+    ⚠️ **Undo and Redo are the host's, on Windows only.** WebView2's own items read the engine's
+    undo stack, which the editor never uses ([`undo.md`](undo.md) rule 3): its Redo is never
+    enabled and its Undo is enabled with nothing to take back. Each is replaced in its own place by
+    an item under the stock item's label, enabled from `composerHistorySteps()` and running
+    `stepComposerHistory`, so it reaches the same history as the chords. A custom item cannot carry
+    WebView2's shortcut text, so these two show none.
 
     ⚠️ **One item is not the platform's, on Linux only: Paste.** Gate 13 has the host read the
     clipboard there, which means knowing the user chose Paste, and the stock item cannot say so:
@@ -423,7 +431,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 | Picture resized by dragging a corner | shared bundle (`installImageResize`), Pointer Events for mouse, trackpad, pen and finger alike | (same: shared bundle) | (same: shared bundle) | (same: shared bundle) |
 | Dropped file → native attachment | `ComposerDropModifier` for the chrome **plus** a drop target on `EditorWebView` for the editor itself, both calling one handler: SwiftUI hit-tests its own tree, so a representable's rectangle is a hole in it and the chrome alone would take drops. `NSDraggingDestination` on macOS; `UIDropInteraction` on iPhone/iPad, which also **stages** each item to a file, a drop there carrying an `NSItemProvider` and never a path | Compose `dragAndDropTarget` + `requestDragAndDropPermissions`, staged to the app cache | `AllowDrop` on the composer grid, `StorageItems` from the data package | `GtkDropTarget` on the composer content, **capture** phase (the WebView installs one of its own) |
 | Dropped picture asks show-or-attach | `confirmationDialog` | Material `AlertDialog` | `ContentDialog` (three answers) | `AdwAlertDialog`; a **pasted** picture is not asked about, because a paste is aimed at the caret and has already answered (Gate 13) |
-| Right-click menu filtered to the editing actions | macOS: `EditorWebView.willOpenMenu` keeps the four `WKMenuItemIdentifier`s and `validRequestor` answers `nil` to keep Services off (AppKit's AutoFill survives both: see "Known gaps"); iPhone/iPad get the system edit menu, which carries the editing actions but **no link item at all** (see "Known gaps") | selection bar for Cut/Copy/Paste; `installEditorLinkMenu` adds Copy link on a long press | `ContextMenuRequested` keeps `cut`/`copy`/`paste`/`selectAll`/`copyLinkLocation` | `connect_context_menu` rebuilds it from the stock `ContextMenuAction`s, **except Paste**, which is the app's own so the host can read a picture off the clipboard (Gate 13) |
+| Right-click menu filtered to the editing actions | macOS: `EditorWebView.willOpenMenu` keeps the four `WKMenuItemIdentifier`s and `validRequestor` answers `nil` to keep Services off (AppKit's AutoFill survives both: see "Known gaps"); iPhone/iPad get the system edit menu, which carries the editing actions but **no link item at all** (see "Known gaps") | selection bar for Cut/Copy/Paste; `installEditorLinkMenu` adds Copy link on a long press | `ContextMenuRequested` keeps `cut`/`copy`/`paste`/`selectAll`/`copyLinkLocation` and replaces `undo`/`redo` with items over the bundle's history (`EditorMenu`) | `connect_context_menu` rebuilds it from the stock `ContextMenuAction`s, **except Paste**, which is the app's own so the host can read a picture off the clipboard (Gate 13) |
 | Editor chrome localised | shared catalog via `setComposerLabels` (`ComposerLabels.swift`), in the composer **and** the signature editor | shared catalog via `setComposerLabels` | shared catalog via `setComposerLabels` (`ComposerLabels.cs`), in the composer **and** the signature editor | shared catalog via `setComposerLabels` |
 | Rust canonical output | send through `submit_composition`, regular file attachments included; use `render_composer_document_json` for preview when needed | send through `submit_composition`, regular file attachments included; use `render_composer_document_json` for preview when needed | send through `submit_composition`, regular file attachments included; use `render_composer_document_json` for preview when needed | sends through `submit_composition`; selected files are native metadata, never WebKit uploads |
 | No body-content logging | lengths/counts only | lengths/counts only | lengths/counts only | no composer body is logged |

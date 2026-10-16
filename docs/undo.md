@@ -37,6 +37,10 @@ for every kind of change.
    - An Undo the engine runs from a menu or a gesture arrives as `beforeinput` with `historyUndo` or
      `historyRedo`, is cancelled, and is answered from the same history. A host whose platform
      offers such an entry point (rule 2) routes it there.
+   - A host whose menu item reads the engine's stack to decide whether it can be chosen draws its
+     own in its place instead, asking `composerHistorySteps()` and running `stepComposerHistory`.
+     WebView2's right-click Redo is never enabled otherwise, because the engine never undid
+     anything ([`composer-security.md`](composer-security.md), Gate 14).
 
 4. **A step in the body is one change, however it was made.** A toolbar command, a paste, a picture
    inserted or dropped, a list indented, a table inserted, a cell moved to, a link made or removed:
@@ -74,7 +78,8 @@ for every kind of change.
    recipients) starts its history there.
 
 10. **Subject and every other plain text field use the platform's own history.** The toolkit's
-    text field already meets rules 1 and 2.
+    text field already meets rules 1 and 2, except a Windows `TextBox`, which redoes on Ctrl+Y and
+    not on Shift+Ctrl+Z: that one chord is added over the box's own history.
 
 11. **A history lasts as long as its composer.** Sending, discarding and closing the composer end
     it. It is never stored, and a draft reopened later starts afresh (rule 7).
@@ -86,20 +91,22 @@ never a resting state.
 
 | Rule | macOS | iPhone, iPad | Windows | Android | Linux |
 |---|---|---|---|---|---|
-| Body: the chords (rules 2 to 6) | shared bundle; not yet run | shared bundle, with a keyboard; not yet run | shared bundle; not yet run | shared bundle; Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y verified on a Galaxy Note 20 with a Bluetooth keyboard | shared bundle; nothing in GTK binds the chords ahead of the web view, which delivers them to the page (verified by hand on a real keyboard: typing, a pause, bold, a `- ` bullet, a link, a paste, a list, a table) |
-| Body: the platform's other entry points (rule 2) | the Edit menu's Undo and Redo, through `historyUndo`; not yet run | shake to undo, the three-finger gestures and the shortcut bar, through `historyUndo`; not yet run | not yet: the right-click menu's Undo and Redo, which Gate 14's filter keeps out today | none: Android's text fields offer no Undo outside a keyboard | none: GTK's text fields offer no Undo in their menu |
-| Recipient fields (rule 9) | not yet checked | not yet checked | not yet checked | `RecipientHistory`, answered in the field's `onPreviewKeyEvent` ahead of the input's own; held by `RecipientHistoryTest` and `RecipientUndoTest`, and verified on a Galaxy Note 20 with a Bluetooth keyboard | `recipients::history`, the entry's own undo off (`set_enable_undo(false)`); held by the crate's GTK tests |
-| Subject and other plain fields (rule 10) | `NSTextField` | `UITextField` | `TextBox` | Compose's `TextField`, whose own history answers all three chords (verified on a Galaxy Note 20 with a Bluetooth keyboard) | `GtkEntry`, whose own bindings include Shift+Ctrl+Z and Ctrl+Y (verified on a real keyboard) |
+| Body: the chords (rules 2 to 6) | shared bundle; not yet run | shared bundle, with a keyboard; not yet run | shared bundle; WebView2 delivers the chords to the page (verified by hand: typing, a pause, bold, a `- ` bullet, a link, a paste, a list, a table; Ctrl+Z, Ctrl+Y and Shift+Ctrl+Z held by `ComposerUndo.Tests`) | shared bundle; Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y verified on a Galaxy Note 20 with a Bluetooth keyboard | shared bundle; nothing in GTK binds the chords ahead of the web view, which delivers them to the page (verified by hand on a real keyboard: typing, a pause, bold, a `- ` bullet, a link, a paste, a list, a table) |
+| Body: the platform's other entry points (rule 2) | the Edit menu's Undo and Redo, through `historyUndo`; not yet run | shake to undo, the three-finger gestures and the shortcut bar, through `historyUndo`; not yet run | the right-click menu's Undo and Redo, drawn by the host over the bundle's history (`EditorMenu`; held by `ComposerUndo.Tests`) | none: Android's text fields offer no Undo outside a keyboard | none: GTK's text fields offer no Undo in their menu |
+| Recipient fields (rule 9) | not yet checked | not yet checked | `RecipientHistory`, answered in the input's `PreviewKeyDown` ahead of the `TextBox`'s own, whose history is emptied as it fills; Undo and Redo in the input's right-click menu are the field's; held by `RecipientHistoryTests` and `ComposerUndo.Tests` | `RecipientHistory`, answered in the field's `onPreviewKeyEvent` ahead of the input's own; held by `RecipientHistoryTest` and `RecipientUndoTest`, and verified on a Galaxy Note 20 with a Bluetooth keyboard | `recipients::history`, the entry's own undo off (`set_enable_undo(false)`); held by the crate's GTK tests |
+| Subject and other plain fields (rule 10) | `NSTextField` | `UITextField` | `TextBox`, plus Shift+Ctrl+Z (`HistoryKeys.RedoOnShiftChord`; held by `ComposerUndo.Tests`) | Compose's `TextField`, whose own history answers all three chords (verified on a Galaxy Note 20 with a Bluetooth keyboard) | `GtkEntry`, whose own bindings include Shift+Ctrl+Z and Ctrl+Y (verified on a real keyboard) |
 
 ## Enforcement
 
 - `clients/composer/tests/history.test.ts` holds rules 3 to 8 for the body, against the real
   editing commands.
-- Rule 9's step boundaries are held by `clients/linux/src/ui/recipients/history.rs` and Android's
-  `RecipientHistoryTest`, and on the widget, chords included, by Linux's
-  `recipients/field_tests.rs` and Android's `RecipientUndoTest`.
-- Nothing checks that a host leaves the chords to the page; that is verified by hand, on Linux in
-  the headless session (`build-and-run.sh --headless`, then `control.sh linux key ctrl+z`).
+- Rule 9's step boundaries are held by `clients/linux/src/ui/recipients/history.rs`, Android's
+  `RecipientHistoryTest` and Windows' `RecipientHistoryTests`, and on the widget, chords included,
+  by Linux's `recipients/field_tests.rs`, Android's `RecipientUndoTest` and Windows'
+  `uitests/ComposerUndo.Tests.ps1`, which also holds the Windows right-click menus.
+- That a host leaves the chords to the page is held on Windows by `ComposerUndo.Tests`, which types
+  into the body and reads it back through UI Automation. Elsewhere it is verified by hand, on Linux
+  in the headless session (`build-and-run.sh --headless`, then `control.sh linux key ctrl+z`).
   ⚠️ That session's synthetic keyboard does not trigger GTK's own Shift+Ctrl+Z in a plain
   `GtkEntry`, although the binding is in GTK's table and Ctrl+Y does; a Subject that will not redo
   there is the harness, not the field. On a real keyboard Subject redoes with both.

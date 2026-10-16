@@ -27,6 +27,9 @@ namespace Allodia.Mailcal.Services;
 /// </summary>
 internal sealed class EditorWebViewHost
 {
+    // How long the right-click menu waits for the page to say what there is to undo and redo.
+    private static readonly TimeSpan HistoryAnswerTimeout = TimeSpan.FromMilliseconds(300);
+
     private readonly WebView2 _view;
     private Task? _init;
 
@@ -139,29 +142,79 @@ internal sealed class EditorWebViewHost
         core.WebResourceRequested += OnWebResourceRequested;
     }
 
-    /// The commands the editor's right-click menu offers, by WebView2's own command name. Every
-    /// client offers the same set (docs/composer-security.md, Gate 14); the labels are the
-    /// platform's own, so they are already in the user's language.
-    ///
-    /// **The link item is the one that has to be here.** A link inside a quoted original cannot be
-    /// clicked open in the composer (navigation is blocked), so without a way to copy its address
-    /// it is text the user can see and not use.
-    private static readonly HashSet<string> EditorMenuCommands =
-        new(StringComparer.Ordinal) { "cut", "copy", "paste", "selectAll", "copyLinkLocation" };
-
     // WebView2's default menu carries items this composer must not offer: opening a link,
     // saving one, reloading the document, and Inspect Element. Filtering rather than replacing
-    // keeps each remaining item the platform's, with its own label and accelerator.
+    // keeps each remaining item the platform's, with its own label and accelerator. Undo and Redo
+    // are the exception (EditorMenu.Classify says why): each is replaced in its own place.
     private static void OnContextMenuRequested(
         CoreWebView2 sender,
         CoreWebView2ContextMenuRequestedEventArgs args)
     {
-        for (var index = args.MenuItems.Count - 1; index >= 0; index--)
+        var items = args.MenuItems;
+        var history = new List<(int At, HistoryStep Step, string Label)>();
+        var kept = 0;
+        for (var index = 0; index < items.Count;)
         {
-            if (!EditorMenuCommands.Contains(args.MenuItems[index].Name))
+            var name = items[index].Name;
+            if (EditorMenu.Keeps(name))
             {
-                args.MenuItems.RemoveAt(index);
+                kept++;
+                index++;
+                continue;
             }
+            if (EditorMenu.Step(name) is { } step)
+            {
+                history.Add((kept + history.Count, step, items[index].Label));
+            }
+            items.RemoveAt(index);
+        }
+        if (history.Count > 0)
+        {
+            _ = AddHistoryItemsAsync(sender, items, history, args.GetDeferral());
+        }
+    }
+
+    // The menu waits on the deferral, so the page is asked what there is to undo before it opens.
+    // A page too busy to answer in time gets both items disabled rather than a menu that never opens.
+    private static async Task AddHistoryItemsAsync(
+        CoreWebView2 sender,
+        IList<CoreWebView2ContextMenuItem> items,
+        List<(int At, HistoryStep Step, string Label)> history,
+        Windows.Foundation.Deferral deferral)
+    {
+        try
+        {
+            var asked = sender.ExecuteScriptAsync("window.composerHistorySteps?.()").AsTask();
+            var answered = await Task.WhenAny(asked, Task.Delay(HistoryAnswerTimeout)) == asked;
+            var steps = EditorMenu.ParseSteps(answered ? await asked : null);
+            foreach (var (at, step, label) in history)
+            {
+                var item = sender.Environment.CreateContextMenuItem(label, null, CoreWebView2ContextMenuItemKind.Command);
+                item.IsEnabled = steps.Contains(step);
+                item.CustomItemSelected += (_, _) => _ = StepHistoryAsync(sender, step);
+                items.Insert(Math.Min(at, items.Count), item);
+            }
+        }
+        catch (Exception ex)
+        {
+            // A menu without Undo and Redo is still a menu; one held open forever is not.
+            Log.Warn($"editor: history menu items ({ex.GetType().Name})");
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
+    private static async Task StepHistoryAsync(CoreWebView2 sender, HistoryStep step)
+    {
+        try
+        {
+            await sender.ExecuteScriptAsync(EditorMenu.Script(step));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"editor: {step} from the menu ({ex.GetType().Name})");
         }
     }
 

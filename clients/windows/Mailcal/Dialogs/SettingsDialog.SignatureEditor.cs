@@ -12,6 +12,7 @@
 // rewrites to a `cid:` part on send, because Outlook's reader blocks `data:` images.
 
 using Allodia.Mailcal.Services;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Windows.Storage.Pickers;
@@ -56,6 +57,7 @@ public sealed partial class SettingsDialog
             HorizontalAlignment = HorizontalAlignment.Left,
         };
         nameBox.TextChanged += (_, _) => save.IsEnabled = !string.IsNullOrWhiteSpace(nameBox.Text);
+        HistoryKeys.RedoOnShiftChord(nameBox);
         panel.Children.Add(nameBox);
 
         panel.Children.Add(new TextBlock
