@@ -121,6 +121,11 @@ function Start-NotificationActivation {
   $exe = (Get-Process Mailcal -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1).Path
   if (-not $exe) { throw 'the client is not running, so there is no build to launch a second copy of' }
+  # How the running app's own registration went, read now, because the launch under test dies
+  # before it can log. A failfast with "could not register" here is the platform refusing the
+  # registration rather than the ordering being wrong.
+  $script:RegistrationLine = ((Get-AppLogNewestSession) -split "`n" |
+    Where-Object { $_ -match 'notifications: (registered|could not register)' } | Select-Object -Last 1)
   # ⚠️ THE APP HAS TO GO FIRST, or this suite is a gate that cannot fail. The failfast happens only
   # when NO process has the notification platform up: a running instance has registered it, and a
   # second process then reads its activation perfectly happily, on the broken build as well as the
@@ -159,7 +164,8 @@ $Suite = @{
         Assert-True ($exit -ne $FailFast) ((
             'a launch activated from a notification died with 0x{0:X8}. The notification platform ' +
             'is not registered before the activation is read, so every click that STARTS the app ' +
-            'kills it instead, silently: no log, no window (docs/client-traps.md).') -f $exit)
+            'kills it instead, silently: no log, no window (docs/client-traps.md). The running ' +
+            'app had logged: {1}') -f $exit, $(if ($script:RegistrationLine) { $script:RegistrationLine.Trim() } else { 'no registration line' }))
       }
     }
   )
