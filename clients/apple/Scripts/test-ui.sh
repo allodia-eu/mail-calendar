@@ -113,10 +113,10 @@ info "building $TARGET"
 xcodebuild build-for-testing "${ARGS[@]}"
 
 if [[ "$ON_DEVICE" -eq 0 ]]; then
-  # The keyboard switch below, compiled before the boot rather than by `xcrun swift` after it. On
-  # a fresh runner that compile builds Foundation's module cache from nothing while the new
-  # device's daemons hold the cores, and took 143s against the boot's 36s. Kept in the build
-  # directory by the source's hash, so CI's cache of that directory carries it to the next run.
+  # The keyboard switch below, compiled before the boot rather than by `xcrun swift` after it,
+  # when the new device's daemons hold a runner's three cores: there the step took 143s, against
+  # 3s to compile beforehand and 45s to run, which is the device finishing its boot. Kept in the
+  # build directory by the source's hash, so CI's cache of that directory carries it forward.
   KEYBOARD_TOOL="$HERE/build/tools/sim-keyboard-$(shasum -a 256 "$ROOT/scripts/dev/sim-keyboard.swift" | cut -c1-16)"
   if [[ ! -x "$KEYBOARD_TOOL" ]]; then
     t0=$SECONDS
