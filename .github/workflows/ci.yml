@@ -584,8 +584,9 @@ jobs:
       # Measured, against the macOS leg as the control, which boots nothing: started before these
       # steps, the DerivedData restore and the rustup install went from 1s and 10s to 105-152s and
       # 129-136s; started after them, this core build went from 63s for two slices to 242s for one.
-      # Caching a booted device is no way round it either: its second boot cost as much CPU as its
-      # first (~450 CPU-seconds in two minutes on an M2), and the device is 1.9 GB by then.
+      # A warm device (warm-simulator.sh, below) is no way round it either: it skips the first
+      # boot's migration, but every boot still starts ~230 daemons, ~400 CPU-seconds in three
+      # minutes on an M2 against ~620 for a cold one.
       - name: Build the Rust core -> XCFramework + bindings
         run: ./clients/apple/Scripts/build-core.sh --slices ${{ matrix.slice }}
 
@@ -632,6 +633,34 @@ jobs:
             -destination 'platform=macOS' -configuration Debug \
             -derivedDataPath build/DerivedData -quiet COMPILER_INDEX_STORE_ENABLE=NO build
           MAILCAL_DEMO=1 ./build/DerivedData/Build/Products/Debug/MailcalVerify
+
+      # A simulator that has booted before, so the UI suite below does not wait out a first boot
+      # (clients/apple/Scripts/warm-simulator.sh says what that saves, and what it cannot). The
+      # snapshot is one ~1 GB entry per Xcode build, runtime build and device type, so it is
+      # written once per image, not once per run; a miss boots cold and keeps the result.
+      - name: Choose the UI suite's simulator
+        if: matrix.platform == 'ios'
+        id: warm-sim
+        run: clients/apple/Scripts/warm-simulator.sh key >> "$GITHUB_OUTPUT"
+
+      - name: Restore the warm simulator
+        if: matrix.platform == 'ios'
+        id: warm-sim-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/warm-simulator
+          key: ${{ steps.warm-sim.outputs.key }}
+
+      - name: Seed the simulator, or warm one
+        if: matrix.platform == 'ios'
+        run: clients/apple/Scripts/warm-simulator.sh prepare "$RUNNER_TEMP/warm-simulator" >> "$GITHUB_ENV"
+
+      - name: Save the warm simulator
+        if: matrix.platform == 'ios' && steps.warm-sim-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/warm-simulator
+          key: ${{ steps.warm-sim.outputs.key }}
 
       # The UI suite (clients/apple/UITests), on a simulator the script boots once the app is
       # built. Every test drives the in-memory showcase dataset, so this needs no Docker harness, no

@@ -232,6 +232,19 @@ booted_sim_udid() {
   return 1
 }
 
+# The first available iPhone simulator, newest name last so a runner picks the newest it was given.
+# By family rather than by name: this has to work on a GitHub runner, whose installed set is
+# whatever that image shipped with, and a hardcoded model is a gate that stops running the day the
+# image moves.
+first_iphone_sim() {
+  local uuid name state pick=""
+  while IFS=$'\t' read -r uuid name state; do
+    [[ "$name" == *iPhone* ]] && pick="$uuid"
+  done < <(list_available_simulators)
+  [[ -n "$pick" ]] || return 1
+  printf '%s\n' "$pick"
+}
+
 # The data-container path of the installed app on simulator <udid> (holds its log under
 # Library/Application Support/mailcal). Empty if the app isn't installed yet.
 sim_app_container() {
