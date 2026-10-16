@@ -478,6 +478,30 @@ function Get-MailRows {
 
 <#
 .SYNOPSIS
+Scrolls $Element into its list's view, as a person scrolls to a row before pressing it.
+.DESCRIPTION
+A list builds rows ahead of the ones it shows, so a lookup can hand back a row below the fold: in
+the tree, with bounds, and nowhere a press can land (Get-WinappSelector refuses it). How many rows
+fit depends on the display, so a case that passes on one screen fails on a shorter one. Scrolled
+through the nearest ScrollItemPattern, the element's own or its row's, since the element a case
+presses is often a text inside the row. Does nothing for an element no list holds.
+#>
+function Show-UiaElement {
+  param([Parameter(Mandatory, Position = 0)] [object] $Element)
+  $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+  $root = [System.Windows.Automation.AutomationElement]::RootElement
+  for ($node = $Element; $node -and $node -ne $root; $node = $walker.GetParent($node)) {
+    $pattern = $null
+    if ($node.TryGetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern, [ref] $pattern)) {
+      $pattern.ScrollIntoView()
+      Start-Sleep -Milliseconds 300
+      return
+    }
+  }
+}
+
+<#
+.SYNOPSIS
 The Settings dialog if it is already open, else $null. Never opens it.
 .DESCRIPTION
 The passive half of Get-SettingsDialog, for a caller that wants to ASSERT on whether Settings is

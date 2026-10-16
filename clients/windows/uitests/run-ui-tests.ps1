@@ -198,16 +198,23 @@ function Assert-GreaterThan {
 
 <#
 .SYNOPSIS
-The message row whose subject matches -Title (wildcards allowed), or throws naming what IS there.
+The message row whose subject matches -Title (wildcards allowed), scrolled into view, or throws
+naming what IS there.
 .DESCRIPTION
 Wildcards on purpose: a seeded subject can carry an em dash or a colon, and matching those exactly
 turns a text-encoding difference into a mystifying "row not found".
+
+Scrolled into view because the row is what a case presses next, and the list holds rows below the
+fold that no press can reach (Show-UiaElement).
 #>
 function Get-MailRowByTitle {
   param([Parameter(Mandatory)] [string] $Title)
   $rows = Get-MailRows
   foreach ($row in $rows) {
-    if (Get-UiaTree $row | Where-Object { $_.Current.Name -like $Title }) { return $row }
+    if (Get-UiaTree $row | Where-Object { $_.Current.Name -like $Title }) {
+      Show-UiaElement $row
+      return $row
+    }
   }
   $seen = ($rows | ForEach-Object { (Get-UiaTree $_ | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Text } | Select-Object -First 1).Current.Name }) -join ' | '
   throw "no message row matching '$Title'. The list holds: $seen"
