@@ -88,7 +88,9 @@ pass exists precisely to report mail that arrived while nobody was looking.
   then resolve it against the list on screen first, so a message in view opens where it is without
   moving the mailbox off the folder the person left it on; only a message the list
   does not hold moves the mailbox to that message's account, and then for exactly **one** snapshot,
-  after which the click is dropped rather than dragging the view back on every later snapshot.
+  after which the click is dropped rather than dragging the view back on every later snapshot. A
+  click that **starts** the app reaches it before the core has opened, with no list to look in and
+  no account to move to, so it waits, unspent, until the core is there.
   Android opens the named message straight away instead, because its reading screen replaces the
   list rather than sitting beside it, so there is no place in the list to keep; until the list has
   the row, the header takes the subject and the sender from the reading snapshot, which carries
@@ -138,7 +140,7 @@ pass exists precisely to report mail that arrived while nobody was looking.
 | Core call | `collect_cached_new_mail` after the live runtime publishes `MailboxList` | `collect_cached_new_mail` after the live runtime publishes `MailboxList` | `collect_cached_new_mail` after the live runtime publishes `MailboxList` | `run_background_sync`: **reuses the live core** while the process is alive (weak `MailcalApplication.liveCore`), else a headless core built for the run | `run_background_sync`: **reuses the live core** while the app is resident (weak `LiveCore.shared`), else a headless core built for the run |
 | Budget | n/a (no network pass) | n/a (no network pass) | n/a (no network pass) | `120 s` (worker), well under the ~10-min cap | `25 s`, under iOS's ~30 s grant |
 | Skips when foregrounded | n/a (desktop live runtime) | n/a (desktop live runtime) | n/a (desktop live runtime) | Yes: defers to the live runtime (`MailcalApplication.isForeground`) | Naturally (iOS won't run it while active) |
-| Notifications | ✅ `UNUserNotificationCenter`, one per message by stable key (`identifier`), grouped per account (`threadIdentifier`); a summary covers previews beyond the cap; a click **opens the message** | ✅ `AppNotificationManager` (Windows App SDK), one per message by stable key (`Tag`), grouped per account (`Group`); a summary covers previews beyond the cap; a click **opens the message** | ✅ desktop portal (`ashpd`), one per message by stable key; a summary covers previews beyond the cap; a click **opens the message** | `NotificationCompat` "New mail" channel, one **per message** (grouped per account + summary), `POST_NOTIFICATIONS`; a tap **opens the message** | ✅ `UNUserNotificationCenter`, one **per message** (grouped per account via `threadIdentifier`), `requestAuthorization`; a summary covers previews beyond the cap; a tap **opens the message** |
+| Notifications | ✅ `UNUserNotificationCenter`, one per message by account and key (`identifier`), grouped per account (`threadIdentifier`); a summary covers previews beyond the cap; a click **opens the message** | ✅ `AppNotificationManager` (Windows App SDK), one per message by stable key (`Tag`), grouped per account (`Group`); a summary covers previews beyond the cap; a click **opens the message** | ✅ desktop portal (`ashpd`), one per message by stable key; a summary covers previews beyond the cap; a click **opens the message** | `NotificationCompat` "New mail" channel, one **per message** (grouped per account + summary), `POST_NOTIFICATIONS`; a tap **opens the message** | ✅ `UNUserNotificationCenter`, one **per message** by account and key (grouped per account via `threadIdentifier`), `requestAuthorization`; a summary covers previews beyond the cap; a tap **opens the message** |
 | Content | sender · subject · snippet, as the notification's title, subtitle and body | sender · subject · snippet, as the toast's three text elements | sender · subject and snippet sharing the portal's one body, on one line | sender · subject collapsed, the snippet on the expanded `BigTextStyle` | sender · account subtitle · subject and snippet sharing the body |
 | User toggle | Settings → Notifications (`NotificationPrefs`, UserDefaults) | Settings → Notifications (`NotificationPrefs`, a one-line file beside the language and log-level choices) | Settings → Notifications (`HostPreferences`) | Settings → "New-mail notifications" (`NotificationPrefs`, SharedPreferences) | Settings → "New-mail notifications" (`NotificationPrefs`, UserDefaults) |
 | Keeping its schedule | n/a (the process is always running) | n/a (the process is always running) | n/a (the process is always running) | Settings → "Background mail delivery" → **Allow** (`BatteryOptimization.kt`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`); shown only while not exempt. Without it Doze/OEM sleeping defer the pass by **hours** | Nothing to ask for: `BGTaskScheduler`'s cadence is entirely iOS's call |
@@ -236,17 +238,15 @@ port:
   for as long as the portal call hung ([`client-traps.md`](client-traps.md)). Windows's
   `NotificationClick` suite reads each notification it clicks from the shell's history, so a toast
   that never reached the shell fails it, but it does not assert the silence with the toggle off.
-- **Nothing drives an Apple notification from a test, and the iOS half is not even unit-tested.**
-  `NewMailNoticesTests` (MailcalKitTests) pins what a pass *says*, but that suite is plain
-  `swift test` on the **host**, so it compiles and exercises the projection's **macOS** branch
-  only; the iOS slot layout, its summary and its tap target compile for a platform the suite never
-  runs on. Neither platform's banner is reachable either way: `UNUserNotificationCenter` posts
-  outside the app's accessibility tree, so XCUITest cannot see it, and the OS suppresses one
-  raised while the app that posted it is frontmost. The `DEBUG` foreground presenter exists so a
-  dev run can see it at all, which makes the banner a **hand** check on both, on the same footing
-  as Windows's ([`debugging.md`](debugging.md)). Verified that way: a delivery into the watched
-  Inbox raised one notification carrying the sender, the subject and the snippet, advanced the
-  mark to it, and opened that message when clicked.
+- **Nothing drives an Apple notification from a test.** What a pass *says* is pinned per platform
+  (`NewMailNoticesTests` on the host, `NewMailNoticesIOSTests` on a simulator), and what a click
+  opens either side of the banner (Enforcement, item 4), but neither platform's banner is reachable:
+  `UNUserNotificationCenter` posts outside the app's accessibility tree, so XCUITest cannot see
+  it, and the OS suppresses one raised while the app that posted it is frontmost. The `DEBUG`
+  foreground presenter exists so a dev run can see it at all, which makes the banner a **hand**
+  check on both, on the same footing as Windows's ([`debugging.md`](debugging.md)). Verified that
+  way: a delivery into the watched Inbox raised one notification carrying the sender, the subject
+  and the snippet, advanced the mark to it, and opened that message when clicked.
 - **iOS app-group store is deferred.** `BGAppRefreshTask` runs in the main app process, so it needs
   no app group. A future push Notification-Service-Extension will need one. That, and the app-group
   store move it forces, land with the paid push add-on and real signing, since an app-group
@@ -300,6 +300,14 @@ When you change background delivery or new-mail notifications:
      a service file standing in for the Flatpak's. It asserts the reading pane opened the message.
    - **Android**: `NotificationOpenTest` takes the intent a tap would deliver from the posted
      notification and reads it back through the activity's own decoder.
+   - **Apple**: `NotificationOpenTests` (MailcalKitTests) reads the `userInfo` the notifier posts
+     back to the message it announced, and a summary's back to none, then drives the drain that
+     opens it: a message on a row of its own and one inside a conversation open, one the list
+     does not hold moves the mailbox to its account once and is then dropped, and one that
+     arrives before the core has opened waits for it.
+     `UNNotificationResponse` cannot be built outside the OS, so the click between the two halves
+     is a hand check. The suite runs on the host and, through `test-kit.sh --ios`, on an iOS
+     simulator in CI, because `swift test` never compiles the phone's branch.
    - **Windows**: `uitests/NotificationClick.Tests.ps1` reads the toast the app posted from the
      shell's notification history and calls the app's notification activator with its arguments,
      as the shell does on a click: over the calendar with the app running, over a composer, and

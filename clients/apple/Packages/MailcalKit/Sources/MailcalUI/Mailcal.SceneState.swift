@@ -209,36 +209,26 @@ extension ContentView {
     }
 
     private func restoreOpenedMessageIfVisible() {
-        _ = openMessageInList(account: sceneOpenedAccount, key: sceneOpenedKey)
+        if let listed = ListedMessage.find(
+            account: sceneOpenedAccount, key: sceneOpenedKey, in: model.rows
+        ) {
+            open(listed)
+        }
     }
 
-    /// Opens the message the list currently holds for `account`/`key`, expanding its conversation
-    /// first where it is one, and reports whether it was found.
+    /// Opens a message where the list holds it, expanding its conversation first where it is one.
     ///
     /// Shared by scene restoration and the notification deep link: both name a message by the pair
-    /// the core keys it on and neither can assume it is on screen, so a caller that needs it later
-    /// waits for another snapshot rather than opening the wrong thing now.
-    @discardableResult
-    func openMessageInList(account: String, key: String) -> Bool {
-        guard !account.isEmpty, !key.isEmpty else { return false }
-        for row in model.rows {
-            switch row {
-            case .flat(let message) where message.account == account && message.key == key:
-                open(message)
-                return true
-            case .thread(let thread):
-                if let message = thread.messages.first(where: {
-                    $0.account == account && $0.key == key
-                }) {
-                    expandedThreads.insert(threadKey(thread))
-                    openThreadMessage(thread, message)
-                    return true
-                }
-            default:
-                continue
-            }
+    /// the core keys it on and neither can assume it is on screen, so each finds it in the list
+    /// first rather than opening the wrong thing now.
+    func open(_ listed: ListedMessage) {
+        switch listed {
+        case .flat(let message):
+            open(message)
+        case .inThread(let thread, let message):
+            expandedThreads.insert(threadKey(thread))
+            openThreadMessage(thread, message)
         }
-        return false
     }
 
     private func captureVisibleSceneState() {

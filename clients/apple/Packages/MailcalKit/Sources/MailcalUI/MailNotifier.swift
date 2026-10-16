@@ -44,7 +44,7 @@ enum MailNotifier {
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
     }
 
-    /// Posts one notification PER MESSAGE, keyed by the message's stable provider key and grouped
+    /// Posts one notification PER MESSAGE, keyed by its account and provider key and grouped
     /// per account via `threadIdentifier`. Keying by message (not account) is deliberate: a later
     /// pass reports different messages, so its notifications never REPLACE an earlier still-unseen
     /// one, the high-water-mark advances past reported mail, so a clobbered notification would
@@ -61,7 +61,9 @@ enum MailNotifier {
         }
     }
 
-    private static func content(_ notice: NewMailNotice) -> UNMutableNotificationContent {
+    /// What the notification centre is handed for one notice. Internal so a test can read the
+    /// `userInfo` a click will deliver: `UNNotificationResponse` cannot be built outside the OS.
+    static func content(_ notice: NewMailNotice) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = notice.title
         content.subtitle = notice.subtitle
@@ -76,9 +78,9 @@ enum MailNotifier {
         return content
     }
 
-    /// The message a delivered notification names, or `nil` where it names none (a summary).
-    static func target(of notification: UNNotification) -> NewMailTarget? {
-        let info = notification.request.content.userInfo
+    /// The message a delivered notification's `userInfo` names, or `nil` where it names none (a
+    /// summary).
+    static func target(of info: [AnyHashable: Any]) -> NewMailTarget? {
         guard let account = info[NoticeKey.account] as? String, !account.isEmpty,
               let key = info[NoticeKey.message] as? String, !key.isEmpty
         else { return nil }
@@ -102,7 +104,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @u
         didReceive response: UNNotificationResponse
     ) async {
         guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
-              let target = MailNotifier.target(of: response.notification)
+              let target = MailNotifier.target(of: response.notification.request.content.userInfo)
         else { return }
         NotificationOpenInbox.put(target)
     }
