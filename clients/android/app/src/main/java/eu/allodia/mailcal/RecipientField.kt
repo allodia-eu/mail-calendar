@@ -51,6 +51,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.nativeKeyCode
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -180,6 +188,15 @@ internal fun RecipientField(
     // harmless while it sat in the layout, and covering live content the moment it floats.
     var focused by remember { mutableStateOf(false) }
 
+    // Undo and redo are the field's (`RecipientHistory`), and a value the composer set from
+    // outside, a reply's recipients, is where its history starts.
+    val history = remember { RecipientHistory(value) }
+    if (value != history.current) history.restart(value)
+    val change: (String, Boolean) -> Unit = { next, typed ->
+        history.record(next, typed)
+        onValue(next)
+    }
+
     // The caret. Held as a `TextFieldValue` so a programmatic rewrite can place it; re-seeded
     // whenever the token changes underneath us (a suggestion was accepted, a pill was removed, a
     // reply prefilled the field), always with the selection collapsed at the end.
@@ -207,7 +224,12 @@ internal fun RecipientField(
                 committed.forEachIndexed { index, recipient ->
                     InputChip(
                         selected = false,
-                        onClick = { onValue(removeRecipient(value, index)) },
+                        // The caret goes back to the input, where the chord that brings the
+                        // recipient back is heard.
+                        onClick = {
+                            change(removeRecipient(value, index), false)
+                            focusRequester.requestFocus()
+                        },
                         label = {
                             Text(recipient, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         },
@@ -231,12 +253,26 @@ internal fun RecipientField(
             value = input,
             onValueChange = { typed ->
                 input = typed
-                onValue(recipientFieldText(committed, typed.text))
+                change(recipientFieldText(committed, typed.text), true)
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("recipient-input-$label")
                 .onFocusChanged { focused = it.isFocused }
+                // Ahead of the input's own handling, which would otherwise take back only the
+                // address being typed, and nothing once it is a pill.
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    val step = historyStep(
+                        event.key.nativeKeyCode,
+                        ctrl = event.isCtrlPressed,
+                        shift = event.isShiftPressed,
+                        alt = event.isAltPressed,
+                    ) ?: return@onPreviewKeyEvent false
+                    val back = if (step == HistoryStep.Undo) history.undo() else history.redo()
+                    if (back != null) onValue(back)
+                    true
+                }
                 .focusRequester(focusRequester),
             singleLine = true,
             label = { Text(label) },
@@ -252,7 +288,7 @@ internal fun RecipientField(
         RecipientSuggestionList(
             field = value,
             suggestionsFor = suggestionsFor,
-            onAccept = onValue,
+            onAccept = { change(it, false) },
             fieldBounds = fieldBounds,
             window = windowBounds,
             focused = focused,

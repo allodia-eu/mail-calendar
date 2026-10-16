@@ -88,15 +88,16 @@ never a resting state.
 |---|---|---|---|---|---|
 | Body: the chords (rules 2 to 6) | shared bundle; not yet run | shared bundle, with a keyboard; not yet run | shared bundle; not yet run | shared bundle; Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y verified on a Galaxy Note 20 with a Bluetooth keyboard | shared bundle; nothing in GTK binds the chords ahead of the web view, which delivers them to the page (verified by hand on a real keyboard: typing, a pause, bold, a `- ` bullet, a link, a paste, a list, a table) |
 | Body: the platform's other entry points (rule 2) | the Edit menu's Undo and Redo, through `historyUndo`; not yet run | shake to undo, the three-finger gestures and the shortcut bar, through `historyUndo`; not yet run | not yet: the right-click menu's Undo and Redo, which Gate 14's filter keeps out today | none: Android's text fields offer no Undo outside a keyboard | none: GTK's text fields offer no Undo in their menu |
-| Recipient fields (rule 9) | not yet checked | not yet checked | not yet checked | not yet: Ctrl+Z after finishing an address does nothing on a Galaxy Note 20 | `recipients::history`, the entry's own undo off (`set_enable_undo(false)`); held by the crate's GTK tests |
-| Subject and other plain fields (rule 10) | `NSTextField` | `UITextField` | `TextBox` | `TextField` | `GtkEntry`, whose own bindings include Shift+Ctrl+Z and Ctrl+Y (verified on a real keyboard) |
+| Recipient fields (rule 9) | not yet checked | not yet checked | not yet checked | `RecipientHistory`, answered in the field's `onPreviewKeyEvent` ahead of the input's own; held by `RecipientHistoryTest` and `RecipientUndoTest`, and verified on a Galaxy Note 20 with a Bluetooth keyboard | `recipients::history`, the entry's own undo off (`set_enable_undo(false)`); held by the crate's GTK tests |
+| Subject and other plain fields (rule 10) | `NSTextField` | `UITextField` | `TextBox` | Compose's `TextField`, whose own history answers all three chords (verified on a Galaxy Note 20 with a Bluetooth keyboard) | `GtkEntry`, whose own bindings include Shift+Ctrl+Z and Ctrl+Y (verified on a real keyboard) |
 
 ## Enforcement
 
 - `clients/composer/tests/history.test.ts` holds rules 3 to 8 for the body, against the real
   editing commands.
-- `clients/linux/src/ui/recipients/history.rs` holds rule 9's step boundaries, and
-  `recipients/field_tests.rs` holds it on the widget, chords included.
+- Rule 9's step boundaries are held by `clients/linux/src/ui/recipients/history.rs` and Android's
+  `RecipientHistoryTest`, and on the widget, chords included, by Linux's
+  `recipients/field_tests.rs` and Android's `RecipientUndoTest`.
 - Nothing checks that a host leaves the chords to the page; that is verified by hand, on Linux in
   the headless session (`build-and-run.sh --headless`, then `control.sh linux key ctrl+z`).
   ⚠️ That session's synthetic keyboard does not trigger GTK's own Shift+Ctrl+Z in a plain
