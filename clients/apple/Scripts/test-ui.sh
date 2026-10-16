@@ -114,12 +114,16 @@ xcodebuild build-for-testing "${ARGS[@]}"
 
 if [[ "$ON_DEVICE" -eq 0 ]]; then
   info "simulator: $UDID (booting it if it is not already)"
+  t0=$SECONDS
   xcrun simctl bootstatus "$UDID" -b >/dev/null
+  info "simulator ready after $((SECONDS - t0))s"
+  t0=$SECONDS
   # The on-screen keyboard up, as on a phone: a simulated hardware keyboard keeps it down, and a
   # simulator last driven by `idb ui text` or a Mac key press simulates one, so the suite would
   # pass over a button the keyboard covers on every real iPhone.
   xcrun swift "$ROOT/scripts/dev/sim-keyboard.swift" "$UDID" off >/dev/null ||
     echo "warning: could not switch the simulated hardware keyboard off; tests run as the simulator is" >&2
+  info "hardware keyboard off after $((SECONDS - t0))s"
 fi
 
 info "running $TARGET $([[ "${#ONLY[@]}" -gt 0 ]] && printf '%s ' "${ONLY[@]}" || printf '(every test)')"
