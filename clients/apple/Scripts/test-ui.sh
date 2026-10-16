@@ -113,6 +113,18 @@ info "building $TARGET"
 xcodebuild build-for-testing "${ARGS[@]}"
 
 if [[ "$ON_DEVICE" -eq 0 ]]; then
+  # The keyboard switch below, compiled before the boot rather than by `xcrun swift` after it. On
+  # a fresh runner that compile builds Foundation's module cache from nothing while the new
+  # device's daemons hold the cores, and took 143s against the boot's 36s. Kept in the build
+  # directory by the source's hash, so CI's cache of that directory carries it to the next run.
+  KEYBOARD_TOOL="$HERE/build/tools/sim-keyboard-$(shasum -a 256 "$ROOT/scripts/dev/sim-keyboard.swift" | cut -c1-16)"
+  if [[ ! -x "$KEYBOARD_TOOL" ]]; then
+    t0=$SECONDS
+    mkdir -p "$(dirname "$KEYBOARD_TOOL")"
+    xcrun swiftc -o "$KEYBOARD_TOOL" "$ROOT/scripts/dev/sim-keyboard.swift"
+    info "keyboard switch compiled in $((SECONDS - t0))s"
+  fi
+
   info "simulator: $UDID (booting it if it is not already)"
   t0=$SECONDS
   xcrun simctl bootstatus "$UDID" -b >/dev/null
@@ -121,7 +133,7 @@ if [[ "$ON_DEVICE" -eq 0 ]]; then
   # The on-screen keyboard up, as on a phone: a simulated hardware keyboard keeps it down, and a
   # simulator last driven by `idb ui text` or a Mac key press simulates one, so the suite would
   # pass over a button the keyboard covers on every real iPhone.
-  xcrun swift "$ROOT/scripts/dev/sim-keyboard.swift" "$UDID" off >/dev/null ||
+  "$KEYBOARD_TOOL" "$UDID" off >/dev/null ||
     echo "warning: could not switch the simulated hardware keyboard off; tests run as the simulator is" >&2
   info "hardware keyboard off after $((SECONDS - t0))s"
 fi
