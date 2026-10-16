@@ -454,6 +454,7 @@
 	"signin_expired_action": "Se reconnecter",
 	"signin_expired_failed": "La reconnexion n’a pas abouti. Veuillez réessayer.",
 	"signin_refused": "Le serveur n’a pas accepté cette connexion. Vérifiez ce que vous avez saisi et réessayez.",
+	"account_already_set_up": "Ce compte est déjà configuré.",
 
 	"tz_changed_title": "Fuseau horaire modifié",
 	"tz_changed_message": "Votre appareil se trouve maintenant dans le fuseau {zone}. Mettre à jour le fuseau horaire d’affichage ?",

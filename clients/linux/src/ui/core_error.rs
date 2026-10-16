@@ -5,10 +5,12 @@ use mailcal_bindings::MailcalError;
 use crate::l10n;
 
 /// A refused sign-in in the person's language, since the server's reply is meant for a
-/// developer and the core has logged it; anything else as the core renders it.
+/// developer and the core has logged it, and an account already set up likewise; anything else
+/// as the core renders it.
 pub(super) fn said(error: &MailcalError) -> String {
     match error {
         MailcalError::SignInRefused { .. } => l10n::signin_refused().to_owned(),
+        MailcalError::AlreadySetUp { .. } => l10n::account_already_set_up().to_owned(),
         other => other.to_string(),
     }
 }
@@ -26,6 +28,10 @@ mod tests {
             reason: "JMAP HTTP 401: {\"status\":401}".to_owned(),
         };
         assert_eq!(said(&refused), l10n::signin_refused());
+        let twice = MailcalError::AlreadySetUp {
+            account_id: "alice@example.org@imap.example.org".to_owned(),
+        };
+        assert_eq!(said(&twice), l10n::account_already_set_up());
         assert_eq!(
             said(&MailcalError::Connect("no route to host".to_owned())),
             "connect: no route to host"

@@ -102,7 +102,7 @@ fn an_edit_that_would_duplicate_an_account_or_strand_a_use_is_refused() {
     bob.username = "bob@example.org".to_owned();
     assert!(matches!(
         app.update_account_endpoints(ALICE_ID.to_owned(), bob),
-        Err(MailcalError::Config(_))
+        Err(MailcalError::AlreadySetUp { account_id }) if account_id == "bob@example.org@localhost"
     ));
 
     let mut no_calendar = endpoints(&app);
@@ -132,6 +132,6 @@ fn an_edit_onto_servers_an_edited_account_already_uses_is_refused() {
 
     assert!(matches!(
         app.update_account_endpoints(bob.id, onto_alice),
-        Err(MailcalError::Config(_))
+        Err(MailcalError::AlreadySetUp { account_id }) if account_id == "alice@example.org@old.example"
     ));
 }

@@ -454,6 +454,7 @@
 	"signin_expired_action": "Opnieuw aanmelden",
 	"signin_expired_failed": "Opnieuw aanmelden is niet gelukt. Probeer het nog een keer.",
 	"signin_refused": "De server heeft deze aanmelding niet geaccepteerd. Controleer wat je hebt ingevuld en probeer het opnieuw.",
+	"account_already_set_up": "Dit account is al ingesteld.",
 
 	"tz_changed_title": "Tijdzone gewijzigd",
 	"tz_changed_message": "Je apparaat staat nu in {zone}. De weergavetijdzone bijwerken?",

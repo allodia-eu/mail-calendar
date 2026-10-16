@@ -198,6 +198,15 @@ impl MailcalApp {
         };
         let protocol = prepared.connected.protocol();
         let family = prepared.connected.account_type();
+        // The id is the mailbox, not the credential, so this is the same mailbox set up twice;
+        // registering it would replace the first account's credential and providers.
+        if self.registry.contains(&row.id) {
+            log::info!(
+                "add-account: [{}] refused; that {family} account is already set up",
+                mailcal_account::account_log_handle(&row.id),
+            );
+            return Err(MailcalError::AlreadySetUp { account_id: row.id });
+        }
         // The setup funnel: which protocol was attempted, and did it connect. Paired with
         // `setup_completed` / `setup_failed` below, this answers "how many people never get an
         // account connected, and on which protocol": the churn that happens before first use.
@@ -213,8 +222,7 @@ impl MailcalApp {
         let started = std::time::Instant::now();
         log::info!("add-account: connecting a new {family} account");
 
-        // Registered before the dial, holding whatever it displaced so re-adding an existing
-        // account cannot lose it. The ordering is the whole point: the dial refreshes, the
+        // Registered before the dial. The ordering is the whole point: the dial refreshes, the
         // refresh can rotate, and a rotation with no entry to land in is a credential the
         // next launch will not have.
         let registered = self
@@ -363,3 +371,7 @@ impl MailcalApp {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "app_accounts_duplicate_tests.rs"]
+mod duplicate_tests;

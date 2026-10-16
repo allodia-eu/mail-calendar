@@ -454,6 +454,7 @@
 	"signin_expired_action": "Erneut anmelden",
 	"signin_expired_failed": "Die erneute Anmeldung hat nicht funktioniert. Bitte versuchen Sie es noch einmal.",
 	"signin_refused": "Der Server hat diese Anmeldung nicht akzeptiert. Prüfen Sie Ihre Eingabe und versuchen Sie es erneut.",
+	"account_already_set_up": "Dieses Konto ist bereits eingerichtet.",
 
 	"tz_changed_title": "Zeitzone geändert",
 	"tz_changed_message": "Ihr Gerät befindet sich jetzt in {zone}. Die angezeigte Zeitzone aktualisieren?",

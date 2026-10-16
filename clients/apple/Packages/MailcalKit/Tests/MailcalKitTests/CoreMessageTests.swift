@@ -12,4 +12,9 @@ import Testing
         let refused = MailcalError.SignInRefused(reason: "JMAP HTTP 401: {\"status\":401}")
         #expect(coreMessage(refused) == L10n.signin_refused())
     }
+
+    @Test func anAccountAlreadySetUpIsSaidInWords() {
+        let twice = MailcalError.AlreadySetUp(accountId: "alice@example.org@imap.example.org")
+        #expect(coreMessage(twice) == L10n.account_already_set_up())
+    }
 }

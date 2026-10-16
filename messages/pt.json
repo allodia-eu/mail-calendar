@@ -454,6 +454,7 @@
 	"signin_expired_action": "Iniciar sessão de novo",
 	"signin_expired_failed": "Não foi possível iniciar sessão de novo. Tente novamente.",
 	"signin_refused": "O servidor não aceitou este início de sessão. Verifique o que introduziu e tente novamente.",
+	"account_already_set_up": "Esta conta já está configurada.",
 
 	"tz_changed_title": "Fuso horário alterado",
 	"tz_changed_message": "O seu dispositivo está agora em {zone}. Quer atualizar o fuso horário de apresentação?",

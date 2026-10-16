@@ -52,7 +52,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"switching an account's use failed: {CoreError.Describe(ex)}");
-            return (UseChangeOutcome.Applied, CoreError.Said(ex, L10n.SigninRefused()));
+            return (UseChangeOutcome.Applied, CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp()));
         }
     }
 
@@ -73,7 +73,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"linking an account failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused());
+            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
         }
     }
 
@@ -99,7 +99,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"editing an account's servers failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused());
+            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
         }
     }
 
@@ -119,7 +119,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"replacing an account's secret failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused());
+            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
         }
     }
 
@@ -181,7 +181,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"signing an account in again failed: {CoreError.Describe(ex)}");
-            return new ConsentEnded(false, CoreError.Said(ex, L10n.SigninRefused()));
+            return new ConsentEnded(false, CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp()));
         }
         finally
         {

@@ -95,6 +95,8 @@ internal fun coreErrorText(error: Throwable): String? = when (error) {
     is MailcalException.Connect -> error.v1
     is MailcalException.CertificateRejected -> error.reason
     is MailcalException.SignInRefused -> error.reason
+    // The record carries the account's id, an address; the core's own words carry none.
+    is MailcalException.AlreadySetUp -> "that account is already set up"
     is MailcalException.Engine -> error.v1
     is MailcalException.Composer -> error.v1
     else -> error.message
@@ -102,9 +104,11 @@ internal fun coreErrorText(error: Throwable): String? = when (error) {
 
 /**
  * What to show a person for a core refusal: a refused sign-in in their language, since the
- * server's reply is meant for a developer; anything else as [coreErrorText] has it.
+ * server's reply is meant for a developer, and an account already set up likewise; anything else
+ * as [coreErrorText] has it.
  */
 internal fun coreErrorSaid(error: Throwable, ctx: Context): String? = when (error) {
     is MailcalException.SignInRefused -> L10n.signin_refused(ctx)
+    is MailcalException.AlreadySetUp -> L10n.account_already_set_up(ctx)
     else -> coreErrorText(error)
 }

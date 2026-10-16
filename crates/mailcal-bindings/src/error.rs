@@ -43,6 +43,16 @@ pub enum MailcalError {
         /// What the server said, for the diagnostic log.
         reason: String,
     },
+    /// The account being added is already set up: an account's id is its mailbox (login and
+    /// server), not how it signs in, so a second add for the same mailbox would replace the first.
+    ///
+    /// Its own outcome so a client can say so in the person's language and offer what to do
+    /// instead, keyed by `account_id`. The display carries no address, because it reaches logs.
+    #[error("that account is already set up")]
+    AlreadySetUp {
+        /// The id of the account already set up.
+        account_id: String,
+    },
     /// The engine could not be opened (or the account id was invalid).
     #[error("engine: {0}")]
     Engine(String),

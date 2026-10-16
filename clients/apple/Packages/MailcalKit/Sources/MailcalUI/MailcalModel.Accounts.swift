@@ -40,11 +40,13 @@ enum ConsentBrowser {
 
 /// What a person reads for a core error: its own message, without the enum around it. A refused
 /// sign-in is said in the person's language, since the server's reply is meant for a developer
-/// and the core has logged it.
+/// and the core has logged it, and an account already set up likewise.
 func coreMessage(_ error: Error) -> String {
     switch error {
     case MailcalError.SignInRefused(_):
         return L10n.signin_refused()
+    case MailcalError.AlreadySetUp(_):
+        return L10n.account_already_set_up()
     case let MailcalError.Config(message), let MailcalError.Connect(message),
          let MailcalError.Engine(message), let MailcalError.Composer(message):
         return message

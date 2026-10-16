@@ -28,4 +28,12 @@ class CoreErrorTextTest {
         assertEquals("JMAP HTTP 401: {\"status\":401}", coreErrorText(refused))
         assertEquals("no route to host", coreErrorSaid(MailcalException.Connect("no route to host"), ctx))
     }
+
+    @Test
+    fun an_account_already_set_up_is_said_in_words_and_logged_without_its_address() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val twice = MailcalException.AlreadySetUp("alice@example.org@imap.example.org")
+        assertEquals(L10n.account_already_set_up(ctx), coreErrorSaid(twice, ctx))
+        assertEquals("that account is already set up", coreErrorText(twice))
+    }
 }
