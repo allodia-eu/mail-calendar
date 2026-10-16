@@ -8,8 +8,9 @@ Bump: minor
 > have to: a click can also start the app, and then nothing the process remembers is left to look
 > the message up in. Windows puts it in the toast's arguments, and reads it back from a live
 > `NotificationInvoked` or, for a click that launched the app, from the activation's own arguments;
-> Linux puts it in the portal's default-action target, under one `ActionInvoked` subscription taken
-> at startup rather than one per pass. Both resolve it the way macOS does: the list on screen first,
+> Linux puts it in the portal's default-action target under the application's own action, which the
+> portal delivers by calling the app on its bus name and so starts the app when it has quit. Both
+> resolve it the way macOS does: the list on screen first,
 > so a message in view opens where it is; otherwise the mailbox moves to that message's account for
 > exactly one snapshot and the click is then dropped, rather than dragging the view back on every
 > later snapshot. A summary names no message and opens the app alone. A message inside a

@@ -33,6 +33,10 @@ pub struct ReadingSnapshot {
     /// The provider key of the message this body is for, so a host can match it to the
     /// row it opened and ignore a stale snapshot (empty before any message is opened).
     pub key: String,
+    /// The subject, empty when the message has none: the header's title for a message opened
+    /// without a list row behind it, such as a notification tap the list does not hold yet.
+    #[uniffi(default = "")]
+    pub subject: String,
     /// The sender as `Name <email>` (bare `email` if unnamed, empty if none) for the header.
     pub from: String,
     /// The sender's monogram, colour and photo. Decoration; hide it from assistive

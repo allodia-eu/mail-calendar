@@ -58,6 +58,7 @@ pub(super) fn blank_avatar() -> Avatar {
 pub(super) fn empty_reading() -> ReadingSnapshot {
     ReadingSnapshot {
         key: String::new(),
+        subject: String::new(),
         from: String::new(),
         avatar: blank_avatar(),
         to: String::new(),
@@ -231,6 +232,7 @@ mod tests {
         ReadingSnapshot {
             avatar: crate::ui::model::blank_avatar(),
             key: key.to_owned(),
+            subject: String::new(),
             from: String::new(),
             to: String::new(),
             cc: String::new(),

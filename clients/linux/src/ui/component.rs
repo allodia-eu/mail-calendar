@@ -14,9 +14,9 @@ use relm4::{ComponentParts, ComponentSender, SimpleComponent};
 use super::{
     AppInput, AppModel, AppWindow, PrimaryView, SetupState, allodia_sync, calendar::CalendarModel,
     calendar_actions, composer_drafts, connectivity, contacts::ContactsModel,
-    host_tasks::HostTasks, launch, mcp, model, model::ReadingState, notifications, preferences,
-    runtime_timers, search::SearchState, selection::Selection, settings, setup_onboarding,
-    sync_line, time_zone, welcome,
+    host_tasks::HostTasks, launch, mcp, model, model::ReadingState, preferences, runtime_timers,
+    search::SearchState, selection::Selection, settings, setup_onboarding, sync_line, time_zone,
+    welcome,
 };
 use crate::{appearance, boot, boot::BootedApp, crash, l10n, logger};
 
@@ -119,9 +119,6 @@ impl AppModel {
         );
         let welcome_pending = flow.welcome;
         mcp::install(app.as_deref(), input.clone());
-        // One subscription for the life of the process, so a click on a new-mail notification
-        // reaches the mailbox whichever pass raised it (`notifications::listen`).
-        notifications::listen(input.clone());
         if !welcome_pending && let Some(app) = &app {
             app.report_app_opened();
         }

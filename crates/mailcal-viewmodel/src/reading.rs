@@ -31,6 +31,10 @@ pub struct ReadingSnapshot {
     /// row it opened and ignore a stale snapshot (the default is the empty key, before
     /// any message has been opened).
     pub key: String,
+    /// The subject, empty when the message has none. Shown as the reading header's title, so a
+    /// message opened without a list row behind it (a notification tap the list does not hold
+    /// yet) still gets its title once the body lands, as it gets its sender.
+    pub subject: String,
     /// The sender, formatted for display (`Name <email>`, or bare `email` when the header
     /// carried no name); empty when there's no sender. Shown in the reading header: the full
     /// `Name <email>`, unlike the list row's name-only [`crate::FlatRow::from`].

@@ -12,6 +12,7 @@ impl From<AppReading> for ReadingSnapshot {
     fn from(snapshot: AppReading) -> Self {
         Self {
             key: snapshot.key,
+            subject: snapshot.subject,
             from: snapshot.from,
             avatar: snapshot.avatar.into(),
             to: snapshot.to,

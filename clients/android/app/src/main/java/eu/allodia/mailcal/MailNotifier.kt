@@ -48,7 +48,8 @@ object MailNotifier {
             val group = groupKey(account.accountId)
             // Each message under its own stable key, so passes stack rather than overwrite.
             for (message in account.messages) {
-                manager.notify(message.messageKey, MESSAGE_ID, buildMessage(context, account, message, group))
+                val identity = messageIdentity(account.accountId, message.messageKey)
+                manager.notify(identity, MESSAGE_ID, buildMessage(context, account, message, group))
             }
             // A group summary collapses the account's messages into one expandable stack. Its tag is
             // the (stable) account id, updating it each pass is fine; the keyed child notifications
@@ -58,6 +59,14 @@ object MailNotifier {
             }
         }
     }
+
+    /// What names one message's notification: its account and its key together, because a provider
+    /// key is unique within its account and never across them. The account is length-prefixed, so
+    /// no account id can end where another pair's key begins. Both the tag and the tap intent's
+    /// identifier carry it: the same tag replaces a notification, and two tap intents equal in all
+    /// but their extras are one PendingIntent, whose extras the later post rewrites.
+    internal fun messageIdentity(accountId: String, messageKey: String): String =
+        "${accountId.length}:$accountId:$messageKey"
 
     /// The notification group key for one account, bundles that account's per-message notifications.
     private fun groupKey(accountId: String): String = "new_mail:$accountId"
@@ -142,20 +151,18 @@ object MailNotifier {
         if (received.isBlank()) null
         else try { Instant.parse(received).toEpochMilli() } catch (_: Exception) { null }
 
-    // Opens the app to a specific message. Each (accountId, messageKey) pair gets its own
-    // PendingIntent, using the message key as the request code makes them distinct so Android
-    // doesn't coalesce them into a single cached intent and lose the extras.
+    // Opens the app to a specific message. The identifier is what keeps each message's PendingIntent
+    // its own: extras take no part in intent equality, so without it every message notification
+    // would share one, carrying whichever message was posted last.
     private fun openMessage(context: Context, accountId: String, messageKey: String): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .setIdentifier(messageIdentity(accountId, messageKey))
             .putExtra(EXTRA_ACCOUNT_ID, accountId)
             .putExtra(EXTRA_MESSAGE_KEY, messageKey)
-        // Request code must be unique per message so the system does not reuse a cached intent
-        // with different extras; a stable hash of the key is sufficient since keys are stable.
-        val requestCode = messageKey.hashCode()
         return PendingIntent.getActivity(
             context,
-            requestCode,
+            0,
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )

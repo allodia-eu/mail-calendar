@@ -423,8 +423,14 @@ def wait_for_nodes(
     showing_only: bool,
     timeout: float,
     result_limit: int | None = None,
+    minimum: int = 1,
 ) -> list[Any]:
-    """Poll a live remote tree until the requested accessible node exists and is enabled."""
+    """Poll a live remote tree until `minimum` of the requested nodes exist and are enabled.
+
+    `minimum` is what an explicit `--index` waits for: a node named the same as one already on
+    screen, such as the reading pane's heading beside the list row it was opened from, appears
+    *after* the first match, and returning at the first match would fail the index at once.
+    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         matches = find_nodes(
@@ -441,7 +447,7 @@ def wait_for_nodes(
             showing_only=showing_only,
             limit=result_limit,
         )
-        if matches:
+        if len(matches) >= minimum:
             return matches
         time.sleep(0.1)
     target = name or role or "node"
@@ -583,6 +589,7 @@ def main(argv: list[str] | None = None) -> int:
             showing_only=args.command in ("activate", "locate", "measure") or args.showing,
             timeout=args.timeout,
             result_limit=NODE_SCAN if scanning else args.index + 1,
+            minimum=1 if scanning else args.index + 1,
         )
         if args.index < 0 or args.index >= len(matches):
             raise IndexError(f"target index {args.index} is outside {len(matches)} matches")

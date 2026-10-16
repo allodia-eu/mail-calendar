@@ -115,6 +115,9 @@ fn main() {
         application.activate();
         gtk::glib::ExitCode::SUCCESS
     });
+    // What a click on a new-mail notification is delivered through, whether or not this process
+    // was running when it came.
+    ui::install_notification_actions(&application, |input| APP_BROKER.send(input));
     let app = relm4::RelmApp::<ui::AppInput>::from_app(application).with_broker(&APP_BROKER);
     app.run::<ui::AppWindow>(());
 }

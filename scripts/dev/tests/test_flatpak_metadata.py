@@ -326,6 +326,7 @@ class GeneratedFiles(unittest.TestCase):
         cls.metainfo = (Path(cls._dir.name) / f"{meta.APP_ID}.metainfo.xml").read_text(
             encoding="utf-8"
         )
+        cls.service = (Path(cls._dir.name) / f"{meta.APP_ID}.service").read_text(encoding="utf-8")
 
     @classmethod
     def tearDownClass(cls):
@@ -462,6 +463,16 @@ class GeneratedFiles(unittest.TestCase):
                 "text/calendar",
                 "text/vcard",
             ],
+        )
+
+    def test_a_click_on_a_notification_can_start_the_app(self):
+        # The portal delivers a notification's `app.` action by calling the application on its own
+        # bus name, so the bus has to know how to start it when it is not running
+        # (docs/background-sync.md). The name is what the bus matches on and the file's basename is
+        # what Flatpak exports it by, so both are the app id.
+        self.assertEqual(
+            self.service.splitlines(),
+            ["[D-BUS Service]", f"Name={meta.APP_ID}", "Exec=/app/bin/mailcal --gapplication-service"],
         )
 
     def test_no_unsubstituted_placeholder_survives(self):

@@ -866,14 +866,17 @@ that posted it is frontmost, which a debug build works around with
 the usage-statistics question has been answered, so a namespace where neither has happened never
 prompts and never posts ([`background-sync.md`](background-sync.md)).
 
-**The same loop shows one on Windows and Linux**, which raise theirs off the same live runtime, and
-it is the only way to exercise what a **click** does: no suite on any platform can click a
-notification. Aim a delivery at an account the mailbox is **not** showing as well as at one it is,
-because those are the two halves of the rule, opening in place against searching for the message
-after an account switch. On Windows the dev build must be the **framework-dependent** one
-`build-and-run.ps1` produces, or nothing is posted to click
-([`client-traps.md`](client-traps.md)); on Linux the app has to still be running, since the portal
-delivers the click to this process rather than starting it.
+**The same loop shows one on Windows and Linux**, which raise theirs off the same live runtime. A
+real **click** is the shell's, and no suite reaches it; Linux's suite delivers what the shell
+would instead ([`background-sync.md`](background-sync.md), Enforcement), so a click by hand is the
+check on Windows and the one that proves the shell agrees on Linux. Aim a delivery at an account
+the mailbox is **not** showing as well as at one it is, because those are the two halves of the
+rule, opening in place against searching for the message after an account switch. On Windows the
+dev build must be the **framework-dependent** one `build-and-run.ps1` produces, or nothing is
+posted to click ([`client-traps.md`](client-traps.md)). On Linux a click reaches a dev run that is
+still running; one that has quit is started only if the session bus has a service file for the app
+id, which the Flatpak installs and a dev run does not (`click_notification_cold` in
+`test-linux-ui.sh` writes one).
 
 ⚠️ **A click that STARTS the Windows app cannot reach the harness account**, so that half is
 verified against a real one. `MAILCAL_DEV_ACCOUNT` selects the store, `boot.sh` exports it, and a

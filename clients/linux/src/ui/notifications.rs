@@ -4,16 +4,19 @@
 //! The portal gives one **default action** per notification plus one value to carry back with it,
 //! so the message a click names travels in the notification itself, exactly as it does in macOS's
 //! `userInfo`, Android's intent extras and Windows's toast arguments
-//! (`docs/background-sync.md`). What the click then does to the mailbox is
-//! [`super::notification_open`]; this module is the portal, and knows nothing about the list.
+//! (`docs/background-sync.md`). How the click comes back is [`super::notification_click`], and what
+//! it then does to the mailbox is [`super::notification_open`]; this module is the portal, and
+//! knows nothing about the list.
 
 use std::time::Duration;
 
-use ashpd::desktop::notification::{Action, Notification, NotificationProxy, Priority};
-use futures::StreamExt;
+use ashpd::desktop::notification::{Notification, NotificationProxy, Priority};
 use mailcal_bindings::{AccountNewMail, BackgroundSyncOutcome, NewMailPreview};
 
-use super::{AppInput, mailbox_display::one_line};
+use super::{
+    mailbox_display::one_line,
+    notification_click::{open_app_action, open_message_action},
+};
 use crate::{host_runtime, l10n};
 
 /// How long the whole portal exchange may take before the pass gives up on it.
@@ -22,14 +25,6 @@ use crate::{host_runtime, l10n};
 /// the client noticing mail at all, not merely stop it notifying. Generous enough that a busy
 /// desktop still delivers, short enough that a portal which has stopped answering costs one pass.
 const PORTAL_BUDGET: Duration = Duration::from_secs(10);
-
-/// The default action a message notification carries, and the one the overflow summary carries.
-///
-/// Told apart by name rather than by the notification id: an id is formatted around a message
-/// key, and a key is arbitrary provider text, so any prefix that distinguished a summary's id
-/// from a message's is one a key is allowed to start with.
-const OPEN_MESSAGE: &str = "open-message";
-const OPEN_APP: &str = "open-app";
 
 /// The message a clicked notification names: the `(account, message key)` pair the core keys
 /// mail on, which is what `Intent::OpenMessage` takes.
@@ -66,63 +61,12 @@ pub(super) fn post(outcome: BackgroundSyncOutcome) {
     }
 }
 
-/// Watches the portal for clicks on the notifications this client posted, for as long as the
-/// process runs.
-///
-/// One subscription, taken at startup rather than beside each post: `ActionInvoked` is the
-/// portal's own signal rather than one notification's, so a subscription per pass would answer a
-/// single click once for every pass that had ever run.
-///
-/// A click can only arrive while this process is alive, and that is the whole reach of the
-/// feature here: the desktop notifies from the live runtime, so the app was running when it
-/// posted, and quitting in between leaves a notification on screen with nothing to answer it
-/// (`docs/background-sync.md`, known gaps).
-pub(super) fn listen(sender: relm4::Sender<AppInput>) {
-    let Some(runtime) = host_runtime::shared() else {
-        log_failure();
-        return;
-    };
-    runtime.spawn(async move {
-        let watched = async {
-            let proxy = NotificationProxy::new().await?;
-            let actions = proxy.receive_action_invoked().await?;
-            let mut actions = std::pin::pin!(actions);
-            while let Some(action) = actions.next().await {
-                if let Some(input) = input_for(&action) {
-                    sender.emit(input);
-                }
-            }
-            Ok::<(), ashpd::Error>(())
-        };
-        if watched.await.is_err() {
-            // Deliberately as bare as the failure to post, and for the same reason: a D-Bus
-            // error may quote the notification, which is sender and subject (docs/logging.md).
-            log::warn!("could not watch for desktop notification clicks");
-        }
-    });
-}
-
-/// What a click means to the mailbox, or `None` for an action this client did not put there.
-///
-/// A target that will not decode still names this app, so the click brings the window forward
-/// rather than doing nothing at all.
-fn input_for(action: &Action) -> Option<AppInput> {
-    match action.name() {
-        OPEN_MESSAGE => Some(
-            target_of(action).map_or(AppInput::ShowFromNotification, |target| {
-                AppInput::OpenNotifiedMessage(Box::new(target))
-            }),
-        ),
-        OPEN_APP => Some(AppInput::ShowFromNotification),
-        _ => None,
-    }
-}
-
-/// The pair [`post_all`] sent as the action's target, read back.
-fn target_of(action: &Action) -> Option<NotificationTarget> {
-    let carried = action.parameter().first()?.try_clone().ok()?;
-    let [account, key] = <[String; 2]>::try_from(Vec::<String>::try_from(carried).ok()?).ok()?;
-    (!account.is_empty() && !key.is_empty()).then_some(NotificationTarget { account, key })
+/// What a message's notification is posted under: its account and its key together, because a
+/// provider key is unique within its account and never across them, and a second notification
+/// under one id replaces the first. The account is length-prefixed, so no account id can end
+/// where another pair's key begins.
+fn message_id(account: &str, key: &str) -> String {
+    format!("mailcal-{}:{account}:{key}", account.len())
 }
 
 async fn post_all(accounts: Vec<AccountNewMail>) -> ashpd::Result<()> {
@@ -134,9 +78,9 @@ async fn post_all(accounts: Vec<AccountNewMail>) -> ashpd::Result<()> {
                 .priority(Priority::Normal);
             let notification = match notice.target {
                 Some(target) => notification
-                    .default_action(OPEN_MESSAGE)
+                    .default_action(open_message_action().as_str())
                     .default_action_target(vec![target.account, target.key]),
-                None => notification.default_action(OPEN_APP),
+                None => notification.default_action(open_app_action().as_str()),
             };
             proxy.add_notification(&notice.id, notification).await?;
         }
@@ -157,7 +101,7 @@ fn notices(account: &AccountNewMail) -> Vec<Notice> {
                 .unwrap_or_else(|| l10n::notification_unknown_sender())
                 .to_owned(),
             body: body_of(message),
-            id: format!("mailcal-{}", message.message_key),
+            id: message_id(&account.account_id, &message.message_key),
             target: Some(NotificationTarget {
                 account: account.account_id.clone(),
                 key: message.message_key.clone(),
@@ -220,7 +164,7 @@ fn log_failure() {
 mod tests {
     use mailcal_bindings::{AccountNewMail, NewMailPreview};
 
-    use super::notices;
+    use super::{message_id, notices};
 
     fn one(
         subject: &str,
@@ -331,6 +275,14 @@ mod tests {
     }
 
     #[test]
+    fn the_same_key_in_two_accounts_is_two_notifications() {
+        // A provider key is unique within its account, never across them, and the portal replaces
+        // a notification by its id.
+        assert_ne!(message_id("work", "m1"), message_id("personal", "m1"));
+        assert_ne!(message_id("a:b", "c"), message_id("a", "b:c"));
+    }
+
+    #[test]
     fn multiple_messages_keep_stable_message_notifications_and_summarize_only_the_cap() {
         let account = AccountNewMail {
             account_id: "account".to_owned(),
@@ -357,8 +309,8 @@ mod tests {
         };
 
         let notices = notices(&account);
-        assert_eq!(notices[0].id, "mailcal-m1");
-        assert_eq!(notices[1].id, "mailcal-m2");
+        assert_eq!(notices[0].id, message_id("account", "m1"));
+        assert_eq!(notices[1].id, message_id("account", "m2"));
         assert_eq!(
             notices[2].title, "+1 more",
             "the overflow summary must not read like another subject-less message"

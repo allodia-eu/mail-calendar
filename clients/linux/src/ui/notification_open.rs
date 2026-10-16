@@ -31,6 +31,9 @@ struct Found {
 impl AppModel {
     /// Opens the message a clicked notification named, and brings the mailbox window forward.
     pub(super) fn open_notified_message(&mut self, target: NotificationTarget) {
+        // Here rather than where the click arrives: a click that started the app arrives before
+        // the core has opened, and so before there is a log to write to.
+        log::info!("notification click: opening the message it named");
         if !self.open_notified_from_list(&target) {
             // Not in the list on screen. Point the mailbox at the account that received it and
             // let the snapshot that produces answer; `retry_notified_message` is the one retry
@@ -46,8 +49,12 @@ impl AppModel {
 
     /// The one retry the account switch earns, spent whether or not it finds the message.
     pub(super) fn retry_notified_message(&mut self) {
-        if let Some(target) = self.notification_wait.take() {
-            self.open_notified_from_list(&target);
+        if let Some(target) = self.notification_wait.take()
+            && !self.open_notified_from_list(&target)
+        {
+            log::info!(
+                "notification click: the message it named is not in the list, nothing opened"
+            );
         }
     }
 

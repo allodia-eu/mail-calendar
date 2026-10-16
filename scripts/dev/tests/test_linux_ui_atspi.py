@@ -248,6 +248,34 @@ class TreeSelectionTests(unittest.TestCase):
             1,
         )
 
+    def test_an_index_waits_for_that_many_matches_rather_than_the_first(self) -> None:
+        # The reading pane's heading appears beside a list row of the same name, after it.
+        heading = FakeNode("First subject", "label")
+        polls = []
+
+        def root() -> FakeNode:
+            polls.append(None)
+            if len(polls) == 3:
+                self.root.children.append(heading)
+            return self.root
+
+        matches = subject.wait_for_nodes(
+            root,
+            name="First subject",
+            role=None,
+            within=None,
+            within_role=None,
+            contains_name=None,
+            name_substring=None,
+            description=None,
+            enabled_only=False,
+            showing_only=False,
+            timeout=5,
+            result_limit=2,
+            minimum=2,
+        )
+        self.assertEqual(matches, [self.first, heading])
+
     def test_wait_for_absence_accepts_an_already_missing_target(self) -> None:
         subject.wait_for_absence(
             lambda: self.root,

@@ -72,6 +72,14 @@ internal data class OpenedMessage(
     val date: String,
 )
 
+/**
+ * The subject the reading screen shows: the row's, or the snapshot's once it has landed. A
+ * notification tap can open a message the list does not hold yet, which leaves the row's empty,
+ * and only the snapshot can fill it in. Empty when neither has one.
+ */
+internal fun displayedSubject(message: OpenedMessage, reading: ReadingSnapshot?): String =
+    message.subject.ifEmpty { reading?.takeIf { it.key == message.key }?.subject.orEmpty() }
+
 /** The stable identity header above the late-loading body and recipient fields. */
 @Composable
 internal fun ReadingIdentityHeader(
@@ -101,7 +109,7 @@ internal fun ReadingIdentityHeader(
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = message.subject.ifEmpty { L10n.mail_no_subject(ctx) },
+                text = displayedSubject(message, body).ifEmpty { L10n.mail_no_subject(ctx) },
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -259,7 +267,7 @@ internal fun ReadingScreen(
             ReadingOverflowMenu(
                 // The subject this screen DISPLAYS, so an untitled message exports under the
                 // same words it is shown under.
-                subject = message.subject.ifEmpty { L10n.mail_no_subject(ctx) },
+                subject = displayedSubject(message, reading).ifEmpty { L10n.mail_no_subject(ctx) },
                 account = message.account,
                 key = message.key,
                 onExportMessage = onExportMessage,

@@ -45,7 +45,7 @@ internal fun printOpenMessage(
     body: ReadingSnapshot,
     loadRemoteImages: Boolean,
 ) {
-    val subject = message.subject.ifEmpty { L10n.mail_no_subject(ctx) }
+    val subject = displayedSubject(message, body).ifEmpty { L10n.mail_no_subject(ctx) }
     val document = renderMessagePrintHtml(
         subject,
         messagePrintLines(ctx, message, body),

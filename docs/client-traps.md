@@ -177,6 +177,15 @@ that same file.
   goes through [`host_runtime`](../clients/linux/src/host_runtime.rs), which owns the one runtime
   and never drops it; `cargo xtask check-portal-runtime` refuses a second one anywhere else in
   the client.
+- **On Linux, a notification action that does not start with `app.` cannot start the app.** The
+  notification portal delivers an `app.` action by calling `ActivateAction` on the application's
+  bus name, which D-Bus answers by starting the app from its service file when it is not running.
+  Any other name is the portal's `ActionInvoked` **signal**, which reaches only a process subscribed
+  to it, so a click on a notification whose app has quit does nothing at all; and on GNOME the
+  shell does not emit that signal for an `app.` action either, so the two delivery paths never
+  overlap. Both look the same while the app is running, which is the only state a hand check
+  usually tries. The client's actions are in
+  [`ui/notification_click.rs`](../clients/linux/src/ui/notification_click.rs).
 
   **The tell is that it works exactly once.** The first portal call of the process succeeds, so a
   manual check passes and a screenshot proves nothing; only the second one hangs. Bound a portal

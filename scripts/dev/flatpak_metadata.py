@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Emit the Linux client's desktop entry and AppStream metainfo from the documents that own them.
+"""Emit the Linux client's desktop entry, AppStream metainfo and D-Bus service file.
 
-Neither file carries copy or a version of its own. A `.desktop` `Comment` is what GNOME's app grid
+None of them carries copy or a version of its own. A `.desktop` `Comment` is what GNOME's app grid
 and search show, and an AppStream `<summary>`/`<description>` is what a software centre shows; so
 both are store copy, and store copy is written in the listing this build resolves to,
 `branding/<brand>-listing.md` ([`docs/store-listing.md`](../../docs/store-listing.md) rule 1: the
@@ -387,6 +387,21 @@ def desktop_entry(name: str, summary_by_locale: dict[str, str], locales: list[st
     return "\n".join(lines)
 
 
+def dbus_service() -> str:
+    """The D-Bus service file, which lets the session bus start the app by its application id.
+
+    A click on a new-mail notification is delivered by calling the application on that bus name
+    (`org.freedesktop.Application.ActivateAction`), which starts it first when it is not running
+    (`docs/background-sync.md`). `--gapplication-service` is GApplication's own flag for a launch
+    the bus made: it skips the command line and waits for the call. The desktop entry stays
+    `DBusActivatable`-free, so a launcher, a mail link and an "Open With" still start the app
+    through `Exec` and its command line.
+    """
+    return "\n".join(
+        ["[D-BUS Service]", f"Name={APP_ID}", "Exec=/app/bin/mailcal --gapplication-service", ""]
+    )
+
+
 def _summary_elements(summary_by_locale: dict[str, str], locales: list[str]) -> str:
     out = [f"  <summary>{escape(summary_by_locale['en'])}</summary>"]
     out += [
@@ -518,7 +533,7 @@ def build(
     screenshots: Path | None = None,
     links_licensed: bool | None = None,
 ) -> list[Path]:
-    """Write both files into `out_dir`, and return what was written."""
+    """Write the generated files into `out_dir`, and return what was written."""
     listing_file = brand.listing_source()
     listing = listing_file.read_text(encoding="utf-8")
     version = (repo_root / "VERSION").read_text(encoding="utf-8").strip()
@@ -582,12 +597,14 @@ def build(
         ),
         encoding="utf-8",
     )
-    return [desktop_path, metainfo_path]
+    service_path = out_dir / f"{APP_ID}.service"
+    service_path.write_text(dbus_service(), encoding="utf-8")
+    return [desktop_path, metainfo_path, service_path]
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--out-dir", required=True, type=Path, help="where the two files are written")
+    parser.add_argument("--out-dir", required=True, type=Path, help="where the files are written")
     parser.add_argument(
         "--screenshots",
         type=Path,

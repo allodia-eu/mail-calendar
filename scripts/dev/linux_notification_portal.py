@@ -9,6 +9,11 @@ desktop owns the session, so the suite answers it here.
 Print dialogs are answered in pairs, or alone once `PRINT_PAIRING_SECONDS` have passed. A real
 portal's dialog leaves the window usable, so a second print can start while the first is still
 asking; pairing makes that overlap happen every time rather than whenever the driver is quick.
+
+`click <capture.jsonl> <text> <app-id>` clicks the notification whose title or body carries
+<text>, the way GNOME Shell does: its default action, which has to be the application's own
+(`app.`), is called as `org.freedesktop.Application.ActivateAction` on the app id's bus name, with
+the notification's target. That call is also what starts an app that is not running.
 """
 
 from __future__ import annotations
@@ -142,9 +147,52 @@ class PrintDialogs:
         return False
 
 
+def object_path(app_id: str) -> str:
+    """The path GApplication exports itself on, derived from its id as GLib derives it."""
+    return "/" + app_id.replace(".", "/").replace("-", "_")
+
+
+def click(capture: Path, text: str, app_id: str) -> int:
+    posted = [
+        record["notification"]
+        for record in map(json.loads, capture.read_text(encoding="utf-8").splitlines())
+        if record.get("method") == "AddNotification"
+        and text in f'{record["notification"].get("title", "")} {record["notification"].get("body", "")}'
+    ]
+    if not posted:
+        print(f"no notification carries {text!r}", file=sys.stderr)
+        return 1
+    notification = posted[-1]
+    action = notification.get("default-action", "")
+    if not action.startswith("app."):
+        # Anything else is delivered only as a signal, which nothing answers once the app has quit.
+        print(f"the default action {action!r} is not the application's own", file=sys.stderr)
+        return 1
+    target = notification.get("default-action-target")
+    parameter = [] if target is None else [GLib.Variant("as", target)]
+    Gio.bus_get_sync(Gio.BusType.SESSION, None).call_sync(
+        app_id,
+        object_path(app_id),
+        "org.freedesktop.Application",
+        "ActivateAction",
+        GLib.Variant("(sava{sv})", (action[len("app."):], parameter, {})),
+        None,
+        Gio.DBusCallFlags.NONE,
+        60_000,
+        None,
+    )
+    return 0
+
+
 def main() -> int:
+    if len(sys.argv) == 5 and sys.argv[1] == "click":
+        return click(Path(sys.argv[2]), sys.argv[3], sys.argv[4])
     if len(sys.argv) != 2:
-        print("usage: linux_notification_portal.py <capture.jsonl>", file=sys.stderr)
+        print(
+            "usage: linux_notification_portal.py <capture.jsonl>\n"
+            "       linux_notification_portal.py click <capture.jsonl> <text> <app-id>",
+            file=sys.stderr,
+        )
         return 2
     capture = Path(sys.argv[1])
     connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)

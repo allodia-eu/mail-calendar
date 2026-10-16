@@ -89,6 +89,21 @@ pass exists precisely to report mail that arrived while nobody was looking.
   moving the mailbox off the folder the person left it on; only a message the list
   does not hold moves the mailbox to that message's account, and then for exactly **one** snapshot,
   after which the click is dropped rather than dragging the view back on every later snapshot.
+  Android opens the named message straight away instead, because its reading screen replaces the
+  list rather than sitting beside it, so there is no place in the list to keep; until the list has
+  the row, the header takes the subject and the sender from the reading snapshot, which carries
+  both.
+- **A click on Linux is the application's own action.** The portal delivers an action named
+  `app.<name>` by calling the application on its bus name (`ActivateAction`), and any other action
+  only as a signal, which nothing receives once the app has quit. So the notification carries
+  `app.open-message`, and the Flatpak ships a D-Bus service file that starts the app for that call
+  (`--gapplication-service`). The desktop entry stays without `DBusActivatable`, so a launcher, a
+  mail link and an "Open With" still arrive on the command line.
+- **A message's notification is named by its account and its key together.** A provider key is
+  unique within its account and never across two, and a second notification under one name
+  replaces the first: two IMAP accounts on the same server software hand out the same keys. The
+  same holds for whatever a platform derives from it, such as Android's tap intent, whose extras
+  take no part in telling two intents apart.
 - **First run seeds, never floods.** An account with no mark yet is seeded to its newest existing
   Inbox message (or "now" over an empty inbox) and reports **nothing**: enabling the feature never
   notifies the whole existing inbox.
@@ -127,7 +142,7 @@ pass exists precisely to report mail that arrived while nobody was looking.
 | Content | sender · subject · snippet, as the notification's title, subtitle and body | sender · subject · snippet, as the toast's three text elements | sender · subject and snippet sharing the portal's one body, on one line | sender · subject collapsed, the snippet on the expanded `BigTextStyle` | sender · account subtitle · subject and snippet sharing the body |
 | User toggle | Settings → Notifications (`NotificationPrefs`, UserDefaults) | Settings → Notifications (`NotificationPrefs`, a one-line file beside the language and log-level choices) | Settings → Notifications (`HostPreferences`) | Settings → "New-mail notifications" (`NotificationPrefs`, SharedPreferences) | Settings → "New-mail notifications" (`NotificationPrefs`, UserDefaults) |
 | Keeping its schedule | n/a (the process is always running) | n/a (the process is always running) | n/a (the process is always running) | Settings → "Background mail delivery" → **Allow** (`BatteryOptimization.kt`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`); shown only while not exempt. Without it Doze/OEM sleeping defer the pass by **hours** | Nothing to ask for: `BGTaskScheduler`'s cadence is entirely iOS's call |
-| Files | `MailcalModel.Notifications.swift`, `NewMailNotices.swift`, `MailNotifier.swift`, `Mailcal.NotificationOpen.swift`, `NotificationPrefs.swift` (live runtime: `crates/mailcal-bindings/src/background.rs`) | `MailboxModel.Notifications.cs`, `MailboxModel.NotificationOpen.cs`, `NewMailNotices.cs`, `NewMailNotifier.cs`, `NotificationOpenInbox.cs`, `NotificationPrefs.cs` | `ui/host_tasks.rs`, `ui/notifications.rs`, `ui/notification_open.rs`, `preferences.rs` | `MailcalApplication.kt`, `MailSyncWorker.kt`, `MailNotifier.kt`, `NotificationPrefs.kt`, `BackgroundSupport.kt` | `BackgroundSync.swift`, `MailNotifier.swift`, `NewMailNotices.swift`, `Mailcal.NotificationOpen.swift`, `NotificationPrefs.swift` |
+| Files | `MailcalModel.Notifications.swift`, `NewMailNotices.swift`, `MailNotifier.swift`, `Mailcal.NotificationOpen.swift`, `NotificationPrefs.swift` (live runtime: `crates/mailcal-bindings/src/background.rs`) | `MailboxModel.Notifications.cs`, `MailboxModel.NotificationOpen.cs`, `NewMailNotices.cs`, `NewMailNotifier.cs`, `NotificationOpenInbox.cs`, `NotificationPrefs.cs` | `ui/host_tasks.rs`, `ui/notifications.rs`, `ui/notification_click.rs`, `ui/notification_open.rs`, `preferences.rs` | `MailcalApplication.kt`, `MailSyncWorker.kt`, `MailNotifier.kt`, `NotificationPrefs.kt`, `BackgroundSupport.kt` | `BackgroundSync.swift`, `MailNotifier.swift`, `NewMailNotices.swift`, `Mailcal.NotificationOpen.swift`, `NotificationPrefs.swift` |
 
 The **toggle only gates posting**: the pass still runs and advances the marks when off, so turning
 notifications off then on never floods with a backlog.
@@ -219,25 +234,6 @@ port:
   so the silence it asserts afterwards is measured against a notification that provably crossed
   the portal. Asserted the other way round it was a gate that could not fail, and did not, for as
   long as the portal call hung ([`client-traps.md`](client-traps.md)).
-- **No gate anywhere can click one.** A notification is drawn by the shell, outside the
-  accessibility and UI-Automation trees every UI suite here reads, so what a click does is a hand
-  check on all five. What is pinned instead is each half that a unit test can hold: the pair a
-  notification carries, on all three that have a suite for it (`NewMailNoticesTests` on macOS and
-  Windows, `notifications.rs` on Linux), and, on Linux alone, the resolving of that pair against
-  the list (`notification_open.rs`). What no test sees is the wiring between the two halves, which
-  is the part that fails by doing nothing at all.
-- **Windows pins the launch, which is not the click but is where it died.** A click that STARTS the
-  app reads its activation before anything else, and the Windows App SDK fails the process fast if
-  the notification platform is not registered first, so the feature was silent on exactly the
-  launch it exists for ([`client-traps.md`](client-traps.md)). Two gates hold it, because neither
-  alone can: `cargo xtask check-notification-registration` pins the ordering in the source, on
-  every host and in every CI job, and `uitests/NotificationLaunch.Tests.ps1` runs the real binary
-  through a notification activation. ⚠️ The suite has to **close the app first**, since a running
-  instance has already registered the platform and a second process then reads its activation
-  happily on a broken build as well as a fixed one, and it has to wait out the full **7 to 8
-  seconds** the failfast takes. It went green against the bug it exists for on both counts while
-  being written. What neither gate reaches is still the click itself, and so what the app does once
-  the launch survives.
 - **Nothing drives an Apple notification from a test, and the iOS half is not even unit-tested.**
   `NewMailNoticesTests` (MailcalKitTests) pins what a pass *says*, but that suite is plain
   `swift test` on the **host**, so it compiles and exercises the projection's **macOS** branch
@@ -249,19 +245,6 @@ port:
   as Windows's ([`debugging.md`](debugging.md)). Verified that way: a delivery into the watched
   Inbox raised one notification carrying the sender, the subject and the snippet, advanced the
   mark to it, and opened that message when clicked.
-- **Android opens the named message without waiting for the list**, alone among the five. It
-  dispatches the open straight away and takes the reading header from the row where the list
-  happens to hold one, so a tap that arrives before that account's rows are in opens the right
-  message under the **"(no subject)" placeholder**, which never corrects itself: the core's reading
-  snapshot carries the sender and the body but no subject, so the sender line self-heals and the
-  title does not. It costs nothing else, the message and its body are the right ones, and a phone's
-  reading screen covers the list it would otherwise have resolved against.
-- **A Linux click only reaches an app that is still running.** The desktop notifies from the live
-  runtime, so the app was running when it posted, and the portal's `ActionInvoked` goes to this
-  process's own subscription. Quit in between and the notification stays on screen with nothing to
-  answer it. Changing that means `DBusActivatable=true` on the desktop entry, which moves how every
-  launch is delivered, `mailto:` included, so it is a decision rather than a line. macOS and Windows
-  are both started by a click; Windows reads it from the launch's own activation arguments.
 - **Nothing drives the Windows notification from a test, and the ordinary dev build cannot raise
   one.** `Mailcal.Tests` pins what a pass *says* (`NewMailNoticesTests`), including the pair a
   click carries and the reading of it back, and the UI suite pins the Settings toggle, but no gate
@@ -313,5 +296,21 @@ When you change background delivery or new-mail notifications:
 2. Keep the core contract identical across platforms: the same `run_background_sync` port, the
    high-water-mark dedupe + first-run seeding, the inbound-Inbox-only semantics, and the notification
    content policy.
-3. A new platform ships background delivery meeting this bar **before** it ships to users; any
-   shortfall goes under "Known gaps" with a follow-up, never left silent.
+3. A new platform ships background delivery meeting this bar **before** it ships to users; a
+   shortfall is closed, never recorded ("Work leaves no known gaps" in
+   [`AGENTS.md`](../AGENTS.md)).
+4. Keep what a **click** does under a gate on every platform that can run one. The click itself is
+   the shell's and no suite reaches it, so each gate delivers what the shell would:
+   - **Linux**: `scripts/dev/test-linux-ui.sh` calls the notification's own `app.` action on the
+     app's bus name, as GNOME Shell does, once with the app running and once with it quit, against
+     a service file standing in for the Flatpak's. It asserts the reading pane opened the message.
+   - **Android**: `NotificationOpenTest` takes the intent a tap would deliver from the posted
+     notification and reads it back through the activity's own decoder.
+   - **Windows**: a click that *starts* the app reads its activation before anything else, and the
+     Windows App SDK fails the process fast if the notification platform is not registered first
+     ([`client-traps.md`](client-traps.md)). `cargo xtask check-notification-registration` pins the
+     ordering in the source, and `uitests/NotificationLaunch.Tests.ps1` runs the real binary
+     through a notification activation. ⚠️ That suite has to **close the app first**, since a
+     running instance has already registered the platform and a second process then reads its
+     activation on a broken build as well as a fixed one, and it has to wait out the full **7 to
+     8 seconds** the failfast takes.

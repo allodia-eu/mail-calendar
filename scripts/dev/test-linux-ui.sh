@@ -23,6 +23,7 @@ SELF="$REPO_ROOT/scripts/dev/test-linux-ui.sh"
 START_HARNESS=0
 NO_BUILD=0
 INSIDE_SESSION=0
+ACTIVATED_APP=0
 ARTIFACT_DIR=""
 APP_PID=""
 ATSPI_BUS_PID=""
@@ -38,6 +39,7 @@ while [[ $# -gt 0 ]]; do
     --no-build) NO_BUILD=1; shift ;;
     --artifacts) ARTIFACT_DIR="${2:?--artifacts needs a directory}"; shift 2 ;;
     --inside-session) INSIDE_SESSION=1; shift ;;
+    --activated-app) ACTIVATED_APP=1; shift ;;
     -h|--help)
       sed -n '2,9p' "$SELF"
       exit 0
@@ -205,6 +207,39 @@ set_notifications() { # <true|false>
     die "the new-mail notification switch did not persist $1"
   "$PYTHON" "$ATSPI" activate \
     --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
+}
+
+# Click the notification posted for <subject>, as the desktop does: through the app's bus name.
+click_notification() { # <subject> <capture-file>
+  "$PYTHON" "$REPO_ROOT/scripts/dev/linux_notification_portal.py" click "$2" "$1" "$MAILCAL_APP_ID" ||
+    die "clicking the notification for '$1' did not reach the app"
+}
+
+# The click opened <subject>: the reading pane's heading names it beside the list row that does.
+# Asked from a screen showing neither, so a click that did nothing, or that brought the mailbox
+# back without opening the message, finds one match or none.
+opened_from_notification() { # <subject>
+  "$PYTHON" "$ATSPI" wait --name "$1" --role label --showing --index 1 --timeout 60
+}
+
+# The same click with the app not running: the bus starts it from a service file, as it starts the
+# Flatpak from the one that ships (docs/background-sync.md).
+click_notification_cold() { # <subject> <capture-file>
+  stop_app
+  local services="$XDG_DATA_HOME/dbus-1/services"
+  mkdir -p "$services"
+  printf '[D-BUS Service]\nName=%s\nExec=%s --activated-app --artifacts %s\n' \
+    "$MAILCAL_APP_ID" "$SELF" "$ARTIFACT_DIR" >"$services/$MAILCAL_APP_ID.service"
+  # The bus reads a service directory when it starts, and this one did not exist yet. The
+  # accessibility bus was started inside the session, so the bus's own copy of the environment,
+  # which is what it starts a service with, has never heard of it.
+  gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus \
+    --method org.freedesktop.DBus.ReloadConfig >/dev/null
+  gdbus call --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus \
+    --method org.freedesktop.DBus.UpdateActivationEnvironment \
+    "{'AT_SPI_BUS_ADDRESS': '$AT_SPI_BUS_ADDRESS'}" >/dev/null
+  click_notification "$1" "$2"
+  APP_PID="$(cat "$ARTIFACT_DIR/notification-cold.pid")"
 }
 
 open_mail_message() { # <subject>
@@ -1369,6 +1404,30 @@ PY
     --name "audit@example.test: Remove recipient" --role "push button" --showing --timeout 20
   capture mailto-cold
 
+  # A click on a new-mail notification, delivered as GNOME Shell delivers it: the notification's
+  # own `app.` action, called on the app's bus name. Asked over the calendar, because a click
+  # takes the app to mail before it opens anything, and from there neither the row nor the heading
+  # is on screen. Warm first, then with the app quit, which is the launch the bus has to make.
+  "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Write your message" --absent --timeout 20
+  local clicked_warm="Linux notification click $RANDOM-$RANDOM"
+  notified_for "$clicked_warm" "$portal_capture" ||
+    die "the notification to click never reached the desktop portal"
+  "$PYTHON" "$ATSPI" activate --name "Calendar" --timeout 20
+  # The toggle's activation reaches the app on the accessibility bus and the click on the session
+  # bus, so only the calendar actually on screen says the first has landed before the second.
+  "$PYTHON" "$ATSPI" wait --name "New Event" --role "push button" --showing --timeout 20
+  click_notification "$clicked_warm" "$portal_capture"
+  opened_from_notification "$clicked_warm"
+  capture notification-click
+
+  local clicked_cold="Linux notification cold click $RANDOM-$RANDOM"
+  notified_for "$clicked_cold" "$portal_capture" ||
+    die "the notification to click never reached the desktop portal"
+  click_notification_cold "$clicked_cold" "$portal_capture"
+  opened_from_notification "$clicked_cold"
+  capture notification-click-cold
+
   if grep -Eq 'critical from |unhandled error from ' "$XDG_DATA_HOME/mailcal/mailcal.log"; then
     grep -E 'critical from |unhandled error from ' "$XDG_DATA_HOME/mailcal/mailcal.log" \
       >"$ARTIFACT_DIR/toolkit-errors.log"
@@ -1379,6 +1438,17 @@ PY
 
 if [[ "$INSIDE_SESSION" == 1 ]]; then
   run_inside_session
+  exit 0
+fi
+
+# What the private bus runs when something calls the app's bus name while it is not running: the
+# Exec of the service file `click_notification_cold` writes, standing in for the one the Flatpak
+# installs. Waits on the client, because the bus counts the service as started for as long as this
+# process holds the name it asked for.
+if [[ "$ACTIVATED_APP" == 1 ]]; then
+  launch_app "" "$ARTIFACT_DIR/notification-cold" --gapplication-service
+  echo "$APP_PID" >"$ARTIFACT_DIR/notification-cold.pid"
+  wait "$APP_PID"
   exit 0
 fi
 

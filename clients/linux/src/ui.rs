@@ -84,6 +84,7 @@ mod message_move;
 mod microsoft;
 mod modal;
 mod model;
+mod notification_click;
 mod notification_open;
 mod notifications;
 mod oauth_actions;
@@ -169,6 +170,7 @@ use mailbox::ThreadKey;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 use model::OpenedMessage;
 use model::ReadingState;
+pub(crate) use notification_click::install as install_notification_actions;
 use reader::ComposerHost;
 use reading_windows::DetachedDraft;
 use search::SearchState;

@@ -279,6 +279,7 @@ impl<P: Provider> App<P> {
             // This snapshot IS the answer, so it never announces a wait; `pending` is only ever
             // set by the separate one `open_message_in` publishes while still working.
             pending: false,
+            subject: original.envelope.subject.clone().unwrap_or_default(),
             // The sender line, shown in the reading header as the full `Name <email>` (the list
             // row shows just the name). `from` is a list, but a message has one author, take the
             // first, matching the sender the list row summarises.

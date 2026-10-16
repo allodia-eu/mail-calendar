@@ -99,6 +99,11 @@ modules:
         /app/share/applications/org.mailcal.client.desktop
       - install -Dm644 metadata/org.mailcal.client.metainfo.xml
         /app/share/metainfo/org.mailcal.client.metainfo.xml
+      # What lets a click on a new-mail notification start the app: the portal delivers it by
+      # calling the application on its bus name, and the bus starts it from this file when it is
+      # not running. Flatpak exports it because its name is the app id.
+      - install -Dm644 metadata/org.mailcal.client.service
+        /app/share/dbus-1/services/org.mailcal.client.service
 
       # Validate what was just installed, not the sources it came from. A store rejects a bad
       # metainfo after the upload; this rejects it during the build (AGENTS.md: assert a remote

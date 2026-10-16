@@ -340,3 +340,21 @@ async fn archiving_inside_the_mark_read_round_trip_still_removes_the_row() {
         "the archived row stays off the list, it does not come back"
     );
 }
+
+#[tokio::test]
+async fn an_open_by_key_carries_the_subject_the_list_would_have_given() {
+    // A notification tap can open a message the list on screen does not hold, so the header has
+    // no row to take its title from. The reading snapshot carries it, as it does the sender.
+    let provider = FakeProvider::with(vec![message("m1", "a", "Quarterly report")]);
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+    app.dispatch(Intent::RefreshMail).await;
+
+    app.dispatch(Intent::OpenMessage {
+        reader: ReaderId::Pane,
+        message: msg("acct-1", "m1"),
+    })
+    .await;
+
+    assert_eq!(app.reading_view().subject, "Quarterly report");
+}

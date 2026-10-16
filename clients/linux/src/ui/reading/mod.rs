@@ -465,6 +465,7 @@ mod tests {
         let mut reading = ReadingSnapshot {
             avatar: crate::ui::model::blank_avatar(),
             key: "message".to_owned(),
+            subject: String::new(),
             from: "Sender <sender@example.test>".to_owned(),
             to: String::new(),
             cc: String::new(),
