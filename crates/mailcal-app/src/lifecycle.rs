@@ -125,7 +125,7 @@ impl<P: Provider> App<P> {
             synced_folders: Mutex::new(HashSet::new()),
             prefetching: Mutex::new(HashSet::new()),
             avatar_photos: Mutex::new(HashMap::new()),
-            avatar_pass_running: Mutex::new(false),
+            avatar_pass: Mutex::new(crate::avatars::AvatarPass::default()),
             row_cache: Mutex::new(None),
             row_cache_dropped: AtomicBool::new(false),
             pending_removals: Mutex::new(HashMap::new()),

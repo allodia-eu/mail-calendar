@@ -399,11 +399,8 @@ async fn a_streamed_pass_reprojects_the_list_once_per_chunk_not_once_per_message
     );
 }
 
-/// A live commit draws each sender's photo, as the authoritative rebuild does.
-///
-/// Built without one, the commit published every row as a monogram and the rebuild a beat later
-/// put the same photos back: on iPad, every face in the list flashed to its initials when a
-/// composer closed and saved its draft.
+/// A live commit draws each sender's photo, as the authoritative rebuild does, so a local change
+/// such as a saved draft does not turn the list's faces to monograms until that rebuild lands.
 #[tokio::test]
 async fn a_live_commit_keeps_the_senders_photos() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));

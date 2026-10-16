@@ -168,9 +168,7 @@ impl<P: Provider> App<P> {
         // gets recorded as "nobody has a card for them" and *stays* that way for the rest of
         // the session: contacts arrive half a second later and no face ever appears.
         // Re-ask about every photo *before* rebuilding, so the rebuild's own resolution asks
-        // again. The sync just replaced the index every previous answer came from, and the
-        // first snapshot is built before any card exists, so without this every sender is
-        // recorded as "nobody has a card" and keeps it.
+        // again.
         //
         // The rebuild's pass is the only one needed: after a contacts sync the sole addresses
         // whose answer can have changed are the ones that now have a card, and every card is a

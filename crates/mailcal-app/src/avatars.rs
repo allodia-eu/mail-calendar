@@ -8,9 +8,12 @@
 //!
 //! The contract is [`docs/avatars.md`](../../../docs/avatars.md).
 
-use std::{collections::HashSet, time::Instant};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Instant,
+};
 
-use engine_api::{CanonicalEmail, ContactCard, ContactResource, Provider};
+use engine_api::{CanonicalEmail, Provider};
 use mailcal_viewmodel::view::MailboxListSnapshot;
 
 use crate::App;
@@ -21,13 +24,6 @@ use crate::App;
 /// rebuild picks it up. It exists because a first sync can put thousands of distinct senders
 /// in front of us at once, and each unknown one may cost a provider round trip.
 const RESOLVE_BATCH: usize = 60;
-
-/// The largest photo accepted, in bytes.
-///
-/// A contact photo is drawn at avatar size. Anything past this is a provider handing us a
-/// full-resolution image, and decoding it per row costs far more than the monogram it would
-/// replace.
-const MAX_PHOTO_BYTES: u64 = 2 * 1024 * 1024;
 
 /// What is known about one address's photo.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,6 +38,23 @@ pub(crate) enum PhotoState {
     /// A photo found before the people index it came from was replaced: still drawn, and asked
     /// about again. The answer replaces it, with a changed photo or with none.
     Rechecking(String),
+}
+
+/// The photo pass's bookkeeping, behind one lock.
+///
+/// Locked after `avatar_photos` whenever both are held, never before, so the two cannot deadlock.
+#[derive(Debug, Default)]
+pub(crate) struct AvatarPass {
+    /// A pass is in flight, so the rebuild it publishes does not start another behind it.
+    running: bool,
+    /// A pass was turned away while one ran. The running pass runs once more for it, over
+    /// whatever the published lists still need, so its addresses are not left until some later
+    /// rebuild.
+    pending: bool,
+    /// Bumped each time every answer is re-asked (`recheck_sender_photos`). A pass that read the
+    /// people index before a bump writes nothing it found: its answers come from an index that
+    /// has since been replaced.
+    generation: u64,
 }
 
 impl<P: Provider> App<P> {
@@ -59,22 +72,7 @@ impl<P: Provider> App<P> {
             let Ok(canonical) = CanonicalEmail::parse(address) else {
                 continue;
             };
-            match photos.get(canonical.as_str()) {
-                Some(PhotoState::File(path)) => avatar.image_path = Some(path.clone()),
-                Some(PhotoState::Rechecking(path)) => {
-                    avatar.image_path = Some(path.clone());
-                    wanted.push(canonical);
-                }
-                // Cleared, not left: a pass re-attaches onto the snapshot already on screen, and
-                // a photo the source has dropped must leave the row.
-                Some(PhotoState::None) => avatar.image_path = None,
-                Some(PhotoState::Unresolved) | None => {
-                    avatar.image_path = None;
-                    // Mark it now so the same address queued from twenty rows is one lookup.
-                    photos.insert(canonical.as_str().to_owned(), PhotoState::Unresolved);
-                    wanted.push(canonical);
-                }
-            }
+            attach_one(&mut photos, canonical, &mut avatar.image_path, &mut wanted);
         }
         wanted
     }
@@ -114,19 +112,12 @@ impl<P: Provider> App<P> {
             let Ok(canonical) = CanonicalEmail::parse(&row.primary_email) else {
                 continue;
             };
-            match photos.get(canonical.as_str()) {
-                Some(PhotoState::File(path)) => row.avatar.image_path = Some(path.clone()),
-                Some(PhotoState::Rechecking(path)) => {
-                    row.avatar.image_path = Some(path.clone());
-                    wanted.push(canonical);
-                }
-                Some(PhotoState::None) => row.avatar.image_path = None,
-                Some(PhotoState::Unresolved) | None => {
-                    row.avatar.image_path = None;
-                    photos.insert(canonical.as_str().to_owned(), PhotoState::Unresolved);
-                    wanted.push(canonical);
-                }
-            }
+            attach_one(
+                &mut photos,
+                canonical,
+                &mut row.avatar.image_path,
+                &mut wanted,
+            );
         }
         wanted
     }
@@ -145,6 +136,50 @@ impl<P: Provider> App<P> {
         let Some(_guard) = self.begin_avatar_pass() else {
             return;
         };
+        self.run_passes(addresses).await;
+    }
+
+    /// Resolves `addresses`, then once more for every pass turned away meanwhile. The caller holds
+    /// the pass guard.
+    async fn run_passes(&self, mut addresses: Vec<CanonicalEmail>) {
+        loop {
+            let generation = self
+                .avatar_pass
+                .lock()
+                .expect("avatar mutex poisoned")
+                .generation;
+            self.resolve_batch(addresses, generation).await;
+            if !std::mem::take(
+                &mut self
+                    .avatar_pass
+                    .lock()
+                    .expect("avatar mutex poisoned")
+                    .pending,
+            ) {
+                return;
+            }
+            addresses = self.still_wanted();
+        }
+    }
+
+    /// The addresses the published mail and contacts lists still need asked about.
+    fn still_wanted(&self) -> Vec<CanonicalEmail> {
+        let mut wanted = self.attach_photos(&mut self.mailbox_list.get());
+        let mut contacts = self
+            .contacts
+            .lock()
+            .expect("contacts mutex poisoned")
+            .clone();
+        wanted.extend(self.attach_contact_photos(&mut contacts));
+        wanted
+    }
+
+    /// One pass over at most [`RESOLVE_BATCH`] addresses, publishing once at the end. Records
+    /// nothing once `generation`, read before the people lookup, is no longer current.
+    async fn resolve_batch(&self, addresses: Vec<CanonicalEmail>, generation: u64) {
+        if addresses.is_empty() {
+            return;
+        }
         let start = Instant::now();
         let mut seen = HashSet::new();
         let batch: Vec<CanonicalEmail> = addresses
@@ -165,142 +200,70 @@ impl<P: Provider> App<P> {
 
         let mut resolved = 0usize;
         let mut found = 0usize;
-        // Whether any row would now draw something else: a new face, or a re-checked one gone.
-        let mut changed = false;
         for email in &batch {
             // A sender nobody has a card for is the common case, and it is an answer: record
             // it so the next pass does not ask again.
-            let state = match people.get(email) {
+            let answer = match people.get(email) {
                 Some(person) => self.photo_for_person(person).await,
-                None => PhotoState::None,
+                None => Some(PhotoState::None),
             };
+            let mut photos = self.avatar_photos.lock().expect("avatar mutex poisoned");
+            if self
+                .avatar_pass
+                .lock()
+                .expect("avatar mutex poisoned")
+                .generation
+                != generation
+            {
+                log::info!("avatars: every answer was re-asked during the pass; it records none");
+                return;
+            }
+            let state = answer.unwrap_or_else(|| unanswered(photos.get(email.as_str())));
             if matches!(state, PhotoState::File(_)) {
                 found += 1;
             }
             resolved += 1;
-            let drawn = state.drawn().map(str::to_owned);
-            let before = self
-                .avatar_photos
-                .lock()
-                .expect("avatar mutex poisoned")
-                .insert(email.as_str().to_owned(), state);
-            changed |= before.as_ref().and_then(PhotoState::drawn) != drawn.as_deref();
+            photos.insert(email.as_str().to_owned(), state);
         }
         log::info!(
             "avatars: resolved {resolved} address(es), {found} with a photo, in {}ms",
             start.elapsed().as_millis(),
         );
-        if changed {
-            // Re-attach onto the snapshots already published rather than rebuilding them. The
-            // rows, their order and their contents are unchanged: only the faces are new;
-            // so re-projecting would repeat every store read to arrive at the same lists. It
-            // also keeps this off `rebuild_snapshot`'s call path, which would otherwise
-            // recurse into itself through here.
-            let mut snapshot = self.mailbox_list.get();
-            let _ = self.attach_photos(&mut snapshot);
+        // Re-attach onto the snapshots already published rather than rebuilding them. The
+        // rows, their order and their contents are unchanged: only the faces are new; so
+        // re-projecting would repeat every store read to arrive at the same lists. It also keeps
+        // this off `rebuild_snapshot`'s call path, which would otherwise recurse into itself
+        // through here.
+        //
+        // Published only when a face on screen differs, judged against the list as published
+        // rather than against the map: a rebuild that attached before this pass answered can
+        // publish after it, and a re-checked photo that has not changed is no news.
+        let current = self.mailbox_list.get();
+        let mut snapshot = current.clone();
+        let _ = self.attach_photos(&mut snapshot);
+        if snapshot != current {
             self.mailbox_list.publish(snapshot);
-            self.republish_contacts_with_photos();
         }
+        self.republish_contacts_with_photos();
     }
 
-    /// Re-attaches photos onto the contacts snapshot and signals that surface.
+    /// Re-attaches photos onto the contacts snapshot and signals that surface if a face changed.
     ///
     /// Separate from the mail list because contacts are not a `Surfaced` cell: the snapshot is
     /// held behind its own mutex and the surface is signalled by hand.
     fn republish_contacts_with_photos(&self) {
-        let mut snapshot = self
+        let current = self
             .contacts
             .lock()
             .expect("contacts mutex poisoned")
             .clone();
-        if snapshot.rows.is_empty() {
+        let mut snapshot = current.clone();
+        let _ = self.attach_contact_photos(&mut snapshot);
+        if snapshot == current {
             return;
         }
-        let _ = self.attach_contact_photos(&mut snapshot);
         *self.contacts.lock().expect("contacts mutex poisoned") = snapshot;
         self.observer.surface_changed(crate::Surface::Contacts);
-    }
-
-    /// Walks one person's source cards for a usable photo.
-    ///
-    /// Cache first and without a provider, because most calls are re-reads after a restart:
-    /// the engine's cache survives, this in-memory map does not. Only a genuine miss needs a
-    /// connected adapter, and an account whose provider is not connected simply contributes
-    /// nothing rather than failing the pass.
-    async fn photo_for_person(&self, person: &engine_api::Person) -> PhotoState {
-        for source in &person.sources {
-            let card = match self
-                .engine
-                .contact_card(&source.account, &source.contact)
-                .await
-            {
-                Ok(Some(card)) => card,
-                Ok(None) => continue,
-                Err(error) => {
-                    log::warn!("avatars: card read failed: {error}");
-                    continue;
-                }
-            };
-            let Some(media) = photo_resource(&card) else {
-                continue;
-            };
-            if let Some(state) = self.photo_from_cache(&source.account, &card, &media).await {
-                return state;
-            }
-            if let Some(state) = self
-                .photo_from_provider(&source.account, &card, &media)
-                .await
-            {
-                return state;
-            }
-        }
-        PhotoState::None
-    }
-
-    /// The cached photo for one card resource, or `None` when the cache cannot answer.
-    async fn photo_from_cache(
-        &self,
-        account: &engine_api::AccountId,
-        card: &ContactCard,
-        media: &ContactResource,
-    ) -> Option<PhotoState> {
-        match self.engine.cached_contact_photo(account, card, media).await {
-            Ok(Some(file)) => Some(usable(&file.path)),
-            Ok(None) => None,
-            Err(error) => {
-                log::warn!("avatars: cached photo read failed: {error}");
-                None
-            }
-        }
-    }
-
-    /// Fetches one card resource's photo through the account's contacts adapter.
-    async fn photo_from_provider(
-        &self,
-        account: &engine_api::AccountId,
-        card: &ContactCard,
-        media: &ContactResource,
-    ) -> Option<PhotoState> {
-        let accounts = self.accounts.read().await;
-        let provider = accounts
-            .iter()
-            .find(|candidate| &candidate.id == account)?
-            .contact_providers
-            .first()?;
-        let fetched = self
-            .engine
-            .contact_photo(provider, account, card, media)
-            .await;
-        match fetched {
-            Ok(Some(file)) => Some(usable(&file.path)),
-            // The source has no photo for this person: an answer, and one the engine has
-            // already remembered so a later pass does not re-ask its provider either.
-            Ok(None) => Some(PhotoState::None),
-            Err(error) => {
-                log::warn!("avatars: photo fetch failed: {error}");
-                None
-            }
-        }
     }
 
     /// Asks again about every sender photo, so the next rebuild re-resolves them all.
@@ -310,41 +273,61 @@ impl<P: Provider> App<P> {
     /// a re-resolve reads the engine's own cache, which needs no provider and no network, and
     /// it is what picks up a photo that changed on the server.
     ///
-    /// A photo already found stays drawn while it is asked about (`Rechecking`). Dropped with
-    /// the rest, every row went back to its monogram until the pass answered, a flash of
-    /// initials across the whole list for photos that had not changed.
+    /// A photo already found stays drawn while it is asked about (`Rechecking`), so a photo
+    /// that has not changed never leaves the row.
     pub(crate) fn recheck_sender_photos(&self) {
         let mut photos = self.avatar_photos.lock().expect("avatar mutex poisoned");
-        photos.retain(|_, state| state.drawn().is_some());
-        for state in photos.values_mut() {
-            if let PhotoState::File(path) = state {
+        photos.retain(|_, state| match state {
+            PhotoState::File(path) => {
                 *state = PhotoState::Rechecking(std::mem::take(path));
+                true
             }
-        }
+            PhotoState::Rechecking(_) => true,
+            PhotoState::Unresolved | PhotoState::None => false,
+        });
+        // Under the map's lock, so a pass checking the generation before it writes cannot slip
+        // an answer from the old index in between.
+        self.avatar_pass
+            .lock()
+            .expect("avatar mutex poisoned")
+            .generation += 1;
     }
 
-    /// Marks a pass as running, or returns `None` when one already is.
+    /// Marks a pass as running, or records it as pending and returns `None` when one already is.
     fn begin_avatar_pass(&self) -> Option<AvatarPassGuard<'_>> {
-        let mut running = self
-            .avatar_pass_running
-            .lock()
-            .expect("avatar mutex poisoned");
-        if *running {
+        let mut pass = self.avatar_pass.lock().expect("avatar mutex poisoned");
+        if pass.running {
+            pass.pending = true;
             return None;
         }
-        *running = true;
+        pass.running = true;
         Some(AvatarPassGuard {
-            flag: &self.avatar_pass_running,
+            pass: &self.avatar_pass,
         })
     }
 }
 
-impl PhotoState {
-    /// The photo a row draws for this state, if any.
-    fn drawn(&self) -> Option<&str> {
-        match self {
-            Self::File(path) | Self::Rechecking(path) => Some(path),
-            Self::Unresolved | Self::None => None,
+/// Fills one avatar's photo from the map, and queues the address when it is to be asked about.
+fn attach_one(
+    photos: &mut HashMap<String, PhotoState>,
+    canonical: CanonicalEmail,
+    image_path: &mut Option<String>,
+    wanted: &mut Vec<CanonicalEmail>,
+) {
+    match photos.get(canonical.as_str()) {
+        Some(PhotoState::File(path)) => *image_path = Some(path.clone()),
+        Some(PhotoState::Rechecking(path)) => {
+            *image_path = Some(path.clone());
+            wanted.push(canonical);
+        }
+        // Cleared, not left: a pass re-attaches onto the snapshot already on screen, and a
+        // photo the source has dropped must leave the row.
+        Some(PhotoState::None) => *image_path = None,
+        Some(PhotoState::Unresolved) | None => {
+            *image_path = None;
+            // Mark it now so the same address queued from twenty rows is one lookup.
+            photos.insert(canonical.as_str().to_owned(), PhotoState::Unresolved);
+            wanted.push(canonical);
         }
     }
 }
@@ -352,80 +335,27 @@ impl PhotoState {
 /// Clears the in-flight mark on every exit path, so an error can never leave the pass
 /// permanently "already running".
 struct AvatarPassGuard<'a> {
-    flag: &'a std::sync::Mutex<bool>,
+    pass: &'a std::sync::Mutex<AvatarPass>,
 }
 
 impl Drop for AvatarPassGuard<'_> {
     fn drop(&mut self) {
-        *self.flag.lock().expect("avatar mutex poisoned") = false;
+        self.pass.lock().expect("avatar mutex poisoned").running = false;
     }
 }
 
-/// The card's photo resource, if it advertises one.
+/// What a lookup that could not be asked leaves an address at.
 ///
-/// A card may carry several media (a `PHOTO` and a `LOGO`), and only the photo is a person.
-/// A resource with no `kind` is taken as the photo: CardDAV's `PHOTO` property is normalised
-/// with `kind: "photo"`, but a source that states nothing is far more likely to mean its one
-/// image than a logo.
-fn photo_resource(card: &ContactCard) -> Option<ContactResource> {
-    card.media
-        .values()
-        .map(|property| &property.value)
-        .find(|resource| {
-            resource
-                .kind
-                .as_deref()
-                .is_none_or(|kind| kind.eq_ignore_ascii_case("photo"))
-        })
-        .cloned()
-}
-
-/// Decides whether a file the engine cached is something a client may be handed.
-///
-/// **The provider's own `media_type` is not the check.** It is remote content describing
-/// itself, and a client that trusted it would decode whatever actually arrived. So the bytes
-/// are sniffed, and only the four raster formats every platform decodes natively are
-/// accepted.
-///
-/// **SVG can never pass**, by construction: it has no magic number and is script-capable, and
-/// nothing in `rendering-security.md` permits it near a client surface.
-fn usable(path: &std::path::Path) -> PhotoState {
-    let Ok(metadata) = std::fs::metadata(path) else {
-        return PhotoState::None;
-    };
-    if metadata.len() > MAX_PHOTO_BYTES {
-        log::info!(
-            "avatars: photo of {} bytes refused as oversized",
-            metadata.len()
-        );
-        return PhotoState::None;
+/// A photo being re-checked stays drawn: only an answer replaces it, and this was none. An
+/// address never resolved is recorded as having no photo, as an answer would be, so a provider
+/// that stays offline is not asked again on every rebuild; the next contacts sync re-asks it.
+fn unanswered(previous: Option<&PhotoState>) -> PhotoState {
+    match previous {
+        Some(PhotoState::Rechecking(path) | PhotoState::File(path)) => {
+            PhotoState::File(path.clone())
+        }
+        _ => PhotoState::None,
     }
-    let Ok(head) = read_head(path) else {
-        return PhotoState::None;
-    };
-    if is_raster(&head) {
-        PhotoState::File(path.display().to_string())
-    } else {
-        log::info!("avatars: photo refused: not a raster image");
-        PhotoState::None
-    }
-}
-
-/// Reads just enough of a file to identify its format.
-fn read_head(path: &std::path::Path) -> std::io::Result<Vec<u8>> {
-    use std::io::Read;
-    let mut file = std::fs::File::open(path)?;
-    let mut head = vec![0u8; 16];
-    let read = file.read(&mut head)?;
-    head.truncate(read);
-    Ok(head)
-}
-
-/// PNG, JPEG, GIF or WebP by magic number: the one table, shared with the composer's dropped
-/// pictures ([`crate::composer_image::raster_media_type`]), so the two surfaces cannot come to
-/// disagree about what a client may be handed.
-fn is_raster(head: &[u8]) -> bool {
-    crate::composer_image::raster_media_type(head).is_some()
 }
 
 /// The address a row names and the avatar to fill in for it.
@@ -441,6 +371,9 @@ fn row_sender(
         SnapshotRow::Thread(thread) => (thread.latest_from_address.as_str(), &mut thread.avatar),
     }
 }
+
+#[path = "avatars_lookup.rs"]
+mod lookup;
 
 #[cfg(test)]
 #[path = "avatars_test_app.rs"]

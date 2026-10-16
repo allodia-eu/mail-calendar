@@ -322,9 +322,9 @@ pub struct App<P> {
     /// row is a map read rather than a store read. It repopulates cheaply after a restart;
     /// the engine's cache answers without touching a provider (`avatars`).
     avatar_photos: Mutex<HashMap<String, avatars::PhotoState>>,
-    /// Whether a photo-resolution pass is in flight, so the rebuild it publishes does not
-    /// start another one behind it.
-    avatar_pass_running: Mutex<bool>,
+    /// The photo pass in flight, whether one was turned away while it ran, and how often every
+    /// answer has been re-asked (`avatars::AvatarPass`).
+    avatar_pass: Mutex<avatars::AvatarPass>,
     /// The shown list's cached rows: the projected rows a snapshot renders, the accounts they
     /// span and the window depth they were read at, so re-showing the same view costs nothing.
     ///

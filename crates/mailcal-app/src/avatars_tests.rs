@@ -178,10 +178,7 @@ async fn contacts_arriving_after_the_first_pass_still_get_their_photos() {
 }
 
 /// A contacts sync asks again about every photo, and keeps drawing the ones it knew until the
-/// answer is in.
-///
-/// Dropping them put every row back to its monogram for the length of the re-resolve, a flash
-/// of initials across the whole list: seen on iPad, closing a composer that had saved a draft.
+/// answer is in, so a photo that has not changed never leaves the row.
 #[tokio::test]
 async fn a_contacts_sync_keeps_drawing_a_known_face_while_it_asks_again() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
@@ -247,6 +244,40 @@ async fn a_face_the_recheck_finds_gone_leaves_the_rows() {
     );
 }
 
+/// A pass publishes by what the list on screen draws, not by what the map held before it.
+///
+/// A rebuild attaches before a pass answers and can publish after it, so the list on screen can
+/// lack a face the map already has. A pass that re-confirms the face must put it there; one that
+/// finds the list already drawing it publishes nothing.
+#[tokio::test]
+async fn a_pass_puts_a_known_face_on_a_list_that_lacks_it() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(
+        FakeContacts {
+            card: card_with_photo("ada@example.test"),
+            photo: Some(PNG.to_vec()),
+        },
+        &surfaces,
+    );
+    app.mailbox_list.publish(snapshot_from("ada@example.test"));
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
+    let known = image_path(&app.mailbox_list.get()).expect("the face resolved");
+    let ada = || vec![engine_api::CanonicalEmail::parse("ada@example.test").unwrap()];
+
+    surfaces.lock().unwrap().clear();
+    app.resolve_sender_photos(ada()).await;
+    assert!(
+        !surfaces.lock().unwrap().contains(&Surface::MailboxList),
+        "the same face already on screen is no news"
+    );
+
+    // A rebuild's list, attached before the face was known, published after it was.
+    app.mailbox_list.publish(snapshot_from("ada@example.test"));
+    app.resolve_sender_photos(ada()).await;
+    assert_eq!(image_path(&app.mailbox_list.get()), Some(known));
+}
+
 /// Opening a message must not change the sender's face.
 ///
 /// The reading header builds its own avatar, so built without the photo it *replaces* the
@@ -290,4 +321,102 @@ async fn the_reading_header_draws_the_same_face_the_row_did() {
     );
     assert_eq!(app.resolved_photo("stranger@example.test"), None);
     assert_eq!(app.resolved_photo("not an address"), None);
+}
+
+/// A re-check the source cannot answer keeps the face: only an answer replaces it.
+///
+/// The contacts server is offline, so the adapter cannot be asked and nothing is cached for the
+/// card. That is not the source saying the person has no photo.
+#[tokio::test]
+async fn a_recheck_the_source_cannot_answer_keeps_the_face() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(
+        FakeContacts {
+            card: card_with_photo("ada@example.test"),
+            photo: None,
+        },
+        &surfaces,
+    );
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
+    // No connected account to ask, as when the app is offline.
+    app.accounts.write().await.clear();
+    app.avatar_photos.lock().unwrap().insert(
+        "ada@example.test".to_owned(),
+        super::PhotoState::Rechecking("/known.png".to_owned()),
+    );
+    let mut snapshot = snapshot_from("ada@example.test");
+    let wanted = app.attach_photos(&mut snapshot);
+    app.mailbox_list.publish(snapshot);
+
+    app.resolve_sender_photos(wanted).await;
+    assert_eq!(
+        image_path(&app.mailbox_list.get()).as_deref(),
+        Some("/known.png"),
+        "a lookup that could not be asked leaves the face drawn"
+    );
+    assert_eq!(
+        app.avatar_photos.lock().unwrap().get("ada@example.test"),
+        Some(&super::PhotoState::File("/known.png".to_owned())),
+        "and settled, so it is not asked again until the next contacts sync"
+    );
+}
+
+/// A pass that read the people index before every answer was re-asked records nothing it found:
+/// its answers come from the index the contacts sync replaced.
+#[tokio::test]
+async fn a_pass_from_before_a_recheck_records_nothing() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(
+        FakeContacts {
+            card: card_with_photo("ada@example.test"),
+            photo: Some(PNG.to_vec()),
+        },
+        &surfaces,
+    );
+    app.mailbox_list.publish(snapshot_from("ada@example.test"));
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
+    let known = image_path(&app.mailbox_list.get()).expect("the face resolved");
+
+    let before = app.avatar_pass.lock().unwrap().generation;
+    app.recheck_sender_photos();
+    let ada = vec![engine_api::CanonicalEmail::parse("ada@example.test").unwrap()];
+    app.resolve_batch(ada, before).await;
+    assert_eq!(
+        app.avatar_photos.lock().unwrap().get("ada@example.test"),
+        Some(&super::PhotoState::Rechecking(known)),
+        "still to be asked about against the new index"
+    );
+}
+
+/// A pass turned away because another was running is run by that one, so what it wanted is not
+/// left until some later rebuild.
+#[tokio::test]
+async fn a_pass_turned_away_while_one_runs_is_run_by_it() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(
+        FakeContacts {
+            card: card_with_photo("ada@example.test"),
+            photo: Some(PNG.to_vec()),
+        },
+        &surfaces,
+    );
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
+    app.avatar_photos.lock().unwrap().clear();
+    app.mailbox_list.publish(snapshot_from("ada@example.test"));
+    let ada = vec![engine_api::CanonicalEmail::parse("ada@example.test").unwrap()];
+
+    let running = app.begin_avatar_pass().expect("no pass yet");
+    app.resolve_sender_photos(ada).await;
+    assert_eq!(image_path(&app.mailbox_list.get()), None, "turned away");
+
+    // The running pass finishing its own work.
+    app.run_passes(Vec::new()).await;
+    drop(running);
+    assert!(
+        image_path(&app.mailbox_list.get()).is_some(),
+        "the turned-away pass's address is resolved by the pass that turned it away"
+    );
 }

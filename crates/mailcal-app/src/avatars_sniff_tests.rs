@@ -3,7 +3,10 @@
 //! Pure checks over bytes and files, split from `avatars_tests.rs` for the 500-line limit;
 //! and they read better apart: everything there needs a running app, nothing here does.
 
-use super::{PhotoState, is_raster, usable};
+use super::{
+    PhotoState,
+    lookup::{is_raster, usable},
+};
 
 /// A one-pixel PNG; real magic bytes, so the sniffing under test sees what it would in life.
 const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01";

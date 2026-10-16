@@ -127,7 +127,11 @@ replaces the index the answer was derived from.
 map, the quick re-projection a local change makes as well as the full rebuild; one that skipped it
 turns the whole list back to monograms and then to the same photos a moment later. A contacts sync
 re-asks about every face, which is how a photo changed on the server arrives, and until the answer
-is in the row keeps the photo it had. The answer replaces it, with a new photo or with none.
+is in the row keeps the photo it had. The answer replaces it, with a new photo or with none; a
+lookup that could not be asked (no connected provider, a failed read or fetch) is no answer, and
+the photo stays. Answers come from the index they were asked against, so a pass that began before
+the sync records none of what it found, and a pass turned away because one was running is run by
+that one when it finishes.
 
 **Opening something never regresses to the monogram.** A reading header and a contact detail are
 each built one at a time rather than as a list, so each must read the same resolved map instead
