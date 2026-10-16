@@ -153,3 +153,60 @@ fn discovery_error(err: mailcal_oauth::DiscoveryError) -> MailcalError {
     log::info!("jmap oauth: discovery unavailable ({err}); the manual secret still works");
     MailcalError::Connect(format!("this server does not support signing in: {err}"))
 }
+
+/// Whether the setup screen may offer sign-in at `metadata`: it can register this install, and
+/// what [`discover_and_register`] would request grants mail. The same test the sign-in applies,
+/// so the screen never draws a button that the sign-in then refuses.
+pub(super) fn offers_sign_in(metadata: &mailcal_oauth::AuthServerMetadata) -> bool {
+    let protocol = mailcal_oauth::MailProtocol::Jmap;
+    metadata.registration_endpoint.is_some()
+        && mailcal_oauth::grants_mail_access(
+            metadata,
+            &mailcal_oauth::select_scopes(metadata, protocol),
+            protocol,
+        )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn metadata(registration: bool, scopes: &[&str]) -> mailcal_oauth::AuthServerMetadata {
+        mailcal_oauth::AuthServerMetadata {
+            issuer: "https://example.net".to_owned(),
+            authorization_endpoint: "https://example.net/oauth/authorize".to_owned(),
+            token_endpoint: "https://example.net/oauth/token".to_owned(),
+            registration_endpoint: registration
+                .then(|| "https://example.net/oauth/register".to_owned()),
+            revocation_endpoint: None,
+            userinfo_endpoint: None,
+            scopes_supported: scopes.iter().map(|scope| (*scope).to_owned()).collect(),
+            end_session_endpoint: None,
+            prompt_values_supported: Vec::new(),
+            issuer_parameter_supported: false,
+        }
+    }
+
+    #[test]
+    fn sign_in_is_offered_only_where_the_sign_in_would_grant_jmap_mail() {
+        assert!(offers_sign_in(&metadata(
+            true,
+            &["urn:ietf:params:oauth:scope:mail"]
+        )));
+        assert!(offers_sign_in(&metadata(true, &["jmap", "offline_access"])));
+        assert!(offers_sign_in(&metadata(true, &[])));
+        assert!(!offers_sign_in(&metadata(
+            false,
+            &["urn:ietf:params:oauth:scope:mail"]
+        )));
+        // An IMAP server's earlier-draft scopes open neither of a JMAP account's endpoints.
+        assert!(!offers_sign_in(&metadata(
+            true,
+            &["imap", "smtp", "offline_access"]
+        )));
+        assert!(!offers_sign_in(&metadata(
+            true,
+            &["urn:ietf:params:oauth:scope:calendars"]
+        )));
+    }
+}

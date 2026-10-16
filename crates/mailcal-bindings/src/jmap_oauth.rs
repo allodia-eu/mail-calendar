@@ -175,10 +175,8 @@ impl MailcalApp {
                     }
                 };
             match mailcal_oauth::discover_auth_server(&http, &protected.issuer).await {
-                // Registration is what actually mints our client id, so a server that
-                // advertises no registration endpoint cannot be offered sign-in.
                 Ok(metadata) => {
-                    let offered = metadata.registration_endpoint.is_some();
+                    let offered = discovery::offers_sign_in(&metadata);
                     log::info!(
                         "jmap oauth: {} advertises sign-in: {offered}",
                         protected.issuer

@@ -176,9 +176,8 @@ fn metadata_offering(scopes: &[&str]) -> AuthServerMetadata {
 
 #[test]
 fn an_issuer_is_offered_only_where_its_sign_in_covers_imap_and_smtp() {
-    // The setup screen and the sign-in button ask the same question of the same metadata. When
-    // they disagreed, the screen drew "Sign in with your provider" for an issuer the button then
-    // refused, and the person met an error for a choice the app had offered them.
+    // The setup screen and the sign-in button ask the same question of the same metadata, so
+    // the screen never offers a sign-in that the button then refuses.
     assert!(covers_imap_mail(&metadata_offering(&[
         "urn:ietf:params:oauth:scope:mail",
         "offline_access",
