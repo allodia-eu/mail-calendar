@@ -170,6 +170,12 @@ pub struct OAuthProviderConfig {
     /// It must ride on the authorization request, the code exchange, and every refresh; omitting
     /// it from the refresh alone would break the account about an hour after setup.
     pub resource: Option<String>,
+    /// More RFC 8707 resources to name on the **authorization request** only: the endpoints an
+    /// IMAP account will present its token to, each named only where something from the
+    /// issuer's side vouches for it ([`resource_for`](crate::resource_for)). The exchange and
+    /// every refresh leave them out, which `draft-ietf-mailmaint-oauth-public` §3.5 defines as a
+    /// token for every resource authorised.
+    pub authorization_resources: Vec<String>,
     /// The issuer the authorization response's `iss` parameter must name (RFC 9207), when the
     /// server advertised that it sends one
     /// ([`issuer_parameter_supported`](crate::AuthServerMetadata::issuer_parameter_supported)).
@@ -214,6 +220,7 @@ impl OAuthProviderConfig {
             scopes: scopes.iter().map(|s| (*s).to_owned()).collect(),
             // Microsoft scopes tokens by scope, not by RFC 8707 resource indicator.
             resource: None,
+            authorization_resources: Vec::new(),
             // Microsoft's issuer is fixed at build time; there is no substitution to detect.
             expected_issuer: None,
             style: AuthStyle::Microsoft,
@@ -245,6 +252,7 @@ impl OAuthProviderConfig {
             scopes: scopes.iter().map(|s| (*s).to_owned()).collect(),
             // Google likewise uses scopes alone.
             resource: None,
+            authorization_resources: Vec::new(),
             // As for Microsoft: a fixed, integrated issuer.
             expected_issuer: None,
             style: AuthStyle::Google,
@@ -284,6 +292,11 @@ impl OAuthProviderConfig {
             // well as the exchange, because a server may bind the issued code to the target.
             if let Some(resource) = &self.resource {
                 pairs.append_pair("resource", resource);
+            }
+            for resource in &self.authorization_resources {
+                if self.resource.as_ref() != Some(resource) {
+                    pairs.append_pair("resource", resource);
+                }
             }
             match self.style {
                 AuthStyle::Microsoft => {

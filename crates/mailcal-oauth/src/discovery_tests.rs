@@ -23,6 +23,7 @@ fn raw(issuer: &str, pkce: &[&str]) -> RawAuthServerMetadata {
         code_challenge_methods_supported: pkce.iter().map(|m| (*m).to_owned()).collect(),
         end_session_endpoint: None,
         prompt_values_supported: Vec::new(),
+        protected_resources: Vec::new(),
     }
 }
 

@@ -29,6 +29,15 @@ fn pending() -> PendingImapLogin {
             "urn:ietf:params:oauth:scope:mail".to_owned(),
         ],
         issuer: Some("https://login.example.com".to_owned()),
+        authorization_server: "https://login.example.com".to_owned(),
+        protected_resources: vec![
+            "https://dav.example.com".to_owned(),
+            "imap.example.com".to_owned(),
+        ],
+        resources: vec![
+            "imap.example.com".to_owned(),
+            "https://dav.example.com".to_owned(),
+        ],
         state: "state-xyz".to_owned(),
         verifier: "verifier".to_owned(),
     }
@@ -183,4 +192,41 @@ fn the_three_offers_survive_the_ffi_boundary_distinctly() {
         ImapAuthOffer::from(ImapAuth::Password),
         ImapAuthOffer::Password
     );
+}
+
+#[test]
+fn the_stored_grant_keeps_what_decides_where_its_tokens_may_go() {
+    // A connect applies the profile's host rule from these two fields, without asking the
+    // issuer again; losing either at the TOML round trip would widen or empty it silently.
+    let (setup, _grant) = pending().into_grant("rt-value".to_owned());
+    let toml = mailcal_account::build_config_toml(&setup).expect("serializable");
+    let grant = mailcal_account::load_str(&toml)
+        .expect("round-trips")
+        .oauth
+        .expect("an OAuth account");
+    assert_eq!(
+        grant.authorization_server.as_deref(),
+        Some("https://login.example.com")
+    );
+    assert_eq!(
+        grant.protected_resources,
+        ["https://dav.example.com", "imap.example.com"]
+    );
+    assert!(grant.token_may_reach("dav.example.com"));
+    assert!(
+        !grant.token_may_reach("www.example.com"),
+        "the list replaces the domain"
+    );
+}
+
+#[test]
+fn the_authorization_request_names_each_vouched_resource_once() {
+    let start = start_login(pending()).expect("a request");
+    let url = url::Url::parse(&start.authorization_url).unwrap();
+    let named: Vec<String> = url
+        .query_pairs()
+        .filter(|(key, _)| key == "resource")
+        .map(|(_, value)| value.into_owned())
+        .collect();
+    assert_eq!(named, ["imap.example.com", "https://dav.example.com"]);
 }

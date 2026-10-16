@@ -14,6 +14,7 @@ fn metadata(scopes: &[&str]) -> AuthServerMetadata {
         end_session_endpoint: None,
         prompt_values_supported: Vec::new(),
         issuer_parameter_supported: false,
+        protected_resources: Vec::new(),
     }
 }
 
@@ -202,4 +203,23 @@ fn an_earlier_draft_name_is_matched_whole() {
         ],
         MailProtocol::Imap
     ));
+}
+
+#[test]
+fn a_grant_reaches_a_dav_use_only_when_its_request_named_it() {
+    let scopes = |list: &[&str]| list.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+    let stalwart = scopes(&[
+        "offline_access",
+        "urn:ietf:params:oauth:scope:mail",
+        "urn:ietf:params:oauth:scope:calendars",
+    ]);
+    assert!(requests_dav_use(&stalwart, DavUse::Calendars));
+    assert!(!requests_dav_use(&stalwart, DavUse::Contacts));
+    // Soverin's grant: mail only, in the earlier drafts' names.
+    let soverin = scopes(&["offline_access", "imap", "smtp"]);
+    assert!(!requests_dav_use(&soverin, DavUse::Calendars));
+    assert!(!requests_dav_use(&soverin, DavUse::Contacts));
+    let earlier = scopes(&["imap", "smtp", "caldav", "carddav"]);
+    assert!(requests_dav_use(&earlier, DavUse::Calendars));
+    assert!(requests_dav_use(&earlier, DavUse::Contacts));
 }

@@ -103,6 +103,8 @@ impl PendingJmapLogin {
             scopes: self.scopes,
             resource: self.resource,
             issuer: self.issuer,
+            authorization_server: None,
+            protected_resources: Vec::new(),
         };
         (self.email, self.base_url, grant)
     }
@@ -242,6 +244,8 @@ impl MailcalApp {
             issuer: metadata
                 .issuer_parameter_supported
                 .then(|| metadata.issuer.clone()),
+            authorization_server: None,
+            protected_resources: Vec::new(),
         };
         log::info!("jmap oauth: opening the authorization page; awaiting the redirect");
         start_login(email, base_url, &grant)
@@ -299,6 +303,8 @@ impl MailcalApp {
             scopes: pending.scopes.clone(),
             resource: pending.resource.clone(),
             issuer: pending.issuer.clone(),
+            authorization_server: None,
+            protected_resources: Vec::new(),
         };
         let oauth = OAuthClient::new(grant_shell.provider_config())
             .map_err(|err| MailcalError::Config(err.to_string()))?;

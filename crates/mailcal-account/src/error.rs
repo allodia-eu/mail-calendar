@@ -105,6 +105,12 @@ pub enum AccountError {
     /// values are content, and this reaches the diagnostic log (`docs/logging.md`).
     #[error("contact write: {0}")]
     ContactWrite(String),
+    /// The account's sign-in does not reach this calendar or contacts server
+    /// (`docs/mail-oauth.md` rule 10): its grant asked for no scope for the use, or the server's
+    /// host is not one its issuer's tokens are for. Nothing was sent; the use needs a sign-in of
+    /// its own. Carries `calendar` or `contacts`.
+    #[error("the account's sign-in does not reach its {0} server")]
+    DavNeedsOwnSignIn(&'static str),
     /// The account names no credential this connect can present: it signs in with OAuth but
     /// was connected without its token source, or stores neither a password nor a grant. A
     /// stored config makes both impossible and a hand-edited one does not.

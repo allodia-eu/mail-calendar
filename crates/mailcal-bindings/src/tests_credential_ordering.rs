@@ -61,6 +61,8 @@ fn rotating_account(who: &str, endpoint: String) -> (String, engine_api::Account
             scopes: vec!["offline_access".to_owned()],
             resource: None,
             issuer: None,
+            authorization_server: None,
+            protected_resources: Vec::new(),
         }),
         shape: mailcal_account::AccountShape::default(),
     };

@@ -31,6 +31,8 @@ fn jmap_entry(refresh: &str) -> (String, ConnectedAccount) {
             scopes: vec!["offline_access".to_owned()],
             resource: None,
             issuer: None,
+            authorization_server: None,
+            protected_resources: Vec::new(),
         }),
         shape: mailcal_account::AccountShape::default(),
     };

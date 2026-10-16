@@ -118,11 +118,31 @@ is recorded here.
    fresh one. On a **password** account it triggers none: the same secret would go back to the
    same server, at a provider that may be counting attempts toward a lockout.
 
-10. **An OAuth account stores no password anywhere.** The grant is stored once, at the root
-    (`[oauth]`), because every endpoint presents it: IMAP and SMTP over SASL, the calendar and
-    address book as the same bearer token rather than a reused password, and "repair this account" is a re-authorisation rather than a typed secret. The
-    `calendars` and `contacts` scopes are requested at sign-in precisely so the second half
-    works.
+10. **An OAuth account stores no password anywhere, and its token goes only where the profile
+    lets it.** The grant is stored once, at the root (`[oauth]`), and "repair this account" is a
+    re-authorisation rather than a typed secret. IMAP and SMTP present it over SASL. The calendar
+    and address book present it as Bearer, and only when both hold
+    (`config_dav::dav_credentials`):
+    - the sign-in **asked for** that use's scope (`urn:ietf:params:oauth:scope:calendars` or
+      `…:contacts`, or the earlier drafts' `caldav`/`carddav`). The requested set, because a
+      server may grant in its own vocabulary (Fastmail answers with JMAP capability names and
+      `https://www.fastmail.com/dev/protocol-*`), and because a server is not relied on to refuse
+      a token without the scope (Stalwart opens CalDAV for a mail-only one);
+    - the server's host is one the issuer's tokens are for (§3.6): one its
+      `protected_resources` names, or, when it lists none, one with the issuer host's
+      registrable domain by the public suffix list. Checked again on every redirect discovery
+      follows, through the engine's `CredentialHosts` policy, so a `.well-known` or SRV hop
+      cannot carry the token off the issuer's hosts.
+
+    Otherwise nothing is sent and the use needs a sign-in of its own
+    (`AccountError::DavNeedsOwnSignIn`). A DAV server's own RFC 9728 metadata never decides this:
+    it is self-asserted, and a hostile server can name any issuer. TLS verification is what makes
+    a host name mean anything here. What remains is a host taken over inside the issuer's own
+    registrable domain, which an issuer closes by publishing `protected_resources`. Soverin is
+    the case that refuses: its grant names `imap` and `smtp` only, and its sabre/dav takes no
+    token at all. The grant records the issuer and its `protected_resources` at sign-in
+    (`authorization_server`, `protected_resources`); one stored before that falls back to `issuer`,
+    then to the token endpoint's origin.
 
 11. **`iss` is checked where a server says it sends one** (RFC 9207). That is the only thing
     that catches a mix-up relay once `state` has matched, and it is checked strictly: a
@@ -150,11 +170,26 @@ is recorded here.
   once, on the screen they are most likely to abandon, and the field is optional anyway:
   Stalwart answers a bad token with a bare `NO [AUTHENTICATIONFAILED]` and no challenge at all.
 
-- **No RFC 8707 `resource` for an IMAP account.** The profile's example is a JMAP session URL
-  and it defines no URI form for an IMAP endpoint. A server that scopes tokens by resource
-  applies its default without one; inventing `imap://…` would risk `invalid_target` on the
-  exchange and on every refresh after it. A JMAP account still sends the one its RFC 9728
-  metadata published.
+- **The sign-in names fewer resources than §3.4 asks** (RFC 8707). The profile names every
+  endpoint the account will use: IMAP and SMTP by bare host name, DAV by URL. Deployed servers
+  refuse that, so an endpoint is named only when something from the issuer's side vouches for
+  it (`mailcal_oauth::resource_for`): the issuer's `protected_resources`, or the endpoint's own
+  RFC 9728 metadata naming this issuer with a `resource` covering it, sent as that value. IMAP and
+  SMTP are named only when the issuer lists them. The exchange and every refresh name none, which
+  §3.5 defines as a token for everything authorised; a JMAP account still sends the one `resource`
+  its session's metadata published, on refresh too. Measured 2026-10-16:
+
+  | Resource sent | Stalwart 0.16.24 | Fastmail |
+  |---|---|---|
+  | none | accepted | `invalid_target` |
+  | bare IMAP/SMTP host name (§3.4's form) | refused | `invalid_target` |
+  | DAV URL | accepted | `invalid_target` |
+  | its JMAP session URL, or its origin | accepted | accepted (the session URL only) |
+
+  Neither binds a token to what was named: one Fastmail token issued for its JMAP session opens
+  IMAP, SMTP, CalDAV and CardDAV, and a Stalwart token opens all of its endpoints. Neither sends
+  the token response's `username` (§3.5), so the address the person typed stays the account's
+  identity.
 
 - **No mechanism knob.** Which SASL mechanism carries the token is negotiated by the engine
   from what the server advertises, and a caller able to pin one would be encoding which

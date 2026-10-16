@@ -149,15 +149,21 @@ pub async fn connect_caldav(
     tokens: ImapTokens<'_>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let endpoint = account.caldav_endpoint().ok_or(AccountError::NoCalDav)?;
-    let credentials = config_dav::dav_credentials(account, endpoint, tokens).await?;
+    let auth =
+        config_dav::dav_credentials(account, endpoint, mailcal_oauth::DavUse::Calendars, tokens)
+            .await?;
     let caldav = account.caldav.as_ref().ok_or(AccountError::NoCalDav)?;
     let tls = account_tls(account)?;
-    let config = CalDavConfig::new(
+    let mut config = CalDavConfig::new(
         // Tolerate a stored bare host (a scheme-less base URL from an earlier setup) by
         // defaulting it to https:// here too, so existing configs connect without re-entry.
         normalize_caldav_base_url(&caldav.base_url),
-        credentials,
-    )
+        auth.credentials,
+    );
+    if let Some(hosts) = auth.hosts {
+        config = config.with_credential_hosts(hosts);
+    }
+    let config = config
     // A clone shares the record of what it refused, so a refusal reads back from `tls`.
     .with_tls(tls.clone())
     // Ungated, for the reason `connect_carddav_contact_providers` gives: no DAV adapter

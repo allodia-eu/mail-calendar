@@ -178,6 +178,11 @@ pub struct AuthServerMetadata {
     /// skipped but *impossible*: there is nothing to compare. That is the pre-RFC-9207 status
     /// quo and not a reason to refuse a grant.
     pub issuer_parameter_supported: bool,
+    /// The resource servers this issuer's tokens are for (`draft-ietf-mailmaint-oauth-public`
+    /// §3.2): HTTPS URLs, or a bare host name for IMAP, SMTP and POP. Empty for an issuer that
+    /// lists none, and a token may then reach a host only on the issuer's own registrable domain
+    /// ([`token_may_reach`](crate::token_may_reach)).
+    pub protected_resources: Vec<String>,
 }
 
 /// The raw RFC 8414 document, before validation.
@@ -198,6 +203,8 @@ struct RawAuthServerMetadata {
     prompt_values_supported: Vec<String>,
     #[serde(default)]
     authorization_response_iss_parameter_supported: bool,
+    #[serde(default)]
+    protected_resources: Vec<String>,
 }
 
 /// The raw RFC 9728 protected-resource document.
@@ -222,8 +229,11 @@ pub struct ProtectedResource {
     /// names one. `None` for a server that publishes no `resource` field, in which case we send
     /// no target and let the server apply its default.
     pub resource: Option<String>,
-    /// The issuer whose metadata describes how to get a token for this resource.
+    /// The issuer whose metadata describes how to get a token for this resource: the first of
+    /// [`authorization_servers`](Self::authorization_servers).
     pub issuer: String,
+    /// Every authorization server the document names.
+    pub authorization_servers: Vec<String>,
 }
 
 /// Requires `url` to be a syntactically valid HTTPS URL (or a **loopback** one) returning it
@@ -346,12 +356,11 @@ pub async fn discover_protected_resource(
     };
 
     let metadata: RawResourceMetadata = fetch_json(http, &metadata_url).await?;
-    let issuer = metadata
-        .authorization_servers
-        .into_iter()
-        .next()
+    let authorization_servers = metadata.authorization_servers;
+    let issuer = authorization_servers
+        .first()
         .ok_or_else(|| DiscoveryError::NoAuthorizationServer(resource_url))
-        .and_then(|issuer| require_https(&issuer))?;
+        .and_then(|issuer| require_https(issuer))?;
     // The resource URI is sent to the token endpoint, so it is a hop like any other and must be
     // HTTPS; a document naming a plaintext one is malformed rather than merely unusable.
     let resource = metadata
@@ -359,7 +368,11 @@ pub async fn discover_protected_resource(
         .as_deref()
         .map(require_https)
         .transpose()?;
-    Ok(ProtectedResource { resource, issuer })
+    Ok(ProtectedResource {
+        resource,
+        issuer,
+        authorization_servers,
+    })
 }
 
 /// Fetches and validates an authorization server's metadata (RFC 8414) for `issuer`.
@@ -451,6 +464,8 @@ fn validate(
             .transpose()?,
         prompt_values_supported: raw.prompt_values_supported,
         issuer_parameter_supported: raw.authorization_response_iss_parameter_supported,
+        // Not run through `require_https`: a non-HTTP endpoint is listed by its bare host name.
+        protected_resources: raw.protected_resources,
     })
 }
 

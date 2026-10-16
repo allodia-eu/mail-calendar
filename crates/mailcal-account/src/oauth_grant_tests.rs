@@ -22,6 +22,8 @@ fn grant() -> OAuthGrant {
         ],
         resource: Some("https://api.example.com/jmap/session".to_owned()),
         issuer: Some("https://api.example.com".to_owned()),
+        authorization_server: None,
+        protected_resources: Vec::new(),
     }
 }
 

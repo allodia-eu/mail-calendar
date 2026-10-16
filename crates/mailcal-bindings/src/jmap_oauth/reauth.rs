@@ -220,6 +220,8 @@ mod tests {
             scopes: vec!["offline_access".to_owned()],
             resource: Some("https://api.example.com/jmap/session".to_owned()),
             issuer: None,
+            authorization_server: None,
+            protected_resources: Vec::new(),
         }
     }
 

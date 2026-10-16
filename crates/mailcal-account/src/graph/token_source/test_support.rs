@@ -242,6 +242,7 @@ pub(crate) fn source_for(
         scopes: vec!["offline_access".to_owned()],
         resource: None,
         style: mailcal_oauth::AuthStyle::Microsoft,
+        authorization_resources: Vec::new(),
     };
     GraphTokenSource::from_parts(
         OAuthClient::new(provider).unwrap(),

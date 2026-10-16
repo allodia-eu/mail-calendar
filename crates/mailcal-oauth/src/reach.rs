@@ -87,6 +87,7 @@ mod tests {
             resource: None,
             expected_issuer: None,
             style: AuthStyle::Microsoft,
+            authorization_resources: Vec::new(),
         })
         .unwrap()
     }

@@ -37,6 +37,7 @@ mod provider;
 mod reach;
 mod register;
 mod resource_probe;
+mod resources;
 pub mod scopes;
 mod token;
 
@@ -52,8 +53,10 @@ pub use pkce::{Pkce, random_state};
 pub use provider::{AuthStyle, GOOGLE_SCOPES, MICROSOFT_GRAPH_SCOPES, OAuthProviderConfig};
 pub use reach::TokenRequestReach;
 pub use register::{
-    MailProtocol, RegisteredClient, grants_mail_access, register_client, select_scopes,
+    DavUse, MailProtocol, RegisteredClient, grants_mail_access, register_client, requests_dav_use,
+    select_scopes,
 };
+pub use resources::{covering_entry, resource_covers, resource_for, token_may_reach};
 use time::OffsetDateTime;
 pub use token::{TokenSet, exchange_code, refresh};
 

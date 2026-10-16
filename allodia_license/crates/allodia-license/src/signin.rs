@@ -208,6 +208,7 @@ pub(crate) async fn discovered_client(
         // refuses anything not minted for itself -- so this is not optional, and omitting it fails
         // as a `401` that names neither cause.
         resource: resource.resource.or_else(|| Some(api_url())),
+        authorization_resources: Vec::new(),
         // RFC 9207, and only when the service says it sends the parameter: a mix-up defence is
         // worth having on the one flow that names a *person*, not a mailbox.
         expected_issuer: metadata
@@ -298,6 +299,7 @@ impl SignIn {
                 endpoints.scopes.clone()
             },
             resource: endpoints.resource,
+            authorization_resources: Vec::new(),
             expected_issuer: endpoints.issuer,
             style: AuthStyle::Discovered,
         })?;

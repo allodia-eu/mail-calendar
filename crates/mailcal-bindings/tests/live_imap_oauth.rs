@@ -22,7 +22,7 @@
 
 mod live_oauth;
 
-use live_oauth::{PASSWORD, RecordingStore, app, optional_param, param, sign_in_as_the_user};
+use live_oauth::{PASSWORD, RecordingStore, app, param, sign_in_as_the_user};
 use mailcal_bindings::{ImapAuthOffer, ImapLoginRequest, SetupRecommendation};
 
 /// The address whose autoconfig the front serves at `https://localhost`.
@@ -70,11 +70,13 @@ fn an_imap_account_signs_in_through_its_providers_own_autoconfig() {
         email: EMAIL.to_owned(),
         imap_host,
         smtp_host,
-        caldav_base_url: None,
+        // The sign-in server's calendars and contacts, under the issuer's own host name: the one
+        // host its tokens may reach (docs/mail-oauth.md rule 10).
+        caldav_base_url: Some(ISSUER.to_owned()),
         imap_security: Some(imap_security),
         smtp_security: Some(smtp_security),
         oauth_issuer,
-        carddav_base_url: None,
+        carddav_base_url: Some(ISSUER.to_owned()),
         uses: None,
     };
     assert_eq!(
@@ -103,10 +105,16 @@ fn an_imap_account_signs_in_through_its_providers_own_autoconfig() {
     assert_eq!(param(&authorization, "response_type"), "code");
     assert_eq!(param(&authorization, "redirect_uri"), REDIRECT_URI);
     assert_eq!(param(&authorization, "code_challenge_method"), "S256");
-    assert_eq!(
-        optional_param(&authorization, "resource"),
-        None,
-        "an IMAP account sends no resource indicator (docs/mail-oauth.md)",
+    // §3.4: nothing is named. The issuer lists no `protected_resources`, so IMAP and SMTP go
+    // unnamed (the profile's bare host name is what this server refuses), and the DAV server's
+    // own metadata gives a `resource` that does not cover the URL the account uses (the front
+    // serves it under a name the server does not know). The token still reaches DAV below, by
+    // the host rule alone.
+    assert!(
+        !authorization
+            .query_pairs()
+            .any(|(key, _)| key == "resource"),
+        "an endpoint nothing vouches for is not named"
     );
     let scopes = param(&authorization, "scope");
     let scopes: Vec<&str> = scopes.split(' ').collect();
@@ -141,6 +149,16 @@ fn an_imap_account_signs_in_through_its_providers_own_autoconfig() {
         .add_account(config)
         .expect("the signed-in account connects over OAUTHBEARER");
     assert_eq!(row.email, EMAIL);
+    // The calendar connected on the same grant, over Bearer: the one provider that speaks HTTP.
+    // Contacts take the same path (`dav_credentials`) but bind nothing here, because the sign-in
+    // server holds no address book for this user.
+    assert_eq!(app.calendar_connect_error(), None);
+    let over_http = app
+        .connection_info(row.id.clone())
+        .iter()
+        .filter(|info| info.http_version.is_some())
+        .count();
+    assert_eq!(over_http, 1, "the calendar reached on the account's grant");
     let persisted = store.0.lock().expect("store mutex poisoned");
     assert!(
         persisted.iter().any(|toml| toml.contains("[oauth]")),

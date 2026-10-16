@@ -50,16 +50,26 @@ pub async fn connect_carddav_contact_providers(
     tokens: crate::ImapTokens<'_>,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
     // The account's own `[carddav]` endpoint, or the calendar's when it has none; Basic from
-    // the stored password, or the account grant's bearer token on an OAuth account.
+    // the stored password, or the account grant's access token where it may go.
     let endpoint = account.carddav_endpoint().ok_or(AccountError::NoCalDav)?;
-    let credentials = crate::config_dav::dav_credentials(account, endpoint, tokens).await?;
+    let auth = crate::config_dav::dav_credentials(
+        account,
+        endpoint,
+        mailcal_oauth::DavUse::Contacts,
+        tokens,
+    )
+    .await?;
     let tls = account_tls(account)?;
-    let config = CardDavConfig::new(
+    let mut config = CardDavConfig::new(
         // Tolerate a stored bare host the same way `connect_caldav` does, so an account
         // set up before scheme normalisation still connects.
         normalize_caldav_base_url(endpoint.base_url),
-        credentials,
-    )
+        auth.credentials,
+    );
+    if let Some(hosts) = auth.hosts {
+        config = config.with_credential_hosts(hosts);
+    }
+    let config = config
     // A clone shares the record of what it refused, so a refusal reads back from `tls`.
     .with_tls(tls.clone())
     // Ungated: no CalDAV/CardDAV adapter states a concurrency ceiling, because no RFC gives

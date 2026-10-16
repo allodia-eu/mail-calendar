@@ -161,6 +161,12 @@ struct PendingImapLogin {
     /// The issuer the redirect's `iss` must name (RFC 9207), when the server advertised that
     /// it sends one. Carried across the hop because the check happens on the way back.
     issuer: Option<String>,
+    /// The issuer identifier and its `protected_resources`, persisted with the grant so a
+    /// connect can apply the profile's host rule (`docs/mail-oauth.md` rule 10).
+    authorization_server: String,
+    protected_resources: Vec<String>,
+    /// The endpoints the authorization request names (RFC 8707), each one vouched for.
+    resources: Vec<String>,
     state: String,
     verifier: String,
 }
@@ -186,6 +192,8 @@ impl PendingImapLogin {
             // `invalid_target` on every refresh.
             resource: None,
             issuer: self.issuer,
+            authorization_server: Some(self.authorization_server),
+            protected_resources: self.protected_resources,
         };
         let setup = AccountSetup {
             imap_host: self.imap_host,
@@ -282,9 +290,14 @@ impl MailcalApp {
             autoconfig_issuer: request.oauth_issuer.clone(),
         };
         log::info!("imap oauth: sign-in requested for the server the account dials");
+        let endpoints = discovery::Endpoints {
+            smtp_host: request.smtp_host.as_deref(),
+            caldav: request.caldav_base_url.as_deref(),
+            carddav: request.carddav_base_url.as_deref(),
+        };
         let registration = self
             .runtime
-            .block_on(|| discover_registration(&query, &redirect_uri))?;
+            .block_on(|| discover_registration(&query, &endpoints, &redirect_uri))?;
 
         let pending = PendingImapLogin {
             email: request.email,
@@ -302,6 +315,9 @@ impl MailcalApp {
             redirect_uri,
             scopes: registration.scopes,
             issuer: registration.expected_issuer,
+            authorization_server: registration.authorization_server,
+            protected_resources: registration.protected_resources,
+            resources: registration.resources,
             state: String::new(),
             verifier: String::new(),
         };
@@ -390,14 +406,19 @@ fn grant_shell(pending: &PendingImapLogin) -> OAuthGrant {
         scopes: pending.scopes.clone(),
         resource: None,
         issuer: pending.issuer.clone(),
+        authorization_server: Some(pending.authorization_server.clone()),
+        protected_resources: pending.protected_resources.clone(),
     }
 }
 
 /// Builds the PKCE authorization request for a pending login and packs everything the
 /// completion needs into the opaque handle.
 fn start_login(mut pending: PendingImapLogin) -> Result<ImapLoginStart, MailcalError> {
-    let oauth = OAuthClient::new(grant_shell(&pending).provider_config())
-        .map_err(|err| MailcalError::Config(err.to_string()))?;
+    let mut provider = grant_shell(&pending).provider_config();
+    provider
+        .authorization_resources
+        .clone_from(&pending.resources);
+    let oauth = OAuthClient::new(provider).map_err(|err| MailcalError::Config(err.to_string()))?;
     // The address is known, so target it rather than making the user pick an account.
     let request = oauth.begin(Some(&pending.email));
     pending.state = request.state;

@@ -64,6 +64,36 @@ pub enum MailProtocol {
     Jmap,
 }
 
+/// A use of an account that its mail grant reaches over DAV.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DavUse {
+    /// CalDAV.
+    Calendars,
+    /// CardDAV.
+    Contacts,
+}
+
+/// Whether `requested` (the scopes a sign-in asked for) names `dav_use`: its standard name, or
+/// the earlier drafts' `caldav`/`carddav`.
+///
+/// The **requested** set, not the granted one: a server may answer in its own vocabulary
+/// (Fastmail grants `urn:ietf:params:jmap:calendars` and `https://www.fastmail.com/dev/protocol-*`
+/// for a request naming `urn:ietf:params:oauth:scope:calendars`), so the granted set says only
+/// what was refused when it is written in the request's names. A grant that asked for no
+/// calendar scope has no claim on a calendar server, whatever that server accepts: Stalwart
+/// opens CalDAV for a mail-only token, so this check is the client's to make.
+#[must_use]
+pub fn requests_dav_use(requested: &[String], dav_use: DavUse) -> bool {
+    let capability = match dav_use {
+        DavUse::Calendars => CALENDARS,
+        DavUse::Contacts => CONTACTS,
+    };
+    requested.iter().any(|scope| {
+        capability.standard.contains(&last_segment(scope))
+            || capability.earlier_draft.contains(&scope.as_str())
+    })
+}
+
 /// A scope's last segment: `mail` for `urn:ietf:params:oauth:scope:mail` and for `mail`.
 fn last_segment(scope: &str) -> &str {
     scope.rsplit([':', '/']).next().unwrap_or(scope)

@@ -171,6 +171,7 @@ fn metadata_offering(scopes: &[&str]) -> AuthServerMetadata {
         end_session_endpoint: None,
         prompt_values_supported: Vec::new(),
         issuer_parameter_supported: false,
+        protected_resources: Vec::new(),
     }
 }
 

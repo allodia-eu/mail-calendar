@@ -54,6 +54,7 @@ fn provider_at(token_endpoint: String) -> OAuthProviderConfig {
         resource: None,
         expected_issuer: None,
         style: crate::provider::AuthStyle::Microsoft,
+        authorization_resources: Vec::new(),
     }
 }
 

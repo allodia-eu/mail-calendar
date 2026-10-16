@@ -73,6 +73,16 @@ pub struct OAuthGrant {
     /// is the pre-RFC-9207 status quo and not a reason to break a working account.
     #[serde(default)]
     pub issuer: Option<String>,
+    /// The issuer identifier of the authorization server that issued this grant, whether or not
+    /// it sends `iss`: what decides which hosts its tokens may reach
+    /// ([`mailcal_oauth::token_may_reach`]). `None` for a grant stored before this field existed,
+    /// which falls back to [`issuer`](Self::issuer), then to the token endpoint's origin.
+    #[serde(default)]
+    pub authorization_server: Option<String>,
+    /// The issuer's `protected_resources` when the grant was made, which replace its
+    /// registrable domain as the hosts a token may reach. Empty when it listed none.
+    #[serde(default)]
+    pub protected_resources: Vec<String>,
 }
 
 impl OAuthGrant {
@@ -96,6 +106,7 @@ impl OAuthGrant {
             resource: self.resource.clone(),
             expected_issuer: self.issuer.clone(),
             style: AuthStyle::Discovered,
+            authorization_resources: Vec::new(),
         }
     }
 
@@ -127,8 +138,49 @@ impl OAuthGrant {
         if let Some(issuer) = &self.issuer {
             table.insert("issuer".into(), issuer.clone().into());
         }
+        if let Some(server) = &self.authorization_server {
+            table.insert("authorization_server".into(), server.clone().into());
+        }
+        if !self.protected_resources.is_empty() {
+            table.insert(
+                "protected_resources".into(),
+                toml::Value::Array(
+                    self.protected_resources
+                        .iter()
+                        .cloned()
+                        .map(Into::into)
+                        .collect(),
+                ),
+            );
+        }
         table
     }
+
+    /// The issuer identifier to apply the host rule against: the recorded
+    /// `authorization_server`, else the `iss` it sends, else the token endpoint's origin, which the
+    /// issuer serves and so shares its host for every server seen so far.
+    #[must_use]
+    pub fn issuer_identifier(&self) -> String {
+        self.authorization_server
+            .clone()
+            .or_else(|| self.issuer.clone())
+            .unwrap_or_else(|| origin_of(&self.token_endpoint).to_owned())
+    }
+
+    /// Whether a token from this grant may be sent to `host`
+    /// (`draft-ietf-mailmaint-oauth-public` §3.6).
+    #[must_use]
+    pub fn token_may_reach(&self, host: &str) -> bool {
+        mailcal_oauth::token_may_reach(&self.issuer_identifier(), &self.protected_resources, host)
+    }
+}
+
+/// The `scheme://host[:port]` of `url`, which is all of it when it has no path.
+fn origin_of(url: &str) -> &str {
+    let after_scheme = url.find("://").map_or(0, |at| at + 3);
+    url[after_scheme..]
+        .find('/')
+        .map_or(url, |slash| &url[..after_scheme + slash])
 }
 
 /// Builds the shared, self-refreshing token source for `grant`, reusing the same
