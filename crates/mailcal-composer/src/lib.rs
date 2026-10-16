@@ -28,8 +28,8 @@ pub use color::TextColor;
 pub use file_meta::{safe_file_name, safe_media_type};
 pub use font::{FontFamily, FontSize};
 pub use host_request::{
-    HostAnswer, HostRequest, HostRequestKind, LinkAnswer, LinkRequest, answer_script, link_address,
-    parse_host_request,
+    HistorySteps, HostAnswer, HostRequest, HostRequestKind, LinkAnswer, LinkRequest, answer_script,
+    link_address, parse_host_request,
 };
 pub use link::{LINK_SCHEMES, LinkUrl, has_link_scheme};
 pub use list::{List, ListItem, ListKind};

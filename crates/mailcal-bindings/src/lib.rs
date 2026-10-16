@@ -169,8 +169,8 @@ pub use composer_files::{
 };
 pub use composer_host::{
     COMPOSER_HOST_CHANNEL, ComposerHostRequest, ComposerLinkAnswer, composer_host_channel,
-    composer_host_requests_script, composer_link_address, composer_link_answer_script,
-    parse_composer_host_request,
+    composer_host_requests_script, composer_host_requests_with_history_script,
+    composer_link_address, composer_link_answer_script, parse_composer_host_request,
 };
 pub use composer_open::{ComposeKind, ComposeOpening, ComposeOrigin, ComposePrefill, QuoteSource};
 pub(crate) use connected_account::ConnectedAccount;

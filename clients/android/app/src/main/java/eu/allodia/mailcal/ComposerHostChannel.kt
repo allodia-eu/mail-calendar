@@ -46,6 +46,8 @@ internal class ComposerHostChannel(
                 val link = LinkDialogRequest(request.id, request.text, request.address, request.removable)
                 post { onLink(link) }
             }
+            // Never announced here: Android offers no Undo outside a keyboard (`docs/undo.md`, rule 2).
+            is ComposerHostRequest.History -> Unit
         }
     }
 }

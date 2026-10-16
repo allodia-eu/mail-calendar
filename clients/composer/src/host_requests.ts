@@ -5,7 +5,10 @@
 // vocabulary is `mailcal_composer::HostRequestKind`, and every host parses a message there and
 // nowhere else, so a request this file can send is one the core has a type for. A host answers by
 // calling `answerComposerRequest` with the request's id. Until a host names the requests it
-// answers (`setComposerHostRequests`), the editor asks for nothing and draws its own UI.
+// answers (`setComposerHostRequests`), the editor asks for nothing and draws its own UI. A notice
+// travels the same way, to a host that named it, and nothing answers it.
+
+import type { Steps } from "./history";
 
 /// `mailcal_composer::LinkRequest`.
 export interface LinkRequest {
@@ -24,7 +27,14 @@ interface Vocabulary {
 
 export type HostRequestKind = keyof Vocabulary;
 
-const KINDS: readonly HostRequestKind[] = ["link"];
+/// What the editor tells a host that asked, with no answer. `mailcal_composer::HistorySteps`.
+interface Notices {
+  history: Steps;
+}
+
+export type HostNoticeKind = keyof Notices;
+
+const KINDS: readonly (HostRequestKind | HostNoticeKind)[] = ["link", "history"];
 
 type Post = (message: string) => void;
 
@@ -48,7 +58,7 @@ function channelOf(win: Window): Post | null {
 }
 
 export class HostRequests {
-  private readonly answered = new Set<HostRequestKind>();
+  private readonly answered = new Set<HostRequestKind | HostNoticeKind>();
   private readonly pending = new Map<number, (answer: unknown) => void>();
   private nextId = 1;
 
@@ -59,7 +69,8 @@ export class HostRequests {
     this.answered.clear();
     if (!Array.isArray(kinds)) return;
     for (const kind of kinds) {
-      if (KINDS.includes(kind as HostRequestKind)) this.answered.add(kind as HostRequestKind);
+      const known = KINDS.find((name) => name === kind);
+      if (known) this.answered.add(known);
     }
   }
 
@@ -81,6 +92,13 @@ export class HostRequests {
       this.pending.set(id, (answer) => resolve(answerOf(kind, answer)));
       post(JSON.stringify({ id, request: { [kind]: payload } }));
     });
+  }
+
+  /// Posts a notice to a host that named its kind. Its id is 0, which no request is given.
+  tell<K extends HostNoticeKind>(kind: K, notice: Notices[K]): void {
+    const post = channelOf(this.win);
+    if (!post || !this.answered.has(kind)) return;
+    post(JSON.stringify({ id: 0, request: { [kind]: notice } }));
   }
 
   /// The host's answer to request `id`. An id nothing is waiting for is ignored.

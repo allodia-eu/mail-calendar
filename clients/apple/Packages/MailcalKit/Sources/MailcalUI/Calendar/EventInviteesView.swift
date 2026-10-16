@@ -61,12 +61,12 @@ struct EventInviteesSection: View {
                             set: { editor.inviteeFieldChanged($0) }
                         ),
                         suggestionsFor: suggestionsFor,
-                        onFocusChange: onFieldFocus
+                        onFocusChange: onFieldFocus,
+                        onSubmit: { _ = editor.takeTypedInvitee() },
+                        // As the editor's other fields, and for the same reason: see
+                        // EventEditorView.
+                        bordered: true
                     )
-                    // As the editor's other fields, and for the same reason: see EventEditorView.
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { _ = editor.takeTypedInvitee() }
                     Button(L10n.event_invitee_add()) { _ = editor.takeTypedInvitee() }
                         .buttonStyle(.bordered)
                 }

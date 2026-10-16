@@ -26,12 +26,25 @@ pub struct HostRequest {
     pub kind: HostRequestKind,
 }
 
-/// Everything the editor may ask its host for.
+/// Everything the editor may ask its host for, or tell it.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum HostRequestKind {
     /// Make, change or remove the link on the selection.
     Link(LinkRequest),
+    /// The body's undo history changed. A notice rather than a request: nothing answers it.
+    History(HistorySteps),
+}
+
+/// Whether the body's history has a step to take back and one to put back, for a host whose menu
+/// or gesture asks that synchronously and so cannot ask the page (`docs/undo.md`, rule 3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HistorySteps {
+    /// A step can be undone.
+    pub undo: bool,
+    /// A step can be redone.
+    pub redo: bool,
 }
 
 /// The link editor's starting point: what the selection says and where it points now.

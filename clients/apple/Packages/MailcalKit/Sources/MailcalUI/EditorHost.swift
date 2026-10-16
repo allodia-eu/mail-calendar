@@ -31,13 +31,14 @@ final class EditorHost: NSObject, WKNavigationDelegate {
 
     /// - Parameters:
     ///   - makeView: builds the web view from the hardened configuration, for a host that needs a
-    ///     subclass of its own (the composer's `EditorWebView`).
+    ///     subclass of its own (the composer's `EditorWebView`). A `HistoryWebView`, or the
+    ///     platform's Undo and Redo read WebKit's stack rather than the editor's.
     ///   - fallbackHTML: the document loaded when the bundle cannot be found, which defines the
     ///     functions its host reads back so a read answers empty rather than failing.
     init(
         fallbackHTML: String,
         makeView: @escaping (WKWebViewConfiguration) -> WKWebView = {
-            WKWebView(frame: .zero, configuration: $0)
+            HistoryWebView(frame: .zero, configuration: $0)
         }
     ) {
         self.fallbackHTML = fallbackHTML
@@ -58,6 +59,12 @@ final class EditorHost: NSObject, WKNavigationDelegate {
         view.navigationDelegate = self
         view.allowsBackForwardNavigationGestures = false
         channel.install(on: view)
+        if let history = (view as? HistoryWebView)?.history {
+            channel.onHistory = { [weak history] undo, redo in history?.update(undo: undo, redo: redo) }
+            history.step = { [weak self] step in
+                self?.evaluate("window.stepComposerHistory(\(Self.jsString(step)))")
+            }
+        }
         configure(view)
         webView = view
         // The bundle loads behind the native barrier (`ComposerRemoteBlock`). If the rule list

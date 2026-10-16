@@ -2013,7 +2013,7 @@
   }
 
   // src/host_requests.ts
-  var KINDS = ["link"];
+  var KINDS = ["link", "history"];
   function channelOf(win) {
     const scope = win;
     const handler = scope.webkit?.messageHandlers?.composerHost;
@@ -2041,8 +2041,9 @@
       if (!Array.isArray(kinds))
         return;
       for (const kind of kinds) {
-        if (KINDS.includes(kind))
-          this.answered.add(kind);
+        const known = KINDS.find((name) => name === kind);
+        if (known)
+          this.answered.add(known);
       }
     }
     answers(kind) {
@@ -2057,6 +2058,12 @@
         this.pending.set(id, (answer) => resolve(answerOf(kind, answer)));
         post(JSON.stringify({ id, request: { [kind]: payload } }));
       });
+    }
+    tell(kind, notice) {
+      const post = channelOf(this.win);
+      if (!post || !this.answered.has(kind))
+        return;
+      post(JSON.stringify({ id: 0, request: { [kind]: notice } }));
     }
     answer(id, value) {
       const key = Number(id);
@@ -2106,6 +2113,8 @@
     let press = 0;
     let pressed = false;
     let quiet = false;
+    let listener = null;
+    let told = null;
     const observer = new view.MutationObserver((records) => record(records));
     observer.observe(editor, {
       childList: true,
@@ -2140,6 +2149,16 @@
       }
       boundary = false;
       caret = after;
+      tell();
+    }
+    function tell() {
+      if (!listener)
+        return;
+      const steps = { undo: undone.length > 0, redo: redone.length > 0 };
+      if (told?.undo === steps.undo && told.redo === steps.redo)
+        return;
+      told = steps;
+      listener(steps);
     }
     function joins(last, kind, at) {
       if (pressed && last.press === press)
@@ -2182,6 +2201,7 @@
         undone.length = 0;
         redone.length = 0;
         boundary = true;
+        tell();
         return false;
       }
       const undoing = from === undone;
@@ -2201,6 +2221,7 @@
       });
       caret = here;
       boundary = true;
+      tell();
       const inputType = undoing ? "historyUndo" : "historyRedo";
       editor.dispatchEvent(new view.InputEvent("input", { bubbles: true, inputType }));
       return true;
@@ -2267,6 +2288,12 @@
         flush();
         return { undo: undone.length > 0, redo: redone.length > 0 };
       },
+      watch(next) {
+        listener = next;
+        told = null;
+        flush();
+        tell();
+      },
       typed(text) {
         flush();
         const last = undone.at(-1);
@@ -2291,6 +2318,7 @@
         }
         caret = selection();
         boundary = true;
+        tell();
       }
     }
     return history;
@@ -4697,7 +4725,10 @@
   window.stepComposerHistory = (step) => step === "undo" ? history.undo() : step === "redo" ? history.redo() : false;
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
-  window.setComposerHostRequests = (kinds) => hostRequests.setAnswered(kinds);
+  window.setComposerHostRequests = (kinds) => {
+    hostRequests.setAnswered(kinds);
+    history.watch((steps) => hostRequests.tell("history", steps));
+  };
   window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
   window.setComposerLabels = (incoming) => {
     labels = mergeLabels(labels, incoming);

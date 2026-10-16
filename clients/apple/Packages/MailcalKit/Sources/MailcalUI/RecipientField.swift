@@ -40,13 +40,22 @@ struct RecipientField<Trailing: View>: View {
     var focusesOnAppear = false
     /// Told when the input gains or loses focus, for a host that must keep it in view.
     var onFocusChange: ((Bool) -> Void)?
+    /// Run when Return is pressed in the input. The input is the platform's own text field
+    /// (`RecipientInput`), which SwiftUI's `onSubmit` does not reach.
+    var onSubmit: (() -> Void)?
+    /// Draws the input with a rounded border, which SwiftUI's `textFieldStyle` does not reach.
+    var bordered = false
     let trailing: Trailing
 
     /// The token being typed, held apart from `text` so the input shows only the address in
     /// progress while the finished ones render as pills.
     @State private var input = ""
     @State private var matches: [RecipientMatch] = []
-    @FocusState private var inputFocused: Bool
+    @State private var inputFocused = false
+    /// Raised to put the keyboard in the input (`RecipientInput.focusRequest`).
+    @State private var focusRequest = 0
+    /// The field's undo and redo, a step per address (docs/undo.md, rule 9).
+    @State private var undo = RecipientUndoManager()
 
     init(
         label: String,
@@ -54,6 +63,8 @@ struct RecipientField<Trailing: View>: View {
         suggestionsFor: ((String) async -> [RecipientMatch])? = nil,
         focusesOnAppear: Bool = false,
         onFocusChange: ((Bool) -> Void)? = nil,
+        onSubmit: (() -> Void)? = nil,
+        bordered: Bool = false,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.label = label
@@ -61,6 +72,8 @@ struct RecipientField<Trailing: View>: View {
         self.suggestionsFor = suggestionsFor
         self.focusesOnAppear = focusesOnAppear
         self.onFocusChange = onFocusChange
+        self.onSubmit = onSubmit
+        self.bordered = bordered
         self.trailing = trailing()
     }
 
@@ -84,17 +97,30 @@ struct RecipientField<Trailing: View>: View {
                 RecipientFlowLayout {
                     ForEach(Array(committed.enumerated()), id: \.offset) { index, recipient in
                         RecipientPill(recipient: recipient) {
-                            text = removeRecipient(text, at: index)
+                            change(removeRecipient(text, at: index), typed: false)
+                            // Back to the input, where the chord that brings the address back is
+                            // heard.
+                            focusRequest += 1
                         }
                     }
                 }
             }
             HStack(spacing: 8) {
-                // The label doubles as the prompt, so a host that hides labels (a macOS `Form`, where
-                // a labelled field is pushed to the trailing edge) still says what goes here.
-                TextField(label, text: $input, prompt: Text(label))
-                    .fieldConfig(.email)
-                    .focused($inputFocused)
+                // The label doubles as the placeholder, so the field says what goes here without a
+                // label beside it.
+                RecipientInput(
+                    label: label,
+                    text: input,
+                    isFocused: $inputFocused,
+                    focusRequest: focusRequest,
+                    undo: undo,
+                    onEdit: { typed in
+                        input = typed
+                        change(recipientFieldText(committed, typed), typed: true)
+                    },
+                    onSubmit: onSubmit,
+                    bordered: bordered
+                )
                 trailing
             }
             // The suggestions float OVER what follows rather than sitting in the layout, and the
@@ -110,11 +136,14 @@ struct RecipientField<Trailing: View>: View {
             .anchorPreference(key: RecipientSuggestionOverlayKey.self, value: .bounds) { anchor in
                 guard showsSuggestions else { return nil }
                 return RecipientSuggestionOverlay(anchor: anchor, matches: matches) { email in
-                    text = acceptRecipientSuggestion(text, email)
+                    change(acceptRecipientSuggestion(text, email), typed: false)
                 }
             }
         }
         .onAppear {
+            // A field the composer seeded (a reply's recipients) starts its history there.
+            undo.history.restart(text)
+            undo.apply = { [binding = $text] value in binding.wrappedValue = value }
             input = token
             // The caret opens in the field the user has to start in, an empty To on a new message.
             //
@@ -122,12 +151,13 @@ struct RecipientField<Trailing: View>: View {
             // presentation, and focus assigned while it is still animating is dropped on the
             // floor. The keyboard then never rises and the field only *looks* ready.
             if focusesOnAppear {
-                Task { @MainActor in inputFocused = true }
+                Task { @MainActor in focusRequest += 1 }
             }
         }
         .onChange(of: inputFocused) { _, focused in onFocusChange?(focused) }
-        .onChange(of: input) { _, typed in
-            text = recipientFieldText(committed, typed)
+        // A value set from outside the field is where its history starts again.
+        .onChange(of: text) { _, value in
+            if value != undo.history.current { undo.history.restart(value) }
         }
         // Re-seed the input whenever the token changes underneath us: a suggestion was accepted, a
         // pill was removed, a reply pre-filled the field.
@@ -147,6 +177,12 @@ struct RecipientField<Trailing: View>: View {
         // builds it inline over the model, so it has a fresh identity each pass, and an effect that
         // keeps restarting never finishes a query.
         .task(id: token) { await loadSuggestions(token) }
+    }
+
+    /// Files a change the user made in this field as a step of its history, and makes it.
+    private func change(_ value: String, typed: Bool) {
+        undo.history.record(value, typed: typed)
+        text = value
     }
 
     /// Debounced, off-the-main-thread lookup. `recipientSuggestions` blocks on the core's runtime
@@ -171,14 +207,18 @@ extension RecipientField where Trailing == EmptyView {
         text: Binding<String>,
         suggestionsFor: ((String) async -> [RecipientMatch])? = nil,
         focusesOnAppear: Bool = false,
-        onFocusChange: ((Bool) -> Void)? = nil
+        onFocusChange: ((Bool) -> Void)? = nil,
+        onSubmit: (() -> Void)? = nil,
+        bordered: Bool = false
     ) {
         self.init(
             label: label,
             text: text,
             suggestionsFor: suggestionsFor,
             focusesOnAppear: focusesOnAppear,
-            onFocusChange: onFocusChange
+            onFocusChange: onFocusChange,
+            onSubmit: onSubmit,
+            bordered: bordered
         ) { EmptyView() }
     }
 }

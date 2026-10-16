@@ -72,6 +72,19 @@ describe("the request channel", () => {
     });
   }
 
+  test("tells the history state only to a host that named it", () => {
+    const { win, posted } = hostWindow("webkit");
+    const requests = new HostRequests(win);
+    requests.setAnswered(["link"]);
+    requests.tell("history", { undo: true, redo: false });
+    expect(posted).toEqual([]);
+    requests.setAnswered(["link", "history"]);
+    requests.tell("history", { undo: true, redo: false });
+    expect(posted.map((message) => JSON.parse(message))).toEqual([
+      { id: 0, request: { history: { undo: true, redo: false } } },
+    ]);
+  });
+
   test("an answer of the wrong shape is no answer, and a stray id is ignored", async () => {
     const { win } = hostWindow("webkit");
     const requests = new HostRequests(win);
