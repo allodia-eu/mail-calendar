@@ -86,10 +86,10 @@ never a resting state.
 
 | Rule | macOS | iPhone, iPad | Windows | Android | Linux |
 |---|---|---|---|---|---|
-| Body: the chords (rules 2 to 6) | shared bundle; not yet run | shared bundle, with a keyboard; not yet run | shared bundle; not yet run | shared bundle; Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y verified on a Galaxy Note 20 | shared bundle; nothing in GTK binds the chords ahead of the web view, which delivers them to the page (verified by hand: typing, a pause, bold, a `- ` bullet, a link, a paste, a list, a table) |
+| Body: the chords (rules 2 to 6) | shared bundle; not yet run | shared bundle, with a keyboard; not yet run | shared bundle; not yet run | shared bundle; Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y verified on a Galaxy Note 20 with a Bluetooth keyboard | shared bundle; nothing in GTK binds the chords ahead of the web view, which delivers them to the page (verified by hand on a real keyboard: typing, a pause, bold, a `- ` bullet, a link, a paste, a list, a table) |
 | Body: the platform's other entry points (rule 2) | the Edit menu's Undo and Redo, through `historyUndo`; not yet run | shake to undo, the three-finger gestures and the shortcut bar, through `historyUndo`; not yet run | not yet: the right-click menu's Undo and Redo, which Gate 14's filter keeps out today | none: Android's text fields offer no Undo outside a keyboard | none: GTK's text fields offer no Undo in their menu |
 | Recipient fields (rule 9) | not yet checked | not yet checked | not yet checked | not yet: Ctrl+Z after finishing an address does nothing on a Galaxy Note 20 | `recipients::history`, the entry's own undo off (`set_enable_undo(false)`); held by the crate's GTK tests |
-| Subject and other plain fields (rule 10) | `NSTextField` | `UITextField` | `TextBox` | `TextField` | `GtkEntry`, whose own bindings include Shift+Ctrl+Z and Ctrl+Y |
+| Subject and other plain fields (rule 10) | `NSTextField` | `UITextField` | `TextBox` | `TextField` | `GtkEntry`, whose own bindings include Shift+Ctrl+Z and Ctrl+Y (verified on a real keyboard) |
 
 ## Enforcement
 
@@ -101,4 +101,4 @@ never a resting state.
   the headless session (`build-and-run.sh --headless`, then `control.sh linux key ctrl+z`).
   ⚠️ That session's synthetic keyboard does not trigger GTK's own Shift+Ctrl+Z in a plain
   `GtkEntry`, although the binding is in GTK's table and Ctrl+Y does; a Subject that will not redo
-  there is the harness, not the field.
+  there is the harness, not the field. On a real keyboard Subject redoes with both.
