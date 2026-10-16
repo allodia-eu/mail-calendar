@@ -178,13 +178,18 @@ impl MailcalApp {
         // detected by parsing rather than passed in, so there is no `is_jmap` flag left to
         // get wrong.
         let sink = crate::token_sink::token_sink(&self.registry, &self.credential_store);
+        // The id is the mailbox, not the credential, so an account already set up as it is the
+        // same mailbox twice: refused before the fresh token source below replaces the token state
+        // this process holds for it, and before registering would replace its credential and
+        // providers.
+        let stored = boot::StoredConfig::parse(&config_toml)?;
+        let derived = stored.derived_account_id();
+        if let Some(existing) = self.registry.already_set_up(stored.id(), derived.as_ref()) {
+            return Err(refuse_already_set_up(existing));
+        }
         // A credential the host has only now handed us replaces anything this process remembers
         // about the account; re-adding one that was removed must not inherit its dead state.
-        let prepared = boot::prepare_stored_account(
-            &config_toml,
-            &sink,
-            mailcal_account::CredentialOrigin::FreshSignIn,
-        )?;
+        let prepared = stored.prepare(&sink, mailcal_account::CredentialOrigin::FreshSignIn)?;
         let account_id = prepared.account.id.clone();
         let row = AccountRow {
             id: account_id.as_str().to_owned(),
@@ -198,15 +203,6 @@ impl MailcalApp {
         };
         let protocol = prepared.connected.protocol();
         let family = prepared.connected.account_type();
-        // The id is the mailbox, not the credential, so this is the same mailbox set up twice;
-        // registering it would replace the first account's credential and providers.
-        if self.registry.contains(&row.id) {
-            log::info!(
-                "add-account: [{}] refused; that {family} account is already set up",
-                mailcal_account::account_log_handle(&row.id),
-            );
-            return Err(MailcalError::AlreadySetUp { account_id: row.id });
-        }
         // The setup funnel: which protocol was attempted, and did it connect. Paired with
         // `setup_completed` / `setup_failed` below, this answers "how many people never get an
         // account connected, and on which protocol": the churn that happens before first use.
@@ -227,7 +223,8 @@ impl MailcalApp {
         // next launch will not have.
         let registered = self
             .registry
-            .pre_register(row.id.clone(), prepared.connected);
+            .pre_register_new(&account_id, derived.as_ref(), prepared.connected)
+            .map_err(refuse_already_set_up)?;
         let Some(dial) = self.registry.dial(&row.id) else {
             registered.rollback(&self.registry);
             return Err(MailcalError::Config(
@@ -238,8 +235,7 @@ impl MailcalApp {
         let outcome = match self.runtime.block_on(|| dial.run(&account_id, zone)) {
             Ok(outcome) => outcome,
             Err(err) => {
-                // Put the registry back as it was: remove the entry this added, or restore the one
-                // it displaced.
+                // Put the registry back as it was: remove the entry this added.
                 registered.rollback(&self.registry);
                 // Counted, not classified: the error's *string* is what carries the host and the
                 // username, and it is not ours to send. See `mailcal_app::Event::SetupFailed`.
@@ -369,6 +365,17 @@ impl MailcalApp {
                 mailcal_account::account_log_handle(&id),
             );
         })
+    }
+}
+
+/// The refusal of an add whose mailbox `existing` already is, logged without its address.
+fn refuse_already_set_up(existing: String) -> MailcalError {
+    log::info!(
+        "add-account: refused; [{}] is already set up",
+        mailcal_account::account_log_handle(&existing),
+    );
+    MailcalError::AlreadySetUp {
+        account_id: existing,
     }
 }
 

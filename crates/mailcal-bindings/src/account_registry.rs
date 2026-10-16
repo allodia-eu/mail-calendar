@@ -59,6 +59,7 @@ mod dial_parts;
 mod dial_run;
 mod endpoints;
 mod links;
+mod set_up;
 mod uses;
 
 pub(crate) use dial::{AccountDial, ConnectFailure, dial_all};
@@ -456,8 +457,7 @@ pub(crate) enum JmapLookup {
 /// The displaced entry matters more than it looks. `complete_microsoft_login` is *also* the
 /// re-authentication path (the host re-runs sign-in for an account it already has) so an entry is
 /// routinely there already, and a rollback that merely *removed* would delete a live account's
-/// re-connection state because its re-auth failed. Re-adding an existing account through
-/// `add_account` is the same shape.
+/// re-connection state because its re-auth failed.
 pub(crate) struct Registered {
     id: String,
     replaced: Option<ConnectedAccount>,

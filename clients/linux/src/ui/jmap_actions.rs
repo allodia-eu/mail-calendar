@@ -245,6 +245,14 @@ impl AppModel {
                 log::warn!("jmap sign-in failed");
                 self.setup.jmap_sign_in_failed();
             }
+            JmapOutcome::NotAdded(message) => {
+                log::warn!("jmap sign-in succeeded, but the account was not added");
+                self.setup
+                    .connect_failed(super::setup_model::ConnectFailure {
+                        message: Some(message),
+                        certificate: None,
+                    });
+            }
         }
     }
 

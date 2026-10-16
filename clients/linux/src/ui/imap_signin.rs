@@ -28,6 +28,8 @@ pub(crate) enum ImapOutcome {
     Added(String),
     Cancelled,
     Failed,
+    /// Signed in, but the add was refused; what to tell the person.
+    NotAdded(String),
 }
 
 /// The request the pre-flight and the sign-in both describe the account with.
@@ -99,10 +101,10 @@ pub(super) fn complete(
     };
     // `add_account` writes the grant through the host's `AccountCredentialStore` and rolls the
     // add back itself when that write fails, so a failure here has left nothing behind.
-    let Ok(account) = app.add_account(config) else {
-        return ImapOutcome::Failed;
-    };
-    ImapOutcome::Added(account.id)
+    match app.add_account(config) {
+        Ok(account) => ImapOutcome::Added(account.id),
+        Err(error) => ImapOutcome::NotAdded(super::core_error::said(&error)),
+    }
 }
 
 /// The `state` the authorization request minted, which the redirect must echo.

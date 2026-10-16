@@ -42,12 +42,16 @@ scopes = ["offline_access", "imap", "smtp"]
 const ALICE_ID: &str = "alice@example.org@localhost";
 
 fn app(name: &str, store: &Arc<RecordingCredentialStore>) -> Arc<MailcalApp> {
+    app_with(name, store, ALICE_WITH_PASSWORD)
+}
+
+fn app_with(name: &str, store: &Arc<RecordingCredentialStore>, stored: &str) -> Arc<MailcalApp> {
     let (tx, _rx) = mpsc::channel();
     MailcalApp::new_accounts(
         Box::new(ChannelObserver { tx }),
         Box::new(NullLogger),
         LogLevel::Info,
-        vec![ALICE_WITH_PASSWORD.to_owned()],
+        vec![stored.to_owned()],
         temp_data_dir(name).to_string_lossy().into_owned(),
         "Etc/UTC".to_owned(),
         crate::analytics::test_device(),
@@ -79,6 +83,25 @@ fn adding_an_account_that_is_already_set_up_is_refused_and_changes_nothing() {
         after.accounts[0].endpoints, before.accounts[0].endpoints,
         "the password account keeps its servers"
     );
+}
+
+/// An account edited onto these servers keeps the id it had, so the add is caught by what its
+/// servers derive, not by its id.
+#[test]
+fn adding_the_mailbox_an_edited_account_now_is_is_refused() {
+    let moved = format!("id = \"alice@example.org@old.example\"\n{ALICE_WITH_PASSWORD}");
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app_with("duplicate-add-moved", &store, &moved);
+
+    match app.add_account(ALICE_SIGNED_IN.to_owned()) {
+        Err(MailcalError::AlreadySetUp { account_id }) => {
+            assert_eq!(account_id, "alice@example.org@old.example");
+        }
+        Err(other) => panic!("expected the add to be refused as already set up, got {other:?}"),
+        Ok(_) => panic!("the mailbox an edited account now is was added a second time"),
+    }
+    assert_eq!(app.accounts_snapshot().accounts.len(), 1);
+    assert!(store.persisted.lock().unwrap().is_empty());
 }
 
 #[test]

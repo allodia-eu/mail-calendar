@@ -28,6 +28,8 @@ pub(crate) enum JmapOutcome {
     Added(String),
     Cancelled,
     Failed,
+    /// Signed in, but the add was refused; what to tell the person.
+    NotAdded(String),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -131,10 +133,10 @@ pub(super) fn complete(
     };
     // `add_account` writes the grant through the host's `AccountCredentialStore` and rolls the
     // add back itself when that write fails, so a failure here has left nothing behind.
-    let Ok(account) = app.add_account(config) else {
-        return JmapOutcome::Failed;
-    };
-    JmapOutcome::Added(account.id)
+    match app.add_account(config) {
+        Ok(account) => JmapOutcome::Added(account.id),
+        Err(error) => JmapOutcome::NotAdded(super::core_error::said(&error)),
+    }
 }
 
 pub(super) fn complete_reauth(

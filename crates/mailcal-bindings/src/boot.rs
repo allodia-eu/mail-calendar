@@ -59,7 +59,7 @@ pub(crate) use outcome::DialFailure;
 use outcome::dial_registered;
 pub(crate) use outcome::{FailedDial, record_dial_outcome};
 pub(crate) use stored::{
-    PreparedAccount, connect_graph_calendars, placeholder, prepare_stored_account,
+    PreparedAccount, StoredConfig, connect_graph_calendars, placeholder, prepare_stored_account,
 };
 
 /// Builds a real account-backed app from the host's stored account `configs`: the body of

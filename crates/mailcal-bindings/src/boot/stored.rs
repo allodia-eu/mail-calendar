@@ -46,63 +46,124 @@ pub(crate) fn prepare_stored_account(
     sink: &Arc<dyn TokenSink>,
     origin: CredentialOrigin,
 ) -> Result<PreparedAccount, MailcalError> {
-    let (id, connected) = if is_microsoft_toml(config_toml) {
-        let config = mailcal_account::load_microsoft_str(config_toml)
-            .map_err(|err| MailcalError::Config(err.to_string()))?;
-        let id = config
-            .account_id()
-            .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        // The shared, self-refreshing token source builds without a live socket.
-        let tokens = GraphTokenSource::new(&config, id.clone(), Some(Arc::clone(sink)), origin)
-            .map_err(|err| MailcalError::Connect(err.to_string()))?;
-        (id, ConnectedAccount::Microsoft { config, tokens })
-    } else if is_google_toml(config_toml) {
-        let config = mailcal_account::load_google_str(config_toml)
-            .map_err(|err| MailcalError::Config(err.to_string()))?;
-        let id = config
-            .account_id()
-            .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        // The provider-neutral token source builds without a live socket.
-        let tokens = mailcal_account::google_token_source(
-            &config,
-            id.clone(),
-            Some(Arc::clone(sink)),
-            origin,
-        )
-        .map_err(|err| MailcalError::Connect(err.to_string()))?;
-        (id, ConnectedAccount::Google { config, tokens })
-    } else if is_jmap_toml(config_toml) {
-        let config = mailcal_account::load_jmap_str(config_toml)
-            .map_err(|err| MailcalError::Config(err.to_string()))?;
-        let id = config
-            .account_id()
-            .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        // An OAuth JMAP account's token source builds without a live socket; a stored-secret
-        // account has nothing to refresh and gets none.
-        let tokens = jmap_tokens(&config, &id, sink, origin)?;
-        (
-            id,
-            ConnectedAccount::Jmap {
-                config,
-                tokens,
-                session: crate::jmap_session::JmapSession::default(),
-            },
-        )
-    } else {
-        let config = mailcal_account::load_str(config_toml)
-            .map_err(|err| MailcalError::Config(err.to_string()))?;
-        let id = config
-            .account_id()
-            .map_err(|err| MailcalError::Engine(err.to_string()))?;
-        // An OAuth IMAP account's token source builds without a live socket; a password
-        // account has nothing to refresh and gets none.
-        let tokens = imap_tokens(&config, &id, sink, origin)?;
-        (id, ConnectedAccount::imap_account(config, tokens))
-    };
-    Ok(PreparedAccount {
-        account: placeholder(id, &connected),
-        connected,
-    })
+    StoredConfig::parse(config_toml)?.prepare(sink, origin)
+}
+
+/// A stored config parsed and its id derived, before any token source exists for it.
+///
+/// The split exists because building a token source with [`CredentialOrigin::FreshSignIn`]
+/// replaces the process-wide token state for its id, so a caller that may yet refuse the account
+/// asks its questions of this first.
+pub(crate) struct StoredConfig {
+    id: AccountId,
+    config: StoredKind,
+}
+
+/// What a stored config parsed as. Boxing the wide IMAP config would buy nothing: it lives for one
+/// add or boot step and becomes a [`ConnectedAccount`] that is as wide.
+#[allow(clippy::large_enum_variant)]
+enum StoredKind {
+    Microsoft(mailcal_account::MicrosoftConfig),
+    Google(mailcal_account::GoogleConfig),
+    Jmap(mailcal_account::JmapAccountConfig),
+    Imap(mailcal_account::AccountConfig),
+}
+
+impl StoredConfig {
+    /// Detects the config's kind, loads it and derives its id.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Config`] if the config cannot be loaded and
+    /// [`MailcalError::Engine`] if its id cannot be derived.
+    pub(crate) fn parse(config_toml: &str) -> Result<Self, MailcalError> {
+        let load = |err: mailcal_account::ConfigError| MailcalError::Config(err.to_string());
+        let config = if is_microsoft_toml(config_toml) {
+            StoredKind::Microsoft(mailcal_account::load_microsoft_str(config_toml).map_err(load)?)
+        } else if is_google_toml(config_toml) {
+            StoredKind::Google(mailcal_account::load_google_str(config_toml).map_err(load)?)
+        } else if is_jmap_toml(config_toml) {
+            StoredKind::Jmap(mailcal_account::load_jmap_str(config_toml).map_err(load)?)
+        } else {
+            StoredKind::Imap(mailcal_account::load_str(config_toml).map_err(load)?)
+        };
+        let id = match &config {
+            StoredKind::Microsoft(config) => config.account_id(),
+            StoredKind::Google(config) => config.account_id(),
+            StoredKind::Jmap(config) => config.account_id(),
+            StoredKind::Imap(config) => config.account_id(),
+        }
+        .map_err(|err| MailcalError::Engine(err.to_string()))?;
+        Ok(Self { id, config })
+    }
+
+    /// The id the account is keyed by.
+    pub(crate) const fn id(&self) -> &AccountId {
+        &self.id
+    }
+
+    /// The id the account's own settings derive, whatever id is pinned; `None` when none derives.
+    pub(crate) fn derived_account_id(&self) -> Option<AccountId> {
+        match &self.config {
+            StoredKind::Microsoft(config) => config.derived_account_id().ok(),
+            StoredKind::Google(config) => config.derived_account_id().ok(),
+            StoredKind::Jmap(config) => config.derived_account_id().ok(),
+            StoredKind::Imap(config) => config.derived_account_id().ok(),
+        }
+    }
+
+    /// Builds the account's one token source and the entry the registry takes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError`] if the token source cannot be built.
+    pub(crate) fn prepare(
+        self,
+        sink: &Arc<dyn TokenSink>,
+        origin: CredentialOrigin,
+    ) -> Result<PreparedAccount, MailcalError> {
+        let Self { id, config } = self;
+        let connected = match config {
+            StoredKind::Microsoft(config) => {
+                // The shared, self-refreshing token source builds without a live socket.
+                let tokens =
+                    GraphTokenSource::new(&config, id.clone(), Some(Arc::clone(sink)), origin)
+                        .map_err(|err| MailcalError::Connect(err.to_string()))?;
+                ConnectedAccount::Microsoft { config, tokens }
+            }
+            StoredKind::Google(config) => {
+                // The provider-neutral token source builds without a live socket.
+                let tokens = mailcal_account::google_token_source(
+                    &config,
+                    id.clone(),
+                    Some(Arc::clone(sink)),
+                    origin,
+                )
+                .map_err(|err| MailcalError::Connect(err.to_string()))?;
+                ConnectedAccount::Google { config, tokens }
+            }
+            StoredKind::Jmap(config) => {
+                // An OAuth JMAP account's token source builds without a live socket; a
+                // stored-secret account has nothing to refresh and gets none.
+                let tokens = jmap_tokens(&config, &id, sink, origin)?;
+                ConnectedAccount::Jmap {
+                    config,
+                    tokens,
+                    session: crate::jmap_session::JmapSession::default(),
+                }
+            }
+            StoredKind::Imap(config) => {
+                // An OAuth IMAP account's token source builds without a live socket; a password
+                // account has nothing to refresh and gets none.
+                let tokens = imap_tokens(&config, &id, sink, origin)?;
+                ConnectedAccount::imap_account(config, tokens)
+            }
+        };
+        Ok(PreparedAccount {
+            account: placeholder(id, &connected),
+            connected,
+        })
+    }
 }
 
 /// The provider-less account the app lists for `connected` before its dial lands: named from its

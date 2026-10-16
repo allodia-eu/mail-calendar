@@ -18,6 +18,8 @@ enum ImapSignInOutcome {
     case connected
     case cancelled
     case failed
+    /// Signed in, but the add was refused; `setupError` says why.
+    case notAdded
 }
 
 extension MailboxModel {
@@ -61,7 +63,13 @@ extension MailboxModel {
             let configToml = try await Task.detached(priority: .userInitiated) {
                 try app.completeImapLogin(pending: start.pending, callbackUrl: callbackURL)
             }.value
-            try await addAndStoreJmapAccount(app, configToml: configToml)
+            do {
+                try await addAndStoreJmapAccount(app, configToml: configToml)
+            } catch {
+                // The sign-in worked, so the add's own reason is the one to show.
+                showSetupFailure(error)
+                return .notAdded
+            }
             setupError = nil
             return .connected
         } catch JmapSignInError.cancelled {

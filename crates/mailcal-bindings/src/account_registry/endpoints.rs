@@ -37,18 +37,12 @@ impl AccountRegistry {
         let edited = config
             .with_endpoints(edit)
             .map_err(|err| refused(err.to_string()))?;
-        // Another account keyed by the id these servers would derive, or whose own servers derive
-        // it (its id pinned before an edit of its own), is the same mailbox set up twice.
-        let duplicate = edited.config.derived_account_id().ok().and_then(|derived| {
-            entries
-                .iter()
-                .find(|(other, entry)| {
-                    *other != id
-                        && (*other == derived.as_str()
-                            || entry.derived_account_id().as_ref() == Some(&derived))
-                })
-                .map(|(other, _)| other.clone())
-        });
+        // Another account that is the mailbox these servers would derive is it set up twice.
+        let duplicate = edited
+            .config
+            .derived_account_id()
+            .ok()
+            .and_then(|derived| super::set_up::set_up_as(&entries, &[&derived], Some(id)));
         if let Some(account_id) = duplicate {
             return Err(MailcalError::AlreadySetUp { account_id });
         }
