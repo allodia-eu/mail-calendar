@@ -291,9 +291,10 @@ fn route(formats: &gdk::ContentFormats) -> Route {
 /// editor kept nothing of it: the picture beside it, or WebKit's own paste of the text.
 ///
 /// ⚠️ **WebKitGTK rewrites another app's HTML before the page sees it.** Its paste `DataTransfer`
-/// re-serialises the markup with computed styles, which drops `mso-list`, so Word's lists reached
-/// the bundle as paragraphs starting with "·" and "1)". Read here, the markup is what Word wrote,
-/// and the bundle's own rules decide what survives of it (`docs/composer-security.md` Gate 7).
+/// re-serialises the markup with computed styles, which drops `mso-list`, so Word's lists would
+/// reach the bundle as paragraphs starting with "·" and "1)". Read here, the markup is what Word
+/// wrote, and the bundle's own rules decide what survives of it (`docs/composer-security.md`
+/// Gate 7).
 ///
 /// ⚠️ **A spreadsheet's Copy offers a picture too.** ONLYOFFICE and LibreOffice put a PNG rendering
 /// of the cells next to their HTML, so taking pixels first pasted a table as a screenshot of one.

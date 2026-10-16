@@ -76,6 +76,25 @@ describe("a picture inside pasted markup", () => {
     expect(attachments.list()).toEqual([]);
   });
 
+  test("a data URI the core would refuse on submit is dropped, so it cannot fail the send", () => {
+    const { editor } = harness("");
+    const attachments = new Attachments();
+    const payload = PNG.slice(PNG.indexOf(",") + 1);
+    const refused = [
+      `data:image/png;name=logo.png;base64,${payload}`,
+      `data:IMAGE/PNG;base64,${payload}`,
+      "data:image/png,%89PNG",
+    ];
+    const markup = pastedHtml(
+      editor.ownerDocument,
+      `<p>a ${refused.map((url) => `<img src="${url}">`).join(" ")} b</p>`,
+      false,
+      attachments,
+    );
+    expect(markup).toBe("a b");
+    expect(attachments.list()).toEqual([]);
+  });
+
   test("without an attachment list to back it, a picture is dropped rather than left dangling", () => {
     const { editor } = harness("");
     expect(pastedHtml(editor.ownerDocument, `<p>a <img src="${PNG}"> b</p>`)).toBe("a b");

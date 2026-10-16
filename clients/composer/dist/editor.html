@@ -2087,7 +2087,7 @@
     return SHOWABLE_TYPES.includes(mediaType.trim().toLowerCase().split(";")[0] ?? "");
   }
   function isShowableDataUrl(url) {
-    return url.startsWith("data:") && isShowableImage(mediaTypeOf(url));
+    return /^data:image\/(png|jpeg|gif|webp);base64,/.test(url);
   }
   function imageFilesFrom(transfer) {
     if (!transfer)
@@ -2898,13 +2898,10 @@
       source,
       ...Array.from(source.children).filter((child) => /^(thead|tbody|tfoot)$/.test(child.localName))
     ];
-    const held = [];
-    let index = -1;
     for (const section of sections) {
-      for (const row of Array.from(section.children)) {
-        if (row.localName !== "tr")
-          continue;
-        index += 1;
+      const sectionRows = Array.from(section.children).filter((row) => row.localName === "tr");
+      const held = [];
+      for (const [index, row] of sectionRows.entries()) {
         if (hidden(row))
           continue;
         const cells = [];
@@ -2928,7 +2925,7 @@
           const span = Math.min(Number.parseInt(cell.getAttribute("colspan") ?? "", 10) || 1, 1000);
           for (let extra = 1;extra < span; extra += 1)
             cells.push(doc.createElement("td"));
-          const down = Math.min(Number.parseInt(cell.getAttribute("rowspan") ?? "", 10) || 1, 1000);
+          const down = Math.min(Number.parseInt(cell.getAttribute("rowspan") ?? "", 10) || 1, sectionRows.length - index);
           for (let below = 1;below < down; below += 1) {
             const later = held[index + below] ??= new Set;
             for (let at = column;at < column + span; at += 1)
@@ -2961,10 +2958,8 @@
     const url = element.getAttribute("src") ?? "";
     if (!paste.attachments || !isShowableDataUrl(url))
       return null;
-    const comma = url.indexOf(",");
-    const payload = url.length - comma - 1;
-    const bytes = url.slice(0, comma).endsWith(";base64") ? Math.floor(payload * 3 / 4) : payload;
-    if (bytes > MAX_CAPTURED_BYTES)
+    const payload = url.length - url.indexOf(",") - 1;
+    if (Math.floor(payload * 3 / 4) > MAX_CAPTURED_BYTES)
       return null;
     const id = paste.attachments.addCapturedImage({ data_url: url, file_name: "", media_type: "" });
     const picture = paste.doc.createElement("img");
@@ -4370,6 +4365,8 @@
   window.addComposerInlineImage = (meta) => attachments.addInlineImage(editor, meta);
   window.insertComposerImage = (image) => insertCapturedImage(editor, attachments, parsed(image));
   window.pasteComposerHtml = (html) => {
+    if (!rangeWithin(editor))
+      return false;
     const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly(), attachments);
     return markup !== null && insertHtml(markup);
   };

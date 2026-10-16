@@ -52,10 +52,11 @@ export function isShowableImage(mediaType: string): boolean {
   return SHOWABLE_TYPES.includes(mediaType.trim().toLowerCase().split(";")[0] ?? "");
 }
 
-/// Whether `url` is a `data:` URI of a showable format: the one shape a picture may enter the body
-/// in, checked again by the core on submit.
+/// Whether `url` is a `data:` URI of a showable format, base64 and with no parameters: the one shape
+/// a picture may enter the body in, and the prefix the core checks again on submit
+/// (`mailcal_composer::validate`), so a picture let in here is never one that fails the send.
 export function isShowableDataUrl(url: string): boolean {
-  return url.startsWith("data:") && isShowableImage(mediaTypeOf(url));
+  return /^data:image\/(png|jpeg|gif|webp);base64,/.test(url);
 }
 
 /// The image files a paste or a drop carried, in the order the platform listed them.

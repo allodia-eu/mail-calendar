@@ -375,6 +375,19 @@ describe("pasted structure", () => {
     ]);
   });
 
+  test("a merge ends with its section, as in HTML", () => {
+    const [block] = pasted(
+      '<table><thead><tr><td rowspan="5">Head</td><td>H</td></tr></thead>' +
+        "<tbody><tr><td>A</td><td>B</td></tr></tbody></table>",
+    );
+    if (!block || !("Table" in block)) throw new Error("expected a table");
+    const rows = block.Table.rows.map((row) => row.cells.map((cell) => text(cell.content)));
+    expect(rows).toEqual([
+      ["Head", "H"],
+      ["A", "B"],
+    ]);
+  });
+
   test("a list written straight inside a list is the previous item's sub-list", () => {
     const [block] = pasted("<ul><li>a</li><ul><li>b</li></ul><li>c</li></ul>");
     if (!block || !("List" in block)) throw new Error("expected a list");

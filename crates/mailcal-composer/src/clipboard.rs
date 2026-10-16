@@ -5,7 +5,7 @@
 //! says. Read as UTF-8 regardless, a "·" a Windows-1252 document wrote becomes U+FFFD, and UTF-16
 //! becomes nothing the editor can read.
 
-use encoding_rs::{Encoding, UTF_16BE, UTF_16LE, WINDOWS_1252};
+use encoding_rs::{Encoding, REPLACEMENT, UTF_16BE, UTF_16LE, WINDOWS_1252};
 
 /// How far into the markup a declared charset is looked for: the span HTML's own prescan reads.
 const PRESCAN_BYTES: usize = 1024;
@@ -62,8 +62,11 @@ fn declared(bytes: &[u8]) -> Option<&'static Encoding> {
                 })
                 .unwrap_or(value.len());
             // A document that says UTF-16 but has no mark and no zero bytes is not UTF-16, which is
-            // HTML's own rule: such a label is read as UTF-8.
-            if let Some(encoding) = Encoding::for_label(&value[..end]) {
+            // HTML's own rule: such a label is read as UTF-8. A label that decodes to the
+            // replacement encoding would turn the whole paste into one U+FFFD, so it names nothing.
+            if let Some(encoding) = Encoding::for_label(&value[..end])
+                && encoding != REPLACEMENT
+            {
                 return Some(encoding.output_encoding());
             }
         }
@@ -124,6 +127,12 @@ mod tests {
             clipboard_html(b"<p>\x93quoted\x94</p>"),
             "<p>\u{201C}quoted\u{201D}</p>"
         );
+    }
+
+    #[test]
+    fn a_label_for_the_replacement_encoding_is_not_believed() {
+        let bytes = b"<meta charset=iso-2022-kr><p>caf\xE9</p>";
+        assert!(clipboard_html(bytes).ends_with("<p>caf\u{E9}</p>"));
     }
 
     #[test]

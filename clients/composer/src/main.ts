@@ -192,6 +192,9 @@ window.insertComposerImage = (image) =>
 /// pictures and holds one back until this says the HTML beside it carried nothing (`pasteContent`),
 /// and iPhone and iPad, whose WebView rewrites another app's HTML and loses Word's lists.
 window.pasteComposerHtml = (html) => {
+  // A paste into the link panel's fields is the field's own: answering false hands it back to the
+  // host, which runs WebKit's paste there.
+  if (!rangeWithin(editor)) return false;
   const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly(), attachments);
   return markup !== null && insertHtml(markup);
 };

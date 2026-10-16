@@ -322,16 +322,14 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLEl
     source,
     ...Array.from(source.children).filter((child) => /^(thead|tbody|tfoot)$/.test(child.localName)),
   ];
-  // The columns a cell merged down from an earlier row (`rowspan`) holds in each later one, by row:
-  // the rows it reaches get an empty cell there, so their own cells keep their columns. Counted
-  // over every row of the markup, since a hidden one (Excel writes a hidden row as
-  // `display:none`) is still a row the merge reaches.
-  const held: Set<number>[] = [];
-  let index = -1;
   for (const section of sections) {
-    for (const row of Array.from(section.children) as HTMLElement[]) {
-      if (row.localName !== "tr") continue;
-      index += 1;
+    // The columns a cell merged down from an earlier row (`rowspan`) holds in each later one, by
+    // row: the rows it reaches get an empty cell there, so their own cells keep their columns.
+    // Counted over every row of the section, since a hidden one (Excel writes a hidden row as
+    // `display:none`) is still a row the merge reaches; a merge ends with its section, as in HTML.
+    const sectionRows = (Array.from(section.children) as HTMLElement[]).filter((row) => row.localName === "tr");
+    const held: Set<number>[] = [];
+    for (const [index, row] of sectionRows.entries()) {
       if (hidden(row)) continue;
       const cells: HTMLElement[] = [];
       const taken = held[index] ?? new Set<number>();
@@ -352,7 +350,10 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLEl
         // empty. 1000 is the most a browser honours.
         const span = Math.min(Number.parseInt(cell.getAttribute("colspan") ?? "", 10) || 1, 1000);
         for (let extra = 1; extra < span; extra += 1) cells.push(doc.createElement("td"));
-        const down = Math.min(Number.parseInt(cell.getAttribute("rowspan") ?? "", 10) || 1, 1000);
+        const down = Math.min(
+          Number.parseInt(cell.getAttribute("rowspan") ?? "", 10) || 1,
+          sectionRows.length - index,
+        );
         for (let below = 1; below < down; below += 1) {
           const later = (held[index + below] ??= new Set<number>());
           for (let at = column; at < column + span; at += 1) later.add(at);
@@ -388,10 +389,8 @@ function tableFrom(source: HTMLElement, marks: PasteMarks, paste: Paste): HTMLEl
 function inlinePicture(element: HTMLElement, paste: Paste): HTMLElement | null {
   const url = element.getAttribute("src") ?? "";
   if (!paste.attachments || !isShowableDataUrl(url)) return null;
-  const comma = url.indexOf(",");
-  const payload = url.length - comma - 1;
-  const bytes = url.slice(0, comma).endsWith(";base64") ? Math.floor((payload * 3) / 4) : payload;
-  if (bytes > MAX_CAPTURED_BYTES) return null;
+  const payload = url.length - url.indexOf(",") - 1;
+  if (Math.floor((payload * 3) / 4) > MAX_CAPTURED_BYTES) return null;
   const id = paste.attachments.addCapturedImage({ data_url: url, file_name: "", media_type: "" });
   const picture = paste.doc.createElement("img");
   picture.dataset.attachmentId = id;
