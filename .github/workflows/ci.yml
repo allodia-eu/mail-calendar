@@ -639,12 +639,12 @@ jobs:
       # snapshot is one ~1 GB entry per Xcode build, runtime build and device type, so it is
       # written once per image, not once per run; a miss boots cold and keeps the result.
       - name: Choose the UI suite's simulator
-        if: matrix.platform == 'ios'
+        if: false && matrix.platform == 'ios'
         id: warm-sim
         run: clients/apple/Scripts/warm-simulator.sh key >> "$GITHUB_OUTPUT"
 
       - name: Restore the warm simulator
-        if: matrix.platform == 'ios'
+        if: false && matrix.platform == 'ios'
         id: warm-sim-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -652,11 +652,11 @@ jobs:
           key: ${{ steps.warm-sim.outputs.key }}
 
       - name: Seed the simulator, or warm one
-        if: matrix.platform == 'ios'
+        if: false && matrix.platform == 'ios'
         run: clients/apple/Scripts/warm-simulator.sh prepare "$RUNNER_TEMP/warm-simulator" >> "$GITHUB_ENV"
 
       - name: Save the warm simulator
-        if: matrix.platform == 'ios' && steps.warm-sim-cache.outputs.cache-hit != 'true'
+        if: false && matrix.platform == 'ios' && steps.warm-sim-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/warm-simulator
