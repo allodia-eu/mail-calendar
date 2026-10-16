@@ -201,6 +201,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::editor_paste::tests::widget_tests::a_picture_on_the_clipboard_is_read_and_sniffed();
     crate::ui::editor_paste::tests::widget_tests::text_on_the_clipboard_is_left_to_the_page();
     crate::ui::editor_paste::tests::widget_tests::
+        formatted_text_on_the_clipboard_is_read_as_written();
+    crate::ui::editor_paste::tests::widget_tests::
         a_copied_file_is_seen_even_though_it_carries_no_pixels();
     crate::ui::editor_paste::tests::widget_tests::
         a_script_capable_picture_is_not_a_format_the_host_asks_for();

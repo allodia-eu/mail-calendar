@@ -2,7 +2,7 @@
 
 use gtk::gdk;
 
-use super::{is_paste_chord, is_plain_paste_chord};
+use super::{HTML, Route, is_paste_chord, is_plain_paste_chord, route};
 
 const NONE: gdk::ModifierType = gdk::ModifierType::empty();
 const CTRL: gdk::ModifierType = gdk::ModifierType::CONTROL_MASK;
@@ -59,6 +59,46 @@ fn an_insert_without_shift_is_not_a_paste() {
     assert!(!is_paste_chord(gdk::Key::Insert, CTRL));
 }
 
+/// **Formatted text is the host's to read.** WebKitGTK re-serialises another app's HTML before the
+/// page sees it and drops `mso-list` doing so, so a Ctrl+V of Word's list left to the page arrived
+/// as paragraphs starting with "·".
+#[test]
+fn formatted_text_is_read_by_the_host() {
+    assert_eq!(
+        route(&gdk::ContentFormats::new(&[HTML, "text/plain"])),
+        Route::Html
+    );
+}
+
+#[test]
+fn a_picture_beside_formatted_text_waits_for_it() {
+    assert_eq!(
+        route(&gdk::ContentFormats::new(&[HTML, "image/png"])),
+        Route::Picture {
+            mime: "image/png",
+            beside_html: true,
+        }
+    );
+    assert_eq!(
+        route(&gdk::ContentFormats::new(&["image/png"])),
+        Route::Picture {
+            mime: "image/png",
+            beside_html: false,
+        }
+    );
+}
+
+#[test]
+fn plain_text_stays_the_page_s() {
+    assert_eq!(
+        route(&gdk::ContentFormats::new(&[
+            "text/plain;charset=utf-8",
+            "text/plain"
+        ])),
+        Route::Page
+    );
+}
+
 /// The GTK half: a real clipboard, read the way a paste reads it. Called from the crate's single
 /// `gtk::init` test (see [`crate::ui::mailbox::tests`]).
 pub(in crate::ui) mod widget_tests {
@@ -67,7 +107,9 @@ pub(in crate::ui) mod widget_tests {
     use gtk::{gdk, glib, prelude::*};
     use webkit6::{ContextMenuAction, ContextMenuItem};
 
-    use super::super::{PasteAnswer, install, paste_menu_item, picture_type, read_clipboard};
+    use super::super::{
+        HTML, PasteAnswer, Route, install, paste_menu_item, picture_type, read_clipboard, route,
+    };
     use crate::ui::{
         AppInput,
         webview::{DocumentKind, SecureWebView},
@@ -116,7 +158,7 @@ pub(in crate::ui) mod widget_tests {
             )))
             .expect("the clipboard takes a picture");
 
-        assert_eq!(picture_type(&clipboard), Some("image/png"));
+        assert_eq!(picture_type(&clipboard.formats()), Some("image/png"));
         let bytes = glib::MainContext::default()
             .block_on(read_clipboard(&clipboard, "image/png"))
             .expect("the picture reads back off the clipboard");
@@ -131,7 +173,30 @@ pub(in crate::ui) mod widget_tests {
     pub(in crate::ui) fn text_on_the_clipboard_is_left_to_the_page() {
         let clipboard = clipboard();
         clipboard.set_text("just text");
-        assert_eq!(picture_type(&clipboard), None);
+        assert_eq!(route(&clipboard.formats()), Route::Page);
+    }
+
+    /// Word's list as an app may write it, UTF-16 with a byte-order mark, read the way a Ctrl+V
+    /// reads it: the host takes it, and the markup reaches the editor with its `mso-list` and its
+    /// "·" intact, which is what WebKitGTK's own paste would not hand the page.
+    pub(in crate::ui) fn formatted_text_on_the_clipboard_is_read_as_written() {
+        let markup =
+            "<p style='mso-list:l0 level1 lfo1'><span style='mso-list:Ignore'>·</span>Apples</p>";
+        let mut bytes = vec![0xFF, 0xFE];
+        bytes.extend(markup.encode_utf16().flat_map(u16::to_le_bytes));
+        let clipboard = clipboard();
+        clipboard
+            .set_content(Some(&gdk::ContentProvider::for_bytes(
+                HTML,
+                &glib::Bytes::from_owned(bytes),
+            )))
+            .expect("the clipboard takes HTML");
+
+        assert_eq!(route(&clipboard.formats()), Route::Html);
+        let read = glib::MainContext::default()
+            .block_on(read_clipboard(&clipboard, HTML))
+            .expect("the HTML reads back off the clipboard");
+        assert_eq!(mailcal_bindings::composer_clipboard_html(read), markup);
     }
 
     /// **A file manager's Copy puts no pixels on the clipboard at all.** Copying a picture out of
@@ -147,7 +212,7 @@ pub(in crate::ui) mod widget_tests {
             .expect("the clipboard takes a file");
 
         assert_eq!(
-            picture_type(&clipboard),
+            picture_type(&clipboard.formats()),
             None,
             "a copied file offers no pixels, which is the whole trap"
         );
@@ -170,7 +235,7 @@ pub(in crate::ui) mod widget_tests {
             )))
             .expect("the clipboard takes an SVG");
 
-        assert_eq!(picture_type(&clipboard), None);
+        assert_eq!(picture_type(&clipboard.formats()), None);
     }
 
     /// The chord is answered on the editor's **host**, in the capture phase, and this is the part

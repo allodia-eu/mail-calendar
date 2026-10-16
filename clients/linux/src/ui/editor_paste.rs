@@ -14,10 +14,11 @@
 //!
 //! The host therefore answers the question the drop already asks: it reads the clipboard itself,
 //! has the core sniff the bytes, and hands the picture to the editor through
-//! `insertComposerImage`, the seam a dropped picture already arrives by. **Only a paste that
-//! actually carries a picture is taken.** Anything else stays the page's, so pasting text is
-//! untouched, and so is the plain-text paste a Ctrl+Shift+V asks for. A picture offered beside
-//! formatted text is offered to the editor second, because it is usually a rendering of that text.
+//! `insertComposerImage`, the seam a dropped picture already arrives by. Formatted text is read
+//! here too, because WebKitGTK rewrites it on the way to the page (`read_formatted_text_first`).
+//! **Only a paste that carries a picture, files or HTML is taken.** Plain text stays the page's,
+//! and so does the plain-text paste a Ctrl+Shift+V asks for. A picture offered beside formatted
+//! text is offered to the editor second, because it is usually a rendering of that text.
 //!
 //! ⚠️ **WebKitGTK binds no plain-text paste.** Ctrl+Shift+V reaches the page as nothing at all, so
 //! with formatted text keeping its formatting (`docs/composer-security.md` Gate 7) a user on this
@@ -115,8 +116,9 @@ pub(super) fn paste_into_message(editor: &WebView, error: &gtk::Label) -> PasteP
     })
 }
 
-/// Takes Ctrl+V (and the X11 convention Shift+Insert) when the clipboard holds a picture, and
-/// Ctrl+Shift+V always, as the plain-text paste WebKitGTK does not bind (see the module header).
+/// Takes Ctrl+V (and the X11 convention Shift+Insert) when the clipboard holds a picture, files or
+/// HTML, and Ctrl+Shift+V always, as the plain-text paste WebKitGTK does not bind (see the module
+/// header).
 ///
 /// ⚠️ **The controller goes on the editor's HOST, not on the view**, and in the **capture** phase.
 /// WebKitGTK installs key controllers of its own when it builds a `WebView`, and controllers on one
@@ -182,7 +184,7 @@ fn is_plain_paste_chord(key: gdk::Key, state: gdk::ModifierType) -> bool {
 /// `GSimpleAction` nor carrier of an `activate` signal, so there is no way to learn that the user
 /// chose Paste and no way to read the clipboard when they did. So the label is the app's own, in
 /// the app's own language, and the behaviour falls straight back to the stock paste for everything
-/// that is not a picture.
+/// the host does not read itself.
 ///
 /// A view with no handler set (the reading view, or a composer still being built) keeps the stock
 /// item, so nothing here can degrade a menu that was never ours to change.
@@ -224,29 +226,74 @@ fn take_clipboard(editor: &WebView, answer: &PasteAnswer) -> bool {
             .join(", ")
     );
 
-    // Pixels first: they are the picture itself, and Gate 13 says a pasted image goes in at the
-    // caret with nothing to ask. A file reference is the other shape, and is a file.
-    if let Some(mime) = picture_type(&clipboard) {
-        let paste = Rc::clone(&answer.picture);
-        if formats.contain_mime_type(HTML) {
-            read_formatted_text_first(editor, clipboard, mime, paste);
-        } else {
-            read_picture(clipboard, mime, paste);
+    match route(&formats) {
+        Route::Picture { mime, beside_html } => {
+            let paste = Rc::clone(&answer.picture);
+            if beside_html {
+                let pixels = clipboard.clone();
+                read_formatted_text_first(editor, clipboard, move || {
+                    read_picture(pixels, mime, paste);
+                });
+            } else {
+                read_picture(clipboard, mime, paste);
+            }
         }
-        return true;
+        Route::Files => read_files(clipboard, Rc::clone(&answer.files)),
+        Route::Html => {
+            let view = editor.clone();
+            read_formatted_text_first(editor, clipboard, move || {
+                view.execute_editing_command(webkit6::EDITING_COMMAND_PASTE);
+            });
+        }
+        Route::Page => {
+            log::debug!(
+                "paste: nothing on the clipboard for the editor, so the keystroke stays the page's"
+            );
+            return false;
+        }
     }
-    if formats.contains_type(gdk::FileList::static_type()) {
-        read_files(clipboard, Rc::clone(&answer.files));
-        return true;
-    }
-    log::debug!(
-        "paste: nothing on the clipboard for the editor, so the keystroke stays the page's"
-    );
-    false
+    true
 }
 
-/// Offers the editor the clipboard's HTML first, and the picture beside it only when the HTML held
-/// no text.
+/// Who answers a paste, decided from what the clipboard offers.
+#[derive(Debug, PartialEq, Eq)]
+enum Route {
+    /// Pixels, read by the host, after any HTML beside them was offered to the editor.
+    Picture {
+        mime: &'static str,
+        beside_html: bool,
+    },
+    /// A reference to files, which get what a dropped file gets.
+    Files,
+    /// Formatted text, read by the host because WebKitGTK would rewrite it.
+    Html,
+    /// Plain text or nothing the host reads: WebKit's own paste.
+    Page,
+}
+
+/// The route a paste takes. Pixels first: they are the picture itself, and Gate 13 says a pasted
+/// image goes in at the caret with nothing to ask. A file reference is the other shape, and is a
+/// file.
+fn route(formats: &gdk::ContentFormats) -> Route {
+    let beside_html = formats.contain_mime_type(HTML);
+    if let Some(mime) = picture_type(formats) {
+        Route::Picture { mime, beside_html }
+    } else if formats.contains_type(gdk::FileList::static_type()) {
+        Route::Files
+    } else if beside_html {
+        Route::Html
+    } else {
+        Route::Page
+    }
+}
+
+/// Offers the editor the clipboard's HTML as the app wrote it, and runs `otherwise` only when the
+/// editor kept nothing of it: the picture beside it, or WebKit's own paste of the text.
+///
+/// ⚠️ **WebKitGTK rewrites another app's HTML before the page sees it.** Its paste `DataTransfer`
+/// re-serialises the markup with computed styles, which drops `mso-list`, so Word's lists reached
+/// the bundle as paragraphs starting with "·" and "1)". Read here, the markup is what Word wrote,
+/// and the bundle's own rules decide what survives of it (`docs/composer-security.md` Gate 7).
 ///
 /// ⚠️ **A spreadsheet's Copy offers a picture too.** ONLYOFFICE and LibreOffice put a PNG rendering
 /// of the cells next to their HTML, so taking pixels first pasted a table as a screenshot of one.
@@ -256,8 +303,7 @@ fn take_clipboard(editor: &WebView, answer: &PasteAnswer) -> bool {
 fn read_formatted_text_first(
     editor: &WebView,
     clipboard: gdk::Clipboard,
-    mime: &'static str,
-    paste: PastePicture,
+    otherwise: impl FnOnce() + 'static,
 ) {
     let editor = editor.clone();
     glib::MainContext::default().spawn_local(async move {
@@ -273,10 +319,10 @@ fn read_formatted_text_first(
             .await
             .is_ok_and(|value| value.to_boolean());
         if took {
-            log::debug!("paste: the editor took the formatted text beside the picture");
+            log::debug!("paste: the editor took the clipboard's formatted text");
             return;
         }
-        read_picture(clipboard, mime, paste);
+        otherwise();
     });
 }
 
@@ -326,8 +372,7 @@ fn read_files(clipboard: gdk::Clipboard, accept: AcceptFiles) {
 ///
 /// GDK advertises what it can convert to as well as what was put there, so a screenshot copied as
 /// a texture answers `image/png` here and arrives as PNG bytes.
-fn picture_type(clipboard: &gdk::Clipboard) -> Option<&'static str> {
-    let formats = clipboard.formats();
+fn picture_type(formats: &gdk::ContentFormats) -> Option<&'static str> {
     PICTURE_TYPES
         .into_iter()
         .find(|mime| formats.contain_mime_type(mime))
@@ -354,7 +399,7 @@ async fn read_clipboard(clipboard: &gdk::Clipboard, mime: &str) -> Option<Vec<u8
         }
         bytes.extend_from_slice(&chunk);
         if bytes.len() as u64 > mailcal_bindings::MAX_INLINE_IMAGE_BYTES {
-            log::debug!("paste: the picture is past the size an editor may carry");
+            log::debug!("paste: the clipboard's {mime} is past the size an editor may carry");
             return None;
         }
     }
