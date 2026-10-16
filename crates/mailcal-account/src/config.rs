@@ -144,9 +144,9 @@ pub struct CalDavAccount {
     /// The login username (the full email address).
     pub username: String,
     /// The login password (or app-specific password). `None` on an OAuth account, which
-    /// presents the mail grant's bearer token here instead: there is no password to reuse,
+    /// presents the mail grant's access token here instead: there is no password to reuse,
     /// and the profile's `calendars` scope is requested precisely so this works
-    /// ([`docs/mail-oauth.md`](../../../docs/mail-oauth.md)).
+    /// ([`docs/mail-oauth.md`](../../../docs/mail-oauth.md) rule 10).
     #[serde(default)]
     pub password: Option<Secret>,
     /// The calendar collection to sync (defaults to discovery's primary).

@@ -76,8 +76,12 @@ impl AccountConfig {
     }
 }
 
-/// The credential a DAV endpoint of `account` presents: the account's grant as a bearer token on
-/// an OAuth account, else Basic with the endpoint's own login.
+/// The credential a DAV endpoint of `account` presents: the account's grant as an access token
+/// on an OAuth account, else Basic with the endpoint's own login.
+///
+/// The token goes with the endpoint's login because the transport presents it as Bearer only
+/// until a server's challenge asks for Basic, and some DAV servers beside an OAuth mail server
+/// take the token only as the password for that login.
 pub(crate) async fn dav_credentials(
     account: &AccountConfig,
     endpoint: DavEndpoint<'_>,
@@ -87,7 +91,10 @@ pub(crate) async fn dav_credentials(
         let tokens = tokens.ok_or(AccountError::MissingCredential(
             imap_credentials::NO_TOKEN_SOURCE,
         ))?;
-        return Ok(Credentials::Bearer(tokens.access_token().await?));
+        return Ok(Credentials::Token {
+            username: endpoint.username.to_owned(),
+            token: tokens.access_token().await?,
+        });
     }
     let password = endpoint
         .password

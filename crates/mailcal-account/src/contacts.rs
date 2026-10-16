@@ -50,7 +50,7 @@ pub async fn connect_carddav_contact_providers(
     tokens: crate::ImapTokens<'_>,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
     // The account's own `[carddav]` endpoint, or the calendar's when it has none; Basic from
-    // the stored password, or the account grant's bearer token on an OAuth account.
+    // the stored password, or the account grant's access token on an OAuth account.
     let endpoint = account.carddav_endpoint().ok_or(AccountError::NoCalDav)?;
     let credentials = crate::config_dav::dav_credentials(account, endpoint, tokens).await?;
     let tls = account_tls(account)?;

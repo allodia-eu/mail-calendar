@@ -94,3 +94,51 @@ fn a_config_that_names_no_server_is_refused() {
     let err = load_str("capabilities = [\"mail\"]\n").unwrap_err();
     assert!(matches!(err, ConfigError::NoEndpoint), "{err}");
 }
+
+const OAUTH_WITH_DAV: &str = r#"
+[imap]
+addr = "imap.example.net:993"
+server_name = "imap.example.net"
+username = "you@example.net"
+
+[caldav]
+base_url = "https://dav.example.net"
+username = "you@example.net"
+
+[oauth]
+client_id = "client-abc"
+refresh_token = "initial-refresh"
+authorize_endpoint = "https://auth.example.net/authorize"
+token_endpoint = "https://auth.example.net/token"
+redirect_uri = "eu.allodia.mailcal://imap-oauth"
+scopes = ["offline_access", "imap", "smtp"]
+"#;
+
+#[tokio::test]
+async fn an_oauth_account_hands_dav_its_token_with_the_login_it_belongs_to() {
+    // A DAV server beside an OAuth mail server may take the access token only as a Basic
+    // password for the account (soverin.net's does), which the transport learns from its
+    // challenge. A bare bearer token names no login to pair it with, so the endpoint's own is
+    // handed over beside it.
+    use provider_caldav::Credentials;
+
+    use crate::graph::test_support::{ratcheting_token_endpoint, source_at};
+
+    let config = load_str(OAUTH_WITH_DAV).unwrap();
+    let (token_endpoint, _) = ratcheting_token_endpoint("initial-refresh");
+    let tokens = source_at(token_endpoint, None);
+    let credentials = crate::config_dav::dav_credentials(
+        &config,
+        config.caldav_endpoint().unwrap(),
+        Some(&tokens),
+    )
+    .await
+    .unwrap();
+    match credentials {
+        Credentials::Token { username, token } => {
+            assert_eq!(username, "you@example.net");
+            assert_eq!(token, "AT-1");
+        }
+        other => panic!("expected the token beside its login, got {other:?}"),
+    }
+}

@@ -120,9 +120,13 @@ is recorded here.
 
 10. **An OAuth account stores no password anywhere.** The grant is stored once, at the root
     (`[oauth]`), because every endpoint presents it: IMAP and SMTP over SASL, the calendar and
-    address book as the same bearer token rather than a reused password, and "repair this account" is a re-authorisation rather than a typed secret. The
-    `calendars` and `contacts` scopes are requested at sign-in precisely so the second half
-    works.
+    address book as the same access token rather than a reused password, and "repair this
+    account" is a re-authorisation rather than a typed secret. The `calendars` and `contacts`
+    scopes are requested at sign-in precisely so the second half works. The token goes to DAV
+    as Bearer until the server's challenge offers Basic and not Bearer; it is then the Basic
+    password for the account's login, because some DAV servers beside an OAuth mail server take
+    it only that way (`soverin.net`'s sabre/dav does, and its grant names no calendar scope at
+    all). The engine reads the challenge; this repository hands it the login beside the token.
 
 11. **`iss` is checked where a server says it sends one** (RFC 9207). That is the only thing
     that catches a mix-up relay once `state` has matched, and it is checked strictly: a
