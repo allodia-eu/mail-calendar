@@ -162,7 +162,7 @@ public sealed partial class CalendarView
     private CalendarChoice? DefaultChoice()
     {
         var row = Model?.Calendars().FirstOrDefault(c => c.CanWrite);
-        return row is null ? null : new CalendarChoice(row.Account, row.Id, row.Name);
+        return row is null ? null : CalendarChoice.Of(row);
     }
 
     private string CalendarNameFor(string account, string calendar) =>

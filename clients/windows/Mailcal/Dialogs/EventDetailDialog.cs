@@ -198,7 +198,8 @@ public sealed class EventDetailDialog : ContentDialog
             Text = AttendeeSummary.Title(attendee),
             TextWrapping = TextWrapping.Wrap,
         });
-        var subtitle = AttendeeSummary.Subtitle(attendee, L10n.EventAttendeeOrganizer());
+        var subtitle = AttendeeSummary.Subtitle(
+            attendee, L10n.EventAttendeeOrganizer(), L10n.EventAttendeeOptional());
         if (subtitle.Length > 0)
         {
             who.Children.Add(SecondaryOf(subtitle, brushes));

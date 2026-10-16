@@ -1,8 +1,8 @@
 // The event editor, one dialog for both create and edit, the Windows twin of Android's
 // EventEditorScreen and Apple's EventEditorView. Title, an all-day toggle, start/end date+time
 // pickers, a calendar row (a writable-calendar picker on create, display-only on edit), notes, a
-// location field (settable on create and edit alike), and reminder + recurrence rows shown but not
-// yet editable (v1).
+// location field (settable on create and edit alike), a reminder row shown but not editable, the
+// repeat rule, and who is invited (EventInviteeSection.cs).
 //
 // Every decision, validity, which fields are frozen on edit, the wall-clock-vs-UTC create form, the
 // all-day inclusive↔exclusive conversion, lives in the pure EventEditorState (Calendar/, unit-tested
@@ -43,6 +43,7 @@ public sealed class EventEditorDialog : ContentDialog
     private readonly DatePicker _startDate = new();
     private readonly DatePicker _endDate = new();
     private readonly Button _calendarButton = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly EventInviteeSection _invitees;
 
     /// <summary>The editor state, mutated in place, the caller reads its args after a Primary result.</summary>
     internal EventEditorState State => _state;
@@ -55,12 +56,17 @@ public sealed class EventEditorDialog : ContentDialog
         _brushes = new ThemeBrushes(this);
         // The picker only ever offers calendars a new/edited event could actually land in.
         _writable = model.Calendars().Where(c => c.CanWrite).ToArray();
+        _invitees = new EventInviteeSection(model, state, _brushes, CaptionText);
 
         Title = state.IsEditing ? L10n.EventEditTitle() : L10n.EventNewTitle();
         PrimaryButtonText = L10n.ActionSave();
         CloseButtonText = L10n.ActionCancel();
         DefaultButton = ContentDialogButton.Primary;
         IsPrimaryButtonEnabled = state.IsValid;
+        // An address typed and not added is meant to be on the list; one that cannot be invited
+        // keeps the editor open, with the field saying why.
+        PrimaryButtonClick += (_, args) => args.Cancel = !_invitees.TakeTyped();
+        Closed += (_, _) => _invitees.Detach();
 
         // The default ContentDialog max-width (548) is narrower than the Start/End row needs, and would
         // clip the time picker even with a wide form. Lift it so the form width below is what decides.
@@ -219,22 +225,7 @@ public sealed class EventEditorDialog : ContentDialog
             });
         }
 
-        // Attendees: shown so an edit is not made blind to who is coming, and stated to be read-only
-        // rather than offered as a field that would quietly drop the change, editing them means
-        // sending iTIP updates, which is its own feature.
-        var attendees = _state.Editing?.Attendees;
-        if (attendees is { Count: > 0 })
-        {
-            panel.Children.Add(EventDetailDialog.AttendeeBlock(attendees, _brushes));
-            panel.Children.Add(new TextBlock
-            {
-                Text = L10n.EventAttendeesReadOnly(),
-                Style = Caption(),
-                Foreground = _brushes.Of(ThemePalette.SecondaryText),
-                TextWrapping = TextWrapping.Wrap,
-            });
-        }
-
+        panel.Children.Add(_invitees.View);
         return panel;
     }
 
@@ -367,8 +358,10 @@ public sealed class EventEditorDialog : ContentDialog
         };
         button.Click += (_, _) =>
         {
-            _state.Calendar = new CalendarChoice(row.Account, row.Id, row.Name);
+            _state.Calendar = CalendarChoice.Of(row);
             RefreshCalendarButton();
+            // Whether people can be invited, and who organises, follow the calendar.
+            _invitees.Rebuild();
             flyout.Hide();
         };
         return button;

@@ -15,12 +15,23 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Calendar;
 
-/// <summary>A calendar a create can target, or the calendar an edited event sits in.</summary>
-internal sealed record CalendarChoice(string Account, string Id, string Name);
+/// <summary>
+/// A calendar a create can target, or the calendar an edited event sits in. <c>Address</c> is the
+/// owning account's, the organiser of a meeting created here, and <c>CanInvite</c> is the core's
+/// <c>CalendarRow.CanInvite</c>: whether a meeting may be organised here at all.
+/// </summary>
+internal sealed record CalendarChoice(
+    string Account, string Id, string Name, string Address = "", bool CanInvite = false)
+{
+    /// <summary>The choice a calendar row offers.</summary>
+    internal static CalendarChoice Of(CalendarRow row) =>
+        new(row.Account, row.Id, row.Name, row.AccountAddress, row.CanInvite);
+}
 
 /// <summary>The event an editor is editing (absent when creating).</summary>
 internal sealed record EditTarget(
@@ -40,9 +51,10 @@ internal sealed record EditTarget(
     /// it was opened on the series. Non-empty is what makes Save ask which occurrences it
     /// meant.</summary>
     string Occurrence,
-    /// <summary>Everyone on the event, organiser first. Shown read-only, attendees change by
-    /// iTIP, which is a separate feature.</summary>
-    IReadOnlyList<EventAttendee> Attendees);
+    /// <summary>Everyone on the event, organiser first.</summary>
+    IReadOnlyList<EventAttendee> Attendees,
+    /// <summary>Whether this account organises the meeting and may change who is invited.</summary>
+    bool CanEditInvitees = false);
 
 /// <summary>The arguments a create dispatches (<c>EventIntent.Create</c>).</summary>
 internal sealed record CreateArgs(
@@ -56,7 +68,9 @@ internal sealed record CreateArgs(
     string? Notes,
     string? Location,
     /// <summary>The rule a new event starts with, or null for a one-off.</summary>
-    SimpleRecurrence? Recurrence);
+    SimpleRecurrence? Recurrence,
+    /// <summary>The people to invite, or null for an appointment. Never an empty list.</summary>
+    IReadOnlyList<MeetingInvitee>? Invitees = null);
 
 /// <summary>The arguments an edit dispatches (<c>EventIntent.Update</c>).</summary>
 internal sealed record UpdateArgs(
@@ -78,7 +92,10 @@ internal sealed record UpdateArgs(
     /// into the shift the user made rather than writing an occurrence's clocks onto the series;
     /// without it a rule change from a later occurrence moves the series' start there and every
     /// earlier occurrence stops existing.</summary>
-    string? TimesFromOccurrence = null);
+    string? TimesFromOccurrence = null,
+    /// <summary>What changed about who is invited, or null to leave the roster alone. Series
+    /// only.</summary>
+    MeetingInviteePatch? Invitees = null);
 
 /// <summary>
 /// What a save should send for the repeat rule, decided by the core: see
@@ -114,9 +131,19 @@ internal sealed class EventEditorState
         string notes,
         CalendarChoice? calendar,
         RepeatDraft? repeat,
-        RepeatChangeOf repeatChangeOf)
+        RepeatChangeOf repeatChangeOf,
+        InviteePatchOf? inviteePatchOf,
+        InviteeCheckOf? inviteeCheckOf)
     {
         _repeatChangeOf = repeatChangeOf;
+        _inviteePatchOf = inviteePatchOf ?? CoreInviteePatchOf;
+        Roster = new InviteeRoster(
+            editing,
+            inviteeCheckOf ?? CoreInviteeCheckOf,
+            () => editing?.Attendees.FirstOrDefault(attendee => attendee.IsOrganizer)?.Email
+                ?? Calendar?.Address
+                ?? string.Empty);
+        Roster.Changed += () => _inviteeChangeRead = false;
         RepeatDraft = repeat;
         Editing = editing;
         Zone = zone;
@@ -130,6 +157,12 @@ internal sealed class EventEditorState
     }
 
     private readonly RepeatChangeOf _repeatChangeOf;
+    private readonly InviteePatchOf _inviteePatchOf;
+
+    // InviteeChange is the core's answer over the whole list, asked once per change to it rather
+    // than on each of the reads a save makes.
+    private MeetingInviteePatch? _inviteeChange;
+    private bool _inviteeChangeRead;
 
     /// <summary>
     /// What the repeat controls hold, or null for "does not repeat". Seeded from the core and
@@ -197,7 +230,8 @@ internal sealed class EventEditorState
                 Timezone: null,
                 Notes: string.IsNullOrEmpty(Notes) ? null : Notes,
                 Location: string.IsNullOrEmpty(Location) ? null : Location,
-                Recurrence: NewRule());
+                Recurrence: NewRule(),
+                Invitees: NewInvitees());
         }
         return new CreateArgs(
             Title.Trim(),
@@ -210,7 +244,8 @@ internal sealed class EventEditorState
             Timezone: string.IsNullOrEmpty(Zone) ? null : Zone,
             Notes: string.IsNullOrEmpty(Notes) ? null : Notes,
             Location: string.IsNullOrEmpty(Location) ? null : Location,
-            Recurrence: NewRule());
+            Recurrence: NewRule(),
+            Invitees: NewInvitees());
     }
 
     /// <summary>
@@ -223,7 +258,39 @@ internal sealed class EventEditorState
     /// before the user touches them.
     /// </remarks>
     internal bool AsksAboutTheSeries =>
-        !string.IsNullOrEmpty(Editing?.Occurrence) && RepeatChange is null;
+        !string.IsNullOrEmpty(Editing?.Occurrence) && RepeatChange is null && InviteeChange is null;
+
+    /// <summary>
+    /// Whether the invitee controls are offered: on a create, where the chosen calendar's server
+    /// sends invitations; on an edit, where this account organises the meeting.
+    /// </summary>
+    internal bool CanInvite => Editing is { } editing ? editing.CanEditInvitees : Calendar?.CanInvite == true;
+
+    /// <summary>Who is invited, as the controls hold it.</summary>
+    internal InviteeRoster Roster { get; }
+
+    /// <summary>What a save changes about who is invited, or null to leave the roster alone.</summary>
+    internal MeetingInviteePatch? InviteeChange
+    {
+        get
+        {
+            if (Editing is not { CanEditInvitees: true } editing)
+            {
+                return null;
+            }
+            if (!_inviteeChangeRead)
+            {
+                _inviteeChange = _inviteePatchOf(editing.Attendees, Roster.Invitees);
+                _inviteeChangeRead = true;
+            }
+            return _inviteeChange;
+        }
+    }
+
+    /// <summary>The people a create invites: none on a calendar that cannot, and none is an
+    /// appointment.</summary>
+    private IReadOnlyList<MeetingInvitee>? NewInvitees() =>
+        CanInvite && Roster.Invitees.Count > 0 ? [.. Roster.Invitees] : null;
 
     /// <summary>
     /// Whether the repeat controls are offered at all. An event that does not repeat can always be
@@ -291,19 +358,31 @@ internal sealed class EventEditorState
             // they came from and the core shifts the series by that much instead of moving it.
             TimesFromOccurrence: !thisOccurrenceOnly && !string.IsNullOrEmpty(target.Occurrence)
                 ? target.Occurrence
-                : null);
+                : null,
+            // A roster belongs to the series, as a rule does.
+            Invitees: thisOccurrenceOnly ? null : InviteeChange);
     }
 
     /// <summary>The core's own answer. The default everywhere but a test.</summary>
     private static RecurrenceChange? CoreRepeatChangeOf(RepeatDraft? draft, bool wasRepeating) =>
         MailcalBindingsMethods.RepeatChangeOf(draft, wasRepeating);
 
+    private static MeetingInviteePatch? CoreInviteePatchOf(
+        IReadOnlyList<EventAttendee> attendees, IReadOnlyList<MeetingInvitee> invitees) =>
+        MailcalBindingsMethods.MeetingInviteePatch([.. attendees], [.. invitees]);
+
+    private static InviteeCheck CoreInviteeCheckOf(
+        string typed, IReadOnlyList<string> invited, string organiser) =>
+        MailcalBindingsMethods.CheckMeetingInvitee(typed, [.. invited], organiser);
+
     /// <summary>A fresh editor: start at the next whole hour, one hour long, in the default calendar.</summary>
     internal static EventEditorState Create(
         CalendarChoice? defaultCalendar,
         string zone,
         DateTime now,
-        RepeatChangeOf? repeatChangeOf = null)
+        RepeatChangeOf? repeatChangeOf = null,
+        InviteePatchOf? inviteePatchOf = null,
+        InviteeCheckOf? inviteeCheckOf = null)
     {
         // The next whole hour: +1h, then drop minutes/seconds. Building the DateTime from the parts
         // avoids searching *forward* to the next minute-zero (which from 10:15 lands on 11:00, not
@@ -322,14 +401,18 @@ internal sealed class EventEditorState
             notes: string.Empty,
             calendar: defaultCalendar,
             repeat: null,
-            repeatChangeOf: repeatChangeOf ?? CoreRepeatChangeOf);
+            repeatChangeOf: repeatChangeOf ?? CoreRepeatChangeOf,
+            inviteePatchOf,
+            inviteeCheckOf);
     }
 
     /// <summary>An editor prefilled from a stored event's detail.</summary>
     internal static EventEditorState Edit(
         EventDetail detail,
         string calendarName,
-        RepeatChangeOf? repeatChangeOf = null)
+        RepeatChangeOf? repeatChangeOf = null,
+        InviteePatchOf? inviteePatchOf = null,
+        InviteeCheckOf? inviteeCheckOf = null)
     {
         var start = ParseWall(detail.Start);
         // The detail's all-day end is exclusive; show the inclusive last day.
@@ -345,7 +428,8 @@ internal sealed class EventEditorState
                 detail.RepeatSummary,
                 detail.RepeatDraft,
                 detail.OccurrenceStart,
-                detail.Attendees),
+                detail.Attendees,
+                detail.CanEditInvitees),
             zone: detail.Timezone,
             title: detail.Title,
             allDay: detail.AllDay,
@@ -355,7 +439,9 @@ internal sealed class EventEditorState
             notes: detail.Notes ?? string.Empty,
             calendar: new CalendarChoice(detail.Account, detail.Calendar, calendarName),
             repeat: detail.RepeatDraft,
-            repeatChangeOf: repeatChangeOf ?? CoreRepeatChangeOf);
+            repeatChangeOf: repeatChangeOf ?? CoreRepeatChangeOf,
+            inviteePatchOf,
+            inviteeCheckOf);
     }
 
     private static string WallClock(DateTime dt) =>
@@ -377,47 +463,5 @@ internal sealed class EventEditorState
             return DateTime.SpecifyKind(dt, DateTimeKind.Unspecified);
         }
         return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Unspecified);
-    }
-}
-
-/// <summary>A reminder offset, bucketed for display, pure, so a locale quirk can't reach it.</summary>
-internal abstract record ReminderBucket
-{
-    internal sealed record None : ReminderBucket;
-
-    internal sealed record AtStart : ReminderBucket;
-
-    internal sealed record Minutes(int N) : ReminderBucket;
-
-    internal sealed record Hours(int N) : ReminderBucket;
-
-    internal sealed record Days(int N) : ReminderBucket;
-}
-
-/// <summary>The reminder summary, as a pure bucket decision (the L10n string assembly lives in the
-/// dialog, which is not part of this assembly). The repeat rule's own parts are
-/// <see cref="EventRepeatFormat"/>.</summary>
-internal static class CalendarEventSummary
-{
-    /// <summary>Buckets minutes-before into the coarsest exact unit (a day, an hour, else minutes).</summary>
-    internal static ReminderBucket ReminderBucketOf(int? minutes)
-    {
-        if (minutes is not { } m)
-        {
-            return new ReminderBucket.None();
-        }
-        if (m <= 0)
-        {
-            return new ReminderBucket.AtStart();
-        }
-        if (m % 1440 == 0)
-        {
-            return new ReminderBucket.Days(m / 1440);
-        }
-        if (m % 60 == 0)
-        {
-            return new ReminderBucket.Hours(m / 60);
-        }
-        return new ReminderBucket.Minutes(m);
     }
 }

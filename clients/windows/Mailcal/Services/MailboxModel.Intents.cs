@@ -275,20 +275,21 @@ public sealed partial class MailboxModel
     internal void CreateEvent(CreateArgs args) =>
         _app?.Dispatch(new Intent.Events(new EventIntent.Create(
             args.Title, args.Start, args.End, args.Account, args.Calendar, args.AllDay, args.Timezone,
-            args.Notes, args.Location, args.Recurrence, Invitees: null)));
+            args.Notes, args.Location, args.Recurrence,
+            args.Invitees is null ? null : [.. args.Invitees])));
 
     /// <summary>
     /// Edit a stored calendar event from the editor's payload, then refresh.
     /// </summary>
     /// <remarks>
-    /// A provider-neutral patch: only the present fields change (the recurrence rule, attendees and
-    /// alarms survive). Notes/location are three-state, empty clears, a value sets. The write settles
+    /// A provider-neutral patch: only the present fields change (the recurrence rule, the invitees an
+    /// organiser did not touch, and alarms survive). Notes/location are three-state, empty clears, a value sets. The write settles
     /// through the same <c>CalendarWriteStatus</c> surface as create and delete.
     /// </remarks>
     internal void UpdateEvent(UpdateArgs args) =>
         _app?.Dispatch(new Intent.Events(new EventIntent.Update(
             args.Account, args.Key, args.Title, args.Start, args.End, args.Notes, args.Location,
-            args.Occurrence, args.Recurrence, args.TimesFromOccurrence, Invitees: null)));
+            args.Occurrence, args.Recurrence, args.TimesFromOccurrence, args.Invitees)));
 
     /// <summary>
     /// What saving <paramref name="args"/> over the whole series would cost the occurrences the

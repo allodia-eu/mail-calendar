@@ -255,7 +255,8 @@
 
         <!-- Footer: refresh. -->
         <Grid Grid.Row="2" Padding="16,10">
-            <Button HorizontalAlignment="Right" Content="{x:Bind l10n:L10n.ActionRefresh(), Mode=OneTime}" Click="OnRefresh" />
+            <Button HorizontalAlignment="Right" Content="{x:Bind l10n:L10n.ActionRefresh(), Mode=OneTime}" Click="OnRefresh"
+                    AutomationProperties.AutomationId="CalendarRefresh" />
         </Grid>
     </Grid>
 </UserControl>

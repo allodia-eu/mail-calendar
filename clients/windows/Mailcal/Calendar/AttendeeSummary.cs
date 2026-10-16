@@ -10,15 +10,18 @@ namespace Allodia.Mailcal.Calendar;
 internal static class AttendeeSummary
 {
     /// <summary>
-    /// The second line under an attendee: their address (when the first line used their name) and
-    /// whether they called the meeting. Empty when there is nothing left to say, an attendee with
-    /// no display name is shown by address on the first line, so repeating it below would be noise.
+    /// The second line under an attendee: their address (when the first line used their name), and
+    /// whether they called the meeting or were invited as optional. Empty when there is nothing left
+    /// to say, an attendee with no display name is shown by address on the first line, so repeating
+    /// it below would be noise. Required is what an invitation assumes, so only the exception is
+    /// said.
     /// </summary>
     /// <param name="attendee">The core's attendee row.</param>
     /// <param name="organizerLabel">The localised "Organiser" word, passed in so this stays pure.</param>
-    internal static string Subtitle(EventAttendee attendee, string organizerLabel)
+    /// <param name="optionalLabel">The localised "Optional" word, likewise.</param>
+    internal static string Subtitle(EventAttendee attendee, string organizerLabel, string optionalLabel)
     {
-        var parts = new List<string>(2);
+        var parts = new List<string>(3);
         if (attendee.Name.Length > 0)
         {
             parts.Add(attendee.Email);
@@ -26,6 +29,10 @@ internal static class AttendeeSummary
         if (attendee.IsOrganizer)
         {
             parts.Add(organizerLabel);
+        }
+        if (attendee.Role == MeetingInviteeRole.Optional)
+        {
+            parts.Add(optionalLabel);
         }
         return string.Join(" · ", parts);
     }

@@ -92,6 +92,21 @@ public sealed partial class RecipientField : UserControl
         }
     }
 
+    /// <summary>
+    /// The hint inside an empty input, for a field with no label above it (the event editor's
+    /// invitee field). It names the input for accessibility too, as <see cref="Label"/> does.
+    /// </summary>
+    public string Placeholder
+    {
+        get => Input.PlaceholderText;
+        set
+        {
+            Input.PlaceholderText = value;
+            LabelText.Visibility = Visibility.Collapsed;
+            AutomationProperties.SetName(Input, value);
+        }
+    }
+
     /// <summary>A control drawn at the trailing edge of the input, the To row's Cc/Bcc chevron.</summary>
     /// <remarks>
     /// A plain CLR property, which XAML property-element syntax sets just as well as a dependency
@@ -139,6 +154,14 @@ public sealed partial class RecipientField : UserControl
 
     /// <summary>Raised whenever the field's value changes, however it changed.</summary>
     public event EventHandler? RecipientsChanged;
+
+    /// <summary>
+    /// Raised on Enter over typed text, for a host that takes what is typed (the event editor's
+    /// Invite). With no handler Enter goes where it went before; with one, Enter over typed text goes
+    /// nowhere else, so a dialog's default button does not fire under an address being added, and
+    /// Enter in an empty input still reaches it.
+    /// </summary>
+    public event EventHandler? Submitted;
 
     // The one place the field's value moves. Everything else, a keystroke, an accepted suggestion,
     // a removed pill, computes the new string with RecipientTokens and comes through here.
@@ -197,6 +220,12 @@ public sealed partial class RecipientField : UserControl
         {
             SuggestionPopup.IsOpen = false;
             e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.Enter && Submitted is { } submitted && Input.Text.Trim().Length > 0)
+        {
+            SuggestionPopup.IsOpen = false;
+            e.Handled = true;
+            submitted(this, EventArgs.Empty);
         }
     }
 

@@ -11,16 +11,18 @@ namespace Allodia.Mailcal.Tests;
 public class AttendeeSummaryTests
 {
     private const string Organizer = "Organiser";
+    private const string Optional = "Optional";
 
-    private static EventAttendee Attendee(string name, string email, bool isOrganizer = false) =>
-        new(name, email, isOrganizer, null, ResponseStatus.Accepted);
+    private static EventAttendee Attendee(
+        string name, string email, bool isOrganizer = false, MeetingInviteeRole? role = null) =>
+        new(name, email, isOrganizer, role, ResponseStatus.Accepted);
 
     [Fact]
     public void ANamedAttendeeIsShownByNameWithTheAddressBeneath()
     {
         var attendee = Attendee("Anna Jansen", "anna@example.com");
         Assert.Equal("Anna Jansen", AttendeeSummary.Title(attendee));
-        Assert.Equal("anna@example.com", AttendeeSummary.Subtitle(attendee, Organizer));
+        Assert.Equal("anna@example.com", AttendeeSummary.Subtitle(attendee, Organizer, Optional));
     }
 
     [Fact]
@@ -29,21 +31,39 @@ public class AttendeeSummaryTests
         // Printing the address again underneath itself is the failure this pins.
         var attendee = Attendee(string.Empty, "b@example.com");
         Assert.Equal("b@example.com", AttendeeSummary.Title(attendee));
-        Assert.Equal(string.Empty, AttendeeSummary.Subtitle(attendee, Organizer));
+        Assert.Equal(string.Empty, AttendeeSummary.Subtitle(attendee, Organizer, Optional));
     }
 
     [Fact]
     public void AnUnnamedOrganizerStillSaysTheyCalledTheMeeting()
     {
         var attendee = Attendee(string.Empty, "chair@example.com", isOrganizer: true);
-        Assert.Equal(Organizer, AttendeeSummary.Subtitle(attendee, Organizer));
+        Assert.Equal(Organizer, AttendeeSummary.Subtitle(attendee, Organizer, Optional));
     }
 
     [Fact]
     public void ANamedOrganizerShowsBothTheAddressAndTheRole()
     {
         var attendee = Attendee("Chair Person", "chair@example.com", isOrganizer: true);
-        Assert.Equal("chair@example.com · Organiser", AttendeeSummary.Subtitle(attendee, Organizer));
+        Assert.Equal("chair@example.com · Organiser", AttendeeSummary.Subtitle(attendee, Organizer, Optional));
+    }
+
+    [Fact]
+    public void AnOptionalInviteeIsMarkedAndARequiredOneIsNot()
+    {
+        // Required is what an invitation assumes, so only the exception is said.
+        Assert.Equal(
+            "ada@example.com · Optional",
+            AttendeeSummary.Subtitle(
+                Attendee("Ada", "ada@example.com", role: MeetingInviteeRole.Optional), Organizer, Optional));
+        Assert.Equal(
+            Optional,
+            AttendeeSummary.Subtitle(
+                Attendee(string.Empty, "ada@example.com", role: MeetingInviteeRole.Optional), Organizer, Optional));
+        Assert.Equal(
+            "grace@example.com",
+            AttendeeSummary.Subtitle(
+                Attendee("Grace", "grace@example.com", role: MeetingInviteeRole.Required), Organizer, Optional));
     }
 
     [Fact]
