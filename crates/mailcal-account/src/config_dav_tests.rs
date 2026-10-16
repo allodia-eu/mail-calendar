@@ -142,3 +142,30 @@ async fn an_oauth_account_hands_dav_its_token_with_the_login_it_belongs_to() {
         other => panic!("expected the token beside its login, got {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn an_oauth_account_hands_contacts_their_own_login() {
+    // An address book on its own endpoint may be a different login than the calendar's, and the
+    // Basic form of the token is only accepted for the login it is paired with.
+    use provider_caldav::Credentials;
+
+    use crate::graph::test_support::{ratcheting_token_endpoint, source_at};
+
+    let config = load_str(&format!(
+        "{OAUTH_WITH_DAV}\n[carddav]\nbase_url = \"https://contacts.example.net\"\nusername = \"contacts-login\"\n"
+    ))
+    .unwrap();
+    let (token_endpoint, _) = ratcheting_token_endpoint("initial-refresh");
+    let tokens = source_at(token_endpoint, None);
+    let credentials = crate::config_dav::dav_credentials(
+        &config,
+        config.carddav_endpoint().unwrap(),
+        Some(&tokens),
+    )
+    .await
+    .unwrap();
+    match credentials {
+        Credentials::Token { username, .. } => assert_eq!(username, "contacts-login"),
+        other => panic!("expected the token beside its login, got {other:?}"),
+    }
+}

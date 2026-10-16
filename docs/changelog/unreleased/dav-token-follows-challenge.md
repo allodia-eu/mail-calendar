@@ -10,41 +10,41 @@ Bump: patch
 **English**
 
 ```
-Calendar and contacts now sync on an account you signed in to with your provider, also where the provider's calendar server expects the sign-in as a password, as Soverin's does.
+Calendar and contacts now also sync on an account added by signing in with your provider at providers such as Soverin, where only mail did before.
 ```
 
 **Nederlands**
 
 ```
-Agenda en contacten synchroniseren nu ook op een account waarvoor je bij je provider hebt ingelogd als de agendaserver van die provider de inlog als wachtwoord verwacht, zoals die van Soverin.
+Agenda en contacten synchroniseren nu ook op een account dat je hebt toegevoegd door bij je provider in te loggen, bij providers zoals Soverin waar eerder alleen e-mail werkte.
 ```
 
 **Deutsch**
 
 ```
-Kalender und Kontakte werden jetzt auch bei einem Konto synchronisiert, bei dem Sie sich über Ihren Anbieter angemeldet haben, wenn dessen Kalenderserver die Anmeldung als Passwort erwartet, wie der von Soverin.
+Kalender und Kontakte werden jetzt auch bei einem Konto synchronisiert, das Sie über die Anmeldung bei Ihrem Anbieter hinzugefügt haben, bei Anbietern wie Soverin, wo bisher nur E-Mail funktionierte.
 ```
 
 **Français**
 
 ```
-Le calendrier et les contacts se synchronisent désormais aussi sur un compte connecté via votre fournisseur lorsque son serveur de calendrier attend la connexion comme mot de passe, comme celui de Soverin.
+Le calendrier et les contacts se synchronisent désormais aussi sur un compte ajouté en vous connectant via votre fournisseur, chez des fournisseurs comme Soverin où seul l’e-mail fonctionnait jusqu’ici.
 ```
 
 **Español**
 
 ```
-El calendario y los contactos ahora también se sincronizan en una cuenta en la que iniciaste sesión con tu proveedor cuando su servidor de calendario espera el inicio de sesión como contraseña, como el de Soverin.
+El calendario y los contactos ahora también se sincronizan en una cuenta añadida iniciando sesión con tu proveedor, en proveedores como Soverin donde antes solo funcionaba el correo.
 ```
 
 **Italiano**
 
 ```
-Calendario e contatti ora si sincronizzano anche su un account a cui hai effettuato l’accesso con il tuo provider quando il suo server di calendario si aspetta l’accesso come password, come quello di Soverin.
+Calendario e contatti ora si sincronizzano anche su un account aggiunto accedendo con il tuo provider, con provider come Soverin dove prima funzionava solo la posta.
 ```
 
 **Português**
 
 ```
-O calendário e os contactos passam a sincronizar também numa conta em que iniciou sessão com o seu fornecedor quando o servidor de calendário desse fornecedor espera o início de sessão como palavra-passe, como o da Soverin.
+O calendário e os contactos passam a sincronizar também numa conta adicionada ao iniciar sessão com o seu fornecedor, em fornecedores como a Soverin onde antes só o email funcionava.
 ```

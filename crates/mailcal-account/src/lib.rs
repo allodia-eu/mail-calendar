@@ -137,7 +137,8 @@ use crate::{setup::normalize_caldav_base_url, tls::account_tls};
 /// account's calendars and binds to the first one: real servers (Soverin/SabreDAV)
 /// name calendars with server-generated ids rather than a literal `default`, so a
 /// host that hasn't picked a calendar must discover an actual collection rather than
-/// guess its name. Authenticates with HTTP Basic (the common CalDAV case); the
+/// guess its name. Authenticates with `config_dav::dav_credentials`: HTTP Basic from the
+/// stored password, or the account grant's access token on an OAuth account; the
 /// transport verifies the server certificate via the account's shared TLS policy.
 ///
 /// # Errors
