@@ -24,11 +24,11 @@ use adw::prelude::*;
 use gtk::{accessible::Property as AccessibleProperty, gdk, glib};
 use mailcal_bindings::{MailcalApp, RecipientMatch};
 
-use super::tokens;
-use crate::{
-    l10n,
-    ui::{icons, mailbox},
+use super::{
+    history::{self, FieldHistory, Step},
+    rows, tokens,
 };
+use crate::{l10n, ui::mailbox};
 
 /// How long the field waits after the last keystroke before asking the core.
 ///
@@ -45,13 +45,14 @@ pub(crate) struct RecipientField {
     inner: Rc<Inner>,
 }
 
-struct Inner {
+pub(super) struct Inner {
     pills: gtk::FlowBox,
     entry: gtk::Entry,
     popover: gtk::Popover,
     list: gtk::ListBox,
     /// The whole field, comma-separated; the composer's source of truth.
-    text: RefCell<String>,
+    pub(super) text: RefCell<String>,
+    history: RefCell<FieldHistory>,
     /// Bumped on every change, so a debounced query whose token has been superseded can never
     /// land on top of a newer one.
     generation: Cell<u64>,
@@ -88,6 +89,9 @@ impl RecipientField {
         entry.update_property(&[AccessibleProperty::Label(label)]);
         entry.set_input_purpose(gtk::InputPurpose::Email);
         entry.set_input_hints(gtk::InputHints::NO_SPELLCHECK | gtk::InputHints::LOWERCASE);
+        // The field keeps the history (`super::history`): the entry's own would type a finished
+        // address back in.
+        entry.set_enable_undo(false);
 
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::Single);
@@ -118,6 +122,7 @@ impl RecipientField {
             popover,
             list,
             text: RefCell::new(String::new()),
+            history: RefCell::new(FieldHistory::default()),
             generation: Cell::new(0),
             seeding: Cell::new(false),
             offered: RefCell::new(Vec::new()),
@@ -135,6 +140,7 @@ impl RecipientField {
     /// Seeds a field the composer was **opened** with; every address in it is finished.
     pub(crate) fn seed(&self, value: &str) {
         self.inner.apply(&tokens::seeded(value));
+        self.inner.history.borrow_mut().clear();
     }
 
     /// The whole field, comma-separated; exactly what is on screen.
@@ -179,6 +185,7 @@ impl RecipientField {
         if !finished.is_empty() {
             self.inner
                 .apply(&tokens::field_text(&[], tokens::current_token(&text)));
+            self.inner.history.borrow_mut().clear();
         }
         finished
     }
@@ -195,6 +202,7 @@ impl RecipientField {
     /// Empties the field.
     pub(crate) fn clear(&self) {
         self.inner.apply("");
+        self.inner.history.borrow_mut().clear();
     }
 
     /// Called when Enter is pressed with no suggestion picked, which the field leaves to its
@@ -229,7 +237,7 @@ fn connect(inner: &Rc<Inner>) {
         // carried over verbatim rather than re-parsed out of the box.
         let text = inner.text.borrow().clone();
         let committed = tokens::committed(&text);
-        inner.apply(&tokens::field_text(&committed, &entry.text()));
+        inner.change(&tokens::field_text(&committed, &entry.text()), true);
     });
 
     let keys = gtk::EventControllerKey::new();
@@ -238,11 +246,11 @@ fn connect(inner: &Rc<Inner>) {
     // suggestion. Every other key is passed straight through, so typing still reaches the text.
     keys.set_propagation_phase(gtk::PropagationPhase::Capture);
     let weak = Rc::downgrade(inner);
-    keys.connect_key_pressed(move |_, key, _, _| {
+    keys.connect_key_pressed(move |_, key, _, state| {
         let Some(inner) = weak.upgrade() else {
             return glib::Propagation::Proceed;
         };
-        inner.key_pressed(key)
+        inner.key_pressed(key, state)
     });
     inner.entry.add_controller(keys);
 
@@ -257,12 +265,39 @@ fn connect(inner: &Rc<Inner>) {
 }
 
 impl Inner {
+    /// A change the user made other than by typing: an accepted suggestion, a removed pill.
+    pub(super) fn apply(self: &Rc<Self>, value: &str) {
+        self.change(value, false);
+    }
+
     /// The one place the field's value moves. A keystroke, an accepted suggestion and a removed
-    /// pill all compute the new string with [`tokens`] and come through here.
-    fn apply(self: &Rc<Self>, value: &str) {
-        if *self.text.borrow() == value {
+    /// pill all compute the new string with [`tokens`] and come through here, and each is filed
+    /// in the history as it goes; `typed` is a keystroke in the entry.
+    fn change(self: &Rc<Self>, value: &str, typed: bool) {
+        let before = self.text.borrow().clone();
+        if before == value {
             return;
         }
+        self.history.borrow_mut().record(&before, value, typed);
+        self.show(value);
+    }
+
+    /// Takes the field back, or forward again, one step.
+    fn step(self: &Rc<Self>, step: Step) {
+        let current = self.text.borrow().clone();
+        let mut history = self.history.borrow_mut();
+        let value = match step {
+            Step::Undo => history.undo(&current),
+            Step::Redo => history.redo(&current),
+        };
+        drop(history);
+        if let Some(value) = value {
+            self.show(&value);
+        }
+    }
+
+    /// Puts `value` on screen and tells the composer.
+    fn show(self: &Rc<Self>, value: &str) {
         self.text.replace(value.to_owned());
         self.rebuild_pills();
 
@@ -288,7 +323,7 @@ impl Inner {
         self.query(token, generation);
     }
 
-    fn accept(self: &Rc<Self>, row: i32) {
+    pub(super) fn accept(self: &Rc<Self>, row: i32) {
         let Ok(index) = usize::try_from(row) else {
             return;
         };
@@ -301,7 +336,11 @@ impl Inner {
         self.entry.grab_focus();
     }
 
-    fn key_pressed(self: &Rc<Self>, key: gdk::Key) -> glib::Propagation {
+    fn key_pressed(self: &Rc<Self>, key: gdk::Key, state: gdk::ModifierType) -> glib::Propagation {
+        if let Some(step) = history::chord(key, state) {
+            self.step(step);
+            return glib::Propagation::Stop;
+        }
         if !self.popover.is_visible() {
             return glib::Propagation::Proceed;
         }
@@ -348,7 +387,7 @@ impl Inner {
         let text = self.text.borrow().clone();
         let recipients = tokens::committed(&text);
         for (index, address) in recipients.iter().enumerate() {
-            self.pills.append(&pill(address, index, self));
+            self.pills.append(&rows::pill(address, index, self));
         }
         self.pills.set_visible(!recipients.is_empty());
     }
@@ -400,7 +439,7 @@ impl Inner {
         mailbox::clear(&self.list);
         let mut offered = Vec::with_capacity(matches.len());
         for found in matches {
-            self.list.append(&suggestion_row(found, self));
+            self.list.append(&rows::suggestion_row(found, self));
             offered.push(found.email.clone());
         }
         let show = tokens::should_show_suggestions(&self.text.borrow(), &offered);
@@ -426,73 +465,6 @@ impl Inner {
         self.offered.replace(Vec::new());
         self.popover.popdown();
     }
-}
-
-/// One finished recipient. Its remove control names the recipient rather than repeating a bare
-/// "Remove", so it is distinguishable when a screen reader reaches the third otherwise identical
-/// button.
-fn pill(address: &str, index: usize, inner: &Rc<Inner>) -> gtk::Box {
-    let root = gtk::Box::new(gtk::Orientation::Horizontal, 2);
-    root.add_css_class("mailcal-pill");
-    // A `GtkLabel` set through `set_text` is never markup, which matters: an address is the
-    // server's text and a bare ampersand in one must render rather than fail a parse.
-    let label = gtk::Label::new(Some(address));
-    label.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
-    label.set_max_width_chars(30);
-    label.set_tooltip_text(Some(address));
-    root.append(&label);
-    let remove = gtk::Button::from_icon_name(icons::CLOSE);
-    remove.add_css_class("flat");
-    remove.add_css_class("circular");
-    remove.set_valign(gtk::Align::Center);
-    let spoken = format!("{address}: {}", l10n::compose_remove_recipient());
-    remove.set_tooltip_text(Some(&spoken));
-    remove.update_property(&[AccessibleProperty::Label(&spoken)]);
-    let weak = Rc::downgrade(inner);
-    remove.connect_clicked(move |_| {
-        let Some(inner) = weak.upgrade() else {
-            return;
-        };
-        let field = inner.text.borrow().clone();
-        inner.apply(&tokens::remove(&field, index));
-    });
-    root.append(&remove);
-    root
-}
-
-/// One ranked suggestion. A match that came only from **sent mail** often carries no name of its
-/// own; it is as valid as one from a saved card, and usually the more useful, so it shows its
-/// address alone rather than being hidden. Sent mail that named the recipient by their address
-/// yields a "name" equal to it, which is the same case: one line, not the address twice.
-fn suggestion_row(found: &RecipientMatch, inner: &Rc<Inner>) -> adw::ActionRow {
-    let row = mailbox::plain_text_row();
-    if found.display_name.is_empty() || found.display_name == found.email {
-        row.set_title(&found.email);
-    } else {
-        row.set_title(&found.display_name);
-        row.set_subtitle(&found.email);
-        // The address as the **description**, not the label: an `AdwActionRow` labels itself from
-        // its title through a `labelled-by` relation, which by the ARIA rules GTK follows beats an
-        // explicit label; so setting one changes nothing a screen reader hears. A description is
-        // announced after the name, which is where a clarifying address belongs anyway; without it
-        // a suggestion is spoken as a name alone, and the address is the half that settles whether
-        // it is the right person.
-        row.upcast_ref::<gtk::Widget>()
-            .update_property(&[AccessibleProperty::Description(&found.email)]);
-    }
-    row.set_title_lines(1);
-    row.set_subtitle_lines(1);
-    row.set_activatable(true);
-    row.set_focusable(false);
-    // The row's own `activated`, as every other list in this client uses: a `GtkListBox`
-    // `row-activated` handler beside it would fire on the same click and insert the address twice.
-    let weak = Rc::downgrade(inner);
-    row.connect_activated(move |row| {
-        if let Some(inner) = weak.upgrade() {
-            inner.accept(row.index());
-        }
-    });
-    row
 }
 
 #[cfg(test)]

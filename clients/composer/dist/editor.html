@@ -2080,6 +2080,285 @@
     return null;
   }
 
+  // src/history.ts
+  var TYPING_PAUSE_MS = 1000;
+  var MAX_STEPS = 100;
+  function historyChord(event) {
+    if (!(event.metaKey || event.ctrlKey) || event.altKey)
+      return null;
+    const key = event.key.toLowerCase();
+    if (key === "z")
+      return event.shiftKey ? "redo" : "undo";
+    if (key === "y" && !event.shiftKey)
+      return "redo";
+    return null;
+  }
+  function installHistory(editor, now = Date.now) {
+    const view = windowOf(editor);
+    const doc = editor.ownerDocument;
+    const undone = [];
+    const redone = [];
+    let caret = null;
+    let pending = null;
+    let boundary = true;
+    let press = 0;
+    let pressed = false;
+    let quiet = false;
+    const observer = new view.MutationObserver((records) => record(records));
+    observer.observe(editor, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      characterDataOldValue: true,
+      attributes: true,
+      attributeOldValue: true
+    });
+    function record(records) {
+      if (quiet)
+        return;
+      const content = records.filter((r) => !(r.type === "attributes" && r.target === editor));
+      if (content.length === 0)
+        return;
+      const kind = pending ?? "other";
+      pending = null;
+      const after = selection();
+      const at = now();
+      redone.length = 0;
+      const last = undone.at(-1);
+      if (last && !boundary && joins(last, kind, at)) {
+        last.records.push(...content);
+        last.after = after;
+        last.at = at;
+      } else {
+        undone.push({ records: content, before: caret, after, kind, at, press: pressed ? press : null });
+        if (undone.length > MAX_STEPS)
+          undone.shift();
+      }
+      boundary = false;
+      caret = after;
+    }
+    function joins(last, kind, at) {
+      if (pressed && last.press === press)
+        return true;
+      return kind !== "other" && last.kind === kind && at - last.at <= TYPING_PAUSE_MS;
+    }
+    function flush() {
+      record(observer.takeRecords());
+    }
+    function selection() {
+      const current = view.getSelection();
+      if (!current?.anchorNode || !current.focusNode)
+        return null;
+      if (!editor.contains(current.anchorNode) || !editor.contains(current.focusNode))
+        return null;
+      return {
+        anchorNode: current.anchorNode,
+        anchorOffset: current.anchorOffset,
+        focusNode: current.focusNode,
+        focusOffset: current.focusOffset
+      };
+    }
+    function select(target) {
+      const current = view.getSelection();
+      if (!target || !current)
+        return;
+      if (!editor.contains(target.anchorNode) || !editor.contains(target.focusNode))
+        return;
+      try {
+        current.setBaseAndExtent(target.anchorNode, target.anchorOffset, target.focusNode, target.focusOffset);
+      } catch {}
+    }
+    function move(from, to) {
+      flush();
+      const step = from.pop();
+      if (!step)
+        return false;
+      const inverse = revert(step.records, observer);
+      if (!inverse) {
+        undone.length = 0;
+        redone.length = 0;
+        boundary = true;
+        return false;
+      }
+      const undoing = from === undone;
+      select(undoing ? step.before : step.after);
+      if (undoing && step.typed)
+        inverse.push(...insertTyped(step.typed));
+      const here = selection();
+      to.push({
+        ...step,
+        records: inverse,
+        before: undoing ? here : step.before,
+        after: undoing ? step.after : here,
+        typed: undefined,
+        at: now(),
+        press: null
+      });
+      caret = here;
+      boundary = true;
+      const inputType = undoing ? "historyUndo" : "historyRedo";
+      editor.dispatchEvent(new view.InputEvent("input", { bubbles: true, inputType }));
+      return true;
+    }
+    function insertTyped(text) {
+      const current = view.getSelection();
+      const range = current?.rangeCount ? current.getRangeAt(0) : null;
+      if (!current || !range || !editor.contains(range.startContainer))
+        return [];
+      let node = range.startContainer;
+      let offset = range.startOffset;
+      if (node.nodeType !== doc.TEXT_NODE) {
+        const empty = doc.createTextNode("");
+        range.insertNode(empty);
+        node = empty;
+        offset = 0;
+      }
+      const line = node;
+      const atEnd = offset >= line.data.length || line.data[offset] === " ";
+      line.insertData(offset, text === " " && atEnd ? " " : text);
+      current.collapse(line, offset + text.length);
+      return observer.takeRecords();
+    }
+    editor.addEventListener("beforeinput", (event) => {
+      if (event.inputType === "historyUndo" || event.inputType === "historyRedo") {
+        event.preventDefault();
+        if (event.inputType === "historyUndo")
+          history.undo();
+        else
+          history.redo();
+        return;
+      }
+      pending = kindOf(event.inputType);
+      view.setTimeout(() => {
+        pending = null;
+      }, 0);
+    });
+    doc.addEventListener("selectionchange", () => {
+      flush();
+      const current = selection();
+      const last = undone.at(-1);
+      if (!same(current, last?.after ?? null))
+        boundary = true;
+      caret = current ?? caret;
+    });
+    doc.addEventListener("keydown", () => {
+      caret = selection() ?? caret;
+    }, true);
+    doc.addEventListener("pointerdown", () => {
+      press += 1;
+      pressed = true;
+      caret = selection() ?? caret;
+    }, true);
+    const release = () => {
+      pressed = false;
+    };
+    doc.addEventListener("pointerup", release, true);
+    doc.addEventListener("pointercancel", release, true);
+    const history = {
+      undo: () => move(undone, redone),
+      redo: () => move(redone, undone),
+      typed(text) {
+        flush();
+        const last = undone.at(-1);
+        if (last)
+          last.typed = text;
+        boundary = true;
+      },
+      outside(change) {
+        flush();
+        quiet = true;
+        try {
+          return change();
+        } finally {
+          observer.takeRecords();
+          quiet = false;
+          caret = selection();
+          boundary = true;
+        }
+      },
+      restart(change) {
+        flush();
+        quiet = true;
+        try {
+          return change();
+        } finally {
+          observer.takeRecords();
+          quiet = false;
+          undone.length = 0;
+          redone.length = 0;
+          caret = selection();
+          boundary = true;
+        }
+      }
+    };
+    return history;
+  }
+  function kindOf(inputType) {
+    if (inputType === "insertText" || inputType === "insertCompositionText")
+      return "typing";
+    if (inputType.startsWith("delete"))
+      return "deleting";
+    return "other";
+  }
+  function same(a, b) {
+    if (!a || !b)
+      return a === b;
+    return a.anchorNode === b.anchorNode && a.anchorOffset === b.anchorOffset && a.focusNode === b.focusNode && a.focusOffset === b.focusOffset;
+  }
+  function revert(records, observer) {
+    observer.takeRecords();
+    try {
+      for (let index = records.length - 1;index >= 0; index -= 1)
+        undoOne(records[index]);
+      return observer.takeRecords();
+    } catch {
+      const partial = observer.takeRecords();
+      try {
+        for (let index = partial.length - 1;index >= 0; index -= 1)
+          undoOne(partial[index]);
+      } catch {}
+      observer.takeRecords();
+      return null;
+    }
+  }
+  function undoOne(record) {
+    if (record.type === "characterData") {
+      record.target.data = record.oldValue ?? "";
+      return;
+    }
+    if (record.type === "attributes") {
+      const element = record.target;
+      const name = record.attributeName;
+      const namespace = record.attributeNamespace;
+      if (record.oldValue === null)
+        element.removeAttributeNS(namespace, name);
+      else
+        element.setAttributeNS(namespace, name, record.oldValue);
+      return;
+    }
+    const parent = record.target;
+    const added = Array.from(record.addedNodes);
+    for (let index = added.length - 1;index >= 0; index -= 1) {
+      const node = added[index];
+      if (node.parentNode !== parent)
+        throw new Error("moved");
+      parent.removeChild(node);
+    }
+    const next = record.nextSibling;
+    const previous = record.previousSibling;
+    if (record.removedNodes.length === 0)
+      return;
+    if (next && next.parentNode !== parent)
+      throw new Error("moved");
+    if (!next && previous && parent.lastChild !== previous)
+      throw new Error("moved");
+    for (const node of Array.from(record.removedNodes)) {
+      if (node.parentNode)
+        throw new Error("moved");
+      parent.insertBefore(node, next);
+    }
+  }
+
   // src/images.ts
   var MAX_CAPTURED_BYTES = 20 * 1024 * 1024;
   var SHOWABLE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -4281,6 +4560,7 @@
   var toolbarRoot = doc.querySelector(".toolbar");
   var attachments = new Attachments;
   var hostRequests = new HostRequests(window);
+  var history = installHistory(editor);
   var labels = DEFAULT_LABELS;
   var toolbar = installToolbar(editor, toolbarRoot, () => labels, () => {
     if (!hostRequests.answers("link"))
@@ -4318,13 +4598,24 @@
   editor.addEventListener("keydown", (event) => {
     if (event.isComposing)
       return;
+    const step = historyChord(event);
+    if (step) {
+      event.preventDefault();
+      if (step === "undo")
+        history.undo();
+      else
+        history.redo();
+      return;
+    }
     if (event.key === " " && !event.metaKey && !event.ctrlKey && !event.altKey) {
       if (autoformatBulletList(editor)) {
         event.preventDefault();
+        history.typed(" ");
         return;
       }
       if (autolinkBeforeCaret(editor, " ")) {
         event.preventDefault();
+        history.typed(" ");
         return;
       }
     }
@@ -4370,15 +4661,15 @@
     const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly(), attachments);
     return markup !== null && insertHtml(markup);
   };
-  window.setComposerQuote = (quote) => setComposerQuote(editor, parsed(quote));
-  window.setComposerQuoteStyle = (style) => setComposerQuoteStyle(editor, style);
-  window.completeComposerQuoteAttribution = (attribution) => completeComposerQuoteAttribution(editor, parsed(attribution) ?? {});
-  window.setComposerSignature = (signature) => setComposerSignature(editor, signature == null ? null : parsed(signature));
-  window.setSignatureBody = (html, placeholder) => setSignatureBody(editor, html, placeholder);
+  window.setComposerQuote = (quote) => history.restart(() => setComposerQuote(editor, parsed(quote)));
+  window.setComposerQuoteStyle = (style) => history.outside(() => setComposerQuoteStyle(editor, style));
+  window.completeComposerQuoteAttribution = (attribution) => history.outside(() => completeComposerQuoteAttribution(editor, parsed(attribution) ?? {}));
+  window.setComposerSignature = (signature) => history.outside(() => setComposerSignature(editor, signature == null ? null : parsed(signature)));
+  window.setSignatureBody = (html, placeholder) => history.restart(() => setSignatureBody(editor, html, placeholder));
   window.signatureBody = () => JSON.stringify(signatureBody(editor));
   window.focusComposerBody = () => focusComposerBody(editor);
-  window.setPlainText = (text) => setPlainText(editor, text);
-  window.setComposerBody = (seed) => setComposerBody(editor, attachments, parsed(seed) ?? {});
+  window.setPlainText = (text) => history.restart(() => setPlainText(editor, text));
+  window.setComposerBody = (seed) => history.restart(() => setComposerBody(editor, attachments, parsed(seed) ?? {}));
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerHostRequests = (kinds) => hostRequests.setAnswered(kinds);

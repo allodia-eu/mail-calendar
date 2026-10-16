@@ -12,6 +12,7 @@ import { ancestorOf, focusEditor, rangeWithin, saveSelection } from "./dom";
 import { applyMark } from "./format";
 import { installNativeChrome } from "./host";
 import { HostRequests } from "./host_requests";
+import { historyChord, installHistory } from "./history";
 import { type CapturedImage, insertCapturedImage, insertImageFiles } from "./images";
 import { DEFAULT_LABELS, type Labels, mergeLabels } from "./labels";
 import { editLinkThroughHost } from "./link_menu";
@@ -43,6 +44,7 @@ const toolbarRoot = doc.querySelector(".toolbar") as HTMLElement;
 const attachments = new Attachments();
 
 const hostRequests = new HostRequests(window);
+const history = installHistory(editor);
 
 let labels: Labels = DEFAULT_LABELS;
 const toolbar = installToolbar(editor, toolbarRoot, () => labels, () => {
@@ -104,18 +106,29 @@ editor.addEventListener("keydown", (event) => {
   // Mid-composition an IME uses the space bar to commit a candidate; treating that as a marker
   // would swallow the space and mangle the word being typed.
   if (event.isComposing) return;
+  // Undo and redo are the bundle's own history (`history.ts`), never the engine's: the engine's
+  // stack holds only the edits it made itself, and on Linux nothing binds the chord at all.
+  const step = historyChord(event);
+  if (step) {
+    event.preventDefault();
+    if (step === "undo") history.undo();
+    else history.redo();
+    return;
+  }
   // `- ` at the start of a line becomes a bullet, and the space that triggered it is swallowed
   // along with the marker (Outlook's behaviour). `autoformatBulletList` returns false for every
   // other space, which is every space but one.
   if (event.key === " " && !event.metaKey && !event.ctrlKey && !event.altKey) {
     if (autoformatBulletList(editor)) {
       event.preventDefault();
+      history.typed(" ");
       return;
     }
     // An address the user has just typed becomes a link when the word ends, as in Outlook. The
     // space is inserted after the link rather than left to the engine, which would extend it.
     if (autolinkBeforeCaret(editor, " ")) {
       event.preventDefault();
+      history.typed(" ");
       return;
     }
   }
@@ -198,13 +211,19 @@ window.pasteComposerHtml = (html) => {
   const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly(), attachments);
   return markup !== null && insertHtml(markup);
 };
-window.setComposerQuote = (quote) => setComposerQuote(editor, parsed<QuoteSeed>(quote));
-window.setComposerQuoteStyle = (style) => setComposerQuoteStyle(editor, style);
+window.setComposerQuote = (quote) =>
+  history.restart(() => setComposerQuote(editor, parsed<QuoteSeed>(quote)));
+window.setComposerQuoteStyle = (style) => history.outside(() => setComposerQuoteStyle(editor, style));
 window.completeComposerQuoteAttribution = (attribution) =>
-  completeComposerQuoteAttribution(editor, parsed<Partial<QuoteAttribution>>(attribution) ?? {});
+  history.outside(() =>
+    completeComposerQuoteAttribution(editor, parsed<Partial<QuoteAttribution>>(attribution) ?? {}),
+  );
 window.setComposerSignature = (signature) =>
-  setComposerSignature(editor, signature == null ? null : parsed<SignatureValue>(signature));
-window.setSignatureBody = (html, placeholder) => setSignatureBody(editor, html, placeholder);
+  history.outside(() =>
+    setComposerSignature(editor, signature == null ? null : parsed<SignatureValue>(signature)),
+  );
+window.setSignatureBody = (html, placeholder) =>
+  history.restart(() => setSignatureBody(editor, html, placeholder));
 window.signatureBody = () => JSON.stringify(signatureBody(editor));
 // The HOST decides where the caret opens, never this document. A composer opens in the body or in
 // its empty To field (docs/contacts.md §4), and only the host knows which; so the bundle focuses
@@ -212,8 +231,9 @@ window.signatureBody = () => JSON.stringify(signatureBody(editor));
 // focus alone neither raises the keyboard nor makes the web view first responder, and stole the
 // caret out of To on macOS the moment the bundle finished parsing.
 window.focusComposerBody = () => focusComposerBody(editor);
-window.setPlainText = (text) => setPlainText(editor, text);
-window.setComposerBody = (seed) => setComposerBody(editor, attachments, parsed<BodySeed>(seed) ?? {});
+window.setPlainText = (text) => history.restart(() => setPlainText(editor, text));
+window.setComposerBody = (seed) =>
+  history.restart(() => setComposerBody(editor, attachments, parsed<BodySeed>(seed) ?? {}));
 window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 

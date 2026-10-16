@@ -484,9 +484,6 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
 - **A dropped picture is read on the main thread everywhere except Android.** Android stages and
   reads off it; Apple, Windows and Linux read inline from the dialog's answer, which is a stall of
   tens of milliseconds for a file within the cap and has not been worth a thread yet.
-- **Undo does not take back a link the editor made by itself.** An address becoming a link on
-  Space is a DOM edit, not an engine command, so it is not on the WebView's undo stack; Remove link
-  in the link editor is the way back. The `- ` bullet has the same shape.
 - **A picture inside a link is sent without it.** The document gives a picture no link, so a
   picture selected along with words and linked sends the words as the link and the picture alone.
 - **A pasted address becomes a link only when a space or Enter follows it.** Pasting over a

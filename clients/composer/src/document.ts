@@ -280,7 +280,7 @@ function collectBlocks(
     // Chromium's `insertHTML` leaves a `<p>` holding nothing at all (at most an empty text node)
     // after a pasted list or table. It takes no height, so it is no line anyone can see or delete;
     // a blank line the user made holds a `<br>`. Skipped here rather than removed from the page,
-    // which would happen outside the undo history.
+    // which would be a change of its own, for the user to meet in the undo history.
     if (!stored && tag === "P" && element!.childElementCount === 0 && element!.textContent === "") continue;
 
     if (tag === "UL" || tag === "OL") {

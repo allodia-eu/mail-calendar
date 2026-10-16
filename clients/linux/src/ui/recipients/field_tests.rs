@@ -238,3 +238,55 @@ pub(crate) fn the_field_asks_for_the_email_keyboard() {
         "an address is not a sentence"
     );
 }
+
+/// Ctrl+Z after finishing an address takes the address back to text being typed, and a second
+/// one takes the typing back too. Left to the entry, its own history typed the finished address
+/// back in and the field finished it again, so the recipient came back twice.
+pub(crate) fn undo_takes_back_a_finished_address_without_doubling_it() {
+    let to = field("To");
+    // A keystroke inserts; `set_text` would empty the entry first and pass through "".
+    let mut position = 0;
+    to.inner
+        .entry
+        .insert_text("bob@example.test", &mut position);
+    to.inner.entry.insert_text(",", &mut position);
+    assert_eq!(pill_labels(&to), vec!["bob@example.test"]);
+    assert!(
+        !to.inner.entry.enables_undo(),
+        "the entry's own history must stay out of it"
+    );
+
+    let ctrl = gtk::gdk::ModifierType::CONTROL_MASK;
+    to.inner.key_pressed(gtk::gdk::Key::z, ctrl);
+    assert!(pill_labels(&to).is_empty(), "{:?}", pill_labels(&to));
+    assert_eq!(to.inner.entry.text(), "bob@example.test");
+    to.inner.key_pressed(gtk::gdk::Key::z, ctrl);
+    assert_eq!(to.text(), "");
+
+    let shift = gtk::gdk::ModifierType::SHIFT_MASK;
+    to.inner.key_pressed(gtk::gdk::Key::Z, ctrl | shift);
+    to.inner.key_pressed(gtk::gdk::Key::y, ctrl);
+    assert_eq!(pill_labels(&to), vec!["bob@example.test"]);
+}
+
+/// A recipient removed by its pill's button comes back with Ctrl+Z, where it was.
+pub(crate) fn undo_brings_back_a_removed_recipient() {
+    let to = field("To");
+    to.seed("bestuur@example.test, tc@example.test");
+    pill_removes(&to)[0].emit_clicked();
+    assert_eq!(pill_labels(&to), vec!["tc@example.test"]);
+
+    to.inner
+        .key_pressed(gtk::gdk::Key::z, gtk::gdk::ModifierType::CONTROL_MASK);
+    assert_eq!(
+        pill_labels(&to),
+        vec!["bestuur@example.test", "tc@example.test"]
+    );
+    // The seed is where the history starts: the field was opened holding both.
+    to.inner
+        .key_pressed(gtk::gdk::Key::z, gtk::gdk::ModifierType::CONTROL_MASK);
+    assert_eq!(
+        pill_labels(&to),
+        vec!["bestuur@example.test", "tc@example.test"]
+    );
+}

@@ -2,6 +2,8 @@
 //! with ranked suggestions under it.
 
 pub(crate) mod field;
+mod history;
+mod rows;
 mod tokens;
 
 pub(crate) use field::RecipientField;
