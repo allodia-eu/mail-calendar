@@ -121,11 +121,6 @@ function Start-NotificationActivation {
   $exe = (Get-Process Mailcal -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1).Path
   if (-not $exe) { throw 'the client is not running, so there is no build to launch a second copy of' }
-  # How the running app's own registration went, read now, because the launch under test dies
-  # before it can log. A failfast with "could not register" here is the platform refusing the
-  # registration rather than the ordering being wrong.
-  $script:RegistrationLine = ((Get-AppLogNewestSession) -split "`n" |
-    Where-Object { $_ -match 'notifications: (registered|could not register)' } | Select-Object -Last 1)
   # ⚠️ THE APP HAS TO GO FIRST, or this suite is a gate that cannot fail. The failfast happens only
   # when NO process has the notification platform up: a running instance has registered it, and a
   # second process then reads its activation perfectly happily, on the broken build as well as the
@@ -149,12 +144,31 @@ function Start-NotificationActivation {
   return $exit
 }
 
+<#
+.SYNOPSIS
+The running app's own line on how its notification registration went, or $null.
+.DESCRIPTION
+Read before the launch under test, which dies before it can log anything.
+#>
+function Get-RegistrationLine {
+  $line = (Get-AppLogNewestSession) -split "`n" |
+    Where-Object { $_ -match 'notifications: (registered|could not register)' } | Select-Object -Last 1
+  if ($line) { $line.Trim() }
+}
+
 $Suite = @{
   Dataset = 'showcase'
   Cases   = @(
     @{
       Name = 'a notification activation does not fail fast on startup'
       Body = {
+        # A host that cannot show notifications at all, the CI runner among them, registers fine
+        # and then fails fast on ANY notification activation, whatever the order in Main. Nothing
+        # is ever posted there, so no click can reach that launch; the case has nothing to measure.
+        $registration = Get-RegistrationLine
+        if ($registration -match 'system setting Unsupported') {
+          Skip-Case "this host cannot show notifications (the running app logged: $registration), and the Windows App SDK fails any notification launch fast there; cargo xtask check-notification-registration still pins the ordering"
+        }
         $exit = Start-NotificationActivation
         Assert-True ($null -ne $exit) (
           "the launch had not ended after ${EndsWithinSeconds}s, so neither ending was observed " +
@@ -165,7 +179,7 @@ $Suite = @{
             'a launch activated from a notification died with 0x{0:X8}. The notification platform ' +
             'is not registered before the activation is read, so every click that STARTS the app ' +
             'kills it instead, silently: no log, no window (docs/client-traps.md). The running ' +
-            'app had logged: {1}') -f $exit, $(if ($script:RegistrationLine) { $script:RegistrationLine.Trim() } else { 'no registration line' }))
+            'app had logged: {1}') -f $exit, $(if ($registration) { $registration } else { 'no registration line' }))
       }
     }
   )

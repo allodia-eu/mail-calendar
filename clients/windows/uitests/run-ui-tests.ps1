@@ -64,7 +64,9 @@
 # transport, e.g. MAILCAL_DEV_ACCOUNT = 'stalwart-imap' for the CalDAV half.
 #
 # Inside a Body, every uia.ps1 primitive is in scope (Get-MailRows, Find-UiaElement, …), plus the
-# assertions below. A Body asserts by THROWING; returning a value means nothing.
+# assertions below. A Body asserts by THROWING; returning a value means nothing. A case whose
+# question this host cannot answer calls `Skip-Case 'why'`, which is reported as a skip, never as a
+# pass.
 #
 # ---------------------------------------------------------------------------------------------
 # SUITES SHARE AN APP, AND WHAT THAT ASKS OF YOURS
@@ -194,6 +196,20 @@ function Assert-True {
 function Assert-GreaterThan {
   param([object] $Floor, [object] $Actual, [string] $Because)
   if (-not ($Actual -gt $Floor)) { throw "expected greater than <$Floor>, got <$Actual>, $Because" }
+}
+
+# What Skip-Case throws, so the run loop can tell a host that cannot answer from a failed assertion.
+class CaseSkipped : System.Exception {
+  CaseSkipped([string] $Reason) : base($Reason) {}
+}
+
+<#
+.SYNOPSIS
+Ends the case as SKIPPED, naming why this host cannot answer it.
+#>
+function Skip-Case {
+  param([Parameter(Mandatory)] [string] $Reason)
+  throw [CaseSkipped]::new($Reason)
 }
 
 <#
@@ -362,6 +378,8 @@ if (($Dataset -contains 'showcase') -and ($plan.Dataset -contains 'showcase')) {
 $passed = 0
 $failed = @()
 $skipped = @()
+# Cases, not suites: kept apart from $skipped, which counts suites that never ran.
+$skippedCases = @()
 $excluded = @()
 $launches = 0
 $launchSeconds = 0.0
@@ -468,6 +486,11 @@ foreach ($group in ($plan | Group-Object -Property Key)) {
           $passed++
           Write-Host "  PASS  $($case.Name)" -ForegroundColor Green
         }
+        catch [CaseSkipped] {
+          $skippedCases += "$($entry.Name) / $($case.Name): $($_.Exception.Message)"
+          Write-Host "  SKIP  $($case.Name)" -ForegroundColor Yellow
+          Write-Host "        $($_.Exception.Message)" -ForegroundColor Yellow
+        }
         catch {
           $failed += "$($entry.Name) / $($case.Name): $($_.Exception.Message)"
           Write-Host "  FAIL  $($case.Name)" -ForegroundColor Red
@@ -491,10 +514,10 @@ if (-not $KeepApp) { Get-Process Mailcal -ErrorAction SilentlyContinue | Stop-Pr
 $ran = $plan.Count - $excluded.Count - $skipped.Count
 
 Write-Host ''
-Write-Host "$passed passed, $($failed.Count) failed, $($skipped.Count) skipped, $($excluded.Count) not selected"
+Write-Host "$passed passed, $($failed.Count) failed, $($skipped.Count + $skippedCases.Count) skipped, $($excluded.Count) not selected"
 Write-Host ("$ran suite(s) ran in {0:N0}s: {1:N0}s setup over $launches app launch(es), {2:N0}s in cases" -f
   $wall.Elapsed.TotalSeconds, $launchSeconds, $caseSeconds)
-foreach ($s in $skipped) { Write-Host "  SKIPPED: $s" -ForegroundColor Yellow }
+foreach ($s in $skipped + $skippedCases) { Write-Host "  SKIPPED: $s" -ForegroundColor Yellow }
 # One line, not one per suite: an excluded dataset is a whole block of the suite the caller asked
 # not to run, and printing a line for each of them buries the skips above that are not that.
 if ($excluded.Count -gt 0) {

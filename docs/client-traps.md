@@ -277,6 +277,12 @@ that same file.
   `Program.Main` registers **above** the line that reads the activation, and what a click *does* is
   installed afterwards, from the window
   ([`Services/NewMailNotifier.cs`](../clients/windows/Mailcal/Services/NewMailNotifier.cs)).
+  A host whose notification setting reads `Unsupported` fails the same way **with** the
+  registration in place: `Register()` succeeds, and the activation still cannot be built. The
+  GitHub Windows runner (Windows Server 2025) is such a host, and the app logs
+  `notifications: registered, system setting Unsupported` there. Nothing is posted on one, so no
+  click can start the app, but a test that fakes the launch will find the failfast and blame the
+  ordering.
 - **Registering for notifications on the UI thread pumps it, and work already queued runs
   early.** `Register()` is a COM call, and a COM call on an STA thread dispatches waiting messages
   while it waits. Called from `OnLaunched`, that lets the first account's connect continuation run

@@ -69,6 +69,13 @@ checkout and architecture that has ever registered leaves a key of its own.
 #>
 function Get-NotificationRegistration {
   param([Parameter(Mandatory)] [string] $Exe)
+  # A host that cannot show notifications registers fine and posts nothing, so there is no toast
+  # to click (NotificationLaunch.Tests.ps1).
+  $logged = (Get-AppLogNewestSession) -split "`n" |
+    Where-Object { $_ -match 'notifications: registered' } | Select-Object -Last 1
+  if ($logged -match 'system setting Unsupported') {
+    Skip-Case "this host cannot show notifications (the running app logged: $($logged.Trim()))"
+  }
   $classes = 'HKCU:\Software\Classes'
   $found = @(Get-ChildItem -LiteralPath "$classes\AppUserModelId" | ForEach-Object {
       $clsid = (Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue).CustomActivator
