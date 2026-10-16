@@ -3,9 +3,9 @@
 // Where the message goes is MailboxModel.NotificationOpen.cs. What is left here is the two things
 // only the window knows. First, that this process does not hold foreground rights: the click was
 // handled by the shell, so a bare Activate() would be ignored and the message would open behind
-// whatever the person was looking at. Second, the unsent draft: the composer lives in the
-// reading-pane slot, so opening a message over one throws it away, and a notification arrives
-// unprompted at any moment, on the same footing as a mail link (docs/background-sync.md).
+// whatever the person was looking at. Second, the open composer: it lives in the reading-pane
+// slot, so the click leaves and closes it first, as opening a row does, and what was being written
+// is kept in Drafts (docs/drafts.md).
 
 using Allodia.Mailcal.Services;
 
@@ -14,8 +14,7 @@ namespace Allodia.Mailcal;
 public sealed partial class MainWindow
 {
     // Guards the await below, exactly as _openingMailLink guards the mail link's: a second click
-    // while the discard question is up must not open a second message behind the question the
-    // person is still answering.
+    // while the composer is being left must not open a message of its own over the first one's.
     private bool _openingNotification;
 
     /// <summary>
@@ -42,11 +41,11 @@ public sealed partial class MainWindow
         _openingNotification = true;
         try
         {
-            if (!await ConfirmDiscardDraftAsync())
-            {
-                Log.Info("notification click declined, the open draft was kept");
-                return;
-            }
+            // Closed as well as left, as the list does when a row is opened over a composer:
+            // leaving keeps the draft but leaves the composer covering the column, and the message
+            // would open behind it.
+            await LeaveComposerAsync();
+            CloseComposer();
             Model.OpenNotification(message);
         }
         finally

@@ -430,6 +430,14 @@ foreach ($group in ($plan | Group-Object -Property Key)) {
           $launches++
           $clean = Get-SurfaceFingerprint
         }
+        elseif (-not (Get-MailcalWindow)) {
+          # A suite closed the app on purpose (NotificationLaunch needs it gone), so there is no
+          # surface to put away.
+          Write-Host '    the suite before closed the app; relaunching' -ForegroundColor DarkGray
+          Start-Dataset $groupDataset
+          $launches++
+          $clean = Get-SurfaceFingerprint
+        }
         elseif (-not (Reset-AppSurface $clean)) {
           Write-Host '    the suite before left a surface this runner cannot put away; relaunching' -ForegroundColor DarkGray
           Start-Dataset $groupDataset
