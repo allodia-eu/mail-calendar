@@ -75,7 +75,26 @@ linux_session_new_socket() { # <linux_session_sockets output from before the com
 
 linux_session_requirements() {
   require_cmd sway
+  require_cmd swaymsg
   require_cmd grim
+}
+
+# Wait until the compositor at <pid> has read its config and is running, which it says by answering
+# on its IPC socket <swaysock>. Returns non-zero when it exits first or never answers.
+#
+# ⚠️ **sway opens its Wayland socket before it reads its config**, so the socket appearing says
+# nothing about the config. Take the file away then and sway exits with "Unable to open … for
+# reading", leaving the command it was started for with no display: a race a fast machine wins and
+# a loaded runner loses. It answers IPC only once its event loop runs, which is after the config.
+linux_session_wait_ready() { # <pid> <swaysock>
+  local waited=0
+  while [[ "$waited" -lt 80 ]]; do
+    kill -0 "$1" 2>/dev/null || return 1
+    timeout 5 swaymsg -s "$2" -t get_version >/dev/null 2>&1 && return 0
+    sleep 0.25
+    waited=$((waited + 1))
+  done
+  return 1
 }
 
 # Start an empty compositor. The caller launches the client against it afterwards:
@@ -126,10 +145,15 @@ CONFIG
 
   LINUX_SESSION_DISPLAY="$(linux_session_new_socket "$before")" || {
     rm -f "$config"
-    kill -KILL "$LINUX_SESSION_PID" 2>/dev/null
+    kill -KILL "$LINUX_SESSION_PID" 2>/dev/null || true
     die "sway opened no Wayland socket, so it did not start. What it printed: ${LINUX_SESSION_LOG:-nothing, set LINUX_SESSION_LOG to keep it}"
   }
   LINUX_SESSION_SWAYSOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sway-ipc.$(id -u).$LINUX_SESSION_PID.sock"
+  linux_session_wait_ready "$LINUX_SESSION_PID" "$LINUX_SESSION_SWAYSOCK" || {
+    rm -f "$config"
+    kill -KILL "$LINUX_SESSION_PID" 2>/dev/null || true
+    die "sway opened its Wayland socket and then never answered, so it did not finish starting. What it printed: ${LINUX_SESSION_LOG:-nothing, set LINUX_SESSION_LOG to keep it}"
+  }
   rm -f "$config"
   export LINUX_SESSION_DISPLAY LINUX_SESSION_SWAYSOCK LINUX_SESSION_PID
 }
