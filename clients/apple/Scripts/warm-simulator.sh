@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # A simulator for the UI suite that has booted before, so a CI runner does not pay for its first
-# boot. A device's first boot runs a data migration that `simctl bootstatus` waits on; a device
-# whose data directory has been through one boot and settled skips it. Measured on an 8-core M2:
-# `bootstatus` returned in 5s against 41s, and the device spent ~400 CPU-seconds in its first three
-# minutes against ~620. The rest is the ~230 daemons every boot starts, which no snapshot removes.
+# boot. A first boot runs a data migration that `simctl bootstatus` waits on, and then goes on
+# working after it returns, which is where most of its cost lands: installing the app and starting
+# the test runner wait behind it. On the iOS leg, boot to first test took 154-277s from a warm
+# device against 299-460s from a cold one. What no snapshot removes is the ~230 daemons every boot
+# starts: on an 8-core M2 a warm device still spends ~400 CPU-seconds in its first three minutes,
+# against ~620 cold.
 #
 # So this keeps the data directory of a device that booted once, and copies it into a new device
 # before `test-ui.sh` boots that. A device given another's data directory boots as that one would:

@@ -636,8 +636,9 @@ jobs:
 
       # A simulator that has booted before, so the UI suite below does not wait out a first boot
       # (clients/apple/Scripts/warm-simulator.sh says what that saves, and what it cannot). The
-      # snapshot is one ~1 GB entry per Xcode build, runtime build and device type, so it is
-      # written once per image, not once per run; a miss boots cold and keeps the result.
+      # snapshot is one ~700 MB entry per Xcode build, runtime build and device type, so it is
+      # written once per image, not once per run; a miss boots cold and keeps the result, which
+      # costs that run about four minutes more.
       - name: Choose the UI suite's simulator
         if: matrix.platform == 'ios'
         id: warm-sim
@@ -656,7 +657,11 @@ jobs:
         run: clients/apple/Scripts/warm-simulator.sh prepare "$RUNNER_TEMP/warm-simulator" >> "$GITHUB_ENV"
 
       - name: Save the warm simulator
-        if: matrix.platform == 'ios' && steps.warm-sim-cache.outputs.cache-hit != 'true'
+        # Only main writes, as with every cache here: an entry saved on a PR ref is readable by
+        # that PR alone, and this one would take ~700 MB of the 10 GB budget to serve it.
+        if: >-
+          matrix.platform == 'ios' && github.ref == 'refs/heads/main'
+          && steps.warm-sim-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/warm-simulator
