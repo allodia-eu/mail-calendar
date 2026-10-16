@@ -228,12 +228,14 @@ port:
 
 ## Known gaps / follow-ups
 
-- **Only Linux gates the notification itself.** All three desktops share the cache-only detection
-  seam and each posts through its own host, but what a gate can watch differs. Linux's
-  GNOME-runtime AT-SPI run posts on the shipped default first and only then turns the toggle off,
-  so the silence it asserts afterwards is measured against a notification that provably crossed
-  the portal. Asserted the other way round it was a gate that could not fail, and did not, for as
-  long as the portal call hung ([`client-traps.md`](client-traps.md)).
+- **Only Linux and Windows gate the notification itself.** All three desktops share the
+  cache-only detection seam and each posts through its own host, but what a gate can watch differs.
+  Linux's GNOME-runtime AT-SPI run posts on the shipped default first and only then turns the
+  toggle off, so the silence it asserts afterwards is measured against a notification that provably
+  crossed the portal. Asserted the other way round it was a gate that could not fail, and did not,
+  for as long as the portal call hung ([`client-traps.md`](client-traps.md)). Windows's
+  `NotificationClick` suite reads each notification it clicks from the shell's history, so a toast
+  that never reached the shell fails it, but it does not assert the silence with the toggle off.
 - **Nothing drives an Apple notification from a test, and the iOS half is not even unit-tested.**
   `NewMailNoticesTests` (MailcalKitTests) pins what a pass *says*, but that suite is plain
   `swift test` on the **host**, so it compiles and exercises the projection's **macOS** branch
@@ -245,14 +247,6 @@ port:
   as Windows's ([`debugging.md`](debugging.md)). Verified that way: a delivery into the watched
   Inbox raised one notification carrying the sender, the subject and the snippet, advanced the
   mark to it, and opened that message when clicked.
-- **Nothing drives the Windows notification from a test, and the ordinary dev build cannot raise
-  one.** `Mailcal.Tests` pins what a pass *says* (`NewMailNoticesTests`), including the pair a
-  click carries and the reading of it back, and the UI suite pins the Settings toggle, but no gate
-  watches a notification reach the shell: `AppNotificationManager` posts outside the app's
-  UI-Automation tree, so `uitests` cannot see it. What holds the ordinary
-  dev loop open is that it is **framework-dependent**, like the Store build: registration is
-  unavailable to a self-contained one, which would make the feature silent by construction
-  ([`client-traps.md`](client-traps.md)). Verified by hand against the harness.
 - **iOS app-group store is deferred.** `BGAppRefreshTask` runs in the main app process, so it needs
   no app group. A future push Notification-Service-Extension will need one. That, and the app-group
   store move it forces, land with the paid push add-on and real signing, since an app-group
@@ -306,11 +300,17 @@ When you change background delivery or new-mail notifications:
      a service file standing in for the Flatpak's. It asserts the reading pane opened the message.
    - **Android**: `NotificationOpenTest` takes the intent a tap would deliver from the posted
      notification and reads it back through the activity's own decoder.
-   - **Windows**: a click that *starts* the app reads its activation before anything else, and the
-     Windows App SDK fails the process fast if the notification platform is not registered first
-     ([`client-traps.md`](client-traps.md)). `cargo xtask check-notification-registration` pins the
-     ordering in the source, and `uitests/NotificationLaunch.Tests.ps1` runs the real binary
-     through a notification activation. ⚠️ That suite has to **close the app first**, since a
-     running instance has already registered the platform and a second process then reads its
-     activation on a broken build as well as a fixed one, and it has to wait out the full **7 to
-     8 seconds** the failfast takes.
+   - **Windows**: `uitests/NotificationClick.Tests.ps1` reads the toast the app posted from the
+     shell's notification history and calls the app's notification activator with its arguments,
+     as the shell does on a click: over the calendar with the app running, over a composer, and
+     with the app closed, so that COM starts it. It asserts the reading pane opened the message, and
+     over a composer that what was written is in Drafts. It runs against the IMAP harness, which
+     CI cannot serve, so it is run by hand before a change to this path is pushed.
+   - **Windows**, the launch: a click that *starts* the app reads its activation before anything
+     else, and the Windows App SDK fails the process fast if the notification platform is not
+     registered first ([`client-traps.md`](client-traps.md)).
+     `cargo xtask check-notification-registration` pins the ordering in the source, and
+     `uitests/NotificationLaunch.Tests.ps1` runs the real binary through a notification activation
+     in CI. ⚠️ That suite has to **close the app first**, since a running instance has already
+     registered the platform and a second process then reads its activation on a broken build as
+     well as a fixed one, and it has to wait out the full **7 to 8 seconds** the failfast takes.

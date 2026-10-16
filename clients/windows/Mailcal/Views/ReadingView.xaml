@@ -38,6 +38,7 @@
                                         VerticalAlignment="Top" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock x:Name="SubjectText" Style="{StaticResource SubtitleTextBlockStyle}"
+                                   AutomationProperties.AutomationId="ReadingSubject"
                                    TextTrimming="CharacterEllipsis" MaxLines="2" />
                         <TextBlock x:Name="FromText" Style="{StaticResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
