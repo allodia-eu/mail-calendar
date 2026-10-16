@@ -13,7 +13,7 @@
 #   Scripts/test-ui.sh --simulator "iPhone 17 Pro"
 #   Scripts/test-ui.sh --device             # the connected iPhone/iPad
 #   Scripts/test-ui.sh --only NavigationBarTests   # one class, or one test
-#   Scripts/test-ui.sh --no-core            # skip the Rust rebuild
+#   Scripts/test-ui.sh --no-core            # skip the Rust rebuild (a device still gets its slice)
 #
 # Every test drives the in-memory showcase dataset, so nothing here needs the Docker harness, a
 # stored account or a network. That is what lets the device leg run the same suite: the harness is
@@ -73,6 +73,15 @@ if [[ "$ON_DEVICE" -eq 1 ]]; then
   info "device: $UDID ($(device_name "$UDID")), team $TEAM"
   # The device slice of the core, which build-core.sh skips only when asked to.
   CORE_ARGS=()
+  # ⚠️ `--no-core` cannot mean "skip it" when the slice a device needs is not there. A
+  # simulator-only core (`build-core.sh --no-device`, which CI and the gate build) leaves the
+  # xcframework without `ios-arm64`, and the build then fails with four copies of "no library for
+  # this platform was found", named against MailcalUI and the app rather than the missing slice.
+  # scripts/dev/device.sh builds it in the same case.
+  if [[ "$BUILD_CORE" -eq 0 && ! -d "$HERE/Packages/MailcalKit/artifacts/Mailcal.xcframework/ios-arm64" ]]; then
+    info "the core has no device slice; building it despite --no-core"
+    BUILD_CORE=1
+  fi
 else
   if [[ -n "$SIMULATOR" ]]; then
     UDID="$(sim_udid_by_name "$SIMULATOR")" || die "no available simulator named '$SIMULATOR'"

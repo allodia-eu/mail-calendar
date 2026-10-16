@@ -8,7 +8,9 @@
 # `.cargo/config.toml` ABOVE this checkout — outside the repo, so never active in CI. The repo's own
 # `.cargo/config.toml` is tracked and pins the Windows static-CRT rustflags.)
 #
-# Cost discipline, in runner time and in the 10 GB cache budget. Four rules hold:
+# Cost discipline, in wall-clock time and in the 10 GB cache budget. A run aims to finish inside
+# ten minutes; the repository is public, so runner minutes are not billed and a job split into
+# parallel legs is a fair trade when it shortens the run. Four rules hold:
 #   1. Every expensive job gates on `changes`, which derives the affected areas from the actual
 #      change set (scripts/ci/changed-areas.sh). A manual run forces any subset via `areas`.
 #   2. Only `main` writes the shared caches — see the `save-if` notes on each cache step.
@@ -643,15 +645,15 @@ jobs:
       # beside the arm64 the tests actually run. The script builds before it boots the simulator,
       # and says why.
       #
-      # **Three classes of five, and that is a budget rather than a judgement about the other two.**
+      # **Three classes of twelve, and that is the ten-minute budget rather than a judgement about
+      # the rest.**
       # A UI test costs what no other gate here costs: a simulator to boot and then the app's own
       # launch per test. The three that run are the three that hold something written down: the
       # action row's order and the header that scrolls out from under it
       # (docs/reading-actions.md), and the calendar pinch (docs/calendar.md), which is also the
-      # regression test for a gesture that reached the iOS grid not at all. The two that do not,
-      # `NavigationBarTests` and `ComposerPresentationTests`, run from
-      # `clients/apple/Scripts/test-ui.sh` on a developer's machine, and the second of them is the
-      # slowest test in the bundle by some way. Add a `--only` below to move one back.
+      # regression test for a gesture that reached the iOS grid not at all. The rest run from
+      # `clients/apple/Scripts/test-ui.sh` on a developer's machine; `ComposerPresentationTests`
+      # is the slowest class in the bundle by some way. Add a `--only` below to move one in.
       - name: Build + test the iOS app (showcase dataset)
         if: matrix.platform == 'ios'
         run: |
