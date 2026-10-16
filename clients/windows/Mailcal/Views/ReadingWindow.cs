@@ -94,8 +94,11 @@ internal sealed class ReadingWindow : Window
     // either side holds per window.
     private void OnClosed(object sender, WindowEventArgs args)
     {
+        // Left registered, the handler keeps the closed window alive (docs/client-traps.md).
+        Closed -= OnClosed;
         App.Shell?.ForgetReadingWindow(this);
         _model.CloseReadingWindow(_reader.Id);
         _view.Teardown();
+        ReleaseProbe.Watch(this, "reading window");
     }
 }

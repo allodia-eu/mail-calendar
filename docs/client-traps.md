@@ -403,6 +403,16 @@ that same file.
   ([`DefaultMailApp.cs`](../clients/windows/Mailcal/Services/DefaultMailApp.cs)), WinUI-free so
   `Mailcal.Tests` can state it; nothing that links WinUI can be unit-tested here at all.
 
+- **A WinUI window that handles its own `Closed` or `AppWindow.Closing` is never collected.** The
+  handler is a delegate the native window holds with an ordinary COM reference, and it refers back
+  to the managed window, so the pair outlives the close and keeps everything the window held: its
+  content, its view model, its `WebView2` element. Nothing on screen shows it, and the WebView2
+  renderer still exits, because closing the control ends that, so a count of `msedgewebview2.exe`
+  processes stays flat. Measured: every reading and composer window closed was still alive after
+  three forced collections, a few megabytes each, while handlers on elements inside the same
+  windows held nothing. The tell is `gcroot` in `dotnet-dump` finding no managed root for an object
+  that survives every collection. Unsubscribe inside the `Closed` handler;
+  `uitests/ReleaseProbe.Tests.ps1` counts what is still held after a close.
 - **WinUI's `FocusManager` static *moves* act on whichever element holds focus now, which may be in
   a different window.** `TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = other })`
   reads as "move focus into `other`" and is not: the search root only bounds where the *next*

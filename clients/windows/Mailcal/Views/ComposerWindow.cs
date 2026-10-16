@@ -78,7 +78,12 @@ internal sealed class ComposerWindow : Window
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
+        // A handler left on the window's own native objects keeps the closed window, and its
+        // composer, alive for as long as the app runs (docs/client-traps.md).
+        Closed -= OnClosed;
+        AppWindow.Closing -= OnClosing;
         App.Shell?.ForgetComposerWindow(this);
         _view.Teardown();
+        ReleaseProbe.Watch(this, "composer window");
     }
 }
