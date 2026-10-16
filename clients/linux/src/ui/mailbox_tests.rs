@@ -429,6 +429,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     recipients::the_field_asks_for_the_email_keyboard();
     recipients::undo_takes_back_a_finished_address_without_doubling_it();
     recipients::undo_brings_back_a_removed_recipient();
+    recipients::the_undo_chord_is_found_on_a_layout_without_latin_letters();
 
     search::the_filter_and_the_horizon_are_shown_for_a_search_and_nothing_else();
     search::the_filter_names_the_folder_it_would_narrow_to();

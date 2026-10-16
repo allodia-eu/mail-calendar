@@ -257,15 +257,15 @@ pub(crate) fn undo_takes_back_a_finished_address_without_doubling_it() {
     );
 
     let ctrl = gtk::gdk::ModifierType::CONTROL_MASK;
-    to.inner.key_pressed(gtk::gdk::Key::z, ctrl);
+    to.inner.key_pressed(gtk::gdk::Key::z, 0, ctrl);
     assert!(pill_labels(&to).is_empty(), "{:?}", pill_labels(&to));
     assert_eq!(to.inner.entry.text(), "bob@example.test");
-    to.inner.key_pressed(gtk::gdk::Key::z, ctrl);
+    to.inner.key_pressed(gtk::gdk::Key::z, 0, ctrl);
     assert_eq!(to.text(), "");
 
     let shift = gtk::gdk::ModifierType::SHIFT_MASK;
-    to.inner.key_pressed(gtk::gdk::Key::Z, ctrl | shift);
-    to.inner.key_pressed(gtk::gdk::Key::y, ctrl);
+    to.inner.key_pressed(gtk::gdk::Key::Z, 0, ctrl | shift);
+    to.inner.key_pressed(gtk::gdk::Key::y, 0, ctrl);
     assert_eq!(pill_labels(&to), vec!["bob@example.test"]);
 }
 
@@ -277,16 +277,40 @@ pub(crate) fn undo_brings_back_a_removed_recipient() {
     assert_eq!(pill_labels(&to), vec!["tc@example.test"]);
 
     to.inner
-        .key_pressed(gtk::gdk::Key::z, gtk::gdk::ModifierType::CONTROL_MASK);
+        .key_pressed(gtk::gdk::Key::z, 0, gtk::gdk::ModifierType::CONTROL_MASK);
     assert_eq!(
         pill_labels(&to),
         vec!["bestuur@example.test", "tc@example.test"]
     );
     // The seed is where the history starts: the field was opened holding both.
     to.inner
-        .key_pressed(gtk::gdk::Key::z, gtk::gdk::ModifierType::CONTROL_MASK);
+        .key_pressed(gtk::gdk::Key::z, 0, gtk::gdk::ModifierType::CONTROL_MASK);
     assert_eq!(
         pill_labels(&to),
         vec!["bestuur@example.test", "tc@example.test"]
+    );
+}
+
+/// On a layout with no Latin letter on the Z key, Ctrl+Z is still undo: the chord is read off the
+/// first layout's letter on the same key, as GTK's own bindings read it. The entry's own undo is
+/// off, so without this the field had no undo at all there.
+pub(crate) fn the_undo_chord_is_found_on_a_layout_without_latin_letters() {
+    let to = field("To");
+    let display = to.inner.entry.display();
+    let keys = display
+        .map_keyval(gtk::gdk::Key::z)
+        .expect("the test display has a keymap");
+    let z = keys
+        .iter()
+        .find(|key| key.group() == 0 && key.level() == 0)
+        .expect("Z is on the first layout");
+    assert_eq!(
+        super::super::history::chord_key(&display, gtk::gdk::Key::Cyrillic_ya, z.keycode()),
+        gtk::gdk::Key::z
+    );
+    assert_eq!(
+        super::super::history::chord_key(&display, gtk::gdk::Key::w, z.keycode()),
+        gtk::gdk::Key::w,
+        "a Latin layout's own letter wins over the key it is on"
     );
 }

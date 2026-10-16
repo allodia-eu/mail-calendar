@@ -45,6 +45,9 @@ interface Step {
   at: number;
   /// The pointer press the change was made in, so a drag stays one step.
   press: number | null;
+  /// The attributes and texts the step has already recorded a first value for. A later record of
+  /// the same one adds nothing an undo needs, and a drag would otherwise keep one per move.
+  seen?: Map<Node, Set<string>>;
   /// What the user typed that the editor turned into something else (the space after `- `), which
   /// an undo of this step leaves in place.
   typed?: string;
@@ -64,15 +67,20 @@ export interface History {
   restart<T>(change: () => T): T;
 }
 
-/// What a keystroke asks of the history, if anything.
+/// What a keystroke asks of the history, if anything: the platform's own chords (`docs/undo.md`
+/// rule 2). On Apple ⌘Z is undo and ⇧⌘Z redo, and Control is left alone, because Ctrl+Y is
+/// Cocoa's yank. Everywhere else Ctrl+Z is undo, and Shift+Ctrl+Z and Ctrl+Y redo.
 ///
-/// Ctrl or Cmd with Z is undo, with Shift as well redo, and Ctrl or Cmd with Y redo: every host's
-/// own chords between them, accepted on all four as the bundle's other shortcuts are.
-export function historyChord(event: KeyboardEvent): "undo" | "redo" | null {
-  if (!(event.metaKey || event.ctrlKey) || event.altKey) return null;
-  const key = event.key.toLowerCase();
+/// The letter is the layout's, falling back to the key's position when the layout has no Latin
+/// letter there: on a Cyrillic layout Ctrl+Z types `я`, and is still undo, as it is in every
+/// native text field.
+export function historyChord(event: KeyboardEvent, apple: boolean): "undo" | "redo" | null {
+  const primary = apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+  if (!primary || event.altKey) return null;
+  const typed = event.key.toLowerCase();
+  const key = /^[a-z]$/.test(typed) ? typed : /^Key([A-Z])$/.exec(event.code)?.[1]?.toLowerCase();
   if (key === "z") return event.shiftKey ? "redo" : "undo";
-  if (key === "y" && !event.shiftKey) return "redo";
+  if (key === "y" && !event.shiftKey && !apple) return "redo";
   return null;
 }
 
@@ -116,11 +124,13 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
     redone.length = 0;
     const last = undone.at(-1);
     if (last && !boundary && joins(last, kind, at)) {
-      last.records.push(...content);
+      last.records.push(...firsts(last, content));
       last.after = after;
       last.at = at;
     } else {
-      undone.push({ records: content, before: caret, after, kind, at, press: pressed ? press : null });
+      const step: Step = { records: [], before: caret, after, kind, at, press: pressed ? press : null };
+      step.records = firsts(step, content);
+      undone.push(step);
       if (undone.length > MAX_STEPS) undone.shift();
     }
     boundary = false;
@@ -166,7 +176,7 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
     flush();
     const step = from.pop();
     if (!step) return false;
-    const inverse = revert(step.records, observer);
+    const inverse = revert(editor, step.records, observer);
     if (!inverse) {
       // The body no longer matches the step, so nothing in either list can be trusted to.
       undone.length = 0;
@@ -180,6 +190,7 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
     const here = selection();
     to.push({
       ...step,
+      seen: undefined,
       records: inverse,
       before: undoing ? here : step.before,
       after: undoing ? step.after : here,
@@ -226,6 +237,9 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
       return;
     }
     pending = kindOf(event.inputType);
+    // An edit is never part of a drag. A press whose release the page never saw (a `<select>`'s
+    // own popup takes it) would otherwise fold every keystroke after it into one step.
+    pressed = false;
     // A `beforeinput` whose change never comes (another handler cancelled it) must not label the
     // next change made by script as typing.
     view.setTimeout(() => {
@@ -269,34 +283,43 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
       if (last) last.typed = text;
       boundary = true;
     },
-    outside(change) {
-      flush();
-      quiet = true;
-      try {
-        return change();
-      } finally {
-        observer.takeRecords();
-        quiet = false;
-        caret = selection();
-        boundary = true;
-      }
-    },
-    restart(change) {
-      flush();
-      quiet = true;
-      try {
-        return change();
-      } finally {
-        observer.takeRecords();
-        quiet = false;
+    outside: (change) => unrecorded(change, false),
+    restart: (change) => unrecorded(change, true),
+  };
+
+  /// Runs a host's change without filing it as a step; `forget` starts the history over after it.
+  function unrecorded<T>(change: () => T, forget: boolean): T {
+    flush();
+    quiet = true;
+    try {
+      return change();
+    } finally {
+      observer.takeRecords();
+      quiet = false;
+      if (forget) {
         undone.length = 0;
         redone.length = 0;
-        caret = selection();
-        boundary = true;
       }
-    },
-  };
+      caret = selection();
+      boundary = true;
+    }
+  }
   return history;
+}
+
+/// `records` less the ones `step` already holds an older value for. Undoing runs backwards, so of
+/// several changes to one attribute or one text only the first one's old value is ever the result.
+function firsts(step: Step, records: MutationRecord[]): MutationRecord[] {
+  const seen = (step.seen ??= new Map());
+  return records.filter((record) => {
+    if (record.type === "childList") return true;
+    const name = record.type === "attributes" ? `@${record.attributeName}` : "#text";
+    const names = seen.get(record.target) ?? new Set<string>();
+    seen.set(record.target, names);
+    if (names.has(name)) return false;
+    names.add(name);
+    return true;
+  });
 }
 
 function kindOf(inputType: string): Kind {
@@ -323,11 +346,18 @@ function same(a: Caret | null, b: Caret | null): boolean {
 /// The checks are strict on purpose. A node is only removed from the parent the record put it in,
 /// and only put back into a gap that still has the neighbour it was taken from; anything else
 /// means a change this history never saw (the host swapping the signature, say) has moved the
-/// nodes, and guessing would put text somewhere the user never wrote it.
-function revert(records: MutationRecord[], observer: MutationObserver): MutationRecord[] | null {
+/// nodes, and guessing would put text somewhere the user never wrote it. For the same reason every
+/// node the step touched must be back in the body afterwards, unless the step itself put it there:
+/// a text the host has since taken out would otherwise take the undo invisibly.
+function revert(editor: HTMLElement, records: MutationRecord[], observer: MutationObserver): MutationRecord[] | null {
   observer.takeRecords();
   try {
     for (let index = records.length - 1; index >= 0; index -= 1) undoOne(records[index]!);
+    const added = records.flatMap((record) => Array.from(record.addedNodes));
+    for (const record of records) {
+      const target = record.target;
+      if (!editor.contains(target) && !added.some((node) => node.contains(target))) throw new Error("moved");
+    }
     return observer.takeRecords();
   } catch {
     const partial = observer.takeRecords();

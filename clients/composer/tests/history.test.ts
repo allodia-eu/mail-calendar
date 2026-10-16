@@ -159,6 +159,18 @@ describe("one step", () => {
     expect(e.html()).toBe('<p id="p">x1</p><p id="q">y</p>');
   });
 
+  test("ends at a keystroke, even after a press whose release the page never saw", async () => {
+    const e = editing("<p id=p>x</p>");
+    e.caretEnd("#p");
+    // A `<select>`'s own popup takes the release, so the page sees the press alone.
+    e.editor.ownerDocument.dispatchEvent(new e.view.Event("pointerdown") as never);
+    e.editor.querySelector("#p")!.setAttribute("style", "font-size: 20px");
+    await settled();
+    await e.type("abc");
+    e.history.undo();
+    expect(e.html()).toBe('<p id="p" style="font-size: 20px">x</p>');
+  });
+
   test("ends where typing turns into deleting", async () => {
     const e = editing("<p id=p>x</p>");
     e.caretEnd("#p");
@@ -181,6 +193,22 @@ describe("one step", () => {
     doc.dispatchEvent(new e.view.Event("pointerup") as never);
     e.history.undo();
     expect(image.getAttribute("width")).toBe("100");
+  });
+
+  test("keeps one old value per attribute however long the drag, and still undoes it", async () => {
+    const e = editing('<p><img id=i width="100"></p>');
+    const image = e.editor.querySelector("#i")!;
+    const doc = e.editor.ownerDocument;
+    doc.dispatchEvent(new e.view.Event("pointerdown") as never);
+    for (let width = 101; width <= 400; width += 1) {
+      image.setAttribute("width", String(width));
+      await settled();
+    }
+    doc.dispatchEvent(new e.view.Event("pointerup") as never);
+    e.history.undo();
+    expect(image.getAttribute("width")).toBe("100");
+    e.history.redo();
+    expect(image.getAttribute("width")).toBe("400");
   });
 
   test("is not the editor's placeholder or accessible name changing", async () => {
@@ -265,6 +293,18 @@ describe("the host's own changes", () => {
     expect(e.html()).toBe(before);
     expect(e.history.undo()).toBe(false);
   });
+
+  test("a step in text the host has since taken out is refused, never taken invisibly", async () => {
+    const e = editing('<p id=p>one</p><div class="allodia-signature" id=s>Old</div>');
+    (e.editor.querySelector("#s")!.firstChild as Text).data = "Older";
+    await settled();
+    e.history.outside(() => {
+      e.editor.querySelector("#s")!.textContent = "New";
+    });
+    const before = e.html();
+    expect(e.history.undo()).toBe(false);
+    expect(e.html()).toBe(before);
+  });
 });
 
 describe("the engine's own undo", () => {
@@ -284,15 +324,31 @@ describe("the engine's own undo", () => {
 });
 
 describe("the chords", () => {
-  const chord = (key: string, modifiers: Partial<KeyboardEvent> = {}) =>
-    historyChord({ key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...modifiers } as KeyboardEvent);
+  const chord = (key: string, modifiers: Partial<KeyboardEvent> = {}, apple = false) =>
+    historyChord(
+      { key, code: "", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...modifiers } as KeyboardEvent,
+      apple,
+    );
 
-  test("are Ctrl or Cmd with Z, Shift for redo, and Y for redo", () => {
+  test("are Ctrl+Z, with Shift or as Ctrl+Y for redo, off Apple", () => {
     expect(chord("z", { ctrlKey: true })).toBe("undo");
-    expect(chord("z", { metaKey: true })).toBe("undo");
     expect(chord("Z", { ctrlKey: true, shiftKey: true })).toBe("redo");
-    expect(chord("Z", { metaKey: true, shiftKey: true })).toBe("redo");
     expect(chord("y", { ctrlKey: true })).toBe("redo");
+    expect(chord("z", { metaKey: true })).toBeNull();
+  });
+
+  test("are ⌘Z and ⇧⌘Z on Apple, where Ctrl+Y is the text system's yank", () => {
+    expect(chord("z", { metaKey: true }, true)).toBe("undo");
+    expect(chord("Z", { metaKey: true, shiftKey: true }, true)).toBe("redo");
+    expect(chord("y", { ctrlKey: true }, true)).toBeNull();
+    expect(chord("y", { metaKey: true }, true)).toBeNull();
+    expect(chord("z", { ctrlKey: true }, true)).toBeNull();
+  });
+
+  test("find Z by its position on a layout with no Latin letter there", () => {
+    expect(chord("я", { ctrlKey: true, code: "KeyZ" })).toBe("undo");
+    // A Latin layout's own letter wins over the position: AZERTY has W where QWERTY has Z.
+    expect(chord("w", { ctrlKey: true, code: "KeyZ" })).toBeNull();
   });
 
   test("leave a plain Z, an Alt chord and every other key alone", () => {

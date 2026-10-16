@@ -5,7 +5,7 @@
 //! address back in and finish it a second time. A step here is the whole field before a change:
 //! typing one address, finishing it, accepting a suggestion, removing a pill.
 
-use gtk::gdk;
+use gtk::{gdk, prelude::*};
 
 use super::tokens;
 
@@ -32,6 +32,26 @@ pub(super) fn chord(key: gdk::Key, state: gdk::ModifierType) -> Option<Step> {
         gdk::Key::y if !shift => Some(Step::Redo),
         _ => None,
     }
+}
+
+/// The letter a chord names. The layout's own, unless it has no Latin letter on that key (a
+/// Cyrillic layout types `я` where Z is), and then the first layout's letter on the same key,
+/// which is what GTK's own bindings fall back to and so what every other field in the app answers.
+pub(super) fn chord_key(display: &gdk::Display, key: gdk::Key, keycode: u32) -> gdk::Key {
+    if key
+        .to_unicode()
+        .is_some_and(|letter| letter.is_ascii_alphabetic())
+    {
+        return key;
+    }
+    display
+        .map_keycode(keycode)
+        .and_then(|keys| {
+            keys.into_iter()
+                .find(|(entry, _)| entry.group() == 0 && entry.level() == 0)
+                .map(|(_, key)| key)
+        })
+        .unwrap_or(key)
 }
 
 /// The values the field held before each change, and after each undo.

@@ -2083,13 +2083,15 @@
   // src/history.ts
   var TYPING_PAUSE_MS = 1000;
   var MAX_STEPS = 100;
-  function historyChord(event) {
-    if (!(event.metaKey || event.ctrlKey) || event.altKey)
+  function historyChord(event, apple) {
+    const primary = apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+    if (!primary || event.altKey)
       return null;
-    const key = event.key.toLowerCase();
+    const typed = event.key.toLowerCase();
+    const key = /^[a-z]$/.test(typed) ? typed : /^Key([A-Z])$/.exec(event.code)?.[1]?.toLowerCase();
     if (key === "z")
       return event.shiftKey ? "redo" : "undo";
-    if (key === "y" && !event.shiftKey)
+    if (key === "y" && !event.shiftKey && !apple)
       return "redo";
     return null;
   }
@@ -2126,11 +2128,13 @@
       redone.length = 0;
       const last = undone.at(-1);
       if (last && !boundary && joins(last, kind, at)) {
-        last.records.push(...content);
+        last.records.push(...firsts(last, content));
         last.after = after;
         last.at = at;
       } else {
-        undone.push({ records: content, before: caret, after, kind, at, press: pressed ? press : null });
+        const step = { records: [], before: caret, after, kind, at, press: pressed ? press : null };
+        step.records = firsts(step, content);
+        undone.push(step);
         if (undone.length > MAX_STEPS)
           undone.shift();
       }
@@ -2173,7 +2177,7 @@
       const step = from.pop();
       if (!step)
         return false;
-      const inverse = revert(step.records, observer);
+      const inverse = revert(editor, step.records, observer);
       if (!inverse) {
         undone.length = 0;
         redone.length = 0;
@@ -2187,6 +2191,7 @@
       const here = selection();
       to.push({
         ...step,
+        seen: undefined,
         records: inverse,
         before: undoing ? here : step.before,
         after: undoing ? step.after : here,
@@ -2229,6 +2234,7 @@
         return;
       }
       pending = kindOf(event.inputType);
+      pressed = false;
       view.setTimeout(() => {
         pending = null;
       }, 0);
@@ -2264,34 +2270,40 @@
           last.typed = text;
         boundary = true;
       },
-      outside(change) {
-        flush();
-        quiet = true;
-        try {
-          return change();
-        } finally {
-          observer.takeRecords();
-          quiet = false;
-          caret = selection();
-          boundary = true;
-        }
-      },
-      restart(change) {
-        flush();
-        quiet = true;
-        try {
-          return change();
-        } finally {
-          observer.takeRecords();
-          quiet = false;
+      outside: (change) => unrecorded(change, false),
+      restart: (change) => unrecorded(change, true)
+    };
+    function unrecorded(change, forget) {
+      flush();
+      quiet = true;
+      try {
+        return change();
+      } finally {
+        observer.takeRecords();
+        quiet = false;
+        if (forget) {
           undone.length = 0;
           redone.length = 0;
-          caret = selection();
-          boundary = true;
         }
+        caret = selection();
+        boundary = true;
       }
-    };
+    }
     return history;
+  }
+  function firsts(step, records) {
+    const seen = step.seen ??= new Map;
+    return records.filter((record) => {
+      if (record.type === "childList")
+        return true;
+      const name = record.type === "attributes" ? `@${record.attributeName}` : "#text";
+      const names = seen.get(record.target) ?? new Set;
+      seen.set(record.target, names);
+      if (names.has(name))
+        return false;
+      names.add(name);
+      return true;
+    });
   }
   function kindOf(inputType) {
     if (inputType === "insertText" || inputType === "insertCompositionText")
@@ -2305,11 +2317,17 @@
       return a === b;
     return a.anchorNode === b.anchorNode && a.anchorOffset === b.anchorOffset && a.focusNode === b.focusNode && a.focusOffset === b.focusOffset;
   }
-  function revert(records, observer) {
+  function revert(editor, records, observer) {
     observer.takeRecords();
     try {
       for (let index = records.length - 1;index >= 0; index -= 1)
         undoOne(records[index]);
+      const added = records.flatMap((record) => Array.from(record.addedNodes));
+      for (const record of records) {
+        const target = record.target;
+        if (!editor.contains(target) && !added.some((node) => node.contains(target)))
+          throw new Error("moved");
+      }
       return observer.takeRecords();
     } catch {
       const partial = observer.takeRecords();
@@ -4561,6 +4579,7 @@
   var attachments = new Attachments;
   var hostRequests = new HostRequests(window);
   var history = installHistory(editor);
+  var apple = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
   var labels = DEFAULT_LABELS;
   var toolbar = installToolbar(editor, toolbarRoot, () => labels, () => {
     if (!hostRequests.answers("link"))
@@ -4598,7 +4617,7 @@
   editor.addEventListener("keydown", (event) => {
     if (event.isComposing)
       return;
-    const step = historyChord(event);
+    const step = historyChord(event, apple);
     if (step) {
       event.preventDefault();
       if (step === "undo")

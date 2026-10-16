@@ -18,7 +18,9 @@ for every kind of change.
 
 2. **The platform's own chords, in every field.** Ctrl+Z to undo, Shift+Ctrl+Z or Ctrl+Y to redo
    on Linux, Windows and Android with a keyboard; ⌘Z and ⇧⌘Z on macOS, and on an iPhone or iPad
-   with a keyboard. Where the platform's own text fields offer Undo some other way (the macOS Edit
+   with a keyboard, where Control is left to the text system (Ctrl+Y is its yank). A layout with no
+   Latin letter on the key still undoes: the chord is read off the key's letter on the first
+   layout, as the toolkits' own bindings read it. Where the platform's own text fields offer Undo some other way (the macOS Edit
    menu, shaking an iPhone, the iPad's shortcut bar, the right-click menu of a Windows text box),
    the composer offers it the same way and it reaches the same history. Where they offer only the
    keyboard (GTK's text fields carry no Undo in their menu), so does the composer.
@@ -67,8 +69,9 @@ for every kind of change.
    it with a comma or Enter, accepting a suggestion and removing a pill are one step each. The
    text entry inside the field keeps no history of its own: the field rewrites it each time an
    address is finished, so the entry's undo would type a finished address back in and the field
-   would finish it a second time. A field seeded by the composer (a reply's recipients) starts its
-   history there.
+   would finish it a second time. Removing a pill puts the caret back in the field, so the chord
+   that brings the address back is heard there. A field seeded by the composer (a reply's
+   recipients) starts its history there.
 
 10. **Subject and every other plain text field use the platform's own history.** The toolkit's
     text field already meets rules 1 and 2.
@@ -83,9 +86,9 @@ never a resting state.
 
 | Rule | macOS | iPhone, iPad | Windows | Android | Linux |
 |---|---|---|---|---|---|
-| Body: the chords (rules 2 to 6) | shared bundle; not yet run on this host | shared bundle, with a keyboard; not yet run | shared bundle; not yet run | shared bundle; Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y verified on a Galaxy Note 20 | shared bundle; nothing in GTK binds the chords ahead of the web view, which delivers them to the page (verified by hand: typing, a pause, bold, a `- ` bullet, a link, a paste, a list, a table) |
-| Body: the platform's other entry points (rule 2) | the Edit menu's Undo and Redo, through `historyUndo`; not yet run | shake to undo, the three-finger gestures and the shortcut bar, through `historyUndo`; not yet run | the right-click menu's Undo and Redo, which Gate 14's filter keeps out today | none: Android's text fields offer no Undo outside a keyboard | none: GTK's text fields offer no Undo in their menu |
-| Recipient fields (rule 9) | not yet checked | not yet checked | not yet checked | not yet: Ctrl+Z after finishing an address does nothing (Galaxy Note 20) | `recipients::history`, the entry's own undo off (`set_enable_undo(false)`); held by the crate's GTK tests |
+| Body: the chords (rules 2 to 6) | shared bundle; not yet run | shared bundle, with a keyboard; not yet run | shared bundle; not yet run | shared bundle; Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y verified on a Galaxy Note 20 | shared bundle; nothing in GTK binds the chords ahead of the web view, which delivers them to the page (verified by hand: typing, a pause, bold, a `- ` bullet, a link, a paste, a list, a table) |
+| Body: the platform's other entry points (rule 2) | the Edit menu's Undo and Redo, through `historyUndo`; not yet run | shake to undo, the three-finger gestures and the shortcut bar, through `historyUndo`; not yet run | not yet: the right-click menu's Undo and Redo, which Gate 14's filter keeps out today | none: Android's text fields offer no Undo outside a keyboard | none: GTK's text fields offer no Undo in their menu |
+| Recipient fields (rule 9) | not yet checked | not yet checked | not yet checked | not yet: Ctrl+Z after finishing an address does nothing on a Galaxy Note 20 | `recipients::history`, the entry's own undo off (`set_enable_undo(false)`); held by the crate's GTK tests |
 | Subject and other plain fields (rule 10) | `NSTextField` | `UITextField` | `TextBox` | `TextField` | `GtkEntry`, whose own bindings include Shift+Ctrl+Z and Ctrl+Y |
 
 ## Enforcement

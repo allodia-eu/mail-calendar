@@ -45,6 +45,8 @@ const attachments = new Attachments();
 
 const hostRequests = new HostRequests(window);
 const history = installHistory(editor);
+/// Whether this is an Apple host, whose chords are ⌘ rather than Ctrl. iPadOS reports a Mac.
+const apple = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 
 let labels: Labels = DEFAULT_LABELS;
 const toolbar = installToolbar(editor, toolbarRoot, () => labels, () => {
@@ -108,7 +110,7 @@ editor.addEventListener("keydown", (event) => {
   if (event.isComposing) return;
   // Undo and redo are the bundle's own history (`history.ts`), never the engine's: the engine's
   // stack holds only the edits it made itself, and on Linux nothing binds the chord at all.
-  const step = historyChord(event);
+  const step = historyChord(event, apple);
   if (step) {
     event.preventDefault();
     if (step === "undo") history.undo();

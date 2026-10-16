@@ -246,11 +246,11 @@ fn connect(inner: &Rc<Inner>) {
     // suggestion. Every other key is passed straight through, so typing still reaches the text.
     keys.set_propagation_phase(gtk::PropagationPhase::Capture);
     let weak = Rc::downgrade(inner);
-    keys.connect_key_pressed(move |_, key, _, state| {
+    keys.connect_key_pressed(move |_, key, keycode, state| {
         let Some(inner) = weak.upgrade() else {
             return glib::Propagation::Proceed;
         };
-        inner.key_pressed(key, state)
+        inner.key_pressed(key, keycode, state)
     });
     inner.entry.add_controller(keys);
 
@@ -323,6 +323,15 @@ impl Inner {
         self.query(token, generation);
     }
 
+    /// Removes the finished recipient at `index`. The caret goes back to the entry: the button
+    /// that was pressed is gone with its pill, and the chord that brings the recipient back is
+    /// heard only there.
+    pub(super) fn remove(self: &Rc<Self>, index: usize) {
+        let field = self.text.borrow().clone();
+        self.apply(&tokens::remove(&field, index));
+        self.entry.grab_focus();
+    }
+
     pub(super) fn accept(self: &Rc<Self>, row: i32) {
         let Ok(index) = usize::try_from(row) else {
             return;
@@ -336,8 +345,14 @@ impl Inner {
         self.entry.grab_focus();
     }
 
-    fn key_pressed(self: &Rc<Self>, key: gdk::Key, state: gdk::ModifierType) -> glib::Propagation {
-        if let Some(step) = history::chord(key, state) {
+    fn key_pressed(
+        self: &Rc<Self>,
+        key: gdk::Key,
+        keycode: u32,
+        state: gdk::ModifierType,
+    ) -> glib::Propagation {
+        let named = history::chord_key(&self.entry.display(), key, keycode);
+        if let Some(step) = history::chord(named, state) {
             self.step(step);
             return glib::Propagation::Stop;
         }

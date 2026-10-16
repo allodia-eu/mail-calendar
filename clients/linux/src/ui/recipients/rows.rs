@@ -6,7 +6,7 @@ use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::RecipientMatch;
 
-use super::{field::Inner, tokens};
+use super::field::Inner;
 use crate::{
     l10n,
     ui::{icons, mailbox},
@@ -37,8 +37,7 @@ pub(super) fn pill(address: &str, index: usize, inner: &Rc<Inner>) -> gtk::Box {
         let Some(inner) = weak.upgrade() else {
             return;
         };
-        let field = inner.text.borrow().clone();
-        inner.apply(&tokens::remove(&field, index));
+        inner.remove(index);
     });
     root.append(&remove);
     root
