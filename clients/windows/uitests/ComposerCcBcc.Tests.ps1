@@ -7,7 +7,7 @@
 # whether the toggle is wired to it. A composer that opened with the row already showing, or one
 # whose chevron did nothing, would pass every headless suite in the repo.
 #
-# WHY SHOWCASE. Nothing here sends: a composer is opened, read, and cancelled. It does need an
+# WHY SHOWCASE. Nothing here sends: a composer is opened, read, and discarded. It does need an
 # account to send from, which the showcase seeds deterministically.
 #
 # The two fields are reached by the automation id on their INPUT, not by their label: the labels are
@@ -22,12 +22,6 @@ function Open-Composer {
   Invoke-UiaElement $compose
   $send = Wait-UiaElement -AutomationId 'SendButton' -TimeoutSec 30
   if (-not $send) { throw 'no composer within 30s of pressing Compose' }
-}
-
-function Close-Composer {
-  $cancel = Find-UiaElement -Name 'Cancel' -Type Button
-  if ($cancel) { Invoke-UiaElement $cancel }
-  Wait-UiaGone -AutomationId 'SendButton' -TimeoutSec 10 | Out-Null
 }
 
 # How far the chevron's centre may sit from the To input's centre, in DEVICE-INDEPENDENT pixels as
@@ -83,7 +77,7 @@ $Suite = @{
           Assert-True ($null -eq (Find-UiaElement -AutomationId 'BccField')) `
             'Bcc is on screen before anyone asked for it, the header is meant to open as From, To, Subject'
         }
-        finally { Close-Composer }
+        finally { $null = Close-Composer }
       }
     },
     @{
@@ -98,7 +92,7 @@ $Suite = @{
           Assert-True ($drift -le $budget) `
             "the chevron's centre is ${drift}px off the To input's, against a ${budget}px budget: it is being aligned against something other than the input it belongs to"
         }
-        finally { Close-Composer }
+        finally { $null = Close-Composer }
       }
     },
     @{
@@ -119,7 +113,7 @@ $Suite = @{
           Assert-True ($null -eq (Find-UiaElement -AutomationId 'CcField')) `
             'Cc stayed on screen after the chevron was unchecked, the reveal is one-way'
         }
-        finally { Close-Composer }
+        finally { $null = Close-Composer }
       }
     },
     @{
@@ -137,7 +131,7 @@ $Suite = @{
             Assert-True ($null -ne (Find-UiaElement -AutomationId 'SendButton')) `
               'Send is gone from the composer on a short window'
           }
-          finally { Close-Composer }
+          finally { $null = Close-Composer }
         }
       }
     }

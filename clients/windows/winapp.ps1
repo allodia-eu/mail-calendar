@@ -27,9 +27,12 @@
 #     the element's own top-level window with -w. A flyout is a window of its own (PopupHost).
 #   * While a composer is open, winapp's walk of the window never ends: it finds a cycle through the
 #     editor's WebView2 that the UI Automation tree does not have. A lookup that finds its element
-#     returns, slowly; a search over the whole window does not return at all. Every call here is
-#     capped, and one that runs out says so rather than hanging the suite. A keystroke and a press
-#     at a point look nothing up, so both work in a composer.
+#     returns, slowly; a search over the whole window does not return at all, and that holds until
+#     the editor's browser window has gone, which can be after the composer has left the screen.
+#     So a composer is closed by Close-Composer (uia.ps1), which waits for that window, and the
+#     runner counts the hosts between suites (dataset.ps1). Every call here is capped, and one that
+#     runs out says so rather than hanging the suite. A keystroke and a press at a point look
+#     nothing up, so both work in a composer.
 
 $script:WinappMinimum = [version] '0.7.0'
 
@@ -101,8 +104,11 @@ function Invoke-WinappOnce {
   $err = $process.StandardError.ReadToEndAsync()
   if (-not $process.WaitForExit($TimeoutSec * 1000)) {
     $process.Kill($true)
-    throw ("winapp ui $Verb $($Arguments -join ' ') did not answer within ${TimeoutSec}s. With a composer " +
-      'open this is winapp walking the cycle through the editor''s WebView2 (see winapp.ps1), not the app hanging')
+    # What the window held when it happened, so the next reader of a red run need not guess.
+    $hosts = try { Get-WebViewHostCount } catch { '?' }
+    throw ("winapp ui $Verb $($Arguments -join ' ') did not answer within ${TimeoutSec}s, with $hosts " +
+      'WebView2 host(s) in the mailbox window. A composer''s editor among them, open or still closing, is ' +
+      'winapp walking the cycle through it (see winapp.ps1), not the app hanging')
   }
   # An answer is JSON on stdout, but a refusal can arrive as JSON on stderr instead.
   $answer = $null

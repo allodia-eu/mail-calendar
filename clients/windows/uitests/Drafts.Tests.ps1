@@ -131,28 +131,16 @@ function Open-StoredDraft {
   }
 }
 
-# Throws the open composer's draft away with its Discard, answering "Discard draft?" when it asks.
-# Answers whether it asked. A no-op with no composer up, so cleanup can call it blind.
-function Remove-OpenDraft {
-  $discard = Find-UiaElement -AutomationId 'DiscardButton' -Type 'Button'
-  if (-not $discard) { return $false }
-  Invoke-UiaElement $discard
-  $asked = Test-DiscardQuestion
-  if ($asked) { Invoke-UiaElement (Find-UiaElement -AutomationId 'PrimaryButton' -Type 'Button') }
-  Wait-UiaGone -AutomationId 'SendButton' -TimeoutSec 10 | Out-Null
-  $asked
-}
-
 # Takes $Subject off the server however a case left it, so the next run starts from the same
 # Drafts. Best effort: a case that already removed it has nothing to clean.
 function Clear-StoredDraft {
   param([Parameter(Mandatory)] [string] $Subject)
   Close-ExtraWindows
   # Discarded rather than left: leaving would put whatever a failed case typed into Drafts.
-  Remove-OpenDraft | Out-Null
+  Close-Composer | Out-Null
   if (-not (Wait-DraftRow -Subject $Subject -TimeoutSec 5)) { return }
   Open-StoredDraft -Subject $Subject
-  Remove-OpenDraft | Out-Null
+  Close-Composer | Out-Null
 }
 
 # Stores a draft as another client would, straight into the account's Drafts over JMAP: an HTML
@@ -245,7 +233,7 @@ $Suite = @{
       Name = 'Discard over a composer nothing was written in asks nothing'
       Body = {
         Open-NewDraftComposer
-        Assert-True (-not (Remove-OpenDraft)) `
+        Assert-True (-not (Close-Composer)) `
           'Discard over an untouched composer asked "Discard draft?"; with nothing written and nothing stored there is nothing to lose'
         Assert-True ($null -eq (Find-UiaElement -AutomationId 'SendButton')) `
           'Discard over an untouched composer left it open'
@@ -341,7 +329,7 @@ $Suite = @{
           Close-DraftComposer
           # Untouched since it opened, so only the stored copy makes the question due.
           Open-StoredDraft -Subject $subject
-          Assert-True (Remove-OpenDraft) `
+          Assert-True (Close-Composer) `
             'Discard over a draft with a copy in Drafts asked nothing; the copy is something to lose'
           Assert-True (Wait-DraftRow -Subject $subject -Absent) `
             'Discard left the draft in Drafts; it is the one path that removes the stored copy'
@@ -379,7 +367,7 @@ $Suite = @{
           Assert-True (Wait-DraftSaved -TimeoutSec 50) `
             "nothing was saved 50s after typing in the body (the hint reads '$(Get-DraftHint)'): the host is not sampling the editor's change count"
         }
-        finally { Remove-OpenDraft | Out-Null }
+        finally { Close-Composer | Out-Null }
       }
     }
   )

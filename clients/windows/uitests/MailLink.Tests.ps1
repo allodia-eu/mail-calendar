@@ -13,7 +13,7 @@
 # about activation, which is the half that is new.
 #
 # WHY SHOWCASE. Nothing here sends, moves, or deletes anything: the composer is opened, read, and
-# cancelled. What it does need is an account to send from, a composer with no From is refused,
+# discarded. What it does need is an account to send from, a composer with no From is refused,
 # and the showcase seeds two, deterministically.
 
 $Link = 'mailto:bob@example.com?subject=Lunch%20on%20Friday&cc=carol@example.com&bcc=dave@example.com'
@@ -77,12 +77,6 @@ function Get-WindowText {
   }
 }
 
-function Close-Composer {
-  $cancel = Find-UiaElement -Name 'Cancel' -Type Button
-  if ($cancel) { Invoke-UiaElement $cancel }
-  Wait-UiaGone -AutomationId 'SendButton' -TimeoutSec 10 | Out-Null
-}
-
 $Suite = @{
   Dataset = 'showcase'
   Cases   = @(
@@ -101,7 +95,7 @@ $Suite = @{
           Assert-Equal 'Lunch on Friday' (Get-UiaText (Find-UiaElement -AutomationId 'SubjectBox')) `
             'the subject arrived wrong, a %20 decoded by anything but the shared core is the usual cause'
         }
-        finally { Close-Composer }
+        finally { $null = Close-Composer }
       }
     },
     @{
@@ -118,7 +112,7 @@ $Suite = @{
             ((@(Get-ComposerRecipients) | ForEach-Object { $_.Address }) -join ', ') `
             'the honoured half of the link was dropped along with the spoofed half'
         }
-        finally { Close-Composer }
+        finally { $null = Close-Composer }
       }
     }
   )

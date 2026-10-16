@@ -94,6 +94,7 @@ Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes -ErrorAction Stop
 $uiaDpiSource = @'
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Allodia
 {
@@ -119,6 +120,34 @@ namespace Allodia
         /// Windows grants SetForegroundWindow only then (Show-WinappWindow).
         /// </summary>
         [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+
+        /// <summary>Whether a native window still exists, for a browser window that closes after the
+        /// control that owned it (Close-Composer).</summary>
+        [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
+
+        private delegate bool ChildProc(IntPtr hwnd, IntPtr state);
+
+        [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, ChildProc proc, IntPtr state);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, StringBuilder name, int capacity);
+
+        /// <summary>
+        /// The native child windows of <paramref name="parent"/>, shown or hidden, whose class name
+        /// starts with <paramref name="prefix"/> (Get-WebViewHostCount).
+        /// </summary>
+        public static int CountChildWindows(IntPtr parent, string prefix)
+        {
+            var count = 0;
+            var name = new StringBuilder(256);
+            EnumChildWindows(parent, (hwnd, _) =>
+            {
+                name.Clear();
+                GetClassName(hwnd, name, name.Capacity);
+                if (name.ToString().StartsWith(prefix, StringComparison.Ordinal)) { count++; }
+                return true;
+            }, IntPtr.Zero);
+            return count;
+        }
     }
 }
 '@
@@ -130,7 +159,7 @@ $uiaDpiType = 'Allodia.UiaDpi' -as [type]
 if (-not $uiaDpiType) {
   Add-Type -TypeDefinition $uiaDpiSource
 } else {
-  $missing = @([regex]::Matches($uiaDpiSource, 'extern \w+ (\w+)\(') |
+  $missing = @([regex]::Matches($uiaDpiSource, 'public static (?:extern )?\w+ (\w+)\(') |
       ForEach-Object { $_.Groups[1].Value } | Where-Object { -not $uiaDpiType.GetMethod($_) })
   if ($missing) {
     throw "this PowerShell session loaded an older uia.ps1, whose Allodia.UiaDpi has no $($missing -join ', '); start a new session"
@@ -171,6 +200,59 @@ function Get-MailcalWindow {
   $started = Get-Process Mailcal -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
   if ($started) { $script:UiaElement::FromHandle($started.MainWindowHandle) }
+}
+
+<#
+.SYNOPSIS
+How many WebView2 hosts the mailbox window holds, shown or hidden: one for each message body and
+composer editor it has, and one for each still closing.
+.DESCRIPTION
+Read off the window's native children, the browser windows the hosts draw in. A composer's editor
+leaves the automation tree as soon as the composer closes it, while the browser window it drew in
+goes only once the WebView2 runtime has shut it down, so only this sees one still closing. A
+winapp search of the window can walk into an editor and not come back (winapp.ps1), so a composer
+is closed when this count is back to what it was before it opened.
+#>
+function Get-WebViewHostCount {
+  param([object] $Window = (Get-MailcalWindow))
+  if (-not $Window) { return 0 }
+  [Allodia.UiaDpi]::CountChildWindows([IntPtr] [long] $Window.Current.NativeWindowHandle, 'Chrome_WidgetWin_')
+}
+
+<#
+.SYNOPSIS
+Throws the mailbox's open composer away by its Discard, answering "Discard draft?" when it asks,
+and waits until it is gone, its editor's browser window included. Returns whether it asked; does
+nothing and returns $false with no composer open.
+.DESCRIPTION
+By AutomationId, never by the label, which is whatever language the app runs in. It throws rather
+than returning with the composer still there: a composer left open is closed later by the runner,
+and a winapp lookup that runs while its editor is still closing walks into the editor and times out
+in a suite that never opened it. The editor is waited for by its own window handle, which the
+automation tree stops showing before the window itself goes.
+#>
+function Close-Composer {
+  param([int] $TimeoutSec = 15)
+  $discard = Find-UiaElement -AutomationId 'DiscardButton' -Type Button
+  if (-not $discard) { return $false }
+  $editor = Get-UiaTree | Where-Object { $_.Current.AutomationId -eq 'Editor' } | Select-Object -First 1
+  $editorWindow = if ($editor) { [IntPtr] $editor.Current.NativeWindowHandle } else { [IntPtr]::Zero }
+  Invoke-UiaElement $discard
+  # The question's primary button is Discard (ComposerView.Drafts.cs).
+  Wait-UiaQuiet -CapMs 800
+  $confirm = Find-UiaElement -AutomationId 'PrimaryButton' -Type Button
+  if ($confirm) { Invoke-UiaElement $confirm }
+  if (-not (Wait-UiaGone -AutomationId 'SendButton' -TimeoutSec $TimeoutSec)) {
+    throw "the composer is still open ${TimeoutSec}s after its Discard was pressed"
+  }
+  $watch = [Diagnostics.Stopwatch]::StartNew()
+  while ($editorWindow -ne [IntPtr]::Zero -and [Allodia.UiaDpi]::IsWindow($editorWindow)) {
+    if ($watch.Elapsed.TotalSeconds -ge $TimeoutSec) {
+      throw "the composer closed, but its editor's browser window was still there ${TimeoutSec}s later"
+    }
+    Start-Sleep -Milliseconds 100
+  }
+  $null -ne $confirm
 }
 
 <#

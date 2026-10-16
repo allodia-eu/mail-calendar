@@ -238,11 +238,15 @@ function Close-DefaultMailAppOffer {
 
 <#
 .SYNOPSIS
-The set of AutomationIds on screen, as one comparable string.
+The set of AutomationIds on screen, and the window's WebView2 hosts, as one comparable string.
 .DESCRIPTION
 This IS the definition of "clean" used below: whatever the tree holds right after a launch. A suite
 that leaves a dialog, a composer or the calendar up changes the set, so comparing against the
 launch-time value catches leftovers without anyone having to enumerate what each suite opens.
+
+The hosts are counted beside it because a composer's editor can still be closing after the
+composer has left the screen, which no AutomationId shows, and a winapp lookup in the next suite
+walks into it and times out (uia.ps1, Get-WebViewHostCount).
 #>
 function Get-SurfaceFingerprint {
   param([object[]] $Tree)
@@ -251,8 +255,57 @@ function Get-SurfaceFingerprint {
   # away from in the tree, so a fingerprint taken over everything never matches again once a suite
   # has visited the calendar: the runner relaunches for that suite and every suite after it, and
   # hands back most of the saving. IsOffscreen is what separates "still built" from "still shown".
-  ($Tree | Where-Object { -not $_.Current.IsOffscreen -and $_.Current.AutomationId } |
-    ForEach-Object { $_.Current.AutomationId } | Sort-Object -Unique) -join ','
+  $ids = ($Tree | Where-Object { -not $_.Current.IsOffscreen -and $_.Current.AutomationId } |
+      ForEach-Object { $_.Current.AutomationId } | Sort-Object -Unique) -join ','
+  "$ids;webview-hosts=$(Get-WebViewHostCount)"
+}
+
+<#
+.SYNOPSIS
+Wait, bounded, for the WebView2 hosts to come back to $Clean's count; $true when the whole
+fingerprint then matches.
+.DESCRIPTION
+Called once nothing on screen is left to put away: what can still differ is an editor whose browser
+window has not closed yet, which nothing here can hurry, so it is waited for, and a relaunch follows
+only if it never goes.
+#>
+function Wait-SurfaceSettled {
+  param([Parameter(Mandatory)] [string] $Clean, [string] $Now = (Get-SurfaceFingerprint), [int] $TimeoutSec = 15)
+  $watch = [Diagnostics.Stopwatch]::StartNew()
+  while ($Now -ne $Clean) {
+    if ((Get-OnScreenPart $Now) -ne (Get-OnScreenPart $Clean)) { return $false }
+    if ($watch.Elapsed.TotalSeconds -ge $TimeoutSec) {
+      # Said, because it is the one leftover nothing on screen shows.
+      Write-Host "    after ${TimeoutSec}s the window still has $($Now -replace '^.*=', '') WebView2 host(s), where it came up with $($Clean -replace '^.*=', '')" -ForegroundColor DarkGray
+      return $false
+    }
+    Start-Sleep -Milliseconds 250
+    $Now = Get-SurfaceFingerprint
+  }
+  $true
+}
+
+<#
+.SYNOPSIS
+Says what a suite left that keeps the app from its launch state, for a relaunch nobody has to guess
+the reason for.
+#>
+function Write-SurfaceDifference {
+  param([Parameter(Mandatory)] [string] $Clean, [Parameter(Mandatory)] [string] $Now)
+  $was = (Get-OnScreenPart $Clean) -split ','
+  $is = (Get-OnScreenPart $Now) -split ','
+  $gone = @($was | Where-Object { $_ -and $_ -notin $is })
+  $added = @($is | Where-Object { $_ -and $_ -notin $was })
+  Write-Host "    left on screen: $(if ($added) { $added -join ', ' } else { 'nothing' }); gone: $(if ($gone) { $gone -join ', ' } else { 'nothing' })" -ForegroundColor DarkGray
+}
+
+<#
+.SYNOPSIS
+A fingerprint without its WebView2 host count: what is on screen.
+#>
+function Get-OnScreenPart {
+  param([Parameter(Mandatory)] [string] $Print)
+  $Print -replace ';webview-hosts=\d+$', ''
 }
 
 <#
@@ -270,7 +323,9 @@ function Reset-AppSurface {
     # the tree, and this runs between every pair of suites, five walks an attempt was costing more
     # than the relaunch it was trying to avoid.
     $tree = @(Get-UiaTree)
-    if ((Get-SurfaceFingerprint $tree) -eq $Clean) { return $true }
+    $print = Get-SurfaceFingerprint $tree
+    if ($print -eq $Clean) { return $true }
+    if ((Get-OnScreenPart $print) -eq (Get-OnScreenPart $Clean)) { return Wait-SurfaceSettled $Clean $print }
     $shown = @($tree | Where-Object { -not $_.Current.IsOffscreen })
 
     # Every ContentDialog carries CloseButton, account setup carries CancelButton and the composer
@@ -285,10 +340,8 @@ function Reset-AppSurface {
       Where-Object { $_.Current.AutomationId -eq 'DiscardButton' -and $_.Current.ControlType -eq $button } |
       Select-Object -First 1
     if ($discard -and -not $dialogUp) {
-      Invoke-UiaElement $discard
-      Start-Sleep -Milliseconds 500
-      $confirm = Find-UiaElement -AutomationId 'PrimaryButton' -Type 'Button'
-      if ($confirm) { Invoke-UiaElement $confirm; Start-Sleep -Milliseconds 250 }
+      # The suites' own close, which also waits for the editor's browser window to go (uia.ps1).
+      try { $null = Close-Composer } catch { return $false }
       $acted = $true
     }
     foreach ($id in 'CancelButton', 'CloseButton') {
@@ -315,9 +368,14 @@ function Reset-AppSurface {
     # Nothing left to try. The commonest dirty state is a message open in the reading pane, which
     # has no close affordance at all, so retrying is a tree walk a second and a third time to reach
     # the same answer, and the caller is going to relaunch either way. Give up while it is cheap.
-    if (-not $acted) { return $false }
+    if (-not $acted) {
+      Write-SurfaceDifference $Clean $print
+      return $false
+    }
   }
-  (Get-SurfaceFingerprint) -eq $Clean
+  if (Wait-SurfaceSettled $Clean) { return $true }
+  Write-SurfaceDifference $Clean (Get-SurfaceFingerprint)
+  $false
 }
 
 <#

@@ -96,18 +96,6 @@ function Open-Reply {
   }
 }
 
-# By id, not by the label: unlike a showcase suite this one runs in whatever language the developer
-# has the app in, so matching 'Discard' would make every case pass or fail by that.
-function Close-Composer {
-  $discard = Find-UiaElement -AutomationId 'DiscardButton' -Type Button
-  if ($discard) { Invoke-UiaElement $discard }
-  # The question's primary button is Discard (ComposerView.Drafts.cs).
-  Wait-UiaQuiet -CapMs 800
-  $confirm = Find-UiaElement -AutomationId 'PrimaryButton' -Type Button
-  if ($confirm) { Invoke-UiaElement $confirm }
-  Wait-UiaGone -AutomationId 'SendButton' -TimeoutSec 10 | Out-Null
-}
-
 <#
 .SYNOPSIS
 Type -Token into the field with -AutomationId and return its open suggestion list, or $null.
@@ -145,7 +133,7 @@ $Suite = @{
           Assert-True (Wait-KeyboardFocus -AutomationId 'ToField') `
             'the composer opened with To unfocused: writing a new message costs a click before a single character can be typed (docs/contacts.md §4)'
         }
-        finally { Close-Composer }
+        finally { $null = Close-Composer }
       }
     },
     @{
@@ -160,7 +148,7 @@ $Suite = @{
           Assert-True (-not (Test-KeyboardFocus -AutomationId 'ToField')) `
             'a reply put the caret in To as well as the body, §4 binds one predicate over (mode, To), so exactly one of the two is focused'
         }
-        finally { Close-Composer }
+        finally { $null = Close-Composer }
       }
     },
     @{
@@ -185,7 +173,7 @@ $Suite = @{
               "$part moved when the suggestion list opened: the list is taking layout space, so the whole form jumps down and back on every keystroke while the user is still typing the first recipient (docs/contacts.md §4)"
           }
         }
-        finally { Close-Composer }
+        finally { $null = Close-Composer }
       }
     },
     @{
@@ -206,7 +194,7 @@ $Suite = @{
           Assert-GreaterThan $editorTop $listBottom `
             'the suggestion list stops above the message editor, so this run never tested whether it can cover a hosted web view, the half of §4 that does not come free'
         }
-        finally { Close-Composer }
+        finally { $null = Close-Composer }
       }
     },
     @{
@@ -231,7 +219,7 @@ $Suite = @{
           Assert-Equal $null (Find-UiaElement -AutomationId 'RecipientSuggestions') `
             "To's suggestion list is still on screen with the caret in Cc: harmless while the list sat in the layout, and covering a live field the moment it floats (docs/contacts.md §4)"
         }
-        finally { Close-Composer }
+        finally { $null = Close-Composer }
       }
     }
   )

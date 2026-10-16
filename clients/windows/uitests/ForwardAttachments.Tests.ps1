@@ -38,19 +38,6 @@ function Open-ForwardComposer {
   }
 }
 
-# Put the composer away between cases, by Discard, so no case leaves a draft in the harness's
-# Drafts. Discard asks first over a composer something was written in; the question's primary
-# button is Discard (ComposerView.Drafts.cs), so it is confirmed here.
-function Close-ForwardComposer {
-  $discard = Find-UiaElement -AutomationId 'DiscardButton' -Type Button
-  if ($discard) { Invoke-UiaElement $discard }
-  if (Find-OpenDialog -SettleMs 800) {
-    $confirm = Find-UiaElement -AutomationId 'PrimaryButton' -Type Button
-    if ($confirm) { Invoke-UiaElement $confirm }
-  }
-  Wait-UiaGone -AutomationId 'SendButton' -TimeoutSec 10 | Out-Null
-}
-
 # The rows actually on screen in the composer's attachment list, scoped to that list. Scoped for
 # uia.ps1 trap 2: a bare -Name sweep for the file name also matches the reading pane's own
 # attachment chip for the same message, which is still in the tree behind the composer, and that
@@ -107,7 +94,10 @@ $Suite = @{
           Assert-Equal $ForwardFileName $rows[0].Current.Name `
             "the attachment row reads '$($rows[0].Current.Name)': the row must carry the name the sender put on the part, not the uniquified path the core staged the bytes to, which is what the recipient would then see"
         }
-        finally { Close-ForwardComposer }
+        finally {
+          # By Discard, so no case leaves a draft in the harness's Drafts (uia.ps1, Close-Composer).
+          $null = Close-Composer
+        }
       }
     },
     @{
@@ -129,7 +119,7 @@ $Suite = @{
           Assert-Equal 0 (Get-ComposerAttachments).Count `
             'the row survived Remove: a staged file that cannot be taken off goes out whether or not the sender meant to pass it on'
         }
-        finally { Close-ForwardComposer }
+        finally { $null = Close-Composer }
       }
     },
     @{

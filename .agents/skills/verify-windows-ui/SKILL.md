@@ -158,6 +158,13 @@ all; `winapp.ps1`'s header has the detail:
   search for every match, or for something absent, does not return at all. The bridge caps every
   call and says so. Keystrokes need no lookup, so `Send-WinappKeys` types into a composer; a click
   into the body uses `Invoke-ClicksAt` (`uitests/appwindows.ps1`).
+- **…and until the editor's browser window has gone, which can be after the composer has left the
+  screen.** So a suite closes a composer with `Close-Composer` (`uia.ps1`): Discard by id, the
+  question answered, and a wait on the editor's own window handle. It throws if anything is left. A
+  close that matches a label finds nothing when the label is not there, leaves the composer to the
+  runner, and the next suite's first lookup times out in a suite that never opened one. The runner
+  counts the window's WebView2 hosts between suites for the same reason (`dataset.ps1`), and says
+  what it found when it relaunches.
 
 What still uses in-process input, and why: `Search.Tests` times the moment of one keystroke, which a
 `winapp` call cannot place inside its own process; `CalendarWheel.Tests` needs a horizontal wheel,
