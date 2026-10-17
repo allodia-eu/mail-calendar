@@ -122,6 +122,16 @@ that same file.
   pixels in a screenshot, and nothing does. Prove it on a simulator whose own appearance is the
   *opposite* of the one under test, driving the picker with `idb` and flipping the host with
   `xcrun simctl ui <udid> appearance light|dark`.
+- **An iPhone's main thread has 1 MB of stack and a simulator's has 8, and a debug build of a
+  SwiftUI view can use most of the first.** At `-Onone` a getter returning `some View` keeps its
+  value on the stack, sized at run time by the type, so its prologue shows a few hundred bytes while
+  the frame is hundreds of KB. A getter whose value is the whole app (`ContentView.body`,
+  `mainView`) took about 900 KB, and the launch crashed on the phone in whatever ran next, with
+  `EXC_BAD_ACCESS` in a "Stack Guard" region and a crash log naming an innocent deep call (the Swift
+  runtime resolving the sidebar's type). Every simulator run passed. Find the frames by attaching
+  `lldb` to the app on a simulator, breaking in the crashing function and subtracting consecutive
+  frames' `sp`; `pthread_get_stackaddr_np` minus `sp` is the depth a device must also hold. An
+  `AnyView` at the top of the tree (`ContentView.baseLayout`) moves the value to the heap.
 - **The C# bindings PascalCase every field, and nothing outside a Windows host compiles the code
   that reads them.** `mailcal-bindgen-cs` emits `PasswordAlsoWorks` where Swift and Kotlin keep
   `passwordAlsoWorks`, so a field name copied across from another client compiles on those two and
