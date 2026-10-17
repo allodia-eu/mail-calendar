@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -92,8 +93,8 @@ internal fun headerTextStyle(): TextStyle =
 
 /**
  * A borderless one-line input, its text centred on the row's line, showing [placeholder] while
- * empty. The placeholder sits inside the field's own decoration, so it is the field's name to
- * TalkBack as well as on screen.
+ * empty. The placeholder is the field's only label, so it is also the field's name to TalkBack,
+ * which keeps it once the field holds text and the placeholder is no longer drawn.
  */
 @Composable
 internal fun HeaderTextField(
@@ -107,7 +108,7 @@ internal fun HeaderTextField(
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.heightIn(min = HEADER_ROW_HEIGHT),
+        modifier = modifier.heightIn(min = HEADER_ROW_HEIGHT).namedBy(placeholder),
         singleLine = true,
         textStyle = headerTextStyle(),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -128,13 +129,16 @@ internal fun HeaderTextField(
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.heightIn(min = HEADER_ROW_HEIGHT),
+        modifier = modifier.heightIn(min = HEADER_ROW_HEIGHT).namedBy(placeholder),
         singleLine = true,
         textStyle = headerTextStyle(),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         decorationBox = { inner -> HeaderFieldDecoration(placeholder, value.isEmpty(), inner) },
     )
 }
+
+private fun Modifier.namedBy(placeholder: String?): Modifier =
+    if (placeholder == null) this else semantics { contentDescription = placeholder }
 
 @Composable
 private fun HeaderFieldDecoration(placeholder: String?, empty: Boolean, inner: @Composable () -> Unit) {

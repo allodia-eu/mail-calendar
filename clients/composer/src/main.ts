@@ -54,7 +54,7 @@ const toolbar = installToolbar(editor, toolbarRoot, () => labels, () => {
   void editLinkThroughHost(editor, hostRequests);
   return true;
 });
-const chrome = installNativeChrome(editor, toolbarRoot);
+const chrome = installNativeChrome(editor, toolbarRoot, () => toolbar.closePopovers());
 installImageResize(editor);
 const revision = installRevisionCounter(editor);
 

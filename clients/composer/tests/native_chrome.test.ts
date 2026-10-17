@@ -13,14 +13,22 @@ function mount() {
   const window = new Window();
   const document = window.document as unknown as Document;
   document.body.innerHTML = `
-    <div class="toolbar"><button id="bold">B</button><select id="size"><option>Normal</option></select></div>
+    <div class="toolbar"><button id="bold">B</button><select id="size"><option>Normal</option><option>Large</option></select></div>
     <main id="editor" contenteditable="true"><p>Half a sentence</p></main>
     <input id="elsewhere">`;
   const editor = document.getElementById("editor") as HTMLElement;
   const toolbar = document.querySelector(".toolbar") as HTMLElement;
-  installNativeChrome(editor, toolbar).useNativeComposerChrome();
+  let stopped = 0;
+  installNativeChrome(editor, toolbar, () => stopped++).useNativeComposerChrome();
   const writing = () => document.body.classList.contains("composer-writing");
-  return { window, document, editor, writing };
+  return { window, document, editor, writing, stopped: () => stopped };
+}
+
+/// What the WebView does when the native header takes focus: the page is blurred and
+/// `activeElement` stays where it was.
+function blurPage(window: Window, document: Document) {
+  document.hasFocus = () => false;
+  window.dispatchEvent(new window.Event("blur"));
 }
 
 describe("the native-chrome toolbar", () => {
@@ -46,23 +54,50 @@ describe("the native-chrome toolbar", () => {
   });
 
   test("goes when the page loses focus to the native header", async () => {
-    // The host's address field taking focus blurs the WebView's page and leaves `activeElement`
-    // on the editor, so the editor holding it is not enough.
+    // The editor still holding `activeElement` is not enough.
     const { window, document, editor, writing } = mount();
     editor.focus();
     await settled();
-    document.hasFocus = () => false;
-    window.dispatchEvent(new window.Event("blur"));
+    blurPage(window, document);
     expect(writing()).toBe(false);
   });
 
   test("stays while one of its own controls has focus", async () => {
-    // A `select`'s picker blurs the page while it is open; the control under it must stay.
+    const { document, writing } = mount();
+    (document.getElementById("size") as HTMLElement).focus();
+    await settled();
+    expect(writing()).toBe(true);
+  });
+
+  test("goes when the native header takes focus from one of its controls", async () => {
+    // A size picked, then the To field tapped: the toolbar must not stay over the keyboard.
     const { window, document, writing } = mount();
     (document.getElementById("size") as HTMLElement).focus();
     await settled();
-    document.hasFocus = () => false;
-    window.dispatchEvent(new window.Event("blur"));
-    expect(writing()).toBe(true);
+    blurPage(window, document);
+    expect(writing()).toBe(false);
+  });
+
+  test("a pick in one of its selects puts the caret back in the message", async () => {
+    const { window, document, editor } = mount();
+    const size = document.getElementById("size") as HTMLSelectElement;
+    size.focus();
+    size.selectedIndex = 1;
+    size.dispatchEvent(new window.Event("change", { bubbles: true }) as never);
+    await settled();
+    expect(document.activeElement).toBe(editor);
+  });
+
+  test("closes the toolbar's panels when writing stops, and only then", async () => {
+    // An open palette would otherwise come back with the toolbar, over a message the user has
+    // since moved on from.
+    const { window, document, editor, stopped } = mount();
+    editor.focus();
+    await settled();
+    expect(stopped()).toBe(0);
+    blurPage(window, document);
+    expect(stopped()).toBe(1);
+    blurPage(window, document);
+    expect(stopped()).toBe(1);
   });
 });

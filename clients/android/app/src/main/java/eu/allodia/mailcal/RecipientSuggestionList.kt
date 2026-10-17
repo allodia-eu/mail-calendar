@@ -183,14 +183,14 @@ internal fun RecipientSuggestionList(
         WindowInsets.ime.getBottom(density),
         WindowInsets.navigationBars.getBottom(density),
     )
+    val gapPx = with(density) { SUGGESTION_GAP.roundToPx() }
     val placement = suggestionPlacement(
         field = fieldBounds,
         visibleTop = window.top + WindowInsets.statusBars.getTop(density),
         visibleBottom = window.bottom - bottomInset,
-        gapPx = with(density) { SUGGESTION_GAP.roundToPx() },
+        gapPx = gapPx,
         minRoomPx = with(density) { SUGGESTION_MIN_ROOM.roundToPx() },
     )
-    val gapPx = with(density) { SUGGESTION_GAP.roundToPx() }
     Popup(
         popupPositionProvider = remember(gapPx, placement.above) { BesideTheInput(gapPx, placement.above) },
         properties = PopupProperties(focusable = false),

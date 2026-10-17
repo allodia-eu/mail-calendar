@@ -14,7 +14,12 @@ export interface NativeChrome {
   setComposerTopInset(cssPx: unknown): void;
 }
 
-export function installNativeChrome(editor: HTMLElement, toolbar: HTMLElement): NativeChrome {
+/// `onStopWriting` runs when the message stops being written, for the toolbar to close its panels.
+export function installNativeChrome(
+  editor: HTMLElement,
+  toolbar: HTMLElement,
+  onStopWriting: () => void = () => {},
+): NativeChrome {
   const doc = editor.ownerDocument;
   const win = windowOf(editor);
 
@@ -50,13 +55,15 @@ export function installNativeChrome(editor: HTMLElement, toolbar: HTMLElement): 
   // The toolbar formats the message, so it is drawn while the message is being written and gone
   // while an address field in the native header has the keyboard, where it would only take room
   // from the field being typed in. "Being written" is the message or the toolbar holding focus in a
-  // page that has it: the native header taking focus blurs the page and leaves `activeElement` on
-  // the editor, so `hasFocus` is what tells the two apart. A toolbar control holding focus counts
-  // whatever the page says, because a `select`'s picker is a native dialog that blurs the page while
-  // it is open, and hiding the control under it would lose the choice.
+  // page that has it: the native header taking focus blurs the page and leaves `activeElement` where
+  // it was, so `hasFocus` is what tells the two apart. A panel left open would come back with the
+  // toolbar, over a message the user has since moved on from, so it is closed as the toolbar goes.
+  let writing = false;
   const syncWriting = () => {
     const active = doc.activeElement;
-    const writing = (doc.hasFocus() && editor.contains(active)) || toolbar.contains(active);
+    const now = doc.hasFocus() && (editor.contains(active) || toolbar.contains(active));
+    if (writing && !now) onStopWriting();
+    writing = now;
     doc.body.classList.toggle("composer-writing", writing);
   };
 
@@ -70,6 +77,13 @@ export function installNativeChrome(editor: HTMLElement, toolbar: HTMLElement): 
       doc.addEventListener("focusout", () => win.setTimeout(syncWriting, 0));
       win.addEventListener("focus", syncWriting);
       win.addEventListener("blur", syncWriting);
+      // A picked font, size or style goes back to the message, which is where the next keystroke
+      // belongs. Left on the `select`, focus would keep the toolbar up as "writing" with nothing to
+      // type into. Here rather than in the toolbar, because on a desktop a keyboard user changes a
+      // `select` with the arrow keys, and each arrow is a `change`.
+      toolbar.addEventListener("change", (event) => {
+        if ((event.target as Element | null)?.tagName === "SELECT") editor.focus();
+      });
       setBottomInset();
       fillViewport();
       // The toolbar comes and goes with focus; keep the inset in step, so the message's last line

@@ -967,6 +967,14 @@
 
   // src/typography.ts
   var LEGACY_SIZES = [10, 13, 16, 18, 24, 32, 48];
+  function nearestLegacyLevel(size) {
+    let best = 0;
+    for (let i = 1;i < LEGACY_SIZES.length; i++) {
+      if (Math.abs(LEGACY_SIZES[i] - size) < Math.abs(LEGACY_SIZES[best] - size))
+        best = i;
+    }
+    return String(best + 1);
+  }
   var KEYWORD_SIZES = {
     "xx-small": 9,
     "x-small": 10,
@@ -1953,6 +1961,11 @@
     exec(editor, command);
   }
   function applyFontSize(editor, size) {
+    const caret = rangeWithin(editor);
+    if (caret?.collapsed) {
+      sizeAtCaret(editor, caret, size);
+      return;
+    }
     exec(editor, "fontSize", "7");
     normalizeFontElements(editor, size);
     const range = rangeWithin(editor);
@@ -1962,6 +1975,31 @@
       if (!range || !rangeTouches(range, span))
         continue;
       stampSize(span, size);
+    }
+  }
+  function sizeAtCaret(editor, caret, size) {
+    const node = caret.startContainer;
+    const offset = caret.startOffset;
+    exec(editor, "fontSize", nearestLegacyLevel(size));
+    editor.addEventListener("beforeinput", () => {
+      const now = rangeWithin(editor);
+      if (!now?.collapsed || now.startContainer !== node || now.startOffset !== offset)
+        return;
+      editor.addEventListener("input", () => stampTypedSize(editor, size), { once: true });
+    }, { once: true });
+  }
+  function stampTypedSize(editor, size) {
+    const range = rangeWithin(editor);
+    for (let node = range?.startContainer ?? null;node && node !== editor; node = node.parentNode) {
+      if (node.nodeType !== 1)
+        continue;
+      const element = node;
+      if (element.dataset.size || element.closest(".allodia-quote, .allodia-signature"))
+        return;
+      if (element.tagName === "FONT" && element.hasAttribute("size") || element.style.fontSize) {
+        stampSize(element, size);
+        return;
+      }
     }
   }
   function applyFontFamily(editor, font) {
@@ -2041,7 +2079,7 @@
   }
 
   // src/host.ts
-  function installNativeChrome(editor, toolbar) {
+  function installNativeChrome(editor, toolbar, onStopWriting = () => {}) {
     const doc = editor.ownerDocument;
     const win = windowOf(editor);
     const setBottomInset = () => {
@@ -2050,9 +2088,13 @@
     const fillViewport = () => {
       doc.documentElement.style.setProperty("--composer-fill-height", `${doc.documentElement.clientHeight}px`);
     };
+    let writing = false;
     const syncWriting = () => {
       const active = doc.activeElement;
-      const writing = doc.hasFocus() && editor.contains(active) || toolbar.contains(active);
+      const now = doc.hasFocus() && (editor.contains(active) || toolbar.contains(active));
+      if (writing && !now)
+        onStopWriting();
+      writing = now;
       doc.body.classList.toggle("composer-writing", writing);
     };
     return {
@@ -2064,6 +2106,10 @@
         doc.addEventListener("focusout", () => win.setTimeout(syncWriting, 0));
         win.addEventListener("focus", syncWriting);
         win.addEventListener("blur", syncWriting);
+        toolbar.addEventListener("change", (event) => {
+          if (event.target?.tagName === "SELECT")
+            editor.focus();
+        });
         setBottomInset();
         fillViewport();
         if (win.ResizeObserver)
@@ -4553,6 +4599,7 @@
     });
     return {
       openLink,
+      closePopovers: () => closeAll(),
       applyLabels(current) {
         editor.dataset.placeholder = current.placeholder;
         editor.setAttribute("aria-label", current.placeholder);
@@ -4689,7 +4736,7 @@
     editLinkThroughHost(editor, hostRequests);
     return true;
   });
-  var chrome = installNativeChrome(editor, toolbarRoot);
+  var chrome = installNativeChrome(editor, toolbarRoot, () => toolbar.closePopovers());
   installImageResize(editor);
   var revision = installRevisionCounter(editor);
   editor.addEventListener("paste", (event) => {

@@ -11,6 +11,15 @@ import { type FontSize, fontSizeOf } from "./types";
 /// how every engine draws them.
 const LEGACY_SIZES = [10, 13, 16, 18, 24, 32, 48] as const;
 
+/// The `<font size>` level drawn nearest `size`, as the string `execCommand("fontSize")` takes.
+export function nearestLegacyLevel(size: FontSize): string {
+  let best = 0;
+  for (let i = 1; i < LEGACY_SIZES.length; i++) {
+    if (Math.abs(LEGACY_SIZES[i]! - size) < Math.abs(LEGACY_SIZES[best]! - size)) best = i;
+  }
+  return String(best + 1);
+}
+
 /// The pixel size of each CSS absolute-size keyword.
 const KEYWORD_SIZES: Record<string, number> = {
   "xx-small": 9,

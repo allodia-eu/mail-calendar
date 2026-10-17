@@ -14,7 +14,7 @@
 
 import { documentOf, focusEditor, rangeTouches, rangeWithin } from "./dom";
 import { normalizeColor, normalizeFontElements, stampFont, stampSize } from "./marks";
-import { familyCss } from "./typography";
+import { familyCss, nearestLegacyLevel } from "./typography";
 import type { FontSize } from "./types";
 
 type Legacy = Document & {
@@ -39,6 +39,11 @@ export function applyMark(editor: HTMLElement, command: "bold" | "italic" | "und
 }
 
 export function applyFontSize(editor: HTMLElement, size: FontSize): void {
+  const caret = rangeWithin(editor);
+  if (caret?.collapsed) {
+    sizeAtCaret(editor, caret, size);
+    return;
+  }
   // `7` is the largest legacy `<font size>` value, used purely as a marker: it makes the runs the
   // command just touched findable, and `normalizeFontElements` then rewrites them to the real size.
   exec(editor, "fontSize", "7");
@@ -55,6 +60,43 @@ export function applyFontSize(editor: HTMLElement, size: FontSize): void {
     if (span.dataset.size || span.closest(".allodia-quote, .allodia-signature")) continue;
     if (!range || !rangeTouches(range, span)) continue;
     stampSize(span, size);
+  }
+}
+
+/// A size picked at a bare caret. The engine holds it as a typing style for whatever is typed next,
+/// so there is no run to rewrite yet, and the size-7 marker would be typed in at 48px and sent as
+/// that. The nearest real level is drawn instead, and the exact size is stamped on the run the
+/// first keystroke lands in, in place, because moving nodes under an IME that is composing a word
+/// breaks the word. Only when typing starts where the size was picked: a caret moved first has
+/// lost the typing style, and the run it types into is not the one this size was meant for.
+function sizeAtCaret(editor: HTMLElement, caret: Range, size: FontSize): void {
+  const node = caret.startContainer;
+  const offset = caret.startOffset;
+  exec(editor, "fontSize", nearestLegacyLevel(size));
+  editor.addEventListener(
+    "beforeinput",
+    () => {
+      const now = rangeWithin(editor);
+      if (!now?.collapsed || now.startContainer !== node || now.startOffset !== offset) return;
+      editor.addEventListener("input", () => stampTypedSize(editor, size), { once: true });
+    },
+    { once: true },
+  );
+}
+
+/// Stamps `size` on the sized run the caret was just typed into: the `<font size>` or the
+/// `font-size` span the engine made from a typing style. Exported for the tests, which have no
+/// `execCommand` to make one.
+export function stampTypedSize(editor: HTMLElement, size: FontSize): void {
+  const range = rangeWithin(editor);
+  for (let node: Node | null = range?.startContainer ?? null; node && node !== editor; node = node.parentNode) {
+    if (node.nodeType !== 1) continue;
+    const element = node as HTMLElement;
+    if (element.dataset.size || element.closest(".allodia-quote, .allodia-signature")) return;
+    if ((element.tagName === "FONT" && element.hasAttribute("size")) || element.style.fontSize) {
+      stampSize(element, size);
+      return;
+    }
   }
 }
 

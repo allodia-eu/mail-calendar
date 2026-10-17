@@ -1,8 +1,8 @@
 // The rich composer's header: From / To / Cc / Bcc / Subject as header rows (ComposerHeaderRow.kt),
-// plus the per-message quote-style toggle. Split out of RichComposeScreen so the editor below it stays the readable part of that
-// file. Cc and Bcc stay hidden behind a chevron on the To row (as Gmail and Thunderbird do), so
-// the default header is short, From, To, Subject, and the editor keeps room even with the
-// keyboard up. The caller owns the state, including whether Cc/Bcc are revealed.
+// plus the per-message quote-style toggle. Split out of RichComposeScreen so the editor below it
+// stays the readable part of that file. Cc and Bcc stay hidden behind a chevron on the To row (as
+// Gmail and Thunderbird do), so the default header is short, From, To, Subject, and the editor
+// keeps room even with the keyboard up. The caller owns the state, including whether Cc/Bcc are revealed.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Column
