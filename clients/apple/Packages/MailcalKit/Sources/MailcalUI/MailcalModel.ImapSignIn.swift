@@ -44,6 +44,7 @@ extension MailboxModel {
             setupError = L10n.app_unavailable()
             return .failed
         }
+        setupExistingAccount = nil
         // The session's `presentationContextProvider` is a WEAK reference, so this local is what
         // keeps the provider alive; the awaited `authorize` call spans the whole presentation, so
         // it cannot be released while the browser is up.
@@ -68,6 +69,7 @@ extension MailboxModel {
             } catch {
                 // The sign-in worked, so the add's own reason is the one to show.
                 showSetupFailure(error)
+                keepExistingAccountOffer(error, configToml: configToml)
                 return .notAdded
             }
             setupError = nil

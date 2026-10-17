@@ -1,6 +1,6 @@
 // One account's page in Settings → Accounts, in the order docs/settings.md gives: how it is shared,
-// what it is used for, the accounts it relies on, signing in again at its provider or its own
-// servers and password, its mail settings while it is used for mail, and its removal, last.
+// what it is used for, the accounts it relies on, how it signs in, its own servers and password,
+// its mail settings while it is used for mail, and its removal, last.
 
 import MailcalBindings
 import SwiftUI
@@ -57,6 +57,8 @@ struct AccountPageView: View {
             }
             if AccountSettingsRules.signsInAtProvider(entry.kind) {
                 signInSection
+            } else if AccountSignInRules.switchesSignIn(entry.kind) {
+                AccountSignInSection(model: model, entry: entry, alert: $alert)
             }
             if let endpoints = entry.endpoints {
                 AccountServersSection(

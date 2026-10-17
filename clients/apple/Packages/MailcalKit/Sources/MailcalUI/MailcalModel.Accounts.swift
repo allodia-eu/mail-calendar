@@ -29,11 +29,14 @@ enum UseChangeOutcome: Equatable {
 enum ConsentBrowser {
     case microsoft(MicrosoftSignIn)
     case google(any GoogleBrowserFlow)
+    /// A standards or JMAP account's sign-in, from its page or the banner.
+    case standards(JmapSignIn)
 
     func cancel() {
         switch self {
         case let .microsoft(signIn): signIn.cancel()
         case let .google(flow): flow.cancel()
+        case let .standards(signIn): signIn.cancel()
         }
     }
 }
@@ -159,6 +162,9 @@ extension MailboxModel {
         consentAttempt &+= 1
         let attempt = consentAttempt
         signingInAgain = id
+        // The newest sign-in in place owns every marker, including one a standards account's
+        // sign-in it just ended was holding.
+        signInSwitchBusy = nil
         let google = app.accountProvider(accountId: id) == .google
         let route = google ? "google" : "microsoft"
         do {

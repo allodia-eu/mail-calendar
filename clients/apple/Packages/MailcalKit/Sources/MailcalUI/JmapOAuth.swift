@@ -110,6 +110,12 @@ final class JmapSignIn: NSObject, ASWebAuthenticationPresentationContextProvidin
         }
     }
 
+    /// Ends a sign-in a newer request supersedes. The session answers its own completion handler
+    /// with `.canceledLogin`, which `authorize` turns into `.cancelled`.
+    func cancel() {
+        session?.cancel()
+    }
+
     func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
         #if os(macOS)
         return NSApp.keyWindow ?? NSApp.windows.first ?? ASPresentationAnchor()

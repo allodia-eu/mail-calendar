@@ -194,10 +194,10 @@ private func mailboxOnly() -> AccountEntry {
             password: nil)
         #expect(!AccountSettingsRules.replacesSecret(imap, expired: true, provider: .password))
 
-        // An IMAP account that signed in at its provider reports `.password` without editable
-        // servers, and has no secret a paste could replace.
+        // An IMAP account that signed in at its provider has no editable servers, and no secret a
+        // paste could replace.
         let imapSignedIn = entry(.imap, [(.mail, .on)])
-        #expect(!AccountSettingsRules.replacesSecret(imapSignedIn, expired: true, provider: .password))
+        #expect(!AccountSettingsRules.replacesSecret(imapSignedIn, expired: true, provider: .imapOauth))
     }
 }
 

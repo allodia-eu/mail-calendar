@@ -26,6 +26,7 @@ extension MailboxModel {
     /// flow without asking a name, rather than guessing which account it just added.
     func accountWasAdded(_ account: AccountRow? = nil) {
         setupError = nil
+        setupExistingAccount = nil
         syncAfterAccountChange()
         refreshAccountsSnapshot()
         guard let account else {
@@ -94,10 +95,11 @@ extension MailboxModel {
         setupStartOffer = nil
     }
 
-    /// What the last attempt on the setup form left behind: the error, and a certificate it was
-    /// refused or accepted.
+    /// What the last attempt on the setup form left behind: the error, the account it was
+    /// refused as already being, and a certificate it was refused or accepted.
     func clearSetupAttempt() {
         setupError = nil
+        setupExistingAccount = nil
         setupRejectedCertificate = nil
         setupAcceptedCertificate = nil
     }

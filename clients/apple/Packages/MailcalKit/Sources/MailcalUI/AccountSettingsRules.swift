@@ -151,9 +151,7 @@ enum AccountSettingsRules {
 
     /// Whether the mail settings offer a new password or API token: a JMAP account whose pasted
     /// secret the server stopped accepting. An account whose servers are editable takes its new
-    /// password there, and one that signs in at a provider signs in again instead. An IMAP account
-    /// that signed in at its provider also reports `.password` and has no editable servers, but
-    /// holds no secret a paste could replace.
+    /// password there, and one that signs in at a provider signs in again instead.
     static func replacesSecret(
         _ entry: AccountEntry, expired: Bool, provider: AccountProvider?
     ) -> Bool {

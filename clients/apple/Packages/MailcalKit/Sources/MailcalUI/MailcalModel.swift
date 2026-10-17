@@ -204,6 +204,9 @@ final class MailboxModel {
     var removalFailure: String?
     /// The account a sign-in in place is waiting on the browser for, or `nil`.
     var signingInAgain: String?
+    /// The account whose sign-in switch is waiting on the core: a discovery, an exchange or a
+    /// connect. Its page's controls wait with it; the browser wait is `signingInAgain`.
+    var signInSwitchBusy: String?
     /// That sign-in's browser half, so a newer request can end it rather than wait behind it.
     @ObservationIgnored var consentBrowser: ConsentBrowser?
     /// Which sign-in in place is the newest, so one a newer request ended clears nothing of it.
@@ -261,6 +264,11 @@ final class MailboxModel {
     /// `setupRejectedCertificate`, which is a question: this is the answer, and it outlives a
     /// retry that then fails on the password so nobody is asked the same thing twice.
     var setupAcceptedCertificate: RejectedCertificate?
+    /// The account an add was refused as already set up, with the config it was given, so the
+    /// form can offer to put that credential on it (`docs/accounts.md` rule 17).
+    var setupExistingAccount: ExistingAccountUpdate?
+    /// `true` while that offer is being taken.
+    var updatingExistingAccount = false
     /// `true` while a Microsoft sign-in is in flight (browser + token exchange + first
     /// sync), so the form shows progress instead of looking dead.
     var microsoftSigningIn = false
@@ -433,6 +441,7 @@ final class MailboxModel {
             setupError = L10n.app_unavailable()
             return
         }
+        setupExistingAccount = nil
         do {
             let start = try beginMicrosoftLogin(
                 tenant: MicrosoftOAuthConfig.tenant,

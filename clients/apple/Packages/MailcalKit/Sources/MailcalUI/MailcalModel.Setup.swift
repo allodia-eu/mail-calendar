@@ -70,6 +70,7 @@ extension MailboxModel {
         // after it connects, so a bad config is never stored.
         setupError = nil
         setupRejectedCertificate = nil
+        setupExistingAccount = nil
         isConnecting = true
         Task { @MainActor in
             defer { self.isConnecting = false }
@@ -83,6 +84,7 @@ extension MailboxModel {
                 self.accountWasAdded(added)
             } catch {
                 self.showSetupFailure(error)
+                self.keepExistingAccountOffer(error, configToml: configToml)
             }
         }
     }
@@ -133,6 +135,7 @@ extension MailboxModel {
         // A JMAP account's stored config carries no exception, so this route never raises the
         // panel; clearing it keeps an earlier IMAP refusal from reappearing over this attempt.
         setupRejectedCertificate = nil
+        setupExistingAccount = nil
         isConnecting = true
         Task { @MainActor in
             defer { self.isConnecting = false }
@@ -140,6 +143,7 @@ extension MailboxModel {
                 try await self.addAndStoreJmapAccount(app, configToml: configToml)
             } catch {
                 self.setupError = setupFailureMessage(error)
+                self.keepExistingAccountOffer(error, configToml: configToml)
             }
         }
     }

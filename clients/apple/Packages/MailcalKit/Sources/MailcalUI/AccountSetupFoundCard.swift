@@ -331,6 +331,7 @@ extension AccountSetupDetectView {
     private func inlineError(suppressed: Bool = false) -> some View {
         if let error = model.setupError, !suppressed {
             Text(error).font(.callout).foregroundStyle(.red)
+            AlreadySetUpOffer(model: model)
         }
     }
 
@@ -348,7 +349,8 @@ extension AccountSetupDetectView {
 
     /// A connect or a sign-in is running, and its answer belongs to the step on screen.
     private var busy: Bool {
-        model.isConnecting || model.microsoftSigningIn || model.googleSigningIn || imapSigningIn
+        model.isConnecting || model.updatingExistingAccount || model.microsoftSigningIn
+            || model.googleSigningIn || imapSigningIn
     }
 }
 
