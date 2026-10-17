@@ -95,6 +95,17 @@ public static class Program
             CrashLog.WatchForNativeFaults(logPath);
         }
 
+        // What earlier sessions' composers staged. Only the primary instance, and only what was
+        // made before this line: a composer opens once the window does, and its directory is newer.
+        var launched = DateTime.UtcNow;
+        _ = Task.Run(() =>
+        {
+            if (ComposerStaging.Sweep(launched) is var cleared and > 0)
+            {
+                Log.Info($"composer: deleted the files {cleared} earlier composer(s) staged");
+            }
+        });
+
         // A cold start FROM a mail link. Held rather than acted on: there is no window yet, and no
         // account list to send from, so MainWindow drains it once the core is up (MainWindow.MailLink.cs).
         MailLinkInbox.Pending = MailLinkFrom(activation) ?? MailLink.FromArguments(Environment.GetCommandLineArgs());

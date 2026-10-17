@@ -84,7 +84,7 @@ public sealed partial class MailboxModel
             return;
         }
         Log.Info(LogLineFor(action));
-        var intent = OutboxRows.IntentFor(action, row.Account, row.Op, ComposerStagingDirectory());
+        var intent = OutboxRows.IntentFor(action, row.Account, row.Op, ComposerStaging.NewDirectory());
         _app?.Dispatch(new Intent.Outbox(intent));
     }
 

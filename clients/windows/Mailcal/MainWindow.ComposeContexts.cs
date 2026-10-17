@@ -47,7 +47,7 @@ public sealed partial class MainWindow
         try
         {
             var composition = Guid.NewGuid().ToString("N");
-            var directory = MailboxModel.ComposerStagingDirectory();
+            var directory = ComposerStaging.NewDirectory();
             opening = await Task.Run(() => Model.OpenComposer(composition, origin, prefill, directory));
         }
         finally

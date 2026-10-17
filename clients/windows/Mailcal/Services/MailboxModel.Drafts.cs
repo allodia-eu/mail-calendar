@@ -168,13 +168,4 @@ public sealed partial class MailboxModel
             return DraftStatus.Idle;
         }
     }
-
-    /// <summary>
-    /// Where a composer's files are written when it opens holding some: a directory of its own,
-    /// so two composers never share a staged file. A forward's originals, a resumed draft's files
-    /// and a queued send moved back into Drafts all stage here.
-    /// </summary>
-    internal static string ComposerStagingDirectory() =>
-        Path.Combine(Path.GetTempPath(), "composer-files", Guid.NewGuid().ToString("N"));
-
 }
