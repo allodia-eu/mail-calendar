@@ -26,7 +26,8 @@ struct RecipientInput: NSViewRepresentable {
     /// Told what the user made the text, keystroke by keystroke; a value set from outside is not
     /// an edit.
     let onEdit: (String) -> Void
-    var onSubmit: (() -> Void)?
+    /// Return: `true` when the field took it, `false` to leave it to the platform.
+    let onReturn: () -> Bool
     /// Ignored: a macOS text field is drawn with its rounded border wherever this one is used.
     var bordered = false
 
@@ -95,11 +96,7 @@ struct RecipientInput: NSViewRepresentable {
         }
 
         func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
-            guard selector == #selector(NSResponder.insertNewline(_:)), let onSubmit = parent.onSubmit else {
-                return false
-            }
-            onSubmit()
-            return true
+            selector == #selector(NSResponder.insertNewline(_:)) && parent.onReturn()
         }
     }
 }
@@ -167,7 +164,8 @@ struct RecipientInput: UIViewRepresentable {
     /// Told what the user made the text, keystroke by keystroke; a value set from outside is not
     /// an edit.
     let onEdit: (String) -> Void
-    var onSubmit: (() -> Void)?
+    /// Return: `true` when the field took it, `false` to leave it to the platform.
+    let onReturn: () -> Bool
     /// Drawn with a rounded border, as `.textFieldStyle(.roundedBorder)` would draw SwiftUI's.
     var bordered = false
 
@@ -234,14 +232,10 @@ struct RecipientInput: UIViewRepresentable {
             if parent.isFocused { parent.isFocused = false }
         }
 
-        /// Return runs the field's own action and keeps the keyboard up for the next address; with
-        /// none, it puts the keyboard away, as a SwiftUI field does.
+        /// Return the field takes keeps the keyboard up for the next address; one it leaves puts
+        /// the keyboard away, as a SwiftUI field does.
         func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-            if let onSubmit = parent.onSubmit {
-                onSubmit()
-            } else {
-                textField.resignFirstResponder()
-            }
+            if !parent.onReturn() { textField.resignFirstResponder() }
             return false
         }
     }

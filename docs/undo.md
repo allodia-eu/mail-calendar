@@ -76,12 +76,12 @@ for every kind of change.
    history starts again from there.
 
 9. **A recipient field's history is the field's, a step per address.** Typing one address, finishing
-   it with a comma or Enter, accepting a suggestion and removing a pill are one step each. The
-   text entry inside the field keeps no history of its own: the field rewrites it each time an
-   address is finished, so the entry's undo would type a finished address back in and the field
-   would finish it a second time. Removing a pill puts the caret back in the field, so the chord
-   that brings the address back is heard there. A field seeded by the composer (a reply's
-   recipients) starts its history there.
+   it (a comma, Return or leaving the field, [`contacts.md`](contacts.md)), accepting a suggestion
+   and removing a pill are one step each. The text entry inside the field keeps no history of its
+   own: the field rewrites it each time an address is finished, so the entry's undo would type a
+   finished address back in and the field would finish it a second time. Removing a pill puts the
+   caret back in the field, so the chord that brings the address back is heard there. A field
+   seeded by the composer (a reply's recipients) starts its history there.
 
 10. **Subject and every other plain text field use the platform's own history.** The toolkit's
     text field already meets rules 1 and 2, except a Windows `TextBox`, which redoes on Ctrl+Y and

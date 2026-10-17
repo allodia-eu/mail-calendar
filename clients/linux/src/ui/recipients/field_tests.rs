@@ -314,3 +314,84 @@ pub(crate) fn the_undo_chord_is_found_on_a_layout_without_latin_letters() {
         "a Latin layout's own letter wins over the key it is on"
     );
 }
+
+/// Enter finishes the address being typed as a comma would, and in an empty field it is left to
+/// the entry's own `activate` (docs/contacts.md).
+pub(crate) fn enter_finishes_the_typed_address() {
+    let to = field("To");
+    let mut position = 0;
+    to.inner
+        .entry
+        .insert_text("bob@example.test", &mut position);
+    let none = gtk::gdk::ModifierType::empty();
+
+    let taken = to.inner.key_pressed(gtk::gdk::Key::Return, 0, none);
+    assert_eq!(taken, gtk::glib::Propagation::Stop);
+    assert_eq!(pill_labels(&to), vec!["bob@example.test"]);
+    assert_eq!(to.inner.entry.text(), "");
+
+    let left = to.inner.key_pressed(gtk::gdk::Key::Return, 0, none);
+    assert_eq!(
+        left,
+        gtk::glib::Propagation::Proceed,
+        "nothing typed, nothing taken"
+    );
+
+    // One step: Ctrl+Z gives the address back as text.
+    to.inner
+        .key_pressed(gtk::gdk::Key::z, 0, gtk::gdk::ModifierType::CONTROL_MASK);
+    assert_eq!(to.inner.entry.text(), "bob@example.test");
+}
+
+/// Leaving the entry finishes the address being typed; a field whose owner takes Enter (the
+/// invitee list) is left alone on both.
+pub(crate) fn leaving_the_field_finishes_the_typed_address() {
+    let to = field("To");
+    let mut position = 0;
+    to.inner
+        .entry
+        .insert_text("bob@example.test", &mut position);
+    leave(&to);
+    assert_eq!(pill_labels(&to), vec!["bob@example.test"]);
+
+    let invitees = field("Invitees");
+    invitees.connect_activate(|| {});
+    let mut position = 0;
+    invitees
+        .inner
+        .entry
+        .insert_text("bob@example.test", &mut position);
+    leave(&invitees);
+    let enter =
+        invitees
+            .inner
+            .key_pressed(gtk::gdk::Key::Return, 0, gtk::gdk::ModifierType::empty());
+    assert_eq!(
+        enter,
+        gtk::glib::Propagation::Proceed,
+        "Enter is the owner's"
+    );
+    assert!(pill_labels(&invitees).is_empty());
+}
+
+/// A click on a pill's remove button leaves focus in the entry: taking it would be leaving the
+/// field, which finishes what is typed and rebuilds the pills under the press.
+pub(crate) fn a_pills_remove_button_takes_no_focus() {
+    let to = field("To");
+    to.seed("bestuur@example.test");
+    assert!(
+        pill_removes(&to)
+            .iter()
+            .all(|remove| !remove.gets_focus_on_click())
+    );
+}
+
+/// Focus leaving the entry, as its focus controller reports it.
+fn leave(field: &RecipientField) {
+    let controllers = field.inner.entry.observe_controllers();
+    let focus = (0..controllers.n_items())
+        .filter_map(|index| controllers.item(index))
+        .find_map(|item| item.downcast::<gtk::EventControllerFocus>().ok())
+        .expect("the entry watches its focus");
+    focus.emit_by_name::<()>("leave", &[]);
+}

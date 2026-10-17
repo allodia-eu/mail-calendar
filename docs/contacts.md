@@ -216,6 +216,21 @@ string**: pills are a view of it, never a second source of truth, so nothing can
 would not be sent. Each pill carries a remove control, and the accessible label names the recipient
 rather than repeating a bare "Remove".
 
+**A comma, Return or leaving the field finishes the address being typed.** A phone's email keyboard
+has no comma on its first page, so a field that waits for one leaves an address the user has
+plainly finished as loose text. Return with an address in progress turns it into a pill and keeps
+the caret in the field for the next one; in an empty field Return does what the platform does with
+it. Leaving the field finishes it as a comma would. Two things this binds:
+
+- **Picking a suggestion is not leaving the field.** A client whose list takes focus when it is
+  clicked finishes nothing on the way there, or `ad` becomes a pill beside the `ada@example.org`
+  the user chose.
+- **Each is one step of the field's history** ([`undo.md`](undo.md), rule 9), so the chord after a
+  Return or a Tab puts the address back as text.
+
+An event's invitee field is not a recipient field in this sense: Return adds the invitee there, and
+Save takes an address still being typed, refusing it there if it cannot be invited.
+
 **A pre-filled field has nothing in progress.** The rule above (the trailing token is what is being
 typed) is an inference about the *user*, and it is wrong for a field the composer was **opened**
 with: a reply's derived recipients, an assistant's draft, a `mailto:` link. Every address a caller
@@ -316,6 +331,7 @@ change updates in every catalog locale.
 | Delete a contact | — | — | — | — | — | — |
 | Composer recipient autosuggest (contacts **+** sent-mail history) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer recipients as **pills**, with per-recipient removal | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A comma, **Return** or **leaving the field** finishes an address | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Suggestions **float**: the form below them does not move | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Suggestions stay **clear of the on-screen keyboard**, full width | — | — | ✅ | — | ✅ | — |
 | Address fields ask for the **email keyboard**, uncorrected | — | ✅ | ✅ | ✅ | ✅ | ✅ |

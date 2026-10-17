@@ -172,10 +172,11 @@ public sealed partial class RecipientField : UserControl
     public event EventHandler? RecipientsChanged;
 
     /// <summary>
-    /// Raised on Enter over typed text, for a host that takes what is typed (the event editor's
-    /// Invite). With no handler Enter goes where it went before; with one, Enter over typed text goes
-    /// nowhere else, so a dialog's default button does not fire under an address being added, and
-    /// Enter in an empty input still reaches it.
+    /// Raised on Enter over typed text, for a host that takes what is typed itself (the event
+    /// editor's Invite). With no handler, Enter and leaving the input finish the typed address as a
+    /// comma would (docs/contacts.md). Either way Enter over typed text goes nowhere else, so a
+    /// dialog's default button does not fire under an address being added, and Enter in an empty
+    /// input still reaches it.
     /// </summary>
     public event EventHandler? Submitted;
 
@@ -266,30 +267,59 @@ public sealed partial class RecipientField : UserControl
             SuggestionPopup.IsOpen = false;
             e.Handled = true;
         }
-        else if (e.Key == VirtualKey.Enter && Submitted is { } submitted && Input.Text.Trim().Length > 0)
+        else if (e.Key == VirtualKey.Enter && Input.Text.Trim().Length > 0)
         {
             SuggestionPopup.IsOpen = false;
             e.Handled = true;
-            submitted(this, EventArgs.Empty);
+            if (Submitted is { } submitted)
+            {
+                submitted(this, EventArgs.Empty);
+            }
+            else
+            {
+                FinishTyped();
+            }
         }
     }
 
     // Focus is leaving the input: close the list unless it is going INTO the list. Without the
     // exception, clicking a suggestion would dismiss the popup before the click landed on it; and
     // without the rule, tabbing from To to Cc would leave To's suggestions floating over Cc.
+    //
+    // Leaving the FIELD also finishes the typed address. Neither the list nor a pill's remove
+    // button is leaving it: finished on the way to a suggestion, the half-typed token becomes a pill
+    // beside the address chosen, and the pills rebuilt under a press swallow its click.
     private void OnInputLosingFocus(object sender, LosingFocusEventArgs e)
     {
-        if (!IsInsideSuggestions(e.NewFocusedElement as DependencyObject))
+        var next = e.NewFocusedElement as DependencyObject;
+        if (IsInsideSuggestions(next))
         {
-            SuggestionPopup.IsOpen = false;
+            return;
+        }
+        SuggestionPopup.IsOpen = false;
+        if (Submitted is null && !IsInside(next, this))
+        {
+            FinishTyped();
         }
     }
 
-    private bool IsInsideSuggestions(DependencyObject? element)
+    // The address being typed becomes a pill, as a comma would make it.
+    private void FinishTyped()
+    {
+        if (RecipientTokens.CurrentToken(_text).Length > 0)
+        {
+            Change(RecipientTokens.Seeded(_text), typed: false);
+        }
+    }
+
+    private bool IsInsideSuggestions(DependencyObject? element) =>
+        IsInside(element, SuggestionSurface) || IsInside(element, SuggestionPopup);
+
+    private static bool IsInside(DependencyObject? element, DependencyObject root)
     {
         for (var node = element; node is not null; node = VisualTreeHelper.GetParent(node))
         {
-            if (ReferenceEquals(node, SuggestionSurface) || ReferenceEquals(node, SuggestionPopup))
+            if (ReferenceEquals(node, root))
             {
                 return true;
             }

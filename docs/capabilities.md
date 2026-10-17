@@ -141,7 +141,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Sender **avatars**: a coloured monogram beside every sender, replaced by their photo where an account's address book has one ([`docs/avatars.md`](docs/avatars.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Contacts: the same person in several accounts is **one** row (joined on a shared address, never on a name), and says so: "In N accounts" + the accounts named in the detail | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer **recipient autosuggest**: ranked addresses from synced contacts **and** from people you have written to, so it works on an account with no address book | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Composer recipients as **pills**: each finished address is its own removable chip, the one being typed stays editable text | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Composer recipients as **pills**: each finished address is its own removable chip, the one being typed stays editable text until a comma, Return or leaving the field finishes it | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Address fields bring up the **email keyboard** (`@` on its first page) and leave what is typed uncorrected | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Search: `from:`/`to:` DSL, unified across accounts; **newest first**, every folder but Trash ([`docs/search.md`](docs/search.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Search scope filter: narrow an active search to the current folder (or, in the unified view, the inboxes) and back to all mail | ✅ | ⬜ | ⬜ | ⬜ | ✅ | ✅ |

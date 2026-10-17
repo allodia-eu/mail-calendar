@@ -40,8 +40,10 @@ struct RecipientField<Trailing: View>: View {
     var focusesOnAppear = false
     /// Told when the input gains or loses focus, for a host that must keep it in view.
     var onFocusChange: ((Bool) -> Void)?
-    /// Run when Return is pressed in the input. The input is the platform's own text field
-    /// (`RecipientInput`), which SwiftUI's `onSubmit` does not reach.
+    /// Run when Return is pressed in the input, by a host that finishes the typed address itself
+    /// (the invitee field). Without one, Return and leaving the field finish it here
+    /// (docs/contacts.md). The input is the platform's own text field (`RecipientInput`), which
+    /// SwiftUI's `onSubmit` does not reach.
     var onSubmit: (() -> Void)?
     /// Draws the input with a rounded border, which SwiftUI's `textFieldStyle` does not reach.
     var bordered = false
@@ -118,7 +120,13 @@ struct RecipientField<Trailing: View>: View {
                         input = typed
                         change(recipientFieldText(committed, typed), typed: true)
                     },
-                    onSubmit: onSubmit,
+                    onReturn: {
+                        if let onSubmit {
+                            onSubmit()
+                            return true
+                        }
+                        return finishTyped()
+                    },
                     bordered: bordered
                 )
                 trailing
@@ -154,7 +162,10 @@ struct RecipientField<Trailing: View>: View {
                 Task { @MainActor in focusRequest += 1 }
             }
         }
-        .onChange(of: inputFocused) { _, focused in onFocusChange?(focused) }
+        .onChange(of: inputFocused) { _, focused in
+            onFocusChange?(focused)
+            if !focused, onSubmit == nil { finishTyped() }
+        }
         // A value set from outside the field is where its history starts again.
         .onChange(of: text) { _, value in
             if value != undo.history.current { undo.history.restart(value) }
@@ -177,6 +188,14 @@ struct RecipientField<Trailing: View>: View {
         // builds it inline over the model, so it has a fresh identity each pass, and an effect that
         // keeps restarting never finishes a query.
         .task(id: token) { await loadSuggestions(token) }
+    }
+
+    /// Turns the address being typed into a pill, as a comma would; `false` when there is none.
+    @discardableResult
+    private func finishTyped() -> Bool {
+        guard !token.isEmpty else { return false }
+        change(seededRecipientField(text), typed: false)
+        return true
     }
 
     /// Files a change the user made in this field as a step of its history, and makes it.
