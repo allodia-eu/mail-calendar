@@ -41,8 +41,9 @@ mod schedule;
 /// we use at once" cannot sensibly differ by which path started the dial; each account's mail
 /// catch-up starts as soon as its own dial lands, three at a time in a pool of their own, so a
 /// long download never holds back a later account's dial. The calendar is fetched once every
-/// dial has landed, beside the catch-ups; contacts follow everything. Both cover the accounts this
-/// pass connected and no others: an account already live has nothing new to fetch.
+/// dial has landed, beside the catch-ups; contacts follow everything. Both sync the accounts this
+/// pass connected and no others, since an account already live has nothing new to fetch; what
+/// they rebuild from the store covers every account.
 pub(crate) async fn reconnect_all(
     app: Arc<App<Box<dyn Provider>>>,
     background: Arc<BackgroundManager>,

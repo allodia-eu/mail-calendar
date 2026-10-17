@@ -50,32 +50,45 @@ fn wait_for(what: &str, done: impl Fn() -> bool) {
     }
 }
 
-#[test]
-fn a_refused_sign_in_is_dialled_again_only_for_a_new_credential() {
-    let (base_url, requests) = refusing_server();
+/// A JMAP password account for `who` at `base_url`, and its id.
+fn account(who: &str, base_url: &str) -> (String, engine_api::AccountId) {
     let config = format!(
-        "[jmap]\nemail = \"refused@example.org\"\nbase_url = \"{base_url}\"\npassword = \"pw\"\n"
+        "[jmap]\nemail = \"{who}@example.org\"\nbase_url = \"{base_url}\"\npassword = \"pw\"\n"
     );
     let id = mailcal_account::load_jmap_str(&config)
         .expect("a valid config")
         .account_id()
         .expect("a valid account id");
-    let (tx, _rx) = mpsc::channel();
-    let app = MailcalApp::new_accounts(
-        Box::new(ChannelObserver { tx }),
-        Box::new(NullLogger),
-        LogLevel::Info,
-        vec![config],
-        crate::tests::temp_data_dir("signin-refused")
-            .to_string_lossy()
-            .into_owned(),
-        "Etc/UTC".to_owned(),
-        crate::analytics::test_device(),
-        Box::new(RecordingStoreHandle(Arc::new(
-            RecordingCredentialStore::default(),
-        ))),
-    )
-    .expect("the app boots over an account that will not sign in");
+    (config, id)
+}
+
+/// The arguments both constructors take, in their order.
+macro_rules! boot {
+    ($constructor:ident, $name:literal, $config:expr) => {{
+        let (tx, _rx) = mpsc::channel();
+        MailcalApp::$constructor(
+            Box::new(ChannelObserver { tx }),
+            Box::new(NullLogger),
+            LogLevel::Info,
+            vec![$config],
+            crate::tests::temp_data_dir($name)
+                .to_string_lossy()
+                .into_owned(),
+            "Etc/UTC".to_owned(),
+            crate::analytics::test_device(),
+            Box::new(RecordingStoreHandle(Arc::new(
+                RecordingCredentialStore::default(),
+            ))),
+        )
+        .expect("the app boots over an account that will not sign in")
+    }};
+}
+
+#[test]
+fn a_refused_sign_in_is_dialled_again_only_for_a_new_credential() {
+    let (base_url, requests) = refusing_server();
+    let (config, id) = account("refused", &base_url);
+    let app = boot!(new_accounts, "signin-refused", config);
 
     // The launch dials it once and is refused.
     wait_for("the launch's refusal", || {
@@ -96,6 +109,11 @@ fn a_refused_sign_in_is_dialled_again_only_for_a_new_credential() {
         "a refused sign-in was dialled again with the credential the server had just refused",
     );
 
+    assert!(
+        app.disconnected.lock().unwrap().is_empty(),
+        "queued for a retry"
+    );
+
     // A replaced credential is. This server refuses that too, which leaves the account as it was.
     let replaced = app.replace_account_secret(id.as_str().to_owned(), "new-pw".to_owned());
     assert!(
@@ -105,5 +123,23 @@ fn a_refused_sign_in_is_dialled_again_only_for_a_new_credential() {
     assert!(
         requests.load(Ordering::SeqCst) > after_launch,
         "the replaced credential was never tried",
+    );
+}
+
+/// The headless worker dials synchronously, and queues what failed for the same retry.
+#[test]
+fn a_headless_boot_does_not_queue_a_refused_sign_in() {
+    let (base_url, requests) = refusing_server();
+    let (config, _) = account("refused-headless", &base_url);
+
+    let app = boot!(new_background_worker, "signin-refused-headless", config);
+
+    assert!(
+        requests.load(Ordering::SeqCst) > 0,
+        "the boot never dialled"
+    );
+    assert!(
+        app.disconnected.lock().unwrap().is_empty(),
+        "queued for a retry"
     );
 }

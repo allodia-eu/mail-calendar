@@ -289,22 +289,6 @@ impl<P: Provider> App<P> {
         self.accounts.read().await.iter().map(Arc::clone).collect()
     }
 
-    /// Each stored account beside its [position](Self::account_ordinal): every one for `None`,
-    /// otherwise those `only` names, in stored order either way.
-    pub(crate) async fn positioned_handles(
-        &self,
-        only: Option<&[AccountId]>,
-    ) -> Vec<(usize, Arc<Account<P>>)> {
-        self.accounts
-            .read()
-            .await
-            .iter()
-            .enumerate()
-            .filter(|(_, account)| only.is_none_or(|ids| ids.contains(&account.id)))
-            .map(|(position, account)| (position, Arc::clone(account)))
-            .collect()
-    }
-
     /// The sidebar switcher rows (id + email) for every account used for mail, in the order the
     /// host stored them; see `install_account` for what holds that order across a reconnect. An
     /// account used for its calendar or contacts alone has no mailbox to switch to.

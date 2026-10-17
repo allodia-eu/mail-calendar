@@ -203,7 +203,12 @@ pub(crate) fn build_accounts(
             .map(|account| account.id.as_str().to_owned())
             .collect()
     } else {
-        failed.iter().map(|failure| failure.id.clone()).collect()
+        // A refused sign-in waits for a replaced credential, as in `reconnect_all`.
+        failed
+            .iter()
+            .filter(|failure| !failure.signin_rejected)
+            .map(|failure| failure.id.clone())
+            .collect()
     };
 
     let engine_start = Instant::now();

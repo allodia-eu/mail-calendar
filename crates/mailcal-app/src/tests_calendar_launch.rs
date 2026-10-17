@@ -319,6 +319,44 @@ async fn one_accounts_change_fetches_that_accounts_calendar_alone() {
     );
 }
 
+/// A pass that connected no account still draws the stored week, without a round trip.
+///
+/// An offline launch is that pass: the stored events still have to be expanded into the window
+/// as it advances, and only the network is skipped.
+#[tokio::test]
+async fn a_pass_that_connected_nothing_still_draws_the_stored_week() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let db = scratch_store("connected-nothing");
+    {
+        let provider = CalendarFake::with_events(vec![event_from_today("standup", 0, 9, 30)]);
+        let app = calendar_app_on(
+            engine_api::Engine::open(&db).expect("open store"),
+            vec![calendar_account("acct", provider)],
+            &surfaces,
+        );
+        app.refresh_calendar().await;
+    }
+    let provider = CalendarFake::unreachable();
+    let syncs = provider.syncs();
+    let app = calendar_app_on(
+        engine_api::Engine::open(&db).expect("reopen store"),
+        vec![calendar_account("acct", provider)],
+        &surfaces,
+    );
+
+    app.refresh_calendar_of(&[]).await;
+
+    let page = app.calendar_range(app.week_start_date(today()), 7);
+    assert!(page.is_materialized, "the stored week was drawn");
+    assert_eq!(page.grid.timed.len(), 1);
+    assert_eq!(
+        syncs.load(Ordering::Relaxed),
+        0,
+        "no account was asked to sync"
+    );
+    let _ = std::fs::remove_file(&db);
+}
+
 /// A refresh over accounts nobody has dialed yet claims nothing.
 ///
 /// This is what an interactive launch looks like for its first second: the boot returns

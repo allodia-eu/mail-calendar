@@ -1,11 +1,11 @@
 //! Calendar sync entry points and their write-feedback policy.
 
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 
 use engine_api::{AccountId, Provider};
 
 use crate::{
-    Account, App, CalendarWriteStatus,
+    App, CalendarWriteStatus,
     calendar_cache::rolling_horizon,
     calendar_unexpandable::unexpandable_line,
     sync_account::{Reach, reach_of_api, reachability, signin_expired},
@@ -17,8 +17,7 @@ impl<P: Provider> App<P> {
     /// This is the explicit retry behind [`crate::Intent::RefreshCalendar`]. Automatic refreshes
     /// use [`Self::refresh_calendar_in_background`] so they cannot dismiss a failed write.
     pub async fn refresh_calendar(&self) {
-        let accounts = self.positioned_handles(None).await;
-        self.refresh_calendars(accounts, true).await;
+        self.refresh_calendars(None, true).await;
     }
 
     /// Syncs every account's calendars without changing the last write's feedback.
@@ -26,26 +25,19 @@ impl<P: Provider> App<P> {
     /// Call this directly for a periodic refresh. Dispatching an intent would record feature
     /// adoption even when the user never opened the calendar.
     pub async fn refresh_calendar_in_background(&self) {
-        let accounts = self.positioned_handles(None).await;
-        self.refresh_calendars(accounts, false).await;
+        self.refresh_calendars(None, false).await;
     }
 
-    /// [`Self::refresh_calendar_in_background`] for the accounts in `ids` alone: the ones a
-    /// change reached (added, signed in again, given a calendar, reconnected). Every other
-    /// account's sources are left alone, each being a round trip and a scope lease. A no-op when
-    /// none of `ids` is stored.
+    /// [`Self::refresh_calendar_in_background`], syncing the sources of the accounts in `ids`
+    /// alone: the ones a change reached (added, signed in again, given a calendar, reconnected).
+    /// Every other account's sources are left alone, each being a round trip and a scope lease.
+    /// Every account is still re-expanded and the cache rebuilt, which costs no network, so the
+    /// rolling window advances on a pass that connected nothing.
     pub async fn refresh_calendar_of(&self, ids: &[AccountId]) {
-        let accounts = self.positioned_handles(Some(ids)).await;
-        if !accounts.is_empty() {
-            self.refresh_calendars(accounts, false).await;
-        }
+        self.refresh_calendars(Some(ids), false).await;
     }
 
-    async fn refresh_calendars(
-        &self,
-        accounts: Vec<(usize, Arc<Account<P>>)>,
-        clear_write_status: bool,
-    ) {
+    async fn refresh_calendars(&self, only: Option<&[AccountId]>, clear_write_status: bool) {
         let Some(horizon) = rolling_horizon() else {
             return;
         };
@@ -55,10 +47,18 @@ impl<P: Provider> App<P> {
         // and the rest of the calendar materializes, so this is not a sync failure, but it
         // draws *nowhere*, and dropping the report is what makes that unreproducible.
         let mut refused = Vec::new();
+        let accounts = self.account_handles().await;
         let (mut sources, mut synced_sources, mut busy, mut failed) = (0, 0, 0, 0);
-        for (acct, account) in &accounts {
+        let mut synced_accounts = 0;
+        for (acct, account) in accounts.iter().enumerate() {
+            let providers = if only.is_none_or(|ids| ids.contains(&account.id)) {
+                synced_accounts += 1;
+                account.calendar_providers.as_slice()
+            } else {
+                &[]
+            };
             let mut reaches = Vec::new();
-            for (index, provider) in account.calendar_providers.iter().enumerate() {
+            for (index, provider) in providers.iter().enumerate() {
                 sources += 1;
                 let started = Instant::now();
                 let result = self
@@ -122,9 +122,9 @@ impl<P: Provider> App<P> {
             self.set_calendar_write_status(CalendarWriteStatus::Idle);
         }
         log::info!(
-            "refresh_calendar: {sources} source(s) on {} account(s); {synced_sources} synced, \
-             {busy} busy, {failed} failed; sync+expand {}ms + rebuild {}ms{}",
-            accounts.len(),
+            "refresh_calendar: {sources} source(s) on {synced_accounts} account(s); \
+             {synced_sources} synced, {busy} busy, {failed} failed; sync+expand {}ms + rebuild \
+             {}ms{}",
             synced.as_millis(),
             rebuild_start.elapsed().as_millis(),
             if changed { "" } else { "; no redraw" }

@@ -520,8 +520,10 @@ places**, which is the part that has to be got right:
 - **The fetch** waits until every account has actually connected (`reconnect_all`). An interactive
   boot returns **provider-less placeholders** so cached mail paints at once and dials afterwards, so
   a fetch at boot reaches nothing, files nothing, and looks exactly like a fetch that found an empty
-  diary. It covers the accounts that pass connected; at launch that is every account that
-  answered, and a later reconnect fetches only the accounts it brought back.
+  diary. It syncs the accounts that pass connected; at launch that is every account that
+  answered, and a later reconnect syncs only the accounts it brought back. Expanding the stored
+  events into the window costs no network, so it covers every account, including on a launch that
+  connected none.
 
 **Adding an account does the same thing**, in the first download the user is already waiting on:
 a new account's store is empty by definition and the launch fetch has already been and gone, so

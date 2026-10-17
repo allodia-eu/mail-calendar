@@ -10,16 +10,13 @@
 //! account's cards feed one index, and one `people_page` read returns the finished article.
 //! That is why the rebuild below is a single query after the loop rather than a fold over it.
 
-use std::{
-    sync::{Arc, atomic::Ordering},
-    time::Instant,
-};
+use std::{sync::atomic::Ordering, time::Instant};
 
 use engine_api::{AccountId, ContactSourceClass, PeopleQuery, Provider};
 use mailcal_viewmodel::{ContactDetail, ContactsSnapshot, contacts};
 
 use crate::{
-    Account, App, Surface,
+    App, Surface,
     sync_account::{Reach, reach_of_api, reachability, signin_expired},
 };
 
@@ -41,35 +38,40 @@ impl<P: Provider> App<P> {
     /// the unified people index at the end of each provider's sync, so the snapshot read
     /// after the loop already reflects everything that landed.
     pub async fn refresh_contacts(&self) {
-        let accounts = self.positioned_handles(None).await;
-        self.sync_contacts_of(accounts).await;
+        self.sync_contacts_of(None).await;
         // A full refresh clears the last write's word, the way the calendar's does: "Saved" is a
         // sentence about something the user just did, and one still on screen when they come back
         // to Contacts an hour later is about nothing they remember.
         self.set_contact_write_status(crate::ContactWriteStatus::Idle);
     }
 
-    /// [`Self::refresh_contacts`] for the accounts in `ids` alone, leaving the last write's word
-    /// as it is: the refresh after a change only these accounts saw (added, signed in again,
-    /// given contacts, reconnected). A no-op when none of `ids` is stored.
+    /// [`Self::refresh_contacts`], syncing the address books of the accounts in `ids` alone and
+    /// leaving the last write's word as it is: the refresh after a change only these accounts saw
+    /// (added, signed in again, given contacts, reconnected). The snapshot is still rebuilt from
+    /// every account's stored cards, so a pass that connected nothing still lists them.
     pub async fn refresh_contacts_of(&self, ids: &[AccountId]) {
-        let accounts = self.positioned_handles(Some(ids)).await;
-        if !accounts.is_empty() {
-            self.sync_contacts_of(accounts).await;
-        }
+        self.sync_contacts_of(Some(ids)).await;
     }
 
-    async fn sync_contacts_of(&self, accounts: Vec<(usize, Arc<Account<P>>)>) {
+    async fn sync_contacts_of(&self, only: Option<&[AccountId]>) {
         let sync_start = Instant::now();
         let mut synced = 0_usize;
         let mut unavailable = 0_usize;
         let mut failed = 0_usize;
         let mut sources = 0_usize;
         let mut contributing = 0_usize;
+        let mut asked = 0_usize;
+        // Clone the account handles and sync with the read guard released; these are
+        // network round-trips and must not hold the lock.
+        let accounts = self.account_handles().await;
         // `acct` is the account's stored position, never the account id; ids embed the user's
         // address (`docs/logging.md`). It matches the mail sync's `sync[a{n}]` so one attached log
         // reads across both surfaces: the same account is `a0` in either.
-        for (acct, account) in &accounts {
+        for (acct, account) in accounts.iter().enumerate() {
+            if only.is_some_and(|ids| !ids.contains(&account.id)) {
+                continue;
+            }
+            asked += 1;
             if account.contact_providers.is_empty() {
                 log::info!("contacts[a{acct}]: skipped; no contact sources bound");
                 continue;
@@ -162,18 +164,24 @@ impl<P: Provider> App<P> {
             // The single most common live-test question, answered before it is asked: an empty
             // Contacts list here is a *binding* outcome, not a sync one, so the next thing to
             // read is the `connection_info: … contacts_source[…]` lines from connect, not this.
-            log::info!(
-                "refresh_contacts: no contact sources on any of {} account(s), nothing to sync",
-                accounts.len(),
-            );
+            if only.is_none() {
+                log::info!(
+                    "refresh_contacts: no contact sources on any of {asked} account(s), nothing \
+                     to sync",
+                );
+            } else {
+                log::info!(
+                    "refresh_contacts: no contact sources on the {asked} account(s) this pass \
+                     covers, nothing to sync",
+                );
+            }
         } else {
             // `{contributing} of {total}` rather than a single account count, because the gap
             // between them is itself a finding: three accounts and one contributing is either
             // expected (two are IMAP accounts with no CardDAV endpoint) or the bug being reported.
             log::info!(
-                "refresh_contacts: {sources} source(s) on {contributing} of {} account(s); \
+                "refresh_contacts: {sources} source(s) on {contributing} of {asked} account(s); \
                  {synced} synced, {unavailable} unavailable, {failed} failed in {}ms",
-                accounts.len(),
                 sync_start.elapsed().as_millis(),
             );
         }
