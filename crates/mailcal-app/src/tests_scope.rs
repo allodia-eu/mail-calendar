@@ -21,6 +21,9 @@ use super::{Intent, OutboxIntent, Surface};
 #[path = "tests_fakes.rs"]
 mod fakes;
 
+// A selection that moved while a rebuild was running; its own file for the 500-line limit.
+mod staleness;
+
 #[tokio::test]
 async fn opening_an_unsynced_folder_downloads_it_on_demand() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));

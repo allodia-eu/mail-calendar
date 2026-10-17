@@ -22,45 +22,9 @@ use mailcal_viewmodel::{
 
 use crate::{App, CachedRows, Scope};
 
-/// Which of the rows in view actually belong to the list being shown.
-///
-/// The rows themselves come from the accounts in view; this decides which of them the flat list
-/// shows and which conversations the threaded list lists. Out-of-view rows are still projected;
-/// they are what completes a conversation with the owner's Sent replies.
-pub(crate) enum InView {
-    /// Every message of the accounts in view counts: an account's own all-mail.
-    Everything,
-    /// Only messages filed in the named mailbox **of their own account**: the selected folder for
-    /// one account, or each account's Inbox for the unified view.
-    Mailbox(HashMap<String, String>),
-}
+mod in_view;
 
-impl InView {
-    /// The unified view: each account's own INBOX is what counts as in view.
-    pub(crate) fn inboxes(by_account: HashMap<String, String>) -> Self {
-        Self::Mailbox(by_account)
-    }
-
-    /// One account's view: the selected folder, or everything when its all-mail is showing.
-    pub(crate) fn folder(account: &AccountId, folder: Option<&str>) -> Self {
-        match folder {
-            None => Self::Everything,
-            Some(key) => Self::Mailbox(HashMap::from([(
-                account.as_str().to_owned(),
-                key.to_owned(),
-            )])),
-        }
-    }
-
-    pub(crate) fn holds(&self, row: &MailListRow) -> bool {
-        match self {
-            Self::Everything => true,
-            Self::Mailbox(by_account) => by_account
-                .get(row.account.as_str())
-                .is_some_and(|wanted| row.mailboxes.iter().any(|id| id.as_str() == wanted)),
-        }
-    }
-}
+pub(crate) use in_view::InView;
 
 impl<P: Provider> App<P> {
     /// Reads the accounts in view and projects them into the mailbox-list snapshot; ranked
@@ -84,12 +48,32 @@ impl<P: Provider> App<P> {
     /// *older* one carried reproduces the race exactly, without having to win a scheduling
     /// coin-toss for it.
     pub(crate) async fn rebuild_snapshot_for(&self, query: Option<&str>, generation: u64) {
-        let start = Instant::now();
-        let account_rows = self.account_rows().await;
         // One read of one lock: the account and the folder are one value, so a snapshot can
         // never pair a folder key with an account that was not showing it.
         let scope = self.scope.lock().expect("scope mutex poisoned").clone();
         let mode = *self.view_mode.lock().expect("view-mode mutex poisoned");
+        self.rebuild_snapshot_in(&scope, mode, query, generation)
+            .await;
+    }
+
+    /// [`rebuild_snapshot_for`](Self::rebuild_snapshot_for) for the selection it read: the list
+    /// is published **only** if the list is still showing `scope` in `mode` when it is done.
+    ///
+    /// Rebuilds run concurrently, a sync's next to the one a click started, and finish in any
+    /// order. One begun for the folder being left can finish after the folder just opened, and
+    /// publishing it would put the user back where they came from. The selection is a parameter
+    /// for the reason the search is: handing a test the one an older rebuild read reproduces
+    /// that race exactly.
+    pub(crate) async fn rebuild_snapshot_in(
+        &self,
+        scope: &Scope,
+        mode: ViewMode,
+        query: Option<&str>,
+        generation: u64,
+    ) {
+        let start = Instant::now();
+        let account_rows = self.account_rows().await;
+        let scope = scope.clone();
         let limit = self.visible_limit();
         let window = self.load_window();
 
@@ -125,6 +109,16 @@ impl<P: Provider> App<P> {
             // length is all a reader needs to tell a dropped list from a published one.
             log::info!(
                 "rebuild_snapshot: {rows} row(s) superseded by a newer search after {}ms, \
+                 dropped",
+                start.elapsed().as_millis(),
+            );
+            return;
+        }
+        if *self.scope.lock().expect("scope mutex poisoned") != scope
+            || *self.view_mode.lock().expect("view-mode mutex poisoned") != mode
+        {
+            log::info!(
+                "rebuild_snapshot: {rows} row(s) superseded by a newer selection after {}ms, \
                  dropped",
                 start.elapsed().as_millis(),
             );
