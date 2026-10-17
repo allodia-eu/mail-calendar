@@ -68,9 +68,9 @@ pub(super) use connectors::{
 };
 pub(super) use fixtures::{evt, message, msg, open_folder, thread_ref, threaded, unthreaded};
 pub(super) use invitation::{
-    ALIAS, CALENDAR_ACCOUNT, EVENT_KEY, InvitationFake, MEETING_UID, MESSAGE_KEY, RecordedPuts,
-    RecordedRsvps as InvitationRsvps, RecordedSends, invitation_app, invitation_app_with_prefs,
-    linked_invitation_app,
+    ALIAS, CALENDAR_ACCOUNT, EVENT_KEY, InvitationFake, MEETING_UID, MESSAGE_KEY, OTHER_MAILBOX,
+    RecordedPuts, RecordedRsvps as InvitationRsvps, RecordedSends, invitation_app,
+    invitation_app_with_prefs, linked_invitation_app, shared_calendar_app,
 };
 pub(super) use provider::{EditGate, FakeProvider};
 

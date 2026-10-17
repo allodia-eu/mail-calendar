@@ -15,8 +15,8 @@ use mailcal_viewmodel::ResponseStatus;
 use super::{
     Intent, InvitationResponse, MessageRef, Surface,
     fakes::{
-        ALIAS, CALENDAR_ACCOUNT, EVENT_KEY, InvitationFake, MESSAGE_KEY, RecordedSends, evt,
-        invitation_app, linked_invitation_app,
+        ALIAS, CALENDAR_ACCOUNT, EVENT_KEY, InvitationFake, MESSAGE_KEY, OTHER_MAILBOX,
+        RecordedSends, evt, invitation_app, linked_invitation_app, shared_calendar_app,
     },
 };
 use crate::{App, EventIntent, ReaderId};
@@ -239,4 +239,50 @@ async fn a_calendar_on_the_invitations_own_account_is_not_asked_whom_it_schedule
         "the server route, as before"
     );
     assert!(sends.lock().unwrap().is_empty(), "and no reply of our own");
+}
+
+#[tokio::test]
+async fn a_linked_calendar_that_is_not_connected_leaves_the_mailbox_replying() {
+    let calendar = InvitationFake::new().without_server_scheduling();
+    let (app, sends) = booted(calendar, true, None).await;
+    // The link still holds in Settings while the calendar account is not in the running app.
+    app.remove_account(&engine_api::AccountId::try_from(CALENDAR_ACCOUNT).unwrap())
+        .await;
+
+    accept(&app).await;
+    assert_eq!(
+        sends.lock().unwrap().len(),
+        1,
+        "the reply is emailed although the meeting cannot be filed"
+    );
+}
+
+#[tokio::test]
+async fn a_calendar_two_mailboxes_file_into_answers_from_the_mailbox_it_invited() {
+    let mut calendar = InvitationFake::new().without_server_scheduling();
+    calendar.materialized = true;
+    let (mail, other) = (
+        InvitationFake::new().with_mail_only(),
+        InvitationFake::new().with_mail_only(),
+    );
+    let (sends, other_sends) = (mail.sends(), other.sends());
+    let surfaces: Arc<Mutex<Vec<Surface>>> = Arc::new(Mutex::new(Vec::new()));
+    let app = shared_calendar_app(mail, other, calendar, &surfaces, Some(with_alias("shared")));
+    app.dispatch(Intent::RefreshCalendar).await;
+
+    app.dispatch(Intent::Events(EventIntent::Respond {
+        event: evt(CALENDAR_ACCOUNT, EVENT_KEY),
+        response: InvitationResponse::Accept,
+        reply_subject: None,
+    }))
+    .await;
+    assert_eq!(
+        sends.lock().unwrap().len(),
+        1,
+        "the meeting invites `acct-a`'s alias, so `acct-a` emails the reply"
+    );
+    assert!(
+        other_sends.lock().unwrap().is_empty(),
+        "not {OTHER_MAILBOX}, although the calendar sends through it"
+    );
 }

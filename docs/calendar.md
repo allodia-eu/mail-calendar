@@ -432,8 +432,8 @@ already given shown chosen and inert. Four rules:
   invitation card has ([`invitations.md`](invitations.md), "Who delivers the answer"). Where the
   server schedules, storing the answer sends it, and a server that reports it could not deliver
   asks the same question the card does; where it does not, the core writes the answer and emails
-  the `REPLY` itself, from the mail account the calendar sends through when it has no mail of its
-  own ([`invitations.md`](invitations.md), "Which calendar an invitation uses"). Without a route
+  the `REPLY` itself, from the mail account linked with the calendar that the meeting invited, or
+  the one the calendar sends through ([`invitations.md`](invitations.md), "Which calendar an invitation uses"). Without a route
   there are no buttons, never three that tell nobody.
 - **The answer is for the whole meeting**, a series included: the engine's RSVP writes an event as
   a whole. One occurrence is answered from its own invitation, which names it.

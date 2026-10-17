@@ -24,6 +24,10 @@ impl InvitationFake {
     }
 }
 
+/// The second mailbox [`shared_calendar_app`] files into the calendar, and the one the calendar
+/// sends through.
+pub(crate) const OTHER_MAILBOX: &str = "acct-c";
+
 /// An app over `acct-a`, whose identity is `me@` and whose mail is `mail`, and the calendar
 /// account `cal-b`, whose calendar is `calendar` and which signs in as `login@dav.test.local`.
 /// With `linked`, the two are linked both ways, as Settings links them.
@@ -34,26 +38,85 @@ pub(crate) fn linked_invitation_app(
     surfaces: &Arc<Mutex<Vec<Surface>>>,
     prefs_path: Option<std::path::PathBuf>,
 ) -> App<InvitationFake> {
+    let links = linked.then(|| {
+        BTreeMap::from([
+            ("acct-a".to_owned(), files_into_calendar()),
+            (CALENDAR_ACCOUNT.to_owned(), sends_through("acct-a")),
+        ])
+    });
     let accounts = vec![
-        Account {
-            id: AccountId::try_from("acct-a").unwrap(),
-            providers: vec![mail],
-            calendar_providers: Vec::new(),
-            contact_providers: Vec::new(),
-            identity: EmailAddress::new("me@test.local"),
-            dialled: true,
-            uses_mail: true,
-        },
-        Account {
-            id: AccountId::try_from(CALENDAR_ACCOUNT).unwrap(),
-            providers: Vec::new(),
-            calendar_providers: vec![calendar],
-            contact_providers: Vec::new(),
-            identity: EmailAddress::new("login@dav.test.local"),
-            dialled: true,
-            uses_mail: false,
-        },
+        mailbox("acct-a", "me@test.local", mail),
+        calendar_account(calendar),
     ];
+    app_over(accounts, links, surfaces, prefs_path)
+}
+
+/// [`linked_invitation_app`] linked, with a second mailbox `acct-c` (`other@`, mail `other`)
+/// filing into the same calendar, which sends through `acct-c`.
+pub(crate) fn shared_calendar_app(
+    mail: InvitationFake,
+    other: InvitationFake,
+    calendar: InvitationFake,
+    surfaces: &Arc<Mutex<Vec<Surface>>>,
+    prefs_path: Option<std::path::PathBuf>,
+) -> App<InvitationFake> {
+    let links = BTreeMap::from([
+        ("acct-a".to_owned(), files_into_calendar()),
+        (OTHER_MAILBOX.to_owned(), files_into_calendar()),
+        (CALENDAR_ACCOUNT.to_owned(), sends_through(OTHER_MAILBOX)),
+    ]);
+    let accounts = vec![
+        mailbox("acct-a", "me@test.local", mail),
+        mailbox(OTHER_MAILBOX, "other@test.local", other),
+        calendar_account(calendar),
+    ];
+    app_over(accounts, Some(links), surfaces, prefs_path)
+}
+
+fn mailbox(id: &str, identity: &str, mail: InvitationFake) -> Account<InvitationFake> {
+    Account {
+        id: AccountId::try_from(id).unwrap(),
+        providers: vec![mail],
+        calendar_providers: Vec::new(),
+        contact_providers: Vec::new(),
+        identity: EmailAddress::new(identity),
+        dialled: true,
+        uses_mail: true,
+    }
+}
+
+fn calendar_account(calendar: InvitationFake) -> Account<InvitationFake> {
+    Account {
+        id: AccountId::try_from(CALENDAR_ACCOUNT).unwrap(),
+        providers: Vec::new(),
+        calendar_providers: vec![calendar],
+        contact_providers: Vec::new(),
+        identity: EmailAddress::new("login@dav.test.local"),
+        dialled: true,
+        uses_mail: false,
+    }
+}
+
+fn files_into_calendar() -> AccountLinks {
+    AccountLinks {
+        calendar: Some(AccountId::try_from(CALENDAR_ACCOUNT).unwrap()),
+        ..AccountLinks::default()
+    }
+}
+
+fn sends_through(mail: &str) -> AccountLinks {
+    AccountLinks {
+        mail: Some(AccountId::try_from(mail).unwrap()),
+        ..AccountLinks::default()
+    }
+}
+
+fn app_over(
+    accounts: Vec<Account<InvitationFake>>,
+    links: Option<BTreeMap<String, AccountLinks>>,
+    surfaces: &Arc<Mutex<Vec<Surface>>>,
+    prefs_path: Option<std::path::PathBuf>,
+) -> App<InvitationFake> {
     let app = App::new(
         Engine::open_in_memory().unwrap(),
         accounts,
@@ -67,25 +130,8 @@ pub(crate) fn linked_invitation_app(
         }),
         Telemetry::off(None),
     );
-    if linked {
-        app.set_links_source(Arc::new(|| {
-            BTreeMap::from([
-                (
-                    "acct-a".to_owned(),
-                    AccountLinks {
-                        calendar: Some(AccountId::try_from(CALENDAR_ACCOUNT).unwrap()),
-                        ..AccountLinks::default()
-                    },
-                ),
-                (
-                    CALENDAR_ACCOUNT.to_owned(),
-                    AccountLinks {
-                        mail: Some(AccountId::try_from("acct-a").unwrap()),
-                        ..AccountLinks::default()
-                    },
-                ),
-            ])
-        }));
+    if let Some(links) = links {
+        app.set_links_source(Arc::new(move || links.clone()));
     }
     app
 }

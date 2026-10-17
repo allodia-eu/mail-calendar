@@ -41,7 +41,7 @@ impl<P: Provider> App<P> {
             return None;
         }
         let attendee = matched_attendee(stored, &addresses)?;
-        let mail = self.invitation_mail(account);
+        let mail = self.answering_mail(account, &attendee).await;
         if self.delivery_between(&mail, account, Some(&attendee)).await == Delivery::None {
             return None;
         }
@@ -87,8 +87,9 @@ impl<P: Provider> App<P> {
         if may_edit_roster(&stored, &addresses) {
             return Err("this account organises the meeting, so there is nothing to answer".into());
         }
-        let letter =
-            self.event_letter(event, &stored, &addresses, response, None, reply_subject)?;
+        let letter = self
+            .event_letter(event, &stored, &addresses, response, None, reply_subject)
+            .await?;
         let acct = self
             .account_handle(&event.account)
             .await
@@ -184,6 +185,7 @@ impl<P: Provider> App<P> {
             .ok_or_else(|| "the event is no longer in the calendar".to_owned())?;
         let addresses = self.account_address_set(&event.account).await;
         self.event_letter(event, &stored, &addresses, response, comment, reply_subject)
+            .await
     }
 
     /// The reply read from `stored`, the calendar's copy of the meeting.
@@ -195,7 +197,7 @@ impl<P: Provider> App<P> {
     ///
     /// Returns why no reply can be written: the meeting does not invite this account, names no
     /// organiser, or its start cannot be placed.
-    fn event_letter(
+    async fn event_letter(
         &self,
         event: &EventRef,
         stored: &Event,
@@ -226,8 +228,7 @@ impl<P: Provider> App<P> {
         let starts_at = resolve_instant_in(&stored.start, &self.active_zone())
             .map_err(|err| format!("the meeting's start cannot be placed: {err}"))?;
         Ok(ReplyLetter {
-            // The calendar's mail account sends it: the calendar's own, or the one it links to.
-            account: self.invitation_mail(&event.account),
+            account: self.answering_mail(&event.account, &attendee).await,
             source: ReplySource::Event(event.clone()),
             summary: stored.title.clone(),
             uid: stored.uid.as_str().to_owned(),

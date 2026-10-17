@@ -44,7 +44,9 @@ mod linked;
 mod meeting;
 #[path = "invitation_routes.rs"]
 mod routes;
-pub(crate) use linked::{CALENDAR_ACCOUNT, linked_invitation_app};
+pub(crate) use linked::{
+    CALENDAR_ACCOUNT, OTHER_MAILBOX, linked_invitation_app, shared_calendar_app,
+};
 
 /// The `(attendee, answer, comment, notify-organizer)` each RSVP carried.
 pub(crate) type RecordedRsvps = Arc<Mutex<Vec<(String, RsvpResponse, Option<String>, bool)>>>;

@@ -113,8 +113,9 @@ impl<P: Provider> App<P> {
     /// an ordered account index that appends on first add and leaves every existing entry where
     /// it is.
     async fn install_account(&self, account: Account<P>) -> bool {
-        self.forget_calendar_users(&account.id);
         let mut accounts = self.accounts.write().await;
+        // After the new connection is in, so a question put to the old one is not kept.
+        self.forget_calendar_users(&account.id);
         let at = accounts
             .iter()
             .position(|existing| existing.id == account.id);

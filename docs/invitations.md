@@ -441,8 +441,10 @@ from one mail account. For an invitation in mail account M:
   preview, the stored copy the card reads the answer from, the filing and the RSVP write all use it.
 - **The mail** is M's: the reply the core emails, and the "shall we email the organiser?" question,
   whose remembered choice is M's because it is a permission to send mail as M.
-- An answer given **from the calendar** C turns it round: C's own mail when C is used for mail,
-  else the mail account C sends through (`links.mail`).
+- An answer given **from the calendar** C turns it round: C's own mail when the invited address is
+  C's own, else the mail account linked with C that the address belongs to, so a calendar two
+  mailboxes file into answers each meeting from the mailbox it invited; else C's own mail, or the
+  mail account C sends through (`links.mail`) when C is not used for mail.
 - **The address set** of each account adds the other's identity and aliases ("Identity is a set,
   not one address"), because the two answer as one person and a calendar's login is often not the
   address a meeting invites.

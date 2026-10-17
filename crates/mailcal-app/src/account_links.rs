@@ -13,8 +13,8 @@ use std::{
     sync::Arc,
 };
 
-use engine_api::{AccountId, CalendarUserAddresses};
-use mailcal_account::{AccountLinks, load_preferences};
+use engine_api::{AccountId, CalendarUserAddresses, addresses_match};
+use mailcal_account::{AccountLinks, Preferences, load_preferences};
 
 use crate::App;
 
@@ -28,6 +28,8 @@ pub(crate) struct LinkState {
     /// The answers a calendar server gave about its user (RFC 6638 §2.4.1), kept until the
     /// account is connected again. An answer the server could not give is not kept.
     pub(crate) calendar_users: HashMap<String, CalendarUserAddresses>,
+    /// Moved on by every forget, so an answer asked for before one is not kept.
+    pub(crate) calendar_users_epoch: u64,
 }
 
 impl<P> App<P> {
@@ -74,11 +76,9 @@ impl<P> App<P> {
 
     /// Forgets what `id`'s calendar server said it schedules as, for an account connected again.
     pub(crate) fn forget_calendar_users(&self, id: &AccountId) {
-        self.links
-            .lock()
-            .expect("links mutex poisoned")
-            .calendar_users
-            .remove(id.as_str());
+        let mut links = self.links.lock().expect("links mutex poisoned");
+        links.calendar_users.remove(id.as_str());
+        links.calendar_users_epoch = links.calendar_users_epoch.wrapping_add(1);
     }
 
     fn every_link(&self) -> BTreeMap<String, AccountLinks> {
@@ -103,30 +103,51 @@ impl<P: engine_api::Provider> App<P> {
     /// has no message to read delivery headers from. The reading view widens it with the
     /// message's own delivery recipients.
     pub(crate) async fn account_address_set(&self, account: &AccountId) -> Vec<String> {
-        let mut addresses = self.own_address_set(account).await;
-        for partner in self.invitation_partners(account) {
-            addresses.extend(self.own_address_set(&partner).await);
-        }
-        addresses
-    }
-
-    /// `account`'s primary identity and its configured aliases.
-    async fn own_address_set(&self, account: &AccountId) -> Vec<String> {
-        let mut addresses = Vec::new();
-        if let Some(identity) = self.account_identity(account).await {
-            addresses.push(identity.email);
-        }
         // Read from disk rather than caching: an alias list is edited rarely and read on two
         // cold paths (opening a message, rebuilding the calendar cache), both of which already do
         // store or network I/O: so one small TOML read is noise, and it can never be stale after
         // the user edits it.
-        if let Some(path) = &self.prefs_path {
-            addresses.extend(
-                load_preferences(path)
-                    .aliases_of(account.as_str())
-                    .iter()
-                    .cloned(),
-            );
+        let preferences = self.prefs_path.as_ref().map(load_preferences);
+        let mut addresses = self.own_addresses(account, preferences.as_ref()).await;
+        for partner in self.invitation_partners(account) {
+            addresses.extend(self.own_addresses(&partner, preferences.as_ref()).await);
+        }
+        addresses
+    }
+
+    /// The account whose mail sends `attendee`'s answer given from `calendar`: the calendar's
+    /// mail account ([`Self::invitation_mail`]) when the address is the calendar's own, else the
+    /// account linked with it that the address belongs to, so a calendar two mailboxes file into
+    /// answers each invitation from the mailbox it invited.
+    pub(crate) async fn answering_mail(&self, calendar: &AccountId, attendee: &str) -> AccountId {
+        let preferences = self.prefs_path.as_ref().map(load_preferences);
+        let owns = |addresses: Vec<String>| {
+            addresses
+                .iter()
+                .any(|address| addresses_match(attendee, address))
+        };
+        if !owns(self.own_addresses(calendar, preferences.as_ref()).await) {
+            for partner in self.invitation_partners(calendar) {
+                if owns(self.own_addresses(&partner, preferences.as_ref()).await) {
+                    return partner;
+                }
+            }
+        }
+        self.invitation_mail(calendar)
+    }
+
+    /// `account`'s primary identity and its configured aliases.
+    async fn own_addresses(
+        &self,
+        account: &AccountId,
+        preferences: Option<&Preferences>,
+    ) -> Vec<String> {
+        let mut addresses = Vec::new();
+        if let Some(identity) = self.account_identity(account).await {
+            addresses.push(identity.email);
+        }
+        if let Some(preferences) = preferences {
+            addresses.extend(preferences.aliases_of(account.as_str()).iter().cloned());
         }
         addresses
     }

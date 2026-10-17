@@ -12,15 +12,16 @@ impl<P: Provider> App<P> {
     /// that could not be asked answers [`CalendarUserAddresses::Unknown`], which recognises
     /// nothing, and is asked again next time.
     pub async fn calendar_user_addresses(&self, id: &AccountId) -> Option<CalendarUserAddresses> {
+        // Read before the connection: a reconnect forgets after it installs the new one.
+        let (known, epoch) = {
+            let links = self.links.lock().expect("links mutex poisoned");
+            (
+                links.calendar_users.get(id.as_str()).cloned(),
+                links.calendar_users_epoch,
+            )
+        };
         let handle = self.account_handle(id).await?;
         let provider = handle.calendar_providers.first()?;
-        let known = self
-            .links
-            .lock()
-            .expect("links mutex poisoned")
-            .calendar_users
-            .get(id.as_str())
-            .cloned();
         if let Some(known) = known {
             return Some(known);
         }
@@ -28,11 +29,14 @@ impl<P: Provider> App<P> {
             match self.engine.calendar_user_addresses(provider, id).await {
                 Ok(CalendarUserAddresses::Unknown) => CalendarUserAddresses::Unknown,
                 Ok(addresses) => {
-                    self.links
-                        .lock()
-                        .expect("links mutex poisoned")
-                        .calendar_users
-                        .insert(id.as_str().to_owned(), addresses.clone());
+                    let mut links = self.links.lock().expect("links mutex poisoned");
+                    // Not kept when the account was connected again meanwhile: the new
+                    // connection is asked afresh.
+                    if links.calendar_users_epoch == epoch {
+                        links
+                            .calendar_users
+                            .insert(id.as_str().to_owned(), addresses.clone());
+                    }
                     addresses
                 }
                 Err(err) => {

@@ -6,6 +6,7 @@ use std::sync::{
 };
 
 use engine_api::{AccountId, CalendarUserAddresses, EmailAddress, Engine, TimeZoneId};
+use tokio::sync::Notify;
 
 use crate::{Account, App, AppObserver, Surface, Telemetry, TimeZoneInit};
 
@@ -15,11 +16,13 @@ impl AppObserver for SilentObserver {
     fn surface_changed(&self, _surface: Surface) {}
 }
 
-/// A calendar provider whose server answers with `answer`.
+/// A calendar provider whose server answers with `answer`, and with `pause` signals the first
+/// notify when asked and answers once the second is.
 #[derive(Debug)]
 struct CalendarServer {
     answer: CalendarUserAddresses,
     asked: Arc<AtomicUsize>,
+    pause: Option<(Arc<Notify>, Arc<Notify>)>,
 }
 
 impl CalendarServer {
@@ -27,6 +30,7 @@ impl CalendarServer {
         Self {
             answer,
             asked: Arc::default(),
+            pause: None,
         }
     }
 }
@@ -47,6 +51,10 @@ impl engine_provider::CalendarWrites for CalendarServer {
         _account: &AccountId,
     ) -> engine_provider::ProviderResult<CalendarUserAddresses> {
         self.asked.fetch_add(1, Ordering::SeqCst);
+        if let Some((asked, answer)) = &self.pause {
+            asked.notify_one();
+            answer.notified().await;
+        }
         Ok(self.answer.clone())
     }
 }
@@ -132,4 +140,32 @@ async fn a_server_that_could_not_say_is_asked_again() {
     app.calendar_user_addresses(&id).await;
     app.calendar_user_addresses(&id).await;
     assert_eq!(asked.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn an_answer_from_a_connection_replaced_meanwhile_is_not_kept() {
+    let (asked, answer) = (Arc::new(Notify::new()), Arc::new(Notify::new()));
+    let mut old = CalendarServer::answering(CalendarUserAddresses::Known(vec![
+        "old@example.org".to_owned(),
+    ]));
+    old.pause = Some((Arc::clone(&asked), Arc::clone(&answer)));
+    let app = app(Some(old));
+    let id = AccountId::try_from("alice@dav:cloud.example").unwrap();
+    let question = tokio::spawn({
+        let (app, id) = (Arc::clone(&app), id.clone());
+        async move { app.calendar_user_addresses(&id).await }
+    });
+    asked.notified().await;
+    app.add_account_deferred(account(Some(CalendarServer::answering(
+        CalendarUserAddresses::Known(vec!["new@example.org".to_owned()]),
+    ))))
+    .await;
+    answer.notify_one();
+    question.await.unwrap();
+
+    let now = app.calendar_user_addresses(&id).await.expect("a calendar");
+    assert!(
+        now.recognises("new@example.org"),
+        "the new connection is asked"
+    );
 }

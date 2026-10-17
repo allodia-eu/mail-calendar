@@ -80,7 +80,17 @@ impl<P: Provider> App<P> {
     /// whole answer; in particular a reply that could not be sent, which is the one failure
     /// this route exists to stop happening silently.
     pub(crate) async fn answer_by_imip(&self, answer: &ClientAnswer<'_>) -> Result<(), String> {
+        // A linked calendar that is not connected cannot take the meeting or the answer, which is
+        // what the route was read from; the reply still goes.
+        let calendar_open = self
+            .account_handle(answer.calendar)
+            .await
+            .is_some_and(|acct| !acct.calendar_providers.is_empty());
         let stored = match answer.stored.clone() {
+            _ if !calendar_open => {
+                log::info!("respond_to_invitation: the calendar is not connected; replying only");
+                None
+            }
             Some(event) => Some(event),
             None => {
                 self.store_invitation(
