@@ -16,22 +16,17 @@
 
 use std::{
     collections::HashSet,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::{Arc, Mutex},
 };
 
 use engine_api::{AccountId, Provider, TimeZoneId};
-use futures::channel::oneshot;
 use mailcal_app::App;
 
 use crate::{
-    SharedRegistry,
-    account_registry::{AccountDial, dial_all},
-    background::BackgroundManager,
-    connection_log,
+    SharedRegistry, account_registry::AccountDial, background::BackgroundManager, connection_log,
 };
+
+mod schedule;
 
 /// Dials every account in `plans`, at most `MAX_CONCURRENT_DIALS` at a time: on success joins it
 /// back into the app (which syncs and clears its outage badge) and restarts its background sync
@@ -55,17 +50,9 @@ pub(crate) async fn reconnect_all(
     // The accounts whose calendar or address-book server did not answer, for looking again
     // (`crate::dav_rediscovery`); one that has neither server stored is dropped there.
     let unanswered = Arc::new(Mutex::new(Vec::new()));
-    // Fired once the last dial has landed and its account is registered: the first moment the
-    // calendar can be fetched. Dropped unsent when there is nothing to dial, which reads the same.
-    let remaining = Arc::new(AtomicUsize::new(plans.len()));
-    let (all_dialled, dialled) = oneshot::channel::<()>();
-    let all_dialled = Arc::new(Mutex::new(Some(all_dialled)));
-    let dials = dial_all(plans, |index, (id, plan)| {
+    let dial = |index: usize, (id, plan): (AccountId, AccountDial)| {
         let unanswered = Arc::clone(&unanswered);
         let app = Arc::clone(&app);
-        let background = Arc::clone(&background);
-        let remaining = Arc::clone(&remaining);
-        let all_dialled = Arc::clone(&all_dialled);
         let registry = Arc::clone(&registry);
         let disconnected = Arc::clone(&disconnected);
         let display_zone = display_zone.clone();
@@ -74,7 +61,7 @@ pub(crate) async fn reconnect_all(
             // for an outage detail the user reads in the UI: the log lines below use the position.
             let account_type = plan.account_type();
             let label = plan.label();
-            let connected = match plan.run(&id, display_zone).await {
+            match plan.run(&id, display_zone).await {
                 Ok(outcome) => {
                     // The user may have removed the account during the (slow) dial: its plan was
                     // snapshotted before the removal, so re-check the live registry before
@@ -158,18 +145,18 @@ pub(crate) async fn reconnect_all(
                     }
                     None
                 }
-            };
-            if remaining.fetch_sub(1, Ordering::AcqRel) == 1
-                && let Some(sender) = all_dialled.lock().expect("dialled mutex poisoned").take()
-            {
-                let _ = sender.send(());
             }
-            // This account's mail catch-up (the folder sync and the body prefetch after it), in the
-            // same slot its dial held, so the bound covers both. Then its watches/poll restart from
-            // its now-live settings, so a server that supports IMAP IDLE gets push again rather
-            // than the placeholder's poll timer; not before, because IMAP watches sync once before
-            // IDLE, and starting them first can grab folder scopes and make the catch-up look idle.
-            let Some(id) = connected else { return };
+        }
+    };
+    // This account's mail catch-up (the folder sync and the body prefetch after it), in the same
+    // slot its dial held. Then its watches/poll restart from its now-live settings, so a server
+    // that supports IMAP IDLE gets push again rather than the placeholder's poll timer; not
+    // before, because IMAP watches sync once before IDLE, and starting them first can grab folder
+    // scopes and make the catch-up look idle.
+    let catch_up = |index: usize, id: AccountId| {
+        let app = Arc::clone(&app);
+        let background = Arc::clone(&background);
+        async move {
             app.refresh_reconnected_account(&id).await;
             let snapshot = app.sync_settings().await;
             if let Some(row) = snapshot
@@ -181,7 +168,7 @@ pub(crate) async fn reconnect_all(
             }
             log::info!("reconnect: account[{index}] reconnected");
         }
-    });
+    };
     // The calendar is fetched once every dial has landed, beside the mail catch-ups still running
     // rather than after them: a mailbox's body prefetch takes seconds, and a calendar waiting for
     // every account's would stay empty for all of them meanwhile. Here rather than at boot, since
@@ -191,11 +178,8 @@ pub(crate) async fn reconnect_all(
     //
     // Called directly rather than dispatched: `Intent::RefreshCalendar` would record the calendar
     // as a feature the user used, on a launch where they may never open it.
-    let calendar = async {
-        let _ = dialled.await;
-        app.refresh_calendar_in_background().await;
-    };
-    futures::join!(dials, calendar);
+    let calendar = app.refresh_calendar_in_background();
+    schedule::dial_then_catch_up(plans, dial, catch_up, calendar).await;
     // Contacts have exactly the calendar's problem above, and it went unnoticed for the same
     // reason: nothing but the user opening the tab ever filled them. It stopped being
     // invisible when a sender's face started coming from a contact card: a launch where the

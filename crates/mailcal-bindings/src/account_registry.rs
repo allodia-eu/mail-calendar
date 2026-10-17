@@ -62,6 +62,8 @@ mod links;
 mod set_up;
 mod uses;
 
+#[cfg(test)]
+pub(crate) use dial::MAX_CONCURRENT_DIALS;
 pub(crate) use dial::{AccountDial, ConnectFailure, dial_all};
 pub(crate) use uses::UseChange;
 
