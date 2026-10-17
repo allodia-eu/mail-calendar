@@ -224,4 +224,23 @@ public class AccountSettingsRulesTests
         // its Mail section comes from.
         Assert.NotEqual(drawn, AccountSettingsRules.Fingerprint(snapshot, [], ["mail:" + MailboxOnly().Id]));
     }
+
+    [Fact]
+    public void AUseThatStopsOrStartsConnectingRedrawsThePage()
+    {
+        var connected = Entry(
+            AccountKind.Imap,
+            (AccountCapability.Mail, CapabilityState.On),
+            (AccountCapability.Calendar, CapabilityState.On));
+        var drawn = AccountSettingsRules.Fingerprint(new AccountsSnapshot([connected]), []);
+
+        // The calendar's dial ends after the page was drawn, and Refresh can clear it again.
+        var failed = connected with { Uses = [.. connected.Uses] };
+        failed.Uses[1] = new AccountUse(AccountCapability.Calendar, CapabilityState.On, UseProblem.Unreachable);
+        var unreachable = AccountSettingsRules.Fingerprint(new AccountsSnapshot([failed]), []);
+        Assert.NotEqual(drawn, unreachable);
+
+        failed.Uses[1] = new AccountUse(AccountCapability.Calendar, CapabilityState.On, UseProblem.SignInRefused);
+        Assert.NotEqual(unreachable, AccountSettingsRules.Fingerprint(new AccountsSnapshot([failed]), []));
+    }
 }

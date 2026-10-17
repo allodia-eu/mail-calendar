@@ -223,7 +223,7 @@ internal static class AccountSettingsRules
             parts.Add(entry.Id);
             parts.Add(entry.Address);
             parts.Add(entry.Kind.ToString());
-            parts.AddRange(entry.Uses.Select(use => $"{use.Capability}={use.State}"));
+            parts.AddRange(entry.Uses.Select(use => $"{use.Capability}={use.State}/{use.Problem}"));
             parts.Add(Linked(entry.Links.Calendar));
             parts.Add(Linked(entry.Links.Contacts));
             parts.Add(Linked(entry.Links.Mail));
