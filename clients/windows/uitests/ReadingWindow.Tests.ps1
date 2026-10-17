@@ -92,15 +92,15 @@ function Get-PaneSubject {
   if (-not $main) { throw 'the mailbox window is not open' }
   $root = [System.Windows.Automation.AutomationElement]::FromHandle($main.Handle)
   # A reading window is OWNED by the mailbox, so UI Automation hangs it under the mailbox's own
-  # element and a plain descendant search for the shared 'SubjectText' can answer with the WINDOW's
+  # element and a plain descendant search for the shared 'ReadingSubject' can answer with the WINDOW's
   # subject. That reads as the pane having moved when it has not: a test reporting a product bug
   # that does not exist. So take every subject under the mailbox and subtract the ones belonging to
   # a window; what is left is the pane's. Runtime ids, because that is UI Automation's own identity
   # for an element and geometry is not.
-  $all = @(Find-UiaElements -AutomationId 'SubjectText' -Root $root)
+  $all = @(Find-UiaElements -AutomationId 'ReadingSubject' -Root $root)
   foreach ($extra in Get-ExtraWindows) {
     $window = [System.Windows.Automation.AutomationElement]::FromHandle($extra.Handle)
-    foreach ($theirs in @(Find-UiaElements -AutomationId 'SubjectText' -Root $window)) {
+    foreach ($theirs in @(Find-UiaElements -AutomationId 'ReadingSubject' -Root $window)) {
       $all = @($all | Where-Object { -not [System.Windows.Automation.Automation]::Compare($_, $theirs) })
     }
   }
