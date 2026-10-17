@@ -31,10 +31,11 @@ internal data class ConnectionIssue(val email: String, val detail: String)
 internal data class NamedAccount(val id: String, val email: String)
 
 /// One account whose stored sign-in the server has stopped accepting: its account id, display
-/// email and provider family, which decides the remedy, `MICROSOFT`/`GOOGLE`/`JMAP_OAUTH` re-run
-/// their browser sign-in, anything else (a password or pasted-secret JMAP account, or an unknown
-/// one) is updated in Settings. The id is what a JMAP re-authentication is addressed to: it
-/// re-authorises that account's own persisted grant rather than starting from an address.
+/// email and provider family, which decides the remedy (`AccountSignInRules.expiredRemedy`):
+/// `MICROSOFT`/`GOOGLE`/`JMAP_OAUTH`/`IMAP_OAUTH` re-run their browser sign-in, anything else (a
+/// password or pasted-secret JMAP account, or an unknown one) is updated in Settings. The id is
+/// what a sign-in again is addressed to: it re-authorises that account's own persisted grant
+/// rather than starting from an address.
 internal data class ExpiredSignIn(
     val id: String,
     val email: String,

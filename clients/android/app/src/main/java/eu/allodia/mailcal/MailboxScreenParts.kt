@@ -30,7 +30,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.SendStatus
 
@@ -216,9 +215,9 @@ internal fun MailReauthBanner(
 /// A banner for accounts whose stored sign-in the server has stopped accepting, an expired or
 /// revoked OAuth grant, or a refused password. Distinct from [ConnectionIssuesBanner]: the server
 /// answered, so "Try again" would never help; only a fresh sign-in does. An OAuth account gets a
-/// button that re-runs its own flow, including a JMAP account connected by signing in, which
-/// re-authorises its own persisted grant; a password or pasted-secret JMAP account opens its page in
-/// Settings, where the new one is entered.
+/// button that re-runs its own flow, including an IMAP or JMAP account connected by signing in,
+/// which signs in again from its own persisted grant; a password or pasted-secret JMAP account opens
+/// its page in Settings, where the new one is entered.
 @androidx.compose.runtime.Composable
 internal fun SignInExpiredBanner(
     accounts: List<ExpiredSignIn>,
@@ -228,9 +227,7 @@ internal fun SignInExpiredBanner(
     onOpenSettings: (account: ExpiredSignIn) -> Unit = {},
 ) {
     val first = accounts.firstOrNull() ?: return
-    val canRelaunch = first.provider == AccountProvider.MICROSOFT ||
-        first.provider == AccountProvider.GOOGLE ||
-        first.provider == AccountProvider.JMAP_OAUTH
+    val canRelaunch = AccountSignInRules.expiredRemedy(first.provider) != ExpiredRemedy.SETTINGS
     Row(
         modifier = Modifier
             .fillMaxWidth()

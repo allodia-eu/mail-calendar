@@ -59,6 +59,17 @@ class SignInExpiredBannerTest {
     }
 
     @Test
+    fun an_imap_account_that_signed_in_is_offered_its_sign_in_again() {
+        banner(AccountProvider.IMAP_OAUTH)
+
+        // It holds a grant and no password, so a password field would be refused.
+        compose.onNodeWithText("Update it in Settings", substring = true).assertDoesNotExist()
+        compose.onNodeWithText(SIGN_IN_AGAIN).performClick()
+
+        assertEquals(listOf("alice@jmap:api.example.com"), signedIn.map { it.id })
+    }
+
+    @Test
     fun a_jmap_account_holding_a_pasted_secret_is_pointed_at_settings() {
         banner(AccountProvider.JMAP)
 

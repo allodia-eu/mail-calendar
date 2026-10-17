@@ -50,7 +50,7 @@ internal fun MainActivity.openAccountPage(id: String) {
  * otherwise, since a sign-in started from a banner ends on the mailbox and a notice kept for
  * Settings would greet them there later about something long over.
  */
-private fun MainActivity.say(notice: AccountNotice) {
+internal fun MainActivity.say(notice: AccountNotice) {
     if (showingSettings) {
         accountSettings.notice = notice
     } else {

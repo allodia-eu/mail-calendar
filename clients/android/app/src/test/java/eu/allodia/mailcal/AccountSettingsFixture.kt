@@ -25,11 +25,12 @@ internal fun accountEntry(
     linkedFrom: List<LinkedAccount> = emptyList(),
     candidates: LinkCandidates = LinkCandidates(emptyList(), emptyList(), emptyList(), emptyList()),
     endpoints: AccountEndpoints? = null,
+    signIn: SignInMethod = SignInMethod.PASSWORD,
 ) = AccountEntry(
     id = id,
     address = address,
     kind = kind,
-    signIn = SignInMethod.PASSWORD,
+    signIn = signIn,
     uses = uses.map { (capability, state) -> AccountUse(capability, state) },
     links = links,
     linkedFrom = linkedFrom,

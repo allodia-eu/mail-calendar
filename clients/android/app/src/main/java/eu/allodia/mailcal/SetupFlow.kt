@@ -85,6 +85,12 @@ internal class SetupFlow {
     /** What a provider withheld from an account the flow added, said once the names are asked. */
     var withheld: Pair<String, List<AccountCapability>>? = null
 
+    /** The account an add was refused for as already set up, offered the credential just given. */
+    var existing by mutableStateOf<ExistingAccount?>(null)
+
+    /** Whether that account is taking the credential. */
+    var updatingExisting by mutableStateOf(false)
+
     /** Whether the link step is what the screen shows. */
     val showsLinks: Boolean get() = uses == null && returningTo == null && links != null
 
@@ -193,6 +199,7 @@ internal class SetupFlow {
         returningTo = null
         startOn = null
         found = null
+        existing = null
         return names
     }
 }

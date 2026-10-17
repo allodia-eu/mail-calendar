@@ -213,5 +213,8 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     onSignInAgain = { id, adding -> signInAgain(id, adding) },
     onSaveServers = { id, endpoints -> saveAccountEndpoints(id, endpoints) },
     onReplaceSecret = { id, secret -> replaceAccountSecret(id, secret) },
+    onAskSignInOptions = { id -> askSignInOptions(id) },
+    onAccountSignIn = { id, switching -> startAccountSignIn(id, switching) },
+    onSwitchToPassword = { id, password -> switchToPassword(id, password) },
     onRemove = { id -> removeAccount(id) },
 )

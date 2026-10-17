@@ -1,7 +1,8 @@
 // One account's page in Settings → Accounts, and its first questions: how it is shared, what it
-// is used for (docs/accounts.md rule 13), which other accounts fill what it is not (rule 12), and,
-// for one that signs in at its provider, signing in again (docs/provider-oauth.md rule 11). The
-// servers, the mail settings and the removal follow, in that order (docs/settings.md).
+// is used for (docs/accounts.md rule 13), which other accounts fill what it is not (rule 12), and
+// how it signs in: again, for Microsoft and Google (docs/provider-oauth.md rule 11), or switched,
+// for IMAP and JMAP (docs/accounts.md rule 17). The servers, the mail settings and the removal
+// follow, in that order (docs/settings.md).
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Box
@@ -88,13 +89,15 @@ internal fun AccountPage(
         Spacer(modifier = Modifier.height(8.dp))
         SignInGroup(entry, expired, ui)
     }
+    // Where Microsoft and Google sign in again, an IMAP or JMAP account says how it signs in and
+    // offers the other way (docs/accounts.md rule 17).
+    if (AccountSignInRules.switchable(entry.kind)) {
+        Spacer(modifier = Modifier.height(8.dp))
+        AccountSignInGroup(entry, ui)
+    }
     entry.endpoints?.let { endpoints ->
         Spacer(modifier = Modifier.height(8.dp))
         ServersGroup(entry, endpoints, expired, ui)
-    }
-    if (entry.id in ui.pastedSecret) {
-        Spacer(modifier = Modifier.height(8.dp))
-        SecretGroup(entry, ui)
     }
     mail()
     Spacer(modifier = Modifier.height(16.dp))

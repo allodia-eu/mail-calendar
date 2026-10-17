@@ -277,12 +277,25 @@ internal fun MainActivity.completeOAuthRedirect(data: Uri) {
             completeMicrosoftLogin(data.toString())
         }
         OAuthRedirect.ALLODIA -> completeAllodiaSignIn(data.toString())
-        OAuthRedirect.IMAP -> completeImapSignIn(data.toString())
-        // One host, two flows: a first sign-in from the setup form and a re-authentication
-        // from the expired-sign-in banner. `pendingJmapReauthAccount` is what tells them apart.
-        OAuthRedirect.JMAP -> when (val account = pendingJmapReauthAccount) {
-            null -> completeJmapSignIn(data.toString())
-            else -> completeJmapReauth(account, data.toString())
+        // An existing IMAP or JMAP account signing in from its page or the banner waits on
+        // either host, because a sign-in again comes back to its grant's own redirect; one waits
+        // only when it started after every setup sign-in, which yield it the redirect
+        // (MainActivityAccountSignIn.kt).
+        OAuthRedirect.IMAP -> if (awaitsAccountSignIn()) {
+            completeAccountSignIn(data.toString())
+        } else {
+            completeImapSignIn(data.toString())
+        }
+        // One host, three flows: a first sign-in from the setup form, a re-authentication from
+        // the expired-sign-in banner, and an account's sign-in above. `pendingJmapReauthAccount`
+        // tells the first two apart.
+        OAuthRedirect.JMAP -> {
+            val reauth = pendingJmapReauthAccount
+            when {
+                awaitsAccountSignIn() -> completeAccountSignIn(data.toString())
+                reauth == null -> completeJmapSignIn(data.toString())
+                else -> completeJmapReauth(reauth, data.toString())
+            }
         }
         null -> Unit
     }

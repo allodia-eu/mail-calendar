@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.ContactDetail
 import uniffi.mailcal_bindings.EventIntent
 import uniffi.mailcal_bindings.Intent
@@ -410,19 +409,20 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             signInExpired = signInExpired,
                             onOpenAccountPage = { id -> openAccountPage(id) },
                             onSignInExpired = { account ->
-                                when (account.provider) {
+                                when (AccountSignInRules.expiredRemedy(account.provider)) {
                                     // In place: the account keeps its id, settings and mail, where
                                     // a first sign-in would add it again (provider-oauth.md rule 11).
-                                    AccountProvider.MICROSOFT, AccountProvider.GOOGLE ->
+                                    ExpiredRemedy.PROVIDER_CONSENT ->
                                         signInAgain(account.id, emptyList())
                                     // Addressed to the account id, not the address: the core
                                     // re-authorises this account's own stored grant.
-                                    AccountProvider.JMAP_OAUTH ->
+                                    ExpiredRemedy.JMAP_REAUTH ->
                                         reconnectJmap(accountId = account.id)
-                                    // The banner offers no button for these, so this is
-                                    // unreachable; kept exhaustive rather than silently ignoring
-                                    // a family added later.
-                                    else -> Unit
+                                    // From the grant it holds, as its page signs it in again.
+                                    ExpiredRemedy.ACCOUNT_SIGN_IN ->
+                                        startAccountSignIn(account.id, switching = false)
+                                    // The banner offers Settings instead of this button.
+                                    ExpiredRemedy.SETTINGS -> openAccountPage(account.id)
                                 }
                             },
                             // Open the unified Settings screen (grouping, language, time zone,

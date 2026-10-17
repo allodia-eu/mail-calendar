@@ -1,7 +1,7 @@
 // The Accounts category: every account, mail or not, from the core's one snapshot, each opening a
 // page of its own (docs/accounts.md rule 11, docs/settings.md category 9). The page's sections are
-// files of their own: what the account is used for and linked to (SettingsAccountPage.kt), its
-// servers, secret and removal (SettingsAccountServers.kt). Add account is first, and the only
+// files of their own: what the account is used for and linked to (SettingsAccountPage.kt), how it
+// signs in (SettingsAccountSignIn.kt), its servers and secret (SettingsAccountServers.kt). Add account is first, and the only
 // place a later account is added.
 //
 // State lives in the core. A change forwards to it off the main thread and the page is drawn again
@@ -60,6 +60,12 @@ internal class AccountsSettingsUi(
     val onSignInAgain: (accountId: String, adding: List<AccountCapability>) -> Unit = { _, _ -> },
     val onSaveServers: (accountId: String, AccountEndpoints) -> Unit = { _, _ -> },
     val onReplaceSecret: (accountId: String, secret: String) -> Unit = { _, _ -> },
+    // An IMAP or JMAP account's sign-in (docs/accounts.md rule 17): what its server takes, asked
+    // as its page opens; a browser sign-in, again or in place of a password ([switching]); and a
+    // password in place of signing in.
+    val onAskSignInOptions: (accountId: String) -> Unit = {},
+    val onAccountSignIn: (accountId: String, switching: Boolean) -> Unit = { _, _ -> },
+    val onSwitchToPassword: (accountId: String, password: String) -> Unit = { _, _ -> },
     val onRemove: (accountId: String) -> Unit = {},
     val onDismissNotice: () -> Unit = { state.notice = null },
 )

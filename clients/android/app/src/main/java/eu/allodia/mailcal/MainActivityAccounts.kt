@@ -32,6 +32,7 @@ internal fun MainActivity.addAccount(configToml: String) {
     val activity = this
     val instance = activity.app ?: return
     activity.addError = null
+    activity.setupFlow.existing = null
     activity.isConnecting = true
     thread(name = "mailcal-add-account") {
         try {
@@ -53,18 +54,26 @@ internal fun MainActivity.addAccount(configToml: String) {
             // The reason, never the certificate: a refusal's message carries the whole of it
             // (docs/certificate-exceptions.md rule 9).
             Log.e(TAG, "add account failed")
-            val failure = (e as? MailcalException)?.let { connectFailure(it, activity) }
             activity.mainHandler.post {
                 activity.isConnecting = false
-                activity.addFailure = failure
-                // A refusal the form can offer to accept is drawn as the panel and not said
-                // twice, so only what the panel cannot carry is left as a message (rule 7).
-                activity.addError = when {
-                    failure?.certificate != null -> null
-                    else -> coreErrorSaid(e, activity) ?: L10n.error_unknown(activity)
-                }
+                activity.reportAddFailure(e)
+                // An account already set up is offered the credential just given
+                // (docs/accounts.md rule 17).
+                activity.offerExistingAccount(e, configToml)
             }
         }
+    }
+}
+
+// Says on the setup form why an add, or the update of an account already set up, did not succeed.
+internal fun MainActivity.reportAddFailure(error: Throwable) {
+    val failure = (error as? MailcalException)?.let { connectFailure(it, this) }
+    addFailure = failure
+    // A refusal the form can offer to accept is drawn as the panel and not said twice, so only
+    // what the panel cannot carry is left as a message (docs/certificate-exceptions.md rule 7).
+    addError = when {
+        failure?.certificate != null -> null
+        else -> coreErrorSaid(error, this) ?: L10n.error_unknown(this)
     }
 }
 
@@ -235,6 +244,7 @@ internal fun MainActivity.signInWithJmap(email: String, serverUrl: String?) {
                 // this redirect would be routed to completeJmapReauth with a stale account and
                 // this flow's pending handle. Claim the slot for a new account explicitly.
                 activity.pendingJmapReauthAccount = null
+                activity.yieldAccountSignIn()
                 logUiInfo("jmap sign-in: opening the browser")
                 openJmapSignIn(activity, start.authorizationUrl)
             }
@@ -309,6 +319,7 @@ internal fun MainActivity.reconnectJmap(accountId: String) {
                 activity.pendingJmapLogin = start.pending
                 // What routes the redirect to completeJmapReauth instead of a new-account add.
                 activity.pendingJmapReauthAccount = accountId
+                activity.yieldAccountSignIn()
                 logUiInfo("jmap sign-in: opening the browser to re-authenticate")
                 openJmapSignIn(activity, start.authorizationUrl)
             }
@@ -397,6 +408,9 @@ internal fun MainActivity.cancelAbandonedSignIns() {
     }
     // And for a dismissed sign-in of an existing account (MainActivityAccountSettings.kt).
     cancelAbandonedConsent()
+    // An IMAP or JMAP account's sign-in runs its browser in its own task, as a JMAP sign-in does
+    // below: its page stops waiting, and the redirect is still taken if it arrives.
+    accountSettings.signIn.resumed()
     // A JMAP sign-in is handled differently on purpose. Its browser runs in its own task
     // (see openJmapSignIn), so resuming MainActivity does NOT mean the browser is gone, the
     // user may simply have stepped out to a password manager and come back. So the spinner is

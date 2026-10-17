@@ -50,6 +50,14 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
     }
     // A new form for each account the flow sets up, from the address.
     androidx.compose.runtime.key(setupFlow.form) { SetupForm(instance, ctx) }
+    // Over whichever form was refused: every route that adds from a config ends in addAccount.
+    if (setupFlow.existing != null) {
+        AlreadySetUpDialog(
+            updating = setupFlow.updatingExisting,
+            onUpdate = { updateExistingAccount() },
+            onDismiss = { if (!setupFlow.updatingExisting) setupFlow.existing = null },
+        )
+    }
 }
 
 @Composable

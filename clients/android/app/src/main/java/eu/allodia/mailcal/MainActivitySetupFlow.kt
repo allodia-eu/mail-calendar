@@ -114,11 +114,24 @@ internal fun MainActivity.cancelSetup() {
     }
 }
 
-/** What one setup form left behind: its error, a refused certificate and its acceptance. */
+/**
+ * What one setup form left behind: its error, a refused certificate and its acceptance, and the
+ * offer to update an account already set up.
+ */
 private fun MainActivity.clearSetupForm() {
     addError = null
     addFailure = null
     setupAcceptedCertificate = null
+    setupFlow.existing = null
+}
+
+/**
+ * The account already set up took the credential the form was given. Nothing was added, so the
+ * flow goes back to the link step it was opened from, or ends.
+ */
+internal fun MainActivity.endSetupAfterUpdate() {
+    clearSetupForm()
+    if (!setupFlow.cancelled(::linkStepFor)) finishSetup()
 }
 
 /** The end of the flow: the setup screen goes, and each account added is asked its name in turn. */

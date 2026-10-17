@@ -49,6 +49,7 @@ internal fun MainActivity.signInWithImap(request: ImapLoginRequest) {
             )
             activity.mainHandler.post {
                 activity.pendingImapLogin = start.pending
+                activity.yieldAccountSignIn()
                 logUiInfo("imap sign-in: opening the browser")
                 openImapSignIn(activity, start.authorizationUrl)
             }
