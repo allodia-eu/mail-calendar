@@ -30,8 +30,10 @@ mod schedule;
 
 /// Dials every account in `plans`, at most `MAX_CONCURRENT_DIALS` at a time: on success joins it
 /// back into the app (which syncs and clears its outage badge) and restarts its background sync
-/// from the now-live settings; on failure re-queues its id in `disconnected` so the next Refresh /
-/// return-to-online retries it.
+/// from the now-live settings; on an outage re-queues its id in `disconnected` so the next Refresh
+/// or return to online retries it. A sign-in the server refused is not re-queued: dialling it
+/// again presents the credential the server has just refused, so it waits for a replaced one
+/// (`install_replacement`), which dials it itself.
 ///
 /// Runs as one spawned task off the runtime, so a slow re-dial never blocks the host's dispatch.
 ///
@@ -39,7 +41,8 @@ mod schedule;
 /// we use at once" cannot sensibly differ by which path started the dial; each account's mail
 /// catch-up starts as soon as its own dial lands, three at a time in a pool of their own, so a
 /// long download never holds back a later account's dial. The calendar is fetched once every
-/// dial has landed, beside the catch-ups; contacts follow everything.
+/// dial has landed, beside the catch-ups; contacts follow everything. Both cover the accounts this
+/// pass connected and no others: an account already live has nothing new to fetch.
 pub(crate) async fn reconnect_all(
     app: Arc<App<Box<dyn Provider>>>,
     background: Arc<BackgroundManager>,
@@ -51,8 +54,10 @@ pub(crate) async fn reconnect_all(
     // The accounts whose calendar or address-book server did not answer, for looking again
     // (`crate::dav_rediscovery`); one that has neither server stored is dropped there.
     let unanswered = Arc::new(Mutex::new(Vec::new()));
+    let connected = Arc::new(Mutex::new(Vec::new()));
     let dial = |index: usize, (id, plan): (AccountId, AccountDial)| {
         let unanswered = Arc::clone(&unanswered);
+        let connected = Arc::clone(&connected);
         let app = Arc::clone(&app);
         let registry = Arc::clone(&registry);
         let disconnected = Arc::clone(&disconnected);
@@ -102,6 +107,10 @@ pub(crate) async fn reconnect_all(
                         &outcome.account,
                     );
                     app.add_account_deferred(outcome.account).await;
+                    connected
+                        .lock()
+                        .expect("connected mutex poisoned")
+                        .push(id.clone());
                     Some(id)
                 }
                 Err(err) if err.signin_expired() => {
@@ -117,11 +126,7 @@ pub(crate) async fn reconnect_all(
                     // The account failed whole, so what its calendar or contacts last said is
                     // no longer the news; the account's own prompt is.
                     app.note_use_problems(&id, mailcal_app::UseProblems::default());
-                    // Still re-queue it, so re-authenticating (or the next Refresh) re-dials it.
-                    disconnected
-                        .lock()
-                        .expect("disconnected mutex poisoned")
-                        .insert(id.as_str().to_owned());
+                    // Not re-queued: only a replaced credential can change the answer.
                     log::warn!("reconnect: account[{index}] sign-in refused by the server: {err}");
                     None
                 }
@@ -181,7 +186,10 @@ pub(crate) async fn reconnect_all(
     //
     // Called directly rather than dispatched: `Intent::RefreshCalendar` would record the calendar
     // as a feature the user used, on a launch where they may never open it.
-    let calendar = app.refresh_calendar_in_background();
+    let calendar = async {
+        let ids = connected.lock().expect("connected mutex poisoned").clone();
+        app.refresh_calendar_of(&ids).await;
+    };
     schedule::dial_then_catch_up(plans, dial, catch_up, calendar).await;
     // Contacts have exactly the calendar's problem above, and it went unnoticed for the same
     // reason: nothing but the user opening the tab ever filled them. It stopped being
@@ -193,6 +201,11 @@ pub(crate) async fn reconnect_all(
     // After the mail and calendar catch-up, not before: this is background work behind an
     // already-drawn list, and a cold or offline boot must still show everything cached
     // without waiting on any of it.
-    app.refresh_contacts().await;
+    let ids = std::mem::take(&mut *connected.lock().expect("connected mutex poisoned"));
+    app.refresh_contacts_of(&ids).await;
     std::mem::take(&mut *unanswered.lock().expect("unanswered mutex poisoned"))
 }
+
+#[cfg(test)]
+#[path = "reconnect/signin_refused_tests.rs"]
+mod signin_refused_tests;

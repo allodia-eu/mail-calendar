@@ -10,7 +10,7 @@
 #[path = "tests_contacts_fake.rs"]
 mod fake;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic::Ordering};
 
 // Re-exported, not merely imported: the child modules below read the same fixtures through
 // `use super::*`.
@@ -109,6 +109,47 @@ async fn signing_in_again_brings_the_contacts_the_new_grant_reaches() {
         app.contacts().rows.len(),
         1,
         "the card is listed after the sign-in"
+    );
+}
+
+#[tokio::test]
+async fn one_accounts_change_syncs_that_accounts_contacts_alone() {
+    // Every address book is a round trip and a scope lease, so a change only one account saw
+    // leaves the other's books alone.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let home = FakeContacts::new(
+        "home-book",
+        vec![card("c1", "home-book", "Ada Lovelace", "ada@example.test")],
+    );
+    let work = FakeContacts::new("work-book", Vec::new());
+    let (home_syncs, work_syncs) = (home.syncs(), work.syncs());
+    let app = app(
+        vec![
+            account("work", vec![Box::new(work)]),
+            account("home", vec![Box::new(home)]),
+        ],
+        &surfaces,
+    );
+    let id = engine_api::AccountId::try_from("home").unwrap();
+
+    app.refresh_repaired_account(&id).await;
+    let after_repair = home_syncs.load(Ordering::Relaxed);
+    app.sync_added_account(&id).await;
+
+    assert_eq!(
+        after_repair, 1,
+        "signing in again synced the account's book"
+    );
+    assert_eq!(home_syncs.load(Ordering::Relaxed), 2, "so did adding it");
+    assert_eq!(
+        work_syncs.load(Ordering::Relaxed),
+        0,
+        "the other account's book was synced for a change it never saw"
+    );
+    assert_eq!(
+        app.contacts().rows.len(),
+        1,
+        "the changed account's card is listed"
     );
 }
 

@@ -7,7 +7,10 @@
 
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use async_trait::async_trait;
@@ -73,6 +76,8 @@ pub(crate) struct FakeContacts {
     /// adapter is moved into an `Account`, and a `ContactsProvider` cannot be handed out
     /// behind an `Arc` (a foreign trait on a foreign wrapper).
     writes: WriteLog,
+    /// How many card syncs this adapter has answered, shared for the reason `writes` is.
+    syncs: Arc<AtomicUsize>,
 }
 
 /// A shared record of what an adapter was asked to write.
@@ -104,6 +109,7 @@ impl FakeContacts {
             fails: false,
             writable: false,
             writes: WriteLog::default(),
+            syncs: Arc::default(),
         }
     }
 
@@ -114,6 +120,7 @@ impl FakeContacts {
             fails: true,
             writable: false,
             writes: WriteLog::default(),
+            syncs: Arc::default(),
         }
     }
 
@@ -123,6 +130,11 @@ impl FakeContacts {
             writable: true,
             ..self
         }
+    }
+
+    /// The count of card syncs this adapter answers.
+    pub(crate) fn syncs(&self) -> Arc<AtomicUsize> {
+        Arc::clone(&self.syncs)
     }
 
     /// The same adapter, recording every write into `log`.
@@ -245,6 +257,7 @@ impl ContactsProvider for FakeContacts {
         _account: &AccountId,
         _cursor: Option<&SyncState>,
     ) -> ProviderResult<ContactSourceSync<ContactCard>> {
+        self.syncs.fetch_add(1, Ordering::Relaxed);
         if self.fails {
             return Err(ProviderError::retryable("card sync unavailable"));
         }

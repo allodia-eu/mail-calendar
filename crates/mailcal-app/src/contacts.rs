@@ -10,13 +10,16 @@
 //! account's cards feed one index, and one `people_page` read returns the finished article.
 //! That is why the rebuild below is a single query after the loop rather than a fold over it.
 
-use std::{sync::atomic::Ordering, time::Instant};
+use std::{
+    sync::{Arc, atomic::Ordering},
+    time::Instant,
+};
 
-use engine_api::{ContactSourceClass, PeopleQuery, Provider};
+use engine_api::{AccountId, ContactSourceClass, PeopleQuery, Provider};
 use mailcal_viewmodel::{ContactDetail, ContactsSnapshot, contacts};
 
 use crate::{
-    App, Surface,
+    Account, App, Surface,
     sync_account::{Reach, reach_of_api, reachability, signin_expired},
 };
 
@@ -30,31 +33,43 @@ use crate::{
 const CONTACTS_LIMIT: usize = 200;
 
 impl<P: Provider> App<P> {
-    /// Syncs every account's address books, then rebuilds the contacts snapshot.
+    /// Syncs every account's address books, then rebuilds the contacts snapshot and clears the
+    /// last write's word. The explicit refresh behind [`crate::ContactsIntent::RefreshContacts`].
     ///
     /// A provider that fails is skipped rather than aborting the pass: one unreachable
     /// address book must not cost the user the contacts that did sync. The engine rebuilds
     /// the unified people index at the end of each provider's sync, so the snapshot read
     /// after the loop already reflects everything that landed.
-    ///
-    /// Public because the reconnect path calls it once every account's providers are live;
-    /// the first moment there is anything to sync. Before that it is a no-op against
-    /// placeholders, which is how contacts came to be filled by nothing but the user opening
-    /// the tab.
     pub async fn refresh_contacts(&self) {
+        let accounts = self.positioned_handles(None).await;
+        self.sync_contacts_of(accounts).await;
+        // A full refresh clears the last write's word, the way the calendar's does: "Saved" is a
+        // sentence about something the user just did, and one still on screen when they come back
+        // to Contacts an hour later is about nothing they remember.
+        self.set_contact_write_status(crate::ContactWriteStatus::Idle);
+    }
+
+    /// [`Self::refresh_contacts`] for the accounts in `ids` alone, leaving the last write's word
+    /// as it is: the refresh after a change only these accounts saw (added, signed in again,
+    /// given contacts, reconnected). A no-op when none of `ids` is stored.
+    pub async fn refresh_contacts_of(&self, ids: &[AccountId]) {
+        let accounts = self.positioned_handles(Some(ids)).await;
+        if !accounts.is_empty() {
+            self.sync_contacts_of(accounts).await;
+        }
+    }
+
+    async fn sync_contacts_of(&self, accounts: Vec<(usize, Arc<Account<P>>)>) {
         let sync_start = Instant::now();
         let mut synced = 0_usize;
         let mut unavailable = 0_usize;
         let mut failed = 0_usize;
         let mut sources = 0_usize;
         let mut contributing = 0_usize;
-        // Clone the account handles and sync with the read guard released; these are
-        // network round-trips and must not hold the lock.
-        let accounts = self.account_handles().await;
-        // `acct` is a per-pass ordinal, never the account id; ids embed the user's address
-        // (`docs/logging.md`). It matches the mail sync's `sync[a{n}]` so one attached log
+        // `acct` is the account's stored position, never the account id; ids embed the user's
+        // address (`docs/logging.md`). It matches the mail sync's `sync[a{n}]` so one attached log
         // reads across both surfaces: the same account is `a0` in either.
-        for (acct, account) in accounts.iter().enumerate() {
+        for (acct, account) in &accounts {
             if account.contact_providers.is_empty() {
                 log::info!("contacts[a{acct}]: skipped; no contact sources bound");
                 continue;
@@ -175,10 +190,6 @@ impl<P: Provider> App<P> {
         // row in the snapshot it is about to build. It republishes the mail list too.
         self.recheck_sender_photos();
         self.rebuild_contacts().await;
-        // A full refresh clears the last write's word, the way the calendar's does: "Saved" is a
-        // sentence about something the user just did, and one still on screen when they come back
-        // to Contacts an hour later is about nothing they remember.
-        self.set_contact_write_status(crate::ContactWriteStatus::Idle);
     }
 
     /// Rebuilds the contacts snapshot from the engine's unified people and signals the host.

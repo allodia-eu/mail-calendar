@@ -439,6 +439,12 @@ capturing the redirect), because that is inherently platform-specific.
     error to a string, so the verdict is decided **at** the `AccountError` and carried as a field
     (`ConnectFailure::signin_expired`).
 
+    **A refused dial waits for the person, not the network.** Dialling again presents the
+    credential the server has just refused, so an account whose connect raised the prompt is not
+    queued for the next Refresh or the network coming back, as an unreachable one is. What dials it
+    again is a replaced credential (signing in again, a new password, edited servers), which
+    connects before it stores anything, or the next launch.
+
     **And it must be classified for every kind of credential, not only a token.** An OAuth-shaped
     verdict at the connect end badges an account whose *password* the server refused as "can't reach
     this account's server", on every launch, and never points at the Settings field that would fix it:

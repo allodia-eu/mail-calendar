@@ -520,19 +520,22 @@ places**, which is the part that has to be got right:
 - **The fetch** waits until every account has actually connected (`reconnect_all`). An interactive
   boot returns **provider-less placeholders** so cached mail paints at once and dials afterwards, so
   a fetch at boot reaches nothing, files nothing, and looks exactly like a fetch that found an empty
-  diary.
+  diary. It covers the accounts that pass connected; at launch that is every account that
+  answered, and a later reconnect fetches only the accounts it brought back.
 
 **Adding an account does the same thing**, in the first download the user is already waiting on:
 a new account's store is empty by definition and the launch fetch has already been and gone, so
 without it the first session is exactly the one with no diary in it. **So does signing an account in
 again**, after its mail catch-up: a calendar added at the provider's consent screen arrives through
-a replaced credential rather than a new account or a launch, so it has nothing stored either.
+a replaced credential rather than a new account or a launch, so it has nothing stored either. Both
+fetch that one account's calendar (`refresh_calendar_of`), because every source is a round trip and
+a scope lease, and nothing about the other accounts changed.
 
 Two properties this must keep:
 
 - **It is not an `Intent`.** Dispatching `RefreshCalendar` would record the calendar as a feature
   the user used, on a launch where they may never open it: a launch is not a visit
-  ([`analytics.md`](analytics.md)). Every one of these paths calls
+  ([`analytics.md`](analytics.md)). Every one of these paths calls `refresh_calendar_of` or
   `refresh_calendar_in_background` directly.
 - **A failed fetch changes nothing on screen.** The primed grid is already up; a sync that cannot
   reach the server neither blanks it nor claims a window (§4).

@@ -12,9 +12,10 @@ impl MailcalApp {
     /// app with live providers: so a recovered provider heals without an app restart, regaining
     /// every folder, its capabilities, and its calendar (not a degraded INBOX-only state). The
     /// disconnected set is drained optimistically so a concurrent trigger (a Refresh racing a
-    /// return-to-online) never dials an account twice; a still-failing account is re-queued for
-    /// the next attempt. Fire-and-forget on the runtime, so a slow re-dial never blocks the
-    /// host's `dispatch`. A no-op when nothing is disconnected.
+    /// return-to-online) never dials an account twice; a still-unreachable account is re-queued
+    /// for the next attempt, and one whose sign-in was refused waits for a replaced credential.
+    /// Fire-and-forget on the runtime, so a slow re-dial never blocks the host's `dispatch`. A
+    /// no-op when nothing is disconnected.
     pub(crate) fn retry_connections(&self) {
         let mut ids: Vec<String> = self
             .disconnected

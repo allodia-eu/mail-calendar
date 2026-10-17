@@ -1,11 +1,11 @@
 //! Calendar sync entry points and their write-feedback policy.
 
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
-use engine_api::Provider;
+use engine_api::{AccountId, Provider};
 
 use crate::{
-    App, CalendarWriteStatus,
+    Account, App, CalendarWriteStatus,
     calendar_cache::rolling_horizon,
     calendar_unexpandable::unexpandable_line,
     sync_account::{Reach, reach_of_api, reachability, signin_expired},
@@ -17,18 +17,35 @@ impl<P: Provider> App<P> {
     /// This is the explicit retry behind [`crate::Intent::RefreshCalendar`]. Automatic refreshes
     /// use [`Self::refresh_calendar_in_background`] so they cannot dismiss a failed write.
     pub async fn refresh_calendar(&self) {
-        self.refresh_calendar_with_write_feedback(true).await;
+        let accounts = self.positioned_handles(None).await;
+        self.refresh_calendars(accounts, true).await;
     }
 
     /// Syncs every account's calendars without changing the last write's feedback.
     ///
-    /// Call this directly for launch, account-add and periodic refreshes. Dispatching an intent
-    /// would record feature adoption even when the user never opened the calendar.
+    /// Call this directly for a periodic refresh. Dispatching an intent would record feature
+    /// adoption even when the user never opened the calendar.
     pub async fn refresh_calendar_in_background(&self) {
-        self.refresh_calendar_with_write_feedback(false).await;
+        let accounts = self.positioned_handles(None).await;
+        self.refresh_calendars(accounts, false).await;
     }
 
-    async fn refresh_calendar_with_write_feedback(&self, clear_write_status: bool) {
+    /// [`Self::refresh_calendar_in_background`] for the accounts in `ids` alone: the ones a
+    /// change reached (added, signed in again, given a calendar, reconnected). Every other
+    /// account's sources are left alone, each being a round trip and a scope lease. A no-op when
+    /// none of `ids` is stored.
+    pub async fn refresh_calendar_of(&self, ids: &[AccountId]) {
+        let accounts = self.positioned_handles(Some(ids)).await;
+        if !accounts.is_empty() {
+            self.refresh_calendars(accounts, false).await;
+        }
+    }
+
+    async fn refresh_calendars(
+        &self,
+        accounts: Vec<(usize, Arc<Account<P>>)>,
+        clear_write_status: bool,
+    ) {
         let Some(horizon) = rolling_horizon() else {
             return;
         };
@@ -38,9 +55,8 @@ impl<P: Provider> App<P> {
         // and the rest of the calendar materializes, so this is not a sync failure, but it
         // draws *nowhere*, and dropping the report is what makes that unreproducible.
         let mut refused = Vec::new();
-        let accounts = self.account_handles().await;
         let (mut sources, mut synced_sources, mut busy, mut failed) = (0, 0, 0, 0);
-        for (acct, account) in accounts.iter().enumerate() {
+        for (acct, account) in &accounts {
             let mut reaches = Vec::new();
             for (index, provider) in account.calendar_providers.iter().enumerate() {
                 sources += 1;

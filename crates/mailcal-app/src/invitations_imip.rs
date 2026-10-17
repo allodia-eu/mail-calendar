@@ -202,7 +202,8 @@ impl<P: Provider> App<P> {
             .map_err(|err| err.to_string())?;
         if calendars.is_empty() {
             log::info!("respond_to_invitation: no calendars in the store yet; syncing first");
-            self.refresh_calendar_in_background().await;
+            self.refresh_calendar_of(std::slice::from_ref(account))
+                .await;
             calendars = self
                 .engine
                 .calendars(account)

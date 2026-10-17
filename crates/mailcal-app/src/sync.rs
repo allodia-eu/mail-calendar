@@ -216,9 +216,11 @@ impl<P: Provider> App<P> {
         //
         // Side by side, not one after the other: they talk to different servers and neither
         // needs the other, and a calendar refresh can take longer than the first mail sync did.
+        // This account's alone: nothing about the others changed.
+        let only = std::slice::from_ref(id);
         futures::join!(
-            self.refresh_calendar_in_background(),
-            self.refresh_contacts(),
+            self.refresh_calendar_of(only),
+            self.refresh_contacts_of(only),
             self.prefetch_account_bodies(id),
         );
     }

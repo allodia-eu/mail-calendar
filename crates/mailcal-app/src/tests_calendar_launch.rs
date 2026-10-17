@@ -278,6 +278,47 @@ async fn signing_in_again_brings_the_calendar_the_new_grant_reaches() {
     assert_eq!(page.grid.timed.len(), 1, "its meeting is on the grid");
 }
 
+/// Adding an account, or signing it in again, fetches that account's calendar and no other's.
+///
+/// Every calendar is a sync round trip and a scope lease, so someone with five accounts who
+/// replaces one password would otherwise have every source of all five synced again.
+#[tokio::test]
+async fn one_accounts_change_fetches_that_accounts_calendar_alone() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let mine = CalendarFake::with_events(vec![event_from_today("standup", 0, 9, 30)]);
+    let theirs = CalendarFake::with_events(Vec::new());
+    let (my_syncs, their_syncs) = (mine.syncs(), theirs.syncs());
+    let app = calendar_app(
+        vec![
+            calendar_account("theirs", theirs),
+            calendar_account("mine", mine),
+        ],
+        &surfaces,
+    );
+    let id = engine_api::AccountId::try_from("mine").unwrap();
+
+    app.refresh_repaired_account(&id).await;
+    let after_repair = my_syncs.load(Ordering::Relaxed);
+    app.sync_added_account(&id).await;
+
+    assert!(after_repair > 0, "signing in again fetched the calendar");
+    assert!(
+        my_syncs.load(Ordering::Relaxed) > after_repair,
+        "so did adding the account"
+    );
+    assert_eq!(
+        their_syncs.load(Ordering::Relaxed),
+        0,
+        "the other account's calendar was fetched for a change it never saw"
+    );
+    let page = app.calendar_range(app.week_start_date(today()), 7);
+    assert_eq!(
+        page.grid.timed.len(),
+        1,
+        "the changed account's meeting is on the grid"
+    );
+}
+
 /// A refresh over accounts nobody has dialed yet claims nothing.
 ///
 /// This is what an interactive launch looks like for its first second: the boot returns

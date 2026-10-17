@@ -345,9 +345,10 @@ pub struct MailcalApp {
     /// [`credential_store`](crate::credential_store) for what an absent one cost.
     credential_store: Arc<dyn credential_store::AccountCredentialStore>,
     /// Ids of accounts that have **no live providers** this session: a boot connect that failed
-    /// (kept as a placeholder so it still lists, badged unreachable), or a reconnect that hasn't
-    /// yet succeeded. A Refresh or return-to-online drains this and re-runs the full connect for
-    /// each ([`MailcalApp::retry_connections`]); a successful reconnect removes the id.
+    /// (kept as a placeholder so it still lists, badged unreachable), or a reconnect that met an
+    /// outage. A Refresh or return-to-online drains this and re-runs the full connect for each
+    /// ([`MailcalApp::retry_connections`]). An account whose sign-in the server refused is never
+    /// here: it waits for a replaced credential, which dials it directly.
     disconnected: Arc<Mutex<HashSet<String>>>,
     /// Ids being dialled again right now, so a second Refresh or a return to online while one
     /// is still under way does not start another dial of the same account.
