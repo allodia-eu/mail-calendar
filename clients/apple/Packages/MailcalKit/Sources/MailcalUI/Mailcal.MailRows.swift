@@ -182,7 +182,7 @@ extension ContentView {
             if message.hasAttachment {
                 Image(systemName: "paperclip").foregroundStyle(.secondary)
             }
-            Text(relativeDate(message.date, in: model.activeZone))
+            Text(relativeDate(message.date, in: model.activeZone, use24Hour: model.use24Hour))
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(.vertical, 3)
@@ -266,7 +266,7 @@ extension ContentView {
             if thread.hasAttachment {
                 Image(systemName: "paperclip").foregroundStyle(.secondary)
             }
-            Text(relativeDate(thread.latestDate, in: model.activeZone))
+            Text(relativeDate(thread.latestDate, in: model.activeZone, use24Hour: model.use24Hour))
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(.vertical, 3)
@@ -315,7 +315,7 @@ extension ContentView {
             if message.hasAttachment {
                 Image(systemName: "paperclip").foregroundStyle(.secondary)
             }
-            Text(relativeDate(message.date, in: model.activeZone))
+            Text(relativeDate(message.date, in: model.activeZone, use24Hour: model.use24Hour))
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)

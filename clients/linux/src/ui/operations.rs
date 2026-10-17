@@ -329,7 +329,7 @@ mod tests {
             opening,
             ComposerHost::Pane,
             &QuoteStyleKind::Indented,
-            "UTC",
+            &crate::ui::timestamps::MailClock::new("UTC", true),
         );
         let submission = ComposerSubmission {
             to: request.initial_to.clone(),

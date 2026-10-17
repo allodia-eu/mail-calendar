@@ -23,6 +23,7 @@ use crate::{
         AppInput,
         mail_actions::tests::{button, popover_content},
         row_menu::RowPick,
+        timestamps::MailClock,
     },
 };
 
@@ -114,7 +115,12 @@ fn pressed(
 /// the click `GtkListBox` reads is what still opens the message in the pane.
 pub(crate) fn a_second_click_asks_for_a_window_and_a_first_click_asks_for_nothing() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let row = flat_row(&message_row(), &RowMenus::default(), "UTC", &sender);
+    let row = flat_row(
+        &message_row(),
+        &RowMenus::default(),
+        &MailClock::new("UTC", true),
+        &sender,
+    );
     let widget = row.upcast_ref::<gtk::Widget>().clone();
 
     assert!(
@@ -136,7 +142,7 @@ pub(crate) fn a_conversations_messages_open_in_windows_and_its_header_does_not()
         &thread,
         &thread_message(),
         &RowMenus::default(),
-        "UTC",
+        &MailClock::new("UTC", true),
         &sender,
     );
     assert_eq!(
@@ -144,7 +150,13 @@ pub(crate) fn a_conversations_messages_open_in_windows_and_its_header_does_not()
         ["window message-b"]
     );
 
-    let header = thread_row(&thread, false, &RowMenus::default(), "UTC", &sender);
+    let header = thread_row(
+        &thread,
+        false,
+        &RowMenus::default(),
+        &MailClock::new("UTC", true),
+        &sender,
+    );
     assert!(
         double_click(header.upcast_ref::<gtk::Widget>()).is_none(),
         "a conversation header keeps whatever a double-click already did there"
@@ -179,8 +191,21 @@ pub(crate) fn every_message_row_offers_the_window_by_name() {
     }));
     let thread = conversation();
     let rows: [gtk::Widget; 2] = [
-        flat_row(&message_row(), &menus, "UTC", &sender).upcast(),
-        thread_message_row(&thread, &thread_message(), &menus, "UTC", &sender).upcast(),
+        flat_row(
+            &message_row(),
+            &menus,
+            &MailClock::new("UTC", true),
+            &sender,
+        )
+        .upcast(),
+        thread_message_row(
+            &thread,
+            &thread_message(),
+            &menus,
+            &MailClock::new("UTC", true),
+            &sender,
+        )
+        .upcast(),
     ];
     for (row, key) in rows.iter().zip(["message-a", "message-b"]) {
         let content = popover_content(row)
