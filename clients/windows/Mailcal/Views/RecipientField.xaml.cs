@@ -286,9 +286,10 @@ public sealed partial class RecipientField : UserControl
     // exception, clicking a suggestion would dismiss the popup before the click landed on it; and
     // without the rule, tabbing from To to Cc would leave To's suggestions floating over Cc.
     //
-    // Leaving the FIELD also finishes the typed address. Neither the list nor a pill's remove
-    // button is leaving it: finished on the way to a suggestion, the half-typed token becomes a pill
-    // beside the address chosen, and the pills rebuilt under a press swallow its click.
+    // Leaving the input also finishes the typed address, for the Cc/Bcc chevron in the trailing
+    // slot as for anything outside the field. Neither the list nor a pill's remove button is
+    // leaving it: finished on the way to a suggestion, the half-typed token becomes a pill beside
+    // the address chosen, and the pills rebuilt under a press swallow its click.
     private void OnInputLosingFocus(object sender, LosingFocusEventArgs e)
     {
         var next = e.NewFocusedElement as DependencyObject;
@@ -297,7 +298,7 @@ public sealed partial class RecipientField : UserControl
             return;
         }
         SuggestionPopup.IsOpen = false;
-        if (Submitted is null && !IsInside(next, this))
+        if (Submitted is null && !IsInside(next, Pills))
         {
             FinishTyped();
         }
