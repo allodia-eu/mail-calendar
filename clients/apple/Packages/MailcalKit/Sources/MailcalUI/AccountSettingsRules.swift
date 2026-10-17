@@ -15,6 +15,9 @@ enum UseNote: Equatable {
     case withheld
     /// The server offers none, so nothing can switch it on.
     case notOffered
+    /// On, and it did not connect although the account did: a calendar or an address book, since
+    /// mail decides whether the account connected at all.
+    case problem(UseProblem, AccountCapability)
 }
 
 /// How one use's switch is drawn.
@@ -94,12 +97,21 @@ enum AccountSettingsRules {
             && primary.filter(used).count == 1
         let withoutContacts = capability == .colleagues && state == .off && !used(.contacts)
         let notOffered = state == .notOffered
-        let note: UseNote =
-            notOffered ? .notOffered
-            : last ? .last
-            : withoutContacts ? .needsContacts
-            : state == .needsPermission ? .withheld
-            : .none
+        let problem = entry.uses.first { $0.capability == capability }?.problem
+        let note: UseNote
+        if notOffered {
+            note = .notOffered
+        } else if let problem {
+            note = .problem(problem, capability)
+        } else if last {
+            note = .last
+        } else if withoutContacts {
+            note = .needsContacts
+        } else if state == .needsPermission {
+            note = .withheld
+        } else {
+            note = .none
+        }
         return UseSwitch(
             active: state == .on,
             asks: state == .needsPermission,
@@ -194,6 +206,25 @@ enum AccountSettingsLabels {
         case .needsContacts: L10n.settings_account_colleagues_needs_contacts()
         case .withheld: L10n.settings_account_use_withheld()
         case .notOffered: L10n.settings_account_use_not_offered()
+        case let .problem(problem, capability): problemNote(problem, calendar: capability == .calendar)
+        }
+    }
+
+    /// The line under a calendar or an address book that did not connect.
+    private static func problemNote(_ problem: UseProblem, calendar: Bool) -> String {
+        switch problem {
+        case .unreachable:
+            calendar
+                ? L10n.settings_account_use_unreachable_calendar()
+                : L10n.settings_account_use_unreachable_contacts()
+        case .signInRefused:
+            calendar
+                ? L10n.settings_account_use_refused_calendar()
+                : L10n.settings_account_use_refused_contacts()
+        case .needsOwnSignIn:
+            calendar
+                ? L10n.settings_account_use_own_sign_in_calendar()
+                : L10n.settings_account_use_own_sign_in_contacts()
         }
     }
 

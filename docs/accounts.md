@@ -25,6 +25,7 @@ Setting accounts up is [`onboarding.md`](onboarding.md) and
 | 13 | **Switching a use off stops it and deletes what the device holds of it at once** (`set_account_capability`); the provider's permission stays as it was, because an app cannot narrow a grant, and the copy says so. **Switching a use on** opens it when the account can, and otherwise changes nothing and says what is missing: the provider's permission (`NeedsConsent`, answered by signing in again for it) or a server (`NeedsEndpoint`). A use that **needs permission** is drawn switched off, saying the provider has not granted it, and switching it on opens the account's sign-in for it straight away rather than asking the core. The last of mail, calendar and contacts cannot be switched off: the account is removed instead. The choice is stored with the account's id pinned. | Leaving a use's data behind after the person switched it off keeps what they asked to be rid of; and an account used for nothing is one nobody can find again in any surface. |
 | 14 | **Editing an account's servers is test, then apply** (`update_account_endpoints`): the new servers are dialled first, and nothing changes unless they connect and are stored. The account keeps its id, uses, links, settings and signatures. A use whose server moved to **another host** has what the device holds of it deleted and synced again; a new port, security, login or password keeps it. An edit that would leave a use without its server, or make the account one already set up, is refused. | A typo in a server name must not cost a working account; and mail from one server kept under another's name is mail that server never had. |
 | 15 | **An account already set up is not added again.** Its id is its mailbox, not how it signs in, so a password account and a sign-in account for the same address are one account. `add_account` refuses the second before anything is registered or stored, with `MailcalError::AlreadySetUp` naming the account already there, and a server edit that would make one account another is refused the same way. Each client says so in the person's language (`account_already_set_up`). | Registering the second would replace the first account's credential and providers in place, and its calendar and contacts would disappear with nothing to say why. |
+| 16 | **A use that did not connect says why on the account's page, while the account itself did.** A calendar or an address book that fails beside a working account keeps its state (on) and carries a problem (`AccountUse.problem`): its server **needs a sign-in of its own** (the account's sign-in may not reach it, [`mail-oauth.md`](mail-oauth.md) rule 10; nothing was sent), **refused the sign-in**, or **could not be reached**. Each client says it beneath the use's switch in the person's language. An unreachable use is dialled again by the next retry (Refresh, or coming back online), and every dial replaces what the one before it said. A calendar that failed has not reported "no calendar", so the calendar does not claim its week ([`calendar.md`](calendar.md) §4). The account's badge stays its mail's (rule 7). | A failure that is only in the log is one nobody can act on, and a calendar that silently stays empty reads as a calendar with nothing in it. |
 
 ## 2. The stored shape
 
@@ -67,6 +68,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | A use the server does not offer reads as such, and cannot be switched on | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | First-run setup when no account is left, an account without mail counting | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Removing an account clears the links to it, and the confirmation names them | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A calendar or address book that did not connect says why beneath its switch | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Adding an account already set up is refused, and said in words | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Setting a link to one of the offered accounts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A link suggested when the calendar server schedules as the mail account's address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -109,10 +111,6 @@ it, while bob's calendar is offered without being suggested.
   names the suggestion under the link's picker, with a button that links it.
 - **Links are stored but not acted on.** An invitation still files into, and answers from, the
   account whose mail it arrived in, and "save contact" still writes to the account in view.
-- **A use that fails has no state of its own.** A calendar that cannot be reached beside a
-  working mailbox still reads as on; only the connection banners say so. Every client draws
-  "needs permission" and "not offered" on the account's page and in the list, and signs the
-  account in again to ask for a permission.
 - **"Not offered" is known only once the account has connected.** The session is read at every
   connect and not stored, so an account that has not connected since the app started reads each
   chosen use as on.

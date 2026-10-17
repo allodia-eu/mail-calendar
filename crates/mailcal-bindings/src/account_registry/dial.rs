@@ -80,6 +80,9 @@ pub(crate) struct ConnectFailure {
     /// [`AccountError`] and would not survive the rendered string. A caller adding an
     /// account interactively offers it to the user; every other caller ignores it.
     certificate: Option<Box<mailcal_account::RejectedCertificate>>,
+    /// Whether the server needs a sign-in of its own, because the account's grant may not reach
+    /// it (`docs/mail-oauth.md` rule 10). Nothing was sent to it.
+    needs_own_sign_in: bool,
 }
 
 impl ConnectFailure {
@@ -89,6 +92,18 @@ impl ConnectFailure {
             detail,
             signin_expired: false,
             certificate: None,
+            needs_own_sign_in: false,
+        }
+    }
+
+    /// What this failure means for a use that failed beside a working mailbox.
+    pub(crate) const fn use_problem(&self) -> mailcal_app::UseProblem {
+        if self.needs_own_sign_in {
+            mailcal_app::UseProblem::NeedsOwnSignIn
+        } else if self.signin_expired {
+            mailcal_app::UseProblem::SignInRefused
+        } else {
+            mailcal_app::UseProblem::Unreachable
         }
     }
 
@@ -108,6 +123,7 @@ impl From<AccountError> for ConnectFailure {
     fn from(err: AccountError) -> Self {
         Self {
             signin_expired: matches!(err, AccountError::SigninRejected(_)),
+            needs_own_sign_in: matches!(err, AccountError::DavNeedsOwnSignIn(_)),
             certificate: match &err {
                 AccountError::CertificateRejected { rejected, .. } => {
                     Some(Box::new((**rejected).clone()))
@@ -156,6 +172,9 @@ pub(crate) struct DialOutcome {
     /// predates `Calendars.ReadWrite` and the user must re-consent. `false` for every other family
     /// and every other outcome.
     pub(crate) calendar_reauth_required: bool,
+    /// What stopped the calendar or contacts from connecting, mail being up: for the account's
+    /// page in Settings, and for the next retry.
+    pub(crate) use_problems: mailcal_app::UseProblems,
 }
 
 /// How to rebuild one registered account's providers: the credential-bearing half of its

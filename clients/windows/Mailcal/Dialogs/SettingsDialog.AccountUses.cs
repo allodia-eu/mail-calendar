@@ -95,6 +95,12 @@ public sealed partial class SettingsDialog
         UseNote.NeedsContacts => L10n.SettingsAccountColleaguesNeedsContacts(),
         UseNote.Withheld => L10n.SettingsAccountUseWithheld(),
         UseNote.NotOffered => L10n.SettingsAccountUseNotOffered(),
+        UseNote.UnreachableCalendar => L10n.SettingsAccountUseUnreachableCalendar(),
+        UseNote.UnreachableContacts => L10n.SettingsAccountUseUnreachableContacts(),
+        UseNote.RefusedCalendar => L10n.SettingsAccountUseRefusedCalendar(),
+        UseNote.RefusedContacts => L10n.SettingsAccountUseRefusedContacts(),
+        UseNote.OwnSignInCalendar => L10n.SettingsAccountUseOwnSignInCalendar(),
+        UseNote.OwnSignInContacts => L10n.SettingsAccountUseOwnSignInContacts(),
         _ => null,
     };
 

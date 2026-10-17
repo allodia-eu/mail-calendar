@@ -243,6 +243,19 @@ fn outcome(
     calendar_error: Option<String>,
     calendar_reauth_required: bool,
 ) -> DialOutcome {
+    // A calendar withheld for a missing scope already reads as "needs permission"; it is not also
+    // a failure to report.
+    let use_problems = mailcal_app::UseProblems {
+        calendar: assembled
+            .calendar_failure
+            .as_ref()
+            .filter(|_| !calendar_reauth_required)
+            .map(ConnectFailure::use_problem),
+        contacts: assembled
+            .contacts_failure
+            .as_ref()
+            .map(ConnectFailure::use_problem),
+    };
     DialOutcome {
         account: Account {
             id: id.clone(),
@@ -255,6 +268,7 @@ fn outcome(
         },
         calendar_error,
         calendar_reauth_required,
+        use_problems,
     }
 }
 

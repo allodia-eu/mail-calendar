@@ -74,7 +74,11 @@ impl MailcalApp {
             .into_iter()
             .collect();
         AccountsSnapshot {
-            accounts: accounts_view::entries(&facts, &calendar_refused),
+            accounts: accounts_view::entries(
+                &facts,
+                &calendar_refused,
+                &self.app.every_use_problem(),
+            ),
         }
     }
 

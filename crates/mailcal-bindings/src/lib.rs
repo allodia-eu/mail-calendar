@@ -207,7 +207,7 @@ pub use records::{
 };
 pub use records_accounts::{
     AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot,
-    CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
+    CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount, UseProblem,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{
@@ -381,16 +381,26 @@ impl MailcalApp {
     /// the next attempt. Fire-and-forget on the runtime, so a slow re-dial never blocks the
     /// host's `dispatch`. A no-op when nothing is disconnected.
     fn retry_connections(&self) {
-        let ids: Vec<String> = {
-            let mut disconnected = self
-                .disconnected
-                .lock()
-                .expect("disconnected mutex poisoned");
-            if disconnected.is_empty() {
-                return;
+        let mut ids: Vec<String> = self
+            .disconnected
+            .lock()
+            .expect("disconnected mutex poisoned")
+            .drain()
+            .collect();
+        // An account whose mail is up but whose calendar or address book could not be reached is
+        // dialled again too: nothing else would, until the next launch.
+        for id in self
+            .app
+            .accounts_with_use_problem(mailcal_app::UseProblem::Unreachable)
+            .into_keys()
+        {
+            if !ids.contains(&id) {
+                ids.push(id);
             }
-            disconnected.drain().collect()
-        };
+        }
+        if ids.is_empty() {
+            return;
+        }
         // Snapshot each account's reconnection plan under the registry lock (so no lock is held
         // across the re-dial); an id whose registry entry is gone (removed meanwhile) drops out.
         // The catch-up sync after a successful reconnect resolves the account's own depth.
@@ -405,7 +415,7 @@ impl MailcalApp {
             return;
         }
         log::info!(
-            "retry_connections: re-dialing {} disconnected account(s)",
+            "retry_connections: re-dialing {} account(s) with something unreachable",
             plans.len(),
         );
         let reconnect = reconnect::reconnect_all(

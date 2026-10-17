@@ -187,6 +187,33 @@ async fn a_mail_only_account_gets_an_answer_rather_than_a_permanent_loading() {
     assert!(page.grid.timed.is_empty());
 }
 
+/// A calendar that failed beside a working mailbox has not reported "no calendar": its week is
+/// unknown, not empty, whatever the account's mail did.
+#[tokio::test]
+async fn a_calendar_that_failed_beside_a_working_mailbox_claims_nothing() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let mut account = calendar_account("acct", CalendarFake::with_events(Vec::new()));
+    account.providers = vec![CalendarFake::with_events(Vec::new())];
+    account.calendar_providers.clear();
+    let id = account.id.clone();
+    let app = calendar_app(vec![account], &surfaces);
+    app.note_use_problems(
+        &id,
+        crate::UseProblems {
+            calendar: Some(crate::UseProblem::Unreachable),
+            contacts: None,
+        },
+    );
+
+    app.refresh_calendar().await;
+
+    let page = app.calendar_range(app.week_start_date(today()), 7);
+    assert!(
+        !page.is_materialized,
+        "a calendar nobody could reach is not an empty one"
+    );
+}
+
 /// A brand-new account gets its diary from the same first download that fetches its mail.
 ///
 /// Its store is by definition empty, and the launch catch-up has already been and gone, so

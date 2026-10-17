@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use engine_api::AccountId;
 use mailcal_account::{AccountLinks, Capabilities, Capability};
@@ -69,6 +69,7 @@ fn a_mail_account_linked_to_a_calendar_reads_the_link_by_address_from_both_ends(
     let accounts = entries(
         &[mailbox(to_cloud()), cloud(AccountLinks::default())],
         &BTreeSet::new(),
+        &BTreeMap::new(),
     );
 
     let calendar = accounts[0].links.calendar.as_ref().expect("linked");
@@ -90,26 +91,38 @@ fn a_mail_account_linked_to_a_calendar_reads_the_link_by_address_from_both_ends(
 #[test]
 fn a_link_the_accounts_no_longer_allow_reads_as_none() {
     // Dangling: nothing has that id.
-    let dangling = entries(&[mailbox(to_cloud())], &BTreeSet::new());
+    let dangling = entries(&[mailbox(to_cloud())], &BTreeSet::new(), &BTreeMap::new());
     assert!(dangling[0].links.calendar.is_none());
 
     // The mail account has a calendar of its own now.
     let mut own = mailbox(to_cloud());
     own.chosen = set(&[Capability::Mail, Capability::Calendar]);
-    let accounts = entries(&[own, cloud(AccountLinks::default())], &BTreeSet::new());
+    let accounts = entries(
+        &[own, cloud(AccountLinks::default())],
+        &BTreeSet::new(),
+        &BTreeMap::new(),
+    );
     assert!(accounts[0].links.calendar.is_none());
     assert!(accounts[0].links.contacts.is_some());
 
     // The target is no longer used for its calendar, or has none that can file an invitation.
     let mut contacts_only = cloud(AccountLinks::default());
     contacts_only.chosen = set(&[Capability::Contacts]);
-    let accounts = entries(&[mailbox(to_cloud()), contacts_only], &BTreeSet::new());
+    let accounts = entries(
+        &[mailbox(to_cloud()), contacts_only],
+        &BTreeSet::new(),
+        &BTreeMap::new(),
+    );
     assert!(accounts[0].links.calendar.is_none());
     assert!(accounts[1].links.mail.is_none());
 
     let mut graph = cloud(AccountLinks::default());
     graph.files_invitations = false;
-    let accounts = entries(&[mailbox(to_cloud()), graph], &BTreeSet::new());
+    let accounts = entries(
+        &[mailbox(to_cloud()), graph],
+        &BTreeSet::new(),
+        &BTreeMap::new(),
+    );
     assert!(accounts[0].links.calendar.is_none());
 }
 
@@ -126,6 +139,7 @@ fn a_calendar_two_mailboxes_link_sends_through_the_one_it_names() {
             cloud(AccountLinks::default()),
         ],
         &BTreeSet::new(),
+        &BTreeMap::new(),
     );
     assert!(
         unnamed[2].links.mail.is_none(),
@@ -143,6 +157,7 @@ fn a_calendar_two_mailboxes_link_sends_through_the_one_it_names() {
             }),
         ],
         &BTreeSet::new(),
+        &BTreeMap::new(),
     );
     assert_eq!(
         named[2]
@@ -169,7 +184,11 @@ fn each_kind_lists_what_it_can_be_used_for_in_its_state() {
     calendar_refused.chosen = set(&Capability::ALL);
     let refused: BTreeSet<String> = [calendar_refused.id.clone()].into();
 
-    let accounts = entries(&[graph, standards, calendar_refused], &refused);
+    let accounts = entries(
+        &[graph, standards, calendar_refused],
+        &refused,
+        &BTreeMap::new(),
+    );
 
     assert_eq!(
         state(&accounts[0], AccountCapability::Mail),
@@ -204,7 +223,7 @@ fn a_use_the_account_does_not_offer_is_not_listed_at_all() {
     personal.chosen = set(&STANDARDS);
     personal.withheld = set(&[Capability::Colleagues]);
 
-    let accounts = entries(&[personal], &BTreeSet::new());
+    let accounts = entries(&[personal], &BTreeSet::new(), &BTreeMap::new());
 
     assert_eq!(state(&accounts[0], AccountCapability::Colleagues), None);
     assert_eq!(
@@ -226,6 +245,7 @@ fn each_link_offers_only_the_accounts_it_may_name() {
             graph,
         ],
         &BTreeSet::new(),
+        &BTreeMap::new(),
     );
     let ids = |offered: &[crate::LinkedAccount]| -> Vec<String> {
         offered.iter().map(|linked| linked.id.clone()).collect()
@@ -266,6 +286,7 @@ fn a_calendar_that_recognises_the_mail_address_is_suggested_from_both_ends() {
     let accounts = entries(
         &[mailbox(AccountLinks::default()), recognising],
         &BTreeSet::new(),
+        &BTreeMap::new(),
     );
     assert_eq!(
         accounts[0].link_candidates.suggested,
@@ -281,6 +302,7 @@ fn a_calendar_that_recognises_the_mail_address_is_suggested_from_both_ends() {
     let accounts = entries(
         &[mailbox(AccountLinks::default()), stranger],
         &BTreeSet::new(),
+        &BTreeMap::new(),
     );
     assert_eq!(accounts[0].link_candidates.calendar.len(), 1);
     assert!(accounts[0].link_candidates.suggested.is_empty());
@@ -297,7 +319,42 @@ fn an_address_book_is_never_suggested() {
     let accounts = entries(
         &[mailbox(AccountLinks::default()), contacts_only],
         &BTreeSet::new(),
+        &BTreeMap::new(),
     );
     assert_eq!(accounts[0].link_candidates.contacts.len(), 1);
     assert!(accounts[0].link_candidates.suggested.is_empty());
+}
+
+#[test]
+fn a_use_that_did_not_connect_says_why_while_it_is_on() {
+    let mut account = mailbox(AccountLinks::default());
+    account.chosen = set(&[Capability::Mail, Capability::Calendar]);
+    let problems: BTreeMap<String, mailcal_app::UseProblems> = [(
+        account.id.clone(),
+        mailcal_app::UseProblems {
+            calendar: Some(mailcal_app::UseProblem::NeedsOwnSignIn),
+            contacts: Some(mailcal_app::UseProblem::Unreachable),
+        },
+    )]
+    .into();
+
+    let accounts = entries(&[account], &BTreeSet::new(), &problems);
+
+    let problem = |capability| {
+        accounts[0]
+            .uses
+            .iter()
+            .find(|row| row.capability == capability)
+            .and_then(|row| row.problem)
+    };
+    assert_eq!(
+        problem(AccountCapability::Calendar),
+        Some(crate::UseProblem::NeedsOwnSignIn)
+    );
+    assert_eq!(problem(AccountCapability::Mail), None);
+    assert_eq!(
+        problem(AccountCapability::Contacts),
+        None,
+        "a use switched off since has nothing left to fix"
+    );
 }

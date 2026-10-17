@@ -256,6 +256,8 @@ impl MailcalApp {
         };
         let account = outcome.account;
         let calendar_error = outcome.calendar_error;
+        self.app
+            .note_use_problems(&account.id, outcome.use_problems);
         // Write the credential. For anything with a grant the bytes come from the **registry**, not
         // from `config_toml`: a rotation during the dial has already advanced the registered
         // config, and the caller's string still carries the token it replaced. An IMAP

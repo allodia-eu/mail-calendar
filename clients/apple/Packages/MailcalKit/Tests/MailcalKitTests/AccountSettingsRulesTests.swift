@@ -30,6 +30,21 @@ private func mailboxOnly() -> AccountEntry {
 }
 
 @Suite struct AccountSettingsRulesTests {
+    @Test func aUseThatDidNotConnectSaysWhyBeneathItsSwitch() {
+        var account = entry(.imap, [(.mail, .on), (.calendar, .on), (.contacts, .on)])
+        account.uses[1] = AccountUse(capability: .calendar, state: .on, problem: .needsOwnSignIn)
+        account.uses[2] = AccountUse(capability: .contacts, state: .on, problem: .unreachable)
+        let calendar = AccountSettingsRules.useSwitch(account, .calendar)
+        #expect(calendar.note == .problem(.needsOwnSignIn, .calendar))
+        #expect(calendar.active)
+        #expect(
+            AccountSettingsRules.note(calendar.note)
+                == L10n.settings_account_use_own_sign_in_calendar())
+        #expect(
+            AccountSettingsRules.useSwitch(account, .contacts).note == .problem(.unreachable, .contacts))
+        #expect(AccountSettingsRules.useSwitch(account, .mail).note == UseNote.none)
+    }
+
     @Test func theLastUseCannotBeSwitchedOff() {
         let mailbox = mailboxOnly()
         #expect(

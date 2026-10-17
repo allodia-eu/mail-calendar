@@ -57,6 +57,33 @@ pub struct AccountUse {
     pub capability: AccountCapability,
     /// Whether the account is used for it, and whether that works.
     pub state: CapabilityState,
+    /// Why it did not connect although the account did, when it is on: `None` while it works, has
+    /// not been dialled yet, or is not used.
+    #[uniffi(default = None)]
+    pub problem: Option<UseProblem>,
+}
+
+/// Why a use the account is used for did not connect, while the account itself did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum UseProblem {
+    /// Its server needs a sign-in of its own: the account's sign-in does not reach it
+    /// (`docs/mail-oauth.md` rule 10). Nothing was sent to it.
+    NeedsOwnSignIn,
+    /// Its server refused the account's sign-in.
+    SignInRefused,
+    /// Its server could not be reached. The next retry (Refresh, or coming back online) dials it
+    /// again.
+    Unreachable,
+}
+
+impl From<mailcal_app::UseProblem> for UseProblem {
+    fn from(problem: mailcal_app::UseProblem) -> Self {
+        match problem {
+            mailcal_app::UseProblem::NeedsOwnSignIn => Self::NeedsOwnSignIn,
+            mailcal_app::UseProblem::SignInRefused => Self::SignInRefused,
+            mailcal_app::UseProblem::Unreachable => Self::Unreachable,
+        }
+    }
 }
 
 /// Whether an account is used for something.

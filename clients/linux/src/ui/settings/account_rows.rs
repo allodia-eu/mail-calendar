@@ -3,6 +3,7 @@
 
 use mailcal_bindings::{
     AccountCapability, AccountEntry, AccountKind, CapabilityState, LinkSlot, LinkedAccount,
+    UseProblem,
 };
 
 use crate::l10n;
@@ -87,6 +88,20 @@ pub(super) fn signin_description(entry: &AccountEntry, expired: bool) -> String 
     }
 }
 
+/// What a use that did not connect says beneath its switch. Only a calendar or an address book
+/// fails on its own; mail decides whether the account connected at all.
+fn problem_note(capability: AccountCapability, problem: UseProblem) -> &'static str {
+    let calendar = matches!(capability, AccountCapability::Calendar);
+    match problem {
+        UseProblem::Unreachable if calendar => l10n::settings_account_use_unreachable_calendar(),
+        UseProblem::Unreachable => l10n::settings_account_use_unreachable_contacts(),
+        UseProblem::SignInRefused if calendar => l10n::settings_account_use_refused_calendar(),
+        UseProblem::SignInRefused => l10n::settings_account_use_refused_contacts(),
+        UseProblem::NeedsOwnSignIn if calendar => l10n::settings_account_use_own_sign_in_calendar(),
+        UseProblem::NeedsOwnSignIn => l10n::settings_account_use_own_sign_in_contacts(),
+    }
+}
+
 /// How one use's switch is drawn.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct UseSwitch {
@@ -131,8 +146,15 @@ pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) ->
         && state == CapabilityState::Off
         && !used(AccountCapability::Contacts);
     let not_offered = state == CapabilityState::NotOffered;
+    let problem = entry
+        .uses
+        .iter()
+        .find(|use_| use_.capability == capability)
+        .and_then(|use_| use_.problem);
     let note = if not_offered {
         Some(l10n::settings_account_use_not_offered())
+    } else if let Some(problem) = problem {
+        Some(problem_note(capability, problem))
     } else if last {
         Some(l10n::settings_account_use_last())
     } else if without_contacts {

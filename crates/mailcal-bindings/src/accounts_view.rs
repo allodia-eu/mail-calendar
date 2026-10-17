@@ -1,7 +1,7 @@
 //! Building Settings → Accounts from what each account stores, and deciding which of its stored
 //! links still hold.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use engine_api::AccountId;
 use mailcal_account::{AccountLinks, Capabilities, Capability};
@@ -38,10 +38,12 @@ pub(crate) struct AccountFacts {
 }
 
 /// Every account's entry, in the order `facts` lists them. `calendar_refused` holds the accounts
-/// whose provider refused their calendar when it was opened.
+/// whose provider refused their calendar when it was opened, and `problems` what stopped an
+/// account's calendar or contacts from connecting while the account did.
 pub(crate) fn entries(
     facts: &[AccountFacts],
     calendar_refused: &BTreeSet<String>,
+    problems: &BTreeMap<String, mailcal_app::UseProblems>,
 ) -> Vec<AccountEntry> {
     let links = valid_links(facts);
     let named = |target: Option<&AccountId>| {
@@ -60,7 +62,11 @@ pub(crate) fn entries(
             id: account.id.clone(),
             address: account.address.clone(),
             kind: account.kind,
-            uses: uses(account, calendar_refused.contains(&account.id)),
+            uses: uses(
+                account,
+                calendar_refused.contains(&account.id),
+                problems.get(&account.id).copied().unwrap_or_default(),
+            ),
             links: AccountLinksView {
                 calendar: named(own.calendar.as_ref()),
                 contacts: named(own.contacts.as_ref()),
@@ -243,7 +249,11 @@ pub(crate) fn valid_links(facts: &[AccountFacts]) -> Vec<AccountLinks> {
 }
 
 /// The uses `account` offers, each in its state.
-fn uses(account: &AccountFacts, calendar_refused: bool) -> Vec<AccountUse> {
+fn uses(
+    account: &AccountFacts,
+    calendar_refused: bool,
+    problems: mailcal_app::UseProblems,
+) -> Vec<AccountUse> {
     account
         .offered
         .iter()
@@ -256,9 +266,18 @@ fn uses(account: &AccountFacts, calendar_refused: bool) -> Vec<AccountUse> {
                 (true, false) => CapabilityState::On,
                 (true, true) => CapabilityState::NeedsPermission,
             };
+            let problem = match capability {
+                Capability::Calendar => problems.calendar,
+                Capability::Contacts => problems.contacts,
+                _ => None,
+            };
             AccountUse {
                 capability: capability.into(),
                 state,
+                // Only for a use that is on: one switched off since has nothing left to fix.
+                problem: problem
+                    .filter(|_| state == CapabilityState::On)
+                    .map(Into::into),
             }
         })
         .collect()

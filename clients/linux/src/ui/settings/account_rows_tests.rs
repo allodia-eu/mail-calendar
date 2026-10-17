@@ -28,6 +28,7 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
             .map(|(capability, state)| AccountUse {
                 capability: *capability,
                 state: *state,
+                problem: None,
             })
             .collect(),
         links: AccountLinksView::default(),
@@ -253,4 +254,30 @@ fn a_suggestion_is_offered_only_where_nothing_is_linked() {
         None,
         "a link already made is not second-guessed"
     );
+}
+
+#[test]
+fn a_use_that_did_not_connect_says_why_beneath_its_switch() {
+    let mut entry = entry(
+        AccountKind::Imap,
+        &[
+            (AccountCapability::Mail, CapabilityState::On),
+            (AccountCapability::Calendar, CapabilityState::On),
+            (AccountCapability::Contacts, CapabilityState::On),
+        ],
+    );
+    entry.uses[1].problem = Some(mailcal_bindings::UseProblem::NeedsOwnSignIn);
+    entry.uses[2].problem = Some(mailcal_bindings::UseProblem::Unreachable);
+
+    let calendar = use_switch(&entry, AccountCapability::Calendar);
+    assert_eq!(
+        calendar.note,
+        Some(l10n::settings_account_use_own_sign_in_calendar())
+    );
+    assert!(calendar.active, "the account is still used for it");
+    assert_eq!(
+        use_switch(&entry, AccountCapability::Contacts).note,
+        Some(l10n::settings_account_use_unreachable_contacts())
+    );
+    assert_eq!(use_switch(&entry, AccountCapability::Mail).note, None);
 }

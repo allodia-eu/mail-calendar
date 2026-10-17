@@ -123,6 +123,7 @@ mod telemetry;
 mod timezone;
 mod tuning;
 mod unfiled_copy;
+pub mod use_problems;
 mod view_settings;
 mod view_snapshots;
 mod window;
@@ -179,6 +180,7 @@ use tuning::{
     MIN_LOAD_WINDOW, PAGE, SEARCH_FETCH_LIMIT, SEARCH_LIMIT, WINDOW_BUCKET, WINDOW_ROW_FACTOR,
 };
 pub use unfiled_copy::UnfiledCopy;
+pub use use_problems::{UseProblem, UseProblems};
 use view_settings::load_view_mode;
 pub use zones::available_time_zones;
 
@@ -386,16 +388,14 @@ pub struct App<P> {
     /// is withheld, and the remedy is a re-consent, not a retry. Surfaced via
     /// [`Surface::Connectivity`] so a host shows a "reconnect for calendar" prompt.
     calendar_reauth_accounts: Mutex<BTreeSet<String>>,
-    /// Accounts whose OAuth grant lacks the mail **write/send** scopes (`Mail.ReadWrite` /
-    /// `Mail.Send`), so a mark-read/flag/move/delete or a send was refused with a Graph
-    /// `403 ErrorAccessDenied` (an account connected before those scopes, or consent revoked
-    /// server-side). Mail **reading** is unaffected: the remedy is a re-consent, not a retry;
-    /// so this is raised **at the point of use** (there is no cheap boot-time write probe the way
-    /// the calendar list is one), self-clears on the next successful write, and surfaces via
-    /// [`Surface::Connectivity`] as a "reconnect to send and manage mail" prompt. Sibling of
-    /// [`calendar_reauth_accounts`](Self::calendar_reauth_accounts): one re-consent grants the
-    /// whole scope set, so re-authenticating clears both.
+    /// Accounts whose OAuth grant lacks the mail write/send scopes, so a write or send was refused
+    /// with a Graph `403`. Reading is unaffected; raised at the point of use, cleared by the next
+    /// successful write, surfaced via [`Surface::Connectivity`] as a re-consent prompt. One
+    /// re-consent also clears [`calendar_reauth_accounts`](Self::calendar_reauth_accounts).
     mail_reauth_accounts: Mutex<BTreeSet<String>>,
+    /// What stopped each account's calendar or contacts from connecting while the account itself
+    /// did ([`use_problems`](crate::use_problems)).
+    use_problems: Mutex<BTreeMap<String, use_problems::UseProblems>>,
     /// Accounts whose stored OAuth grant is **dead**: the refresh token expired or was revoked,
     /// so it no longer mints an access token at all (Google `invalid_grant`, a Microsoft
     /// `AADSTS700082`, a withdrawn OAuth JMAP token). Nothing syncs until the user signs in

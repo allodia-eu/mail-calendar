@@ -206,6 +206,8 @@ impl<P: Provider> App<P> {
         // …and any expired-sign-in prompt: removing the account *is* one way to resolve it, and
         // only a successful sync would otherwise retract it, which a removed account never gets.
         self.clear_signin_expired(id);
+        // …and whatever its calendar or contacts last failed with.
+        self.note_use_problems(id, crate::UseProblems::default());
         // …and drop it from the MCP exposure list, so an account later re-added under the same
         // id does not silently inherit an exposure the user granted to a different mailbox.
         self.forget_mcp_account(acct);

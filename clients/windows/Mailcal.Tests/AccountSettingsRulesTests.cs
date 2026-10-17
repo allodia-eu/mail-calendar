@@ -15,7 +15,7 @@ public class AccountSettingsRulesTests
         Id: "alice@example.org@imap.example.org",
         Address: "alice@example.org",
         Kind: kind,
-        Uses: uses.Select(use => new AccountUse(use.Item1, use.Item2)).ToArray(),
+        Uses: uses.Select(use => new AccountUse(use.Item1, use.Item2, null)).ToArray(),
         Links: new AccountLinksView(null, null, null),
         LinkedFrom: [],
         LinkCandidates: new LinkCandidates([], [], [], []),
@@ -52,8 +52,26 @@ public class AccountSettingsRulesTests
         Assert.False(colleagues.Enabled);
         Assert.Equal(UseNote.NeedsContacts, colleagues.Note);
 
-        entry.Uses[2] = new AccountUse(AccountCapability.Contacts, CapabilityState.On);
+        entry.Uses[2] = new AccountUse(AccountCapability.Contacts, CapabilityState.On, null);
         Assert.True(AccountSettingsRules.Switch(entry, AccountCapability.Colleagues).Enabled);
+    }
+
+    [Fact]
+    public void AUseThatDidNotConnectSaysWhyBeneathItsSwitch()
+    {
+        var entry = Entry(
+            AccountKind.Imap,
+            (AccountCapability.Mail, CapabilityState.On),
+            (AccountCapability.Calendar, CapabilityState.On),
+            (AccountCapability.Contacts, CapabilityState.On));
+        entry.Uses[1] = new AccountUse(AccountCapability.Calendar, CapabilityState.On, UseProblem.NeedsOwnSignIn);
+        entry.Uses[2] = new AccountUse(AccountCapability.Contacts, CapabilityState.On, UseProblem.Unreachable);
+
+        var calendar = AccountSettingsRules.Switch(entry, AccountCapability.Calendar);
+        Assert.Equal(UseNote.OwnSignInCalendar, calendar.Note);
+        Assert.True(calendar.Active);
+        Assert.Equal(UseNote.UnreachableContacts, AccountSettingsRules.Switch(entry, AccountCapability.Contacts).Note);
+        Assert.Equal(UseNote.None, AccountSettingsRules.Switch(entry, AccountCapability.Mail).Note);
     }
 
     [Fact]

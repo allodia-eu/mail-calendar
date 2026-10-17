@@ -130,6 +130,8 @@ impl MailcalApp {
             outcome.account.contact_providers.len(),
         );
         self.refresh_analytics_accounts();
+        self.app
+            .note_use_problems(&account_id, outcome.use_problems);
         let sync_id = account_id;
         let account = outcome.account;
         connection_log::log_account_connection_info("new-account", "google", &account);

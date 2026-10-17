@@ -74,6 +74,7 @@ pub(crate) async fn reconnect_all(
                         log::info!("reconnect: account[{index}] was removed mid-dial; discarding");
                         return;
                     }
+                    app.note_use_problems(&id, outcome.use_problems);
                     if let Some(detail) = &outcome.calendar_error {
                         log::warn!(
                             "reconnect: account[{index}] mail up but calendar failed: {detail}"
