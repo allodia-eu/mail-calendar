@@ -90,8 +90,9 @@ public class AppCultureTests
         Assert.Equal($"3 {enMonth} 2024", TimeZones.RelativeDate("2024-03-03T09:05:00Z", "UTC", true, Now, En));
     }
 
-    // Today's bucket is the 24-hour clock, which is language-independent, it must NOT drift when
-    // the culture changes (a Dutch culture would otherwise be free to re-punctuate it).
+    // On the 24-hour setting today's bucket is language-independent, it must NOT drift when the
+    // culture changes (a Dutch culture would otherwise be free to re-punctuate it). The 12-hour
+    // form follows the culture as the calendar's does (RelativeDateTests).
     [Fact]
     public void TheClockBucketIsIdenticalInBothLanguages()
     {

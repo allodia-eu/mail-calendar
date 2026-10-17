@@ -446,10 +446,12 @@ public sealed partial class MailboxModel
     // snapshot than the row it belongs to (docs/avatars.md, "Resolution never blocks a row"). Left
     // out, every other field would match, the reconcile would keep the container it already had,
     // and no face would ever appear on a row that has one, with nothing about the result looking
-    // wrong.
+    // wrong. The full date is compared for a like reason: a clock or zone change can leave the
+    // relative label as it was ("Mon") while the date a row opens with has moved.
     private static bool SameRow(MailRow a, MailRow b) =>
         a.IsThread == b.IsThread && a.Title == b.Title && a.Subtitle == b.Subtitle
-        && a.DateText == b.DateText && a.Unread == b.Unread && a.Flagged == b.Flagged
+        && a.DateText == b.DateText && a.FullDateText == b.FullDateText
+        && a.Unread == b.Unread && a.Flagged == b.Flagged
         && a.HasAttachment == b.HasAttachment
         && a.MessageCount == b.MessageCount
         && a.Avatar == b.Avatar

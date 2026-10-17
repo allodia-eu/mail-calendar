@@ -68,5 +68,9 @@ public class RelativeDateTests
         Assert.Equal(
             "2026-07-20 " + clock,
             TimeZones.LocalDateTime("2026-07-20T14:05:00Z", "UTC", use24Hour));
+        // A floating time, an agenda event's, is on the same clock.
+        Assert.Equal(
+            "2026-07-20 " + clock,
+            TimeZones.LocalDateTime("2026-07-20T14:05:00", "UTC", use24Hour));
     }
 }

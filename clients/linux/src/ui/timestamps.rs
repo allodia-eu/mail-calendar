@@ -3,7 +3,10 @@
 use jiff::Timestamp;
 use time::{Date, Month};
 
-use super::calendar::{CalendarModel, date::clock};
+use super::calendar::{
+    CalendarModel,
+    date::{date_time, full_clock},
+};
 use crate::l10n;
 
 /// The display zone and the app's 12/24-hour setting, which together decide every mail
@@ -77,7 +80,7 @@ fn relative_date_at(
     let day_diff = (current_date - message_date).whole_days();
     let names = date_names(locale);
     match relative_date_pattern(day_diff, message.year() == current.year()) {
-        RelativeDatePattern::Time => clock(minutes_of(&message), use_24_hour),
+        RelativeDatePattern::Time => full_clock(minutes_of(&message), use_24_hour),
         RelativeDatePattern::Weekday => {
             names.weekdays[usize::from(message_date.weekday().number_days_from_monday())].to_owned()
         }
@@ -95,29 +98,9 @@ fn relative_date_at(
     }
 }
 
-/// The absolute date and time, with the time on the same clock the calendar draws.
+/// The absolute date and time, on the calendar's clock with the minutes always written.
 pub(super) fn local_date_time(raw: &str, zone: &str, use_24_hour: bool) -> String {
-    if raw.is_empty() {
-        return String::new();
-    }
-    if raw.ends_with('Z')
-        && let Ok(instant) = raw.parse::<Timestamp>()
-        && let Ok(value) = instant.in_tz(zone)
-    {
-        return format!(
-            "{:04}-{:02}-{:02} {}",
-            value.year(),
-            value.month(),
-            value.day(),
-            clock(minutes_of(&value), use_24_hour)
-        );
-    }
-    if raw.contains('T')
-        && let Some(value) = raw.get(..16)
-    {
-        return value.replace('T', " ");
-    }
-    raw.get(..10).unwrap_or(raw).to_owned()
+    date_time(raw, zone, " ", &|minutes| full_clock(minutes, use_24_hour))
 }
 
 /// A date the **account service** sent, as a day a reader can check against a bank statement.
@@ -358,8 +341,8 @@ mod tests {
         assert_eq!(local_date_time("2026-07-20", "UTC", true), "2026-07-20");
     }
 
-    /// The clock setting reaches mail as it reaches the calendar, in the calendar's own words, so
-    /// the list, the reading header and a quoted original never disagree with the grid.
+    /// The clock setting reaches mail as it reaches the calendar, a floating time included, and
+    /// mail always writes the minutes, so a quoted time reads as every other client writes it.
     #[test]
     fn the_twelve_hour_setting_reaches_every_mail_timestamp() {
         let now = stamp("2026-07-20T20:00:00Z");
@@ -377,7 +360,11 @@ mod tests {
         );
         assert_eq!(
             local_date_time("2026-07-20T12:00:00Z", "UTC", false),
-            "2026-07-20 12 PM"
+            "2026-07-20 12:00 PM"
+        );
+        assert_eq!(
+            relative_date_at("2026-07-20T14:05:00", "UTC", false, now, "en"),
+            "2026-07-20 2:05 PM"
         );
     }
 }
