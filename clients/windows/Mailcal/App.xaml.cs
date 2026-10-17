@@ -57,7 +57,12 @@ public partial class App : Application
         MainWindow = _window;
         _window.Activate();
         Services.TestAgent.Start(_window);
-        _window.Closed += (_, _) => Services.NewMailNotifier.Disarm();
+        _window.Closed += (_, _) =>
+        {
+            // First, while the notification registration the badge is written through still stands.
+            Services.AppBadge.Clear();
+            Services.NewMailNotifier.Disarm();
+        };
         // Registering is Program.Main's, and has already happened by the time this runs: it has to
         // precede the activation arguments being read, which is before any of this exists
         // (Services/NewMailNotifier.cs). What is left here is what a click DOES, which needs the

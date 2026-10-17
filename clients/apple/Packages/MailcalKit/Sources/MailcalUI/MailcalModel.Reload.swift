@@ -128,6 +128,9 @@ extension MailboxModel {
         folders = snapshot?.folders ?? []
         accountFolders = snapshot?.accountFolders ?? []
         unifiedUnread = snapshot?.unifiedUnread ?? 0
+        // Only from a real snapshot: before the core opens there is none, and a zero then would
+        // clear the badge the last run left until the first snapshot put it back.
+        if let snapshot { appBadge.show(snapshot.unifiedUnread) }
         unifiedExpanded = snapshot?.unifiedExpanded ?? true
         outbox = snapshot?.outbox ?? []
         showingOutbox = snapshot?.showingOutbox ?? false
