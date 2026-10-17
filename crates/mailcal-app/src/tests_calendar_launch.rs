@@ -187,10 +187,10 @@ async fn a_mail_only_account_gets_an_answer_rather_than_a_permanent_loading() {
     assert!(page.grid.timed.is_empty());
 }
 
-/// A calendar that failed beside a working mailbox has not reported "no calendar": its week is
-/// unknown, not empty, whatever the account's mail did.
+/// A calendar that could not be reached beside a working mailbox has not reported "no calendar":
+/// its week is unknown, not empty, whatever the account's mail did.
 #[tokio::test]
-async fn a_calendar_that_failed_beside_a_working_mailbox_claims_nothing() {
+async fn a_calendar_that_could_not_be_reached_beside_a_working_mailbox_claims_nothing() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut account = calendar_account("acct", CalendarFake::with_events(Vec::new()));
     account.providers = vec![CalendarFake::with_events(Vec::new())];
@@ -211,6 +211,32 @@ async fn a_calendar_that_failed_beside_a_working_mailbox_claims_nothing() {
     assert!(
         !page.is_materialized,
         "a calendar nobody could reach is not an empty one"
+    );
+}
+
+/// A calendar whose server needs a sign-in of its own will not arrive by waiting, so its week is
+/// answered rather than held at "loading" for the life of the account.
+#[tokio::test]
+async fn a_calendar_that_needs_its_own_sign_in_does_not_hold_the_week_loading() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let mut account = calendar_account("acct", CalendarFake::with_events(Vec::new()));
+    account.providers = vec![CalendarFake::with_events(Vec::new())];
+    account.calendar_providers.clear();
+    let id = account.id.clone();
+    let app = calendar_app(vec![account], &surfaces);
+    app.note_use_problems(
+        &id,
+        crate::UseProblems {
+            calendar: Some(crate::UseProblem::NeedsOwnSignIn),
+            contacts: None,
+        },
+    );
+
+    app.refresh_calendar().await;
+
+    assert!(
+        app.calendar_range(app.week_start_date(today()), 7)
+            .is_materialized
     );
 }
 

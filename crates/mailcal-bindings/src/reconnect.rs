@@ -131,6 +131,9 @@ pub(crate) async fn reconnect_all(
                     // app dials nothing synchronously, so it surfaces here at boot, never through
                     // the sync-pass classifier.
                     app.note_signin_expired(&id);
+                    // The account failed whole, so what its calendar or contacts last said is
+                    // no longer the news; the account's own prompt is.
+                    app.note_use_problems(&id, mailcal_app::UseProblems::default());
                     // Still re-queue it, so re-authenticating (or the next Refresh) re-dials it.
                     disconnected
                         .lock()
@@ -146,6 +149,7 @@ pub(crate) async fn reconnect_all(
                     // detail on the existing badge. Then re-queue it for the
                     // next attempt.
                     app.note_account_unreachable(&id, Some(format!("{label}: {err}")));
+                    app.note_use_problems(&id, mailcal_app::UseProblems::default());
                     disconnected
                         .lock()
                         .expect("disconnected mutex poisoned")

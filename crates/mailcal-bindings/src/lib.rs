@@ -348,6 +348,9 @@ pub struct MailcalApp {
     /// yet succeeded. A Refresh or return-to-online drains this and re-runs the full connect for
     /// each ([`MailcalApp::retry_connections`]); a successful reconnect removes the id.
     disconnected: Arc<Mutex<HashSet<String>>>,
+    /// Ids being dialled again right now, so a second Refresh or a return to online while one
+    /// is still under way does not start another dial of the same account.
+    redialling: Arc<Mutex<HashSet<String>>>,
     /// The device's display zone (resolved at construction), used as the `Prefer:
     /// outlook.timezone` a reconnecting Microsoft account rebinds its Graph calendar provider
     /// with: so a recurring series expands DST-correctly. Fixed for the app's lifetime; the
@@ -398,9 +401,25 @@ impl MailcalApp {
                 ids.push(id);
             }
         }
+        // An account already being dialled again is left to that dial; one that fails again is
+        // back in `disconnected`, or still has its unreachable use, for the next retry.
+        {
+            let mut redialling = self.redialling.lock().expect("redialling mutex poisoned");
+            ids.retain(|id| redialling.insert(id.clone()));
+        }
         if ids.is_empty() {
             return;
         }
+        let claimed = ids.clone();
+        let release = {
+            let redialling = Arc::clone(&self.redialling);
+            move || {
+                let mut redialling = redialling.lock().expect("redialling mutex poisoned");
+                for id in &claimed {
+                    redialling.remove(id);
+                }
+            }
+        };
         // Snapshot each account's reconnection plan under the registry lock (so no lock is held
         // across the re-dial); an id whose registry entry is gone (removed meanwhile) drops out.
         // The catch-up sync after a successful reconnect resolves the account's own depth.
@@ -412,6 +431,7 @@ impl MailcalApp {
             })
             .collect();
         if plans.is_empty() {
+            release();
             return;
         }
         log::info!(
@@ -429,6 +449,7 @@ impl MailcalApp {
         let app = self.rediscovery.app();
         self.runtime.spawn(async move {
             let unanswered = reconnect.await;
+            release();
             // Off the runtime: looking again blocks on discovery and on the move's connect.
             if let Some(app) = app.filter(|_| !unanswered.is_empty()) {
                 std::thread::spawn(move || {

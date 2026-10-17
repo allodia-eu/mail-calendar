@@ -256,8 +256,6 @@ impl MailcalApp {
         };
         let account = outcome.account;
         let calendar_error = outcome.calendar_error;
-        self.app
-            .note_use_problems(&account.id, outcome.use_problems);
         // Write the credential. For anything with a grant the bytes come from the **registry**, not
         // from `config_toml`: a rotation during the dial has already advanced the registered
         // config, and the caller's string still carries the token it replaced. An IMAP
@@ -274,6 +272,8 @@ impl MailcalApp {
         // Nothing is re-inserted here: the registered entry already carries the live token source,
         // including any rotation the dial reported into it.
         registered.commit();
+        self.app
+            .note_use_problems(&account.id, outcome.use_problems);
         // Connected *and* stored: this account will still be here at the next launch, which is
         // what the setup funnel is counting.
         self.app

@@ -101,6 +101,7 @@ pub(crate) fn build_demo(
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),
         // The demo connects no real accounts, so nothing is ever disconnected.
         disconnected: Arc::new(Mutex::new(HashSet::new())),
+        redialling: Arc::default(),
         device_zone: device_tz,
         // The demo fixture is what the CI verify gates assert on; it must keep behaving like a
         // real app, detection included.
@@ -312,6 +313,7 @@ fn finish_showcase(
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),
         // The showcase connects no real accounts, so nothing is ever disconnected.
         disconnected: Arc::new(Mutex::new(HashSet::new())),
+        redialling: Arc::default(),
         device_zone: device_tz,
         // The one build where account detection answers from a script instead of the network;
         // see `MailcalApp::detect_account_settings`.
