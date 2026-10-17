@@ -40,14 +40,14 @@ internal sealed class ComposerWindow : Window
             this,
             _view,
             string.IsNullOrWhiteSpace(request.InitialSubject) ? request.Title : request.InitialSubject,
-            new SizeInt32(DefaultWidth, DefaultHeight));
+            new SizeInt32(DefaultWidth, DefaultHeight),
+            OnClosed,
+            OnClosing);
         AppearanceApplied(model.CurrentAppearance);
 
         // Send and Discard both finish the draft, and both close the window: the composer has no
         // pane to give back here.
         _view.Init(model, request, Close);
-        AppWindow.Closing += OnClosing;
-        Closed += OnClosed;
     }
 
     /// <summary>Repaints this window when the app's appearance changes under it.</summary>
@@ -76,12 +76,8 @@ internal sealed class ComposerWindow : Window
         Close();
     }
 
-    private void OnClosed(object sender, WindowEventArgs args)
+    private void OnClosed()
     {
-        // A handler left on the window's own native objects keeps the closed window, and its
-        // composer, alive for as long as the app runs (docs/client-traps.md).
-        Closed -= OnClosed;
-        AppWindow.Closing -= OnClosing;
         App.Shell?.ForgetComposerWindow(this);
         _view.Teardown();
         ReleaseProbe.Watch(this, "composer window");

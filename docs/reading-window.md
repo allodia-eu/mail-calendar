@@ -180,6 +180,7 @@ capability matrix claims.
 | Full action row in the window | ✅ | ✅ | ✅ | — | — |
 | Reply / forward → composer window | ✅ | ✅ | ✅ | — | — |
 | Main window closing sweeps both | ✅ | ✅ | ✅ | — | — |
+| A closed window is freed, with what it held | composer ✅; reading window not yet checked | ✅ | ❌ | — | — |
 | A window stays in front of the mailbox | ✅ | ✅ | ✅ | — | — |
 | The mailbox can be raised back over it | ✅ | ✅ | ✅ | — | — |
 | The windows are all one application's | ✅ | ✅ | ✅ | — | — |

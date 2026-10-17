@@ -18,9 +18,10 @@ internal static class ReleaseProbe
 {
 #if DEBUG
     // XAML gives a closed tree back over several collections, each releasing what the previous one
-    // let go of: three to six for a composer window, measured. The bound is well past that, and a
-    // probe stops as soon as nothing is held.
-    private const int Rounds = 40;
+    // let go of: three to six for a composer window, measured. A composer discarded while its
+    // WebView2 is still being created is held until the creation settles, measured once at 16 s.
+    // The bound is well past both, and a probe stops as soon as nothing is held.
+    private const int Rounds = 120;
     private static readonly TimeSpan Interval = TimeSpan.FromMilliseconds(250);
 
     private static readonly bool On =
@@ -42,7 +43,7 @@ internal static class ReleaseProbe
             return;
         }
         Watched.Add(new WeakReference(closed));
-        Log.Info($"release probe: watching a closed {kind}");
+        Log.Info($"release probe: watching a closed {kind} (#{Watched.Count})");
         if (!_probing)
         {
             _probing = true;
@@ -52,33 +53,36 @@ internal static class ReleaseProbe
     }
 
 #if DEBUG
-    // Collects and counts until nothing watched is held or the rounds run out, then logs once. A
-    // close arriving meanwhile starts the rounds again, and the count and the line are written in
-    // one turn of the UI thread, so a line answers for everything watched before it.
+    // Collects and counts until nothing watched is held or the rounds run out, then logs once,
+    // naming what is still held by the number it was watched under, so a reader can tell a close of
+    // its own from one an earlier reader left held. A close arriving meanwhile starts the rounds
+    // again, and the count and the line are written in one turn of the UI thread, so a line answers
+    // for everything watched before it.
     //
     // Never GC.WaitForPendingFinalizers: this runs on the UI thread, and releasing a WinRT object
     // from its finaliser can need that thread.
     private static async Task ProbeAsync()
     {
         var seen = -1;
-        var held = 0;
+        var held = new List<int>();
         for (var round = 0; round < Rounds; round++)
         {
             await Task.Delay(Interval);
             if (Watched.Count != seen)
             {
                 seen = Watched.Count;
-                round = 0;
+                round = -1;
             }
             GC.Collect();
-            held = Watched.Count(reference => reference.IsAlive);
-            if (held == 0)
+            held = Enumerable.Range(1, Watched.Count).Where(n => Watched[n - 1].IsAlive).ToList();
+            if (held.Count == 0)
             {
                 break;
             }
         }
         _probing = false;
-        Log.Info($"release probe: {held} of {Watched.Count} closed still held");
+        var which = held.Count == 0 ? "" : ": " + string.Join(" ", held.Select(n => $"#{n}"));
+        Log.Info($"release probe: {held.Count} of {Watched.Count} closed still held{which}");
     }
 #endif
 }

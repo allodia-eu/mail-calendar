@@ -20,6 +20,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
+using Windows.Foundation;
 using Windows.Graphics;
 
 namespace Allodia.Mailcal.Services;
@@ -29,15 +30,48 @@ internal static class WindowChrome
 {
     /// <summary>
     /// Gives <paramref name="window"/> its caption, its content, its title, its opening size and the
-    /// brand icon.
+    /// brand icon, and runs <paramref name="closed"/> once it has closed.
     /// </summary>
     /// <remarks>
     /// The content is wrapped in a <see cref="WindowShell"/>, which is both the caption this window
     /// draws for itself and the one element the appearance is painted on: <c>RequestedTheme</c> is
     /// set on an element, never on the application, so a window needs a root of its own to carry it.
+    /// <para>
+    /// The close handlers are registered here so they are also removed here. A handler left on the
+    /// window's own <c>Closed</c> or on its <c>AppWindow</c> keeps the closed window alive, with
+    /// everything it held, for as long as the app runs (docs/client-traps.md).
+    /// <paramref name="closing"/> is for a window that holds its close while it finishes something.
+    /// </para>
     /// </remarks>
-    internal static void Dress(Window window, UIElement content, string title, SizeInt32 logical)
+    internal static void Dress(
+        Window window,
+        UIElement content,
+        string title,
+        SizeInt32 logical,
+        Action closed,
+        TypedEventHandler<AppWindow, AppWindowClosingEventArgs>? closing = null)
     {
+        if (closing is not null)
+        {
+            window.AppWindow.Closing += closing;
+        }
+        void OnClosed(object sender, WindowEventArgs args)
+        {
+            try
+            {
+                closed();
+            }
+            finally
+            {
+                window.Closed -= OnClosed;
+                if (closing is not null)
+                {
+                    window.AppWindow.Closing -= closing;
+                }
+            }
+        }
+        window.Closed += OnClosed;
+
         var root = new WindowShell();
         root.Init(title, content);
         window.Content = root;

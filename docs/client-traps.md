@@ -411,8 +411,9 @@ that same file.
   processes stays flat. Measured: every reading and composer window closed was still alive after
   three forced collections, a few megabytes each, while handlers on elements inside the same
   windows held nothing. The tell is `gcroot` in `dotnet-dump` finding no managed root for an object
-  that survives every collection. Unsubscribe inside the `Closed` handler;
-  `uitests/ReleaseProbe.Tests.ps1` counts what is still held after a close.
+  that survives every collection. Unsubscribe inside the `Closed` handler, which
+  `WindowChrome.Dress` does for every window it dresses; `uitests/ReleaseProbe.Tests.ps1` counts
+  what is still held after a close.
 - **WinUI's `FocusManager` static *moves* act on whichever element holds focus now, which may be in
   a different window.** `TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = other })`
   reads as "move focus into `other`" and is not: the search root only bounds where the *next*

@@ -16,58 +16,53 @@
 
 $ReleaseCycles = 3
 $ReleaseWatchPattern = '\[info\] release probe: watching a closed '
-$ReleaseAnswerPattern = '\[info\] release probe: (?<held>\d+) of (?<total>\d+) closed still held'
+$ReleaseAnswerPattern = '\[info\] release probe: (?<held>\d+) of (?<total>\d+) closed still held(?::(?<which>[ #\d]+))?'
 
 <#
 .SYNOPSIS
-Where this launch's probe stands: how many closes it has been told about, and how many of those its
-latest answer found still held.
-.DESCRIPTION
-A case is judged on what it ADDED to both, because the count runs for the whole launch: a case after
-one that leaked would otherwise fail for the earlier case's objects.
+How many closes this launch's probe has been told about so far. Each is numbered in that order, so
+the closes a case makes are the ones numbered above what this answered before it began.
 #>
-function Get-ReleaseState {
-  $session = Get-AppLogNewestSession
-  $answers = [regex]::Matches($session, $ReleaseAnswerPattern)
-  @{
-    Watches = [regex]::Matches($session, $ReleaseWatchPattern).Count
-    Held    = if ($answers.Count -gt 0) { [int] $answers[$answers.Count - 1].Groups['held'].Value } else { 0 }
-  }
+function Get-ReleaseWatchCount {
+  [regex]::Matches((Get-AppLogNewestSession), $ReleaseWatchPattern).Count
 }
 
 <#
 .SYNOPSIS
-Waits for the probe to answer for every close since -Before was read, and throws if it found more
-held than it did then.
+Waits for the probe to answer for every close after the first -Before, and throws if any of those
+is still held.
 .DESCRIPTION
-The answer has to come AFTER the last watch line: an earlier one answered for less than this case
-closed. The probe gives up after about ten seconds of collections, so a timeout here means it never
-answered at all.
+Judged on this case's own closes, by the numbers the probe names: the count runs for the whole
+launch, and a total would let an earlier case's leak being freed hide a new one, or fail this case
+for the earlier one. The answer has to come AFTER the last watch line, because an earlier one
+answered for less than this case closed. The probe gives up after about thirty seconds of collections,
+so a timeout here means it never answered at all.
 #>
 function Assert-ReleasedSince {
-  param([Parameter(Mandatory)] [hashtable] $Before, [Parameter(Mandatory)] [string] $What, [int] $TimeoutSec = 30)
+  param([Parameter(Mandatory)] [int] $Before, [Parameter(Mandatory)] [string] $What, [int] $TimeoutSec = 60)
   $timer = [Diagnostics.Stopwatch]::StartNew()
   while ($timer.Elapsed.TotalSeconds -lt $TimeoutSec) {
     $session = Get-AppLogNewestSession
     $watches = [regex]::Matches($session, $ReleaseWatchPattern)
     $answers = [regex]::Matches($session, $ReleaseAnswerPattern)
-    if ($watches.Count -gt $Before.Watches -and $answers.Count -gt 0) {
+    if ($watches.Count -gt $Before -and $answers.Count -gt 0) {
       $answer = $answers[$answers.Count - 1]
       if ($answer.Index -gt $watches[$watches.Count - 1].Index) {
         Assert-Equal $watches.Count ([int] $answer.Groups['total'].Value) `
           'the probe answered for a different number of closes than it logged, so this line is not about this case'
-        $added = [int] $answer.Groups['held'].Value - $Before.Held
-        Assert-True ($added -le 0) `
-          "$added closed object(s) are still in memory after $What. Something the app keeps, often a handler on a native object, still refers to them (docs/client-traps.md)"
+        $held = @([regex]::Matches($answer.Groups['which'].Value, '#(\d+)') |
+            ForEach-Object { [int] $_.Groups[1].Value } | Where-Object { $_ -gt $Before })
+        Assert-Equal 0 $held.Count `
+          "$($held.Count) of the $($watches.Count - $Before) object(s) closed when $What are still in memory. Something the app keeps, often a handler on a native object, still refers to them (docs/client-traps.md)"
         return
       }
     }
     Start-Sleep -Milliseconds 300
   }
-  if ((Get-ReleaseState).Watches -le $Before.Watches) {
-    throw "the probe was never told about a close during $What, so this case proved nothing. Is MAILCAL_RELEASE_PROBE reaching the app, and is this a debug build?"
+  if ((Get-ReleaseWatchCount) -le $Before) {
+    throw "the probe was never told about a close when $What, so this case proved nothing. Is MAILCAL_RELEASE_PROBE reaching the app, and is this a debug build?"
   }
-  throw "the probe did not answer within ${TimeoutSec}s of $What"
+  throw "the probe did not answer within ${TimeoutSec}s of the closes when $What"
 }
 
 function Open-ReleaseComposer {
@@ -86,7 +81,7 @@ $Suite = @{
     @{
       Name = 'a composer closed in the pane is released'
       Body = {
-        $before = Get-ReleaseState
+        $before = Get-ReleaseWatchCount
         for ($i = 0; $i -lt $ReleaseCycles; $i++) {
           Open-ReleaseComposer
           # The editor draws in a browser window of its own once its WebView2 is up.
@@ -96,6 +91,9 @@ $Suite = @{
             if ($editor -and $editor.Current.NativeWindowHandle -ne 0) { break }
             Start-Sleep -Milliseconds 200
           } while ($timer.Elapsed.TotalSeconds -lt 30)
+          if (-not ($editor -and $editor.Current.NativeWindowHandle -ne 0)) {
+            throw 'the composer editor never drew its browser window within 30s, so this case would only repeat the next one'
+          }
           $null = Close-Composer
         }
         Assert-ReleasedSince -Before $before -What "$ReleaseCycles composers were discarded"
@@ -106,7 +104,7 @@ $Suite = @{
       Body = {
         # Discarded while EnsureCoreWebView2Async may still be running: nothing waits for the
         # editor to load first.
-        $before = Get-ReleaseState
+        $before = Get-ReleaseWatchCount
         for ($i = 0; $i -lt $ReleaseCycles; $i++) {
           Open-ReleaseComposer
           $null = Close-Composer
@@ -118,7 +116,7 @@ $Suite = @{
       Name = 'a reading window, and the composer window raised from it, are released'
       Body = {
         Close-ExtraWindows
-        $before = Get-ReleaseState
+        $before = Get-ReleaseWatchCount
         for ($i = 0; $i -lt $ReleaseCycles; $i++) {
           Show-Mailbox
           $row = Get-MailRows | Where-Object { $_.Current.IsEnabled } | Select-Object -First 1
@@ -151,7 +149,7 @@ $Suite = @{
     @{
       Name = 'a signature editor is released when it is cancelled'
       Body = {
-        $before = Get-ReleaseState
+        $before = Get-ReleaseWatchCount
         try {
           for ($i = 0; $i -lt $ReleaseCycles; $i++) {
             $dialog = Open-SettingsCategory -Name 'Signatures'
