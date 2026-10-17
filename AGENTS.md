@@ -416,7 +416,7 @@ silently ignores every nightly option in [`rustfmt.toml`](rustfmt.toml).
 `clients/linux/package.sh` is the packaging gate: it builds `--release` in the GNOME SDK, generates
 the desktop entry and AppStream metainfo from the resolved listing and [`VERSION`](VERSION), and
 validates both against the installed tree. CI runs it on **both** architectures at a tag, never on
-a push.
+a push, and does the same with its sibling for the snap, `clients/linux/package-snap.sh`.
 
 ### Gates that stay green over a broken build
 

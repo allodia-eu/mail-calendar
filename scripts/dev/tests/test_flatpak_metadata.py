@@ -538,5 +538,22 @@ class Gallery(unittest.TestCase):
         self.assertIn("https://allodia.eu/docs-assets/abc123", metainfo)
 
 
+class SnapPackage(unittest.TestCase):
+    """snapd renames the desktop entry and exports no D-Bus service file."""
+
+    def test_only_a_snap_names_the_window_class(self):
+        # The shell ties a window to its launcher by the entry's basename, which snapd changes to
+        # `<snap>_<app>.desktop`; a Flatpak keeps the basename, where the key would break the match.
+        snap = meta.desktop_entry("MailCal", {"en": "Mail"}, ["en"], package="snap")
+        flatpak = meta.desktop_entry("MailCal", {"en": "Mail"}, ["en"])
+        self.assertIn(f"StartupWMClass={meta.APP_ID}", snap.splitlines())
+        self.assertNotIn("StartupWMClass", flatpak)
+
+    def test_a_snap_gets_no_service_file(self):
+        with tempfile.TemporaryDirectory() as out:
+            written = meta.build(Path(out), package="snap")
+        self.assertEqual(sorted(path.suffix for path in written), [".desktop", ".xml"])
+
+
 if __name__ == "__main__":
     unittest.main()

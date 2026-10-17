@@ -260,6 +260,7 @@ would give two answers that agree until the day a sandboxed build changes one of
 | macOS (Mac App Store) | `~/Library/Group Containers/group.eu.allodia.mailcal/mcp.sock`: the shared **App Group** container |
 | Windows | `\\.\pipe\<scheme>.mcp`, where `<scheme>` is the OAuth redirect scheme, so dev and Store builds coexist |
 | Linux | `$XDG_DATA_HOME/mailcal/mcp.sock` |
+| Linux (snap) | `$SNAP_USER_COMMON/.local/share/mailcal/mcp.sock`: the directory every revision of the snap shares, so a copied configuration survives an update |
 
 Why the OAuth scheme decides the Windows pipe name: a developer's machine has the Store build
 installed beside the dev one, and they must not share an endpoint: whichever started first would
@@ -272,7 +273,9 @@ The Linux Flatpak ships the relay in `/app/bin` and the copied configuration ent
 app with `flatpak run <scope> --command=allodia-mcp <app-id>/<arch>/<branch>`. Scope, architecture,
 and branch come from `/.flatpak-info`; leaving any of them implicit can prompt when the same ref
 exists in the user and system installations. The relay and app therefore see the same persistent
-data directory and socket.
+data directory and socket. The snap ships the relay as a second command of the same snap,
+`/snap/bin/<snap>.allodia-mcp`, named in full because `/snap/bin` is not on every MCP client's
+`PATH`; being the same snap, it is confined to the same directory as the app.
 `/app/bin` exists only inside the sandbox: Flatpak's content-addressed host deployment paths are not
 an executable interface, so the host-side `flatpak` launcher is the stable entry point.
 
@@ -448,7 +451,7 @@ MCP boundary too. Every message-carrying result echoes both back.
 | Listener compiled in | ✅ | ✅ | ✅ | — | — |
 | Settings → Advanced panel | ✅ | ✅ | ✅ | — | — |
 | `AgentHostUi` (composer) | ✅ | ✅ | ✅ | — | — |
-| `allodia-mcp` relay shipped | ✅ nested `.app` in the bundle | ✅ App Execution Alias | ✅ Flatpak command | — | — |
+| `allodia-mcp` relay shipped | ✅ nested `.app` in the bundle | ✅ App Execution Alias | ✅ Flatpak and snap command | — | — |
 | Config snippet with Copy | ✅ | ✅ | ✅ | — | — |
 | Sandboxed (Mac App Store) build | 🚧 validation passed; runtime round trip owed | — | — | — | — |
 

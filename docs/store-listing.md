@@ -173,6 +173,22 @@ of a cell flipping, which is the only way rule 3 can be enforced by a machine ra
 by a person. Cells flipping to ✅ without this section changing is that rule working, not an
 oversight.
 
+### The Snap Store reads the same file
+
+The snap is built from the same generated metainfo (`flatpak_metadata.py --package snap`), and
+snapcraft's `parse-info` takes the store listing from it, so there is still one listing for Linux:
+
+| Snap Store field | Limit | Taken from |
+|---|---|---|
+| Title | 40 characters | `<name>` |
+| Summary | 78 characters | `<summary>`, which the 35-character Flathub cap already keeps inside it |
+| Description | 4,096 characters | `<description>`, the English paragraphs only: the store has no per-locale description |
+| Version | | `craftctl set version` from `/VERSION` |
+| Licence | | the same `project_license()` the metainfo states, filled in by `package-snap.sh`, with each `LicenseRef-` id written `Proprietary`: snapd admits no other name for a licence outside its SPDX list |
+
+The store's category, screenshots and banner have no field in a snap and are set in the publisher's
+dashboard, with the gallery images from the same store as Flathub's, below.
+
 ---
 
 ## Known gaps

@@ -1189,6 +1189,46 @@ jobs:
           path: target/flatpak/mailcal.flatpak
           if-no-files-found: error
 
+  linux-snap:
+    # The snap the Snap Store and Ubuntu's App Center install, on both architectures. Tag-only for
+    # the reason in this file's header, and a job of its own because its compile is as cold as the
+    # Flatpak's, and the two in one job would not fit the Linux job's tag budget. It validates the
+    # generated desktop entry and metainfo inside the build, as the Flatpak's manifest does.
+    name: Linux snap (${{ matrix.arch }})
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-26.04
+          - arch: arm64
+            runner: ubuntu-26.04-arm
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install snapcraft
+        # From the channel package-snap.sh names: core26's GNOME extension needs 9.2 or later.
+        run: sudo snap install snapcraft --classic --channel=latest/candidate
+
+      - name: Build the snap
+        env:
+          # As for the Flatpak bundle above: a tag build that lost its registrations fails.
+          MAILCAL_REQUIRE_INJECTED_CONFIG: 1
+        # On the runner itself, which is Ubuntu 26.04 as core26 is, rather than in an LXD container
+        # the runner would first have to set up.
+        run: clients/linux/package-snap.sh --destructive-mode
+
+      - name: Keep the snap
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mailcal-linux-${{ matrix.arch }}.snap
+          path: target/snap/*.snap
+          if-no-files-found: error
+
   unbranded:
     # The build every from-source checkout makes: no OAuth registrations, no Allodia sign-in, no
     # analytics relay. It is a supported build (BUILDING.md) and it has to stay green — but until
@@ -1258,7 +1298,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux]
+    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux, linux-snap]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

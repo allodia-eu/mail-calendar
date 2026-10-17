@@ -117,23 +117,8 @@ if [[ "$APP_ID" != "$NEUTRAL_APP_ID" ]]; then
   echo "==> branding: building as $APP_ID ($MAILCAL_APP_NAME)"
 fi
 
-CREDENTIAL_VARS=(
-  MAILCAL_GOOGLE_DESKTOP_CLIENT_ID
-  MAILCAL_GOOGLE_DESKTOP_CLIENT_SECRET
-  MAILCAL_GOOGLE_IOS_CLIENT_ID
-  MAILCAL_GOOGLE_ANDROID_CLIENT_ID
-  MAILCAL_MS_CLIENT_ID
-  MAILCAL_ALLODIA_CLIENT_ID
-  MAILCAL_ALLODIA_HOST
-  # The consented-analytics relay (docs/analytics.md). Injected the same way and for the same
-  # reason: the build inside the sandbox reads only this file, so a name absent here is a bundle
-  # that asks for consent and then has nowhere to report.
-  ALLODIA_TELEMETRY_URL
-  ALLODIA_TELEMETRY_APP_KEY
-  MAILCAL_REQUIRE_INJECTED_CONFIG
-)
 FROM_ENVIRONMENT=()
-for var in "${CREDENTIAL_VARS[@]}"; do
+for var in "${PACKAGE_CREDENTIAL_VARS[@]}"; do
   if [[ -n "${!var:-}" ]]; then
     FROM_ENVIRONMENT+=("$var")
   fi

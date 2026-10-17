@@ -317,12 +317,17 @@ def _screenshots_element(manifest: dict | None) -> str:
     return "\n".join(out)
 
 
-def desktop_entry(name: str, summary_by_locale: dict[str, str], locales: list[str]) -> str:
+def desktop_entry(
+    name: str, summary_by_locale: dict[str, str], locales: list[str], *, package: str = "flatpak"
+) -> str:
     """The desktop entry. Its basename is the app id, which is what ties a window to this launcher.
 
-    No `StartupWMClass`: GTK4 reports the GApplication id as the Wayland `app_id`, and the shell
-    matches that against the desktop file's own basename. Setting it to anything is how that
-    association gets broken, not kept.
+    No `StartupWMClass` in a Flatpak: GTK4 reports the GApplication id as the Wayland `app_id`, and
+    the shell matches that against the desktop file's own basename. Setting it to anything is how
+    that association gets broken, not kept. A snap is the exception, because snapd installs the
+    entry as `<snap>_<app>.desktop`, so the basename no longer names the app id and the shell
+    needs `StartupWMClass` to find the launcher instead. snapcraft rewrites `Exec` and `Icon` to
+    the snap's own command and file, so those two lines are the same for both.
 
     `%U` passes the raw URIs through GApplication's command-line signal: `%u` (one) would have
     done for a `mailto:` link, but an "Open With" on several files is one launch carrying all of
@@ -382,8 +387,10 @@ def desktop_entry(name: str, summary_by_locale: dict[str, str], locales: list[st
         ),
         "Keywords=email;mail;calendar;imap;jmap;caldav;smtp;",
         "StartupNotify=true",
-        "",
     ]
+    if package == "snap":
+        lines.append(f"StartupWMClass={APP_ID}")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -532,8 +539,13 @@ def build(
     repo_root: Path = REPO_ROOT,
     screenshots: Path | None = None,
     links_licensed: bool | None = None,
+    package: str = "flatpak",
 ) -> list[Path]:
-    """Write the generated files into `out_dir`, and return what was written."""
+    """Write the generated files into `out_dir`, and return what was written.
+
+    A snap gets no D-Bus service file: snapd exports none from a snap, and declares the bus name
+    in `snapcraft.yaml` instead.
+    """
     listing_file = brand.listing_source()
     listing = listing_file.read_text(encoding="utf-8")
     version = (repo_root / "VERSION").read_text(encoding="utf-8").strip()
@@ -581,7 +593,9 @@ def build(
     out_dir.mkdir(parents=True, exist_ok=True)
     desktop_path = out_dir / f"{APP_ID}.desktop"
     metainfo_path = out_dir / f"{APP_ID}.metainfo.xml"
-    desktop_path.write_text(desktop_entry(name, summary_by_locale, locales), encoding="utf-8")
+    desktop_path.write_text(
+        desktop_entry(name, summary_by_locale, locales, package=package), encoding="utf-8"
+    )
     metainfo_path.write_text(
         metainfo(
             template_path.read_text(encoding="utf-8"),
@@ -597,6 +611,8 @@ def build(
         ),
         encoding="utf-8",
     )
+    if package == "snap":
+        return [desktop_path, metainfo_path]
     service_path = out_dir / f"{APP_ID}.service"
     service_path.write_text(dbus_service(), encoding="utf-8")
     return [desktop_path, metainfo_path, service_path]
@@ -617,12 +633,19 @@ def main(argv: list[str] | None = None) -> int:
         help="describe a build that carries the Allodia registration, whatever this checkout has; "
              "for assembling the listing of a published build rather than of one being built here",
     )
+    parser.add_argument(
+        "--package",
+        choices=("flatpak", "snap"),
+        default="flatpak",
+        help="the package format the files are installed into",
+    )
     args = parser.parse_args(argv)
     try:
         written = build(
             args.out_dir,
             screenshots=args.screenshots,
             links_licensed=args.links_licensed_core,
+            package=args.package,
         )
     except (DocumentShapeError, MetadataError) as error:
         print(f"flatpak-metadata: {error}", file=sys.stderr)

@@ -153,6 +153,8 @@ pub(crate) const PHRASES: &[&str] = &[
     "rfc 9728",
     // The console a Windows release is submitted to.
     "partner center",
+    // Ubuntu's software store, which installs the snap.
+    "app center",
 ];
 
 /// A single token, compared exactly.

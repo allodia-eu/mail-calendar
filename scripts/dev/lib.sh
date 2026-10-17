@@ -75,6 +75,26 @@ warn() { printf 'warning: %s\n' "$*" >&2; }
 
 require_cmd() { command -v "$1" >/dev/null 2>&1 || die "'$1' is required but not found in PATH"; }
 
+# ---- what a sandboxed package build is handed --------------------------------------------------
+
+# The injected values a Linux package build carries into its sandbox as a `.env` file, because
+# neither flatpak-builder nor snapcraft forwards the host environment to the build inside it.
+PACKAGE_CREDENTIAL_VARS=(
+  MAILCAL_GOOGLE_DESKTOP_CLIENT_ID
+  MAILCAL_GOOGLE_DESKTOP_CLIENT_SECRET
+  MAILCAL_GOOGLE_IOS_CLIENT_ID
+  MAILCAL_GOOGLE_ANDROID_CLIENT_ID
+  MAILCAL_MS_CLIENT_ID
+  MAILCAL_ALLODIA_CLIENT_ID
+  MAILCAL_ALLODIA_HOST
+  # The consented-analytics relay (docs/analytics.md). Injected the same way and for the same
+  # reason: the build inside the sandbox reads only this file, so a name absent here is a package
+  # that asks for consent and then has nowhere to report.
+  ALLODIA_TELEMETRY_URL
+  ALLODIA_TELEMETRY_APP_KEY
+  MAILCAL_REQUIRE_INJECTED_CONFIG
+)
+
 # ---- the core's cargo features -----------------------------------------------------------------
 
 # The cargo features a client build must ask the core for, as a space-separated list, or nothing.

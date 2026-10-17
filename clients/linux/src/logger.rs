@@ -16,7 +16,7 @@ const DEFAULT_BACKUPS: u8 = 3;
 
 /// The Linux diagnostic log path from the cross-platform logging contract.
 pub(crate) fn diagnostic_log_path() -> PathBuf {
-    gtk::glib::user_data_dir().join("mailcal/mailcal.log")
+    crate::storage::data_root().join("mailcal.log")
 }
 
 /// Written once, when GTK has put the main window on screen with the mailbox in it, in place of

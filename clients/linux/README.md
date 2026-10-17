@@ -364,6 +364,38 @@ private data-directory socket. Development builds use the relay beside `mailcal-
 - **The gallery has no published images.** `showcase.sh linux` captures them; nothing uploads them
   yet (see `store-listing.md` → Known gaps).
 
+## Package as a snap
+
+The package the Snap Store and Ubuntu's App Center install. snapcraft builds it in an LXD
+container, set up once per machine; log in again after the `usermod` for the group to apply:
+
+```sh
+sudo snap install snapcraft --classic --channel=latest/candidate   # 9.2 or later, for core26
+sudo snap install lxd && sudo lxd init --auto && sudo usermod -aG lxd "$USER"
+clients/linux/package-snap.sh --install
+```
+
+[`package-snap.sh`](package-snap.sh) fills [`snap/snapcraft.yaml.in`](snap/snapcraft.yaml.in)
+from the brand and builds a copy of the tree under `target/snap/project`: the snap is named
+`MAILCAL_SNAP_NAME`, a Store reservation that is not the application id (docs/branding.md).
+GTK, libadwaita and WebKitGTK come from the `gnome-core26` platform snap, GNOME 50 as in the
+Flatpak's runtime. The build compiles `--release` and generates and validates the desktop entry and
+metainfo from the same listing as the Flatpak; the Store's title, summary and description are read
+from that metainfo. The first build is cold; the container keeps cargo's caches after that.
+
+What differs from the Flatpak, each verified on an installed snap:
+
+- **Its data is under `~/snap/<snap>/common/.local/share/mailcal/`**, the directory every
+  revision shares, because snapd copies a revision's own directory on every refresh. The keyring
+  file the Secret portal keeps is in the revision's directory, `~/snap/<snap>/current/`.
+- **It plugs `network-status`.** GIO's network monitor asks the portal whether the machine is
+  online, and the portal answers a snap only with that plug; without it the app reads as offline
+  for good and never syncs mail.
+- **A notification click reaches it only while it runs** (docs/background-sync.md).
+- **It owns the application id on the session bus**, as the Flatpak does, through the `dbus`
+  slot. With both installed, whichever starts second hands off to the first and exits.
+- **The MCP snippet runs `/snap/bin/<snap>.allodia-mcp`** (docs/mcp.md).
+
 ## Capture the showcase set
 
 ```sh

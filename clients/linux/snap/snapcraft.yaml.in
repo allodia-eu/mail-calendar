@@ -1,0 +1,115 @@
+# Snap recipe for the Linux client, the package the Snap Store and Ubuntu's App Center install.
+# Built by clients/linux/package-snap.sh, which fills every field between at signs and builds a
+# copy of the source tree: a snapcraft project has to sit at the root of what it builds, and a
+# checkout's `target/` is far too large to hand to a build container. So this file is a template
+# and is not valid YAML until it has been filled.
+#
+# Every value that names the app comes from the brand (docs/branding.md): the snap name is
+# MAILCAL_SNAP_NAME and the application id MAILCAL_APP_ID.
+name: @SNAP_NAME@
+base: core26
+grade: stable
+confinement: strict
+license: @LICENSE@
+icon: clients/linux/flatpak/icons/512.png
+
+# Title, summary, description and the release history come from the generated AppStream file, the
+# same one the Flatpak installs, so the store copy is written once (docs/store-listing.md).
+adopt-info: mailcal
+# The links, which `parse-info` does not take from the metainfo; package-snap.sh copies each from
+# the metainfo template's `<url>` of the matching type, so they are still written once.
+website: @URL_HOMEPAGE@
+contact: @URL_CONTACT@
+issues: @URL_BUGTRACKER@
+
+platforms:
+  amd64:
+  arm64:
+
+apps:
+  # Named after the snap, so the command it installs is the snap name alone.
+  @SNAP_NAME@:
+    command: bin/mailcal
+    # GNOME 50's GTK, libadwaita and WebKitGTK come from the shared `gnome-core26` platform snap,
+    # the same generation the Flatpak's runtime and the Ubuntu 26.04 development baseline carry.
+    extensions: [gnome]
+    desktop: usr/share/applications/@APP_ID@.desktop
+    # Ties the snap to its AppStream id, which App Center reads ratings and metadata by.
+    common-id: @APP_ID@
+    plugs:
+      - network
+      # The loopback OAuth callback (clients/linux/src/ui/oauth_loopback.rs) listens on 127.0.0.1.
+      - network-bind
+      # GIO's network monitor asks the NetworkMonitor portal, which answers a snap only when this
+      # plug is connected; refused, the app never learns it went offline or came back.
+      - network-status
+      # The calendar grid follows org.gnome.desktop.interface; core26's GNOME extension no longer
+      # adds this plug by itself.
+      - gsettings
+    slots:
+      - bus-name
+    # Deliberately NOT plugged, for the reasons the Flatpak manifest gives:
+    #
+    #   password-manager-service: oo7 detects the snap sandbox and stores secrets through the
+    #     Secret portal; the interface would let this app read every other application's secrets.
+    #   home, removable-media: files reach the app through the FileChooser and OpenURI portals,
+    #     one file the user picked at a time.
+
+  # The local MCP relay. A command of the same snap, so it is confined to the same data directory
+  # as the app and reaches the endpoint the app listens on (docs/mcp.md).
+  allodia-mcp:
+    command: bin/allodia-mcp
+
+slots:
+  # GApplication owns its id on the session bus, which is how a second launch reaches the running
+  # app and how a notification's action is delivered to it. A strict snap may own only the names
+  # it declares.
+  bus-name:
+    interface: dbus
+    bus: session
+    name: @APP_ID@
+
+parts:
+  mailcal:
+    plugin: nil
+    source: .
+    build-packages:
+      - curl
+      - python3
+      - desktop-file-utils
+      - appstream
+    build-environment:
+      # Empty unless the build asked for it; see package-snap.sh.
+      - MAILCAL_REQUIRE_INJECTED_CONFIG: "@REQUIRE_INJECTED_CONFIG@"
+    override-build: |
+      # rustup reads rust-toolchain.toml, so the build uses the pinned compiler and nothing newer.
+      if [ ! -x "$HOME/.cargo/bin/rustup" ]; then
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+          sh -s -- -y --profile minimal --default-toolchain none
+      fi
+      export PATH="$HOME/.cargo/bin:$PATH"
+
+      # `--locked` builds the committed Cargo.lock. Default features, plus the Allodia sign-in when
+      # the registration is present, so `dev-harness` and the debug-only fixtures cannot be linked.
+      cargo build --release --locked -p mailcal-linux@CARGO_FEATURES@
+      cargo build --release --locked -p mailcal-mcp-shim --bin allodia-mcp
+      install -Dm755 target/release/mailcal-linux "$CRAFT_PART_INSTALL/bin/mailcal"
+      install -Dm755 target/release/allodia-mcp "$CRAFT_PART_INSTALL/bin/allodia-mcp"
+
+      python3 scripts/dev/flatpak_metadata.py --package snap --out-dir metadata
+      install -Dm644 metadata/@APP_ID@.desktop \
+        "$CRAFT_PART_INSTALL/usr/share/applications/@APP_ID@.desktop"
+      install -Dm644 metadata/@APP_ID@.metainfo.xml \
+        "$CRAFT_PART_INSTALL/usr/share/metainfo/@APP_ID@.metainfo.xml"
+      desktop-file-validate "$CRAFT_PART_INSTALL/usr/share/applications/@APP_ID@.desktop"
+      appstreamcli validate --no-net --explain \
+        "$CRAFT_PART_INSTALL/usr/share/metainfo/@APP_ID@.metainfo.xml"
+
+      for size in 128 256 512; do
+        install -Dm644 "clients/linux/flatpak/icons/$size.png" \
+          "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/${size}x${size}/apps/@APP_ID@.png"
+      done
+
+      craftctl set version="$(cat VERSION)"
+    parse-info:
+      - usr/share/metainfo/@APP_ID@.metainfo.xml

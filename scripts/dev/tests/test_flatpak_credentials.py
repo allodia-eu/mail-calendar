@@ -41,19 +41,19 @@ BRANDED_APP_ID = "eu.example.mail"
 
 
 def credential_vars() -> frozenset[str]:
-    """The names `package.sh` treats as credentials, read from the script itself.
+    """The names `package.sh` treats as credentials, read from the `lib.sh` list it iterates.
 
     Not a prefix: two of them (`ALLODIA_TELEMETRY_*`) do not begin with `MAILCAL_`, and a name this
     misses is one the host silently adds to a case that states its credentials in full.
     """
     block = re.search(
-        r"^CREDENTIAL_VARS=\(\n(.*?)^\)$", PACKAGE_SH.read_text(encoding="utf-8"), re.M | re.S
+        r"^PACKAGE_CREDENTIAL_VARS=\(\n(.*?)^\)$", LIB_SH.read_text(encoding="utf-8"), re.M | re.S
     )
     if block is None:
-        raise RuntimeError("package.sh no longer declares CREDENTIAL_VARS=( ... )")
+        raise RuntimeError("lib.sh no longer declares PACKAGE_CREDENTIAL_VARS=( ... )")
     names = re.findall(r"^\s*([A-Z][A-Z0-9_]*)\s*$", block.group(1), re.M)
     if not names:
-        raise RuntimeError("package.sh's CREDENTIAL_VARS holds no names")
+        raise RuntimeError("lib.sh's PACKAGE_CREDENTIAL_VARS holds no names")
     return frozenset(names)
 
 

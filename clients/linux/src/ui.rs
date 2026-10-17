@@ -170,7 +170,9 @@ use mailbox::ThreadKey;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 use model::OpenedMessage;
 use model::ReadingState;
-pub(crate) use notification_click::install as install_notification_actions;
+pub(crate) use notification_click::{
+    install as install_notification_actions, listen_in_snap as listen_for_notification_clicks,
+};
 use reader::ComposerHost;
 use reading_windows::DetachedDraft;
 use search::SearchState;

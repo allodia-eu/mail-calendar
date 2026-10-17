@@ -282,7 +282,7 @@ fn real_app(
 }
 
 fn data_dir(subdir: Option<&str>) -> PathBuf {
-    let root = gtk::glib::user_data_dir().join("mailcal");
+    let root = crate::storage::data_root();
     subdir.map_or(root.clone(), |name| root.join(name))
 }
 

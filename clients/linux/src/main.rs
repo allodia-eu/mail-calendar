@@ -31,6 +31,7 @@ mod preferences;
 mod secrets;
 mod share;
 mod showcase;
+mod storage;
 mod ui;
 
 static APP_BROKER: relm4::MessageBroker<ui::AppInput> = relm4::MessageBroker::new();
@@ -118,6 +119,7 @@ fn main() {
     // What a click on a new-mail notification is delivered through, whether or not this process
     // was running when it came.
     ui::install_notification_actions(&application, |input| APP_BROKER.send(input));
+    ui::listen_for_notification_clicks(|input| APP_BROKER.send(input));
     let app = relm4::RelmApp::<ui::AppInput>::from_app(application).with_broker(&APP_BROKER);
     app.run::<ui::AppWindow>(());
 }

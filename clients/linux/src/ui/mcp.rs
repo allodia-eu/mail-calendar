@@ -20,10 +20,11 @@ pub(super) fn install(app: Option<&MailcalApp>, sender: relm4::Sender<AppInput>)
 }
 
 /// Where the app and relay meet. In Flatpak, GLib resolves this inside the app's persistent data
-/// directory; the host-side relay enters the same sandbox before connecting.
+/// directory; the host-side relay enters the same sandbox before connecting. A snap's relay is a
+/// command of the same snap, so it is confined to the same directory as the app.
 pub(super) fn endpoint() -> String {
-    gtk::glib::user_data_dir()
-        .join("mailcal/mcp.sock")
+    crate::storage::data_root()
+        .join("mcp.sock")
         .to_string_lossy()
         .into_owned()
 }
@@ -35,6 +36,9 @@ struct RelayInvocation {
 }
 
 fn relay_invocation() -> RelayInvocation {
+    if let Some(instance) = std::env::var_os("SNAP_INSTANCE_NAME") {
+        return snap_invocation(&instance.to_string_lossy());
+    }
     let executable = std::env::current_exe().ok();
     if let Some(invocation) = FlatpakContext::load(Path::new(FLATPAK_INFO_PATH))
         .and_then(|context| context.relay_invocation(executable.as_deref(), &gtk::glib::home_dir()))
@@ -50,6 +54,15 @@ fn relay_invocation() -> RelayInvocation {
             .map(|parent| parent.join(RELAY_FILE_NAME))
     });
     unpackaged_invocation(beside.as_deref())
+}
+
+/// snapd exposes each command of a snap as `<instance>.<app>` in `/snap/bin`, which is not on the
+/// `PATH` an MCP client is started with on every desktop, so the path is given in full.
+fn snap_invocation(instance: &str) -> RelayInvocation {
+    RelayInvocation {
+        command: format!("/snap/bin/{instance}.{RELAY_FILE_NAME}"),
+        args: Vec::new(),
+    }
 }
 
 fn unqualified_flatpak_invocation(app_id: &str) -> RelayInvocation {
@@ -212,7 +225,7 @@ mod tests {
 
     use super::{
         CONFIGURATION_KEY, FlatpakContext, RELAY_FILE_NAME, configuration_snippet_for,
-        unpackaged_invocation, unqualified_flatpak_invocation,
+        snap_invocation, unpackaged_invocation, unqualified_flatpak_invocation,
     };
 
     fn flatpak_invocation(metadata: &str, executable: &str, home: &str) -> super::RelayInvocation {
@@ -306,6 +319,27 @@ mod tests {
         assert_eq!(
             unqualified_flatpak_invocation("eu.allodia.mailcal").args,
             ["run", "--command=allodia-mcp", "eu.allodia.mailcal"]
+        );
+    }
+
+    #[test]
+    fn snap_snippet_names_the_relay_command_of_the_same_snap() {
+        let snippet = configuration_snippet_for(
+            "/home/A Person/snap/allodia-mail-calendar/common/.local/share/mailcal/mcp.sock",
+            snap_invocation("allodia-mail-calendar"),
+        );
+        let value: Value = serde_json::from_str(&snippet).expect("valid JSON");
+        let entry = &value["mcpServers"][CONFIGURATION_KEY];
+        assert_eq!(
+            entry["command"],
+            "/snap/bin/allodia-mail-calendar.allodia-mcp"
+        );
+        assert_eq!(
+            entry["args"],
+            serde_json::json!([
+                "--endpoint",
+                "/home/A Person/snap/allodia-mail-calendar/common/.local/share/mailcal/mcp.sock"
+            ])
         );
     }
 
