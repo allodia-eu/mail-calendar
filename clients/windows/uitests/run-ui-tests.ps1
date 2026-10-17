@@ -68,6 +68,12 @@
 # question this host cannot answer calls `Skip-Case 'why'`, which is reported as a skip, never as a
 # pass.
 #
+# A lookup for an AutomationId nothing carries returns $null: the case reads as the app failing, or,
+# where it asserts something is gone, passes. `cargo xtask check-automation-ids` fails such a lookup
+# on every PR, which is the only place a harness suite's ids are read before someone runs it. It
+# sees an id written at the lookup or passed first to a helper taking `$Id`; one assembled in a
+# variable goes unchecked.
+#
 # ---------------------------------------------------------------------------------------------
 # SUITES SHARE AN APP, AND WHAT THAT ASKS OF YOURS
 #

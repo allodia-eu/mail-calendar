@@ -20,6 +20,10 @@
 //! Each check runs in this process. The alternative shape, a loop calling `cargo xtask <check>`
 //! once per check, pays cargo's freshness check every time, which costs more than the checks do.
 
+mod automation_ids;
+mod automation_ids_scan;
+#[cfg(test)]
+mod automation_ids_tests;
 mod branding;
 mod british_english;
 mod british_english_words;
@@ -138,6 +142,11 @@ pub(crate) const TASKS: &[Task] = &[
         name: "check-icons",
         label: "icons (docs/icons.md names what every client draws)",
         run: icons::run,
+    },
+    Task {
+        name: "check-automation-ids",
+        label: "automation ids (the Windows UI suites look up what the app draws)",
+        run: automation_ids::run,
     },
     Task {
         name: "check-british-english",
