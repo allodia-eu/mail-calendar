@@ -191,6 +191,16 @@ impl AccountConfig {
         updated
     }
 
+    /// Clones this account signing in with `password` in place of its grant, on every endpoint
+    /// [`with_password`](Self::with_password) writes one to: the switch from signing in through
+    /// the provider to a password.
+    #[must_use]
+    pub fn with_password_instead_of_grant(&self, password: &str) -> Self {
+        let mut updated = self.clone();
+        updated.oauth = None;
+        updated.with_password(password)
+    }
+
     /// Clones this account with `grant` replacing its OAuth grant: the re-authorisation
     /// counterpart of [`with_password`](Self::with_password), and how a rotated refresh token
     /// or a re-consent is written back.

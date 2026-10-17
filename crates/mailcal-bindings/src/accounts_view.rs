@@ -17,6 +17,8 @@ pub(crate) struct AccountFacts {
     pub(crate) id: String,
     pub(crate) address: String,
     pub(crate) kind: AccountKind,
+    /// How it signs in.
+    pub(crate) sign_in: crate::SignInMethod,
     /// What the account can be used for.
     pub(crate) offered: Capabilities,
     /// What the account is used for, less what its server offers none of.
@@ -62,6 +64,7 @@ pub(crate) fn entries(
             id: account.id.clone(),
             address: account.address.clone(),
             kind: account.kind,
+            sign_in: account.sign_in,
             uses: uses(
                 account,
                 calendar_refused.contains(&account.id),

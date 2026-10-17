@@ -11,6 +11,7 @@ import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.LinkCandidates
 import uniffi.mailcal_bindings.LinkedAccount
+import uniffi.mailcal_bindings.SignInMethod
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 internal fun linked(id: String) = LinkedAccount(id, id)
@@ -28,6 +29,7 @@ internal fun accountEntry(
     id = id,
     address = address,
     kind = kind,
+    signIn = SignInMethod.PASSWORD,
     uses = uses.map { (capability, state) -> AccountUse(capability, state) },
     links = links,
     linkedFrom = linkedFrom,

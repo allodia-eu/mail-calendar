@@ -23,6 +23,7 @@ fn jmap(calendar: CapabilityState, candidates: Vec<LinkedAccount>) -> AccountsSn
             id: JMAP.to_owned(),
             address: "alice@example.org".to_owned(),
             kind: AccountKind::Jmap,
+            sign_in: mailcal_bindings::SignInMethod::Password,
             uses: vec![
                 use_(AccountCapability::Mail, CapabilityState::On),
                 use_(AccountCapability::Calendar, calendar),

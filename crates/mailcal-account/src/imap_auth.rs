@@ -141,6 +141,15 @@ pub async fn decide_imap_auth(query: &ImapAuthQuery) -> ImapAuth {
     }
 }
 
+/// Whether the mail server says it accepts a password, for an account that signs in through its
+/// provider and could switch. `false` when it did not answer: a password it may refuse is not a
+/// switch to offer.
+pub async fn imap_offers_password(query: &ImapAuthQuery) -> bool {
+    probe(query, PROBE_BUDGET)
+        .await
+        .is_some_and(|offer| offer.password)
+}
+
 /// How long the capability probe may take. A server can complete the handshake and then say
 /// nothing, and neither the probe nor the TLS connector bounds that wait; with
 /// [`ISSUER_SEARCH_BUDGET`] after it, the whole decision stays inside the 10 s a client waits.

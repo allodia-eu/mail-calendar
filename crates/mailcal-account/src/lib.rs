@@ -86,7 +86,9 @@ pub use graph::{
 pub use imap::{
     ImapConnections, connect_imap_mailbox, connect_imap_watcher, connect_mail_providers,
 };
-pub use imap_auth::{ImapAuth, ImapAuthQuery, decide_imap_auth, imap_issuer, log_smtp_auth};
+pub use imap_auth::{
+    ImapAuth, ImapAuthQuery, decide_imap_auth, imap_issuer, imap_offers_password, log_smtp_auth,
+};
 pub use imap_credentials::{ImapTokens, OAuthCredentialSource, imap_credential_source};
 pub use jmap::{
     JmapAccountConfig, JmapSetup, build_jmap_config_toml, connect_jmap_calendar_providers,

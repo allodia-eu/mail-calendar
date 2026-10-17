@@ -81,6 +81,30 @@ async fn exchange_code_parses_tokens_and_resolves_absolute_expiry() {
     // expires_at = now + expires_in (3600s after the epoch).
     assert_eq!(tokens.expires_at, epoch() + Duration::seconds(3600));
     assert_eq!(tokens.scope, "Mail.Read");
+    assert_eq!(
+        tokens.username, None,
+        "no server we have met names the account"
+    );
+}
+
+#[tokio::test]
+async fn the_account_a_server_names_in_its_token_response_is_kept() {
+    let body = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"AT","refresh_token":"RT","username":"alice@example.org"}"#;
+    let provider = provider_at(mock_endpoint(http_response("200 OK", body)));
+    let tokens = exchange_code(
+        &reqwest::Client::new(),
+        &provider,
+        "code",
+        "verifier",
+        epoch(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(tokens.username.as_deref(), Some("alice@example.org"));
+    assert!(
+        !format!("{tokens:?}").contains("alice@"),
+        "an address stays out of a dump"
+    );
 }
 
 #[tokio::test]
@@ -316,6 +340,7 @@ fn is_expired_respects_the_skew_margin() {
         expires_at: epoch() + Duration::seconds(3600),
         scope: String::new(),
         token_type: "Bearer".to_owned(),
+        username: None,
     };
     // Fresh at the epoch with a 5-minute skew.
     assert!(!tokens.is_expired(epoch(), Duration::minutes(5)));
@@ -333,6 +358,7 @@ fn token_debug_never_leaks_secrets() {
         expires_at: epoch(),
         scope: String::new(),
         token_type: "Bearer".to_owned(),
+        username: None,
     };
     let dump = format!("{tokens:?}");
     assert!(!dump.contains("super-secret-access"));

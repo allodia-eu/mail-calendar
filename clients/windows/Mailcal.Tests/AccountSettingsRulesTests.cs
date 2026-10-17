@@ -15,6 +15,7 @@ public class AccountSettingsRulesTests
         Id: "alice@example.org@imap.example.org",
         Address: "alice@example.org",
         Kind: kind,
+        SignIn: SignInMethod.Password,
         Uses: uses.Select(use => new AccountUse(use.Item1, use.Item2, null)).ToArray(),
         Links: new AccountLinksView(null, null, null),
         LinkedFrom: [],
