@@ -71,9 +71,9 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | Removing an account clears the links to it, and the confirmation names them | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A calendar or address book that did not connect says why beneath its switch | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Adding an account already set up is refused, and said in words | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| The refusal offers the credential just given to the account already there | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Switching between a password and signing in, where the server takes both | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Signing a standards or JMAP account in again from its stored grant | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The refusal offers the credential just given to the account already there | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Switching between a password and signing in, where the server takes both | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Signing a standards or JMAP account in again from its stored grant | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Setting a link to one of the offered accounts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A link suggested when the calendar server schedules as the mail account's address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Switching a use on or off, its data deleted when off | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

@@ -396,6 +396,9 @@ capturing the redirect), because that is inherently platform-specific.
     could not fix it. The only cure left was to remove the account and add it back, discarding the
     local store to repair a credential. So `account_provider` reports the two families apart
     (`Jmap` · `JmapOauth`), and every client offers the button for the OAuth one; see rule 14.
+    An IMAP account is split the same way (`Password` · `ImapOauth`): one signed in through its
+    provider signs in again in place with `begin_account_sign_in` and `complete_account_sign_in`,
+    from its stored grant ([`accounts.md`](accounts.md) rule 17).
     For a password or pasted JMAP secret, `replace_account_secret` rebuilds the account from its
     existing endpoints with only that secret changed, connects it before writing anything, then
     replaces the credential through `AccountCredentialStore` and runs a catch-up. A refusal leaves
