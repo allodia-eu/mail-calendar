@@ -25,8 +25,6 @@ struct NewMailNotice: Equatable {
     let identifier: String
     /// The account it belongs to, so the OS stacks an account's notifications together.
     let threadIdentifier: String
-    /// The app-icon badge to set, `nil` where the platform carries none.
-    let badge: Int?
     /// The message this notification stands for, so a click can open it. `nil` on a summary,
     /// which names no single message and therefore opens the app and nothing else.
     let target: NewMailTarget?
@@ -44,11 +42,12 @@ struct NewMailTarget: Equatable {
 enum NewMailNotices {
     /// The notifications one pass raises, in account order, newest message first within an
     /// account.
+    ///
+    /// No notification sets the app-icon badge. The icon carries the unified Inbox unread, written
+    /// from the snapshot and after a background pass (`AppBadge`), and a notification's badge would
+    /// overwrite it with a number that means something else (docs/app-badge.md).
     static func forPass(_ outcome: BackgroundSyncOutcome) -> [NewMailNotice] {
-        // The badge is app-wide, so every notification carries the same pass total rather than one
-        // account's count clobbering the others'.
-        let passTotal = outcome.accounts.reduce(0) { $0 + Int($1.newCount) }
-        return outcome.accounts.flatMap { forAccount($0, passTotal: passTotal) }
+        outcome.accounts.flatMap(forAccount)
     }
 
     /// A message's notification identity: the account and the key together, because a provider
@@ -61,9 +60,7 @@ enum NewMailNotices {
     }
 
     #if os(macOS)
-    private static func forAccount(
-        _ account: AccountNewMail, passTotal: Int
-    ) -> [NewMailNotice] {
+    private static func forAccount(_ account: AccountNewMail) -> [NewMailNotice] {
         var notices = account.messages.map { message in
             // The subject and the snippet, in that order, into the two slots under the title, and
             // only the ones that exist: an IMAP account has no snippet until the body sync has
@@ -78,11 +75,6 @@ enum NewMailNotices {
                 body: parts.last ?? "",
                 identifier: identifier(account: account.accountId, key: message.messageKey),
                 threadIdentifier: account.accountId,
-                // No dock badge. The pass total is what has just arrived, not what is unread, so a
-                // dock reading 3 and then 1 as passes land would say the second. Windows and Linux
-                // badge nothing either; the phone does, because there the pass is the only thing
-                // that ran.
-                badge: nil,
                 target: NewMailTarget(account: account.accountId, key: message.messageKey)
             )
         }
@@ -101,7 +93,6 @@ enum NewMailNotices {
                     body: account.accountLabel,
                     identifier: "new-mail-account-\(account.accountId)",
                     threadIdentifier: account.accountId,
-                    badge: nil,
                     // It stands for messages it does not name, so there is nothing to open: a
                     // click brings the app forward and leaves the reading pane where it was.
                     target: nil
@@ -118,9 +109,7 @@ enum NewMailNotices {
     #endif
 
     #if os(iOS)
-    private static func forAccount(
-        _ account: AccountNewMail, passTotal: Int
-    ) -> [NewMailNotice] {
+    private static func forAccount(_ account: AccountNewMail) -> [NewMailNotice] {
         var notices = account.messages.map { message in
             NewMailNotice(
                 title: sender(message),
@@ -130,7 +119,6 @@ enum NewMailNotices {
                 body: body(message),
                 identifier: identifier(account: account.accountId, key: message.messageKey),
                 threadIdentifier: account.accountId,
-                badge: passTotal,
                 target: NewMailTarget(account: account.accountId, key: message.messageKey)
             )
         }
@@ -151,7 +139,6 @@ enum NewMailNotices {
                     body: "",
                     identifier: "new-mail-account-\(account.accountId)",
                     threadIdentifier: account.accountId,
-                    badge: passTotal,
                     // Nothing to open: a tap brings the app forward and leaves the reader alone.
                     target: nil
                 ))

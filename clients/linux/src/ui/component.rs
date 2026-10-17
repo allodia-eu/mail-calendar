@@ -14,9 +14,9 @@ use relm4::{ComponentParts, ComponentSender, SimpleComponent};
 use super::{
     AppInput, AppModel, AppWindow, PrimaryView, SetupState, allodia_sync, calendar::CalendarModel,
     calendar_actions, composer_drafts, connectivity, contacts::ContactsModel,
-    host_tasks::HostTasks, launch, mcp, model, model::ReadingState, preferences, runtime_timers,
-    search::SearchState, selection::Selection, settings, setup_onboarding, sync_line, time_zone,
-    welcome,
+    host_tasks::HostTasks, launch, launcher_badge, mcp, model, model::ReadingState, preferences,
+    runtime_timers, search::SearchState, selection::Selection, settings, setup_onboarding,
+    sync_line, time_zone, welcome,
 };
 use crate::{appearance, boot, boot::BootedApp, crash, l10n, logger};
 
@@ -217,6 +217,7 @@ impl AppModel {
             boot_error,
             webview_available: true,
             calendar_refresh: calendar_actions::CalendarRefreshGate::default(),
+            launcher_badge: launcher_badge::LauncherBadge::default(),
             calendar_manager_generation: 0,
             setup,
             allodia: allodia_sync::AllodiaLaunch {

@@ -50,15 +50,6 @@ import Testing
         #expect(notices[0].body == "Quarterly report")
     }
 
-    @Test func everyNotificationBadgesThePassTotal() {
-        // The badge is app-wide, so one account's count must not clobber another's.
-        let notices = pass([
-            account(id: "a", newCount: 2, messages: [message(key: "m1"), message(key: "m2")]),
-            account(id: "b", messages: [message(key: "m3")]),
-        ])
-        #expect(notices.map(\.badge) == [3, 3, 3])
-    }
-
     @Test func messagesBeyondTheCapEarnASummaryThatQuotesNone() throws {
         let notices = pass([account(newCount: 4, messages: [message()])])
         try #require(notices.count == 2)
@@ -66,7 +57,6 @@ import Testing
         #expect(summary.title == L10n.notification_more_messages(count: 3))
         #expect(summary.subtitle == "account@example.test")
         #expect(summary.body == "")
-        #expect(summary.badge == 4)
         #expect(summary.target == nil)
     }
 }
