@@ -101,11 +101,23 @@ pub(crate) async fn dav_credentials(
     tokens: ImapTokens<'_>,
 ) -> Result<DavAuth, AccountError> {
     if let Some(grant) = &account.oauth {
-        let host = base_host(endpoint.base_url);
-        let host = host
-            .rsplit_once(':')
-            .map_or(host.as_str(), |(host, _)| host);
-        if !mailcal_oauth::requests_dav_use(&grant.scopes, dav_use) || !grant.token_may_reach(host)
+        // The host as the transport's own policy check reads it, so an IPv6 literal, an
+        // internationalised name or a userinfo part is judged as the request will go. The token
+        // travels over TLS only; a loopback server (a local test server) is the one exception.
+        let url =
+            reqwest::Url::parse(&crate::setup::normalize_caldav_base_url(endpoint.base_url)).ok();
+        let host = url
+            .as_ref()
+            .and_then(|url| url.host_str().map(str::to_ascii_lowercase));
+        let over_tls = url.as_ref().is_some_and(|url| {
+            url.scheme() == "https"
+                || host
+                    .as_deref()
+                    .is_some_and(|host| matches!(host, "localhost" | "127.0.0.1" | "[::1]"))
+        });
+        if !over_tls
+            || !mailcal_oauth::requests_dav_use(&grant.scopes, dav_use)
+            || !host.is_some_and(|host| grant.token_may_reach(&host))
         {
             return Err(AccountError::DavNeedsOwnSignIn(match dav_use {
                 DavUse::Calendars => "calendar",

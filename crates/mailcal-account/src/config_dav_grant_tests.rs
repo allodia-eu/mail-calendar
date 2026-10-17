@@ -113,6 +113,17 @@ async fn a_grant_never_reaches_a_server_outside_its_issuers_domain() {
 }
 
 #[tokio::test]
+async fn a_calendar_at_an_ipv6_literal_is_judged_by_its_whole_address() {
+    let account = signed_in(
+        FULL,
+        "https://[::1]/dav",
+        r#"protected_resources = ["https://[::1]/dav"]"#,
+    );
+    let (auth, _) = calendar_auth(&account, DavUse::Calendars).await;
+    assert!(auth.is_ok(), "a listed IPv6 host, with no port after it");
+}
+
+#[tokio::test]
 async fn a_scope_for_one_use_does_not_open_the_other() {
     let account = signed_in(
         r#""offline_access", "urn:ietf:params:oauth:scope:mail", "urn:ietf:params:oauth:scope:calendars""#,
@@ -180,4 +191,15 @@ password = "pw"
     .unwrap();
     assert!(matches!(auth.credentials, Credentials::Basic { password, .. } if password == "pw"));
     assert!(auth.hosts.is_none());
+}
+
+#[tokio::test]
+async fn a_token_never_travels_without_tls() {
+    let account = signed_in(FULL, "http://dav.example.net/dav", "");
+    let (auth, minted) = calendar_auth(&account, DavUse::Calendars).await;
+    assert!(matches!(
+        auth,
+        Err(AccountError::DavNeedsOwnSignIn("calendar"))
+    ));
+    assert_eq!(minted, 0);
 }

@@ -127,7 +127,8 @@ pub use signatures::{
 };
 pub use tls::setup_trust_policy;
 
-use crate::{setup::normalize_caldav_base_url, tls::account_tls};
+pub use crate::setup::normalize_caldav_base_url;
+use crate::tls::account_tls;
 
 /// Connects to the CalDAV endpoint of `account`, discovering the calendar home and
 /// binding to the calendar to sync events from, returning the provider boxed for the

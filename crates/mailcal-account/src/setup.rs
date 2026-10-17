@@ -122,7 +122,7 @@ fn insert_security(section: &mut toml::Table, security: ConnectionSecurity) {
 /// a bare host (e.g. `caldav.soverin.net`): the calendar counterpart of the default-port
 /// assumption for IMAP/SMTP, so a user never needs to type `https://`. An explicit scheme
 /// (`http://`, `https://`) is preserved.
-pub(crate) fn normalize_caldav_base_url(input: &str) -> String {
+pub fn normalize_caldav_base_url(input: &str) -> String {
     let trimmed = input.trim();
     if trimmed.contains("://") {
         trimmed.to_owned()

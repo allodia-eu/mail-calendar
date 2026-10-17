@@ -223,3 +223,12 @@ fn a_grant_reaches_a_dav_use_only_when_its_request_named_it() {
     assert!(requests_dav_use(&earlier, DavUse::Calendars));
     assert!(requests_dav_use(&earlier, DavUse::Contacts));
 }
+
+#[test]
+fn a_sign_in_that_named_no_scope_leaves_dav_to_the_servers_default() {
+    // The issuer advertised no scopes, so the request carried `offline_access` alone and the
+    // server applies its default grant; it said nothing that would refuse a calendar.
+    let unnamed = vec![OFFLINE_ACCESS.to_owned()];
+    assert!(requests_dav_use(&unnamed, DavUse::Calendars));
+    assert!(requests_dav_use(&unnamed, DavUse::Contacts));
+}

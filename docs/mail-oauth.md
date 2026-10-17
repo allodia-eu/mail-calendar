@@ -127,12 +127,15 @@ is recorded here.
       `…:contacts`, or the earlier drafts' `caldav`/`carddav`). The requested set, because a
       server may grant in its own vocabulary (Fastmail answers with JMAP capability names and
       `https://www.fastmail.com/dev/protocol-*`), and because a server is not relied on to refuse
-      a token without the scope (Stalwart opens CalDAV for a mail-only one);
+      a token without the scope (Stalwart opens CalDAV for a mail-only one). A sign-in that named
+      no scope beyond `offline_access`, because its issuer advertised none, is not refused here:
+      the server applies its own default grant, as rule 12 reads the same case for mail;
     - the server's host is one the issuer's tokens are for (§3.6): one its
       `protected_resources` names, or, when it lists none, one with the issuer host's
       registrable domain by the public suffix list. Checked again on every redirect discovery
       follows, through the engine's `CredentialHosts` policy, so a `.well-known` or SRV hop
-      cannot carry the token off the issuer's hosts.
+      cannot carry the token off the issuer's hosts. The token travels over TLS only; a loopback
+      server is the one exception, for a local test server.
 
     Otherwise nothing is sent and the use needs a sign-in of its own
     (`AccountError::DavNeedsOwnSignIn`). A DAV server's own RFC 9728 metadata never decides this:

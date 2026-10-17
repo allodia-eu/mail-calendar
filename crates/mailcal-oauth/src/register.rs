@@ -82,8 +82,15 @@ pub enum DavUse {
 /// what was refused when it is written in the request's names. A grant that asked for no
 /// calendar scope has no claim on a calendar server, whatever that server accepts: Stalwart
 /// opens CalDAV for a mail-only token, so this check is the client's to make.
+///
+/// A sign-in that named no scope beyond `offline_access` is not refused: its issuer advertised
+/// none, applies its own default grant (RFC 6749 §3.3), and said nothing either way, as
+/// [`grants_mail_access`] reads the same case for mail.
 #[must_use]
 pub fn requests_dav_use(requested: &[String], dav_use: DavUse) -> bool {
+    if requested.iter().all(|scope| scope == OFFLINE_ACCESS) {
+        return true;
+    }
     let capability = match dav_use {
         DavUse::Calendars => CALENDARS,
         DavUse::Contacts => CONTACTS,

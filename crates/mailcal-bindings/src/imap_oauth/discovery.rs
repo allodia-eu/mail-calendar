@@ -168,19 +168,10 @@ pub(super) async fn discover_registration(
 /// Nothing is discovered and nothing is registered on this path: the provider issued the
 /// client id in advance, which is precisely why such providers need an entry at all.
 fn static_registration(query: &ImapAuthQuery) -> Option<Registration> {
-    let host =
-        query
-            .imap_host
-            .trim()
-            .rsplit_once(':')
-            .map_or(query.imap_host.trim(), |(host, port)| {
-                if port.bytes().all(|byte| byte.is_ascii_digit()) {
-                    host
-                } else {
-                    query.imap_host.trim()
-                }
-            });
-    let provider = mailcal_oauth::provider_for_host(&mailcal_oauth::static_mail_providers(), host)?;
+    let provider = mailcal_oauth::provider_for_host(
+        &mailcal_oauth::static_mail_providers(),
+        host_only(&query.imap_host),
+    )?;
     log::info!(
         "imap oauth: using this build's registration for {} at {}",
         provider.label,
@@ -218,20 +209,37 @@ async fn resources_to_name(
     endpoints: &Endpoints<'_>,
     scopes: &[String],
 ) -> Vec<String> {
+    // §3.4: "If two endpoints result in the same value, the value MUST only be included once."
     let mut named: Vec<String> = Vec::new();
+    let mut name = |resource: String| {
+        if !named.contains(&resource) {
+            named.push(resource);
+        }
+    };
     for host in
         std::iter::once(host_only(&query.imap_host)).chain(endpoints.smtp_host.map(host_only))
     {
         if let Some(entry) = mailcal_oauth::covering_entry(&metadata.protected_resources, host) {
-            named.push(entry);
+            name(entry);
         }
     }
     let dav = [
-        (endpoints.caldav, mailcal_oauth::DavUse::Calendars),
-        (endpoints.carddav, mailcal_oauth::DavUse::Contacts),
+        (
+            endpoints.caldav,
+            mailcal_oauth::DavUse::Calendars,
+            "calendar",
+        ),
+        (
+            endpoints.carddav,
+            mailcal_oauth::DavUse::Contacts,
+            "contacts",
+        ),
     ];
-    for (url, dav_use) in dav {
-        let Some(url) = url.map(https_url) else {
+    // The address book usually shares the calendar's URL, so its metadata is asked for once.
+    let mut asked: Vec<(String, Option<String>)> = Vec::new();
+    // The URLs stay out of the log: a DAV path routinely carries the person's address.
+    for (url, dav_use, label) in dav {
+        let Some(url) = url.map(mailcal_account::normalize_caldav_base_url) else {
             continue;
         };
         let reachable = mailcal_oauth::requests_dav_use(scopes, dav_use)
@@ -246,32 +254,31 @@ async fn resources_to_name(
                     )
                 });
         if !reachable {
-            log::info!("imap oauth: {url} is not a resource this sign-in reaches; not named");
+            log::info!("imap oauth: the {label} server is not one this sign-in reaches; not named");
             continue;
         }
-        match mailcal_oauth::resource_for(http, metadata, &url).await {
-            Ok(Some(resource)) => named.push(resource),
-            Ok(None) => {
-                log::info!("imap oauth: nothing vouches for {url} as a resource; not named")
-            }
-            Err(err) => log::info!(
-                "imap oauth: {url} published no usable resource metadata ({err}); not named"
-            ),
+        let resource = if let Some((_, resource)) = asked.iter().find(|(asked, _)| *asked == url) {
+            resource.clone()
+        } else {
+            let resource = match mailcal_oauth::resource_for(http, metadata, &url).await {
+                Ok(resource) => resource,
+                Err(_) => {
+                    log::info!(
+                        "imap oauth: the {label} server published no usable resource metadata"
+                    );
+                    None
+                }
+            };
+            asked.push((url, resource.clone()));
+            resource
+        };
+        match resource {
+            Some(resource) => name(resource),
+            None => log::info!("imap oauth: nothing vouches for the {label} server; not named"),
         }
     }
-    // §3.4: "If two endpoints result in the same value, the value MUST only be included once."
-    let mut unique = Vec::new();
-    for resource in named {
-        if !unique.contains(&resource) {
-            unique.push(resource);
-        }
-    }
-    log::info!(
-        "imap oauth: naming {} resource(s): [{}]",
-        unique.len(),
-        unique.join(", ")
-    );
-    unique
+    log::info!("imap oauth: naming {} resource(s)", named.len());
+    named
 }
 
 /// The host of a `host` or `host:port` server field.
@@ -280,16 +287,6 @@ fn host_only(server: &str) -> &str {
     match server.rsplit_once(':') {
         Some((host, port)) if !host.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => host,
         _ => server,
-    }
-}
-
-/// `url` with `https://` in front when it was stored without a scheme.
-fn https_url(url: &str) -> String {
-    let url = url.trim();
-    if url.contains("://") {
-        url.to_owned()
-    } else {
-        format!("https://{url}")
     }
 }
 

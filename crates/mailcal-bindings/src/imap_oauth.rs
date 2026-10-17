@@ -163,9 +163,13 @@ struct PendingImapLogin {
     issuer: Option<String>,
     /// The issuer identifier and its `protected_resources`, persisted with the grant so a
     /// connect can apply the profile's host rule (`docs/mail-oauth.md` rule 10).
-    authorization_server: String,
+    /// Defaulted, like the two below, so a handle minted by an earlier build still completes.
+    #[serde(default)]
+    authorization_server: Option<String>,
+    #[serde(default)]
     protected_resources: Vec<String>,
     /// The endpoints the authorization request names (RFC 8707), each one vouched for.
+    #[serde(default)]
     resources: Vec<String>,
     state: String,
     verifier: String,
@@ -186,13 +190,11 @@ impl PendingImapLogin {
             token_endpoint: self.token_endpoint,
             redirect_uri: self.redirect_uri,
             scopes: self.scopes,
-            // An IMAP endpoint is not an HTTPS URL and the profile defines no URI form for
-            // one, so there is no RFC 8707 target to name. A server that scopes tokens by
-            // resource applies its default; inventing an `imap://…` would risk
-            // `invalid_target` on every refresh.
+            // The endpoints are named on the authorization request alone; a refresh naming none
+            // is a token for everything authorised (`draft-ietf-mailmaint-oauth-public` §3.5).
             resource: None,
             issuer: self.issuer,
-            authorization_server: Some(self.authorization_server),
+            authorization_server: self.authorization_server,
             protected_resources: self.protected_resources,
         };
         let setup = AccountSetup {
@@ -315,7 +317,7 @@ impl MailcalApp {
             redirect_uri,
             scopes: registration.scopes,
             issuer: registration.expected_issuer,
-            authorization_server: registration.authorization_server,
+            authorization_server: Some(registration.authorization_server),
             protected_resources: registration.protected_resources,
             resources: registration.resources,
             state: String::new(),
@@ -406,7 +408,7 @@ fn grant_shell(pending: &PendingImapLogin) -> OAuthGrant {
         scopes: pending.scopes.clone(),
         resource: None,
         issuer: pending.issuer.clone(),
-        authorization_server: Some(pending.authorization_server.clone()),
+        authorization_server: pending.authorization_server.clone(),
         protected_resources: pending.protected_resources.clone(),
     }
 }

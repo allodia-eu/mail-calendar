@@ -29,7 +29,7 @@ fn pending() -> PendingImapLogin {
             "urn:ietf:params:oauth:scope:mail".to_owned(),
         ],
         issuer: Some("https://login.example.com".to_owned()),
-        authorization_server: "https://login.example.com".to_owned(),
+        authorization_server: Some("https://login.example.com".to_owned()),
         protected_resources: vec![
             "https://dav.example.com".to_owned(),
             "imap.example.com".to_owned(),
