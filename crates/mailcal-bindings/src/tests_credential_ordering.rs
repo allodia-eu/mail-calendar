@@ -362,3 +362,7 @@ fn two_cores_over_one_account_refresh_once() {
         let _ = fs::remove_dir_all(data_dir);
     }
 }
+
+// The same property for an IMAP account signed in through its provider.
+#[path = "tests_credential_ordering_imap.rs"]
+mod imap;

@@ -203,6 +203,7 @@ impl MailcalApp {
         };
         let protocol = prepared.connected.protocol();
         let family = prepared.connected.account_type();
+        let stores_a_password = prepared.connected.stores_a_password();
         // The setup funnel: which protocol was attempted, and did it connect. Paired with
         // `setup_completed` / `setup_failed` below, this answers "how many people never get an
         // account connected, and on which protocol": the churn that happens before first use.
@@ -258,9 +259,9 @@ impl MailcalApp {
         let calendar_error = outcome.calendar_error;
         // Write the credential. For anything with a grant the bytes come from the **registry**, not
         // from `config_toml`: a rotation during the dial has already advanced the registered
-        // config, and the caller's string still carries the token it replaced. An IMAP
+        // config, and the caller's string still carries the token it replaced. A password IMAP
         // account has no grant, so its stored config is exactly what the host passed in.
-        let persisted = if matches!(protocol, mailcal_app::Protocol::Imap) {
+        let persisted = if stores_a_password {
             self.persist_credential(&row.id, config_toml)
         } else {
             self.persist_registered_grant(&row.id)

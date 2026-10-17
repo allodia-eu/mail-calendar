@@ -344,6 +344,7 @@ impl AccountRegistry {
             Some(ConnectedAccount::Microsoft { config, .. }) => config.to_toml(),
             Some(ConnectedAccount::Google { config, .. }) => config.to_toml(),
             Some(ConnectedAccount::Jmap { config, .. }) => config.to_toml(),
+            Some(ConnectedAccount::Imap { config, .. }) if config.is_oauth() => config.to_toml(),
             Some(ConnectedAccount::Imap { .. }) | None => {
                 return Err(format!(
                     "no registered OAuth account to persist for id {id}"
@@ -386,14 +387,19 @@ impl AccountRegistry {
                     };
                 }
             },
-            // A password account has nothing that can rotate; reaching here at all would be a bug
-            // in the caller, not a lost credential.
-            Some(ConnectedAccount::Imap { .. }) => {
-                return Rotation::Nothing {
-                    encode_error: None,
-                    family: "imap",
-                };
-            }
+            Some(ConnectedAccount::Imap { config, .. }) => match config.oauth.as_mut() {
+                Some(grant) => {
+                    grant.refresh_token = Secret::new(new_refresh_token.to_owned());
+                    ("imap", config.to_toml())
+                }
+                // A password account has nothing that can rotate.
+                None => {
+                    return Rotation::Nothing {
+                        encode_error: None,
+                        family: "imap",
+                    };
+                }
+            },
             None => return Rotation::Unregistered,
         };
         match encoded {

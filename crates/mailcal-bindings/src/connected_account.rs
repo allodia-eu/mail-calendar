@@ -100,6 +100,12 @@ impl ConnectedAccount {
         }
     }
 
+    /// Whether the account's config holds a typed password and no grant: the one kind whose
+    /// stored bytes are exactly what the host passed in, since nothing in it can rotate.
+    pub(crate) fn stores_a_password(&self) -> bool {
+        matches!(self, Self::Imap { config, .. } if !config.is_oauth())
+    }
+
     /// The same provider family as the host-facing [`AccountProvider`], which is what a host
     /// needs to know to re-run a sign-in the server has stopped accepting. Like
     /// [`Self::account_type`] it names only the family, never an endpoint or identity.
