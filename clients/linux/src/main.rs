@@ -128,6 +128,8 @@ fn main() {
     // that builds the window. So the exit is queued once registration has said this process is
     // the remote one: the forwarding runs on a context of its own, and the queued exit is what
     // that last iteration finds.
+    // It exits 0: relm4's `run` discards the status `g_application_run` returns, so the running
+    // app's answer is not this process's to report.
     application.connect_notify_local(Some("is-registered"), |application, _| {
         if application.is_registered() && application.is_remote() {
             gtk::glib::idle_add_local_once(|| std::process::exit(0));

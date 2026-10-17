@@ -386,8 +386,8 @@ forward_mailto() { # <uri>
     sleep 0.05
   done
 
-  # The launch hands its command line to the running app and exits on its own, with the status
-  # the app answered. One that lingers is a process left behind for every mail link clicked.
+  # The launch hands its command line to the running app and exits on its own, and cleanly. One
+  # that lingers is a process left behind for every mail link clicked.
   local exited=0 status=0
   for _ in {1..200}; do
     if ! kill -0 "$launcher_pid" 2>/dev/null; then

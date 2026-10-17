@@ -99,14 +99,15 @@ Five consequences are worth knowing before they surprise someone:
 The app runs once (`docs/reading-window.md`), so a link or share that arrives while it is running
 is handed to that process, and **its window comes to the front** with the composer open. A link
 whose only visible effect is a composer behind other windows reads as a click that did nothing.
-The launch that delivered it **exits**, with the status the running app answered: a process left
-behind for every link clicked is a leak a person never sees until the machine slows.
+The launch that delivered it **exits**: a process left behind for every link clicked is a leak a
+person never sees until the machine slows.
 
 - **Linux:** the second launch forwards its command line over D-Bus (`HANDLES_COMMAND_LINE`); the
   running app presents its window, which on Wayland spends the activation token the launching
   app passed along, and the forwarding process exits once registration has said it is the remote
-  one. `scripts/dev/test-linux-ui.sh` fails a forwarding launch that does not exit, or exits
-  non-zero.
+  one. It exits 0 whatever the running app answered: relm4's `run` discards the status
+  `g_application_run` returns. `scripts/dev/test-linux-ui.sh` fails a forwarding launch that does
+  not exit by itself, or exits non-zero.
 - **Windows:** the redirected activation takes foreground rights itself (`MainWindow.MailLink.cs`),
   because a bare `Activate()` from the redirected-to instance is ignored.
 - **macOS and iOS:** the system activates the app that opens the URL.
