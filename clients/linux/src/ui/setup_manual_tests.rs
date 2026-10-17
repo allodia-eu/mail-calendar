@@ -276,6 +276,7 @@ pub(super) fn a_refusal_is_answered_in_the_form_it_came_from(window: &adw::Appli
             not_before: None,
             not_after: None,
         }),
+        existing: None,
     });
     setup.render(&state, window, &sender);
     let refused = setup

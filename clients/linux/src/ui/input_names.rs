@@ -128,6 +128,7 @@ impl fmt::Debug for AppInput {
             Self::JmapOAuthAvailable { .. } => "JmapOAuthAvailable",
             Self::SubmitAccount(_) => "SubmitAccount",
             Self::AccountAdded(_) => "AccountAdded",
+            Self::AlreadySetUp(_) => "AlreadySetUp",
             Self::SenderNameSuggested { .. } => "SenderNameSuggested",
             Self::SetAccountSenderName { .. } => "SetAccountSenderName",
             Self::DismissSenderNamePrompt => "DismissSenderNamePrompt",

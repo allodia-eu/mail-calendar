@@ -409,7 +409,8 @@ impl AppModel {
             | AppInput::CancelImapLogin
             | AppInput::ImapPrepared(..)
             | AppInput::ImapCallbackReceived(_)
-            | AppInput::ImapFinished(..)) => self.update_sign_in(message, sender),
+            | AppInput::ImapFinished(..)
+            | AppInput::AlreadySetUp(_)) => self.update_sign_in(message, sender),
             AppInput::StartAllodiaSignIn => {
                 self.start_allodia_sign_in(sender.input_sender().clone());
             }

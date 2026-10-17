@@ -28,8 +28,9 @@ pub(crate) enum ImapOutcome {
     Added(String),
     Cancelled,
     Failed,
-    /// Signed in, but the add was refused; what to tell the person.
-    NotAdded(String),
+    /// Signed in, but the add was refused; what to tell the person, and the account already
+    /// set up when that is why.
+    NotAdded(Box<super::setup_model::ConnectFailure>),
 }
 
 /// The request the pre-flight and the sign-in both describe the account with.
@@ -101,9 +102,13 @@ pub(super) fn complete(
     };
     // `add_account` writes the grant through the host's `AccountCredentialStore` and rolls the
     // add back itself when that write fails, so a failure here has left nothing behind.
-    match app.add_account(config) {
+    match app.add_account(config.clone()) {
         Ok(account) => ImapOutcome::Added(account.id),
-        Err(error) => ImapOutcome::NotAdded(super::core_error::said(&error)),
+        Err(error) => ImapOutcome::NotAdded(Box::new(super::setup_already_set_up::refusal(
+            error,
+            Some(config),
+            false,
+        ))),
     }
 }
 

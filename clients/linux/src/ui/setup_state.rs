@@ -52,6 +52,9 @@ pub(super) struct SetupState {
     /// is a question: this is the answer, and it outlives a retry that then fails on the
     /// password so nobody is asked the same thing twice.
     pub(super) accepted_certificate: Option<mailcal_bindings::RejectedCertificate>,
+    /// The account the last add would have duplicated, whose credential the form offers to
+    /// replace with the one just given. Cleared with `error`, like `certificate`.
+    pub(super) existing: Option<super::setup_already_set_up::ExistingAccount>,
     /// The address an account offered by one of the person's other devices is for. It only fills
     /// the field: which route the flow takes is still decided by detection, so an offer whose
     /// settings have since moved is corrected rather than believed.
@@ -90,6 +93,7 @@ impl SetupState {
             form_generation: 0,
             certificate: None,
             accepted_certificate: None,
+            existing: None,
             start_email: String::new(),
             onboarding: Onboarding::new(),
             uses: None,
@@ -154,8 +158,7 @@ impl SetupState {
         self.required = required;
         self.phase = Phase::Email;
         self.form = None;
-        self.error = None;
-        self.certificate = None;
+        self.clear_feedback();
         // A fresh flow asks its own questions; nothing an earlier one answered carries over.
         self.accepted_certificate = None;
         self.start_email = start_email;
@@ -169,8 +172,7 @@ impl SetupState {
     pub(super) fn show_uses(&mut self, step: super::setup_signed_in::UsesStep) {
         self.phase = Phase::Uses;
         self.uses = Some(step);
-        self.error = None;
-        self.certificate = None;
+        self.clear_feedback();
         self.bump();
     }
 
@@ -194,8 +196,7 @@ impl SetupState {
     pub(super) fn show_links(&mut self, step: super::setup_links::LinkStep) {
         self.phase = Phase::Links;
         self.links = Some(step);
-        self.error = None;
-        self.certificate = None;
+        self.clear_feedback();
         self.bump();
     }
 
@@ -302,8 +303,7 @@ impl SetupState {
 
     pub(super) fn detecting(&mut self) {
         self.phase = Phase::Detecting;
-        self.error = None;
-        self.certificate = None;
+        self.clear_feedback();
         self.bump();
     }
 
@@ -313,8 +313,7 @@ impl SetupState {
         }
         self.phase = Phase::Form;
         self.form = Some(form);
-        self.error = None;
-        self.certificate = None;
+        self.clear_feedback();
         self.bump();
     }
 
@@ -394,50 +393,44 @@ impl SetupState {
 
     pub(super) fn connecting(&mut self) {
         self.phase = Phase::Connecting;
-        self.error = None;
-        self.certificate = None;
+        self.clear_feedback();
         self.report();
     }
 
     pub(super) fn google_signing_in(&mut self) {
         self.phase = Phase::GoogleSigningIn;
-        self.error = None;
-        self.certificate = None;
+        self.clear_feedback();
         self.bump();
     }
 
     pub(super) fn microsoft_signing_in(&mut self) {
         self.phase = Phase::MicrosoftSigningIn;
-        self.error = None;
-        self.certificate = None;
+        self.clear_feedback();
         self.bump();
     }
 
     pub(super) fn jmap_signing_in(&mut self) {
         self.phase = Phase::JmapSigningIn;
-        self.error = None;
-        self.certificate = None;
+        self.clear_feedback();
         self.bump();
     }
 
     pub(super) fn imap_signing_in(&mut self) {
         self.phase = Phase::ImapSigningIn;
-        self.error = None;
-        self.certificate = None;
+        self.clear_feedback();
         self.bump();
     }
 
     pub(super) fn retry_form(&mut self) {
         self.phase = Phase::Form;
-        self.error = None;
-        self.certificate = None;
+        self.clear_feedback();
         self.bump();
     }
 
     pub(super) fn failed(&mut self, error: String) {
         self.connect_failed(super::setup_model::ConnectFailure {
             message: Some(error),
-            certificate: None,
+            ..Default::default()
         });
     }
 
@@ -460,6 +453,7 @@ impl SetupState {
         self.phase = Phase::Form;
         self.error = failure.message;
         self.certificate = failure.certificate;
+        self.existing = failure.existing;
         self.report();
     }
 
@@ -474,6 +468,13 @@ impl SetupState {
             self.visible = false;
             self.bump();
         }
+    }
+
+    /// Forgets what the last connect said, before anything that asks again or moves on.
+    fn clear_feedback(&mut self) {
+        self.error = None;
+        self.certificate = None;
+        self.existing = None;
     }
 
     fn bump(&mut self) {

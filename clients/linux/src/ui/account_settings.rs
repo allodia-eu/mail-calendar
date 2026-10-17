@@ -44,6 +44,8 @@ pub(crate) enum AccountsInput {
     Changed(Option<Notice>),
     /// A change was refused: say so, and leave the page as the person left it.
     Refused(Notice),
+    /// The Sign-in section of an IMAP or JMAP account (`super::account_sign_in`).
+    SignIn(super::account_sign_in::SignInInput),
 }
 
 /// An account's edited servers and sign-in, on their way to the core.
@@ -136,6 +138,9 @@ impl AppModel {
     pub(super) fn accounts_input(&mut self, input: AccountsInput, sender: relm4::Sender<AppInput>) {
         match input {
             AccountsInput::Show(account) => {
+                if let Some(account) = &account {
+                    self.ask_sign_in_options(account, sender);
+                }
                 self.settings.account = account;
                 self.settings.refresh_in_place();
             }
@@ -157,6 +162,7 @@ impl AppModel {
             AccountsInput::Changed(Some(notice)) => self.settings.notify(notice),
             AccountsInput::Changed(None) => self.settings.refresh_in_place(),
             AccountsInput::Refused(notice) => self.settings.say(notice),
+            AccountsInput::SignIn(input) => self.sign_in_input(input, sender),
         }
     }
 

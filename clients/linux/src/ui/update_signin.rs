@@ -1,4 +1,5 @@
-//! The browser sign-ins' half of the input match: Google, Microsoft, JMAP and IMAP.
+//! The browser sign-ins' half of the input match: Google, Microsoft, JMAP and IMAP, and the
+//! offer an add refused for an account already set up makes, which any of them can end in.
 //!
 //! Split from [`super::update`], which had reached the size limit, along the seam the arms
 //! already had. All four run the same shape, start, cancel, the captured redirect, the outcome,
@@ -86,6 +87,9 @@ impl AppModel {
             }
             AppInput::JmapReauthFinished(attempt, outcome) => {
                 self.jmap_reauth_finished(attempt, outcome);
+            }
+            AppInput::AlreadySetUp(input) => {
+                self.existing_account_input(input, sender.input_sender().clone());
             }
             other => unreachable!("not a sign-in message: {other:?}"),
         }

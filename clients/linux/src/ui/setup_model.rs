@@ -290,11 +290,13 @@ pub(crate) struct ImapSubmission {
 }
 
 /// What a connect that did not succeed had to say. A refused certificate is its own outcome,
-/// because it is the one failure a pane can offer a way past.
-#[derive(Clone, Default)]
+/// because it is the one failure a pane can offer a way past, and so is an account already set
+/// up, whose credential the pane offers to replace with the one just given.
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ConnectFailure {
     pub(super) message: Option<String>,
     pub(super) certificate: Option<RejectedCertificate>,
+    pub(super) existing: Option<super::setup_already_set_up::ExistingAccount>,
 }
 
 #[derive(Clone)]

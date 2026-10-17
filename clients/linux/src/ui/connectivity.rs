@@ -97,6 +97,7 @@ impl ExpiredSignIn {
                 ExpiredResolution::SignInAgain(self.id.clone())
             }
             Some(AccountProvider::JmapOauth) => ExpiredResolution::JmapOauth(self.id.clone()),
+            Some(AccountProvider::ImapOauth) => ExpiredResolution::ImapOauth(self.id.clone()),
             Some(AccountProvider::Password | AccountProvider::Jmap) | None => {
                 ExpiredResolution::Settings
             }
@@ -108,6 +109,9 @@ pub(super) enum ExpiredResolution {
     /// A Microsoft or Google account, signed in again in place by its id.
     SignInAgain(String),
     JmapOauth(String),
+    /// An IMAP account that signs in through its provider, signed in again in place from its
+    /// stored grant. It has no password to ask for.
+    ImapOauth(String),
     Settings,
 }
 
@@ -203,7 +207,11 @@ impl ConnectivityBanners {
             .join(", ");
         let browser_flow = matches!(
             state.expired_resolution(),
-            Some(ExpiredResolution::SignInAgain(_) | ExpiredResolution::JmapOauth(_))
+            Some(
+                ExpiredResolution::SignInAgain(_)
+                    | ExpiredResolution::JmapOauth(_)
+                    | ExpiredResolution::ImapOauth(_)
+            )
         );
         let title = if browser_flow {
             l10n::signin_expired_prompt(&names)

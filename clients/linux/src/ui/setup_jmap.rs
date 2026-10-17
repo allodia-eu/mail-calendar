@@ -9,10 +9,10 @@ use super::{
     AppInput,
     setup_manual::FormSnapshot,
     setup_model::{AccountSubmission, JmapForm, JmapSignIn, JmapSubmission, ManualForm},
-    setup_pane::{ConnectPane, connecting_readout},
+    setup_pane::{ConnectPane, connecting_readout, feedback_box},
     setup_widgets::{
         actions, body, caption, detected_row, edit_manually_button, entry, gate_connect, primary,
-        section, trust_approved, trust_gate,
+        section, show_error, trust_approved, trust_gate,
     },
 };
 use crate::l10n;
@@ -53,8 +53,7 @@ pub(super) fn detected_fields(
         content.append(&caption(l10n::setup_jmap_secret_note()));
         (trust, password)
     });
-    let feedback = gtk::Box::new(gtk::Orientation::Vertical, 14);
-    content.append(&feedback);
+    let feedback = feedback_box(content);
 
     let mut pane: Option<ConnectPane> = None;
     let actions = actions(window, required, sender);
@@ -100,8 +99,11 @@ pub(super) fn detected_fields(
         actions.append(&connect);
     }
     content.append(&actions);
-    if let Some(pane) = &pane {
-        pane.show_result(error, None);
+    match &pane {
+        Some(pane) => pane.show_result(error, None),
+        // A card that only offers the sign-in has no Connect to answer for; what the sign-in's
+        // own add said still needs somewhere to land.
+        None => show_error(&feedback, error),
     }
     pane
 }
@@ -136,8 +138,7 @@ pub(super) fn manual_fields(
     let password = entry(l10n::setup_jmap_secret_placeholder(), "", true);
     content.append(&password);
     content.append(&caption(l10n::setup_jmap_secret_note()));
-    let feedback = gtk::Box::new(gtk::Orientation::Vertical, 14);
-    content.append(&feedback);
+    let feedback = feedback_box(content);
 
     let snapshot: FormSnapshot = {
         let base = form.clone();

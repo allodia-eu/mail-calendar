@@ -1,6 +1,6 @@
 //! One account's page in Settings → Accounts: how it travels, what it is used for, the accounts
-//! it relies on, signing in again at its provider or its own servers and password, its mail
-//! settings while it is used for mail, and its removal, last.
+//! it relies on, how it signs in, its own servers and password, its mail settings while it is
+//! used for mail, and its removal, last.
 
 use adw::prelude::*;
 use mailcal_bindings::{AccountCapability, AccountEntry};
@@ -36,6 +36,8 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
     }
     if account_rows::signs_in_at_provider(entry.kind) {
         content.append(&signin_group(ctx, entry));
+    } else if let Some(section) = super::sign_in_section::group(ctx, entry) {
+        content.append(&section);
     }
     if let Some(endpoints) = &entry.endpoints {
         content.append(&account_servers::server_group(

@@ -55,6 +55,9 @@ pub(super) struct HostTasks {
     pub(super) allodia: AttemptSlot,
     /// Signing an existing Microsoft or Google account in again (`super::account_consent`).
     pub(super) consent: AttemptSlot,
+    /// Changing how an IMAP or JMAP account signs in, or signing it in again
+    /// (`super::account_sign_in`).
+    pub(super) account_sign_in: AttemptSlot,
     jmap_loopback: Option<OAuthLoopback>,
 }
 
@@ -141,6 +144,7 @@ impl HostTasks {
             imap: AttemptSlot::empty(),
             allodia: AttemptSlot::empty(),
             consent: AttemptSlot::empty(),
+            account_sign_in: AttemptSlot::empty(),
             jmap_loopback: None,
         }
     }
@@ -205,29 +209,6 @@ impl HostTasks {
     }
 }
 
-/// What the form should say about a connect that did not succeed. A refused certificate comes
-/// back whole, because the IMAP pane offers to accept it; everything else is a message
-/// (`docs/certificate-exceptions.md`). The rendered message of a refusal carries the whole
-/// certificate, so it is deliberately not used for that case.
-fn connect_failure(
-    error: mailcal_bindings::MailcalError,
-    offers_exception: bool,
-) -> ConnectFailure {
-    match error {
-        mailcal_bindings::MailcalError::CertificateRejected {
-            reason,
-            certificate,
-        } => ConnectFailure {
-            message: Some(reason),
-            certificate: offers_exception.then_some(certificate),
-        },
-        other => ConnectFailure {
-            message: Some(super::core_error::said(&other)),
-            certificate: None,
-        },
-    }
-}
-
 impl AppModel {
     pub(super) fn detect_account(&mut self, email: String, sender: relm4::Sender<AppInput>) {
         let Some(app) = self.app.clone() else {
@@ -253,6 +234,7 @@ impl AppModel {
         // IMAP submission may raise the panel or re-send an acceptance
         // (`docs/certificate-exceptions.md` rule 8).
         let mut offers_exception = false;
+        let takes_update = super::setup_already_set_up::takes_update(&submission);
         if let AccountSubmission::Imap(form) = &mut submission {
             offers_exception = true;
             match &form.accepted_certificate {
@@ -268,15 +250,18 @@ impl AppModel {
                 .config_toml()
                 .map_err(|message| ConnectFailure {
                     message: Some(message),
-                    certificate: None,
+                    ..ConnectFailure::default()
                 })
                 .and_then(|config| {
                     // The core persists the credential through the host's
                     // `AccountCredentialStore` and rolls the add back itself when that write
                     // fails.
-                    app.add_account(config)
+                    app.add_account(config.clone())
                         .map(|account| account.id)
-                        .map_err(|error| connect_failure(error, offers_exception))
+                        .map_err(|error| {
+                            let offered = takes_update.then_some(config);
+                            super::setup_already_set_up::refusal(error, offered, offers_exception)
+                        })
                 });
             sender.emit(AppInput::AccountAdded(result));
         });
@@ -296,11 +281,13 @@ impl AppModel {
                 self.try_open_pending_mailto(sender);
                 self.try_open_pending_share(sender);
             }
+            // An account already set up was not a connect that failed, so it is said as it is.
+            Err(failure) if failure.existing.is_some() => self.setup.connect_failed(failure),
             Err(failure) => self.setup.connect_failed(ConnectFailure {
                 message: failure
                     .message
                     .map(|message| crate::l10n::status_connect_failed(&message)),
-                certificate: failure.certificate,
+                ..failure
             }),
         }
     }

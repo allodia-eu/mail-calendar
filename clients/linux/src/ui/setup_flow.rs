@@ -100,6 +100,21 @@ impl AppModel {
         }
     }
 
+    /// The credential a refused add carried went on the account already set up. Setup ends as
+    /// an add does, back to the link step an "Add another account" left or the end of the flow;
+    /// the account is in the list already, so there is nothing to add.
+    pub(super) fn existing_account_updated(&mut self, sender: relm4::Sender<AppInput>) {
+        if let Some(app) = &self.app {
+            self.snapshot = app.mailbox_list();
+            self.connectivity =
+                super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
+        }
+        match self.setup.returning_to.take() {
+            Some(account) => self.onward(&account, &account, sender),
+            None => self.finish_setup(sender),
+        }
+    }
+
     /// Closes the window and asks each added account's name, one after another.
     fn finish_setup(&mut self, sender: relm4::Sender<AppInput>) {
         let added = std::mem::take(&mut self.setup.added);
@@ -138,6 +153,7 @@ impl AppModel {
         if let Some(next) = self.host_tasks.sender_names_waiting.pop_front() {
             self.ask_sender_name(next, sender);
         } else if let Some((account, notice)) = self.host_tasks.withheld.take() {
+            self.ask_sign_in_options(&account, sender);
             self.settings.open_on_account(account, notice);
         }
     }

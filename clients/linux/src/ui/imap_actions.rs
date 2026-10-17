@@ -165,13 +165,9 @@ impl AppModel {
                 log::warn!("imap sign-in failed");
                 self.setup.imap_sign_in_failed();
             }
-            ImapOutcome::NotAdded(message) => {
+            ImapOutcome::NotAdded(failure) => {
                 log::warn!("imap sign-in succeeded, but the account was not added");
-                self.setup
-                    .connect_failed(super::setup_model::ConnectFailure {
-                        message: Some(message),
-                        certificate: None,
-                    });
+                self.setup.connect_failed(*failure);
             }
         }
     }

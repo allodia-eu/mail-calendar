@@ -68,8 +68,7 @@ impl SetupState {
         if let Some(sign_in) = self.any_jmap_sign_in() {
             *sign_in = JmapSignIn::Failed;
             self.phase = Phase::Form;
-            self.error = None;
-            self.certificate = None;
+            self.clear_feedback();
             self.bump();
         }
     }
@@ -134,8 +133,7 @@ impl SetupState {
         if let Some(sign_in) = self.any_imap_sign_in() {
             *sign_in = ImapSignIn::Failed;
             self.phase = Phase::Form;
-            self.error = None;
-            self.certificate = None;
+            self.clear_feedback();
             self.bump();
         }
     }

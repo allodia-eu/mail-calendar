@@ -285,6 +285,8 @@ pub(crate) enum AppInput {
     /// A manual add finished: the account's id, or why it failed. The id is what raises the
     /// "your name" step, so a route that cannot report one raises nothing.
     AccountAdded(Result<String, super::setup_model::ConnectFailure>),
+    /// The add screen's offer to an account already set up, as one input.
+    AlreadySetUp(super::setup_already_set_up::ExistingInput),
     /// The provider answered what it already calls this person, so the "your name" step can
     /// open seeded. Carried back from a worker thread because the read is a provider round
     /// trip; empty is the ordinary IMAP answer and means *ask*.

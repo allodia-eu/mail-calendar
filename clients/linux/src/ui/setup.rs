@@ -77,6 +77,7 @@ impl SetupWindow {
                     pane.set_connecting(state.phase == Phase::Connecting);
                     if state.phase == Phase::Form {
                         pane.show_result(state.error.as_deref(), state.certificate.as_ref());
+                        super::setup_already_set_up::show(&window, state, sender);
                     }
                     self.rendered_generation = state.generation;
                     self.window = Some(window);
@@ -130,6 +131,7 @@ impl SetupWindow {
             .child(&content)
             .build();
         window.set_child(Some(&scrolled));
+        super::setup_already_set_up::show(&window, state, sender);
         window.present();
         self.rendered_generation = state.generation;
         self.rendered_form_generation = state.form_generation;

@@ -15,6 +15,7 @@ use crate::{
 
 mod account_consent;
 mod account_settings;
+mod account_sign_in;
 mod allodia;
 mod allodia_subscription;
 mod allodia_subscription_facts;
@@ -104,6 +105,7 @@ mod selection_bar;
 mod selection_input;
 mod settings;
 mod setup;
+mod setup_already_set_up;
 mod setup_dav;
 #[cfg(test)]
 mod setup_flag_tests;

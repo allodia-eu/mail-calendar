@@ -76,19 +76,20 @@ fn every_provider_routes_to_the_remedy_linux_currently_has() {
     let accounts = [
         account("m", "m@example.test"),
         account("j", "j@example.test"),
+        account("i", "i@example.test"),
     ];
     let snapshot = ConnectivitySnapshot {
         offline: false,
         unreachable_accounts: Vec::new(),
         calendar_reauth_accounts: Vec::new(),
         mail_reauth_accounts: Vec::new(),
-        signin_expired_accounts: vec!["m".to_owned(), "j".to_owned()],
+        signin_expired_accounts: vec!["m".to_owned(), "j".to_owned(), "i".to_owned()],
     };
     let state = ConnectivityState::from_snapshot(snapshot, &accounts, |id| {
-        Some(if id == "m" {
-            AccountProvider::Microsoft
-        } else {
-            AccountProvider::JmapOauth
+        Some(match id {
+            "m" => AccountProvider::Microsoft,
+            "j" => AccountProvider::JmapOauth,
+            _ => AccountProvider::ImapOauth,
         })
     });
 
@@ -99,6 +100,12 @@ fn every_provider_routes_to_the_remedy_linux_currently_has() {
     assert!(matches!(
         state.expired_signins[1].resolution(),
         ExpiredResolution::JmapOauth(account) if account == "j"
+    ));
+    // An IMAP sign-in has no password for the account's page to ask for: the banner signs it in
+    // again in place, as it does a JMAP one.
+    assert!(matches!(
+        state.expired_signins[2].resolution(),
+        ExpiredResolution::ImapOauth(account) if account == "i"
     ));
 }
 

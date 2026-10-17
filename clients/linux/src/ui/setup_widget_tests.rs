@@ -49,6 +49,9 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     super::setup_flag_tests::a_manual_calendar_form_without_a_server_asks_for_one(&window);
     an_untrusted_card_holds_connect_until_it_is_approved(&window);
     a_refused_certificate_holds_connect_until_it_is_accepted(&window);
+    super::setup_already_set_up::tests::the_refusal_offers_the_existing_account_the_new_credential(
+        &window,
+    );
     super::setup_manual_tests::the_manual_form_switches_account_type(&window);
     super::setup_manual_tests::a_miss_explains_itself_on_the_manual_form(&window);
     super::setup_manual_tests::a_refusal_is_answered_in_the_form_it_came_from(&window);
@@ -380,6 +383,7 @@ fn a_refused_certificate_holds_connect_until_it_is_accepted(window: &adw::Applic
             not_before: None,
             not_after: None,
         }),
+        existing: None,
     });
     setup.render(&state, window, &sender);
     let child = setup

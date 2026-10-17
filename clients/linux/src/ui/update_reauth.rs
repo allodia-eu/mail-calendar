@@ -15,6 +15,14 @@ impl AppModel {
             Some(ExpiredResolution::JmapOauth(account)) => {
                 self.start_jmap_reauth(account, sender);
             }
+            Some(ExpiredResolution::ImapOauth(account)) => {
+                self.start_account_sign_in(
+                    account,
+                    super::account_sign_in::Switch::Again,
+                    ConsentFrom::MainWindow,
+                    sender,
+                );
+            }
             Some(ExpiredResolution::Settings) => {
                 self.settings.open(Some(settings::Category::Accounts));
             }
