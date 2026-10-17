@@ -399,9 +399,10 @@ each enforced by the core and mirrored by every client's controls:
   schedules), the editor offers invitees only on such a calendar, and the core refuses a meeting
   written anywhere else.
 - **The organiser is the calendar's account, never a client's choice.** The core takes the account's
-  own sender identity, and refuses a create or a roster change when the server named the addresses
-  it schedules as (`calendar_user_addresses`) and the organiser is not one of them: RFC 6638 §3.1
-  has a server act only for an organiser in that set, and say nothing about one outside it. A
+  own sender identity, and refuses a create or a roster change when the server named the whole set
+  of addresses it schedules as (`calendar_user_addresses`) and the organiser is not one of them:
+  RFC 6638 §3.1 has a server act only for an organiser in that set, and say nothing about one
+  outside it. Graph and Google name only the primary address, so their answer refuses nothing. A
   meeting is never moved to another account than the one picked, since that account is the one
   that invites everybody.
 - **Only the organiser changes the roster.** `EventDetail.can_edit_invitees` is `true` when this

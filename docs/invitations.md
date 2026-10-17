@@ -474,13 +474,14 @@ Two engine capabilities decide it, and they answer *different questions*:
   Google, which submit assembled RFC 5322 bytes; **false on JMAP**, which cannot express the
   parameter at all.
 
-**A linked calendar's server schedules only for its own user's addresses** (RFC 6638 §3.2.2). A
-CalDAV server that names its `calendar-user-address-set` (§2.4.1) without the address the meeting
-invites would store the answer and tell nobody, so for that answer it counts as not scheduling and
-the mail route decides. The set is asked once per connection; a server that names none is left to
-the capability. A calendar on the invitation's own account is not asked: Graph and Google name the
-primary address alone and still schedule for the aliases, so taking the mail route there would send
-the organiser a second reply.
+**A calendar server schedules only for its own user's addresses** (RFC 6638 §3.2.2). A server
+whose whole set (a CalDAV `calendar-user-address-set`, §2.4.1, or JMAP's participant identities)
+leaves out the address the meeting invites would store the answer and tell nobody, so for that
+answer it counts as not scheduling and the mail route decides. This holds for a linked calendar and
+for one on the invitation's own account, IMAP beside CalDAV included. The set is asked once per
+connection. Graph and Google name only the primary address and still schedule for the aliases, so
+the engine marks their answer as part of the set, and it rules no address out; neither does a
+server that names none.
 
 `calendar_rsvp` (can the transport *express* an answer) is the third, and it was the only one we
 used to ask. That is the bug: on CalDAV the three come apart completely.
@@ -767,7 +768,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ not yet.
 | Delivery route decided from `calendar_scheduling` + `scheduling_submission` | ✅ | — | — | — | — | — |
 | Invitation filed on the calendar when nothing else did (guarded create) | ✅ | — | — | — | — | — |
 | Invitation filed into and answered from the calendar its mailbox links to; the mailbox emails the reply | ✅ | — | — | — | — | — |
-| Server route on a linked calendar only for an address its server schedules as | ✅ | — | — | — | — | — |
+| Server route only for an address the calendar's server schedules as, on a linked calendar and on the invitation's own account | ✅ | — | — | — | — | — |
 | iTIP `REPLY` written and posted as an iMIP message when no server will | ✅ | — | — | — | — | — |
 | Localised reply subject supplied by the client | ✅ (keys) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `SCHEDULE-STATUS` read after the write (RFC 6638 §3.2.9) | ✅ (engine) | — | — | — | — | — |

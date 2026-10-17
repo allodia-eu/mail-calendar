@@ -6,10 +6,7 @@
 //! nobody on it told, while the organiser's own calendar said they had been invited
 //! (`docs/calendar.md`, "Organising a meeting").
 
-use engine_api::{
-    AccountId, CalendarUserAddresses, Event, EventDraft, Invitee, InviteePatch, Provider,
-    addresses_match,
-};
+use engine_api::{AccountId, Event, EventDraft, Invitee, InviteePatch, Provider, addresses_match};
 
 use crate::{Account, App};
 
@@ -122,14 +119,14 @@ impl<P: Provider> App<P> {
     /// Whether `account`'s calendar server schedules as `address`.
     ///
     /// RFC 6638 §3.1 has a server act only for an organiser in the principal's calendar user
-    /// address set, and say nothing about one outside it. A server that named its set, or said it
-    /// schedules for nobody, is taken at its word; one that could not be asked leaves the
-    /// decision to `calendar_scheduling`, already checked.
+    /// address set, and say nothing about one outside it. A server that named its whole set, or
+    /// said it schedules for nobody, is taken at its word; one that named only part of it (Graph
+    /// and Google, which leave out the aliases) or could not be asked leaves the decision to
+    /// `calendar_scheduling`, already checked.
     pub(crate) async fn schedules_as(&self, account: &AccountId, address: &str) -> bool {
-        match self.calendar_user_addresses(account).await {
-            None | Some(CalendarUserAddresses::Unknown) => true,
-            Some(users) => users.recognises(address),
-        }
+        self.calendar_user_addresses(account)
+            .await
+            .is_none_or(|users| !users.excludes(address))
     }
 }
 

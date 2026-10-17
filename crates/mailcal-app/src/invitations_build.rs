@@ -359,11 +359,9 @@ impl<P: Provider> App<P> {
     /// Reads **both** halves, because the answer to "can this be answered?" is not a property of
     /// either one alone: the calendar transport says whether the answer can be stored and whether
     /// the server will schedule it, and the mail transport says whether we could send the iMIP
-    /// message ourselves if it will not. A CalDAV server schedules only for an address in its
-    /// user's address set (RFC 6638 §3.2.2), so a linked calendar that named a set without
-    /// `attendee` would store the answer and tell nobody: that answer takes the mail route. On
-    /// one account the set is not consulted, because Graph and Google name the primary address
-    /// alone and schedule for the aliases too, so the mail route would send a second reply. An
+    /// message ourselves if it will not. A server schedules only for an address in its user's
+    /// address set (RFC 6638 §3.2.2), so a calendar whose whole set leaves `attendee` out would
+    /// store the answer and tell nobody: that answer takes the mail route. An
     /// account with no calendar provider still reaches [`Delivery::ClientImip`]; see [`delivery`]
     /// for why that is the honest answer rather than an oversight.
     pub(crate) async fn delivery_between(
@@ -388,8 +386,8 @@ impl<P: Provider> App<P> {
         };
         let schedules = calendar_caps.is_some_and(engine_api::Capabilities::calendar_scheduling)
             && match attendee {
-                Some(attendee) if calendar != mail => self.schedules_as(calendar, attendee).await,
-                _ => true,
+                Some(attendee) => self.schedules_as(calendar, attendee).await,
+                None => true,
             };
         delivery(
             calendar_caps.is_some_and(|caps| caps.calendar_rsvp().is_some()),

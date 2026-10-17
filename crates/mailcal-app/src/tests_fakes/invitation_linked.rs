@@ -22,6 +22,21 @@ impl InvitationFake {
             CalendarUserAddresses::Known(addresses.iter().map(|&a| a.to_owned()).collect());
         self
     }
+
+    /// A transport that can also submit an iMIP message of its own, as SMTP beside a calendar
+    /// can.
+    pub(crate) fn sending_imip(mut self) -> Self {
+        self.caps = self.caps.with_scheduling_submission();
+        self
+    }
+
+    /// A calendar server that names only `addresses` and may schedule as others, as Graph and
+    /// Google do.
+    pub(crate) fn scheduling_as_at_least(mut self, addresses: &[&str]) -> Self {
+        self.calendar_users =
+            CalendarUserAddresses::Including(addresses.iter().map(|&a| a.to_owned()).collect());
+        self
+    }
 }
 
 /// The second mailbox [`shared_calendar_app`] files into the calendar, and the one the calendar

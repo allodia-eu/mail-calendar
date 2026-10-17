@@ -127,6 +127,23 @@ async fn an_organiser_the_server_schedules_as_is_written() {
 }
 
 #[tokio::test]
+async fn an_organiser_a_partial_set_does_not_name_is_written() {
+    // Graph and Google name the primary address alone and schedule as the aliases too.
+    let provider = CalendarFake::scheduling_as(
+        Vec::new(),
+        CalendarUserAddresses::Including(vec!["someone-else@acct-a.local".to_owned()]),
+    );
+    let meetings = provider.create_meetings();
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
+    app.dispatch(Intent::RefreshCalendar).await;
+
+    app.dispatch(create_meeting()).await;
+
+    assert_eq!(meetings.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn an_appointment_needs_no_scheduling_server() {
     let provider = CalendarFake::with_events(Vec::new());
     let meetings = provider.create_meetings();

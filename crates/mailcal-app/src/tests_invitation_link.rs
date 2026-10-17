@@ -15,8 +15,9 @@ use mailcal_viewmodel::ResponseStatus;
 use super::{
     Intent, InvitationResponse, MessageRef, Surface,
     fakes::{
-        ALIAS, CALENDAR_ACCOUNT, EVENT_KEY, InvitationFake, MESSAGE_KEY, OTHER_MAILBOX,
-        RecordedSends, evt, invitation_app, linked_invitation_app, shared_calendar_app,
+        ALIAS, CALENDAR_ACCOUNT, EVENT_KEY, InvitationFake, InvitationRsvps, MESSAGE_KEY,
+        OTHER_MAILBOX, RecordedSends, evt, invitation_app, linked_invitation_app,
+        shared_calendar_app,
     },
 };
 use crate::{App, EventIntent, ReaderId};
@@ -221,24 +222,71 @@ async fn a_reply_the_linked_calendar_could_not_deliver_is_the_mail_accounts_to_s
     assert_eq!(sends.lock().unwrap().len(), 1, "the mailbox emails it");
 }
 
-#[tokio::test]
-async fn a_calendar_on_the_invitations_own_account_is_not_asked_whom_it_schedules_as() {
-    // Graph and Google name the primary address alone and schedule for the aliases too; taking
-    // the mail route for an alias there would send the organiser a second reply.
-    let provider = InvitationFake::new().scheduling_as(&["me@test.local"]);
+/// The invitation's own account, mail and calendar on one sign-in, over `provider`.
+async fn one_account(
+    provider: InvitationFake,
+) -> (App<InvitationFake>, InvitationRsvps, RecordedSends) {
     let (rsvps, sends) = (provider.rsvps(), provider.sends());
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = invitation_app(provider, &surfaces);
     app.dispatch(Intent::RefreshMail).await;
     app.dispatch(Intent::RefreshCalendar).await;
+    (app, rsvps, sends)
+}
+
+#[tokio::test]
+async fn a_server_naming_only_part_of_its_set_keeps_the_server_route_for_an_alias() {
+    // Graph and Google name the primary address alone and schedule for the aliases too; taking
+    // the mail route for an alias there would send the organiser a second reply.
+    let (app, rsvps, sends) = one_account(
+        InvitationFake::new()
+            .scheduling_as_at_least(&["me@test.local"])
+            .sending_imip(),
+    )
+    .await;
 
     accept(&app).await;
-    assert_eq!(
-        rsvps.lock().unwrap().len(),
-        1,
-        "the server route, as before"
-    );
+    assert_eq!(rsvps.lock().unwrap().len(), 1, "the server route");
     assert!(sends.lock().unwrap().is_empty(), "and no reply of our own");
+}
+
+#[tokio::test]
+async fn a_server_on_the_same_account_that_does_not_schedule_as_the_alias_leaves_it_to_mail() {
+    // IMAP beside CalDAV on one sign-in: the principal's whole set is the login alone.
+    let (app, rsvps, sends) = one_account(
+        InvitationFake::new()
+            .scheduling_as(&["me@test.local"])
+            .sending_imip(),
+    )
+    .await;
+
+    accept(&app).await;
+    assert_eq!(rsvps.lock().unwrap().len(), 1, "the answer is stored");
+    assert_eq!(
+        sends.lock().unwrap().len(),
+        1,
+        "and the account emails the reply"
+    );
+}
+
+#[tokio::test]
+async fn a_calendar_without_mail_offers_no_answer_its_server_would_not_send() {
+    let mut calendar = InvitationFake::new().scheduling_as(&["login@dav.test.local"]);
+    calendar.materialized = true;
+    let prefs = with_alias("calendar-only");
+    let mut stored = mailcal_account::load_preferences(&prefs);
+    stored.set_account_aliases(CALENDAR_ACCOUNT, vec![ALIAS.to_owned()]);
+    mailcal_account::save_preferences(&prefs, &stored).unwrap();
+    let (app, _) = booted(calendar, false, Some(prefs)).await;
+
+    let detail = app
+        .event_detail(&evt(CALENDAR_ACCOUNT, EVENT_KEY), None)
+        .await
+        .expect("the meeting is on the calendar");
+    assert_eq!(
+        detail.my_answer, None,
+        "the server would store it and tell nobody, and there is no mail to send it"
+    );
 }
 
 #[tokio::test]
