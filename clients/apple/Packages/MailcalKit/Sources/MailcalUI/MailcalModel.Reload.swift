@@ -28,13 +28,13 @@ extension MailboxModel {
             return
         }
         // A connectivity signal only updates the offline banner + per-account outage badges, and
-        // Settings → Accounts, which says when a provider refused a use or a sign-in expired.
+        // Settings → Accounts, which says when a provider refused a use, a sign-in expired, or a
+        // calendar or address book did not connect. The last is not in the connectivity
+        // snapshot, so the accounts snapshot is pulled on every such signal; it is published
+        // only when it changed.
         if case .connectivity = surface {
-            let refused = connectivity?.calendarReauthAccounts
             connectivity = app?.connectivity()
-            // The snapshot reads one thing from connectivity, which calendars a provider refused,
-            // so it is pulled again only when that moved: connectivity signals come in bursts.
-            if connectivity?.calendarReauthAccounts != refused { refreshAccountsSnapshot() }
+            refreshAccountsSnapshot()
             return
         }
         // A calendar-write-status signal only moves the small header badge (spinner → check /
