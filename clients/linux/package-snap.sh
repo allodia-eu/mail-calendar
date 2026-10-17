@@ -15,6 +15,7 @@
 # The container is kept between builds, with cargo's caches in it, so only the first build is cold.
 # `--destructive-mode` builds on the host instead and installs the build packages into it, so it
 # is for a throwaway host running the base's own release (Ubuntu 26.04 for core26), as CI's is.
+# It runs snapcraft through sudo, because installing those packages needs root.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"          # clients/linux
@@ -30,11 +31,14 @@ PROJECT="$OUT/project"
 
 INSTALL=0
 SNAPCRAFT_MODE=()
+# What snapcraft, and the removal of what it writes, runs as. Only those: git refuses to read a
+# checkout another user owns, so the script itself stays the invoking user's.
+AS_BUILDER=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --install) INSTALL=1 ;;
-    --destructive-mode) SNAPCRAFT_MODE=(--destructive-mode) ;;
-    -h | --help) sed -n '2,17p' "$0"; exit 0 ;;
+    --destructive-mode) SNAPCRAFT_MODE=(--destructive-mode); AS_BUILDER=(sudo) ;;
+    -h | --help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "package-snap.sh: unknown option '$1'" >&2; exit 2 ;;
   esac
   shift
@@ -56,7 +60,7 @@ fi
 # Untracked files are included, so a new source file is built before it is committed. tar keeps
 # modification times, so cargo inside the container rebuilds only what changed.
 echo "==> copying the source tree to $PROJECT"
-rm -rf "$PROJECT"
+"${AS_BUILDER[@]}" rm -rf "$PROJECT"
 mkdir -p "$PROJECT"
 git -C "$ROOT" ls-files -z --cached --others --exclude-standard |
   tar -C "$ROOT" --null --files-from=- --ignore-failed-read -cf - |
@@ -70,7 +74,7 @@ cp -a "$ROOT/branding/." "$PROJECT/branding/"
 # the file and not the environment). The copy is under target/ and removed on the way out, with
 # the copies the part pulled from it; in LXD those are inside the container, owner-only, and gone
 # at the next build's clean.
-trap 'rm -f "$PROJECT/.env" "$PROJECT/parts/mailcal/src/.env" "$PROJECT/parts/mailcal/build/.env"' EXIT
+trap '"${AS_BUILDER[@]}" rm -f "$PROJECT/.env" "$PROJECT/parts/mailcal/src/.env" "$PROJECT/parts/mailcal/build/.env"' EXIT
 if [[ -f "$ROOT/.env" ]]; then
   echo "==> credentials: using $ROOT/.env"
   # In LXD the container sees the file and no environment, so a variable exported for this one
@@ -133,8 +137,8 @@ echo "==> building $MAILCAL_SNAP_NAME ($MAILCAL_APP_ID)${FEATURES:+ with --featu
 # tree whole. Cargo's intermediates are not in the part: `.cargo/config.toml` puts them under
 # CARGO_HOME, which survives the clean, so only what changed is compiled again.
 # snapcraft writes only inside the project, so the snap is moved out of it afterwards.
-(cd "$PROJECT" && snapcraft clean "${SNAPCRAFT_MODE[@]}" mailcal &&
-  snapcraft pack "${SNAPCRAFT_MODE[@]}")
+(cd "$PROJECT" && "${AS_BUILDER[@]}" snapcraft clean "${SNAPCRAFT_MODE[@]}" mailcal &&
+  "${AS_BUILDER[@]}" snapcraft pack "${SNAPCRAFT_MODE[@]}")
 
 for built in "$PROJECT"/"$MAILCAL_SNAP_NAME"_*.snap; do
   mv -f "$built" "$OUT/"
