@@ -38,7 +38,7 @@ private func mailboxOnly() -> AccountEntry {
         #expect(calendar.note == .problem(.needsOwnSignIn, .calendar))
         #expect(calendar.active)
         #expect(
-            AccountSettingsRules.note(calendar.note)
+            AccountSettingsLabels.note(calendar.note)
                 == L10n.settings_account_use_own_sign_in_calendar())
         #expect(
             AccountSettingsRules.useSwitch(account, .contacts).note == .problem(.unreachable, .contacts))
