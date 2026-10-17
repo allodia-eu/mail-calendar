@@ -67,10 +67,21 @@ cp -a "$ROOT/branding/." "$PROJECT/branding/"
 
 # The registrations reach the build the way they reach the Flatpak's: as a `.env` in the copied
 # tree, because snapcraft forwards no host environment into the container (package.sh explains why
-# the file and not the environment). The copy is under target/ and removed on the way out.
-trap 'rm -f "$PROJECT/.env"' EXIT
+# the file and not the environment). The copy is under target/ and removed on the way out, with
+# the copies the part pulled from it; in LXD those are inside the container, owner-only, and gone
+# at the next build's clean.
+trap 'rm -f "$PROJECT/.env" "$PROJECT/parts/mailcal/src/.env" "$PROJECT/parts/mailcal/build/.env"' EXIT
 if [[ -f "$ROOT/.env" ]]; then
   echo "==> credentials: using $ROOT/.env"
+  # In LXD the container sees the file and no environment, so a variable exported for this one
+  # build cannot win there. Say so rather than letting it be ignored.
+  if (( ${#SNAPCRAFT_MODE[@]} == 0 )); then
+    for var in "${PACKAGE_CREDENTIAL_VARS[@]}"; do
+      if [[ -n "${!var:-}" ]]; then
+        echo "    note: $var set in the environment is IGNORED: the container reads only the file." >&2
+      fi
+    done
+  fi
   cp "$ROOT/.env" "$PROJECT/.env"
 else
   ( umask 077; : > "$PROJECT/.env" )

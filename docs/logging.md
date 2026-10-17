@@ -229,7 +229,7 @@ because a checker that guesses at prose cries wolf and gets skipped.
 
 | Aspect | Apple · `FileLog.swift` | Windows · `Services/Log.cs` | Android · `FileLog.kt` | Linux · `logger.rs` |
 |---|---|---|---|---|
-| Sink file | macOS: `~/.local/share/mailcal/mailcal.log` (+ `.1..3`); iOS/iPadOS: app Application Support `mailcal/mailcal.log` (+ `.1..3`) | `%LOCALAPPDATA%\Allodia\MailCalendar\logs\app.log` (+ `.1..3`) | `<filesDir>/logs/app.log` (+ `.1..3`) | `$XDG_DATA_HOME/mailcal/mailcal.log` (fallback `~/.local/share`; + `.1..3`) |
+| Sink file | macOS: `~/.local/share/mailcal/mailcal.log` (+ `.1..3`); iOS/iPadOS: app Application Support `mailcal/mailcal.log` (+ `.1..3`) | `%LOCALAPPDATA%\Allodia\MailCalendar\logs\app.log` (+ `.1..3`) | `<filesDir>/logs/app.log` (+ `.1..3`) | `$XDG_DATA_HOME/mailcal/mailcal.log` (fallback `~/.local/share`; + `.1..3`); snap: `$SNAP_USER_COMMON/.local/share/mailcal/mailcal.log`, the directory every revision shares |
 | Line format | `<ts> <LEVEL> [target] msg` (local, ms) | `<ts ±offset> [level] msg` (core lines carry `[target]` in msg) | `<ts> <LEVEL> [target] msg` (local, ms) | `<ts ±offset> <LEVEL> [target] msg` (local, ms) |
 | Rotation | 1 MB × 3 backups (~4 MB), pre-write | 1 MB × 3 backups (~4 MB), pre-write | 1 MB × 3 backups (~4 MB), pre-write | ✅ 1 MB × 3 backups (~4 MB), pre-write |
 | Default level | `INFO` unless the Diagnostics toggle is on (`DiagnosticsPrefs.swift`) | `Info` via `DiagnosticsLog.ResolveLevel` (`MailboxModel.Accounts.cs`) | `INFO` unless the Diagnostics toggle is on (`DiagnosticsPrefs.kt`) | ✅ `INFO` unless the host preference is on |

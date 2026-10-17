@@ -20,7 +20,10 @@ use ashpd::{desktop::notification::NotificationProxy, zvariant::OwnedValue};
 use futures::StreamExt;
 use gtk::{gio, glib};
 
-use super::{AppInput, notifications::NotificationTarget};
+use super::{
+    AppInput,
+    notifications::{ID_PREFIX, NotificationTarget},
+};
 
 /// The action a message notification's click activates, named as the application exports it.
 const OPEN_MESSAGE: &str = "open-message";
@@ -86,15 +89,20 @@ async fn listen(deliver: fn(AppInput)) -> ashpd::Result<()> {
     let proxy = NotificationProxy::new().await?;
     let mut clicks = proxy.receive_action_invoked().await?;
     while let Some(click) = clicks.next().await {
-        if let Some(input) = input_for_signal(click.name(), click.parameter()) {
+        if let Some(input) = input_for_signal(click.id(), click.name(), click.parameter()) {
             deliver(input);
         }
     }
+    log::warn!("stopped listening for notification clicks");
     Ok(())
 }
 
-/// What a signalled click means, or `None` for an action this app never posts.
-fn input_for_signal(action: &str, parameter: &[OwnedValue]) -> Option<AppInput> {
+/// What a signalled click means, or `None` for a notification or an action this app never posts.
+/// The portal signals a click to every listener, whichever application posted it.
+fn input_for_signal(id: &str, action: &str, parameter: &[OwnedValue]) -> Option<AppInput> {
+    if !id.starts_with(ID_PREFIX) {
+        return None;
+    }
     match action.strip_prefix("app.")? {
         OPEN_MESSAGE => {
             Some(input_for_pair(parameter.first().and_then(|target| {
@@ -137,11 +145,15 @@ mod tests {
     use crate::ui::notifications::NotificationTarget;
 
     fn signalled(action: &str, parameter: Vec<Value<'static>>) -> Option<AppInput> {
+        signalled_on("mailcal-4:work:m1", action, parameter)
+    }
+
+    fn signalled_on(id: &str, action: &str, parameter: Vec<Value<'static>>) -> Option<AppInput> {
         let parameter = parameter
             .into_iter()
             .map(|value| OwnedValue::try_from(value).expect("a value with no file descriptor"))
             .collect::<Vec<_>>();
-        input_for_signal(action, &parameter)
+        input_for_signal(id, action, &parameter)
     }
 
     #[test]
@@ -177,6 +189,14 @@ mod tests {
     fn a_signalled_action_this_app_never_posts_is_ignored() {
         assert!(signalled("app.quit", Vec::new()).is_none());
         assert!(signalled("open-message", Vec::new()).is_none());
+    }
+
+    #[test]
+    fn a_click_on_another_applications_notification_is_ignored() {
+        let carried = Value::from(vec!["work".to_owned(), "m1".to_owned()]);
+        assert!(
+            signalled_on("their-notification", &open_message_action(), vec![carried]).is_none()
+        );
     }
 
     fn target(parameter: &Variant) -> Option<NotificationTarget> {

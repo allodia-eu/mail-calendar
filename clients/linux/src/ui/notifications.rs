@@ -61,12 +61,16 @@ pub(super) fn post(outcome: BackgroundSyncOutcome) {
     }
 }
 
+/// What every notification this app posts is named with first, so a click the portal signals to
+/// every listener can be told apart from another application's ([`super::notification_click`]).
+pub(super) const ID_PREFIX: &str = "mailcal-";
+
 /// What a message's notification is posted under: its account and its key together, because a
 /// provider key is unique within its account and never across them, and a second notification
 /// under one id replaces the first. The account is length-prefixed, so no account id can end
 /// where another pair's key begins.
 fn message_id(account: &str, key: &str) -> String {
-    format!("mailcal-{}:{account}:{key}", account.len())
+    format!("{ID_PREFIX}{}:{account}:{key}", account.len())
 }
 
 async fn post_all(accounts: Vec<AccountNewMail>) -> ashpd::Result<()> {
@@ -118,7 +122,7 @@ fn notices(account: &AccountNewMail) -> Vec<Notice> {
         notices.push(Notice {
             title: l10n::notification_more_messages(i64::from(hidden)),
             body: account.account_label.clone(),
-            id: format!("mailcal-account-{}", account.account_id),
+            id: format!("{ID_PREFIX}account-{}", account.account_id),
             target: None,
         });
     }
