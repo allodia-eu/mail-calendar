@@ -76,8 +76,9 @@ pass exists precisely to report mail that arrived while nobody was looking.
   per `NewMailPreview`**, identified by its **stable message key**, grouped per account (Android
   group + summary; macOS and iOS `threadIdentifier`). Keying by message, not by account, is a contract
   requirement: because the mark advances past reported mail, a per-account notification would be
-  **replaced** by the next pass's, silently losing an earlier still-unseen message. The app-icon
-  badge (iOS) carries the whole pass's total, not one account's.
+  **replaced** by the next pass's, silently losing an earlier still-unseen message. No
+  notification sets the app-icon badge: the icon carries the unified Inbox unread
+  ([`app-badge.md`](app-badge.md)), which an iOS pass writes once it has run.
 - **Clicking one opens the message it names.** The notification carries the
   `(account, message key)` pair the core keys mail on, because a click may also **start** the app,
   and then nothing the process remembers is left to look the message up in: macOS and iOS put it in

@@ -140,6 +140,8 @@ fn main() {
     // was running when it came.
     ui::install_notification_actions(&application, |input| APP_BROKER.send(input));
     ui::listen_for_notification_clicks(|input| APP_BROKER.send(input));
+    // Nothing updates the dock's count once the app has quit (`docs/app-badge.md`).
+    application.connect_shutdown(|_| ui::clear_launcher_badge());
     let app = relm4::RelmApp::<ui::AppInput>::from_app(application).with_broker(&APP_BROKER);
     app.run::<ui::AppWindow>(());
 }

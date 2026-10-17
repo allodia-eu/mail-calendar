@@ -75,6 +75,8 @@ final class MailboxModel {
     /// The badge on the All Accounts group's Inbox row: every account's Inbox unread, summed.
     /// `0` shows none.
     var unifiedUnread: UInt32 = 0
+    /// The same count on the app's icon (`docs/app-badge.md`).
+    @ObservationIgnored var appBadge = AppBadge()
     /// Whether the All Accounts group's tree is open in the pane. The core's, and persisted, like
     /// every account's own (`docs/folder-pane.md` rule 3); seeded open because that is the state
     /// of a group nobody has shut, so the very first frame agrees with the core.

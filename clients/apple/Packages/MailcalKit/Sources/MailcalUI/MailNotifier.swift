@@ -19,9 +19,9 @@ private enum NoticeKey {
 }
 
 enum MailNotifier {
-    /// Requests notification authorisation (alerts + sound + badge). Safe to call every launch:
-    /// the OS only prompts once, then this is a no-op. Called at launch so a granting user gets
-    /// new-mail notifications.
+    /// Requests notification authorisation (alerts + sound + badge, the last for `AppBadge`). Safe
+    /// to call every launch: the OS only prompts once, then this is a no-op. Called at launch so a
+    /// granting user gets new-mail notifications.
     static func requestAuthorization() {
         UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound, .badge]) { _, error in
@@ -71,7 +71,6 @@ enum MailNotifier {
         content.sound = .default
         // The OS collapses same-thread notifications into one expandable stack per account.
         content.threadIdentifier = notice.threadIdentifier
-        if let badge = notice.badge { content.badge = NSNumber(value: badge) }
         if let target = notice.target {
             content.userInfo = [NoticeKey.account: target.account, NoticeKey.message: target.key]
         }
