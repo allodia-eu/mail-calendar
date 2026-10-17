@@ -240,7 +240,7 @@ $Suite = @{
             [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
           for ($i = 0; $i -lt 20 -and -not (Test-MailboxEnabled); $i++) { Start-Sleep -Milliseconds 250 }
           Assert-True (Test-MailboxEnabled) 'the window must take input again once the dialog is cancelled'
-          $line = Find-UiaElement -AutomationId 'ExportError'
+          $line = Find-UiaElement -AutomationId 'ReadingExportError'
           $shown = $line -and -not [double]::IsInfinity($line.Current.BoundingRectangle.X) -and $line.Current.BoundingRectangle.Height -gt 0
           Assert-True (-not $shown) "a cancelled print is the reader's choice, not a failure; the pane said '$($line.Current.Name)'"
         } finally {
