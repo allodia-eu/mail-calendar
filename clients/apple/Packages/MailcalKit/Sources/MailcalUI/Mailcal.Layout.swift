@@ -11,7 +11,10 @@ extension ContentView {
         #if os(macOS)
         macOSLayout
         #else
-        if hSize == .compact { iPhoneLayout } else { iPadLayout }
+        // ⚠️ Boxed: unboxed, this value is the whole app, a debug build keeps copies of it on the
+        // stack in every getter up to `body`, and an iPhone's 1 MB main thread overflowed at
+        // launch (`docs/client-traps.md`).
+        if hSize == .compact { AnyView(iPhoneLayout) } else { AnyView(iPadLayout) }
         #endif
     }
 

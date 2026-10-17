@@ -13,6 +13,7 @@ import uniffi.mailcal_bindings.CapabilityChange
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.LinkCandidates
 import uniffi.mailcal_bindings.LinkSlot
+import uniffi.mailcal_bindings.UseProblem
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 class AccountSettingsRulesTest {
@@ -191,5 +192,28 @@ class AccountSettingsRulesTest {
             AccountSettingsRules.outcome(CapabilityChange.NEEDS_ENDPOINT),
         )
         assertEquals(UseChangeOutcome.APPLIED, AccountSettingsRules.outcome(CapabilityChange.APPLIED))
+    }
+
+    @Test
+    fun a_use_that_did_not_connect_says_why_beneath_its_switch() {
+        val problems = mapOf(
+            AccountCapability.CALENDAR to UseProblem.NEEDS_OWN_SIGN_IN,
+            AccountCapability.CONTACTS to UseProblem.UNREACHABLE,
+        )
+        val base = accountEntry(
+            CoreAccountKind.IMAP,
+            AccountCapability.MAIL to CapabilityState.ON,
+            AccountCapability.CALENDAR to CapabilityState.ON,
+            AccountCapability.CONTACTS to CapabilityState.ON,
+        )
+        val entry = base.copy(uses = base.uses.map { it.copy(problem = problems[it.capability]) })
+        val calendar = AccountSettingsRules.switch(entry, AccountCapability.CALENDAR)
+        assertEquals(UseNote.OWN_SIGN_IN_CALENDAR, calendar.note)
+        assertTrue("the account is still used for it", calendar.active)
+        assertEquals(
+            UseNote.UNREACHABLE_CONTACTS,
+            AccountSettingsRules.switch(entry, AccountCapability.CONTACTS).note,
+        )
+        assertEquals(UseNote.NONE, AccountSettingsRules.switch(entry, AccountCapability.MAIL).note)
     }
 }

@@ -122,6 +122,16 @@ that same file.
   pixels in a screenshot, and nothing does. Prove it on a simulator whose own appearance is the
   *opposite* of the one under test, driving the picker with `idb` and flipping the host with
   `xcrun simctl ui <udid> appearance light|dark`.
+- **An iPhone's main thread has 1 MB of stack and a simulator's has 8, and a debug build of a
+  SwiftUI view can use most of the first.** At `-Onone` a getter returning `some View` keeps its
+  value on the stack, sized at run time by the type, so its prologue shows a few hundred bytes while
+  the frame is hundreds of KB. A getter whose value is the whole app (`ContentView.body`,
+  `mainView`) took about 900 KB, and the launch crashed on the phone in whatever ran next, with
+  `EXC_BAD_ACCESS` in a "Stack Guard" region and a crash log naming an innocent deep call (the Swift
+  runtime resolving the sidebar's type). Every simulator run passed. Find the frames by attaching
+  `lldb` to the app on a simulator, breaking in the crashing function and subtracting consecutive
+  frames' `sp`; `pthread_get_stackaddr_np` minus `sp` is the depth a device must also hold. An
+  `AnyView` at the top of the tree (`ContentView.baseLayout`) moves the value to the heap.
 - **The C# bindings PascalCase every field, and nothing outside a Windows host compiles the code
   that reads them.** `mailcal-bindgen-cs` emits `PasswordAlsoWorks` where Swift and Kotlin keep
   `passwordAlsoWorks`, so a field name copied across from another client compiles on those two and
@@ -403,6 +413,17 @@ that same file.
   ([`DefaultMailApp.cs`](../clients/windows/Mailcal/Services/DefaultMailApp.cs)), WinUI-free so
   `Mailcal.Tests` can state it; nothing that links WinUI can be unit-tested here at all.
 
+- **A WinUI window that handles its own `Closed` or `AppWindow.Closing` is never collected.** The
+  handler is a delegate the native window holds with an ordinary COM reference, and it refers back
+  to the managed window, so the pair outlives the close and keeps everything the window held: its
+  content, its view model, its `WebView2` element. Nothing on screen shows it, and the WebView2
+  renderer still exits, because closing the control ends that, so a count of `msedgewebview2.exe`
+  processes stays flat. Measured: every reading and composer window closed was still alive after
+  three forced collections, a few megabytes each, while handlers on elements inside the same
+  windows held nothing. The tell is `gcroot` in `dotnet-dump` finding no managed root for an object
+  that survives every collection. Unsubscribe inside the `Closed` handler, which
+  `WindowChrome.Dress` does for every window it dresses; `uitests/ReleaseProbe.Tests.ps1` counts
+  what is still held after a close.
 - **WinUI's `FocusManager` static *moves* act on whichever element holds focus now, which may be in
   a different window.** `TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = other })`
   reads as "move focus into `other`" and is not: the search root only bounds where the *next*

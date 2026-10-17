@@ -173,6 +173,12 @@ private fun useNoteText(ctx: android.content.Context, note: UseNote): String? = 
     UseNote.NEEDS_CONTACTS -> L10n.settings_account_colleagues_needs_contacts(ctx)
     UseNote.WITHHELD -> L10n.settings_account_use_withheld(ctx)
     UseNote.NOT_OFFERED -> L10n.settings_account_use_not_offered(ctx)
+    UseNote.UNREACHABLE_CALENDAR -> L10n.settings_account_use_unreachable_calendar(ctx)
+    UseNote.UNREACHABLE_CONTACTS -> L10n.settings_account_use_unreachable_contacts(ctx)
+    UseNote.REFUSED_CALENDAR -> L10n.settings_account_use_refused_calendar(ctx)
+    UseNote.REFUSED_CONTACTS -> L10n.settings_account_use_refused_contacts(ctx)
+    UseNote.OWN_SIGN_IN_CALENDAR -> L10n.settings_account_use_own_sign_in_calendar(ctx)
+    UseNote.OWN_SIGN_IN_CONTACTS -> L10n.settings_account_use_own_sign_in_contacts(ctx)
     UseNote.NONE -> null
 }
 

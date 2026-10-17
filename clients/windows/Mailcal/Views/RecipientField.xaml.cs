@@ -78,6 +78,7 @@ public sealed partial class RecipientField : UserControl
         Pills.ItemsSource = _pills;
         SuggestionList.ItemsSource = _matches;
         InstallHistory();
+        LosingFocus += OnFieldLosingFocus;
         // A Popup lives in its own layer, rooted at the XamlRoot rather than at this control, so
         // it does NOT go away with the composer that owned it. Close it explicitly, or a draft
         // cancelled with the list open leaves it floating over the reading pane.
@@ -172,10 +173,11 @@ public sealed partial class RecipientField : UserControl
     public event EventHandler? RecipientsChanged;
 
     /// <summary>
-    /// Raised on Enter over typed text, for a host that takes what is typed (the event editor's
-    /// Invite). With no handler Enter goes where it went before; with one, Enter over typed text goes
-    /// nowhere else, so a dialog's default button does not fire under an address being added, and
-    /// Enter in an empty input still reaches it.
+    /// Raised on Enter over typed text, for a host that takes what is typed itself (the event
+    /// editor's Invite). With no handler, Enter and leaving the input finish the typed address as a
+    /// comma would (docs/contacts.md). Either way Enter over typed text goes nowhere else, so a
+    /// dialog's default button does not fire under an address being added, and Enter in an empty
+    /// input still reaches it.
     /// </summary>
     public event EventHandler? Submitted;
 
@@ -266,11 +268,18 @@ public sealed partial class RecipientField : UserControl
             SuggestionPopup.IsOpen = false;
             e.Handled = true;
         }
-        else if (e.Key == VirtualKey.Enter && Submitted is { } submitted && Input.Text.Trim().Length > 0)
+        else if (e.Key == VirtualKey.Enter && Input.Text.Trim().Length > 0)
         {
             SuggestionPopup.IsOpen = false;
             e.Handled = true;
-            submitted(this, EventArgs.Empty);
+            if (Submitted is { } submitted)
+            {
+                submitted(this, EventArgs.Empty);
+            }
+            else
+            {
+                FinishTyped();
+            }
         }
     }
 
@@ -285,11 +294,41 @@ public sealed partial class RecipientField : UserControl
         }
     }
 
-    private bool IsInsideSuggestions(DependencyObject? element)
+    // Focus is leaving the input, a pill or the trailing control: going anywhere but the input, a
+    // pill or the list, it is leaving the field, which finishes the typed address. The Cc/Bcc
+    // chevron in the trailing slot counts as leaving. The list and the pills do not: finished on
+    // the way to a suggestion, the half-typed token becomes a pill beside the address chosen, and
+    // the pills rebuilt under a press, or under Shift+Tab, take the focused button with them.
+    //
+    // ⚠️ Finished once the focus change is over, never inside it: from a pill's button the rebuild
+    // removes the element losing focus, which WinUI does not survive mid-change.
+    private void OnFieldLosingFocus(object sender, LosingFocusEventArgs e)
+    {
+        var next = e.NewFocusedElement as DependencyObject;
+        var staying = IsInsideSuggestions(next) || IsInside(next, Input) || IsInside(next, Pills);
+        if (Submitted is null && !staying)
+        {
+            DispatcherQueue.TryEnqueue(FinishTyped);
+        }
+    }
+
+    // The address being typed becomes a pill, as a comma would make it.
+    private void FinishTyped()
+    {
+        if (RecipientTokens.CurrentToken(_text).Length > 0)
+        {
+            Change(RecipientTokens.Seeded(_text), typed: false);
+        }
+    }
+
+    private bool IsInsideSuggestions(DependencyObject? element) =>
+        IsInside(element, SuggestionSurface) || IsInside(element, SuggestionPopup);
+
+    private static bool IsInside(DependencyObject? element, DependencyObject root)
     {
         for (var node = element; node is not null; node = VisualTreeHelper.GetParent(node))
         {
-            if (ReferenceEquals(node, SuggestionSurface) || ReferenceEquals(node, SuggestionPopup))
+            if (ReferenceEquals(node, root))
             {
                 return true;
             }

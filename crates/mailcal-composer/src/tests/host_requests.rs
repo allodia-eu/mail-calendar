@@ -1,6 +1,6 @@
 use crate::{
-    HostAnswer, HostRequest, HostRequestKind, LinkAnswer, LinkRequest, LinkUrl, answer_script,
-    link_address, parse_host_request,
+    HistorySteps, HostAnswer, HostRequest, HostRequestKind, LinkAnswer, LinkRequest, LinkUrl,
+    answer_script, link_address, parse_host_request,
 };
 
 fn link(text: &str, address: &str, removable: bool) -> HostRequest {
@@ -24,6 +24,21 @@ fn reads_a_link_request() {
 }
 
 #[test]
+fn reads_a_history_notice() {
+    let message = r#"{"id":0,"request":{"history":{"undo":true,"redo":false}}}"#;
+    assert_eq!(
+        parse_host_request(message),
+        Some(HostRequest {
+            id: 0,
+            kind: HostRequestKind::History(HistorySteps {
+                undo: true,
+                redo: false,
+            }),
+        })
+    );
+}
+
+#[test]
 fn refuses_anything_outside_the_vocabulary() {
     for message in [
         "",
@@ -35,6 +50,9 @@ fn refuses_anything_outside_the_vocabulary() {
         r#"{"id":1,"request":{"link":{"text":"","address":""}}}"#,
         r#"{"id":-1,"request":{"link":{"text":"","address":"","removable":false}}}"#,
         r#"{"id":1,"request":{"link":{"text":"","address":"","removable":false}},"extra":1}"#,
+        r#"{"id":0,"request":{"history":{"undo":true}}}"#,
+        r#"{"id":0,"request":{"history":{"undo":true,"redo":false,"steps":3}}}"#,
+        r#"{"id":0,"request":{"history":{"undo":"yes","redo":false}}}"#,
     ] {
         assert_eq!(
             parse_host_request(message),

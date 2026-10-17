@@ -890,6 +890,15 @@ its environment is the harness's. The log tells the outcomes apart without a scr
 `notification click: opening the message it named`, then either silence, meaning it opened, or
 `the message it named is not in the list, nothing opened`.
 
+**A click by hand that STARTS the macOS app can reach the harness**, with two settings. LaunchServices
+starts it with launchd's environment, so `launchctl setenv MAILCAL_DEV_ACCOUNT <mode>` reaches it
+(`launchctl unsetenv` afterwards). And it starts whichever copy is registered under the bundle id,
+so with a release build installed, build the dev one under another id
+(`MAILCAL_APP_ID=org.mailcal.client MAILCAL_APP_NAME=MailCal scripts/dev/boot.sh macos …`), or the
+click may start the installed app on your own accounts. For two accounts in one store use
+`--account stalwart-multi`; it is JMAP, which the harness does not push, so after a delivery press
+**Sync** before looking for the banners.
+
 ## 6. Physical iOS device: background sync + notifications
 
 Background delivery **cannot be tested on a simulator**: `BGTaskScheduler` never runs there and

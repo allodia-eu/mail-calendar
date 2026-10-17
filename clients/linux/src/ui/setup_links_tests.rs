@@ -22,6 +22,7 @@ fn snapshot() -> AccountsSnapshot {
             uses: vec![AccountUse {
                 capability: AccountCapability::Mail,
                 state: CapabilityState::On,
+                problem: None,
             }],
             links: AccountLinksView::default(),
             linked_from: Vec::new(),

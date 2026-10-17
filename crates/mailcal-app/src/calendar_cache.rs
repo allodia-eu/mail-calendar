@@ -203,7 +203,12 @@ impl<P: Provider> App<P> {
         for account in self.account_handles().await {
             let account_id = account.id.as_str().to_owned();
             expects_calendars |= !account.calendar_providers.is_empty();
-            every_account_connected &= account.dialled;
+            // A calendar that could not be reached beside a working mailbox has not reported "no
+            // calendar", and the next retry may yet read it. One that needs a sign-in of its own,
+            // or refused the account's, will not arrive however long the week is held back, so
+            // its week is answered and the account's page in Settings says why.
+            every_account_connected &= account.dialled
+                && self.use_problems(&account.id).calendar != Some(crate::UseProblem::Unreachable);
             let can_write = Self::account_can_write(&account);
             let can_invite = Self::account_can_invite(&account);
             for calendar in self.engine.calendars(&account.id).await.unwrap_or_default() {

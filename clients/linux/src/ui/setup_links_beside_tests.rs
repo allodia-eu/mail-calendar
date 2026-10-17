@@ -13,7 +13,11 @@ use crate::ui::setup_state::{Phase, SetupState};
 const JMAP: &str = "alice@jmap:example.org";
 
 fn jmap(calendar: CapabilityState, candidates: Vec<LinkedAccount>) -> AccountsSnapshot {
-    let use_ = |capability, state| AccountUse { capability, state };
+    let use_ = |capability, state| AccountUse {
+        capability,
+        state,
+        problem: None,
+    };
     AccountsSnapshot {
         accounts: vec![AccountEntry {
             id: JMAP.to_owned(),

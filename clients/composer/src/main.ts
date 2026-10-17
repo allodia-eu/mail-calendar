@@ -247,8 +247,12 @@ window.stepComposerHistory = (step) =>
 window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 
-/// The requests this host answers with its own UI, `host_requests.ts`; and its answers.
-window.setComposerHostRequests = (kinds) => hostRequests.setAnswered(kinds);
+/// The requests this host answers with its own UI, and the notices it keeps (`host_requests.ts`);
+/// and its answers.
+window.setComposerHostRequests = (kinds) => {
+  hostRequests.setAnswered(kinds);
+  history.watch((steps) => hostRequests.tell("history", steps));
+};
 window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
 
 window.setComposerLabels = (incoming) => {

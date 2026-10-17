@@ -65,6 +65,12 @@ its slot (`close_reading_window`). A sanitised body carries every inline image r
 so a session that opened twenty messages would otherwise hold twenty of them for as long as it
 ran. Closing is not an `Intent`: it moves nothing, marks nothing and signals nothing.
 
+**So is the window itself**, reading and composer alike: once it has closed, nothing the app keeps
+refers to it or to anything it held, its view and its web view included. A closed window that is
+still held draws nothing, and where closing a web view ends its process regardless (WebView2 does)
+even a process count stays flat, so only a count of what the app holds can see it; on Windows that
+is `uitests/ReleaseProbe.Tests.ps1`.
+
 **A window's reader id is the host's to mint, and cannot name the pane.** The pane's slot is a
 different kind of thing in the core, not a reserved string, so no host bug can empty the pane by
 closing a window.
@@ -174,6 +180,7 @@ capability matrix claims.
 | Full action row in the window | ✅ | ✅ | ✅ | — | — |
 | Reply / forward → composer window | ✅ | ✅ | ✅ | — | — |
 | Main window closing sweeps both | ✅ | ✅ | ✅ | — | — |
+| A closed window is freed, with what it held | composer ✅; reading window not yet checked | ✅ | ❌ | — | — |
 | A window stays in front of the mailbox | ✅ | ✅ | ✅ | — | — |
 | The mailbox can be raised back over it | ✅ | ✅ | ✅ | — | — |
 | The windows are all one application's | ✅ | ✅ | ✅ | — | — |

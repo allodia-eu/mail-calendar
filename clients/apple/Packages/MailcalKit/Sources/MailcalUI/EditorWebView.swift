@@ -32,7 +32,7 @@ import AppKit
 import WebKit
 
 /// A `WKWebView` that shows only the editing actions in its context menu.
-final class EditorWebView: WKWebView {
+final class EditorWebView: HistoryWebView {
     /// WebKit's own identifiers for the items to keep. Matching on the identifier rather than the
     /// title is what makes this survive a localised menu.
     private static let allowed: Set<String> = [

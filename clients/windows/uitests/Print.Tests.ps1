@@ -33,7 +33,7 @@ function Open-PrintMessage {
   $null = Wait-UiaElement -AutomationId 'ReadingOverflow' -TimeoutSec 30
   # The subject on screen is the evidence the open finished; Print is decided on the body after it.
   for ($i = 0; $i -lt 40; $i++) {
-    if ((Find-UiaElement -AutomationId 'SubjectText').Current.Name -eq $Subject) { return }
+    if ((Find-UiaElement -AutomationId 'ReadingSubject').Current.Name -eq $Subject) { return }
     Start-Sleep -Milliseconds 250
   }
   throw "the reading pane never showed '$Subject'"

@@ -123,6 +123,8 @@ name = "allodia_signin"
 required-features = ["allodia-license"]
 
 [dev-dependencies]
+# A paused clock for the launch-order tests (`reconnect/schedule_tests.rs`).
+tokio = { workspace = true, features = ["macros", "test-util"] }
 # Builds a real `ImapError` for the connect-verdict tests: whether a refused login raises the
 # "sign in again" prompt is decided from the engine's typed error, so a test that asserts it
 # must present the typed error rather than a stand-in.

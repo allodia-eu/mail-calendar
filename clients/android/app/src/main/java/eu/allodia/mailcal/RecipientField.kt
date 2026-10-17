@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
@@ -67,6 +68,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
@@ -164,6 +166,10 @@ internal class BesideTheInput(private val gapPx: Int, private val above: Boolean
  * [trailing] is an optional control drawn inside the input (the To field's Cc/Bcc chevron).
  *
  * [focusesOnAppear] opens the composer with the caret in this field.
+ *
+ * [onSubmit] runs on Return, for a host that finishes the typed address itself (the invitee
+ * field). Without one, Return and leaving the field finish it here, as a comma would
+ * (`docs/contacts.md`).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -174,6 +180,7 @@ internal fun RecipientField(
     suggestionsFor: ((String) -> List<RecipientMatch>)?,
     modifier: Modifier = Modifier,
     focusesOnAppear: Boolean = false,
+    onSubmit: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
@@ -195,6 +202,10 @@ internal fun RecipientField(
     val change: (String, Boolean) -> Unit = { next, typed ->
         history.record(next, typed)
         onValue(next)
+    }
+    // Turns the address being typed into a pill; `false` when there is none.
+    val finishTyped: () -> Boolean = {
+        token.isNotEmpty().also { if (it) change(seededRecipientField(value), false) }
     }
 
     // The caret. Held as a `TextFieldValue` so a programmatic rewrite can place it; re-seeded
@@ -258,7 +269,10 @@ internal fun RecipientField(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("recipient-input-$label")
-                .onFocusChanged { focused = it.isFocused }
+                .onFocusChanged {
+                    if (focused && !it.isFocused && onSubmit == null) finishTyped()
+                    focused = it.isFocused
+                }
                 // Ahead of the input's own handling, which would otherwise take back only the
                 // address being typed, and nothing once it is a pill.
                 .onPreviewKeyEvent { event ->
@@ -282,7 +296,18 @@ internal fun RecipientField(
                 keyboardType = KeyboardType.Email,
                 capitalization = KeyboardCapitalization.None,
                 autoCorrectEnabled = false,
+                imeAction = ImeAction.Done,
             ),
+            // Taken, the keyboard stays up for the next address; left, Done puts it away. In an
+            // empty field Done is the platform's, whoever finishes the address.
+            keyboardActions = KeyboardActions(onDone = {
+                val taken = when {
+                    onSubmit == null -> finishTyped()
+                    token.isEmpty() -> false
+                    else -> { onSubmit(); true }
+                }
+                if (!taken) defaultKeyboardAction(ImeAction.Done)
+            }),
         )
 
         RecipientSuggestionList(

@@ -52,6 +52,8 @@ pub(crate) struct Assembled<M, C, K> {
     pub(crate) contacts: Vec<K>,
     /// Why the calendar is empty, when it was tried and failed.
     pub(crate) calendar_failure: Option<ConnectFailure>,
+    /// Why the address book is empty, when it was tried and failed.
+    pub(crate) contacts_failure: Option<ConnectFailure>,
 }
 
 /// Decides what the account binds from what each capability came back with.
@@ -86,17 +88,19 @@ pub(crate) fn assemble<M, C, K>(
                     calendar: Vec::new(),
                     contacts: Vec::new(),
                     calendar_failure: None,
+                    contacts_failure: None,
                 }),
             };
         }
     };
     let (calendar, calendar_failure) = calendar.split();
-    let (contacts, _) = contacts.split();
+    let (contacts, contacts_failure) = contacts.split();
     Ok(Assembled {
         mail,
         calendar,
         contacts,
         calendar_failure,
+        contacts_failure,
     })
 }
 

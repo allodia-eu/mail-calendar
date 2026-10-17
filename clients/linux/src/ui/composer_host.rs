@@ -47,6 +47,9 @@ pub(crate) fn install(view: &WebView) {
             } => {
                 ask_for_link(&view, id, &text, &address, removable);
             }
+            // Never announced here: nothing in GTK asks whether Undo can be chosen
+            // (`docs/undo.md`, rule 2).
+            ComposerHostRequest::History { .. } => {}
         }
     });
 }

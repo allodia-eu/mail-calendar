@@ -18,6 +18,18 @@ internal enum UseNote
     Withheld,
     /// <summary>The server offers none, so nothing can switch it on.</summary>
     NotOffered,
+    /// <summary>On, and its server could not be reached; the next refresh tries again.</summary>
+    UnreachableCalendar,
+    /// <summary>As <see cref="UnreachableCalendar"/>, for the address book.</summary>
+    UnreachableContacts,
+    /// <summary>On, and its server refused the account's sign-in.</summary>
+    RefusedCalendar,
+    /// <summary>As <see cref="RefusedCalendar"/>, for the address book.</summary>
+    RefusedContacts,
+    /// <summary>On, and its server needs a sign-in of its own.</summary>
+    OwnSignInCalendar,
+    /// <summary>As <see cref="OwnSignInCalendar"/>, for the address book.</summary>
+    OwnSignInContacts,
 }
 
 /// <summary>How one use's switch is drawn.</summary>
@@ -96,6 +108,19 @@ internal static class AccountSettingsRules
     internal static bool SignsInAtProvider(AccountKind kind) =>
         kind is AccountKind.Microsoft or AccountKind.Google;
 
+    /// <summary>What a use that did not connect says beneath its switch. Only a calendar or an
+    /// address book fails on its own; mail decides whether the account connected at all.</summary>
+    private static UseNote ProblemNote(AccountCapability capability, UseProblem problem)
+    {
+        var calendar = capability == AccountCapability.Calendar;
+        return problem switch
+        {
+            UseProblem.Unreachable => calendar ? UseNote.UnreachableCalendar : UseNote.UnreachableContacts,
+            UseProblem.SignInRefused => calendar ? UseNote.RefusedCalendar : UseNote.RefusedContacts,
+            _ => calendar ? UseNote.OwnSignInCalendar : UseNote.OwnSignInContacts,
+        };
+    }
+
     /// <summary>
     /// The switch for <paramref name="capability"/>. The last of mail, calendar and contacts
     /// cannot be switched off, and colleagues cannot be switched on without contacts: the core
@@ -116,7 +141,9 @@ internal static class AccountSettingsRules
             && state == CapabilityState.Off
             && !Used(AccountCapability.Contacts);
         var notOffered = state == CapabilityState.NotOffered;
+        var problem = entry.Uses.FirstOrDefault(use => use.Capability == capability)?.Problem;
         var note = notOffered ? UseNote.NotOffered
+            : problem is { } failed ? ProblemNote(capability, failed)
             : last ? UseNote.Last
             : withoutContacts ? UseNote.NeedsContacts
             : state == CapabilityState.NeedsPermission ? UseNote.Withheld
@@ -196,7 +223,7 @@ internal static class AccountSettingsRules
             parts.Add(entry.Id);
             parts.Add(entry.Address);
             parts.Add(entry.Kind.ToString());
-            parts.AddRange(entry.Uses.Select(use => $"{use.Capability}={use.State}"));
+            parts.AddRange(entry.Uses.Select(use => $"{use.Capability}={use.State}/{use.Problem}"));
             parts.Add(Linked(entry.Links.Calendar));
             parts.Add(Linked(entry.Links.Contacts));
             parts.Add(Linked(entry.Links.Mail));

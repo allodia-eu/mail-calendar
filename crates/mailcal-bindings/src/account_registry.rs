@@ -62,7 +62,7 @@ mod links;
 mod set_up;
 mod uses;
 
-pub(crate) use dial::{AccountDial, ConnectFailure, dial_all};
+pub(crate) use dial::{AccountDial, ConnectFailure, MAX_CONCURRENT_DIALS, dial_all};
 pub(crate) use uses::UseChange;
 
 /// Every connected account's re-connection state, keyed by account id, and the gate that makes

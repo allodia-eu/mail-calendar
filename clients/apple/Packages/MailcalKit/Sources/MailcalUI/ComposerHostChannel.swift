@@ -23,6 +23,9 @@ struct LinkDialogRequest: Identifiable, Equatable {
 final class ComposerHostChannel: NSObject, WKScriptMessageHandler {
     /// Called with each link request the core recognised.
     var onLink: (LinkDialogRequest) -> Void = { _ in }
+    /// Called with the body's undo state each time it changes: whether there is a step to take
+    /// back, and one to put back (`EditorUndoManager`).
+    var onHistory: (_ undo: Bool, _ redo: Bool) -> Void = { _, _ in }
     /// Weak: the web view's content controller holds this channel, and the web view's owner holds
     /// the web view.
     private weak var webView: WKWebView?
@@ -33,9 +36,10 @@ final class ComposerHostChannel: NSObject, WKScriptMessageHandler {
         webView.configuration.userContentController.add(self, name: composerHostChannel())
     }
 
-    /// Tells the editor which requests this host answers. Run once the page has loaded.
+    /// Tells the editor which requests this host answers, and that it keeps the undo state. Run
+    /// once the page has loaded.
     func announce() {
-        webView?.evaluateJavaScript(composerHostRequestsScript())
+        webView?.evaluateJavaScript(composerHostRequestsWithHistoryScript())
     }
 
     func userContentController(
@@ -51,6 +55,8 @@ final class ComposerHostChannel: NSObject, WKScriptMessageHandler {
         switch request {
         case let .link(id, text, address, removable):
             onLink(LinkDialogRequest(id: id, text: text, address: address, removable: removable))
+        case let .history(undo, redo):
+            onHistory(undo, redo)
         }
     }
 

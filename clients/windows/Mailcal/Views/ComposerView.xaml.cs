@@ -239,6 +239,7 @@ public sealed partial class ComposerView : UserControl
         // the stored draft in Drafts (docs/drafts.md).
         TeardownDrafts();
         _editor.Close();
+        ReleaseProbe.Watch(this, "composer");
     }
 
     private async void OnSend(object sender, RoutedEventArgs e)

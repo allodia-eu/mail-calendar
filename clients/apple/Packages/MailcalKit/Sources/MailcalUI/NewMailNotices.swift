@@ -21,7 +21,7 @@ struct NewMailNotice: Equatable {
     let subtitle: String
     /// The rest of what the notification says.
     let body: String
-    /// This notification's own identity, unique per message.
+    /// This notification's own identity, unique per message across every account.
     let identifier: String
     /// The account it belongs to, so the OS stacks an account's notifications together.
     let threadIdentifier: String
@@ -51,6 +51,15 @@ enum NewMailNotices {
         return outcome.accounts.flatMap { forAccount($0, passTotal: passTotal) }
     }
 
+    /// A message's notification identity: the account and the key together, because a provider
+    /// key is unique only within its account, and two accounts on the same server software can
+    /// hand out the same one. The account is length-prefixed (in bytes, as Linux counts it), so no
+    /// two pairs spell the same string whatever either half contains, and a message identity can
+    /// never equal a summary's `new-mail-account-…`.
+    static func identifier(account: String, key: String) -> String {
+        "new-mail-\(account.utf8.count):\(account):\(key)"
+    }
+
     #if os(macOS)
     private static func forAccount(
         _ account: AccountNewMail, passTotal: Int
@@ -67,7 +76,7 @@ enum NewMailNotices {
                 title: sender(message),
                 subtitle: parts.count > 1 ? parts[0] : "",
                 body: parts.last ?? "",
-                identifier: "new-mail-\(message.messageKey)",
+                identifier: identifier(account: account.accountId, key: message.messageKey),
                 threadIdentifier: account.accountId,
                 // No dock badge. The pass total is what has just arrived, not what is unread, so a
                 // dock reading 3 and then 1 as passes land would say the second. Windows and Linux
@@ -119,7 +128,7 @@ enum NewMailNotices {
                 // first; the subject and the snippet share the body under it.
                 subtitle: account.accountLabel,
                 body: body(message),
-                identifier: "new-mail-\(message.messageKey)",
+                identifier: identifier(account: account.accountId, key: message.messageKey),
                 threadIdentifier: account.accountId,
                 badge: passTotal,
                 target: NewMailTarget(account: account.accountId, key: message.messageKey)

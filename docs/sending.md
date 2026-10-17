@@ -221,7 +221,7 @@ They are **removable**, like anything else in that list. A forward proposes the 
 impose them, which is what a person forwarding one page of a long thread expects and what every
 mail client they have used does.
 
-Four rules hold it together:
+Five rules hold it together:
 
 1. **The core stages, the client shows.** Opening a forward (`open_composer`) writes the files
    into a directory the client names and answers with a name, media type and path for each. From there
@@ -240,6 +240,13 @@ Four rules hold it together:
    nothing: the files are still in the mailbox and nothing is lost. Taking one off, like adding
    one, is a decision about what goes out and does count. A **share**'s files count from the
    start, because those the user chose in their file manager and would have to share again.
+5. **A staged file goes with its composer.** It is the original's bytes, decoded, in the user's
+   profile, so the client deletes what a composer staged once nothing can read it again: at once
+   when the composer is discarded, and otherwise at the next launch, before any composer can open.
+   A send or a save reads the files after the composer has handed them over and says nothing when
+   it has, so deleting them as a sent composer closes would lose the send. The same holds for a
+   resumed draft's files and an Outbox edit's. A client deletes only the directories it named, by
+   that name, and never a share's copy, which is not staged by the core.
 
 A **reply** carries none of this. It answers the message rather than passing it on, and sending
 someone their own file back is noise that repeats on every turn of a long thread.
@@ -304,12 +311,12 @@ opens there and nothing of the user's is displaced.
 | Windows | ✅ InfoBar | ✅ InfoBar, `IsClosable=False` | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
 | Linux | ✅ banner | ✅ modal, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ dropdown |
 
-| Platform | A forward opens holding the original's files | Removable | Failure said out loud | Not a draft on its own |
-|---|---|---|---|---|
-| macOS / iOS / iPadOS | ✅ | ✅ | ✅ composer error line | ✅ the guard watches for a *change* |
-| Android | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed |
-| Windows | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed |
-| Linux | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed |
+| Platform | A forward opens holding the original's files | Removable | Failure said out loud | Not a draft on its own | Staged files deleted |
+|---|---|---|---|---|---|
+| macOS / iOS / iPadOS | ✅ | ✅ | ✅ composer error line | ✅ the guard watches for a *change* | ❌ left to the OS's temporary directory |
+| Android | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed | ❌ left to the cache |
+| Windows | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed | ✅ on Discard, the rest at the next launch |
+| Linux | ✅ | ✅ | ✅ composer error line | ✅ counted against the seed | ❌ |
 
 ## Known gaps
 
@@ -336,10 +343,6 @@ opens there and nothing of the user's is displaced.
   (`OutboxRowTests.cs`, `SidebarTreeTests.cs`, `outbox_tests.rs` in `clients/linux`,
   `OutboxTest.kt`). Verify the running client by hand: bring the harness up, connect, stop its
   container, send, and act on the row.
-- **A staged file outlives its composer.** The files are written into the client's own cache and
-  nothing deletes them when a forward is sent or abandoned, exactly as for an attachment opened
-  from the reading view. The OS reclaims that directory; until it does, a decoded copy of the
-  files is on disk.
 - **The question does not survive a restart.** The core holds it in memory, so quitting with
   one open loses the chance to retry: the message stays sent, and the copy stays missing.
   Making it durable means recording an outbox op for a submission that already succeeded,

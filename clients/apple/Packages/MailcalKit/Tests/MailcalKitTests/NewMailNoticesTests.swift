@@ -3,15 +3,16 @@
 // them to `UNUserNotificationCenter`. The Apple twin of the Linux client's `notification_parts`
 // tests and Windows's `NewMailNoticesTests`.
 //
-// macOS-only because the suite runs on the host: the iOS branch of the projection compiles for a
-// different platform and this target never sees it.
+// The words differ by platform: these are the Mac's, run by `swift test` on the host, and the
+// phone's are `NewMailNoticesIOSTests`. The identities are the same on both, so they are outside
+// the guard and run on an iOS simulator too (clients/apple/Scripts/test-kit.sh --ios).
 
-#if os(macOS)
 import MailcalBindings
 import Testing
 
 @testable import MailcalUI
 
+#if os(macOS)
 @Suite struct NewMailNoticesTests {
 
     private func message(
@@ -113,7 +114,7 @@ import Testing
                 messages: [message(subject: "One", key: "m1"), message(subject: "Two", key: "m2")]
             )
         ])
-        #expect(notices.map(\.identifier) == ["new-mail-m1", "new-mail-m2"])
+        #expect(notices.map(\.identifier) == ["new-mail-7:account:m1", "new-mail-7:account:m2"])
         #expect(notices.allSatisfy { $0.threadIdentifier == "account" })
     }
 
@@ -195,3 +196,52 @@ import Testing
     }
 }
 #endif
+
+/// Which notification replaces which, on both Apple platforms.
+@Suite struct NewMailIdentityTests {
+
+    private func account(_ id: String, keys: [String]) -> AccountNewMail {
+        AccountNewMail(
+            accountId: id,
+            accountLabel: "\(id)@example.test",
+            newCount: UInt32(keys.count),
+            messages: keys.map {
+                NewMailPreview(
+                    sender: "jane@example.test", senderName: "Jane", subject: "Hello",
+                    preview: "", received: "", messageKey: $0)
+            }
+        )
+    }
+
+    @Test func theSameKeyInTwoAccountsIsTwoNotifications() {
+        // A provider key is unique only within its account: two IMAP accounts on the same server
+        // software hand out the same one, and one identifier would let the second notification
+        // replace the first.
+        let notices = NewMailNotices.forPass(
+            BackgroundSyncOutcome(
+                accounts: [account("a", keys: ["1"]), account("b", keys: ["1"])], timedOut: false))
+        #expect(notices.count == 2)
+        #expect(Set(notices.map(\.identifier)).count == 2)
+    }
+
+    @Test func noTwoPairsSpellTheSameIdentifier() {
+        // Joined with a bare separator, these two pairs would be one string.
+        #expect(
+            NewMailNotices.identifier(account: "a:b", key: "c")
+                != NewMailNotices.identifier(account: "a", key: "b:c"))
+    }
+
+    @Test func aMessageIdentifierIsNeverASummarys() throws {
+        // The summary is `new-mail-account-<id>`, and replaces only the account's previous one.
+        let notices = NewMailNotices.forPass(
+            BackgroundSyncOutcome(
+                accounts: [
+                    AccountNewMail(
+                        accountId: "a", accountLabel: "a@example.test", newCount: 3,
+                        messages: account("a", keys: ["account-a"]).messages)
+                ],
+                timedOut: false))
+        try #require(notices.count == 2)
+        #expect(notices[0].identifier != notices[1].identifier)
+    }
+}

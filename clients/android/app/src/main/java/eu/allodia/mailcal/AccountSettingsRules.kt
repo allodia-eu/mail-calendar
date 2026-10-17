@@ -9,6 +9,7 @@ import uniffi.mailcal_bindings.CapabilityChange
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.LinkSlot
 import uniffi.mailcal_bindings.LinkedAccount
+import uniffi.mailcal_bindings.UseProblem
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 /** Which line, if any, sits under a use's switch. */
@@ -26,6 +27,34 @@ internal enum class UseNote {
 
     /** The server offers none, so nothing can switch it on. */
     NOT_OFFERED,
+
+    /** On, and its server could not be reached; the next refresh tries again. */
+    UNREACHABLE_CALENDAR,
+    UNREACHABLE_CONTACTS,
+
+    /** On, and its server refused the account's sign-in. */
+    REFUSED_CALENDAR,
+    REFUSED_CONTACTS,
+
+    /** On, and its server needs a sign-in of its own. */
+    OWN_SIGN_IN_CALENDAR,
+    OWN_SIGN_IN_CONTACTS,
+}
+
+/**
+ * What a use that did not connect says beneath its switch. Only a calendar or an address book
+ * fails on its own; mail decides whether the account connected at all.
+ */
+private fun problemNote(capability: AccountCapability, problem: UseProblem): UseNote {
+    val calendar = capability == AccountCapability.CALENDAR
+    return when (problem) {
+        UseProblem.UNREACHABLE ->
+            if (calendar) UseNote.UNREACHABLE_CALENDAR else UseNote.UNREACHABLE_CONTACTS
+        UseProblem.SIGN_IN_REFUSED ->
+            if (calendar) UseNote.REFUSED_CALENDAR else UseNote.REFUSED_CONTACTS
+        UseProblem.NEEDS_OWN_SIGN_IN ->
+            if (calendar) UseNote.OWN_SIGN_IN_CALENDAR else UseNote.OWN_SIGN_IN_CONTACTS
+    }
 }
 
 /**
@@ -117,8 +146,10 @@ internal object AccountSettingsRules {
             state == CapabilityState.OFF &&
             !used(AccountCapability.CONTACTS)
         val notOffered = state == CapabilityState.NOT_OFFERED
+        val problem = entry.uses.firstOrNull { it.capability == capability }?.problem
         val note = when {
             notOffered -> UseNote.NOT_OFFERED
+            problem != null -> problemNote(capability, problem)
             last -> UseNote.LAST
             withoutContacts -> UseNote.NEEDS_CONTACTS
             state == CapabilityState.NEEDS_PERMISSION -> UseNote.WITHHELD

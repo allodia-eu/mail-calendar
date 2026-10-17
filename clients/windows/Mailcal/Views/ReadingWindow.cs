@@ -46,11 +46,11 @@ internal sealed class ReadingWindow : Window
             this,
             _view,
             reader.Opened is { Subject.Length: > 0 } opened ? opened.Subject : L10n.MailNoSubject(),
-            new SizeInt32(DefaultWidth, DefaultHeight));
+            new SizeInt32(DefaultWidth, DefaultHeight),
+            OnClosed);
         AppearanceApplied(model.CurrentAppearance);
 
         _view.Init(model, reader, WindowActions());
-        Closed += OnClosed;
     }
 
     /// <summary>The core reader id this window's body arrives in, so the shell can tell whether a
@@ -92,10 +92,11 @@ internal sealed class ReadingWindow : Window
     // tells the core to drop the body it was holding, and the view releases its browser process.
     // A sanitised body carries every inline image resolved into it, so it is the largest thing
     // either side holds per window.
-    private void OnClosed(object sender, WindowEventArgs args)
+    private void OnClosed()
     {
         App.Shell?.ForgetReadingWindow(this);
         _model.CloseReadingWindow(_reader.Id);
         _view.Teardown();
+        ReleaseProbe.Watch(this, "reading window");
     }
 }

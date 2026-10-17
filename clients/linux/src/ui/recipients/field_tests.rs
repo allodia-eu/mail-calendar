@@ -314,3 +314,75 @@ pub(crate) fn the_undo_chord_is_found_on_a_layout_without_latin_letters() {
         "a Latin layout's own letter wins over the key it is on"
     );
 }
+
+/// Enter finishes the address being typed as a comma would, and in an empty field it is left to
+/// the entry's own `activate` (docs/contacts.md).
+pub(crate) fn enter_finishes_the_typed_address() {
+    let to = field("To");
+    let mut position = 0;
+    to.inner
+        .entry
+        .insert_text("bob@example.test", &mut position);
+    let none = gtk::gdk::ModifierType::empty();
+
+    let taken = to.inner.key_pressed(gtk::gdk::Key::Return, 0, none);
+    assert_eq!(taken, gtk::glib::Propagation::Stop);
+    assert_eq!(pill_labels(&to), vec!["bob@example.test"]);
+    assert_eq!(to.inner.entry.text(), "");
+
+    let left = to.inner.key_pressed(gtk::gdk::Key::Return, 0, none);
+    assert_eq!(
+        left,
+        gtk::glib::Propagation::Proceed,
+        "nothing typed, nothing taken"
+    );
+
+    // One step: Ctrl+Z gives the address back as text.
+    to.inner
+        .key_pressed(gtk::gdk::Key::z, 0, gtk::gdk::ModifierType::CONTROL_MASK);
+    assert_eq!(to.inner.entry.text(), "bob@example.test");
+}
+
+/// Enter in a field whose owner takes it (the invitee list) is the owner's, and finishes nothing.
+pub(crate) fn an_owners_enter_finishes_nothing() {
+    let invitees = field("Invitees");
+    invitees.connect_activate(|| {});
+    let mut position = 0;
+    invitees
+        .inner
+        .entry
+        .insert_text("bob@example.test", &mut position);
+    let enter =
+        invitees
+            .inner
+            .key_pressed(gtk::gdk::Key::Return, 0, gtk::gdk::ModifierType::empty());
+    assert_eq!(enter, gtk::glib::Propagation::Proceed);
+    assert!(pill_labels(&invitees).is_empty());
+}
+
+/// The field is left when focus lands outside it, and only then: a pill's remove button is still
+/// the field, and a window gone inactive is the user leaving the app (docs/contacts.md).
+pub(crate) fn only_focus_outside_the_field_leaves_it() {
+    let to = field("To");
+    to.seed("bestuur@example.test");
+    let root = to.inner.root.upcast_ref::<gtk::Widget>();
+    let remove = pill_removes(&to).remove(0);
+    let entry = to.inner.entry.upcast_ref::<gtk::Widget>();
+    let subject = gtk::Entry::new();
+    let subject = subject.upcast_ref::<gtk::Widget>();
+
+    assert!(super::focus_left(root, true, Some(subject)));
+    assert!(super::focus_left(root, true, None));
+    assert!(!super::focus_left(root, true, Some(entry)));
+    assert!(!super::focus_left(root, true, Some(remove.upcast_ref())));
+    assert!(!super::focus_left(root, false, Some(subject)));
+
+    let controllers = to.inner.root.observe_controllers();
+    let watched = (0..controllers.n_items())
+        .filter_map(|index| controllers.item(index))
+        .any(|item| item.is::<gtk::EventControllerFocus>());
+    assert!(
+        watched,
+        "the whole field watches its focus, not only the entry"
+    );
+}

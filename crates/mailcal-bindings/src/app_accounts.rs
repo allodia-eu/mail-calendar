@@ -272,6 +272,8 @@ impl MailcalApp {
         // Nothing is re-inserted here: the registered entry already carries the live token source,
         // including any rotation the dial reported into it.
         registered.commit();
+        self.app
+            .note_use_problems(&account.id, outcome.use_problems);
         // Connected *and* stored: this account will still be here at the next launch, which is
         // what the setup funnel is counting.
         self.app

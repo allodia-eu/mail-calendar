@@ -107,6 +107,7 @@ internal sealed class EditorWebViewHost
             // A host torn down before its WebView2 ever initialised has nothing to close.
             Log.Warn($"editor: teardown ({ex.GetType().Name})");
         }
+        ReleaseProbe.Watch(_view, "editor");
     }
 
     /// <summary>Encodes <paramref name="value"/> as a JavaScript string literal, so host-supplied

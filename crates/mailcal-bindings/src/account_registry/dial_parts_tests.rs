@@ -121,3 +121,40 @@ fn a_refused_sign_in_reaches_the_caller_as_its_own_error() {
         crate::MailcalError::Connect(_)
     ));
 }
+
+#[test]
+fn a_contacts_failure_beside_a_working_account_is_kept_for_the_account_to_say() {
+    // With mail, and without it: either way the account connected and its address book did not.
+    for mail in [Part::Bound(vec![1]), Part::Off] {
+        let assembled = assemble::<u8, u8, u8>(
+            mail,
+            Part::Bound(vec![2]),
+            Part::Failed(unreachable("contacts")),
+        )
+        .unwrap();
+        assert!(assembled.contacts.is_empty());
+        assert!(
+            assembled
+                .contacts_failure
+                .is_some_and(|failure| failure.to_string().contains("contacts"))
+        );
+    }
+}
+
+#[test]
+fn a_failure_says_what_a_person_can_do_about_it() {
+    use mailcal_app::UseProblem;
+    assert_eq!(
+        ConnectFailure::from(AccountError::DavNeedsOwnSignIn("calendar")).use_problem(),
+        UseProblem::NeedsOwnSignIn
+    );
+    assert_eq!(signin_expired().use_problem(), UseProblem::SignInRefused);
+    assert_eq!(
+        unreachable("calendar").use_problem(),
+        UseProblem::Unreachable
+    );
+    assert_eq!(
+        ConnectFailure::unreachable("timed out".to_owned()).use_problem(),
+        UseProblem::Unreachable
+    );
+}

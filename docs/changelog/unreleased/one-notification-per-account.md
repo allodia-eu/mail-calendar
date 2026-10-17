@@ -1,13 +1,13 @@
 # Two accounts' new mail no longer shares one notification
 
-Platforms: android, linux
+Platforms: macos, ios, android, linux
 Bump: patch
 
 > A notification was named by the message's key alone, and a key is unique within its account and
 > never across two, so two IMAP accounts on the same server software could hand out the same key and
 > the second notification replaced the first. On Android the tap intents also told messages apart by
-> a hash of the key, so a tap could open a different message from the one announced. Both platforms
-> now name a notification by account and key together.
+> a hash of the key, so a tap could open a different message from the one announced. Every
+> platform now names a notification by account and key together.
 
 **English**
 

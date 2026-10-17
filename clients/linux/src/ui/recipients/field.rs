@@ -21,11 +21,11 @@ use std::{
 };
 
 use adw::prelude::*;
-use gtk::{accessible::Property as AccessibleProperty, gdk, glib};
+use gtk::{accessible::Property as AccessibleProperty, glib};
 use mailcal_bindings::{MailcalApp, RecipientMatch};
 
 use super::{
-    history::{self, FieldHistory, Step},
+    history::{FieldHistory, Step},
     rows, tokens,
 };
 use crate::{l10n, ui::mailbox};
@@ -46,6 +46,8 @@ pub(crate) struct RecipientField {
 }
 
 pub(super) struct Inner {
+    /// The whole field, pills and entry: what focus has to leave for the field to be left.
+    root: gtk::Box,
     pills: gtk::FlowBox,
     entry: gtk::Entry,
     popover: gtk::Popover,
@@ -64,6 +66,9 @@ pub(super) struct Inner {
     /// gets; the field still works, it just offers nothing.
     app: Option<Arc<MailcalApp>>,
     on_changed: RefCell<Option<ChangeHandler>>,
+    /// Whether the owner takes what is typed on Enter (`connect_activate`). Without one, Enter and
+    /// leaving the entry finish the typed address as a comma would (docs/contacts.md).
+    owner_activates: Cell<bool>,
 }
 
 impl RecipientField {
@@ -117,6 +122,7 @@ impl RecipientField {
         root.append(&entry);
 
         let inner = Rc::new(Inner {
+            root: root.clone(),
             pills,
             entry,
             popover,
@@ -128,6 +134,7 @@ impl RecipientField {
             offered: RefCell::new(Vec::new()),
             app,
             on_changed: RefCell::new(None),
+            owner_activates: Cell::new(false),
         });
         connect(&inner);
         Self { root, inner }
@@ -205,9 +212,10 @@ impl RecipientField {
         self.inner.history.borrow_mut().clear();
     }
 
-    /// Called when Enter is pressed with no suggestion picked, which the field leaves to its
-    /// owner.
+    /// Called when Enter is pressed with no suggestion picked. A field with an owner leaves Enter,
+    /// and what is still typed when focus leaves, to it rather than finishing the address itself.
     pub(crate) fn connect_activate(&self, on_activate: impl Fn() + 'static) {
+        self.inner.owner_activates.set(true);
         self.inner.entry.connect_activate(move |_| on_activate());
     }
 }
@@ -262,6 +270,25 @@ fn connect(inner: &Rc<Inner>) {
         }
     });
     inner.entry.add_controller(focus);
+
+    // Leaving the FIELD finishes the typed address (docs/contacts.md). Watched on the root, so
+    // moving between the entry and a pill's remove button is not leaving it; a suggestion takes
+    // no focus at all. Decided once focus has landed, because GTK reports the leave before it
+    // says where focus went.
+    let field_focus = gtk::EventControllerFocus::new();
+    let weak = Rc::downgrade(inner);
+    field_focus.connect_leave(move |_| {
+        let weak = weak.clone();
+        glib::idle_add_local_once(move || {
+            if let Some(inner) = weak.upgrade()
+                && !inner.owner_activates.get()
+                && inner.left_the_field()
+            {
+                inner.finish_typed();
+            }
+        });
+    });
+    inner.root.add_controller(field_focus);
 }
 
 impl Inner {
@@ -280,6 +307,27 @@ impl Inner {
         }
         self.history.borrow_mut().record(&before, value, typed);
         self.show(value);
+    }
+
+    /// Whether focus is now outside the field, in the window the user is in.
+    fn left_the_field(&self) -> bool {
+        let Some(root) = self.root.root() else {
+            return false;
+        };
+        let active = root
+            .downcast_ref::<gtk::Window>()
+            .is_some_and(gtk::prelude::GtkWindowExt::is_active);
+        focus_left(self.root.upcast_ref(), active, root.focus().as_ref())
+    }
+
+    /// Turns the address being typed into a pill, as a comma would; `false` when there is none.
+    fn finish_typed(self: &Rc<Self>) -> bool {
+        let field = self.text.borrow().clone();
+        if tokens::current_token(&field).is_empty() {
+            return false;
+        }
+        self.apply(&tokens::seeded(&field));
+        true
     }
 
     /// Takes the field back, or forward again, one step.
@@ -343,56 +391,6 @@ impl Inner {
         let field = self.text.borrow().clone();
         self.apply(&tokens::accept(&field, &email));
         self.entry.grab_focus();
-    }
-
-    fn key_pressed(
-        self: &Rc<Self>,
-        key: gdk::Key,
-        keycode: u32,
-        state: gdk::ModifierType,
-    ) -> glib::Propagation {
-        let named = history::chord_key(&self.entry.display(), key, keycode);
-        if let Some(step) = history::chord(named, state) {
-            self.step(step);
-            return glib::Propagation::Stop;
-        }
-        if !self.popover.is_visible() {
-            return glib::Propagation::Proceed;
-        }
-        match key {
-            // An overlay with no keyboard way out is a trap, and the composer binds Escape to
-            // nothing else; it is a pane, not a dialog.
-            gdk::Key::Escape => {
-                self.popover.popdown();
-                glib::Propagation::Stop
-            }
-            gdk::Key::Down => self.step_selection(1),
-            gdk::Key::Up => self.step_selection(-1),
-            gdk::Key::Return | gdk::Key::KP_Enter => match self.list.selected_row() {
-                Some(row) => {
-                    self.accept(row.index());
-                    glib::Propagation::Stop
-                }
-                // Nothing picked yet, so Enter is the composer's, not the list's.
-                None => glib::Propagation::Proceed,
-            },
-            _ => glib::Propagation::Proceed,
-        }
-    }
-
-    fn step_selection(&self, step: i32) -> glib::Propagation {
-        let count = i32::try_from(self.offered.borrow().len()).unwrap_or(0);
-        if count == 0 {
-            return glib::Propagation::Proceed;
-        }
-        let next = match self.list.selected_row() {
-            Some(row) => (row.index() + step).clamp(0, count - 1),
-            // Arriving from the entry: Down takes the first, Up the last.
-            None if step > 0 => 0,
-            None => count - 1,
-        };
-        self.list.select_row(self.list.row_at_index(next).as_ref());
-        glib::Propagation::Stop
     }
 
     fn rebuild_pills(self: &Rc<Self>) {
@@ -481,6 +479,15 @@ impl Inner {
         self.popover.popdown();
     }
 }
+
+/// Whether focus at `focus` has left `field`. A window gone inactive is the user leaving the app,
+/// not the field: they come back to the address as they left it.
+fn focus_left(field: &gtk::Widget, active: bool, focus: Option<&gtk::Widget>) -> bool {
+    active && focus.is_none_or(|widget| !widget.is_ancestor(field))
+}
+
+#[path = "keys.rs"]
+mod keys;
 
 #[cfg(test)]
 #[path = "field_tests.rs"]

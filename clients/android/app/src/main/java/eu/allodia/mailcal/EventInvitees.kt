@@ -75,6 +75,7 @@ internal fun InviteeSection(
             onValue = roster::fieldChanged,
             suggestionsFor = suggestionsFor,
             modifier = Modifier.weight(1f),
+            onSubmit = { roster.takeTyped() },
         )
         TextButton(
             onClick = { roster.takeTyped() },

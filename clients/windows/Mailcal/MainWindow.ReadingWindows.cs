@@ -174,10 +174,28 @@ public sealed partial class MainWindow
         });
 
     /// <summary>A reading window has closed and is no longer the shell's to sweep.</summary>
-    internal void ForgetReadingWindow(ReadingWindow window) => _readingWindows.Remove(window);
+    internal void ForgetReadingWindow(ReadingWindow window)
+    {
+        _readingWindows.Remove(window);
+        ForgetPresented(window);
+    }
 
     /// <summary>A composer window has closed and is no longer the shell's to sweep.</summary>
-    internal void ForgetComposerWindow(ComposerWindow window) => _composerWindows.Remove(window);
+    internal void ForgetComposerWindow(ComposerWindow window)
+    {
+        _composerWindows.Remove(window);
+        ForgetPresented(window);
+    }
+
+    // Otherwise the last window opened stays in memory after it closes, until the next press in
+    // the mailbox.
+    private void ForgetPresented(Window window)
+    {
+        if (_presented == window)
+        {
+            _presented = null;
+        }
+    }
 
     /// <summary>
     /// Closes every reading and composer window this mailbox opened.

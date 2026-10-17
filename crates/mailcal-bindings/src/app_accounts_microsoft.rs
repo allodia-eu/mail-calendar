@@ -138,6 +138,8 @@ impl MailcalApp {
             ));
         }
         let calendar_reauth_required = outcome.calendar_reauth_required;
+        self.app
+            .note_use_problems(&account_id, outcome.use_problems);
         let calendar_providers_len = outcome.account.calendar_providers.len();
         let calendar_connected = calendar_providers_len > 0;
         log::info!(

@@ -19,7 +19,7 @@ import UniformTypeIdentifiers
 import WebKit
 
 /// A `WKWebView` that takes files dropped on the message itself.
-final class EditorWebView: WKWebView {
+final class EditorWebView: HistoryWebView {
     /// Files dropped on the editor, handed to the host. Set by `RichComposerEditor.mount()`, which
     /// forwards to `ComposerDropModifier`, the owner of what a dropped file becomes; this type only
     /// gets the drop as far as it.

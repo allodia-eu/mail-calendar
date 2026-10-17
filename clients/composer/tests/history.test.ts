@@ -91,6 +91,26 @@ describe("undo and redo", () => {
     expect(e.history.steps()).toEqual({ undo: false, redo: true });
   });
 
+  test("tell a watching host what there is to take back and to put back, once per change", async () => {
+    const e = editing("<p id=p>one</p>");
+    const told: unknown[] = [];
+    e.history.watch((steps) => told.push(steps));
+    expect(told).toEqual([{ undo: false, redo: false }]);
+    e.editor.querySelector("#p")!.append(" two");
+    await settled();
+    e.editor.querySelector("#p")!.append(" three");
+    await settled();
+    expect(told).toEqual([
+      { undo: false, redo: false },
+      { undo: true, redo: false },
+    ]);
+    e.history.undo();
+    e.history.undo();
+    expect(told.at(-1)).toEqual({ undo: false, redo: true });
+    e.history.restart(() => e.editor.querySelector("#p")!.append(" four"));
+    expect(told.at(-1)).toEqual({ undo: false, redo: false });
+  });
+
   test("a new change after an undo leaves nothing to redo", async () => {
     const e = editing("<p id=p>one</p>");
     e.editor.querySelector("#p")!.append(" two");

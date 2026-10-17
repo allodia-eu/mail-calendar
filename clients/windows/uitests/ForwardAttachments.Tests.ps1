@@ -22,6 +22,14 @@ $ForwardSubject = 'Message with a text attachment'
 # uniquifies it, so two composers cannot write over each other), which is the point of asserting
 # on it: the row must carry the sender's name, never wherever the bytes happen to sit.
 $ForwardFileName = 'report.csv'
+# Where the core stages a composer's files, one folder per composer (Services/ComposerStaging.cs).
+$ForwardStagingRoot = Join-Path $env:LOCALAPPDATA 'Allodia\MailCalendar\composer-files'
+
+function Get-ForwardStagingDirectories {
+  if (Test-Path -LiteralPath $ForwardStagingRoot) {
+    Get-ChildItem -LiteralPath $ForwardStagingRoot -Directory | ForEach-Object FullName
+  }
+}
 
 # Opens the forward composer for the seeded message and waits for it. Returns nothing: every case
 # below reads the composer off the window rather than through a handle, because a handle to a
@@ -158,6 +166,25 @@ $Suite = @{
           $discard = Find-UiaElement -AutomationId 'PrimaryButton' -Type Button
           if ($discard) { Invoke-UiaElement $discard }
         }
+      }
+    },
+    @{
+      Name = 'a discarded forward leaves no copy of its file on disk'
+      Body = {
+        # The staged copy is the original's bytes, decoded, so a discard that leaves it is the
+        # message's attachment lying in the user's profile for as long as the app runs.
+        $before = @(Get-ForwardStagingDirectories)
+        Open-ForwardComposer
+        $staged = @(Get-ForwardStagingDirectories | Where-Object { $_ -notin $before })
+        if ($staged.Count -ne 1) {
+          $null = Close-Composer
+          throw "the forward staged into $($staged.Count) new folder(s) under $ForwardStagingRoot, expected its own one; this case would be watching the wrong place"
+        }
+        $null = Close-Composer
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+        while ((Test-Path -LiteralPath $staged[0]) -and $timer.Elapsed.TotalSeconds -lt 10) { Start-Sleep -Milliseconds 200 }
+        Assert-True (-not (Test-Path -LiteralPath $staged[0])) `
+          "the discarded forward's staged copy is still at $($staged[0]): nothing will send or save it now, so nothing is left to need it"
       }
     }
   )

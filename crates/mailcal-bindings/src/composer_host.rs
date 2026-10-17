@@ -37,6 +37,16 @@ pub enum ComposerHostRequest {
         /// Whether the selection touches a link, so the dialog offers to remove it.
         removable: bool,
     },
+    /// The body's undo history changed: whether it has a step to take back and one to put back.
+    /// A notice, never answered, sent only to a host that announced it through
+    /// [`composer_host_requests_with_history_script`]. A host keeps it for the menu or gesture that
+    /// asks synchronously whether Undo or Redo can be chosen (`docs/undo.md`, rule 3).
+    History {
+        /// A step can be undone.
+        undo: bool,
+        /// A step can be redone.
+        redo: bool,
+    },
 }
 
 /// Reads one message the editor posted, or `None` when it is not a request this product knows.
@@ -51,6 +61,10 @@ pub fn parse_composer_host_request(message: String) -> Option<ComposerHostReques
             text: link.text,
             address: link.address,
             removable: link.removable,
+        },
+        HostRequestKind::History(steps) => ComposerHostRequest::History {
+            undo: steps.undo,
+            redo: steps.redo,
         },
     })
 }
@@ -106,6 +120,16 @@ pub fn composer_host_requests_script() -> String {
     "window.setComposerHostRequests([\"link\"]);".to_owned()
 }
 
+/// The same, for a host that also keeps the body's undo state, because its platform asks whether
+/// Undo and Redo can be chosen synchronously and a script cannot answer within that call (Apple's
+/// `undoManager`). The editor then posts [`ComposerHostRequest::History`] whenever that state
+/// changes, and once straight away.
+#[must_use]
+#[uniffi::export]
+pub fn composer_host_requests_with_history_script() -> String {
+    "window.setComposerHostRequests([\"link\",\"history\"]);".to_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -127,6 +151,18 @@ mod tests {
             })
         );
         assert_eq!(parse_composer_host_request("{\"id\":2}".to_owned()), None);
+    }
+
+    #[test]
+    fn a_history_notice_reaches_the_client_as_its_fields() {
+        let message = r#"{"id":0,"request":{"history":{"undo":false,"redo":true}}}"#;
+        assert_eq!(
+            parse_composer_host_request(message.to_owned()),
+            Some(ComposerHostRequest::History {
+                undo: false,
+                redo: true,
+            })
+        );
     }
 
     #[test]

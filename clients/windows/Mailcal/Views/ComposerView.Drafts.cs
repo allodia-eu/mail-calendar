@@ -261,6 +261,8 @@ public sealed partial class ComposerView
             _model?.DiscardDraft(_composition);
             _finished = true;
         }
+        // Nothing will read them now: a save still reading one is of a draft just thrown away.
+        ComposerStaging.Release(_request?.Opening.Attachments.Select(file => file.Path) ?? []);
         _onDone?.Invoke();
     }
 

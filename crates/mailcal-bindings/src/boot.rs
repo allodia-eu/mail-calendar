@@ -327,6 +327,7 @@ pub(crate) fn build_accounts(
         allodia: Mutex::new(allodia),
         credential_store,
         disconnected,
+        redialling: Arc::default(),
         device_zone: device_tz,
         // The real account path: detection reaches the network, as it must.
         showcase: false,

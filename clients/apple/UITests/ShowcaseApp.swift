@@ -10,6 +10,7 @@
 // strings asserted in the tests are written out rather than read back from the app: a test that
 // asks the app what it says and then checks it says that cannot fail.
 
+import UIKit
 import XCTest
 
 @MainActor
@@ -43,8 +44,12 @@ enum ShowcaseApp {
     /// present, on screen, and not reachable, and the tap that looks like it should switch
     /// destination shuts the drawer instead. Tapping the tab while already on it pops back to the
     /// list, which is where the tests want to start anyway.
+    ///
+    /// An iPad has no tab bar: the mailbox is the split view's own column.
     static func showMailbox(_ app: XCUIApplication) {
-        tap(app.buttons["Mail"])
+        if UIDevice.current.userInterfaceIdiom != .pad {
+            tap(app.buttons["Mail"])
+        }
         XCTAssertTrue(
             app.buttons["New Mail"].waitForExistence(timeout: timeout),
             "the mailbox did not come up"

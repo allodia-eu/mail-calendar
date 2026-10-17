@@ -53,12 +53,22 @@ interface Step {
   typed?: string;
 }
 
+/// Whether there is a step to take back and one to put back.
+export interface Steps {
+  undo: boolean;
+  redo: boolean;
+}
+
 export interface History {
   undo(): boolean;
   redo(): boolean;
   /// Whether there is a step to take back and one to put back, for a host that draws Undo and Redo
   /// in a menu of its own and has to say whether each can be chosen.
-  steps(): { undo: boolean; redo: boolean };
+  steps(): Steps;
+  /// Tells `listener` what `steps` answers, now and each time that changes, for a host whose
+  /// platform asks whether Undo and Redo can be chosen synchronously and so cannot ask the page
+  /// (Apple's `undoManager`). A second listener replaces the first.
+  watch(listener: (steps: Steps) => void): void;
   /// Marks the change just made as the editor's reading of `text` the user typed: undoing it puts
   /// back what they typed rather than what the editor made of it.
   typed(text: string): void;
@@ -103,6 +113,9 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
   let pressed = false;
   /// Set while the host changes the body, whose mutations are never a step.
   let quiet = false;
+  let listener: ((steps: Steps) => void) | null = null;
+  /// What `listener` was last told.
+  let told: Steps | null = null;
 
   const observer = new view.MutationObserver((records) => record(records));
   observer.observe(editor, {
@@ -138,6 +151,15 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
     }
     boundary = false;
     caret = after;
+    tell();
+  }
+
+  function tell(): void {
+    if (!listener) return;
+    const steps = { undo: undone.length > 0, redo: redone.length > 0 };
+    if (told?.undo === steps.undo && told.redo === steps.redo) return;
+    told = steps;
+    listener(steps);
   }
 
   function joins(last: Step, kind: Kind, at: number): boolean {
@@ -185,6 +207,7 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
       undone.length = 0;
       redone.length = 0;
       boundary = true;
+      tell();
       return false;
     }
     const undoing = from === undone;
@@ -203,6 +226,7 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
     });
     caret = here;
     boundary = true;
+    tell();
     const inputType = undoing ? "historyUndo" : "historyRedo";
     editor.dispatchEvent(new view.InputEvent("input", { bubbles: true, inputType }));
     return true;
@@ -284,6 +308,12 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
       flush();
       return { undo: undone.length > 0, redo: redone.length > 0 };
     },
+    watch(next) {
+      listener = next;
+      told = null;
+      flush();
+      tell();
+    },
     typed(text) {
       flush();
       const last = undone.at(-1);
@@ -309,6 +339,7 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
       }
       caret = selection();
       boundary = true;
+      tell();
     }
   }
   return history;

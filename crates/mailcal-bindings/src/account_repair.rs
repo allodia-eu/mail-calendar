@@ -115,6 +115,7 @@ impl MailcalApp {
             return Err(error);
         }
         registered.commit();
+        self.app.note_use_problems(&id, outcome.use_problems);
         if let Some(error) = outcome.calendar_error {
             self.calendar_connect_errors
                 .lock()

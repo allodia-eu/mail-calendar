@@ -21,8 +21,9 @@
 
         <!-- A plain ItemsControl has no automation peer, so this container is NOT a node in the UIA
              tree and cannot be scoped to by id, the pills are reached through their own text and
-             their remove buttons, each of which names the recipient it would remove. -->
-        <ItemsControl x:Name="Pills" Visibility="Collapsed">
+             their remove buttons, each of which names the recipient it would remove. Not a tab stop
+             itself: Tab goes to the remove buttons, and from the first of them out of the field. -->
+        <ItemsControl x:Name="Pills" Visibility="Collapsed" IsTabStop="False">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <controls:FlowPanel />

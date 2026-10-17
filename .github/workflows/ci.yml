@@ -519,7 +519,7 @@ jobs:
       # Keyed per leg, because the two hold different products and would otherwise overwrite each
       # other's entry every time main ran.
       #
-      # `clients/apple/build` holds three things now, and all three are the same trade: keep what
+      # `clients/apple/build` holds four things now, and all four are the same trade: keep what
       # the last run produced so this one need not rebuild it.
       #   - `DerivedData/`, Xcode's own products for the app targets, the UI suite and the verifier.
       #     The dev loop, the showcase captures and `test-ui.sh` all use that path already, so CI
@@ -527,6 +527,7 @@ jobs:
       #   - `KitSPM/`, where the MailcalKit suite builds (clients/apple/Scripts/test-kit.sh). Its
       #     default `.build` is inside the package and nothing cached it, so the suite was a
       #     from-scratch compile of MailcalUI on every run, warm cache or not.
+      #   - `KitIOS/`, the same suite built for the simulator (`test-kit.sh --ios`), on the iOS leg.
       #   - `generated/`, build-core.sh's mirror of the files it generates. They are gitignored, so
       #     a checkout has none of them and every one would otherwise arrive freshly dated and
       #     recompile MailcalBindings and all of MailcalUI behind it.
@@ -597,7 +598,7 @@ jobs:
       # a broken rule should fail in seconds rather than after two xcodebuild invocations. The script
       # owns where SwiftPM builds, and why it must not be where Xcode does. On the macOS leg only:
       # `swift test` builds for the host, so running it on the iOS leg as well would test the same
-      # macOS binary twice and add a minute to the slower of the two.
+      # macOS binary twice. The iOS leg runs the suite on its simulator instead, after the UI suite.
       - name: Test MailcalKit
         if: matrix.platform == 'macos'
         run: clients/apple/Scripts/test-kit.sh
@@ -694,6 +695,14 @@ jobs:
           clients/apple/Scripts/test-ui.sh --no-core \
             --only ReadingActionRowTests --only ReadingHeaderScrollTests \
             --only CalendarPinchTests
+
+      # MailcalKit's suite compiled for iOS, which `swift test` on the macOS leg never does, so the
+      # phone's side of a rule is tested only here: among others, what a new-mail notification is
+      # named and what a tap on it opens (docs/background-sync.md, Enforcement item 4). On the
+      # simulator the UI suite left booted, so it pays for a build and not for a boot.
+      - name: Test MailcalKit on the iOS simulator
+        if: matrix.platform == 'ios'
+        run: clients/apple/Scripts/test-kit.sh --ios
 
   windows:
     # Fast per-commit gate: x64 Debug only — Rust cdylib -> C# bindings (vendored binshim) ->
