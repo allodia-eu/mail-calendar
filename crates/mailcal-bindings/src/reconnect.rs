@@ -52,10 +52,9 @@ pub(crate) async fn reconnect_all(
     // The accounts whose calendar or address-book server did not answer, for looking again
     // (`crate::dav_rediscovery`); one that has neither server stored is dropped there.
     let unanswered = Arc::new(Mutex::new(Vec::new()));
-    dial_all(plans, |index, (id, plan)| {
+    let connected = dial_all(plans, |index, (id, plan)| {
         let unanswered = Arc::clone(&unanswered);
         let app = Arc::clone(&app);
-        let background = Arc::clone(&background);
         let registry = Arc::clone(&registry);
         let disconnected = Arc::clone(&disconnected);
         let display_zone = display_zone.clone();
@@ -72,7 +71,7 @@ pub(crate) async fn reconnect_all(
                     // reappear with live providers.
                     if !registry.contains(id.as_str()) {
                         log::info!("reconnect: account[{index}] was removed mid-dial; discarding");
-                        return;
+                        return None;
                     }
                     if let Some(detail) = &outcome.calendar_error {
                         log::warn!(
@@ -94,31 +93,16 @@ pub(crate) async fn reconnect_all(
                     } else {
                         app.clear_calendar_reauth_required(&id);
                     }
-                    // Register the live providers WITHOUT syncing (`add_account_deferred`), then
-                    // drive the catch-up refresh before restarting the account's watches/poll. IMAP
-                    // watches sync once before IDLE; starting them first can grab folder scopes and
-                    // make this resumed catch-up look idle after an app restart. A plain
-                    // `add_account` would show progress immediately over mail this account has
-                    // already cached.
+                    // Register the live providers WITHOUT syncing (`add_account_deferred`); the
+                    // catch-up runs once every account is registered, below. A plain `add_account`
+                    // would show progress immediately over mail this account has already cached.
                     connection_log::log_account_connection_info(
                         &format!("account[{index}]"),
                         account_type,
                         &outcome.account,
                     );
                     app.add_account_deferred(outcome.account).await;
-                    app.refresh_reconnected_account(&id).await;
-                    // Restart this account's watches/poll from its now-live (real-provider)
-                    // settings, so a server that supports IMAP IDLE gets push again: not just the
-                    // placeholder's poll timer.
-                    let snapshot = app.sync_settings().await;
-                    if let Some(row) = snapshot
-                        .accounts
-                        .iter()
-                        .find(|row| row.account_id == id.as_str())
-                    {
-                        background.apply(id.as_str(), Some(row));
-                    }
-                    log::info!("reconnect: account[{index}] reconnected");
+                    Some((index, id))
                 }
                 Err(err) if err.signin_expired() => {
                     // The server answered; it refused the stored credential, whichever kind the
@@ -136,6 +120,7 @@ pub(crate) async fn reconnect_all(
                         .expect("disconnected mutex poisoned")
                         .insert(id.as_str().to_owned());
                     log::warn!("reconnect: account[{index}] sign-in refused by the server: {err}");
+                    None
                 }
                 Err(err) => {
                     // Badge the account unreachable with the account-labelled technical detail, so
@@ -157,21 +142,48 @@ pub(crate) async fn reconnect_all(
                             .expect("unanswered mutex poisoned")
                             .push(id.as_str().to_owned());
                     }
+                    None
                 }
             }
         }
     })
     .await;
+    // Each reconnected account's mail catch-up (the folder sync and the body prefetch after it),
+    // the same number at a time as the dials. Then its watches/poll restart from its now-live
+    // settings, so a server that supports IMAP IDLE gets push again rather than the placeholder's
+    // poll timer; not before, because IMAP watches sync once before IDLE, and starting them first
+    // can grab folder scopes and make the catch-up look idle.
+    let catch_up = dial_all(
+        connected.into_iter().flatten().collect(),
+        |_, (index, id): (usize, AccountId)| {
+            let app = Arc::clone(&app);
+            let background = Arc::clone(&background);
+            async move {
+                app.refresh_reconnected_account(&id).await;
+                let snapshot = app.sync_settings().await;
+                if let Some(row) = snapshot
+                    .accounts
+                    .iter()
+                    .find(|row| row.account_id == id.as_str())
+                {
+                    background.apply(id.as_str(), Some(row));
+                }
+                log::info!("reconnect: account[{index}] reconnected");
+            }
+        },
+    );
     // Every account that was going to connect now has, so this is the first moment the calendar
-    // *can* be fetched. It has to happen here rather than at boot: an interactive launch returns
-    // with provider-less placeholders, and a refresh against those reaches nothing and files
-    // nothing, which is how the calendar came to be filled by only one thing, the user opening
-    // the tab. A user who never opened it therefore had no diary at all, on any launch, offline
-    // or on (`docs/calendar.md` §5).
+    // *can* be fetched, and it is fetched beside mail's catch-up rather than after it: a mailbox's
+    // body prefetch takes seconds, and a calendar that waited for every account's would be empty
+    // for all of them meanwhile. It has to happen here rather than at boot: an interactive launch
+    // returns with provider-less placeholders, and a refresh against those reaches nothing and
+    // files nothing, which is how the calendar came to be filled by only one thing, the user
+    // opening the tab. A user who never opened it therefore had no diary at all, on any launch,
+    // offline or on (`docs/calendar.md` §5).
     //
     // Called directly rather than dispatched: `Intent::RefreshCalendar` would record the calendar
     // as a feature the user used, on a launch where they may never open it.
-    app.refresh_calendar_in_background().await;
+    futures::join!(app.refresh_calendar_in_background(), catch_up);
     // Contacts have exactly the calendar's problem above, and it went unnoticed for the same
     // reason: nothing but the user opening the tab ever filled them. It stopped being
     // invisible when a sender's face started coming from a contact card: a launch where the
