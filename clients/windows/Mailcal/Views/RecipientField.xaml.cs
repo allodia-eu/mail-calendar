@@ -299,13 +299,16 @@ public sealed partial class RecipientField : UserControl
     // chevron in the trailing slot counts as leaving. The list and the pills do not: finished on
     // the way to a suggestion, the half-typed token becomes a pill beside the address chosen, and
     // the pills rebuilt under a press, or under Shift+Tab, take the focused button with them.
+    //
+    // ⚠️ Finished once the focus change is over, never inside it: from a pill's button the rebuild
+    // removes the element losing focus, which WinUI does not survive mid-change.
     private void OnFieldLosingFocus(object sender, LosingFocusEventArgs e)
     {
         var next = e.NewFocusedElement as DependencyObject;
         var staying = IsInsideSuggestions(next) || IsInside(next, Input) || IsInside(next, Pills);
         if (Submitted is null && !staying)
         {
-            FinishTyped();
+            DispatcherQueue.TryEnqueue(FinishTyped);
         }
     }
 
