@@ -16,7 +16,7 @@ use super::{
     ThreadKey, render_messages,
     tests::{glib_records, labels},
 };
-use crate::ui::{AppInput, model::empty_mailbox};
+use crate::ui::{AppInput, model::empty_mailbox, timestamps::MailClock};
 
 fn message(key: &str, from: &str, preview: &str, unread: bool, outgoing: bool) -> ThreadMessage {
     ThreadMessage {
@@ -114,7 +114,7 @@ fn rendered(
         snapshot,
         &expanded.iter().cloned().collect(),
         false,
-        "UTC",
+        &MailClock::new("UTC", true),
         &sender,
     );
     let window = gtk::Window::new();
@@ -262,7 +262,7 @@ pub(super) fn every_mail_row_formats_its_timestamp() {
     let shown = labels(widgets.upcast_ref::<gtk::Widget>());
 
     for raw in [flat_raw, thread_raw, message_raw] {
-        let expected = crate::ui::timestamps::relative_date(raw, "UTC");
+        let expected = crate::ui::timestamps::relative_date(raw, "UTC", true);
         assert!(
             shown.iter().any(|label| label.text() == expected),
             "the formatted label {expected:?} must be visible: {shown:?}"
@@ -342,12 +342,12 @@ fn rerender(
         &before
             .rows
             .iter()
-            .map(|row| super::display_row(row, "UTC"))
+            .map(|row| super::display_row(row, &MailClock::new("UTC", true)))
             .collect::<Vec<_>>(),
         after,
         &std::collections::HashSet::new(),
         false,
-        "UTC",
+        &MailClock::new("UTC", true),
         sender,
     );
     children(list)

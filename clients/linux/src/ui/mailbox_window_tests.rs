@@ -18,6 +18,7 @@ use crate::{
         AppInput,
         mail_actions::tests::{button, popover_content},
         model::OpenedMessage,
+        timestamps::MailClock,
     },
 };
 
@@ -106,7 +107,12 @@ fn pressed(
 /// the click `GtkListBox` reads is what still opens the message in the pane.
 pub(crate) fn a_second_click_asks_for_a_window_and_a_first_click_asks_for_nothing() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let row = flat_row(&message_row(), &RowMenus::default(), "UTC", &sender);
+    let row = flat_row(
+        &message_row(),
+        &RowMenus::default(),
+        &MailClock::new("UTC", true),
+        &sender,
+    );
     let widget = row.upcast_ref::<gtk::Widget>().clone();
 
     assert!(
@@ -124,13 +130,24 @@ pub(crate) fn a_second_click_asks_for_a_window_and_a_first_click_asks_for_nothin
 pub(crate) fn a_conversations_messages_open_in_windows_and_its_header_does_not() {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let thread = conversation();
-    let sub_row = thread_message_row(&thread, &thread_message(), "UTC", &sender);
+    let sub_row = thread_message_row(
+        &thread,
+        &thread_message(),
+        &MailClock::new("UTC", true),
+        &sender,
+    );
     assert_eq!(
         pressed(sub_row.upcast_ref::<gtk::Widget>(), 2, &sender, &receiver),
         ["window message-b"]
     );
 
-    let header = thread_row(&thread, false, &RowMenus::default(), "UTC", &sender);
+    let header = thread_row(
+        &thread,
+        false,
+        &RowMenus::default(),
+        &MailClock::new("UTC", true),
+        &sender,
+    );
     assert!(
         double_click(header.upcast_ref::<gtk::Widget>()).is_none(),
         "a conversation header keeps whatever a double-click already did there"

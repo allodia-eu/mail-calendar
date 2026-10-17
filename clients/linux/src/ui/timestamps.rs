@@ -3,7 +3,33 @@
 use jiff::Timestamp;
 use time::{Date, Month};
 
+use super::calendar::{
+    CalendarModel,
+    date::{date_time, full_clock},
+};
 use crate::l10n;
+
+/// The display zone and the app's 12/24-hour setting, which together decide every mail
+/// timestamp's text. Part of a row's rendering key, so changing either redraws the labels.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct MailClock {
+    pub(super) zone: String,
+    pub(super) use_24_hour: bool,
+}
+
+impl MailClock {
+    pub(super) fn new(zone: &str, use_24_hour: bool) -> Self {
+        Self {
+            zone: zone.to_owned(),
+            use_24_hour,
+        }
+    }
+
+    /// The calendar's zone and clock, so mail and the grid cannot disagree.
+    pub(super) fn of(calendar: &CalendarModel) -> Self {
+        Self::new(calendar.display_zone(), calendar.uses_24_hour())
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RelativeDatePattern {
@@ -22,27 +48,39 @@ fn relative_date_pattern(day_diff: i64, same_year: bool) -> RelativeDatePattern 
     }
 }
 
-pub(super) fn relative_date(raw: &str, zone: &str) -> String {
-    relative_date_at(raw, zone, Timestamp::now(), l10n::active_locale())
+pub(super) fn relative_date(raw: &str, zone: &str, use_24_hour: bool) -> String {
+    relative_date_at(
+        raw,
+        zone,
+        use_24_hour,
+        Timestamp::now(),
+        l10n::active_locale(),
+    )
 }
 
-fn relative_date_at(raw: &str, zone: &str, now: Timestamp, locale: &str) -> String {
+fn relative_date_at(
+    raw: &str,
+    zone: &str,
+    use_24_hour: bool,
+    now: Timestamp,
+    locale: &str,
+) -> String {
     if raw.is_empty() || !raw.ends_with('Z') {
-        return local_date_time(raw, zone);
+        return local_date_time(raw, zone, use_24_hour);
     }
     let Ok(instant) = raw.parse::<Timestamp>() else {
-        return local_date_time(raw, zone);
+        return local_date_time(raw, zone, use_24_hour);
     };
     let (Ok(message), Ok(current)) = (instant.in_tz(zone), now.in_tz(zone)) else {
-        return local_date_time(raw, zone);
+        return local_date_time(raw, zone, use_24_hour);
     };
     let (Some(message_date), Some(current_date)) = (date_of(&message), date_of(&current)) else {
-        return local_date_time(raw, zone);
+        return local_date_time(raw, zone, use_24_hour);
     };
     let day_diff = (current_date - message_date).whole_days();
     let names = date_names(locale);
     match relative_date_pattern(day_diff, message.year() == current.year()) {
-        RelativeDatePattern::Time => format!("{:02}:{:02}", message.hour(), message.minute()),
+        RelativeDatePattern::Time => full_clock(minutes_of(&message), use_24_hour),
         RelativeDatePattern::Weekday => {
             names.weekdays[usize::from(message_date.weekday().number_days_from_monday())].to_owned()
         }
@@ -60,29 +98,9 @@ fn relative_date_at(raw: &str, zone: &str, now: Timestamp, locale: &str) -> Stri
     }
 }
 
-pub(super) fn local_date_time(raw: &str, zone: &str) -> String {
-    if raw.is_empty() {
-        return String::new();
-    }
-    if raw.ends_with('Z')
-        && let Ok(instant) = raw.parse::<Timestamp>()
-        && let Ok(value) = instant.in_tz(zone)
-    {
-        return format!(
-            "{:04}-{:02}-{:02} {:02}:{:02}",
-            value.year(),
-            value.month(),
-            value.day(),
-            value.hour(),
-            value.minute()
-        );
-    }
-    if raw.contains('T')
-        && let Some(value) = raw.get(..16)
-    {
-        return value.replace('T', " ");
-    }
-    raw.get(..10).unwrap_or(raw).to_owned()
+/// The absolute date and time, on the calendar's clock with the minutes always written.
+pub(super) fn local_date_time(raw: &str, zone: &str, use_24_hour: bool) -> String {
+    date_time(raw, zone, " ", &|minutes| full_clock(minutes, use_24_hour))
 }
 
 /// A date the **account service** sent, as a day a reader can check against a bank statement.
@@ -129,6 +147,10 @@ fn civil_day(raw: &str) -> Option<Date> {
     let month = Month::try_from(parts.next()?.parse::<u8>().ok()?).ok()?;
     let day = parts.next()?.parse().ok()?;
     Date::from_calendar_date(year, month, day).ok()
+}
+
+fn minutes_of(value: &jiff::Zoned) -> u32 {
+    u32::try_from(value.hour()).unwrap_or(0) * 60 + u32::try_from(value.minute()).unwrap_or(0)
 }
 
 fn date_of(value: &jiff::Zoned) -> Option<Date> {
@@ -240,27 +262,27 @@ mod tests {
     fn relative_labels_use_the_display_zone_and_app_language() {
         let now = stamp("2026-07-20T20:00:00Z");
         assert_eq!(
-            relative_date_at("2026-07-20T09:05:00Z", "UTC", now, "en"),
+            relative_date_at("2026-07-20T09:05:00Z", "UTC", true, now, "en"),
             "09:05"
         );
         assert_eq!(
-            relative_date_at("2026-07-17T09:05:00Z", "UTC", now, "nl"),
+            relative_date_at("2026-07-17T09:05:00Z", "UTC", true, now, "nl"),
             "vr"
         );
         assert_eq!(
-            relative_date_at("2026-07-13T09:05:00Z", "UTC", now, "nl"),
+            relative_date_at("2026-07-13T09:05:00Z", "UTC", true, now, "nl"),
             "13 jul"
         );
         assert_eq!(
-            relative_date_at("2025-07-03T09:05:00Z", "UTC", now, "nl"),
+            relative_date_at("2025-07-03T09:05:00Z", "UTC", true, now, "nl"),
             "3 jul 2025"
         );
         assert_eq!(
-            relative_date_at("2026-07-19T22:30:00Z", "Europe/Amsterdam", now, "en"),
+            relative_date_at("2026-07-19T22:30:00Z", "Europe/Amsterdam", true, now, "en"),
             "00:30"
         );
         assert_eq!(
-            relative_date_at("2026-07-20T09:05:00", "UTC", now, "nl"),
+            relative_date_at("2026-07-20T09:05:00", "UTC", true, now, "nl"),
             "2026-07-20 09:05"
         );
     }
@@ -309,13 +331,40 @@ mod tests {
     #[test]
     fn the_reading_header_is_an_absolute_local_date_and_time() {
         assert_eq!(
-            local_date_time("2026-07-20T09:05:00Z", "Europe/Amsterdam"),
+            local_date_time("2026-07-20T09:05:00Z", "Europe/Amsterdam", true),
             "2026-07-20 11:05"
         );
         assert_eq!(
-            local_date_time("2026-07-20T09:05:00", "Europe/Amsterdam"),
+            local_date_time("2026-07-20T09:05:00", "Europe/Amsterdam", true),
             "2026-07-20 09:05"
         );
-        assert_eq!(local_date_time("2026-07-20", "UTC"), "2026-07-20");
+        assert_eq!(local_date_time("2026-07-20", "UTC", true), "2026-07-20");
+    }
+
+    /// The clock setting reaches mail as it reaches the calendar, a floating time included, and
+    /// mail always writes the minutes, so a quoted time reads as every other client writes it.
+    #[test]
+    fn the_twelve_hour_setting_reaches_every_mail_timestamp() {
+        let now = stamp("2026-07-20T20:00:00Z");
+        assert_eq!(
+            relative_date_at("2026-07-20T14:05:00Z", "UTC", false, now, "en"),
+            "2:05 PM"
+        );
+        assert_eq!(
+            relative_date_at("2026-07-20T00:30:00Z", "UTC", false, now, "nl"),
+            "12:30 AM"
+        );
+        assert_eq!(
+            local_date_time("2026-07-20T09:05:00Z", "Europe/Amsterdam", false),
+            "2026-07-20 11:05 AM"
+        );
+        assert_eq!(
+            local_date_time("2026-07-20T12:00:00Z", "UTC", false),
+            "2026-07-20 12:00 PM"
+        );
+        assert_eq!(
+            relative_date_at("2026-07-20T14:05:00", "UTC", false, now, "en"),
+            "2026-07-20 2:05 PM"
+        );
     }
 }

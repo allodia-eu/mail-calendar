@@ -35,6 +35,12 @@ public sealed partial class MailboxModel
     internal bool DarkMessageBackground => _app?.DisplaySettings().DarkMessageBackground ?? true;
 
     /// <summary>
+    /// The app's 12/24-hour setting, which every mail timestamp follows as the calendar does
+    /// (docs/timestamps.md). 24-hour while the core is still connecting, the core's own default.
+    /// </summary>
+    internal bool Use24Hour => _app?.DisplaySettings().TimeFormat != TimeFormat.TwelveHour;
+
+    /// <summary>
     /// Persists the message background, and bumps <see cref="DisplaySettingsVersion"/> now rather
     /// than on the Settings signal that follows, so every open reading view re-renders on the press.
     /// </summary>
