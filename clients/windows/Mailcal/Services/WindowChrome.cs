@@ -51,6 +51,7 @@ internal static class WindowChrome
         Action closed,
         TypedEventHandler<AppWindow, AppWindowClosingEventArgs>? closing = null)
     {
+        TestAgent.Track(window);
         if (closing is not null)
         {
             window.AppWindow.Closing += closing;

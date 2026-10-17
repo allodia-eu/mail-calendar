@@ -16,13 +16,17 @@
 //! * one the platform draws, listed in [`PLATFORM`] with where it comes from.
 //!
 //! A lookup is a quoted id after `-AutomationId`, after `.AutomationId -eq`, `-ne` or `-in`, or as
-//! the first argument of a suite helper whose first parameter is `$AutomationId` or `$Id`. An id
-//! held in a variable is not followed, so a suite looking one up keeps it quoted at the lookup.
+//! the first argument of a suite helper whose first parameter is `$AutomationId` or `$Id`; in the
+//! C# suites (`clients/windows/Mailcal.UiTests`), a quoted id passed to `Filter.ById` or set as a
+//! filter's `Id`. An id held in a variable is not followed, so a suite looking one up keeps it
+//! quoted at the lookup.
 
 use std::{collections::BTreeSet, path::Path};
 
 use crate::{
-    automation_ids_scan::{CsLiterals, Wanted, cs_literals, id_helpers, lookups, xaml_ids},
+    automation_ids_scan::{
+        CsLiterals, Wanted, cs_literals, cs_lookups, id_helpers, lookups, xaml_ids,
+    },
     git,
     report::Report,
 };
@@ -32,6 +36,9 @@ const APP: &str = "clients/windows/Mailcal";
 
 /// Where the suites and the helpers they share live.
 const SUITES: &str = "clients/windows";
+
+/// The C# suites, which reach the app through its test agent.
+const CS_SUITES: &str = "clients/windows/Mailcal.UiTests";
 
 /// Ids the suites look up that no source here assigns, each drawn by WinUI or Windows itself.
 ///
@@ -47,6 +54,7 @@ pub(crate) const PLATFORM: &[(&str, &str)] = &[
     ("printerSelector", "the Windows print dialog"),
     ("PrintButton", "the Windows print dialog"),
     ("NoPreviewAvailableText", "the Windows print dialog"),
+    ("PART_TitleText", "the WinUI TitleBar's title"),
     ("FileNameControlHost", "the Windows save dialog"),
     ("1001", "the Windows save dialog's file name box"),
 ];
@@ -106,11 +114,22 @@ pub(crate) fn check(root: &Path, platform: &[(&str, &str)]) -> Result<bool, Stri
         ));
     }
 
-    let suites: Vec<String> = git::listed(root, &[SUITES])?
-        .into_iter()
+    let listed = git::listed(root, &[SUITES])?;
+    let suites: Vec<String> = listed
+        .iter()
         .filter(|name| crate::prose::extension(name) == "ps1")
+        .cloned()
+        .collect();
+    let cs_suites: Vec<String> = listed
+        .iter()
+        .filter(|name| name.starts_with(CS_SUITES) && crate::prose::extension(name) == "cs")
+        .cloned()
         .collect();
     let texts: Vec<(String, String)> = suites
+        .into_iter()
+        .map(|name| git::read(root, &name).map(|text| (name, text)))
+        .collect::<Result<_, _>>()?;
+    let cs_texts: Vec<(String, String)> = cs_suites
         .into_iter()
         .map(|name| git::read(root, &name).map(|text| (name, text)))
         .collect::<Result<_, _>>()?;
@@ -122,25 +141,35 @@ pub(crate) fn check(root: &Path, platform: &[(&str, &str)]) -> Result<bool, Stri
     let mut report = Report::new();
     let mut used: BTreeSet<&str> = BTreeSet::new();
     let mut count = 0usize;
-    for (name, text) in &texts {
-        for (line, wanted) in lookups(text, &helpers) {
-            count += 1;
-            if let Wanted::Exact(id) = &wanted
-                && let Some((platform_id, _)) = platform.iter().find(|(p, _)| p == id)
-            {
-                used.insert(platform_id);
-                continue;
-            }
-            if !known.has(&wanted) {
-                report.note(match &wanted {
-                    Wanted::Exact(id) => {
-                        format!("{name}:{line}: '{id}' is on no element the app draws")
-                    }
-                    Wanted::Prefix(start) => {
-                        format!("{name}:{line}: no id the app draws starts with '{start}'")
-                    }
-                });
-            }
+    let found = texts
+        .iter()
+        .flat_map(|(name, text)| {
+            lookups(text, &helpers)
+                .into_iter()
+                .map(move |hit| (name, hit))
+        })
+        .chain(
+            cs_texts
+                .iter()
+                .flat_map(|(name, text)| cs_lookups(text).into_iter().map(move |hit| (name, hit))),
+        );
+    for (name, (line, wanted)) in found {
+        count += 1;
+        if let Wanted::Exact(id) = &wanted
+            && let Some((platform_id, _)) = platform.iter().find(|(p, _)| p == id)
+        {
+            used.insert(platform_id);
+            continue;
+        }
+        if !known.has(&wanted) {
+            report.note(match &wanted {
+                Wanted::Exact(id) => {
+                    format!("{name}:{line}: '{id}' is on no element the app draws")
+                }
+                Wanted::Prefix(start) => {
+                    format!("{name}:{line}: no id the app draws starts with '{start}'")
+                }
+            });
         }
     }
     if count == 0 {

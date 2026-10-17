@@ -203,6 +203,13 @@ Write-Host "==> Running the calendar unit tests" -ForegroundColor Cyan
 & dotnet test (Join-Path $here 'Mailcal.Tests') -c $Configuration --nologo
 if ($LASTEXITCODE -ne 0) { throw "calendar unit tests failed" }
 
+# 5a. The UI suites that reach the app through its test agent (Mailcal.UiTests) need a running app
+#     and the harness, so they run in uitests/run-ui-tests.ps1, not here. Compiling them here is
+#     what keeps a change to the app's ids or the agent's protocol from breaking them unseen.
+Write-Host "==> Compiling the agent UI suites" -ForegroundColor Cyan
+& dotnet build (Join-Path $here 'Mailcal.UiTests') -c $Configuration --nologo
+if ($LASTEXITCODE -ne 0) { throw "the agent UI suites failed to compile" }
+
 # 5b. The screenshot frame geometry, the crop that keeps the invisible window border out of a store
 #     screenshot. It runs here, rather than in Mailcal.Tests, because the code under test is the
 #     PowerShell capture path; it needs no app, no window and no display, so CI gates it for free.

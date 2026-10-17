@@ -2,7 +2,9 @@
 
 use crate::{
     automation_ids::check,
-    automation_ids_scan::{CsLiterals, Wanted, cs_literals, id_helpers, lookups, xaml_ids},
+    automation_ids_scan::{
+        CsLiterals, Wanted, cs_literals, cs_lookups, id_helpers, lookups, xaml_ids,
+    },
     fixture::Repo,
 };
 
@@ -156,4 +158,34 @@ fn a_platform_id_no_suite_uses_any_more_fails() {
 fn a_tree_with_no_lookups_is_an_error_not_a_pass() {
     let repo = tree("Write-Host 'nothing here'\n");
     assert!(check(repo.root(), PLATFORM).is_err());
+}
+
+#[test]
+fn a_csharp_suite_s_lookups_are_read_and_checked() {
+    let suite = "var a = agent.Find(Filter.ById(\"ReadingSubject\", \"Text\"));
+                 // Filter.ById(\"InAComment\")
+                 var b = new Filter { Id = \"SubjectText\" };
+";
+    assert_eq!(
+        cs_lookups(suite),
+        [(1, exact("ReadingSubject")), (3, exact("SubjectText"))]
+    );
+    let repo = Repo::new(&[
+        ("clients/windows/Mailcal/Views/ReadingView.xaml", VIEW),
+        ("clients/windows/Mailcal/Views/ReadingView.xaml.cs", CODE),
+        (
+            "clients/windows/uitests/Reading.Tests.ps1",
+            "Find-UiaElement -AutomationId 'PrimaryButton'
+",
+        ),
+        (
+            "clients/windows/Mailcal.UiTests/Suites/ReadingTests.cs",
+            suite,
+        ),
+    ]);
+    assert_eq!(
+        check(repo.root(), PLATFORM),
+        Ok(false),
+        "SubjectText is the name the explicit id hides"
+    );
 }

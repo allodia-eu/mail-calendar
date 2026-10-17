@@ -79,3 +79,4 @@ clients/linux/flatpak/screenshots.json
 # What the Windows UI suite photographs when a case fails (uitests/run-ui-tests.ps1). Emptied at
 # the start of every run, and uploaded by CI as an artifact; never a repo asset.
 clients/windows/uitests/failures/
+clients/windows/Mailcal.UiTests/failures/

@@ -383,3 +383,25 @@ fn strip_prefix_ignore_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> 
         .filter(|head| head.eq_ignore_ascii_case(prefix))
         .map(|_| &text[prefix.len()..])
 }
+
+/// Every id a C# suite looks up, with its line number: a quoted id passed to `Filter.ById`, or set
+/// as a filter's `Id`.
+pub(crate) fn cs_lookups(text: &str) -> Vec<(usize, Wanted)> {
+    let mut found: Vec<(usize, Wanted)> = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        if line.trim_start().starts_with("//") {
+            continue;
+        }
+        for marker in ["ById(\"", "Id = \""] {
+            for (at, _) in line.match_indices(marker) {
+                let rest = &line[at + marker.len()..];
+                if let Some(end) = rest.find('"')
+                    && end > 0
+                {
+                    found.push((index + 1, Wanted::Exact(rest[..end].to_owned())));
+                }
+            }
+        }
+    }
+    found
+}

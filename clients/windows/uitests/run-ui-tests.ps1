@@ -36,6 +36,10 @@
 # ---------------------------------------------------------------------------------------------
 # WRITING A SUITE
 #
+# A new harness suite goes in Mailcal.UiTests, which reaches the app through its in-process test
+# agent at a fraction of a UI Automation walk's cost; its README says how. This runner runs those
+# too, after the ones below.
+#
 # A `*.Tests.ps1` file defines one `$Suite` and does nothing else at load time, the runner
 # dot-sources it to READ it, then launches the dataset, then invokes the cases:
 #
@@ -272,12 +276,16 @@ function Get-RowTextWeight {
 
 . (Join-Path $here 'dataset.ps1')
 
+# The suites in Mailcal.UiTests, which reach the app through its test agent; run after these.
+. (Join-Path $here 'agent-suites.ps1')
+
 # ---------------------------------------------------------------------------------------------
 # Run
 # ---------------------------------------------------------------------------------------------
 
 $files = Get-ChildItem -Path $here -Filter '*.Tests.ps1' | Where-Object { $_.BaseName -like $Filter } | Sort-Object Name
-if (-not $files) { throw "no *.Tests.ps1 matched -Filter '$Filter' in $here" }
+$agentSuites = @(Get-AgentSuites -Filter $Filter)
+if (-not $files -and -not $agentSuites) { throw "no *.Tests.ps1 and no agent suite matched -Filter '$Filter' in $here" }
 
 # Read every suite's DECLARATION before launching anything, so the loop below can group them: an
 # app start costs ~20s against ~1-5s of assertions per suite, so one launch per FILE meant the
@@ -522,9 +530,28 @@ foreach ($group in ($plan | Group-Object -Property Key)) {
   }
 }
 
+# The agent suites launch the app themselves, so they go after every group above has finished
+# with its own launch.
+if ($agentSuites) {
+  if ($Dataset -notcontains 'harness') {
+    foreach ($suite in $agentSuites) { $excluded += "$($suite.Name): dataset 'harness' is not in -Dataset" }
+  }
+  else {
+    Write-Host "==> $(($agentSuites.Name) -join ', ')  [dataset: harness, through the test agent]" -ForegroundColor Cyan
+    $agentWatch = [Diagnostics.Stopwatch]::StartNew()
+    $agentResult = Invoke-AgentSuites -Suites $agentSuites -RequireHarness:$RequireHarness
+    $passed += $agentResult.Passed.Count
+    $failed += $agentResult.Failed
+    $skippedCases += $agentResult.Skipped
+    $caseSeconds += $agentWatch.Elapsed.TotalSeconds
+    Write-Host ("      {0:N1}s for {1} case(s), the app's launch included" -f
+      $agentWatch.Elapsed.TotalSeconds, ($agentResult.Passed.Count + $agentResult.Failed.Count + $agentResult.Skipped.Count)) -ForegroundColor DarkGray
+  }
+}
+
 if (-not $KeepApp) { Get-Process Mailcal -ErrorAction SilentlyContinue | Stop-Process -Force }
 
-$ran = $plan.Count - $excluded.Count - $skipped.Count
+$ran = $plan.Count + $agentSuites.Count - $excluded.Count - $skipped.Count
 
 Write-Host ''
 Write-Host "$passed passed, $($failed.Count) failed, $($skipped.Count + $skippedCases.Count) skipped, $($excluded.Count) not selected"

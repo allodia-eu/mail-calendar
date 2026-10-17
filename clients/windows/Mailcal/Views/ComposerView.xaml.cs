@@ -438,5 +438,8 @@ public sealed partial class ComposerView : UserControl
             // Leaves _seedDocument null: IsDirtyAsync then falls back to the header fields alone.
             Log.Warn($"composer: couldn't seed the editor ({ex.GetType().Name})");
         }
+        // The UI suites click and type into the editor only from here: before it, a keystroke can
+        // land in a page that is still being seeded, or be taken for the seed itself.
+        TestAgent.Signal(Editor, "seeded");
     }
 }

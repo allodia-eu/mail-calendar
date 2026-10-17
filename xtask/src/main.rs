@@ -55,6 +55,7 @@ mod showcase_flag;
 mod showcase_lists;
 mod store_sandbox;
 mod surface_publish;
+mod test_agent;
 mod version_sync;
 
 use std::{
@@ -147,6 +148,11 @@ pub(crate) const TASKS: &[Task] = &[
         name: "check-automation-ids",
         label: "automation ids (the Windows UI suites look up what the app draws)",
         run: automation_ids::run,
+    },
+    Task {
+        name: "check-test-agent",
+        label: "test agent (the Windows UI suites' way in stays out of release)",
+        run: test_agent::run,
     },
     Task {
         name: "check-british-english",

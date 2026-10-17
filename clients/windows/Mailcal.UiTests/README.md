@@ -1,0 +1,67 @@
+# Mailcal.UiTests
+
+The Windows client's UI suites that reach the app through its **test agent**: assertions against
+the running app, made from inside it. They answer the questions the PowerShell suites in
+[`../uitests`](../uitests) answer, at a fraction of the cost, because finding an element is a call
+on the app's UI thread rather than a cross-process walk of the UI Automation tree.
+
+```powershell
+scripts/dev/harness.sh up                         # the seeded Stalwart harness
+clients/windows/build-and-run.ps1 -NoRun          # a Debug build: the agent is not in a release one
+dotnet test clients/windows/Mailcal.UiTests       # launches the app itself, and stops it after
+```
+
+[`run-ui-tests.ps1`](../uitests/run-ui-tests.ps1) runs them too, after its own suites and under the
+same `-Filter` (`Drafts*` selects `DraftsTests`), `-Dataset` and `-RequireHarness`, so one command
+still runs every UI suite before a mail write is pushed.
+
+A case **skips**, naming why, when the harness is down or there is no Debug build. Set
+`MAILCAL_UITESTS_REQUIRE_HARNESS=1` and it fails instead, so a host meant to have both cannot pass
+by having neither. `MAILCAL_UITESTS_TRACE=1` writes every agent call and its answer, timed, to
+`%TEMP%\mailcal-uitests-trace.log`; lined up against the app's own log, it says which step a server
+write followed. A failing case leaves a screenshot and the element tree the agent saw in
+`failures/`.
+
+## The agent
+
+[`Mailcal/Services/TestAgent*.cs`](../Mailcal/Services) listens on the named pipe
+`MAILCAL_TEST_AGENT` names, one JSON object a line each way, and only in a Debug build:
+`cargo xtask check-test-agent` fails any change that would let it reach a release one. It walks
+each window's **automation peers**, which are the objects UI Automation reads, so an AutomationId or
+an accessible name a suite finds is the one a screen reader is given. It acts through the same
+providers UI Automation calls: Invoke, SelectionItem, Value, Toggle, ScrollItem.
+
+Where the peers and UI Automation differ, the agent makes them agree, and each of these is a reason
+an obvious reimplementation finds nothing:
+
+- **A layout panel has no peer.** A window's content is usually one, so the walk starts at the
+  highest descendants that have a peer.
+- **A dialog's AutomationId is on its popup**, and a popup's peer reports no children in-process:
+  the walk starts each popup at the popup and descends into its content.
+- **A text box's value is not on its peer.** WinUI implements the value pattern of a `TextBox` and a
+  `PasswordBox` inside the framework, so the agent reads and sets the box itself, which is what
+  UI Automation's value pattern does to it.
+- **A WebView2's content is not walked.** It is the browser's own tree, and searching across the
+  composer's editor costs UI Automation seconds a call; nothing a suite looks up lives in it.
+- **A peer measures from its window's client area.** The agent reports physical screen pixels, the
+  unit a press is aimed in.
+
+## Writing a case
+
+- **Wait for the thing, never for a time.** `Agent.Wait` checks on every turn of the app's UI
+  thread; a sleep is a guess that is either too long or occasionally too short. `Agent.Settle` is
+  for the one question a condition cannot ask: that something did *not* happen, such as a dialog
+  not being raised. Give it the floor the app needs to have raised it.
+- **A moment the app knows and the screen does not show** gets a signal:
+  `TestAgent.Signal(element, "state")` in the app, `Filter { Signal = "state" }` in the suite. The
+  composer's editor signals `seeded` once its page is loaded and filled; typing before then lands
+  in a page that is still being set up.
+- **A folder's list is not that folder's until its header names it.** The rows on screen in the
+  meantime are the last folder's, and a press meant for the new list lands on one of them.
+- **Real input only for a press that has to be a press**: a double-click, a click into the
+  editor's web page, typing into it. Everything else goes through the agent, which needs no window
+  in front and cannot be intercepted by one.
+- **Quote an id where it is looked up** (`Filter.ById("SendButton")`): `cargo xtask
+  check-automation-ids` reads the quoted ids and fails one the app no longer carries.
+- **Cleanup goes to `Case`'s cleanup**, not to a `finally`: a cleanup that fails after the case
+  failed would replace the case's own failure with its own.

@@ -152,6 +152,13 @@ fn windows(run: &Runner<'_>) -> Vec<Step> {
             "dotnet",
             &["build", "clients/windows/MailcalVerify", "--nologo"],
         ),
+        // The agent UI suites run against a live app, but they reference none of it, so they
+        // compile anywhere the SDK does.
+        run.external(
+            "windows (Mailcal.UiTests compiles)",
+            "dotnet",
+            &["build", "clients/windows/Mailcal.UiTests", "--nologo"],
+        ),
         run.skip(
             "windows (WinUI app + uitests)",
             "needs a Windows desktop session: run build-and-run.ps1 and uitests/run-ui-tests.ps1 \
