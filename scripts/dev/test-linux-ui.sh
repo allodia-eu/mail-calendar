@@ -386,20 +386,34 @@ forward_mailto() { # <uri>
     sleep 0.05
   done
 
-  # The development launch runs the binary as the command of an org.gnome.Sdk sandbox. Its portal
-  # wrapper can outlive the secondary process after GApplication has forwarded the command line;
-  # stop only that new SDK instance, never the primary app's instance.
-  local instance known
-  while read -r instance; do
-    known=0
-    for existing in "${existing_instances[@]}"; do
-      [[ "$instance" == "$existing" ]] && known=1
-    done
-    (( known == 1 )) || flatpak kill "$instance" >/dev/null 2>&1 || true
-  done < <(flatpak ps 2>/dev/null | awk '$NF == "org.gnome.Sdk" { print $1 }')
-  kill -TERM "$launcher_pid" 2>/dev/null || true
-  wait "$launcher_pid" 2>/dev/null || true
+  # The launch hands its command line to the running app and exits on its own, with the status
+  # the app answered. One that lingers is a process left behind for every mail link clicked.
+  local exited=0 status=0
+  for _ in {1..200}; do
+    if ! kill -0 "$launcher_pid" 2>/dev/null; then
+      exited=1
+      break
+    fi
+    sleep 0.05
+  done
+  if (( exited == 1 )); then
+    wait "$launcher_pid" 2>/dev/null || status=$?
+  else
+    # Clean up the new SDK instance only, never the primary app's, before failing.
+    local instance known
+    while read -r instance; do
+      known=0
+      for existing in "${existing_instances[@]}"; do
+        [[ "$instance" == "$existing" ]] && known=1
+      done
+      (( known == 1 )) || flatpak kill "$instance" >/dev/null 2>&1 || true
+    done < <(flatpak ps 2>/dev/null | awk '$NF == "org.gnome.Sdk" { print $1 }')
+    kill -TERM "$launcher_pid" 2>/dev/null || true
+    wait "$launcher_pid" 2>/dev/null || true
+  fi
   (( received == 1 )) || die "running application did not receive the mail link"
+  (( exited == 1 )) || die "the launch that handed the mail link over did not exit"
+  (( status == 0 )) || die "the launch that handed the mail link over exited $status"
 }
 
 run_inside_session() {

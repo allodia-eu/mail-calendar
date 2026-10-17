@@ -94,6 +94,25 @@ Five consequences are worth knowing before they surprise someone:
   CI nor a checkout without an Apple account can get one. The grant is deliberately not the engine
   store's directory: an extension should not be able to open the user's mail.
 
+## A link or share reaching a running app
+
+The app runs once (`docs/reading-window.md`), so a link or share that arrives while it is running
+is handed to that process, and **its window comes to the front** with the composer open. A link
+whose only visible effect is a composer behind other windows reads as a click that did nothing.
+The launch that delivered it **exits**, with the status the running app answered: a process left
+behind for every link clicked is a leak a person never sees until the machine slows.
+
+- **Linux:** the second launch forwards its command line over D-Bus (`HANDLES_COMMAND_LINE`); the
+  running app presents its window, which on Wayland spends the activation token the launching
+  app passed along, and the forwarding process exits once registration has said it is the remote
+  one. `scripts/dev/test-linux-ui.sh` fails a forwarding launch that does not exit, or exits
+  non-zero.
+- **Windows:** the redirected activation takes foreground rights itself (`MainWindow.MailLink.cs`),
+  because a bare `Activate()` from the redirected-to instance is ignored.
+- **macOS and iOS:** the system activates the app that opens the URL.
+- **Android:** the activity is `singleTask`, so the intent brings the running task forward and
+  arrives through `onNewIntent`.
+
 ## Offering to become the default mail app
 
 The core owns *whether to ask*; each platform owns only its own call. `should_offer_default_mail_app`

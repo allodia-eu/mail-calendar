@@ -113,7 +113,25 @@ fn main() {
             APP_BROKER.send(ui::AppInput::OpenShare(Box::new(prefill)));
         }
         application.activate();
+        // Activating only makes the window visible. On Wayland a window comes to the front only
+        // when presented, and presenting here spends the activation token the launching app
+        // (a browser following a mail link) passed along with this command line.
+        if let Some(window) = application.active_window() {
+            window.present();
+        }
         gtk::glib::ExitCode::SUCCESS
+    });
+    // A launch while the app is running hands its command line to that process and is done, but
+    // `RelmApp::run` ends with a blocking `MainContext::iteration(true)` that nothing wakes in a
+    // process that only handed over: it waited forever, one stuck process per mail link clicked.
+    // Registering early to find out would emit `startup` before relm4 has connected the handler
+    // that builds the window. So the exit is queued once registration has said this process is
+    // the remote one: the forwarding runs on a context of its own, and the queued exit is what
+    // that last iteration finds.
+    application.connect_notify_local(Some("is-registered"), |application, _| {
+        if application.is_registered() && application.is_remote() {
+            gtk::glib::idle_add_local_once(|| std::process::exit(0));
+        }
     });
     // What a click on a new-mail notification is delivered through, whether or not this process
     // was running when it came.
