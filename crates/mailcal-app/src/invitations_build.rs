@@ -61,15 +61,11 @@ impl<P: Provider> App<P> {
         let starts_at = resolve_instant_in(&event.start, &zone).ok()?;
         let ends_at = end_of(starts_at, event);
 
+        // The calendar it is filed into and answered from: the account's own, or the one it links
+        // to (`docs/invitations.md`, "Which calendar an invitation uses").
+        let calendar = self.invitation_calendar(&message.account);
         let (conflicts, preview, stored_meeting) = self
-            .conflicts_for(
-                &message.account,
-                event,
-                kind,
-                starts_at,
-                ends_at,
-                &addresses,
-            )
+            .conflicts_for(&calendar, event, kind, starts_at, ends_at, &addresses)
             .await;
 
         // The calendar is the authority on which revision of a meeting is current, so the answer
@@ -80,8 +76,10 @@ impl<P: Provider> App<P> {
         let kind = crate::invitations::supersede(kind, event.sequence, stored_meeting.as_ref());
 
         let (description_text, description_truncated) = description(event);
-        let controls = self.account_rsvp_controls(&message.account).await;
-        let delivery = self.account_delivery(&message.account).await;
+        let controls = self.account_rsvp_controls(&calendar).await;
+        let delivery = self
+            .delivery_between(&message.account, &calendar, matched.as_deref())
+            .await;
         Some(InvitationCard {
             kind,
             organizer: organizer_line(event),
@@ -143,37 +141,10 @@ impl<P: Provider> App<P> {
             .flatten()
     }
 
-    /// Every address that is *this account's own*: its primary identity plus its configured
-    /// aliases.
-    ///
-    /// This is the **persisted** set, and therefore the one the calendar grid uses too: a grid
-    /// has no message to read delivery headers from. The reading view widens it with the
-    /// message's own delivery recipients.
-    pub(crate) async fn account_address_set(&self, account: &AccountId) -> Vec<String> {
-        let mut addresses = Vec::new();
-        if let Some(identity) = self.account_identity(account).await {
-            addresses.push(identity.email);
-        }
-        // Read from disk rather than caching: an alias list is edited rarely and read on two
-        // cold paths (opening a message, rebuilding the calendar cache), both of which already do
-        // store or network I/O: so one small TOML read is noise, and it can never be stale after
-        // the user edits it.
-        if let Some(path) = &self.prefs_path {
-            addresses.extend(
-                load_preferences(path)
-                    .aliases_of(account.as_str())
-                    .iter()
-                    .cloned(),
-            );
-        }
-        addresses
-    }
-
     /// Forgets every alias recorded for `account`, on removal.
     ///
-    /// Lives here beside [`Self::account_address_set`], the only reader of that list: the two are
-    /// the same fact (which addresses are this account's own), and a set that outlived its
-    /// account would silently answer "yes, that invitation is yours" for a re-added id.
+    /// The list's only reader is [`Self::account_address_set`]: a set that outlived its account
+    /// would silently answer "yes, that invitation is yours" for a re-added id.
     pub(crate) fn remove_account_aliases(&self, account: &str) {
         let Some(path) = &self.prefs_path else {
             return;
@@ -381,30 +352,49 @@ impl<P: Provider> App<P> {
             .calendar_rsvp()
     }
 
-    /// Which route an answer on `account` would take to the organiser.
+    /// Which route an answer as `attendee` would take to the organiser, with `calendar` storing
+    /// it and `mail` able to email it: one account, or a mail account and the calendar it links
+    /// to.
     ///
-    /// Reads **both** halves of the account, because the answer to "can this be answered?" is
-    /// not a property of either one alone: the calendar transport says whether the answer can
-    /// be stored and whether the server will schedule it, and the mail transport says whether
-    /// we could send the iMIP message ourselves if it will not. An account with no calendar
-    /// provider still reaches [`Delivery::ClientImip`]; see [`delivery`] for why that is the
-    /// honest answer rather than an oversight.
-    pub(crate) async fn account_delivery(&self, account: &AccountId) -> Delivery {
-        let Some(acct) = self.account_handle(account).await else {
-            return Delivery::None;
+    /// Reads **both** halves, because the answer to "can this be answered?" is not a property of
+    /// either one alone: the calendar transport says whether the answer can be stored and whether
+    /// the server will schedule it, and the mail transport says whether we could send the iMIP
+    /// message ourselves if it will not. A CalDAV server schedules only for an address in its
+    /// user's address set (RFC 6638 §3.2.2), so a linked calendar that named a set without
+    /// `attendee` would store the answer and tell nobody: that answer takes the mail route. On
+    /// one account the set is not consulted, because Graph and Google name the primary address
+    /// alone and schedule for the aliases too, so the mail route would send a second reply. An
+    /// account with no calendar provider still reaches [`Delivery::ClientImip`]; see [`delivery`]
+    /// for why that is the honest answer rather than an oversight.
+    pub(crate) async fn delivery_between(
+        &self,
+        mail: &AccountId,
+        calendar: &AccountId,
+        attendee: Option<&str>,
+    ) -> Delivery {
+        let calendar_caps = match self.account_handle(calendar).await {
+            Some(acct) => acct
+                .calendar_providers
+                .first()
+                .map(|provider| provider.connection_info().capabilities),
+            None => None,
         };
-        let calendar = acct
-            .calendar_providers
-            .first()
-            .map(|provider| provider.connection_info().capabilities);
-        let mail = acct
-            .providers
-            .first()
-            .map(|provider| provider.connection_info().capabilities);
+        let mail_caps = match self.account_handle(mail).await {
+            Some(acct) => acct
+                .providers
+                .first()
+                .map(|provider| provider.connection_info().capabilities),
+            None => None,
+        };
+        let schedules = calendar_caps.is_some_and(engine_api::Capabilities::calendar_scheduling)
+            && match attendee {
+                Some(attendee) if calendar != mail => self.schedules_as(calendar, attendee).await,
+                _ => true,
+            };
         delivery(
-            calendar.is_some_and(|caps| caps.calendar_rsvp().is_some()),
-            calendar.is_some_and(engine_api::Capabilities::calendar_scheduling),
-            mail.is_some_and(engine_api::Capabilities::scheduling_submission),
+            calendar_caps.is_some_and(|caps| caps.calendar_rsvp().is_some()),
+            schedules,
+            mail_caps.is_some_and(engine_api::Capabilities::scheduling_submission),
         )
     }
 

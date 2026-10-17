@@ -42,8 +42,11 @@ pub(crate) use letter::{ReplyLetter, ReplySource};
 /// One answer, with everything the two writes and the one send need already resolved.
 #[derive(Debug)]
 pub(crate) struct ClientAnswer<'a> {
-    /// The message the invitation arrived on.
+    /// The message the invitation arrived on, in the account whose mail sends the reply.
     pub message: &'a MessageRef,
+    /// The account whose calendar holds the meeting and the answer: the message's own, or the
+    /// calendar it links to.
+    pub calendar: &'a AccountId,
     /// That message as the store holds it; read for the subject the reply answers.
     pub original: &'a Message,
     /// The parsed iTIP payload, including the verbatim bytes a stored copy is made from.
@@ -81,7 +84,7 @@ impl<P: Provider> App<P> {
             Some(event) => Some(event),
             None => {
                 self.store_invitation(
-                    &answer.message.account,
+                    answer.calendar,
                     answer.scheduling,
                     answer.starts_at,
                     answer.ends_at,
@@ -110,7 +113,7 @@ impl<P: Provider> App<P> {
     /// that reply at all. Passing them here would turn a supported answer into an error.
     async fn store_answer(&self, answer: &ClientAnswer<'_>, stored: &Event) -> Result<(), String> {
         let acct = self
-            .account_handle(&answer.message.account)
+            .account_handle(answer.calendar)
             .await
             .ok_or_else(|| "the account is not configured".to_owned())?;
         let provider = acct
@@ -122,7 +125,7 @@ impl<P: Provider> App<P> {
             .engine
             .rsvp_calendar_event(
                 provider,
-                &answer.message.account,
+                answer.calendar,
                 &generated_idempotency(),
                 stored,
                 &rsvp,
@@ -130,7 +133,7 @@ impl<P: Provider> App<P> {
             .await
             .map_err(|err| err.to_string())?;
         let status = self
-            .settle_calendar_write(provider, &answer.message.account, write.reconciled)
+            .settle_calendar_write(provider, answer.calendar, write.reconciled)
             .await;
         self.set_calendar_write_status(status);
         Ok(())

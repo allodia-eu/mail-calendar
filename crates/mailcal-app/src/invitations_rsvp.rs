@@ -154,8 +154,10 @@ impl<P: Provider> App<P> {
             .map_err(|err| format!("the invitation's start cannot be placed: {err}"))?;
         let ends_at = crate::invitations_build::end_of(starts_at, event);
 
+        // The calendar the card read: the account's own, or the one it links to.
+        let calendar = self.invitation_calendar(&message.account);
         let stored = self
-            .stored_event_by_uid(&message.account, event.uid.as_str(), starts_at, ends_at)
+            .stored_event_by_uid(&calendar, event.uid.as_str(), starts_at, ends_at)
             .await;
 
         // A superseded invitation is refused here as well as hidden on the card. The two are not
@@ -176,10 +178,14 @@ impl<P: Provider> App<P> {
         // Which of the two routes this account has, and it is read *now*, from the same
         // capabilities the card was gated on, so the buttons and the write cannot disagree
         // about whether anyone will be told (`docs/invitations.md` → "Who delivers the answer").
-        match self.account_delivery(&message.account).await {
+        match self
+            .delivery_between(&message.account, &calendar, Some(&attendee))
+            .await
+        {
             Delivery::ClientImip => {
                 self.answer_by_imip(&ClientAnswer {
                     message,
+                    calendar: &calendar,
                     original: &original,
                     scheduling: &scheduling,
                     attendee: &attendee,
@@ -216,7 +222,7 @@ impl<P: Provider> App<P> {
         let stored = match stored {
             Some(event) => event,
             None => self
-                .store_invitation(&message.account, &scheduling, starts_at, ends_at)
+                .store_invitation(&calendar, &scheduling, starts_at, ends_at)
                 .await?
                 .ok_or_else(|| {
                     "the meeting is not in this account's calendar, and this account has no \
@@ -236,7 +242,7 @@ impl<P: Provider> App<P> {
         }
 
         let acct = self
-            .account_handle(&message.account)
+            .account_handle(&calendar)
             .await
             .ok_or_else(|| "the account is not configured".to_owned())?;
         let provider = acct
@@ -248,7 +254,7 @@ impl<P: Provider> App<P> {
             .engine
             .rsvp_calendar_event(
                 provider,
-                &message.account,
+                &calendar,
                 &generated_idempotency(),
                 &stored,
                 &rsvp,
@@ -257,7 +263,7 @@ impl<P: Provider> App<P> {
             .map_err(|err| err.to_string())?;
 
         let status = self
-            .settle_calendar_write(provider, &message.account, write.reconciled)
+            .settle_calendar_write(provider, &calendar, write.reconciled)
             .await;
 
         // The answer is stored. Whether anyone was *told* is a separate question, and this
@@ -270,6 +276,7 @@ impl<P: Provider> App<P> {
         // the organiser was never told (`docs/invitations.md`).
         let answer = ClientAnswer {
             message,
+            calendar: &calendar,
             original: &original,
             scheduling: &scheduling,
             attendee: &attendee,

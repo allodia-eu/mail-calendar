@@ -263,3 +263,19 @@ fn an_account_without_mail_is_an_account_until_it_is_removed() {
         "the last account is gone"
     );
 }
+
+#[test]
+fn an_invitation_in_the_mailbox_files_into_the_calendar_it_links_to_until_the_link_goes() {
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app("accounts-invitation-calendar", &store);
+    let mailbox = engine_api::AccountId::try_from(MAILBOX_ID).unwrap();
+    assert_eq!(app.app.invitation_calendar(&mailbox).as_str(), CLOUD_ID);
+
+    app.set_account_link(MAILBOX_ID.to_owned(), LinkSlot::Calendar, None)
+        .expect("unlinked");
+    assert_eq!(
+        app.app.invitation_calendar(&mailbox).as_str(),
+        MAILBOX_ID,
+        "a cleared link stops counting at once"
+    );
+}

@@ -318,13 +318,15 @@ impl<P: Provider> App<P> {
         let starts_at = engine_api::resolve_instant_in(&event.start, &zone)
             .map_err(|err| format!("the invitation's start cannot be placed: {err}"))?;
         let ends_at = crate::invitations_build::end_of(starts_at, event);
+        let calendar = self.invitation_calendar(&message.account);
         let stored = self
-            .stored_event_by_uid(&prompt.account, event.uid.as_str(), starts_at, ends_at)
+            .stored_event_by_uid(&calendar, event.uid.as_str(), starts_at, ends_at)
             .await;
 
         self.send_imip_reply(
             &ClientAnswer {
                 message,
+                calendar: &calendar,
                 original: &original,
                 scheduling: &scheduling,
                 attendee: &attendee,

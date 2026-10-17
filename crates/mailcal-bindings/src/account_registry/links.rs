@@ -22,6 +22,24 @@ impl AccountRegistry {
             .collect()
     }
 
+    /// Every registered account's links that hold ([`valid_links`]), keyed by id: what the core
+    /// files invitations by. Read afresh on every call, so a link changed in Settings counts from
+    /// the next invitation.
+    pub(crate) fn links_source(
+        self: &std::sync::Arc<Self>,
+    ) -> mailcal_app::account_links::LinksSource {
+        let registry = std::sync::Arc::clone(self);
+        std::sync::Arc::new(move || {
+            let facts = registry.facts();
+            facts
+                .iter()
+                .zip(valid_links(&facts))
+                .filter(|(_, links)| !links.is_empty())
+                .map(|(account, links)| (account.id.clone(), links))
+                .collect()
+        })
+    }
+
     /// `id`'s config as the registry holds it now, serialized for the host's store, or `None` if it
     /// is not registered.
     pub(crate) fn config_toml(&self, id: &str) -> Option<Result<String, String>> {

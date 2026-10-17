@@ -37,10 +37,12 @@ impl<P: Provider> App<P> {
             return None;
         }
         let addresses = self.account_address_set(account).await;
-        if may_edit_roster(stored, &addresses) || matched_attendee(stored, &addresses).is_none() {
+        if may_edit_roster(stored, &addresses) {
             return None;
         }
-        if self.account_delivery(account).await == Delivery::None {
+        let attendee = matched_attendee(stored, &addresses)?;
+        let mail = self.invitation_mail(account);
+        if self.delivery_between(&mail, account, Some(&attendee)).await == Delivery::None {
             return None;
         }
         Some(my_response(stored, &addresses))
@@ -93,7 +95,10 @@ impl<P: Provider> App<P> {
             .ok_or_else(|| "the account is not configured".to_owned())?;
         let provider = acct.calendar_providers.first();
 
-        match self.account_delivery(&event.account).await {
+        match self
+            .delivery_between(&letter.account, &event.account, Some(&letter.attendee))
+            .await
+        {
             Delivery::None => Err(
                 "this account cannot answer invitations: its calendar server does not send \
                  replies for you, and its mail account cannot send one either."
@@ -149,8 +154,9 @@ impl<P: Provider> App<P> {
                 let status = self
                     .settle_calendar_write(provider, &event.account, write.reconciled)
                     .await;
+                let mail = letter.account.clone();
                 let outcome = self
-                    .resolve_reply_delivery(&event.account, Ok(letter), &write.write.reply_delivery)
+                    .resolve_reply_delivery(&mail, Ok(letter), &write.write.reply_delivery)
                     .await;
                 self.rebuild_calendar_view().await;
                 self.set_calendar_write_status(status);
@@ -220,7 +226,8 @@ impl<P: Provider> App<P> {
         let starts_at = resolve_instant_in(&stored.start, &self.active_zone())
             .map_err(|err| format!("the meeting's start cannot be placed: {err}"))?;
         Ok(ReplyLetter {
-            account: event.account.clone(),
+            // The calendar's mail account sends it: the calendar's own, or the one it links to.
+            account: self.invitation_mail(&event.account),
             source: ReplySource::Event(event.clone()),
             summary: stored.title.clone(),
             uid: stored.uid.as_str().to_owned(),

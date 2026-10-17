@@ -13,7 +13,9 @@
 
 use std::sync::{Arc, Mutex};
 
-use engine_api::{AccountId, CalendarWrites, EmailAddress, Engine, TimeZoneId};
+use engine_api::{
+    AccountId, CalendarUserAddresses, CalendarWrites, EmailAddress, Engine, TimeZoneId,
+};
 use engine_core::{
     calendar::{Calendar, Event},
     ids::{CalendarId, MailboxId},
@@ -35,10 +37,14 @@ use crate::{Account, App, Surface, Telemetry, TimeZoneInit};
 // The meeting these fixtures are all about, kept next door: see that file's header for why the
 // bytes and the provider are separate concerns.
 #[allow(clippy::duplicate_mod)]
+#[path = "invitation_linked.rs"]
+mod linked;
+#[allow(clippy::duplicate_mod)]
 #[path = "invitation_meeting.rs"]
 mod meeting;
 #[path = "invitation_routes.rs"]
 mod routes;
+pub(crate) use linked::{CALENDAR_ACCOUNT, linked_invitation_app};
 
 /// The `(attendee, answer, comment, notify-organizer)` each RSVP carried.
 pub(crate) type RecordedRsvps = Arc<Mutex<Vec<(String, RsvpResponse, Option<String>, bool)>>>;
@@ -94,6 +100,9 @@ pub(crate) struct InvitationFake {
     /// *including* auto-scheduling ones that deliver perfectly, so it is the shape every
     /// pre-existing test here was written against.
     reply_delivery: ReplyDelivery,
+    /// What the calendar server says it schedules as (RFC 6638 §2.4.1). `Unknown` by default,
+    /// which leaves the route to the capabilities alone.
+    calendar_users: CalendarUserAddresses,
 }
 
 impl InvitationFake {
@@ -122,6 +131,7 @@ impl InvitationFake {
             created: Arc::new(Mutex::new(None)),
             has_calendar: true,
             reply_delivery: ReplyDelivery::NotReported,
+            calendar_users: CalendarUserAddresses::Unknown,
         }
     }
 
@@ -356,6 +366,13 @@ impl CalendarWrites for InvitationFake {
         ))
     }
 
+    async fn calendar_user_addresses(
+        &self,
+        _account: &AccountId,
+    ) -> ProviderResult<CalendarUserAddresses> {
+        Ok(self.calendar_users.clone())
+    }
+
     async fn rsvp_event(
         &self,
         _account: &AccountId,
@@ -420,6 +437,7 @@ pub(crate) fn invitation_app_with_prefs(
             created: Arc::clone(&provider.created),
             has_calendar: provider.has_calendar,
             reply_delivery: provider.reply_delivery.clone(),
+            calendar_users: provider.calendar_users.clone(),
         }],
         calendar_providers: if provider.has_calendar {
             vec![provider]

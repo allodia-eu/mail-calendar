@@ -138,6 +138,7 @@ impl<P: Provider> App<P> {
             calendar_reauth_accounts: Mutex::new(BTreeSet::new()),
             mail_reauth_accounts: Mutex::new(BTreeSet::new()),
             use_problems: Mutex::new(BTreeMap::new()),
+            links: Mutex::default(),
             signin_expired_accounts: Mutex::new(BTreeSet::new()),
             observer,
         }

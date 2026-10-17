@@ -125,7 +125,7 @@ impl<P: Provider> App<P> {
     /// address set, and say nothing about one outside it. A server that named its set, or said it
     /// schedules for nobody, is taken at its word; one that could not be asked leaves the
     /// decision to `calendar_scheduling`, already checked.
-    async fn schedules_as(&self, account: &AccountId, address: &str) -> bool {
+    pub(crate) async fn schedules_as(&self, account: &AccountId, address: &str) -> bool {
         match self.calendar_user_addresses(account).await {
             None | Some(CalendarUserAddresses::Unknown) => true,
             Some(users) => users.recognises(address),

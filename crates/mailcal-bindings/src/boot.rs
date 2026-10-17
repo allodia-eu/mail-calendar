@@ -251,6 +251,7 @@ pub(crate) fn build_accounts(
     // the instant it comes up instead of a blank list while the background sync runs. The
     // host then dispatches RefreshMail, which re-snapshots and re-renders in the background.
     let app = Arc::new(app);
+    app.set_links_source(registry.links_source());
     // Seed what every account's synchronous headless dial already found, so the state is there the
     // instant the host pulls connectivity: the outage badge and its technical detail, or: for a
     // credential the server *refused*: the reconnect prompt instead, on the same terms

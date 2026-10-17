@@ -431,6 +431,26 @@ mailbox and finding Google's `Message-ID`, its intact DKIM signature and its bou
 only Microsoft's `Received` hops prepended. So a Graph account sees the shapes above, and the one
 message it sees that no other account type can is the tenant-internal one, which is now among them.
 
+## Which calendar an invitation uses
+
+An invitation is filed into, and answered from, one calendar, and whatever has to be emailed goes
+from one mail account. For an invitation in mail account M:
+
+- **The calendar** is M's own when M is used for its calendar, else the CalDAV calendar M links to
+  (`links.calendar`, [`accounts.md`](accounts.md) rule 12), else none. The conflict count, the
+  preview, the stored copy the card reads the answer from, the filing and the RSVP write all use it.
+- **The mail** is M's: the reply the core emails, and the "shall we email the organiser?" question,
+  whose remembered choice is M's because it is a permission to send mail as M.
+- An answer given **from the calendar** C turns it round: C's own mail when C is used for mail,
+  else the mail account C sends through (`links.mail`).
+- **The address set** of each account adds the other's identity and aliases ("Identity is a set,
+  not one address"), because the two answer as one person and a calendar's login is often not the
+  address a meeting invites.
+
+The route below is then read from the two halves, the calendar from one account and the mail from
+the other. A link that no longer holds reads as none from the next invitation on, so a mailbox
+unlinked in Settings goes back to answering by mail alone.
+
 ## Who delivers the answer
 
 An RSVP that only writes a local `PARTSTAT` tells nobody: **a button that appears to work but
@@ -451,6 +471,14 @@ Two engine capabilities decide it, and they answer *different questions*:
   the `method=` parameter on a `text/calendar` body part (RFC 6047 §2.4). True on SMTP, Graph and
   Google, which submit assembled RFC 5322 bytes; **false on JMAP**, which cannot express the
   parameter at all.
+
+**A linked calendar's server schedules only for its own user's addresses** (RFC 6638 §3.2.2). A
+CalDAV server that names its `calendar-user-address-set` (§2.4.1) without the address the meeting
+invites would store the answer and tell nobody, so for that answer it counts as not scheduling and
+the mail route decides. The set is asked once per connection; a server that names none is left to
+the capability. A calendar on the invitation's own account is not asked: Graph and Google name the
+primary address alone and still schedule for the aliases, so taking the mail route there would send
+the organiser a second reply.
 
 `calendar_rsvp` (can the transport *express* an answer) is the third, and it was the only one we
 used to ask. That is the bug: on CalDAV the three come apart completely.
@@ -736,6 +764,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ not yet.
 | Neutral RSVP verb + four provider adapters | ✅ | — | — | — | — | — |
 | Delivery route decided from `calendar_scheduling` + `scheduling_submission` | ✅ | — | — | — | — | — |
 | Invitation filed on the calendar when nothing else did (guarded create) | ✅ | — | — | — | — | — |
+| Invitation filed into and answered from the calendar its mailbox links to; the mailbox emails the reply | ✅ | — | — | — | — | — |
+| Server route on a linked calendar only for an address its server schedules as | ✅ | — | — | — | — | — |
 | iTIP `REPLY` written and posted as an iMIP message when no server will | ✅ | — | — | — | — | — |
 | Localised reply subject supplied by the client | ✅ (keys) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `SCHEDULE-STATUS` read after the write (RFC 6638 §3.2.9) | ✅ (engine) | — | — | — | — | — |

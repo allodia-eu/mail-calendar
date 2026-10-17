@@ -390,3 +390,6 @@ fn a_pretend_verdict_that_says_nothing_useful_is_declined_rather_than_guessed() 
         );
     }
 }
+
+#[path = "tests_invitation_link.rs"]
+mod link;

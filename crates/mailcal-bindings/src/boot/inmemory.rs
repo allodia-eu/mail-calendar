@@ -63,6 +63,7 @@ pub(crate) fn build_demo(
     let runtime = runtime();
     let app = Arc::new(app);
     let registry = crate::account_registry::AccountRegistry::new();
+    app.set_links_source(registry.links_source());
     // The demo has no real accounts to push/poll, so the manager is built but never started.
     let background = Arc::new(BackgroundManager::new(
         Arc::clone(&app),
@@ -276,6 +277,7 @@ fn finish_showcase(
         // Nothing dials it, so the proof that it was written first is not needed.
         let _ = registry.pre_register(id, entry);
     }
+    app.set_links_source(registry.links_source());
     let background = Arc::new(BackgroundManager::new(
         Arc::clone(&app),
         Arc::clone(&registry),

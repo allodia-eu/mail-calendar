@@ -27,6 +27,7 @@ use mailcal_viewmodel::{
 };
 use tokio::sync::{RwLock, watch};
 
+pub mod account_links;
 mod accounts;
 mod avatars;
 mod background_sync;
@@ -220,9 +221,8 @@ pub struct App<P> {
     /// **every** account, not one per account: the engine deduplicates people across accounts,
     /// so there is nothing per-account to merge here (see [`crate::contacts`]).
     contacts: Mutex<ContactsSnapshot>,
-    /// The active contacts search text. Session state, never persisted: a search is a filter
-    /// on one visit to the list, and re-opening Contacts should not inherit how it was last
-    /// narrowed (the same rule mail search follows; see `docs/search.md`).
+    /// The active contacts search text. Session state: re-opening Contacts does not inherit how
+    /// the list was last narrowed, the rule mail search follows (`docs/search.md`).
     contacts_query: Mutex<String>,
     /// Bumped on every contacts search. A rebuild reads it before its store read and re-checks
     /// it after, discarding a result a newer query has already superseded; intents are
@@ -233,8 +233,7 @@ pub struct App<P> {
     /// so a window inherits the mark-read, the retry and the pending threshold.
     reading: SurfacedMap<ReaderId, ReadingSnapshot>,
     /// The unanswered "shall we email the organiser ourselves?" question, if a calendar server
-    /// has just failed to deliver a reply. Session state, never persisted; one surviving a
-    /// restart would ask about a meeting answered last week (see [`invitations_fallback`]).
+    /// has just failed to deliver a reply. Session state ([`invitations_fallback`] says why).
     reply_prompt: Mutex<Option<invitations_fallback::ReplyPrompt>>,
     /// The standing "your copy is not in Sent" question, until it is retried or dismissed.
     unfiled_copy: Mutex<Option<unfiled_copy::UnfiledCopy>>,
@@ -244,8 +243,7 @@ pub struct App<P> {
     /// a queued save is in the outbox, so nothing here needs to survive a restart.
     drafts: Mutex<DraftState>,
     /// A queued send the user asked to edit, waiting for the host to open its composer.
-    /// Standing, like `unfiled_copy`: the outbox no longer holds the message, so nothing
-    /// else does.
+    /// Standing, like `unfiled_copy`: nothing else holds the message once it has left the outbox.
     compose_request: Mutex<Option<compose_request::ComposeOpening>>,
     view_mode: Mutex<ViewMode>,
     /// The preferences-file path (shared with the sub-settings states), or `None` for the
@@ -396,6 +394,8 @@ pub struct App<P> {
     /// What stopped each account's calendar or contacts from connecting while the account itself
     /// did ([`use_problems`](crate::use_problems)).
     use_problems: Mutex<BTreeMap<String, use_problems::UseProblems>>,
+    /// Where each account's links are read from ([`account_links`]).
+    links: Mutex<account_links::LinkState>,
     /// Accounts whose stored OAuth grant is **dead**: the refresh token expired or was revoked,
     /// so it no longer mints an access token at all (Google `invalid_grant`, a Microsoft
     /// `AADSTS700082`, a withdrawn OAuth JMAP token). Nothing syncs until the user signs in
