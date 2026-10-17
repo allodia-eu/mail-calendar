@@ -16,10 +16,14 @@
 
 use std::{
     collections::HashSet,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use engine_api::{AccountId, Provider, TimeZoneId};
+use futures::channel::oneshot;
 use mailcal_app::App;
 
 use crate::{
@@ -36,11 +40,10 @@ use crate::{
 ///
 /// Runs as one spawned task off the runtime, so a slow re-dial never blocks the host's dispatch.
 ///
-/// The bound is the change worth naming. This was a `for` loop with an `await` inside; strictly
-/// sequential: so on a five-account device the fifth mailbox came alive only after four full
-/// logins had finished one after another. It is now three at a time, the same bound the headless
-/// boot uses, because "how much network may we use at once" cannot sensibly differ by which path
-/// started the dial.
+/// Each slot holds one account's dial and then its mail catch-up, three at a time, the same bound
+/// the headless boot uses, because "how much network may we use at once" cannot sensibly differ
+/// by which path started the dial. The calendar is fetched beside them once every dial has
+/// landed; contacts follow everything.
 pub(crate) async fn reconnect_all(
     app: Arc<App<Box<dyn Provider>>>,
     background: Arc<BackgroundManager>,
@@ -52,9 +55,17 @@ pub(crate) async fn reconnect_all(
     // The accounts whose calendar or address-book server did not answer, for looking again
     // (`crate::dav_rediscovery`); one that has neither server stored is dropped there.
     let unanswered = Arc::new(Mutex::new(Vec::new()));
-    let connected = dial_all(plans, |index, (id, plan)| {
+    // Fired once the last dial has landed and its account is registered: the first moment the
+    // calendar can be fetched. Dropped unsent when there is nothing to dial, which reads the same.
+    let remaining = Arc::new(AtomicUsize::new(plans.len()));
+    let (all_dialled, dialled) = oneshot::channel::<()>();
+    let all_dialled = Arc::new(Mutex::new(Some(all_dialled)));
+    let dials = dial_all(plans, |index, (id, plan)| {
         let unanswered = Arc::clone(&unanswered);
         let app = Arc::clone(&app);
+        let background = Arc::clone(&background);
+        let remaining = Arc::clone(&remaining);
+        let all_dialled = Arc::clone(&all_dialled);
         let registry = Arc::clone(&registry);
         let disconnected = Arc::clone(&disconnected);
         let display_zone = display_zone.clone();
@@ -63,7 +74,7 @@ pub(crate) async fn reconnect_all(
             // for an outage detail the user reads in the UI: the log lines below use the position.
             let account_type = plan.account_type();
             let label = plan.label();
-            match plan.run(&id, display_zone).await {
+            let connected = match plan.run(&id, display_zone).await {
                 Ok(outcome) => {
                     // The user may have removed the account during the (slow) dial: its plan was
                     // snapshotted before the removal, so re-check the live registry before
@@ -71,38 +82,41 @@ pub(crate) async fn reconnect_all(
                     // reappear with live providers.
                     if !registry.contains(id.as_str()) {
                         log::info!("reconnect: account[{index}] was removed mid-dial; discarding");
-                        return None;
-                    }
-                    if let Some(detail) = &outcome.calendar_error {
-                        log::warn!(
-                            "reconnect: account[{index}] mail up but calendar failed: {detail}"
-                        );
-                        unanswered
-                            .lock()
-                            .expect("unanswered mutex poisoned")
-                            .push(id.as_str().to_owned());
-                    }
-                    // Reflect the calendar's re-consent state: if it connected, clear any prior
-                    // prompt (e.g. the user just re-authenticated); if a scope-`403` withheld it,
-                    // raise the "reconnect to enable calendar" prompt. A transient calendar failure
-                    // leaves the prior state untouched.
-                    if outcome.account.calendar_providers.is_empty() {
-                        if outcome.calendar_reauth_required {
-                            app.note_calendar_reauth_required(&id);
-                        }
+                        None
                     } else {
-                        app.clear_calendar_reauth_required(&id);
+                        if let Some(detail) = &outcome.calendar_error {
+                            log::warn!(
+                                "reconnect: account[{index}] mail up but calendar failed: {detail}"
+                            );
+                            unanswered
+                                .lock()
+                                .expect("unanswered mutex poisoned")
+                                .push(id.as_str().to_owned());
+                        }
+                        // Reflect the calendar's re-consent state: if it connected, clear any prior
+                        // prompt (e.g. the user just re-authenticated); if a scope-`403` withheld
+                        // it, raise the "reconnect to enable calendar"
+                        // prompt. A transient calendar failure leaves the
+                        // prior state untouched.
+                        if outcome.account.calendar_providers.is_empty() {
+                            if outcome.calendar_reauth_required {
+                                app.note_calendar_reauth_required(&id);
+                            }
+                        } else {
+                            app.clear_calendar_reauth_required(&id);
+                        }
+                        // Register the live providers WITHOUT syncing (`add_account_deferred`); the
+                        // catch-up runs once every account is registered, below. A plain
+                        // `add_account` would show progress immediately
+                        // over mail this account has already cached.
+                        connection_log::log_account_connection_info(
+                            &format!("account[{index}]"),
+                            account_type,
+                            &outcome.account,
+                        );
+                        app.add_account_deferred(outcome.account).await;
+                        Some(id)
                     }
-                    // Register the live providers WITHOUT syncing (`add_account_deferred`); the
-                    // catch-up runs once every account is registered, below. A plain `add_account`
-                    // would show progress immediately over mail this account has already cached.
-                    connection_log::log_account_connection_info(
-                        &format!("account[{index}]"),
-                        account_type,
-                        &outcome.account,
-                    );
-                    app.add_account_deferred(outcome.account).await;
-                    Some((index, id))
                 }
                 Err(err) if err.signin_expired() => {
                     // The server answered; it refused the stored credential, whichever kind the
@@ -144,46 +158,44 @@ pub(crate) async fn reconnect_all(
                     }
                     None
                 }
+            };
+            if remaining.fetch_sub(1, Ordering::AcqRel) == 1
+                && let Some(sender) = all_dialled.lock().expect("dialled mutex poisoned").take()
+            {
+                let _ = sender.send(());
             }
+            // This account's mail catch-up (the folder sync and the body prefetch after it), in the
+            // same slot its dial held, so the bound covers both. Then its watches/poll restart from
+            // its now-live settings, so a server that supports IMAP IDLE gets push again rather
+            // than the placeholder's poll timer; not before, because IMAP watches sync once before
+            // IDLE, and starting them first can grab folder scopes and make the catch-up look idle.
+            let Some(id) = connected else { return };
+            app.refresh_reconnected_account(&id).await;
+            let snapshot = app.sync_settings().await;
+            if let Some(row) = snapshot
+                .accounts
+                .iter()
+                .find(|row| row.account_id == id.as_str())
+            {
+                background.apply(id.as_str(), Some(row));
+            }
+            log::info!("reconnect: account[{index}] reconnected");
         }
-    })
-    .await;
-    // Each reconnected account's mail catch-up (the folder sync and the body prefetch after it),
-    // the same number at a time as the dials. Then its watches/poll restart from its now-live
-    // settings, so a server that supports IMAP IDLE gets push again rather than the placeholder's
-    // poll timer; not before, because IMAP watches sync once before IDLE, and starting them first
-    // can grab folder scopes and make the catch-up look idle.
-    let catch_up = dial_all(
-        connected.into_iter().flatten().collect(),
-        |_, (index, id): (usize, AccountId)| {
-            let app = Arc::clone(&app);
-            let background = Arc::clone(&background);
-            async move {
-                app.refresh_reconnected_account(&id).await;
-                let snapshot = app.sync_settings().await;
-                if let Some(row) = snapshot
-                    .accounts
-                    .iter()
-                    .find(|row| row.account_id == id.as_str())
-                {
-                    background.apply(id.as_str(), Some(row));
-                }
-                log::info!("reconnect: account[{index}] reconnected");
-            }
-        },
-    );
-    // Every account that was going to connect now has, so this is the first moment the calendar
-    // *can* be fetched, and it is fetched beside mail's catch-up rather than after it: a mailbox's
-    // body prefetch takes seconds, and a calendar that waited for every account's would be empty
-    // for all of them meanwhile. It has to happen here rather than at boot: an interactive launch
-    // returns with provider-less placeholders, and a refresh against those reaches nothing and
-    // files nothing, which is how the calendar came to be filled by only one thing, the user
-    // opening the tab. A user who never opened it therefore had no diary at all, on any launch,
-    // offline or on (`docs/calendar.md` §5).
+    });
+    // The calendar is fetched once every dial has landed, beside the mail catch-ups still running
+    // rather than after them: a mailbox's body prefetch takes seconds, and a calendar waiting for
+    // every account's would stay empty for all of them meanwhile. Here rather than at boot, since
+    // an interactive launch returns with provider-less placeholders that a refresh reaches
+    // nothing through; and on every launch, since the user may never open the tab
+    // (`docs/calendar.md` §5).
     //
     // Called directly rather than dispatched: `Intent::RefreshCalendar` would record the calendar
     // as a feature the user used, on a launch where they may never open it.
-    futures::join!(app.refresh_calendar_in_background(), catch_up);
+    let calendar = async {
+        let _ = dialled.await;
+        app.refresh_calendar_in_background().await;
+    };
+    futures::join!(dials, calendar);
     // Contacts have exactly the calendar's problem above, and it went unnoticed for the same
     // reason: nothing but the user opening the tab ever filled them. It stopped being
     // invisible when a sender's face started coming from a contact card: a launch where the
