@@ -6,10 +6,11 @@
 // undo of a typed run differs from the bundle's, and UIKit's undo in To types a finished address
 // back in.
 //
-// ⚠️ The iPad's shortcut bar and shaking are verified by hand (docs/undo.md). Neither can be held
-// here: the first ⌘Z a test sends tells the simulator a keyboard is attached, which takes the
-// on-screen keyboard and its shortcut bar away for the rest of the run, the first Undo on a fresh
-// simulator raises a system tip over the keyboard, and XCUITest has no way to shake.
+// ⚠️ The iPad's shortcut bar, shaking and the three-finger gestures are verified by hand
+// (docs/undo.md). None can be held here: the first ⌘Z a test sends tells the simulator a keyboard
+// is attached, which takes the on-screen keyboard and its shortcut bar away for the rest of the
+// run, the first Undo on a fresh simulator raises a system tip over the keyboard, and XCUITest has
+// no way to shake or to swipe with three fingers.
 
 import XCTest
 
