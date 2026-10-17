@@ -298,9 +298,14 @@ internal fun RecipientField(
                 autoCorrectEnabled = false,
                 imeAction = ImeAction.Done,
             ),
-            // Taken, the keyboard stays up for the next address; left, Done puts it away.
+            // Taken, the keyboard stays up for the next address; left, Done puts it away. In an
+            // empty field Done is the platform's, whoever finishes the address.
             keyboardActions = KeyboardActions(onDone = {
-                val taken = onSubmit?.let { it(); true } ?: finishTyped()
+                val taken = when {
+                    onSubmit == null -> finishTyped()
+                    token.isEmpty() -> false
+                    else -> { onSubmit(); true }
+                }
                 if (!taken) defaultKeyboardAction(ImeAction.Done)
             }),
         )

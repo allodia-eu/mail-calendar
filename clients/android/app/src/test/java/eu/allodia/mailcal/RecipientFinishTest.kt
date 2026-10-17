@@ -94,4 +94,14 @@ class RecipientFinishTest {
         assertEquals(1, submitted)
         assertEquals("ada@example.test", value())
     }
+
+    @Test
+    fun `a host that finishes the address itself is not asked about an empty field`() {
+        var submitted = 0
+        field(onSubmit = { submitted++ })
+        input.requestFocus()
+        input.performImeAction()
+        compose.waitForIdle()
+        assertEquals(0, submitted)
+    }
 }

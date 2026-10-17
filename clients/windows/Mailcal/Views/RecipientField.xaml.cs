@@ -78,6 +78,7 @@ public sealed partial class RecipientField : UserControl
         Pills.ItemsSource = _pills;
         SuggestionList.ItemsSource = _matches;
         InstallHistory();
+        LosingFocus += OnFieldLosingFocus;
         // A Popup lives in its own layer, rooted at the XamlRoot rather than at this control, so
         // it does NOT go away with the composer that owned it. Close it explicitly, or a draft
         // cancelled with the list open leaves it floating over the reading pane.
@@ -285,20 +286,24 @@ public sealed partial class RecipientField : UserControl
     // Focus is leaving the input: close the list unless it is going INTO the list. Without the
     // exception, clicking a suggestion would dismiss the popup before the click landed on it; and
     // without the rule, tabbing from To to Cc would leave To's suggestions floating over Cc.
-    //
-    // Leaving the input also finishes the typed address, for the Cc/Bcc chevron in the trailing
-    // slot as for anything outside the field. Neither the list nor a pill's remove button is
-    // leaving it: finished on the way to a suggestion, the half-typed token becomes a pill beside
-    // the address chosen, and the pills rebuilt under a press swallow its click.
     private void OnInputLosingFocus(object sender, LosingFocusEventArgs e)
     {
-        var next = e.NewFocusedElement as DependencyObject;
-        if (IsInsideSuggestions(next))
+        if (!IsInsideSuggestions(e.NewFocusedElement as DependencyObject))
         {
-            return;
+            SuggestionPopup.IsOpen = false;
         }
-        SuggestionPopup.IsOpen = false;
-        if (Submitted is null && !IsInside(next, Pills))
+    }
+
+    // Focus is leaving the input, a pill or the trailing control: going anywhere but the input, a
+    // pill or the list, it is leaving the field, which finishes the typed address. The Cc/Bcc
+    // chevron in the trailing slot counts as leaving. The list and the pills do not: finished on
+    // the way to a suggestion, the half-typed token becomes a pill beside the address chosen, and
+    // the pills rebuilt under a press, or under Shift+Tab, take the focused button with them.
+    private void OnFieldLosingFocus(object sender, LosingFocusEventArgs e)
+    {
+        var next = e.NewFocusedElement as DependencyObject;
+        var staying = IsInsideSuggestions(next) || IsInside(next, Input) || IsInside(next, Pills);
+        if (Submitted is null && !staying)
         {
             FinishTyped();
         }

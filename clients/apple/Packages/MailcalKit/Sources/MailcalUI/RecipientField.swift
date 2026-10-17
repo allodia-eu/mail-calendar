@@ -54,6 +54,8 @@ struct RecipientField<Trailing: View>: View {
     @State private var input = ""
     @State private var matches: [RecipientMatch] = []
     @State private var inputFocused = false
+    /// The pill whose remove button has the keyboard: Full Keyboard Access reaches it by Tab.
+    @FocusState private var focusedPill: Int?
     /// Raised to put the keyboard in the input (`RecipientInput.focusRequest`).
     @State private var focusRequest = 0
     /// The field's undo and redo, a step per address (docs/undo.md, rule 9).
@@ -98,7 +100,7 @@ struct RecipientField<Trailing: View>: View {
             if !committed.isEmpty {
                 RecipientFlowLayout {
                     ForEach(Array(committed.enumerated()), id: \.offset) { index, recipient in
-                        RecipientPill(recipient: recipient) {
+                        RecipientPill(recipient: recipient, index: index, focus: $focusedPill) {
                             change(removeRecipient(text, at: index), typed: false)
                             // Back to the input, where the chord that brings the address back is
                             // heard.
@@ -120,12 +122,12 @@ struct RecipientField<Trailing: View>: View {
                         input = typed
                         change(recipientFieldText(committed, typed), typed: true)
                     },
+                    // In an empty field Return is the platform's, whoever finishes the address.
                     onReturn: {
-                        if let onSubmit {
-                            onSubmit()
-                            return true
-                        }
-                        return finishTyped()
+                        guard let onSubmit else { return finishTyped() }
+                        guard !token.isEmpty else { return false }
+                        onSubmit()
+                        return true
                     },
                     bordered: bordered
                 )
@@ -164,7 +166,13 @@ struct RecipientField<Trailing: View>: View {
         }
         .onChange(of: inputFocused) { _, focused in
             onFocusChange?(focused)
-            if !focused, onSubmit == nil { finishTyped() }
+            // Leaving the field finishes the address; a pill's remove button is still the field, so
+            // this waits a turn for focus to land.
+            if !focused, onSubmit == nil {
+                Task { @MainActor in
+                    if focusedPill == nil { finishTyped() }
+                }
+            }
         }
         // A value set from outside the field is where its history starts again.
         .onChange(of: text) { _, value in
@@ -245,6 +253,8 @@ extension RecipientField where Trailing == EmptyView {
 /// One finished recipient, with its own remove control.
 private struct RecipientPill: View {
     let recipient: String
+    let index: Int
+    let focus: FocusState<Int?>.Binding
     let remove: () -> Void
 
     var body: some View {
@@ -257,6 +267,7 @@ private struct RecipientPill: View {
                 Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .focused(focus, equals: index)
             // Names the recipient, so the control is distinguishable when a screen reader reaches
             // the third otherwise-identical "Remove recipient" button.
             .accessibilityLabel("\(recipient), \(L10n.compose_remove_recipient())")

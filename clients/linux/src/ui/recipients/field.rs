@@ -46,6 +46,8 @@ pub(crate) struct RecipientField {
 }
 
 pub(super) struct Inner {
+    /// The whole field, pills and entry: what focus has to leave for the field to be left.
+    root: gtk::Box,
     pills: gtk::FlowBox,
     entry: gtk::Entry,
     popover: gtk::Popover,
@@ -120,6 +122,7 @@ impl RecipientField {
         root.append(&entry);
 
         let inner = Rc::new(Inner {
+            root: root.clone(),
             pills,
             entry,
             popover,
@@ -261,17 +264,31 @@ fn connect(inner: &Rc<Inner>) {
 
     let focus = gtk::EventControllerFocus::new();
     let weak: Weak<Inner> = Rc::downgrade(inner);
-    // Neither a suggestion nor a pill's remove button takes focus, so a click on either is not
-    // leaving the field.
     focus.connect_leave(move |_| {
         if let Some(inner) = weak.upgrade() {
             inner.popover.popdown();
-            if !inner.owner_activates.get() {
-                inner.finish_typed();
-            }
         }
     });
     inner.entry.add_controller(focus);
+
+    // Leaving the FIELD finishes the typed address (docs/contacts.md). Watched on the root, so
+    // moving between the entry and a pill's remove button is not leaving it; a suggestion takes
+    // no focus at all. Decided once focus has landed, because GTK reports the leave before it
+    // says where focus went.
+    let field_focus = gtk::EventControllerFocus::new();
+    let weak = Rc::downgrade(inner);
+    field_focus.connect_leave(move |_| {
+        let weak = weak.clone();
+        glib::idle_add_local_once(move || {
+            if let Some(inner) = weak.upgrade()
+                && !inner.owner_activates.get()
+                && inner.left_the_field()
+            {
+                inner.finish_typed();
+            }
+        });
+    });
+    inner.root.add_controller(field_focus);
 }
 
 impl Inner {
@@ -290,6 +307,17 @@ impl Inner {
         }
         self.history.borrow_mut().record(&before, value, typed);
         self.show(value);
+    }
+
+    /// Whether focus is now outside the field, in the window the user is in.
+    fn left_the_field(&self) -> bool {
+        let Some(root) = self.root.root() else {
+            return false;
+        };
+        let active = root
+            .downcast_ref::<gtk::Window>()
+            .is_some_and(gtk::prelude::GtkWindowExt::is_active);
+        focus_left(self.root.upcast_ref(), active, root.focus().as_ref())
     }
 
     /// Turns the address being typed into a pill, as a comma would; `false` when there is none.
@@ -450,6 +478,12 @@ impl Inner {
         self.offered.replace(Vec::new());
         self.popover.popdown();
     }
+}
+
+/// Whether focus at `focus` has left `field`. A window gone inactive is the user leaving the app,
+/// not the field: they come back to the address as they left it.
+fn focus_left(field: &gtk::Widget, active: bool, focus: Option<&gtk::Widget>) -> bool {
+    active && focus.is_none_or(|widget| !widget.is_ancestor(field))
 }
 
 #[path = "keys.rs"]

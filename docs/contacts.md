@@ -222,9 +222,11 @@ plainly finished as loose text. Return with an address in progress turns it into
 the caret in the field for the next one; in an empty field Return does what the platform does with
 it. Leaving the field finishes it as a comma would. Two things this binds:
 
-- **Picking a suggestion is not leaving the field.** A client whose list takes focus when it is
-  clicked finishes nothing on the way there, or `ad` becomes a pill beside the `ada@example.org`
-  the user chose.
+- **Leaving means focus landing outside the field.** Picking a suggestion is not leaving it: a
+  client whose list takes focus when it is clicked finishes nothing on the way there, or `ad`
+  becomes a pill beside the `ada@example.org` the user chose. Nor is moving to a pill's remove
+  control, by click or by Shift+Tab: finished there, the pills are rebuilt under it. Nor is another
+  app taking the focus: the user comes back to the address as they left it.
 - **Each is one step of the field's history** ([`undo.md`](undo.md), rule 9), so the chord after a
   Return or a Tab puts the address back as text.
 

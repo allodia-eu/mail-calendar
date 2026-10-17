@@ -1,5 +1,5 @@
-# Enter and leaving the field finish an address as a comma does (docs/contacts.md), and a click on a
-# pill's remove button is not leaving the field.
+# Enter and leaving the field finish an address as a comma does (docs/contacts.md), and neither a
+# pill's remove button nor the suggestion list is leaving the field.
 #
 # WHY SHOWCASE. Nothing here sends: a composer is opened, typed in and discarded, which Close-Composer
 # confirms. It needs an account to write from, which the showcase seeds.
@@ -86,6 +86,21 @@ $Suite = @{
           $null = Type-IntoTo $Address
           Send-Keys '{TAB}'
           Assert-Equal 1 (Get-Pills).Count 'leaving To must finish the typed address into a pill'
+        }
+        finally { $null = Close-Composer }
+      }
+    },
+    @{
+      Name = 'leaving the field by Shift+Tab, through a pill, finishes the typed address'
+      Body = {
+        Open-Composer
+        try {
+          $to = Type-IntoTo "$Address,carol@example.test"
+          Send-Keys '+{TAB}'
+          Assert-Equal 'carol@example.test' (Get-UiaText $to) "a pill's remove button is still the field"
+          Assert-Equal 1 (Get-Pills).Count 'focus on a pill must finish nothing'
+          Send-Keys '+{TAB}'
+          Assert-Equal 2 (Get-Pills).Count 'leaving the field from a pill must finish the typed address'
         }
         finally { $null = Close-Composer }
       }

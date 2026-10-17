@@ -343,17 +343,8 @@ pub(crate) fn enter_finishes_the_typed_address() {
     assert_eq!(to.inner.entry.text(), "bob@example.test");
 }
 
-/// Leaving the entry finishes the address being typed; a field whose owner takes Enter (the
-/// invitee list) is left alone on both.
-pub(crate) fn leaving_the_field_finishes_the_typed_address() {
-    let to = field("To");
-    let mut position = 0;
-    to.inner
-        .entry
-        .insert_text("bob@example.test", &mut position);
-    leave(&to);
-    assert_eq!(pill_labels(&to), vec!["bob@example.test"]);
-
+/// Enter in a field whose owner takes it (the invitee list) is the owner's, and finishes nothing.
+pub(crate) fn an_owners_enter_finishes_nothing() {
     let invitees = field("Invitees");
     invitees.connect_activate(|| {});
     let mut position = 0;
@@ -361,37 +352,37 @@ pub(crate) fn leaving_the_field_finishes_the_typed_address() {
         .inner
         .entry
         .insert_text("bob@example.test", &mut position);
-    leave(&invitees);
     let enter =
         invitees
             .inner
             .key_pressed(gtk::gdk::Key::Return, 0, gtk::gdk::ModifierType::empty());
-    assert_eq!(
-        enter,
-        gtk::glib::Propagation::Proceed,
-        "Enter is the owner's"
-    );
+    assert_eq!(enter, gtk::glib::Propagation::Proceed);
     assert!(pill_labels(&invitees).is_empty());
 }
 
-/// A click on a pill's remove button leaves focus in the entry: taking it would be leaving the
-/// field, which finishes what is typed and rebuilds the pills under the press.
-pub(crate) fn a_pills_remove_button_takes_no_focus() {
+/// The field is left when focus lands outside it, and only then: a pill's remove button is still
+/// the field, and a window gone inactive is the user leaving the app (docs/contacts.md).
+pub(crate) fn only_focus_outside_the_field_leaves_it() {
     let to = field("To");
     to.seed("bestuur@example.test");
-    assert!(
-        pill_removes(&to)
-            .iter()
-            .all(|remove| !remove.gets_focus_on_click())
-    );
-}
+    let root = to.inner.root.upcast_ref::<gtk::Widget>();
+    let remove = pill_removes(&to).remove(0);
+    let entry = to.inner.entry.upcast_ref::<gtk::Widget>();
+    let subject = gtk::Entry::new();
+    let subject = subject.upcast_ref::<gtk::Widget>();
 
-/// Focus leaving the entry, as its focus controller reports it.
-fn leave(field: &RecipientField) {
-    let controllers = field.inner.entry.observe_controllers();
-    let focus = (0..controllers.n_items())
+    assert!(super::focus_left(root, true, Some(subject)));
+    assert!(super::focus_left(root, true, None));
+    assert!(!super::focus_left(root, true, Some(entry)));
+    assert!(!super::focus_left(root, true, Some(remove.upcast_ref())));
+    assert!(!super::focus_left(root, false, Some(subject)));
+
+    let controllers = to.inner.root.observe_controllers();
+    let watched = (0..controllers.n_items())
         .filter_map(|index| controllers.item(index))
-        .find_map(|item| item.downcast::<gtk::EventControllerFocus>().ok())
-        .expect("the entry watches its focus");
-    focus.emit_by_name::<()>("leave", &[]);
+        .any(|item| item.is::<gtk::EventControllerFocus>());
+    assert!(
+        watched,
+        "the whole field watches its focus, not only the entry"
+    );
 }

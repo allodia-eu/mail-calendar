@@ -29,9 +29,6 @@ pub(super) fn pill(address: &str, index: usize, inner: &Rc<Inner>) -> gtk::Box {
     remove.add_css_class("flat");
     remove.add_css_class("circular");
     remove.set_valign(gtk::Align::Center);
-    // Clicked, it leaves focus in the entry: taking it would be leaving the field, which finishes
-    // the address being typed (docs/contacts.md) and rebuilds the pills under the press.
-    remove.set_focus_on_click(false);
     let spoken = format!("{address}: {}", l10n::compose_remove_recipient());
     remove.set_tooltip_text(Some(&spoken));
     remove.update_property(&[AccessibleProperty::Label(&spoken)]);

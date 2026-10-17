@@ -431,8 +431,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     recipients::undo_brings_back_a_removed_recipient();
     recipients::the_undo_chord_is_found_on_a_layout_without_latin_letters();
     recipients::enter_finishes_the_typed_address();
-    recipients::leaving_the_field_finishes_the_typed_address();
-    recipients::a_pills_remove_button_takes_no_focus();
+    recipients::an_owners_enter_finishes_nothing();
+    recipients::only_focus_outside_the_field_leaves_it();
 
     search::the_filter_and_the_horizon_are_shown_for_a_search_and_nothing_else();
     search::the_filter_names_the_folder_it_would_narrow_to();
