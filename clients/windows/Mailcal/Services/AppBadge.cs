@@ -18,15 +18,20 @@ internal static class AppBadge
     // corrects a badge a previous run left behind.
     private static uint? _shown;
 
+    // Set as the window closes: a snapshot still queued behind the close must not put back the
+    // count Clear took off, since nothing would take it off again.
+    private static bool _closed;
+
+    private static bool _warned;
+
     /// <summary>Shows <paramref name="unread"/>, or no badge at zero. Asks the shell only when
     /// the number moved.</summary>
     public static void Show(uint unread)
     {
-        if (_shown == unread)
+        if (_closed || _shown == unread)
         {
             return;
         }
-        _shown = unread;
         try
         {
             if (unread == 0)
@@ -37,13 +42,24 @@ internal static class AppBadge
             {
                 BadgeNotificationManager.Current.SetBadgeAsCount(unread);
             }
+            // Only once it went, so a write that failed is tried again by the next snapshot.
+            _shown = unread;
         }
         catch (Exception ex)
         {
-            Log.Warn($"app badge: could not update ({ex.GetType().Name}: 0x{ex.HResult:X8})");
+            // Once per process: where the registration failed, every snapshot fails the same way.
+            if (!_warned)
+            {
+                _warned = true;
+                Log.Warn($"app badge: could not update ({ex.GetType().Name}: 0x{ex.HResult:X8})");
+            }
         }
     }
 
     /// <summary>Takes the badge off as the app closes.</summary>
-    public static void Clear() => Show(0);
+    public static void Clear()
+    {
+        Show(0);
+        _closed = true;
+    }
 }

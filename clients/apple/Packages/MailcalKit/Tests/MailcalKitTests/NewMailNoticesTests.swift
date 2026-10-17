@@ -235,6 +235,7 @@ import UserNotifications
         try #require(notices.count == 2)
         #expect(notices[0].identifier != notices[1].identifier)
     }
+
     @Test func noNotificationSetsTheIconBadge() {
         // The icon carries the unified Inbox unread (`AppBadge`). A notification's badge would
         // overwrite it with the number one pass found.
