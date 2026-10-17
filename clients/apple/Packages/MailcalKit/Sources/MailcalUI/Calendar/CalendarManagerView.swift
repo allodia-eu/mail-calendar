@@ -158,7 +158,7 @@ struct CalendarAgendaList: View {
                     }
                 }
                 Spacer()
-                Text(localDateTime(event.start, in: model.activeZone))
+                Text(localDateTime(event.start, in: model.activeZone, use24Hour: model.use24Hour))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

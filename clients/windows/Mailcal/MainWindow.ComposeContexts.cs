@@ -79,7 +79,7 @@ public sealed partial class MainWindow
         var words = opening.Quote is { } quote
             ? ComposerQuote.Words(
                 quote,
-                TimeZones.LocalDateTime(quote.Date, Model.ActiveZone),
+                TimeZones.LocalDateTime(quote.Date, Model.ActiveZone, Model.Use24Hour),
                 opening.Kind == ComposeKind.Forward)
             : null;
         return new ComposeContext(

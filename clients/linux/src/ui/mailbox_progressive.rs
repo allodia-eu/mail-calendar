@@ -11,6 +11,7 @@ use super::{
     mailbox_display::{DisplayRow, display_row},
     mailbox_reconcile::{Row, reconcile},
     message_move::{MoveContext, SharedMoveContext},
+    timestamps::MailClock,
 };
 
 /// Enough rows to fill the default-height list pane, including a small scroll margin.
@@ -37,7 +38,7 @@ impl ProgressiveRenderer {
         snapshot: &MailboxListSnapshot,
         expanded: &HashSet<ThreadKey>,
         in_junk_folder: bool,
-        zone: &str,
+        clock: &MailClock,
         sender: &relm4::Sender<AppInput>,
     ) {
         if let Some(source) = self.pending.borrow_mut().take() {
@@ -50,7 +51,7 @@ impl ProgressiveRenderer {
         let next: Vec<DisplayRow> = snapshot
             .rows
             .iter()
-            .map(|row| display_row(row, zone))
+            .map(|row| display_row(row, clock))
             .collect();
         let wholesale = {
             let previous = self.rendered.borrow();
@@ -63,7 +64,7 @@ impl ProgressiveRenderer {
             &next[..initial.min(next.len())],
             expanded,
             &menus,
-            zone,
+            clock,
             sender,
         );
         if initial >= next.len() {
@@ -76,7 +77,7 @@ impl ProgressiveRenderer {
         let rows = snapshot.rows.clone();
         let next = Rc::new(next);
         let expanded = expanded.clone();
-        let zone = zone.to_owned();
+        let clock = clock.clone();
         let sender = sender.clone();
         let source = gtk::glib::idle_add_local(move || {
             let Some(list) = list.upgrade() else {
@@ -87,7 +88,7 @@ impl ProgressiveRenderer {
             {
                 let previous = rendered.borrow();
                 reconcile(&list, &previous, &next[..end], |index| {
-                    build_row(&rows[index], &expanded, &menus, &zone, &sender)
+                    build_row(&rows[index], &expanded, &menus, &clock, &sender)
                 });
             }
             rendered.replace(next[..end].to_vec());
@@ -109,13 +110,13 @@ impl ProgressiveRenderer {
         next: &[DisplayRow],
         expanded: &HashSet<ThreadKey>,
         menus: &RowMenus,
-        zone: &str,
+        clock: &MailClock,
         sender: &relm4::Sender<AppInput>,
     ) {
         {
             let previous = self.rendered.borrow();
             reconcile(list, &previous, next, |index| {
-                build_row(&rows[index], expanded, menus, zone, sender)
+                build_row(&rows[index], expanded, menus, clock, sender)
             });
         }
         self.rendered.replace(next.to_vec());
