@@ -271,6 +271,7 @@ impl MailcalApp {
         callback_url: String,
     ) -> Result<String, MailcalError> {
         self.exchange_jmap_login(pending, callback_url)?
+            .0
             .to_toml()
             .map_err(|err| MailcalError::Config(err.to_string()))
     }
@@ -280,17 +281,18 @@ impl MailcalApp {
     /// The exchange half of a completed JMAP sign-in, shared by [`Self::complete_jmap_login`]
     /// (which hands the config back as TOML for the host to add) and the re-authentication path
     /// (which swaps it into a live account itself). Validates the redirect, exchanges the code,
-    /// and assembles the account config the grant belongs to.
+    /// and assembles the account config the grant belongs to, beside the account the server named
+    /// in its token response, when it named one.
     ///
     /// # Errors
     ///
     /// Returns [`MailcalError::Config`] if `pending` is malformed, or [`MailcalError::Connect`]
     /// if the user cancelled, the exchange failed, or the server issued no refresh token.
-    fn exchange_jmap_login(
+    pub(crate) fn exchange_jmap_login(
         &self,
         pending: String,
         callback_url: String,
-    ) -> Result<JmapAccountConfig, MailcalError> {
+    ) -> Result<(JmapAccountConfig, Option<String>), MailcalError> {
         let pending: PendingJmapLogin =
             serde_json::from_str(&pending).map_err(|err| MailcalError::Config(err.to_string()))?;
         let grant_shell = OAuthGrant {
@@ -349,14 +351,15 @@ impl MailcalApp {
             tokens.scope,
         );
         let (email, base_url, grant) = pending.into_grant(refresh_token.expose().to_owned());
-        Ok(JmapAccountConfig {
+        let config = JmapAccountConfig {
             email,
             base_url,
             password: None,
             token: None,
             oauth: Some(grant),
             shape: mailcal_account::AccountShape::default(),
-        })
+        };
+        Ok((config, tokens.username))
     }
 }
 

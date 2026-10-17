@@ -23,6 +23,7 @@ mod about;
 mod account_capability;
 mod account_registry;
 mod account_repair;
+mod account_sign_in;
 mod accounts_view;
 mod agent_ui;
 mod allodia;
@@ -134,6 +135,7 @@ mod token_sink;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
 pub use account_capability::AccountCapability;
+pub use account_sign_in::{AccountSignInOptions, AccountSignInStart};
 pub use agent_ui::{AgentDraft, AgentHostUi};
 pub use allodia::{
     AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available, is_allodia_account_config,
@@ -208,7 +210,8 @@ pub use records::{
 };
 pub use records_accounts::{
     AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot,
-    CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount, UseProblem,
+    CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount, SignInMethod,
+    UseProblem,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{

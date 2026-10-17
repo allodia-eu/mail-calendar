@@ -23,6 +23,7 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
         id: "alice@example.org@imap.example.org".to_owned(),
         address: "alice@example.org".to_owned(),
         kind,
+        sign_in: mailcal_bindings::SignInMethod::Password,
         uses: uses
             .iter()
             .map(|(capability, state)| AccountUse {

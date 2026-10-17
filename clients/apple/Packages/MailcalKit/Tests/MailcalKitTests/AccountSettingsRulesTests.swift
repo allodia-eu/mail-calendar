@@ -17,6 +17,7 @@ private func entry(
         id: "alice@example.org@imap.example.org",
         address: "alice@example.org",
         kind: kind,
+        signIn: .password,
         uses: uses.map { AccountUse(capability: $0.0, state: $0.1) },
         links: AccountLinksView(calendar: nil, contacts: nil, mail: nil),
         linkedFrom: [],

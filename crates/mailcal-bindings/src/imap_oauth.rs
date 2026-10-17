@@ -27,12 +27,13 @@ use mailcal_account::{
 };
 use mailcal_oauth::OAuthClient;
 use serde::{Deserialize, Serialize};
-use time::OffsetDateTime;
 
 use crate::{ConnectionSecurity, MailcalApp, MailcalError};
 
+mod again;
 mod discovery;
 
+pub(crate) use again::sign_in_again;
 use discovery::discover_registration;
 
 /// The client name shown on the provider's consent screen. The product name, per the brand
@@ -345,51 +346,8 @@ impl MailcalApp {
         pending: String,
         callback_url: String,
     ) -> Result<String, MailcalError> {
-        let pending: PendingImapLogin =
-            serde_json::from_str(&pending).map_err(|err| MailcalError::Config(err.to_string()))?;
-        let grant_shell = grant_shell(&pending);
-        let oauth = OAuthClient::new(grant_shell.provider_config())
-            .map_err(|err| MailcalError::Config(err.to_string()))?;
-        log::info!(
-            "imap oauth: redirect received; exchanging the code at {}",
-            pending.token_endpoint,
-        );
-        let tokens = self
-            .runtime
-            .block_on(|| {
-                oauth.complete(
-                    &callback_url,
-                    &pending.state,
-                    &pending.verifier,
-                    OffsetDateTime::now_utc(),
-                )
-            })
-            .map_err(|err| {
-                // The server's own machine-readable reason, which is the single most useful
-                // line in the whole flow for support: `invalid_grant` means the code was
-                // stale or replayed, and a callback rejection names which check failed.
-                log::warn!("imap oauth: token exchange FAILED; {err}");
-                MailcalError::Connect(err.to_string())
-            })?;
-        // `offline_access` is always requested, so a refresh token is mandatory: without one
-        // the account stops syncing about an hour after setup, which is far worse to diagnose
-        // than failing here.
-        let refresh_token = tokens.refresh_token.ok_or_else(|| {
-            log::warn!(
-                "imap oauth: exchange succeeded but the server issued NO refresh token; granted scope(s): [{}]",
-                tokens.scope,
-            );
-            MailcalError::Connect(
-                "the server issued no refresh token (offline_access was requested)".to_owned(),
-            )
-        })?;
-        log::info!(
-            "imap oauth: sign-in complete; access token valid until {}, granted scope(s): [{}]",
-            tokens.expires_at,
-            tokens.scope,
-        );
-        let (setup, _grant) = pending.into_grant(refresh_token.expose().to_owned());
-        mailcal_account::build_config_toml(&setup)
+        let signed_in = self.exchange_imap_login(pending, callback_url)?;
+        mailcal_account::build_config_toml(&signed_in.setup)
             .map_err(|err| MailcalError::Config(err.to_string()))
     }
 }

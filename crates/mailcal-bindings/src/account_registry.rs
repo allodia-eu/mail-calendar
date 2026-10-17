@@ -60,9 +60,11 @@ mod dial_run;
 mod endpoints;
 mod links;
 mod set_up;
+mod sign_in;
 mod uses;
 
 pub(crate) use dial::{AccountDial, ConnectFailure, MAX_CONCURRENT_DIALS, dial_all};
+pub(crate) use sign_in::SignInConfig;
 pub(crate) use uses::UseChange;
 
 /// Every connected account's re-connection state, keyed by account id, and the gate that makes

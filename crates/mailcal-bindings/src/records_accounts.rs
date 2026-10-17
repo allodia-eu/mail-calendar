@@ -21,6 +21,9 @@ pub struct AccountEntry {
     pub address: String,
     /// Which sign-in the account is, for its label.
     pub kind: AccountKind,
+    /// How it signs in: what its page says, and which switch it may offer
+    /// ([`MailcalApp::account_sign_in_options`](crate::MailcalApp::account_sign_in_options)).
+    pub sign_in: SignInMethod,
     /// Each use the kind can offer, in a fixed order, with its state.
     pub uses: Vec<AccountUse>,
     /// The accounts this one relies on for what it is not used for itself.
@@ -33,6 +36,15 @@ pub struct AccountEntry {
     /// Its servers and login, for an account Settings can edit them on: one that signs in with a
     /// password to servers of its own. `None` for one that signs in through its provider.
     pub endpoints: Option<AccountEndpoints>,
+}
+
+/// How an account signs in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum SignInMethod {
+    /// With a password, an app password or an API token, stored with the account.
+    Password,
+    /// Through its provider, in the browser: the account stores a grant and no password.
+    Provider,
 }
 
 /// Which sign-in an account is.

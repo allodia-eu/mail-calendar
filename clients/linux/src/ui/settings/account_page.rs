@@ -355,6 +355,7 @@ mod tests {
             id: "alice@dav:cloud.example".to_owned(),
             address: "alice@cloud.example".to_owned(),
             kind: AccountKind::Dav,
+            sign_in: mailcal_bindings::SignInMethod::Password,
             uses: Vec::new(),
             links: mailcal_bindings::AccountLinksView::default(),
             linked_from: Vec::new(),

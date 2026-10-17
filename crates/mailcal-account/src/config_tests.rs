@@ -310,6 +310,25 @@ fn granting_an_account_clears_the_password_it_used_to_have() {
 }
 
 #[test]
+fn switching_a_signed_in_account_to_a_password_drops_the_grant() {
+    let config: AccountConfig = toml::from_str(OAUTH_SAMPLE).expect("valid config");
+    let updated = config.with_password_instead_of_grant("typed-by-hand");
+    assert!(!updated.is_oauth());
+    assert_eq!(
+        updated
+            .imap
+            .as_ref()
+            .unwrap()
+            .password
+            .as_ref()
+            .map(Secret::expose),
+        Some("typed-by-hand")
+    );
+    let stored = updated.to_toml().expect("serializable");
+    assert!(!stored.contains("oauth"), "{stored}");
+}
+
+#[test]
 fn a_password_account_keeps_the_shape_it_had_before_oauth_existed() {
     // The migration guarantee: every account already on disk has no `[oauth]` and no `oauth`
     // key is written for it, so its stored TOML is byte-for-byte what it was.

@@ -100,6 +100,16 @@ impl ConnectedAccount {
         }
     }
 
+    /// How the account signs in.
+    pub(crate) fn sign_in_method(&self) -> crate::SignInMethod {
+        match self {
+            Self::Imap { config, .. } if config.is_oauth() => crate::SignInMethod::Provider,
+            Self::Jmap { config, .. } if config.is_oauth() => crate::SignInMethod::Provider,
+            Self::Imap { .. } | Self::Jmap { .. } => crate::SignInMethod::Password,
+            Self::Microsoft { .. } | Self::Google { .. } => crate::SignInMethod::Provider,
+        }
+    }
+
     /// Whether the account's config holds a typed password and no grant: the one kind whose
     /// stored bytes are exactly what the host passed in, since nothing in it can rotate.
     pub(crate) fn stores_a_password(&self) -> bool {
@@ -214,6 +224,7 @@ impl ConnectedAccount {
             id: id.to_owned(),
             address: self.identity().email,
             kind,
+            sign_in: self.sign_in_method(),
             offered: self.offered(),
             chosen,
             withheld,

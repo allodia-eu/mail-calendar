@@ -13,6 +13,7 @@ fn snapshot(addresses: &[&str]) -> AccountsSnapshot {
                 id: format!("{address}@dav"),
                 address: (*address).to_owned(),
                 kind: AccountKind::Dav,
+                sign_in: mailcal_bindings::SignInMethod::Password,
                 uses: Vec::new(),
                 links: mailcal_bindings::AccountLinksView::default(),
                 linked_from: Vec::new(),

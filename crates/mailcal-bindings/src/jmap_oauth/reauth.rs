@@ -99,7 +99,7 @@ impl MailcalApp {
         // Prove the account is still a known OAuth JMAP one before spending a code on it: the
         // user may have removed it while the browser was up.
         let stored = self.stored_jmap_config(&account_id)?;
-        let fresh = self
+        let (fresh, named) = self
             .exchange_jmap_login(pending, callback_url)
             .inspect_err(|err| {
                 // Support asks "I tapped Sign in again and nothing happened"; say what the server
@@ -110,6 +110,7 @@ impl MailcalApp {
                      is unchanged and the reconnect prompt stays up"
                 );
             })?;
+        crate::account_sign_in::named_as(named.as_deref(), &stored.email)?;
         let config = reconnected(&stored, fresh)?;
         let config_toml = config
             .to_toml()
