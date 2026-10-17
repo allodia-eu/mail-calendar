@@ -36,9 +36,11 @@ the first ten characters, dropping the time.
 would read as *this* Monday. The relative window is deliberately the previous **six** days only.
 
 **The time of day follows the 12/24-hour clock setting** ([`settings.md`](settings.md) → General)
-in all three shapes, and is drawn exactly as that platform's calendar draws a time: `14:05` or
-`2:05 PM`, never one in the list and the other on the grid. The quoted original inherits it, so a
-reply carries the sender's own clock into the recipient's mailbox.
+in all three shapes, a floating time included, and is drawn as that platform's calendar draws a
+time: `14:05` or `2:05 PM`, never one in the list and the other on the grid. Mail always writes the
+minutes (`2:00 PM`), where the Linux grid shortens a whole hour to `2 PM`, so a quoted time reads
+the same whichever client wrote it. The quoted original inherits it, so a reply carries the
+sender's own clock into the recipient's mailbox.
 
 ## The names come from the app's language, not the host's
 

@@ -24,6 +24,9 @@ import Testing
             localDateTime(raw, in: "UTC", use24Hour: false)
                 .hasSuffix(clockTime(14 * 60 + 5, use24Hour: false))
         )
+        // A floating time, an agenda event's, is on the same clock.
+        #expect(localDateTime("2026-07-20T14:05:00", in: "UTC", use24Hour: false) == "2026-07-20 2:05 PM")
+        #expect(localDateTime("2026-07-20T14:05:00", in: "UTC", use24Hour: true) == "2026-07-20 14:05")
     }
 
     @Test func thePreviousSixDaysAreTheShortWeekday() {

@@ -59,9 +59,12 @@ private func clockPattern(use24Hour: Bool) -> String {
     if raw.hasSuffix("Z"), let date = isoParser.date(from: raw) {
         return displayFormatter(for: zone, use24Hour: use24Hour).string(from: date)
     }
-    // A naive wall-clock "YYYY-MM-DDTHH:MM:SS" → "YYYY-MM-DD HH:MM"; else a date.
-    if raw.count >= 16, raw.contains("T") {
-        return String(raw.prefix(16)).replacingOccurrences(of: "T", with: " ")
+    // A naive wall-clock "YYYY-MM-DDTHH:MM:SS" → its date and clock as it stands; else a date.
+    if raw.count >= 16, raw.contains("T"),
+        let hour = Int(raw.dropFirst(11).prefix(2)),
+        let minute = Int(raw.dropFirst(14).prefix(2))
+    {
+        return "\(raw.prefix(10)) \(clockTime(hour * 60 + minute, use24Hour: use24Hour))"
     }
     return String(raw.prefix(10))
 }

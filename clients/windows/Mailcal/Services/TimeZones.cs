@@ -8,6 +8,7 @@
 // region-aware and consistent across platforms, see MailboxModel.
 
 using System.Globalization;
+using Allodia.Mailcal.Calendar;
 
 namespace Allodia.Mailcal.Services;
 
@@ -38,17 +39,20 @@ internal static class TimeZones
                 var tz = TimeZoneInfo.FindSystemTimeZoneById(zone);
                 var local = TimeZoneInfo.ConvertTime(utc, tz);
                 return local.ToString("yyyy-MM-dd ", CultureInfo.InvariantCulture)
-                    + local.ToString(ClockPattern(use24Hour), culture);
+                    + CalendarFormat.ClockTime((local.Hour * 60) + local.Minute, use24Hour, culture);
             }
             catch (TimeZoneNotFoundException)
             {
                 // Fall through to the naive rendering below.
             }
         }
-        // A naive wall-clock "YYYY-MM-DDTHH:MM:SS" -> "YYYY-MM-DD HH:MM"; else a bare date.
-        if (raw.Length >= 16 && raw.Contains('T'))
+        // A naive wall-clock "YYYY-MM-DDTHH:MM:SS" -> its date and clock as it stands; else a bare
+        // date.
+        if (raw.Length >= 16 && raw.Contains('T')
+            && int.TryParse(raw.AsSpan(11, 2), NumberStyles.None, CultureInfo.InvariantCulture, out var hour)
+            && int.TryParse(raw.AsSpan(14, 2), NumberStyles.None, CultureInfo.InvariantCulture, out var minute))
         {
-            return raw[..16].Replace('T', ' ');
+            return raw[..10] + " " + CalendarFormat.ClockTime((hour * 60) + minute, use24Hour, culture);
         }
         return raw.Length >= 10 ? raw[..10] : raw;
     }
@@ -113,6 +117,7 @@ internal static class TimeZones
         _ => sameYear ? "d MMM" : "d MMM yyyy",
     };
 
-    // The pattern CalendarFormat.ClockTime draws a time with, so mail and the calendar agree.
+    // The today label's clock, as CalendarFormat.ClockTime draws it; RelativeDateTests holds the two
+    // together.
     private static string ClockPattern(bool use24Hour) => use24Hour ? "HH:mm" : "h:mm tt";
 }
