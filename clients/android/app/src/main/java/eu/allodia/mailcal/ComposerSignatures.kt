@@ -3,11 +3,9 @@
 // pin them without composing a screen, the same reason `signatureSlot` is a free function on Apple.
 package eu.allodia.mailcal
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
@@ -83,11 +81,11 @@ internal fun signatureSeedJson(body: SignatureBody?): String? = body?.let {
         .toString()
 }
 
-// The signature control: one app-bar button that opens the library plus "None". The current choice
-// is a checkmark inside the menu rather than a label on the button, so the bar stays a row of icons
-// a button labelled with whichever signature is selected would say nothing about what it does.
+// The signature menu: the library plus "None", opened from the Signature item in the composer's
+// overflow menu. The current choice is a checkmark beside it, the one place it can be read without
+// the control changing its name to whichever signature is selected.
 @Composable
-internal fun ComposerSignatureAction(
+internal fun ComposerSignatureMenu(
     library: List<SignatureRow>,
     selected: String?,
     expanded: Boolean,
@@ -95,23 +93,15 @@ internal fun ComposerSignatureAction(
     onSelect: (String?) -> Unit,
 ) {
     val ctx = LocalContext.current
-    Box {
-        IconButton(onClick = { onExpand(true) }) {
-            Icon(
-                painter = painterResource(R.drawable.ic_signature),
-                contentDescription = L10n.compose_signature_label(ctx),
-            )
+    DropdownMenu(expanded = expanded, onDismissRequest = { onExpand(false) }) {
+        SignatureMenuItem(L10n.settings_signatures_none(ctx), selected == null) {
+            onExpand(false)
+            onSelect(null)
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { onExpand(false) }) {
-            SignatureMenuItem(L10n.settings_signatures_none(ctx), selected == null) {
+        library.forEach { signature ->
+            SignatureMenuItem(signature.name, selected == signature.id) {
                 onExpand(false)
-                onSelect(null)
-            }
-            library.forEach { signature ->
-                SignatureMenuItem(signature.name, selected == signature.id) {
-                    onExpand(false)
-                    onSelect(signature.id)
-                }
+                onSelect(signature.id)
             }
         }
     }

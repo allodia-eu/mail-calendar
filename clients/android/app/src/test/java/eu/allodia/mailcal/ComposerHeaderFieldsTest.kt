@@ -43,6 +43,9 @@ private val PHONE_WIDTH = 360.dp
 // assertions allow, well below the tens of dp the overflow bug produced.
 private val SEAM = 2.dp
 
+// The side margin every header row keeps, matching the editor's 16px below it.
+private val GUTTER = 16.dp
+
 @RunWith(RobolectricTestRunner::class)
 class ComposerHeaderFieldsTest {
     @get:Rule val compose = createComposeRule()
@@ -116,7 +119,8 @@ class ComposerHeaderFieldsTest {
         header(style = QuoteStyleKind.INDENTED)
 
         val root = compose.onRoot().getUnclippedBoundsInRoot()
-        val rowRight = root.right
+        // The header runs edge to edge and each row keeps its own gutter, as the picker does.
+        val rowRight = root.right - GUTTER
         val indented = compose.onNodeWithText("Indented").assertIsDisplayed()
             .getUnclippedBoundsInRoot()
         val lineHeader = compose.onNodeWithText("Line + header").assertIsDisplayed()

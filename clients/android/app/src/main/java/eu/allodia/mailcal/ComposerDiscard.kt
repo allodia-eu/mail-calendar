@@ -5,8 +5,8 @@
 // both mean leaving: what was written is saved to Drafts and the composer closes, with no
 // question. An edge swipe is easy to make by accident, and autosave has already put the words on
 // the server, so a prompt there would offer nothing but a way to lose them. Discard, beside Save
-// as draft in the app bar, is the one way to throw a draft away, and it asks first whenever there
-// is something to lose.
+// as draft in the app bar's overflow menu, is the one way to throw a draft away, and it asks first
+// whenever there is something to lose.
 //
 // "Written" is the desktops' rule, deliberately: header fields are compared against what the
 // composer OPENED with, and the body against the seed captured once the quote and signature were

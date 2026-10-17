@@ -7,20 +7,27 @@
 // (Settings → Composing). Kept in its own file so RichComposeScreen.kt stays small.
 package eu.allodia.mailcal
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountRow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,24 +54,34 @@ internal fun FromAccountField(
         onExpandedChange = { if (pickable) expanded = it },
         modifier = Modifier.fillMaxWidth(),
     ) {
-        OutlinedTextField(
-            value = selected?.let(accountLabel) ?: "",
-            onValueChange = {},
-            readOnly = true,
-            singleLine = true,
-            label = { Text(L10n.compose_from(ctx)) },
-            trailingIcon = {
-                if (pickable) {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                }
-            },
+        // One header row, read as one thing: "From", the sender, and whether it opens a menu.
+        ComposerHeaderRow(
+            label = L10n.compose_from(ctx),
             modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(
-                    androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                    pickable,
-                ),
-        )
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, pickable)
+                .semantics(mergeDescendants = true) {},
+            trailing = if (pickable) {
+                {
+                    Box(modifier = Modifier.padding(end = 12.dp)) {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                    }
+                }
+            } else {
+                null
+            },
+        ) {
+            Box(
+                modifier = Modifier.weight(1f).heightIn(min = HEADER_ROW_HEIGHT),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text(
+                    text = selected?.let(accountLabel) ?: "",
+                    style = headerTextStyle(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         ExposedDropdownMenu(expanded = expanded && pickable, onDismissRequest = { expanded = false }) {
             accounts.forEach { account ->
                 DropdownMenuItem(

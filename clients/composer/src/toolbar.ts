@@ -131,6 +131,13 @@ export function installToolbar(
     const button = popover.button.getBoundingClientRect();
     const panel = popover.panel.getBoundingClientRect();
     popover.panel.hidden = wasHidden;
+    // Native chrome pins the panel to the viewport (popovers.css): under its button where it fits,
+    // otherwise moved in until it does.
+    if (windowOf(editor).getComputedStyle(popover.panel).position === "fixed") {
+      const furthest = Math.max(VIEWPORT_MARGIN, width - panel.width - VIEWPORT_MARGIN);
+      popover.panel.style.left = `${Math.min(Math.max(VIEWPORT_MARGIN, button.left), furthest)}px`;
+      return;
+    }
     if (width <= 0 || panel.width <= 0 || button.left + panel.width <= width) return;
     if (button.left + button.width - panel.width >= 0) {
       popover.panel.classList.add("align-end");

@@ -272,4 +272,22 @@ describe("a popover stays inside the editor's viewport", () => {
     click("link");
     expect(panel.style.left).toBe("");
   });
+
+  // Native chrome (Android) pins every panel to the viewport above a toolbar that scrolls sideways
+  // (popovers.css), so its left edge is a viewport position rather than an offset from the button.
+  test("in native chrome a panel opens under its button, in viewport coordinates", () => {
+    const panel = placeAt(120, 180, 400);
+    panel.style.position = "fixed";
+    click("table");
+    expect(panel.classList.contains("align-end")).toBe(false);
+    expect(panel.style.left).toBe("120px");
+  });
+
+  test("in native chrome a panel near the right edge is moved in until it fits", () => {
+    const panel = placeAt(360, 180, 400);
+    panel.style.position = "fixed";
+    click("table");
+    // 400 - 180 - 8.
+    expect(panel.style.left).toBe("212px");
+  });
 });

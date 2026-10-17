@@ -456,8 +456,10 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   still clip.
 
 - **The single-scroll editor chrome is Android-only.** `useNativeComposerChrome`
-  switches the bundle to page-scroll with the toolbar pinned to the bottom and the address header
-  scrolling away, designed for a phone, where the keyboard takes half the screen. A resizable
+  switches the bundle to page-scroll with the address header scrolling away (a drag on the header
+  scrolls the page too) and the toolbar pinned to the bottom as one row that scrolls sideways,
+  drawn only while the message has focus. It is designed for a phone, where the keyboard takes half
+  the screen. A resizable
   desktop window has room to keep the header pinned, so macOS, Windows and Linux deliberately keep
   the flex/inner-scroll layout. Revisit only if a desktop composer starts feeling cramped; porting
   it is host work (a header overlay synced to the WebView scroll), not a bundle change.

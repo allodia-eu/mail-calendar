@@ -34,7 +34,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -137,7 +136,6 @@ internal fun RichComposeMessageDialog(
     var style by remember { mutableStateOf(request.quoteStyle) }
     // The user's explicit signature choice for this message, or null to follow the From account.
     var signatureChoice by remember { mutableStateOf<SignatureChoice?>(null) }
-    var signatureMenuOpen by remember { mutableStateOf(false) }
     // The editor document as it stood once the quote and signature were seeded, the baseline the
     // written-work check compares against, so a reply that merely carries its quoted original does
     // not open already written in. Null until the editor answers, which reads as "nothing to lose".
@@ -283,15 +281,15 @@ internal fun RichComposeMessageDialog(
                         title = title,
                         onClose = exits::leave,
                         onAttach = { pickAttachments.launch(arrayOf("*/*")) },
-                        signaturePicker = signing
+                        signatureMenu = signing
                             ?.takeIf { it.library.isNotEmpty() }
                             ?.let { library ->
-                                {
-                                    ComposerSignatureAction(
+                                { expanded, onExpand ->
+                                    ComposerSignatureMenu(
                                         library = library.library,
                                         selected = signature?.id,
-                                        expanded = signatureMenuOpen,
-                                        onExpand = { signatureMenuOpen = it },
+                                        expanded = expanded,
+                                        onExpand = onExpand,
                                         onSelect = { id ->
                                             signatureChoice = id?.let(SignatureChoice::Named)
                                                 ?: SignatureChoice.NoSignature
@@ -380,53 +378,55 @@ internal fun RichComposeMessageDialog(
                         onReady = { webView = it },
                     )
                     // The address-field header, overlaid on the WebView and offset by the scroll so
-                    // it scrolls up and off as the message grows. Opaque, so the empty editor area
-                    // it covers doesn't show through between the fields.
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onSizeChanged { headerHeightPx = it.height }
-                            .graphicsLayer { translationY = -scrollY.toFloat() }
-                            .background(MaterialTheme.colorScheme.surface)
-                            .padding(horizontal = 16.dp)
-                            .padding(top = 8.dp),
-                    ) {
-                        ComposerHeaderFields(
-                            accounts = accounts,
-                            from = from,
-                            onFrom = { from = it },
-                            // `Name <address>`, or the address alone: the core owns the empty
-                            // case, so no client decides it (docs/sending.md rule 7).
-                            fromLabel = { senderLabel(it.name, it.email) },
-                            to = to,
-                            onTo = { to = it },
-                            cc = cc,
-                            onCc = { cc = it },
-                            bcc = bcc,
-                            onBcc = { bcc = it },
-                            subject = subject,
-                            onSubject = { subject = it },
-                            showCcBcc = showCcBcc,
-                            onToggleCcBcc = { showCcBcc = !showCcBcc },
-                            style = style.takeIf { request.showsStylePicker },
-                            onStyle = { picked ->
-                                style = picked
-                                webView?.evaluateJavascript(
-                                    "window.setComposerQuoteStyle(${JSONObject.quote(ComposerQuote.token(picked))})",
-                                    null,
+                    // it scrolls up and off as the message grows; a drag on it scrolls the message
+                    // too (ComposerHeaderScroll.kt). Opaque, so the empty editor area it covers
+                    // doesn't show through between the fields.
+                    ComposerHeaderFrame(scrollY = { scrollY }, webView = { webView }) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onSizeChanged { headerHeightPx = it.height }
+                                .background(MaterialTheme.colorScheme.surface),
+                        ) {
+                            ComposerHeaderFields(
+                                accounts = accounts,
+                                from = from,
+                                onFrom = { from = it },
+                                // `Name <address>`, or the address alone: the core owns the empty
+                                // case, so no client decides it (docs/sending.md rule 7).
+                                fromLabel = { senderLabel(it.name, it.email) },
+                                to = to,
+                                onTo = { to = it },
+                                cc = cc,
+                                onCc = { cc = it },
+                                bcc = bcc,
+                                onBcc = { bcc = it },
+                                subject = subject,
+                                onSubject = { subject = it },
+                                showCcBcc = showCcBcc,
+                                onToggleCcBcc = { showCcBcc = !showCcBcc },
+                                style = style.takeIf { request.showsStylePicker },
+                                onStyle = { picked ->
+                                    style = picked
+                                    webView?.evaluateJavascript(
+                                        "window.setComposerQuoteStyle(${JSONObject.quote(ComposerQuote.token(picked))})",
+                                        null,
+                                    )
+                                },
+                                suggestionsFor = suggestionsFor,
+                                focusesTo = !request.opensInBody,
+                            )
+                            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                ComposerAttachmentList(
+                                    attachments = attachments,
+                                    onRemove = { attachment ->
+                                        attachments = attachments.filterNot { it.id == attachment.id }
+                                        File(attachment.path).delete()
+                                    },
                                 )
-                            },
-                            suggestionsFor = suggestionsFor,
-                            focusesTo = !request.opensInBody,
-                        )
-                        ComposerAttachmentList(
-                            attachments = attachments,
-                            onRemove = { attachment ->
-                                attachments = attachments.filterNot { it.id == attachment.id }
-                                File(attachment.path).delete()
-                            },
-                        )
-                        ComposerNotices(error = composerError, draftStatus = draftStatus)
+                                ComposerNotices(error = composerError, draftStatus = draftStatus)
+                            }
+                        }
                     }
                     // The dropped-picture question. Drawn inside the composer's own Dialog so its
                     // window is created after this one and stacks above it, and so back reaches the

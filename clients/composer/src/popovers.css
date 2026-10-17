@@ -22,11 +22,17 @@
   display: none;
 }
 
-/* In native-chrome mode the toolbar is pinned to the bottom of the viewport, so a popover
-   below it would open off-screen behind the keyboard. */
+/* In native-chrome mode the toolbar is pinned to the bottom of the viewport and scrolls sideways,
+   so a popover hung from its button would open behind the keyboard and be clipped by the row. It
+   is pinned to the viewport instead, just above the toolbar; `alignPopover` sets its left edge. */
+body.native-chrome .menu {
+  position: static;
+}
+
 body.native-chrome .popover {
+  position: fixed;
   top: auto;
-  bottom: calc(100% + 4px);
+  bottom: calc(var(--composer-bottom-inset, 56px) + 4px);
 }
 
 /* Keep a popover inside the viewport when its button sits near the right edge. */

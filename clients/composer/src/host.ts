@@ -1,7 +1,8 @@
 // Native-chrome mode: the single-scroll layout Android hosts the editor in.
 //
 // The native surface owns one scroll; the compose header sits in a native overlay above this
-// WebView and scrolls away as the message grows, and the toolbar pins just above the keyboard. So
+// WebView and scrolls away as the message grows, and the toolbar pins just above the keyboard, one
+// row that scrolls sideways, while the message is being written. So
 // the *page* scrolls (not an inner editor box), the toolbar is fixed to the viewport bottom, and the
 // editor reserves room for the native header (top) and the fixed toolbar (bottom) via insets the
 // host sets. A host that never calls `useNativeComposerChrome` keeps the desktop flex layout.
@@ -46,13 +47,33 @@ export function installNativeChrome(editor: HTMLElement, toolbar: HTMLElement): 
     );
   };
 
+  // The toolbar formats the message, so it is drawn while the message is being written and gone
+  // while an address field in the native header has the keyboard, where it would only take room
+  // from the field being typed in. "Being written" is the message or the toolbar holding focus in a
+  // page that has it: the native header taking focus blurs the page and leaves `activeElement` on
+  // the editor, so `hasFocus` is what tells the two apart. A toolbar control holding focus counts
+  // whatever the page says, because a `select`'s picker is a native dialog that blurs the page while
+  // it is open, and hiding the control under it would lose the choice.
+  const syncWriting = () => {
+    const active = doc.activeElement;
+    const writing = (doc.hasFocus() && editor.contains(active)) || toolbar.contains(active);
+    doc.body.classList.toggle("composer-writing", writing);
+  };
+
   return {
     useNativeComposerChrome() {
       doc.documentElement.classList.add("native-chrome");
       doc.body.classList.add("native-chrome");
+      syncWriting();
+      doc.addEventListener("focusin", syncWriting);
+      // After the move, so `activeElement` already names where focus went.
+      doc.addEventListener("focusout", () => win.setTimeout(syncWriting, 0));
+      win.addEventListener("focus", syncWriting);
+      win.addEventListener("blur", syncWriting);
       setBottomInset();
       fillViewport();
-      // The toolbar can wrap to a second row on a narrow screen; keep the inset in step.
+      // The toolbar comes and goes with focus; keep the inset in step, so the message's last line
+      // clears it while it is there and the page does not end in a blank band while it is not.
       if (win.ResizeObserver) new win.ResizeObserver(setBottomInset).observe(toolbar);
       // The keyboard opening/closing resizes the viewport; keep the fill in step with it.
       win.addEventListener("resize", fillViewport);

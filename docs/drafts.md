@@ -352,8 +352,10 @@ and the removal below runs on whatever key the composition had.
 
 Where each puts the two controls is the platform's own answer, and each is where that platform
 already puts an action on the message rather than a field you address it with: in the composer's
-action bar on macOS, iOS and Linux, in the app bar on Android, and in the action row above the
-editor on Windows ([`signatures.md`](signatures.md) settled the same question).
+action bar on macOS, iOS and Linux (behind More on iPhone and iPad), in the app bar's overflow
+menu on Android, and in the action row above the editor on Windows ([`signatures.md`](signatures.md)
+settled the same question). Behind a menu is a fair place for both: autosave and leaving already
+keep the draft, so saving by hand is the exception, and Discard is the one irreversible control.
 
 No platform keeps a Cancel beside Discard: a second way out that kept the draft would be a
 second name for leaving.

@@ -123,8 +123,9 @@ cells were driven on a simulator and which are ✅ by shared code.
 
 Android renders the same contract in its own idiom: the settings hub gains a **Signatures** row, the
 editor is a full-screen dialog (a rich-text body in an alert box would be a few lines tall), and the
-per-message picker is an **app-bar action**: the app bar *is* this platform's action bar, which is
-where the control belongs.
+per-message picker is an **app-bar action** in the bar's overflow menu: the app bar *is* this
+platform's action bar, which is where the control belongs, and its overflow is where an action
+most messages never need waits, so the bar itself keeps to Attach and Send.
 
 Windows likewise: the Signatures category sits in the Settings dialog's source list, and the body
 editor renders **inside that dialog's detail panel** rather than in a window of its own, because

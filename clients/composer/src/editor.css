@@ -162,6 +162,54 @@ body.native-chrome .toolbar {
   z-index: 2;
   border-top: 1px solid var(--border);
   border-bottom: none;
+  /* One row that scrolls sideways. Wrapped, every control on a phone took three rows above the
+     keyboard and left the message two lines. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* Only while the message is being written (`syncWriting` in host.ts). */
+body.native-chrome:not(.composer-writing) .toolbar {
+  display: none;
+}
+
+body.native-chrome .toolbar > * {
+  flex: none;
+}
+
+/* The groups are reordered below, so the hairlines between them would fall in the wrong places. */
+body.native-chrome .toolbar .sep {
+  display: none;
+}
+
+/* What a message on a phone uses most comes first, before the row scrolls: the marks, lists and
+   links, then colour, then the layout controls, and the wide pickers last. */
+body.native-chrome .toolbar > [data-command] { order: 1; }
+body.native-chrome #bullet-list,
+body.native-chrome #ordered-list { order: 2; }
+body.native-chrome .toolbar > .menu:has(#link) { order: 3; }
+body.native-chrome .toolbar > .menu:has(#text-colour),
+body.native-chrome .toolbar > .menu:has(#highlight) { order: 4; }
+body.native-chrome #outdent,
+body.native-chrome #indent,
+body.native-chrome .toolbar > .menu:has(#align) { order: 5; }
+body.native-chrome .toolbar > .menu:has(#table),
+body.native-chrome #rule { order: 6; }
+body.native-chrome .toolbar > select { order: 7; }
+
+/* A finger's target. The row has the height for it now it is one row. */
+@media (pointer: coarse) {
+  body.native-chrome .toolbar > button,
+  body.native-chrome .toolbar > .menu > button,
+  body.native-chrome .toolbar > select {
+    min-height: 40px;
+  }
+
+  body.native-chrome .toolbar > button,
+  body.native-chrome .toolbar > .menu > button {
+    min-width: 40px;
+  }
 }
 
 body.native-chrome .editor {
@@ -174,8 +222,9 @@ body.native-chrome .editor {
      `100vh` and `100%` compute to `0px` with no warning. Do not "simplify" this back to
      `min-height: 100vh`; it silently does nothing and the body stops being tappable. */
   min-height: var(--composer-fill-height, 0px);
-  /* 16px sides to line up with the native header fields' inset. */
-  padding: var(--composer-top-inset, 14px) 16px var(--composer-bottom-inset, 56px);
+  /* 16px sides to line up with the native header fields' inset, and 12px between the header's last
+     line and the message's first, so the message does not read as part of the Subject field. */
+  padding: calc(var(--composer-top-inset, 14px) + 12px) 16px var(--composer-bottom-inset, 56px);
 }
 
 p {

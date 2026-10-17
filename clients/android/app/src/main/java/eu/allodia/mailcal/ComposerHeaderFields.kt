@@ -1,17 +1,15 @@
-// The rich composer's header: From / To / Cc / Bcc / Subject, plus the per-message quote-style
-// toggle. Split out of RichComposeScreen so the editor below it stays the readable part of that
+// The rich composer's header: From / To / Cc / Bcc / Subject as header rows (ComposerHeaderRow.kt),
+// plus the per-message quote-style toggle. Split out of RichComposeScreen so the editor below it stays the readable part of that
 // file. Cc and Bcc stay hidden behind a chevron on the To row (as Gmail and Thunderbird do), so
 // the default header is short, From, To, Subject, and the editor keeps room even with the
 // keyboard up. The caller owns the state, including whether Cc/Bcc are revealed.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -67,7 +65,6 @@ internal fun ComposerHeaderFields(
             onSelect = onFrom,
             accountLabel = fromLabel,
         )
-        Spacer(modifier = Modifier.height(8.dp))
         // To carries the Cc/Bcc reveal: a chevron that rotates to point up when they're open.
         RecipientField(
             label = L10n.compose_to(ctx),
@@ -75,6 +72,7 @@ internal fun ComposerHeaderFields(
             onValue = onTo,
             suggestionsFor = suggestionsFor,
             focusesOnAppear = focusesTo,
+            asHeaderRow = true,
             trailing = {
                 IconButton(onClick = onToggleCcBcc) {
                     Icon(
@@ -85,34 +83,33 @@ internal fun ComposerHeaderFields(
                 }
             },
         )
-        Spacer(modifier = Modifier.height(8.dp))
         if (showCcBcc) {
             RecipientField(
                 label = L10n.compose_cc(ctx),
                 value = cc,
                 onValue = onCc,
                 suggestionsFor = suggestionsFor,
+                asHeaderRow = true,
             )
-            Spacer(modifier = Modifier.height(8.dp))
             RecipientField(
                 label = L10n.compose_bcc(ctx),
                 value = bcc,
                 onValue = onBcc,
                 suggestionsFor = suggestionsFor,
+                asHeaderRow = true,
             )
-            Spacer(modifier = Modifier.height(8.dp))
         }
         // Editable whatever the composer is for. A reply and a forward open with the core's
         // derived `Re:`/`Fwd:` already in it, and renaming a thread here is what the user means by
         // editing it: the field's value is what gets sent.
-        OutlinedTextField(
-            value = subject,
-            onValueChange = onSubject,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text(L10n.compose_subject(ctx)) },
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+        ComposerHeaderRow(label = null) {
+            HeaderTextField(
+                value = subject,
+                onValueChange = onSubject,
+                modifier = Modifier.weight(1f),
+                placeholder = L10n.compose_subject(ctx),
+            )
+        }
         // The per-message quote-style override. Only shown when the user has opted into it in
         // Settings (the caller passes null otherwise), and only on a reply/forward that actually
         // carries a quote. Flipping it re-styles the quoted original in place; it does not change
@@ -123,7 +120,9 @@ internal fun ComposerHeaderFields(
         // top of its neighbour; the labels also ellipsize rather than wrap, so a long
         // translation shortens instead of growing the row to two lines.
         if (style != null) {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
                 val styles = listOf(
                     QuoteStyleKind.INDENTED to L10n.quote_style_indented(ctx),
                     QuoteStyleKind.LINE_AND_HEADER to L10n.quote_style_line_header(ctx),
@@ -139,7 +138,6 @@ internal fun ComposerHeaderFields(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

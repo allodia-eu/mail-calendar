@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -100,8 +101,11 @@ class ComposerDraftTest {
         compose.waitForIdle()
     }
 
+    /** Discard, from the app bar's overflow menu. */
     private fun pressDiscard() {
-        compose.onNodeWithContentDescription(L10n.action_discard(ctx())).performClick()
+        compose.onNodeWithTag(COMPOSER_OVERFLOW_TAG).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText(L10n.action_discard(ctx())).performClick()
         compose.waitForIdle()
     }
 
