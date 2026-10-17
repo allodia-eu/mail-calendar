@@ -428,6 +428,8 @@ public sealed partial class MailboxModel
                     return;
                 }
                 SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp()));
+                // After the refusal it belongs to, which replacing the error clears.
+                SetupExisting = AccountSettingsRules.UpdateOffer(ex, configToml);
             });
         }
     }

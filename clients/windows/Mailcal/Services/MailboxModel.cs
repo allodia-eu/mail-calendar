@@ -215,7 +215,14 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
     public string? SetupError
     {
         get => _setupError;
-        private set { if (Set(ref _setupError, value)) { Raise(nameof(HasSetupError)); } }
+        private set
+        {
+            if (Set(ref _setupError, value))
+            {
+                Raise(nameof(HasSetupError));
+                SetupExisting = null;
+            }
+        }
     }
 
     private RejectedCertificate? _setupRejectedCertificate;

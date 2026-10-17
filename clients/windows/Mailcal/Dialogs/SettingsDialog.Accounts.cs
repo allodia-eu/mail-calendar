@@ -1,7 +1,8 @@
 // The Accounts category: every account, mail or not, from the core's one snapshot, each opening a
 // page of its own (docs/accounts.md rule 11, docs/settings.md category 9). The page's sections are
-// partials of their own: what the account is used for and linked to (AccountUses), its servers and
-// its removal (AccountServers), and its mail settings (AccountMail).
+// partials of their own: what the account is used for and linked to (AccountUses), how it signs in
+// (AccountSignIn), its servers and its removal (AccountServers), and its mail settings
+// (AccountMail).
 //
 // State lives in the core. A change on a page forwards to it off the UI thread, and the page is
 // drawn again from the next snapshot; a core signal that changed nothing the page shows leaves it,
@@ -139,8 +140,8 @@ public sealed partial class SettingsDialog
     };
 
     /// <summary>One account's page: how it travels, what it is used for, the accounts it relies
-    /// on, signing in again or its own servers, its mail settings while it is used for mail, and
-    /// its removal, last.</summary>
+    /// on, how it signs in, its own servers, its mail settings while it is used for mail, and its
+    /// removal, last.</summary>
     private void BuildAccountPage(StackPanel panel, AccountEntry entry)
     {
         var title = new TextBlock
@@ -167,6 +168,10 @@ public sealed partial class SettingsDialog
         if (AccountSettingsRules.SignsInAtProvider(entry.Kind))
         {
             panel.Children.Add(SignInGroup(entry, expired));
+        }
+        else if (AccountSettingsRules.SwitchesSignIn(entry.Kind))
+        {
+            panel.Children.Add(AccountSignInGroup(entry));
         }
         if (entry.Endpoints is { } endpoints)
         {
@@ -196,6 +201,8 @@ public sealed partial class SettingsDialog
     {
         _accountPage = accountId;
         _accountNotice = null;
+        // A page opened again asks its server again: what it takes can have changed meanwhile.
+        _signInOptions.Clear();
         ShowCategory("accounts");
     }
 

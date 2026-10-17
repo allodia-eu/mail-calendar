@@ -1,6 +1,7 @@
-// The form's actions: Connect for the password routes, and the browser sign-ins for Microsoft and
-// Google with the Early Access gate in front of Google's. Each takes what the form says the account
-// is used for. Split from AccountSetupView.xaml.cs to keep that file under the 500-line limit.
+// The form's actions: Connect for the password routes, updating the account a refused add is for,
+// and the browser sign-ins for Microsoft and Google with the Early Access gate in front of
+// Google's. Each takes what the form says the account is used for. Split from
+// AccountSetupView.xaml.cs to keep that file under the 500-line limit.
 
 using Allodia.Mailcal;
 using Allodia.Mailcal.Services;
@@ -42,6 +43,15 @@ public sealed partial class AccountSetupView
             accepted,
             chosen?.CarddavUrl ?? CarddavUrl.Text,
             chosen?.Uses);
+    }
+
+    // The refusal's offer: what was just given goes to the account already set up.
+    private async void OnUpdateExisting(object sender, RoutedEventArgs e)
+    {
+        if (Model is { } model)
+        {
+            await model.UpdateExistingAccountAsync();
+        }
     }
 
     // Pass the address the user typed in the email-first step (empty on a purely manual pick), so

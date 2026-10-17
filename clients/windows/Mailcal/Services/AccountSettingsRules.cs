@@ -1,6 +1,7 @@
 // What Settings → Accounts says about an account, decided from its snapshot entry alone
-// (docs/accounts.md rules 11 to 13). WinUI-free and L10n-free on purpose, so each rule is
-// reachable from Mailcal.Tests: the words are the dialog's, the decisions are here.
+// (docs/accounts.md rules 11 to 13), how it signs in and what it can switch to (rule 17), and
+// what an expired sign-in and a refused duplicate offer. WinUI-free and L10n-free on purpose, so
+// each rule is reachable from Mailcal.Tests: the words are the dialog's, the decisions are here.
 
 using uniffi.mailcal_bindings;
 
@@ -58,6 +59,37 @@ internal enum UseChangeOutcome
     NeedsEndpoint,
 }
 
+/// <summary>The Sign-in section of a standards or JMAP account's page.</summary>
+/// <param name="ThroughProvider">Whether it signs in through its provider now, rather than with a
+/// password: the status line.</param>
+/// <param name="SignInAgain">"Sign in again", from its stored grant.</param>
+/// <param name="SwitchToProvider">Signing in through the provider in place of its password.</param>
+/// <param name="ProviderLabel">The provider's name for that button, when the core has one.</param>
+/// <param name="SwitchToPassword">A password in place of its grant.</param>
+internal sealed record SignInSection(
+    bool ThroughProvider, bool SignInAgain, bool SwitchToProvider, string? ProviderLabel, bool SwitchToPassword)
+{
+    /// <summary>Whether a switch is offered, which the line saying what it keeps goes with.</summary>
+    internal bool OffersSwitch => SwitchToProvider || SwitchToPassword;
+}
+
+/// <summary>What an expired sign-in's banner button runs.</summary>
+internal enum SignInRemedy
+{
+    /// <summary>No browser flow: the password or API token is replaced in Settings.</summary>
+    Settings,
+    /// <summary>Microsoft's or Google's own consent, in place.</summary>
+    ProviderConsent,
+    /// <summary>A JMAP account's stored grant, authorised again.</summary>
+    JmapReauth,
+    /// <summary>A standards account's stored grant, through the account sign-in.</summary>
+    AccountSignIn,
+}
+
+/// <summary>The account an add was refused for, and the config the add was given, which the
+/// refusal offers to put on it (docs/accounts.md rule 17).</summary>
+internal sealed record ExistingAccountOffer(string AccountId, string ConfigToml);
+
 internal static class AccountSettingsRules
 {
     private static readonly AccountCapability[] Primary =
@@ -107,6 +139,58 @@ internal static class AccountSettingsRules
     /// opens.</summary>
     internal static bool SignsInAtProvider(AccountKind kind) =>
         kind is AccountKind.Microsoft or AccountKind.Google;
+
+    /// <summary>Whether an account of <paramref name="kind"/> has the Sign-in section that switches
+    /// between a password and its provider: one with a mailbox server to ask, a standards or JMAP
+    /// account.</summary>
+    internal static bool SwitchesSignIn(AccountKind kind) => kind is AccountKind.Imap or AccountKind.Jmap;
+
+    /// <summary>
+    /// The Sign-in section for <paramref name="entry"/>, given what its server accepts
+    /// (<paramref name="options"/>, null until <c>account_sign_in_options</c> answers). Null for a
+    /// Microsoft or Google account, which signs in again through its own consent, and for a
+    /// calendar or address book used for no mail.
+    /// </summary>
+    internal static SignInSection? SignIn(AccountEntry entry, AccountSignInOptions? options)
+    {
+        if (!SwitchesSignIn(entry.Kind))
+        {
+            return null;
+        }
+        var throughProvider = entry.SignIn switch
+        {
+            SignInMethod.Provider => true,
+            _ => false,
+        };
+        var signIn = options?.SignIn ?? false;
+        var password = options?.Password ?? false;
+        return new SignInSection(
+            ThroughProvider: throughProvider,
+            SignInAgain: throughProvider && signIn,
+            SwitchToProvider: !throughProvider && signIn,
+            ProviderLabel: !throughProvider && signIn ? options?.ProviderLabel : null,
+            SwitchToPassword: throughProvider && password);
+    }
+
+    /// <summary>What the expired-sign-in banner runs for an account of <paramref name="provider"/>.
+    /// Null, a provider the core could not name, has nothing to run.</summary>
+    internal static SignInRemedy Remedy(AccountProvider? provider) => provider switch
+    {
+        AccountProvider.Microsoft or AccountProvider.Google => SignInRemedy.ProviderConsent,
+        AccountProvider.JmapOauth => SignInRemedy.JmapReauth,
+        AccountProvider.ImapOauth => SignInRemedy.AccountSignIn,
+        AccountProvider.Password or AccountProvider.Jmap => SignInRemedy.Settings,
+        _ => SignInRemedy.Settings,
+    };
+
+    /// <summary>What a refused add offers: putting <paramref name="configToml"/> on the account
+    /// already there, when the refusal is that it is set up already.</summary>
+    internal static ExistingAccountOffer? UpdateOffer(Exception error, string configToml) => error switch
+    {
+        MailcalException.AlreadySetUp twice when !string.IsNullOrEmpty(configToml) =>
+            new ExistingAccountOffer(twice.accountId, configToml),
+        _ => null,
+    };
 
     /// <summary>What a use that did not connect says beneath its switch. Only a calendar or an
     /// address book fails on its own; mail decides whether the account connected at all.</summary>
@@ -223,6 +307,7 @@ internal static class AccountSettingsRules
             parts.Add(entry.Id);
             parts.Add(entry.Address);
             parts.Add(entry.Kind.ToString());
+            parts.Add(entry.SignIn.ToString());
             parts.AddRange(entry.Uses.Select(use => $"{use.Capability}={use.State}/{use.Problem}"));
             parts.Add(Linked(entry.Links.Calendar));
             parts.Add(Linked(entry.Links.Contacts));

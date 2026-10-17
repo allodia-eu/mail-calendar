@@ -41,10 +41,11 @@ public sealed partial class MailboxModel
     private sealed record ConnectionIssue(string Id, string Email, string? Detail);
 
     /// <summary>One account whose stored sign-in the server has stopped accepting: its account id,
-    /// display email and provider family, which decides the remedy, Microsoft/Google/OAuth-JMAP
-    /// re-run their browser sign-in, anything else is updated in Settings. The id is what a JMAP
-    /// re-authentication is addressed to: it re-authorises that account's own persisted grant
-    /// rather than starting a discovery from an address.</summary>
+    /// display email and provider family, which decides the remedy
+    /// (<see cref="AccountSettingsRules.Remedy"/>): an account that signs in through its provider
+    /// re-runs its browser sign-in, anything else is updated in Settings. The id is what a JMAP or
+    /// standards re-authentication is addressed to: it re-authorises that account's own persisted
+    /// grant rather than starting a discovery from an address.</summary>
     private sealed record ExpiredSignIn(string Id, string Email, AccountProvider? Provider);
 
     // Set when a re-authentication launched from the banner failed, so the banner can say so
@@ -163,12 +164,12 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>Whether the first affected account has a sign-in this app can re-launch: an OAuth
-    /// provider, including a JMAP account that was connected by signing in. A password account,
-    /// or a JMAP one holding a pasted password/API token, is re-entered in Settings, so the
-    /// button is hidden.</summary>
+    /// provider, including a JMAP or standards account that was connected by signing in. A
+    /// password account, or a JMAP one holding a pasted password/API token, is re-entered in
+    /// Settings, so the button is hidden.</summary>
     public bool CanRelaunchSignIn =>
-        _signInExpired.FirstOrDefault()?.Provider
-            is AccountProvider.Microsoft or AccountProvider.Google or AccountProvider.JmapOauth;
+        _signInExpired.FirstOrDefault() is { } account
+            && AccountSettingsRules.Remedy(account.Provider) != SignInRemedy.Settings;
 
     /// <summary>The banner button's visibility, bound directly, as WinUI has no built-in
     /// bool-to-Visibility conversion for <c>x:Bind</c>.</summary>
@@ -188,15 +189,21 @@ public sealed partial class MailboxModel
             return;
         }
         SetSignInReauthFailed(false);
-        switch (account.Provider)
+        switch (AccountSettingsRules.Remedy(account.Provider))
         {
-            case AccountProvider.Microsoft or AccountProvider.Google:
+            case SignInRemedy.ProviderConsent:
                 _ = SignInAgainFromBannerAsync(account.Id);
                 break;
-            case AccountProvider.JmapOauth:
+            case SignInRemedy.JmapReauth:
                 // Addressed to the account id, not the address: the core re-authorises this
                 // account's own stored grant, so there is no discovery and no second registration.
                 _ = ReconnectJmapAsync(account.Id);
+                break;
+            case SignInRemedy.AccountSignIn:
+                // From the stored grant as well, on the client it registered.
+                _ = AccountSignInFromBannerAsync(account.Id);
+                break;
+            case SignInRemedy.Settings:
                 break;
         }
     }
@@ -228,6 +235,16 @@ public sealed partial class MailboxModel
     {
         SetSignInReauthFailed(false);
         var ended = await SignInAgainAsync(accountId, []);
+        if (ended.Error is not null)
+        {
+            SetSignInReauthFailed(true);
+        }
+    }
+
+    /// <summary>A standards account's sign-in from the banner, said there when it fails.</summary>
+    private async Task AccountSignInFromBannerAsync(string accountId)
+    {
+        var ended = await AccountSignInAsync(accountId);
         if (ended.Error is not null)
         {
             SetSignInReauthFailed(true);

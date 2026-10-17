@@ -363,6 +363,19 @@
                     Title="{x:Bind l10n:L10n.SetupErrorTitle(), Mode=OneTime}"
                     Message="{x:Bind Model.SetupError, Mode=OneWay}" />
 
+                <!-- The add was refused because the account is set up already: the sign-in or
+                     password just given can go to that account instead (docs/accounts.md rule 17). -->
+                <StackPanel Spacing="4" Visibility="{x:Bind Model.SetupUpdateVisibility, Mode=OneWay}">
+                    <Button x:Name="UpdateExistingButton"
+                            Content="{x:Bind l10n:L10n.AccountAlreadySetUpUpdate(), Mode=OneTime}"
+                            IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnUpdateExisting" />
+                    <TextBlock
+                        Text="{x:Bind l10n:L10n.AccountAlreadySetUpUpdateNote(), Mode=OneTime}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
                 <!-- Back to the address step at the start; Connect (IMAP/JMAP) or Sign in
                      (Microsoft / Google) at the end, with Cancel beside it when adding another
                      account. The Google button's IsEnabled is driven in code-behind, it depends on
