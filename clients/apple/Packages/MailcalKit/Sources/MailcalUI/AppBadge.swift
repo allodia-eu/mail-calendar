@@ -23,6 +23,13 @@ struct AppBadge {
         Self.write(unread)
     }
 
+    /// Writes `unread` whether or not it moved, for when the icon may have been changed, or a
+    /// write ignored, out of this process's sight.
+    mutating func rewrite(_ unread: UInt32) {
+        shown = nil
+        show(unread)
+    }
+
     /// Writes `unread` to the icon. On iOS the `.badge` permission `MailNotifier` asks for governs
     /// it, and without that permission the OS ignores the write.
     static func write(_ unread: UInt32) {
