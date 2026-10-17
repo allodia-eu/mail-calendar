@@ -192,7 +192,8 @@ is recorded here.
   Neither binds a token to what was named: one Fastmail token issued for its JMAP session opens
   IMAP, SMTP, CalDAV and CardDAV, and a Stalwart token opens all of its endpoints. Neither sends
   the token response's `username` (§3.5), so the address the person typed stays the account's
-  identity.
+  identity. Where a server does send one, signing an existing account in refuses a grant issued
+  for another account ([`accounts.md`](accounts.md) rule 17).
 
 - **No mechanism knob.** Which SASL mechanism carries the token is negotiated by the engine
   from what the server advertises, and a caller able to pin one would be encoding which

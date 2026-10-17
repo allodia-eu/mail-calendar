@@ -16,6 +16,7 @@ private func snapshot(_ kind: AccountKind = .imap, suggested: Bool = true) -> Ac
             id: "alice@imap",
             address: "alice@example.org",
             kind: kind,
+            signIn: .password,
             uses: [AccountUse(capability: .mail, state: .on)],
             links: AccountLinksView(calendar: nil, contacts: nil, mail: nil),
             linkedFrom: [],

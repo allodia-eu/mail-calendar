@@ -19,6 +19,7 @@ fn snapshot() -> AccountsSnapshot {
             id: "alice@imap".to_owned(),
             address: "alice@example.org".to_owned(),
             kind: AccountKind::Imap,
+            sign_in: mailcal_bindings::SignInMethod::Password,
             uses: vec![AccountUse {
                 capability: AccountCapability::Mail,
                 state: CapabilityState::On,

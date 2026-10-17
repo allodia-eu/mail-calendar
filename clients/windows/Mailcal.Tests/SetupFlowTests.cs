@@ -15,6 +15,7 @@ public class SetupFlowTests
             Id: "alice@imap",
             Address: "alice@example.org",
             Kind: kind,
+            SignIn: SignInMethod.Password,
             Uses: [new AccountUse(AccountCapability.Mail, CapabilityState.On, null)],
             Links: new AccountLinksView(null, null, null),
             LinkedFrom: [],

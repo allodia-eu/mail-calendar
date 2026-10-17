@@ -33,6 +33,9 @@ pub struct TokenSet {
     pub scope: String,
     /// The token type; `Bearer` in practice.
     pub token_type: String,
+    /// The account the server issued the token for, when it names one: `username`,
+    /// draft-ietf-mailmaint-oauth-public §3.5. No server we have met sends it.
+    pub username: Option<String>,
 }
 
 impl TokenSet {
@@ -58,6 +61,7 @@ impl core::fmt::Debug for TokenSet {
             .field("expires_at", &self.expires_at)
             .field("scope", &self.scope)
             .field("token_type", &self.token_type)
+            .field("username", &self.username.as_ref().map(|_| "<present>"))
             .finish()
     }
 }
@@ -72,6 +76,8 @@ struct TokenResponse {
     scope: String,
     #[serde(default = "bearer")]
     token_type: String,
+    #[serde(default)]
+    username: Option<String>,
 }
 
 fn bearer() -> String {
@@ -203,6 +209,7 @@ async fn post_token(
         expires_at: now + Duration::seconds(parsed.expires_in),
         scope: parsed.scope,
         token_type: parsed.token_type,
+        username: parsed.username.filter(|username| !username.is_empty()),
     })
 }
 

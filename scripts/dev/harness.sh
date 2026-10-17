@@ -167,6 +167,10 @@ case "$cmd" in
     MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_OAUTH_IMAP="$STALWART_OAUTH_IMAP_ADDR" \
       cargo test -p mailcal-bindings --test live_imap_oauth -- --nocapture
+    MAILCAL_EXTRA_CA="$HARNESS_CA" \
+      STALWART_OAUTH_HTTP_ADDR="$STALWART_OAUTH_HTTP_ADDR" \
+      MAILCAL_HARNESS_OAUTH_IMAP="$STALWART_OAUTH_IMAP_ADDR" \
+      cargo test -p mailcal-bindings --test live_sign_in_switch -- --nocapture
     ;;
   deliver)
     require_harness
