@@ -228,3 +228,19 @@ fn an_unknown_account_is_offered_no_switch() {
     let options = app.account_sign_in_options("nobody@example.com@nowhere".to_owned());
     assert!(!options.sign_in && !options.password);
 }
+
+#[test]
+fn an_imap_sign_in_is_remedied_by_signing_in_again_and_a_password_by_typing_one() {
+    let (typed, typed_id) = imap_account("remedy-typed", false);
+    let (signed_in, signed_in_id) = imap_account("remedy-signed-in", true);
+    let (app, _) = booted("sign-in-remedy", vec![typed, signed_in]);
+
+    assert!(matches!(
+        app.account_provider(typed_id),
+        Some(crate::AccountProvider::Password)
+    ));
+    assert!(matches!(
+        app.account_provider(signed_in_id),
+        Some(crate::AccountProvider::ImapOauth)
+    ));
+}

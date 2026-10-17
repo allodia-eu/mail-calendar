@@ -69,6 +69,10 @@ pub enum AccountProvider {
     /// because the two need opposite remedies and only the account's own config can tell them
     /// apart.
     JmapOauth,
+    /// An IMAP account connected by **signing in with its provider**. Signed in again in place
+    /// with `begin_account_sign_in` + `complete_account_sign_in`, from its stored grant; it has
+    /// no password for a host to ask for.
+    ImapOauth,
 }
 
 /// The TLS protocol version a live provider negotiated.

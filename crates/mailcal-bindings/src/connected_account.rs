@@ -126,6 +126,7 @@ impl ConnectedAccount {
     /// in Settings. Only the account's own config knows which it is.
     pub(crate) fn provider(&self) -> crate::AccountProvider {
         match self {
+            Self::Imap { config, .. } if config.is_oauth() => crate::AccountProvider::ImapOauth,
             Self::Imap { .. } => crate::AccountProvider::Password,
             Self::Microsoft { .. } => crate::AccountProvider::Microsoft,
             Self::Google { .. } => crate::AccountProvider::Google,
