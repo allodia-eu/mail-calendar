@@ -100,7 +100,9 @@ $Suite = @{
           Assert-Equal 'carol@example.test' (Get-UiaText $to) "a pill's remove button is still the field"
           Assert-Equal 1 (Get-Pills).Count 'focus on a pill must finish nothing'
           Send-Keys '+{TAB}'
-          Assert-Equal 2 (Get-Pills).Count 'leaving the field from a pill must finish the typed address'
+          $focused = [System.Windows.Automation.AutomationElement]::FocusedElement.Current
+          Assert-Equal 2 (Get-Pills).Count `
+            "leaving the field from a pill must finish the typed address (focus is on $($focused.ControlType.ProgrammaticName) '$($focused.Name)', $($focused.ClassName))"
         }
         finally { $null = Close-Composer }
       }
