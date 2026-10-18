@@ -127,3 +127,28 @@ private func options(signIn: Bool, label: String? = nil, password: Bool) -> Acco
         #expect(model.setupExistingAccount == nil)
     }
 }
+
+@Suite @MainActor struct SignInNameTests {
+    @Test func aPromptToSignInAgainNamesTheAccountApartFromItsNamesake() {
+        let model = MailboxModel()
+        model.accounts = [
+            AccountRow(id: "alice-imap", email: "alice@example.org", name: "", expanded: true),
+            AccountRow(id: "bob-imap", email: "bob@example.org", name: "", expanded: true),
+        ]
+        model.accountsSnapshot = AccountsSnapshot(accounts: [
+            AccountEntry(
+                id: "alice-imap", address: "alice@example.org", kind: .imap, signIn: .password,
+                uses: [AccountUse(capability: .mail, state: .on)],
+                links: AccountLinksView(calendar: nil, contacts: nil, mail: nil), linkedFrom: [],
+                linkCandidates: LinkCandidates(calendar: [], contacts: [], mail: [], suggested: []),
+                endpoints: nil, distinction: .server(host: "mail.example.org")),
+        ])
+        #expect(
+            model.signInName("alice-imap")
+                == L10n.settings_account_distinguished(
+                    address: "alice@example.org", detail: "mail.example.org"))
+        // Not in the accounts snapshot: its address alone, and its id for one removed mid-pass.
+        #expect(model.signInName("bob-imap") == "bob@example.org")
+        #expect(model.signInName("gone") == "gone")
+    }
+}

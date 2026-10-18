@@ -27,7 +27,7 @@ extension MailboxModel {
         (connectivity?.signinExpiredAccounts ?? []).map { id in
             (
                 id: id,
-                name: AccountSettingsLabels.name(accountEntry(id), or: accountEmail(id)),
+                name: signInName(id),
                 provider: app?.accountProvider(accountId: id)
             )
         }
@@ -179,6 +179,12 @@ extension MailboxModel {
     /// names every account, mail or not; the id is the fallback for one removed mid-pass.
     func accountEmail(_ id: String) -> String {
         accounts.first { $0.id == id }?.email ?? accountEntry(id)?.address ?? id
+    }
+
+    /// The name a prompt asking account `id` to sign in again gives it: apart from another account
+    /// with its address where the accounts snapshot holds it (`docs/accounts.md` rule 8).
+    func signInName(_ id: String) -> String {
+        AccountSettingsLabels.name(accountEntry(id), or: accountEmail(id))
     }
 
     /// Removes account `id`: drops it from the running app (the core rebuilds the switcher +

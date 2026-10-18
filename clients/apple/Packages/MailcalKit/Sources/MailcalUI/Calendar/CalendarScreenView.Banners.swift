@@ -15,7 +15,7 @@ extension CalendarScreenView {
             // One button signs the first affected account in again; when several are affected the
             // banner re-renders after each clears, walking through them one at a time.
             ScreenBannerRow(
-                text: L10n.calendar_reauth_prompt(accounts: ids.map(model.accountEmail).joined(separator: ", ")),
+                text: L10n.calendar_reauth_prompt(accounts: ids.map(model.signInName).joined(separator: ", ")),
                 action: L10n.calendar_reauth_action()
             ) { model.signInAgainFromBanner(first) }
         }

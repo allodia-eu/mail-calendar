@@ -47,7 +47,7 @@ extension ContentView {
         if let first = ids.first {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text(L10n.mail_reauth_prompt(accounts: ids.map(model.accountEmail).joined(separator: ", ")))
+                Text(L10n.mail_reauth_prompt(accounts: ids.map(model.signInName).joined(separator: ", ")))
                     .font(.callout).fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 // One button signs the first affected account in again; when several are affected
