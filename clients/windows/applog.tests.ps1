@@ -84,7 +84,7 @@ try {
   # 3. THE ROTATION CUT, which is what this file exists for. The banner has been carried into
   #    app.log.1 by a write that crossed the cap, and app.log holds the rest of the same session
   #    with no banner in it. Reading app.log alone found nothing and reported that the app had
-  #    never started; that is what failed InvitationPreview.Tests.
+  #    never started; that is what failed InvitationPreviewTests.
   Clear-Log
   Set-Log 'app.log.1' @(
     (Banner '2026-09-15 15:00:00.000'), 'earlier: refresh_calendar: not this one'

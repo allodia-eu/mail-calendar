@@ -55,7 +55,7 @@ $WantDarkApp = -not $DesktopDark
 .SYNOPSIS
 The invitation card's StackPanel, reached from the preview Expander it holds.
 .DESCRIPTION
-The Expander is the one language-free handle on the card (InvitationPreview.Tests.ps1 uses it for
+The Expander is the one language-free handle on the card (InvitationPreviewTests.cs uses it for
 the same reason), and the card's stack is its parent: every line this suite measures is a sibling
 of it.
 #>

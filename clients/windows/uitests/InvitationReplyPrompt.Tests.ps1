@@ -16,9 +16,9 @@
 #
 # WHY IT DECLINES RATHER THAN ACCEPTS. The RSVP is real and lands on the shared harness server, so
 # which invitation this answers is a fixture decision, not a detail:
-#   - "Quarterly planning" is where Attendees.Tests reads alice as the one who has NOT answered.
+#   - "Quarterly planning" is where AttendeesTests reads alice as the one who has NOT answered.
 #     Answering it there would make that suite pass or fail by what ran before it.
-#   - "Weekend walk" is the free-day fixture InvitationPreview.Tests needs to stay empty. A
+#   - "Weekend walk" is the free-day fixture InvitationPreviewTests needs to stay empty. A
 #     DECLINED event is hidden from every calendar surface (docs/invitations.md), so declining
 #     leaves that day as empty as it found it, where ACCEPTING puts an event on it, which is
 #     exactly how a hand-run of this check broke that suite once.

@@ -386,7 +386,7 @@ change updates in every catalog locale.
   confirmed on an emulator.
 - **The Linux and Windows UI suites drive the editor up to the write and no further.**
   [`test-linux-ui.sh`](../scripts/dev/test-linux-ui.sh) and
-  [`ContactEditor.Tests.ps1`](../clients/windows/uitests/ContactEditor.Tests.ps1) run against the
+  [`ContactEditorTests.cs`](../clients/windows/Mailcal.UiTests/Suites/ContactEditorTests.cs) run against the
   shared harness and the app offers no delete, so an actual create would leave a card behind and
   accumulate one per run. They assert the half a screenshot cannot: that the create affordance is
   offered at all (it is hidden unless the core reports a writable address book, so its presence
@@ -413,7 +413,7 @@ change updates in every catalog locale.
 
 - **The contact write status is not gated on Windows**, and the reason generalises. The line is
   collapsed until a write settles, and a collapsed element is absent from the automation tree, so
-  there is nothing for [`ContactEditor.Tests.ps1`](../clients/windows/uitests/ContactEditor.Tests.ps1)
+  there is nothing for [`ContactEditorTests.cs`](../clients/windows/Mailcal.UiTests/Suites/ContactEditorTests.cs)
   to assert on without performing a write it cannot undo. Its placement (§3) was verified by hand.
   Gating it wants a `MAILCAL_*` hook that stages a `ContactWriteStatus` in the **core**, the way
   `MAILCAL_FAKE_REPLY_DELIVERY` stages a calendar server's verdict.

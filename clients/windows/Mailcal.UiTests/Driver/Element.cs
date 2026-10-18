@@ -20,11 +20,11 @@ internal sealed record Element(
 }
 
 /// <summary>An element's state as a suite asserts on it.</summary>
-internal sealed record ElementState(Element Element, string? Value, string? Toggle, bool? Selected, bool Focused, string? Selection)
+internal sealed record ElementState(Element Element, string? Value, string? Toggle, bool? Selected, bool Focused, string? Selection, string? Expanded)
 {
     internal static ElementState From(JsonObject e) => new(
         Element.From(e), (string?)e["value"], (string?)e["toggle"], (bool?)e["selected"], (bool?)e["focused"] ?? false,
-        (string?)e["selection"]);
+        (string?)e["selection"], (string?)e["expanded"]);
 }
 
 /// <summary>One of the app's top-level windows.</summary>

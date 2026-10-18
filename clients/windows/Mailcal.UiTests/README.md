@@ -50,6 +50,9 @@ an obvious reimplementation finds nothing:
 - **A text box's value is not on its peer.** WinUI implements the value pattern of a `TextBox` and a
   `PasswordBox` inside the framework, so the agent reads and sets the box itself, which is what
   UI Automation's value pattern does to it.
+- **A text box's placeholder is a text under it.** The agent sees the box's template, so an empty
+  box with a placeholder holds one Text element and one with a header holds another; count against
+  a box known to have the one being asked about.
 - **A WebView2's content is not walked.** It is the browser's own tree, and searching across the
   composer's editor costs UI Automation seconds a call; nothing a suite looks up lives in it.
 - **A peer measures from its window's client area.** The agent reports physical screen pixels, the

@@ -235,7 +235,7 @@ Monday** at every seed, chosen to hit the rules a client can actually get wrong 
 | a `DECLINED` invitation, Monday afternoon | it must **not** be on the grid, the month or the agenda. The absence is the assertion, and a rule whose only evidence is a unit test is a rule nothing exercises end to end |
 
 Two of those carry a second job, and changing them breaks a test that is nowhere near them.
-`clients/windows/uitests/Attendees.Tests.ps1` opens the **`NEEDS-ACTION` invitation** ("Quarterly
+`clients/windows/Mailcal.UiTests/Suites/AttendeesTests.cs` opens the **`NEEDS-ACTION` invitation** ("Quarterly
 planning") for its attendee roster: it is seeded with three participants whose answers deliberately
 differ (Bob organising and accepted, Alice unanswered, Carol accepted), and the suite reads the
 answers *against each other* rather than by name, so two attendees seeded to the same `PARTSTAT` are
@@ -260,7 +260,7 @@ suppression is about the *disposition*, not the media type.
 The third exists so that one rule can be **tested at all**. "The day preview opens expanded whenever
 the calendar was read" replaced "opens only when the count is non-zero", and the Quarterly planning
 invitation sits inside the Monday overlap, so its preview is open under *both* rules. A day with no
-overlap is the only fixture that tells them apart; `clients/windows/uitests/InvitationPreview.Tests.ps1`
+overlap is the only fixture that tells them apart; `clients/windows/Mailcal.UiTests/Suites/InvitationPreviewTests.cs`
 is built on it, and any other client's test would need it too.
 
 The invitation is **generated** rather than a static `.eml`, because its `UID` and start have to agree

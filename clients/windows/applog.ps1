@@ -18,7 +18,7 @@
 #
 #   * the banner is gone, so an anchored reader finds nothing and reports that the app never
 #     started, or never reached the state it was waiting for. A healthy app, a red suite, and a
-#     message accusing the harness. That is what it did to InvitationPreview.Tests.
+#     message accusing the harness. That is what it did to InvitationPreviewTests.
 #   * the banner is gone, so a reader that falls back to "scan the whole file" matches a line from
 #     an EARLIER session and answers immediately. The wait it was asked to perform did not happen,
 #     which is the precise failure the anchoring exists to prevent.
