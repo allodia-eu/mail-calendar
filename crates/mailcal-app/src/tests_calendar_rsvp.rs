@@ -148,7 +148,7 @@ async fn an_account_with_no_way_to_tell_the_organiser_is_offered_no_answer() {
     assert_eq!(detail.my_answer, None);
     app.dispatch(respond(InvitationResponse::Accept)).await;
     assert!(rsvps.lock().unwrap().is_empty());
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]
@@ -178,5 +178,38 @@ async fn the_organiser_and_an_appointment_are_offered_no_answer() {
     }))
     .await;
     assert!(rsvps.lock().unwrap().is_empty());
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
+}
+
+/// What the grid shows of a calendar that no longer connects is what was last synced. An answer
+/// given from it would tell the organiser one thing while the calendar kept saying another, so
+/// none is offered and none is sent, by mail or otherwise.
+#[tokio::test]
+async fn a_calendar_that_no_longer_connects_is_offered_no_answer() {
+    let provider = InvitationFake::new();
+    let (rsvps, sends) = (provider.rsvps(), provider.sends());
+    let app = booted(provider, "disconnected").await;
+    let event = evt("acct-a", EVENT_KEY);
+    let answer = app.event_detail(&event, None).await.expect("the meeting");
+    assert!(answer.my_answer.is_some());
+
+    app.add_account_deferred(crate::Account {
+        id: engine_api::AccountId::try_from("acct-a").unwrap(),
+        providers: vec![InvitationFake::new()],
+        calendar_providers: Vec::new(),
+        contact_providers: Vec::new(),
+        identity: engine_api::EmailAddress::new("me@test.local"),
+        dialled: true,
+        uses_mail: true,
+    })
+    .await;
+
+    let detail = app
+        .event_detail(&event, None)
+        .await
+        .expect("the meeting is still drawn");
+    assert_eq!(detail.my_answer, None);
+    app.dispatch(respond(InvitationResponse::Accept)).await;
+    assert!(rsvps.lock().unwrap().is_empty());
+    assert!(sends.lock().unwrap().is_empty(), "nor emailed");
 }

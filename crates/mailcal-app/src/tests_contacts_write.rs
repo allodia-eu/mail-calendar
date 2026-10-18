@@ -419,7 +419,7 @@ async fn a_named_destination_that_is_gone_files_nowhere() {
     .await;
     assert!(writes.entries().is_empty(), "{:?}", writes.entries());
     assert!(app.contacts().rows.is_empty());
-    assert_eq!(app.contact_write_status(), ContactWriteStatus::Failed);
+    assert_eq!(app.contact_write_status(), ContactWriteStatus::NotSaved);
 
     // Naming neither half still means "wherever contacts go", which is the whole picker for a
     // user with one account.

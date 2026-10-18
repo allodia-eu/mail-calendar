@@ -92,3 +92,28 @@ async fn removing_an_account_forgets_its_problems() {
 
     assert_eq!(app.use_problems(&id), UseProblems::default());
 }
+
+#[test]
+fn a_use_switched_off_keeps_no_problem_and_leaves_the_other_alone() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("a", FakeProvider::new())], &surfaces);
+    let id = engine_api::AccountId::try_from("a").unwrap();
+    app.note_use_problems(
+        &id,
+        UseProblems {
+            calendar: Some(UseProblem::NeedsOwnSignIn),
+            contacts: Some(UseProblem::NeedsOwnSignIn),
+        },
+    );
+
+    app.forget_use_problem(&id, true);
+    assert_eq!(
+        app.use_problems(&id),
+        UseProblems {
+            calendar: None,
+            contacts: Some(UseProblem::NeedsOwnSignIn),
+        }
+    );
+    app.forget_use_problem(&id, false);
+    assert!(app.every_use_problem().is_empty());
+}

@@ -150,13 +150,9 @@ pub struct RecipientMatch {
 /// The state of the most recent contact write (create or edit), pulled after a
 /// `Surface::ContactsStatus` signal.
 ///
-/// **`Failed` does not mean the change was lost.** A write whose server call succeeded but
-/// whose post-write reconcile could not be confirmed has already landed on the server; only
-/// the local view is briefly stale, and the next sync heals it. `Failed` says "we could not
-/// confirm this saved", not "your change was rejected".
-///
-/// `Invalid` is the other sentence: the core refused the form **before** sending anything, so
-/// there is something to correct and retrying unchanged would be refused the same way.
+/// A failure is one of three sentences: `NotSaved` (nothing was saved), `Unconfirmed` (it may
+/// have been, and the next sync settles which) and `Invalid` (the core refused the form
+/// **before** sending anything, so there is something to correct).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, uniffi::Enum)]
 pub enum ContactWriteStatus {
     /// No contact write is settling.
@@ -166,8 +162,11 @@ pub enum ContactWriteStatus {
     Saving,
     /// The most recent write settled and the local view holds the server's copy.
     Saved,
-    /// The most recent write's server call failed, or its reconcile could not be confirmed.
-    Failed,
+    /// The change was not saved: nothing reached the server (its account or address book is not
+    /// connected), or the server refused it.
+    NotSaved,
+    /// The change may have landed and could not be confirmed.
+    Unconfirmed,
     /// The form was refused before anything was sent: it names nothing to file the card
     /// under, or carries a value that is not an email address.
     Invalid,

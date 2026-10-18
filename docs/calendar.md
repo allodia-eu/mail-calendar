@@ -307,6 +307,26 @@ store has a calendar":
 
 Both are decided in `rebuild_calendar_cache`, once, so no surface can hold a different opinion.
 
+### A calendar that is not connected says so above the week
+
+A calendar the account is used for can fail while the account connects: its server needs a sign-in
+of its own, refused the account's, or could not be reached ([`accounts.md`](accounts.md) rule 16).
+What the store holds of it stays on the grid, so the week is not emptied by a sign-in change, and
+the calendar screen says what that week is:
+
+- **One line per account, above the week**, from `ConnectivitySnapshot.calendar_outages`: "The
+  calendar for {address} isn't connected." followed by the reason the account's page gives for the
+  same problem and "You're seeing what was last synced." Its one action, **Account settings**, opens
+  that account's page in Settings → Accounts, where the remedy is. The address is the account's,
+  read from the accounts snapshot by its id.
+- **Nothing on it can be changed or answered.** The core writes only through a bound adapter, so a
+  calendar that is not connected is not writable (`can_write` is `false` on its rows and events, and
+  "New event" is off when no other calendar can take one), its events offer no answer
+  (`my_answer` is `None`), and a write that arrives anyway settles `NotSaved` with nothing sent.
+- **Offline, an unreachable calendar is left to the offline banner**, which already says why; a
+  calendar that needs its own sign-in or refused the account's still says so, since waiting will
+  not change it. An account whose sign-in expired has its own prompt instead.
+
 ### Participation: an unanswered hold, and a declined meeting
 
 Every occurrence carries `participation`: how **this account** answered, matched against its whole
@@ -429,7 +449,8 @@ what they answered (`EventDetail.my_answer`) and offers Accept, Maybe and Declin
 already given shown chosen and inert. Four rules:
 
 - **Offered only where an answer reaches the organiser.** `my_answer` is set when the account is on
-  the meeting, does not organise it, and has a route to tell the organiser; the same routes the
+  the meeting, does not organise it, its calendar is connected, and it has a route to tell the
+  organiser; the same routes the
   invitation card has ([`invitations.md`](invitations.md), "Who delivers the answer"). Where the
   server schedules, storing the answer sends it, and a server that reports it could not deliver
   asks the same question the card does; where it does not, the core writes the answer and emails
@@ -2001,8 +2022,9 @@ Stated, not buried.
   Until it exists, moving somebody else's meeting means asking them.
 - **Writes are not optimistic, and the engine's outbox is not an offline queue.** `create_calendar_event`
   and `patch_calendar_event` await their network round-trip inline; there is no background drainer.
-  Create or edit an event on a train today and it silently never reaches the server: the write's
-  `CalendarWriteStatus` settles `Failed`, which is honest, but the change is lost rather than queued.
+  Create or edit an event on a train today and it never reaches the server: the write's
+  `CalendarWriteStatus` settles `NotSaved`, or `Unconfirmed` where the request went out and its
+  answer was lost, which is honest, but the change is not queued.
   This applies equally to create, **edit**, and delete: the editor rides the *same* inline-await path
   they do. The earlier gate that withheld `EventIntent::Update` from the FFI "until the write is
   durable" is **lifted**: an editor that surfaces its own failures is no worse than the create that
@@ -2094,12 +2116,17 @@ Stated, not buried.
   in place, the calendar connected, and the banner cleared. The consent **click** is the one step
   that needs a real Microsoft account and cannot be driven from the harness.
 - **A calendar write's result is surfaced to the user, not just logged.** Every create/edit/delete
-  drives `CalendarWriteStatus` (`Idle` → `Saving` → `Saved`/`Failed`), pulled after a
-  `Surface::CalendarStatus` signal via `App::calendar_write_status`: a client shows a small spinner
-  while it settles and a warning when it could not be confirmed. The load-bearing rule from
-  read-your-writes is encoded here: a `Reconciled::Busy`/`Failed` write **landed on the server**, so
-  the core recovers by *re-reading* (`reconcile_calendar_events`), **never** by re-issuing the write,
-  and `Failed` means "could not confirm the local view," not "your change was rejected." An explicit
+  drives `CalendarWriteStatus` (`Idle` → `Saving` → `Saved`, `NotSaved` or `Unconfirmed`), pulled
+  after a `Surface::CalendarStatus` signal via `App::calendar_write_status`: a client shows a small
+  spinner while it settles and a warning when it did not save or could not be confirmed. The two
+  failures are two sentences. `NotSaved` is a write that changed nothing: none was sent (the
+  calendar is not connected, or the core refused the change), or the server answered and refused
+  it. `Unconfirmed` is a write that may have landed: the engine marks a request whose answer was
+  lost as needing confirmation, and a `Reconciled::Failed` write **landed on the server** but its
+  copy did not come back. The core recovers from the second by *re-reading*
+  (`reconcile_calendar_events`), **never** by re-issuing the write. An answer to an invitation
+  settles the same way: not sent unless its write may have landed where storing it is sending it
+  (`invitation_failed` or `invitation_unconfirmed`). An explicit
   `RefreshCalendar` clears the status (a full sync reconciles the whole scope); a genuine outage shows
   through `Surface::Connectivity`, not here. **Cross-platform status:** the surface is shared;
   **Android** and the **Apple** clients (macOS + iOS/iPadOS, one SwiftUI header) render it today

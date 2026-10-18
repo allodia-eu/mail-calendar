@@ -62,6 +62,19 @@ impl<P> App<P> {
         }
     }
 
+    /// Forgets what `account`'s calendar, or its contacts, last failed with, once it is no longer
+    /// used for it: a use switched off has nothing left to fix, and the next dial would say so
+    /// only after it has run.
+    pub fn forget_use_problem(&self, account: &AccountId, calendar: bool) {
+        let mut problems = self.use_problems(account);
+        if calendar {
+            problems.calendar = None;
+        } else {
+            problems.contacts = None;
+        }
+        self.note_use_problems(account, problems);
+    }
+
     /// What `account`'s calendar and contacts last failed with.
     #[must_use]
     pub fn use_problems(&self, account: &AccountId) -> UseProblems {

@@ -217,10 +217,8 @@ impl From<mailcal_app::UnfiledCopy> for UnfiledCopy {
 /// `Surface::CalendarStatus` signal. A host shows a small in-calendar spinner while `Saving`
 /// and, briefly, the terminal state.
 ///
-/// **`Failed` does not mean the change was lost.** A write whose server call succeeded but
-/// whose post-write reconcile could not be confirmed has already landed on the server, only
-/// the local view is briefly stale, and the next sync heals it. `Failed` is the warning icon
-/// ("we could not confirm this saved"), not "your change was rejected".
+/// A failure is one of two sentences: `NotSaved` (nothing changed on the server) and
+/// `Unconfirmed` (the change may have landed, and the next sync settles which).
 ///
 /// `Copy` and the value derives are for Linux, as on [`ResponseStatus`](crate::ResponseStatus): a
 /// fieldless status is a value, not something to borrow.
@@ -232,8 +230,11 @@ pub enum CalendarWriteStatus {
     Saving,
     /// The most recent write settled and the local view holds the server's copy.
     Saved,
-    /// The most recent write's server call failed, or its reconcile could not be confirmed.
-    Failed,
+    /// The change was not saved: nothing reached the server (the calendar is not connected, or
+    /// the core refused the change before sending it), or the server refused it.
+    NotSaved,
+    /// The change may have landed and could not be confirmed.
+    Unconfirmed,
 }
 
 /// One account in the sidebar switcher: its id, the address and name it sends under, and

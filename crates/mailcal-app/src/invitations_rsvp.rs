@@ -107,17 +107,18 @@ impl<P: Provider> App<P> {
         reply_subject: Option<String>,
     ) -> Result<(), String> {
         // `Saving` goes up **before** the first check, and every failure below lands on
-        // `Failed`. The checks are local and fast, so this is not about the spinner; it is
-        // that a refusal must be *visible*. An invitation whose meeting is on no calendar used
-        // to return early with the indicator still `Idle`: the user tapped Accept, nothing
-        // happened, and nothing said why. That is the exact failure this feature exists to
-        // remove, reintroduced at the last step.
+        // `NotSaved`, or `Unconfirmed` where its write may have landed. The checks are local and
+        // fast, so this is not about the spinner; it is that a refusal must be *visible*.
+        // An invitation whose meeting is on no calendar used to return early with the
+        // indicator still `Idle`: the user tapped Accept, nothing happened, and nothing
+        // said why. That is the exact failure this feature exists to remove, reintroduced
+        // at the last step.
         self.set_calendar_write_status(CalendarWriteStatus::Saving);
         let outcome = self
             .send_invitation_response(message, response, comment, notify_organizer, reply_subject)
             .await;
         if outcome.is_err() {
-            self.set_calendar_write_status(CalendarWriteStatus::Failed);
+            self.answer_failed();
         }
         outcome
     }
@@ -260,7 +261,7 @@ impl<P: Provider> App<P> {
                 &rsvp,
             )
             .await
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| self.answer_write_failed(&err))?;
 
         let status = self
             .settle_calendar_write(provider, &calendar, write.reconciled)

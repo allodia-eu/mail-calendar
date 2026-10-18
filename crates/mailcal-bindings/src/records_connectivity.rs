@@ -43,6 +43,26 @@ pub struct ConnectivitySnapshot {
     /// the two never contradict each other; like the reauth prompts it is not suppressed while
     /// offline.
     pub signin_expired_accounts: Vec<String>,
+    /// The accounts whose **calendar** is on and did not connect while the account itself did,
+    /// with why (`docs/accounts.md` rule 16). The calendar screen says so, one line per account,
+    /// above the week: what it shows of that calendar is what was last synced, and nothing on it
+    /// can be changed or answered until it connects. An unreachable calendar is left out while
+    /// `offline`, where the device is the fault, and an account in `signin_expired_accounts` is
+    /// left out, since its own prompt covers everything it does.
+    #[uniffi(default = [])]
+    pub calendar_outages: Vec<UseOutage>,
+    /// The same as `calendar_outages`, for the **address book**, said on the contacts screen.
+    #[uniffi(default = [])]
+    pub contacts_outages: Vec<UseOutage>,
+}
+
+/// A calendar or address book that did not connect, on an account that did.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct UseOutage {
+    /// The account's id; a person reads its address from the accounts snapshot.
+    pub account_id: String,
+    /// Why it did not connect.
+    pub problem: crate::UseProblem,
 }
 
 /// Which sign-in an account was connected with; what a host needs to know to re-run it.

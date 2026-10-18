@@ -67,7 +67,7 @@ async fn an_empty_roster_is_refused_before_the_provider() {
     app.dispatch(create(Some(Vec::new()))).await;
 
     assert!(meetings.lock().unwrap().is_empty());
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]
@@ -82,7 +82,7 @@ async fn inviting_the_organiser_is_refused_before_the_provider() {
         .await;
 
     assert!(meetings.lock().unwrap().is_empty());
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]
@@ -116,7 +116,7 @@ async fn an_invitee_cannot_change_the_meeting_roster() {
     .await;
 
     assert!(patches.lock().unwrap().is_empty());
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]
@@ -210,7 +210,7 @@ async fn a_roster_change_the_create_would_refuse_is_refused_before_the_provider(
         .await;
 
         assert!(patches.lock().unwrap().is_empty());
-        assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+        assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
     }
 }
 
@@ -232,5 +232,5 @@ async fn a_meeting_never_falls_back_to_another_account() {
         .await;
 
     assert!(meetings.lock().unwrap().is_empty());
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }

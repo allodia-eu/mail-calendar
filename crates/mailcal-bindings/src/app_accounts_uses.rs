@@ -60,6 +60,10 @@ impl MailcalApp {
         // Nothing may sync into a domain while it is forgotten, so the account is listed without
         // providers first and dialled again only afterwards.
         self.list_without_providers(&id);
+        if !on && matches!(capability, Capability::Calendar | Capability::Contacts) {
+            self.app
+                .forget_use_problem(&id, capability == Capability::Calendar);
+        }
         if !on {
             let app = Arc::clone(&self.app);
             let forgotten = id.clone();

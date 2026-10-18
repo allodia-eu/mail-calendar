@@ -169,7 +169,7 @@ async fn a_note_a_transport_cannot_carry_fails_the_answer_rather_than_being_drop
         rsvps.lock().unwrap().is_empty(),
         "the write was refused before it reached the provider"
     );
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]
@@ -183,7 +183,7 @@ async fn asking_to_stay_quiet_where_the_server_always_replies_fails_rather_than_
     .await;
 
     assert!(rsvps.lock().unwrap().is_empty());
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]
@@ -291,7 +291,7 @@ async fn answering_a_superseded_invitation_is_refused_rather_than_landing_on_the
         rsvps.lock().unwrap().is_empty(),
         "no answer may reach the provider for a superseded invitation"
     );
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]

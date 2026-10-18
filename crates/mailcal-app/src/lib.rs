@@ -128,6 +128,7 @@ pub mod use_problems;
 mod view_settings;
 mod view_snapshots;
 mod window;
+mod write_failure;
 mod zones;
 
 pub use accounts::Account;
@@ -444,6 +445,8 @@ mod tests_calendar_recurrence;
 mod tests_calendar_series_warning;
 #[cfg(test)]
 mod tests_calendar_unexpandable;
+#[cfg(test)]
+mod tests_calendar_write_outcome;
 #[cfg(test)]
 mod tests_contacts;
 #[cfg(test)]

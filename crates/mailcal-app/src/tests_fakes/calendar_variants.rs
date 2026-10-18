@@ -5,7 +5,7 @@
 
 use engine_api::CalendarUserAddresses;
 use engine_core::calendar::Event;
-use engine_provider::{Capabilities, OverrideSurvival, ReplyDelivery, WriteGuard};
+use engine_provider::{Capabilities, OverrideSurvival, ProviderError, ReplyDelivery, WriteGuard};
 
 use super::calendar::{CalendarFake, SERVER_SCHEDULED_RSVP};
 
@@ -27,7 +27,17 @@ impl CalendarFake {
     /// The same, but every patch is rejected: the server said no.
     pub(crate) fn rejecting_writes(events: Vec<Event>) -> Self {
         Self {
-            reject_patches: true,
+            patch_failure: Some(|| ProviderError::invalid_state("the server rejected the patch")),
+            ..Self::with_events(events)
+        }
+    }
+
+    /// The same, but every patch's answer is lost after it was sent, so it may have landed.
+    pub(crate) fn losing_patch_answers(events: Vec<Event>) -> Self {
+        Self {
+            patch_failure: Some(|| {
+                ProviderError::needs_confirmation("the connection closed after the patch was sent")
+            }),
             ..Self::with_events(events)
         }
     }

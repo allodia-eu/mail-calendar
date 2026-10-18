@@ -330,6 +330,9 @@ mod logging;
 #[path = "tests_contacts_write.rs"]
 mod write;
 
+#[path = "tests_contacts_write_outcome.rs"]
+mod write_outcome;
+
 /// An account used for its contacts alone has neither a mail pass nor a calendar pass to learn
 /// from, so its contacts say whether its server answers.
 #[tokio::test]

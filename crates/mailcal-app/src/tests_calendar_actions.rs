@@ -143,7 +143,7 @@ async fn editing_an_event_sends_a_patch_with_only_the_changed_properties() {
 }
 
 #[tokio::test]
-async fn a_rejected_edit_is_reported_as_failed_not_swallowed() {
+async fn a_rejected_edit_is_reported_as_not_saved_not_swallowed() {
     // There is no outbox drainer behind this write: if the patch fails, the user's edit did not
     // happen. `create_event` discards that with `let _ =`; an edit must not, or the app will
     // cheerfully show a change the server never accepted.
@@ -163,7 +163,7 @@ async fn a_rejected_edit_is_reported_as_failed_not_swallowed() {
         .await;
     assert!(outcome.is_err(), "a rejected patch was reported as a save");
     // And the calendar status says so, so the host can show the warning rather than a check.
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]
@@ -199,9 +199,9 @@ async fn a_create_reports_saved_and_signals_the_calendar_status() {
 }
 
 #[tokio::test]
-async fn a_write_whose_reconcile_fails_reports_failed_not_saved() {
+async fn a_write_whose_reconcile_fails_reports_unconfirmed_not_saved() {
     // The write landed on the server, but the post-write reconcile (an event delta) failed, so
-    // the local view is unconfirmed. The status must be `Failed` (the warning icon) not a
+    // the local view is unconfirmed. The status must be `Unconfirmed` (the warning icon) not a
     // confident `Saved`. The core must NOT re-issue the write to "fix" it (that would write
     // twice); it only re-reads, which here also fails, leaving the status honest.
     let provider = CalendarFake::failing_reconcile(vec![fakes::stored_event("standup", "\"v7\"")]);
@@ -224,14 +224,17 @@ async fn a_write_whose_reconcile_fails_reports_failed_not_saved() {
     }))
     .await;
 
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(
+        app.calendar_write_status(),
+        CalendarWriteStatus::Unconfirmed
+    );
 }
 
 #[tokio::test]
 async fn a_background_refresh_preserves_failure_until_an_explicit_retry() {
-    // A full refresh reconciles the whole event scope, so it heals what a `Failed` write status
-    // stood for, and the terminal status is per-write feedback, not a persistent health light.
-    // So the host's "retry" (a RefreshCalendar) clears the warning back to `Idle`.
+    // A full refresh reconciles the whole event scope, so it heals what an `Unconfirmed` write
+    // status stood for, and the terminal status is per-write feedback, not a persistent health
+    // light. So the host's "retry" (a RefreshCalendar) clears the warning back to `Idle`.
     let provider = CalendarFake::failing_reconcile(vec![fakes::stored_event("standup", "\"v7\"")]);
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = calendar_app(vec![calendar_account("acct-a", provider)], &surfaces);
@@ -250,12 +253,15 @@ async fn a_background_refresh_preserves_failure_until_an_explicit_retry() {
         invitees: None,
     }))
     .await;
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(
+        app.calendar_write_status(),
+        CalendarWriteStatus::Unconfirmed
+    );
 
     app.refresh_calendar_in_background().await;
     assert_eq!(
         app.calendar_write_status(),
-        CalendarWriteStatus::Failed,
+        CalendarWriteStatus::Unconfirmed,
         "an unasked refresh must not dismiss the user's failed-write warning"
     );
 
@@ -310,10 +316,11 @@ async fn a_create_routes_to_a_writable_account_not_the_first_calendar_account() 
 }
 
 #[tokio::test]
-async fn a_create_is_a_no_op_when_no_account_can_write() {
+async fn a_create_when_no_account_can_write_sends_nothing_and_says_so() {
     // Every calendar row reports `can_write: false`, so every client's create affordance is
-    // disabled: a create that arrives anyway (a future host over the same commands) must be
-    // the documented no-op, not an attempted write the provider is guaranteed to refuse.
+    // disabled: a create that arrives anyway (a future host over the same commands) sends no
+    // write the provider is guaranteed to refuse, and settles as not saved so an editor waiting
+    // on it is not left waiting.
     let reader = CalendarFake::read_only(Vec::new());
     let creations = reader.creations();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
@@ -341,8 +348,8 @@ async fn a_create_is_a_no_op_when_no_account_can_write() {
     );
     assert_eq!(
         app.calendar_write_status(),
-        CalendarWriteStatus::Idle,
-        "a no-op create reports nothing; there was no write to report on"
+        CalendarWriteStatus::NotSaved,
+        "a create that went nowhere says so"
     );
 }
 

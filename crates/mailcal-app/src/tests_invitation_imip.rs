@@ -293,7 +293,7 @@ async fn an_account_with_no_route_refuses_instead_of_pretending() {
     assert!(answered.sends.lock().unwrap().is_empty());
     assert_eq!(
         answered.app.calendar_write_status(),
-        CalendarWriteStatus::Failed
+        CalendarWriteStatus::NotSaved
     );
 }
 

@@ -168,9 +168,13 @@ impl MailcalApp {
     /// The current connectivity state (pulled after a `Surface::Connectivity` signal): the
     /// device-offline flag (a host shows a global banner) and, while online, the ids of
     /// accounts whose last sync couldn't reach their server (a host badges each in the
-    /// switcher). Dispatch `Intent::ReportNetworkReachable` to feed the OS reachability signal.
+    /// switcher), and the calendars and address books that did not connect beside a working
+    /// account. Dispatch `Intent::ReportNetworkReachable` to feed the OS reachability signal.
     pub fn connectivity(&self) -> ConnectivitySnapshot {
-        self.app.connectivity().into()
+        crate::use_outages::with_outages(
+            self.app.connectivity().into(),
+            &self.app.every_use_problem(),
+        )
     }
 
     /// The non-fatal account-connect diagnostics (account-prefixed, newline-joined), or

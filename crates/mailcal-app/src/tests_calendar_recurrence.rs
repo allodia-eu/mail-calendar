@@ -251,7 +251,7 @@ async fn an_edit_of_a_rule_we_could_not_describe_fails_out_loud() {
         patches.lock().unwrap().is_empty(),
         "nothing was sent: the rule we could not read is still the server's"
     );
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 /// A wall clock one hour after the occurrence the grid drew for `event`: a time that reads
@@ -295,7 +295,7 @@ async fn a_delete_of_an_occurrence_the_series_does_not_have_is_refused() {
         "nothing was deleted, and above all not the series, which is the one outcome nobody \
          can undo"
     );
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]
@@ -322,7 +322,7 @@ async fn an_edit_of_an_occurrence_the_series_does_not_have_is_refused() {
         "nothing was patched: an override split at a slot the rule never produces is a \
          meeting drawn twice"
     );
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]
@@ -343,7 +343,7 @@ async fn an_occurrence_named_on_an_event_that_does_not_repeat_is_refused() {
     .await;
 
     assert!(targets.lock().unwrap().is_empty());
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 /// How many blocks the grid draws for a series following `rule`, over a year and a bit.

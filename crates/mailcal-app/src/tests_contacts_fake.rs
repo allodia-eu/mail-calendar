@@ -70,6 +70,8 @@ pub(crate) struct FakeContacts {
     cards: Mutex<Vec<ContactCard>>,
     fails: bool,
     writable: bool,
+    /// What every create and patch fails with, when set.
+    write_error: Option<fn() -> ProviderError>,
     /// Every create and patch this adapter was asked for, in order.
     ///
     /// Shared rather than owned, so a test can read it while the app owns the adapter: the
@@ -108,6 +110,7 @@ impl FakeContacts {
             cards: Mutex::new(cards),
             fails: false,
             writable: false,
+            write_error: None,
             writes: WriteLog::default(),
             syncs: Arc::default(),
         }
@@ -119,6 +122,7 @@ impl FakeContacts {
             cards: Mutex::new(Vec::new()),
             fails: true,
             writable: false,
+            write_error: None,
             writes: WriteLog::default(),
             syncs: Arc::default(),
         }
@@ -128,6 +132,14 @@ impl FakeContacts {
     pub(crate) fn writable(self) -> Self {
         Self {
             writable: true,
+            ..self
+        }
+    }
+
+    /// The same adapter, failing every write with what `error` makes.
+    pub(crate) fn failing_writes(self, error: fn() -> ProviderError) -> Self {
+        Self {
+            write_error: Some(error),
             ..self
         }
     }
@@ -194,6 +206,9 @@ impl ContactsProvider for FakeContacts {
         _account: &AccountId,
         draft: &ContactDraft,
     ) -> ProviderResult<ContactWriteReceipt> {
+        if let Some(error) = self.write_error {
+            return Err(error());
+        }
         let id =
             ContactId::try_from(format!("created-{}", self.cards.lock().unwrap().len()).as_str())
                 .expect("a non-empty generated id");
@@ -212,6 +227,9 @@ impl ContactsProvider for FakeContacts {
         base: &ContactCard,
         patch: &ContactPatch,
     ) -> ProviderResult<ContactWriteReceipt> {
+        if let Some(error) = self.write_error {
+            return Err(error());
+        }
         self.writes.push(ContactWriteRecord::Patched(
             base.id.clone(),
             Box::new(patch.clone()),

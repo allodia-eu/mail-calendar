@@ -132,6 +132,7 @@ mod showcase_data;
 mod store_files;
 mod timezone;
 mod token_sink;
+mod use_outages;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
 pub use account_capability::AccountCapability;
@@ -220,7 +221,7 @@ pub use records_calendar::{
     MonthCell, MonthChip, MonthPage, Swatch, TimeFormat, TimedSegment, WeekStart,
 };
 pub use records_connectivity::{
-    AccountProvider, ConnectionInfo, ConnectivitySnapshot, HttpVersion, TlsVersion,
+    AccountProvider, ConnectionInfo, ConnectivitySnapshot, HttpVersion, TlsVersion, UseOutage,
 };
 pub use records_contacts::{
     ContactCardRef, ContactDetail, ContactEdit, ContactRow, ContactTarget, ContactValue,

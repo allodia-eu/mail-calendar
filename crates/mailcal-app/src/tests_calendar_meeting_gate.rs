@@ -88,7 +88,7 @@ async fn a_meeting_on_a_calendar_that_does_not_schedule_is_refused_before_the_pr
     app.dispatch(create_meeting()).await;
 
     assert!(meetings.lock().unwrap().is_empty());
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]
@@ -106,7 +106,7 @@ async fn an_organiser_the_server_does_not_schedule_as_is_refused_before_the_prov
         app.dispatch(create_meeting()).await;
 
         assert!(meetings.lock().unwrap().is_empty());
-        assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+        assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
     }
 }
 
@@ -209,7 +209,7 @@ async fn the_roster_is_read_only_where_the_server_does_not_schedule() {
     .await;
 
     assert!(patches.lock().unwrap().is_empty());
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
 
 #[tokio::test]
@@ -233,5 +233,5 @@ async fn a_roster_change_as_an_organiser_the_server_does_not_schedule_as_is_refu
     .await;
 
     assert!(patches.lock().unwrap().is_empty());
-    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::Failed);
+    assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
