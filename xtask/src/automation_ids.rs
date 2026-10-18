@@ -50,7 +50,7 @@ pub(crate) const PLATFORM: &[(&str, &str)] = &[
     ("PART_PaneToggleButton", "the WinUI TitleBar's pane toggle"),
     ("TogglePaneButton", "the NavigationView's pane toggle"),
     ("SettingsItem", "the NavigationView's settings item"),
-    ("MenuItemsScrollViewer", "the NavigationView's menu scroller"),
+    ("MenuItemsScrollViewer", "the NavigationView's scroller"),
     ("TextBox", "the AutoSuggestBox's inner text box"),
     ("printerSelector", "the Windows print dialog"),
     ("PrintButton", "the Windows print dialog"),
