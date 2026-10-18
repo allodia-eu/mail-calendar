@@ -58,13 +58,15 @@ enum AccountSettingsRules {
         state == .on || state == .needsPermission
     }
 
-    /// The links the account holds, as the list row names them.
-    static func linked(_ entry: AccountEntry) -> [(use: AccountCapability, address: String)] {
+    /// The links the account holds, in the order the list row names them.
+    static func linked(
+        _ entry: AccountEntry
+    ) -> [(use: AccountCapability, account: LinkedAccount)] {
         [
             (AccountCapability.calendar, entry.links.calendar),
             (.contacts, entry.links.contacts),
             (.mail, entry.links.mail),
-        ].compactMap { use, link in link.map { (use, $0.address) } }
+        ].compactMap { use, link in link.map { (use, $0) } }
     }
 
     /// Whether a use the account is used for waits on the provider's permission.
@@ -146,7 +148,8 @@ enum AccountSettingsRules {
     /// The accounts that lose their link when this one is removed, joined for the confirmation;
     /// `nil` when none does.
     static func unlinked(_ entry: AccountEntry) -> String? {
-        entry.linkedFrom.isEmpty ? nil : entry.linkedFrom.map(\.address).joined(separator: ", ")
+        entry.linkedFrom.isEmpty
+            ? nil : entry.linkedFrom.map { AccountSettingsLabels.name($0) }.joined(separator: ", ")
     }
 
     /// Whether the mail settings offer a new password or API token: a JMAP account whose pasted
@@ -172,6 +175,30 @@ enum AccountSettingsLabels {
         }
     }
 
+    /// What a person reads an account by: its address, with what tells it apart from another
+    /// account with the same address (docs/accounts.md rule 8).
+    static func name(address: String, distinction: AccountDistinction?) -> String {
+        switch distinction {
+        case nil: address
+        case let .kind(accountKind):
+            L10n.settings_account_distinguished(address: address, detail: kind(accountKind))
+        case let .server(host):
+            L10n.settings_account_distinguished(address: address, detail: host)
+        }
+    }
+
+    static func name(_ account: LinkedAccount) -> String {
+        name(address: account.address, distinction: account.distinction)
+    }
+
+    /// The account's kind, as its row and its page say it under the address. Where another account
+    /// shares its address and its kind, the server's host follows: the kind alone would not tell
+    /// the two apart.
+    static func kindLine(_ entry: AccountEntry) -> String {
+        guard case let .server(host) = entry.distinction else { return kind(entry.kind) }
+        return "\(kind(entry.kind)) · \(host)"
+    }
+
     /// A use's name, as the main window's sections name it.
     static func use(_ capability: AccountCapability) -> String {
         switch capability {
@@ -186,9 +213,9 @@ enum AccountSettingsLabels {
     /// is linked to, and whether something needs the person.
     static func summary(_ entry: AccountEntry) -> [String] {
         let uses = AccountSettingsRules.inUse(entry).map(use).joined(separator: ", ")
-        var lines = ["\(kind(entry.kind)) · \(uses)"]
+        var lines = ["\(kindLine(entry)) · \(uses)"]
         lines += AccountSettingsRules.linked(entry).map {
-            L10n.settings_account_linked_line(capability: use($0.use), address: $0.address)
+            L10n.settings_account_linked_line(capability: use($0.use), address: name($0.account))
         }
         if AccountSettingsRules.needsPermission(entry) {
             lines.append(L10n.settings_account_needs_permission())
