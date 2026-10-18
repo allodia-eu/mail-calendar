@@ -56,6 +56,9 @@ an obvious reimplementation finds nothing:
   `TestAgent.Signal(element, "state")` in the app, `Filter { Signal = "state" }` in the suite. The
   composer's editor signals `seeded` once its page is loaded and filled; typing before then lands
   in a page that is still being set up.
+- **A dialog has not closed until its dimming layer has.** A ContentDialog's own popup goes the
+  moment it is dismissed, but the layer behind it stays until the close completes, and the app
+  opens no other dialog before then: `CalendarFlow.CloseDialogs` waits for both.
 - **A folder's list is not that folder's until its header names it.** The rows on screen in the
   meantime are the last folder's, and a press meant for the new list lands on one of them.
 - **Real input only for a press that has to be a press**: a double-click, a click into the

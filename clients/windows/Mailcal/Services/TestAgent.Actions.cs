@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Threading;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
 using Microsoft.UI.Xaml.Controls;
@@ -41,6 +42,16 @@ internal static partial class TestAgent
         if (peer.GetPattern(PatternInterface.ExpandCollapse) is IExpandCollapseProvider expand)
         {
             described["expanded"] = expand.ExpandCollapseState.ToString();
+        }
+        // What a picker shows, never its own name, which is its header. A closed drop-down has no
+        // containers, so the item stands in for its own when there is none.
+        if (peer is FrameworkElementAutomationPeer { Owner: Microsoft.UI.Xaml.Controls.Primitives.Selector selector }
+            && selector.SelectedItem is { } chosen)
+        {
+            described["selection"] = selector.ContainerFromItem(chosen) is UIElement container
+                && FrameworkElementAutomationPeer.CreatePeerForElement(container) is { } shown
+                    ? shown.GetName()
+                    : chosen.ToString();
         }
     }
 
