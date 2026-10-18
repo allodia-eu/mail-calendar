@@ -31,11 +31,23 @@ internal static partial class TestAgent
     {
         var open = new List<Window>();
         Tracked.RemoveAll(reference => !reference.TryGetTarget(out _));
-        foreach (var reference in Tracked)
+        foreach (var reference in Tracked.ToList())
         {
-            if (reference.TryGetTarget(out var window) && window.Content is not null && window.AppWindow is not null)
+            if (!reference.TryGetTarget(out var window))
             {
-                open.Add(window);
+                continue;
+            }
+            try
+            {
+                if (window.Content is not null && window.AppWindow is not null)
+                {
+                    open.Add(window);
+                }
+            }
+            catch (System.Runtime.InteropServices.COMException)
+            {
+                // Closing, between its close and the Closed event that untracks it.
+                Tracked.Remove(reference);
             }
         }
         return open;

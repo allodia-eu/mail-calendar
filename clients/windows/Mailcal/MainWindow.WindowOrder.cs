@@ -21,8 +21,8 @@
 // line this has caught was the list focusing the row under the pointer, from the second press of
 // the double-click that had just opened the window, and every collection read "never" throughout,
 // which is what ruled them out. The shell shows a window a dispatcher turn after it is asked for so
-// that press finishes first (MainWindow.ReadingWindows.cs), and ReadingWindow.Tests reads these
-// lines to hold it there.
+// that press finishes first (MainWindow.ReadingWindows.cs), and the UI suite's ReadingWindowTests
+// reads these lines to hold it there.
 
 using System;
 using System.Collections.Specialized;

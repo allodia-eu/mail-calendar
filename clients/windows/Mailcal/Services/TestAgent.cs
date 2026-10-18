@@ -58,6 +58,8 @@ internal static partial class TestAgent
             return;
         }
         Tracked.Add(new WeakReference<Window>(window));
+        // A closed window outlives its close, and every property read on it then throws.
+        window.Closed += (_, _) => Tracked.RemoveAll(reference => !reference.TryGetTarget(out var open) || ReferenceEquals(open, window));
 #endif
     }
 

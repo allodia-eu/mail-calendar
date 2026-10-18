@@ -16,9 +16,17 @@
     <IsPackable>false</IsPackable>
     <!-- Screen pixels, for the suites that assert on what is drawn. -->
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- System.Windows.Automation, for the few things the system draws outside the XAML tree. -->
+    <UseWPF>true</UseWPF>
     <!-- So the gate can compile it on a Linux or macOS host, as it does Mailcal.Tests. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UseWPF leaves these out of the implicit usings, for types of its own this project never uses. -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />

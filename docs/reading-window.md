@@ -234,7 +234,7 @@ none either, and `GApplication` hands a second launch to the process already run
 - **Archive and delete closing the window is hand-verified on Windows, not gated.** Proving it
   automatically spends a seeded message on the shared harness and nothing puts one back, so the UI
   suite covers every other rule and leaves that one to a person
-  (`clients/windows/uitests/ReadingWindow.Tests.ps1` says so in place).
+  (`clients/windows/Mailcal.UiTests/Suites/ReadingWindowTests.cs` says so in place).
 - **A reading window does not follow the message.** Moving or deleting the message from somewhere
   else leaves the window showing what it had; only an invitation's own card is republished. The
   window is closed by the archive and delete on *its* action row, not by the same action taken

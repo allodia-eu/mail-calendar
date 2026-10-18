@@ -41,6 +41,9 @@ internal static partial class AppLog
         return text[last.Index..];
     }
 
+    /// <summary>The newest session's lines, whenever it started, or "" if the log holds no banner.</summary>
+    internal static string NewestSession() => Session(DateTimeOffset.MinValue.AddSeconds(1));
+
     /// <summary>One file's text, shared for writing because the app holds it open; "" while it is
     /// missing or mid-rotation.</summary>
     private static string Read(string path)

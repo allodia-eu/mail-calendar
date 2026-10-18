@@ -12,11 +12,15 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 /// <summary>The app on the harness store, launched on first use and stopped after the last suite.</summary>
-public sealed class HarnessApp : IDisposable
+public class HarnessApp : IDisposable
 {
     private App? _app;
 
-    internal App App => _app ??= App.LaunchOnHarness();
+    internal App App => _app ??= App.LaunchOnHarness(Env);
+
+    /// <summary>The MAILCAL_* and log switches this launch is made with. The app reads them once,
+    /// at startup, so suites that need different ones need a launch, and a collection, of their own.</summary>
+    protected virtual IReadOnlyDictionary<string, string> Env { get; } = new Dictionary<string, string>();
 
     /// <summary>
     /// Runs one case against a clean surface, then <paramref name="cleanup"/> whatever happened. A
@@ -78,13 +82,30 @@ public sealed class HarnessApp : IDisposable
         }
     }
 
-    public void Dispose() => _app?.Dispose();
+    public void Dispose()
+    {
+        _app?.Dispose();
+        GC.SuppressFinalize(this);
+    }
+}
+
+/// <summary>The harness app with its log at debug: for a rule the app states only in its log.</summary>
+public sealed class DebugLogHarnessApp : HarnessApp
+{
+    protected override IReadOnlyDictionary<string, string> Env { get; } =
+        new Dictionary<string, string> { ["ALLODIA_LOG_LEVEL"] = "debug" };
 }
 
 [CollectionDefinition(Name)]
 public sealed class HarnessCollection : ICollectionFixture<HarnessApp>
 {
     public const string Name = "harness";
+}
+
+[CollectionDefinition(Name)]
+public sealed class DebugLogHarnessCollection : ICollectionFixture<DebugLogHarnessApp>
+{
+    public const string Name = "harness, log at debug";
 }
 
 /// <summary>

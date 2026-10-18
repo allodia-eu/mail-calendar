@@ -13,6 +13,9 @@ internal sealed partial class App : IDisposable
 
     internal Agent Agent { get; }
 
+    /// <summary>Whether the app is still running: a crash leaves every other read stale.</summary>
+    internal bool Running => !_process.HasExited;
+
     private App(Process process, Agent agent)
     {
         _process = process;
@@ -25,7 +28,7 @@ internal sealed partial class App : IDisposable
     /// <summary>Launches the newest Debug build on the harness store and waits until it is ready:
     /// past the first-run question and the default-mail-app offer, rows listed, and the calendar
     /// back from the server.</summary>
-    internal static App LaunchOnHarness()
+    internal static App LaunchOnHarness(IReadOnlyDictionary<string, string>? env = null)
     {
         Stop();
         var pipe = $"mailcal-uitests-{Environment.ProcessId}";
@@ -41,6 +44,10 @@ internal sealed partial class App : IDisposable
             ["MAILCAL_EXTRA_CA"] = Path.Combine(Repo, "docker", "stalwart", "tls", "harness-ca.pem"),
             ["MAILCAL_TEST_AGENT"] = pipe,
         };
+        foreach (var (name, value) in env ?? new Dictionary<string, string>())
+        {
+            environment[name] = value;
+        }
 
         // Through the shell, so the app inherits none of this process's handles: a child holding the
         // test host's output open keeps `dotnet test` waiting after the last case. The shell hands

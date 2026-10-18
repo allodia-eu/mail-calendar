@@ -1,7 +1,6 @@
 // The moves the Drafts suite makes: writing and storing a draft, leaving its composer, finding it in
 // the account's Drafts folder as the server lists it, and taking it off the server again.
 
-using System.Text.Json.Nodes;
 using Allodia.Mailcal.UiTests.Driver;
 
 namespace Allodia.Mailcal.UiTests.Suites;
@@ -11,12 +10,9 @@ internal sealed class DraftsFlow(App app)
     /// <summary>Per run, so a copy left behind by an interrupted run is never mistaken for this run's.</summary>
     internal static readonly string Run = DateTime.Now.ToString("HHmmss", System.Globalization.CultureInfo.InvariantCulture);
 
-    private static readonly JsonObject Catalog =
-        JsonNode.Parse(File.ReadAllText(Path.Combine(App.Repo, "messages", "en.json")))!.AsObject();
+    internal static string Saved => Catalog.English("compose_draft_saved");
 
-    internal static string Saved => (string)Catalog["compose_draft_saved"]!;
-
-    internal static string Reply => (string)Catalog["action_reply"]!;
+    internal static string Reply => Catalog.English("action_reply");
 
     private Agent Agent => app.Agent;
 

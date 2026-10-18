@@ -31,8 +31,35 @@ internal sealed partial class App
         var filter = new Filter { Type = "ListItem", Under = RowsList(), Has = new Filter { NameLike = title } };
         var row = Agent.Find(filter)
             ?? throw new InvalidOperationException($"no message row matching '{title}'. The list holds: {string.Join(" | ", Rows().Select(r => r.Name))}");
+        // The list scrolls with an animation, so the row is drawn a moment after the request.
         Agent.ScrollIntoView(row);
-        return Agent.Find(filter) ?? row;
+        Element? drawn = null;
+        Eventually(() => (drawn = Agent.Find(filter)) is { Rendered: true }, TimeSpan.FromSeconds(3));
+        return drawn ?? row;
+    }
+
+    /// <summary>
+    /// Clicks the row titled <paramref name="title"/> with the pointer, once or as a double-click,
+    /// with the mailbox in front: a press goes to whatever is under the pointer. Then waits for the
+    /// windows to settle, because a double-click opens its window on the second press and the pane
+    /// is put back after the trailing click.
+    /// </summary>
+    internal void RowClicks(string title, int times = 1)
+    {
+        ShowMailbox();
+        Input.Click(RowTitled(title), times);
+        Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500), cap: TimeSpan.FromSeconds(3));
+    }
+
+    /// <summary>The window titled <paramref name="title"/>, waited for.</summary>
+    internal AppWindow WaitWindow(string title, int timeoutSec = 20)
+    {
+        AppWindow? found = null;
+        if (!Eventually(() => (found = Agent.Windows().FirstOrDefault(w => w.Title == title)) is not null, TimeSpan.FromSeconds(timeoutSec)))
+        {
+            throw new InvalidOperationException($"no window titled '{title}' within {timeoutSec} s; open windows: {string.Join(" | ", Agent.Windows().Select(w => w.Title))}");
+        }
+        return found!;
     }
 
     /// <summary>Raises the mailbox the way a person does, by pressing its title: a window the app

@@ -43,26 +43,35 @@ internal static class Input
     }
 
     /// <summary>Clicks the middle of <paramref name="element"/>, once or as a double-click, with its
-    /// window in front.</summary>
-    internal static void Click(Element element, int times = 1)
+    /// window in front; <paramref name="right"/> presses the secondary button instead.</summary>
+    internal static void Click(Element element, int times = 1, bool right = false)
     {
         if (!element.Rendered)
         {
             throw new InvalidOperationException($"'{element.Name}' (#{element.Id}) is not drawn, so a press cannot land on it");
         }
         BringToFront(element.Window);
-        ClickAt((int)(element.X + element.Width / 2), (int)(element.Y + element.Height / 2), times);
+        ClickAt((int)(element.X + element.Width / 2), (int)(element.Y + element.Height / 2), times, right);
     }
 
     /// <summary>Clicks a screen point, in physical pixels, once or as a double-click.</summary>
-    internal static void ClickAt(int x, int y, int times = 1)
+    internal static void ClickAt(int x, int y, int times = 1, bool right = false)
     {
         SetCursorPos(x, y);
+        var (down, up) = right ? (MouseRightDown, MouseRightUp) : (MouseLeftDown, MouseLeftUp);
         for (var i = 0; i < times; i++)
         {
-            Send(Mouse(MouseLeftDown), Mouse(MouseLeftUp));
+            Send(Mouse(down), Mouse(up));
         }
     }
+
+    /// <summary>Presses and releases one key, by its virtual-key code, in whatever has the keyboard.</summary>
+    internal static void Press(ushort virtualKey) =>
+        Send(
+            new NativeInput { Type = InputKeyboard, Union = new InputUnion { Keyboard = new KeyboardInput { Virtual = virtualKey } } },
+            new NativeInput { Type = InputKeyboard, Union = new InputUnion { Keyboard = new KeyboardInput { Virtual = virtualKey, Flags = KeyUp } } });
+
+    internal const ushort Escape = 0x1B;
 
     /// <summary>Types <paramref name="text"/> into whatever has the keyboard, as characters rather
     /// than keys, so the layout does not matter.</summary>
@@ -96,6 +105,8 @@ internal static class Input
     private const uint InputKeyboard = 1;
     private const uint MouseLeftDown = 0x0002;
     private const uint MouseLeftUp = 0x0004;
+    private const uint MouseRightDown = 0x0008;
+    private const uint MouseRightUp = 0x0010;
     private const uint KeyUp = 0x0002;
     private const uint KeyUnicode = 0x0004;
     private static readonly nint PerMonitorAwareV2 = -4;
