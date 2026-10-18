@@ -26,6 +26,9 @@ public sealed partial class AccountSetupView
     // The update question waiting, answered as Cancel when the form moves on without it.
     private TaskCompletionSource<UnreachedAnswer>? _updateAsking;
 
+    // The step's sign-in at its server's own provider: what was offered, and the attempt out.
+    private readonly SeparateServerSignIn _separateSignIn = new();
+
     private void DrawSeparateServer(SeparateServerStep step)
     {
         _separateShown = true;
@@ -34,19 +37,22 @@ public sealed partial class AccountSetupView
             return;
         }
         _separateDrawn = step;
+        RetireSeparateSignIn();
         SeparatePanel.Children.Clear();
         var form = UnreachedUsesViews.Form(step, L10n.SeparateServerSkip());
         // A step of the form, titled as the link step is.
         form.Title.Style = (Style)Application.Current.Resources["TitleTextBlockStyle"];
         AutomationProperties.SetHeadingLevel(form.Title, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level1);
         form.Connect.IsEnabled = false;
-        form.Password.PasswordChanged += (_, _) => form.Connect.IsEnabled = form.Password.Password.Length > 0;
+        form.Password.PasswordChanged += (_, _) =>
+            form.Connect.IsEnabled = form.Password.Password.Length > 0 && _separateSignIn.FormEnabled;
         form.Connect.Click += async (_, _) =>
         {
             if (Model is not { } model)
             {
                 return;
             }
+            RetireSeparateSignIn();
             form.Say(null);
             form.Busy(true);
             var error = await model.SetupSeparateServerConnectAsync(form.Username.Text.Trim(), form.Password.Password);
@@ -54,6 +60,7 @@ public sealed partial class AccountSetupView
             {
                 form.Busy(false);
                 form.Connect.IsEnabled = form.Password.Password.Length > 0;
+                form.Draw(_separateSignIn, cancelOwn: true);
                 form.Say(error);
             }
         };
@@ -61,12 +68,58 @@ public sealed partial class AccountSetupView
         {
             if (Model is { } model)
             {
+                RetireSeparateSignIn();
                 form.Busy(true);
                 await model.SetupSeparateServerSkipAsync();
             }
         };
+        form.SignIn.Button.Click += async (_, _) =>
+        {
+            if (Model is not { } model)
+            {
+                return;
+            }
+            form.Say(null);
+            var next = await model.SetupSeparateServerSignInAsync(
+                _separateSignIn, _ => form.Draw(_separateSignIn, cancelOwn: true));
+            if (next is { GoesOn: false, Error: { } error } && ReferenceEquals(_separateDrawn, step))
+            {
+                form.Say(error);
+            }
+        };
+        form.SignIn.Cancel.Click += (_, _) =>
+        {
+            RetireSeparateSignIn();
+            form.Draw(_separateSignIn, cancelOwn: true);
+        };
         SeparatePanel.Children.Add(form.Panel);
         form.Password.Loaded += (_, _) => form.Password.Focus(FocusState.Programmatic);
+        _ = OfferSeparateSignInAsync(step, form);
+    }
+
+    // Asks once, off the UI thread, whether the step's server signs in at its own provider. The
+    // row is added above the login without taking focus, so the answer moves nothing being typed.
+    private async Task OfferSeparateSignInAsync(SeparateServerStep step, SeparateServerForm form)
+    {
+        if (Model is not { } model || !_separateSignIn.Asks(step))
+        {
+            form.Draw(_separateSignIn, cancelOwn: true);
+            return;
+        }
+        _separateSignIn.Answered(step, await model.SeparateServerOffersSignInAsync(step));
+        if (ReferenceEquals(_separateDrawn, step))
+        {
+            form.Draw(_separateSignIn, cancelOwn: true);
+        }
+    }
+
+    // The way back from the step's sign-in: the attempt out opens no browser and adds no account.
+    private void RetireSeparateSignIn()
+    {
+        if (_separateSignIn.Retire())
+        {
+            Model?.CancelSeparateServerSignIn();
+        }
     }
 
     /// <summary>Asks, under the update button, what becomes of <paramref name="unreached"/>.</summary>

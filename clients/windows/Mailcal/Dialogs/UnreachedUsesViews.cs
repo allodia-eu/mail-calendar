@@ -17,11 +17,48 @@ namespace Allodia.Mailcal.Dialogs;
 
 /// <summary>The separate-server form's controls, for the caller that wires its buttons.</summary>
 internal sealed record SeparateServerForm(
-    StackPanel Panel, TextBlock Title, TextBox Username, PasswordBox Password, InfoBar Error, Button Connect, Button Secondary)
+    SeparateServerStep Step, StackPanel Panel, TextBlock Title, TextBox Username, PasswordBox Password, InfoBar Error, Button Connect, Button Secondary,
+    SeparateServerSignInRow SignIn)
 {
+    // Whether a password's connect is running, which an offer answering meanwhile leaves disabled.
+    private bool _connecting;
+
     /// <summary>Disables the form while a connect runs, and enables it again after.</summary>
-    internal void Busy(bool busy) =>
+    internal void Busy(bool busy)
+    {
+        _connecting = busy;
         Username.IsEnabled = Password.IsEnabled = Connect.IsEnabled = Secondary.IsEnabled = !busy;
+        SignIn.Button.IsEnabled = !busy;
+    }
+
+    /// <summary>Draws the sign-in at the server's own provider as <paramref name="signIn"/> has
+    /// it: offered or not for the form's step, and where its attempt stands.
+    /// <paramref name="cancelOwn"/> is whether the attempt draws a Cancel of its own, which the
+    /// account's page does not, its form's Cancel being that way back.</summary>
+    internal void Draw(SeparateServerSignIn signIn, bool cancelOwn)
+    {
+        var offered = signIn.Offers(Step);
+        SignIn.Panel.Visibility = offered ? Visibility.Visible : Visibility.Collapsed;
+        // One primary action: the sign-in where it is offered, Connect otherwise.
+        var style = (Style)Application.Current.Resources[offered ? "DefaultButtonStyle" : "AccentButtonStyle"];
+        if (!ReferenceEquals(Connect.Style, style))
+        {
+            Connect.Style = style;
+        }
+        if (!offered)
+        {
+            return;
+        }
+        var live = signIn.FormEnabled && !_connecting;
+        SignIn.Button.IsEnabled = signIn.ButtonEnabled && !_connecting;
+        Username.IsEnabled = Password.IsEnabled = live;
+        // Where the form's own Cancel is the way back, it stays live through the begin.
+        Secondary.IsEnabled = live || (!cancelOwn && !_connecting && signIn.CancelShown);
+        Connect.IsEnabled = live && Password.Password.Length > 0;
+        SignIn.Cancel.Visibility = cancelOwn && signIn.CancelShown ? Visibility.Visible : Visibility.Collapsed;
+        SignIn.Ring.IsActive = signIn.Busy;
+        SignIn.Ring.Visibility = signIn.Busy ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     /// <summary>Says <paramref name="error"/> under the fields, or takes the last one away.</summary>
     internal void Say(string? error)
@@ -30,6 +67,10 @@ internal sealed record SeparateServerForm(
         Error.IsOpen = error is not null;
     }
 }
+
+/// <summary>The sign-in at the server's own provider, above the login: the button, its Cancel
+/// and ring while an attempt is out, and the note beneath. Collapsed until the core offers it.</summary>
+internal sealed record SeparateServerSignInRow(StackPanel Panel, Button Button, Button Cancel, ProgressRing Ring);
 
 internal static class UnreachedUsesViews
 {
@@ -122,6 +163,8 @@ internal static class UnreachedUsesViews
         AutomationProperties.SetHeadingLevel(title, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level2);
         panel.Children.Add(title);
         panel.Children.Add(new TextBlock { Text = L10n.SeparateServerBody(step.Host), TextWrapping = TextWrapping.Wrap });
+        var signIn = SignInRow();
+        panel.Children.Add(signIn.Panel);
         var login = new TextBox { Header = L10n.SetupFieldUsername(), Text = username ?? step.Username };
         AutomationProperties.SetAutomationId(login, "SeparateServerUsername");
         var password = new PasswordBox { Header = L10n.SetupFieldPassword() };
@@ -143,6 +186,39 @@ internal static class UnreachedUsesViews
         buttons.Children.Add(connect);
         buttons.Children.Add(other);
         panel.Children.Add(buttons);
-        return new SeparateServerForm(panel, title, login, password, error, connect, other);
+        return new SeparateServerForm(step, panel, title, login, password, error, connect, other, signIn);
+    }
+
+    private static SeparateServerSignInRow SignInRow()
+    {
+        var panel = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var button = new Button
+        {
+            Content = L10n.SetupImapSigninButton(),
+            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
+        };
+        AutomationProperties.SetAutomationId(button, "SeparateServerSignIn");
+        var cancel = new Button { Content = L10n.ActionCancel(), Visibility = Visibility.Collapsed };
+        AutomationProperties.SetAutomationId(cancel, "SeparateServerSignInCancel");
+        var ring = new ProgressRing
+        {
+            Width = 20,
+            Height = 20,
+            IsActive = false,
+            Visibility = Visibility.Collapsed,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        buttons.Children.Add(button);
+        buttons.Children.Add(cancel);
+        buttons.Children.Add(ring);
+        panel.Children.Add(buttons);
+        panel.Children.Add(new TextBlock
+        {
+            Text = L10n.SetupImapSigninNote(),
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+            TextWrapping = TextWrapping.Wrap,
+        });
+        return new SeparateServerSignInRow(panel, button, cancel, ring);
     }
 }

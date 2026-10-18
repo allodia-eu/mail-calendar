@@ -230,6 +230,10 @@
          and the form setup and the account's page offer. A switch that does not ask installs
          nothing (the core refuses it), and one that asks the wrong set says the wrong thing. -->
     <Compile Include="..\Mailcal\Services\UnreachedUsesRules.cs" Link="Services\UnreachedUsesRules.cs" />
+    <!-- Their sign-in at the server's own provider (docs/mail-oauth.md rule 13): offered only on
+         the core's yes for the form's uses, an answer from a superseded or retired attempt does
+         nothing, and success goes where Connect's success goes. -->
+    <Compile Include="..\Mailcal\Services\SeparateServerSignIn.cs" Link="Services\SeparateServerSignIn.cs" />
     <!-- The line the calendar and contacts screens draw over a use that did not connect
          (docs/accounts.md rule 16): the title, the reason the account's page gives and the
          last-synced sentence, one per account. L10n-free, the words arrive as parameters. -->

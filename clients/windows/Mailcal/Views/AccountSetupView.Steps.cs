@@ -49,6 +49,7 @@ public sealed partial class AccountSetupView
         Model?.CancelMicrosoftSignIn();
         Model?.CancelGoogleSignIn();
         Model?.CancelJmapSignIn();
+        Model?.CancelSeparateServerSignIn();
     }
 
     // Back to the address, which keeps what was typed there. Everything the abandoned route
