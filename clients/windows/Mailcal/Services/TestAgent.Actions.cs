@@ -21,6 +21,7 @@ internal static partial class TestAgent
     private static void Detail(AutomationPeer peer, JsonObject described)
     {
         described["focused"] = peer.HasKeyboardFocus();
+        described["help"] = peer.GetHelpText();
         if (peer.GetPattern(PatternInterface.Value) is IValueProvider value)
         {
             described["value"] = value.Value;

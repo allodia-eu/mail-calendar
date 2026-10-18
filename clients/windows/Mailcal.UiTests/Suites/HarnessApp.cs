@@ -127,6 +127,15 @@ public sealed class FakeReplyHarnessApp : HarnessApp
     };
 }
 
+/// <summary>The harness app with alice's mailbox used for mail alone, beside alice's and bob's
+/// calendar and contacts as accounts of their own (stalwart-linked): for linking one to another. It
+/// connects only its canned accounts, so a link made is gone at the next launch.</summary>
+public sealed class LinkedHarnessApp : HarnessApp
+{
+    protected override IReadOnlyDictionary<string, string> Env { get; } =
+        new Dictionary<string, string> { ["MAILCAL_DEV_ACCOUNT"] = "stalwart-linked" };
+}
+
 /// <summary>The harness app with its log at debug: for a rule the app states only in its log.</summary>
 public sealed class DebugLogHarnessApp : HarnessApp
 {
@@ -173,6 +182,12 @@ public sealed class ImapHarnessCollection : ICollectionFixture<ImapHarnessApp>
 public sealed class FakeReplyHarnessCollection : ICollectionFixture<FakeReplyHarnessApp>
 {
     public const string Name = "harness, IMAP, replies reported undelivered";
+}
+
+[CollectionDefinition(Name)]
+public sealed class LinkedHarnessCollection : ICollectionFixture<LinkedHarnessApp>
+{
+    public const string Name = "harness, linked accounts";
 }
 
 [CollectionDefinition(Name)]

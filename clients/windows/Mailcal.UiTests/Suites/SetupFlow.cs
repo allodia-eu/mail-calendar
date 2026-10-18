@@ -85,17 +85,33 @@ internal sealed class SetupFlow(App app)
     }
 
     /// <summary>
-    /// Opens <paramref name="address"/>'s page in Settings → Accounts and returns the dialog. The
-    /// list is drawn afresh first, by leaving the category and coming back, so what the page shows is
-    /// the core's answer and not a value the client kept.
+    /// The account rows of Settings → Accounts, drawn afresh, by leaving the category and coming
+    /// back, so what they show is the core's answer and not a value the client kept; and selecting
+    /// Accounts while an account's page is open leaves that page on screen.
     /// </summary>
-    internal Element OpenAccount(string address)
+    internal IReadOnlyList<Element> AccountRows()
     {
         var dialog = Settings();
         Agent.Select(Agent.Find(new Filter { Id = "SettingsCategory_general", Under = dialog })!);
         Agent.Select(Agent.Find(new Filter { Id = "SettingsCategory_accounts", Under = dialog })!);
-        var row = Agent.Wait(new Filter { Type = "Button", Name = address, Under = dialog }, TimeSpan.FromSeconds(10))
-            ?? throw new InvalidOperationException($"Settings → Accounts lists no {address}");
+        Agent.Wait(new Filter { Type = "Button", NameLike = "*@*", Under = dialog }, TimeSpan.FromSeconds(10));
+        return Agent.FindAll(new Filter { Type = "Button", NameLike = "*@*", Under = dialog });
+    }
+
+    /// <summary>
+    /// Opens <paramref name="address"/>'s page in Settings → Accounts and returns the dialog: the
+    /// <paramref name="index"/>th account of that address, as the list orders them, since one address
+    /// can be a mailbox and a calendar account apart.
+    /// </summary>
+    internal Element OpenAccount(string address, int index = 0)
+    {
+        List<Element> rows = [];
+        if (!App.Eventually(() => (rows = AccountRows().Where(r => r.Name == address).ToList()).Count > index, TimeSpan.FromSeconds(10)))
+        {
+            throw new InvalidOperationException($"Settings → Accounts lists {rows.Count} account(s) for {address}, not {index + 1}");
+        }
+        var row = rows[index];
+        var dialog = Settings();
         Agent.Invoke(row);
         if (Agent.Wait(new Filter { Id = "AccountRemove", Under = dialog }, TimeSpan.FromSeconds(10)) is null)
         {
