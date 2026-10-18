@@ -73,9 +73,9 @@ public sealed class PrintTests(HarnessApp harness)
             Assert.True(dialog.Current.Name.StartsWith(SecondSubject, StringComparison.Ordinal),
                 $"the dialog is titled by the job's name, which must be the subject; it read '{dialog.Current.Name}'");
             // The dialog says so in this element when the app hands it no preview pages.
-            var noPreview = PrintDialogs.ById("NoPreviewAvailableText", dialog);
+            var noPreview = Desktop.ById("NoPreviewAvailableText", dialog);
             Assert.True(noPreview is null, $"the dialog shows no preview: '{noPreview?.Current.Name}'");
-            PrintDialogs.Press(PrintDialogs.ById("CloseButton", dialog) ?? throw new InvalidOperationException("the print dialog has no Cancel"));
+            Desktop.Press(Desktop.ById("CloseButton", dialog) ?? throw new InvalidOperationException("the print dialog has no Cancel"));
             Assert.True(App.Eventually(() => PrintDialogs.Enabled(app.Mailbox.Hwnd), TimeSpan.FromSeconds(5)),
                 "the window must take input again once the dialog is cancelled");
             var error = app.Agent.Find(Filter.ById("ReadingExportError") with { OnScreen = true });
@@ -90,8 +90,8 @@ public sealed class PrintTests(HarnessApp harness)
         {
             app.OpenMessage(FirstSubject);
             app.Agent.Invoke(PrintItem(app));
-            PrintDialogs.Press(PrintDialogs.ChoosePdfPrinter(PrintDialogs.Wait()));
-            PrintDialogs.SavePdf(app.ProcessId, destination);
+            Desktop.Press(PrintDialogs.ChoosePdfPrinter(PrintDialogs.Wait()));
+            SaveDialogs.Save(app.ProcessId, destination);
             Assert.True(PrintDialogs.PdfTitle(destination) == FirstSubject,
                 "the printed job must be the message Print was pressed on, named by its subject (docs/reading-actions.md)");
         }, app =>

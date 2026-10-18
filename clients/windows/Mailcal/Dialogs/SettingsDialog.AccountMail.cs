@@ -43,6 +43,7 @@ public sealed partial class SettingsDialog
             Header = L10n.SettingsAccountSyncHeading(),
             MaxColumns = 3,
         };
+        AutomationProperties.SetAutomationId(picker, "AccountSyncMode");
         foreach (var option in modes)
         {
             picker.Items.Add(SyncModeLabel(option));

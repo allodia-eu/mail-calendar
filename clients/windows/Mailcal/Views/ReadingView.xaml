@@ -148,7 +148,7 @@
                              the default button style centres its content, so the one button in the
                              row carrying no label stands at its glyph's height rather than the
                              row's, which is ragged at the labelled width and invisible at the
-                             icon-only one. Asserted by uitests/ReadingActionRow.Tests.ps1. -->
+                             icon-only one. Asserted by Mailcal.UiTests/Suites/ReadingActionRowTests.cs. -->
                         <DropDownButton x:Name="ReadingOverflow"
                                         VerticalAlignment="Stretch"
                                         ToolTipService.ToolTip="{x:Bind l10n:L10n.A11yMoreActions(), Mode=OneTime}"

@@ -1,6 +1,6 @@
-// Windows' print dialog and the PDF printer's Save As, which the system draws outside the app's XAML
-// tree: the print dialog is a top-level window of the shell, owned by ours, and Save As a classic
-// dialog of the app's own process. So both are read through UI Automation, not the agent.
+// Windows' print dialog, which the system draws outside the app's XAML tree: a top-level window of
+// the shell, owned by ours, so it is read through UI Automation, not the agent. The PDF printer's
+// Save As is SaveDialogs'.
 
 using System.Runtime.InteropServices;
 using System.Text;
@@ -19,7 +19,7 @@ internal static class PrintDialogs
         AutomationElement.RootElement
             .FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ClassNameProperty, "ApplicationFrameWindow"))
             .Cast<AutomationElement>()
-            .Where(frame => ById("printerSelector", frame) is not null)
+            .Where(frame => Desktop.ById("printerSelector", frame) is not null)
             .ToList();
 
     /// <summary>The print dialog, waited for. A minute, because it first waits on the default
@@ -32,24 +32,11 @@ internal static class PrintDialogs
             : throw new InvalidOperationException("no system print dialog within 60 s of pressing Print");
     }
 
-    /// <summary>The element under <paramref name="root"/> with AutomationId <paramref name="id"/>, of
-    /// <paramref name="type"/> when one is given. The id comes first, quoted, so check-automation-ids
-    /// reads it.</summary>
-    internal static AutomationElement? ById(string id, AutomationElement root, ControlType? type = null) =>
-        root.FindFirst(TreeScope.Descendants, type is null
-            ? new PropertyCondition(AutomationElement.AutomationIdProperty, id)
-            : new AndCondition(
-                new PropertyCondition(AutomationElement.AutomationIdProperty, id),
-                new PropertyCondition(AutomationElement.ControlTypeProperty, type)));
-
-    internal static void Press(AutomationElement button) =>
-        ((InvokePattern)button.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
-
     /// <summary>Chooses the PDF printer in <paramref name="dialog"/> and returns its Print button
     /// once it will print.</summary>
     internal static AutomationElement ChoosePdfPrinter(AutomationElement dialog)
     {
-        var picker = ById("printerSelector", dialog) ?? throw new InvalidOperationException("the print dialog has no printer picker");
+        var picker = Desktop.ById("printerSelector", dialog) ?? throw new InvalidOperationException("the print dialog has no printer picker");
         ((ExpandCollapsePattern)picker.GetCurrentPattern(ExpandCollapsePattern.Pattern)).Expand();
         var named = new AndCondition(
             new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem),
@@ -61,87 +48,25 @@ internal static class PrintDialogs
         }
         ((SelectionItemPattern)choice!.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
         AutomationElement? print = null;
-        return App.Eventually(() => (print = ById("PrintButton", dialog)) is { Current.IsEnabled: true }, TimeSpan.FromSeconds(15))
+        return App.Eventually(() => (print = Desktop.ById("PrintButton", dialog)) is { Current.IsEnabled: true }, TimeSpan.FromSeconds(15))
             ? print!
             : throw new InvalidOperationException($"the dialog's Print button never enabled with '{PdfPrinter}' chosen");
-    }
-
-    /// <summary>
-    /// The PDF printer's Save As windows: classic dialogs of the app's process. Found through the
-    /// window list rather than UI Automation's tree, which files an owned window under its owner, so
-    /// a search of the desktop's children never meets it.
-    /// </summary>
-    internal static IReadOnlyList<AutomationElement> SaveAs(int process)
-    {
-        var found = new List<AutomationElement>();
-        var name = new StringBuilder(16);
-        EnumWindows((hwnd, _) =>
-        {
-            GetWindowThreadProcessId(hwnd, out var owner);
-            name.Clear();
-            if (owner == process && IsWindowVisible(hwnd) && GetClassNameW(hwnd, name, name.Capacity) > 0 && name.ToString() == "#32770")
-            {
-                found.Add(AutomationElement.FromHandle(hwnd));
-            }
-            return true;
-        }, 0);
-        return found;
-    }
-
-    /// <summary>
-    /// Puts <paramref name="destination"/> in the PDF printer's Save As, saves, and waits until the
-    /// file's length has settled: it is created empty and written afterwards. The name goes in
-    /// through the field's value, because keys typed as the dialog opens lose their first characters.
-    /// </summary>
-    internal static void SavePdf(int process, string destination)
-    {
-        AutomationElement? save = null;
-        if (!App.Eventually(() => (save = SaveAs(process).FirstOrDefault()) is not null, TimeSpan.FromSeconds(30)))
-        {
-            throw new InvalidOperationException("the PDF printer never asked where to save, so nothing was printed");
-        }
-        var name = ById("1001", save!, ControlType.Edit)
-            ?? throw new InvalidOperationException("the PDF printer's Save As has no file name field");
-        ((ValuePattern)name.GetCurrentPattern(ValuePattern.Pattern)).SetValue(destination);
-        Press(ById("1", save!, ControlType.Button) ?? throw new InvalidOperationException("the PDF printer's Save As has no Save button"));
-        long previous = -1;
-        var written = App.Eventually(() =>
-        {
-            Thread.Sleep(250);
-            var length = File.Exists(destination) ? new FileInfo(destination).Length : -1;
-            var settled = length > 0 && length == previous;
-            previous = length;
-            return settled;
-        }, TimeSpan.FromSeconds(30));
-        if (!written)
-        {
-            throw new InvalidOperationException($"nothing was written at {destination}");
-        }
     }
 
     /// <summary>Puts away every dialog a print case may leave: a message box over Save As, Save As,
     /// and the print dialog under them.</summary>
     internal static void CloseAll(int process)
     {
-        // Closing a classic dialog is its Cancel; the topmost goes first, which is why this repeats.
-        // The print dialog's buttons refuse a press while one is open over it.
-        App.Eventually(() =>
-        {
-            foreach (var classic in SaveAs(process))
-            {
-                PostMessageW(classic.Current.NativeWindowHandle, WmClose, 0, 0);
-            }
-            Thread.Sleep(200);
-            return SaveAs(process).Count == 0;
-        }, TimeSpan.FromSeconds(10));
+        // The print dialog's buttons refuse a press while a classic dialog is open over it.
+        SaveDialogs.CloseAll(process);
         foreach (var dialog in Open())
         {
-            if (ById("CloseButton", dialog) is { } close)
+            if (Desktop.ById("CloseButton", dialog) is { } close)
             {
-                Press(close);
+                Desktop.Press(close);
             }
         }
-        if (!App.Eventually(() => Open().Count == 0 && SaveAs(process).Count == 0, TimeSpan.FromSeconds(10)))
+        if (!App.Eventually(() => Open().Count == 0 && SaveDialogs.Open(process).Count == 0, TimeSpan.FromSeconds(10)))
         {
             throw new InvalidOperationException("a print dialog would not close");
         }
@@ -167,15 +92,5 @@ internal static class PrintDialogs
     /// <summary>Whether <paramref name="hwnd"/> takes input: a modal dialog disables its owner.</summary>
     internal static bool Enabled(long hwnd) => IsWindowEnabled((nint)hwnd);
 
-    private const uint WmClose = 0x0010;
-
-    private delegate bool EnumWindowsProc(nint hwnd, nint parameter);
-
-    [DllImport("user32.dll")] private static extern bool PostMessageW(nint hwnd, uint message, nint wParam, nint lParam);
-
     [DllImport("user32.dll")] private static extern bool IsWindowEnabled(nint hwnd);
-    [DllImport("user32.dll")] private static extern bool IsWindowVisible(nint hwnd);
-    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, nint parameter);
-    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(nint hwnd, out int process);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(nint hwnd, StringBuilder name, int count);
 }

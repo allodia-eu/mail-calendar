@@ -170,4 +170,44 @@ public sealed class HarnessFactAttribute : FactAttribute
             Skip = "no Debug build to launch (clients/windows/build-and-run.ps1 -NoRun)";
         }
     }
+
+    /// <summary>
+    /// Whether the case asks about a surface only a build with the Allodia sign-in draws. Such a
+    /// build is derived from the registration (clients/windows/core-features.ps1), so a host without
+    /// one skips the case, saying so, whatever MAILCAL_UITESTS_REQUIRE_HARNESS says.
+    /// </summary>
+    public bool NeedsAllodia
+    {
+        get => _needsAllodia;
+        set
+        {
+            _needsAllodia = value;
+            if (value && Skip is null && !AllodiaRegistered())
+            {
+                Skip = "this build has no Allodia sign-in: MAILCAL_ALLODIA_CLIENT_ID is set in neither the environment nor .env";
+            }
+        }
+    }
+
+    private bool _needsAllodia;
+
+    /// <summary>The environment first, then the repository's .env, the last assignment winning, as
+    /// core-features.ps1 reads them.</summary>
+    private static bool AllodiaRegistered()
+    {
+        var value = Environment.GetEnvironmentVariable("MAILCAL_ALLODIA_CLIENT_ID");
+        var file = Path.Combine(App.Repo, ".env");
+        if (string.IsNullOrWhiteSpace(value) && File.Exists(file))
+        {
+            foreach (var line in File.ReadLines(file))
+            {
+                var assignment = System.Text.RegularExpressions.Regex.Match(line.Trim(), @"^(?:export\s+)?MAILCAL_ALLODIA_CLIENT_ID\s*=\s*(.*)$");
+                if (assignment.Success)
+                {
+                    value = assignment.Groups[1].Value.Trim().Trim('"', '\'');
+                }
+            }
+        }
+        return !string.IsNullOrWhiteSpace(value);
+    }
 }

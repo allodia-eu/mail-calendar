@@ -123,13 +123,21 @@ internal static partial class TestAgent
         return new JsonObject { ["toggle"] = toggle.ToggleState.ToString() };
     }
 
-    /// <summary>Opens a combo box or a drop-down, whose items have no peers until it is open.</summary>
-    private static JsonObject Expand(JsonObject request)
+    /// <summary>Opens a combo box or a drop-down, whose items have no peers until it is open, or
+    /// with <paramref name="open"/> false closes it again.</summary>
+    private static JsonObject Expand(JsonObject request, bool open)
     {
         var peer = PeerOf(HandleIn(request));
         var expand = peer.GetPattern(PatternInterface.ExpandCollapse) as IExpandCollapseProvider
             ?? throw new AgentException($"'{peer.GetName()}' does not expand");
-        expand.Expand();
+        if (open)
+        {
+            expand.Expand();
+        }
+        else
+        {
+            expand.Collapse();
+        }
         return new JsonObject { ["ok"] = true };
     }
 

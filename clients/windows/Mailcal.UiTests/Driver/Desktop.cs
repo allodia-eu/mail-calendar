@@ -50,6 +50,19 @@ internal static class Desktop
         return buttons;
     }
 
+    /// <summary>The element under <paramref name="root"/> with AutomationId <paramref name="id"/>, of
+    /// <paramref name="type"/> when one is given. The id comes first, quoted, so check-automation-ids
+    /// reads it.</summary>
+    internal static AutomationElement? ById(string id, AutomationElement root, ControlType? type = null) =>
+        root.FindFirst(TreeScope.Descendants, type is null
+            ? new PropertyCondition(AutomationElement.AutomationIdProperty, id)
+            : new AndCondition(
+                new PropertyCondition(AutomationElement.AutomationIdProperty, id),
+                new PropertyCondition(AutomationElement.ControlTypeProperty, type)));
+
+    internal static void Press(AutomationElement button) =>
+        ((InvokePattern)button.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
+
     /// <summary>How tall a caption is in this app, in the units XAML is written in, read from
     /// App.xaml where every window's caption reads it: a copy here would let the two disagree.</summary>
     internal static double CaptionHeightDip()

@@ -79,7 +79,7 @@ an obvious reimplementation finds nothing:
   agree. Beneath the fold, a peer still answers but reports no size; scroll first.
 - **What the system draws is not in the agent's tree.** The print dialog, a classic Save As and a
   window's caption buttons are read through UI Automation ([`Driver/PrintDialogs.cs`](Driver/PrintDialogs.cs),
-  [`Driver/Desktop.cs`](Driver/Desktop.cs)). UI Automation files an owned window under its owner,
+  [`Driver/SaveDialogs.cs`](Driver/SaveDialogs.cs), [`Driver/Desktop.cs`](Driver/Desktop.cs)). UI Automation files an owned window under its owner,
   so a search of the desktop's children never meets a dialog the app's own window owns; the window
   list does.
 - **Real input only for a press that has to be a press**: a double-click, a click into the

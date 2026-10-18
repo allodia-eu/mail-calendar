@@ -144,6 +144,9 @@ internal sealed class Agent : IDisposable
     /// <summary>Opens a combo box or a drop-down.</summary>
     internal void Expand(Element element) => Call(Handle("expand", element));
 
+    /// <summary>Closes what <see cref="Expand"/> opened.</summary>
+    internal void Collapse(Element element) => Call(Handle("collapse", element));
+
     internal void Focus(Element element) => Call(Handle("focus", element));
 
     /// <summary>The element that has the keyboard, or null when nothing in the app does.</summary>

@@ -209,21 +209,18 @@ previous gesture's *animation*, and that race is where the calendar's swallowed 
 tests the case that already worked (`docs/calendar.md` §9). Put that race in a **unit** test that owns
 the clock (`Mailcal.Tests/CalendarFlickTests.cs`). Use both.
 
-### The system save/open picker: answered by keyboard
+### The system save/open picker
 
-`FileSavePicker` (e.g. Settings → Diagnostics → *Export log…*) opens the classic Save As dialog,
-and three things about it defeat the obvious approaches:
-
-- It is a **child** window (class `#32770`) of the app window, **never** a top-level window, so
-  polling `RootElement`'s children for a new window finds nothing. Find it as
-  `(Get-MailcalWindow).FindFirst(Children, ClassName == '#32770')`.
-- Its controls expose a **degenerate UIA tree**: the filename box (`#1001` under
-  `#FileNameControlHost`) and the Save button (`#1`) are patternless Panes, with no `ValuePattern`, no
-  `InvokePattern`, and `SetFocus()` throws. Raw `TreeScope.Descendants` also under-walks it
-  (trap 1 all over again).
-- What **works** is the keyboard, since the filename box has default focus: Ctrl+A, the path typed
-  as written, Enter (`Save-ThroughFilePicker`, through `Send-WinappKeys`). Assert on the **written
-  file** afterwards (bytes, not existence), never on the dialog.
+`FileSavePicker` (the reading pane's *Export as .eml*, Settings → Diagnostics → *Export log…*)
+opens the classic Save As, a `#32770` dialog **owned** by the app window. UI Automation files an
+owned window under its owner, so a search of the desktop's children never meets it; find it through
+the window list (`EnumWindows`, the app's process, class `#32770`). The name box is `#1001` under
+`#FileNameControlHost` (the address band carries a `#1001` of its own, which an unscoped search
+meets first), and takes a path through its value; Save is `#1`. Set the path rather than typing it:
+keys sent as the dialog opens lose their first characters.
+[`Mailcal.UiTests/Driver/SaveDialogs.cs`](../../../clients/windows/Mailcal.UiTests/Driver/SaveDialogs.cs)
+does all of it. Assert on the **written file** afterwards (bytes, not existence), never on the
+dialog: the dialog creates the file empty, and the app writes it afterwards.
 
 ### The composer's message body: DevTools (`composer.ps1`)
 

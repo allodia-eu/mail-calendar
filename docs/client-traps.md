@@ -76,7 +76,7 @@ that same file.
   pane, and at that width every button is the glyph's height, so the odd one matches **by
   accident**. A test that measures one width passes over the defect; the assertion has to force the
   labelled width and say so when it cannot reach it
-  ([`ReadingActionRow.Tests.ps1`](../clients/windows/uitests/ReadingActionRow.Tests.ps1),
+  ([`ReadingActionRowTests.cs`](../clients/windows/Mailcal.UiTests/Suites/ReadingActionRowTests.cs),
   [`SelectionBar.Tests.ps1`](../clients/windows/uitests/SelectionBar.Tests.ps1)).
 - **`Path.GetInvalidFileNameChars()` answers differently per host, and `Mailcal.Tests` is not a
   Windows assembly.** On Windows it returns the familiar set; on Linux, `/` and NUL alone, so `:`,
