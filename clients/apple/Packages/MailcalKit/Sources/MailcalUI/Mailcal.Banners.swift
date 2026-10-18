@@ -72,7 +72,7 @@ extension ContentView {
     @ViewBuilder var signInExpiredBanner: some View {
         let accounts = model.signInExpiredAccounts
         if let first = accounts.first {
-            let emails = accounts.map(\.email).joined(separator: ", ")
+            let emails = accounts.map(\.name).joined(separator: ", ")
             let remedy = AccountSignInRules.remedy(first.provider)
             let browserFlow = remedy != .settings
             HStack(spacing: 8) {

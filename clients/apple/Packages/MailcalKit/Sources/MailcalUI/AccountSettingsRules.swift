@@ -195,6 +195,11 @@ enum AccountSettingsLabels {
         name(address: entry.address, distinction: entry.distinction)
     }
 
+    /// `entry`'s name, or `address` alone for an account the accounts snapshot does not hold.
+    static func name(_ entry: AccountEntry?, or address: String) -> String {
+        entry.map { name($0) } ?? address
+    }
+
     /// The account's kind, as its row and its page say it under the address. Where another account
     /// shares its address and its kind, the server's host follows: the kind alone would not tell
     /// the two apart.

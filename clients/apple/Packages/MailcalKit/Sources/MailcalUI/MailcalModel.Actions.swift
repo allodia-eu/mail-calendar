@@ -23,9 +23,13 @@ extension MailboxModel {
     /// core doesn't know, which the banner treats as "update it in Settings". The id rides along
     /// because a JMAP re-authentication is addressed to the *account*, not to an address: it
     /// re-authorises that account's own persisted grant.
-    var signInExpiredAccounts: [(id: String, email: String, provider: AccountProvider?)] {
+    var signInExpiredAccounts: [(id: String, name: String, provider: AccountProvider?)] {
         (connectivity?.signinExpiredAccounts ?? []).map { id in
-            (id: id, email: accountEmail(id), provider: app?.accountProvider(accountId: id))
+            (
+                id: id,
+                name: AccountSettingsLabels.name(accountEntry(id), or: accountEmail(id)),
+                provider: app?.accountProvider(accountId: id)
+            )
         }
     }
 
