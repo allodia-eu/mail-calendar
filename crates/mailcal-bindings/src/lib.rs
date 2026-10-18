@@ -24,6 +24,7 @@ mod account_capability;
 mod account_registry;
 mod account_repair;
 mod account_sign_in;
+mod account_split;
 mod accounts_view;
 mod agent_ui;
 mod allodia;
@@ -137,6 +138,7 @@ mod use_outages;
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
 pub use account_capability::AccountCapability;
 pub use account_sign_in::{AccountSignInOptions, AccountSignInStart};
+pub use account_split::UnreachedUses;
 pub use agent_ui::{AgentDraft, AgentHostUi};
 pub use allodia::{
     AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available, is_allodia_account_config,

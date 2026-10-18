@@ -17,6 +17,7 @@ mod certificate;
 mod config;
 mod config_dav;
 mod config_edit;
+mod config_split;
 mod connect_log;
 mod consent;
 mod contacts;
@@ -64,7 +65,7 @@ pub use config::{
     AccountConfig, CalDavAccount, ConfigError, ConnectionSecurity, ImapAccount, Secret,
     SmtpAccount, default_path, load, load_str,
 };
-pub use config_dav::CardDavAccount;
+pub use config_dav::{CardDavAccount, grant_reaches};
 pub use config_edit::{EditedAccount, EndpointEdit};
 pub use consent::{requested_scopes, withheld};
 pub use contacts::connect_carddav_contact_providers;

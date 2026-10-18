@@ -105,6 +105,19 @@ keeps what it started with. The choices are the core's
 (`signed_in_setup_choices`), empty when there is nothing to choose, so a mail-only server goes
 straight on. The step comes before the link step and the name, as for any account.
 
+## After the connect: a calendar on a server of its own
+
+**When the sign-in does not reach the calendar or the address book that was ticked**, the window
+says so once the mailbox has connected, before the link step: "Your calendar and contacts are on
+a separate server", naming the server, with the address as the login, a password field, Connect
+and Skip. Which uses that is was known before the browser opened (`ImapLoginStart::unreached`),
+so a client never asks after the fact about something it could not have known. Connect makes them
+an account of their own linked to the mailbox (`add_linked_calendar_account`,
+[`accounts.md`](accounts.md) rule 18), and the link step then shows that link already chosen; a
+refused password is said under the field and keeps the step. Skip switches those uses off on the
+new account, so it does not open on a calendar that cannot connect; the account's page offers the
+same step later.
+
 ## After the connect: linking another account
 
 **The last step, and a skippable one.** When another account can fill a use a new standards

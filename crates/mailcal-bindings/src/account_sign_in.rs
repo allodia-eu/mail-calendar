@@ -8,15 +8,11 @@
 
 use engine_api::addresses_match;
 use mailcal_account::{
-    AccountConfig, CredentialOrigin, ImapAuth, ImapAuthQuery, JmapAccountConfig, Secret,
-    SetupRecommendation,
+    AccountConfig, ImapAuth, ImapAuthQuery, JmapAccountConfig, Secret, SetupRecommendation,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    ImapLoginRequest, MailcalApp, MailcalError, account_registry::SignInConfig,
-    account_repair::CredentialPersistence, boot,
-};
+use crate::{ImapLoginRequest, MailcalApp, MailcalError, account_registry::SignInConfig};
 
 /// Which ways in an account's server accepts, for the switch its Settings page offers.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -38,6 +34,12 @@ pub struct AccountSignInStart {
     pub authorization_url: String,
     /// Opaque; hand it back unchanged.
     pub pending: String,
+    /// The calendar and contacts uses a switch from a password would lose: this sign-in does not
+    /// reach their server. When it names any, the client asks what becomes of them before it
+    /// opens the browser, and passes the answer to `complete_account_sign_in`
+    /// (`docs/accounts.md` rule 18).
+    #[uniffi(default = [])]
+    pub unreached: Vec<crate::AccountCapability>,
 }
 
 /// The pending sign-in of the kind the account is, round-tripped through the host.
@@ -96,7 +98,7 @@ impl MailcalApp {
         account_id: String,
         redirect_uri: String,
     ) -> Result<AccountSignInStart, MailcalError> {
-        let (pending, authorization_url) = match self.switchable(&account_id)? {
+        let (pending, authorization_url, unreached) = match self.switchable(&account_id)? {
             SignInConfig::Imap(config) => {
                 let start = match &config.oauth {
                     Some(grant) => self.sign_in_again(&config, grant)?,
@@ -105,7 +107,15 @@ impl MailcalApp {
                         self.begin_imap_login(request, redirect_uri)?
                     }
                 };
-                (PendingSignIn::Imap(start.pending), start.authorization_url)
+                (
+                    PendingSignIn::Imap(start.pending),
+                    start.authorization_url,
+                    if config.is_oauth() {
+                        Vec::new()
+                    } else {
+                        start.unreached
+                    },
+                )
             }
             SignInConfig::Jmap(config) => {
                 let start = if config.is_oauth() {
@@ -117,19 +127,26 @@ impl MailcalApp {
                         redirect_uri,
                     )?
                 };
-                (PendingSignIn::Jmap(start.pending), start.authorization_url)
+                (
+                    PendingSignIn::Jmap(start.pending),
+                    start.authorization_url,
+                    Vec::new(),
+                )
             }
         };
         Ok(AccountSignInStart {
             authorization_url,
             pending: serde_json::to_string(&pending)
                 .map_err(|err| MailcalError::Config(err.to_string()))?,
+            unreached,
         })
     }
 
     /// Completes a sign-in [`MailcalApp::begin_account_sign_in`] started: exchanges the redirect
     /// for a grant, puts it on `account_id` in place of its password or its old grant, connects
-    /// with it and stores it, and runs the calendar and contacts rule again over it.
+    /// with it and stores it, and runs the calendar and contacts rule again over it. `unreached`
+    /// is the answer to the question `AccountSignInStart::unreached` raised, and is required when
+    /// it named anything.
     ///
     /// **Blocking** (token exchange and a connect); call it off the UI thread.
     ///
@@ -139,11 +156,13 @@ impl MailcalApp {
     /// server that says the sign-in was for another account; [`MailcalError::SignInRefused`] or
     /// [`MailcalError::Connect`] when the grant does not connect. The account is unchanged on
     /// every failure.
+    #[uniffi::method(default(unreached = None))]
     pub fn complete_account_sign_in(
         &self,
         account_id: String,
         pending: String,
         callback_url: String,
+        unreached: Option<crate::UnreachedUses>,
     ) -> Result<(), MailcalError> {
         let pending: PendingSignIn =
             serde_json::from_str(&pending).map_err(|err| MailcalError::Config(err.to_string()))?;
@@ -151,7 +170,8 @@ impl MailcalApp {
             (PendingSignIn::Imap(pending), SignInConfig::Imap(config)) => {
                 let signed_in = self.exchange_imap_login(pending, callback_url)?;
                 named_as(signed_in.username.as_deref(), config.username())?;
-                Replacement::Imap(config.with_grant(signed_in.grant))
+                let signed = config.with_grant(signed_in.grant);
+                return self.install_signed_in(&account_id, &config, signed, unreached);
             }
             (PendingSignIn::Jmap(pending), SignInConfig::Jmap(config)) => {
                 let (fresh, named) = self.exchange_jmap_login(pending, callback_url)?;
@@ -169,7 +189,7 @@ impl MailcalApp {
                 ));
             }
         };
-        self.install_credential(&account_id, replacement)
+        self.install_credential(&account_id, replacement, &[])
     }
 
     /// Switches `account_id` to signing in with `password`, in place of its grant: tests it
@@ -202,7 +222,7 @@ impl MailcalApp {
                 ..*config
             }),
         };
-        self.install_credential(&account_id, replacement)
+        self.install_credential(&account_id, replacement, &[])
     }
 
     /// Puts the credential of `config_toml`, a config a setup just produced for the mailbox
@@ -215,11 +235,15 @@ impl MailcalApp {
     /// # Errors
     ///
     /// Returns [`MailcalError::Config`] when `config_toml` does not parse or is for another
-    /// mailbox, and the errors of [`MailcalApp::switch_account_to_password`] otherwise.
+    /// mailbox, and the errors of [`MailcalApp::switch_account_to_password`] otherwise. A grant
+    /// that does not reach the account's calendar or contacts needs `unreached`, as
+    /// `complete_account_sign_in` does.
+    #[uniffi::method(default(unreached = None))]
     pub fn use_credential_from(
         &self,
         account_id: String,
         config_toml: String,
+        unreached: Option<crate::UnreachedUses>,
     ) -> Result<(), MailcalError> {
         let replacement = match self.switchable(&account_id)? {
             SignInConfig::Imap(config) => {
@@ -234,7 +258,10 @@ impl MailcalApp {
                     .or_else(|| fresh.caldav.and_then(|caldav| caldav.password))
                     .or_else(|| fresh.carddav.and_then(|carddav| carddav.password));
                 match (fresh.oauth, password) {
-                    (Some(grant), _) => Replacement::Imap(config.with_grant(grant)),
+                    (Some(grant), _) => {
+                        let signed = config.with_grant(grant);
+                        return self.install_signed_in(&account_id, &config, signed, unreached);
+                    }
                     (None, Some(password)) => {
                         Replacement::Imap(config.with_password_instead_of_grant(password.expose()))
                     }
@@ -257,13 +284,13 @@ impl MailcalApp {
                 })
             }
         };
-        self.install_credential(&account_id, replacement)
+        self.install_credential(&account_id, replacement, &[])
     }
 }
 
 impl MailcalApp {
     /// `account_id`'s config, when Settings can switch its sign-in.
-    fn switchable(&self, account_id: &str) -> Result<SignInConfig, MailcalError> {
+    pub(crate) fn switchable(&self, account_id: &str) -> Result<SignInConfig, MailcalError> {
         self.registry.sign_in_config(account_id).ok_or_else(|| {
             MailcalError::Config("this account's sign-in cannot be switched here".to_owned())
         })
@@ -372,53 +399,6 @@ impl MailcalApp {
                     .collect(),
             ),
         })
-    }
-
-    /// Connects `account_id` with `replacement`, then stores it and installs it in place of the
-    /// account's registry entry; on any failure the account keeps what it had.
-    pub(crate) fn install_credential(
-        &self,
-        account_id: &str,
-        replacement: Replacement,
-    ) -> Result<(), MailcalError> {
-        let (config_toml, grant, address) = match &replacement {
-            Replacement::Imap(config) => (
-                config.to_toml(),
-                config.is_oauth(),
-                config.username().to_owned(),
-            ),
-            Replacement::Jmap(config) => {
-                (config.to_toml(), config.is_oauth(), config.email.clone())
-            }
-        };
-        let config_toml = config_toml.map_err(|err| MailcalError::Config(err.to_string()))?;
-        let sink = crate::token_sink::token_sink(&self.registry, &self.credential_store);
-        let prepared =
-            boot::prepare_stored_account(&config_toml, &sink, CredentialOrigin::FreshSignIn)?;
-        // A grant can rotate during the connect, so it is stored from the registry, and it must
-        // open this account's own mailbox; a password cannot rotate, so the bytes built here are
-        // the ones to keep.
-        if grant {
-            self.install_signed_in_account(account_id, prepared, "sign-in", &address)?;
-        } else {
-            self.install_repaired_account(
-                account_id,
-                prepared,
-                CredentialPersistence::Provided(config_toml),
-                "sign-in",
-            )?;
-        }
-        self.app.accounts_changed();
-        log::info!(
-            "sign-in: [{}] now signs in {}",
-            mailcal_account::account_log_handle(account_id),
-            if grant {
-                "through its provider"
-            } else {
-                "with a password"
-            },
-        );
-        Ok(())
     }
 }
 

@@ -94,6 +94,25 @@ async fn a_dial_of_an_account_without_a_mailbox_opens_its_calendar() {
     assert!(failure.starts_with("caldav"), "{failure}");
 }
 
+/// An address book with a server of its own and no calendar beside it: what moving an account's
+/// contacts alone to an account of their own leaves.
+const CONTACTS_ONLY: &str = r#"
+[carddav]
+base_url = "http://127.0.0.1:1/dav"
+username = "alice"
+password = "pw"
+"#;
+
+#[tokio::test]
+async fn a_dial_of_an_address_book_alone_opens_it() {
+    let config = mailcal_account::load_str(CONTACTS_ONLY).unwrap();
+    let failure = dial(&ConnectedAccount::imap_account(config, None)).await;
+    assert!(
+        failure.contains("carddav"),
+        "the address book was dialled: {failure}"
+    );
+}
+
 fn microsoft(capabilities: &[&str], granted: &[&str]) -> ConnectedAccount {
     let names: Vec<String> = capabilities
         .iter()

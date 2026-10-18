@@ -131,7 +131,7 @@ fn a_setup_for_another_mailbox_is_not_used_for_this_account() {
     let (app, recorder) = booted("sign-in-other-mailbox", vec![config]);
 
     assert!(matches!(
-        app.use_credential_from(id.clone(), other),
+        app.use_credential_from(id.clone(), other, None),
         Err(MailcalError::DifferentAccount)
     ));
     assert!(!signs_in_through_its_provider(&app, &id));
@@ -168,7 +168,7 @@ fn a_calendar_set_up_again_offers_its_password_to_the_calendar_already_there() {
     assert_eq!(id, again_id, "the same calendar");
     let (app, recorder) = booted("sign-in-calendar-again", vec![config]);
 
-    let used = app.use_credential_from(id, again);
+    let used = app.use_credential_from(id, again, None);
 
     assert!(
         matches!(

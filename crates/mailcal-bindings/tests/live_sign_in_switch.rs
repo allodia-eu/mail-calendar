@@ -42,7 +42,7 @@ fn sign_in(app: &MailcalApp, id: &str) {
     let authorization = url::Url::parse(&start.authorization_url).expect("a well-formed URL");
     let redirect = live_oauth::param(&authorization, "redirect_uri");
     let callback = sign_in_as_the_user(&authorization, &redirect);
-    app.complete_account_sign_in(id.to_owned(), start.pending, callback)
+    app.complete_account_sign_in(id.to_owned(), start.pending, callback, None)
         .expect("the grant connects and replaces the credential");
 }
 

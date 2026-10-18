@@ -122,7 +122,7 @@ is recorded here.
     lets it.** The grant is stored once, at the root (`[oauth]`), and "repair this account" is a
     re-authorisation rather than a typed secret. IMAP and SMTP present it over SASL. The calendar
     and address book present it as Bearer, and only when both hold
-    (`config_dav::dav_credentials`):
+    (`mailcal_account::grant_reaches`):
     - the sign-in **asked for** that use's scope (`urn:ietf:params:oauth:scope:calendars` or
       `…:contacts`, or the earlier drafts' `caldav`/`carddav`). The requested set, because a
       server may grant in its own vocabulary (Fastmail answers with JMAP capability names and
@@ -138,7 +138,10 @@ is recorded here.
       server is the one exception, for a local test server.
 
     Otherwise nothing is sent and the use needs a sign-in of its own
-    (`AccountError::DavNeedsOwnSignIn`). A DAV server's own RFC 9728 metadata never decides this:
+    (`AccountError::DavNeedsOwnSignIn`). The same rule is read before the browser opens, so a
+    sign-in says which uses it will not reach first, and each becomes an account of its own,
+    linked to the mailbox ([`accounts.md`](accounts.md) rule 18). A DAV server's own RFC 9728
+    metadata never decides this:
     it is self-asserted, and a hostile server can name any issuer. TLS verification is what makes
     a host name mean anything here. What remains is a host taken over inside the issuer's own
     registrable domain, which an issuer closes by publishing `protected_resources`. Soverin is

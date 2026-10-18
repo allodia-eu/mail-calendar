@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use mailcal_account::CredentialOrigin;
 
-use crate::{MailcalApp, MailcalError, boot, connection_log};
+use crate::{MailcalApp, MailcalError, account_sign_in::Replacement, boot, connection_log};
 
 /// Which bytes a successful repair writes. OAuth can rotate during its validating dial, so its
 /// durable value comes back out of the registry; a password has no rotation and uses the candidate
@@ -203,5 +203,65 @@ impl MailcalApp {
         self.runtime
             .block_on(|| async move { app.sends_as(provider, id, address).await })
             == Some(false)
+    }
+}
+
+impl MailcalApp {
+    /// Connects `account_id` with `replacement`, then stores it and installs it in place of the
+    /// account's registry entry, deleting what the device holds of each of `forget`; on any
+    /// failure the account keeps what it had.
+    pub(crate) fn install_credential(
+        &self,
+        account_id: &str,
+        replacement: Replacement,
+        forget: &[engine_api::SearchDomain],
+    ) -> Result<(), MailcalError> {
+        let (config_toml, grant, address) = match &replacement {
+            Replacement::Imap(config) => (
+                config.to_toml(),
+                config.is_oauth(),
+                config.username().to_owned(),
+            ),
+            Replacement::Jmap(config) => {
+                (config.to_toml(), config.is_oauth(), config.email.clone())
+            }
+        };
+        let config_toml = config_toml.map_err(|err| MailcalError::Config(err.to_string()))?;
+        let sink = crate::token_sink::token_sink(&self.registry, &self.credential_store);
+        let prepared =
+            boot::prepare_stored_account(&config_toml, &sink, CredentialOrigin::FreshSignIn)?;
+        // A grant can rotate during the connect, so it is stored from the registry, and it must
+        // open this account's own mailbox; a password cannot rotate, so the bytes built here are
+        // the ones to keep.
+        if grant {
+            self.install_replacement(
+                account_id,
+                prepared,
+                CredentialPersistence::RegisteredGrant,
+                "sign-in",
+                forget,
+                Some(&address),
+            )?;
+        } else {
+            self.install_replacement(
+                account_id,
+                prepared,
+                CredentialPersistence::Provided(config_toml),
+                "sign-in",
+                forget,
+                None,
+            )?;
+        }
+        self.app.accounts_changed();
+        log::info!(
+            "sign-in: [{}] now signs in {}",
+            mailcal_account::account_log_handle(account_id),
+            if grant {
+                "through its provider"
+            } else {
+                "with a password"
+            },
+        );
+        Ok(())
     }
 }

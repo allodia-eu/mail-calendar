@@ -154,7 +154,7 @@ impl AppModel {
         std::thread::spawn(move || {
             let account = existing.account_id.clone();
             let result = app
-                .use_credential_from(existing.account_id, existing.config_toml)
+                .use_credential_from(existing.account_id, existing.config_toml, None)
                 .map_err(|error| super::core_error::said(&error));
             sender.emit(AppInput::AlreadySetUp(ExistingInput::Updated {
                 account,

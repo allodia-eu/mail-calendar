@@ -138,11 +138,16 @@ pub struct ImapLoginStart {
     /// An opaque handle (the account's servers, the discovered endpoints, the registered
     /// client id and the PKCE verifier). **Transient; hold it in memory only.**
     pub pending: String,
+    /// The calendar and contacts uses chosen for the account that this sign-in will not reach:
+    /// their server does not take the provider's tokens (`docs/mail-oauth.md` rule 10). Known
+    /// before the browser opens, so a client can say so first (`docs/accounts.md` rule 18).
+    #[uniffi(default = [])]
+    pub unreached: Vec<crate::AccountCapability>,
 }
 
 /// The transient state carried between begin and complete. Round-tripped through the host as
 /// the opaque `pending` handle, and never persisted; it holds the PKCE verifier.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct PendingImapLogin {
     email: String,
     imap_host: String,
@@ -384,11 +389,35 @@ fn start_login(mut pending: PendingImapLogin) -> Result<ImapLoginStart, MailcalE
     pending.state = request.state;
     pending.verifier = request.pkce.verifier().to_owned();
     log::info!("imap oauth: opening the authorization page; awaiting the redirect");
+    let unreached = unreached(&pending)?;
     Ok(ImapLoginStart {
         authorization_url: request.authorization_url,
         pending: serde_json::to_string(&pending)
             .map_err(|err| MailcalError::Config(err.to_string()))?,
+        unreached,
     })
+}
+
+/// The chosen calendar and contacts uses the grant `pending` becomes will not reach, read from
+/// the account it completes into, so what is said before the browser opens is what its connect
+/// then finds.
+fn unreached(pending: &PendingImapLogin) -> Result<Vec<crate::AccountCapability>, MailcalError> {
+    let (setup, _) = pending.clone().into_grant(String::new());
+    let config = mailcal_account::build_config_toml(&setup)
+        .and_then(|toml| mailcal_account::load_str(&toml))
+        .map_err(|err| MailcalError::Config(err.to_string()))?;
+    let unreached = config.uses_its_grant_does_not_reach();
+    if !unreached.is_empty() {
+        log::info!(
+            "imap oauth: this sign-in will not reach the account's {}",
+            unreached
+                .iter()
+                .map(|capability| capability.as_str())
+                .collect::<Vec<_>>()
+                .join(" and "),
+        );
+    }
+    Ok(unreached.into_iter().map(Into::into).collect())
 }
 
 #[cfg(test)]

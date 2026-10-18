@@ -76,17 +76,19 @@ async fn bounded(
     }
 }
 
-/// Binds the CardDAV contact adapters for an IMAP/CalDAV account; one per discovered address
-/// book, or none when the account has no `[caldav]` section to derive the endpoint from.
+/// Binds the CardDAV contact adapters for a standards account; one per discovered address
+/// book, or none when the account has neither a `[carddav]` section nor a `[caldav]` one to
+/// derive the endpoint from.
 ///
-/// Contacts reuse the CalDAV origin and credentials (see `mailcal_account::contacts`), so an
-/// account set up before this feature existed gains contacts with no re-entry of anything.
+/// Without a section of their own, contacts reuse the CalDAV origin and credentials (see
+/// `mailcal_account::contacts`), so an account set up before this feature existed gains contacts
+/// with no re-entry of anything.
 pub(crate) async fn connect_caldav_contacts(
     config: &AccountConfig,
     tokens: mailcal_account::ImapTokens<'_>,
 ) -> Bound {
-    if config.caldav.is_none() {
-        log::info!("carddav: contacts skipped; account has no caldav endpoint to derive one from");
+    if config.caldav.is_none() && config.carddav.is_none() {
+        log::info!("carddav: contacts skipped; account has no address book server");
         return Ok(Vec::new());
     }
     bounded(
