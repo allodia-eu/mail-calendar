@@ -372,9 +372,11 @@ public sealed partial class MailboxModel
     /// AddAccount blocks on the IMAP login, so it runs off the UI thread. The core writes the
     /// config to the Credential Manager itself, only once it connects, so a bad config is never
     /// stored, and so the write no longer waits on this UI-thread hop. A failure keeps the form
-    /// up.
+    /// up. <paramref name="unreached"/> is what a sign-in said it would not reach, which the
+    /// refusal's offer asks about.
     /// </summary>
-    private async Task AddAccountAsync(string configToml, bool offersCertificateException = false)
+    private async Task AddAccountAsync(
+        string configToml, bool offersCertificateException = false, IReadOnlyList<AccountCapability>? unreached = null)
     {
         IsSubmitting = true;
         try
@@ -394,7 +396,7 @@ public sealed partial class MailboxModel
                     Log.Warn($"calendar (CalDAV) failed to connect: {calendarError}");
                 }
                 Log.Info($"account added: {LogHandle(row.Id)}");
-                // The link step, or the end of setup and the name it sends under (docs/sending.md).
+                // The next step, or the end of setup and the name it sends under (docs/sending.md).
                 AccountAdded(row.Id);
                 // The core synced the new account and refreshed the snapshot (the observer
                 // reloads the sidebar + unified inbox); nudge a mail sync too.
@@ -429,7 +431,7 @@ public sealed partial class MailboxModel
                 }
                 SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount()));
                 // After the refusal it belongs to, which replacing the error clears.
-                SetupExisting = AccountSettingsRules.UpdateOffer(ex, configToml);
+                SetupExisting = AccountSettingsRules.UpdateOffer(ex, configToml, unreached);
             });
         }
     }

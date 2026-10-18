@@ -116,6 +116,7 @@ public sealed partial class SettingsDialog
             control.IsEnabled = !busy;
         }
         _signInDrawn = all;
+        DrawUnreachedQuestion(controls, entry.Id);
     }
 
     /// <summary>"Use a password instead", which opens the field it is typed into. The field never
@@ -167,13 +168,14 @@ public sealed partial class SettingsDialog
     }
 
     /// <summary>Signs the account in through its provider in the browser, again or in place of
-    /// its password, and says how it ended. A cancelled sign-in says nothing.</summary>
+    /// its password, and says how it ended. A switch that would cost the calendar or contacts asks
+    /// first (docs/accounts.md rule 18). A cancelled sign-in says nothing.</summary>
     private async Task BrowserSignInAsync(AccountEntry entry, bool switching, List<Control> all)
     {
         Changing(entry.Id, all);
-        SayOnAccounts(new AccountNotice(
-            InfoBarSeverity.Informational, string.Empty, L10n.SettingsAccountSigninWaiting(entry.Address)));
-        var ended = await _model.AccountSignInAsync(entry.Id);
+        SayOnAccounts(SignInWaiting(entry));
+        var ended = await _model.AccountSignInAsync(entry.Id, unreached => AskUnreachedAsync(entry, unreached));
+        EndUnreachedQuestion();
         Changed(all);
         NotifyAccounts(ended switch
         {

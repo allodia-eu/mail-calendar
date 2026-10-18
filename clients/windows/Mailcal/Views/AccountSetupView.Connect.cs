@@ -45,13 +45,25 @@ public sealed partial class AccountSetupView
             chosen?.Uses);
     }
 
-    // The refusal's offer: what was just given goes to the account already set up.
+    // The refusal's offer: what was just given goes to the account already set up, after asking
+    // what becomes of the calendar and contacts that sign-in does not reach.
     private async void OnUpdateExisting(object sender, RoutedEventArgs e)
     {
-        if (Model is { } model)
+        if (Model is not { SetupExisting: { } offer } model)
         {
-            await model.UpdateExistingAccountAsync();
+            return;
         }
+        UnreachedUses? choice = null;
+        if (UnreachedUsesRules.Asks(offer.Unreached))
+        {
+            // Cancel leaves the refusal on screen, and nothing changes.
+            if (UnreachedUsesRules.Choice(await AskUpdateQuestionAsync(offer.Unreached)) is not { } chosen)
+            {
+                return;
+            }
+            choice = chosen;
+        }
+        await model.UpdateExistingAccountAsync(choice);
     }
 
     // Pass the address the user typed in the email-first step (empty on a purely manual pick), so

@@ -37,6 +37,10 @@ public sealed partial class SettingsDialog
         {
             row.Children.Add(Description(note));
         }
+        if (SeparateServerAction(entry, capability) is { } separate)
+        {
+            row.Children.Add(separate);
+        }
 
         // Switching off deletes what the device holds of the use, so it is asked first; cancelling
         // puts the switch back.

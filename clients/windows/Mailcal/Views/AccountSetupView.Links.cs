@@ -15,10 +15,20 @@ namespace Allodia.Mailcal.Views;
 
 public sealed partial class AccountSetupView
 {
-    /// <summary>Draws the link step when the flow is on it, and leaves it for the address when
-    /// "Add another account" took the flow back there.</summary>
+    /// <summary>Draws the separate-server or link step when the flow is on one, and leaves it for
+    /// the address when "Add another account" took the flow back there.</summary>
     private void OnSetupLinksChanged()
     {
+        if (Model?.SetupSeparateServer is { } separate)
+        {
+            DrawSeparateServer(separate);
+            DetectPanel.Visibility = Visibility.Collapsed;
+            SetupPanel.Visibility = Visibility.Collapsed;
+            LinksPanel.Visibility = Visibility.Collapsed;
+            SeparatePanel.Visibility = Visibility.Visible;
+            return;
+        }
+        SeparatePanel.Visibility = Visibility.Collapsed;
         if (Model?.SetupLinks is { } step)
         {
             DrawLinks(step);
@@ -27,8 +37,9 @@ public sealed partial class AccountSetupView
             LinksPanel.Visibility = Visibility.Visible;
             return;
         }
-        if (LinksPanel.Visibility == Visibility.Visible)
+        if (LinksPanel.Visibility == Visibility.Visible || _separateShown)
         {
+            _separateShown = false;
             LinksPanel.Visibility = Visibility.Collapsed;
             ResetToDetect();
         }

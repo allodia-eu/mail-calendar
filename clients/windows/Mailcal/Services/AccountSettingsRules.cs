@@ -88,7 +88,9 @@ internal enum SignInRemedy
 
 /// <summary>The account an add was refused for, and the config the add was given, which the
 /// refusal offers to put on it (docs/accounts.md rule 17).</summary>
-internal sealed record ExistingAccountOffer(string AccountId, string ConfigToml);
+/// <param name="Unreached">The calendar and contacts the sign-in that gave the config said it would
+/// not reach, which taking the offer asks about first (rule 18).</param>
+internal sealed record ExistingAccountOffer(string AccountId, string ConfigToml, IReadOnlyList<AccountCapability> Unreached);
 
 internal static class AccountSettingsRules
 {
@@ -185,10 +187,11 @@ internal static class AccountSettingsRules
 
     /// <summary>What a refused add offers: putting <paramref name="configToml"/> on the account
     /// already there, when the refusal is that it is set up already.</summary>
-    internal static ExistingAccountOffer? UpdateOffer(Exception error, string configToml) => error switch
+    internal static ExistingAccountOffer? UpdateOffer(
+        Exception error, string configToml, IReadOnlyList<AccountCapability>? unreached = null) => error switch
     {
         MailcalException.AlreadySetUp twice when !string.IsNullOrEmpty(configToml) =>
-            new ExistingAccountOffer(twice.accountId, configToml),
+            new ExistingAccountOffer(twice.accountId, configToml, UnreachedUsesRules.Dav(unreached)),
         _ => null,
     };
 
@@ -321,6 +324,9 @@ internal static class AccountSettingsRules
             parts.AddRange(entry.LinkCandidates.Suggested);
             parts.Add(entry.Endpoints is { } e
                 ? $"{e.ImapHost}|{e.ImapSecurity}|{e.SmtpHost}|{e.SmtpSecurity}|{e.CaldavUrl}|{e.CarddavUrl}|{e.Username}"
+                : "-");
+            parts.Add(entry.SeparateServer is { } separate
+                ? $"{string.Join(',', separate.Uses)}|{separate.Host}|{separate.Username}"
                 : "-");
         }
         parts.Add("expired");

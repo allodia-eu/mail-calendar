@@ -31,7 +31,11 @@ public sealed partial class MailboxModel
     /// route.</summary>
     internal SetupLinkStep? SetupLinks => _setupFlow.Links;
 
-    /// <summary>Raised when the setup form moves onto or off its link step.</summary>
+    /// <summary>The step after the mail sign-in that gives the calendar and contacts it did not
+    /// reach a sign-in of their own; null otherwise.</summary>
+    internal SeparateServerStep? SetupSeparateServer => _setupFlow.SeparateServer;
+
+    /// <summary>Raised when the setup form moves onto or off its separate-server or link step.</summary>
     public event Action? SetupLinksChanged;
 
     private WithheldUses? _withheldNotice;
@@ -50,8 +54,10 @@ public sealed partial class MailboxModel
     private bool SetupCancellable => AddingAccount || _setupFlow.ReturningTo is not null;
 
     /// <summary>
-    /// An account was added, by any route. The form moves on to the link step when another account
-    /// can fill something it lacks, back to the step an "Add another account" left, or closes.
+    /// An account was added, by any route. The form moves on to a sign-in of their own for a
+    /// calendar or contacts whose server the account's own did not reach, to the link step when
+    /// another account can fill something it lacks, back to the step an "Add another account"
+    /// left, or closes.
     /// </summary>
     private void AccountAdded(string accountId)
     {
@@ -62,7 +68,19 @@ public sealed partial class MailboxModel
         {
             _withheldWaiting = new WithheldUses(accountId, withheld);
         }
-        var linking = _setupFlow.AccountAdded(accountId, LinkStepFor);
+        var separate = UnreachedUsesRules.SetupStep(snapshot, accountId);
+        var stepping = _setupFlow.AccountAdded(accountId, LinkStepFor, separate);
+        RaiseSetupFlow();
+        if (!stepping)
+        {
+            FinishSetup();
+        }
+    }
+
+    /// <summary>The separate-server step answered: on to the link step, or the end of setup.</summary>
+    private void SeparateServerDone()
+    {
+        var linking = _setupFlow.SeparateServerDone(LinkStepFor);
         RaiseSetupFlow();
         if (!linking)
         {
@@ -128,7 +146,7 @@ public sealed partial class MailboxModel
             RaiseSetupFlow();
             return true;
         }
-        if (_setupFlow.Added.Count > 0 || _setupFlow.Links is not null)
+        if (_setupFlow.Added.Count > 0 || _setupFlow.Links is not null || _setupFlow.SeparateServer is not null)
         {
             FinishSetup();
             return true;

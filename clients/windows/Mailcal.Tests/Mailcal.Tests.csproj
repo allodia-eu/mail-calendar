@@ -217,6 +217,11 @@
          L10n-free on purpose; each rule fails silently on screen, most sharply a suggestion that
          second-guesses a link already made, and a save that adds a server the account never had. -->
     <Compile Include="..\Mailcal\Services\AccountSettingsRules.cs" Link="Services\AccountSettingsRules.cs" />
+    <!-- A calendar and contacts the account's sign-in does not reach (docs/accounts.md rule 18):
+         whether a switch asks first and what each answer passes, which title a set of uses gets,
+         and the form setup and the account's page offer. A switch that does not ask installs
+         nothing (the core refuses it), and one that asks the wrong set says the wrong thing. -->
+    <Compile Include="..\Mailcal\Services\UnreachedUsesRules.cs" Link="Services\UnreachedUsesRules.cs" />
     <!-- The line the calendar and contacts screens draw over a use that did not connect
          (docs/accounts.md rule 16): the title, the reason the account's page gives and the
          last-synced sentence, one per account. L10n-free, the words arrive as parameters. -->

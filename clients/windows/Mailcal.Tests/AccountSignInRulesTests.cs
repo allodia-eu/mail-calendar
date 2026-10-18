@@ -97,9 +97,14 @@ public class AccountSignInRulesTests
     public void ARefusedDuplicateOffersTheConfigToTheAccountAlreadyThere()
     {
         var twice = new MailcalException.AlreadySetUp("alice@example.org@imap.example.org");
-        Assert.Equal(
-            new ExistingAccountOffer("alice@example.org@imap.example.org", "[imap]\n"),
-            AccountSettingsRules.UpdateOffer(twice, "[imap]\n"));
+        var offer = AccountSettingsRules.UpdateOffer(twice, "[imap]\n");
+        Assert.Equal("alice@example.org@imap.example.org", offer?.AccountId);
+        Assert.Equal("[imap]\n", offer?.ConfigToml);
+        Assert.Empty(offer!.Unreached);
+        // What the sign-in said it would not reach goes with the offer, which asks about it.
+        var unreached = AccountSettingsRules.UpdateOffer(
+            twice, "[imap]\n", [AccountCapability.Contacts, AccountCapability.Mail, AccountCapability.Calendar]);
+        Assert.Equal([AccountCapability.Calendar, AccountCapability.Contacts], unreached!.Unreached);
         // Any other refusal is said and offers nothing.
         Assert.Null(AccountSettingsRules.UpdateOffer(new MailcalException.Connect("no route to host"), "[imap]\n"));
         Assert.Null(AccountSettingsRules.UpdateOffer(new MailcalException.SignInRefused("JMAP HTTP 401"), "[imap]\n"));

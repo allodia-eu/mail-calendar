@@ -78,6 +78,11 @@ public sealed partial class AccountSetupView : UserControl
             {
                 ShowRefusedCertificate();
             }
+            // The update question goes with the refusal it was asked from.
+            if (e.PropertyName == nameof(MailboxModel.SetupUpdateVisibility))
+            {
+                ClearUpdateQuestion();
+            }
         };
         model.SetupLinksChanged += OnSetupLinksChanged;
         // Once now: on a first run nothing raises AddingAccount, so the panel would otherwise

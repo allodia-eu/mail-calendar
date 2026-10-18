@@ -374,6 +374,10 @@
                         Style="{StaticResource CaptionTextBlockStyle}"
                         TextWrapping="Wrap"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <!-- What becomes of the calendar and contacts the sign-in does not reach, asked
+                         before the update (docs/accounts.md rule 18). Built in code
+                         (AccountSetupView.SeparateServer.cs). -->
+                    <StackPanel x:Name="UpdateQuestionHost" Margin="0,8,0,0" />
                 </StackPanel>
 
                 <!-- Back to the address step at the start; Connect (IMAP/JMAP) or Sign in
@@ -415,6 +419,11 @@
                 <HyperlinkButton x:Name="SetupManualButton" Content="{x:Bind l10n:L10n.SetupDetectManual(), Mode=OneTime}"
                                  HorizontalAlignment="Center" Visibility="Collapsed" Click="OnSetUpManuallyFromFound" />
             </StackPanel>
+
+            <!-- After a connect, before the link step: a sign-in of their own for a calendar and
+                 contacts the account's did not reach (docs/onboarding.md). Built in code
+                 (AccountSetupView.SeparateServer.cs). -->
+            <StackPanel x:Name="SeparatePanel" Spacing="12" Visibility="Collapsed" />
 
             <!-- The last step, after a connect: linking the new account to another
                  (docs/onboarding.md). Built in code (AccountSetupView.Links.cs). -->

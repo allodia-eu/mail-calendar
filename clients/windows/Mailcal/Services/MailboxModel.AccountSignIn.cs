@@ -56,21 +56,28 @@ public sealed partial class MailboxModel
     /// Signs a standards or JMAP account in through its provider in the browser: again from its
     /// stored grant when it already signs in that way, in place of its password otherwise.
     /// </summary>
+    /// <param name="ask">Asked, before the browser opens, what becomes of the calendar and
+    /// contacts a switch from a password will not reach (docs/accounts.md rule 18). Without it
+    /// such a switch is abandoned; only Settings, where a switch starts, passes one.</param>
     /// <remarks>
     /// Through the shared <see cref="SignInFlight"/>, for the reason recorded on
     /// <see cref="SignInWithJmapAsync"/>: every protocol-activation flow shares one redirect slot.
     /// </remarks>
-    internal Task<ConsentEnded> AccountSignInAsync(string accountId)
+    internal Task<ConsentEnded> AccountSignInAsync(
+        string accountId, Func<IReadOnlyList<AccountCapability>, Task<UnreachedAnswer>>? ask = null)
     {
         if (_connecting || _app is null)
         {
             return Task.FromResult(new ConsentEnded(false, L10n.AppUnavailable()));
         }
-        return _signIn.RunAsync(cancel => AccountSignInFlowAsync(_app, accountId, cancel));
+        return _signIn.RunAsync(cancel => AccountSignInFlowAsync(_app, accountId, ask, cancel));
     }
 
     private async Task<ConsentEnded> AccountSignInFlowAsync(
-        MailcalApp app, string accountId, CancellationToken cancel)
+        MailcalApp app,
+        string accountId,
+        Func<IReadOnlyList<AccountCapability>, Task<UnreachedAnswer>>? ask,
+        CancellationToken cancel)
     {
         IsSigningIn = true;
         try
@@ -84,6 +91,19 @@ public sealed partial class MailboxModel
             using var callback = ProtocolAuthCallback.Expect(ImapOAuthConfig.CallbackHost, JmapOAuthConfig.CallbackHost);
             // Discovery and registration, for a password account, block.
             var start = await Task.Run(() => app.BeginAccountSignIn(accountId, redirect));
+            UnreachedUses? choice = null;
+            var unreached = UnreachedUsesRules.Dav(start.Unreached);
+            if (UnreachedUsesRules.Asks(unreached))
+            {
+                // A sign-in started meanwhile supersedes this one, unanswered.
+                var answer = ask is null ? UnreachedAnswer.Cancel : await ask(unreached).WaitAsync(cancel);
+                if (UnreachedUsesRules.Choice(answer) is not { } chosen)
+                {
+                    Log.Info("an account's sign-in was abandoned before the browser opened");
+                    return new ConsentEnded(false, null);
+                }
+                choice = chosen;
+            }
             if (!await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl)))
             {
                 Log.Warn("the browser did not open for an account's sign-in");
@@ -91,8 +111,13 @@ public sealed partial class MailboxModel
             }
             var callbackUrl = await callback.WaitAsync(cancel);
             // The exchange, the connect and storing the new credential all block.
-            await Task.Run(() => app.CompleteAccountSignIn(accountId, start.Pending, callbackUrl));
+            await Task.Run(() => app.CompleteAccountSignIn(accountId, start.Pending, callbackUrl, choice));
             Log.Info($"an account was signed in through its provider in place: {LogHandle(accountId)}");
+            if (choice == UnreachedUses.KeepOnPassword)
+            {
+                // The calendar and contacts kept on the password are an account of their own now.
+                SyncAfterAccountChange();
+            }
             return new ConsentEnded(true, null);
         }
         catch (OperationCanceledException)
@@ -143,7 +168,9 @@ public sealed partial class MailboxModel
     /// The refused add's offer, taken: the sign-in or password just given replaces the credential
     /// of the account already set up, and setup ends as an add does, without adding anything.
     /// </summary>
-    internal async Task UpdateExistingAccountAsync()
+    /// <param name="choice">What becomes of the calendar and contacts the sign-in does not reach,
+    /// when the offer names any (<see cref="ExistingAccountOffer.Unreached"/>); null otherwise.</param>
+    internal async Task UpdateExistingAccountAsync(UnreachedUses? choice)
     {
         if (_setupExisting is not { } offer || _app is not { } app || IsSubmitting)
         {
@@ -152,7 +179,7 @@ public sealed partial class MailboxModel
         IsSubmitting = true;
         try
         {
-            await Task.Run(() => app.UseCredentialFrom(offer.AccountId, offer.ConfigToml));
+            await Task.Run(() => app.UseCredentialFrom(offer.AccountId, offer.ConfigToml, choice));
             Log.Info($"an account took the credential a refused add was given: {LogHandle(offer.AccountId)}");
             IsSubmitting = false;
             SetupError = null;

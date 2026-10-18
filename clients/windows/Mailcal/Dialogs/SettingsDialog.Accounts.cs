@@ -218,7 +218,7 @@ public sealed partial class SettingsDialog
 
     /// <summary>Says <paramref name="notice"/> and leaves the page as it is: for progress, and for
     /// a refusal of what the person typed, which they will want to correct rather than retype.</summary>
-    private void SayOnAccounts(AccountNotice notice)
+    private void SayOnAccounts(AccountNotice? notice)
     {
         _accountNotice = notice;
         if (_accountNoticeBar is { } bar)

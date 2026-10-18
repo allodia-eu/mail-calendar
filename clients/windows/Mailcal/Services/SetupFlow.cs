@@ -1,5 +1,5 @@
-// What follows a connect on the setup form (docs/onboarding.md, "After the connect"): the link step,
-// the accounts an "Add another account" adds on the way, and which of them are asked their name
+// What follows a connect on the setup form (docs/onboarding.md, "After the connect"): a calendar on
+// a server the sign-in does not reach, then the link step, the accounts an "Add another account" adds on the way, and which of them are asked their name
 // once the flow ends. WinUI-free so the flow is reachable from Mailcal.Tests; MailboxModel holds one
 // and the setup form draws what it says.
 
@@ -8,6 +8,13 @@ namespace Allodia.Mailcal.Services;
 internal sealed class SetupFlow
 {
     private readonly List<string> _added = [];
+
+    // The account the link step is for, kept while the separate-server step comes first.
+    private string? _linkTarget;
+
+    /// <summary>The step that gives a calendar or contacts the sign-in did not reach a sign-in of
+    /// their own; shown before the link step, and null otherwise.</summary>
+    public SeparateServerStep? SeparateServer { get; private set; }
 
     /// <summary>The link step on screen; null while the form is on the address or a route.</summary>
     public SetupLinkStep? Links { get; private set; }
@@ -19,16 +26,42 @@ internal sealed class SetupFlow
     public IReadOnlyList<string> Added => _added;
 
     /// <summary>
-    /// An account was added: back to the link step it was added from, on to its own link step when
-    /// another account can fill something it lacks, or the end of the flow.
+    /// An account was added: on to <paramref name="separate"/> when its sign-in did not reach its
+    /// calendar or contacts, then back to the link step it was added from, on to its own link step
+    /// when another account can fill something it lacks, or the end of the flow.
     /// </summary>
-    /// <returns>Whether a link step is to be shown; otherwise the flow ends.</returns>
-    public bool AccountAdded(string account, Func<string, SetupLinkStep?> stepFor)
+    /// <returns>Whether a step is to be shown; otherwise the flow ends.</returns>
+    public bool AccountAdded(string account, Func<string, SetupLinkStep?> stepFor, SeparateServerStep? separate = null)
     {
         _added.Add(account);
-        var target = ReturningTo ?? Links?.Account ?? account;
+        _linkTarget = ReturningTo ?? Links?.Account ?? account;
         ReturningTo = null;
-        Links = stepFor(target);
+        if (separate is not null)
+        {
+            SeparateServer = separate;
+            Links = null;
+            return true;
+        }
+        return ToLinks(stepFor);
+    }
+
+    /// <summary>The separate-server step answered, connected or skipped: on to the link step.</summary>
+    /// <returns>Whether a link step is to be shown; otherwise the flow ends.</returns>
+    public bool SeparateServerDone(Func<string, SetupLinkStep?> stepFor)
+    {
+        if (SeparateServer is null)
+        {
+            return false;
+        }
+        SeparateServer = null;
+        return ToLinks(stepFor);
+    }
+
+    private bool ToLinks(Func<string, SetupLinkStep?> stepFor)
+    {
+        var target = _linkTarget;
+        _linkTarget = null;
+        Links = target is null ? null : stepFor(target);
         return Links is not null;
     }
 
@@ -75,6 +108,8 @@ internal sealed class SetupFlow
     {
         var added = _added.ToList();
         _added.Clear();
+        SeparateServer = null;
+        _linkTarget = null;
         Links = null;
         ReturningTo = null;
         return added;
