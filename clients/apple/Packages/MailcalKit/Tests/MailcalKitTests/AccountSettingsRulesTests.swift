@@ -153,6 +153,18 @@ private func mailboxOnly() -> AccountEntry {
         #expect(AccountSettingsRules.unlinked(mailbox) == "\(named), b@example.org")
     }
 
+    @Test func theRemovalAndTheSignInNameTheAccountApartFromItsNamesake() {
+        var mailbox = mailboxOnly()
+        mailbox.distinction = .server(host: "mail.example.org")
+        let named = L10n.settings_account_distinguished(
+            address: "alice@example.org", detail: "mail.example.org")
+        #expect(AccountSettingsLabels.name(mailbox) == named)
+        #expect(AccountSettingsLabels.removal(mailbox) == L10n.remove_account_message(email: named))
+        #expect(
+            AccountSettingsLabels.signIn(mailbox, expired: true)
+                == L10n.signin_expired_prompt(accounts: named))
+    }
+
     @Test func theKindLineGainsTheHostOnlyForAServerDistinction() {
         var mailbox = mailboxOnly()
         let kind = AccountSettingsLabels.kind(.imap)

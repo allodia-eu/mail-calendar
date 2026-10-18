@@ -90,7 +90,7 @@ struct AccountSignInSection: View {
     @ViewBuilder
     private var status: some View {
         if waiting {
-            progress(L10n.settings_account_signin_waiting(email: entry.address))
+            progress(L10n.settings_account_signin_waiting(email: AccountSettingsLabels.name(entry)))
         } else if busy {
             progress(L10n.status_connecting())
         } else if let result {

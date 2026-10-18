@@ -29,7 +29,7 @@ struct AccountMailSection: View {
         SettingsGroup(
             heading: L10n.nav_mail(),
             description: replacesSecret
-                ? L10n.signin_expired_prompt(accounts: entry.address)
+                ? L10n.signin_expired_prompt(accounts: AccountSettingsLabels.name(entry))
                 : L10n.settings_sync_description()
         ) {
             VStack(alignment: .leading, spacing: 14) {

@@ -191,6 +191,10 @@ enum AccountSettingsLabels {
         name(address: account.address, distinction: account.distinction)
     }
 
+    static func name(_ entry: AccountEntry) -> String {
+        name(address: entry.address, distinction: entry.distinction)
+    }
+
     /// The account's kind, as its row and its page say it under the address. Where another account
     /// shares its address and its kind, the server's host follows: the kind alone would not tell
     /// the two apart.
@@ -265,7 +269,7 @@ enum AccountSettingsLabels {
 
     /// What removing the account does, naming the accounts that lose their link to it.
     static func removal(_ entry: AccountEntry) -> String {
-        removal(address: entry.address, unlinked: AccountSettingsRules.unlinked(entry))
+        removal(address: name(entry), unlinked: AccountSettingsRules.unlinked(entry))
     }
 
     static func removal(address: String, unlinked: String?) -> String {
@@ -276,7 +280,7 @@ enum AccountSettingsLabels {
 
     /// The sign-in section's line: what is wrong, when something is.
     static func signIn(_ entry: AccountEntry, expired: Bool) -> String {
-        if expired { return L10n.signin_expired_prompt(accounts: entry.address) }
+        if expired { return L10n.signin_expired_prompt(accounts: name(entry)) }
         if AccountSettingsRules.needsPermission(entry) {
             return L10n.settings_account_needs_permission()
         }

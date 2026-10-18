@@ -116,7 +116,8 @@ struct AccountPageView: View {
                     signIn(adding: [])
                 }
                 if model.signingInAgain == entry.id {
-                    progress(L10n.settings_account_signin_waiting(email: entry.address))
+                    progress(L10n.settings_account_signin_waiting(
+                        email: AccountSettingsLabels.name(entry))))
                 } else if let signInResult {
                     Text(signInResult)
                         .font(.callout)
