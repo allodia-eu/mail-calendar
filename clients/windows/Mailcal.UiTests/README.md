@@ -26,8 +26,8 @@ write followed. A failing case leaves a screenshot and the element tree the agen
 
 The app reads its `MAILCAL_*` switches once, at startup, so a launch is a fixture in
 [`Suites/HarnessApp.cs`](Suites/HarnessApp.cs): one per account set (alice over JMAP, alice and bob
-together, alice over IMAP) shared by every suite in its collection, which puts back what each case
-leaves. A suite that sets an account up through the form gets a launch of its own on an emptied
+together, alice over IMAP) or appearance (pinned dark) shared by every suite in its collection,
+which puts back what each case leaves. A suite that sets an account up through the form gets a launch of its own on an emptied
 first-run store, because what a first run asks is asked once a store.
 
 ## The agent
@@ -54,6 +54,9 @@ an obvious reimplementation finds nothing:
   composer's editor costs UI Automation seconds a call; nothing a suite looks up lives in it.
 - **A peer measures from its window's client area.** The agent reports physical screen pixels, the
   unit a press is aimed in.
+- **A peer can refuse its children.** The invitation card's Expander, while offscreen, answers
+  `E_OUTOFMEMORY` (raised as `OutOfMemoryException`) every time it is asked; the walk passes over
+  it, as UI Automation passes over a subtree it cannot read.
 
 ## Writing a case
 
@@ -68,6 +71,10 @@ an obvious reimplementation finds nothing:
 - **A dialog has not closed until its dimming layer has.** A ContentDialog's own popup goes the
   moment it is dismissed, but the layer behind it stays until the close completes, and the app
   opens no other dialog before then: `App.CloseDialogs` waits for both.
+- **A row far down the message list has not been built.** The list is virtualised, so a row
+  scrolled well out of view is in no tree at all: `App.RowTitled` scrolls down the list to find
+  it. And a case that leaves the calendar on screen leaves no list: `App.RowsList` puts the mail
+  back.
 - **A folder's list is not that folder's until its header names it.** The rows on screen in the
   meantime are the last folder's, and a press meant for the new list lands on one of them.
 - **A text box has the keyboard before it can take characters.** It reports focus before Windows'

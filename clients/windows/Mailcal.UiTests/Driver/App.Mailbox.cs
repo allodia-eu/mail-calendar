@@ -20,17 +20,41 @@ internal sealed partial class App
     internal IReadOnlyList<Element> Rows() =>
         Agent.FindAll(new Filter { Type = "ListItem", Under = RowsList() });
 
-    internal Element RowsList() =>
-        Agent.Find(Filter.ById("RowsList") with { Window = Mailbox.Hwnd })
-        ?? throw new InvalidOperationException("the message list (#RowsList) is not on screen");
+    /// <summary>The message list, the mail put back in place of the calendar or contacts first when
+    /// a case before this one left either on screen.</summary>
+    internal Element RowsList()
+    {
+        var list = Filter.ById("RowsList") with { Window = Mailbox.Hwnd };
+        if (Agent.Find(list) is { } shown)
+        {
+            return shown;
+        }
+        if (Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = Mailbox.Hwnd }) is not null)
+        {
+            OpenFolder(Catalog.English("folder_inbox"));
+        }
+        return Agent.Find(list) ?? throw new InvalidOperationException("the message list (#RowsList) is not on screen");
+    }
 
     /// <summary>The row holding a text matching <paramref name="title"/>, scrolled into view because
     /// a row below the fold can be found but not pressed; throws naming what the list holds.</summary>
     internal Element RowTitled(string title)
     {
-        var filter = new Filter { Type = "ListItem", Under = RowsList(), Has = new Filter { NameLike = title } };
-        var row = Agent.Find(filter)
-            ?? throw new InvalidOperationException($"no message row matching '{title}'. The list holds: {string.Join(" | ", Rows().Select(r => r.Name))}");
+        var list = RowsList();
+        var filter = new Filter { Type = "ListItem", Under = list, Has = new Filter { NameLike = title } };
+        // The list is virtualised: a row far from the view has not been built, so it is looked for
+        // down the list, a quarter at a time.
+        var row = Agent.Find(filter);
+        for (var percent = 0; row is null && percent <= 100; percent += 25)
+        {
+            Agent.ScrollTo(list, percent);
+            Agent.Settle(quiet: TimeSpan.FromMilliseconds(200));
+            row = Agent.Find(filter);
+        }
+        if (row is null)
+        {
+            throw new InvalidOperationException($"no message row matching '{title}'. The list holds: {string.Join(" | ", Rows().Select(r => r.Name))}");
+        }
         // The list scrolls with an animation, so the row is drawn a moment after the request.
         Agent.ScrollIntoView(row);
         Element? drawn = null;
@@ -48,7 +72,9 @@ internal sealed partial class App
     {
         var account = Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = Mailbox.Hwnd })
             ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}");
-        // A launch lists the account before its folders arrive from the server.
+        // A launch lists the account before its folders arrive from the server, and the calendar
+        // leaves the account's tree closed.
+        Agent.Expand(account);
         var row = Agent.Wait(Filter.Named(folder, "ListItem") with { Under = account }, Patience)
             ?? throw new InvalidOperationException($"{Harness.Alice} shows no {folder} row; is its tree open?");
         Agent.Invoke(row);
@@ -236,13 +262,36 @@ internal sealed partial class App
 
     /// <summary>The screen pixels under <paramref name="element"/>, read with its window in front:
     /// they come off the composited desktop, so anything lying over it would be read instead.</summary>
-    internal static Bitmap Pixels(Element element)
+    internal static Bitmap Pixels(Element element) =>
+        Pixels(element.Window, new Rectangle((int)element.X, (int)element.Y, (int)element.Width, (int)element.Height));
+
+    /// <summary>The screen pixels in <paramref name="area"/>, in physical pixels, read with
+    /// <paramref name="window"/> in front.</summary>
+    internal static Bitmap Pixels(long window, Rectangle area)
     {
-        Input.BringToFront(element.Window);
-        var bitmap = new Bitmap((int)element.Width, (int)element.Height);
+        Input.BringToFront(window);
+        var bitmap = new Bitmap(area.Width, area.Height);
         using var graphics = Graphics.FromImage(bitmap);
-        graphics.CopyFromScreen((int)element.X, (int)element.Y, 0, 0, bitmap.Size);
+        graphics.CopyFromScreen(area.X, area.Y, 0, 0, bitmap.Size);
         return bitmap;
+    }
+
+    /// <summary>The median, darkest and lightest luminance (0 to 255, Rec. 601, as an eye weights
+    /// it) of the screen pixels in <paramref name="area"/>, read with <paramref name="window"/> in front.</summary>
+    internal static (double Median, double Darkest, double Lightest) Luminance(long window, Rectangle area)
+    {
+        using var pixels = Pixels(window, area);
+        var values = new List<double>(area.Width * area.Height);
+        for (var x = 0; x < pixels.Width; x++)
+        {
+            for (var y = 0; y < pixels.Height; y++)
+            {
+                var c = pixels.GetPixel(x, y);
+                values.Add((0.299 * c.R) + (0.587 * c.G) + (0.114 * c.B));
+            }
+        }
+        values.Sort();
+        return (values[values.Count / 2], values[0], values[^1]);
     }
 
     private const uint WmClose = 0x0010;

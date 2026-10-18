@@ -87,7 +87,19 @@ internal static partial class TestAgent
     /// shows what the popup holds, so its content stands in.</summary>
     private static IList<AutomationPeer>? ChildrenOf(AutomationPeer peer)
     {
-        var children = peer.GetChildren();
+        IList<AutomationPeer>? children;
+        try
+        {
+            children = peer.GetChildren();
+        }
+        catch (Exception e) when (e is OutOfMemoryException or System.Runtime.InteropServices.COMException)
+        {
+            // The invitation card's Expander, while it is offscreen, answers E_OUTOFMEMORY, which
+            // WinRT raises as OutOfMemoryException, every time it is asked. UI Automation passes over
+            // a subtree it cannot read, and so does the walk: one such peer would otherwise fail
+            // every query until the card is drawn again.
+            return null;
+        }
         if (children is { Count: > 0 })
         {
             return children;

@@ -171,17 +171,19 @@ internal static partial class TestAgent
         return new JsonObject { ["elements"] = focused is null ? new JsonArray() : new JsonArray(Describe(focused)) };
     }
 
-    /// <summary>Scrolls the first vertically scrollable element at or under the given one to its end,
-    /// as a person scrolls a long form to the section at its foot.</summary>
-    private static JsonObject ScrollToEnd(JsonObject request)
+    /// <summary>Scrolls the first vertically scrollable element at or under the given one to
+    /// <c>percent</c> of its height, its end when none is given: as a person scrolls a long form to
+    /// the section at its foot, or a list to the row a virtualised list has not built yet.</summary>
+    private static JsonObject ScrollTo(JsonObject request)
     {
+        var percent = (double?)request["percent"] ?? 100;
         var root = PeerOf(HandleIn(request));
         var window = WindowOf.TryGetValue(root, out var known) ? known : OpenWindows()[0];
         foreach (var peer in Walk([(root, window)]))
         {
             if (peer.GetPattern(PatternInterface.Scroll) is IScrollProvider { VerticallyScrollable: true } scroll)
             {
-                scroll.SetScrollPercent(-1, 100);
+                scroll.SetScrollPercent(-1, percent);
                 return new JsonObject { ["ok"] = true };
             }
         }

@@ -365,7 +365,7 @@ change updates in every catalog locale.
   signature editor still opens focused) and an **Android emulator** (caret in To with the keyboard
   up, the list hanging under the input over the Subject field, accepting a suggestion, and the
   event editor's title). **Windows** followed on **2026-08-24**, held by
-  `uitests/ComposerFocus.Tests.ps1`: five cases, each watched failing against the rule broken.
+  `Mailcal.UiTests/Suites/ComposerFocusTests.cs`: five cases, each watched failing against the rule broken.
   Linux's half is host code this repo cannot build on a Mac: an AT-SPI run is owed, with a list
   long enough to reach the editor, per the rule above.
 

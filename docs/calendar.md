@@ -1455,7 +1455,7 @@ are usually what the user opened it to change.
 Three traps, all silent. Two are shared with the composer: a toolkit drops a focus request made
 before the sheet has finished presenting or the widget has been mapped, leaving a field that only
 *looks* ready; and nothing a screenshot can see is different either way, so the assertion has to be
-on focus itself (`EventEditorFocusTest` on Android, `EventEditorFocus.Tests.ps1` on Windows; an
+on focus itself (`EventEditorFocusTest` on Android, `EventEditorFocusTests.cs` on Windows; an
 AT-SPI run on Linux).
 
 The third belongs to the **edit** half, and it inverts the first: where a dialog places the caret
@@ -1729,7 +1729,7 @@ and it fails when the request is dropped, and driven against the harness on 2026
 macOS draws the editor from the *same* SwiftUI view as iOS, but was not driven: this build's sidebar
 offered no Calendar entry to reach it by.
 
-**Windows** is held by `uitests/EventEditorFocus.Tests.ps1` (both halves, each watched failing
+**Windows** is held by `Mailcal.UiTests/Suites/EventEditorFocusTests.cs` (both halves, each watched failing
 against the rule broken) and was driven against the harness on 2026-08-24. That run is what found
 the third trap above: the edit half was *wrong* on Windows and looked right in the source, because
 the dialog was placing the caret in the title by itself. Two owed: a pass on macOS, an AT-SPI run

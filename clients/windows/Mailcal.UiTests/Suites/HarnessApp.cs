@@ -115,6 +115,14 @@ public sealed class DebugLogHarnessApp : HarnessApp
         new Dictionary<string, string> { ["ALLODIA_LOG_LEVEL"] = "debug" };
 }
 
+/// <summary>The harness app pinned to the dark appearance: for what a dark window draws that a light
+/// one does not.</summary>
+public sealed class DarkHarnessApp : HarnessApp
+{
+    protected override IReadOnlyDictionary<string, string> Env { get; } =
+        new Dictionary<string, string> { ["MAILCAL_APPEARANCE"] = "dark" };
+}
+
 /// <summary>The app on an empty store beside the harness: for a suite that sets an account up
 /// through the form, uses it against the server and removes it again. A class fixture, one launch a
 /// suite, because what a first run asks is asked once a store: a second suite on the same store
@@ -146,6 +154,12 @@ public sealed class ImapHarnessCollection : ICollectionFixture<ImapHarnessApp>
 public sealed class DebugLogHarnessCollection : ICollectionFixture<DebugLogHarnessApp>
 {
     public const string Name = "harness, log at debug";
+}
+
+[CollectionDefinition(Name)]
+public sealed class DarkHarnessCollection : ICollectionFixture<DarkHarnessApp>
+{
+    public const string Name = "harness, dark";
 }
 
 /// <summary>

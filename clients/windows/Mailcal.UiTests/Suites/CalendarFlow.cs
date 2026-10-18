@@ -71,12 +71,12 @@ internal sealed class CalendarFlow(App app)
         // A dialog left by a failed case would swallow the press on this one's row.
         app.CloseDialogs();
         var agenda = ShowAgenda();
-        var rows = Agent.FindAll(new Filter { Type = "ListItem", Under = agenda });
-        if (rows.Count == 0)
+        // The agenda fills in after it is drawn.
+        if (Agent.Wait(new Filter { Type = "ListItem", Under = agenda }, TimeSpan.FromSeconds(10)) is null)
         {
             throw new InvalidOperationException("the agenda is empty: the harness calendar never synced");
         }
-        var row = Agent.Find(new Filter { Type = "ListItem", Under = agenda, Has = Filter.Named(title, "Text") })
+        var row = Agent.Wait(new Filter { Type = "ListItem", Under = agenda, Has = Filter.Named(title, "Text") }, TimeSpan.FromSeconds(10))
             ?? throw new InvalidOperationException(
                 $"no agenda row for '{title}': the living week is seeded relative to today, so a stale harness is the usual cause (scripts/dev/harness.sh reset)");
         Agent.Invoke(row);

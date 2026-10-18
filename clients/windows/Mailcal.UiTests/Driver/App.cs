@@ -56,6 +56,7 @@ internal sealed partial class App : IDisposable
             ["MAILCAL_SWIPE"] = null,
             ["MAILCAL_SHOWCASE"] = null,
             ["MAILCAL_SHOWCASE_SCREEN"] = null,
+            ["MAILCAL_APPEARANCE"] = null,
             ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = null,
             ["MAILCAL_DEV_ACCOUNT"] = firstRun ? "first-run" : Environment.GetEnvironmentVariable("MAILCAL_DEV_ACCOUNT") ?? "stalwart",
             ["MAILCAL_EXTRA_CA"] = Path.Combine(Repo, "docker", "stalwart", "tls", "harness-ca.pem"),

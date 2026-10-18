@@ -15,6 +15,7 @@ using Microsoft.UI.Xaml;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
+using System.Linq;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -130,7 +131,7 @@ internal static partial class TestAgent
                 "scrollIntoView" => OnUi(() => ScrollIntoView(request)),
                 "focus" => OnUi(() => Focus(request)),
                 "focused" => OnUi(Focused),
-                "scrollToEnd" => OnUi(() => ScrollToEnd(request)),
+                "scrollTo" => OnUi(() => ScrollTo(request)),
                 "settle" => Settle(request),
                 "dump" => OnUi(() => Dump(request)),
                 _ => throw new AgentException($"an unknown op '{op}'"),
@@ -159,7 +160,9 @@ internal static partial class TestAgent
             }
             catch (Exception e)
             {
-                done.SetResult(new JsonObject { ["error"] = $"{e.GetType().Name}: {e.Message}" });
+                // Where it was thrown as well: an HRESULT from a peer reads as nothing without it.
+                var at = string.Join(" < ", (e.StackTrace ?? "").Split('\n').Take(4).Select(line => line.Trim()));
+                done.SetResult(new JsonObject { ["error"] = $"{e.GetType().Name}: {e.Message} [{at}]" });
             }
         });
         if (!queued)

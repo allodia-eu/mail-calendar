@@ -74,7 +74,25 @@ internal static class Desktop
         return double.Parse(value.Value, System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    /// <summary>The window's rectangle on screen, in physical pixels.</summary>
+    internal static System.Drawing.Rectangle Bounds(long hwnd)
+    {
+        GetWindowRect((nint)hwnd, out var r);
+        return System.Drawing.Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom);
+    }
+
     private const uint WmGetIcon = 0x007F;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(nint hwnd, out NativeRect rect);
 
     [DllImport("user32.dll")] private static extern nint GetForegroundWindow();
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(nint hwnd, StringBuilder text, int count);
