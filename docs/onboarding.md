@@ -110,11 +110,11 @@ straight on. The step comes before the link step and the name, as for any accoun
 **When the sign-in does not reach the calendar or the address book that was ticked**, the window
 says so once the mailbox has connected, before the link step: "Your calendar and contacts are on
 a separate server", naming the server, with the address as the login, a password field, Connect
-and Skip. Which uses that is was known before the browser opened (`ImapLoginStart::unreached`),
-so a client never asks after the fact about something it could not have known. Connect makes them
+and Skip. The step is drawn from the new account's entry (`AccountEntry.separate_server`: the uses, the
+server's host and the login), which the add's own connect fills. Connect makes them
 an account of their own linked to the mailbox (`add_linked_calendar_account`,
-[`accounts.md`](accounts.md) rule 18), and the link step then shows that link already chosen; a
-refused password is said under the field and keeps the step. Skip switches those uses off on the
+[`accounts.md`](accounts.md) rule 18), and the link step then offers only what is still unlinked;
+a refused password is said under the field and keeps the step. Skip switches those uses off on the
 new account, so it does not open on a calendar that cannot connect; the account's page offers the
 same step later.
 
