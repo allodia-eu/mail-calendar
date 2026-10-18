@@ -17,8 +17,8 @@ struct AllodiaSignInEscapeTests {
     /// seconds; eight is what Android and Linux hold, and holding a different one here would be a
     /// different app on every second platform.
     @Test func theWayBackIsOfferedWithinTheContractsBound() {
-        #expect(OnboardingAllodiaCard.escapeAfter <= .seconds(10))
-        #expect(OnboardingAllodiaCard.escapeAfter == .seconds(8))
+        #expect(SignInAttempts.escapeAfter <= .seconds(10))
+        #expect(SignInAttempts.escapeAfter == .seconds(8))
     }
 
     /// Escaping is not a failure: it ends as a cancellation, which the card says nothing about.

@@ -236,7 +236,7 @@ struct ImapSignInButton: View {
 
 /// A text-only button that reads as a link: the platform's own link style on macOS, and on iOS the
 /// borderless button, which is the tinted text iOS uses for the same thing.
-private struct LinkButtonStyle: ViewModifier {
+struct LinkButtonStyle: ViewModifier {
     func body(content: Content) -> some View {
         #if os(macOS)
         content.buttonStyle(.link)

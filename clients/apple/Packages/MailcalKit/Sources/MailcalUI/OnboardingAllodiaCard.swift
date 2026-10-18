@@ -42,12 +42,6 @@ struct OnboardingAllodiaCard: View {
     /// Whether the hop has outlasted its threshold, so the busy row draws the way back.
     @State private var escapable = false
 
-    /// How long a hop runs before the card owes the person a way back. The contract caps this at
-    /// ten seconds; eight matches Android and Linux. An ordinary hop has the browser in front of
-    /// somebody inside a second, and a button drawn for that one is noise on every sign-in that
-    /// works.
-    static let escapeAfter = Duration.seconds(8)
-
     var body: some View {
         if allodiaSignInAvailable() {
             if firstRun {
@@ -209,7 +203,7 @@ struct OnboardingAllodiaCard: View {
     private func armEscape() async {
         escapable = false
         guard signingIn else { return }
-        try? await Task.sleep(for: Self.escapeAfter)
+        try? await Task.sleep(for: SignInAttempts.escapeAfter)
         // `try?` swallows the cancellation that ending the hop raises, so the check is here.
         if !Task.isCancelled { escapable = true }
     }
