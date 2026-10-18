@@ -27,6 +27,10 @@ public sealed partial class SettingsDialog
     // The account whose sign-in is being changed: its buttons stay disabled across a redraw.
     private string? _signInChanging;
 
+    // The controls of the section drawn last. A redraw while a change runs replaces the ones the
+    // change disabled, so its end enables these as well.
+    private List<Control> _signInDrawn = [];
+
     private static readonly AccountSignInOptions NothingOffered = new(false, null, false);
 
     /// <summary>The Sign-in section of a standards or JMAP account's page.</summary>
@@ -111,6 +115,7 @@ public sealed partial class SettingsDialog
         {
             control.IsEnabled = !busy;
         }
+        _signInDrawn = all;
     }
 
     /// <summary>"Use a password instead", which opens the field it is typed into. The field never
@@ -196,7 +201,7 @@ public sealed partial class SettingsDialog
     private void Changed(List<Control> all)
     {
         _signInChanging = null;
-        foreach (var control in all)
+        foreach (var control in all.Concat(_signInDrawn))
         {
             control.IsEnabled = true;
         }
