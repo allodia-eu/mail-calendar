@@ -237,6 +237,10 @@ impl ConnectedAccount {
                 Self::Imap { config, .. } if !config.is_oauth() => Some(config.endpoints()),
                 _ => None,
             },
+            dav_servers: match self {
+                Self::Imap { config, .. } if config.imap.is_some() => dav_servers(config),
+                _ => Vec::new(),
+            },
         }
     }
 
@@ -326,4 +330,33 @@ impl ConnectedAccount {
             Self::Microsoft { .. } | Self::Google { .. } | Self::Jmap { .. } => None,
         }
     }
+}
+
+/// A mailbox's calendar server and the address book's, the address book taking the calendar's
+/// when it has none of its own.
+fn dav_servers(config: &mailcal_account::AccountConfig) -> Vec<crate::accounts_view::DavServer> {
+    let calendar = config
+        .caldav
+        .as_ref()
+        .map(|caldav| crate::accounts_view::DavServer {
+            capability: mailcal_account::Capability::Calendar,
+            base_url: caldav.base_url.clone(),
+            username: caldav.username.clone(),
+        });
+    let contacts = config
+        .carddav
+        .as_ref()
+        .map(|carddav| (carddav.base_url.clone(), carddav.username.clone()))
+        .or_else(|| {
+            config
+                .caldav
+                .as_ref()
+                .map(|caldav| (caldav.base_url.clone(), caldav.username.clone()))
+        })
+        .map(|(base_url, username)| crate::accounts_view::DavServer {
+            capability: mailcal_account::Capability::Contacts,
+            base_url,
+            username,
+        });
+    calendar.into_iter().chain(contacts).collect()
 }

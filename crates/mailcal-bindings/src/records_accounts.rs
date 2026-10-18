@@ -36,6 +36,24 @@ pub struct AccountEntry {
     /// Its servers and login, for an account Settings can edit them on: one that signs in with a
     /// password to servers of its own. `None` for one that signs in through its provider.
     pub endpoints: Option<AccountEndpoints>,
+    /// The calendar and contacts of a mailbox that need a sign-in of their own, and the server
+    /// it would be made at: what its page offers to sign in to (`add_linked_calendar_account`,
+    /// `docs/accounts.md` rule 18). `None` while every use connects, or for an account without a
+    /// mailbox.
+    #[uniffi(default = None)]
+    pub separate_server: Option<SeparateServer>,
+}
+
+/// A server a mailbox's calendar or contacts need a sign-in of their own at.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct SeparateServer {
+    /// The uses that need it, calendar before contacts.
+    pub uses: Vec<AccountCapability>,
+    /// The server's host, with its port when it names one: what the form says the sign-in is
+    /// for. Never a path, which can carry the person's address.
+    pub host: String,
+    /// The login it holds for that server, which the form starts from.
+    pub username: String,
 }
 
 /// How an account signs in.

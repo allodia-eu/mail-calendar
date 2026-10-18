@@ -213,8 +213,8 @@ pub use records::{
 };
 pub use records_accounts::{
     AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot,
-    CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount, SignInMethod,
-    UseProblem,
+    CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount, SeparateServer,
+    SignInMethod, UseProblem,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{
