@@ -186,7 +186,7 @@ public sealed partial class SettingsDialog
     private UIElement SignInGroup(AccountEntry entry, bool expired)
     {
         var description = expired
-            ? L10n.SigninExpiredPrompt(entry.Address)
+            ? L10n.SigninExpiredPrompt(AccountNameText.Of(entry))
             : AccountSettingsRules.NeedsPermission(entry)
                 ? L10n.SettingsAccountNeedsPermission()
                 : L10n.SettingsAccountSigninDescription();
@@ -201,7 +201,7 @@ public sealed partial class SettingsDialog
     private async Task SignInAgainFromPageAsync(AccountEntry entry, AccountCapability[] adding)
     {
         SayOnAccounts(new AccountNotice(
-            InfoBarSeverity.Informational, string.Empty, L10n.SettingsAccountSigninWaiting(entry.Address)));
+            InfoBarSeverity.Informational, string.Empty, L10n.SettingsAccountSigninWaiting(AccountNameText.Of(entry))));
         var ended = await _model.SignInAgainAsync(entry.Id, adding);
         NotifyAccounts(ended switch
         {

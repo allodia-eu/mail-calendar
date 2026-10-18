@@ -17,15 +17,15 @@ public sealed partial class MailboxModel
     private bool _offline;
     private HashSet<string> _unreachableAccounts = new();
     private List<ConnectionIssue> _connectionIssues = new();
-    // Friendly emails of Microsoft accounts whose calendar is withheld for lack of the calendar
-    // OAuth scope (connected before calendar support, or revoked consent), drives the calendar
-    // re-auth banner. Reconnecting an account re-runs its sign-in with the calendar scope.
-    private List<string> _calendarReauthEmails = new();
-    // Friendly emails of Microsoft accounts whose mail write/send is withheld for lack of the
+    // The names of Microsoft accounts whose calendar is withheld for lack of the calendar OAuth
+    // scope (connected before calendar support, or revoked consent), drives the calendar re-auth
+    // banner. Reconnecting an account re-runs its sign-in with the calendar scope.
+    private List<string> _calendarReauthNames = new();
+    // The names of Microsoft accounts whose mail write/send is withheld for lack of the
     // Mail.ReadWrite / Mail.Send OAuth scopes (connected before those scopes, or revoked consent),
     // so a send or mail action was refused, drives the mail re-auth banner. Reconnecting re-runs
     // sign-in with the full scope set, clearing this and any calendar prompt at once.
-    private List<string> _mailReauthEmails = new();
+    private List<string> _mailReauthNames = new();
     // The same two prompts by account id, which signing an account in again in place is addressed
     // to (docs/provider-oauth.md rule 11).
     private List<string> _calendarReauthIds = new();
@@ -41,12 +41,12 @@ public sealed partial class MailboxModel
     private sealed record ConnectionIssue(string Id, string Email, string? Detail);
 
     /// <summary>One account whose stored sign-in the server has stopped accepting: its account id,
-    /// display email and provider family, which decides the remedy
+    /// what a person reads it by, and its provider family, which decides the remedy
     /// (<see cref="AccountSettingsRules.Remedy"/>): an account that signs in through its provider
     /// re-runs its browser sign-in, anything else is updated in Settings. The id is what a JMAP or
     /// standards re-authentication is addressed to: it re-authorises that account's own persisted
     /// grant rather than starting a discovery from an address.</summary>
-    private sealed record ExpiredSignIn(string Id, string Email, AccountProvider? Provider);
+    private sealed record ExpiredSignIn(string Id, string Name, AccountProvider? Provider);
 
     // Set when a re-authentication launched from the banner failed, so the banner can say so
     // instead of leaving the click looking like it did nothing. Cleared on the next attempt; a
@@ -67,23 +67,24 @@ public sealed partial class MailboxModel
             var email = Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id;
             return new ConnectionIssue(id, email, _app?.ConnectionDetail(id));
         }).ToList();
-        // A standing permission gap, not a connectivity fault, resolved to emails the same way,
-        // and (unlike unreachable) shown regardless of the offline state.
+        // An account asked to sign in again is named apart from another of its address
+        // (docs/accounts.md rule 8), from the accounts snapshot, which lists the accounts without a
+        // mailbox too. It is read only while some account is asked.
+        var asked = connectivity.CalendarReauthAccounts.Length + connectivity.MailReauthAccounts.Length
+            + connectivity.SigninExpiredAccounts.Length > 0;
+        var listed = asked ? AccountsSnapshot().Accounts : Array.Empty<AccountEntry>();
+        string AskedName(string id) => AccountNames.Of(
+            listed, id, Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id, Views.AccountNameText.Words);
+        // A standing permission gap, not a connectivity fault, and (unlike unreachable) shown
+        // regardless of the offline state.
         _calendarReauthIds = connectivity.CalendarReauthAccounts.ToList();
-        _calendarReauthEmails = connectivity.CalendarReauthAccounts
-            .Select(id => Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id)
-            .ToList();
+        _calendarReauthNames = connectivity.CalendarReauthAccounts.Select(AskedName).ToList();
         // Likewise the mail write/send permission gap (a refused send or mail action).
         _mailReauthIds = connectivity.MailReauthAccounts.ToList();
-        _mailReauthEmails = connectivity.MailReauthAccounts
-            .Select(id => Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id)
-            .ToList();
+        _mailReauthNames = connectivity.MailReauthAccounts.Select(AskedName).ToList();
         // A dead sign-in, carrying its provider so the button can launch the right flow.
         _signInExpired = connectivity.SigninExpiredAccounts
-            .Select(id => new ExpiredSignIn(
-                id,
-                Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id,
-                _app?.AccountProvider(id)))
+            .Select(id => new ExpiredSignIn(id, AskedName(id), _app?.AccountProvider(id)))
             .ToList();
         UpdateUseOutages(connectivity);
         Raise(nameof(IsOffline));
@@ -128,20 +129,20 @@ public sealed partial class MailboxModel
 
     /// <summary>Whether a Microsoft account's calendar is withheld for lack of the calendar OAuth
     /// scope, drives the calendar re-auth banner. Mail is unaffected; reconnecting grants it.</summary>
-    public bool HasCalendarReauth => _calendarReauthEmails.Count > 0;
+    public bool HasCalendarReauth => _calendarReauthNames.Count > 0;
 
     /// <summary>The calendar re-auth banner text, naming the affected account(s).</summary>
     public string CalendarReauthText =>
-        L10n.CalendarReauthPrompt(string.Join(", ", _calendarReauthEmails));
+        L10n.CalendarReauthPrompt(string.Join(", ", _calendarReauthNames));
 
     /// <summary>Whether a Microsoft account's mail write/send is withheld for lack of the
     /// Mail.ReadWrite / Mail.Send OAuth scopes, drives the mail re-auth banner. Reading is
     /// unaffected; reconnecting re-runs sign-in with the full scope set.</summary>
-    public bool HasMailReauth => _mailReauthEmails.Count > 0;
+    public bool HasMailReauth => _mailReauthNames.Count > 0;
 
     /// <summary>The mail re-auth banner text, naming the affected account(s).</summary>
     public string MailReauthText =>
-        L10n.MailReauthPrompt(string.Join(", ", _mailReauthEmails));
+        L10n.MailReauthPrompt(string.Join(", ", _mailReauthNames));
 
     /// <summary>Whether an account's stored sign-in has stopped being accepted, drives the
     /// "sign in again" banner. Not an outage: the server answered, and only a fresh sign-in
@@ -156,7 +157,7 @@ public sealed partial class MailboxModel
     {
         get
         {
-            var names = string.Join(", ", _signInExpired.Select(a => a.Email));
+            var names = string.Join(", ", _signInExpired.Select(a => a.Name));
             var prompt = CanRelaunchSignIn
                 ? L10n.SigninExpiredPrompt(names)
                 : L10n.SigninExpiredPromptSettings(names);

@@ -14,6 +14,9 @@ internal static class AccountNameText
     /// <summary>A linked account, with what tells it apart from another of its address.</summary>
     internal static string Of(LinkedAccount account) => AccountNames.Of(account, Words);
 
+    /// <summary>An account a message acts on, with what tells it apart from another of its address.</summary>
+    internal static string Of(AccountEntry entry) => AccountNames.Of(entry, Words);
+
     /// <summary>An account's own kind line, with its server's host where only that tells it apart.</summary>
     internal static string KindLine(AccountEntry entry) => AccountNames.KindLine(entry, Words);
 

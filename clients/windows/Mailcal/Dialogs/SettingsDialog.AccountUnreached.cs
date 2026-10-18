@@ -5,6 +5,7 @@
 // draws it again, and closing Settings answers it as Cancel.
 
 using Allodia.Mailcal.Services;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
 
@@ -27,7 +28,7 @@ public sealed partial class SettingsDialog
     private bool _unreachedClosedWired;
 
     private static AccountNotice SignInWaiting(AccountEntry entry) =>
-        new(InfoBarSeverity.Informational, string.Empty, L10n.SettingsAccountSigninWaiting(entry.Address));
+        new(InfoBarSeverity.Informational, string.Empty, L10n.SettingsAccountSigninWaiting(AccountNameText.Of(entry)));
 
     /// <summary>Asks what becomes of <paramref name="unreached"/>; answered by the panel, or as
     /// Cancel when Settings closes first.</summary>

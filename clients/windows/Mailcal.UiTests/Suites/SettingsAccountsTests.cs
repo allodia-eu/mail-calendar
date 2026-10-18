@@ -110,9 +110,11 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
         app.Agent.Invoke(InPage(app, dialog, "AccountRemove"));
         var message = app.Agent.Wait(new Filter { Id = "AccountRemoveMessage", Under = dialog }, TimeSpan.FromSeconds(5))
             ?? throw new InvalidOperationException("Remove asked nothing before removing the account");
-        var unlinks = Catalog.Everywhere("remove_account_unlinks").Select(t => t.Replace("{accounts}", Harness.Alice));
+        Assert.True(message.Name.StartsWith($"{Harness.Alice} (CalDAV/CardDAV) ", StringComparison.Ordinal),
+            $"the confirmation names the account it removes apart from the mailbox of its address (rule 8). It reads: {message.Name}");
+        var unlinks = Catalog.Everywhere("remove_account_unlinks").Select(t => t.Replace("{accounts}", $"{Harness.Alice} (IMAP)"));
         Assert.True(unlinks.Any(sentence => message.Name.Contains(sentence, StringComparison.Ordinal)),
-            $"the confirmation names the accounts that lose their link (rule 12). It reads: {message.Name}");
+            $"the confirmation names the accounts that lose their link, the mailbox by its kind (rules 8 and 12). It reads: {message.Name}");
         app.Agent.Invoke(Button(app, dialog, "action_cancel"));
         Assert.Equal(3, setup.AccountRows().Count);
     });

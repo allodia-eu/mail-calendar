@@ -333,10 +333,11 @@ public sealed partial class MainWindow
     // Confirms, then removes account `id` (core runtime + stored credential).
     private async Task ConfirmRemoveAccountAsync(string id, string email)
     {
+        var name = AccountNames.Of(Model.AccountsSnapshot().Accounts, id, email, Views.AccountNameText.Words);
         var result = await DialogHelper.ConfirmAsync(
             Content.XamlRoot,
             L10n.RemoveAccountTitle(),
-            L10n.RemoveAccountMessage(email),
+            L10n.RemoveAccountMessage(name),
             L10n.ActionRemove());
         if (result == ContentDialogResult.Primary)
         {
