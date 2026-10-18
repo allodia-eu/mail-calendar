@@ -146,13 +146,13 @@ final class MailboxModel {
     /// `reloadReadingWindows`.
     var draftStatusVersion = 0
     /// The most recent calendar write's status (pulled on a `Surface::CalendarStatus` signal):
-    /// `.saving` while a create/edit/delete settles, then `.saved` or `.failed`. `.failed` means
-    /// "could not confirm the local view", not "your change was rejected", the write reached the
-    /// server and a refresh reconciles it. Drives the small header badge.
+    /// `.saving` while a create/edit/delete settles, then `.saved`, `.notSaved` (nothing changed on
+    /// the server) or `.unconfirmed` (it may have landed, and a refresh reconciles it). Drives the
+    /// small header badge.
     var calendarWriteStatus: CalendarWriteStatus = .idle
     /// The most recent contact write's status (pulled on a `Surface::ContactsStatus` signal), on
-    /// the same terms: `.failed` means "we could not confirm this saved", never "rejected". Its
-    /// own slot rather than the calendar's, so the contacts list does not report a calendar save.
+    /// the same terms as `calendarWriteStatus`. Its own slot rather than the calendar's, so the
+    /// contacts list does not report a calendar save.
     var contactWriteStatus: ContactWriteStatus = .idle
     /// The unanswered question raised when a calendar server that promised to tell the organiser
     /// reported that it could not (pulled on a `Surface::InvitationReply` signal). Non-`nil`

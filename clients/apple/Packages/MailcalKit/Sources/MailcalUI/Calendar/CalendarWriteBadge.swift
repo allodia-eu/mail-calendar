@@ -2,9 +2,9 @@
 // `CalendarWriteStatus` (`Surface.calendarStatus`).
 //
 // The mapping from status to what the header shows is a plain value (`CalendarWriteIndicator`) so the
-// state machine is unit-tested without rendering a view; the badge is a thin render of it. `.warning`
-// is deliberately NOT "your change was rejected": the core has confirmed the write reached the server,
-// and a refresh reconciles the local view, so the warning offers a retry (a `.refreshCalendar`).
+// state machine is unit-tested without rendering a view; the badge is a thin render of it. Both
+// warnings tap to a refresh (a `.refreshCalendar`), never a re-send: a change that may have landed is
+// reconciled by the next sync, and one that did not land is the user's to make again.
 
 import MailcalBindings
 import SwiftUI
@@ -17,8 +17,10 @@ enum CalendarWriteIndicator: Equatable {
     case spinner
     /// The write settled and the local view holds the server's copy, a brief check.
     case saved
-    /// The write could not be confirmed, a warning the user can tap to retry.
-    case warning
+    /// The change was not saved: nothing reached the server, or the server refused it.
+    case notSaved
+    /// The change may have landed and could not be confirmed.
+    case unconfirmed
 
     /// Maps a core ``CalendarWriteStatus`` to what the header shows. Total and pure.
     static func of(_ status: CalendarWriteStatus) -> CalendarWriteIndicator {
@@ -26,22 +28,34 @@ enum CalendarWriteIndicator: Equatable {
         case .idle: return .hidden
         case .saving: return .spinner
         case .saved: return .saved
-        case .failed: return .warning
+        case .notSaved: return .notSaved
+        case .unconfirmed: return .unconfirmed
         }
     }
 
     /// Whether tapping the indicator should trigger a retry (a `.refreshCalendar`).
-    var offersRetry: Bool { self == .warning }
+    var offersRetry: Bool { warning != nil }
+
+    /// What a warning says, or `nil` for an indicator that is not one.
+    var warning: String? {
+        switch self {
+        case .notSaved: L10n.calendar_save_failed()
+        case .unconfirmed: L10n.calendar_save_unconfirmed()
+        case .hidden, .spinner, .saved: nil
+        }
+    }
 }
 
 /// The header badge. Renders the mapped ``CalendarWriteIndicator``: a spinner while `.saving`, a check
-/// on `.saved`, a tap-to-retry warning on `.failed`. Nothing on `.idle`. `onRetry` is a refresh.
+/// on `.saved`, a tap-to-retry warning on `.notSaved` and `.unconfirmed`. Nothing on `.idle`.
+/// `onRetry` is a refresh.
 struct CalendarWriteBadge: View {
     let status: CalendarWriteStatus
     let onRetry: () -> Void
 
     var body: some View {
-        switch CalendarWriteIndicator.of(status) {
+        let indicator = CalendarWriteIndicator.of(status)
+        switch indicator {
         case .hidden:
             EmptyView()
         case .spinner:
@@ -54,14 +68,15 @@ struct CalendarWriteBadge: View {
                 .foregroundStyle(.green)
                 .help(L10n.calendar_saved())
                 .accessibilityLabel(L10n.calendar_saved())
-        case .warning:
+        case .notSaved, .unconfirmed:
+            let label = indicator.warning ?? ""
             Button(action: onRetry) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
             }
             .buttonStyle(.borderless)
-            .help(L10n.calendar_save_unconfirmed())
-            .accessibilityLabel(L10n.calendar_save_unconfirmed())
+            .help(label)
+            .accessibilityLabel(label)
         }
     }
 }

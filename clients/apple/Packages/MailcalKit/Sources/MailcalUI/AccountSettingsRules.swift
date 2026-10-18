@@ -208,8 +208,9 @@ enum AccountSettingsLabels {
         }
     }
 
-    /// The line under a calendar or an address book that did not connect.
-    private static func problemNote(_ problem: UseProblem, calendar: Bool) -> String {
+    /// The line under a calendar or an address book that did not connect, which its outage line
+    /// above the week or the contacts list repeats.
+    static func problemNote(_ problem: UseProblem, calendar: Bool) -> String {
         switch problem {
         case .unreachable:
             calendar

@@ -34,11 +34,16 @@ struct ContactsListView: View {
     var onCreate: (() -> Void)?
     /// A word about the most recent write, or `nil` when there is nothing to say.
     var writeLine: String?
+    /// One line per address book that did not connect: its cards are what was last synced, and
+    /// none of them can be edited until it connects (docs/contacts.md §3).
+    var outages: [UseOutageLine] = []
+    var onOpenAccount: (String) -> Void = { _ in }
 
     @State private var query = ""
 
     var body: some View {
         VStack(spacing: 0) {
+            UseOutageBanners(lines: outages, onOpenAccount: onOpenAccount)
             header
             if let writeLine {
                 Text(writeLine)

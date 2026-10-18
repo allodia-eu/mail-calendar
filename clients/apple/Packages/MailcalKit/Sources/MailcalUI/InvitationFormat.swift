@@ -69,6 +69,17 @@ func invitationResponseLine(_ status: ResponseStatus) -> String {
     }
 }
 
+/// What happened to the answer, in words, once it is no longer in flight; `nil` when there is
+/// nothing to say. A failure says so rather than leaving the old answer on screen, and one that
+/// may have reached the organiser says that instead, because asking again could answer twice.
+func invitationWriteLine(_ status: CalendarWriteStatus) -> String? {
+    switch status {
+    case .notSaved: return L10n.invitation_failed()
+    case .unconfirmed: return L10n.invitation_unconfirmed()
+    case .idle, .saving, .saved: return nil
+    }
+}
+
 /// What else is in the user's calendar over the meeting's window, **in words**.
 ///
 /// The count is stated rather than left to the preview grid: docs/calendar.md §4, a picture the
