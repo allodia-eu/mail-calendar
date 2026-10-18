@@ -387,6 +387,15 @@ internal fun MainActivity.observeNetworkReachability() {
     activity.app?.dispatch(Intent.ReportNetworkReachable(online))
 }
 
+/**
+ * The lines the calendar or contacts screen draws for a use that did not connect, read from the
+ * connectivity and accounts snapshots in composition, so they follow both.
+ */
+internal fun MainActivity.outageLines(use: OutageUse, ctx: Context): List<OutageLine> =
+    UseOutageRules.lines(ctx, use, connectivity) { id ->
+        accountSettings.addressOf(id, accounts.firstOrNull { it.id == id }?.email)
+    }
+
 // Pulls the current connectivity and resolves each unreachable account to its friendly email +
 // technical detail, so the connection-issues banner can name the affected accounts and reveal
 // the raw error behind a "Details" action. Called at launch, on a CONNECTIVITY signal, and after

@@ -171,6 +171,43 @@ internal fun CalendarReauthBanner(
     }
 }
 
+// Above the week or the contacts list, one line per account whose calendar or address book did
+// not connect while the account did (docs/accounts.md rule 16). "Account settings" opens that
+// account's page, where the remedy is.
+@androidx.compose.runtime.Composable
+internal fun UseOutageBanner(
+    lines: List<OutageLine>,
+    onOpenAccount: (accountId: String) -> Unit,
+    ctx: Context,
+) {
+    lines.forEach { line ->
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.tertiaryContainer)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_warning),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = line.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            TextButton(onClick = { onOpenAccount(line.accountId) }) {
+                Text(L10n.use_outage_open_account(ctx))
+            }
+        }
+    }
+}
+
 // Shown on the mailbox when a Microsoft account's mail write/send is withheld for lack of the
 // Mail.ReadWrite / Mail.Send OAuth scopes (connected before those scopes, or revoked consent), so a
 // send or a mail action was refused with `403 ErrorAccessDenied`. Reading is unaffected, a

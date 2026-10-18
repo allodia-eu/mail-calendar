@@ -101,6 +101,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 // user actually recognises.
                                 accountLabels = accountLabels,
                                 writeLine = contactWrites.line(LocalContext.current),
+                                outages = outageLines(OutageUse.CONTACTS, LocalContext.current),
+                                onOpenAccount = { id -> openAccountPage(id) },
                                 canCreate = contactWrites.targets.isNotEmpty(),
                                 onCreate = {
                                     contactWrites.editor =
@@ -265,6 +267,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 // action signs it in again in place to grant it.
                                 calendarReauth = calendarReauth,
                                 onReconnectCalendar = { id -> signInAgain(id, emptyList()) },
+                                outages = outageLines(OutageUse.CALENDAR, LocalContext.current),
+                                onOpenAccount = { id -> openAccountPage(id) },
                             )
                           } else {
                             // The folder navigation drawer wraps the mailbox screen so it can

@@ -171,7 +171,7 @@ private fun UseRow(entry: AccountEntry, capability: AccountCapability, ui: Accou
     }
 }
 
-private fun useNoteText(ctx: android.content.Context, note: UseNote): String? = when (note) {
+internal fun useNoteText(ctx: android.content.Context, note: UseNote): String? = when (note) {
     UseNote.LAST -> L10n.settings_account_use_last(ctx)
     UseNote.NEEDS_CONTACTS -> L10n.settings_account_colleagues_needs_contacts(ctx)
     UseNote.WITHHELD -> L10n.settings_account_use_withheld(ctx)

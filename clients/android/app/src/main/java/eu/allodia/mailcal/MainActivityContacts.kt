@@ -42,19 +42,8 @@ internal class ContactWriteState {
     /** The result of the user's last create or edit, pulled on a CONTACTS_STATUS signal. */
     var status by mutableStateOf(ContactWriteStatus.IDLE)
 
-    /**
-     * What the list says about the most recent write, or null when there is nothing to say.
-     *
-     * `Failed` means "we could not confirm this saved", never "rejected": a write whose server
-     * call succeeded and whose reconcile did not has already landed. `Invalid` is stated under the
-     * form the user is still looking at, so nothing repeats it here.
-     */
-    fun line(context: android.content.Context): String? = when (status) {
-        ContactWriteStatus.SAVING -> L10n.contacts_saving(context)
-        ContactWriteStatus.SAVED -> L10n.contacts_saved(context)
-        ContactWriteStatus.FAILED -> L10n.contacts_save_unconfirmed(context)
-        else -> null
-    }
+    /** What the list says about the most recent write, or null when there is nothing to say. */
+    fun line(context: android.content.Context): String? = contactWriteLine(context, status)
 
     /** Closes whatever is open over the list. */
     fun close() {
@@ -62,6 +51,24 @@ internal class ContactWriteState {
         cardChoice = null
         person = null
     }
+}
+
+/**
+ * What the list says about a contact write in [status], or null when there is nothing to say.
+ *
+ * `NOT_SAVED` changed nothing on the server; `UNCONFIRMED` may have landed, and the next sync
+ * settles which. `INVALID` is stated under the form the user is still looking at, so nothing
+ * repeats it here.
+ */
+internal fun contactWriteLine(
+    context: android.content.Context,
+    status: ContactWriteStatus,
+): String? = when (status) {
+    ContactWriteStatus.SAVING -> L10n.contacts_saving(context)
+    ContactWriteStatus.SAVED -> L10n.contacts_saved(context)
+    ContactWriteStatus.NOT_SAVED -> L10n.contacts_save_failed(context)
+    ContactWriteStatus.UNCONFIRMED -> L10n.contacts_save_unconfirmed(context)
+    ContactWriteStatus.IDLE, ContactWriteStatus.INVALID -> null
 }
 
 /** The editor and the "which account?" question, whichever is open. */

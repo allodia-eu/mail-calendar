@@ -42,10 +42,10 @@ internal enum class UseNote {
 }
 
 /**
- * What a use that did not connect says beneath its switch. Only a calendar or an address book
- * fails on its own; mail decides whether the account connected at all.
+ * What a use that did not connect says beneath its switch, and on the screen that shows it. Only a
+ * calendar or an address book fails on its own; mail decides whether the account connected at all.
  */
-private fun problemNote(capability: AccountCapability, problem: UseProblem): UseNote {
+internal fun problemNote(capability: AccountCapability, problem: UseProblem): UseNote {
     val calendar = capability == AccountCapability.CALENDAR
     return when (problem) {
         UseProblem.UNREACHABLE ->

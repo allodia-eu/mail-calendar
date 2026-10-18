@@ -10,9 +10,9 @@ import uniffi.mailcal_bindings.CalendarWriteStatus
 /**
  * What the header should show for the most recent calendar write.
  *
- * `Warning` is deliberately *not* "your change was rejected": the core has already confirmed the write
- * reached the server (see `CalendarWriteStatus`), and a full refresh reconciles the local view, so the
- * warning offers a retry (a `RefreshCalendar`), it does not report a lost edit.
+ * Both warnings offer a retry, and the retry is a `RefreshCalendar`, never a re-send: a change that
+ * was not saved changed nothing on the server, and one that could not be confirmed may have landed,
+ * so sending it again could make it twice.
  */
 internal enum class CalendarWriteIndicator {
     /** Nothing to show. */
@@ -24,13 +24,16 @@ internal enum class CalendarWriteIndicator {
     /** The write settled and the local view holds the server's copy, a brief check. */
     Saved,
 
-    /** The write could not be confirmed, a warning the user can tap to retry. */
-    Warning,
+    /** The change was not saved, a warning the user can tap to refresh. */
+    NotSaved,
+
+    /** The change may have landed and could not be confirmed, the same warning. */
+    Unconfirmed,
     ;
 
     /** Whether tapping the indicator should trigger a retry (a `RefreshCalendar`). */
     val offersRetry: Boolean
-        get() = this == Warning
+        get() = this == NotSaved || this == Unconfirmed
 
     companion object {
         /** Maps a core [CalendarWriteStatus] to what the header shows. Total and pure. */
@@ -39,7 +42,12 @@ internal enum class CalendarWriteIndicator {
                 CalendarWriteStatus.IDLE -> Hidden
                 CalendarWriteStatus.SAVING -> Spinner
                 CalendarWriteStatus.SAVED -> Saved
-                CalendarWriteStatus.FAILED -> Warning
+                CalendarWriteStatus.NOT_SAVED -> NotSaved
+                CalendarWriteStatus.UNCONFIRMED -> Unconfirmed
             }
     }
 }
+
+/** Whether [this] settled without the change being known to have saved. */
+internal val CalendarWriteStatus.failed: Boolean
+    get() = CalendarWriteIndicator.of(this).offersRetry

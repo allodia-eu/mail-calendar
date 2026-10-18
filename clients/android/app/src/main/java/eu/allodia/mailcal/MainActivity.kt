@@ -230,7 +230,7 @@ class MainActivity : AppCompatActivity() {
     internal var calendarVersion by mutableStateOf(0)
     // The result of the user's last calendar create/edit/delete, pulled on a CALENDAR_STATUS signal.
     // Drives the small header badge: a spinner while `Saving`, a check on `Saved`, a tap-to-retry
-    // warning on `Failed` (which means "could not confirm", not "rejected", see CalendarWriteStatus).
+    // warning when it was not saved or could not be confirmed (see CalendarWriteIndicator).
     internal var calendarWriteStatus by mutableStateOf(CalendarWriteStatus.IDLE)
     // The unanswered "your calendar server could not tell the organiser, shall we email them?"
     // question, pulled on an INVITATION_REPLY signal. Null means there is nothing to ask, which is

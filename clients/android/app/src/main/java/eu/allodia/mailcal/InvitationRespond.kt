@@ -140,7 +140,7 @@ internal fun InvitationRespond(
                 text = line,
                 style = MaterialTheme.typography.labelSmall,
                 color =
-                    if (status == CalendarWriteStatus.FAILED) MaterialTheme.colorScheme.error
+                    if (status.failed) MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
             )
