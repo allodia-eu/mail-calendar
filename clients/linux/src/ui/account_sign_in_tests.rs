@@ -1,6 +1,6 @@
 use mailcal_bindings::AccountSignInOptions;
 
-use super::{Outcome, Password, SignInSwitchState, Switch, settings_notice};
+use super::{Outcome, Password, SignInSwitchState, Stage, Switch, settings_notice};
 use crate::{l10n, ui::settings::notice::Notice};
 
 const fn both() -> AccountSignInOptions {
@@ -80,4 +80,42 @@ fn the_page_says_what_each_change_came_to_unless_the_browser_was_closed() {
 fn a_password_on_its_way_to_the_core_is_never_printed() {
     let password = Password("hunter2".to_owned());
     assert!(!format!("{password:?}").contains("hunter2"));
+}
+
+#[test]
+fn a_change_holds_its_controls_only_while_the_core_works_on_it() {
+    let mut state = SignInSwitchState::default();
+    state.begin("a");
+    assert_eq!(state.running("a"), Some(Stage::Core));
+    assert_eq!(state.running("b"), None);
+    assert!(
+        !state.cancel("a"),
+        "the core's own call is not dropped from the page"
+    );
+
+    state.in_browser("a");
+    assert_eq!(state.running("a"), Some(Stage::Browser));
+    state.completing("a");
+    assert_eq!(state.running("a"), Some(Stage::Core));
+    state.end("a");
+    assert_eq!(state.running("a"), None);
+}
+
+#[test]
+fn a_change_waiting_on_the_browser_is_cancelled_or_replaced() {
+    let mut state = SignInSwitchState::default();
+    state.begin("a");
+    state.in_browser("a");
+    assert!(!state.cancel("b"), "a Cancel is for its own account");
+    assert!(state.cancel("a"));
+    assert_eq!(state.running("a"), None);
+    assert!(!state.cancel("a"), "nothing is left to cancel");
+
+    // A fresh press replaces what the browser held, and a late stage of the old one is ignored.
+    state.begin("a");
+    state.in_browser("a");
+    state.begin("b");
+    state.in_browser("a");
+    assert_eq!(state.running("a"), None);
+    assert_eq!(state.running("b"), Some(Stage::Core));
 }

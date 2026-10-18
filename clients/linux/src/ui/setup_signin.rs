@@ -129,9 +129,13 @@ impl SetupState {
         true
     }
 
+    /// A sign-in that ended without an account. The waiting screen is left even when the form
+    /// under it is no longer an IMAP one, so nobody is held on a spinner with nothing to wait for.
     pub(in crate::ui) fn imap_sign_in_failed(&mut self) {
-        if let Some(sign_in) = self.any_imap_sign_in() {
-            *sign_in = ImapSignIn::Failed;
+        let marked = self
+            .any_imap_sign_in()
+            .map(|sign_in| *sign_in = ImapSignIn::Failed);
+        if marked.is_some() || self.phase == Phase::ImapSigningIn {
             self.phase = Phase::Form;
             self.clear_feedback();
             self.bump();

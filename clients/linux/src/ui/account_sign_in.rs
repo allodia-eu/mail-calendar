@@ -4,9 +4,7 @@
 //! The account keeps its id, uses, links, settings and mail; the core replaces it in place and
 //! signals Settings, so the page redraws from the next snapshot.
 
-use mailcal_bindings::{
-    AccountCapability, AccountSignInOptions, AccountSignInStart, UnreachedUses,
-};
+use mailcal_bindings::{AccountSignInOptions, AccountSignInStart, UnreachedUses};
 
 use super::{
     AppInput, AppModel,
@@ -19,67 +17,9 @@ use super::{
 };
 use crate::l10n;
 
-/// What the open account's Sign-in section knows. Here rather than in the window, which is
-/// rebuilt on every change while a question to the server and a browser hop each outlive
-/// several rebuilds.
-#[derive(Debug, Clone, Default)]
-pub(crate) struct SignInSwitchState {
-    /// What one account's server accepts, and the account it is for.
-    answered: Option<(String, AccountSignInOptions)>,
-    /// The account whose question is out, so a page opened twice asks once.
-    asking: Option<String>,
-    /// The account whose sign-in is changing, while it is.
-    running: Option<String>,
-    /// A switch waiting on what becomes of the calendar and contacts it would not reach, asked
-    /// before the browser opens (`docs/accounts.md` rule 18).
-    question: Option<(Attempt, Box<AccountSignInStart>)>,
-}
-
-impl SignInSwitchState {
-    /// What `account`'s server accepts, once it has answered.
-    pub(crate) fn options(&self, account: &str) -> Option<&AccountSignInOptions> {
-        self.answered
-            .as_ref()
-            .filter(|(id, _)| id == account)
-            .map(|(_, options)| options)
-    }
-
-    /// Whether `account`'s sign-in is changing now, which holds its buttons.
-    pub(crate) fn running(&self, account: &str) -> bool {
-        self.running.as_deref() == Some(account)
-    }
-
-    /// The switch waiting on an answer, by its attempt, and what it would not reach.
-    pub(crate) fn question(&self) -> Option<(u64, &[AccountCapability])> {
-        self.question
-            .as_ref()
-            .map(|(attempt, start)| (attempt.id, start.unreached.as_slice()))
-    }
-
-    /// Whether to ask about `account`: nothing is known or asked about it yet.
-    fn ask(&mut self, account: &str) -> bool {
-        if self.options(account).is_some() || self.asking.as_deref() == Some(account) {
-            return false;
-        }
-        self.asking = Some(account.to_owned());
-        true
-    }
-
-    fn answer(&mut self, account: String, options: AccountSignInOptions) {
-        if self.asking.as_deref() == Some(account.as_str()) {
-            self.asking = None;
-        }
-        self.answered = Some((account, options));
-    }
-
-    /// Forgets what `account`'s server was said to accept: its way in changed, and with it the
-    /// question.
-    pub(crate) fn forget(&mut self, account: &str) {
-        if self.options(account).is_some() {
-            self.answered = None;
-        }
-    }
-}
+#[path = "account_sign_in_state.rs"]
+mod state;
+pub(crate) use state::{SignInSwitchState, Stage};
 
 /// Which change a sign-in makes, which decides what is said when it ends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,6 +72,10 @@ pub(crate) enum SignInInput {
         attempt: Attempt,
         start: Result<Box<AccountSignInStart>, String>,
     },
+    /// Drop `account`'s sign-in while the browser holds it.
+    Cancel { account: String },
+    /// The browser came back, and the core completes the sign-in.
+    Completing { attempt: u64, account: String },
     /// Put `password` on `account`, in place of its sign-in.
     Password { account: String, password: Password },
     /// The switch's question was answered.
@@ -208,6 +152,13 @@ impl AppModel {
             SignInInput::Answered { attempt, answer } => {
                 self.account_sign_in_answered(attempt, answer, sender);
             }
+            SignInInput::Cancel { account } => self.cancel_account_sign_in(&account),
+            SignInInput::Completing { attempt, account } => {
+                if self.host_tasks.account_sign_in.holds(attempt) {
+                    self.settings.sign_in.completing(&account);
+                    self.settings.refresh_in_place();
+                }
+            }
             SignInInput::Password { account, password } => {
                 self.switch_to_password(account, password.0, sender);
             }
@@ -248,7 +199,7 @@ impl AppModel {
             ));
             return;
         };
-        self.settings.sign_in.running = Some(account.clone());
+        self.settings.sign_in.begin(&account);
         match from {
             ConsentFrom::Settings => {
                 let address = app
@@ -350,6 +301,8 @@ impl AppModel {
         oauth_loopback::launch_browser(url, move || {
             failed.emit(finished(abandoned, browser_failed()));
         });
+        self.settings.sign_in.in_browser(&attempt.account);
+        self.settings.refresh_in_place();
         std::thread::spawn(move || {
             let outcome = match loopback.wait_for_state(
                 &cancel,
@@ -357,20 +310,36 @@ impl AppModel {
                 l10n::account_signin_timeout(),
                 l10n::account_signin_browser_failed(),
             ) {
-                CallbackOutcome::Received(callback_url) => match app.complete_account_sign_in(
-                    attempt.account.clone(),
-                    start.pending,
-                    callback_url,
-                    unreached,
-                ) {
-                    Ok(()) => Outcome::Switched,
-                    Err(error) => Outcome::Failed(super::core_error::said(&error)),
-                },
+                CallbackOutcome::Received(callback_url) => {
+                    sender.emit(input(SignInInput::Completing {
+                        attempt: attempt.id,
+                        account: attempt.account.clone(),
+                    }));
+                    match app.complete_account_sign_in(
+                        attempt.account.clone(),
+                        start.pending,
+                        callback_url,
+                        unreached,
+                    ) {
+                        Ok(()) => Outcome::Switched,
+                        Err(error) => Outcome::Failed(super::core_error::said(&error)),
+                    }
+                }
                 CallbackOutcome::Cancelled => Outcome::Cancelled,
                 CallbackOutcome::Failed(error) => Outcome::Failed(error),
             };
             sender.emit(finished(attempt, outcome));
         });
+    }
+
+    /// Cancel, while the browser holds the sign-in: the attempt is dropped and the page goes back
+    /// to how it was, saying nothing. Its worker stops on the flag, and what it reports is
+    /// ignored, because the slot no longer holds it.
+    fn cancel_account_sign_in(&mut self, account: &str) {
+        if self.settings.sign_in.cancel(account) {
+            self.host_tasks.account_sign_in.cancel();
+            self.settings.refresh_in_place();
+        }
     }
 
     /// Tests `password` against the account's servers and stores it in place of its grant.
@@ -390,7 +359,7 @@ impl AppModel {
             from: ConsentFrom::Settings,
             switch: Switch::ToPassword,
         };
-        self.settings.sign_in.running = Some(account.clone());
+        self.settings.sign_in.begin(&account);
         self.settings.refresh_in_place();
         std::thread::spawn(move || {
             let outcome = match app.switch_account_to_password(account, password) {
@@ -412,9 +381,7 @@ impl AppModel {
         if !self.host_tasks.account_sign_in.finish(attempt.id) {
             return;
         }
-        if self.settings.sign_in.running(&attempt.account) {
-            self.settings.sign_in.running = None;
-        }
+        self.settings.sign_in.end(&attempt.account);
         if *outcome == Outcome::Switched {
             self.settings.sign_in.forget(&attempt.account);
             if let Some(app) = &self.app {

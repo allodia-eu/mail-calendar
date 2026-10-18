@@ -320,6 +320,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::sign_in_section::tests::
         a_password_is_typed_into_an_empty_field_and_cleared_once_sent();
     crate::ui::settings::sign_in_section::tests::a_running_change_holds_every_control();
+    crate::ui::settings::sign_in_section::tests::
+        a_change_waiting_on_the_browser_can_be_replaced_or_cancelled();
     crate::ui::settings::redraw::tests::a_redraw_keeps_the_persons_place();
     crate::ui::unreached::tests::the_question_defaults_to_keeping_and_escape_cancels();
     crate::ui::separate_sign_in_view::tests::the_page_form_opens_over_settings_and_updates_in_place(

@@ -13,7 +13,7 @@ use crate::{
     ui::{
         AppInput,
         account_settings::AccountsInput,
-        account_sign_in::{SignInInput, Switch},
+        account_sign_in::{SignInInput, Stage, Switch},
         mailbox::tests::{every_row_belongs_to_a_list, rendered_labels},
         setup_widget_tests::descendants,
     },
@@ -124,7 +124,7 @@ pub(crate) fn the_section_draws_the_switch_its_server_takes() {
     };
     let switch =
         section(AccountKind::Imap, SignInMethod::Password, Some(&offered)).expect("a section");
-    let group = draw(&switch, ACCOUNT, false, &sender);
+    let group = draw(&switch, ACCOUNT, ACCOUNT, None, &sender);
     every_row_belongs_to_a_list(group.upcast_ref());
     let labels = rendered(&group);
     assert!(labels.contains(&l10n::settings_account_signs_in_password().to_owned()));
@@ -160,7 +160,7 @@ pub(crate) fn a_password_is_typed_into_an_empty_field_and_cleared_once_sent() {
         Some(&options(true, true)),
     )
     .expect("a section");
-    let group = draw(&signed_in, ACCOUNT, false, &sender);
+    let group = draw(&signed_in, ACCOUNT, ACCOUNT, None, &sender);
     every_row_belongs_to_a_list(group.upcast_ref());
     let rows = descendants::<adw::ButtonRow>(group.upcast_ref());
     let titled = |title: &str| {
@@ -214,7 +214,7 @@ pub(crate) fn a_password_is_typed_into_an_empty_field_and_cleared_once_sent() {
     ));
 }
 
-/// While a change runs, its controls wait.
+/// While the core works on a change, its controls wait.
 pub(crate) fn a_running_change_holds_every_control() {
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let signed_in = section(
@@ -223,11 +223,68 @@ pub(crate) fn a_running_change_holds_every_control() {
         Some(&options(true, true)),
     )
     .expect("a section");
-    let group = draw(&signed_in, ACCOUNT, true, &sender);
+    let group = draw(&signed_in, ACCOUNT, ACCOUNT, Some(Stage::Core), &sender);
     let rows = descendants::<adw::ButtonRow>(group.upcast_ref());
     assert!(
         rows.iter()
             .filter(|row| row.is_visible())
             .all(|row| !row.is_sensitive())
     );
+    assert!(
+        descendants::<gtk::Button>(group.upcast_ref())
+            .iter()
+            .all(|button| button.label().as_deref() != Some(l10n::action_cancel()))
+    );
+}
+
+/// While the browser holds a change, nobody is stranded: every control stays live, so a fresh
+/// press replaces the attempt, and Cancel beside the line saying where it waits drops it.
+pub(crate) fn a_change_waiting_on_the_browser_can_be_replaced_or_cancelled() {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let signed_in = section(
+        AccountKind::Imap,
+        SignInMethod::Provider,
+        Some(&options(true, true)),
+    )
+    .expect("a section");
+    let group = draw(
+        &signed_in,
+        ACCOUNT,
+        "alice@example.org",
+        Some(Stage::Browser),
+        &sender,
+    );
+    every_row_belongs_to_a_list(group.upcast_ref());
+    assert!(rendered(&group).contains(&l10n::settings_account_signin_waiting("alice@example.org")));
+    let rows = descendants::<adw::ButtonRow>(group.upcast_ref());
+    assert!(
+        rows.iter()
+            .filter(|row| row.is_visible())
+            .all(gtk::prelude::WidgetExt::is_sensitive)
+    );
+    let again = rows
+        .iter()
+        .find(|row| row.title() == l10n::signin_expired_action())
+        .expect("sign in again");
+    again.emit_by_name::<()>("activated", &[]);
+    assert!(matches!(
+        receiver.recv_sync(),
+        Some(AppInput::Accounts(AccountsInput::SignIn(
+            SignInInput::Browser {
+                switch: Switch::Again,
+                ..
+            }
+        )))
+    ));
+
+    let cancel = descendants::<gtk::Button>(group.upcast_ref())
+        .into_iter()
+        .find(|button| button.label().as_deref() == Some(l10n::action_cancel()))
+        .expect("a Cancel");
+    cancel.emit_clicked();
+    assert!(matches!(
+        receiver.recv_sync(),
+        Some(AppInput::Accounts(AccountsInput::SignIn(SignInInput::Cancel { account })))
+            if account == ACCOUNT
+    ));
 }

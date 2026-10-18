@@ -12,7 +12,7 @@ use crate::{
     ui::{
         AppInput,
         account_settings::AccountsInput,
-        account_sign_in::{Password, SignInInput, Switch},
+        account_sign_in::{Password, SignInInput, Stage, Switch},
     },
 };
 
@@ -97,22 +97,30 @@ pub(super) fn group(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::Pref
     Some(draw(
         &section,
         &entry.id,
+        &super::account_names::entry_name(entry),
         ctx.sign_in.running(&entry.id),
         &ctx.sender,
     ))
 }
 
-/// Draws `section` for `account`. Every control waits while `busy`, a change already running.
+/// Draws `section` for `account`, read as `name`. Every control waits while the core works on a
+/// change. While the browser holds one they stay live, since a fresh press replaces it, and a
+/// line above them says where it waits, with the Cancel that drops it
+/// (`docs/provider-oauth.md` rule 13).
 pub(super) fn draw(
     section: &SignInSection,
     account: &str,
-    busy: bool,
+    name: &str,
+    running: Option<Stage>,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::PreferencesGroup {
     let group = super::group(l10n::settings_account_signin_heading(), section.status);
+    if running == Some(Stage::Browser) {
+        group.add(&waiting_row(account, name, sender));
+    }
     for control in &section.controls {
         let row = button_row(&label(control));
-        row.set_sensitive(!busy);
+        row.set_sensitive(running != Some(Stage::Core));
         group.add(&row);
         let switch = match control {
             SignInControl::ToPassword => {
@@ -143,6 +151,25 @@ pub(super) fn draw(
         group.add(&note);
     }
     group
+}
+
+/// Where a sign-in waits, with the Cancel that drops it.
+fn waiting_row(account: &str, name: &str, sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
+    let row = adw::ActionRow::new();
+    row.set_use_markup(false);
+    row.set_title(&l10n::settings_account_signin_waiting(name));
+    let cancel = gtk::Button::with_label(l10n::action_cancel());
+    cancel.set_valign(gtk::Align::Center);
+    let (input, account) = (sender.clone(), account.to_owned());
+    cancel.connect_clicked(move |_| {
+        input.emit(AppInput::Accounts(AccountsInput::SignIn(
+            SignInInput::Cancel {
+                account: account.clone(),
+            },
+        )));
+    });
+    row.add_suffix(&cancel);
+    row
 }
 
 /// A row that acts, with its title as plain text: set before the title, since the builder

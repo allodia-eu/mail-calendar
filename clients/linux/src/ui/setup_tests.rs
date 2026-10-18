@@ -189,6 +189,16 @@ fn a_sign_in_phase_returns_to_the_form_it_started_from() {
     assert_eq!(state.error.as_deref(), Some("access_denied"));
 }
 
+#[test]
+fn a_failed_sign_in_leaves_the_waiting_screen_whatever_form_is_under_it() {
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(jmap_form());
+    state.imap_signing_in();
+    state.imap_sign_in_failed();
+    assert_eq!(state.phase, Phase::Form);
+}
+
 fn typed(email: &str) -> ManualForm {
     ManualForm {
         kind: AccountKind::Jmap,

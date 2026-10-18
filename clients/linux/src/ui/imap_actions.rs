@@ -68,6 +68,8 @@ impl AppModel {
 
     pub(super) fn start_imap_login(&mut self, form: &ImapForm, sender: relm4::Sender<AppInput>) {
         let (Some(app), Some(_)) = (self.app.clone(), self.secrets.clone()) else {
+            log::warn!("imap sign-in has no core or credential store");
+            self.setup.imap_sign_in_failed();
             return;
         };
         let Ok(loopback) = self.host_tasks.oauth_loopback() else {
