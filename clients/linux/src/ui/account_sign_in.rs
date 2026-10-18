@@ -256,7 +256,10 @@ impl AppModel {
                     .accounts
                     .into_iter()
                     .find(|entry| entry.id == account)
-                    .map_or_else(|| account.clone(), |entry| entry.address);
+                    .map_or_else(
+                        || account.clone(),
+                        |entry| super::settings::entry_name(&entry),
+                    );
                 self.settings
                     .notify(Notice::Toast(l10n::settings_account_signin_waiting(
                         &address,

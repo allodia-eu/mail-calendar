@@ -267,6 +267,7 @@ fn mail_group(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::Preference
     Some(account_mail::mail_group(
         ctx,
         account,
+        &super::account_names::entry_name(entry),
         &snapshot,
         expired,
         provider.as_ref(),
@@ -304,7 +305,7 @@ fn remove_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGrou
 
 /// What removing the account does, naming the accounts that lose their link to it.
 fn remove_message(entry: &AccountEntry) -> String {
-    let mut message = l10n::remove_account_message(&entry.address);
+    let mut message = l10n::remove_account_message(&super::account_names::entry_name(entry));
     if !entry.linked_from.is_empty() {
         let accounts = entry
             .linked_from
@@ -393,5 +394,12 @@ mod tests {
             l10n::setup_account_type_password(),
         );
         assert!(remove_message(&entry).ends_with(&l10n::remove_account_unlinks(&named)));
+
+        entry.distinction = Some(mailcal_bindings::AccountDistinction::Server {
+            host: "dav.cloud.example".to_owned(),
+        });
+        let removed =
+            l10n::settings_account_distinguished("alice@cloud.example", "dav.cloud.example");
+        assert!(remove_message(&entry).starts_with(&l10n::remove_account_message(&removed)));
     }
 }

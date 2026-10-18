@@ -79,6 +79,7 @@ fn one_snapshot_projects_the_offline_outage_and_expired_signin_states() {
             account("mail", "mail@example.test"),
         ],
         address,
+        no_address,
         |id| (id == "expired").then_some(AccountProvider::Google),
     );
 
@@ -121,6 +122,7 @@ fn each_outage_is_one_line_in_the_snapshots_order_naming_the_accounts_address() 
         snapshot(),
         &[account("mail", "mail@example.test")],
         address,
+        no_address,
         |_| None,
     );
 
@@ -174,13 +176,14 @@ fn every_provider_routes_to_the_remedy_linux_currently_has() {
         calendar_outages: Vec::new(),
         contacts_outages: Vec::new(),
     };
-    let state = ConnectivityState::from_snapshot(snapshot, &accounts, no_address, |id| {
-        Some(match id {
-            "m" => AccountProvider::Microsoft,
-            "j" => AccountProvider::JmapOauth,
-            _ => AccountProvider::ImapOauth,
-        })
-    });
+    let state =
+        ConnectivityState::from_snapshot(snapshot, &accounts, no_address, no_address, |id| {
+            Some(match id {
+                "m" => AccountProvider::Microsoft,
+                "j" => AccountProvider::JmapOauth,
+                _ => AccountProvider::ImapOauth,
+            })
+        });
 
     assert!(matches!(
         state.expired_signins[0].resolution(),
@@ -196,6 +199,39 @@ fn every_provider_routes_to_the_remedy_linux_currently_has() {
         state.expired_signins[2].resolution(),
         ExpiredResolution::ImapOauth(account) if account == "i"
     ));
+}
+
+#[test]
+fn a_banner_asking_for_a_sign_in_names_the_account_apart_from_its_namesake() {
+    let distinguished = |id: &str| {
+        matches!(id, "expired" | "mail" | "calendar")
+            .then(|| crate::l10n::settings_account_distinguished(id, "host.example.test"))
+    };
+    let state = ConnectivityState::from_snapshot(
+        snapshot(),
+        &[
+            account("expired", "expired@example.test"),
+            account("calendar", "calendar@example.test"),
+            account("mail", "mail@example.test"),
+        ],
+        address,
+        distinguished,
+        |_| None,
+    );
+
+    assert_eq!(
+        state.expired_signins[0].email,
+        distinguished("expired").unwrap()
+    );
+    assert_eq!(
+        state.expired_signins[1].email, "removed",
+        "an account missing from the snapshot keeps the name it had"
+    );
+    assert_eq!(state.mail_reauth[0].email, distinguished("mail").unwrap());
+    assert_eq!(
+        state.calendar_reauth[0].email,
+        distinguished("calendar").unwrap()
+    );
 }
 
 #[test]
@@ -218,6 +254,7 @@ pub(crate) fn the_banners_render_the_snapshot_and_keep_the_remedy_actionable() {
             account("mail", "mail@example.test"),
         ],
         address,
+        no_address,
         |_| Some(AccountProvider::Google),
     );
     let (sender, receiver) = relm4::channel();
@@ -326,7 +363,7 @@ fn the_outage_lines_follow_the_snapshot_and_open_the_accounts_page(
     let mut cleared = snapshot();
     cleared.calendar_outages.clear();
     cleared.contacts_outages.clear();
-    let cleared = ConnectivityState::from_snapshot(cleared, &[], no_address, |_| None);
+    let cleared = ConnectivityState::from_snapshot(cleared, &[], no_address, no_address, |_| None);
     banners.render(&cleared, PrimaryView::Calendar);
     assert!(!banners.calendar_outages.root.is_visible());
     assert!(texts(&banners.calendar_outages).is_empty());

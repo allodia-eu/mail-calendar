@@ -5,7 +5,7 @@ use mailcal_bindings::{
     CapabilityState, LinkCandidates, LinkedAccount,
 };
 
-use super::{kind_line, linked_name};
+use super::{entry_name, kind_line, linked_name};
 use crate::{
     l10n,
     ui::settings::{account_rows::summary, link_pickers},
@@ -115,4 +115,26 @@ fn a_picker_names_every_option_and_the_suggestion_apart() {
         vec![l10n::settings_account_link_none().to_owned(), named.clone()]
     );
     assert_eq!(pickers[0].suggested_name(), Some(named));
+}
+
+#[test]
+fn an_account_acted_on_is_named_apart_from_its_namesake() {
+    assert_eq!(entry_name(&mailbox(None)), "alice@example.org");
+    let server = mailbox(Some(AccountDistinction::Server {
+        host: "mail.example.org".to_owned(),
+    }));
+    assert_eq!(
+        entry_name(&server),
+        l10n::settings_account_distinguished("alice@example.org", "mail.example.org")
+    );
+    let kind = mailbox(Some(AccountDistinction::Kind {
+        kind: AccountKind::Imap,
+    }));
+    assert_eq!(
+        entry_name(&kind),
+        l10n::settings_account_distinguished(
+            "alice@example.org",
+            l10n::setup_account_type_password()
+        )
+    );
 }

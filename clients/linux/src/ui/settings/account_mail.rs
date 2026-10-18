@@ -13,6 +13,7 @@ use crate::{
 pub(super) fn mail_group(
     ctx: &PageContext,
     account: &AccountSyncRow,
+    name: &str,
     snapshot: &SyncSettingsSnapshot,
     signin_expired: bool,
     provider: Option<&AccountProvider>,
@@ -26,7 +27,7 @@ pub(super) fn mail_group(
         if ctx.credential_repair_failed.as_deref() == Some(account.account_id.as_str()) {
             l10n::signin_expired_failed().to_owned()
         } else {
-            l10n::signin_expired_prompt(&account.email)
+            l10n::signin_expired_prompt(name)
         }
     } else {
         l10n::settings_sync_description().to_owned()

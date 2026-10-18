@@ -199,6 +199,16 @@ fn signing_in_again_is_offered_where_the_provider_signs_in_and_says_what_is_wron
         signin_description(&entry, true),
         l10n::signin_expired_prompt("alice@example.org")
     );
+    entry.distinction = Some(mailcal_bindings::AccountDistinction::Server {
+        host: "imap.example.org".to_owned(),
+    });
+    assert_eq!(
+        signin_description(&entry, true),
+        l10n::signin_expired_prompt(&l10n::settings_account_distinguished(
+            "alice@example.org",
+            "imap.example.org"
+        ))
+    );
 }
 
 #[test]

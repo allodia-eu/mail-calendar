@@ -9,7 +9,11 @@ use mailcal_bindings::{
     UseOutage,
 };
 
-use super::{AppInput, PrimaryView, account_settings::AccountsInput, settings::outage_line};
+use super::{
+    AppInput, PrimaryView,
+    account_settings::AccountsInput,
+    settings::{entry_name, outage_line},
+};
 use crate::l10n;
 
 /// The connectivity fields this client renders, resolved against the account list once per
@@ -28,40 +32,47 @@ pub(super) struct ConnectivityState {
 impl ConnectivityState {
     pub(super) fn pull(app: &MailcalApp, accounts: &[AccountRow]) -> Self {
         // An account without mail is in none of the mailbox's rows, so an outage is named from
-        // the snapshot that lists every account, read only when there is one to name.
+        // the snapshot that lists every account, read only when there is one to name. A banner
+        // asking an account to sign in again names it apart from another with its address.
         let everyone = std::cell::OnceCell::new();
-        let address = |id: &str| {
+        let entry = |id: &str| {
             everyone
                 .get_or_init(|| app.accounts_snapshot())
                 .accounts
                 .iter()
                 .find(|entry| entry.id == id)
-                .map(|entry| entry.address.clone())
+                .cloned()
         };
-        Self::from_snapshot(app.connectivity(), accounts, address, |id| {
-            app.account_provider(id.to_owned())
-        })
+        Self::from_snapshot(
+            app.connectivity(),
+            accounts,
+            |id| entry(id).map(|entry| entry.address),
+            |id| entry(id).map(|entry| entry_name(&entry)),
+            |id| app.account_provider(id.to_owned()),
+        )
     }
 
     fn from_snapshot(
         snapshot: ConnectivitySnapshot,
         accounts: &[AccountRow],
         address: impl Fn(&str) -> Option<String>,
+        name: impl Fn(&str) -> Option<String>,
         provider: impl Fn(&str) -> Option<AccountProvider>,
     ) -> Self {
+        let named_by = |id: &str| name(id).unwrap_or_else(|| account_email(accounts, id));
         let expired_signins = snapshot
             .signin_expired_accounts
             .into_iter()
             .map(|id| ExpiredSignIn {
-                id: id.clone(),
-                email: account_email(accounts, &id),
+                email: named_by(&id),
                 provider: provider(&id),
+                id,
             })
             .collect();
         let named = |ids: Vec<String>| {
             ids.into_iter()
                 .map(|id| NamedAccount {
-                    email: account_email(accounts, &id),
+                    email: named_by(&id),
                     id,
                 })
                 .collect()

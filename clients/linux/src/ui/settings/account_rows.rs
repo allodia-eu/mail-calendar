@@ -82,7 +82,7 @@ pub(super) const fn signs_in_at_provider(kind: AccountKind) -> bool {
 /// What the sign-in group says beneath its heading: what is wrong, when something is.
 pub(super) fn signin_description(entry: &AccountEntry, expired: bool) -> String {
     if expired {
-        l10n::signin_expired_prompt(&entry.address)
+        l10n::signin_expired_prompt(&super::account_names::entry_name(entry))
     } else if needs_permission(entry) {
         l10n::settings_account_needs_permission().to_owned()
     } else {
