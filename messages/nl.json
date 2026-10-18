@@ -77,6 +77,7 @@
 
 	"calendar_saving": "Bezig met opslaan…",
 	"calendar_saved": "Opgeslagen",
+	"calendar_save_failed": "Deze wijziging kon niet worden opgeslagen",
 	"calendar_save_unconfirmed": "Niet bevestigd; tik om opnieuw te proberen",
 
 	"action_compose": "Nieuwe e-mail",
@@ -447,6 +448,10 @@
 	"connectivity_details": "Details",
 	"calendar_reauth_prompt": "Agendatoegang vereist je toestemming voor {accounts}.",
 	"calendar_reauth_action": "Opnieuw verbinden",
+	"calendar_outage_title": "De agenda van {address} is niet verbonden.",
+	"contacts_outage_title": "Het adresboek van {address} is niet verbonden.",
+	"use_outage_last_synced": "Je ziet wat het laatst is gesynchroniseerd.",
+	"use_outage_open_account": "Accountinstellingen",
 
 	"mail_reauth_prompt": "Voor het verzenden en beheren van e-mail is je toestemming nodig voor {accounts}.",
 	"mail_reauth_action": "Opnieuw verbinden",
@@ -931,7 +936,7 @@
 	"contacts_saving": "Bezig met opslaan…",
 	"contacts_saved": "Opgeslagen",
 	"contacts_save_failed": "Dit contact kon niet worden opgeslagen",
-	"contacts_save_unconfirmed": "Opgeslagen, maar niet bevestigd",
+	"contacts_save_unconfirmed": "Kon niet bevestigen dat dit is opgeslagen",
 	"contacts_not_editable": "Dit contact kan hier niet worden gewijzigd.",
 	"contacts_close": "Sluiten",
 	"a11y_contacts_avatar": "Avatar van contact",
@@ -996,6 +1001,7 @@
 
 	"invitation_sending": "Je antwoord wordt verstuurd…",
 	"invitation_failed": "Je antwoord is niet verstuurd. Probeer het opnieuw.",
+	"invitation_unconfirmed": "We konden niet bevestigen dat je antwoord is verstuurd.",
 
 	"invitation_reply_undelivered_title": "De organisator is niet ingelicht",
 	"invitation_reply_undelivered_body": "Je antwoord op “{summary}” is opgeslagen, maar je agendaserver kon het niet doorgeven aan {organizer}. We kunnen het vanaf je account mailen.",

@@ -77,6 +77,7 @@
 
 	"calendar_saving": "Saving…",
 	"calendar_saved": "Saved",
+	"calendar_save_failed": "Couldn't save this change",
 	"calendar_save_unconfirmed": "Couldn't confirm; tap to retry",
 
 	"action_compose": "New Mail",
@@ -447,6 +448,10 @@
 	"connectivity_details": "Details",
 	"calendar_reauth_prompt": "Calendar access needs your permission for {accounts}.",
 	"calendar_reauth_action": "Reconnect",
+	"calendar_outage_title": "The calendar for {address} isn’t connected.",
+	"contacts_outage_title": "The address book for {address} isn’t connected.",
+	"use_outage_last_synced": "You’re seeing what was last synced.",
+	"use_outage_open_account": "Account settings",
 
 	"mail_reauth_prompt": "Sending and managing mail needs your permission for {accounts}.",
 	"mail_reauth_action": "Reconnect",
@@ -931,7 +936,7 @@
 	"contacts_saving": "Saving…",
 	"contacts_saved": "Saved",
 	"contacts_save_failed": "Couldn't save this contact",
-	"contacts_save_unconfirmed": "Saved, but we couldn't confirm it",
+	"contacts_save_unconfirmed": "Couldn't confirm this was saved",
 	"contacts_not_editable": "This contact can't be edited here.",
 	"contacts_close": "Close",
 	"a11y_contacts_avatar": "Contact avatar",
@@ -996,6 +1001,7 @@
 
 	"invitation_sending": "Sending your answer…",
 	"invitation_failed": "Your answer wasn't sent. Try again.",
+	"invitation_unconfirmed": "We couldn’t confirm your answer was sent.",
 
 	"invitation_reply_undelivered_title": "The organiser wasn't told",
 	"invitation_reply_undelivered_body": "Your answer to “{summary}” is saved, but your calendar server couldn't pass it on to {organizer}. We can email it from your account instead.",

@@ -77,6 +77,7 @@
 
 	"calendar_saving": "Salvataggio…",
 	"calendar_saved": "Salvato",
+	"calendar_save_failed": "Impossibile salvare questa modifica",
 	"calendar_save_unconfirmed": "Impossibile confermare; tocca per riprovare",
 
 	"action_compose": "Nuovo messaggio",
@@ -447,6 +448,10 @@
 	"connectivity_details": "Dettagli",
 	"calendar_reauth_prompt": "L’accesso al calendario richiede la tua autorizzazione per {accounts}.",
 	"calendar_reauth_action": "Riconnetti",
+	"calendar_outage_title": "Il calendario di {address} non è collegato.",
+	"contacts_outage_title": "La rubrica di {address} non è collegata.",
+	"use_outage_last_synced": "Stai vedendo l’ultima versione sincronizzata.",
+	"use_outage_open_account": "Impostazioni dell’account",
 
 	"mail_reauth_prompt": "L’invio e la gestione della posta richiedono la tua autorizzazione per {accounts}.",
 	"mail_reauth_action": "Riconnetti",
@@ -931,7 +936,7 @@
 	"contacts_saving": "Salvataggio…",
 	"contacts_saved": "Salvato",
 	"contacts_save_failed": "Impossibile salvare questo contatto",
-	"contacts_save_unconfirmed": "Salvato, ma senza conferma",
+	"contacts_save_unconfirmed": "Impossibile confermare il salvataggio",
 	"contacts_not_editable": "Questo contatto non si può modificare qui.",
 	"contacts_close": "Chiudi",
 	"a11y_contacts_avatar": "Immagine del contatto",
@@ -996,6 +1001,7 @@
 
 	"invitation_sending": "Invio della tua risposta…",
 	"invitation_failed": "La tua risposta non è stata inviata. Riprova.",
+	"invitation_unconfirmed": "Non è stato possibile confermare l’invio della tua risposta.",
 
 	"invitation_reply_undelivered_title": "L’organizzatore non è stato avvisato",
 	"invitation_reply_undelivered_body": "La tua risposta a «{summary}» è stata salvata, ma il tuo server di calendario non è riuscito a inoltrarla a {organizer}. Possiamo inviarla per e-mail dal tuo account.",

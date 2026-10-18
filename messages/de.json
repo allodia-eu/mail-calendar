@@ -77,6 +77,7 @@
 
 	"calendar_saving": "Wird gesichert…",
 	"calendar_saved": "Gesichert",
+	"calendar_save_failed": "Diese Änderung konnte nicht gesichert werden",
 	"calendar_save_unconfirmed": "Nicht bestätigt; zum Wiederholen tippen",
 
 	"action_compose": "Neue E-Mail",
@@ -447,6 +448,10 @@
 	"connectivity_details": "Details",
 	"calendar_reauth_prompt": "Für den Kalenderzugriff auf {accounts} ist Ihre Erlaubnis erforderlich.",
 	"calendar_reauth_action": "Erneut verbinden",
+	"calendar_outage_title": "Der Kalender von {address} ist nicht verbunden.",
+	"contacts_outage_title": "Das Adressbuch von {address} ist nicht verbunden.",
+	"use_outage_last_synced": "Sie sehen den Stand der letzten Synchronisierung.",
+	"use_outage_open_account": "Kontoeinstellungen",
 
 	"mail_reauth_prompt": "Zum Senden und Verwalten von E-Mails ist Ihre Erlaubnis für {accounts} erforderlich.",
 	"mail_reauth_action": "Erneut verbinden",
@@ -931,7 +936,7 @@
 	"contacts_saving": "Wird gesichert…",
 	"contacts_saved": "Gesichert",
 	"contacts_save_failed": "Dieser Kontakt konnte nicht gesichert werden",
-	"contacts_save_unconfirmed": "Gesichert, aber nicht bestätigt",
+	"contacts_save_unconfirmed": "Das Sichern konnte nicht bestätigt werden",
 	"contacts_not_editable": "Dieser Kontakt lässt sich hier nicht bearbeiten.",
 	"contacts_close": "Schließen",
 	"a11y_contacts_avatar": "Kontaktbild",
@@ -996,6 +1001,7 @@
 
 	"invitation_sending": "Ihre Antwort wird gesendet…",
 	"invitation_failed": "Ihre Antwort wurde nicht gesendet. Versuchen Sie es erneut.",
+	"invitation_unconfirmed": "Wir konnten nicht bestätigen, dass Ihre Antwort gesendet wurde.",
 
 	"invitation_reply_undelivered_title": "Der Organisator wurde nicht benachrichtigt",
 	"invitation_reply_undelivered_body": "Ihre Antwort auf „{summary}“ ist gespeichert, aber Ihr Kalenderserver konnte sie nicht an {organizer} weitergeben. Wir können sie von Ihrem Konto aus per E-Mail senden.",

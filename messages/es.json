@@ -77,6 +77,7 @@
 
 	"calendar_saving": "Guardando…",
 	"calendar_saved": "Guardado",
+	"calendar_save_failed": "No se ha podido guardar este cambio",
 	"calendar_save_unconfirmed": "No se ha podido confirmar; toca para reintentar",
 
 	"action_compose": "Nuevo correo",
@@ -447,6 +448,10 @@
 	"connectivity_details": "Detalles",
 	"calendar_reauth_prompt": "Se necesita tu permiso para acceder al calendario de {accounts}.",
 	"calendar_reauth_action": "Volver a conectar",
+	"calendar_outage_title": "El calendario de {address} no está conectado.",
+	"contacts_outage_title": "Los contactos de {address} no están conectados.",
+	"use_outage_last_synced": "Ves lo último que se sincronizó.",
+	"use_outage_open_account": "Ajustes de la cuenta",
 
 	"mail_reauth_prompt": "Se necesita tu permiso para enviar y gestionar el correo de {accounts}.",
 	"mail_reauth_action": "Volver a conectar",
@@ -931,7 +936,7 @@
 	"contacts_saving": "Guardando…",
 	"contacts_saved": "Guardado",
 	"contacts_save_failed": "No se ha podido guardar este contacto",
-	"contacts_save_unconfirmed": "Guardado, pero sin confirmar",
+	"contacts_save_unconfirmed": "No se ha podido confirmar que se haya guardado",
 	"contacts_not_editable": "Este contacto no se puede editar aquí.",
 	"contacts_close": "Cerrar",
 	"a11y_contacts_avatar": "Avatar del contacto",
@@ -996,6 +1001,7 @@
 
 	"invitation_sending": "Enviando tu respuesta…",
 	"invitation_failed": "Tu respuesta no se ha enviado. Inténtalo de nuevo.",
+	"invitation_unconfirmed": "No hemos podido confirmar que se haya enviado tu respuesta.",
 
 	"invitation_reply_undelivered_title": "No se ha avisado al organizador",
 	"invitation_reply_undelivered_body": "Tu respuesta a «{summary}» está guardada, pero tu servidor de calendario no ha podido transmitírsela a {organizer}. Podemos enviarla por correo desde tu cuenta.",

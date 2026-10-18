@@ -77,6 +77,7 @@
 
 	"calendar_saving": "Enregistrement…",
 	"calendar_saved": "Enregistré",
+	"calendar_save_failed": "Impossible d’enregistrer cette modification",
 	"calendar_save_unconfirmed": "Impossible de confirmer ; touchez pour réessayer",
 
 	"action_compose": "Nouveau message",
@@ -447,6 +448,10 @@
 	"connectivity_details": "Détails",
 	"calendar_reauth_prompt": "L’accès au calendrier nécessite votre autorisation pour {accounts}.",
 	"calendar_reauth_action": "Se reconnecter",
+	"calendar_outage_title": "Le calendrier de {address} n’est pas connecté.",
+	"contacts_outage_title": "Le carnet d’adresses de {address} n’est pas connecté.",
+	"use_outage_last_synced": "Vous voyez la dernière version synchronisée.",
+	"use_outage_open_account": "Réglages du compte",
 
 	"mail_reauth_prompt": "L’envoi et la gestion des messages nécessitent votre autorisation pour {accounts}.",
 	"mail_reauth_action": "Se reconnecter",
@@ -931,7 +936,7 @@
 	"contacts_saving": "Enregistrement…",
 	"contacts_saved": "Enregistré",
 	"contacts_save_failed": "Impossible d’enregistrer ce contact",
-	"contacts_save_unconfirmed": "Enregistré, mais sans confirmation",
+	"contacts_save_unconfirmed": "Impossible de confirmer l’enregistrement",
 	"contacts_not_editable": "Ce contact ne peut pas être modifié ici.",
 	"contacts_close": "Fermer",
 	"a11y_contacts_avatar": "Avatar du contact",
@@ -996,6 +1001,7 @@
 
 	"invitation_sending": "Envoi de votre réponse…",
 	"invitation_failed": "Votre réponse n’a pas été envoyée. Réessayez.",
+	"invitation_unconfirmed": "Nous n’avons pas pu confirmer l’envoi de votre réponse.",
 
 	"invitation_reply_undelivered_title": "L’organisateur n’a pas été prévenu",
 	"invitation_reply_undelivered_body": "Votre réponse à « {summary} » est enregistrée, mais votre serveur d’agenda n’a pas pu la transmettre à {organizer}. Nous pouvons l’envoyer par e-mail depuis votre compte.",
