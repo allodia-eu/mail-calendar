@@ -106,7 +106,7 @@ impl<P: Provider> App<P> {
     /// [`Unconfirmed`](CalendarWriteStatus::Unconfirmed) where the write may have landed. The
     /// answer's own wrapper settles every other failure as not saved.
     pub(crate) fn answer_write_failed(&self, error: &ApiError) -> String {
-        if crate::connectivity::may_have_applied(error) {
+        if error.may_have_applied() {
             self.set_calendar_write_status(CalendarWriteStatus::Unconfirmed);
         }
         error.to_string()

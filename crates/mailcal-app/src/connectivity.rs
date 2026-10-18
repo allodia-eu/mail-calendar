@@ -442,7 +442,7 @@ pub(crate) fn throttled_for(error: &(dyn StdError + 'static)) -> Option<Duration
 /// engine's [`ApiError`](engine_api::ApiError) preserves the chain, so this is what lets the
 /// classifiers above match on typed facts instead of on rendered text. Takes `&dyn Error` (an
 /// `ApiError` coerces) so the walk is unit-testable against a hand-built nested chain.
-pub(crate) fn provider_error_of<'a>(
+fn provider_error_of<'a>(
     error: &'a (dyn StdError + 'static),
 ) -> Option<&'a ProviderError> {
     let mut source = Some(error);
@@ -455,28 +455,13 @@ pub(crate) fn provider_error_of<'a>(
     None
 }
 
-// What a calendar or contact write the engine returned an error for did to the server. The person
-// is told one of two true things: nothing was saved, or the change may have been and the next sync
-// settles which. The engine marks a failure whose outcome is unknown (the request may have arrived
-// and no answer was read) as one that needs confirmation; every other failure, a refusal from the
-// server or one before anything was sent, saved nothing.
-
-/// Whether the write behind `error` may have been applied.
-pub(crate) fn may_have_applied(error: &ApiError) -> bool {
-    match error {
-        // Refused before anything was sent: another write held the scope, or the input was bad.
-        ApiError::Busy | ApiError::InvalidInput(_) => false,
-        other => {
-            let error: &(dyn StdError + 'static) = other;
-            provider_error_of(error)
-                .is_none_or(engine_provider::ProviderError::requires_confirmation)
-        }
-    }
-}
+// A failed calendar or contact write tells the person one of two true things: nothing was saved,
+// or the change may have been and the next sync settles which. The engine decides which
+// (`ApiError::may_have_applied`), where the transport facts are known.
 
 /// The calendar status a failed write settles.
 pub(crate) fn calendar_status(error: &ApiError) -> CalendarWriteStatus {
-    if may_have_applied(error) {
+    if error.may_have_applied() {
         CalendarWriteStatus::Unconfirmed
     } else {
         CalendarWriteStatus::NotSaved
@@ -485,7 +470,7 @@ pub(crate) fn calendar_status(error: &ApiError) -> CalendarWriteStatus {
 
 /// The contact status a failed write settles.
 pub(crate) fn contact_status(error: &ApiError) -> ContactWriteStatus {
-    if may_have_applied(error) {
+    if error.may_have_applied() {
         ContactWriteStatus::Unconfirmed
     } else {
         ContactWriteStatus::NotSaved
