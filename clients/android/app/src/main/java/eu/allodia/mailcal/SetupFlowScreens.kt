@@ -157,7 +157,8 @@ private fun StepPicker(picker: LinkPicker, picked: Int?, onPick: (Int?) -> Unit)
             modifier = Modifier.fillMaxWidth().testTag("setup-link-${picker.slot.name}"),
         ) {
             Text(
-                picked?.let { picker.options.getOrNull(it)?.address } ?: L10n.settings_account_link_none(ctx),
+                picked?.let { picker.options.getOrNull(it) }?.let { accountName(ctx, it) }
+                    ?: L10n.settings_account_link_none(ctx),
                 modifier = Modifier.weight(1f),
             )
             Icon(painter = painterResource(R.drawable.ic_arrow_drop_down), contentDescription = null)
@@ -172,7 +173,7 @@ private fun StepPicker(picker: LinkPicker, picked: Int?, onPick: (Int?) -> Unit)
             )
             picker.options.forEachIndexed { index, option ->
                 DropdownMenuItem(
-                    text = { Text(option.address) },
+                    text = { Text(accountName(ctx, option)) },
                     onClick = {
                         expanded = false
                         onPick(index)
@@ -183,7 +184,7 @@ private fun StepPicker(picker: LinkPicker, picked: Int?, onPick: (Int?) -> Unit)
     }
     picker.suggested?.let { picker.options.getOrNull(it) }?.let { suggestion ->
         Text(
-            L10n.settings_account_link_suggested(ctx, suggestion.address),
+            L10n.settings_account_link_suggested(ctx, accountName(ctx, suggestion)),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

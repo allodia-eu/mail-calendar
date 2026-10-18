@@ -40,7 +40,6 @@ import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.LinkSlot
 import uniffi.mailcal_bindings.MailServerKind
-import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 /**
  * What Settings → Accounts draws beyond each account's mail settings: the snapshot and the page
@@ -150,23 +149,14 @@ private fun AccountListRow(entry: AccountEntry, onOpen: () -> Unit) {
 /** The list row's second line: the kind and uses, what it is linked to, and what needs the person. */
 internal fun accountSummary(ctx: Context, entry: AccountEntry): String {
     val uses = AccountSettingsRules.inUse(entry).joinToString(", ") { useName(ctx, it) }
-    val lines = mutableListOf("${kindLabel(ctx, entry.kind)} · $uses")
-    AccountSettingsRules.linked(entry).forEach { (use, address) ->
-        lines += L10n.settings_account_linked_line(ctx, useName(ctx, use), address)
+    val lines = mutableListOf("${kindLine(ctx, entry)} · $uses")
+    AccountSettingsRules.linked(entry).forEach { (use, account) ->
+        lines += L10n.settings_account_linked_line(ctx, useName(ctx, use), accountName(ctx, account))
     }
     if (AccountSettingsRules.needsPermission(entry)) {
         lines += L10n.settings_account_needs_permission(ctx)
     }
     return lines.joinToString("\n")
-}
-
-/** The label for an account's kind, as the setup form names the same choice. */
-internal fun kindLabel(ctx: Context, kind: CoreAccountKind): String = when (kind) {
-    CoreAccountKind.IMAP -> L10n.setup_account_type_password(ctx)
-    CoreAccountKind.DAV -> L10n.account_kind_dav(ctx)
-    CoreAccountKind.JMAP -> L10n.setup_account_type_jmap(ctx)
-    CoreAccountKind.MICROSOFT -> L10n.setup_account_type_microsoft(ctx)
-    CoreAccountKind.GOOGLE -> L10n.setup_account_type_google(ctx)
 }
 
 /** A use's name, as the app's own sections name it. */

@@ -120,7 +120,7 @@ class AccountSettingsRulesTest {
         val entry = mailboxOnly(links = AccountLinksView(linked("alice@cloud.example"), null, null))
         assertEquals(listOf(AccountCapability.MAIL), AccountSettingsRules.inUse(entry))
         assertEquals(
-            listOf(AccountCapability.CALENDAR to "alice@cloud.example"),
+            listOf(AccountCapability.CALENDAR to linked("alice@cloud.example")),
             AccountSettingsRules.linked(entry),
         )
     }
@@ -176,9 +176,9 @@ class AccountSettingsRulesTest {
 
     @Test
     fun removing_names_the_accounts_that_lose_their_link() {
-        assertNull(AccountSettingsRules.unlinked(mailboxOnly()))
+        assertNull(AccountSettingsRules.unlinked(mailboxOnly()) { it.address })
         val entry = mailboxOnly(linkedFrom = listOf(linked("a@example.org"), linked("b@example.org")))
-        assertEquals("a@example.org, b@example.org", AccountSettingsRules.unlinked(entry))
+        assertEquals("a@example.org, b@example.org", AccountSettingsRules.unlinked(entry) { it.address })
     }
 
     @Test

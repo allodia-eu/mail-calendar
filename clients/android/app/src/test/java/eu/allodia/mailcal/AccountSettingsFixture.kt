@@ -3,6 +3,7 @@
 package eu.allodia.mailcal
 
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountDistinction
 import uniffi.mailcal_bindings.AccountEndpoints
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountLinksView
@@ -14,7 +15,8 @@ import uniffi.mailcal_bindings.LinkedAccount
 import uniffi.mailcal_bindings.SignInMethod
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
-internal fun linked(id: String) = LinkedAccount(id, id)
+internal fun linked(id: String, distinction: AccountDistinction? = null) =
+    LinkedAccount(id, id, distinction)
 
 internal fun accountEntry(
     kind: CoreAccountKind,
@@ -26,6 +28,7 @@ internal fun accountEntry(
     candidates: LinkCandidates = LinkCandidates(emptyList(), emptyList(), emptyList(), emptyList()),
     endpoints: AccountEndpoints? = null,
     signIn: SignInMethod = SignInMethod.PASSWORD,
+    distinction: AccountDistinction? = null,
 ) = AccountEntry(
     id = id,
     address = address,
@@ -36,6 +39,7 @@ internal fun accountEntry(
     linkedFrom = linkedFrom,
     linkCandidates = candidates,
     endpoints = endpoints,
+    distinction = distinction,
 )
 
 internal fun mailboxOnly(

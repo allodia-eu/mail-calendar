@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -24,8 +26,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountDistinction
 import uniffi.mailcal_bindings.AccountEndpoints
 import uniffi.mailcal_bindings.AccountEntry
+import uniffi.mailcal_bindings.AccountLinksView
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.LinkCandidates
@@ -162,6 +166,21 @@ class SettingsAccountsTest {
         compose.onNodeWithTag("account-link-suggested-CALENDAR").performScrollTo().performClick()
 
         assertEquals(listOf(Triple(entry.id, LinkSlot.CALENDAR, "alice@dav:cloud.example")), links)
+    }
+
+    @Test
+    fun a_link_to_an_account_with_the_page_s_own_address_says_what_tells_them_apart() {
+        val calendar = linked("alice@example.org", AccountDistinction.Kind(CoreAccountKind.DAV))
+        val entry = mailboxOnly(
+            links = AccountLinksView(calendar, null, null),
+            candidates = LinkCandidates(listOf(calendar), emptyList(), emptyList(), emptyList()),
+        )
+        state.page = entry.id
+        show(entry)
+
+        compose.onNodeWithText("alice@example.org (CalDAV/CardDAV)").assertExists()
+        compose.onNodeWithTag("account-link-CALENDAR").performScrollTo().performClick()
+        compose.onAllNodesWithText("alice@example.org (CalDAV/CardDAV)").assertCountEquals(2)
     }
 
     @Test

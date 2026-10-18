@@ -57,7 +57,7 @@ internal fun AccountPage(
 ) {
     val ctx = LocalContext.current
     Text(
-        kindLabel(ctx, entry.kind),
+        kindLine(ctx, entry),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -218,7 +218,7 @@ internal fun linkTitle(ctx: android.content.Context, slot: LinkSlot): String = w
 private fun LinkRow(entry: AccountEntry, picker: LinkPicker, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
-    val current = picker.selected?.let { picker.options[it].address }
+    val current = picker.selected?.let { accountName(ctx, picker.options[it]) }
         ?: L10n.settings_account_link_none(ctx)
     Text(linkTitle(ctx, picker.slot), style = MaterialTheme.typography.labelLarge)
     Box {
@@ -242,7 +242,7 @@ private fun LinkRow(entry: AccountEntry, picker: LinkPicker, ui: AccountsSetting
             )
             picker.options.forEachIndexed { index, option ->
                 DropdownMenuItem(
-                    text = { Text(option.address) },
+                    text = { Text(accountName(ctx, option)) },
                     onClick = {
                         expanded = false
                         if (picker.selected != index) ui.onSetLink(entry.id, picker.slot, option.id)
@@ -255,7 +255,7 @@ private fun LinkRow(entry: AccountEntry, picker: LinkPicker, ui: AccountsSetting
         val suggestion = picker.options[index]
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                L10n.settings_account_link_suggested(ctx, suggestion.address),
+                L10n.settings_account_link_suggested(ctx, accountName(ctx, suggestion)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
@@ -320,7 +320,7 @@ private fun RemoveAccount(entry: AccountEntry, ui: AccountsSettingsUi) {
     if (confirming) {
         RemoveAccountDialog(
             address = entry.address,
-            unlinked = AccountSettingsRules.unlinked(entry),
+            unlinked = AccountSettingsRules.unlinked(entry) { accountName(ctx, it) },
             onConfirm = {
                 confirming = false
                 ui.onRemove(entry.id)
