@@ -141,6 +141,9 @@ internal sealed class Agent : IDisposable
 
     internal void ScrollIntoView(Element element) => Call(Handle("scrollIntoView", element));
 
+    /// <summary>Opens a combo box or a drop-down.</summary>
+    internal void Expand(Element element) => Call(Handle("expand", element));
+
     internal void Focus(Element element) => Call(Handle("focus", element));
 
     /// <summary>The element that has the keyboard, or null when nothing in the app does.</summary>

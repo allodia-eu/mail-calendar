@@ -79,6 +79,9 @@ public sealed partial class AccountSetupView
         {
             return;
         }
+        // An answer from a local server can be back before a suite looking at the form sees the
+        // question go out.
+        TestAgent.Signal(Username, $"asked about {Username.Text.Trim()}");
         UpdateImapSignIn();
         var asked = model.ImapAuthOptionsAsync(ImapRequest());
         if (await Task.WhenAny(asked, Task.Delay(ImapSignInGate.Deadline)) != asked

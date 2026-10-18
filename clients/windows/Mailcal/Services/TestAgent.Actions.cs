@@ -123,6 +123,16 @@ internal static partial class TestAgent
         return new JsonObject { ["toggle"] = toggle.ToggleState.ToString() };
     }
 
+    /// <summary>Opens a combo box or a drop-down, whose items have no peers until it is open.</summary>
+    private static JsonObject Expand(JsonObject request)
+    {
+        var peer = PeerOf(HandleIn(request));
+        var expand = peer.GetPattern(PatternInterface.ExpandCollapse) as IExpandCollapseProvider
+            ?? throw new AgentException($"'{peer.GetName()}' does not expand");
+        expand.Expand();
+        return new JsonObject { ["ok"] = true };
+    }
+
     /// <summary>Scrolls the element into its list's view, through the nearest scroll item: the
     /// element a suite presses is often a text inside a row.</summary>
     private static JsonObject ScrollIntoView(JsonObject request)

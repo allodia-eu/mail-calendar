@@ -18,7 +18,7 @@ public sealed class MeetingInviteesTests(TwoAccountHarnessApp harness)
     private static readonly string Title = $"Invitees {DateTime.Now:yyyyMMdd-HHmmss}";
 
     private void Case(string name, Action<App, CalendarFlow> body) =>
-        harness.Case(name, app => body(app, new CalendarFlow(app)), app => new CalendarFlow(app).CloseDialogs());
+        harness.Case(name, app => body(app, new CalendarFlow(app)), app => app.CloseDialogs());
 
     private static Element? Under(App app, Element dialog, string id) => app.Agent.Find(new Filter { Id = id, Under = dialog });
 
@@ -89,7 +89,7 @@ public sealed class MeetingInviteesTests(TwoAccountHarnessApp harness)
     {
         flow.OpenMeetingDetail(Title, Harness.Alice);
         app.Agent.Invoke(app.Agent.Find(Filter.ById("PrimaryButton", "Button"))!);
-        var editor = flow.Dialog(Filter.ById("EventTitleBox"));
+        var editor = app.Dialog(Filter.ById("EventTitleBox"));
         app.Agent.Invoke(flow.RevealAtEnd(editor, $"EventInviteeRemove:{Harness.Dave}", "Dave is not on the list to remove"));
         Element? last = null;
         Assert.True(App.Eventually(() => (last = Under(app, editor, $"EventInviteeRemove:{Harness.Bob}")) is { Enabled: false }, TimeSpan.FromSeconds(5)),

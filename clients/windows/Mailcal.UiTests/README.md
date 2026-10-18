@@ -22,6 +22,14 @@ by having neither. `MAILCAL_UITESTS_TRACE=1` writes every agent call and its ans
 write followed. A failing case leaves a screenshot and the element tree the agent saw in
 `failures/`.
 
+## Launches
+
+The app reads its `MAILCAL_*` switches once, at startup, so a launch is a fixture in
+[`Suites/HarnessApp.cs`](Suites/HarnessApp.cs): one per account set (alice over JMAP, alice and bob
+together, alice over IMAP) shared by every suite in its collection, which puts back what each case
+leaves. A suite that sets an account up through the form gets a launch of its own on an emptied
+first-run store, because what a first run asks is asked once a store.
+
 ## The agent
 
 [`Mailcal/Services/TestAgent*.cs`](../Mailcal/Services) listens on the named pipe
@@ -29,7 +37,8 @@ write followed. A failing case leaves a screenshot and the element tree the agen
 `cargo xtask check-test-agent` fails any change that would let it reach a release one. It walks
 each window's **automation peers**, which are the objects UI Automation reads, so an AutomationId or
 an accessible name a suite finds is the one a screen reader is given. It acts through the same
-providers UI Automation calls: Invoke, SelectionItem, Value, Toggle, ScrollItem.
+providers UI Automation calls: Invoke, SelectionItem, Value, Toggle, ExpandCollapse, ScrollItem
+and Scroll.
 
 Where the peers and UI Automation differ, the agent makes them agree, and each of these is a reason
 an obvious reimplementation finds nothing:
@@ -58,7 +67,7 @@ an obvious reimplementation finds nothing:
   in a page that is still being set up.
 - **A dialog has not closed until its dimming layer has.** A ContentDialog's own popup goes the
   moment it is dismissed, but the layer behind it stays until the close completes, and the app
-  opens no other dialog before then: `CalendarFlow.CloseDialogs` waits for both.
+  opens no other dialog before then: `App.CloseDialogs` waits for both.
 - **A folder's list is not that folder's until its header names it.** The rows on screen in the
   meantime are the last folder's, and a press meant for the new list lands on one of them.
 - **A text box has the keyboard before it can take characters.** It reports focus before Windows'
@@ -68,6 +77,11 @@ an obvious reimplementation finds nothing:
 - **A pressed element is read once it has stopped moving.** A scroll is animated, so a rectangle
   read mid-scroll aims the press where the element was: `App.Steady` returns it once two reads
   agree. Beneath the fold, a peer still answers but reports no size; scroll first.
+- **What the system draws is not in the agent's tree.** The print dialog, a classic Save As and a
+  window's caption buttons are read through UI Automation ([`Driver/PrintDialogs.cs`](Driver/PrintDialogs.cs),
+  [`Driver/Desktop.cs`](Driver/Desktop.cs)). UI Automation files an owned window under its owner,
+  so a search of the desktop's children never meets a dialog the app's own window owns; the window
+  list does.
 - **Real input only for a press that has to be a press**: a double-click, a click into the
   editor's web page, typing into it or into a field whose own key handling the case asserts. Everything else goes through the agent, which needs no window
   in front and cannot be intercepted by one.

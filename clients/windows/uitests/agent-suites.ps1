@@ -3,7 +3,7 @@
 # from run-ui-tests.ps1 so one command still runs every suite. Dot-source it; it defines functions.
 #
 # A suite there is a `<Name>Tests` class in Mailcal.UiTests/Suites, named here `<Name>.Tests` like
-# a file in this directory, so `-Filter Drafts*` selects it the way it selected Drafts.Tests.ps1.
+# a file in this directory, so `-Filter Drafts*` selects `DraftsTests`.
 # They all run on the harness dataset: they launch the app themselves, through the agent.
 
 $AgentSuitesProject = Join-Path $PSScriptRoot '..\Mailcal.UiTests'

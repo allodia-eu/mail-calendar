@@ -191,6 +191,7 @@ public sealed partial class SettingsDialog
         var secret = new PasswordBox { Header = L10n.SetupJmapSecretPlaceholder() };
         AutomationProperties.SetAutomationId(secret, "AccountReplaceSecret");
         var save = new Button { Content = L10n.SigninExpiredAction(), Style = AccentButton() };
+        AutomationProperties.SetAutomationId(save, "AccountReplaceSecretSave");
         save.Click += async (_, _) =>
         {
             if (secret.Password.Length == 0)

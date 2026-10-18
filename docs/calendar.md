@@ -1945,13 +1945,13 @@ Stated, not buried.
   the core allows a `Clear` over one, because stopping a repeat needs no knowledge of the rule it
   stops. No client offers that, so the only way out of a complex series is to delete it.
 - **On Windows the scope question is a UI suite case, but its destructive answer is not.**
-  `uitests/EventSeriesScope.Tests.ps1` drives the drawn grid the way the wheel suite does: the
-  event peer publishes a live physical-pixel rect and the click is injected at the OS level, since
-  the peers carry no Invoke pattern, and asserts that the question is put from the grid, not put
-  from the agenda, and writes nothing when backed out of. What it does **not** assert is that
-  answering *This event* removes the right one: the oracle for that is the `EXDATE` the server ends
-  up holding, and the runner has no route to the harness's store. That answer is still a hand
-  check.
+  `Mailcal.UiTests/Suites/EventSeriesScopeTests.cs` drives the drawn grid the way the wheel suite
+  does: the event peer publishes a live physical-pixel rect and the click is injected at the OS
+  level, since the peers carry no Invoke pattern, and asserts that the question is put from the
+  grid, not put from the agenda, and writes nothing when backed out of. What it does **not**
+  assert is that answering *This event* removes the right one: the oracle for that is the `EXDATE`
+  the server ends up holding, and the runner has no route to the harness's store. That answer is
+  still a hand check.
 - ~~**The warning is decided from the edit, but no client tells it what the edit is.**~~ Closed:
   `MailcalApp::series_edit_warning` takes the payload the save is about to dispatch, and all five
   clients ask it there. A retitle on Graph is no longer told it will move occurrences it does not

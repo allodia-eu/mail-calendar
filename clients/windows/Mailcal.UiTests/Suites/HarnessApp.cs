@@ -16,7 +16,10 @@ public class HarnessApp : IDisposable
 {
     private App? _app;
 
-    internal App App => _app ??= App.LaunchOnHarness(Env);
+    internal App App => _app ??= FirstRun ? App.LaunchOnFirstRun(Env) : App.LaunchOnHarness(Env);
+
+    /// <summary>Whether this launch starts from an empty store, on the account-setup form.</summary>
+    protected virtual bool FirstRun => false;
 
     /// <summary>The MAILCAL_* and log switches this launch is made with. The app reads them once,
     /// at startup, so suites that need different ones need a launch, and a collection, of their own.</summary>
@@ -97,11 +100,28 @@ public sealed class TwoAccountHarnessApp : HarnessApp
         new Dictionary<string, string> { ["MAILCAL_DEV_ACCOUNT"] = "stalwart-multi" };
 }
 
+/// <summary>The harness app on alice's IMAP account (stalwart-imap), whose account pass re-reads every
+/// folder, so a sync brings the folder a message was moved to up to date.</summary>
+public sealed class ImapHarnessApp : HarnessApp
+{
+    protected override IReadOnlyDictionary<string, string> Env { get; } =
+        new Dictionary<string, string> { ["MAILCAL_DEV_ACCOUNT"] = "stalwart-imap" };
+}
+
 /// <summary>The harness app with its log at debug: for a rule the app states only in its log.</summary>
 public sealed class DebugLogHarnessApp : HarnessApp
 {
     protected override IReadOnlyDictionary<string, string> Env { get; } =
         new Dictionary<string, string> { ["ALLODIA_LOG_LEVEL"] = "debug" };
+}
+
+/// <summary>The app on an empty store beside the harness: for a suite that sets an account up
+/// through the form, uses it against the server and removes it again. A class fixture, one launch a
+/// suite, because what a first run asks is asked once a store: a second suite on the same store
+/// would set its account up without the questions the first one answered.</summary>
+public sealed class SetupHarnessApp : HarnessApp
+{
+    protected override bool FirstRun => true;
 }
 
 [CollectionDefinition(Name)]
@@ -114,6 +134,12 @@ public sealed class HarnessCollection : ICollectionFixture<HarnessApp>
 public sealed class TwoAccountHarnessCollection : ICollectionFixture<TwoAccountHarnessApp>
 {
     public const string Name = "harness, two accounts";
+}
+
+[CollectionDefinition(Name)]
+public sealed class ImapHarnessCollection : ICollectionFixture<ImapHarnessApp>
+{
+    public const string Name = "harness, IMAP";
 }
 
 [CollectionDefinition(Name)]

@@ -77,7 +77,7 @@ public sealed class ReadingWindowTests(DebugLogHarnessApp harness)
         // The case above passes on a message already read. Opening an unread one marks it read,
         // which rewrites its row under the gesture: the double-click once opened nothing, and a
         // window that did open lost the front.
-        if (flow.RowMenuItem(RowSubject, "action_mark_unread") is { } unread)
+        if (app.RowMenuItem(RowSubject, "action_mark_unread") is { } unread)
         {
             app.Agent.Invoke(unread);
         }
@@ -209,7 +209,7 @@ public sealed class ReadingWindowTests(DebugLogHarnessApp harness)
     [HarnessFact]
     public void TheContextMenuOpensOneTooWhichIsTheRouteWithoutAPointer() => Case(nameof(TheContextMenuOpensOneTooWhichIsTheRouteWithoutAPointer), (app, flow) =>
     {
-        var item = flow.RowMenuItem(RowSubject, "action_open_in_window");
+        var item = app.RowMenuItem(RowSubject, "action_open_in_window");
         Assert.True(item is not null, "the row menu offers \"open in new window\"");
         app.Agent.Invoke(item!);
         app.WaitWindow(RowSubject);

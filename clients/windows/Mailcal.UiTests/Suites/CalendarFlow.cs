@@ -1,5 +1,5 @@
 // The calendar moves the event suites share: the calendar on screen, its agenda list, an event's
-// detail and editor dialogs, and putting the dialogs away again.
+// detail and editor dialogs.
 
 using Allodia.Mailcal.UiTests.Driver;
 
@@ -21,6 +21,25 @@ internal sealed class CalendarFlow(App app)
         {
             throw new InvalidOperationException("the calendar did not come up");
         }
+    }
+
+    /// <summary>
+    /// Puts the calendar into the shape the view menu's item <paramref name="item"/> names, and brings
+    /// the page back to today. The layout is the core's and the calendar reopens the way it was
+    /// left, so a case pins the shape rather than inheriting it; and choosing a shape re-seats the
+    /// grid on the period it was already showing, which may be one a case before this paged to.
+    /// </summary>
+    internal void SetShape(Filter item)
+    {
+        ShowCalendar();
+        Agent.Invoke(Agent.Find(Filter.ById("CalendarViewMenu", "Button"))!);
+        Agent.Invoke(Agent.Wait(item, TimeSpan.FromSeconds(10)) ?? throw new InvalidOperationException($"the view menu offers no #{item.Id}"));
+        Agent.WaitGone(item, TimeSpan.FromSeconds(5));
+        if (Agent.Find(Filter.ById("CalendarToday", "Button")) is { } today)
+        {
+            Agent.Invoke(today);
+        }
+        Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
     }
 
     /// <summary>
@@ -50,7 +69,7 @@ internal sealed class CalendarFlow(App app)
     internal Element OpenDetail(string title)
     {
         // A dialog left by a failed case would swallow the press on this one's row.
-        CloseDialogs();
+        app.CloseDialogs();
         var agenda = ShowAgenda();
         var rows = Agent.FindAll(new Filter { Type = "ListItem", Under = agenda });
         if (rows.Count == 0)
@@ -61,7 +80,7 @@ internal sealed class CalendarFlow(App app)
             ?? throw new InvalidOperationException(
                 $"no agenda row for '{title}': the living week is seeded relative to today, so a stale harness is the usual cause (scripts/dev/harness.sh reset)");
         Agent.Invoke(row);
-        return Dialog(Filter.ById("CloseButton", "Button"));
+        return app.Dialog(Filter.ById("CloseButton", "Button"));
     }
 
     /// <summary>Opens the editor over the event's detail and returns the editor's dialog: the one
@@ -72,40 +91,7 @@ internal sealed class CalendarFlow(App app)
         var edit = Agent.Find(Filter.ById("PrimaryButton", "Button"))
             ?? throw new InvalidOperationException($"'{title}' offered no Edit button; the harness calendar should be writable");
         Agent.Invoke(edit);
-        return Dialog(Filter.ById("EventTitleBox"));
-    }
-
-    /// <summary>
-    /// The open dialog holding <paramref name="holding"/>, once it has finished opening: a dialog is
-    /// a popup over the shell (the shell keeps an empty popup of its own beside it), and it moves its
-    /// focus, and its form with it, as it finishes opening.
-    /// </summary>
-    internal Element Dialog(Filter holding)
-    {
-        var dialog = Agent.Wait(new Filter { Type = "Window", Window = app.Mailbox.Hwnd, Has = holding }, TimeSpan.FromSeconds(15))
-            ?? throw new InvalidOperationException("no dialog opened");
-        Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
-        return dialog;
-    }
-
-    /// <summary>
-    /// Closes every open dialog, the editor stacked over a detail included, and waits until the
-    /// last of them has finished closing. A dialog's own popup goes at once, but the layer that dims
-    /// the window behind it stays until the close is complete, and the app opens no other dialog
-    /// before then: a press on the next event in that time opens nothing.
-    /// </summary>
-    internal void CloseDialogs()
-    {
-        var close = Filter.ById("CloseButton", "Button");
-        for (var i = 0; i < 4 && Agent.FindAll(close) is { Count: > 0 } open; i++)
-        {
-            Agent.Invoke(open[0]);
-            App.Eventually(() => Agent.FindAll(close).Count < open.Count, TimeSpan.FromSeconds(5));
-        }
-        if (!App.Eventually(() => !Agent.FindAll(new Filter { Type = "Window", Window = app.Mailbox.Hwnd }).Any(w => w.Class == "Popup"), TimeSpan.FromSeconds(5)))
-        {
-            throw new InvalidOperationException("a dialog was still closing 5 s after it was closed");
-        }
+        return app.Dialog(Filter.ById("EventTitleBox"));
     }
 
     /// <summary>
@@ -118,18 +104,18 @@ internal sealed class CalendarFlow(App app)
     {
         for (var attempt = 0; attempt < 3; attempt++)
         {
-            CloseDialogs();
+            app.CloseDialogs();
             var agenda = ShowAgenda();
             var rows = Agent.FindAll(new Filter { Type = "ListItem", Under = agenda, Has = Filter.Named(title, "Text") });
             foreach (var row in rows)
             {
                 Agent.Invoke(row);
-                var dialog = Dialog(Filter.ById("CloseButton", "Button"));
+                var dialog = app.Dialog(Filter.ById("CloseButton", "Button"));
                 if (TextsUnder(dialog).Any(text => text.Contains($"({account})", StringComparison.Ordinal)))
                 {
                     return dialog;
                 }
-                CloseDialogs();
+                app.CloseDialogs();
             }
             Agent.Invoke(Agent.Find(Filter.ById("CalendarRefresh", "Button")) ?? throw new InvalidOperationException("the calendar offers no Sync button"));
             App.Eventually(
@@ -142,10 +128,10 @@ internal sealed class CalendarFlow(App app)
     /// <summary>Opens the new-event editor, scrolled to its invitee field, and returns it.</summary>
     internal Element OpenNewEvent()
     {
-        CloseDialogs();
+        app.CloseDialogs();
         ShowAgenda();
         Agent.Invoke(Agent.Find(Filter.ById("CalendarNewEvent", "Button")) ?? throw new InvalidOperationException("the calendar offers no New event"));
-        var editor = Dialog(Filter.ById("EventTitleBox"));
+        var editor = app.Dialog(Filter.ById("EventTitleBox"));
         RevealAtEnd(editor, "EventInviteeField",
             $"the editor offers no invitee field on {Harness.Alice}'s calendar, whose server sends invitations");
         return editor;
@@ -184,6 +170,9 @@ internal sealed class CalendarFlow(App app)
         app.TypeInto(field!, text);
         if (enter)
         {
+            // Typing a known address opens the suggestions a moment later, and an Enter that lands
+            // while they open goes to them.
+            Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(300));
             Input.Press(Input.Enter);
             var answered = App.Eventually(
                 () => Agent.Read(field!).Value is null or "" || Agent.Find(Filter.ById("EventInviteeRefusal")) is { Name.Length: > 0 },

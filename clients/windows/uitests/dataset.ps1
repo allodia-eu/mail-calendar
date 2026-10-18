@@ -49,40 +49,6 @@ function Test-HarnessUp {
 
 <#
 .SYNOPSIS
-Sets the password the harness server holds for one of its seeded users.
-.DESCRIPTION
-How a suite makes an account's stored secret stop working, the way a person changing their
-password elsewhere does. The server checks the new one on the next request. A suite that changes it
-puts the seeded one back in a `finally`, because every other harness suite signs in with it; a run
-that died before that leaves `scripts/dev/harness.sh reset` as the way back.
-#>
-function Set-HarnessPassword {
-  param(
-    [Parameter(Mandatory)] [ValidateSet('alice', 'bob')] [string] $User,
-    [Parameter(Mandatory)] [string] $Secret
-  )
-  $description = @{ alice = 'Alice Tester'; bob = 'Bob Tester' }[$User]
-  $plan = @(
-    '{"@type":"upsert","object":"Domain","matchOn":["name"],"value":{"domain":{"name":"test.local"}}}'
-    (@{
-        '@type' = 'upsert'; object = 'Account'; matchOn = @('name')
-        value = @{
-          $User = @{
-            '@type' = 'User'; name = $User; domainId = '#domain'; description = $description
-            credentials = @{ '0' = @{ '@type' = 'Password'; secret = $Secret } }
-            roles = @{ '@type' = 'User' }
-          }
-        }
-      } | ConvertTo-Json -Depth 8 -Compress)
-  ) -join "`n"
-  $out = $plan | docker exec -i -e HOME=/tmp mailcal-core-harness-stalwart-1 `
-    stalwart-cli --no-color --url http://127.0.0.1:8080 --user admin --password harness-admin-pw `
-    apply --quiet --stdin 2>&1
-  if ($LASTEXITCODE -ne 0) { throw "the harness refused $User's new password: $out" }
-}
-
-<#
-.SYNOPSIS
 Block until the dataset is up: past the first-run question, message list drawn, rows in it.
 .DESCRIPTION
 ONE tree walk per turn answers all three questions. They used to be three sequential waits, and the
@@ -136,7 +102,7 @@ function Wait-DatasetReady {
       #
       # Waiting for the press is deterministic rather than optimistic: the store is cleared before
       # every first-run launch, so the question is always open and the welcome screen always comes.
-      if ($Dataset -in @('first-run', 'harness-setup')) {
+      if ($Dataset -eq 'first-run') {
         $welcomeUp = $tree | Where-Object {
           $_.Current.AutomationId -eq 'WelcomeGetStarted' -and -not $_.Current.IsOffscreen
         }
@@ -430,9 +396,8 @@ function Start-Dataset {
     'harness' {
       & (Join-Path $ClientDir 'control.ps1') home | Out-Null
     }
-    { $_ -in @('first-run', 'harness-setup') } {
-      # The one screen a person sees ONCE; `harness-setup` starts there too, so what a suite sets
-      # up through the form is the only account on the harness side. Its namespace is wiped first, because a first run is
+    'first-run' {
+      # The one screen a person sees ONCE. Its namespace is wiped first, because a first run is
       # defined by there being nothing in it: an account or a settled welcome question left by the
       # last run makes the screen unreachable, and the suite would then assert against whatever it
       # landed on instead. The store directory alone is not the namespace: its accounts live in
@@ -444,7 +409,7 @@ function Start-Dataset {
       & (Join-Path $ClientDir 'clear-dev-namespace.ps1') -Namespace 'dev-first-run'
       & (Join-Path $ClientDir 'control.ps1') home | Out-Null
     }
-    default { throw "unknown dataset '$Dataset' (showcase | harness | first-run | harness-setup)" }
+    default { throw "unknown dataset '$Dataset' (showcase | harness | first-run)" }
   }
   Wait-DatasetReady $Dataset
   # The message list is not the whole dataset. Mail rows land first and the calendar is still

@@ -226,7 +226,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   card says the account cannot be added here yet and draws no field, and its manual form takes a
   drawn field away.
 - **Windows' UI suite runs against the harness only, so CI does not run it.**
-  `uitests/ImapSignIn.Tests.ps1` asserts each answer the harness can serve, nothing
+  `Mailcal.UiTests/Suites/ImapSignInTests.cs` asserts each answer the harness can serve, nothing
   credential-shaped before an answer, the field held through an edit, a silent server, and a
   failed sign-in handing the password back. Two things stay by hand, last checked on 2026-09-30:
   Cancel while a sign-in is out, and the full sign-in through the browser and protocol
@@ -291,4 +291,4 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   the closed-registration line appears with no sign-in button beside it. Windows states the
   form's decisions in `Mailcal.Tests/ImapSignInGateTests.cs` (the deadline, the field held
   through an edit, the password route behind its control) and what is drawn in
-  `uitests/ImapSignIn.Tests.ps1`, against the harness's servers.
+  `Mailcal.UiTests/Suites/ImapSignInTests.cs`, against the harness's servers.

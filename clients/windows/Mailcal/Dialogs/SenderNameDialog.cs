@@ -48,6 +48,7 @@ internal static class SenderNameDialog
             // deliberate press, not the path of least resistance.
             DefaultButton = ContentDialogButton.Primary,
         };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(dialog, "SenderNamePrompt");
         var result = await DialogHelper.ShowAsync(dialog);
         return result == ContentDialogResult.Primary ? box.Text : null;
     }

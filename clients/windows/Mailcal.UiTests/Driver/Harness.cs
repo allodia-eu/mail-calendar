@@ -2,6 +2,7 @@
 // suite reads or writes on it as another client would. A meeting's real outcome is mail in somebody
 // else's mailbox, which no surface of this app shows for an account it is not signed in to.
 
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Text;
@@ -97,6 +98,87 @@ internal static class Harness
         await jmap.CallAsync("Email/set", new JsonObject { ["destroy"] = ids });
         return 0;
     });
+
+    /// <summary>
+    /// Sets the password the server holds for a seeded user, the way a person changing it elsewhere
+    /// does: the account's stored secret stops working on its next request. A case that changes it
+    /// puts the seeded one back in its cleanup, because every other harness suite signs in with it;
+    /// a run that died first leaves <c>scripts/dev/harness.sh reset</c> as the way back.
+    /// </summary>
+    internal static void SetPassword(string user, string secret)
+    {
+        var description = user switch
+        {
+            "alice" => "Alice Tester",
+            "bob" => "Bob Tester",
+            _ => throw new ArgumentException($"no seeded harness user '{user}'", nameof(user)),
+        };
+        var account = new JsonObject
+        {
+            ["@type"] = "upsert",
+            ["object"] = "Account",
+            ["matchOn"] = new JsonArray("name"),
+            ["value"] = new JsonObject
+            {
+                [user] = new JsonObject
+                {
+                    ["@type"] = "User",
+                    ["name"] = user,
+                    ["domainId"] = "#domain",
+                    ["description"] = description,
+                    ["credentials"] = new JsonObject { ["0"] = new JsonObject { ["@type"] = "Password", ["secret"] = secret } },
+                    ["roles"] = new JsonObject { ["@type"] = "User" },
+                },
+            },
+        };
+        var plan = """{"@type":"upsert","object":"Domain","matchOn":["name"],"value":{"domain":{"name":"test.local"}}}"""
+            + "\n" + account.ToJsonString();
+        var (code, said) = Docker(plan,
+            "exec", "-i", "-e", "HOME=/tmp", "mailcal-core-harness-stalwart-1",
+            "stalwart-cli", "--no-color", "--url", "http://127.0.0.1:8080", "--user", "admin", "--password", "harness-admin-pw",
+            "apply", "--quiet", "--stdin");
+        if (code != 0)
+        {
+            throw new InvalidOperationException($"the harness refused {user}'s new password: {said}");
+        }
+    }
+
+    /// <summary>Stops or starts the HTTPS front that serves the harness's sign-in discovery
+    /// (docker/stalwart/README.md): stopped, a sign-in fails before any browser opens.</summary>
+    internal static void SignInFront(string verb)
+    {
+        var (code, said) = Docker(null, "compose", "-p", "mailcal-core-harness", verb, "stalwart-oauth-front");
+        if (code != 0)
+        {
+            throw new InvalidOperationException($"docker compose {verb} stalwart-oauth-front failed: {said}");
+        }
+    }
+
+    private static (int Code, string Said) Docker(string? input, params string[] arguments)
+    {
+        var docker = new ProcessStartInfo("docker")
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (var argument in arguments)
+        {
+            docker.ArgumentList.Add(argument);
+        }
+        using var process = Process.Start(docker) ?? throw new InvalidOperationException("docker did not start");
+        process.StandardInput.Write(input ?? "");
+        process.StandardInput.Close();
+        var said = process.StandardOutput.ReadToEndAsync();
+        var complained = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(60_000))
+        {
+            process.Kill();
+            return (-1, "docker did not finish within 60 s");
+        }
+        return (process.ExitCode, said.Result + complained.Result);
+    }
 
     private static T Run<T>(Func<Task<T>> work) => Task.Run(work).GetAwaiter().GetResult();
 

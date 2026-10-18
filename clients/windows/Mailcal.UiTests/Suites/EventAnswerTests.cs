@@ -22,7 +22,7 @@ public sealed class EventAnswerTests(TwoAccountHarnessApp harness)
     private static readonly string Title = $"Answer {DateTime.Now:yyyyMMdd-HHmmss}";
 
     private void Case(string name, Action<App, CalendarFlow> body) =>
-        harness.Case(name, app => body(app, new CalendarFlow(app)), app => new CalendarFlow(app).CloseDialogs());
+        harness.Case(name, app => body(app, new CalendarFlow(app)), app => app.CloseDialogs());
 
     private static string AnswerLine(App app) => app.Agent.Find(Filter.ById("EventAnswerLine"))?.Name ?? "";
 

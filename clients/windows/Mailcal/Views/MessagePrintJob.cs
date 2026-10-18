@@ -67,7 +67,7 @@ internal sealed class MessagePrintJob
     /// </summary>
     // WUI1002 reads PrintManager as the UWP API with no Windows App SDK counterpart. It is reached
     // here through PrintManagerInterop for this window's handle, which is the supported route for a
-    // desktop window (Print.Tests.ps1 prints through it).
+    // desktop window (the UI suite's PrintTests prints through it).
 #pragma warning disable WUI1002
     public async Task<PrintTaskCompletion?> RunAsync()
     {

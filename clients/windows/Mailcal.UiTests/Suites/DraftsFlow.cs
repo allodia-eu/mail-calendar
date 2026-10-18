@@ -17,39 +17,13 @@ internal sealed class DraftsFlow(App app)
     private Agent Agent => app.Agent;
 
     /// <summary>
-    /// Opens one of alice's folders, by the row the pane draws for it under the account, and waits
-    /// until the list is that folder's, with rows or its empty panel drawn: Drafts is empty whenever
-    /// the suite has tidied up after itself. Until the header names the folder, the rows on screen
-    /// are still the last folder's, and a press meant for the new one lands on one of those.
-    /// </summary>
-    internal void OpenFolder(string folder)
-    {
-        var account = Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = app.Mailbox.Hwnd })
-            ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}");
-        var row = Agent.Find(Filter.Named(folder, "ListItem") with { Under = account })
-            ?? throw new InvalidOperationException($"{Harness.Alice} shows no {folder} row; is its tree open?");
-        Agent.Invoke(row);
-        if (Agent.Wait(Filter.ById("MailboxHeader") with { Name = folder }, TimeSpan.FromSeconds(10)) is null)
-        {
-            throw new InvalidOperationException($"the list never became {folder}'s");
-        }
-        bool Drawn() => Agent.Find(Filter.ById("EmptyMailboxText") with { OnScreen = true }) is not null
-            || (Agent.Find(Filter.ById("RowsList")) is { } list && Agent.Find(new Filter { Type = "ListItem", Under = list }) is not null);
-        if (!App.Eventually(Drawn, TimeSpan.FromSeconds(40)))
-        {
-            throw new InvalidOperationException($"{folder} drew neither rows nor its empty panel within 40 s");
-        }
-        Agent.Settle();
-    }
-
-    /// <summary>
     /// Opens Drafts, asks the server for it, and waits until <paramref name="subject"/> is listed (or,
     /// with <paramref name="absent"/>, is not). The sync matters for the absent case: without it a
     /// removal the list has not heard of yet reads as the row still being there.
     /// </summary>
     internal bool WaitDraftRow(string subject, bool absent = false, int timeoutSec = 30)
     {
-        OpenFolder("Drafts");
+        app.OpenFolder("Drafts");
         if (Agent.Find(Filter.ById("SelectionSync", "Button")) is { } sync)
         {
             Agent.Invoke(sync);
@@ -127,7 +101,7 @@ internal sealed class DraftsFlow(App app)
         {
             return;
         }
-        OpenFolder("Inbox");
+        app.OpenFolder("Inbox");
         Agent.Invoke(app.Rows()[0]);
         if (DiscardQuestionUp())
         {

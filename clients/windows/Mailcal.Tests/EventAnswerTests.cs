@@ -1,7 +1,7 @@
 // An invitee's answer from the event detail, tested without a dialog: which button is the answer
 // already given, that Maybe answers at once and Decline asks first, and that nothing can be pressed
 // while an answer is on its way. The Windows twin of Android's EventAnswerTest and Apple's
-// EventAnswerTests; the decline question itself is the UI suite's (EventAnswer.Tests.ps1).
+// EventAnswerTests; the decline question itself is the UI suite's (Mailcal.UiTests, EventAnswerTests).
 using System.Linq;
 using Allodia.Mailcal.Calendar;
 using uniffi.mailcal_bindings;

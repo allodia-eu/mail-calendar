@@ -202,6 +202,6 @@ handed one. Read a 🚧 on this page as *unknown*.
   not also approve untrusted settings. Linux additionally drives the rendered widget tree.
 - **Harness**: the front serves the seeded server's CalDAV and CardDAV on `12443` under a
   certificate no debug build is handed (`docker/stalwart/front/nginx.conf`). Windows'
-  `SetupCertificate.Tests.ps1` sets an account without mail up against it: the panel's SHA-256
+  `SetupCertificateTests` UI suite sets an account without mail up against it: the panel's SHA-256
   matches what the listener presents, Connect stays inert until the box is ticked, and the account
   then connects. Its `CoreErrorTests` hold rule 9 for the refusal's own message.

@@ -39,6 +39,44 @@ internal sealed partial class App
     }
 
     /// <summary>
+    /// Opens one of alice's folders, by the row the pane draws for it under the account, and waits
+    /// until the list is that folder's, with rows or its empty panel drawn: Drafts is empty whenever
+    /// the suite has tidied up after itself. Until the header names the folder, the rows on screen
+    /// are still the last folder's, and a press meant for the new one lands on one of those.
+    /// </summary>
+    internal void OpenFolder(string folder)
+    {
+        var account = Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = Mailbox.Hwnd })
+            ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}");
+        // A launch lists the account before its folders arrive from the server.
+        var row = Agent.Wait(Filter.Named(folder, "ListItem") with { Under = account }, Patience)
+            ?? throw new InvalidOperationException($"{Harness.Alice} shows no {folder} row; is its tree open?");
+        Agent.Invoke(row);
+        if (Agent.Wait(Filter.ById("MailboxHeader") with { Name = folder }, TimeSpan.FromSeconds(10)) is null)
+        {
+            throw new InvalidOperationException($"the list never became {folder}'s");
+        }
+        bool Drawn() => Agent.Find(Filter.ById("EmptyMailboxText") with { OnScreen = true }) is not null
+            || (Agent.Find(Filter.ById("RowsList")) is { } list && Agent.Find(new Filter { Type = "ListItem", Under = list }) is not null);
+        if (!Eventually(Drawn, TimeSpan.FromSeconds(40)))
+        {
+            throw new InvalidOperationException($"{folder} drew neither rows nor its empty panel within 40 s");
+        }
+        Agent.Settle();
+    }
+
+    /// <summary>The message titled <paramref name="subject"/> open in the reading pane: its row
+    /// pressed, and the pane's subject read back, which is the evidence the open finished.</summary>
+    internal void OpenMessage(string subject)
+    {
+        Agent.Invoke(RowTitled($"*{subject}*"));
+        if (!Eventually(() => Agent.Find(Filter.ById("ReadingSubject") with { Window = Mailbox.Hwnd })?.Name == subject, Patience))
+        {
+            throw new InvalidOperationException($"the reading pane never showed '{subject}'");
+        }
+    }
+
+    /// <summary>
     /// Clicks the row titled <paramref name="title"/> with the pointer, once or as a double-click,
     /// with the mailbox in front: a press goes to whatever is under the pointer. Then waits for the
     /// windows to settle, because a double-click opens its window on the second press and the pane
@@ -100,6 +138,25 @@ internal sealed partial class App
             return still;
         }, TimeSpan.FromSeconds(3));
         return last;
+    }
+
+    /// <summary>
+    /// The item in <paramref name="subject"/>'s row menu labelled with the catalog's
+    /// <paramref name="key"/>, in whatever language the app came up in, or null when the menu does
+    /// not offer it. A real right-click: the flyout is declared on the row template, which a keyboard
+    /// shortcut sent to the focused container never reaches. Leaves the menu open.
+    /// </summary>
+    internal Element? RowMenuItem(string subject, string key)
+    {
+        ShowMailbox();
+        Input.Click(RowTitled(subject), right: true);
+        var labels = Catalog.Everywhere(key);
+        Element? item = null;
+        Eventually(
+            () => (item = Agent.FindAll(new Filter { Type = "MenuItem", Window = Mailbox.Hwnd })
+                .FirstOrDefault(m => labels.Contains(m.Name))) is not null,
+            TimeSpan.FromSeconds(10));
+        return item;
     }
 
     /// <summary>The window titled <paramref name="title"/>, waited for.</summary>

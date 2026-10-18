@@ -108,7 +108,7 @@ public sealed class DraftsTests(HarnessApp harness)
         // The reply's conversation is joined when its composer opens, so even a save made before it
         // was ever sent stores In-Reply-To, and the reopened composer is a reply again.
         var subject = Subject("reply");
-        flow.OpenFolder("Inbox");
+        app.OpenFolder("Inbox");
         app.Agent.Invoke(app.RowTitled("Harness baseline message"));
         var reply = app.Agent.Wait(Filter.ById("ReadingReply"), App.Patience)
             ?? throw new InvalidOperationException("the reading pane never offered Reply");

@@ -125,6 +125,7 @@ internal static partial class TestAgent
                 "select" => OnUi(() => Select(request)),
                 "setValue" => OnUi(() => SetValue(request)),
                 "toggle" => OnUi(() => Toggle(request)),
+                "expand" => OnUi(() => Expand(request)),
                 "scrollIntoView" => OnUi(() => ScrollIntoView(request)),
                 "focus" => OnUi(() => Focus(request)),
                 "focused" => OnUi(Focused),

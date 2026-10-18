@@ -72,9 +72,10 @@ public sealed partial class SettingsDialog : ContentDialog
         // widen this dialog to fit the 680-wide content.
         Resources["ContentDialogMaxWidth"] = 760.0;
 
+        AutomationProperties.SetAutomationId(this, "SettingsDialog");
         foreach (var (tag, label) in Categories())
         {
-            _categories.Items.Add(new ListViewItem { Content = label, Tag = tag });
+            _categories.Items.Add(CategoryItem(tag, label));
         }
         _categories.SelectionChanged += (_, _) =>
         {
@@ -104,35 +105,6 @@ public sealed partial class SettingsDialog : ContentDialog
         _rebuilding = false;
         ShowCategory(index < 0 ? "general" : category);
     }
-
-    // The category rows, in display order, tag (used to dispatch) + localised label.
-    //
-    // Allodia is first and is dropped whole in a build carrying no registration: a row that opens
-    // an empty panel reads as a broken panel rather than as a build without a route, and it is what
-    // every build from source would show. The category and the group inside it share one string,
-    // because the product's own name belongs in one place.
-    private static (string Tag, string Label)[] Categories() =>
-        MailcalBindingsMethods.AllodiaSignInAvailable()
-            ? new[] { ("allodia", L10n.SettingsAllodiaHeading()) }.Concat(MailCategories()).ToArray()
-            : MailCategories();
-
-    private static (string Tag, string Label)[] MailCategories() => new[]
-    {
-        ("general", L10n.SettingsCategoryGeneral()),
-        ("calendar", L10n.SettingsCategoryCalendar()),
-        ("reading", L10n.SettingsCategoryReading()),
-        ("composing", L10n.SettingsCategoryComposing()),
-        // Its own category, not a sub-screen of Composing: a signature is a standalone entity reused
-        // across accounts, and "Settings → Signatures" is the path people already look for
-        // (docs/settings.md slot 6).
-        ("signatures", L10n.SettingsCategorySignatures()),
-        ("notifications", L10n.SettingsCategoryNotifications()),
-        ("privacy", L10n.SettingsCategoryPrivacy()),
-        ("accounts", L10n.SettingsCategoryAccounts()),
-        ("advanced", L10n.SettingsCategoryAdvanced()),
-        ("diagnostics", L10n.SettingsCategoryDiagnostics()),
-        ("about", L10n.SettingsCategoryAbout()),
-    };
 
     // Rebuilds the detail panel for the selected category.
     private void ShowCategory(string tag)

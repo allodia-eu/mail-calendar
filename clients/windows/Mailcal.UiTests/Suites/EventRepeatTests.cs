@@ -35,7 +35,7 @@ public sealed class EventRepeatTests(HarnessApp harness)
     private const string Plain = "Lunch";
 
     private void Case(string name, Action<App, CalendarFlow> body) =>
-        harness.Case(name, app => body(app, new CalendarFlow(app)), app => new CalendarFlow(app).CloseDialogs());
+        harness.Case(name, app => body(app, new CalendarFlow(app)), app => app.CloseDialogs());
 
     /// <summary>What the Repeat row says for <paramref name="title"/>, found by id because its
     /// caption is localised. Leaves the dialog closed.</summary>
@@ -44,7 +44,7 @@ public sealed class EventRepeatTests(HarnessApp harness)
         var dialog = flow.OpenDetail(title);
         var value = app.Agent.Find(new Filter { Id = "EventRepeatValue", Type = "Text", Under = dialog })
             ?? throw new InvalidOperationException($"'{title}' shows no repeat row at all; every event says how it repeats, the ones that do not included");
-        flow.CloseDialogs();
+        app.CloseDialogs();
         return value.Name.Length > 0 ? value.Name : throw new InvalidOperationException($"'{title}' has an empty repeat row");
     }
 
@@ -54,7 +54,7 @@ public sealed class EventRepeatTests(HarnessApp harness)
         var dialog = flow.OpenEditor(title);
         var picker = app.Agent.Find(new Filter { Id = id, Under = dialog }) ?? throw new InvalidOperationException($"'{title}' shows no {id} control");
         var chosen = app.Agent.Read(picker).Selection;
-        flow.CloseDialogs();
+        app.CloseDialogs();
         return string.IsNullOrEmpty(chosen) ? throw new InvalidOperationException($"{id} on '{title}' shows no choice, which states no rule at all") : chosen;
     }
 
@@ -67,7 +67,7 @@ public sealed class EventRepeatTests(HarnessApp harness)
         var box = app.Agent.Find(new Filter { Type = "Edit", Under = spinner })
             ?? throw new InvalidOperationException($"{id} on '{title}' has no editable field, so its number cannot be read or typed");
         var value = app.Agent.Read(box).Value ?? "";
-        flow.CloseDialogs();
+        app.CloseDialogs();
         return value;
     }
 
@@ -81,7 +81,7 @@ public sealed class EventRepeatTests(HarnessApp harness)
             throw new InvalidOperationException($"'{title}' is a weekly rule and shows no weekday row");
         }
         var ticked = days.Count(day => app.Agent.Read(day).Toggle == "On");
-        flow.CloseDialogs();
+        app.CloseDialogs();
         return ticked;
     }
 
@@ -183,7 +183,7 @@ public sealed class EventRepeatTests(HarnessApp harness)
         var dialog = flow.OpenEditor(Counted);
         Assert.True(app.Agent.Find(new Filter { Id = "EventRepeatEndCount", Under = dialog }) is not null,
             "a rule seeded COUNT=10 opens with no count control, so its end is not on screen at all");
-        flow.CloseDialogs();
+        app.CloseDialogs();
         Assert.True(Spinner(app, flow, Counted, "EventRepeatEndCount") == "10", "a rule seeded COUNT=10 opens on 10, not on a default the control invented");
     });
 
@@ -192,7 +192,7 @@ public sealed class EventRepeatTests(HarnessApp harness)
     {
         var weekly = flow.OpenEditor(Weekly);
         Assert.True(app.Agent.FindAll(new Filter { Id = "EventRepeatWeekday", Under = weekly }).Count == 7, "a weekly rule offers the whole week, one button per day");
-        flow.CloseDialogs();
+        app.CloseDialogs();
         var monthly = flow.OpenEditor(MonthlyNth);
         Assert.True(app.Agent.FindAll(new Filter { Id = "EventRepeatWeekday", Under = monthly }).Count == 0,
             "a monthly rule draws the weekday row, offering to set a day its frequency cannot use");

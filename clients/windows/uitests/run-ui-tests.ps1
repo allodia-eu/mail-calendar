@@ -26,8 +26,7 @@
 # without WinUI. Put it here when the thing under test is what the user actually sees.
 #
 # WHAT CI RUNS, AND WHAT IT DOES NOT. The Windows job runs `-Dataset showcase,first-run` after its
-# build, on the same runner, and a failure is red. The HARNESS suites, `harness-setup` included,
-# cannot run there at all: the harness is a Linux container and a GitHub Windows runner runs only Windows ones. So
+# build, on the same runner, and a failure is red. The HARNESS suites cannot run there at all: the harness is a Linux container and a GitHub Windows runner runs only Windows ones. So
 # nothing CI checks proves a mail action survived a round trip, and the suites that do are run by
 # hand (docs/background-sync.md carries the same gap for background sync). CI names them as not
 # selected rather than letting them take the "the harness is not up" skip, which would silently
@@ -44,7 +43,7 @@
 # dot-sources it to READ it, then launches the dataset, then invokes the cases:
 #
 #     $Suite = @{
-#       Dataset = 'showcase'                 # 'showcase' | 'harness' | 'first-run' | 'harness-setup'
+#       Dataset = 'showcase'                 # 'showcase' | 'harness' | 'first-run'
 #       Env = @{ MAILCAL_… = '…' }           # optional; see below
 #       Prepare = { … }                    # optional; see below
 #       Cases = @(
@@ -129,11 +128,6 @@
 #              one in a summary line. Pass -RequireHarness to turn that into a failure.
 #   first-run  the real core over an EMPTY namespace, wiped before every launch: the screens a
 #              person sees once. Needs no server, so CI runs it.
-#   harness-setup
-#              first-run's empty namespace beside the harness: for a suite that sets an account
-#              up through the form, uses it against a real server and removes it again, ending
-#              where it started. Skipped like `harness` when the harness is not up, and never
-#              selected by CI.
 #
 # The showcase engine DOES NOT REALLY PERFORM MAIL ACTIONS. Anything destructive belongs in a
 # harness suite, or it proves only that you dispatched into a void.
@@ -156,7 +150,7 @@ param(
   # thing over as ONE string, while the same words inside a pwsh script are an array. ValidateSet
   # rejected the first with "the argument does not belong to the set", which reads as a wrong
   # value rather than a quoting difference and sent the reader looking at the wrong thing.
-  [string[]] $Dataset = @('showcase', 'harness', 'first-run', 'harness-setup'),
+  [string[]] $Dataset = @('showcase', 'harness', 'first-run'),
   # Leave the app running afterwards, for poking at a failure by hand.
   [switch] $KeepApp
 )
@@ -164,7 +158,7 @@ $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $windows = Join-Path $here '..'
 
-$KnownDatasets = @('showcase', 'harness', 'first-run', 'harness-setup')
+$KnownDatasets = @('showcase', 'harness', 'first-run')
 $Dataset = @($Dataset | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $unknown = @($Dataset | Where-Object { $KnownDatasets -notcontains $_ })
 if ($unknown.Count -gt 0) {
@@ -426,7 +420,7 @@ foreach ($group in ($plan | Group-Object -Property Key)) {
     continue
   }
 
-  if ($groupDataset -in @('harness', 'harness-setup') -and -not (Test-HarnessUp)) {
+  if ($groupDataset -eq 'harness' -and -not (Test-HarnessUp)) {
     foreach ($member in $members) {
       $reason = "$($member.Name): the harness is not up (scripts/dev/harness.sh up)"
       if ($RequireHarness) { $failed += $reason; Write-Host "FAIL  $reason" -ForegroundColor Red }
