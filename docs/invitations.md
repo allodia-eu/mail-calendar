@@ -688,7 +688,7 @@ a failure that never happened. It is `cfg(debug_assertions)`, like the harness C
 and it logs a warning on **every** RSVP while it is in force, so no log of a run can hide that it was
 on.
 
-The Windows UI suite ([`../clients/windows/uitests/InvitationReplyPrompt.Tests.ps1`](../clients/windows/uitests/InvitationReplyPrompt.Tests.ps1))
+The Windows UI suite ([`InvitationReplyPromptTests.cs`](../clients/windows/Mailcal.UiTests/Suites/InvitationReplyPromptTests.cs))
 is built on it, and covers the half no other machine can see: `Mailcal.Tests` cannot link a WinUI
 type and `cargo test` cannot see a XAML binding, so the InfoBar's `IsOpen`, the tick's initial state,
 `IsClosable="False"`, and the code-behind line that clears the tick between meetings had nothing

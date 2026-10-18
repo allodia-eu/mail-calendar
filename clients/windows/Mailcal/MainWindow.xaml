@@ -532,6 +532,7 @@
                          clears the question itself, and a bar the user could close would leave one
                          standing that nobody can answer. -->
                     <InfoBar
+                        AutomationProperties.AutomationId="InvitationReplyPrompt"
                         Margin="12,12,12,0"
                         IsOpen="{x:Bind Model.HasReplyPrompt, Mode=OneWay}"
                         Visibility="{x:Bind Shown(Model.HasReplyPrompt), Mode=OneWay}"

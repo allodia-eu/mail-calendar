@@ -288,7 +288,7 @@ Projects/Internal
 
 `Archive`'s children are the load-bearing part: `Archive` sorts near the top of the pane, so a pane
 scrolled down to the custom folders has open rows above the ones it shows, which is where a pane
-that rebuilds its rows visibly jumps. `clients/windows/uitests/FolderPanePosition.Tests.ps1` scrolls
+that rebuilds its rows visibly jumps. `clients/windows/Mailcal.UiTests/Suites/FolderPanePositionTests.cs` scrolls
 past them and moves `Acme`'s unread count. Rename or move either and that suite stops finding what
 it expands.
 

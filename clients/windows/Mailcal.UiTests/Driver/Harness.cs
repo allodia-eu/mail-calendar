@@ -154,6 +154,34 @@ internal static class Harness
         }
     }
 
+    /// <summary>Writes <paramref name="ics"/> straight into <paramref name="address"/>'s default
+    /// calendar as <paramref name="name"/>.ics, the way seed-calendar-week.sh seeds a meeting.</summary>
+    internal static void PutEvent(string address, string name, string ics) => Run(async () =>
+    {
+        using var dav = Dav(address);
+        using var body = new StringContent(ics, Encoding.UTF8, "text/calendar");
+        (await dav.PutAsync(EventUrl(address, name), body)).EnsureSuccessStatusCode();
+        return 0;
+    });
+
+    /// <summary>Removes what <see cref="PutEvent"/> wrote; nothing when it is gone already.</summary>
+    internal static void DeleteEvent(string address, string name) => Run(async () =>
+    {
+        using var dav = Dav(address);
+        await dav.DeleteAsync(EventUrl(address, name));
+        return 0;
+    });
+
+    private static string EventUrl(string address, string name) => $"{Base}/dav/cal/{Uri.EscapeDataString(address)}/default/{name}.ics";
+
+    private static HttpClient Dav(string address)
+    {
+        var http = new HttpClient();
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes($"{address}:harness-{address.Split('@')[0]}-pw")));
+        return http;
+    }
+
     private static (int Code, string Said) Docker(string? input, params string[] arguments)
     {
         var docker = new ProcessStartInfo("docker")

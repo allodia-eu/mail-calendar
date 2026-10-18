@@ -29,11 +29,16 @@ public class HarnessApp : IDisposable
     /// Runs one case against a clean surface, then <paramref name="cleanup"/> whatever happened. A
     /// failure leaves a screenshot and what the agent saw in failures/, named after the case, because
     /// whoever reads it did not write the test. A cleanup that fails after the case failed is not
-    /// allowed to replace the case's own failure: that one is the answer.
+    /// allowed to replace the case's own failure: that one is the answer. With
+    /// <paramref name="reset"/> false the surface is left as the case before it left it, for a case
+    /// that goes on from there in a suite whose cases run in the order written.
     /// </summary>
-    internal void Case(string name, Action<App> body, Action<App>? cleanup = null)
+    internal void Case(string name, Action<App> body, Action<App>? cleanup = null, bool reset = true)
     {
-        App.Reset();
+        if (reset)
+        {
+            App.Reset();
+        }
         Exception? failed = null;
         try
         {
@@ -108,6 +113,20 @@ public sealed class ImapHarnessApp : HarnessApp
         new Dictionary<string, string> { ["MAILCAL_DEV_ACCOUNT"] = "stalwart-imap" };
 }
 
+/// <summary>The harness app on alice's IMAP account, its CalDAV half, told to pretend the calendar
+/// server stored each RSVP and reported it could not pass it on (MAILCAL_FAKE_REPLY_DELIVERY, debug
+/// builds only): the one server verdict no harness produces, everything below it real.</summary>
+public sealed class FakeReplyHarnessApp : HarnessApp
+{
+    internal const string Status = "5.2";
+
+    protected override IReadOnlyDictionary<string, string> Env { get; } = new Dictionary<string, string>
+    {
+        ["MAILCAL_DEV_ACCOUNT"] = "stalwart-imap",
+        ["MAILCAL_FAKE_REPLY_DELIVERY"] = $"failed:{Status}",
+    };
+}
+
 /// <summary>The harness app with its log at debug: for a rule the app states only in its log.</summary>
 public sealed class DebugLogHarnessApp : HarnessApp
 {
@@ -148,6 +167,12 @@ public sealed class TwoAccountHarnessCollection : ICollectionFixture<TwoAccountH
 public sealed class ImapHarnessCollection : ICollectionFixture<ImapHarnessApp>
 {
     public const string Name = "harness, IMAP";
+}
+
+[CollectionDefinition(Name)]
+public sealed class FakeReplyHarnessCollection : ICollectionFixture<FakeReplyHarnessApp>
+{
+    public const string Name = "harness, IMAP, replies reported undelivered";
 }
 
 [CollectionDefinition(Name)]

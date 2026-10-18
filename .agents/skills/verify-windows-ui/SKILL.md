@@ -69,7 +69,7 @@ suite picks a different harness transport: `MAILCAL_DEV_ACCOUNT = 'stalwart-imap
 half.
 
 **When the state you need is one the harness cannot produce, fake the *input*, never the surface.**
-`InvitationReplyPrompt.Tests.ps1` is the worked example: no server here ever reports a failed iTIP
+[`InvitationReplyPromptTests.cs`](../../../clients/windows/Mailcal.UiTests/Suites/InvitationReplyPromptTests.cs) is the worked example: no server here ever reports a failed iTIP
 delivery, so `MAILCAL_FAKE_REPLY_DELIVERY=failed:5.2` substitutes the calendar server's verdict in
 the **core** and leaves everything downstream real. A hook that instead set the view-model's prompt
 directly would go on passing after the wiring between core and client was cut, which is the one

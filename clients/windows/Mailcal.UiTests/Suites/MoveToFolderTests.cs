@@ -22,23 +22,8 @@ public sealed class MoveToFolderTests(ImapHarnessApp harness)
 
     private static readonly string Inbox = Catalog.English("folder_inbox");
 
-    private void Case(string name, Action<App> body) => harness.Case(name, body, app => app.CloseDialogs());
-
-    /// <summary>Opens <paramref name="folder"/> and asks the server for it: a move re-reads the
-    /// folder it left, not the one it reached, so the destination is current only after a sync.</summary>
-    private static void OpenAndSync(App app, string folder)
-    {
-        app.OpenFolder(folder);
-        app.Agent.Invoke(app.Agent.Find(Filter.ById("SelectionSync", "Button")) ?? throw new InvalidOperationException("the toolbar has no Sync button"));
-    }
-
-    /// <summary>Waits until the open list does, or with <paramref name="absent"/> does not, show the
-    /// fixture; whether it got there.</summary>
-    private static bool WaitSubjectRow(App app, bool absent = false)
-    {
-        var row = new Filter { Type = "ListItem", Under = app.RowsList(), Has = new Filter { NameLike = $"*{Subject}*" } };
-        return absent ? app.Agent.WaitGone(row, TimeSpan.FromSeconds(30)) : app.Agent.Wait(row, TimeSpan.FromSeconds(30)) is not null;
-    }
+    private void Case(string name, Action<App, FolderFlow> body) =>
+        harness.Case(name, app => body(app, new FolderFlow(app)), app => app.CloseDialogs());
 
     /// <summary>Presses Move to folder… on the fixture's row menu and returns the picker, left open.</summary>
     private static Element OpenPicker(App app)
@@ -62,20 +47,12 @@ public sealed class MoveToFolderTests(ImapHarnessApp harness)
         app.Agent.WaitGone(Filter.ById("FolderMoveTargets"), TimeSpan.FromSeconds(10));
     }
 
-    private static Element FolderRow(App app, string folder)
-    {
-        var account = app.Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = app.Mailbox.Hwnd })
-            ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}");
-        return app.Agent.Find(Filter.Named(folder, "ListItem") with { Under = account })
-            ?? throw new InvalidOperationException($"{Harness.Alice} shows no {folder} row; is its tree open?");
-    }
-
     [HarnessFact]
     public void ThePickerDrawsTheTreeOfferingTheFoldersThatTakeMailAndNotTheOneOnScreen() =>
-        Case(nameof(ThePickerDrawsTheTreeOfferingTheFoldersThatTakeMailAndNotTheOneOnScreen), app =>
+        Case(nameof(ThePickerDrawsTheTreeOfferingTheFoldersThatTakeMailAndNotTheOneOnScreen), (app, folders) =>
         {
-            OpenAndSync(app, "Projects");
-            if (!WaitSubjectRow(app))
+            folders.OpenAndSync("Projects");
+            if (!folders.WaitRow(Subject))
             {
                 throw new InvalidOperationException($"Projects does not show '{Subject}'; was the harness reseeded?");
             }
@@ -98,36 +75,36 @@ public sealed class MoveToFolderTests(ImapHarnessApp harness)
             foreach (var key in new[] { "folder_junk", "folder_drafts" })
             {
                 var folder = Catalog.English(key);
-                FolderRow(app, folder);
+                folders.Row(folder);
                 Assert.False(byLabel.ContainsKey(folder), $"{folder} takes no move (rule 24)");
             }
         });
 
     [HarnessFact]
-    public void MovedToTheInboxItLeavesProjectsAndArrivesThere() => Case(nameof(MovedToTheInboxItLeavesProjectsAndArrivesThere), app =>
+    public void MovedToTheInboxItLeavesProjectsAndArrivesThere() => Case(nameof(MovedToTheInboxItLeavesProjectsAndArrivesThere), (app, folders) =>
     {
-        OpenAndSync(app, "Projects");
-        if (!WaitSubjectRow(app))
+        folders.OpenAndSync("Projects");
+        if (!folders.WaitRow(Subject))
         {
             throw new InvalidOperationException($"Projects does not show '{Subject}'");
         }
         MoveTo(app, Inbox);
-        Assert.True(WaitSubjectRow(app, absent: true), "the message left the folder it was moved from");
-        OpenAndSync(app, Inbox);
-        Assert.True(WaitSubjectRow(app), "and the Inbox shows it");
+        Assert.True(folders.WaitRow(Subject, absent: true), "the message left the folder it was moved from");
+        folders.OpenAndSync(Inbox);
+        Assert.True(folders.WaitRow(Subject), "and the Inbox shows it");
     });
 
     [HarnessFact]
-    public void MovedBackToProjectsItReturnsThere() => Case(nameof(MovedBackToProjectsItReturnsThere), app =>
+    public void MovedBackToProjectsItReturnsThere() => Case(nameof(MovedBackToProjectsItReturnsThere), (app, folders) =>
     {
-        OpenAndSync(app, Inbox);
-        if (!WaitSubjectRow(app))
+        folders.OpenAndSync(Inbox);
+        if (!folders.WaitRow(Subject))
         {
             throw new InvalidOperationException($"the Inbox does not show '{Subject}'; the case before this one did not land");
         }
         MoveTo(app, "Projects");
-        Assert.True(WaitSubjectRow(app, absent: true), "the message left the Inbox");
-        OpenAndSync(app, "Projects");
-        Assert.True(WaitSubjectRow(app), "and Projects holds it again");
+        Assert.True(folders.WaitRow(Subject, absent: true), "the message left the Inbox");
+        folders.OpenAndSync("Projects");
+        Assert.True(folders.WaitRow(Subject), "and Projects holds it again");
     });
 }
