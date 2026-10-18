@@ -1,7 +1,8 @@
-// Settings → Accounts drawn from the core's one snapshot (docs/accounts.md rules 11 to 13): every
-// account listed, mail or not; a link suggested where the calendar server schedules as the mailbox's
-// address, and made only once the person presses it; a use switched off only once it is confirmed;
-// and a removal that names the accounts losing their link.
+// Settings → Accounts drawn from the core's one snapshot (docs/accounts.md rules 8 and 11 to 13):
+// every account listed, mail or not; a link suggested where the calendar server schedules as the
+// mailbox's address, made only once the person presses it, and named by its kind beside the mailbox
+// of its address; a use switched off only once it is confirmed; and a removal that names the
+// accounts losing their link.
 //
 // WHY HERE. The rules are pinned in Mailcal.Tests (AccountSettingsRulesTests), but whether the page
 // draws them, and whether a press reaches the core and comes back as the next snapshot, is WinUI and
@@ -65,8 +66,9 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
         var link = app.Agent.Wait(new Filter { Id = "AccountLinkSuggested_Calendar", Under = dialog }, TimeSpan.FromSeconds(15))
             ?? throw new InvalidOperationException("the calendar server schedules as the mailbox's address, so its calendar is suggested with a button that links it");
         app.Agent.Invoke(link);
-        Assert.True(App.Eventually(() => app.Agent.Find(new Filter { Id = "AccountLink_Calendar", Under = dialog }) is { } now && app.Agent.Read(now).Selection == Harness.Alice,
-            TimeSpan.FromSeconds(10)), "pressing Link picks the suggested calendar");
+        Assert.True(App.Eventually(() => app.Agent.Find(new Filter { Id = "AccountLink_Calendar", Under = dialog }) is { } now && app.Agent.Read(now).Selection == $"{Harness.Alice} (CalDAV/CardDAV)",
+            TimeSpan.FromSeconds(10)),
+            "pressing Link picks the suggested calendar, named by its kind (docs/accounts.md rule 8): it has the mailbox's address, and the bare address would read as the mailbox itself");
         Assert.True(app.Agent.Find(new Filter { Id = "AccountLinkSuggested_Calendar", Under = dialog }) is null,
             "a link already made is not suggested again: the page was drawn from the next snapshot");
         // From the other end: naming a calendar from the mailbox links the mailbox to the calendar
@@ -74,6 +76,8 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
         var help = RowHelp(app, setup);
         Assert.True(help.Count(h => h.Contains($"Mail: {Harness.Alice}", StringComparison.Ordinal)) == 1,
             $"one calendar account names the mailbox it sends through. Rows: {string.Join(" || ", help)}");
+        Assert.True(help.Count(h => h.Contains($"Calendar: {Harness.Alice} (CalDAV/CardDAV)", StringComparison.Ordinal)) == 1,
+            $"the mailbox's row names its calendar by its kind, not by the address they share. Rows: {string.Join(" || ", help)}");
     });
 
     [HarnessFact]

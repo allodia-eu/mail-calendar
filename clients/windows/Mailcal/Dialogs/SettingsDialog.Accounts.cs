@@ -9,6 +9,7 @@
 // and whatever is being typed on it, alone.
 
 using Allodia.Mailcal.Services;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -110,25 +111,15 @@ public sealed partial class SettingsDialog
     private static string AccountSummary(AccountEntry entry)
     {
         var uses = string.Join(", ", AccountSettingsRules.InUse(entry).Select(UseName));
-        var lines = new List<string> { $"{KindLabel(entry.Kind)} · {uses}" };
+        var lines = new List<string> { $"{AccountNameText.KindLine(entry)} · {uses}" };
         lines.AddRange(AccountSettingsRules.Linked(entry)
-            .Select(link => L10n.SettingsAccountLinkedLine(UseName(link.Use), link.Address)));
+            .Select(link => L10n.SettingsAccountLinkedLine(UseName(link.Use), AccountNameText.Of(link.Account))));
         if (AccountSettingsRules.NeedsPermission(entry))
         {
             lines.Add(L10n.SettingsAccountNeedsPermission());
         }
         return string.Join("\n", lines);
     }
-
-    /// <summary>The label for an account's kind, as the setup form names the same choice.</summary>
-    private static string KindLabel(AccountKind kind) => kind switch
-    {
-        AccountKind.Dav => L10n.AccountKindDav(),
-        AccountKind.Jmap => L10n.SetupAccountTypeJmap(),
-        AccountKind.Microsoft => L10n.SetupAccountTypeMicrosoft(),
-        AccountKind.Google => L10n.SetupAccountTypeGoogle(),
-        _ => L10n.SetupAccountTypePassword(),
-    };
 
     /// <summary>A use's name, as the main window's sections name it.</summary>
     internal static string UseName(AccountCapability capability) => capability switch
@@ -152,7 +143,7 @@ public sealed partial class SettingsDialog
         };
         AutomationProperties.SetHeadingLevel(title, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level2);
         panel.Children.Add(title);
-        panel.Children.Add(Description(KindLabel(entry.Kind)));
+        panel.Children.Add(Description(AccountNameText.KindLine(entry)));
         // Whether this one travels: first, because it decides whether anything below it is
         // anybody else's business (docs/settings.md).
         if (_model.AccountsSyncMode.TryGetValue(entry.Id, out var mode))

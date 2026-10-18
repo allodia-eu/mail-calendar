@@ -66,7 +66,7 @@ public sealed partial class AccountSetupView
             box.Items.Add(L10n.SettingsAccountLinkNone());
             foreach (var option in picker.Options)
             {
-                box.Items.Add(option.Address);
+                box.Items.Add(AccountNameText.Of(option));
             }
             box.SelectedIndex = step.Picked[index] is { } picked ? picked + 1 : 0;
             box.SelectionChanged += (_, _) =>
@@ -80,7 +80,7 @@ public sealed partial class AccountSetupView
             if (picker.Suggested is { } suggested)
             {
                 LinksPanel.Children.Add(Secondary(
-                    L10n.SettingsAccountLinkSuggested(picker.Options[suggested].Address), "CaptionTextBlockStyle"));
+                    L10n.SettingsAccountLinkSuggested(AccountNameText.Of(picker.Options[suggested])), "CaptionTextBlockStyle"));
             }
         }
         LinksPanel.Children.Add(Secondary(L10n.SetupLinksNote(), "CaptionTextBlockStyle"));

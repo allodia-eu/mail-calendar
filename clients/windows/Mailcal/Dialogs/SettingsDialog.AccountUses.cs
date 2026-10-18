@@ -6,6 +6,7 @@
 // switch, as the database reset is.
 
 using Allodia.Mailcal.Services;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -137,7 +138,7 @@ public sealed partial class SettingsDialog
         box.Items.Add(L10n.SettingsAccountLinkNone());
         foreach (var option in picker.Options)
         {
-            box.Items.Add(option.Address);
+            box.Items.Add(AccountNameText.Of(option));
         }
         box.SelectedIndex = picker.Selected is { } selected ? selected + 1 : 0;
         box.SelectionChanged += (_, _) =>
@@ -155,7 +156,7 @@ public sealed partial class SettingsDialog
         if (picker.Suggested is { } suggested)
         {
             var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            var text = Description(L10n.SettingsAccountLinkSuggested(picker.Options[suggested].Address));
+            var text = Description(L10n.SettingsAccountLinkSuggested(AccountNameText.Of(picker.Options[suggested])));
             text.VerticalAlignment = VerticalAlignment.Center;
             line.Children.Add(text);
             var link = new Button { Content = L10n.ActionLink() };

@@ -108,21 +108,21 @@ internal static class AccountSettingsRules
     private static bool Works(CapabilityState state) =>
         state is CapabilityState.On or CapabilityState.NeedsPermission;
 
-    /// <summary>The links the account holds, as the list row names them.</summary>
-    internal static IReadOnlyList<(AccountCapability Use, string Address)> Linked(AccountEntry entry)
+    /// <summary>The links the account holds, in the order the list row names them.</summary>
+    internal static IReadOnlyList<(AccountCapability Use, LinkedAccount Account)> Linked(AccountEntry entry)
     {
-        var linked = new List<(AccountCapability, string)>();
+        var linked = new List<(AccountCapability, LinkedAccount)>();
         if (entry.Links.Calendar is { } calendar)
         {
-            linked.Add((AccountCapability.Calendar, calendar.Address));
+            linked.Add((AccountCapability.Calendar, calendar));
         }
         if (entry.Links.Contacts is { } contacts)
         {
-            linked.Add((AccountCapability.Contacts, contacts.Address));
+            linked.Add((AccountCapability.Contacts, contacts));
         }
         if (entry.Links.Mail is { } mail)
         {
-            linked.Add((AccountCapability.Mail, mail.Address));
+            linked.Add((AccountCapability.Mail, mail));
         }
         return linked;
     }
@@ -283,10 +283,10 @@ internal static class AccountSettingsRules
 
     /// <summary>The accounts that lose their link when this one is removed, joined for the
     /// confirmation; null when none does.</summary>
-    internal static string? Unlinked(AccountEntry entry) =>
+    internal static string? Unlinked(AccountEntry entry, AccountNameWords words) =>
         entry.LinkedFrom.Length == 0
             ? null
-            : string.Join(", ", entry.LinkedFrom.Select(linked => linked.Address));
+            : string.Join(", ", entry.LinkedFrom.Select(linked => AccountNames.Of(linked, words)));
 
     /// <summary>What switching a use on or off answered.</summary>
     internal static UseChangeOutcome Outcome(CapabilityChange change) => change switch
@@ -328,6 +328,7 @@ internal static class AccountSettingsRules
             parts.Add(entry.SeparateServer is { } separate
                 ? $"{string.Join(',', separate.Uses)}|{separate.Host}|{separate.Username}"
                 : "-");
+            parts.Add(Distinction(entry.Distinction));
         }
         parts.Add("expired");
         parts.AddRange(expired.Order(StringComparer.Ordinal));
@@ -337,5 +338,12 @@ internal static class AccountSettingsRules
     }
 
     private static string Linked(LinkedAccount? linked) =>
-        linked is null ? "-" : $"{linked.Id}={linked.Address}";
+        linked is null ? "-" : $"{linked.Id}={linked.Address}/{Distinction(linked.Distinction)}";
+
+    private static string Distinction(AccountDistinction? distinction) => distinction switch
+    {
+        AccountDistinction.Kind kind => $"kind:{kind.KindValue}",
+        AccountDistinction.Server server => $"server:{server.Host}",
+        _ => "-",
+    };
 }

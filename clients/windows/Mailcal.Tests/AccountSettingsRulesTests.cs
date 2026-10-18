@@ -142,7 +142,7 @@ public class AccountSettingsRulesTests
             Links = new AccountLinksView(Linked("alice@cloud.example"), null, null),
         };
         Assert.Equal([AccountCapability.Mail], AccountSettingsRules.InUse(entry));
-        Assert.Equal([(AccountCapability.Calendar, "alice@cloud.example")], AccountSettingsRules.Linked(entry));
+        Assert.Equal([(AccountCapability.Calendar, Linked("alice@cloud.example"))], AccountSettingsRules.Linked(entry));
     }
 
     [Fact]
@@ -194,9 +194,12 @@ public class AccountSettingsRulesTests
     public void RemovingNamesTheAccountsThatLoseTheirLink()
     {
         var entry = MailboxOnly();
-        Assert.Null(AccountSettingsRules.Unlinked(entry));
-        entry = entry with { LinkedFrom = [Linked("a@example.org"), Linked("b@example.org")] };
-        Assert.Equal("a@example.org, b@example.org", AccountSettingsRules.Unlinked(entry));
+        Assert.Null(AccountSettingsRules.Unlinked(entry, AccountNamesTests.Words));
+        entry = entry with
+        {
+            LinkedFrom = [Linked("a@example.org"), Linked("b@example.org") with { Distinction = new AccountDistinction.Kind(AccountKind.Dav) }],
+        };
+        Assert.Equal("a@example.org, b@example.org (DAV)", AccountSettingsRules.Unlinked(entry, AccountNamesTests.Words));
     }
 
     [Fact]
@@ -224,6 +227,9 @@ public class AccountSettingsRulesTests
         // So does a mailbox listed in the mail settings after the page was drawn, which is where
         // its Mail section comes from.
         Assert.NotEqual(drawn, AccountSettingsRules.Fingerprint(snapshot, [], ["mail:" + MailboxOnly().Id]));
+        // And an account of the same address arriving, which changes how this one is named.
+        var named = MailboxOnly() with { Distinction = new AccountDistinction.Server("imap.example.org") };
+        Assert.NotEqual(drawn, AccountSettingsRules.Fingerprint(new AccountsSnapshot([named]), []));
     }
 
     [Fact]

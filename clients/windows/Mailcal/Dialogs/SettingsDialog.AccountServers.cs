@@ -6,6 +6,7 @@
 // a working account, and an expired password is replaced here too.
 
 using Allodia.Mailcal.Services;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -134,7 +135,7 @@ public sealed partial class SettingsDialog
         AutomationProperties.SetAutomationId(remove, "AccountRemove");
         var confirm = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
         var message = L10n.RemoveAccountMessage(entry.Address);
-        if (AccountSettingsRules.Unlinked(entry) is { } unlinked)
+        if (AccountSettingsRules.Unlinked(entry, AccountNameText.Words) is { } unlinked)
         {
             message += " " + L10n.RemoveAccountUnlinks(unlinked);
         }
