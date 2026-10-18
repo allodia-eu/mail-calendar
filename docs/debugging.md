@@ -305,9 +305,9 @@ accept it ([`certificate-exceptions.md`](certificate-exceptions.md)).
 
 ### Making a stored password stop working
 
-On Windows, `Set-HarnessPassword` in
-[`uitests/dataset.ps1`](../clients/windows/uitests/dataset.ps1) changes a seeded user's password
-on the server, which is how a pasted secret expires; put `harness-alice-pw` back afterwards, or
+On Windows, `Harness.SetPassword` in
+[`Mailcal.UiTests/Driver/Harness.cs`](../clients/windows/Mailcal.UiTests/Driver/Harness.cs) changes
+a seeded user's password on the server, which is how a pasted secret expires; put `harness-alice-pw` back afterwards, or
 `harness.sh reset`.
 
 ### Making the server refuse a login that is valid
@@ -885,7 +885,7 @@ logged in: it carries no `MAILCAL_DEV_ACCOUNT`, so the new process opens the **o
 where the message the notification names does not exist. Setting the variable for the user does
 not reach the shell either. What that looks like is the feature failing: the app comes up on the
 right account list and opens nothing, which is exactly the shape of the bug someone is looking for.
-`uitests/NotificationClick.Tests.ps1` is not affected, because it makes the activation itself and
+`Mailcal.UiTests/Suites/NotificationClickTests.cs` is not affected, because it makes the activation itself and
 its environment is the harness's. The log tells the outcomes apart without a screenshot:
 `notification click: opening the message it named`, then either silence, meaning it opened, or
 `the message it named is not in the list, nothing opened`.

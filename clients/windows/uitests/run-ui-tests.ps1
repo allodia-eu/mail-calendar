@@ -43,7 +43,7 @@
 # dot-sources it to READ it, then launches the dataset, then invokes the cases:
 #
 #     $Suite = @{
-#       Dataset = 'showcase'                 # 'showcase' | 'harness' | 'first-run'
+#       Dataset = 'showcase'                 # 'showcase' | 'first-run'
 #       Env = @{ MAILCAL_… = '…' }           # optional; see below
 #       Prepare = { … }                    # optional; see below
 #       Cases = @(
@@ -122,10 +122,11 @@
 #              here than for a screenshot: a test that silently ran against the developer's real
 #              mailbox would not just be wrong, it would be reading their mail.
 #              Locale is pinned to `en`, so seeded subjects and senders are stable strings.
-#   harness    one account, REAL transport, needs `scripts/dev/harness.sh up`. The only way to
-#              prove something that has to survive a round trip. Skipped loudly when the harness
-#              is not up, never silently, because a skipped check reads exactly like a passing
-#              one in a summary line. Pass -RequireHarness to turn that into a failure.
+#   harness    the suites in Mailcal.UiTests, against the local mail server through the app's
+#              test agent: the only way to prove something that has to survive a round trip. A
+#              case skips loudly when the harness is not up, never silently, because a skipped
+#              check reads exactly like a passing one in a summary line. Pass -RequireHarness to
+#              turn that into a failure. A suite file here cannot declare it.
 #   first-run  the real core over an EMPTY namespace, wiped before every launch: the screens a
 #              person sees once. Needs no server, so CI runs it.
 #
@@ -300,6 +301,9 @@ $plan = @()
 foreach ($file in $files) {
   $declared = & { $Suite = $null; . $file.FullName; $Suite }
   if (-not $declared) { throw "$($file.Name) defines no `$Suite" }
+  if ($declared.Dataset -eq 'harness') {
+    throw "$($file.Name) declares the harness dataset; a harness suite belongs in Mailcal.UiTests, whose README says how"
+  }
   $envKey = ''
   if ($declared.Env) {
     $envKey = (($declared.Env.Keys | Sort-Object) | ForEach-Object { "$_=$($declared.Env[$_])" }) -join ';'
@@ -416,15 +420,6 @@ foreach ($group in ($plan | Group-Object -Property Key)) {
   if ($Dataset -notcontains $groupDataset) {
     foreach ($member in $members) {
       $excluded += "$($member.Name): dataset '$groupDataset' is not in -Dataset"
-    }
-    continue
-  }
-
-  if ($groupDataset -eq 'harness' -and -not (Test-HarnessUp)) {
-    foreach ($member in $members) {
-      $reason = "$($member.Name): the harness is not up (scripts/dev/harness.sh up)"
-      if ($RequireHarness) { $failed += $reason; Write-Host "FAIL  $reason" -ForegroundColor Red }
-      else { $skipped += $reason; Write-Host "SKIP  $reason" -ForegroundColor Yellow }
     }
     continue
   }

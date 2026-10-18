@@ -53,7 +53,7 @@ A suite file declares its dataset and its cases and nothing else:
 
 ```powershell
 $Suite = @{
-  Dataset = 'showcase'          # or 'harness': §3 decides which proves your point
+  Dataset = 'showcase'          # or 'first-run'; a harness suite goes in Mailcal.UiTests (§3)
   Env = @{ MAILCAL_… = '…' }    # optional; set before launch, removed after the suite
   Cases = @(
     @{ Name = 'what must be true'; Body = { Assert-Equal 600 (Get-RowTextWeight -Row $r -Text 'x') 'why' } }
@@ -64,8 +64,9 @@ $Suite = @{
 **`Env` is how a suite reaches a `MAILCAL_*` switch**, and both halves of the runner's handling
 matter: the app reads them once at startup, so a `$env:` line inside a Body is already too late,
 and one set at a suite file's top level leaks into every suite that sorts after it (§5's
-`MAILCAL_SHOWCASE` trap, which reads as a passing test against the wrong dataset). It is also how a
-suite picks a different harness transport: `MAILCAL_DEV_ACCOUNT = 'stalwart-imap'` for the CalDAV
+`MAILCAL_SHOWCASE` trap, which reads as a passing test against the wrong dataset). A harness suite
+in [`Mailcal.UiTests`](../../../clients/windows/Mailcal.UiTests) does the same through its launch
+fixture, which is also how it picks a transport: `MAILCAL_DEV_ACCOUNT=stalwart-imap` for the CalDAV
 half.
 
 **When the state you need is one the harness cannot produce, fake the *input*, never the surface.**

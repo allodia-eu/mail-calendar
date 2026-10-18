@@ -313,7 +313,7 @@ When you change background delivery or new-mail notifications:
      `UNNotificationResponse` cannot be built outside the OS, so the click between the two halves
      is a hand check. The suite runs on the host and, through `test-kit.sh --ios`, on an iOS
      simulator in CI, because `swift test` never compiles the phone's branch.
-   - **Windows**: `uitests/NotificationClick.Tests.ps1` reads the toast the app posted from the
+   - **Windows**: `Mailcal.UiTests/Suites/NotificationClickTests.cs` reads the toast the app posted from the
      shell's notification history and calls the app's notification activator with its arguments,
      as the shell does on a click: over the calendar with the app running, over a composer, and
      with the app closed, so that COM starts it. It asserts the reading pane opened the message, and

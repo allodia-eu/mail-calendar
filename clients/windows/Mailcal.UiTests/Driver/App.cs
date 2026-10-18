@@ -48,7 +48,46 @@ internal sealed partial class App : IDisposable
         {
             ClearNamespace("dev-first-run");
         }
-        var pipe = $"mailcal-uitests-{Environment.ProcessId}";
+        var (environment, pipe) = LaunchEnvironment(env, firstRun);
+        // Through the shell, so the app inherits none of this process's handles: a child holding the
+        // test host's output open keeps `dotnet test` waiting after the last case.
+        var launchedAt = DateTimeOffset.Now;
+        Process? process = null;
+        WithEnvironment(environment, () => process = Process.Start(new ProcessStartInfo(Exe()) { UseShellExecute = true }));
+        var app = new App(process ?? throw new InvalidOperationException("the app did not start"), Agent.Connect(pipe, TimeSpan.FromSeconds(60)));
+        if (firstRun)
+        {
+            app.WaitSetupForm();
+        }
+        else
+        {
+            app.WaitReady(launchedAt, environment["MAILCAL_DEV_ACCOUNT"]!);
+        }
+        return app;
+    }
+
+    /// <summary>
+    /// The app as <paramref name="activate"/> starts it, with no copy running: a COM activation, as
+    /// the shell makes for a notification click. COM starts a local server with the activating
+    /// process's environment, so it is given the one a launch has. Returns as soon as the agent
+    /// answers; what the app opens on is the case's to wait for.
+    /// </summary>
+    internal static App StartedBy(Action activate, IReadOnlyDictionary<string, string>? env = null)
+    {
+        var (environment, pipe) = LaunchEnvironment(env, firstRun: false);
+        WithEnvironment(environment, activate);
+        Process? process = null;
+        if (!Eventually(() => (process = Process.GetProcessesByName("Mailcal").FirstOrDefault()) is not null, TimeSpan.FromSeconds(30)))
+        {
+            throw new InvalidOperationException("the activation started no app within 30 s");
+        }
+        return new App(process!, Agent.Connect(pipe, TimeSpan.FromSeconds(60)));
+    }
+
+    /// <summary>The environment a launch is made with, and the pipe its agent listens on.</summary>
+    private static (Dictionary<string, string?> Environment, string Pipe) LaunchEnvironment(IReadOnlyDictionary<string, string>? env, bool firstRun)
+    {
+        var pipe = $"mailcal-uitests-{Environment.ProcessId}-{++_launches}";
         var environment = new Dictionary<string, string?>
         {
             ["MAILCAL_OPEN_FIRST"] = null,
@@ -67,21 +106,23 @@ internal sealed partial class App : IDisposable
         {
             environment[name] = value;
         }
+        return (environment, pipe);
+    }
 
-        // Through the shell, so the app inherits none of this process's handles: a child holding the
-        // test host's output open keeps `dotnet test` waiting after the last case. The shell hands
-        // over this process's environment, so it is set here for the launch and put back after.
+    private static int _launches;
+
+    /// <summary>Runs <paramref name="start"/> with <paramref name="environment"/> set in this
+    /// process, which the shell and COM hand to what they start, and puts the old values back.</summary>
+    private static void WithEnvironment(Dictionary<string, string?> environment, Action start)
+    {
         var saved = environment.Keys.ToDictionary(name => name, Environment.GetEnvironmentVariable);
-        var launchedAt = DateTimeOffset.Now;
-        Process process;
         try
         {
             foreach (var (name, value) in environment)
             {
                 Environment.SetEnvironmentVariable(name, value);
             }
-            process = Process.Start(new ProcessStartInfo(Exe()) { UseShellExecute = true })
-                ?? throw new InvalidOperationException("the app did not start");
+            start();
         }
         finally
         {
@@ -90,16 +131,15 @@ internal sealed partial class App : IDisposable
                 Environment.SetEnvironmentVariable(name, value);
             }
         }
-        var app = new App(process, Agent.Connect(pipe, TimeSpan.FromSeconds(60)));
-        if (firstRun)
-        {
-            app.WaitSetupForm();
-        }
-        else
-        {
-            app.WaitReady(launchedAt, environment["MAILCAL_DEV_ACCOUNT"]!);
-        }
-        return app;
+    }
+
+    /// <summary>Closes the mailbox as a person does, rather than ending the process: the window's
+    /// Closed handler is what lets go of what the app registered. Whether it had gone within
+    /// <paramref name="timeout"/>.</summary>
+    internal bool CloseMailbox(TimeSpan timeout)
+    {
+        _process.CloseMainWindow();
+        return _process.WaitForExit(timeout);
     }
 
     /// <summary>

@@ -136,6 +136,17 @@ public sealed class LinkedHarnessApp : HarnessApp
         new Dictionary<string, string> { ["MAILCAL_DEV_ACCOUNT"] = "stalwart-linked" };
 }
 
+/// <summary>The harness app on alice's IMAP account, whose IDLE delivers into the running app, for
+/// the notifications it raises. A class fixture, one launch a suite: a click with the app quit ends
+/// this launch, and the copy the click starts belongs to the case.</summary>
+public sealed class NotificationHarnessApp : HarnessApp
+{
+    protected override IReadOnlyDictionary<string, string> Env { get; } = ImapEnv;
+
+    internal static readonly IReadOnlyDictionary<string, string> ImapEnv =
+        new Dictionary<string, string> { ["MAILCAL_DEV_ACCOUNT"] = "stalwart-imap" };
+}
+
 /// <summary>The harness app with its log at debug: for a rule the app states only in its log.</summary>
 public sealed class DebugLogHarnessApp : HarnessApp
 {

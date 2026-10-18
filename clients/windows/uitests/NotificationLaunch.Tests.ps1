@@ -13,7 +13,7 @@
 # `Mailcal.Tests` cannot see it: the ordering is between two Windows App SDK calls in `Main`, and
 # that assembly links neither. `cargo xtask check-notification-registration` pins the ordering in
 # the SOURCE, on every host and in every CI job. This is the other half, the one that runs the real
-# binary. NotificationClick.Tests.ps1 delivers a real click and asserts what it opens, but it needs
+# binary. NotificationClickTests (Mailcal.UiTests) delivers a real click and asserts what it opens, but it needs
 # the harness, so this is the half CI runs.
 #
 # WHY IT ASSERTS ON AN EXIT CODE, AND WAITS SO LONG FOR ONE. The activation marker is real but the
