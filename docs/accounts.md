@@ -67,6 +67,8 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | An account without mail is kept out of the mail surfaces | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar groups headed by the account's address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A calendar or address book that did not connect is said again on the calendar or contacts screen, with Account settings | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A switch to the provider that would lose the calendar or contacts asks first: keep them on the password as a linked account, stop using them, or cancel | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A calendar on a server the sign-in does not reach gets its own password, in setup and on the account's page, as a linked account | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Every account, its uses' states and its links in one snapshot | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A use the server does not offer reads as such, and cannot be switched on | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | First-run setup when no account is left, an account without mail counting | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
