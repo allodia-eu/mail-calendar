@@ -361,7 +361,8 @@ public class InvitationFormatTests
         Assert.Equal(WriteLine.None, InvitationFormat.Write(CalendarWriteStatus.Saved));
         Assert.Equal(WriteLine.None, InvitationFormat.Write(CalendarWriteStatus.Idle));
         Assert.Equal(WriteLine.Sending, InvitationFormat.Write(CalendarWriteStatus.Saving));
-        Assert.Equal(WriteLine.Failed, InvitationFormat.Write(CalendarWriteStatus.Failed));
+        Assert.Equal(WriteLine.Failed, InvitationFormat.Write(CalendarWriteStatus.NotSaved));
+        Assert.Equal(WriteLine.Unconfirmed, InvitationFormat.Write(CalendarWriteStatus.Unconfirmed));
     }
 
     [Fact]

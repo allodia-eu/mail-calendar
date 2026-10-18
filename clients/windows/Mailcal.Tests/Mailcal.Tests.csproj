@@ -217,6 +217,11 @@
          L10n-free on purpose; each rule fails silently on screen, most sharply a suggestion that
          second-guesses a link already made, and a save that adds a server the account never had. -->
     <Compile Include="..\Mailcal\Services\AccountSettingsRules.cs" Link="Services\AccountSettingsRules.cs" />
+    <!-- The line the calendar and contacts screens draw over a use that did not connect
+         (docs/accounts.md rule 16): the title, the reason the account's page gives and the
+         last-synced sentence, one per account. L10n-free, the words arrive as parameters. -->
+    <Compile Include="..\Mailcal\Services\UseOutageLines.cs" Link="Services\UseOutageLines.cs" />
+    <Compile Include="..\Mailcal\ViewModels\UseOutageLine.cs" Link="ViewModels\UseOutageLine.cs" />
     <Compile Include="..\Mailcal\Services\AccountEndpointEdit.cs" Link="Services\AccountEndpointEdit.cs" />
     <!-- What a setup card's toggles make of an account (docs/account-autodetect.md rule 8): which
          uses it is set up with and which servers it stores. Silent when wrong: contacts found only
@@ -258,6 +263,9 @@
          empty address row would be refused as malformed and the user told to correct a row they
          can see is blank. -->
     <Compile Include="..\Mailcal\Services\ContactEditing.cs" Link="Services\ContactEditing.cs" />
+    <!-- The contacts list's save line: "Couldn't save" and "Couldn't confirm" are two sentences,
+         and saying the gentler one for both reassures the user about a card never written. -->
+    <Compile Include="..\Mailcal\Services\ContactWriteLines.cs" Link="Services\ContactWriteLines.cs" />
     <!-- The composer's signature rules (docs/signatures.md): which of an account's two slots a
          compose kind seeds from, the resolution precedence that makes an explicit per-message choice
          survive a From change, and the seed payload's key names. All three fail SILENTLY in the app

@@ -69,6 +69,9 @@ public sealed partial class MainWindow : Window
                 : null);
         CalendarDetail.Init(Model);
         ContactsDetail.Init(Model);
+        // A calendar or address book that is not connected names its account's page.
+        CalendarDetail.AccountSettingsRequested += (_, account) => _ = OpenSettingsAsync("accounts", account);
+        ContactsDetail.AccountSettingsRequested += (_, account) => _ = OpenSettingsAsync("accounts", account);
         ReadingPanel.Init(Model);
 
         // The sidebar depends on the account set, the selected account's folders, and the

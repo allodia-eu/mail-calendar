@@ -33,7 +33,7 @@ public sealed partial class SettingsDialog
         var toggle = new ToggleSwitch { Header = UseName(capability), IsOn = rule.Active, IsEnabled = rule.Enabled };
         AutomationProperties.SetAutomationId(toggle, $"AccountUse_{capability}");
         row.Children.Add(toggle);
-        if (UseNoteText(rule.Note) is { } note)
+        if (AccountUseText.Note(rule.Note) is { } note)
         {
             row.Children.Add(Description(note));
         }
@@ -88,21 +88,6 @@ public sealed partial class SettingsDialog
         };
         return row;
     }
-
-    private static string? UseNoteText(UseNote note) => note switch
-    {
-        UseNote.Last => L10n.SettingsAccountUseLast(),
-        UseNote.NeedsContacts => L10n.SettingsAccountColleaguesNeedsContacts(),
-        UseNote.Withheld => L10n.SettingsAccountUseWithheld(),
-        UseNote.NotOffered => L10n.SettingsAccountUseNotOffered(),
-        UseNote.UnreachableCalendar => L10n.SettingsAccountUseUnreachableCalendar(),
-        UseNote.UnreachableContacts => L10n.SettingsAccountUseUnreachableContacts(),
-        UseNote.RefusedCalendar => L10n.SettingsAccountUseRefusedCalendar(),
-        UseNote.RefusedContacts => L10n.SettingsAccountUseRefusedContacts(),
-        UseNote.OwnSignInCalendar => L10n.SettingsAccountUseOwnSignInCalendar(),
-        UseNote.OwnSignInContacts => L10n.SettingsAccountUseOwnSignInContacts(),
-        _ => null,
-    };
 
     private async Task SetUseAsync(AccountEntry entry, AccountCapability capability, bool on)
     {

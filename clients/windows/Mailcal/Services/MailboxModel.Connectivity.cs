@@ -85,6 +85,7 @@ public sealed partial class MailboxModel
                 Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id,
                 _app?.AccountProvider(id)))
             .ToList();
+        UpdateUseOutages(connectivity);
         Raise(nameof(IsOffline));
         Raise(nameof(HasConnectionIssues));
         Raise(nameof(ConnectionIssuesText));

@@ -5,7 +5,7 @@
 // button, sets in motion.
 //
 // The write path is deliberately the same one create and delete already used, an inline dispatch that
-// settles through the CalendarWriteStatus surface (Saving → Saved/Failed), so an edit is no more (and
+// settles through the CalendarWriteStatus surface (Saving, then Saved, NotSaved or Unconfirmed), so an edit is no more (and
 // no less) durable than a create until the shared offline outbox makes all three durable at once.
 using System;
 using System.Linq;
@@ -239,4 +239,16 @@ public sealed partial class CalendarView
     // clears once the calendar connects; if several are affected it re-renders for the next after
     // each completes.
     private void OnCalendarReauth(object sender, RoutedEventArgs e) => Model?.ReconsentCalendar();
+
+    /// <summary>Raised with an account's id when its outage line asks for its page in Settings →
+    /// Accounts; the window opens the dialog, which needs its XamlRoot.</summary>
+    public event EventHandler<string>? AccountSettingsRequested;
+
+    private void OnUseOutageAccount(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is UseOutageLine line)
+        {
+            AccountSettingsRequested?.Invoke(this, line.AccountId);
+        }
+    }
 }

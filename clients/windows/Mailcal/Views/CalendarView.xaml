@@ -44,6 +44,31 @@
                             Click="OnCalendarReauth" />
                 </InfoBar.Content>
             </InfoBar>
+            <!-- A calendar that did not connect on an account that did, one bar per account: the
+                 week below is what was last synced (docs/calendar.md §4). "Account settings" opens
+                 that account's page, where the remedy is. With no outage the list is empty and
+                 takes no space. -->
+            <ItemsControl ItemsSource="{x:Bind Model.CalendarOutageLines, Mode=OneWay}"
+                          AutomationProperties.AutomationId="CalendarOutages">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:UseOutageLine">
+                        <InfoBar Margin="12,12,12,0"
+                                 IsOpen="True"
+                                 IsClosable="False"
+                                 Severity="Warning"
+                                 AutomationProperties.AutomationId="CalendarOutageBanner"
+                                 Message="{x:Bind Text, Mode=OneTime}">
+                            <InfoBar.Content>
+                                <Button Content="{x:Bind l10n:L10n.UseOutageOpenAccount(), Mode=OneTime}"
+                                        Margin="0,8,0,12"
+                                        Tag="{x:Bind Mode=OneTime}"
+                                        AutomationProperties.AutomationId="CalendarOutageAction"
+                                        Click="OnUseOutageAccount" />
+                            </InfoBar.Content>
+                        </InfoBar>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         <Grid Padding="16,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -84,9 +109,9 @@
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                 <!-- The result of the user's last create/edit/delete: a spinner while it settles, a
-                     check when saved, a tap-to-retry warning when it could not be confirmed. The retry
-                     is OnRefresh, a full sync reconciles the local view (see CalendarWriteStatus);
-                     the warning means "couldn't confirm", not "rejected". Each child toggles its own
+                     check when saved, a tap-to-refresh warning when it was not saved or could not be
+                     confirmed, its words saying which. The tap is OnRefresh, a full sync reconciles
+                     the local view (see CalendarWriteStatus), never a re-send. Each child toggles its own
                      Visibility, so at Idle the cluster takes no space. -->
                 <ProgressRing IsActive="True" Width="16" Height="16" VerticalAlignment="Center"
                               Visibility="{x:Bind Model.CalendarWriteBusyVisibility, Mode=OneWay}"
