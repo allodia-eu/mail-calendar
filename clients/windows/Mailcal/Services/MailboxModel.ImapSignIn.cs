@@ -88,19 +88,23 @@ public sealed partial class MailboxModel
             // ProtocolAuthCallback.
             using var callback = ProtocolAuthCallback.Expect(ImapOAuthConfig.CallbackHost);
             // Discovery and dynamic client registration are several network round trips, so they
-            // block: off the UI thread with them.
-            var start = await Task.Run(() => app.BeginImapLogin(request, ImapOAuthConfig.RedirectUri));
-            // Open the default browser, where the person is usually already signed in.
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
-            var callbackUrl = await callback.WaitAsync(cancelToken);
-            // The token exchange blocks too.
+            // block: off the UI thread with them. Then the default browser, where the person is
+            // usually already signed in.
+            var (start, callbackUrl) = await BrowserHop.RunAsync(
+                () => Task.Run(() => app.BeginImapLogin(request, ImapOAuthConfig.RedirectUri)),
+                begun => Windows.System.Launcher.LaunchUriAsync(new Uri(begun.AuthorizationUrl)).AsTask(),
+                callback.WaitAsync,
+                () => IsSigningIn = false,
+                cancelToken);
+            // The token exchange blocks too. An attempt retired meanwhile adds nothing.
             configToml = await Task.Run(() => app.CompleteImapLogin(start.Pending, callbackUrl));
+            cancelToken.ThrowIfCancellationRequested();
         }
         catch (OperationCanceledException)
         {
-            // Cancel was pressed while the browser step was outstanding: return to the form
-            // quietly; the disposed callback slot ignores any late redirect.
-            Log.Info("imap sign-in cancelled by user");
+            // Cancelled, or superseded by a newer sign-in: return to the form quietly; the disposed
+            // callback slot ignores any late redirect.
+            Log.Info("imap sign-in cancelled");
             return ImapSignInOutcome.Cancelled;
         }
         catch (Exception ex)

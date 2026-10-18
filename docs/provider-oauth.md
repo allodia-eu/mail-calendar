@@ -649,7 +649,7 @@ single provider's table):
 |---|:---:|:---:|:---:|:---:|:---:|
 | Expired sign-in prompt (`signin_expired_accounts`, classified on `FailureClass::Authentication`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Prompt routes to the right sign-in via `MailcalApp::account_provider` (Settings where there is no browser flow) | ✅ | ✅ | ✅ Google · OAuth JMAP · Microsoft untested | ✅ | ✅ Microsoft · Google · OAuth JMAP runtime-verified; stored-secret repair code-complete |
-| A second sign-in request supersedes one abandoned in the browser (rule 13) | — | ✅ never guarded; a sign-in in place ends the one before it | ✅ `SignInFlight` | ✅ `SignInSlot` for JMAP and IMAP, whose tabs run in a task of their own: returning to the app clears the spinner and keeps the handle armed | ✅ `AttemptSlot` |
+| A second sign-in request supersedes one abandoned in the browser (rule 13) | — | ✅ a fresh press cancels the attempt still out (`SignInAttempts`), and a sign-in in place ends the one before it | ✅ `SignInFlight`; sign-in buttons stay live until the redirect is in | ✅ `SignInSlot` for JMAP and IMAP, whose tabs run in a task of their own: returning to the app clears the spinner and keeps the handle armed | ✅ `AttemptSlot` |
 | OAuth **JMAP** re-authentication in place from the prompt (rule 14: `begin_jmap_reauth` / `complete_jmap_reauth`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Microsoft and Google signed in again in place, from the prompts and the account's Settings page, a withheld use asked for when switched on (rule 11: `begin_account_consent` / `complete_account_consent`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`replace_account_secret`) | ✅ | ✅ | ✅ | ✅ | ✅ |

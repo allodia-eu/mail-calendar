@@ -26,9 +26,9 @@ public sealed partial class MailboxModel
     /// <remarks>
     /// Deliberately NOT guarded on <see cref="IsSubmitting"/>: a request that arrives while one is
     /// outstanding supersedes it (see <see cref="SignInFlight"/>), because a sign-in abandoned in
-    /// the browser is indistinguishable from one still in progress. The setup form's own buttons
-    /// are already disabled while submitting, so the removed guard cost no double-fire protection
-    /// there, its only remaining effect was to make the reconnect banner's button dead.
+    /// the browser is indistinguishable from one still in progress. The setup form's own sign-in
+    /// buttons stay live until the redirect is in for the same reason, and are disabled only for
+    /// the bounded exchange after it (SignInButtonsEnabled).
     /// </remarks>
     internal void SignInWithGoogle(string? loginHint = null, AccountCapability[]? uses = null)
     {
@@ -53,8 +53,8 @@ public sealed partial class MailboxModel
     private async Task SignInWithGoogleAsync(
         string? loginHint, AccountCapability[]? uses, CancellationToken cancelToken)
     {
-        // IsSigningIn drives the (enabled) Cancel; IsSubmitting keeps the setup form's own buttons
-        // from firing twice (they bind to it) while the browser step is outstanding.
+        // IsSigningIn draws Cancel and keeps the sign-in buttons live until the redirect is in;
+        // IsSubmitting disables the form for the bounded exchange that follows (SignInButtonsEnabled).
         IsSigningIn = true;
         IsSubmitting = true;
         SetupError = null;
@@ -63,18 +63,23 @@ public sealed partial class MailboxModel
             // Pick the free loopback port BEFORE building the request: begin_google_login must be
             // handed the exact redirect URI the browser will return to.
             using var loopback = new GoogleLoopback();
-            var start = MailcalBindingsMethods.BeginGoogleLogin(
-                loopback.RedirectUri,
-                // The address the user is connecting (from autodetection), so Google targets that
-                // account instead of another already signed in in the browser; null/blank ⇒ the picker.
-                string.IsNullOrWhiteSpace(loginHint) ? null : loginHint,
-                // Asked only for what the account is to be used for (docs/accounts.md rule 10);
-                // null, from a route that offered no choice, asks for everything.
-                uses);
-            // Open the default browser (where the user is usually already signed in to Google).
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
-            var callbackUrl = await WaitForGoogleCallbackAsync(loopback, cancelToken);
-            // The code exchange + folder connect block, so run them off the UI thread.
+            var (start, callbackUrl) = await BrowserHop.RunAsync(
+                () => Task.FromResult(MailcalBindingsMethods.BeginGoogleLogin(
+                    loopback.RedirectUri,
+                    // The address the user is connecting (from autodetection), so Google targets
+                    // that account instead of another already signed in in the browser;
+                    // null/blank ⇒ the picker.
+                    string.IsNullOrWhiteSpace(loginHint) ? null : loginHint,
+                    // Asked only for what the account is to be used for (docs/accounts.md rule 10);
+                    // null, from a route that offered no choice, asks for everything.
+                    uses)),
+                // The default browser (where the user is usually already signed in to Google).
+                begun => Windows.System.Launcher.LaunchUriAsync(new Uri(begun.AuthorizationUrl)).AsTask(),
+                cancel => WaitForGoogleCallbackAsync(loopback, cancel),
+                () => IsSigningIn = false,
+                cancelToken);
+            // The code exchange + folder connect block, so run them off the UI thread. The core
+            // stores the account as part of them, so nothing after this point can retire it.
             var row = await Task.Run(() => _app!.CompleteGoogleLogin(start.Pending, callbackUrl));
             Log.Info($"google account added: {LogHandle(row.Id)}");
             AccountAdded(row.Id);
@@ -89,9 +94,9 @@ public sealed partial class MailboxModel
         }
         catch (OperationCanceledException)
         {
-            // The user pressed Cancel while the browser step was outstanding, return to the form
-            // quietly (no error banner); the stopped listener ignores any late redirect.
-            Log.Info("google sign-in cancelled by user");
+            // Cancelled, or superseded by a newer sign-in: return to the form quietly (no error
+            // banner); the stopped listener ignores any late redirect.
+            Log.Info("google sign-in cancelled");
         }
         catch (Exception ex)
         {

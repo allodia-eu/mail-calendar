@@ -105,6 +105,9 @@
          browser, instead of being refused behind a guard that only clears on the 5-minute cap.
          WinUI-free on purpose, the flows it runs stay in MailboxModel. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\SignInFlight.cs" Link="Services\SignInFlight.cs" />
+    <!-- Begin, open, wait: an attempt retired while its begin dialled opens no browser
+         (docs/onboarding.md, "Nobody may be stranded on it"). -->
+    <Compile Include="..\Mailcal\Services\BrowserHop.cs" Link="Services\BrowserHop.cs" />
     <!-- The Diagnostics settings panel's pure half (log snapshot math, tail read, export
          concatenation, byte formatting, boot level resolution), WinUI-free on purpose, so it's
          testable here (the dialog's WinUI half stays in Dialogs/). It returns the bindings'

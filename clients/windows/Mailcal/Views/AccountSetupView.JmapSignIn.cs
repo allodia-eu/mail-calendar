@@ -85,10 +85,12 @@ public sealed partial class AccountSetupView
         {
             return;
         }
-        _jmapSignIn.SignInStarted();
+        // A press while an earlier sign-in waits on the browser supersedes it, and that one's end
+        // is then not this one's.
+        var attempt = _jmapSignIn.SignInStarted();
         UpdateJmapSignIn();
         var outcome = await model.SignInWithJmapAsync(JmapEmail.Text, JmapServer.Text);
-        _jmapSignIn.SignInFinished(outcome);
+        _jmapSignIn.SignInFinished(attempt, outcome);
         UpdateJmapSignIn();
         UpdateCanConnect();
     }
@@ -104,7 +106,7 @@ public sealed partial class AccountSetupView
             return;
         }
         JmapSignInPanel.Visibility = _jmapSignIn.ShowButton ? Visibility.Visible : Visibility.Collapsed;
-        JmapSignInButton.IsEnabled = _jmapSignIn.ButtonEnabled;
+        JmapSignInButton.IsEnabled = _jmapSignIn.ShowButton && Model is { SignInButtonsEnabled: true };
         JmapSignInFailedBar.IsOpen = _jmapSignIn.ShowFailure;
         // Only an in-flight sign-in takes the manual secret away; a failure hands it straight back.
         JmapPassword.IsEnabled = _jmapSignIn.ManualEnabled;

@@ -52,7 +52,7 @@ public sealed class ImapSignInGateTests
         // so beside a sign-in it waits until somebody asks for it (docs/mail-oauth.md rule 2).
         var gate = Asked(ImapAuthAnswer.SignInOrPassword);
         Assert.True(gate.ShowButton);
-        Assert.True(gate.ButtonEnabled);
+        Assert.True(gate.ShowButton);
         Assert.True(gate.SignInLeads);
         Assert.True(gate.ShowPasswordInstead);
         Assert.False(gate.ShowPassword);
@@ -105,9 +105,8 @@ public sealed class ImapSignInGateTests
         // The route left. A server that said "OAuth only" and then would not sign us in must not
         // leave somebody with nothing at all to try.
         var gate = Asked(ImapAuthAnswer.SignInOnly);
-        gate.SignInStarted();
-        Assert.False(gate.ButtonEnabled);
-        gate.SignInFinished(ImapSignInOutcome.Failed);
+        var attempt = gate.SignInStarted();
+        gate.SignInFinished(attempt, ImapSignInOutcome.Failed);
 
         Assert.True(gate.ShowFailure);
         Assert.True(gate.ShowPassword);
@@ -115,15 +114,54 @@ public sealed class ImapSignInGateTests
     }
 
     [Fact]
+    public void ASignInOutInTheBrowserLeavesTheButtonToPressAgain()
+    {
+        // Closing the browser tab sends nothing back, so a press is how somebody starts over
+        // (docs/provider-oauth.md rule 13): the button stays, and only the password field waits.
+        var gate = Asked(ImapAuthAnswer.SignInOrPassword);
+        gate.RevealPassword();
+        gate.SignInStarted();
+        Assert.True(gate.ShowButton);
+        Assert.False(gate.PasswordEnabled);
+    }
+
+    [Fact]
+    public void TheEndOfASupersededSignInIsNotTheEndOfTheOneThatReplacedIt()
+    {
+        var gate = Asked(ImapAuthAnswer.SignInOrPassword);
+        gate.RevealPassword();
+        var first = gate.SignInStarted();
+        var second = gate.SignInStarted();
+
+        // The first unwinds as cancelled while the second is still in the browser.
+        gate.SignInFinished(first, ImapSignInOutcome.Cancelled);
+        Assert.False(gate.PasswordEnabled);
+
+        gate.SignInFinished(second, ImapSignInOutcome.Failed);
+        Assert.True(gate.PasswordEnabled);
+        Assert.True(gate.ShowFailure);
+    }
+
+    [Fact]
+    public void ASignInOutBeforeTheFormWasResetEndsIntoNothing()
+    {
+        var gate = Asked(ImapAuthAnswer.SignInOrPassword);
+        var attempt = gate.SignInStarted();
+        gate.Reset();
+        gate.FieldsChanged("alice@example.com", "imap.example.com");
+        gate.SignInFinished(attempt, ImapSignInOutcome.Failed);
+        Assert.False(gate.ShowFailure);
+    }
+
+    [Fact]
     public void ACancelledSignInIsNotAFailure()
     {
         // Closing the browser is a decision, not an error, and a red note over it would be wrong.
         var gate = Asked(ImapAuthAnswer.SignInOrPassword);
-        gate.SignInStarted();
-        gate.SignInFinished(ImapSignInOutcome.Cancelled);
+        gate.SignInFinished(gate.SignInStarted(), ImapSignInOutcome.Cancelled);
 
         Assert.False(gate.ShowFailure);
-        Assert.True(gate.ButtonEnabled);
+        Assert.True(gate.ShowButton);
     }
 
     [Fact]
@@ -274,8 +312,7 @@ public sealed class ImapSignInGateTests
     public void EditingTheAccountTakesAFailureNoteWithIt()
     {
         var gate = Asked(ImapAuthAnswer.SignInOrPassword);
-        gate.SignInStarted();
-        gate.SignInFinished(ImapSignInOutcome.Failed);
+        gate.SignInFinished(gate.SignInStarted(), ImapSignInOutcome.Failed);
         Assert.True(gate.ShowFailure);
 
         gate.FieldsChanged("bob@example.com", "imap.example.com");

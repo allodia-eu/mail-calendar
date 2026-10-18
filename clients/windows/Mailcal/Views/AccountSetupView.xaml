@@ -388,7 +388,7 @@
                         <Button x:Name="MicrosoftButton" Content="{x:Bind l10n:L10n.SetupMicrosoftSignin(), Mode=OneTime}"
                                 Style="{StaticResource AccentButtonStyle}"
                                 Visibility="Collapsed"
-                                IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnSignInMicrosoft" />
+                                IsEnabled="{x:Bind Model.SignInButtonsEnabled, Mode=OneWay}" Click="OnSignInMicrosoft" />
                         <Button x:Name="GoogleButton" Content="{x:Bind l10n:L10n.SetupGoogleSignin(), Mode=OneTime}"
                                 Style="{StaticResource AccentButtonStyle}"
                                 Visibility="Collapsed"
