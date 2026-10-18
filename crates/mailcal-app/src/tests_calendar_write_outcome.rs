@@ -3,13 +3,10 @@
 
 use std::sync::{Arc, Mutex};
 
-use fakes::{CalendarFake, calendar_account, calendar_app, evt};
-
-use super::{CalendarWriteStatus, EventIntent, Intent};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use super::{
+    CalendarWriteStatus, EventIntent, Intent,
+    fakes::{self, CalendarFake, calendar_account, calendar_app, evt},
+};
 
 fn kickoff() -> Intent {
     Intent::Events(EventIntent::Create {

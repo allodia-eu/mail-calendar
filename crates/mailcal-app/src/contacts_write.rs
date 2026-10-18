@@ -220,7 +220,7 @@ impl<P: Provider> App<P> {
                     mailcal_account::account_log_handle(account.as_str()),
                     started.elapsed().as_millis(),
                 );
-                crate::write_failure::contact_status(&error)
+                crate::connectivity::contact_status(&error)
             }
         };
         self.rebuild_contacts().await;
@@ -303,7 +303,7 @@ impl<P: Provider> App<P> {
                     mailcal_account::account_log_handle(account.as_str()),
                     started.elapsed().as_millis(),
                 );
-                crate::write_failure::contact_status(&error)
+                crate::connectivity::contact_status(&error)
             }
         };
         self.rebuild_contacts().await;

@@ -239,7 +239,7 @@ impl<P: Provider> App<P> {
                         "create_calendar_event failed for [{}]: {err}",
                         mailcal_account::account_log_handle(account.as_str()),
                     );
-                    crate::write_failure::calendar_status(&err)
+                    crate::connectivity::calendar_status(&err)
                 }
             });
         }
@@ -324,7 +324,7 @@ impl<P: Provider> App<P> {
             )
             .await
             .map_err(|err| {
-                self.set_calendar_write_status(crate::write_failure::calendar_status(&err));
+                self.set_calendar_write_status(crate::connectivity::calendar_status(&err));
                 err.to_string()
             })?;
 
@@ -407,7 +407,7 @@ impl<P: Provider> App<P> {
                         "delete_calendar_event failed for {}: {err}",
                         event.account.as_str()
                     );
-                    crate::write_failure::calendar_status(&err)
+                    crate::connectivity::calendar_status(&err)
                 }
             });
         }

@@ -16,6 +16,9 @@ use super::{CalendarWriteStatus, EventIntent, Intent, Surface};
 #[path = "tests_fakes.rs"]
 mod fakes;
 
+#[path = "tests_calendar_write_outcome.rs"]
+mod write_outcome;
+
 #[tokio::test]
 async fn an_event_action_routes_by_owning_account_on_a_key_collision() {
     // The calendar counterpart of the message-collision test: two accounts whose stores
