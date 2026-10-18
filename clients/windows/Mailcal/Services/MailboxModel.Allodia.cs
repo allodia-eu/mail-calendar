@@ -48,12 +48,15 @@ public sealed partial class MailboxModel
             // Discovery is two network round trips and the core call blocks on them. `_app!`, like
             // the Microsoft flow's: the null check above does not survive into a lambda over a
             // field, so the compiler needs telling.
-            var start = await Task.Run(
-                () => create
-                    ? _app!.BeginAllodiaRegistration(AllodiaOAuthConfig.RedirectUri)
-                    : _app!.BeginAllodiaSignIn(AllodiaOAuthConfig.RedirectUri));
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
-            var callbackUrl = await callback.WaitAsync(cancel.Token);
+            var (start, callbackUrl) = await BrowserHop.RunAsync(
+                () => Task.Run(
+                    () => create
+                        ? _app!.BeginAllodiaRegistration(AllodiaOAuthConfig.RedirectUri)
+                        : _app!.BeginAllodiaSignIn(AllodiaOAuthConfig.RedirectUri)),
+                begun => Windows.System.Launcher.LaunchUriAsync(new Uri(begun.AuthorizationUrl)).AsTask(),
+                callback.WaitAsync,
+                () => { },
+                cancel.Token);
             // The exchange and the identity lookup block too.
             await Task.Run(() => _app!.CompleteAllodiaSignIn(start.Pending, callbackUrl));
             // Never who: a log line describes the user's mail and never names an address
@@ -63,8 +66,8 @@ public sealed partial class MailboxModel
         }
         catch (OperationCanceledException)
         {
-            // The user pressed Cancel while the browser step was outstanding, return to the card
-            // quietly; the disposed callback slot ignores any late redirect.
+            // The user pressed Cancel, return to the card quietly; the disposed callback slot
+            // ignores any late redirect.
             Log.Info("allodia: sign-in cancelled by user");
             return null;
         }

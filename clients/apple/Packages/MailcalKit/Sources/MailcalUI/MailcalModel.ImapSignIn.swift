@@ -39,6 +39,10 @@ extension MailboxModel {
     /// install, we open the returned URL in the browser, and the core exchanges the redirect for
     /// the account-config TOML. That TOML is the same shape the password form produces, so it is
     /// added and stored through the path that already exists.
+    ///
+    /// Cancelling the calling task retires the attempt: neither blocking leg can be interrupted, so
+    /// each is followed by the check that keeps an escaped attempt from opening a browser or adding
+    /// an account (docs/onboarding.md, "Nobody may be stranded on it").
     func signInWithImap(_ request: ImapLoginRequest) async -> ImapSignInOutcome {
         guard let app else {
             setupError = L10n.app_unavailable()
@@ -54,8 +58,10 @@ extension MailboxModel {
             let start = try await Task.detached(priority: .userInitiated) {
                 try app.beginImapLogin(request: request, redirectUri: ImapOAuthConfig.redirectURI)
             }.value
+            if Task.isCancelled { return .cancelled }
             // ASWebAuthenticationSession must start on the main actor.
             let callbackURL = try await signIn.authorize(authorizationURL: start.authorizationUrl)
+            if Task.isCancelled { return .cancelled }
             // The token exchange blocks too, as does the connect and first sync below. The add
             // is the JMAP path's, which is not JMAP-specific: it is the one place a refresh-token
             // rotation landing *during* the connect can still be stored, and every OAuth account
@@ -63,6 +69,7 @@ extension MailboxModel {
             let configToml = try await Task.detached(priority: .userInitiated) {
                 try app.completeImapLogin(pending: start.pending, callbackUrl: callbackURL)
             }.value
+            if Task.isCancelled { return .cancelled }
             do {
                 try await addAndStoreJmapAccount(app, configToml: configToml)
             } catch {

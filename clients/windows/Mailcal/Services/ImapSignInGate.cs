@@ -74,6 +74,8 @@ internal sealed class ImapSignInGate
     // The key whose sign-in failed, so editing the account takes the note away with it.
     private string? _failedFor;
     private bool _signingIn;
+    // The latest sign-in started, so the end of one it superseded is not taken for its own.
+    private int _attempt;
 
     // Whether the password field is on screen and stays there while the account is asked about
     // again. Set by every answer that draws it and by the person choosing it; cleared only by an
@@ -86,9 +88,6 @@ internal sealed class ImapSignInGate
     /// <summary>Whether to show the sign-in button.</summary>
     internal bool ShowButton =>
         Answer is ImapAuthAnswer.SignInOrPassword or ImapAuthAnswer.SignInOnly;
-
-    /// <summary>Whether the button can be pressed (not while a sign-in is already out).</summary>
-    internal bool ButtonEnabled => ShowButton && !_signingIn;
 
     /// <summary>
     /// Whether the sign-in is the form's primary action: offered, and no password field beside it.
@@ -208,16 +207,28 @@ internal sealed class ImapSignInGate
     /// <summary>The person chose "Use a password instead": the field is theirs from now on.</summary>
     internal void RevealPassword() => _passwordHeld = true;
 
-    /// <summary>The browser sign-in has started: disable the button and clear any old failure.</summary>
-    internal void SignInStarted()
+    /// <summary>
+    /// The browser sign-in has started: clear any old failure. The button stays pressable, since a
+    /// press while this one waits on the browser supersedes it (docs/provider-oauth.md rule 13).
+    /// </summary>
+    /// <returns>The attempt, which <see cref="SignInFinished"/> is told the end of.</returns>
+    internal int SignInStarted()
     {
         _signingIn = true;
         _failedFor = null;
+        return ++_attempt;
     }
 
-    /// <summary>The sign-in finished. Only a genuine failure raises the note; a cancel is not an error.</summary>
-    internal void SignInFinished(ImapSignInOutcome outcome)
+    /// <summary>
+    /// The sign-in <paramref name="attempt"/> finished. Only a genuine failure raises the note; a
+    /// cancel is not an error. The end of an attempt a newer one superseded changes nothing.
+    /// </summary>
+    internal void SignInFinished(int attempt, ImapSignInOutcome outcome)
     {
+        if (attempt != _attempt)
+        {
+            return;
+        }
         _signingIn = false;
         if (outcome == ImapSignInOutcome.Failed)
         {
@@ -236,6 +247,8 @@ internal sealed class ImapSignInGate
         _answer = ImapAuthAnswer.Unknown;
         _failedFor = null;
         _signingIn = false;
+        // A sign-in out before the reset ends into a form that no longer describes it.
+        _attempt++;
         _passwordHeld = false;
     }
 

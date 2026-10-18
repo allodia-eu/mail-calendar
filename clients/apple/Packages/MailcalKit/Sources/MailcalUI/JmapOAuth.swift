@@ -70,11 +70,30 @@ final class JmapSignIn: NSObject, ASWebAuthenticationPresentationContextProvidin
 
     /// Opens `authorizationURL` and awaits the redirect, returning the full callback URL.
     /// Throws on user cancel or a session error.
+    ///
+    /// Cancelling the awaiting task ends the presentation rather than merely stopping the wait, so
+    /// a sign-in somebody escaped leaves no browser open and puts no redirect anywhere.
     func authorize(authorizationURL: String) async throws -> String {
         guard let url = URL(string: authorizationURL) else {
             throw JmapSignInError.badURL
         }
-        return try await withCheckedThrowingContinuation { continuation in
+        return try await withTaskCancellationHandler {
+            // Cancelled before the session started: `onCancel` had no session to end.
+            if Task.isCancelled { throw JmapSignInError.cancelled }
+            return try await presentAndWait(url: url)
+        } onCancel: {
+            Task { @MainActor in self.cancel() }
+        }
+    }
+
+    /// Ends the presentation. The session answers its own completion handler with
+    /// `.canceledLogin`, which `authorize` turns into `.cancelled`.
+    func cancel() {
+        session?.cancel()
+    }
+
+    private func presentAndWait(url: URL) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
             let session = ASWebAuthenticationSession(
                 url: url,
                 callbackURLScheme: JmapOAuthConfig.callbackScheme

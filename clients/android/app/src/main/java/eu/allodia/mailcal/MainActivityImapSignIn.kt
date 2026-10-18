@@ -31,7 +31,8 @@ internal fun MainActivity.imapAuthOptions(request: ImapLoginRequest): ImapAuthOf
 
 // Starts an IMAP sign-in: asks the core for the authorization URL, which runs the whole discovery
 // and dynamic-registration chain and so BLOCKS on the network, then opens the browser and holds
-// the pending handle until the redirect returns to onNewIntent → completeImapSignIn.
+// the pending handle until the redirect returns to onNewIntent → completeImapSignIn. A press while
+// another sign-in is pending supersedes it: a tab dismissed without signing in sends nothing back.
 //
 // A failure here is expected on a server that does not offer this, so it surfaces as the "use a
 // password instead" note rather than a hard error.
@@ -39,7 +40,7 @@ internal fun MainActivity.signInWithImap(request: ImapLoginRequest) {
     val activity = this
     val instance = activity.app ?: return
     activity.addError = null
-    activity.signingInImap = true
+    val attempt = activity.imapSignIn.begin(Unit)
     logUiInfo("imap sign-in: starting")
     thread(name = "mailcal-imap-begin") {
         try {
@@ -48,14 +49,17 @@ internal fun MainActivity.signInWithImap(request: ImapLoginRequest) {
                 redirectUri = ImapOAuthConfig.REDIRECT_URI,
             )
             activity.mainHandler.post {
-                activity.pendingImapLogin = start.pending
+                if (!activity.imapSignIn.opening(attempt, start.pending)) {
+                    logUiInfo("imap sign-in: left before the browser opened")
+                    return@post
+                }
                 logUiInfo("imap sign-in: opening the browser")
                 openImapSignIn(activity, start.authorizationUrl)
             }
         } catch (e: Exception) {
             logUiWarn("imap sign-in start failed: ${e.message}")
             activity.mainHandler.post {
-                activity.signingInImap = false
+                if (!activity.imapSignIn.settled(attempt)) return@post
                 // Deliberately the friendly fallback line, not the raw cause: the password field
                 // is still right there and still works. The cause is in the file log.
                 activity.addError = L10n.setup_imap_signin_failed(activity)
@@ -70,21 +74,22 @@ internal fun MainActivity.signInWithImap(request: ImapLoginRequest) {
 internal fun MainActivity.completeImapSignIn(callbackUrl: String) {
     val activity = this
     val instance = activity.app ?: return
-    val pending = activity.pendingImapLogin ?: run {
-        // The redirect arrived with nothing armed to receive it: the sign-in was cancelled (or
-        // cleared) before the browser came back. Silence here is what makes this invisible.
+    val (attempt, pending) = activity.imapSignIn.redirected() ?: run {
+        // The redirect arrived with nothing armed to receive it: the sign-in was superseded or
+        // left before the browser came back. Silence here is what makes this invisible.
         logUiWarn("imap sign-in: redirect arrived but no sign-in was pending; ignoring it")
         return
     }
-    activity.pendingImapLogin = null
-    activity.signingInImap = true
     logUiInfo("imap sign-in: redirect received, completing")
     thread(name = "mailcal-imap-complete") {
         try {
             val configToml = instance.completeImapLogin(pending, callbackUrl)
             logUiInfo("imap sign-in: token exchange succeeded; adding the account")
             activity.mainHandler.post {
-                activity.signingInImap = false
+                if (!activity.imapSignIn.settled(attempt)) {
+                    logUiInfo("imap sign-in: left while the code was exchanged; not adding it")
+                    return@post
+                }
                 // addAccount owns the connect + persist-after-connect discipline, and reports its
                 // own failure through addError.
                 activity.addAccount(configToml)
@@ -92,9 +97,23 @@ internal fun MainActivity.completeImapSignIn(callbackUrl: String) {
         } catch (e: Exception) {
             logUiWarn("imap sign-in complete failed: ${e.message}")
             activity.mainHandler.post {
-                activity.signingInImap = false
+                if (!activity.imapSignIn.settled(attempt)) return@post
                 activity.addError = L10n.setup_imap_signin_failed(activity)
             }
         }
+    }
+}
+
+// The person left the setup card or form a sign-in was started from. Nothing is said: a sign-in
+// somebody walked away from is not a failure. A JMAP re-authentication belongs to the banner that
+// started it, not to this screen, so it is left alone.
+internal fun MainActivity.leaveSetupSignIn() {
+    if (imapSignIn.flow != null) {
+        logUiInfo("imap sign-in: left the card; retiring the sign-in")
+        imapSignIn.retire()
+    }
+    if (jmapSignIn.flow == JmapFlow.NewAccount) {
+        logUiInfo("jmap sign-in: left the card; retiring the sign-in")
+        jmapSignIn.retire()
     }
 }

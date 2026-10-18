@@ -210,7 +210,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | No password field where the server refuses passwords | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Nothing to act on until the answer, with a deadline racing it | ✅ | ✅ | ✅ | ✅ under the spinner | ✅ |
 | A drawn password field stays while an edited account is asked again | n/a | ✅ | ✅ | ✅ | ✅ |
-| Browser sign-in + redirect capture | n/a | ✅ `ASWebAuthenticationSession` | ✅ protocol activation | ✅ Custom Tab | ✅ loopback |
+| Browser sign-in + redirect capture | n/a | ✅ `ASWebAuthenticationSession` | ✅ protocol activation | ✅ Custom Tab; a dismissed tab can be tried again, and leaving the card retires the sign-in | ✅ loopback |
 | Grant stored with no password beside it | ✅ | n/a | n/a | n/a | ✅ |
 | One re-dial on an expired token | ✅ | n/a | n/a | n/a | n/a |
 

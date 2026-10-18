@@ -211,8 +211,8 @@ public sealed partial class MailboxModel
     private async Task SignInWithMicrosoftAsync(
         string? loginHint, AccountCapability[]? uses, CancellationToken cancelToken)
     {
-        // IsSigningIn drives the (enabled) Cancel; IsSubmitting keeps the setup form's own buttons
-        // from firing twice (they bind to it) while the browser step is outstanding.
+        // IsSigningIn draws Cancel and keeps the sign-in buttons live until the redirect is in;
+        // IsSubmitting disables the form for the bounded exchange that follows (SignInButtonsEnabled).
         IsSigningIn = true;
         IsSubmitting = true;
         SetupError = null;
@@ -222,18 +222,23 @@ public sealed partial class MailboxModel
             // custom scheme (eu.allodia.mailcal://auth), delivered here as a protocol activation
             // routed by Program into ProtocolAuthCallback.
             using var callback = ProtocolAuthCallback.Expect(MicrosoftOAuthConfig.CallbackHost);
-            var start = MailcalBindingsMethods.BeginMicrosoftLogin(
-                MicrosoftOAuthConfig.Tenant, MicrosoftOAuthConfig.RedirectUri,
-                // The address the user is connecting (from autodetection), so Microsoft targets that
-                // account instead of offering a different signed-in one; null/blank ⇒ the picker.
-                string.IsNullOrWhiteSpace(loginHint) ? null : loginHint,
-                // Asked only for what the account is to be used for (docs/accounts.md rule 10);
-                // null, from a route that offered no choice, asks for everything.
-                uses);
-            // Open the default browser (Edge, where the user is usually already signed in).
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
-            var callbackUrl = await callback.WaitAsync(cancelToken);
-            // The token exchange + folder connect block, so run them off the UI thread.
+            var (start, callbackUrl) = await BrowserHop.RunAsync(
+                () => Task.FromResult(MailcalBindingsMethods.BeginMicrosoftLogin(
+                    MicrosoftOAuthConfig.Tenant, MicrosoftOAuthConfig.RedirectUri,
+                    // The address the user is connecting (from autodetection), so Microsoft
+                    // targets that account instead of offering a different signed-in one;
+                    // null/blank ⇒ the picker.
+                    string.IsNullOrWhiteSpace(loginHint) ? null : loginHint,
+                    // Asked only for what the account is to be used for (docs/accounts.md rule 10);
+                    // null, from a route that offered no choice, asks for everything.
+                    uses)),
+                // The default browser (Edge, where the user is usually already signed in).
+                begun => Windows.System.Launcher.LaunchUriAsync(new Uri(begun.AuthorizationUrl)).AsTask(),
+                callback.WaitAsync,
+                () => IsSigningIn = false,
+                cancelToken);
+            // The token exchange + folder connect block, so run them off the UI thread. The core
+            // stores the account as part of them, so nothing after this point can retire it.
             var row = await Task.Run(() => _app!.CompleteMicrosoftLogin(start.Pending, callbackUrl));
             Log.Info($"microsoft account added: {LogHandle(row.Id)}");
             AccountAdded(row.Id);
@@ -248,9 +253,9 @@ public sealed partial class MailboxModel
         }
         catch (OperationCanceledException)
         {
-            // The user pressed Cancel while the browser step was outstanding, return to the form
-            // quietly (no error banner); the disposed callback slot ignores any late redirect.
-            Log.Info("microsoft sign-in cancelled by user");
+            // Cancelled, or superseded by a newer sign-in: return to the form quietly (no error
+            // banner); the disposed callback slot ignores any late redirect.
+            Log.Info("microsoft sign-in cancelled");
         }
         catch (Exception ex)
         {

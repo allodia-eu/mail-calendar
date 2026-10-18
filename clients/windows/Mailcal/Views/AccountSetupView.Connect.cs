@@ -62,14 +62,14 @@ public sealed partial class AccountSetupView
     private async void OnOpenGoogleEarlyAccess(object sender, RoutedEventArgs e) =>
         await Windows.System.Launcher.LaunchUriAsync(new System.Uri(L10n.SetupGoogleEarlyAccessUrl()));
 
-    // The Google sign-in button is enabled only once the Early Access box is checked AND nothing is
-    // already submitting (so it can't fire twice or while a connect is in flight).
+    // The Google sign-in button is enabled only once the Early Access box is checked, and like every
+    // sign-in button it stays live while a sign-in waits on the browser (SignInButtonsEnabled).
     private void UpdateGoogleSignInEnabled()
     {
         if (GoogleButton is null)
         {
             return;
         }
-        GoogleButton.IsEnabled = Model is { IsSubmitting: false } && GoogleEarlyAccessCheck.IsChecked == true;
+        GoogleButton.IsEnabled = Model is { SignInButtonsEnabled: true } && GoogleEarlyAccessCheck.IsChecked == true;
     }
 }

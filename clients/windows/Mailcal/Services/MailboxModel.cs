@@ -171,6 +171,7 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
                 Raise(nameof(SubmittingVisibility));
                 Raise(nameof(ConnectButtonText));
                 Raise(nameof(CancelEnabled));
+                Raise(nameof(SignInButtonsEnabled));
             }
         }
     }
@@ -183,9 +184,11 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
 
     private bool _signingIn;
     /// <summary>
-    /// <c>true</c> while a browser sign-in is out in the user's browser. Unlike a bounded
-    /// IMAP/JMAP connect, this can hang indefinitely if the browser step is abandoned, so the form
-    /// surfaces a Cancel that calls <see cref="CancelMicrosoftSignIn"/> (see <see cref="CancelVisibility"/>).
+    /// <c>true</c> while a browser sign-in is out: beginning, or waiting on the user's browser,
+    /// until its redirect is in. Unlike a bounded IMAP/JMAP connect, this can hang indefinitely if
+    /// the browser step is abandoned, so the form surfaces a Cancel that calls
+    /// <see cref="CancelMicrosoftSignIn"/> (see <see cref="CancelVisibility"/>), and its sign-in
+    /// buttons stay live so a press supersedes it (<see cref="SignInButtonsEnabled"/>).
     /// </summary>
     public bool IsSigningIn
     {
@@ -196,6 +199,7 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
             {
                 Raise(nameof(CancelVisibility));
                 Raise(nameof(CancelEnabled));
+                Raise(nameof(SignInButtonsEnabled));
             }
         }
     }

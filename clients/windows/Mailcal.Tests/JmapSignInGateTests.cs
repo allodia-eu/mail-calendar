@@ -48,7 +48,7 @@ public class JmapSignInGateTests
 
         // Told yes: the button appears, and can be pressed.
         Assert.True(Offered().ShowButton);
-        Assert.True(Offered().ButtonEnabled);
+        Assert.True(Offered().ShowButton);
     }
 
     [Fact]
@@ -97,40 +97,54 @@ public class JmapSignInGateTests
     {
         var gate = Offered();
 
-        // While the browser step is out, neither the button nor the secret field may be used.
-        gate.SignInStarted();
-        Assert.False(gate.ButtonEnabled);
+        // While the browser step is out the secret field waits, and the button stays: closing the
+        // browser tab sends nothing back, so pressing it again is how somebody starts over
+        // (docs/provider-oauth.md rule 13).
+        var attempt = gate.SignInStarted();
+        Assert.True(gate.ShowButton);
         Assert.False(gate.ManualEnabled);
 
-        gate.SignInFinished(JmapSignInOutcome.Failed);
+        gate.SignInFinished(attempt, JmapSignInOutcome.Failed);
 
         // The whole point: a failure is never a dead end. The note explains, the secret field is
         // back, and the button is still there to try again.
         Assert.True(gate.ShowFailure);
         Assert.True(gate.ManualEnabled);
         Assert.True(gate.ShowButton);
-        Assert.True(gate.ButtonEnabled);
+        Assert.True(gate.ShowButton);
+    }
+
+    [Fact]
+    public void The_end_of_a_superseded_sign_in_is_not_the_end_of_the_one_that_replaced_it()
+    {
+        var gate = Offered();
+        var first = gate.SignInStarted();
+        var second = gate.SignInStarted();
+
+        gate.SignInFinished(first, JmapSignInOutcome.Cancelled);
+        Assert.False(gate.ManualEnabled);
+
+        gate.SignInFinished(second, JmapSignInOutcome.Cancelled);
+        Assert.True(gate.ManualEnabled);
     }
 
     [Fact]
     public void A_cancelled_sign_in_re_enables_the_manual_path_without_claiming_a_failure()
     {
         var gate = Offered();
-        gate.SignInStarted();
-        gate.SignInFinished(JmapSignInOutcome.Cancelled);
+        gate.SignInFinished(gate.SignInStarted(), JmapSignInOutcome.Cancelled);
 
         // Backing out of the browser is not an error to report at the user.
         Assert.False(gate.ShowFailure);
         Assert.True(gate.ManualEnabled);
-        Assert.True(gate.ButtonEnabled);
+        Assert.True(gate.ShowButton);
     }
 
     [Fact]
     public void Editing_the_address_after_a_failure_clears_the_note_and_the_offer()
     {
         var gate = Offered();
-        gate.SignInStarted();
-        gate.SignInFinished(JmapSignInOutcome.Failed);
+        gate.SignInFinished(gate.SignInStarted(), JmapSignInOutcome.Failed);
 
         gate.FieldsChanged("bob@other.example", string.Empty);
 
@@ -168,8 +182,7 @@ public class JmapSignInGateTests
         gate.Probed(gate.BeginProbe()!, available: true);
         Assert.False(gate.ShowManualSecret);
 
-        gate.SignInStarted();
-        gate.SignInFinished(JmapSignInOutcome.Failed);
+        gate.SignInFinished(gate.SignInStarted(), JmapSignInOutcome.Failed);
 
         // The load-bearing half of hiding it: a server that declines this flow may never leave the
         // user with no way in.
@@ -212,8 +225,7 @@ public class JmapSignInGateTests
     public void Reset_returns_the_form_to_its_first_run_state()
     {
         var gate = Offered();
-        gate.SignInStarted();
-        gate.SignInFinished(JmapSignInOutcome.Failed);
+        gate.SignInFinished(gate.SignInStarted(), JmapSignInOutcome.Failed);
 
         gate.Reset();
 
