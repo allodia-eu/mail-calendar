@@ -81,6 +81,8 @@ pub(super) struct RenderState<'a> {
     /// The account whose page Accounts shows, and what the last change on it came to.
     pub(super) account: Option<&'a str>,
     pub(super) sign_in: &'a super::account_sign_in::SignInSwitchState,
+    /// The form for a sign-in of its own an account's page opened.
+    pub(super) separate: Option<&'a super::separate_sign_in::SeparateForm>,
     pub(super) notice: Option<&'a notice::Raised>,
     pub(super) redraw: Redraw,
 }
@@ -156,6 +158,9 @@ pub(super) struct SettingsWindow {
     toasts: Option<adw::ToastOverlay>,
     /// The last notice shown.
     shown_notice: u64,
+    /// The switch's question and the form for a sign-in of its own, raised over this window or,
+    /// while it is closed, over the main one.
+    prompts: super::separate_sign_in_view::Prompts,
 }
 
 impl SettingsWindow {
@@ -170,6 +175,12 @@ impl SettingsWindow {
         if let Some(app) = app {
             dark_messages::follow(app);
         }
+        self.prompts.sync(
+            state.sign_in.question(),
+            state.separate,
+            &self.front_or(parent),
+            &sender,
+        );
         if state.generation == 0 || state.generation == self.rendered_generation {
             return;
         }

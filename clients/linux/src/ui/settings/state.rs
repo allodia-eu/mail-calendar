@@ -57,6 +57,10 @@ pub(in crate::ui) struct SettingsState {
     pub(in crate::ui) account: Option<String>,
     /// What the account page's Sign-in section knows, for the same reason.
     pub(in crate::ui) sign_in: crate::ui::account_sign_in::SignInSwitchState,
+    /// The form for a sign-in of its own that an account's page opened, while it is open.
+    pub(in crate::ui) separate: Option<crate::ui::separate_sign_in::SeparateForm>,
+    /// How many such forms have been opened, so each is told from the one before it.
+    pub(in crate::ui) separate_forms: u64,
     /// What the last change on an account's page came to, when it needs saying.
     pub(in crate::ui) notice: Option<super::notice::Raised>,
     /// How many notices have been raised, so a notice raised after one was dropped never reuses
@@ -78,6 +82,8 @@ impl Default for SettingsState {
             allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
             account: None,
             sign_in: crate::ui::account_sign_in::SignInSwitchState::default(),
+            separate: None,
+            separate_forms: 0,
             notice: None,
             notices_raised: 0,
         }
@@ -93,6 +99,7 @@ impl SettingsState {
         }
         // A window opened afresh starts on the accounts list, not on a page left open earlier.
         self.account = None;
+        self.separate = None;
         // Nor with a notice raised while it was closed, about a change made before.
         self.notice = None;
         self.redraw = Redraw::Open;
@@ -214,6 +221,7 @@ impl SettingsState {
             allodia_accounts_synced: accounts_synced,
             account: self.account.as_deref(),
             sign_in: &self.sign_in,
+            separate: self.separate.as_ref(),
             notice: self.notice.as_ref(),
             redraw: self.redraw,
         }

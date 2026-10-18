@@ -4,7 +4,9 @@
 //! The account keeps its id, uses, links, settings and mail; the core replaces it in place and
 //! signals Settings, so the page redraws from the next snapshot.
 
-use mailcal_bindings::{AccountSignInOptions, AccountSignInStart};
+use mailcal_bindings::{
+    AccountCapability, AccountSignInOptions, AccountSignInStart, UnreachedUses,
+};
 
 use super::{
     AppInput, AppModel,
@@ -13,6 +15,7 @@ use super::{
     jmap,
     oauth_loopback::{self, CallbackOutcome},
     settings::notice::Notice,
+    unreached::{self, Answer},
 };
 use crate::l10n;
 
@@ -27,6 +30,9 @@ pub(crate) struct SignInSwitchState {
     asking: Option<String>,
     /// The account whose sign-in is changing, while it is.
     running: Option<String>,
+    /// A switch waiting on what becomes of the calendar and contacts it would not reach, asked
+    /// before the browser opens (`docs/accounts.md` rule 18).
+    question: Option<(Attempt, Box<AccountSignInStart>)>,
 }
 
 impl SignInSwitchState {
@@ -41,6 +47,13 @@ impl SignInSwitchState {
     /// Whether `account`'s sign-in is changing now, which holds its buttons.
     pub(crate) fn running(&self, account: &str) -> bool {
         self.running.as_deref() == Some(account)
+    }
+
+    /// The switch waiting on an answer, by its attempt, and what it would not reach.
+    pub(crate) fn question(&self) -> Option<(u64, &[AccountCapability])> {
+        self.question
+            .as_ref()
+            .map(|(attempt, start)| (attempt.id, start.unreached.as_slice()))
     }
 
     /// Whether to ask about `account`: nothing is known or asked about it yet.
@@ -121,6 +134,8 @@ pub(crate) enum SignInInput {
     },
     /// Put `password` on `account`, in place of its sign-in.
     Password { account: String, password: Password },
+    /// The switch's question was answered.
+    Answered { attempt: u64, answer: Answer },
     /// A change ended.
     Finished { attempt: Attempt, outcome: Outcome },
 }
@@ -190,6 +205,9 @@ impl AppModel {
             SignInInput::Prepared { attempt, start } => {
                 self.account_sign_in_prepared(attempt, start, sender);
             }
+            SignInInput::Answered { attempt, answer } => {
+                self.account_sign_in_answered(attempt, answer, sender);
+            }
             SignInInput::Password { account, password } => {
                 self.switch_to_password(account, password.0, sender);
             }
@@ -218,6 +236,8 @@ impl AppModel {
             from,
             switch,
         };
+        // A question the replaced sign-in was waiting on is no longer anyone's.
+        self.settings.sign_in.question = None;
         // A password account is registered against the redirect it starts with, so the listener
         // is the one every discovered sign-in in this process shares; one that already signs in
         // keeps its grant's own, which the core names in the URL it hands back.
@@ -263,13 +283,54 @@ impl AppModel {
         if !self.host_tasks.account_sign_in.holds(attempt.id) {
             return;
         }
-        let browser_failed = || Outcome::Failed(l10n::account_signin_browser_failed().to_owned());
         let start = match start {
             Ok(start) => start,
             Err(error) => {
                 return self.account_sign_in_finished(&attempt, &Outcome::Failed(error), sender);
             }
         };
+        if unreached::asks(&start.unreached) {
+            // Asked over Settings by the window, which reads it from here.
+            self.settings.sign_in.question = Some((attempt, start));
+            return;
+        }
+        self.open_sign_in_browser(attempt, start, None, sender);
+    }
+
+    /// The switch's question answered: on to the browser with the answer, or nothing changes.
+    fn account_sign_in_answered(
+        &mut self,
+        attempt: u64,
+        answer: Answer,
+        sender: relm4::Sender<AppInput>,
+    ) {
+        let Some((asked, start)) = self
+            .settings
+            .sign_in
+            .question
+            .take_if(|(asked, _)| asked.id == attempt)
+        else {
+            return;
+        };
+        if !self.host_tasks.account_sign_in.holds(attempt) {
+            return;
+        }
+        match answer.choice() {
+            Some(choice) => self.open_sign_in_browser(asked, start, Some(choice), sender),
+            None => self.account_sign_in_finished(&asked, &Outcome::Cancelled, sender),
+        }
+    }
+
+    /// Opens the browser on `start` and completes the sign-in with what came back, telling the
+    /// core `unreached`, the answer to the switch's question when it asked one.
+    fn open_sign_in_browser(
+        &mut self,
+        attempt: Attempt,
+        start: Box<AccountSignInStart>,
+        unreached: Option<UnreachedUses>,
+        sender: relm4::Sender<AppInput>,
+    ) {
+        let browser_failed = || Outcome::Failed(l10n::account_signin_browser_failed().to_owned());
         let url = &start.authorization_url;
         let listening = jmap::authorization_redirect_uri(url)
             .and_then(|redirect| self.host_tasks.oauth_loopback_for_redirect(&redirect).ok())
@@ -297,7 +358,7 @@ impl AppModel {
                     attempt.account.clone(),
                     start.pending,
                     callback_url,
-                    None,
+                    unreached,
                 ) {
                     Ok(()) => Outcome::Switched,
                     Err(error) => Outcome::Failed(super::core_error::said(&error)),

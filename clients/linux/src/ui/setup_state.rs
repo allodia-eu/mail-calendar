@@ -30,6 +30,8 @@ pub(super) enum Phase {
     Uses,
     /// The account is added; linking it to another is offered.
     Links,
+    /// The account is added; its calendar and contacts need a sign-in of their own.
+    Separate,
 }
 
 pub(super) struct SetupState {
@@ -52,8 +54,7 @@ pub(super) struct SetupState {
     /// is a question: this is the answer, and it outlives a retry that then fails on the
     /// password so nobody is asked the same thing twice.
     pub(super) accepted_certificate: Option<mailcal_bindings::RejectedCertificate>,
-    /// The account the last add would have duplicated, whose credential the form offers to
-    /// replace with the one just given. Cleared with `error`, like `certificate`.
+    /// The account the last add would have duplicated, to offer it the credential just given.
     pub(super) existing: Option<super::setup_already_set_up::ExistingAccount>,
     /// The address an account offered by one of the person's other devices is for. It only fills
     /// the field: which route the flow takes is still decided by detection, so an offer whose
@@ -66,6 +67,8 @@ pub(super) struct SetupState {
     pub(super) uses: Option<super::setup_signed_in::UsesStep>,
     /// The link step on screen, in [`Phase::Links`].
     pub(super) links: Option<super::setup_links::LinkStep>,
+    /// The step [`Phase::Separate`] shows, held from the add until the link step would follow.
+    pub(super) separate: Option<super::separate_sign_in::SeparateForm>,
     /// The account whose link step an "Add another account" left, to come back to.
     pub(super) returning_to: Option<String>,
     /// Every account this flow added, whose names are asked once it ends.
@@ -98,6 +101,7 @@ impl SetupState {
             onboarding: Onboarding::new(),
             uses: None,
             links: None,
+            separate: None,
             returning_to: None,
             added: Vec::new(),
             beside: Vec::new(),
@@ -124,6 +128,7 @@ impl SetupState {
     fn forget_flow(&mut self) {
         self.uses = None;
         self.links = None;
+        self.separate = None;
         self.returning_to = None;
         self.added.clear();
         self.beside.clear();
@@ -477,7 +482,7 @@ impl SetupState {
         self.existing = None;
     }
 
-    fn bump(&mut self) {
+    pub(super) fn bump(&mut self) {
         self.generation = self.generation.wrapping_add(1);
         self.form_generation = self.form_generation.wrapping_add(1);
     }

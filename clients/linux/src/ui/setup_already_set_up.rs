@@ -3,7 +3,7 @@
 //! (`docs/accounts.md` rules 15 and 17).
 
 use adw::prelude::*;
-use mailcal_bindings::MailcalError;
+use mailcal_bindings::{AccountCapability, MailcalError, UnreachedUses};
 
 use super::{
     AppInput, AppModel,
@@ -20,6 +20,9 @@ use crate::l10n;
 pub(crate) struct ExistingAccount {
     pub(super) account_id: String,
     config_toml: String,
+    /// The calendar and contacts uses the sign-in that gave the config will not reach, which
+    /// putting it on the account asks about first.
+    pub(super) unreached: Vec<AccountCapability>,
 }
 
 /// Never the config: it carries the password or the grant just given.
@@ -27,6 +30,7 @@ impl std::fmt::Debug for ExistingAccount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ExistingAccount")
             .field("account_id", &self.account_id)
+            .field("unreached", &self.unreached)
             .finish_non_exhaustive()
     }
 }
@@ -34,8 +38,9 @@ impl std::fmt::Debug for ExistingAccount {
 /// The add screen's traffic about an account already set up.
 #[derive(Debug)]
 pub(crate) enum ExistingInput {
-    /// Put the credential just given on the account already set up.
-    Update,
+    /// Put the credential just given on the account already set up, with the answer to what
+    /// becomes of the calendar and contacts it does not reach when it was asked.
+    Update { unreached: Option<UnreachedUses> },
     /// That ended, for the account it was put on.
     Updated {
         account: String,
@@ -80,6 +85,7 @@ pub(super) fn refusal(
                     Some(ExistingAccount {
                         account_id,
                         config_toml,
+                        unreached: Vec::new(),
                     })
                 }
                 _ => None,
@@ -92,27 +98,49 @@ pub(super) fn refusal(
 /// account already set up. The pane names its feedback box, which a rebuild and a redraw into
 /// the mounted pane have both just filled.
 pub(super) fn show(window: &gtk::Window, state: &SetupState, sender: &relm4::Sender<AppInput>) {
-    let Some(feedback) = state
+    let Some((existing, feedback)) = state
         .existing
         .as_ref()
         .filter(|_| state.phase == Phase::Form)
-        .and_then(|_| window.child())
-        .and_then(|root| named(&root, FEEDBACK))
-        .and_downcast::<gtk::Box>()
+        .zip(
+            window
+                .child()
+                .and_then(|root| named(&root, FEEDBACK))
+                .and_downcast::<gtk::Box>(),
+        )
     else {
         return;
     };
-    append_offer(&feedback, sender);
+    append_offer(&feedback, &existing.unreached, sender);
 }
 
-fn append_offer(feedback: &gtk::Box, sender: &relm4::Sender<AppInput>) {
+/// The offer. When the credential would not reach the account's calendar or contacts, it asks
+/// what becomes of them first, as the switch on the account's page does; cancelling leaves the
+/// refusal and its offer as they were.
+fn append_offer(
+    feedback: &gtk::Box,
+    unreached: &[AccountCapability],
+    sender: &relm4::Sender<AppInput>,
+) {
     let update = gtk::Button::with_label(l10n::account_already_set_up_update());
     update.add_css_class("suggested-action");
     update.set_halign(gtk::Align::Start);
-    let input = sender.clone();
+    let (input, unreached) = (sender.clone(), unreached.to_vec());
     update.connect_clicked(move |button| {
         button.set_sensitive(false);
-        input.emit(AppInput::AlreadySetUp(ExistingInput::Update));
+        if !super::unreached::asks(&unreached) {
+            input.emit(AppInput::AlreadySetUp(ExistingInput::Update {
+                unreached: None,
+            }));
+            return;
+        }
+        let (input, offer) = (input.clone(), button.clone());
+        super::unreached::ask(button, &unreached, move |answer| match answer.choice() {
+            Some(choice) => input.emit(AppInput::AlreadySetUp(ExistingInput::Update {
+                unreached: Some(choice),
+            })),
+            None => offer.set_sensitive(true),
+        });
     });
     feedback.append(&update);
     feedback.append(&caption(l10n::account_already_set_up_update_note()));
@@ -125,7 +153,7 @@ impl AppModel {
         sender: relm4::Sender<AppInput>,
     ) {
         match input {
-            ExistingInput::Update => self.update_existing_account(sender),
+            ExistingInput::Update { unreached } => self.update_existing_account(unreached, sender),
             ExistingInput::Updated {
                 account,
                 result: Ok(()),
@@ -146,7 +174,11 @@ impl AppModel {
 
     /// Connects the account already set up with the credential the refused add carried, off the
     /// main thread: the core tests it before it stores it.
-    fn update_existing_account(&mut self, sender: relm4::Sender<AppInput>) {
+    fn update_existing_account(
+        &mut self,
+        unreached: Option<UnreachedUses>,
+        sender: relm4::Sender<AppInput>,
+    ) {
         let (Some(app), Some(existing)) = (self.app.clone(), self.setup.existing.clone()) else {
             return;
         };
@@ -154,7 +186,7 @@ impl AppModel {
         std::thread::spawn(move || {
             let account = existing.account_id.clone();
             let result = app
-                .use_credential_from(existing.account_id, existing.config_toml, None)
+                .use_credential_from(existing.account_id, existing.config_toml, unreached)
                 .map_err(|error| super::core_error::said(&error));
             sender.emit(AppInput::AlreadySetUp(ExistingInput::Updated {
                 account,

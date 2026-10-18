@@ -107,6 +107,12 @@ fn uses_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup 
             }
         });
         section.add(&row);
+        // Under the note that says why: a sign-in of its own for the server that needs one.
+        if crate::ui::separate_sign_in_view::action_after(entry) == Some(capability)
+            && let Some(action) = crate::ui::separate_sign_in_view::page_action(entry, &ctx.sender)
+        {
+            section.add(&action);
+        }
     }
     section
 }
@@ -363,6 +369,7 @@ mod tests {
             linked_from: Vec::new(),
             link_candidates: mailcal_bindings::LinkCandidates::default(),
             endpoints: None,
+            separate_server: None,
         };
         assert_eq!(
             remove_message(&entry),

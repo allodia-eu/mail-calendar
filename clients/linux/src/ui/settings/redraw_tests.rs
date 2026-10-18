@@ -19,6 +19,7 @@ fn snapshot(addresses: &[&str]) -> AccountsSnapshot {
                 linked_from: Vec::new(),
                 link_candidates: mailcal_bindings::LinkCandidates::default(),
                 endpoints: None,
+                separate_server: None,
             })
             .collect(),
     }

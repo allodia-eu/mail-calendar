@@ -104,6 +104,7 @@ impl AppModel {
             pending,
             expected_state,
             loopback,
+            unreached,
         } = *prepared;
         let failed = sender.clone();
         imap_signin::launch_browser(&authorization_url, move || {
@@ -120,7 +121,7 @@ impl AppModel {
             let outcome = match imap_signin::wait(loopback, &cancel, &expected_state) {
                 CallbackOutcome::Received(callback_url) => {
                     sender.emit(AppInput::ImapCallbackReceived(attempt));
-                    imap_signin::complete(&app, pending, callback_url)
+                    imap_signin::complete(&app, pending, callback_url, unreached)
                 }
                 CallbackOutcome::Cancelled => ImapOutcome::Cancelled,
                 CallbackOutcome::Failed(_) => ImapOutcome::Failed,

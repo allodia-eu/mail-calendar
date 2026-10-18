@@ -36,6 +36,7 @@ fn jmap(calendar: CapabilityState, candidates: Vec<LinkedAccount>) -> AccountsSn
                 ..LinkCandidates::default()
             },
             endpoints: None,
+            separate_server: None,
         }],
     }
 }

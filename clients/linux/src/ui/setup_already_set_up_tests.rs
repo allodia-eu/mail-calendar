@@ -142,7 +142,9 @@ pub(crate) fn the_refusal_offers_the_existing_account_the_new_credential(
         update.emit_clicked();
         assert!(matches!(
             receiver.recv_sync(),
-            Some(AppInput::AlreadySetUp(ExistingInput::Update))
+            Some(AppInput::AlreadySetUp(ExistingInput::Update {
+                unreached: None
+            }))
         ));
         assert!(!update.is_sensitive(), "the offer asks once");
 

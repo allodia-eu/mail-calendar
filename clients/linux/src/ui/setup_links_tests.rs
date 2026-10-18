@@ -34,6 +34,7 @@ fn snapshot() -> AccountsSnapshot {
                 suggested: vec!["alice@dav".to_owned()],
             },
             endpoints: None,
+            separate_server: None,
         }],
     }
 }

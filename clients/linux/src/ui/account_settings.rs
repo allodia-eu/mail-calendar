@@ -48,6 +48,9 @@ pub(crate) enum AccountsInput {
     Refused(Notice),
     /// The Sign-in section of an IMAP or JMAP account (`super::account_sign_in`).
     SignIn(super::account_sign_in::SignInInput),
+    /// A sign-in of its own for a mailbox's calendar and contacts, from its page or from setup
+    /// (`super::separate_sign_in`).
+    Separate(super::separate_sign_in::SeparateInput),
 }
 
 /// An account's edited servers and sign-in, on their way to the core.
@@ -166,6 +169,7 @@ impl AppModel {
             AccountsInput::Changed(None) => self.settings.refresh_in_place(),
             AccountsInput::Refused(notice) => self.settings.say(notice),
             AccountsInput::SignIn(input) => self.sign_in_input(input, sender),
+            AccountsInput::Separate(input) => self.separate_input(input, sender),
         }
     }
 

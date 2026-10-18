@@ -7,7 +7,7 @@
 
 use std::sync::{Arc, atomic::AtomicBool};
 
-use mailcal_bindings::{ImapLoginRequest, MailcalApp};
+use mailcal_bindings::{AccountCapability, ImapLoginRequest, MailcalApp};
 
 use super::{
     oauth_loopback::{self, OAuthLoopback},
@@ -21,6 +21,8 @@ pub(crate) struct ImapPrepared {
     pub(super) pending: String,
     pub(super) expected_state: String,
     pub(super) loopback: OAuthLoopback,
+    /// The calendar and contacts uses the sign-in will not reach, known before the browser opens.
+    pub(super) unreached: Vec<AccountCapability>,
 }
 
 #[derive(Debug)]
@@ -71,6 +73,7 @@ pub(super) fn prepare(
         pending: start.pending,
         expected_state,
         loopback,
+        unreached: start.unreached,
     })
 }
 
@@ -91,11 +94,13 @@ pub(super) fn wait(
     )
 }
 
-/// Exchanges the code and adds the account.
+/// Exchanges the code and adds the account. A refusal for an account already set up keeps
+/// `unreached`, which offering it the grant asks about.
 pub(super) fn complete(
     app: &Arc<MailcalApp>,
     pending: String,
     callback_url: String,
+    unreached: Vec<AccountCapability>,
 ) -> ImapOutcome {
     let Ok(config) = app.complete_imap_login(pending, callback_url) else {
         return ImapOutcome::Failed;
@@ -104,11 +109,13 @@ pub(super) fn complete(
     // add back itself when that write fails, so a failure here has left nothing behind.
     match app.add_account(config.clone()) {
         Ok(account) => ImapOutcome::Added(account.id),
-        Err(error) => ImapOutcome::NotAdded(Box::new(super::setup_already_set_up::refusal(
-            error,
-            Some(config),
-            false,
-        ))),
+        Err(error) => {
+            let mut failure = super::setup_already_set_up::refusal(error, Some(config), false);
+            if let Some(existing) = failure.existing.as_mut() {
+                existing.unreached = unreached;
+            }
+            ImapOutcome::NotAdded(Box::new(failure))
+        }
     }
 }
 

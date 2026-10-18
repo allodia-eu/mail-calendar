@@ -121,6 +121,10 @@ impl SetupWindow {
                 Some(step) => setup_links::step(&window, step, sender),
                 None => progress(l10n::status_connecting()),
             },
+            Phase::Separate => match &state.separate {
+                Some(step) => super::separate_sign_in_view::setup_step(&window, step, sender),
+                None => progress(l10n::status_connecting()),
+            },
         };
         // A found card with every use on is taller than a laptop screen, so the step scrolls
         // inside the window rather than pushing its footer off the bottom of the display.

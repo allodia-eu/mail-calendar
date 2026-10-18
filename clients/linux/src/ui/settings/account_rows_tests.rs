@@ -36,6 +36,7 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
         linked_from: Vec::new(),
         link_candidates: LinkCandidates::default(),
         endpoints: None,
+        separate_server: None,
     }
 }
 
