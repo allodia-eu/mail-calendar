@@ -74,6 +74,15 @@ internal fun AccountPage(
     ) {
         entry.uses.forEach { use -> UseRow(entry, use.capability, ui) }
     }
+    ui.state.separate.form?.takeIf { it.accountId == entry.id }?.let { form ->
+        SeparateServerDialog(
+            form = form,
+            busy = ui.state.separate.busy,
+            error = ui.state.separate.error,
+            onConnect = ui.onConnectSeparate,
+            onDismiss = { ui.state.separate.close() },
+        )
+    }
     val pickers = AccountSettingsRules.linkPickers(entry)
     if (pickers.isNotEmpty()) {
         Spacer(modifier = Modifier.height(8.dp))
@@ -149,6 +158,14 @@ private fun UseRow(entry: AccountEntry, capability: AccountCapability, ui: Accou
         }
         Spacer(modifier = Modifier.width(8.dp))
         Switch(checked = checked, onCheckedChange = null, enabled = rule.enabled && !waiting)
+    }
+    // A calendar or address book the account's sign-in does not reach: one of its own (rule 18).
+    if (UnreachedRules.offersSeparate(entry, capability)) {
+        TextButton(
+            onClick = { ui.onSeparateSignIn(entry.id) },
+            enabled = !waiting,
+            modifier = Modifier.testTag("account-use-separate-${capability.name}"),
+        ) { Text(L10n.settings_account_use_separate_sign_in(ctx)) }
     }
     if (confirmingOff) {
         AlertDialog(

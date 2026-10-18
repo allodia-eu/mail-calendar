@@ -37,6 +37,17 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
         SetupUsesStepScreen(step) { chooseSetupUses(it) }
         return
     }
+    // A sign-in that did not reach the calendar or contacts asks their own password next.
+    setupFlow.separate.form?.let { form ->
+        SeparateServerStepScreen(
+            form = form,
+            busy = setupFlow.separate.busy,
+            error = setupFlow.separate.error,
+            onConnect = { username, password -> connectSetupSeparate(username, password) },
+            onSkip = { skipSetupSeparate() },
+        )
+        return
+    }
     val links = setupFlow.links
     if (setupFlow.showsLinks && links != null) {
         SetupLinkStepScreen(
@@ -54,9 +65,14 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
     if (setupFlow.existing != null) {
         AlreadySetUpDialog(
             updating = setupFlow.updatingExisting,
-            onUpdate = { updateExistingAccount() },
+            onUpdate = { pressUpdateExisting() },
             onDismiss = { if (!setupFlow.updatingExisting) setupFlow.existing = null },
         )
+        setupFlow.existing?.takeIf { setupFlow.askingExisting }?.let { existing ->
+            UnreachedRules.setOf(existing.unreached)?.let { set ->
+                SignInUnreachedDialog(set) { answerExistingUnreached(it) }
+            }
+        }
     }
 }
 

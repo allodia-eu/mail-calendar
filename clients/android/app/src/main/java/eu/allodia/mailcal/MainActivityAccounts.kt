@@ -28,7 +28,9 @@ internal suspend fun MainActivity.detectAccount(email: String): DetectedSetup {
     }
 }
 
-internal fun MainActivity.addAccount(configToml: String) {
+// [unreached] is what the sign-in the config came from will not reach, asked about when the add is
+// refused as already set up and the account there takes the credential (docs/accounts.md rule 18).
+internal fun MainActivity.addAccount(configToml: String, unreached: List<AccountCapability> = emptyList()) {
     val activity = this
     val instance = activity.app ?: return
     activity.addError = null
@@ -59,7 +61,7 @@ internal fun MainActivity.addAccount(configToml: String) {
                 activity.reportAddFailure(e)
                 // An account already set up is offered the credential just given
                 // (docs/accounts.md rule 17).
-                activity.offerExistingAccount(e, configToml)
+                activity.offerExistingAccount(e, configToml, unreached)
             }
         }
     }

@@ -49,6 +49,8 @@ internal fun MainActivity.signInWithImap(request: ImapLoginRequest) {
             )
             activity.mainHandler.post {
                 activity.pendingImapLogin = start.pending
+                // Asked about when the add is refused as already set up (docs/accounts.md rule 18).
+                activity.setupFlow.signInUnreached = start.unreached
                 activity.yieldAccountSignIn()
                 logUiInfo("imap sign-in: opening the browser")
                 openImapSignIn(activity, start.authorizationUrl)
@@ -78,6 +80,8 @@ internal fun MainActivity.completeImapSignIn(callbackUrl: String) {
         return
     }
     activity.pendingImapLogin = null
+    val unreached = activity.setupFlow.signInUnreached
+    activity.setupFlow.signInUnreached = emptyList()
     activity.signingInImap = true
     logUiInfo("imap sign-in: redirect received, completing")
     thread(name = "mailcal-imap-complete") {
@@ -88,7 +92,7 @@ internal fun MainActivity.completeImapSignIn(callbackUrl: String) {
                 activity.signingInImap = false
                 // addAccount owns the connect + persist-after-connect discipline, and reports its
                 // own failure through addError.
-                activity.addAccount(configToml)
+                activity.addAccount(configToml, unreached)
             }
         } catch (e: Exception) {
             logUiWarn("imap sign-in complete failed: ${e.message}")

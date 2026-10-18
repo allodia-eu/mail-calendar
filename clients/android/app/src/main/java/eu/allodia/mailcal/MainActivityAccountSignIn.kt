@@ -1,11 +1,14 @@
 // How an IMAP or JMAP account signs in, changed or renewed from its page in Settings or from the
 // expired-sign-in banner, and the "already set up" refusal's offer to update the account already
-// there (docs/accounts.md rule 17). Every core call here blocks (detection, discovery, a token
+// there (docs/accounts.md rule 17). Either asks first when the new sign-in will not reach the
+// account's calendar or contacts (rule 18). Every core call here blocks (detection, discovery, a token
 // exchange, a connect), so each runs off the main thread. The core stores the credential and
 // raises the Settings signal; the page redraws from the next snapshot.
 package eu.allodia.mailcal
 
 import kotlin.concurrent.thread
+import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.UnreachedUses
 
 /** Asks account [accountId]'s server which ways in it takes, once per opening of its page. */
 internal fun MainActivity.askSignInOptions(accountId: String) {
@@ -26,8 +29,9 @@ private fun MainActivity.signInFailedTitle(switching: Boolean): String =
 
 /**
  * Signs account [accountId] in through its provider in the browser: again, from its stored grant,
- * or for the first time in place of its password when [switching]. The redirect comes back through
- * onNewIntent to [completeAccountSignIn].
+ * or for the first time in place of its password when [switching]. A switch that will not reach
+ * the account's calendar or contacts asks first, and the browser waits for [answerUnreached]. The
+ * redirect comes back through onNewIntent to [completeAccountSignIn].
  */
 internal fun MainActivity.startAccountSignIn(accountId: String, switching: Boolean) {
     val instance = app ?: return
@@ -38,21 +42,13 @@ internal fun MainActivity.startAccountSignIn(accountId: String, switching: Boole
         val start = runCatching { instance.beginAccountSignIn(accountId, redirect) }
         mainHandler.post {
             start.onSuccess {
+                val set = UnreachedRules.setOf(it.unreached)
+                if (set != null) {
+                    signIn.ask(UnreachedQuestion(accountId, set, it.pending, it.authorizationUrl, redirect))
+                    return@onSuccess
+                }
                 signIn.opened(it.pending)
-                val opened = runCatching {
-                    if (redirect == ImapOAuthConfig.REDIRECT_URI) {
-                        openImapSignIn(this, it.authorizationUrl)
-                    } else {
-                        openJmapSignIn(this, it.authorizationUrl)
-                    }
-                }
-                opened.onFailure { error ->
-                    logUiWarn("sign-in: the browser did not open: ${error.message}")
-                    signIn.yieldRedirect()
-                    signIn.finished()
-                    val title = signInFailedTitle(switching)
-                    say(AccountNotice(NoticeKind.FAILURE, title, L10n.account_signin_browser_failed(this)))
-                }
+                openAccountBrowser(it.authorizationUrl, redirect, switching)
             }
             start.onFailure {
                 logUiWarn("sign-in: starting an account's sign-in failed: ${coreErrorText(it)}")
@@ -69,6 +65,29 @@ internal fun MainActivity.startAccountSignIn(accountId: String, switching: Boole
     }
 }
 
+/** Opens the browser for the sign-in [AccountSignInState.opened] armed. */
+private fun MainActivity.openAccountBrowser(url: String, redirect: String, switching: Boolean) {
+    val signIn = accountSettings.signIn
+    val opened = runCatching {
+        if (redirect == ImapOAuthConfig.REDIRECT_URI) openImapSignIn(this, url) else openJmapSignIn(this, url)
+    }
+    opened.onFailure { error ->
+        logUiWarn("sign-in: the browser did not open: ${error.message}")
+        signIn.yieldRedirect()
+        signIn.finished()
+        val title = signInFailedTitle(switching)
+        say(AccountNotice(NoticeKind.FAILURE, title, L10n.account_signin_browser_failed(this)))
+    }
+}
+
+/** The switch's question answered: on to the browser with the answer, or nothing changes. */
+internal fun MainActivity.answerUnreached(choice: UnreachedChoice) {
+    val switching = accountSettings.signIn.running?.switching ?: true
+    val asked = accountSettings.signIn.decided(UnreachedRules.answer(choice)) ?: return
+    logUiInfo("sign-in: what the new sign-in does not reach was answered")
+    openAccountBrowser(asked.authorizationUrl, asked.redirect, switching)
+}
+
 /** Whether the next IMAP or JMAP redirect completes an existing account's sign-in. */
 internal fun MainActivity.awaitsAccountSignIn(): Boolean = accountSettings.signIn.pending != null
 
@@ -79,7 +98,7 @@ internal fun MainActivity.completeAccountSignIn(callbackUrl: String) {
     val claimed = signIn.claim() ?: return
     thread(name = "mailcal-account-sign-in-complete") {
         val answer = runCatching {
-            instance.completeAccountSignIn(claimed.accountId, claimed.handle, callbackUrl)
+            instance.completeAccountSignIn(claimed.accountId, claimed.handle, callbackUrl, claimed.unreached)
         }
         mainHandler.post {
             signIn.finished(switched = answer.isSuccess && claimed.switching)
@@ -146,24 +165,49 @@ internal fun MainActivity.yieldAccountSignIn() = accountSettings.signIn.yieldRed
  * The add was refused because the account is already set up: offers to put the credential of
  * [configToml] on it, when Settings can switch that account's sign-in.
  */
-internal fun MainActivity.offerExistingAccount(error: Throwable, configToml: String) {
+internal fun MainActivity.offerExistingAccount(
+    error: Throwable,
+    configToml: String,
+    unreached: List<AccountCapability> = emptyList(),
+) {
     setupFlow.existing = AccountSignInRules.existingAccount(error, configToml) {
         accountSettings.entry(it)?.kind
-    }
+    }?.copy(unreached = unreached)
 }
 
 /**
- * Puts the credential of the refused add on the account already there. That account is listed
- * already, so setup ends as an add does without adding anything; a failure is said on the form
- * as an add's is.
+ * "Update the existing account": asks first when the sign-in the config came from will not reach
+ * the calendar or contacts, and updates at once otherwise.
  */
-internal fun MainActivity.updateExistingAccount() {
+internal fun MainActivity.pressUpdateExisting() {
+    val existing = setupFlow.existing ?: return
+    if (UnreachedRules.asks(existing.unreached)) {
+        setupFlow.askingExisting = true
+    } else {
+        updateExistingAccount(null)
+    }
+}
+
+/** The update's question answered; Cancel leaves the refusal on screen. */
+internal fun MainActivity.answerExistingUnreached(choice: UnreachedChoice) {
+    setupFlow.askingExisting = false
+    UnreachedRules.answer(choice)?.let { updateExistingAccount(it) }
+}
+
+/**
+ * Puts the credential of the refused add on the account already there, doing with what it does
+ * not reach what [unreached] says. That account is listed already, so setup ends as an add does
+ * without adding anything; a failure is said on the form as an add's is.
+ */
+private fun MainActivity.updateExistingAccount(unreached: UnreachedUses?) {
     val instance = app ?: return
     val existing = setupFlow.existing ?: return
     if (setupFlow.updatingExisting) return
     setupFlow.updatingExisting = true
     thread(name = "mailcal-update-existing") {
-        val answer = runCatching { instance.useCredentialFrom(existing.accountId, existing.configToml) }
+        val answer = runCatching {
+            instance.useCredentialFrom(existing.accountId, existing.configToml, unreached)
+        }
         mainHandler.post {
             setupFlow.updatingExisting = false
             setupFlow.existing = null

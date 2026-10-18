@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountCapability
 
 @Composable
-private fun StepColumn(content: @Composable () -> Unit) {
+internal fun StepColumn(content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()

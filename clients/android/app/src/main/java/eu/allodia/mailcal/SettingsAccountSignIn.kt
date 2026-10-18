@@ -79,6 +79,10 @@ internal fun AccountSignInGroup(entry: AccountEntry, ui: AccountsSettingsUi) {
             }
         }
     }
+    // Before the browser opens: what becomes of what the new sign-in will not reach (rule 18).
+    signIn.question?.takeIf { it.accountId == entry.id }?.let { asked ->
+        SignInUnreachedDialog(asked.set, ui.onUnreachedChoice)
+    }
 }
 
 /** A button that opens the browser, with a spinner while its flow runs ([busy]). */

@@ -4,6 +4,7 @@
 // catalog-free, so the JVM suite reaches every rule.
 package eu.allodia.mailcal
 
+import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.AccountSignInOptions
@@ -97,5 +98,12 @@ internal object AccountSignInRules {
     }
 }
 
-/** The account an add was refused for, and the config that add was given. */
-internal data class ExistingAccount(val accountId: String, val configToml: String)
+/**
+ * The account an add was refused for, the config that add was given, and what the sign-in that
+ * config came from will not reach, asked about before the update (docs/accounts.md rule 18).
+ */
+internal data class ExistingAccount(
+    val accountId: String,
+    val configToml: String,
+    val unreached: List<AccountCapability> = emptyList(),
+)
