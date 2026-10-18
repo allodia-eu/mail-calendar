@@ -37,14 +37,18 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
         SetupUsesStepScreen(step) { chooseSetupUses(it) }
         return
     }
-    // A sign-in that did not reach the calendar or contacts asks their own password next.
+    // A sign-in that did not reach the calendar or contacts asks their own sign-in next.
     setupFlow.separate.form?.let { form ->
+        val separate = setupFlow.separate
         SeparateServerStepScreen(
             form = form,
-            busy = setupFlow.separate.busy,
-            error = setupFlow.separate.error,
+            controls = separate.controls,
+            error = separate.error,
             onConnect = { username, password -> connectSetupSeparate(username, password) },
             onSkip = { skipSetupSeparate() },
+            onSignIn = { signInSeparate(separate) },
+            onShown = { askSeparateSignIn(separate) },
+            onLeave = { separate.left() },
         )
         return
     }

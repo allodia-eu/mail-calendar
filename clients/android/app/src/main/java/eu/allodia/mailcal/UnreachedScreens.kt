@@ -1,7 +1,8 @@
 // What is drawn for a calendar or address book an account's sign-in does not reach
 // (docs/accounts.md rule 18): the question a switch to the provider asks before the browser opens,
 // and the form that gives them a sign-in of their own, as setup's step and as the account page's
-// dialog. What each decides is UnreachedRules'; these draw it.
+// dialog, with the sign-in at the server's own provider when it offers one (docs/mail-oauth.md
+// rule 13). What each decides is UnreachedRules' and SeparateSignIn's; these draw it.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -22,6 +23,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,11 +87,44 @@ private class SeparateFields(username: String) {
     val ready: Boolean get() = username.isNotBlank() && password.isNotEmpty()
 }
 
+/**
+ * The sign-in at the server's own provider, above the fields once the core has said it is offered,
+ * with its note beneath. The fields stay below it, so one being typed in keeps its focus.
+ */
 @Composable
-private fun SeparateServerBody(form: SeparateServerForm, fields: SeparateFields, error: String?) {
+private fun SeparateSignInOffer(controls: SeparateControls, onSignIn: () -> Unit) {
+    if (!controls.offersSignIn) return
+    val ctx = LocalContext.current
+    Button(
+        onClick = onSignIn,
+        enabled = controls.editable,
+        modifier = Modifier.fillMaxWidth().testTag("separate-server-sign-in"),
+    ) {
+        if (controls.signingIn) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp))
+        } else {
+            Text(L10n.setup_imap_signin_button(ctx))
+        }
+    }
+    Text(
+        L10n.setup_imap_signin_note(ctx),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun SeparateServerBody(
+    form: SeparateServerForm,
+    fields: SeparateFields,
+    controls: SeparateControls,
+    error: String?,
+    onSignIn: () -> Unit,
+) {
     val ctx = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(L10n.separate_server_body(ctx, form.host), style = MaterialTheme.typography.bodyMedium)
+        SeparateSignInOffer(controls, onSignIn)
         SetupField(
             fields.username,
             { fields.username = it },
@@ -105,6 +141,16 @@ private fun SeparateServerBody(form: SeparateServerForm, fields: SeparateFields,
             )
         }
     }
+}
+
+/**
+ * Asks once, when the form is drawn, whether its server offers the sign-in, and retires a sign-in
+ * still out for it when the form leaves the screen.
+ */
+@Composable
+private fun SeparateFormEffects(form: SeparateServerForm, onShown: () -> Unit, onLeave: () -> Unit) {
+    LaunchedEffect(form) { onShown() }
+    DisposableEffect(form) { onDispose(onLeave) }
 }
 
 @Composable
@@ -126,28 +172,32 @@ private fun ConnectLabel(busy: Boolean) {
 @Composable
 internal fun SeparateServerStepScreen(
     form: SeparateServerForm,
-    busy: Boolean,
+    controls: SeparateControls,
     error: String?,
     onConnect: (username: String, password: String) -> Unit,
     onSkip: () -> Unit,
+    onSignIn: () -> Unit = {},
+    onShown: () -> Unit = {},
+    onLeave: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val fields = remember(form) { SeparateFields(form.username) }
-    BackHandler(enabled = !busy) { onSkip() }
+    SeparateFormEffects(form, onShown, onLeave)
+    BackHandler(enabled = controls.leavable) { onSkip() }
     StepColumn {
         Text(separateServerTitle(ctx, form.set), style = MaterialTheme.typography.headlineSmall)
-        SeparateServerBody(form, fields, error)
+        SeparateServerBody(form, fields, controls, error, onSignIn)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = onSkip,
-                enabled = !busy,
+                enabled = controls.leavable,
                 modifier = Modifier.weight(1f).testTag("separate-server-skip"),
             ) { Text(L10n.separate_server_skip(ctx)) }
             Button(
                 onClick = { onConnect(fields.username.trim(), fields.password) },
-                enabled = !busy && fields.ready,
+                enabled = controls.editable && fields.ready,
                 modifier = Modifier.weight(1f).testTag("separate-server-connect"),
-            ) { ConnectLabel(busy) }
+            ) { ConnectLabel(controls.connecting) }
         }
     }
 }
@@ -156,28 +206,34 @@ internal fun SeparateServerStepScreen(
 @Composable
 internal fun SeparateServerDialog(
     form: SeparateServerForm,
-    busy: Boolean,
+    controls: SeparateControls,
     error: String?,
     onConnect: (username: String, password: String) -> Unit,
     onDismiss: () -> Unit,
+    onSignIn: () -> Unit = {},
+    onShown: () -> Unit = {},
+    onLeave: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val fields = remember(form) { SeparateFields(form.username) }
+    SeparateFormEffects(form, onShown, onLeave)
     AlertDialog(
-        onDismissRequest = { if (!busy) onDismiss() },
+        onDismissRequest = { if (controls.leavable) onDismiss() },
         title = { Text(separateServerTitle(ctx, form.set)) },
-        text = { SeparateServerBody(form, fields, error) },
+        text = { SeparateServerBody(form, fields, controls, error, onSignIn) },
         confirmButton = {
             TextButton(
                 onClick = { onConnect(fields.username.trim(), fields.password) },
-                enabled = !busy && fields.ready,
+                enabled = controls.editable && fields.ready,
                 modifier = Modifier.testTag("separate-server-connect"),
-            ) { ConnectLabel(busy) }
+            ) { ConnectLabel(controls.connecting) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !busy, modifier = Modifier.testTag("separate-server-cancel")) {
-                Text(L10n.action_cancel(ctx))
-            }
+            TextButton(
+                onClick = onDismiss,
+                enabled = controls.leavable,
+                modifier = Modifier.testTag("separate-server-cancel"),
+            ) { Text(L10n.action_cancel(ctx)) }
         },
     )
 }

@@ -77,10 +77,13 @@ internal fun AccountPage(
     ui.state.separate.form?.takeIf { it.accountId == entry.id }?.let { form ->
         SeparateServerDialog(
             form = form,
-            busy = ui.state.separate.busy,
+            controls = ui.state.separate.controls,
             error = ui.state.separate.error,
             onConnect = ui.onConnectSeparate,
             onDismiss = { ui.state.separate.close() },
+            onSignIn = ui.onSeparateProviderSignIn,
+            onShown = ui.onSeparateFormShown,
+            onLeave = { ui.state.separate.left() },
         )
     }
     val pickers = AccountSettingsRules.linkPickers(entry)

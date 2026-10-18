@@ -219,5 +219,7 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     onUnreachedChoice = { choice -> answerUnreached(choice) },
     onSeparateSignIn = { id -> openPageSeparate(id) },
     onConnectSeparate = { username, password -> connectPageSeparate(username, password) },
+    onSeparateFormShown = { askSeparateSignIn(accountSettings.separate) },
+    onSeparateProviderSignIn = { signInSeparate(accountSettings.separate) },
     onRemove = { id -> removeAccount(id) },
 )

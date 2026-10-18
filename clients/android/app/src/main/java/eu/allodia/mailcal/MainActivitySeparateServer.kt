@@ -8,14 +8,9 @@ import uniffi.mailcal_bindings.CapabilityChange
 
 /**
  * Moves the uses [state]'s form names to an account of their own signing in as [username] with
- * [password]. [onLinked] runs once they have; a failure is said under the fields.
+ * [password], then goes on as [separateLinked] says; a failure is said under the fields.
  */
-private fun MainActivity.connectSeparate(
-    state: SeparateSignIn,
-    username: String,
-    password: String,
-    onLinked: () -> Unit,
-) {
+private fun MainActivity.connectSeparate(state: SeparateSignIn, username: String, password: String) {
     val instance = app ?: return
     val form = state.form ?: return
     if (!state.start()) return
@@ -26,12 +21,7 @@ private fun MainActivity.connectSeparate(
         mainHandler.post {
             answer.onSuccess {
                 logUiInfo("accounts: a calendar or address book now signs in on its own")
-                refreshAccountsSnapshot()
-                refreshConnectivity()
-                // The account list changed, so the person's other devices should hear about it.
-                readAccountsSynced()
-                syncAllodiaAccounts()
-                onLinked()
+                separateLinked(state)
             }
             answer.onFailure {
                 logUiWarn("accounts: a calendar or address book did not connect on its own: ${coreErrorText(it)}")
@@ -41,11 +31,32 @@ private fun MainActivity.connectSeparate(
     }
 }
 
-/** Setup's step: Connect, then the link step, whose pickers already show the new link. */
-internal fun MainActivity.connectSetupSeparate(username: String, password: String) {
-    connectSeparate(setupFlow.separate, username, password) {
-        if (!setupFlow.separateDone(::linkStepFor)) finishSetup()
+/** The uses moved to an account of their own, by a password or a sign-in: the lists redraw. */
+internal fun MainActivity.separateAccountAdded() {
+    refreshAccountsSnapshot()
+    refreshConnectivity()
+    // The account list changed, so the person's other devices should hear about it.
+    readAccountsSynced()
+    syncAllodiaAccounts()
+}
+
+/**
+ * Where a form goes once its uses have an account of their own, however they got it: setup's step
+ * on to the link step, whose pickers already show the new link, and the page's dialog closed, the
+ * page redrawing from the next snapshot.
+ */
+internal fun MainActivity.separateLinked(state: SeparateSignIn) {
+    separateAccountAdded()
+    if (state !== setupFlow.separate) {
+        state.close()
+        return
     }
+    if (!setupFlow.separateDone(::linkStepFor)) finishSetup()
+}
+
+/** Setup's step: Connect. */
+internal fun MainActivity.connectSetupSeparate(username: String, password: String) {
+    connectSeparate(setupFlow.separate, username, password)
 }
 
 /** Setup's step: Skip switches off exactly the uses the sign-in did not reach, then goes on. */
@@ -77,8 +88,7 @@ internal fun MainActivity.openPageSeparate(accountId: String) {
     UnreachedRules.form(entry)?.let { accountSettings.separate.open(it) }
 }
 
-/** The account page's Connect: the page redraws from the next snapshot, showing the link. */
+/** The account page's Connect. */
 internal fun MainActivity.connectPageSeparate(username: String, password: String) {
-    val state = accountSettings.separate
-    connectSeparate(state, username, password) { state.close() }
+    connectSeparate(accountSettings.separate, username, password)
 }

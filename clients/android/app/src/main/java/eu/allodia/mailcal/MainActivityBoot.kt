@@ -281,10 +281,15 @@ internal fun MainActivity.completeOAuthRedirect(data: Uri) {
         // either host, because a sign-in again comes back to its grant's own redirect; one waits
         // only when it started after every setup sign-in, which yield it the redirect
         // (MainActivityAccountSignIn.kt).
-        OAuthRedirect.IMAP -> if (awaitsAccountSignIn()) {
-            completeAccountSignIn(data.toString())
-        } else {
-            completeImapSignIn(data.toString())
+        // A separate server signed in to at its own provider rides this host as well, and waits
+        // only while no IMAP sign-in does: its browser opening took the redirect from both.
+        OAuthRedirect.IMAP -> {
+            val separate = awaitingSeparateSignIn()
+            when {
+                awaitsAccountSignIn() -> completeAccountSignIn(data.toString())
+                pendingImapLogin == null && separate != null -> completeSeparateSignIn(separate, data.toString())
+                else -> completeImapSignIn(data.toString())
+            }
         }
         // One host, three flows: a first sign-in from the setup form, a re-authentication from
         // the expired-sign-in banner, and an account's sign-in above. `pendingJmapReauthAccount`

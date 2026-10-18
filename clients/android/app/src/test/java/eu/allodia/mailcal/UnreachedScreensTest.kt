@@ -1,6 +1,7 @@
 // What is drawn for a calendar or address book a sign-in does not reach (docs/accounts.md rule 18):
 // the question asked before the browser opens, with its three answers, and the form that gives
-// them a sign-in of their own, as setup's step and as the account page's dialog.
+// them a sign-in of their own, as setup's step and as the account page's dialog, with the sign-in
+// at the server's own provider once the core offers it (docs/mail-oauth.md rule 13).
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -32,7 +33,10 @@ class UnreachedScreensTest {
     private val connects = mutableListOf<Pair<String, String>>()
     private var skips = 0
     private var dismissed = 0
-    private var busy by mutableStateOf(false)
+    private var signIns = 0
+    private var shown = 0
+    private var left = 0
+    private var controls by mutableStateOf(SeparateControls())
     private var error by mutableStateOf<String?>(null)
 
     private val form = SeparateServerForm(
@@ -50,7 +54,16 @@ class UnreachedScreensTest {
 
     private fun step() {
         compose.setContent {
-            SeparateServerStepScreen(form, busy, error, { u, p -> connects += u to p }, { skips++ })
+            SeparateServerStepScreen(
+                form,
+                controls,
+                error,
+                { u, p -> connects += u to p },
+                { skips++ },
+                onSignIn = { signIns++ },
+                onShown = { shown++ },
+                onLeave = { left++ },
+            )
         }
         compose.waitForIdle()
     }
@@ -128,7 +141,7 @@ class UnreachedScreensTest {
         compose.onNodeWithTag("separate-server-error").assertExists()
         compose.onNodeWithText(L10n.signin_refused(ctx())).assertExists()
 
-        busy = true
+        controls = SeparateControls.of(busy = true, offersSignIn = false, step = null)
         compose.waitForIdle()
         compose.onNodeWithTag("separate-server-connect").assertIsNotEnabled()
         compose.onNodeWithTag("separate-server-skip").assertIsNotEnabled()
@@ -137,7 +150,7 @@ class UnreachedScreensTest {
     @Test
     fun the_page_dialog_offers_cancel_in_place_of_skip() {
         compose.setContent {
-            SeparateServerDialog(form, busy, error, { u, p -> connects += u to p }, { dismissed++ })
+            SeparateServerDialog(form, controls, error, { u, p -> connects += u to p }, { dismissed++ })
         }
         compose.waitForIdle()
 

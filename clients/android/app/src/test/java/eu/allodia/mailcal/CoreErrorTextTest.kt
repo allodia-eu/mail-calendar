@@ -44,4 +44,17 @@ class CoreErrorTextTest {
         assertEquals(L10n.signin_different_account(ctx), coreErrorSaid(other, ctx))
         assertEquals("that sign-in is for a different account", coreErrorText(other))
     }
+
+    @Test
+    fun a_separate_servers_sign_in_says_a_failed_exchange_as_the_imap_sign_in_does() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        assertEquals(
+            L10n.setup_imap_signin_failed(ctx),
+            separateSignInSaid(MailcalException.Connect("token exchange failed"), ctx),
+        )
+        assertEquals(
+            L10n.signin_different_account(ctx),
+            separateSignInSaid(MailcalException.DifferentAccount(), ctx),
+        )
+    }
 }

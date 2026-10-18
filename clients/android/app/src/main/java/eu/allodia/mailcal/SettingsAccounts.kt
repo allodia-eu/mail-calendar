@@ -66,10 +66,14 @@ internal class AccountsSettingsUi(
     val onAccountSignIn: (accountId: String, switching: Boolean) -> Unit = { _, _ -> },
     val onSwitchToPassword: (accountId: String, password: String) -> Unit = { _, _ -> },
     // What a switch's sign-in will not reach, answered before the browser opens, and a sign-in of
-    // their own for a calendar or address book that needs one (docs/accounts.md rule 18).
+    // their own for a calendar or address book that needs one (docs/accounts.md rule 18): the
+    // form, its Connect, whether its server is asked to offer a sign-in at its own provider once it
+    // is drawn, and that sign-in (docs/mail-oauth.md rule 13).
     val onUnreachedChoice: (UnreachedChoice) -> Unit = {},
     val onSeparateSignIn: (accountId: String) -> Unit = {},
     val onConnectSeparate: (username: String, password: String) -> Unit = { _, _ -> },
+    val onSeparateFormShown: () -> Unit = {},
+    val onSeparateProviderSignIn: () -> Unit = {},
     val onRemove: (accountId: String) -> Unit = {},
     val onDismissNotice: () -> Unit = { state.notice = null },
 )

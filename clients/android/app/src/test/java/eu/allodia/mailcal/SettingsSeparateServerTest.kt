@@ -1,6 +1,6 @@
 // An account's page for a calendar or address book its sign-in does not reach (docs/accounts.md
-// rule 18): the action under exactly the uses the core names, the form it opens, and the question
-// a switch to the provider asks before the browser opens.
+// rule 18): the action under exactly the uses the core names, the form it opens and the sign-in it
+// offers, and the question a switch to the provider asks before the browser opens.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Column
@@ -37,6 +37,8 @@ class SettingsSeparateServerTest {
     private val state = AccountsUiState()
     private val opened = mutableListOf<String>()
     private val choices = mutableListOf<UnreachedChoice>()
+    private var asked = 0
+    private var signIns = 0
 
     private fun mailbox(server: SeparateServer?): AccountEntry {
         val base = accountEntry(
@@ -59,6 +61,8 @@ class SettingsSeparateServerTest {
             state = state,
             onSeparateSignIn = { opened += it },
             onUnreachedChoice = { choices += it },
+            onSeparateFormShown = { asked++ },
+            onSeparateProviderSignIn = { signIns++ },
         )
         compose.setContent {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -116,5 +120,22 @@ class SettingsSeparateServerTest {
         compose.onNodeWithTag("signin-unreached-keep").performClick()
 
         assertEquals(listOf(UnreachedChoice.KEEP), choices)
+    }
+
+    @Test
+    fun the_pages_form_offers_a_sign_in_once_its_server_does() {
+        val entry = mailbox(calendar)
+        val form = UnreachedRules.form(entry)!!
+        state.separate.open(form)
+        show(entry)
+        assertEquals(1, asked)
+        compose.onNodeWithTag("separate-server-sign-in").assertDoesNotExist()
+
+        state.separate.startAsking(form)
+        state.separate.answered(form, true)
+        compose.waitForIdle()
+        compose.onNodeWithTag("separate-server-sign-in").performClick()
+
+        assertEquals(1, signIns)
     }
 }
