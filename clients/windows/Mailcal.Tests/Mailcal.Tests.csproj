@@ -217,6 +217,10 @@
          L10n-free on purpose; each rule fails silently on screen, most sharply a suggestion that
          second-guesses a link already made, and a save that adds a server the account never had. -->
     <Compile Include="..\Mailcal\Services\AccountSettingsRules.cs" Link="Services\AccountSettingsRules.cs" />
+    <!-- What an account page's Sign-in section lets the person press while its sign-in is out
+         (docs/provider-oauth.md rule 13): buttons disabled only for a blocking call, so a sign-in
+         abandoned in the browser is superseded by the next press rather than wedging the page. -->
+    <Compile Include="..\Mailcal\Services\AccountSignInProgress.cs" Link="Services\AccountSignInProgress.cs" />
     <!-- What a link, a picker and a removal's confirmation name an account by where another has its
          address (docs/accounts.md rule 8). The words arrive as parameters; a mailbox whose calendar
          was split off would otherwise read as linked to itself. -->

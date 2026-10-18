@@ -6,6 +6,9 @@
 // What the server takes is a blocking question, so the section draws its heading and status line
 // at once and its buttons once the core answers. The answer is kept for the page's visit and keyed
 // by how the account signs in, so a redraw does not ask again and a switch does.
+//
+// A sign-in waiting on the browser leaves the buttons live, so a press supersedes it, and draws a
+// Cancel that retires it (AccountSignInProgress); only a blocking core call disables them.
 
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
@@ -24,12 +27,14 @@ public sealed partial class SettingsDialog
     // fills, so a redraw in the meantime neither asks twice nor loses the answer.
     private readonly Dictionary<string, (StackPanel Controls, AccountEntry Entry)> _signInWaiting = new();
 
-    // The account whose sign-in is being changed: its buttons stay disabled across a redraw.
-    private string? _signInChanging;
+    // Where the page's sign-in is, which every drawing of the section reads.
+    private readonly AccountSignInProgress _signInProgress = new();
 
-    // The controls of the section drawn last. A redraw while a change runs replaces the ones the
-    // change disabled, so its end enables these as well.
+    // The controls and the Cancel of the section drawn last, and whose, which each step of the
+    // sign-in sets again.
     private List<Control> _signInDrawn = [];
+    private Button? _signInCancel;
+    private string? _signInDrawnAccount;
 
     private static readonly AccountSignInOptions NothingOffered = new(false, null, false);
 
@@ -79,11 +84,12 @@ public sealed partial class SettingsDialog
         }
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         var all = new List<Control>();
+        _signInCancel = null;
         if (section.SignInAgain)
         {
             var again = new Button { Content = L10n.SigninExpiredAction() };
             AutomationProperties.SetAutomationId(again, "AccountSignInAgain");
-            again.Click += (_, _) => _ = BrowserSignInAsync(entry, switching: false, all);
+            again.Click += (_, _) => _ = BrowserSignInAsync(entry, switching: false);
             buttons.Children.Add(again);
             all.Add(again);
         }
@@ -94,13 +100,18 @@ public sealed partial class SettingsDialog
                 : L10n.SettingsAccountSwitchToProvider();
             var toProvider = new Button { Content = label };
             AutomationProperties.SetAutomationId(toProvider, "AccountSwitchToProvider");
-            toProvider.Click += (_, _) => _ = BrowserSignInAsync(entry, switching: true, all);
+            toProvider.Click += (_, _) => _ = BrowserSignInAsync(entry, switching: true);
             buttons.Children.Add(toProvider);
             all.Add(toProvider);
         }
         if (buttons.Children.Count > 0)
         {
+            var cancel = new Button { Content = L10n.ActionCancel(), Visibility = Visibility.Collapsed };
+            AutomationProperties.SetAutomationId(cancel, "AccountSignInCancel");
+            cancel.Click += (_, _) => _model.CancelAccountSignIn();
+            buttons.Children.Add(cancel);
             controls.Children.Add(buttons);
+            _signInCancel = cancel;
         }
         if (section.SwitchToPassword)
         {
@@ -110,12 +121,9 @@ public sealed partial class SettingsDialog
         {
             controls.Children.Add(Description(L10n.SettingsAccountSwitchDescription()));
         }
-        var busy = _signInChanging == entry.Id;
-        foreach (var control in all)
-        {
-            control.IsEnabled = !busy;
-        }
         _signInDrawn = all;
+        _signInDrawnAccount = entry.Id;
+        ShowSignInProgress(entry.Id);
         DrawUnreachedQuestion(controls, entry.Id);
     }
 
@@ -149,9 +157,17 @@ public sealed partial class SettingsDialog
             {
                 return;
             }
-            Changing(entry.Id, all);
+            // The password replaces a sign-in still out in the browser for this account.
+            if (_signInProgress.IsOut(entry.Id))
+            {
+                _model.CancelAccountSignIn();
+            }
+            EndUnreachedQuestion();
+            var attempt = _signInProgress.Start(entry.Id);
+            ShowSignInProgress(entry.Id);
             var error = await _model.SwitchAccountToPasswordAsync(entry.Id, password.Password);
-            Changed(all);
+            _signInProgress.End(attempt);
+            ShowSignInProgress(entry.Id);
             if (error is null)
             {
                 password.Password = string.Empty;
@@ -170,13 +186,29 @@ public sealed partial class SettingsDialog
     /// <summary>Signs the account in through its provider in the browser, again or in place of
     /// its password, and says how it ended. A switch that would cost the calendar or contacts asks
     /// first (docs/accounts.md rule 18). A cancelled sign-in says nothing.</summary>
-    private async Task BrowserSignInAsync(AccountEntry entry, bool switching, List<Control> all)
+    private async Task BrowserSignInAsync(AccountEntry entry, bool switching)
     {
-        Changing(entry.Id, all);
-        SayOnAccounts(SignInWaiting(entry));
-        var ended = await _model.AccountSignInAsync(entry.Id, unreached => AskUnreachedAsync(entry, unreached));
+        // A press while an earlier sign-in is out supersedes it, and answers its question, if it
+        // asked one, as Cancel.
         EndUnreachedQuestion();
-        Changed(all);
+        var attempt = _signInProgress.Start(entry.Id);
+        ShowSignInProgress(entry.Id);
+        SayOnAccounts(SignInWaiting(entry));
+        var ended = await _model.AccountSignInAsync(
+            entry.Id,
+            unreached => AskUnreachedAsync(entry, unreached),
+            step =>
+            {
+                _signInProgress.Step(attempt, step);
+                ShowSignInProgress(entry.Id);
+            });
+        if (!_signInProgress.End(attempt))
+        {
+            // Superseded: the newer attempt says how it ends.
+            return;
+        }
+        EndUnreachedQuestion();
+        ShowSignInProgress(entry.Id);
         NotifyAccounts(ended switch
         {
             { SignedIn: true } => new AccountNotice(
@@ -191,21 +223,22 @@ public sealed partial class SettingsDialog
         });
     }
 
-    private void Changing(string accountId, List<Control> all)
+    /// <summary>Draws where <paramref name="accountId"/>'s sign-in is onto the section drawn
+    /// last, if that section is its.</summary>
+    private void ShowSignInProgress(string accountId)
     {
-        _signInChanging = accountId;
-        foreach (var control in all)
+        if (_signInDrawnAccount != accountId)
         {
-            control.IsEnabled = false;
+            return;
         }
-    }
-
-    private void Changed(List<Control> all)
-    {
-        _signInChanging = null;
-        foreach (var control in all.Concat(_signInDrawn))
+        var enabled = _signInProgress.ControlsEnabled(accountId);
+        foreach (var control in _signInDrawn)
         {
-            control.IsEnabled = true;
+            control.IsEnabled = enabled;
+        }
+        if (_signInCancel is { } cancel)
+        {
+            cancel.Visibility = _signInProgress.ShowsCancel(accountId) ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 }

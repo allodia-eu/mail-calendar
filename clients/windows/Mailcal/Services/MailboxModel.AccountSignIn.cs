@@ -59,24 +59,33 @@ public sealed partial class MailboxModel
     /// <param name="ask">Asked, before the browser opens, what becomes of the calendar and
     /// contacts a switch from a password will not reach (docs/accounts.md rule 18). Without it
     /// such a switch is abandoned; only Settings, where a switch starts, passes one.</param>
+    /// <param name="step">Told where the sign-in is, for a page that draws its controls from it
+    /// (<see cref="AccountSignInProgress"/>): a blocking call, a question, or the browser.</param>
     /// <remarks>
     /// Through the shared <see cref="SignInFlight"/>, for the reason recorded on
     /// <see cref="SignInWithJmapAsync"/>: every protocol-activation flow shares one redirect slot.
     /// </remarks>
     internal Task<ConsentEnded> AccountSignInAsync(
-        string accountId, Func<IReadOnlyList<AccountCapability>, Task<UnreachedAnswer>>? ask = null)
+        string accountId,
+        Func<IReadOnlyList<AccountCapability>, Task<UnreachedAnswer>>? ask = null,
+        Action<SignInStep>? step = null)
     {
         if (_connecting || _app is null)
         {
             return Task.FromResult(new ConsentEnded(false, L10n.AppUnavailable()));
         }
-        return _signIn.RunAsync(cancel => AccountSignInFlowAsync(_app, accountId, ask, cancel));
+        return _signIn.RunAsync(cancel => AccountSignInFlowAsync(_app, accountId, ask, step ?? (_ => { }), cancel));
     }
+
+    /// <summary>Retires the sign-in waiting on the browser, from the account page's Cancel. Safe
+    /// to call when none is out.</summary>
+    internal void CancelAccountSignIn() => _signIn.Cancel();
 
     private async Task<ConsentEnded> AccountSignInFlowAsync(
         MailcalApp app,
         string accountId,
         Func<IReadOnlyList<AccountCapability>, Task<UnreachedAnswer>>? ask,
+        Action<SignInStep> step,
         CancellationToken cancel)
     {
         IsSigningIn = true;
@@ -91,10 +100,13 @@ public sealed partial class MailboxModel
             using var callback = ProtocolAuthCallback.Expect(ImapOAuthConfig.CallbackHost, JmapOAuthConfig.CallbackHost);
             // Discovery and registration, for a password account, block.
             var start = await Task.Run(() => app.BeginAccountSignIn(accountId, redirect));
+            // An attempt retired while begin dialled opens no browser.
+            cancel.ThrowIfCancellationRequested();
             UnreachedUses? choice = null;
             var unreached = UnreachedUsesRules.Dav(start.Unreached);
             if (UnreachedUsesRules.Asks(unreached))
             {
+                step(SignInStep.Asking);
                 // A sign-in started meanwhile supersedes this one, unanswered.
                 var answer = ask is null ? UnreachedAnswer.Cancel : await ask(unreached).WaitAsync(cancel);
                 if (UnreachedUsesRules.Choice(answer) is not { } chosen)
@@ -109,8 +121,11 @@ public sealed partial class MailboxModel
                 Log.Warn("the browser did not open for an account's sign-in");
                 return new ConsentEnded(false, L10n.AccountSigninBrowserFailed());
             }
+            step(SignInStep.Browser);
             var callbackUrl = await callback.WaitAsync(cancel);
-            // The exchange, the connect and storing the new credential all block.
+            step(SignInStep.Calling);
+            // The exchange, the connect and storing the new credential all block, and the core
+            // stores the grant as part of them, so nothing after this point can retire it.
             await Task.Run(() => app.CompleteAccountSignIn(accountId, start.Pending, callbackUrl, choice));
             Log.Info($"an account was signed in through its provider in place: {LogHandle(accountId)}");
             if (choice == UnreachedUses.KeepOnPassword)
