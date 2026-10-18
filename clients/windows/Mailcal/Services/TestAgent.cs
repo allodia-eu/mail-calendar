@@ -127,6 +127,8 @@ internal static partial class TestAgent
                 "toggle" => OnUi(() => Toggle(request)),
                 "scrollIntoView" => OnUi(() => ScrollIntoView(request)),
                 "focus" => OnUi(() => Focus(request)),
+                "focused" => OnUi(Focused),
+                "scrollToEnd" => OnUi(() => ScrollToEnd(request)),
                 "settle" => Settle(request),
                 "dump" => OnUi(() => Dump(request)),
                 _ => throw new AgentException($"an unknown op '{op}'"),

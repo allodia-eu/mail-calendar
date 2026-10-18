@@ -72,11 +72,11 @@ internal sealed partial class App : IDisposable
             }
         }
         var app = new App(process, Agent.Connect(pipe, TimeSpan.FromSeconds(60)));
-        app.WaitReady(launchedAt);
+        app.WaitReady(launchedAt, environment["MAILCAL_DEV_ACCOUNT"]!);
         return app;
     }
 
-    private void WaitReady(DateTimeOffset launchedAt)
+    private void WaitReady(DateTimeOffset launchedAt, string devAccount)
     {
         // A store that has never been asked opens on the welcome question, answered with Get
         // started: a test run must not opt this machine into analytics (docs/analytics.md).
@@ -94,7 +94,7 @@ internal sealed partial class App : IDisposable
         {
             throw new InvalidOperationException("the harness store never listed any mail; is the harness seeded (scripts/dev/harness.sh up)?");
         }
-        DeclineDefaultMailAppOffer();
+        DeclineDefaultMailAppOffer(devAccount);
         WaitCalendarSynced(launchedAt);
     }
 
@@ -103,10 +103,19 @@ internal sealed partial class App : IDisposable
     /// It is modal, and while it is up a real press reaches nothing behind it. It arrives late, so a
     /// store that has not answered is waited on; one that has is not.
     /// </summary>
-    private void DeclineDefaultMailAppOffer()
+    private void DeclineDefaultMailAppOffer(string devAccount)
     {
+        // Each harness account runs on a store of its own (AppPaths.DevStoreSubdir).
+        var store = devAccount.Trim().ToLowerInvariant() switch
+        {
+            "stalwart" => "dev",
+            "stalwart-multi" => "dev-multi",
+            "stalwart-imap" => "dev-imap",
+            "stalwart-linked" => "dev-linked",
+            _ => throw new InvalidOperationException($"no harness store is known for MAILCAL_DEV_ACCOUNT={devAccount}"),
+        };
         var prefs = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Allodia", "MailCalendar", "dev", "preferences.toml");
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Allodia", "MailCalendar", store, "preferences.toml");
         bool Answered() => File.Exists(prefs)
             && File.ReadLines(prefs).Any(line => line.TrimStart().StartsWith("default_mail_app_offer", StringComparison.Ordinal));
         if (Answered())

@@ -35,7 +35,7 @@ internal sealed partial class App
         Agent.ScrollIntoView(row);
         Element? drawn = null;
         Eventually(() => (drawn = Agent.Find(filter)) is { Rendered: true }, TimeSpan.FromSeconds(3));
-        return drawn ?? row;
+        return drawn is null ? row : Steady(drawn);
     }
 
     /// <summary>
@@ -49,6 +49,57 @@ internal sealed partial class App
         ShowMailbox();
         Input.Click(RowTitled(title), times);
         Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500), cap: TimeSpan.FromSeconds(3));
+    }
+
+    /// <summary>
+    /// Clicks <paramref name="field"/> and types <paramref name="text"/> into it with real
+    /// keystrokes, and returns once the field holds what was typed. A WinUI text box reports the
+    /// keyboard before Windows' text input has attached to it, and characters arriving in between
+    /// are dropped without a trace, so typing waits a moment past the focus and, if the field still
+    /// came up short, empties it and types once more.
+    /// </summary>
+    internal void TypeInto(Element field, string text)
+    {
+        Input.Click(Steady(field));
+        if (!Eventually(() => Agent.Read(field).Focused, TimeSpan.FromSeconds(5)))
+        {
+            throw new InvalidOperationException($"#{field.Id} did not take the keyboard when clicked");
+        }
+        Agent.Settle(quiet: TimeSpan.FromMilliseconds(200), floor: TimeSpan.FromMilliseconds(300), cap: TimeSpan.FromSeconds(1));
+        if (text.Length == 0)
+        {
+            return;
+        }
+        bool Holds() => Eventually(() => Agent.Read(field).Value == text, TimeSpan.FromSeconds(3));
+        Input.Type(text);
+        if (Holds())
+        {
+            return;
+        }
+        Agent.SetValue(field, "");
+        Input.Type(text);
+        if (!Holds())
+        {
+            throw new InvalidOperationException($"#{field.Id} never held what was typed into it ('{Agent.Read(field).Value}')");
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="element"/> once it has stopped moving: a scroll is animated, and a press aimed
+    /// at a rectangle read mid-scroll lands where the element was. Two reads 100 ms apart that agree.
+    /// </summary>
+    internal Element Steady(Element element)
+    {
+        var last = Agent.Read(element).Element;
+        Eventually(() =>
+        {
+            Thread.Sleep(100);
+            var now = Agent.Read(element).Element;
+            var still = now.X == last.X && now.Y == last.Y && now.Width == last.Width && now.Height == last.Height;
+            last = now;
+            return still;
+        }, TimeSpan.FromSeconds(3));
+        return last;
     }
 
     /// <summary>The window titled <paramref name="title"/>, waited for.</summary>

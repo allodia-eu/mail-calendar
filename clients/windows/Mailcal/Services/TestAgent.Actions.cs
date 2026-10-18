@@ -146,6 +146,30 @@ internal static partial class TestAgent
         return new JsonObject { ["ok"] = true };
     }
 
+    /// <summary>The element that has the keyboard, in whichever window has it, or none.</summary>
+    private static JsonObject Focused()
+    {
+        var focused = Walk(OpenWindows().SelectMany(WindowRoots)).FirstOrDefault(peer => peer.HasKeyboardFocus());
+        return new JsonObject { ["elements"] = focused is null ? new JsonArray() : new JsonArray(Describe(focused)) };
+    }
+
+    /// <summary>Scrolls the first vertically scrollable element at or under the given one to its end,
+    /// as a person scrolls a long form to the section at its foot.</summary>
+    private static JsonObject ScrollToEnd(JsonObject request)
+    {
+        var root = PeerOf(HandleIn(request));
+        var window = WindowOf.TryGetValue(root, out var known) ? known : OpenWindows()[0];
+        foreach (var peer in Walk([(root, window)]))
+        {
+            if (peer.GetPattern(PatternInterface.Scroll) is IScrollProvider { VerticallyScrollable: true } scroll)
+            {
+                scroll.SetScrollPercent(-1, 100);
+                return new JsonObject { ["ok"] = true };
+            }
+        }
+        return new JsonObject { ["ok"] = false };
+    }
+
     /// <summary>
     /// Waits until the query finds something (or, with <c>absent</c>, nothing), checking on every
     /// turn of the UI thread rather than on a timer a suite has to guess. Answers with what it found

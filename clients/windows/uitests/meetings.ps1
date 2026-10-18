@@ -1,10 +1,7 @@
-# Helpers for the suites that organise and answer meetings against the harness as two accounts
-# (MAILCAL_DEV_ACCOUNT=stalwart-multi: Alice and Bob in one app): MeetingInvitees.Tests.ps1 and
-# EventAnswer.Tests.ps1. Dot-sourced by a suite file; defines functions and nothing else.
-#
-# A meeting's real outcome is mail in somebody else's mailbox, which no surface of this app shows
-# for an account it is not signed in to, so Wait-SchedulingMail reads it from the harness server
-# over JMAP, as test-linux-ui.sh's wait_for_scheduling_mail does.
+# Helpers for EventAnswerReplyPrompt.Tests.ps1, which answers meetings against the harness as two
+# accounts (MAILCAL_DEV_ACCOUNT=stalwart-multi: Alice and Bob in one app). Dot-sourced by a suite
+# file; defines functions and nothing else. The suites ported to Mailcal.UiTests read the same
+# scheduling mail through its Harness class.
 
 <#
 .SYNOPSIS
@@ -112,23 +109,6 @@ function Open-MeetingDetail {
 
 <#
 .SYNOPSIS
-Scroll the open editor's form to its end, where the invitee section is.
-#>
-function Show-EditorEnd {
-  param([Parameter(Mandatory)] [object] $Dialog)
-  $scroller = Get-UiaTree $Dialog | Where-Object {
-    $_.Current.ClassName -eq 'ScrollViewer' -and
-    ($_.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName }) -match 'ScrollPattern' -and
-    $_.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern).Current.VerticallyScrollable
-  } | Select-Object -First 1
-  if ($scroller) {
-    $scroller.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern).SetScrollPercent(-1, 100)
-    Start-Sleep -Milliseconds 800
-  }
-}
-
-<#
-.SYNOPSIS
 An element under $Root by an AutomationId that carries an address (EventInviteeOptional:<email>).
 .DESCRIPTION
 Through Get-UiaTree, the recursive children walk, because a FindAll over a dialog's descendants
@@ -154,66 +134,6 @@ function Get-MeetingCatalogValues {
   }
   if (-not $values) { throw "no catalog locale defines '$Key'" }
   $values
-}
-
-<#
-.SYNOPSIS
-The subjects in a harness user's mailbox whose message carries a text/calendar part.
-#>
-function Get-SchedulingSubjects {
-  param([Parameter(Mandatory)] [string] $Address)
-  $user = $Address.Split('@')[0]
-  $pair = "${Address}:harness-$user-pw"
-  $headers = @{ Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($pair)) }
-  $session = Invoke-RestMethod -Uri 'http://127.0.0.1:28080/jmap/session' -Headers $headers -TimeoutSec 10
-  $account = $session.primaryAccounts.'urn:ietf:params:jmap:mail'
-  $body = @{
-    using       = @('urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail')
-    methodCalls = @(
-      , @('Email/query', @{ accountId = $account; limit = 100 }, 'q')
-      , @('Email/get', @{
-          accountId  = $account
-          '#ids'     = @{ resultOf = 'q'; name = 'Email/query'; path = '/ids' }
-          properties = @('subject', 'bodyStructure')
-        }, 'g')
-    )
-  } | ConvertTo-Json -Depth 12
-  $response = Invoke-RestMethod -Uri 'http://127.0.0.1:28080/jmap/' -Method Post -Headers $headers `
-    -ContentType 'application/json' -Body $body -TimeoutSec 10
-  foreach ($mail in $response.methodResponses[1][1].list) {
-    if (($mail.bodyStructure | ConvertTo-Json -Depth 20 -Compress) -match 'text/calendar') { $mail.subject }
-  }
-}
-
-<#
-.SYNOPSIS
-Wait until $Address holds a scheduling message whose subject starts with $Prefix and names $Title.
-.DESCRIPTION
-The prefix ("Invitation:", "Cancelled:", "Tentative:") is the server's own subject line, written
-by Stalwart in English whatever language this app runs in.
-#>
-function Wait-SchedulingMail {
-  param(
-    [Parameter(Mandatory)] [string] $Address,
-    [Parameter(Mandatory)] [string] $Prefix,
-    [Parameter(Mandatory)] [string] $Title,
-    [int] $TimeoutSec = 60
-  )
-  $watch = [Diagnostics.Stopwatch]::StartNew()
-  while ($watch.Elapsed.TotalSeconds -lt $TimeoutSec) {
-    if (@(Get-SchedulingSubjects $Address) | Where-Object { $_.StartsWith($Prefix) -and $_.Contains($Title) }) { return }
-    Start-Sleep -Seconds 2
-  }
-  throw "no '$Prefix $Title' with a calendar part reached $Address within ${TimeoutSec}s"
-}
-
-<#
-.SYNOPSIS
-Whether no scheduling message with $Prefix and $Title is in $Address's mailbox.
-#>
-function Test-NoSchedulingMail {
-  param([Parameter(Mandatory)] [string] $Address, [Parameter(Mandatory)] [string] $Prefix, [Parameter(Mandatory)] [string] $Title)
-  -not (@(Get-SchedulingSubjects $Address) | Where-Object { $_.StartsWith($Prefix) -and $_.Contains($Title) })
 }
 
 <#

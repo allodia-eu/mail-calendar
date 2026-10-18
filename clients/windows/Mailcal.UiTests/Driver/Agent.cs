@@ -115,8 +115,16 @@ internal sealed class Agent : IDisposable
     /// <summary>The element's state now: its value, toggle, selection and focus as well.</summary>
     internal ElementState Read(Element element) => ElementState.From(Call(Handle("read", element)));
 
-    /// <summary>Presses the element: Invoke, or Select where it cannot be invoked.</summary>
-    internal void Invoke(Element element) => Call(Handle("invoke", element));
+    /// <summary>Presses the element: Invoke, or Select where it cannot be invoked. A control that is
+    /// disabled is waited for, as a person waits for one, because a peer refuses to press it.</summary>
+    internal void Invoke(Element element)
+    {
+        if (!App.Eventually(() => Read(element).Element.Enabled, TimeSpan.FromSeconds(5)))
+        {
+            throw new InvalidOperationException($"'{element.Name}' (#{element.Id}) stayed disabled, so it cannot be pressed");
+        }
+        Call(Handle("invoke", element));
+    }
 
     internal void Select(Element element) => Call(Handle("select", element));
 
@@ -128,9 +136,19 @@ internal sealed class Agent : IDisposable
         Call(request);
     }
 
+    /// <summary>Toggles a check box or toggle button; the state it is in afterwards.</summary>
+    internal string Toggle(Element element) => (string)Call(Handle("toggle", element))["toggle"]!;
+
     internal void ScrollIntoView(Element element) => Call(Handle("scrollIntoView", element));
 
     internal void Focus(Element element) => Call(Handle("focus", element));
+
+    /// <summary>The element that has the keyboard, or null when nothing in the app does.</summary>
+    internal Element? Focused() => Elements(Call(Op("focused"))).FirstOrDefault();
+
+    /// <summary>Scrolls the first vertically scrollable element at or under <paramref name="element"/>
+    /// to its end; whether there was one.</summary>
+    internal bool ScrollToEnd(Element element) => (bool)Call(Handle("scrollToEnd", element))["ok"]!;
 
     /// <summary>The app's open windows, the mailbox first.</summary>
     internal IReadOnlyList<AppWindow> Windows() =>

@@ -65,13 +65,31 @@ internal static class Input
         }
     }
 
-    /// <summary>Presses and releases one key, by its virtual-key code, in whatever has the keyboard.</summary>
-    internal static void Press(ushort virtualKey) =>
+    /// <summary>Presses and releases one key, by its virtual-key code, in whatever has the keyboard.
+    /// With its scan code too, as a keyboard sends it: a text box reads that, not the code alone.</summary>
+    internal static void Press(ushort virtualKey)
+    {
+        var scan = (ushort)MapVirtualKeyW(virtualKey, MapVirtualKeyToScanCode);
         Send(
-            new NativeInput { Type = InputKeyboard, Union = new InputUnion { Keyboard = new KeyboardInput { Virtual = virtualKey } } },
-            new NativeInput { Type = InputKeyboard, Union = new InputUnion { Keyboard = new KeyboardInput { Virtual = virtualKey, Flags = KeyUp } } });
+            new NativeInput { Type = InputKeyboard, Union = new InputUnion { Keyboard = new KeyboardInput { Virtual = virtualKey, Scan = scan } } },
+            new NativeInput { Type = InputKeyboard, Union = new InputUnion { Keyboard = new KeyboardInput { Virtual = virtualKey, Scan = scan, Flags = KeyUp } } });
+    }
+
+    private const uint MapVirtualKeyToScanCode = 0;
 
     internal const ushort Escape = 0x1B;
+    internal const ushort Enter = 0x0D;
+
+    /// <summary>Turns the wheel over a screen point, in notches: positive is away from the user.</summary>
+    internal static void Wheel(int x, int y, int notches)
+    {
+        SetCursorPos(x, y);
+        Send(new NativeInput
+        {
+            Type = InputMouse,
+            Union = new InputUnion { Mouse = new MouseInput { Data = unchecked((uint)(notches * 120)), Flags = MouseWheel } },
+        });
+    }
 
     /// <summary>Types <paramref name="text"/> into whatever has the keyboard, as characters rather
     /// than keys, so the layout does not matter.</summary>
@@ -107,6 +125,7 @@ internal static class Input
     private const uint MouseLeftUp = 0x0004;
     private const uint MouseRightDown = 0x0008;
     private const uint MouseRightUp = 0x0010;
+    private const uint MouseWheel = 0x0800;
     private const uint KeyUp = 0x0002;
     private const uint KeyUnicode = 0x0004;
     private static readonly nint PerMonitorAwareV2 = -4;
@@ -152,5 +171,6 @@ internal static class Input
     [DllImport("user32.dll")] private static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] private static extern void keybd_event(byte vk, byte scan, uint flags, nuint extra);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(nint hwnd);
+    [DllImport("user32.dll")] private static extern uint MapVirtualKeyW(uint code, uint mapType);
     [DllImport("user32.dll")] private static extern bool SetProcessDpiAwarenessContext(nint context);
 }

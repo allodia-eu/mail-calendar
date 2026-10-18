@@ -89,6 +89,14 @@ public class HarnessApp : IDisposable
     }
 }
 
+/// <summary>The harness app signed in as Alice and Bob at once (stalwart-multi): for a meeting
+/// between them, whose invitation and answer both cross this app.</summary>
+public sealed class TwoAccountHarnessApp : HarnessApp
+{
+    protected override IReadOnlyDictionary<string, string> Env { get; } =
+        new Dictionary<string, string> { ["MAILCAL_DEV_ACCOUNT"] = "stalwart-multi" };
+}
+
 /// <summary>The harness app with its log at debug: for a rule the app states only in its log.</summary>
 public sealed class DebugLogHarnessApp : HarnessApp
 {
@@ -100,6 +108,12 @@ public sealed class DebugLogHarnessApp : HarnessApp
 public sealed class HarnessCollection : ICollectionFixture<HarnessApp>
 {
     public const string Name = "harness";
+}
+
+[CollectionDefinition(Name)]
+public sealed class TwoAccountHarnessCollection : ICollectionFixture<TwoAccountHarnessApp>
+{
+    public const string Name = "harness, two accounts";
 }
 
 [CollectionDefinition(Name)]

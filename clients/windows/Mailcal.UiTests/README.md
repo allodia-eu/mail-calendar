@@ -61,8 +61,15 @@ an obvious reimplementation finds nothing:
   opens no other dialog before then: `CalendarFlow.CloseDialogs` waits for both.
 - **A folder's list is not that folder's until its header names it.** The rows on screen in the
   meantime are the last folder's, and a press meant for the new list lands on one of them.
+- **A text box has the keyboard before it can take characters.** It reports focus before Windows'
+  text input has attached to it, and keys typed in between are dropped without a trace, usually
+  the first two or three. Type with `App.TypeInto`, which waits past the focus and checks the box
+  holds what was typed; and press Enter only once it does, or the Enter commits nothing.
+- **A pressed element is read once it has stopped moving.** A scroll is animated, so a rectangle
+  read mid-scroll aims the press where the element was: `App.Steady` returns it once two reads
+  agree. Beneath the fold, a peer still answers but reports no size; scroll first.
 - **Real input only for a press that has to be a press**: a double-click, a click into the
-  editor's web page, typing into it. Everything else goes through the agent, which needs no window
+  editor's web page, typing into it or into a field whose own key handling the case asserts. Everything else goes through the agent, which needs no window
   in front and cannot be intercepted by one.
 - **Quote an id where it is looked up** (`Filter.ById("SendButton")`): `cargo xtask
   check-automation-ids` reads the quoted ids and fails one the app no longer carries.
