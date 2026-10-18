@@ -49,6 +49,7 @@ pub(crate) async fn reconnect_all(
     background: Arc<BackgroundManager>,
     registry: SharedRegistry,
     disconnected: Arc<Mutex<HashSet<String>>>,
+    redialling: crate::retry::Redialling,
     plans: Vec<(AccountId, AccountDial)>,
     display_zone: TimeZoneId,
 ) -> Vec<String> {
@@ -62,6 +63,7 @@ pub(crate) async fn reconnect_all(
         let app = Arc::clone(&app);
         let registry = Arc::clone(&registry);
         let disconnected = Arc::clone(&disconnected);
+        let redialling = Arc::clone(&redialling);
         let display_zone = display_zone.clone();
         async move {
             // Captured before `run` consumes the plan. The label carries the address, which is fine
@@ -76,6 +78,14 @@ pub(crate) async fn reconnect_all(
                     // reappear with live providers.
                     if !registry.contains(id.as_str()) {
                         log::info!("reconnect: account[{index}] was removed mid-dial; discarding");
+                        return None;
+                    }
+                    // A use switched on or off mid-dial: this dial would install what the account
+                    // was before it, so it gives way to the one the claim queues.
+                    if crate::retry::asked_again(&redialling, id.as_str()) {
+                        log::info!(
+                            "reconnect: account[{index}] was changed mid-dial; dialling it again"
+                        );
                         return None;
                     }
                     app.note_use_problems(&id, outcome.use_problems);

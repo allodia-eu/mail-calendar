@@ -351,8 +351,9 @@ pub struct MailcalApp {
     /// here: it waits for a replaced credential, which dials it directly.
     disconnected: Arc<Mutex<HashSet<String>>>,
     /// Ids being dialled again right now, so a second Refresh or a return to online while one
-    /// is still under way does not start another dial of the same account.
-    redialling: Arc<Mutex<HashSet<String>>>,
+    /// is still under way does not start another dial of the same account; each carries whether
+    /// a dial was asked for it meanwhile ([`MailcalApp::retry_connections`]).
+    redialling: retry::Redialling,
     /// The device's display zone (resolved at construction), used as the `Prefer:
     /// outlook.timezone` a reconnecting Microsoft account rebinds its Graph calendar provider
     /// with: so a recurring series expands DST-correctly. Fixed for the app's lifetime; the
