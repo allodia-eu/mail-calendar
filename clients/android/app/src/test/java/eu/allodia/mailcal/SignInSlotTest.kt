@@ -1,5 +1,6 @@
-// The IMAP browser sign-in's slot: what returning to the app, a second press and leaving the card
-// do to it (docs/provider-oauth.md rule 13, docs/onboarding.md "Nobody may be stranded on it").
+// A browser sign-in whose tab runs in its own task, IMAP's and JMAP's: what returning to the app, a
+// second press and leaving the card do to it (docs/provider-oauth.md rule 13, docs/onboarding.md
+// "Nobody may be stranded on it").
 package eu.allodia.mailcal
 
 import org.junit.Assert.assertEquals
@@ -8,10 +9,10 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class ImapSignInSlotTest {
-    private fun opened(): Pair<ImapSignInSlot, Long> {
-        val slot = ImapSignInSlot()
-        val attempt = slot.begin()
+class SignInSlotTest {
+    private fun opened(): Pair<SignInSlot<Unit>, Long> {
+        val slot = SignInSlot<Unit>()
+        val attempt = slot.begin(Unit)
         assertTrue(slot.opening(attempt, "first"))
         return slot to attempt
     }
@@ -25,7 +26,7 @@ class ImapSignInSlotTest {
         assertFalse(slot.signingIn)
         assertEquals("first", slot.pending)
         // Finishing in the tab, still open in its own task, completes the same sign-in.
-        assertEquals(attempt to "first", slot.redirected())
+        assertEquals(Landed(attempt, "first", Unit), slot.redirected())
         assertTrue(slot.signingIn)
     }
 
@@ -42,8 +43,8 @@ class ImapSignInSlotTest {
 
     @Test
     fun returning_before_the_browser_opened_leaves_the_spinner() {
-        val slot = ImapSignInSlot()
-        slot.begin()
+        val slot = SignInSlot<Unit>()
+        slot.begin(Unit)
 
         assertFalse(slot.resumed())
         assertTrue(slot.signingIn)
@@ -54,24 +55,25 @@ class ImapSignInSlotTest {
         val (slot, first) = opened()
         slot.resumed()
 
-        val second = slot.begin()
+        val second = slot.begin(Unit)
 
         assertTrue(slot.signingIn)
         assertNull(slot.pending)
         // The first start's answer, arriving late, opens nothing.
         assertFalse(slot.opening(first, "stale"))
         assertTrue(slot.opening(second, "second"))
-        assertEquals(second to "second", slot.redirected())
+        assertEquals(Landed(second, "second", Unit), slot.redirected())
     }
 
     @Test
     fun leaving_the_card_retires_a_start_still_running() {
-        val slot = ImapSignInSlot()
-        val attempt = slot.begin()
+        val slot = SignInSlot<Unit>()
+        val attempt = slot.begin(Unit)
 
         slot.retire()
 
         assertFalse(slot.signingIn)
+        assertNull(slot.flow)
         assertFalse(slot.opening(attempt, "late"))
         assertNull(slot.redirected())
         // Nor is anything said about a failure it meets afterwards.
@@ -96,5 +98,34 @@ class ImapSignInSlotTest {
 
         assertTrue(slot.settled(attempt))
         assertFalse(slot.signingIn)
+        assertNull(slot.flow)
+    }
+
+    @Test
+    fun a_re_authentication_supersedes_one_still_in_flight() {
+        val slot = SignInSlot<JmapFlow>()
+        val first = slot.begin(JmapFlow.Reauth("a"))
+
+        // Pressed again before the first start answered: no guard turns the press away.
+        val second = slot.begin(JmapFlow.Reauth("a"))
+
+        assertTrue(slot.signingIn)
+        assertFalse(slot.opening(first, "first"))
+        assertTrue(slot.opening(second, "second"))
+        assertEquals(Landed<JmapFlow>(second, "second", JmapFlow.Reauth("a")), slot.redirected())
+    }
+
+    @Test
+    fun the_redirect_completes_the_flow_the_slot_holds_now() {
+        val slot = SignInSlot<JmapFlow>()
+        val reauth = slot.begin(JmapFlow.Reauth("a"))
+        slot.opening(reauth, "reauth")
+        slot.resumed()
+
+        // An abandoned re-authentication does not route a new account's redirect to itself.
+        val added = slot.begin(JmapFlow.NewAccount)
+        slot.opening(added, "added")
+
+        assertEquals(Landed<JmapFlow>(added, "added", JmapFlow.NewAccount), slot.redirected())
     }
 }

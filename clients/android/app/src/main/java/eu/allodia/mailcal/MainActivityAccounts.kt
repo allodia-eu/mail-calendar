@@ -1,6 +1,6 @@
 // Adding a mail account, split out of MainActivityCore.kt: email-first detection, the
-// shared add path every setup route funnels through, and the Microsoft/Google/JMAP OAuth
-// sign-in + re-authentication flows that end in it.
+// shared add path every setup route funnels through, and the Microsoft and Google OAuth sign-ins
+// that end in it. JMAP's are MainActivityJmapSignIn.kt, IMAP's MainActivityImapSignIn.kt.
 package eu.allodia.mailcal
 
 import android.util.Log
@@ -207,167 +207,9 @@ internal fun MainActivity.jmapSignInAvailable(email: String, serverUrl: String?)
     }
 }
 
-// Starts a JMAP sign-in: asks the core for the authorization URL, which runs the whole discovery
-// + dynamic-registration chain, so this BLOCKS on the network and must run off the main thread:
-// then opens the browser and holds the pending handle until the redirect returns to onNewIntent →
-// completeJmapSignIn.
-//
-// Unlike Microsoft/Google there is no client id to pass: the core registers this install with the
-// discovered server itself (RFC 7591). A failure here is expected on servers that don't support
-// this, so it surfaces as the "use a password or API token instead" note rather than a hard error.
-internal fun MainActivity.signInWithJmap(email: String, serverUrl: String?) {
-    val activity = this
-    val instance = activity.app ?: return
-    activity.addError = null
-    activity.signingInJmap = true
-    logUiInfo("jmap sign-in: starting (server hint: ${serverUrl?.ifBlank { null } ?: "derived from the email domain"})")
-    thread(name = "mailcal-jmap-begin") {
-        try {
-            val start = instance.beginJmapLogin(
-                email = email,
-                serverUrl = serverUrl?.takeIf { it.isNotBlank() },
-                redirectUri = JmapOAuthConfig.REDIRECT_URI,
-            )
-            activity.mainHandler.post {
-                activity.pendingJmapLogin = start.pending
-                // Both JMAP flows come back through one redirect scheme, and a re-authentication
-                // the user ABANDONED in the browser leaves its account marker set, after which
-                // this redirect would be routed to completeJmapReauth with a stale account and
-                // this flow's pending handle. Claim the slot for a new account explicitly.
-                activity.pendingJmapReauthAccount = null
-                logUiInfo("jmap sign-in: opening the browser")
-                openJmapSignIn(activity, start.authorizationUrl)
-            }
-        } catch (e: Exception) {
-            logUiWarn("jmap sign-in start failed: ${e.message}")
-            activity.mainHandler.post {
-                activity.signingInJmap = false
-                // Deliberately the friendly fallback line, not the raw cause: the manual secret
-                // field is still right there and still works. The cause is in the file log.
-                activity.addError = L10n.setup_jmap_signin_failed(activity)
-            }
-        }
-    }
-}
-
-// Completes a JMAP sign-in from the redirect [callbackUrl]: exchanges the code for tokens, then
-// hands the resulting config TOML to the SAME addAccount + SecureStore path the manual JMAP form
-// uses, the core deliberately returns the identical `[jmap]` shape, so there is no second
-// storage path to keep in step. Off the main thread (the exchange and connect both block).
-internal fun MainActivity.completeJmapSignIn(callbackUrl: String) {
-    val activity = this
-    val instance = activity.app ?: return
-    val pending = activity.pendingJmapLogin ?: run {
-        // The redirect arrived with nothing armed to receive it, the sign-in was cancelled (or
-        // cleared) before the browser came back. Silence here is what made this invisible the
-        // first time it happened, so say so.
-        logUiWarn("jmap sign-in: redirect arrived but no sign-in was pending; ignoring it")
-        return
-    }
-    activity.pendingJmapLogin = null
-    // Keep the card busy from here until the account is added, the exchange plus the connect is
-    // a couple of seconds of real work, and it should look like it.
-    activity.completingJmap = true
-    activity.signingInJmap = true
-    logUiInfo("jmap sign-in: redirect received, completing")
-    thread(name = "mailcal-jmap-complete") {
-        try {
-            val configToml = instance.completeJmapLogin(pending, callbackUrl)
-            logUiInfo("jmap sign-in: token exchange succeeded; adding the account")
-            activity.mainHandler.post {
-                activity.completingJmap = false
-                activity.signingInJmap = false
-                // addAccount owns the connect + persist-after-connect discipline, and reports its
-                // own failure through addError.
-                activity.addAccount(configToml)
-            }
-        } catch (e: Exception) {
-            logUiWarn("jmap sign-in complete failed: ${e.message}")
-            activity.mainHandler.post {
-                activity.completingJmap = false
-                activity.signingInJmap = false
-                activity.addError = L10n.setup_jmap_signin_failed(activity)
-            }
-        }
-    }
-}
-
-// Signs an existing OAuth JMAP account back in, from the expired-sign-in banner. Unlike
-// signInWithJmap this makes no discovery calls: the core builds the authorization URL from that
-// account's own persisted grant, so nothing is re-registered and the same client id is replayed.
-// It still runs off the main thread, because the two paths are otherwise identical from here.
-internal fun MainActivity.reconnectJmap(accountId: String) {
-    val activity = this
-    val instance = activity.app ?: return
-    if (activity.signingInJmap) return
-    activity.signingInJmap = true
-    logUiInfo("jmap sign-in: re-authenticating an existing account")
-    thread(name = "mailcal-jmap-reauth-begin") {
-        try {
-            val start = instance.beginJmapReauth(accountId)
-            activity.mainHandler.post {
-                activity.pendingJmapLogin = start.pending
-                // What routes the redirect to completeJmapReauth instead of a new-account add.
-                activity.pendingJmapReauthAccount = accountId
-                logUiInfo("jmap sign-in: opening the browser to re-authenticate")
-                openJmapSignIn(activity, start.authorizationUrl)
-            }
-        } catch (e: Exception) {
-            logUiWarn("jmap re-authentication start failed: ${e.message}")
-            activity.mainHandler.post {
-                activity.signingInJmap = false
-                activity.toastSignInFailed()
-            }
-        }
-    }
-}
-
-// Completes a JMAP RE-authentication from the redirect [callbackUrl]. There is no addAccount here:
-// [accountId] already exists, so the core connects with the fresh grant, writes it to the secure
-// store through the same port a token rotation uses, and retracts the expired-sign-in prompt:
-// which is what makes the banner disappear. Off the main thread (the exchange and connect block).
-internal fun MainActivity.completeJmapReauth(accountId: String, callbackUrl: String) {
-    val activity = this
-    val instance = activity.app ?: return
-    val pending = activity.pendingJmapLogin ?: run {
-        logUiWarn("jmap sign-in: redirect arrived but no re-authentication was pending; ignoring it")
-        return
-    }
-    activity.pendingJmapLogin = null
-    activity.pendingJmapReauthAccount = null
-    activity.completingJmap = true
-    logUiInfo("jmap sign-in: redirect received, completing the re-authentication")
-    thread(name = "mailcal-jmap-reauth-complete") {
-        try {
-            instance.completeJmapReauth(accountId, pending, callbackUrl)
-            logUiInfo("jmap sign-in: the account is connected again")
-            activity.mainHandler.post {
-                activity.completingJmap = false
-                activity.signingInJmap = false
-            }
-        } catch (e: Exception) {
-            logUiWarn("jmap re-authentication complete failed: ${e.message}")
-            activity.mainHandler.post {
-                activity.completingJmap = false
-                activity.signingInJmap = false
-                activity.toastSignInFailed()
-            }
-        }
-    }
-}
-
-// The one thing a failed re-authentication can say on the mailbox screen: plain words, because the
-// cause is an OAuth protocol string that belongs in the log, not in front of anyone. The banner is
-// still up (the core leaves the prompt raised on every failure), so the retry is one tap away.
-private fun MainActivity.toastSignInFailed() {
-    android.widget.Toast
-        .makeText(this, L10n.signin_expired_failed(this), android.widget.Toast.LENGTH_LONG)
-        .show()
-}
-
 // Called from onResume: resets any sign-in whose browser can close with no callback (Custom Tabs
-// give none) and so leaves no way for its spinner to hear the flow died. JMAP is the exception,
-// its tab runs in its OWN task (openJmapSignIn), so resuming does not mean the browser is gone,
+// give none) and so leaves no way for its spinner to hear the flow died. JMAP and IMAP are the
+// exception, their tabs run in their OWN task, so resuming does not mean the browser is gone,
 // and Allodia's spinner is reset even though its flow lives in MainActivityAllodia.kt: it shares
 // the same Custom-Tab-in-this-task shape as Microsoft/Google, so it belongs with this cleanup
 // rather than splitting one lifecycle concern across two files.
@@ -397,23 +239,16 @@ internal fun MainActivity.cancelAbandonedSignIns() {
     }
     // And for a dismissed sign-in of an existing account (MainActivityAccountSettings.kt).
     cancelAbandonedConsent()
-    // A JMAP sign-in is handled differently on purpose. Its browser runs in its own task
-    // (see openJmapSignIn), so resuming MainActivity does NOT mean the browser is gone, the
-    // user may simply have stepped out to a password manager and come back. So the spinner is
-    // cleared, because a form that looks busy while the user is staring at it is a lie, but
-    // the pending handle is deliberately KEPT: if they return to the tab and finish, the
-    // redirect must still complete. Clearing it here is what silently broke the flow the
-    // first time someone reached for their password.
-    //
-    // `completingJmap` is the exception: when the redirect has already landed we ARE busy, and
-    // onNewIntent runs just before this, so clearing the spinner here would immediately undo
-    // the one it just set.
-    if (signingInJmap && !completingJmap) {
+    // A JMAP or IMAP sign-in is handled differently on purpose. Its browser runs in its own task
+    // (openJmapSignIn, openImapSignIn), so resuming MainActivity does NOT mean the browser is
+    // gone: the person may simply have stepped out to a password manager and come back. So the
+    // spinner is cleared, because a form that looks busy while somebody is looking at it is a
+    // lie, but the pending handle is KEPT: if they return to the tab and finish, the redirect
+    // must still complete. A redirect that already landed took the handle in onNewIntent, just
+    // before this, and its exchange keeps the spinner (SignInSlot.resumed).
+    if (jmapSignIn.resumed()) {
         logUiInfo("jmap sign-in: app resumed while a sign-in is in flight; keeping it armed")
-        signingInJmap = false
     }
-    // An IMAP sign-in's tab runs in its own task too (openImapSignIn), so it is the JMAP shape: the
-    // spinner goes and the handle stays armed. A redirect that landed took the handle first.
     if (imapSignIn.resumed()) {
         logUiInfo("imap sign-in: app resumed while a sign-in is in flight; keeping it armed")
     }

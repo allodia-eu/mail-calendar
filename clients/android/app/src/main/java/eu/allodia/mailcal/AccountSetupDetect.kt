@@ -74,11 +74,12 @@ internal fun AccountSetupFlow(
     // there is no core to ask, which is a preview or a test: the card then shows the password
     // form, which is what works everywhere.
     onCheckImapAuth: (suspend (uniffi.mailcal_bindings.ImapLoginRequest) -> uniffi.mailcal_bindings.ImapAuthOffer)? = null,
-    // Runs the IMAP browser sign-in, and retires it when the card or form it was started from is
-    // left, so a start still running opens no browser for it.
+    // Runs the IMAP browser sign-in.
     onSignInImap: ((uniffi.mailcal_bindings.ImapLoginRequest) -> Unit)? = null,
     signingInImap: Boolean = false,
-    onLeaveImapSignIn: () -> Unit = {},
+    // Retires an IMAP or JMAP sign-in when the card or form it was started from is left, so a
+    // start still running opens no browser for it.
+    onLeaveSignIn: () -> Unit = {},
     onSignInJmap: (String, String) -> Unit = { _, _ -> },
     signingInJmap: Boolean = false,
     // The core's standard port for a server kind and security, threaded through to the manual
@@ -254,7 +255,7 @@ internal fun AccountSetupFlow(
         }
 
         is DetectPhase.Found -> {
-            DisposableEffect(current) { onDispose(onLeaveImapSignIn) }
+            DisposableEffect(current) { onDispose(onLeaveSignIn) }
             FoundView(
                 recommendation = current.recommendation,
                 offer = current.offer,
@@ -288,7 +289,7 @@ internal fun AccountSetupFlow(
         )
 
         is DetectPhase.Manual -> {
-            DisposableEffect(current) { onDispose(onLeaveImapSignIn) }
+            DisposableEffect(current) { onDispose(onLeaveSignIn) }
             val prefill = manualPrefill(current.edit, current.dav)
             AccountSetupScreen(
                 externalError = externalError,

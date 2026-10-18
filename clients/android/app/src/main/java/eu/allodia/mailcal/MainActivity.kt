@@ -310,17 +310,13 @@ class MainActivity : AppCompatActivity() {
     // redirect back to onNewIntent. Separate from the Microsoft handle so the two flows can't
     // clobber each other. Not persisted.
     internal var pendingGoogleLogin: String? = null
-    // The equivalent handle for an in-flight JMAP sign-in. Separate again, so three concurrent
-    // flows can't clobber each other. Not persisted, it carries the PKCE verifier.
-    internal var pendingJmapLogin: String? = null
-    // The account being signed back in, when the pending JMAP flow is a RE-authentication (the
-    // expired-sign-in banner) rather than a first sign-in from the setup form. Both come back
-    // through the same redirect scheme, and only this tells the two apart, null means "a new
-    // account". Set and cleared alongside `pendingJmapLogin`.
-    internal var pendingJmapReauthAccount: String? = null
+    // The in-flight JMAP sign-in, a new account's or a re-authentication's: one slot for both,
+    // because both come back through one redirect host. Not persisted, the handle carries the
+    // PKCE verifier.
+    internal val jmapSignIn = SignInSlot<JmapFlow>()
     // The in-flight IMAP sign-in: its spinner, and its handle, separate again so no two flows can
     // clobber each other. Not persisted, the handle carries the PKCE verifier.
-    internal val imapSignIn = ImapSignInSlot()
+    internal val imapSignIn = SignInSlot<Unit>()
     // The equivalent handle for an in-flight Allodia account sign-in. Separate again. Not
     // persisted, it carries the PKCE verifier.
     internal var pendingAllodiaSignIn: String? = null
@@ -340,9 +336,6 @@ class MainActivity : AppCompatActivity() {
     internal var signingInMicrosoft by mutableStateOf(false)
     // The same, for an in-flight Google sign-in.
     internal var signingInGoogle by mutableStateOf(false)
-    // The same, for an in-flight JMAP sign-in, set while discovery + registration run and the
-    // browser is open.
-    internal var signingInJmap by mutableStateOf(false)
     // The same, for an in-flight Allodia account sign-in, set while the metadata read and the
     // browser hop run, and again from the redirect until the grant is stored.
     internal var signingInAllodia by mutableStateOf(false)
@@ -385,11 +378,6 @@ class MainActivity : AppCompatActivity() {
     // The record behind that address when the flow was opened from an offer, so the setup
     // screen takes the route the other device wrote down rather than re-deriving one.
     internal var setupStartOffer by mutableStateOf<AllodiaAccountOffer?>(null)
-    // Set from the moment the redirect lands until the account is added: the token exchange is a
-    // network round trip, and without this the card renders its ordinary idle button for a second
-    // or two while work is plainly happening. A button you can press during a step that is
-    // already running is not just untidy, it invites a second attempt.
-    internal var completingJmap by mutableStateOf(false)
     internal val mainHandler = Handler(Looper.getMainLooper())
 
     // Requests POST_NOTIFICATIONS on Android 13+ (auto-granted below 33) so the background sync

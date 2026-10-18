@@ -40,7 +40,7 @@ internal fun MainActivity.signInWithImap(request: ImapLoginRequest) {
     val activity = this
     val instance = activity.app ?: return
     activity.addError = null
-    val attempt = activity.imapSignIn.begin()
+    val attempt = activity.imapSignIn.begin(Unit)
     logUiInfo("imap sign-in: starting")
     thread(name = "mailcal-imap-begin") {
         try {
@@ -104,10 +104,16 @@ internal fun MainActivity.completeImapSignIn(callbackUrl: String) {
     }
 }
 
-// The person left the card an IMAP sign-in was started from. Nothing is said: a sign-in somebody
-// walked away from is not a failure.
-internal fun MainActivity.leaveImapSignIn() {
-    if (!imapSignIn.signingIn && imapSignIn.pending == null) return
-    logUiInfo("imap sign-in: left the card; retiring the sign-in")
-    imapSignIn.retire()
+// The person left the setup card or form a sign-in was started from. Nothing is said: a sign-in
+// somebody walked away from is not a failure. A JMAP re-authentication belongs to the banner that
+// started it, not to this screen, so it is left alone.
+internal fun MainActivity.leaveSetupSignIn() {
+    if (imapSignIn.flow != null) {
+        logUiInfo("imap sign-in: left the card; retiring the sign-in")
+        imapSignIn.retire()
+    }
+    if (jmapSignIn.flow == JmapFlow.NewAccount) {
+        logUiInfo("jmap sign-in: left the card; retiring the sign-in")
+        jmapSignIn.retire()
+    }
 }
