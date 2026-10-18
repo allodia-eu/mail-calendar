@@ -38,6 +38,8 @@ extension MailboxModel {
     /// install, we open the returned URL in the browser (ASWebAuthenticationSession), and the core
     /// exchanges the redirect for the `[jmap]` config TOML. That TOML is the same shape the manual
     /// form produces, so it is added and stored through the same path.
+    ///
+    /// Cancelling the calling task retires the attempt, as `signInWithImap` describes.
     func signInWithJmap(email: String, serverURL: String) async -> JmapSignInOutcome {
         guard let app else {
             setupError = L10n.app_unavailable()
@@ -55,12 +57,15 @@ extension MailboxModel {
                 try app.beginJmapLogin(
                     email: email, serverUrl: server, redirectUri: JmapOAuthConfig.redirectURI)
             }.value
+            if Task.isCancelled { return .cancelled }
             // ASWebAuthenticationSession must start on the main actor.
             let callbackURL = try await signIn.authorize(authorizationURL: start.authorizationUrl)
+            if Task.isCancelled { return .cancelled }
             // The token exchange is blocking too, as is the connect + first sync below.
             let configToml = try await Task.detached(priority: .userInitiated) {
                 try app.completeJmapLogin(pending: start.pending, callbackUrl: callbackURL)
             }.value
+            if Task.isCancelled { return .cancelled }
             do {
                 try await addAndStoreJmapAccount(app, configToml: configToml)
             } catch {
