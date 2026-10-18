@@ -82,6 +82,7 @@ mod convert_status;
 mod crash;
 mod credential_log;
 pub mod credential_store;
+mod dav_oauth;
 mod dav_rediscovery;
 mod demo;
 mod drafts;
@@ -182,6 +183,7 @@ pub use composer_host::{
 pub use composer_open::{ComposeKind, ComposeOpening, ComposeOrigin, ComposePrefill, QuoteSource};
 pub(crate) use connected_account::ConnectedAccount;
 pub use credential_store::{AccountCredentialStore, CredentialStoreError};
+pub use dav_oauth::SeparateServerSignInStart;
 // Re-exported, not merely `#[uniffi::export]`ed: the generated languages see one flat
 // namespace, so a host reaching these through the FFI never names the module, while the Linux
 // client links this crate as Rust and does (`AGENTS.md`, why that client breaks differently).

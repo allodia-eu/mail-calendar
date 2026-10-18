@@ -53,8 +53,8 @@ pub use pkce::{Pkce, random_state};
 pub use provider::{AuthStyle, GOOGLE_SCOPES, MICROSOFT_GRAPH_SCOPES, OAuthProviderConfig};
 pub use reach::TokenRequestReach;
 pub use register::{
-    DavUse, MailProtocol, RegisteredClient, grants_mail_access, register_client, requests_dav_use,
-    select_scopes,
+    DavUse, MailProtocol, RegisteredClient, grants_dav_access, grants_mail_access, register_client,
+    requests_dav_use, select_dav_scopes, select_scopes,
 };
 pub use resources::{covering_entry, resource_covers, resource_for, token_may_reach};
 use time::OffsetDateTime;

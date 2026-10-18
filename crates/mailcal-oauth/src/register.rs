@@ -91,10 +91,7 @@ pub fn requests_dav_use(requested: &[String], dav_use: DavUse) -> bool {
     if requested.iter().all(|scope| scope == OFFLINE_ACCESS) {
         return true;
     }
-    let capability = match dav_use {
-        DavUse::Calendars => CALENDARS,
-        DavUse::Contacts => CONTACTS,
-    };
+    let capability = dav_capability(dav_use);
     requested.iter().any(|scope| {
         capability.standard.contains(&last_segment(scope))
             || capability.earlier_draft.contains(&scope.as_str())
@@ -232,6 +229,48 @@ pub fn grants_mail_access(
     metadata.scopes_supported.is_empty()
         || selected.iter().any(|scope| last_segment(scope) == "mail")
         || mail(protocol).earlier_draft.iter().all(|name| has(name))
+}
+
+/// Chooses the scopes to request for an account used for `uses` alone, at a calendar or address
+/// book server signed in to on its own: `offline_access`, and the advertised names of each use,
+/// as [`select_scopes`] chooses them. No mail scope, since the account has no mailbox.
+#[must_use]
+pub fn select_dav_scopes(metadata: &AuthServerMetadata, uses: &[DavUse]) -> Vec<String> {
+    let wanted: Vec<&str> = uses
+        .iter()
+        .flat_map(|dav_use| advertised(metadata, dav_capability(*dav_use)))
+        .collect();
+    let mut scopes = vec![OFFLINE_ACCESS.to_owned()];
+    scopes.extend(
+        metadata
+            .scopes_supported
+            .iter()
+            .filter(|scope| *scope != OFFLINE_ACCESS && wanted.contains(&scope.as_str()))
+            .cloned(),
+    );
+    scopes
+}
+
+/// Whether `selected` asks for every one of `uses`: what a sign-in for them alone must cover. A
+/// server advertising no scopes applies its own default, and passes, as [`grants_mail_access`]
+/// reads the same case.
+#[must_use]
+pub fn grants_dav_access(
+    metadata: &AuthServerMetadata,
+    selected: &[String],
+    uses: &[DavUse],
+) -> bool {
+    metadata.scopes_supported.is_empty()
+        || uses
+            .iter()
+            .all(|dav_use| requests_dav_use(selected, *dav_use))
+}
+
+const fn dav_capability(dav_use: DavUse) -> &'static Capability {
+    match dav_use {
+        DavUse::Calendars => &CALENDARS,
+        DavUse::Contacts => &CONTACTS,
+    }
 }
 
 /// Registers this app as a new public client with the authorization server (RFC 7591).

@@ -167,6 +167,18 @@ is recorded here.
     forms only the standard name is asked for, and an earlier name is matched whole, never as
     the last segment of a vendor's URL.
 
+13. **A calendar or address book the mailbox's sign-in does not reach may sign in at its own
+    server's issuer** (`separate_server_offers_sign_in`, `begin_separate_server_sign_in`,
+    `complete_separate_server_sign_in`). The server is asked who signs it in, unauthenticated, as
+    a JMAP server is (RFC 9728 through its `401`, else the well-known document), and the issuer it
+    names is used only where rule 10's host test holds for that issuer and every server that
+    moves: the server's metadata finds the issuer and never decides where a token goes. The issuer
+    must register apps (RFC 7591) and offer a scope for every use that moves; what is asked for is
+    `offline_access` and those uses' scopes, never mail (`mailcal_oauth::select_dav_scopes`). The
+    account it makes is the one a password makes ([`accounts.md`](accounts.md) rule 18), holding
+    the grant instead, and a sign-in naming another account is refused as rule 10's mailbox
+    sign-in is. Anything short of that offers the password form alone.
+
 ## What is deliberately not done
 
 - **No RFC 7628 challenge probe.** §3.2.2 lets a server describe its OAuth configuration,
@@ -216,6 +228,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | A drawn password field stays while an edited account is asked again | n/a | ✅ | ✅ | ✅ | ✅ |
 | Browser sign-in + redirect capture | n/a | ✅ `ASWebAuthenticationSession` | ✅ protocol activation | ✅ Custom Tab | ✅ loopback |
 | Grant stored with no password beside it | ✅ | n/a | n/a | n/a | ✅ |
+| A separate calendar server signed in to at its own issuer (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | One re-dial on an expired token | ✅ | n/a | n/a | n/a | n/a |
 
 ## Known gaps

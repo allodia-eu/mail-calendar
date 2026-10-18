@@ -160,3 +160,33 @@ fn uses_stopped_rather_than_moved_link_nowhere() {
     assert_eq!(uses(&mailbox), [Capability::Mail]);
     assert!(mailbox.shape.links.is_empty());
 }
+
+/// The grant a sign-in at the calendar server's own provider issues: calendar and contacts
+/// scopes from an issuer on the calendar server's site.
+const DAV_GRANT: &str = r#"
+[oauth]
+client_id = "client-dav"
+refresh_token = "rt"
+authorize_endpoint = "https://dav.mail.example/oauth/authorize"
+token_endpoint = "https://dav.mail.example/oauth/token"
+redirect_uri = "eu.allodia.mailcal://imap-oauth"
+scopes = ["offline_access", "urn:ietf:params:oauth:scope:calendars", "urn:ietf:params:oauth:scope:contacts"]
+authorization_server = "https://dav.mail.example"
+"#;
+
+#[test]
+fn a_calendar_account_signed_in_at_its_own_provider_keeps_no_password() {
+    let grant: AccountConfig = load_str(&format!("{PASSWORD}{DAV_GRANT}")).unwrap();
+    let calendar = password_account()
+        .calendar_account_for(&[Capability::Calendar, Capability::Contacts])
+        .unwrap()
+        .with_dav_grant(grant.oauth.unwrap());
+
+    assert!(calendar.is_oauth());
+    assert!(calendar.caldav.as_ref().unwrap().password.is_none());
+    assert!(calendar.uses_its_grant_does_not_reach().is_empty());
+    assert_eq!(
+        uses(&calendar),
+        [Capability::Calendar, Capability::Contacts]
+    );
+}

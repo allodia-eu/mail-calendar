@@ -102,6 +102,21 @@ impl AccountConfig {
         updated
     }
 
+    /// This account signing in to its calendar and contacts servers with `grant` rather than a
+    /// password: what a sign-in at the separate server's own provider leaves it as.
+    #[must_use]
+    pub fn with_dav_grant(&self, grant: crate::OAuthGrant) -> Self {
+        let mut updated = self.clone();
+        if let Some(caldav) = &mut updated.caldav {
+            caldav.password = None;
+        }
+        if let Some(carddav) = &mut updated.carddav {
+            carddav.password = None;
+        }
+        updated.oauth = Some(grant);
+        updated
+    }
+
     /// This account no longer used for `uses`, and without the servers only they used, linked
     /// to `moved_to` for each of them when they moved there: the mail half of a split.
     #[must_use]

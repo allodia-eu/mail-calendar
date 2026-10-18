@@ -115,7 +115,7 @@ impl MailcalApp {
 
     /// Adds `calendar`, then installs `mailbox` without `uses` and linked to it, removing the
     /// calendar account again when the mailbox does not install.
-    fn split_out(
+    pub(crate) fn split_out(
         &self,
         account_id: &str,
         calendar: AccountConfig,
