@@ -442,9 +442,7 @@ pub(crate) fn throttled_for(error: &(dyn StdError + 'static)) -> Option<Duration
 /// engine's [`ApiError`](engine_api::ApiError) preserves the chain, so this is what lets the
 /// classifiers above match on typed facts instead of on rendered text. Takes `&dyn Error` (an
 /// `ApiError` coerces) so the walk is unit-testable against a hand-built nested chain.
-fn provider_error_of<'a>(
-    error: &'a (dyn StdError + 'static),
-) -> Option<&'a ProviderError> {
+fn provider_error_of<'a>(error: &'a (dyn StdError + 'static)) -> Option<&'a ProviderError> {
     let mut source = Some(error);
     while let Some(err) = source {
         if let Some(provider) = err.downcast_ref::<ProviderError>() {
