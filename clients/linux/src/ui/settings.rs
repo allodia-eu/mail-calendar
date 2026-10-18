@@ -16,6 +16,7 @@ use crate::{l10n, preferences::HostPreferences};
 
 pub(super) mod about;
 pub(super) mod account_mail;
+mod account_names;
 mod account_page;
 mod account_rows;
 pub(super) mod sign_in_section;

@@ -37,6 +37,7 @@ fn jmap(calendar: CapabilityState, candidates: Vec<LinkedAccount>) -> AccountsSn
             },
             endpoints: None,
             separate_server: None,
+            distinction: None,
         }],
     }
 }
@@ -54,6 +55,7 @@ fn cloud() -> LinkedAccount {
     LinkedAccount {
         id: "alice@dav:dav.example.org".to_owned(),
         address: "alice@example.org".to_owned(),
+        distinction: None,
     }
 }
 

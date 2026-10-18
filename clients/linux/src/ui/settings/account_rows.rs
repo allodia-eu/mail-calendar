@@ -6,6 +6,7 @@ use mailcal_bindings::{
     UseProblem,
 };
 
+use super::account_names::{kind_line, linked_name};
 use crate::l10n;
 
 /// The label for an account's kind, as the setup screen names the same choice.
@@ -39,15 +40,16 @@ pub(super) fn summary(entry: &AccountEntry) -> String {
         .map(|use_| use_name(use_.capability))
         .collect::<Vec<_>>()
         .join(", ");
-    let mut lines = vec![format!("{} · {uses}", kind_label(entry.kind))];
+    let mut lines = vec![format!("{} · {uses}", kind_line(entry))];
     let linked = [
         (AccountCapability::Calendar, &entry.links.calendar),
         (AccountCapability::Contacts, &entry.links.contacts),
         (AccountCapability::Mail, &entry.links.mail),
     ];
     lines.extend(linked.into_iter().filter_map(|(capability, link)| {
-        link.as_ref()
-            .map(|link| l10n::settings_account_linked_line(use_name(capability), &link.address))
+        link.as_ref().map(|link| {
+            l10n::settings_account_linked_line(use_name(capability), &linked_name(link))
+        })
     }));
     if needs_permission(entry) {
         lines.push(l10n::settings_account_needs_permission().to_owned());
@@ -203,6 +205,22 @@ pub(in crate::ui) struct LinkPicker {
     /// The index into `options` of the account to suggest, while nothing is linked: one whose
     /// calendar server schedules as the mail account's address.
     pub(in crate::ui) suggested: Option<usize>,
+}
+
+impl LinkPicker {
+    /// What the dropdown lists: "none", then each account as a person reads it.
+    pub(in crate::ui) fn labels(&self) -> Vec<String> {
+        std::iter::once(l10n::settings_account_link_none().to_owned())
+            .chain(self.options.iter().map(linked_name))
+            .collect()
+    }
+
+    /// The suggested account, as a person reads it.
+    pub(in crate::ui) fn suggested_name(&self) -> Option<String> {
+        self.suggested
+            .and_then(|index| self.options.get(index))
+            .map(linked_name)
+    }
 }
 
 /// The pickers an account's page offers: one per slot it can hold, which is a slot with

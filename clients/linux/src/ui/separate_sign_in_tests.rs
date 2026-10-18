@@ -42,6 +42,7 @@ pub(crate) fn mailbox(problem: Option<UseProblem>, server: Option<SeparateServer
         link_candidates: mailcal_bindings::LinkCandidates::default(),
         endpoints: None,
         separate_server: server,
+        distinction: None,
     }
 }
 

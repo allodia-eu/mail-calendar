@@ -15,6 +15,7 @@ fn linked(id: &str) -> LinkedAccount {
     LinkedAccount {
         id: id.to_owned(),
         address: id.to_owned(),
+        distinction: None,
     }
 }
 
@@ -37,6 +38,7 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
         link_candidates: LinkCandidates::default(),
         endpoints: None,
         separate_server: None,
+        distinction: None,
     }
 }
 

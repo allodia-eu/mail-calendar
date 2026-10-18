@@ -86,6 +86,7 @@ pub(crate) mod tests {
             link_candidates: mailcal_bindings::LinkCandidates::default(),
             endpoints: None,
             separate_server: None,
+            distinction: None,
         };
         let row = account_row(&entry, &sender);
         adw::prelude::ActionRowExt::activate(&row);

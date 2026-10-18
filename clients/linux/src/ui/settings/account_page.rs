@@ -16,7 +16,7 @@ use crate::{
 pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
     let content = page_box(&entry.address);
     content.prepend(&back_button(&ctx.sender));
-    let kind = gtk::Label::new(Some(account_rows::kind_label(entry.kind)));
+    let kind = gtk::Label::new(Some(&super::account_names::kind_line(entry)));
     kind.add_css_class("dim-label");
     kind.set_xalign(0.0);
     content.append(&kind);
@@ -180,16 +180,15 @@ fn links_group(
         l10n::settings_account_links_description(),
     );
     for picker in pickers {
-        let labels = std::iter::once(l10n::settings_account_link_none())
-            .chain(picker.options.iter().map(|option| option.address.as_str()))
-            .collect::<Vec<_>>();
+        let names = picker.labels();
+        let labels = names.iter().map(String::as_str).collect::<Vec<_>>();
         let selected = picker
             .selected
             .and_then(|index| u32::try_from(index + 1).ok())
             .unwrap_or(0);
         let (row, dropdown) = super::choice(picker.title, &labels, selected);
-        if let Some(index) = picker.suggested {
-            suggest(&row, &dropdown, &picker.options[index].address, index);
+        if let (Some(index), Some(name)) = (picker.suggested, picker.suggested_name()) {
+            suggest(&row, &dropdown, &name, index);
         }
         let sender = ctx.sender.clone();
         let account = entry.id.clone();
@@ -310,7 +309,7 @@ fn remove_message(entry: &AccountEntry) -> String {
         let accounts = entry
             .linked_from
             .iter()
-            .map(|linked| linked.address.as_str())
+            .map(super::account_names::linked_name)
             .collect::<Vec<_>>()
             .join(", ");
         message.push(' ');
@@ -370,6 +369,7 @@ mod tests {
             link_candidates: mailcal_bindings::LinkCandidates::default(),
             endpoints: None,
             separate_server: None,
+            distinction: None,
         };
         assert_eq!(
             remove_message(&entry),
@@ -379,9 +379,19 @@ mod tests {
         entry.linked_from = vec![LinkedAccount {
             id: "alice@example.org@imap.example.org".to_owned(),
             address: "alice@example.org".to_owned(),
+            distinction: None,
         }];
         assert!(
             remove_message(&entry).ends_with(&l10n::remove_account_unlinks("alice@example.org"))
         );
+
+        entry.linked_from[0].distinction = Some(mailcal_bindings::AccountDistinction::Kind {
+            kind: AccountKind::Imap,
+        });
+        let named = l10n::settings_account_distinguished(
+            "alice@example.org",
+            l10n::setup_account_type_password(),
+        );
+        assert!(remove_message(&entry).ends_with(&l10n::remove_account_unlinks(&named)));
     }
 }

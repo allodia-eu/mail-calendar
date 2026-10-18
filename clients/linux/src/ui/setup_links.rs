@@ -237,9 +237,8 @@ pub(super) fn step(
     content.append(&body(l10n::settings_account_links_description()));
     for (index, picker) in step.pickers.iter().enumerate() {
         content.append(&section(picker.title));
-        let labels: Vec<&str> = std::iter::once(l10n::settings_account_link_none())
-            .chain(picker.options.iter().map(|option| option.address.as_str()))
-            .collect();
+        let names = picker.labels();
+        let labels: Vec<&str> = names.iter().map(String::as_str).collect();
         let dropdown = gtk::DropDown::from_strings(&labels);
         let picked = step.picked.get(index).copied().flatten();
         dropdown.set_selected(
@@ -248,10 +247,8 @@ pub(super) fn step(
                 .unwrap_or(0),
         );
         content.append(&dropdown);
-        if let Some(suggested) = picker.suggested.and_then(|at| picker.options.get(at)) {
-            content.append(&caption(&l10n::settings_account_link_suggested(
-                &suggested.address,
-            )));
+        if let Some(suggested) = picker.suggested_name() {
+            content.append(&caption(&l10n::settings_account_link_suggested(&suggested)));
         }
         let input = sender.clone();
         dropdown.connect_selected_notify(move |dropdown| {

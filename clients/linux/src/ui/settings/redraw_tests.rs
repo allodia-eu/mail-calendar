@@ -20,6 +20,7 @@ fn snapshot(addresses: &[&str]) -> AccountsSnapshot {
                 link_candidates: mailcal_bindings::LinkCandidates::default(),
                 endpoints: None,
                 separate_server: None,
+                distinction: None,
             })
             .collect(),
     }

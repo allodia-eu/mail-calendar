@@ -9,6 +9,7 @@ fn linked(id: &str) -> LinkedAccount {
     LinkedAccount {
         id: id.to_owned(),
         address: id.to_owned(),
+        distinction: None,
     }
 }
 
@@ -35,6 +36,7 @@ fn snapshot() -> AccountsSnapshot {
             },
             endpoints: None,
             separate_server: None,
+            distinction: None,
         }],
     }
 }
