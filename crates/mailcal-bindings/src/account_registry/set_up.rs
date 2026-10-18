@@ -63,7 +63,7 @@ impl AccountRegistry {
             }
             entries.insert(key.clone(), entry);
         }
-        self.forget_calendar_users(&key);
+        self.forget_answers(&key);
         Ok(Registered {
             id: key,
             replaced: None,

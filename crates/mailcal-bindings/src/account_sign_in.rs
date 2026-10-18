@@ -67,7 +67,7 @@ impl MailcalApp {
     /// question offers nothing.
     pub fn account_sign_in_options(&self, account_id: String) -> AccountSignInOptions {
         match self.registry.sign_in_config(&account_id) {
-            Some(SignInConfig::Imap(config)) => self.imap_sign_in_options(&config),
+            Some(SignInConfig::Imap(config)) => self.imap_sign_in_options(&account_id, &config),
             Some(SignInConfig::Jmap(config)) => AccountSignInOptions {
                 sign_in: config.is_oauth()
                     || self
@@ -99,9 +99,9 @@ impl MailcalApp {
         let (pending, authorization_url) = match self.switchable(&account_id)? {
             SignInConfig::Imap(config) => {
                 let start = match &config.oauth {
-                    Some(grant) => crate::imap_oauth::sign_in_again(&config, grant)?,
+                    Some(grant) => self.sign_in_again(&config, grant)?,
                     None => {
-                        let request = self.imap_login_request(&config)?;
+                        let request = self.imap_login_request(&account_id, &config)?;
                         self.begin_imap_login(request, redirect_uri)?
                     }
                 };
@@ -226,7 +226,14 @@ impl MailcalApp {
                 let fresh = mailcal_account::load_str(&config_toml)
                     .map_err(|err| MailcalError::Config(err.to_string()))?;
                 same_mailbox(fresh.derived_account_id(), config.derived_account_id())?;
-                match (fresh.oauth, fresh.imap.and_then(|imap| imap.password)) {
+                // A calendar or address book set up without mail carries its password on the DAV
+                // endpoint alone.
+                let password = fresh
+                    .imap
+                    .and_then(|imap| imap.password)
+                    .or_else(|| fresh.caldav.and_then(|caldav| caldav.password))
+                    .or_else(|| fresh.carddav.and_then(|carddav| carddav.password));
+                match (fresh.oauth, password) {
                     (Some(grant), _) => Replacement::Imap(config.with_grant(grant)),
                     (None, Some(password)) => {
                         Replacement::Imap(config.with_password_instead_of_grant(password.expose()))
@@ -263,7 +270,11 @@ impl MailcalApp {
     }
 
     /// The IMAP half of [`MailcalApp::account_sign_in_options`].
-    fn imap_sign_in_options(&self, config: &AccountConfig) -> AccountSignInOptions {
+    fn imap_sign_in_options(
+        &self,
+        account_id: &str,
+        config: &AccountConfig,
+    ) -> AccountSignInOptions {
         let Some(imap) = &config.imap else {
             return no_options();
         };
@@ -288,7 +299,8 @@ impl MailcalApp {
                 password,
             };
         }
-        query.autoconfig_issuer = self.autoconfig_issuer(&imap.username, &imap.server_name);
+        query.autoconfig_issuer =
+            self.autoconfig_issuer(account_id, &imap.username, &imap.server_name);
         let decided = self
             .runtime
             .block_on(|| mailcal_account::decide_imap_auth(&query));
@@ -304,20 +316,39 @@ impl MailcalApp {
     }
 
     /// The issuer the provider's own autoconfig names for `email`, when detection finds the
-    /// account's mail server there: what setup would have started a sign-in from.
-    fn autoconfig_issuer(&self, email: &str, server_name: &str) -> Option<String> {
-        match self.detect_route(email, None) {
+    /// account's mail server there: what setup would have started a sign-in from. Looked for
+    /// once per registration of `account_id`, by whichever of the options and the sign-in asks
+    /// first.
+    fn autoconfig_issuer(
+        &self,
+        account_id: &str,
+        email: &str,
+        server_name: &str,
+    ) -> Option<String> {
+        if let Some(issuer) = self.registry.sign_in_issuer(account_id) {
+            return issuer;
+        }
+        let issuer = match self.detect_route(email, None) {
             SetupRecommendation::Imap {
                 imap_host,
                 oauth_issuer,
                 ..
-            } if host_of(&imap_host).eq_ignore_ascii_case(server_name) => oauth_issuer,
+            } if crate::imap_oauth::host_only(&imap_host).eq_ignore_ascii_case(server_name) => {
+                oauth_issuer
+            }
             _ => None,
-        }
+        };
+        self.registry
+            .remember_sign_in_issuer(account_id, issuer.clone());
+        issuer
     }
 
     /// The sign-in request setup would have built for the password account `config`.
-    fn imap_login_request(&self, config: &AccountConfig) -> Result<ImapLoginRequest, MailcalError> {
+    fn imap_login_request(
+        &self,
+        account_id: &str,
+        config: &AccountConfig,
+    ) -> Result<ImapLoginRequest, MailcalError> {
         let imap = config.imap.as_ref().ok_or_else(|| {
             MailcalError::Config("this account signs in to no mailbox".to_owned())
         })?;
@@ -328,7 +359,7 @@ impl MailcalApp {
             caldav_base_url: config.caldav.as_ref().map(|caldav| caldav.base_url.clone()),
             imap_security: Some(imap.security.into()),
             smtp_security: config.smtp.as_ref().map(|smtp| smtp.security.into()),
-            oauth_issuer: self.autoconfig_issuer(&imap.username, &imap.server_name),
+            oauth_issuer: self.autoconfig_issuer(account_id, &imap.username, &imap.server_name),
             carddav_base_url: config
                 .carddav
                 .as_ref()
@@ -350,22 +381,33 @@ impl MailcalApp {
         account_id: &str,
         replacement: Replacement,
     ) -> Result<(), MailcalError> {
-        let (config_toml, grant) = match &replacement {
-            Replacement::Imap(config) => (config.to_toml(), config.is_oauth()),
-            Replacement::Jmap(config) => (config.to_toml(), config.is_oauth()),
+        let (config_toml, grant, address) = match &replacement {
+            Replacement::Imap(config) => (
+                config.to_toml(),
+                config.is_oauth(),
+                config.username().to_owned(),
+            ),
+            Replacement::Jmap(config) => {
+                (config.to_toml(), config.is_oauth(), config.email.clone())
+            }
         };
         let config_toml = config_toml.map_err(|err| MailcalError::Config(err.to_string()))?;
         let sink = crate::token_sink::token_sink(&self.registry, &self.credential_store);
         let prepared =
             boot::prepare_stored_account(&config_toml, &sink, CredentialOrigin::FreshSignIn)?;
-        // A grant can rotate during the connect, so it is stored from the registry; a password
-        // cannot, so the bytes built here are the ones to keep.
-        let persistence = if grant {
-            CredentialPersistence::RegisteredGrant
+        // A grant can rotate during the connect, so it is stored from the registry, and it must
+        // open this account's own mailbox; a password cannot rotate, so the bytes built here are
+        // the ones to keep.
+        if grant {
+            self.install_signed_in_account(account_id, prepared, "sign-in", &address)?;
         } else {
-            CredentialPersistence::Provided(config_toml)
-        };
-        self.install_repaired_account(account_id, prepared, persistence, "sign-in")?;
+            self.install_repaired_account(
+                account_id,
+                prepared,
+                CredentialPersistence::Provided(config_toml),
+                "sign-in",
+            )?;
+        }
         self.app.accounts_changed();
         log::info!(
             "sign-in: [{}] now signs in {}",
@@ -411,11 +453,6 @@ fn same_mailbox<E: std::fmt::Display>(
             "that setup is for a different account than this one".to_owned(),
         ))
     }
-}
-
-/// The host of a `host` or `host:port` field.
-fn host_of(field: &str) -> &str {
-    field.rsplit_once(':').map_or(field, |(host, _)| host)
 }
 
 const fn no_options() -> AccountSignInOptions {

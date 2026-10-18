@@ -1,11 +1,15 @@
 //! The halves of an IMAP sign-in an existing account reuses: the code exchange, and an
 //! authorization request built from the account's own stored grant.
 
-use mailcal_account::{AccountConfig, AccountSetup, OAuthGrant};
+use mailcal_account::{AccountConfig, AccountSetup, ImapAuthQuery, OAuthGrant};
 use mailcal_oauth::OAuthClient;
 use time::OffsetDateTime;
 
-use super::{ImapLoginStart, PendingImapLogin, grant_shell, start_login};
+use super::{
+    ImapLoginStart, PendingImapLogin,
+    discovery::{Endpoints, resources_again},
+    grant_shell, start_login,
+};
 use crate::{MailcalApp, MailcalError};
 
 /// A completed IMAP sign-in: the account it describes, its grant, and the account the server
@@ -81,53 +85,80 @@ impl MailcalApp {
     }
 }
 
-/// The authorization request that signs `config`'s account in again, built from its stored
-/// `grant` alone: the same issuer, registered client, redirect and scopes, with no discovery
-/// and no second registration, as a JMAP account's is (`docs/jmap.md` rule 8).
-///
-/// # Errors
-///
-/// Returns [`MailcalError::Config`] for an account used for no mail, which has no mailbox to
-/// sign in to, or a grant the authorization request cannot be built from.
-pub(crate) fn sign_in_again(
-    config: &AccountConfig,
-    grant: &OAuthGrant,
-) -> Result<ImapLoginStart, MailcalError> {
-    let imap = config
-        .imap
-        .as_ref()
-        .ok_or_else(|| MailcalError::Config("this account signs in to no mailbox".to_owned()))?;
-    let starttls = |security| matches!(security, mailcal_account::ConnectionSecurity::StartTls);
-    log::info!("imap oauth: signing an existing account in again at its stored issuer");
-    start_login(PendingImapLogin {
-        email: imap.username.clone(),
-        imap_host: imap.addr.clone(),
-        smtp_host: config.smtp.as_ref().map(|smtp| smtp.addr.clone()),
-        caldav_base_url: config.caldav.as_ref().map(|caldav| caldav.base_url.clone()),
-        carddav_base_url: config
+impl MailcalApp {
+    /// The authorization request that signs `config`'s account in again, built from its stored
+    /// `grant`: the same issuer, registered client, redirect and scopes, with no second
+    /// registration, as a JMAP account's is (`docs/jmap.md` rule 8). The endpoints it names
+    /// follow setup's rule over the issuer's metadata, read again.
+    ///
+    /// **Blocking** (one metadata read, and the DAV servers' own when they are named).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Config`] for an account used for no mail, which has no mailbox to
+    /// sign in to, or a grant the authorization request cannot be built from.
+    pub(crate) fn sign_in_again(
+        &self,
+        config: &AccountConfig,
+        grant: &OAuthGrant,
+    ) -> Result<ImapLoginStart, MailcalError> {
+        let imap = config.imap.as_ref().ok_or_else(|| {
+            MailcalError::Config("this account signs in to no mailbox".to_owned())
+        })?;
+        let query = ImapAuthQuery {
+            imap_host: imap.addr.clone(),
+            imap_security: imap.security,
+            email: imap.username.clone(),
+            autoconfig_issuer: None,
+        };
+        let caldav = config.caldav.as_ref().map(|caldav| caldav.base_url.clone());
+        let carddav = config
             .carddav
             .as_ref()
-            .map(|carddav| carddav.base_url.clone()),
-        uses: Some(crate::account_capability::names(&config.capabilities())),
-        imap_starttls: starttls(imap.security),
-        smtp_starttls: config
-            .smtp
-            .as_ref()
-            .is_some_and(|smtp| starttls(smtp.security)),
-        client_id: grant.client_id.clone(),
-        client_secret: grant
-            .client_secret
-            .as_ref()
-            .map(|secret| secret.expose().to_owned()),
-        authorize_endpoint: grant.authorize_endpoint.clone(),
-        token_endpoint: grant.token_endpoint.clone(),
-        redirect_uri: grant.redirect_uri.clone(),
-        scopes: grant.scopes.clone(),
-        issuer: grant.issuer.clone(),
-        authorization_server: grant.authorization_server.clone(),
-        protected_resources: grant.protected_resources.clone(),
-        resources: Vec::new(),
-        state: String::new(),
-        verifier: String::new(),
-    })
+            .map(|carddav| carddav.base_url.clone());
+        let smtp_host = config.smtp.as_ref().map(|smtp| smtp.addr.clone());
+        let endpoints = Endpoints {
+            smtp_host: smtp_host.as_deref(),
+            caldav: caldav.as_deref(),
+            carddav: carddav.as_deref(),
+        };
+        let resources = self.runtime.block_on(|| {
+            resources_again(
+                grant.authorization_server.as_deref(),
+                &query,
+                &endpoints,
+                &grant.scopes,
+            )
+        });
+        let starttls = |security| matches!(security, mailcal_account::ConnectionSecurity::StartTls);
+        log::info!("imap oauth: signing an existing account in again at its stored issuer");
+        start_login(PendingImapLogin {
+            email: imap.username.clone(),
+            imap_host: imap.addr.clone(),
+            smtp_host,
+            caldav_base_url: caldav,
+            carddav_base_url: carddav,
+            uses: Some(crate::account_capability::names(&config.capabilities())),
+            imap_starttls: starttls(imap.security),
+            smtp_starttls: config
+                .smtp
+                .as_ref()
+                .is_some_and(|smtp| starttls(smtp.security)),
+            client_id: grant.client_id.clone(),
+            client_secret: grant
+                .client_secret
+                .as_ref()
+                .map(|secret| secret.expose().to_owned()),
+            authorize_endpoint: grant.authorize_endpoint.clone(),
+            token_endpoint: grant.token_endpoint.clone(),
+            redirect_uri: grant.redirect_uri.clone(),
+            scopes: grant.scopes.clone(),
+            issuer: grant.issuer.clone(),
+            authorization_server: grant.authorization_server.clone(),
+            protected_resources: grant.protected_resources.clone(),
+            resources,
+            state: String::new(),
+            verifier: String::new(),
+        })
+    }
 }

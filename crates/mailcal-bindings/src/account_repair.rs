@@ -61,7 +61,28 @@ impl MailcalApp {
         persistence: CredentialPersistence,
         family: &'static str,
     ) -> Result<(), MailcalError> {
-        self.install_replacement(account_id, prepared, persistence, family, &[])
+        self.install_replacement(account_id, prepared, persistence, family, &[], None)
+    }
+
+    /// [`Self::install_repaired_account`] for a grant a browser sign-in just issued, which must
+    /// open `address`'s own mailbox: the consent page lets a person pick another account at the
+    /// same provider, and a server that names none in its token response says so only through
+    /// the identities of the session the grant opens.
+    pub(crate) fn install_signed_in_account(
+        &self,
+        account_id: &str,
+        prepared: boot::PreparedAccount,
+        family: &'static str,
+        address: &str,
+    ) -> Result<(), MailcalError> {
+        self.install_replacement(
+            account_id,
+            prepared,
+            CredentialPersistence::RegisteredGrant,
+            family,
+            &[],
+            Some(address),
+        )
     }
 
     /// [`Self::install_repaired_account`], forgetting `forget` once the replacement has connected
@@ -73,6 +94,7 @@ impl MailcalApp {
         persistence: CredentialPersistence,
         family: &'static str,
         forget: &[engine_api::SearchDomain],
+        mailbox: Option<&str>,
     ) -> Result<(), MailcalError> {
         let id = prepared.account.id.clone();
         if id.as_str() != account_id {
@@ -104,6 +126,18 @@ impl MailcalApp {
                 return Err(MailcalError::from(error));
             }
         };
+        if let Some(address) = mailbox
+            && self.opens_another_mailbox(&id, &outcome.account, address)
+        {
+            registered.rollback(&self.registry);
+            log::warn!(
+                "credential repair: [{}] the sign-in opened another mailbox; discarding it",
+                mailcal_account::account_log_handle(account_id),
+            );
+            return Err(MailcalError::Config(
+                "that sign-in is for a different account than this one".to_owned(),
+            ));
+        }
         let persisted = match persistence {
             CredentialPersistence::Provided(config_toml) => {
                 self.persist_credential(account_id, config_toml)
@@ -157,5 +191,21 @@ impl MailcalApp {
             .spawn(async move { app_sync.refresh_repaired_account(&id).await });
         log::info!("credential repair: {family} account connected and stored; catch-up running");
         Ok(())
+    }
+
+    /// Whether the mail session `account` just opened names identities without `address`.
+    fn opens_another_mailbox(
+        &self,
+        id: &engine_api::AccountId,
+        account: &mailcal_app::Account<Box<dyn engine_api::Provider>>,
+        address: &str,
+    ) -> bool {
+        let Some(provider) = account.providers.first() else {
+            return false;
+        };
+        let app = Arc::clone(&self.app);
+        self.runtime
+            .block_on(|| async move { app.sends_as(provider, id, address).await })
+            == Some(false)
     }
 }

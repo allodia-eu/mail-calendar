@@ -46,6 +46,7 @@ impl MailcalApp {
             CredentialPersistence::Provided(config_toml),
             "edited servers",
             &forget,
+            None,
         )?;
         self.app.accounts_changed();
         Ok(())

@@ -76,6 +76,9 @@ pub(crate) struct AccountRegistry {
     entries: Mutex<HashMap<String, ConnectedAccount>>,
     /// What each account's calendar server said it schedules as: `None` while it is being asked.
     calendar_users: Mutex<HashMap<String, Option<Vec<String>>>>,
+    /// The issuer each password account's provider names for it in its own autoconfig, once the
+    /// sign-in options have looked, so starting the sign-in does not look again.
+    sign_in_issuers: Mutex<HashMap<String, Option<String>>>,
 }
 
 /// What one rotation did to the registry, for the token sink to report and persist.
@@ -113,7 +116,7 @@ impl AccountRegistry {
     /// The only way to add an account. It takes the entry by value and returns nothing borrowed, so
     /// a caller cannot keep a second copy to write back later.
     pub(crate) fn pre_register(&self, id: String, entry: ConnectedAccount) -> Registered {
-        self.forget_calendar_users(&id);
+        self.forget_answers(&id);
         let replaced = self
             .entries
             .lock()
@@ -124,7 +127,7 @@ impl AccountRegistry {
 
     /// Forgets `id`: the account has been removed.
     pub(crate) fn remove(&self, id: &str) {
-        self.forget_calendar_users(id);
+        self.forget_answers(id);
         self.entries
             .lock()
             .expect("account registry mutex poisoned")

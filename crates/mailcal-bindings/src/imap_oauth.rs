@@ -33,8 +33,8 @@ use crate::{ConnectionSecurity, MailcalApp, MailcalError};
 mod again;
 mod discovery;
 
-pub(crate) use again::sign_in_again;
 use discovery::discover_registration;
+pub(crate) use discovery::host_only;
 
 /// The client name shown on the provider's consent screen. The product name, per the brand
 /// rule: this is user-facing copy on someone else's page.

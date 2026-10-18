@@ -138,6 +138,48 @@ fn a_setup_for_another_mailbox_is_not_used_for_this_account() {
     assert!(recorder.persisted.lock().unwrap().is_empty());
 }
 
+/// A calendar for `who@example.com`, set up without mail, at a server that does not answer.
+fn calendar_account(who: &str, password: &str) -> (String, String) {
+    let config = mailcal_account::AccountConfig {
+        imap: None,
+        smtp: None,
+        caldav: Some(mailcal_account::CalDavAccount {
+            base_url: "http://127.0.0.1:1/dav".to_owned(),
+            username: format!("{who}@example.com"),
+            password: Some(mailcal_account::Secret::new(password.to_owned())),
+            calendar: None,
+        }),
+        carddav: None,
+        oauth: None,
+        certificate_exceptions: Vec::new(),
+        shape: mailcal_account::AccountShape::default(),
+    };
+    let id = config.account_id().expect("a valid account id");
+    (
+        config.to_toml().expect("serializable config"),
+        id.as_str().to_owned(),
+    )
+}
+
+#[test]
+fn a_calendar_set_up_again_offers_its_password_to_the_calendar_already_there() {
+    let (config, id) = calendar_account("calendar", "stored");
+    let (again, again_id) = calendar_account("calendar", "typed");
+    assert_eq!(id, again_id, "the same calendar");
+    let (app, recorder) = booted("sign-in-calendar-again", vec![config]);
+
+    let used = app.use_credential_from(id, again);
+
+    assert!(
+        matches!(
+            used,
+            Err(MailcalError::Connect(_) | MailcalError::SignInRefused { .. })
+        ),
+        "the password is tried against the server, not refused as missing: {used:?}"
+    );
+    assert!(recorder.persisted.lock().unwrap().is_empty());
+}
+
 #[test]
 fn signing_in_again_asks_the_stored_issuer_for_the_accounts_own_address() {
     let (config, id) = imap_account("again", true);

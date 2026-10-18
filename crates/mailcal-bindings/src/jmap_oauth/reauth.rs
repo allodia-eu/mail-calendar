@@ -32,10 +32,7 @@ use engine_core::ids::AccountId;
 use mailcal_account::JmapAccountConfig;
 
 use super::{JmapLoginStart, start_login};
-use crate::{
-    MailcalApp, MailcalError, account_registry::JmapLookup, account_repair::CredentialPersistence,
-    boot,
-};
+use crate::{MailcalApp, MailcalError, account_registry::JmapLookup, boot};
 
 #[uniffi::export]
 impl MailcalApp {
@@ -131,12 +128,7 @@ impl MailcalApp {
             &sink,
             mailcal_account::CredentialOrigin::FreshSignIn,
         )?;
-        self.install_repaired_account(
-            &account_id,
-            prepared,
-            CredentialPersistence::RegisteredGrant,
-            "jmap oauth",
-        )?;
+        self.install_signed_in_account(&account_id, prepared, "jmap oauth", &stored.email)?;
         log::info!("jmap oauth: re-authentication complete: the account is connected again");
         Ok(())
     }

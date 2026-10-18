@@ -482,7 +482,12 @@ capturing the redirect), because that is inherently platform-specific.
     reconnected: `login_hint` targets an address, it does not pin one, so someone with two
     mailboxes at one provider can come back as the wrong one, and filing that grant under the
     original account id would point it at another person's mail while still displaying the original
-    address. Because the account keeps its identity, settings and downloaded mail, a client calls
+    address. No discovered server we have met names the account in its token response (§3.5
+    `username`), so the address the person typed cannot be compared there; what is compared is
+    the session the new grant opens: one that names sending identities and none of them is the
+    account's address is another mailbox, and is refused before anything is stored (`sends_as`).
+    A server that names no identities cannot be told apart this way, and is taken at its word.
+    Because the account keeps its identity, settings and downloaded mail, a client calls
     neither `add_account` nor its own secure-store write on this path.
 
 15. **The client registrations are injected at build time, and a build without one does not offer
