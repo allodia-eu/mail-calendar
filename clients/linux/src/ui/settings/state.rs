@@ -99,6 +99,12 @@ impl SettingsState {
         self.bump();
     }
 
+    /// Puts the window on screen at an account's page in Accounts.
+    pub(in crate::ui) fn open_account(&mut self, account: String) {
+        self.open(Some(Category::Accounts));
+        self.account = Some(account);
+    }
+
     /// Redraws the window if it is open, and leaves a closed one closed.
     ///
     /// How the Allodia card changes: every page is built from the core when the window opens, so
@@ -157,8 +163,7 @@ impl SettingsState {
         account: String,
         notice: super::notice::Notice,
     ) {
-        self.open(Some(Category::Accounts));
-        self.account = Some(account);
+        self.open_account(account);
         self.raise(notice);
     }
 

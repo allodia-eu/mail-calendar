@@ -26,7 +26,7 @@ use mailcal_bindings::{CalendarWriteStatus, InvitationCard, InvitationKind, Invi
 
 use super::{
     attendees, conflicts, notice, preview::PreviewGrid, reply_subject, response, title, when,
-    write_line,
+    write_failed, write_line,
 };
 use crate::{
     l10n,
@@ -260,7 +260,7 @@ impl InvitationCardView {
             }
             None => self.write_status.set_visible(false),
         }
-        if matches!(status, CalendarWriteStatus::Failed) {
+        if write_failed(status) {
             self.write_status.add_css_class("error");
         } else {
             self.write_status.remove_css_class("error");

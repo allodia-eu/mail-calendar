@@ -6,8 +6,8 @@ use mailcal_bindings::{
 };
 
 use super::{
-    UseSwitch, link_pickers, needs_permission, signin_description, signs_in_at_provider, summary,
-    use_switch,
+    UseSwitch, link_pickers, needs_permission, outage_line, signin_description,
+    signs_in_at_provider, summary, use_switch,
 };
 use crate::l10n;
 
@@ -281,4 +281,55 @@ fn a_use_that_did_not_connect_says_why_beneath_its_switch() {
         Some(l10n::settings_account_use_unreachable_contacts())
     );
     assert_eq!(use_switch(&entry, AccountCapability::Mail).note, None);
+}
+
+#[test]
+fn an_outage_line_names_the_account_then_the_reason_its_page_gives_then_the_last_sync() {
+    use mailcal_bindings::UseProblem;
+    let address = "alice@example.org";
+    for (capability, problem, title, reason) in [
+        (
+            AccountCapability::Calendar,
+            UseProblem::NeedsOwnSignIn,
+            l10n::calendar_outage_title(address),
+            l10n::settings_account_use_own_sign_in_calendar(),
+        ),
+        (
+            AccountCapability::Calendar,
+            UseProblem::SignInRefused,
+            l10n::calendar_outage_title(address),
+            l10n::settings_account_use_refused_calendar(),
+        ),
+        (
+            AccountCapability::Calendar,
+            UseProblem::Unreachable,
+            l10n::calendar_outage_title(address),
+            l10n::settings_account_use_unreachable_calendar(),
+        ),
+        (
+            AccountCapability::Contacts,
+            UseProblem::NeedsOwnSignIn,
+            l10n::contacts_outage_title(address),
+            l10n::settings_account_use_own_sign_in_contacts(),
+        ),
+        (
+            AccountCapability::Contacts,
+            UseProblem::SignInRefused,
+            l10n::contacts_outage_title(address),
+            l10n::settings_account_use_refused_contacts(),
+        ),
+        (
+            AccountCapability::Contacts,
+            UseProblem::Unreachable,
+            l10n::contacts_outage_title(address),
+            l10n::settings_account_use_unreachable_contacts(),
+        ),
+    ] {
+        assert!(title.contains(address));
+        assert_eq!(
+            outage_line(capability, problem, address),
+            format!("{title} {reason} {}", l10n::use_outage_last_synced()),
+            "{capability:?} {problem:?}"
+        );
+    }
 }

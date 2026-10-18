@@ -1,10 +1,15 @@
 //! Regressions for the Linux host's connectivity projection and reachability bridge.
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountProvider, AccountRow, ConnectivitySnapshot};
+use mailcal_bindings::{
+    AccountCapability, AccountProvider, AccountRow, ConnectivitySnapshot, UseOutage, UseProblem,
+};
 
-use super::{ConnectivityBanners, ConnectivityState, ExpiredResolution, report_reachability};
-use crate::ui::{AppInput, PrimaryView};
+use super::{
+    ConnectivityBanners, ConnectivityState, ExpiredResolution, OutageBanners, OutageLine,
+    report_reachability,
+};
+use crate::ui::{AppInput, PrimaryView, account_settings::AccountsInput, settings::outage_line};
 
 fn account(id: &str, email: &str) -> AccountRow {
     AccountRow {
@@ -22,7 +27,45 @@ fn snapshot() -> ConnectivitySnapshot {
         calendar_reauth_accounts: vec!["calendar".to_owned()],
         mail_reauth_accounts: vec!["mail".to_owned()],
         signin_expired_accounts: vec!["expired".to_owned(), "removed".to_owned()],
+        calendar_outages: vec![
+            outage("cal-only", UseProblem::NeedsOwnSignIn),
+            outage("mail", UseProblem::Unreachable),
+        ],
+        contacts_outages: vec![outage("mail", UseProblem::SignInRefused)],
     }
+}
+
+fn outage(account: &str, problem: UseProblem) -> UseOutage {
+    UseOutage {
+        account_id: account.to_owned(),
+        problem,
+    }
+}
+
+/// The accounts snapshot's addresses: it lists an account without mail, which the mailbox's rows
+/// do not.
+fn address(id: &str) -> Option<String> {
+    (id == "cal-only").then(|| "calendar-only@example.test".to_owned())
+}
+
+fn no_address(_: &str) -> Option<String> {
+    None
+}
+
+fn texts(banners: &OutageBanners) -> Vec<String> {
+    let mut texts = Vec::new();
+    let mut child = banners.root.first_child();
+    while let Some(widget) = child {
+        let banner = widget.downcast_ref::<adw::Banner>().expect("only banners");
+        assert!(banner.is_revealed());
+        assert_eq!(
+            banner.button_label().as_deref(),
+            Some(crate::l10n::use_outage_open_account())
+        );
+        texts.push(banner.title().to_string());
+        child = widget.next_sibling();
+    }
+    texts
 }
 
 #[test]
@@ -35,6 +78,7 @@ fn one_snapshot_projects_the_offline_outage_and_expired_signin_states() {
             account("calendar", "calendar@example.test"),
             account("mail", "mail@example.test"),
         ],
+        address,
         |id| (id == "expired").then_some(AccountProvider::Google),
     );
 
@@ -72,6 +116,49 @@ fn one_snapshot_projects_the_offline_outage_and_expired_signin_states() {
 }
 
 #[test]
+fn each_outage_is_one_line_in_the_snapshots_order_naming_the_accounts_address() {
+    let state = ConnectivityState::from_snapshot(
+        snapshot(),
+        &[account("mail", "mail@example.test")],
+        address,
+        |_| None,
+    );
+
+    assert_eq!(
+        state.calendar_outages,
+        [
+            OutageLine {
+                account: "cal-only".to_owned(),
+                text: outage_line(
+                    AccountCapability::Calendar,
+                    UseProblem::NeedsOwnSignIn,
+                    "calendar-only@example.test"
+                ),
+            },
+            OutageLine {
+                account: "mail".to_owned(),
+                text: outage_line(
+                    AccountCapability::Calendar,
+                    UseProblem::Unreachable,
+                    "mail@example.test"
+                ),
+            },
+        ]
+    );
+    assert_eq!(
+        state.contacts_outages,
+        [OutageLine {
+            account: "mail".to_owned(),
+            text: outage_line(
+                AccountCapability::Contacts,
+                UseProblem::SignInRefused,
+                "mail@example.test"
+            ),
+        }]
+    );
+}
+
+#[test]
 fn every_provider_routes_to_the_remedy_linux_currently_has() {
     let accounts = [
         account("m", "m@example.test"),
@@ -84,8 +171,10 @@ fn every_provider_routes_to_the_remedy_linux_currently_has() {
         calendar_reauth_accounts: Vec::new(),
         mail_reauth_accounts: Vec::new(),
         signin_expired_accounts: vec!["m".to_owned(), "j".to_owned(), "i".to_owned()],
+        calendar_outages: Vec::new(),
+        contacts_outages: Vec::new(),
     };
-    let state = ConnectivityState::from_snapshot(snapshot, &accounts, |id| {
+    let state = ConnectivityState::from_snapshot(snapshot, &accounts, no_address, |id| {
         Some(match id {
             "m" => AccountProvider::Microsoft,
             "j" => AccountProvider::JmapOauth,
@@ -124,7 +213,11 @@ fn gio_reachability_crosses_the_relm_channel_with_its_value() {
 pub(crate) fn the_banners_render_the_snapshot_and_keep_the_remedy_actionable() {
     let state = ConnectivityState::from_snapshot(
         snapshot(),
-        &[account("expired", "expired@example.test")],
+        &[
+            account("expired", "expired@example.test"),
+            account("mail", "mail@example.test"),
+        ],
+        address,
         |_| Some(AccountProvider::Google),
     );
     let (sender, receiver) = relm4::channel();
@@ -172,4 +265,72 @@ pub(crate) fn the_banners_render_the_snapshot_and_keep_the_remedy_actionable() {
         receiver.recv_sync(),
         Some(AppInput::ResolveExpiredSignIn)
     ));
+
+    the_outage_lines_follow_the_snapshot_and_open_the_accounts_page(&banners, &receiver, &state);
+}
+
+fn the_outage_lines_follow_the_snapshot_and_open_the_accounts_page(
+    banners: &ConnectivityBanners,
+    receiver: &relm4::Receiver<AppInput>,
+    state: &ConnectivityState,
+) {
+    banners.render(state, PrimaryView::Mail);
+    assert!(!banners.calendar_outages.root.is_visible());
+    assert!(!banners.contacts_outages.root.is_visible());
+
+    banners.render(state, PrimaryView::Calendar);
+    assert!(banners.calendar_outages.root.is_visible());
+    assert!(!banners.contacts_outages.root.is_visible());
+    let calendar = texts(&banners.calendar_outages);
+    assert_eq!(
+        calendar,
+        state
+            .calendar_outages
+            .iter()
+            .map(|line| line.text.clone())
+            .collect::<Vec<_>>()
+    );
+    assert!(calendar[0].contains("calendar-only@example.test"));
+    let first = banners
+        .calendar_outages
+        .root
+        .first_child()
+        .and_downcast::<adw::Banner>()
+        .expect("a line per account");
+    first.emit_by_name::<()>("button-clicked", &[]);
+    assert!(matches!(
+        receiver.recv_sync(),
+        Some(AppInput::Accounts(AccountsInput::Open(account))) if account == "cal-only"
+    ));
+
+    banners.render(state, PrimaryView::Contacts);
+    assert!(!banners.calendar_outages.root.is_visible());
+    assert!(banners.contacts_outages.root.is_visible());
+    assert_eq!(
+        texts(&banners.contacts_outages),
+        [state.contacts_outages[0].text.clone()]
+    );
+    banners
+        .contacts_outages
+        .root
+        .first_child()
+        .and_downcast::<adw::Banner>()
+        .expect("a line per account")
+        .emit_by_name::<()>("button-clicked", &[]);
+    assert!(matches!(
+        receiver.recv_sync(),
+        Some(AppInput::Accounts(AccountsInput::Open(account))) if account == "mail"
+    ));
+
+    // The lines go when the snapshot stops naming them.
+    let mut cleared = snapshot();
+    cleared.calendar_outages.clear();
+    cleared.contacts_outages.clear();
+    let cleared = ConnectivityState::from_snapshot(cleared, &[], no_address, |_| None);
+    banners.render(&cleared, PrimaryView::Calendar);
+    assert!(!banners.calendar_outages.root.is_visible());
+    assert!(texts(&banners.calendar_outages).is_empty());
+    banners.render(&cleared, PrimaryView::Contacts);
+    assert!(!banners.contacts_outages.root.is_visible());
+    assert!(texts(&banners.contacts_outages).is_empty());
 }

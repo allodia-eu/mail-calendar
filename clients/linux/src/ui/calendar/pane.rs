@@ -194,32 +194,33 @@ impl CalendarPane {
     }
 }
 
-fn render_status(pane: &CalendarPane, status: CalendarWriteStatus) {
-    pane.status_spinner.stop();
-    pane.status_spinner.set_visible(false);
-    pane.status_label.set_visible(false);
-    pane.status_retry.set_visible(false);
+/// What the header's write badge says, and whether it offers Refresh: a write that did not
+/// settle is refreshed from the server, never sent again.
+pub(super) fn status_badge(status: CalendarWriteStatus) -> Option<(&'static str, bool)> {
     match status {
-        CalendarWriteStatus::Idle => pane.status.set_visible(false),
-        CalendarWriteStatus::Saving => {
-            pane.status.set_visible(true);
-            pane.status_spinner.set_visible(true);
-            pane.status_spinner.start();
-            pane.status_label.set_label(l10n::calendar_saving());
-            pane.status_label.set_visible(true);
-        }
-        CalendarWriteStatus::Saved => {
-            pane.status.set_visible(true);
-            pane.status_label.set_label(l10n::calendar_saved());
-            pane.status_label.set_visible(true);
-        }
-        CalendarWriteStatus::Failed => {
-            pane.status.set_visible(true);
-            pane.status_label
-                .set_label(l10n::calendar_save_unconfirmed());
-            pane.status_label.set_visible(true);
-            pane.status_retry.set_visible(true);
-        }
+        CalendarWriteStatus::Idle => None,
+        CalendarWriteStatus::Saving => Some((l10n::calendar_saving(), false)),
+        CalendarWriteStatus::Saved => Some((l10n::calendar_saved(), false)),
+        CalendarWriteStatus::NotSaved => Some((l10n::calendar_save_failed(), true)),
+        CalendarWriteStatus::Unconfirmed => Some((l10n::calendar_save_unconfirmed(), true)),
+    }
+}
+
+fn render_status(pane: &CalendarPane, status: CalendarWriteStatus) {
+    let saving = status == CalendarWriteStatus::Saving;
+    pane.status_spinner.set_visible(saving);
+    if saving {
+        pane.status_spinner.start();
+    } else {
+        pane.status_spinner.stop();
+    }
+    let badge = status_badge(status);
+    pane.status.set_visible(badge.is_some());
+    pane.status_label.set_visible(badge.is_some());
+    pane.status_retry
+        .set_visible(badge.is_some_and(|(_, retry)| retry));
+    if let Some((label, _)) = badge {
+        pane.status_label.set_label(label);
     }
 }
 
@@ -277,3 +278,7 @@ fn next_label(mode: CalendarMode) -> String {
         _ => l10n::calendar_next_week().to_owned(),
     }
 }
+
+#[cfg(test)]
+#[path = "pane_tests.rs"]
+mod tests;

@@ -188,15 +188,24 @@ pub(super) fn attendees(tally: &AttendeeTally) -> String {
 /// to say.
 ///
 /// `Saved` and `Idle` both say nothing on purpose: by then the card has been rebuilt from the
-/// calendar and already shows the new answer, so a second "answer sent" is noise. `Failed` is the
-/// one state that must never be silent; the card would otherwise sit showing the previous answer
-/// while the organiser heard nothing, which is the failure this feature exists to prevent.
+/// calendar and already shows the new answer, so a second "answer sent" is noise. A failure must
+/// never be silent; the card would otherwise sit showing the previous answer while the organiser
+/// heard nothing, which is the failure this feature exists to prevent.
 pub(super) fn write_line(status: CalendarWriteStatus) -> Option<&'static str> {
     match status {
         CalendarWriteStatus::Saving => Some(l10n::invitation_sending()),
-        CalendarWriteStatus::Failed => Some(l10n::invitation_failed()),
+        CalendarWriteStatus::NotSaved => Some(l10n::invitation_failed()),
+        CalendarWriteStatus::Unconfirmed => Some(l10n::invitation_unconfirmed()),
         CalendarWriteStatus::Idle | CalendarWriteStatus::Saved => None,
     }
+}
+
+/// Whether `status` is a write that did not settle, drawn as an error.
+pub(super) const fn write_failed(status: CalendarWriteStatus) -> bool {
+    matches!(
+        status,
+        CalendarWriteStatus::NotSaved | CalendarWriteStatus::Unconfirmed
+    )
 }
 
 /// The meeting's "when", localised in `zone`.

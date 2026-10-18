@@ -1,12 +1,15 @@
 //! OS reachability, the core's connectivity snapshot, and the banners that render it.
 
-use std::collections::HashSet;
+use std::{cell::RefCell, collections::HashSet};
 
 use adw::prelude::*;
 use gtk::gio::{self, prelude::NetworkMonitorExt};
-use mailcal_bindings::{AccountProvider, AccountRow, ConnectivitySnapshot, Intent, MailcalApp};
+use mailcal_bindings::{
+    AccountCapability, AccountProvider, AccountRow, ConnectivitySnapshot, Intent, MailcalApp,
+    UseOutage,
+};
 
-use super::{AppInput, PrimaryView};
+use super::{AppInput, PrimaryView, account_settings::AccountsInput, settings::outage_line};
 use crate::l10n;
 
 /// The connectivity fields this client renders, resolved against the account list once per
@@ -18,11 +21,24 @@ pub(super) struct ConnectivityState {
     pub(super) calendar_reauth: Vec<NamedAccount>,
     pub(super) mail_reauth: Vec<NamedAccount>,
     pub(super) expired_signins: Vec<ExpiredSignIn>,
+    pub(super) calendar_outages: Vec<OutageLine>,
+    pub(super) contacts_outages: Vec<OutageLine>,
 }
 
 impl ConnectivityState {
     pub(super) fn pull(app: &MailcalApp, accounts: &[AccountRow]) -> Self {
-        Self::from_snapshot(app.connectivity(), accounts, |id| {
+        // An account without mail is in none of the mailbox's rows, so an outage is named from
+        // the snapshot that lists every account, read only when there is one to name.
+        let everyone = std::cell::OnceCell::new();
+        let address = |id: &str| {
+            everyone
+                .get_or_init(|| app.accounts_snapshot())
+                .accounts
+                .iter()
+                .find(|entry| entry.id == id)
+                .map(|entry| entry.address.clone())
+        };
+        Self::from_snapshot(app.connectivity(), accounts, address, |id| {
             app.account_provider(id.to_owned())
         })
     }
@@ -30,6 +46,7 @@ impl ConnectivityState {
     fn from_snapshot(
         snapshot: ConnectivitySnapshot,
         accounts: &[AccountRow],
+        address: impl Fn(&str) -> Option<String>,
         provider: impl Fn(&str) -> Option<AccountProvider>,
     ) -> Self {
         let expired_signins = snapshot
@@ -49,7 +66,22 @@ impl ConnectivityState {
                 })
                 .collect()
         };
+        let outages = |capability, outages: Vec<UseOutage>| {
+            outages
+                .into_iter()
+                .map(|outage| {
+                    let address = address(&outage.account_id)
+                        .unwrap_or_else(|| account_email(accounts, &outage.account_id));
+                    OutageLine {
+                        text: outage_line(capability, outage.problem, &address),
+                        account: outage.account_id,
+                    }
+                })
+                .collect()
+        };
         Self {
+            calendar_outages: outages(AccountCapability::Calendar, snapshot.calendar_outages),
+            contacts_outages: outages(AccountCapability::Contacts, snapshot.contacts_outages),
             offline: snapshot.offline,
             unreachable_accounts: snapshot.unreachable_accounts.into_iter().collect(),
             calendar_reauth: named(snapshot.calendar_reauth_accounts),
@@ -61,6 +93,14 @@ impl ConnectivityState {
     pub(super) fn expired_resolution(&self) -> Option<ExpiredResolution> {
         self.expired_signins.first().map(ExpiredSignIn::resolution)
     }
+}
+
+/// One account's calendar or address book that did not connect: the line said above the week or
+/// the list, and the account whose page its button opens.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct OutageLine {
+    pub(super) account: String,
+    pub(super) text: String,
 }
 
 /// An account a banner names, with the id its button acts on.
@@ -144,6 +184,8 @@ pub(super) struct ConnectivityBanners {
     pub(super) expired: adw::Banner,
     pub(super) mail_reauth: adw::Banner,
     pub(super) calendar_reauth: adw::Banner,
+    pub(super) calendar_outages: OutageBanners,
+    pub(super) contacts_outages: OutageBanners,
 }
 
 impl ConnectivityBanners {
@@ -165,6 +207,10 @@ impl ConnectivityBanners {
         calendar_reauth
             .connect_button_clicked(move |_| input.emit(AppInput::ResolveCalendarReauth));
         root.append(&calendar_reauth);
+        let calendar_outages = OutageBanners::new(sender);
+        root.append(&calendar_outages.root);
+        let contacts_outages = OutageBanners::new(sender);
+        root.append(&contacts_outages.root);
         let expired = adw::Banner::new("");
         expired.set_use_markup(false);
         let input = sender.clone();
@@ -176,6 +222,8 @@ impl ConnectivityBanners {
             expired,
             mail_reauth,
             calendar_reauth,
+            calendar_outages,
+            contacts_outages,
         }
     }
 
@@ -198,6 +246,10 @@ impl ConnectivityBanners {
             )));
         self.calendar_reauth
             .set_revealed(primary == PrimaryView::Calendar && !state.calendar_reauth.is_empty());
+        self.calendar_outages
+            .render(&state.calendar_outages, primary == PrimaryView::Calendar);
+        self.contacts_outages
+            .render(&state.contacts_outages, primary == PrimaryView::Contacts);
 
         let names = state
             .expired_signins
@@ -225,6 +277,48 @@ impl ConnectivityBanners {
             l10n::settings_title()
         }));
         self.expired.set_revealed(!state.expired_signins.is_empty());
+    }
+}
+
+/// One banner per account whose calendar or address book did not connect, in the snapshot's
+/// order. The banners are rebuilt only when the lines change, so a redraw does not replay a reveal.
+pub(super) struct OutageBanners {
+    pub(super) root: gtk::Box,
+    drawn: RefCell<Vec<OutageLine>>,
+    sender: relm4::Sender<AppInput>,
+}
+
+impl OutageBanners {
+    fn new(sender: &relm4::Sender<AppInput>) -> Self {
+        Self {
+            root: gtk::Box::new(gtk::Orientation::Vertical, 0),
+            drawn: RefCell::default(),
+            sender: sender.clone(),
+        }
+    }
+
+    fn render(&self, lines: &[OutageLine], shown: bool) {
+        self.root.set_visible(shown && !lines.is_empty());
+        if self.drawn.borrow().as_slice() == lines {
+            return;
+        }
+        while let Some(child) = self.root.first_child() {
+            self.root.remove(&child);
+        }
+        for line in lines {
+            let banner = adw::Banner::new("");
+            banner.set_use_markup(false);
+            banner.set_title(&line.text);
+            banner.set_button_label(Some(l10n::use_outage_open_account()));
+            let input = self.sender.clone();
+            let account = line.account.clone();
+            banner.connect_button_clicked(move |_| {
+                input.emit(AppInput::Accounts(AccountsInput::Open(account.clone())));
+            });
+            banner.set_revealed(true);
+            self.root.append(&banner);
+        }
+        lines.clone_into(&mut self.drawn.borrow_mut());
     }
 }
 

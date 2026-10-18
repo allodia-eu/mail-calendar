@@ -19,6 +19,8 @@ use crate::l10n;
 pub(crate) enum AccountsInput {
     /// Open an account's page, or go back to the list.
     Show(Option<String>),
+    /// Put Settings on screen at an account's page, from outside the window.
+    Open(String),
     /// Switch one of an account's uses on or off.
     SetUse {
         account: String,
@@ -144,6 +146,7 @@ impl AppModel {
                 self.settings.account = account;
                 self.settings.refresh_in_place();
             }
+            AccountsInput::Open(account) => self.settings.open_account(account),
             AccountsInput::SetUse {
                 account,
                 capability,

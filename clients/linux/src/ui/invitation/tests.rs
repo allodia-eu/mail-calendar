@@ -7,7 +7,7 @@ use mailcal_bindings::{
 
 use super::{
     HourSpan, MinuteSpan, attendees, conflicts, meeting_minute_span, notice, preview_height,
-    preview_span, preview_stride, reply_subject, response, title, when, write_line,
+    preview_span, preview_stride, reply_subject, response, title, when, write_failed, write_line,
 };
 use crate::l10n;
 
@@ -125,7 +125,7 @@ fn the_card_reports_the_calendars_answer_in_words() {
 #[test]
 fn a_settled_write_says_nothing_and_a_failed_one_always_does() {
     // `Saved` is silent on purpose: by then the card has been rebuilt from the calendar and shows
-    // the new answer. `Failed` is the one state that must never be silent.
+    // the new answer. A failure must never be silent.
     assert_eq!(write_line(CalendarWriteStatus::Idle), None);
     assert_eq!(write_line(CalendarWriteStatus::Saved), None);
     assert_eq!(
@@ -133,9 +133,22 @@ fn a_settled_write_says_nothing_and_a_failed_one_always_does() {
         Some(l10n::invitation_sending())
     );
     assert_eq!(
-        write_line(CalendarWriteStatus::Failed),
+        write_line(CalendarWriteStatus::NotSaved),
         Some(l10n::invitation_failed())
     );
+    assert_eq!(
+        write_line(CalendarWriteStatus::Unconfirmed),
+        Some(l10n::invitation_unconfirmed())
+    );
+    for status in [
+        CalendarWriteStatus::Idle,
+        CalendarWriteStatus::Saving,
+        CalendarWriteStatus::Saved,
+    ] {
+        assert!(!write_failed(status), "{status:?}");
+    }
+    assert!(write_failed(CalendarWriteStatus::NotSaved));
+    assert!(write_failed(CalendarWriteStatus::Unconfirmed));
 }
 
 #[test]

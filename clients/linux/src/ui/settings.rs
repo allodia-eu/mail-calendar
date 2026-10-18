@@ -19,7 +19,7 @@ pub(super) mod account_mail;
 mod account_page;
 mod account_rows;
 pub(super) mod sign_in_section;
-pub(super) use account_rows::{LinkPicker, link_pickers, use_name};
+pub(super) use account_rows::{LinkPicker, link_pickers, outage_line, use_name};
 mod account_servers;
 pub(super) mod account_sync_mode;
 pub(super) mod accounts;
