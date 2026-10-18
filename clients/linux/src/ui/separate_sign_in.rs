@@ -2,12 +2,16 @@
 //! not reach their server (`docs/accounts.md` rule 18, `docs/onboarding.md`): setup's step after
 //! the add, and the form the account's page opens. Either connects them as an account of their
 //! own linked to the mailbox (`add_linked_calendar_account`), a blocking call off the main
-//! thread. The widgets are [`super::separate_sign_in_view`].
+//! thread, or signs in at the server's own provider where it offers that
+//! ([`super::separate_server_sign_in`]). The widgets are [`super::separate_sign_in_view`].
 
 use mailcal_bindings::{AccountCapability, SeparateServer};
 
 use super::{
-    AppInput, AppModel, account_settings::AccountsInput, account_sign_in::Password,
+    AppInput, AppModel,
+    account_settings::AccountsInput,
+    account_sign_in::Password,
+    separate_server_sign_in::{ProviderInput, SignInStage},
     setup_state::Phase,
 };
 
@@ -46,6 +50,11 @@ pub(crate) enum SeparateInput {
     Skip,
     /// Those uses are off.
     Skipped { account: String },
+    /// The sign-in at the server's own provider, for the form `from` names.
+    Provider {
+        from: SeparateFrom,
+        input: ProviderInput,
+    },
 }
 
 /// The form for one mailbox: its server, the login last typed, and how its connect stands.
@@ -58,6 +67,10 @@ pub(crate) struct SeparateForm {
     pub(super) username: String,
     /// A connect is running, which holds every control.
     pub(super) busy: bool,
+    /// The server answered that it signs in at its own provider.
+    pub(super) offers_sign_in: bool,
+    /// Where that sign-in stands.
+    pub(super) stage: SignInStage,
     /// Why the last connect failed, said under the fields.
     pub(super) error: Option<String>,
     /// The account whose link step comes after setup's step.
@@ -72,6 +85,8 @@ impl SeparateForm {
             account,
             server,
             busy: false,
+            offers_sign_in: false,
+            stage: SignInStage::Idle,
             error: None,
             next,
         }
@@ -83,9 +98,28 @@ impl SeparateForm {
         self.error = None;
     }
 
-    fn failed(&mut self, error: String) {
+    pub(super) fn failed(&mut self, error: String) {
         self.busy = false;
         self.error = Some(error);
+    }
+}
+
+/// Where a connect's answer leads, whichever way the form connected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Landing {
+    /// Setup goes on to the link step.
+    LinkStep,
+    /// The page's form closes and the page redraws from the snapshot.
+    Page,
+    /// The form stays, saying why.
+    Form,
+}
+
+pub(super) const fn landing(from: SeparateFrom, result: &Result<(), String>) -> Landing {
+    match (from, result) {
+        (SeparateFrom::Setup, Ok(())) => Landing::LinkStep,
+        (SeparateFrom::Page, Ok(())) => Landing::Page,
+        (_, Err(_)) => Landing::Form,
     }
 }
 
@@ -153,15 +187,37 @@ impl super::setup_state::SetupState {
 }
 
 impl AppModel {
+    /// The form `from` names, while it is on screen.
+    pub(super) fn separate_form(&mut self, from: SeparateFrom) -> Option<&mut SeparateForm> {
+        match from {
+            SeparateFrom::Setup => self.setup.separate_step(),
+            SeparateFrom::Page => self.settings.separate.as_mut(),
+        }
+    }
+
+    /// Redraws the form `from` names in place, so what was typed into it stands. The page's
+    /// form follows the model on every redraw already.
+    pub(super) fn redraw_separate(&mut self, from: SeparateFrom) {
+        if from == SeparateFrom::Setup {
+            self.setup.report();
+        }
+    }
+
     pub(super) fn separate_input(&mut self, input: SeparateInput, sender: relm4::Sender<AppInput>) {
         match input {
             SeparateInput::Open { account, server } => {
+                self.retire_provider_sign_in(SeparateFrom::Page);
                 self.settings.separate_forms = self.settings.separate_forms.wrapping_add(1);
                 let id = self.settings.separate_forms;
                 self.settings.separate =
                     Some(SeparateForm::new(id, account, server, String::new()));
+                self.ask_separate_offer(SeparateFrom::Page, sender);
             }
-            SeparateInput::Close => self.settings.separate = None,
+            SeparateInput::Close => {
+                self.retire_provider_sign_in(SeparateFrom::Page);
+                self.settings.separate = None;
+            }
+            SeparateInput::Provider { from, input } => self.provider_input(from, input, sender),
             SeparateInput::Connect {
                 from,
                 username,
@@ -197,11 +253,12 @@ impl AppModel {
         let Some(app) = self.app.clone() else {
             return;
         };
-        let form = match from {
-            SeparateFrom::Setup => self.setup.separate_step(),
-            SeparateFrom::Page => self.settings.separate.as_mut(),
-        };
-        let Some(form) = form.filter(|form| !form.busy) else {
+        if self.separate_form(from).is_none_or(|form| form.held()) {
+            return;
+        }
+        // A password typed while the browser holds the sign-in is the person's answer instead.
+        self.retire_provider_sign_in(from);
+        let Some(form) = self.separate_form(from) else {
             return;
         };
         form.connecting(username);
@@ -210,9 +267,7 @@ impl AppModel {
             form.server.uses.clone(),
             form.username.clone(),
         );
-        if from == SeparateFrom::Setup {
-            self.setup.bump();
-        }
+        self.redraw_separate(from);
         std::thread::spawn(move || {
             let result = app
                 .add_linked_calendar_account(account.clone(), uses, username, password.0)
@@ -228,7 +283,7 @@ impl AppModel {
         });
     }
 
-    fn separate_connected(
+    pub(super) fn separate_connected(
         &mut self,
         from: SeparateFrom,
         account: &str,
@@ -236,44 +291,52 @@ impl AppModel {
         sender: relm4::Sender<AppInput>,
     ) {
         if result.is_ok() {
-            if let Some(app) = &self.app {
-                self.snapshot = app.mailbox_list();
-                self.connectivity =
-                    super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
-            }
-            self.sync_after_account_change(sender.clone());
+            self.accounts_changed(sender.clone());
         }
-        let form = match from {
-            SeparateFrom::Setup => self.setup.separate_step(),
-            SeparateFrom::Page => self.settings.separate.as_mut(),
-        };
-        let Some(form) = form.filter(|form| form.account == account) else {
+        let Some(form) = self
+            .separate_form(from)
+            .filter(|form| form.account == account)
+        else {
             return;
         };
-        match (from, result) {
-            (SeparateFrom::Setup, Ok(())) => self.leave_separate_step(sender),
-            (SeparateFrom::Page, Ok(())) => {
+        match (landing(from, &result), result) {
+            (Landing::LinkStep, _) => self.leave_separate_step(sender),
+            (Landing::Page, _) => {
                 self.settings.separate = None;
                 self.settings.refresh_in_place();
             }
-            (from, Err(error)) => {
-                form.failed(error);
-                if from == SeparateFrom::Setup {
-                    self.setup.bump();
+            (Landing::Form, result) => {
+                if let Err(error) = result {
+                    form.failed(error);
                 }
+                self.redraw_separate(from);
             }
         }
+    }
+
+    /// The mailbox gave uses to an account of its own: the accounts are read again.
+    pub(super) fn accounts_changed(&mut self, sender: relm4::Sender<AppInput>) {
+        if let Some(app) = &self.app {
+            self.snapshot = app.mailbox_list();
+            self.connectivity =
+                super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
+        }
+        self.sync_after_account_change(sender);
     }
 
     /// Switches off what the step was for, off the main thread: it deletes what the device holds
     /// of those uses.
     fn skip_separate(&mut self, sender: relm4::Sender<AppInput>) {
-        let Some(step) = self.setup.separate_step().filter(|step| !step.busy) else {
+        if self.setup.separate_step().is_none_or(|step| step.held()) {
+            return;
+        }
+        self.retire_provider_sign_in(SeparateFrom::Setup);
+        let Some(step) = self.setup.separate_step() else {
             return;
         };
         step.busy = true;
         let (account, changes) = (step.account.clone(), skip_changes(&step.server));
-        self.setup.bump();
+        self.setup.report();
         let Some(app) = self.app.clone() else {
             return self.leave_separate_step(sender);
         };
@@ -291,6 +354,7 @@ impl AppModel {
 
     /// On from setup's step, when it is on screen, to the link step that comes after it.
     pub(super) fn leave_separate_step(&mut self, sender: relm4::Sender<AppInput>) {
+        self.retire_provider_sign_in(SeparateFrom::Setup);
         let Some((account, next)) = self.setup.leave_separate() else {
             return;
         };

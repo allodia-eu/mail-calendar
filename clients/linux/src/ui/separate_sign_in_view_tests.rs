@@ -11,13 +11,14 @@ use crate::{
         AppInput,
         account_settings::AccountsInput,
         mailbox::tests::rendered_labels,
+        separate_server_sign_in::ProviderInput,
         separate_sign_in::{
             SeparateFrom, SeparateInput,
             tests::{form, mailbox, server},
         },
         setup::SetupWindow,
         setup_state::SetupState,
-        setup_widget_tests::{descendant_button, visible_entries},
+        setup_widget_tests::{descendant_button, descendants, visible_entries},
     },
 };
 
@@ -170,6 +171,164 @@ pub(crate) fn the_page_form_opens_over_settings_and_updates_in_place() {
     shown.id = 2;
     prompts.sync(None, Some(&shown), &parent, &sender);
     let window = prompts.form_window().expect("the form again");
+    window.close();
+    assert!(matches!(
+        sent(&sender, &receiver),
+        Some(AppInput::Accounts(AccountsInput::Separate(
+            SeparateInput::Close
+        )))
+    ));
+}
+
+/// Whether `widget` and everything it sits in are shown.
+fn shown(widget: &impl IsA<gtk::Widget>) -> bool {
+    let mut at = Some(widget.clone().upcast::<gtk::Widget>());
+    while let Some(widget) = at {
+        if !widget.is_visible() {
+            return false;
+        }
+        at = widget.parent();
+    }
+    true
+}
+
+/// Whether `first` is drawn before `second` under `root`.
+fn precedes(root: &gtk::Widget, first: &gtk::Widget, second: &gtk::Widget) -> bool {
+    let order = descendants::<gtk::Widget>(root);
+    let at = |widget: &gtk::Widget| order.iter().position(|drawn| drawn == widget);
+    at(first) < at(second)
+}
+
+fn provider_sent(
+    sender: &relm4::Sender<AppInput>,
+    receiver: &relm4::Receiver<AppInput>,
+) -> Option<(SeparateFrom, ProviderInput)> {
+    match sent(sender, receiver)? {
+        AppInput::Accounts(AccountsInput::Separate(SeparateInput::Provider { from, input })) => {
+            Some((from, input))
+        }
+        _ => panic!("an input that is not the sign-in's"),
+    }
+}
+
+/// The step stands as drawn until the server answers; a `true` answer adds the sign-in above
+/// the fields, in place, so a password being typed stands. While the browser holds it nothing
+/// is held and Cancel is offered; the core's own calls hold every control.
+pub(crate) fn the_setup_step_offers_the_sign_in_in_place(window: &adw::ApplicationWindow) {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    let account = "alice@example.test@imap.example.test";
+    state.hold_separate(account, server(vec![AccountCapability::Calendar]));
+    assert!(state.show_separate(account, account));
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("the step");
+    let sign_in = descendant_button(&child, l10n::setup_imap_signin_button());
+    assert!(!shown(&sign_in), "nothing is offered before the answer");
+    let fields = visible_entries(&child);
+    let username = entry_for(&fields, l10n::setup_field_username()).clone();
+    let password = entry_for(&fields, l10n::setup_field_password()).clone();
+    password.set_text("half typed");
+
+    let step = state.separate.as_mut().expect("the step");
+    step.offer_answered(&[AccountCapability::Calendar], true);
+    state.report();
+    setup.render(&state, window, &sender);
+    assert_eq!(
+        setup.current_window().and_then(|window| window.child()),
+        Some(child.clone()),
+        "updated in place"
+    );
+    assert_eq!(password.text(), "half typed", "what was typed stands");
+    assert!(shown(&sign_in) && shown(&password));
+    assert!(precedes(
+        &child,
+        sign_in.upcast_ref(),
+        username.upcast_ref()
+    ));
+    assert!(
+        sign_in.has_css_class("suggested-action"),
+        "the sign-in leads"
+    );
+    assert!(
+        rendered_labels(&child)
+            .iter()
+            .any(|text| text == l10n::setup_imap_signin_note())
+    );
+    let cancel = descendant_button(&child, l10n::action_cancel());
+    assert!(!shown(&cancel), "nothing to cancel yet");
+    sign_in.emit_clicked();
+    assert!(matches!(
+        provider_sent(&sender, &receiver),
+        Some((SeparateFrom::Setup, ProviderInput::Start))
+    ));
+
+    let step = state.separate.as_mut().expect("the step");
+    assert!(step.begin_sign_in(1));
+    state.report();
+    setup.render(&state, window, &sender);
+    assert!(!sign_in.is_sensitive() && !password.is_sensitive());
+    assert!(!shown(&cancel), "a core call has no Cancel");
+
+    let step = state.separate.as_mut().expect("the step");
+    assert!(step.sign_in_prepared(1, Ok(())));
+    state.report();
+    setup.render(&state, window, &sender);
+    assert!(shown(&cancel));
+    assert!(
+        sign_in.is_sensitive() && password.is_sensitive(),
+        "the browser's wait holds nothing"
+    );
+    cancel.emit_clicked();
+    assert!(matches!(
+        provider_sent(&sender, &receiver),
+        Some((SeparateFrom::Setup, ProviderInput::Cancel))
+    ));
+    sign_in.emit_clicked();
+    assert!(
+        matches!(
+            provider_sent(&sender, &receiver),
+            Some((SeparateFrom::Setup, ProviderInput::Start))
+        ),
+        "a fresh press is sent while the browser waits"
+    );
+}
+
+/// The page's form offers the sign-in the same way, in place, and its Cancel and Connect stay.
+pub(crate) fn the_page_form_offers_the_sign_in_in_place() {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let parent = gtk::Window::new();
+    let mut prompts = Prompts::default();
+    let mut shown_form = form(vec![AccountCapability::Calendar]);
+    prompts.sync(None, Some(&shown_form), &parent, &sender);
+    let window = prompts.form_window().expect("the form");
+    let child = window.child().expect("the form's content");
+    let sign_in = descendant_button(&child, l10n::setup_imap_signin_button());
+    assert!(!shown(&sign_in));
+
+    shown_form.offer_answered(&[AccountCapability::Calendar], true);
+    prompts.sync(None, Some(&shown_form), &parent, &sender);
+    assert_eq!(prompts.form_window().as_ref(), Some(&window));
+    assert!(shown(&sign_in));
+    let connect = descendant_button(&child, l10n::action_connect());
+    assert!(shown(&connect) && !connect.has_css_class("suggested-action"));
+    assert!(
+        descendants::<gtk::Button>(&child)
+            .iter()
+            .any(
+                |button| button.label().as_deref() == Some(l10n::action_cancel()) && shown(button)
+            ),
+        "the form's own Cancel stays"
+    );
+    sign_in.emit_clicked();
+    assert!(matches!(
+        provider_sent(&sender, &receiver),
+        Some((SeparateFrom::Page, ProviderInput::Start))
+    ));
     window.close();
     assert!(matches!(
         sent(&sender, &receiver),

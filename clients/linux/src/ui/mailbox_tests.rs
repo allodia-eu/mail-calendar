@@ -326,6 +326,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::unreached::tests::the_question_defaults_to_keeping_and_escape_cancels();
     crate::ui::separate_sign_in_view::tests::the_page_form_opens_over_settings_and_updates_in_place(
     );
+    crate::ui::separate_sign_in_view::tests::the_page_form_offers_the_sign_in_in_place();
     connectivity::the_banners_render_the_snapshot_and_keep_the_remedy_actionable();
     crate::ui::unfiled_copy::tests::
         the_unfiled_copy_question_offers_both_answers_and_blocks_double_answers();

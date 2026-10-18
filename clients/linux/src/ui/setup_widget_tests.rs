@@ -45,6 +45,7 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     super::setup_links::tests::the_link_step_offers_the_accounts_it_can_use(&window);
     super::setup_signed_in::tests::the_uses_step_offers_what_the_server_offers(&window);
     super::separate_sign_in_view::tests::the_setup_step_asks_for_the_servers_password(&window);
+    super::separate_sign_in_view::tests::the_setup_step_offers_the_sign_in_in_place(&window);
     super::setup_links::beside_tests::the_step_offers_the_server_beside(&window);
     super::setup_flag_tests::a_use_switched_on_without_a_server_asks_for_one(&window);
     super::setup_flag_tests::a_manual_calendar_form_without_a_server_asks_for_one(&window);

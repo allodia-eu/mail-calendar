@@ -123,7 +123,7 @@ pub(super) fn complete(
 ///
 /// Read off the URL rather than returned beside it, exactly as the JMAP flow does: the
 /// pending handle carries the PKCE verifier and must not be picked apart to find one field.
-fn authorization_state(authorization_url: &str) -> Option<String> {
+pub(super) fn authorization_state(authorization_url: &str) -> Option<String> {
     url::Url::parse(authorization_url)
         .ok()?
         .query_pairs()

@@ -58,6 +58,9 @@ pub(super) struct HostTasks {
     /// Changing how an IMAP or JMAP account signs in, or signing it in again
     /// (`super::account_sign_in`).
     pub(super) account_sign_in: AttemptSlot,
+    /// Signing a separate calendar server in at its own provider
+    /// (`super::separate_server_sign_in`).
+    pub(super) separate: AttemptSlot,
     jmap_loopback: Option<OAuthLoopback>,
 }
 
@@ -145,6 +148,7 @@ impl HostTasks {
             allodia: AttemptSlot::empty(),
             consent: AttemptSlot::empty(),
             account_sign_in: AttemptSlot::empty(),
+            separate: AttemptSlot::empty(),
             jmap_loopback: None,
         }
     }

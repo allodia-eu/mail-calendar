@@ -489,7 +489,7 @@ impl SetupState {
 
     /// A connect answered. The window re-reads the state without rebuilding the pane, so what
     /// was typed into it stands.
-    fn report(&mut self) {
+    pub(super) fn report(&mut self) {
         self.generation = self.generation.wrapping_add(1);
     }
 }

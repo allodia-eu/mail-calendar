@@ -47,6 +47,7 @@ impl AppModel {
     /// account, or the end of the flow; first to the sign-in of its own `added` needs, if any.
     pub(super) fn onward(&mut self, added: &str, next: &str, sender: relm4::Sender<AppInput>) {
         if self.setup.show_separate(added, next) {
+            self.ask_separate_offer(super::separate_sign_in::SeparateFrom::Setup, sender);
             return;
         }
         match self.link_step(next) {

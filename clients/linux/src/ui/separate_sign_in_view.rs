@@ -1,7 +1,8 @@
 //! The widgets of a sign-in of its own ([`super::separate_sign_in`]): setup's step, the action
 //! the account's page offers, and the form that action opens over Settings. Each is drawn from
 //! the model's state; the form is a modal that a redraw of the page leaves open and updates in
-//! place, so what was typed stands while a connect runs and after it fails.
+//! place, so what was typed stands while a connect runs and after it fails, and setup's step is
+//! updated in place the same way (`super::setup`).
 
 use std::{cell::Cell, rc::Rc};
 
@@ -12,6 +13,7 @@ use super::{
     AppInput,
     account_settings::AccountsInput,
     account_sign_in::{Password, SignInInput},
+    separate_server_sign_in::{ProviderInput, SignInStage},
     separate_sign_in::{SeparateForm, SeparateFrom, SeparateInput},
     setup_widgets::{body, entry, heading, page, primary},
     unreached,
@@ -22,10 +24,18 @@ fn input(input: SeparateInput) -> AppInput {
     AppInput::Accounts(AccountsInput::Separate(input))
 }
 
-/// What the step and the form both draw: the server, the login, the password, why the last
-/// connect failed, Connect, and the other way out.
+/// What the step and the form both draw: the server, the sign-in at its own provider once it
+/// says it has one, the login, the password, why the last connect failed, Connect, and the
+/// other way out.
 #[derive(Debug)]
-struct Fields {
+pub(super) struct Fields {
+    sign_in_area: gtk::Box,
+    sign_in: gtk::Button,
+    /// The spinner while a sign-in is out, with the Cancel that retires it while the browser
+    /// holds it.
+    waiting: gtk::Box,
+    spinner: gtk::Spinner,
+    cancel: gtk::Button,
     username: gtk::Entry,
     password: gtk::Entry,
     error: gtk::Label,
@@ -36,6 +46,20 @@ struct Fields {
 impl Fields {
     fn append(content: &gtk::Box, window: &gtk::Window, form: &SeparateForm, other: &str) -> Self {
         content.append(&body(&l10n::separate_server_body(&form.server.host)));
+        // Drawn now and shown when the server answers, above the fields and without taking
+        // the focus from one being typed in.
+        let sign_in_area = gtk::Box::new(gtk::Orientation::Vertical, 8);
+        let sign_in = gtk::Button::with_label(l10n::setup_imap_signin_button());
+        sign_in.set_halign(gtk::Align::Start);
+        sign_in_area.append(&sign_in);
+        sign_in_area.append(&body(l10n::setup_imap_signin_note()));
+        let waiting = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        let spinner = gtk::Spinner::new();
+        waiting.append(&spinner);
+        let cancel = gtk::Button::with_label(l10n::action_cancel());
+        waiting.append(&cancel);
+        sign_in_area.append(&waiting);
+        content.append(&sign_in_area);
         let username = entry(l10n::setup_field_username(), &form.username, false);
         content.append(&username);
         let password = entry(l10n::setup_field_password(), "", true);
@@ -53,6 +77,11 @@ impl Fields {
         actions.append(&connect);
         content.append(&actions);
         let fields = Self {
+            sign_in_area,
+            sign_in,
+            waiting,
+            spinner,
+            cancel,
             username,
             password,
             error,
@@ -63,23 +92,55 @@ impl Fields {
         fields
     }
 
-    /// Holds every control while a connect runs, and says why the last one failed.
-    fn show(&self, form: &SeparateForm) {
+    /// Holds every control while a core call runs, shows the sign-in once it is offered, and
+    /// says why the last attempt failed. The browser's wait holds nothing: a fresh press
+    /// supersedes it, and Cancel beside it retires it.
+    pub(super) fn show(&self, form: &SeparateForm) {
         for control in [
-            self.username.upcast_ref::<gtk::Widget>(),
+            self.sign_in.upcast_ref::<gtk::Widget>(),
+            self.username.upcast_ref(),
             self.password.upcast_ref(),
             self.connect.upcast_ref(),
             self.other.upcast_ref(),
         ] {
-            control.set_sensitive(!form.busy);
+            control.set_sensitive(!form.held());
         }
+        self.sign_in_area.set_visible(form.offers_sign_in);
+        // The sign-in leads where it is offered; Enter in the password field still connects.
+        let (lead, follow) = if form.offers_sign_in {
+            (&self.sign_in, &self.connect)
+        } else {
+            (&self.connect, &self.sign_in)
+        };
+        lead.add_css_class("suggested-action");
+        follow.remove_css_class("suggested-action");
+        let out = form.stage != SignInStage::Idle;
+        self.waiting.set_visible(out);
+        self.spinner.set_spinning(out);
+        self.cancel
+            .set_visible(matches!(form.stage, SignInStage::Waiting(_)));
         self.error
             .set_text(form.error.as_deref().unwrap_or_default());
         self.error.set_visible(form.error.is_some());
     }
 
-    /// Connect sends what was typed, once there is a password to send.
+    /// Connect sends what was typed, once there is a password to send; the sign-in and its
+    /// Cancel send themselves.
     fn connect_sends(&self, from: SeparateFrom, sender: &relm4::Sender<AppInput>) {
+        for (button, starts) in [(&self.sign_in, true), (&self.cancel, false)] {
+            let sender = sender.clone();
+            button.connect_clicked(move |_| {
+                let pressed = if starts {
+                    ProviderInput::Start
+                } else {
+                    ProviderInput::Cancel
+                };
+                sender.emit(input(SeparateInput::Provider {
+                    from,
+                    input: pressed,
+                }));
+            });
+        }
         let (username, password, sender) =
             (self.username.clone(), self.password.clone(), sender.clone());
         self.connect.connect_clicked(move |_| {
@@ -96,12 +157,13 @@ impl Fields {
     }
 }
 
-/// Setup's step, after the mailbox was added and before its link step.
+/// Setup's step, after the mailbox was added and before its link step, and its fields, which
+/// the window updates in place.
 pub(super) fn setup_step(
     window: &gtk::Window,
     step: &SeparateForm,
     sender: &relm4::Sender<AppInput>,
-) -> gtk::Box {
+) -> (gtk::Box, Fields) {
     let content = page();
     content.append(&heading(unreached::separate_title(&step.server.uses)));
     let fields = Fields::append(&content, window, step, l10n::separate_server_skip());
@@ -110,7 +172,7 @@ pub(super) fn setup_step(
     fields
         .other
         .connect_clicked(move |_| skip.emit(input(SeparateInput::Skip)));
-    content
+    (content, fields)
 }
 
 /// The use whose row the account page's action sits under: the last of those that need the

@@ -28,6 +28,9 @@ pub(super) struct SetupWindow {
     /// the person is typing in rather than replacing it (`super::setup_pane`).
     rendered_form_generation: u64,
     pane: Option<ConnectPane>,
+    /// The fields of the step for a sign-in of its own, while it is mounted, for the same
+    /// reason as `pane`.
+    separate: Option<super::separate_sign_in_view::Fields>,
 }
 
 impl SetupWindow {
@@ -83,6 +86,15 @@ impl SetupWindow {
                     self.window = Some(window);
                     return;
                 }
+                if state.phase == Phase::Separate
+                    && self.rendered_form_generation == state.form_generation
+                    && let (Some(fields), Some(step)) = (&self.separate, &state.separate)
+                {
+                    fields.show(step);
+                    self.rendered_generation = state.generation;
+                    self.window = Some(window);
+                    return;
+                }
                 window
             }
             Some(previous) => {
@@ -95,6 +107,7 @@ impl SetupWindow {
         // whose builder may install a different default while the old child still exists.
         window.set_default_widget(None::<&gtk::Widget>);
         self.pane = None;
+        self.separate = None;
         let content = match state.phase {
             Phase::Email => email_step(&window, state, sender),
             Phase::Detecting => progress(l10n::setup_detect_looking()),
@@ -122,7 +135,12 @@ impl SetupWindow {
                 None => progress(l10n::status_connecting()),
             },
             Phase::Separate => match &state.separate {
-                Some(step) => super::separate_sign_in_view::setup_step(&window, step, sender),
+                Some(step) => {
+                    let (content, fields) =
+                        super::separate_sign_in_view::setup_step(&window, step, sender);
+                    self.separate = Some(fields);
+                    content
+                }
                 None => progress(l10n::status_connecting()),
             },
         };
