@@ -98,7 +98,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Configurable swipe actions: Trash / Archive / Star per direction, with an undo toast | ✅ | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | Calendar: agenda + create / delete event | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: write affordances gated on per-row `can_write` (a read-only row offers no delete; New event disabled without a writable calendar) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Calendar: write-status feedback (spinner while saving, warning on unconfirmed, retry) | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
+| Calendar: write-status feedback (spinner while saving, a warning that says whether the change was not saved or could not be confirmed, retry) | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
+| Calendar and contacts say above the week or the list when an account's calendar or address book is not connected, show what was last synced, and offer nothing there that could not be saved ([docs](docs/accounts.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **time grid** (day / 3-day / work-week / week), now line, week numbers, jump-to-today | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: all-day / multi-day banner, capped with a per-day "+N" that expands | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **month grid** (6×7 cells, "+N more") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

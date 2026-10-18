@@ -1564,6 +1564,8 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | Unanswered holds drawn as holds: grid, all-day banner, month, agenda ⁸ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | "Awaiting your response" in the spoken label ⁸ | ✅ (string) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Declined events hidden from grid / month / agenda ⁸ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A calendar that is not connected says so above the week, and nothing on it can be changed or answered | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A change that did not happen says so; one that may have says it is unconfirmed | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar manager: visibility + colour override (persisted) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Display settings: week start, 12/24h, horizon | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Pinch-to-zoom: hours | — | ✅ | ✅ | ✅ | ✅ | ⬜ |

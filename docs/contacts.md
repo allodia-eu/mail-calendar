@@ -346,6 +346,8 @@ change updates in every catalog locale.
 | Create a contact, into a chosen writable address book | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Edit one **source card** of a person, chosen when there are several | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Both write affordances hidden where no write could land | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| An address book that is not connected says so above the list, and its cards offer no edit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A save that did not happen says so; one that may have says it is unconfirmed | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Delete a contact | — | — | — | — | — | — |
 | Composer recipient autosuggest (contacts **+** sent-mail history) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer recipients as **pills**, with per-recipient removal | — | ✅ | ✅ | ✅ | ✅ | ✅ |

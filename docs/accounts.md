@@ -65,6 +65,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | A standards account without a mailbox connects its calendar and contacts | ✅ | — | — | — | — | — |
 | An account without mail is kept out of the mail surfaces | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar groups headed by the account's address | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A calendar or address book that did not connect is said again on the calendar or contacts screen, with Account settings | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Every account, its uses' states and its links in one snapshot | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A use the server does not offer reads as such, and cannot be switched on | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | First-run setup when no account is left, an account without mail counting | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
