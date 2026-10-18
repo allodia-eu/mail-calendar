@@ -121,7 +121,8 @@ private fun MainActivity.SetupForm(instance: MailcalApp, ctx: Context) {
                                 withContext(Dispatchers.IO) { imapAuthOptions(request) }
                             },
                             onSignInImap = { request -> signInWithImap(request) },
-                            signingInImap = signingInImap,
+                            signingInImap = imapSignIn.signingIn,
+                            onLeaveImapSignIn = { leaveImapSignIn() },
                             onConnect = { setup ->
                                 try {
                                     // Accepted once, carried for the rest of this setup: a retry

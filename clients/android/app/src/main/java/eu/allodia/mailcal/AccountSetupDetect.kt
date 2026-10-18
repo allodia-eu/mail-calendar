@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,9 +74,11 @@ internal fun AccountSetupFlow(
     // there is no core to ask, which is a preview or a test: the card then shows the password
     // form, which is what works everywhere.
     onCheckImapAuth: (suspend (uniffi.mailcal_bindings.ImapLoginRequest) -> uniffi.mailcal_bindings.ImapAuthOffer)? = null,
-    // Runs the IMAP browser sign-in.
+    // Runs the IMAP browser sign-in, and retires it when the card or form it was started from is
+    // left, so a start still running opens no browser for it.
     onSignInImap: ((uniffi.mailcal_bindings.ImapLoginRequest) -> Unit)? = null,
     signingInImap: Boolean = false,
+    onLeaveImapSignIn: () -> Unit = {},
     onSignInJmap: (String, String) -> Unit = { _, _ -> },
     signingInJmap: Boolean = false,
     // The core's standard port for a server kind and security, threaded through to the manual
@@ -250,26 +253,29 @@ internal fun AccountSetupFlow(
             Text(L10n.setup_detect_looking(ctx), style = MaterialTheme.typography.bodyMedium)
         }
 
-        is DetectPhase.Found -> FoundView(
-            recommendation = current.recommendation,
-            offer = current.offer,
-            signInOffered = current.signInOffered,
-            imapAuth = current.imapAuth,
-            onSignInImap = onSignInImap,
-            signingInImap = signingInImap,
-            connecting = connecting,
-            signingIn = signingIn,
-            signingInGoogle = signingInGoogle,
-            externalError = externalError,
-            externalFailure = externalFailure,
-            onSignInMicrosoft = onSignInMicrosoft,
-            onSignInGoogle = onSignInGoogle,
-            onConnect = onConnect,
-            onConnectJmap = onConnectJmap,
-            onSignInJmap = onSignInJmap,
-            signingInJmap = signingInJmap,
-            onManual = { goManual(current.recommendation) },
-        )
+        is DetectPhase.Found -> {
+            DisposableEffect(current) { onDispose(onLeaveImapSignIn) }
+            FoundView(
+                recommendation = current.recommendation,
+                offer = current.offer,
+                signInOffered = current.signInOffered,
+                imapAuth = current.imapAuth,
+                onSignInImap = onSignInImap,
+                signingInImap = signingInImap,
+                connecting = connecting,
+                signingIn = signingIn,
+                signingInGoogle = signingInGoogle,
+                externalError = externalError,
+                externalFailure = externalFailure,
+                onSignInMicrosoft = onSignInMicrosoft,
+                onSignInGoogle = onSignInGoogle,
+                onConnect = onConnect,
+                onConnectJmap = onConnectJmap,
+                onSignInJmap = onSignInJmap,
+                signingInJmap = signingInJmap,
+                onManual = { goManual(current.recommendation) },
+            )
+        }
 
         is DetectPhase.Dav -> DavFoundCard(
             email = current.email,
@@ -282,6 +288,7 @@ internal fun AccountSetupFlow(
         )
 
         is DetectPhase.Manual -> {
+            DisposableEffect(current) { onDispose(onLeaveImapSignIn) }
             val prefill = manualPrefill(current.edit, current.dav)
             AccountSetupScreen(
                 externalError = externalError,

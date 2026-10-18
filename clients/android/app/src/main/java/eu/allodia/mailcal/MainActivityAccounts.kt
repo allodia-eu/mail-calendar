@@ -412,4 +412,9 @@ internal fun MainActivity.cancelAbandonedSignIns() {
         logUiInfo("jmap sign-in: app resumed while a sign-in is in flight; keeping it armed")
         signingInJmap = false
     }
+    // An IMAP sign-in's tab runs in its own task too (openImapSignIn), so it is the JMAP shape: the
+    // spinner goes and the handle stays armed. A redirect that landed took the handle first.
+    if (imapSignIn.resumed()) {
+        logUiInfo("imap sign-in: app resumed while a sign-in is in flight; keeping it armed")
+    }
 }
