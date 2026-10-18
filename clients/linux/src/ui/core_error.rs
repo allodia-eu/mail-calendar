@@ -11,6 +11,7 @@ pub(super) fn said(error: &MailcalError) -> String {
     match error {
         MailcalError::SignInRefused { .. } => l10n::signin_refused().to_owned(),
         MailcalError::AlreadySetUp { .. } => l10n::account_already_set_up().to_owned(),
+        MailcalError::DifferentAccount => l10n::signin_different_account().to_owned(),
         other => other.to_string(),
     }
 }
@@ -32,6 +33,10 @@ mod tests {
             account_id: "alice@example.org@imap.example.org".to_owned(),
         };
         assert_eq!(said(&twice), l10n::account_already_set_up());
+        assert_eq!(
+            said(&MailcalError::DifferentAccount),
+            l10n::signin_different_account()
+        );
         assert_eq!(
             said(&MailcalError::Connect("no route to host".to_owned())),
             "connect: no route to host"

@@ -130,7 +130,7 @@ public sealed partial class MailboxModel
         {
             // An invalid config (or a Rust panic surfacing as PanicException) stays on the form
             // rather than crashing, like macOS.
-            SetupError = CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
+            SetupError = CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount());
             return;
         }
         _ = AddAccountAsync(configToml, offersCertificateException: true);
@@ -170,7 +170,7 @@ public sealed partial class MailboxModel
         {
             // An invalid config (e.g. a missing secret) or a Rust panic surfacing as PanicException
             // stays on the form rather than crashing, like macOS.
-            SetupError = CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
+            SetupError = CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount());
             return;
         }
         _ = AddAccountAsync(configToml);
@@ -255,7 +255,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"microsoft sign-in failed: {CoreError.Describe(ex)}");
-            SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp()));
+            SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount()));
         }
         finally
         {
@@ -360,7 +360,7 @@ public sealed partial class MailboxModel
             _ui.TryEnqueue(() =>
             {
                 _connecting = false;
-                SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp()));
+                SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount()));
                 NeedsSetup = true;
                 EndLaunch();
             });
@@ -427,7 +427,7 @@ public sealed partial class MailboxModel
                     SetupError = L10n.StatusConnectFailed(refused.reason);
                     return;
                 }
-                SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp()));
+                SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount()));
                 // After the refusal it belongs to, which replacing the error clears.
                 SetupExisting = AccountSettingsRules.UpdateOffer(ex, configToml);
             });
@@ -471,7 +471,7 @@ public sealed partial class MailboxModel
             // credential, which would bring it back at the next launch. Say so rather than letting
             // it reappear unexplained.
             Log.Error($"remove account failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
+            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount());
         }
     }
 

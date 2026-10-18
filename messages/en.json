@@ -456,6 +456,7 @@
 	"signin_expired_action": "Sign in again",
 	"signin_expired_failed": "Signing in again didn’t work. Please try again.",
 	"signin_refused": "The server didn’t accept this sign-in. Check what you entered and try again.",
+	"signin_different_account": "You signed in with a different account. Sign in again with this account’s address.",
 	"account_already_set_up": "This account is already set up.",
 
 	"tz_changed_title": "Time zone changed",

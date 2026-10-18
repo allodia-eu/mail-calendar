@@ -70,18 +70,26 @@ public class CoreErrorTests
         // The server's reply is a status and a body meant for a developer: the person is told in
         // their own language, and the log keeps what the server said.
         var refused = new uniffi.mailcal_bindings.MailcalException.SignInRefused("JMAP HTTP 401: {\"status\":401}");
-        Assert.Equal("not accepted", CoreError.Said(refused, "not accepted", "set up already"));
+        Assert.Equal("not accepted", CoreError.Said(refused, "not accepted", "set up already", "another account"));
         Assert.Equal("JMAP HTTP 401: {\"status\":401}", CoreError.Describe(refused));
         Assert.Equal(
             "no route to host",
-            CoreError.Said(new uniffi.mailcal_bindings.MailcalException.Connect("no route to host"), "not accepted", "set up already"));
+            CoreError.Said(new uniffi.mailcal_bindings.MailcalException.Connect("no route to host"), "not accepted", "set up already", "another account"));
     }
 
     [Fact]
     public void An_account_already_set_up_is_said_in_words_and_logged_without_its_address()
     {
         var twice = new uniffi.mailcal_bindings.MailcalException.AlreadySetUp("alice@example.org@imap.example.org");
-        Assert.Equal("set up already", CoreError.Said(twice, "not accepted", "set up already"));
+        Assert.Equal("set up already", CoreError.Said(twice, "not accepted", "set up already", "another account"));
         Assert.Equal("that account is already set up", CoreError.Describe(twice));
+    }
+
+    [Fact]
+    public void A_sign_in_as_another_account_is_said_in_words()
+    {
+        var other = new uniffi.mailcal_bindings.MailcalException.DifferentAccount();
+        Assert.Equal("another account", CoreError.Said(other, "not accepted", "set up already", "another account"));
+        Assert.Equal("that sign-in is for a different account", CoreError.Describe(other));
     }
 }

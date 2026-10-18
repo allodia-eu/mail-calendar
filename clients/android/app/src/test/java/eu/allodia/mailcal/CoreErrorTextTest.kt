@@ -36,4 +36,12 @@ class CoreErrorTextTest {
         assertEquals(L10n.account_already_set_up(ctx), coreErrorSaid(twice, ctx))
         assertEquals("that account is already set up", coreErrorText(twice))
     }
+
+    @Test
+    fun a_sign_in_as_another_account_is_said_in_words() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val other = MailcalException.DifferentAccount()
+        assertEquals(L10n.signin_different_account(ctx), coreErrorSaid(other, ctx))
+        assertEquals("that sign-in is for a different account", coreErrorText(other))
+    }
 }

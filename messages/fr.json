@@ -456,6 +456,7 @@
 	"signin_expired_action": "Se reconnecter",
 	"signin_expired_failed": "La reconnexion n’a pas abouti. Veuillez réessayer.",
 	"signin_refused": "Le serveur n’a pas accepté cette connexion. Vérifiez ce que vous avez saisi et réessayez.",
+	"signin_different_account": "Vous vous êtes connecté avec un autre compte. Reconnectez-vous avec l’adresse de ce compte.",
 	"account_already_set_up": "Ce compte est déjà configuré.",
 
 	"tz_changed_title": "Fuseau horaire modifié",

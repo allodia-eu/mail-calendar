@@ -456,6 +456,7 @@
 	"signin_expired_action": "Volver a iniciar sesión",
 	"signin_expired_failed": "No se ha podido volver a iniciar sesión. Inténtalo de nuevo.",
 	"signin_refused": "El servidor no ha aceptado este inicio de sesión. Comprueba lo que has introducido e inténtalo de nuevo.",
+	"signin_different_account": "Has iniciado sesión con otra cuenta. Vuelve a iniciar sesión con la dirección de esta cuenta.",
 	"account_already_set_up": "Esta cuenta ya está configurada.",
 
 	"tz_changed_title": "La zona horaria ha cambiado",

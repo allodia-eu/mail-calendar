@@ -38,21 +38,24 @@ internal static class CoreError
             Describe(refused.@reason, error.GetType().Name),
         // The record carries the account's id, an address; the core's own words carry none.
         uniffi.mailcal_bindings.MailcalException.AlreadySetUp => "that account is already set up",
+        uniffi.mailcal_bindings.MailcalException.DifferentAccount => "that sign-in is for a different account",
         _ => Describe(error.Message, error.GetType().Name),
     };
 
     /// <summary>
     /// What to show a person for <paramref name="error"/>: <paramref name="signInRefused"/> when
     /// the server refused the sign-in, since its reply is meant for a developer,
-    /// <paramref name="alreadySetUp"/> when the account being added is already set up, and
+    /// <paramref name="alreadySetUp"/> when the account being added is already set up,
+    /// <paramref name="differentAccount"/> when a sign-in came back as another account, and
     /// <see cref="Describe(Exception)"/> otherwise. The sentences are passed in because L10n
-    /// cannot be linked into the test assembly; callers pass <c>L10n.SigninRefused()</c> and
-    /// <c>L10n.AccountAlreadySetUp()</c>.
+    /// cannot be linked into the test assembly; callers pass <c>L10n.SigninRefused()</c>,
+    /// <c>L10n.AccountAlreadySetUp()</c> and <c>L10n.SigninDifferentAccount()</c>.
     /// </summary>
-    internal static string Said(Exception error, string signInRefused, string alreadySetUp) => error switch
+    internal static string Said(Exception error, string signInRefused, string alreadySetUp, string differentAccount) => error switch
     {
         uniffi.mailcal_bindings.MailcalException.SignInRefused => signInRefused,
         uniffi.mailcal_bindings.MailcalException.AlreadySetUp => alreadySetUp,
+        uniffi.mailcal_bindings.MailcalException.DifferentAccount => differentAccount,
         _ => Describe(error),
     };
 

@@ -456,6 +456,7 @@
 	"signin_expired_action": "Iniciar sessão de novo",
 	"signin_expired_failed": "Não foi possível iniciar sessão de novo. Tente novamente.",
 	"signin_refused": "O servidor não aceitou este início de sessão. Verifique o que introduziu e tente novamente.",
+	"signin_different_account": "Iniciou sessão com outra conta. Inicie sessão novamente com o endereço desta conta.",
 	"account_already_set_up": "Esta conta já está configurada.",
 
 	"tz_changed_title": "Fuso horário alterado",

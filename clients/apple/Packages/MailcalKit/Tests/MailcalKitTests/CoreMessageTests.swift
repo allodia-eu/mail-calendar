@@ -17,4 +17,8 @@ import Testing
         let twice = MailcalError.AlreadySetUp(accountId: "alice@example.org@imap.example.org")
         #expect(coreMessage(twice) == L10n.account_already_set_up())
     }
+
+    @Test func aSignInAsAnotherAccountIsSaidInWords() {
+        #expect(coreMessage(MailcalError.DifferentAccount) == L10n.signin_different_account())
+    }
 }
