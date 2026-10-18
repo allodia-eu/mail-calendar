@@ -25,10 +25,11 @@ write followed. A failing case leaves a screenshot and the element tree the agen
 ## Launches
 
 The app reads its `MAILCAL_*` switches once, at startup, so a launch is a fixture in
-[`Suites/HarnessApp.cs`](Suites/HarnessApp.cs): one per account set (alice over JMAP, alice and bob
-together, alice over IMAP) or appearance (pinned dark) shared by every suite in its collection,
-which puts back what each case leaves. A suite that sets an account up through the form gets a launch of its own on an emptied
-first-run store, because what a first run asks is asked once a store.
+[`Suites/HarnessApp.cs`](Suites/HarnessApp.cs): one per set of switches (which accounts over which
+transport, a pinned appearance, a server verdict faked in the core) shared by every suite in its
+collection, which puts back what each case leaves. A suite that sets an account up through the form
+gets a launch of its own on an emptied first-run store, because what a first run asks is asked once
+a store; so does one whose case quits the app, as a notification click with the app closed does.
 
 ## The agent
 

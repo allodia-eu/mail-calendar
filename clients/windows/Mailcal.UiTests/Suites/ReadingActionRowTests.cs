@@ -45,10 +45,7 @@ public sealed class ReadingActionRowTests(HarnessApp harness)
     /// <summary>The plain seeded message, open, and each action-row button as drawn.</summary>
     private static Dictionary<string, Element> Buttons(App app)
     {
-        if (app.Agent.Find(Filter.ById("ReadingSubject") with { Window = app.Mailbox.Hwnd })?.Name != Plain)
-        {
-            app.OpenMessage(Plain);
-        }
+        app.OpenMessage(Plain);
         app.Agent.Wait(Filter.ById("ReadingOverflow") with { OnScreen = true }, App.Patience);
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
         return RowButtons.ToDictionary(id => id, id =>

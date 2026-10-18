@@ -15,30 +15,28 @@ internal static class Input
     /// <summary>
     /// Brings <paramref name="hwnd"/> to the front, unless it is there already: input goes to
     /// whatever is in front. Windows lets a process take the front only when it sent the last input,
-    /// so a refused request is followed by a keystroke and asked again. The key is 0xE8, which
-    /// Windows assigns to nothing, because it reaches whichever window is in front at the time.
+    /// so a refused request is followed by a keystroke and asked again, until it is granted. The key
+    /// is 0xE8, which Windows assigns to nothing, because it reaches whichever window is in front
+    /// at the time. Once is not always enough: a window the app has just opened can take the front
+    /// back between the keystroke and the request.
     /// </summary>
     internal static void BringToFront(long hwnd)
     {
         var target = (nint)hwnd;
-        if (GetForegroundWindow() == target)
-        {
-            return;
-        }
-        if (!SetForegroundWindow(target))
-        {
-            keybd_event(0xE8, 0, 0, 0);
-            keybd_event(0xE8, 0, KeyUp, 0);
-            SetForegroundWindow(target);
-        }
-        var deadline = DateTime.UtcNow.AddSeconds(2);
+        var deadline = DateTime.UtcNow.AddSeconds(5);
         while (GetForegroundWindow() != target)
         {
             if (DateTime.UtcNow > deadline)
             {
                 throw new InvalidOperationException($"window {hwnd} would not come to the front");
             }
-            Thread.Sleep(20);
+            if (!SetForegroundWindow(target))
+            {
+                keybd_event(0xE8, 0, 0, 0);
+                keybd_event(0xE8, 0, KeyUp, 0);
+                SetForegroundWindow(target);
+            }
+            Thread.Sleep(100);
         }
     }
 

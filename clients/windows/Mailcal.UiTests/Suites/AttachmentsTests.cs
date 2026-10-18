@@ -44,8 +44,8 @@ public sealed class AttachmentsTests(HarnessApp harness)
         // starved, so the consequence is asserted rather than the mechanism. PlainScroller, because
         // this fixture's body is text/plain and that is the control that draws it.
         app.OpenMessage(ManyAttachments);
-        var body = app.Agent.Wait(Filter.ById("PlainScroller"), App.Patience)
-            ?? throw new InvalidOperationException("no PlainScroller: the reading pane never drew this message's body");
+        var body = app.Steady(app.Agent.Wait(Filter.ById("PlainScroller") with { OnScreen = true }, App.Patience)
+            ?? throw new InvalidOperationException("no PlainScroller: the reading pane never drew this message's body"));
         var floor = BodyFloorDip * Input.Scale(body.Window);
         Assert.True(body.Rendered && body.Height > floor,
             $"the message body got {body.Height}px beside twenty attachments (offscreen: {body.Offscreen}); the message is what the list describes, and it must not be squeezed out of the pane");

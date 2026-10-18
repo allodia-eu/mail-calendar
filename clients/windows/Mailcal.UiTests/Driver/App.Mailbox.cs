@@ -92,9 +92,15 @@ internal sealed partial class App
     }
 
     /// <summary>The message titled <paramref name="subject"/> open in the reading pane: its row
-    /// pressed, and the pane's subject read back, which is the evidence the open finished.</summary>
+    /// pressed, and the pane's subject read back, which is the evidence the open finished. One open
+    /// already is left alone: pressing the open row again closes it.</summary>
     internal void OpenMessage(string subject)
     {
+        var heading = Filter.ById("ReadingSubject") with { Window = Mailbox.Hwnd, OnScreen = true };
+        if (Agent.Find(heading)?.Name == subject)
+        {
+            return;
+        }
         Agent.Invoke(RowTitled($"*{subject}*"));
         if (!Eventually(() => Agent.Find(Filter.ById("ReadingSubject") with { Window = Mailbox.Hwnd })?.Name == subject, Patience))
         {
