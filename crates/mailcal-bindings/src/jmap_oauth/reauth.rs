@@ -188,9 +188,7 @@ fn same_account(account_id: &str, config: &JmapAccountConfig) -> Result<AccountI
             "jmap oauth: the re-authentication signed in a DIFFERENT account than the one being \
              reconnected; discarding the new grant",
         );
-        return Err(MailcalError::Config(
-            "that sign-in is for a different account than the one being reconnected".to_owned(),
-        ));
+        return Err(MailcalError::DifferentAccount);
     }
     Ok(signed_in)
 }
@@ -200,7 +198,7 @@ mod tests {
     use mailcal_account::{OAuthGrant, Secret};
 
     use super::{JmapAccountConfig, reconnected, same_account};
-    use crate::{AccountProvider, ConnectedAccount};
+    use crate::{AccountProvider, ConnectedAccount, MailcalError};
 
     fn grant() -> OAuthGrant {
         OAuthGrant {
@@ -270,10 +268,7 @@ mod tests {
 
         let err = same_account(reconnecting.as_str(), &other).unwrap_err();
 
-        assert!(
-            err.to_string().contains("different account"),
-            "the message must say what went wrong: {err}",
-        );
+        assert!(matches!(err, MailcalError::DifferentAccount), "{err}");
     }
 
     fn pinned(config: JmapAccountConfig) -> JmapAccountConfig {

@@ -432,9 +432,7 @@ pub(crate) fn named_as(named: Option<&str>, address: &str) -> Result<(), Mailcal
     match named {
         Some(named) if !addresses_match(named, address) => {
             log::warn!("sign-in: the server issued the grant for another account; discarding it");
-            Err(MailcalError::Config(
-                "that sign-in is for a different account than this one".to_owned(),
-            ))
+            Err(MailcalError::DifferentAccount)
         }
         _ => Ok(()),
     }
@@ -449,9 +447,7 @@ fn same_mailbox<E: std::fmt::Display>(
     if fresh.map_err(to_error)? == existing.map_err(to_error)? {
         Ok(())
     } else {
-        Err(MailcalError::Config(
-            "that setup is for a different account than this one".to_owned(),
-        ))
+        Err(MailcalError::DifferentAccount)
     }
 }
 

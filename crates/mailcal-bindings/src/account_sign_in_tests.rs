@@ -132,7 +132,7 @@ fn a_setup_for_another_mailbox_is_not_used_for_this_account() {
 
     assert!(matches!(
         app.use_credential_from(id.clone(), other),
-        Err(MailcalError::Config(_))
+        Err(MailcalError::DifferentAccount)
     ));
     assert!(!signs_in_through_its_provider(&app, &id));
     assert!(recorder.persisted.lock().unwrap().is_empty());
@@ -218,7 +218,7 @@ fn a_sign_in_the_server_issued_for_another_account_is_refused() {
     assert!(named_as(Some("Alice@Example.org"), "alice@example.org").is_ok());
     assert!(matches!(
         named_as(Some("bob@example.org"), "alice@example.org"),
-        Err(MailcalError::Config(_))
+        Err(MailcalError::DifferentAccount)
     ));
 }
 

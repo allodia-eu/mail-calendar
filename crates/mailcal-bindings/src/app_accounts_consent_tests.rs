@@ -53,7 +53,7 @@ fn the_same_address_in_another_case_is_the_same_account() {
     assert!(same_address("Alice@Example.com", " alice@example.com").is_ok());
     assert!(matches!(
         same_address("alice@example.com", "bob@example.com"),
-        Err(MailcalError::Config(_))
+        Err(MailcalError::DifferentAccount)
     ));
 }
 

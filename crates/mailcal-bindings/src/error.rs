@@ -53,6 +53,13 @@ pub enum MailcalError {
         /// The id of the account already set up.
         account_id: String,
     },
+    /// A sign-in or setup came back as a different mailbox than the account it was for, and was
+    /// discarded: a `login_hint` targets an address, it does not pin one.
+    ///
+    /// Its own outcome so a client can say so in the person's language: nothing is wrong with
+    /// the server or the credential, only with which account was chosen in the browser.
+    #[error("that sign-in is for a different account")]
+    DifferentAccount,
     /// The engine could not be opened (or the account id was invalid).
     #[error("engine: {0}")]
     Engine(String),

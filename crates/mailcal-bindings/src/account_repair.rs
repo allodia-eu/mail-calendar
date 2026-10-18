@@ -98,9 +98,7 @@ impl MailcalApp {
     ) -> Result<(), MailcalError> {
         let id = prepared.account.id.clone();
         if id.as_str() != account_id {
-            return Err(MailcalError::Config(
-                "the replacement credential belongs to a different account".to_owned(),
-            ));
+            return Err(MailcalError::DifferentAccount);
         }
         let registered = self
             .registry
@@ -134,9 +132,7 @@ impl MailcalApp {
                 "credential repair: [{}] the sign-in opened another mailbox; discarding it",
                 mailcal_account::account_log_handle(account_id),
             );
-            return Err(MailcalError::Config(
-                "that sign-in is for a different account than this one".to_owned(),
-            ));
+            return Err(MailcalError::DifferentAccount);
         }
         let persisted = match persistence {
             CredentialPersistence::Provided(config_toml) => {
