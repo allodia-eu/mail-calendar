@@ -157,7 +157,7 @@ internal fun CalendarReauthBanner(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = L10n.calendar_reauth_prompt(ctx, accounts.joinToString(", ") { it.email }),
+            text = L10n.calendar_reauth_prompt(ctx, accounts.joinToString(", ") { it.name }),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
             modifier = Modifier.weight(1f),
@@ -235,7 +235,7 @@ internal fun MailReauthBanner(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = L10n.mail_reauth_prompt(ctx, accounts.joinToString(", ") { it.email }),
+            text = L10n.mail_reauth_prompt(ctx, accounts.joinToString(", ") { it.name }),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
             modifier = Modifier.weight(1f),
@@ -278,7 +278,7 @@ internal fun SignInExpiredBanner(
             tint = MaterialTheme.colorScheme.onTertiaryContainer,
         )
         Spacer(modifier = Modifier.width(8.dp))
-        val names = accounts.joinToString(", ") { it.email }
+        val names = accounts.joinToString(", ") { it.name }
         Text(
             text = if (canRelaunch) {
                 L10n.signin_expired_prompt(ctx, names)
@@ -336,8 +336,8 @@ internal fun AccountSwitcher(
     onSelectAccount: (String?) -> Unit,
     onRemoveAccount: (String) -> Unit,
     modifier: Modifier = Modifier,
-    // The accounts losing their link when an account is removed, named in its confirmation.
-    unlinkedBy: (String) -> String? = { null },
+    // What an account's removal names in its confirmation: the account, and those losing their link.
+    removalOf: (String) -> AccountRemoval? = { null },
 ) {
     val ctx = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
@@ -406,8 +406,7 @@ internal fun AccountSwitcher(
         }
         accountToRemove?.let { account ->
             RemoveAccountDialog(
-                address = account.email,
-                unlinked = unlinkedBy(account.id),
+                removal = removalOf(account.id) ?: AccountRemoval(account.email, null),
                 onConfirm = {
                     onRemoveAccount(account.id)
                     accountToRemove = null

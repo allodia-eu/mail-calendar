@@ -116,8 +116,8 @@ internal fun MailboxScreen(
     onSignInExpired: (account: ExpiredSignIn) -> Unit = {},
     // Opens an account's page in Settings, for a sign-in only a new password or token mends.
     onOpenAccountPage: (accountId: String) -> Unit = {},
-    // The accounts losing their link when an account is removed, for its confirmation.
-    unlinkedBy: (accountId: String) -> String? = { null },
+    // What an account's removal names in its confirmation.
+    removalOf: (accountId: String) -> AccountRemoval? = { null },
     onOpenSettings: () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -197,7 +197,7 @@ internal fun MailboxScreen(
                     onRemoveAccount = onRemoveAccount,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
                     onOpenSettings = onOpenSettings,
-                    unlinkedBy = unlinkedBy,
+                    removalOf = removalOf,
                 )
             }
             // While searching, the scope filter sits under the field: "this folder" (whatever the

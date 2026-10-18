@@ -277,7 +277,7 @@ private fun LinkRow(entry: AccountEntry, picker: LinkPicker, ui: AccountsSetting
 private fun SignInGroup(entry: AccountEntry, expired: Boolean, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
     val description = when {
-        expired -> L10n.signin_expired_prompt(ctx, entry.address)
+        expired -> L10n.signin_expired_prompt(ctx, accountName(ctx, entry))
         AccountSettingsRules.needsPermission(entry) -> L10n.settings_account_needs_permission(ctx)
         else -> L10n.settings_account_signin_description(ctx)
     }
@@ -319,8 +319,7 @@ private fun RemoveAccount(entry: AccountEntry, ui: AccountsSettingsUi) {
     ) { Text(L10n.action_remove_account(ctx)) }
     if (confirming) {
         RemoveAccountDialog(
-            address = entry.address,
-            unlinked = AccountSettingsRules.unlinked(entry) { accountName(ctx, it) },
+            removal = accountRemoval(ctx, entry),
             onConfirm = {
                 confirming = false
                 ui.onRemove(entry.id)
@@ -336,14 +335,13 @@ private fun RemoveAccount(entry: AccountEntry, ui: AccountsSettingsUi) {
  */
 @Composable
 internal fun RemoveAccountDialog(
-    address: String,
-    unlinked: String?,
+    removal: AccountRemoval,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val ctx = LocalContext.current
-    val message = L10n.remove_account_message(ctx, address) +
-        (unlinked?.let { " " + L10n.remove_account_unlinks(ctx, it) } ?: "")
+    val message = L10n.remove_account_message(ctx, removal.name) +
+        (removal.unlinked?.let { " " + L10n.remove_account_unlinks(ctx, it) } ?: "")
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(L10n.remove_account_title(ctx)) },

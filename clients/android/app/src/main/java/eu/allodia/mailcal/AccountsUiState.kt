@@ -90,6 +90,13 @@ internal class AccountsUiState {
      */
     fun addressOf(id: String, fallback: String? = null): String =
         entry(id)?.address ?: fallback ?: id
+
+    /**
+     * What a prompt asking account [id] to sign in again names it by: [accountName], apart from an
+     * account that shares its address, while the snapshot lists it; else [fallback], then the id.
+     */
+    fun nameOf(ctx: Context, id: String, fallback: String? = null): String =
+        entry(id)?.let { accountName(ctx, it) } ?: fallback ?: id
 }
 
 /**

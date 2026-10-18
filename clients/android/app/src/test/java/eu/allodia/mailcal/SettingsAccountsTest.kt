@@ -198,6 +198,24 @@ class SettingsAccountsTest {
     }
 
     @Test
+    fun removing_an_account_with_a_namesake_names_both_apart() {
+        val mailbox = linked("alice@example.org", AccountDistinction.Kind(CoreAccountKind.IMAP))
+        val calendar = calendarOnly.copy(
+            address = "alice@example.org",
+            linkedFrom = listOf(mailbox),
+            distinction = AccountDistinction.Kind(CoreAccountKind.DAV),
+        )
+        state.page = calendar.id
+        show(calendar)
+
+        compose.onNodeWithTag("account-remove").performScrollTo().performClick()
+        compose.onNodeWithText(
+            "alice@example.org (CalDAV/CardDAV) leaves this app and its stored sign-in is deleted. " +
+                "You can add it again later. It is also unlinked from alice@example.org (IMAP).",
+        ).assertExists()
+    }
+
+    @Test
     fun saving_servers_sends_what_was_typed_and_keeps_the_stored_password() {
         val entry = mailboxOnly(endpoints = imapEndpoints())
         state.page = entry.id

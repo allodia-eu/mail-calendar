@@ -10,16 +10,29 @@ import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 /** Another account as a link, a picker or a removal names it. */
 internal fun accountName(ctx: Context, account: LinkedAccount): String =
-    when (val distinction = account.distinction) {
-        null -> account.address
-        is AccountDistinction.Kind -> L10n.settings_account_distinguished(
-            ctx,
-            account.address,
-            kindLabel(ctx, distinction.kind),
-        )
+    distinguished(ctx, account.address, account.distinction)
+
+/** An account as a message acting on it names it: its removal, its expired sign-in. */
+internal fun accountName(ctx: Context, entry: AccountEntry): String =
+    distinguished(ctx, entry.address, entry.distinction)
+
+/** [address], with what tells it apart from another account of that address beside it. */
+private fun distinguished(ctx: Context, address: String, distinction: AccountDistinction?): String =
+    when (distinction) {
+        null -> address
+        is AccountDistinction.Kind ->
+            L10n.settings_account_distinguished(ctx, address, kindLabel(ctx, distinction.kind))
         is AccountDistinction.Server ->
-            L10n.settings_account_distinguished(ctx, account.address, distinction.host)
+            L10n.settings_account_distinguished(ctx, address, distinction.host)
     }
+
+/** What a removal's confirmation names: the account it removes, and those that lose their link. */
+internal data class AccountRemoval(val name: String, val unlinked: String?)
+
+internal fun accountRemoval(ctx: Context, entry: AccountEntry) = AccountRemoval(
+    name = accountName(ctx, entry),
+    unlinked = AccountSettingsRules.unlinked(entry) { accountName(ctx, it) },
+)
 
 /**
  * The kind an account's own row and page name it by, with its server's host where another account

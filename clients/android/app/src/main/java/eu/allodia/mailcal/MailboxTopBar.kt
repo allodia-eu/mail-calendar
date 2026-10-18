@@ -28,8 +28,8 @@ internal fun MailboxTopBar(
     onRemoveAccount: (String) -> Unit,
     onOpenDrawer: () -> Unit,
     onOpenSettings: () -> Unit,
-    // The accounts losing their link when an account is removed, for its confirmation.
-    unlinkedBy: (String) -> String? = { null },
+    // What an account's removal names in its confirmation.
+    removalOf: (String) -> AccountRemoval? = { null },
 ) {
     val ctx = LocalContext.current
     Row(
@@ -57,7 +57,7 @@ internal fun MailboxTopBar(
                 unreachableAccounts = unreachableAccounts,
                 onSelectAccount = onSelectAccount,
                 onRemoveAccount = onRemoveAccount,
-                unlinkedBy = unlinkedBy,
+                removalOf = removalOf,
                 modifier = Modifier.weight(1f),
             )
             // Search collapses to a magnifier to save space, expanding to the field on tap.

@@ -33,7 +33,7 @@ class SignInExpiredBannerTest {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
         val account = ExpiredSignIn(
             id = "alice@jmap:api.example.com",
-            email = "alice@example.com",
+            name = "alice@example.com",
             provider = provider,
         )
         compose.setContent {

@@ -11,6 +11,7 @@ import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountDistinction
 import uniffi.mailcal_bindings.AccountLinksView
+import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
@@ -61,8 +62,46 @@ class AccountNamingTest {
             accountSummary(ctx, mailbox),
         )
         assertEquals(
-            "alice@example.org (CalDAV/CardDAV)",
-            AccountSettingsRules.unlinked(mailbox) { accountName(ctx, it) },
+            AccountRemoval(name = "alice@example.org", unlinked = "alice@example.org (CalDAV/CardDAV)"),
+            accountRemoval(ctx, mailbox),
         )
+    }
+
+    @Test
+    fun a_removal_names_the_account_it_removes_apart_from_its_namesake() {
+        val mailbox = linked("alice@example.org", AccountDistinction.Kind(CoreAccountKind.IMAP))
+        val calendar = accountEntry(
+            CoreAccountKind.DAV,
+            AccountCapability.CALENDAR to CapabilityState.ON,
+            linkedFrom = listOf(mailbox),
+            distinction = AccountDistinction.Kind(CoreAccountKind.DAV),
+        )
+        assertEquals("alice@example.org (CalDAV/CardDAV)", accountName(ctx, calendar))
+        assertEquals(
+            AccountRemoval(
+                name = "alice@example.org (CalDAV/CardDAV)",
+                unlinked = "alice@example.org (IMAP)",
+            ),
+            accountRemoval(ctx, calendar),
+        )
+        val byServer = calendar.copy(distinction = AccountDistinction.Server("dav.example.org"))
+        assertEquals("alice@example.org (dav.example.org)", accountRemoval(ctx, byServer).name)
+    }
+
+    @Test
+    fun a_prompt_to_sign_in_again_names_a_listed_account_apart_from_its_namesake() {
+        val calendar = accountEntry(
+            CoreAccountKind.DAV,
+            AccountCapability.CALENDAR to CapabilityState.ON,
+            id = "alice@example.org@dav:cloud.example",
+            distinction = AccountDistinction.Kind(CoreAccountKind.DAV),
+        )
+        val state = AccountsUiState()
+        state.snapshot = AccountsSnapshot(listOf(calendar, mailboxOnly()))
+        assertEquals("alice@example.org (CalDAV/CardDAV)", state.nameOf(ctx, calendar.id))
+        assertEquals("alice@example.org", state.nameOf(ctx, mailboxOnly().id))
+        // Not listed yet: the switcher's address, then the id.
+        assertEquals("bob@example.org", state.nameOf(ctx, "bob@imap", "bob@example.org"))
+        assertEquals("bob@imap", state.nameOf(ctx, "bob@imap"))
     }
 }

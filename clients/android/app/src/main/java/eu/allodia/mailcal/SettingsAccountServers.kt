@@ -80,7 +80,7 @@ internal fun ServersGroup(
     )
     val saving = ui.state.savingServers == entry.id
     val description = if (expired) {
-        L10n.signin_expired_prompt(ctx, entry.address)
+        L10n.signin_expired_prompt(ctx, accountName(ctx, entry))
     } else {
         L10n.settings_account_servers_description(ctx)
     }
@@ -149,7 +149,7 @@ internal fun SecretFields(entry: AccountEntry, ui: AccountsSettingsUi) {
     val replacing = ui.state.replacingSecret == entry.id
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         androidx.compose.material3.Text(
-            L10n.signin_expired_prompt(ctx, entry.address),
+            L10n.signin_expired_prompt(ctx, accountName(ctx, entry)),
             style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
         )
         PasswordField(secret, { secret = it }, L10n.setup_jmap_secret_placeholder(ctx))
