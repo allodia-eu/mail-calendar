@@ -25,6 +25,7 @@ mod account_registry;
 mod account_repair;
 mod account_sign_in;
 mod account_split;
+mod accounts_distinction;
 mod accounts_view;
 mod agent_ui;
 mod allodia;
@@ -212,9 +213,9 @@ pub use records::{
     },
 };
 pub use records_accounts::{
-    AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot,
-    CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount, SeparateServer,
-    SignInMethod, UseProblem,
+    AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,
+    AccountsSnapshot, CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
+    SeparateServer, SignInMethod, UseProblem,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{

@@ -241,6 +241,24 @@ impl ConnectedAccount {
                 Self::Imap { config, .. } if config.imap.is_some() => dav_servers(config),
                 _ => Vec::new(),
             },
+            server: match self {
+                Self::Imap { config, .. } => config.imap.as_ref().map_or_else(
+                    || {
+                        config
+                            .caldav
+                            .as_ref()
+                            .map(|caldav| caldav.base_url.as_str())
+                            .or(config
+                                .carddav
+                                .as_ref()
+                                .map(|carddav| carddav.base_url.as_str()))
+                            .and_then(crate::accounts_view::host_of)
+                    },
+                    |imap| Some(imap.server_name.clone()),
+                ),
+                Self::Jmap { config, .. } => crate::accounts_view::host_of(&config.base_url),
+                Self::Microsoft { .. } | Self::Google { .. } => None,
+            },
         }
     }
 

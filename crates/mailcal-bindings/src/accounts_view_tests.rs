@@ -8,15 +8,15 @@ use crate::{AccountCapability, AccountKind, CapabilityState};
 
 const STANDARDS: [Capability; 3] = [Capability::Mail, Capability::Calendar, Capability::Contacts];
 
-fn set(capabilities: &[Capability]) -> Capabilities {
+pub(crate) fn set(capabilities: &[Capability]) -> Capabilities {
     capabilities.iter().copied().collect()
 }
 
-fn id(text: &str) -> Option<AccountId> {
+pub(crate) fn id(text: &str) -> Option<AccountId> {
     Some(AccountId::try_from(text).unwrap())
 }
 
-fn mailbox(links: AccountLinks) -> AccountFacts {
+pub(crate) fn mailbox(links: AccountLinks) -> AccountFacts {
     AccountFacts {
         id: "alice@imap.example.org".to_owned(),
         address: "alice@example.org".to_owned(),
@@ -31,10 +31,11 @@ fn mailbox(links: AccountLinks) -> AccountFacts {
         endpoints: None,
         dav_servers: Vec::new(),
         calendar_addresses: Vec::new(),
+        server: Some("imap.example.org".to_owned()),
     }
 }
 
-fn cloud(links: AccountLinks) -> AccountFacts {
+pub(crate) fn cloud(links: AccountLinks) -> AccountFacts {
     AccountFacts {
         id: "alice@dav:cloud.example".to_owned(),
         address: "alice".to_owned(),
@@ -49,10 +50,11 @@ fn cloud(links: AccountLinks) -> AccountFacts {
         endpoints: None,
         dav_servers: Vec::new(),
         calendar_addresses: Vec::new(),
+        server: Some("cloud.example".to_owned()),
     }
 }
 
-fn to_cloud() -> AccountLinks {
+pub(crate) fn to_cloud() -> AccountLinks {
     AccountLinks {
         calendar: id("alice@dav:cloud.example"),
         contacts: id("alice@dav:cloud.example"),

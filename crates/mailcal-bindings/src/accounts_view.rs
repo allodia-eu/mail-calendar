@@ -39,6 +39,9 @@ pub(crate) struct AccountFacts {
     /// The addresses its calendar server treats as its user, once asked; empty when it has no
     /// calendar, has not been asked yet, or named none.
     pub(crate) calendar_addresses: Vec<String>,
+    /// The host of the server it is read from (its mailbox's, else its calendar's or address
+    /// book's), for one that names it; `None` for a Microsoft or Google account.
+    pub(crate) server: Option<String>,
 }
 
 /// Every account's entry, in the order `facts` lists them. `calendar_refused` holds the accounts
@@ -50,11 +53,17 @@ pub(crate) fn entries(
     problems: &BTreeMap<String, mailcal_app::UseProblems>,
 ) -> Vec<AccountEntry> {
     let links = valid_links(facts);
+    let told = crate::accounts_distinction::distinctions(facts);
+    let linked = |index: usize| LinkedAccount {
+        id: facts[index].id.clone(),
+        address: facts[index].address.clone(),
+        distinction: told[index].clone(),
+    };
     let named = |target: Option<&AccountId>| {
         target.and_then(|target| {
             facts
                 .iter()
-                .find(|account| account.id == target.as_str())
+                .position(|account| account.id == target.as_str())
                 .map(linked)
         })
     };
@@ -77,8 +86,7 @@ pub(crate) fn entries(
                 contacts: named(own.contacts.as_ref()),
                 mail: named(own.mail.as_ref()),
             },
-            linked_from: facts
-                .iter()
+            linked_from: (0..facts.len())
                 .zip(&links)
                 .filter(|(_, theirs)| {
                     [&theirs.calendar, &theirs.contacts, &theirs.mail]
@@ -92,7 +100,7 @@ pub(crate) fn entries(
                 let offer = |slot| {
                     candidates(facts, &links, index, slot)
                         .into_iter()
-                        .map(|candidate| linked(&facts[candidate]))
+                        .map(linked)
                         .collect()
                 };
                 LinkCandidates {
@@ -107,6 +115,7 @@ pub(crate) fn entries(
                 account,
                 problems.get(&account.id).copied().unwrap_or_default(),
             ),
+            distinction: told[index].clone(),
         })
         .collect()
 }
@@ -157,7 +166,7 @@ fn separate_server(
 }
 
 /// The host of `base_url`, with its port when it names one.
-fn host_of(base_url: &str) -> Option<String> {
+pub(crate) fn host_of(base_url: &str) -> Option<String> {
     let url = url::Url::parse(&mailcal_account::normalize_caldav_base_url(base_url)).ok()?;
     let host = url.host_str()?;
     Some(match url.port() {
@@ -347,13 +356,6 @@ fn uses(
         .collect()
 }
 
-fn linked(account: &AccountFacts) -> LinkedAccount {
-    LinkedAccount {
-        id: account.id.clone(),
-        address: account.address.clone(),
-    }
-}
-
 #[cfg(test)]
 #[path = "accounts_view_tests.rs"]
-mod tests;
+pub(crate) mod tests;

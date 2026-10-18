@@ -42,6 +42,21 @@ pub struct AccountEntry {
     /// mailbox.
     #[uniffi(default = None)]
     pub separate_server: Option<SeparateServer>,
+    /// What tells it apart from another account with the same address; `None` when no other
+    /// account has it.
+    #[uniffi(default = None)]
+    pub distinction: Option<AccountDistinction>,
+}
+
+/// What tells an account apart from another with the same address (`docs/accounts.md` rule 8):
+/// a mailbox and the calendar split off from it, or two servers that know one person by one
+/// login.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum AccountDistinction {
+    /// Its kind, which no other account with its address shares.
+    Kind { kind: AccountKind },
+    /// Its server's host, for an account that shares its kind with another of its address too.
+    Server { host: String },
 }
 
 /// A server a mailbox's calendar or contacts need a sign-in of their own at.
@@ -149,6 +164,10 @@ pub struct LinkedAccount {
     pub id: String,
     /// What a person reads it by.
     pub address: String,
+    /// What tells it apart from another account with the same address, which a person reads
+    /// beside it; `None` when no other account has it.
+    #[uniffi(default = None)]
+    pub distinction: Option<AccountDistinction>,
 }
 
 /// The accounts each link slot may name.
