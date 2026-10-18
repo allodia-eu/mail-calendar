@@ -127,19 +127,7 @@ extension ContentView {
     /// up by its height. The two strips are safe-area insets for the same reason: they draw where
     /// stack rows drew them without standing between the list and the bar.
     var compactMessageList: some View {
-        selectionBehaviour(
-            List {
-                let rows = visibleRows
-                ForEach(rows, id: \.rowID) { row in
-                    rowView(row)
-                        .listRowBackground(rowHighlight(row))
-                        .onAppear {
-                            if row.rowID == rows.last?.rowID {
-                                Task { @MainActor in model.showMore() }
-                            }
-                        }
-                }
-            }
+        messageRows
             .listStyle(.plain)
             // Over the rows rather than in place of the list, so the pull-to-sync gesture
             // survives: an empty folder is one a pull is a reasonable answer to.
@@ -158,7 +146,6 @@ extension ContentView {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) { VStack(spacing: 0) { syncStrip } }
-        )
     }
 
     /// What the list says about mail arriving, below the rows and outside the pull-to-refresh box

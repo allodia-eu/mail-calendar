@@ -1,140 +1,47 @@
-// The shell's half of the message list's multi-selection: what a click means on each platform,
-// the bar over the list, and the batched action every one of its buttons runs.
+// The shell's half of the message list's multi-selection: the bar over the list, and the batched
+// action every one of its buttons runs.
 //
-// The rules are in `MailSelection`; this file is the wiring. Split from Mailcal.swift so the app
-// shell stays under the repo line limit.
+// The rules are in `MailSelection`, the list's own behaviour in Mailcal.MessageList.swift; this
+// file is the wiring. Split from Mailcal.swift so the app shell stays under the repo line limit.
 
-#if os(macOS)
-import AppKit
-#endif
 import MailcalBindings
 import SwiftUI
 
 extension ContentView {
-    /// What a click on a list row means, or `nil` when it is not about the selection at all.
-    ///
-    /// On macOS the modifiers decide, which is the Outlook behaviour the contract asks for. On
-    /// iPhone and iPad there are none, so selecting is a mode: outside it a tap opens a message as
-    /// it always did, and inside it a tap adds or removes a row.
-    func selectionMode() -> SelectMode? {
-        #if os(macOS)
-        let flags = NSEvent.modifierFlags
-        if flags.contains(.shift) { return .range }
-        if flags.contains(.command) { return .toggle }
-        return .replace
-        #else
-        return selectingRows ? .toggle : nil
-        #endif
-    }
-
-    /// Handles a click on a list row: applies it to the selection and answers whether the row
-    /// should also open. A modified click (or a tap in selection mode) is aimed at the selection
-    /// alone; opening as well would fetch and display a body for every row added to a set.
-    func applySelectionClick(_ row: SnapshotRow) -> Bool {
-        guard let index = visibleRows.firstIndex(where: { $0.rowID == row.rowID }),
-            let mode = selectionMode()
-        else {
-            return true
-        }
-        selection.click(visibleRows, index, mode)
-        #if os(macOS)
-        return mode == .replace
-        #else
-        return false
-        #endif
-    }
-
     /// Runs one action over the selection, then tidies up: a move empties the selection (its rows
     /// are leaving) and lets the reading pane go if the open message was in the batch; a keyword
     /// edit leaves both alone, because the user is usually part-way through a set.
     func actOnSelection(_ action: BulkAction) {
         guard !selection.isEmpty else { return }
-        let closesReading = action.removesRows && selectionHoldsOpenMessage
-        model.actOnSelection(selection.selectedRows, action)
+        let closesReading = action.removesRows && holdsOpenMessage(selection.keys)
+        model.actOnSelection(selection.selectedRows(expanded: expandedConversations), action)
         guard action.removesRows else { return }
         selection.clear()
         if closesReading { clearOpenedMessage() }
     }
 
-    /// Runs a row menu's action over the **selection** when the menu's own row is part of it, and
-    /// answers whether it did (`docs/list-selection.md`, rule 12). A menu opened on a row outside
-    /// the selection is about that row alone, so this answers `false` and the caller takes its
-    /// ordinary single-row path.
-    ///
-    /// The action is the one the user's menu item named, not the one rule 5 derives for the bar:
-    /// they read a label and chose it, so "Mark as read" over a selection marks it read whatever
-    /// mix of read and unread it holds.
-    func actFromRowMenu(_ row: SnapshotRow, _ action: BulkAction) -> Bool {
-        guard selection.contains(row) else { return false }
-        actOnSelection(action)
-        return true
-    }
-
-    /// Whether the message in the reading pane is one of the selected rows, a conversation's
-    /// members included. The pane is cleared rather than advanced: the row it would advance to may
-    /// be in the same batch and about to leave too.
-    private var selectionHoldsOpenMessage: Bool { holdsOpenMessage(selection.keys) }
-
     /// Whether the message in the reading pane is one of `keys`' rows, a conversation's members
-    /// included.
-    func holdsOpenMessage(_ keys: [SelectionKey]) -> Bool {
+    /// included. The pane is cleared rather than advanced: the row it would advance to may be in
+    /// the same batch and about to leave too.
+    func holdsOpenMessage(_ keys: some Collection<SelectionKey>) -> Bool {
         guard let opened = openedMessage else { return false }
-        return visibleRows.filter { keys.contains(SelectionKey($0)) }.contains { row in
-            switch row {
-            case .flat(let message):
-                return message.account == opened.account && message.key == opened.key
-            case .thread(let thread):
-                return thread.messages.contains {
-                    $0.account == opened.account && $0.key == opened.key
-                }
+        let isOpen = { (account: String, key: String) in
+            account == opened.account && key == opened.key
+        }
+        if keys.contains(where: { !$0.isThread && isOpen($0.account, $0.id) }) { return true }
+        return visibleRows.contains { row in
+            guard case .thread(let thread) = row, keys.contains(SelectionKey(row)) else {
+                return false
             }
+            return thread.messages.contains { isOpen($0.account, $0.key) }
         }
     }
 
-    /// Drops selected rows the list no longer holds. Run on every snapshot, so a selection can
-    /// never outlive the list it was made in (`docs/list-selection.md`, rule 4).
+    /// Drops selected rows the list no longer holds. Run whenever the rows change, so a selection
+    /// can never outlive the list it was made in (`docs/list-selection.md`, rule 4).
     func pruneSelection() {
-        selection.retainListed(visibleRows)
+        selection.retainListed(visibleRows, expanded: expandedConversations)
     }
-
-    /// The list's own selection behaviour: the pruning above, and, on the desktop, the two keys
-    /// the contract binds.
-    ///
-    /// The keys hang off the **list**, never the window: bound app-wide, Delete would reach a
-    /// focused search field or composer, where it has to keep editing text
-    /// (`docs/list-selection.md`, rule 9). ⌘A is not bound at all, for the same reason it is a
-    /// button on the bar: it would take the same key away from the search field.
-    func selectionBehaviour(_ list: some View) -> AnyView {
-        let pruned = list.onChange(of: visibleRows.map(\.rowID)) { _, _ in pruneSelection() }
-        #if os(macOS)
-        return AnyView(
-            pruned
-                .focusable()
-                .focusEffectDisabled()
-                .onKeyPress(.delete) { deleteSelectionByKey() }
-                .onKeyPress(.deleteForward) { deleteSelectionByKey() }
-                .onKeyPress(.escape) { clearSelectionByKey() }
-        )
-        #else
-        return AnyView(pruned)
-        #endif
-    }
-
-    #if os(macOS)
-    /// Delete (and ⌦) moves the selection to Trash. Recoverable, so it asks nothing; an empty
-    /// selection passes the key on rather than swallowing it.
-    private func deleteSelectionByKey() -> KeyPress.Result {
-        guard !selection.isEmpty else { return .ignored }
-        actOnSelection(.delete)
-        return .handled
-    }
-
-    private func clearSelectionByKey() -> KeyPress.Result {
-        guard !selection.isEmpty else { return .ignored }
-        selection.clear()
-        return .handled
-    }
-    #endif
 
     /// The bar of message actions: the actions the contract gives it, plus, on the desktop, Sync.
     ///
@@ -142,13 +49,13 @@ extension ContentView {
     /// are merely disabled while nothing is picked (`docs/list-selection.md`, rule 5): a bar that
     /// arrives with the first click moves the rows under the pointer and the message being read,
     /// which is the jump Outlook's own toolbar does not have. On the iPhone and the iPad selecting
-    /// is a mode, so the bar is that mode's chrome and comes and goes with it.
+    /// is the list's edit mode, so the bar is that mode's chrome and comes and goes with it.
     @ViewBuilder
     var selectionBar: some View {
         #if os(macOS)
         selectionBarRow
         #else
-        if !selection.isEmpty { selectionBarRow }
+        if editMode.isEditing { selectionBarRow }
         #endif
     }
 
@@ -179,8 +86,8 @@ extension ContentView {
     private var selectionButtons: some View {
         // One button per pair, labelled from what is selected, so the offered action is always the
         // one that changes something.
-        let read = selection.readAction(in: visibleRows)
-        let flag = selection.flagAction(in: visibleRows)
+        let read = selection.readAction(in: visibleRows, expanded: expandedConversations)
+        let flag = selection.flagAction(in: visibleRows, expanded: expandedConversations)
         Group {
             Button {
                 actOnSelection(read)
@@ -216,6 +123,12 @@ extension ContentView {
         Button { selection.selectAll(visibleRows) } label: {
             Label(L10n.action_select_all(), systemImage: "checklist")
         }
+        #if os(iOS)
+        // ⌘A from a hardware keyboard, while the mode is on: SwiftUI's list answers the system's
+        // Select All only on the Mac. Outside the mode a touch screen selects nothing, so there is
+        // no ⌘A there either.
+        .keyboardShortcut("a", modifiers: .command)
+        #endif
         Button { endSelecting() } label: {
             Label(L10n.action_clear_selection(), systemImage: "xmark")
         }
@@ -241,20 +154,21 @@ extension ContentView {
     func endSelecting() {
         selection.clear()
         #if os(iOS)
-        selectingRows = false
+        withAnimation { editMode = .inactive }
         #endif
     }
 
     #if os(iOS)
-    /// The toolbar's way into selection mode, and back out of it. iPhone and iPad have no
-    /// modifiers, so the mode is the whole affordance.
+    /// The toolbar's way into the list's edit mode, and back out of it. On a touch screen a row is
+    /// selected only in that mode, which draws the system's own checkmarks.
     @ViewBuilder
     var selectToggleButton: some View {
-        Button(selectingRows ? L10n.action_done() : L10n.action_select()) {
-            if selectingRows {
+        Button(editMode.isEditing ? L10n.action_done() : L10n.action_select()) {
+            if editMode.isEditing {
                 endSelecting()
             } else {
-                selectingRows = true
+                selection.clear()
+                withAnimation { editMode = .active }
             }
         }
     }

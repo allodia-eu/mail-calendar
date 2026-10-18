@@ -145,6 +145,8 @@
 	"a11y_collapse_account": "Masquer les dossiers",
 	"a11y_expand_folder": "Afficher les sous-dossiers",
 	"a11y_collapse_folder": "Masquer les sous-dossiers",
+	"a11y_expand_conversation": "Afficher les messages",
+	"a11y_collapse_conversation": "Masquer les messages",
 	"a11y_unread_count": "{count} non lus",
 	"a11y_unread_count_one": "{count} non lu",
 	"a11y_outbox_count": "{count} en attente d'envoi",

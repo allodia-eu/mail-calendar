@@ -59,23 +59,17 @@ extension ContentView {
         beginCompose(.draft(account: account, key: key), failed: read)
     }
 
-    /// Opens a conversation: expands the thread inline in the list (showing its whole
-    /// conversation as sub-rows) and auto-opens its representative message in the reading pane:
-    /// the latest **in-scope** message (`latestKey`, the one the row summarises), so a Sent reply
-    /// filed elsewhere doesn't steal focus. In Drafts that message is a draft, and it opens back
-    /// into its composer as a flat row's does. Tapping again collapses it and leaves the pane
-    /// as-is.
+    /// Opens a conversation: expands the thread inline in the list (its messages become rows of
+    /// their own) and opens its representative message in the reading pane: the latest
+    /// **in-scope** message (`latestKey`, the one the row summarises), so a Sent reply filed
+    /// elsewhere doesn't steal focus. In Drafts that message is a draft, and it opens back into
+    /// its composer as a flat row's does.
     ///
     /// The whole thing goes through the handover, expansion included, so a thread opened beside a
     /// composer replaces it like any other open.
     func open(_ thread: ThreadRow) {
         openGuardingDraft {
-            let key = threadKey(thread)
-            if expandedThreads.contains(key) {
-                expandedThreads.remove(key)
-                return
-            }
-            expandedThreads.insert(key)
+            expandedThreads.insert(threadKey(thread))
             let representative = thread.messages.first(where: { $0.key == thread.latestKey })
                 ?? thread.messages.first
             if let representative {
@@ -99,6 +93,16 @@ extension ContentView {
     // The unguarded open, so `open(_ thread:)`, already inside the guard, doesn't ask twice.
     private func openThreadMessageNow(_ thread: ThreadRow, _ message: ThreadMessage) {
         openNow(opened(message, subject: thread.subject))
+    }
+
+    /// Folds a conversation away, or opens it as `open(_:)` does: the chevron, and the row's
+    /// primary action.
+    func toggle(_ thread: ThreadRow) {
+        if expandedThreads.contains(threadKey(thread)) {
+            expandedThreads.remove(threadKey(thread))
+        } else {
+            open(thread)
+        }
     }
 
     /// The expansion key for a thread (its account-scoped id).
@@ -125,23 +129,19 @@ extension ContentView {
         }
     }
 
+    /// One row of the list. None of them handles a click itself: the list's selection does, so a
+    /// modifier, a drag across rows and ⌘A all mean what the platform says they mean
+    /// (`docs/list-selection.md`, rule 1), and a row opens when it becomes the one selected.
     @ViewBuilder
-    func rowView(_ row: SnapshotRow) -> some View {
-        // Each row is handed its own click rule rather than deciding for itself: what a click
-        // means depends on the modifiers (macOS) or the mode (iPhone, iPad), and on where the row
-        // sits, so a Shift-click knows what range it is extending (`docs/list-selection.md`).
-        switch row {
-        case .flat(let message):
-            flatRow(message, click: { applySelectionClick(row) })
-        case .thread(let thread):
-            threadRow(thread, click: { applySelectionClick(row) })
+    func entryView(_ entry: MessageListEntry) -> some View {
+        switch entry {
+        case .row(.flat(let message)): flatRow(message)
+        case .row(.thread(let thread)): threadHeader(thread)
+        case .member(let thread, let message): threadMessageRow(thread, message)
         }
     }
 
-    /// Whether `row` is one of the rows picked out to act on together.
-    func isSelectedRow(_ row: SnapshotRow) -> Bool { selection.contains(row) }
-
-    private func flatRow(_ message: FlatRow, click: @escaping () -> Bool) -> some View {
+    private func flatRow(_ message: FlatRow) -> some View {
         HStack(spacing: 8) {
             // Alignment gutter: conversation rows put their expand/collapse chevron here
             // (Outlook-style). A flat row reserves the same width and leaves it empty, so the
@@ -181,17 +181,6 @@ extension ContentView {
         }
         .padding(.vertical, 3)
         .contentShape(Rectangle())
-        #if os(macOS)
-        // Double-click opens the message in a window of its own (`docs/reading-window.md`).
-        // **Before** the single-click gesture below, which is how SwiftUI tells the two apart:
-        // the double-click is then delivered on its own and the single one does not run, so the
-        // pane and the selection are left exactly as they were, which is the rule the contract
-        // states. It also means a double-click can never reach the unsent-draft prompt.
-        .onTapGesture(count: 2) { openInWindow(message) }
-        #endif
-        // A modified click (or a tap in selection mode) is aimed at the selection alone: opening
-        // as well would fetch and display a body for every row added to a twenty-row set.
-        .onTapGesture { if click() { open(message) } }
         // Each direction runs exactly the one action the user configured (Settings → Reading),
         // with an undo toast as the net. A swipe *rightwards* reveals the leading edge, so that
         // edge carries `swipeSettings.right`; the trailing edge carries `.left`. Mark read/unread
@@ -202,7 +191,6 @@ extension ContentView {
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             swipeButton(model.swipeSettings.left, message)
         }
-        .contextMenu { flatRowMenu(message) }
         // Onto a folder in the pane (`docs/folder-pane.md`, rule 24).
         .modifier(MessageDragSource(enabled: hasReadingPane) { dragPayload(for: .flat(row: message)) })
     }
@@ -219,8 +207,10 @@ extension ContentView {
         .tint(swipeActionTint(action))
     }
 
+    /// A message row's own menu, about that row alone: a menu over several rows is
+    /// `selectionMenu`.
     @ViewBuilder
-    private func flatRowMenu(_ message: FlatRow) -> some View {
+    func flatRowMenu(_ message: FlatRow) -> some View {
         Button { open(message) } label: {
             Label(L10n.action_open(), systemImage: "envelope.open")
         }
@@ -243,85 +233,51 @@ extension ContentView {
             Label(L10n.action_forward(), systemImage: "arrowshape.turn.up.right")
         }
         Divider()
-        Button {
-            rowMenuAction(message, message.unread ? .markRead : .markUnread) {
-                model.markRead(message.account, message.key, message.unread)
-            }
-        } label: {
+        Button { model.markRead(message.account, message.key, message.unread) } label: {
             Label(message.unread ? L10n.action_mark_read() : L10n.action_mark_unread(), systemImage: "envelope")
         }
-        Button {
-            rowMenuAction(message, .flag) { model.setFlagged(message.account, message.key, true) }
-        } label: {
+        Button { model.setFlagged(message.account, message.key, true) } label: {
             Label(L10n.action_flag(), systemImage: "flag")
         }
-        Button {
-            rowMenuAction(message, .unflag) { model.setFlagged(message.account, message.key, false) }
-        } label: {
+        Button { model.setFlagged(message.account, message.key, false) } label: {
             Label(L10n.action_clear_flag(), systemImage: "flag.slash")
         }
         Divider()
         // Archive alongside Trash, so both destinations are on the menu (not only the swipe).
-        Button {
-            rowMenuAction(message, .archive) { model.archive(message.account, message.key) }
-        } label: {
+        Button { model.archive(message.account, message.key) } label: {
             Label(L10n.action_archive(), systemImage: "archivebox")
         }
-        moveToFolderItem(.flat(row: message))
-        Button {
-            rowMenuAction(message, .delete) { model.delete(message.account, message.key) }
-        } label: {
+        moveToFolderItem([SelectionKey(.flat(row: message))])
+        Button { model.delete(message.account, message.key) } label: {
             Label(L10n.action_move_to_trash(), systemImage: "trash")
         }
-        Button(role: .destructive) {
-            rowMenuAction(message, .permanentlyDelete) {
-                model.permanentlyDelete(message.account, message.key)
-            }
-        } label: {
+        Button(role: .destructive) { model.permanentlyDelete(message.account, message.key) } label: {
             Label(L10n.action_delete_permanently(), systemImage: "trash.slash")
         }
     }
 
-    /// A flat row menu's item: over the whole selection when this row is in it, over this row
-    /// alone when it is not (`docs/list-selection.md`, rule 12).
-    private func rowMenuAction(_ message: FlatRow, _ action: BulkAction, else single: () -> Void) {
-        if actFromRowMenu(.flat(row: message), action) { return }
-        single()
-    }
-
-    /// A conversation row: a tappable header (subject, message count, latest sender) that, when
-    /// expanded, reveals the whole thread as indented sub-rows, every message on it, received
-    /// and the account owner's own Sent replies alike (the core gathers them across folders).
-    @ViewBuilder
-    private func threadRow(_ thread: ThreadRow, click: @escaping () -> Bool) -> some View {
+    /// A conversation row: subject, message count and latest sender. Expanded, every message on
+    /// the thread follows it as a row of its own, received and the account owner's own Sent
+    /// replies alike (the core gathers them across folders).
+    private func threadHeader(_ thread: ThreadRow) -> some View {
         let expanded = expandedThreads.contains(threadKey(thread))
-        VStack(spacing: 0) {
-            threadHeader(thread, expanded: expanded, click: click)
-            if expanded {
-                ForEach(thread.messages, id: \.key) { message in
-                    Divider().padding(.leading, 30)
-                    threadMessageRow(thread, message)
-                }
-            }
-        }
-    }
-
-    /// The thread's summary header. A collapsed thread whose open message is in the reading pane
-    /// is highlighted here (expanded, the open sub-row carries the highlight instead).
-    private func threadHeader(
-        _ thread: ThreadRow,
-        expanded: Bool,
-        click: @escaping () -> Bool
-    ) -> some View {
-        let active = !expanded && thread.messages.contains { isOpenMessage($0.account, $0.key) }
         // A conversation is unread if anything in it is: the header is a summary, and it may not
         // read as settled while it hides an unread reply. Its sub-rows carry their own weight.
         let unread = thread.unreadCount > 0
         return HStack(spacing: 8) {
             // The expand/collapse chevron sits in the same leading gutter a flat row reserves
             // (Outlook-style), so the conversation glyph and subject align with the flat rows.
-            Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                .font(.caption).foregroundStyle(.secondary).frame(width: 14)
+            //
+            // A button of its own, so folding a conversation away is not also selecting it.
+            Button { toggle(thread) } label: {
+                Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                    .font(.caption).foregroundStyle(.secondary).frame(width: 14)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                expanded ? L10n.a11y_collapse_conversation() : L10n.a11y_expand_conversation()
+            )
             unreadDot(unread)
             // The conversation's latest sender, which is who the row's other text names. The
             // chevron and the message-count badge already say this is a thread, so the glyph
@@ -353,30 +309,23 @@ extension ContentView {
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(.vertical, 3)
-        .background(active ? Color.accentColor.opacity(0.15) : Color.clear)
         .contentShape(Rectangle())
-        .onTapGesture { if click() { open(thread) } }
-        .contextMenu { threadMenu(thread) }
         .modifier(MessageDragSource(enabled: hasReadingPane) { dragPayload(for: .thread(row: thread)) })
     }
 
     /// Right-click actions on a conversation. "Archive conversation" and Move to folder… move the
     /// received side only; the core leaves any Sent copies in Sent (they stay visible in the thread).
     @ViewBuilder
-    private func threadMenu(_ thread: ThreadRow) -> some View {
+    func threadMenu(_ thread: ThreadRow) -> some View {
         Button { archiveThread(thread) } label: {
             Label(L10n.thread_archive(), systemImage: "archivebox")
         }
-        moveToFolderItem(.thread(row: thread))
+        moveToFolderItem([SelectionKey(.thread(row: thread))])
     }
 
     /// Archives a conversation (received messages only) and tidies the UI: collapse it and, if
     /// the open message was part of it, clear the reading pane, its row is leaving the folder.
     private func archiveThread(_ thread: ThreadRow) {
-        if actFromRowMenu(.thread(row: thread), .archive) {
-            expandedThreads.remove(threadKey(thread))
-            return
-        }
         model.archiveThread(thread.account, thread.threadId)
         expandedThreads.remove(threadKey(thread))
         if let opened = openedMessage,
@@ -385,8 +334,6 @@ extension ContentView {
         }
     }
 
-    /// One message of an expanded conversation: an indented sub-row (sender, Sent badge, preview,
-    /// date), highlighted when it is the message open in the reading pane. Tapping opens it.
     /// The "Sent" or "Draft" capsule beside a conversation message's sender.
     private func threadBadge(_ text: String) -> some View {
         Text(text)
@@ -396,6 +343,8 @@ extension ContentView {
             .background(.quaternary, in: Capsule())
     }
 
+    /// One message of an expanded conversation: an indented row of its own (sender, Sent badge,
+    /// preview, date), so it can be selected, opened and acted on as the message it is.
     private func threadMessageRow(_ thread: ThreadRow, _ message: ThreadMessage) -> some View {
         HStack(spacing: 8) {
             unreadDot(message.unread)
@@ -428,21 +377,6 @@ extension ContentView {
         }
         .padding(.vertical, 4)
         .padding(.leading, 30)
-        .background(isOpenMessage(message.account, message.key) ? Color.accentColor.opacity(0.15) : Color.clear)
         .contentShape(Rectangle())
-        #if os(macOS)
-        // A conversation's sub-row is a message, so it opens in a window like any other. The
-        // conversation *header* is not: double-clicking there expands and collapses the thread,
-        // which is what it already did (`docs/reading-window.md`).
-        .onTapGesture(count: 2) { openInWindow(thread, message) }
-        #endif
-        .onTapGesture { openThreadMessage(thread, message) }
-        #if os(macOS)
-        .contextMenu {
-            Button { openInWindow(thread, message) } label: {
-                Label(L10n.action_open_in_window(), systemImage: "macwindow.on.rectangle")
-            }
-        }
-        #endif
     }
 }

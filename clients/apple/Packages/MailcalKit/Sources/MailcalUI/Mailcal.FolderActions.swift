@@ -360,15 +360,11 @@ extension ContentView {
         }
     }
 
-    /// The rows a message row's drag or menu stands for: the whole selection when the row is part
-    /// of one, else the row alone (`docs/list-selection.md`, rule 12).
-    func menuRows(_ row: SnapshotRow) -> [SelectionKey] {
-        selection.contains(row) ? selection.keys : [SelectionKey(row)]
-    }
-
-    /// What a message row carries when dragged.
+    /// What a message row carries when dragged: the whole selection when the row is part of one,
+    /// else the row alone (`docs/list-selection.md`, rule 12).
     func dragPayload(for row: SnapshotRow) -> PaneDragPayload {
-        .messages(rows: menuRows(row).map(DraggedRow.init))
+        let rows = selection.contains(row) ? Array(selection.keys) : [SelectionKey(row)]
+        return .messages(rows: rows.map(DraggedRow.init))
     }
 
     /// The folder the list is showing in `account`, which Move to folder… leaves out: `nil` on a
@@ -379,11 +375,10 @@ extension ContentView {
         return model.selected
     }
 
-    /// Move to folder… on a message row's menu (rule 24), when the rows it acts on are in one
-    /// account and some folder of it is left to offer.
+    /// Move to folder… on a message menu (rule 24), when the rows it acts on are in one account
+    /// and some folder of it is left to offer.
     @ViewBuilder
-    func moveToFolderItem(_ row: SnapshotRow) -> some View {
-        let rows = menuRows(row)
+    func moveToFolderItem(_ rows: [SelectionKey]) -> some View {
         if let account = soleAccount(of: rows),
            let tree = model.accountFolderRow(for: account),
            offersMessageMove(in: tree, showing: listFolder(in: account)) {

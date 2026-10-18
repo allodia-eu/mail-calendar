@@ -18,7 +18,7 @@ extension ContentView {
                 ReadingPanePlaceholder()
             }
             #if os(macOS)
-            if let label = selection.paneLabel(mode: model.mode) {
+            if let label = selection.paneLabel(mode: model.mode, expanded: expandedConversations) {
                 SelectionCountPane(label: label)
             }
             #endif
@@ -53,24 +53,6 @@ extension ContentView {
         )
     }
 
-    /// Whether `row` is the open message, to highlight it. A threaded row highlights per
-    /// sub-row inside its own cell (`threadRow`), so it never highlights the whole cell here.
-    func isReadingRow(_ row: SnapshotRow) -> Bool {
-        guard let opened = openedMessage else { return false }
-        switch row {
-        case .flat(let message):
-            return message.account == opened.account && message.key == opened.key
-        case .thread:
-            return false
-        }
-    }
-
-    /// The background a list row is drawn on: selected, open in the reading pane, or neither.
-    func rowHighlight(_ row: SnapshotRow) -> Color {
-        if isSelectedRow(row) { return Color.accentColor.opacity(0.25) }
-        return isReadingRow(row) ? Color.accentColor.opacity(0.15) : Color.clear
-    }
-
     var messageList: some View {
         VStack(spacing: 0) {
             messageListHeader
@@ -85,34 +67,12 @@ extension ContentView {
                 // that have not been sent.
                 outboxList
             } else {
-            selectionBehaviour(
-                List {
-                    let rows = visibleRows
-                    ForEach(rows, id: \.rowID) { row in
-                        rowView(row)
-                            // Highlight the selected rows, and the one whose message is open in
-                            // the reading pane. Selection wins where they disagree: it is what
-                            // the bar's buttons would act on, so it is what has to be legible.
-                            .listRowBackground(rowHighlight(row))
-                            // Infinite scroll: when the last row appears, ask the core for the
-                            // next page. It grows the window and re-projects; the model coalesces
-                            // the burst and no-ops once every row is shown.
-                            .onAppear {
-                                // Defer to the next main-actor hop so we don't grow the list from
-                                // inside the table's layout pass (the source of the NSTableView
-                                // "reentrant operation" warning).
-                                if row.rowID == rows.last?.rowID {
-                                    Task { @MainActor in model.showMore() }
-                                }
-                            }
-                    }
-                }
+            messageRows
                 // Over the rows, so the list keeps its size and the surfaces around it (the
                 // header, the selection bar, the footer) do not move as a folder fills.
                 .overlay {
                     EmptyMailboxView(reason: model.emptyReason) { settingsCategory = .accounts }
                 }
-            )
             }
             Divider()
             // Background-download progress: a thin bar with a "downloading Y of X" count, shown

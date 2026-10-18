@@ -63,14 +63,14 @@ public struct ContentView: View {
     @State var contactEditor: ContactEditorModel?
     @State var contactCardChoice: [ContactCardChoice]?
     @State var expandedThreads: Set<String> = [] // keyed `account/threadId` → conversation sub-rows
-    /// The rows picked out to act on together. View state, like the disclosure above it:
-    /// transient, never persisted, and read by nothing outside this list
-    /// (`docs/list-selection.md`, rule 1).
+    /// The rows picked out, bound to the list's own selection: view state, never persisted
+    /// (`docs/list-selection.md`, rule 1). The rest is the list's too (Mailcal.MessageList.swift).
     @State var selection = MailSelection()
-    #if os(iOS)
-    /// Whether the list is in selection mode. A phone has no modifier keys, so picking several
-    /// messages is a mode the toolbar's Select enters and Done leaves.
-    @State var selectingRows = false
+    #if os(macOS)
+    @FocusState var messageListFocused: Bool
+    @State var paneBeforeClick: PaneBeforeClick?
+    #else
+    @State var editMode: EditMode = .inactive
     #endif
     @State var accountToRemove: AccountRow? // the account a remove-confirmation is open for
     /// The folder sheet (a name dialog, or Move to…) and the folder a delete-confirmation is open

@@ -16,10 +16,19 @@ selection itself is the client's, and rule 1 says why.
    reads it. What a client cannot do correctly is the *write*, which is why that is one intent
    rather than a loop (rule 8).
 
+   So a client binds the list control's own selection rather than handling clicks on rows. A
+   click, a modifier, a drag across rows, the arrow keys and Select All then mean what they mean
+   in every other app on that platform, and the client adds only what a selection *does*: opening
+   the one row picked, the menus over it, and the batch.
+
 2. **A selection is a set of rows, not of messages.** In the flat list a row is one message; in
    the threaded list it is a whole conversation. `SelectedRow` carries which, so the core expands
    a conversation itself: its members come from the store's thread index, which holds messages a
    windowed list never listed, and no client can know them.
+
+   Where an expanded conversation lists its messages as rows of their own, each of those is a
+   message row and travels as one. A message picked inside a conversation that is itself picked
+   is left out of the batch, because the core expands the conversation to it already.
 
 3. **A move never takes a Sent copy out of Sent.** Archive, Trash and permanent delete over a
    conversation row leave the owner's own replies filed in Sent, so reopening the thread still
@@ -53,7 +62,9 @@ selection itself is the client's, and rule 1 says why.
    beneath them, where at the leading edge they stay where the hand learnt them. Each carries its
    platform's own icon beside the word.
 
-   The phones and the iPad keep the bar the selection *mode* brings with it: there is no selection
+   The phones and the iPad keep the bar the selection *mode* brings with it, arriving and leaving
+   with the mode (on Apple the mode is the list's own edit mode, which draws the system's
+   checkmarks): there is no selection
    to disable actions over until the mode is entered, so standing chrome there would be a row of
    dead buttons taking height from a list that has less of it to give. That bar keeps the count,
    which on the desktop moves to the reading pane (rule 10).
@@ -97,12 +108,24 @@ selection itself is the client's, and rule 1 says why.
 9. **The keyboard is the desktop's, and it is scoped to the list.** Where the message list has
    focus: **Delete** (and Backspace) moves the selection to Trash, **Escape** clears it. Both are
    bound on the list itself, never app-wide, so a focused search field or composer keeps its own
-   keys, which is the whole reason for the scope.
+   keys, which is the whole reason for the scope. On macOS Delete is also the Edit menu's
+   **Delete**, which acts on the list while the list has focus.
 
-   **Ctrl/⌘+A is the toolkit's where the toolkit has it** (`GtkListBox` in multiple-selection mode,
-   a WinUI `ListView` in `Extended`), and is bound nowhere it is not: taking that key from a
-   focused search field to select mail would be worse than not having it. Every platform therefore
-   also offers **Select all** as a button on the bar, which is the affordance the contract counts.
+   **Ctrl/⌘+A is the toolkit's** (`GtkListBox` in multiple-selection mode, a WinUI `ListView` in
+   `Extended`, SwiftUI's `List` on macOS, where it is the Edit menu's **Select All**), and is never
+   bound app-wide: taking that key from a focused search field to select mail would be worse than
+   not having it. Every platform also offers **Select all** as a button on the bar, which is the
+   affordance the contract counts.
+
+   On iPhone and iPad with a hardware keyboard, ⌘A is that button's: SwiftUI's list answers the
+   system's Select All only on the Mac, and a touch screen selects nothing outside the mode, so the
+   chord works while the mode is on and the bar is there to carry it. A focused field still takes
+   it first.
+
+   A click on a row hands the list focus, so these keys reach the selection the click made. A
+   SwiftUI list on the Mac selects a clicked row without taking focus, so the Apple client moves
+   focus to it whenever the selection gains a row, and never when it only loses rows: a search
+   being typed drops rows from the list, and must keep its field.
 
 10. **Select all covers the rows that are loaded**, which is the window the list is showing, not
     every message in the folder. The count says how many, so what was selected is never in doubt.
@@ -114,7 +137,8 @@ selection itself is the client's, and rule 1 says why.
     row and opens it, so a pane stating "1 selected" would replace the message the user just asked
     to read with a count of it. And the rows are called what the list calls them: *messages* in
     the flat list, *conversations* in the threaded one, since a threaded row stands for a whole
-    thread. It covers the pane rather than replacing it, so dropping back to one row uncovers the
+    thread, and *messages* again once a message picked inside an expanded conversation is among
+    them. It covers the pane rather than replacing it, so dropping back to one row uncovers the
     message with no re-fetch.
 
 11. **Selection is exposed to assistive technology as the platform's own selected state**, not as
@@ -142,12 +166,17 @@ selection itself is the client's, and rule 1 says why.
     offers one, because no bulk action has an undo anywhere; and a permanent delete over a
     selection asks with the count, since the confirmation must name what is actually going.
 
+    On Apple the toolkit makes the choice: one menu is attached to the list, and the list hands it
+    the selection when the row under the pointer is in it and that row alone when it is not,
+    leaving the selection as it was. A selection of one is that row's own menu, so it keeps the
+    single-row path and its undo window.
+
 ## Per-platform
 
 | Platform | Enter | Extend | Bar | Count | Delete key | Escape | Row menu | Sync on the bar | Where |
 |---|---|---|---|---|:---:|:---:|:---:|:---:|---|
-| macOS | ⌘-click a row | ⇧-click a range | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ✅ | `Mailcal.Selection.swift` |
-| iPhone / iPadOS | **Select** in the toolbar | tap toggles | over the list, with the mode | on the bar | — | — | ✅ | n/a: pull to refresh | `Mailcal.Selection.swift` |
+| macOS | ⌘-click a row | ⇧-click a range, ⌘A, Edit ▸ Select All | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ✅ | `Mailcal.MessageList.swift`, `Mailcal.Selection.swift` |
+| iPhone / iPadOS | **Select** in the toolbar (the list's edit mode) | tap toggles | over the list, with the mode | on the bar | — | — | ✅ | n/a: pull to refresh | `Mailcal.MessageList.swift`, `Mailcal.Selection.swift` |
 | Windows | Ctrl-click a row | Shift-click, Ctrl+A | standing, over the whole window | reading pane | ✅ | ✅ | ✅ | ✅, and New Mail at the head | `MainWindow.xaml`, `Views/MailListView.Selection.cs` |
 | Android | long-press a row | tap toggles | contextual top bar | on the bar | — | — | — | n/a: pull to refresh | `MailSelectionBar.kt` |
 | Linux | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ✅ | `ui/selection_bar.rs`, `ui/selection_input.rs` |
@@ -160,9 +189,10 @@ Mobile has no modifier keys, so both phones enter a selection mode and leave it 
 Android, **Done** on iPhone/iPad); a plain tap there still opens a message, as it always did.
 The desktops need no mode: a plain click selects the one row and opens it, exactly as before.
 
-The rules themselves are one small state machine per client, unit-tested without a window:
-`MailSelection.swift`, `SelectionActions.cs`, `MailSelection.kt`, `ui/selection.rs`. The batch they
-all dispatch into is `crates/mailcal-app/src/mail_ops/bulk.rs`.
+The rules a client owns are unit-tested without a window: `MailSelection.swift`,
+`SelectionActions.cs`, `MailSelection.kt`, `ui/selection.rs`. On Apple that is what a selection
+derives (the bar's labels, the pane's count, the batch), since its clicks are the toolkit's. The
+batch they all dispatch into is `crates/mailcal-app/src/mail_ops/bulk.rs`.
 
 ## Known gaps
 
@@ -184,12 +214,12 @@ all dispatch into is `crates/mailcal-app/src/mail_ops/bulk.rs`.
   narrowest capability across a selection spanning accounts. Left until the single-row affordance
   is on every platform.
 - **The iPad has a reading pane and does not get the standing bar.** Selecting is a mode there,
-  so until it is entered there is nothing to disable actions over, and the two columns are
-  separate `NavigationSplitView` columns rather than one surface a bar can span. Giving it the
-  desktop's bar means giving it the desktop's way in first, which is the shortcuts gap below.
-- **iPad hardware keyboards get no shortcuts**, though the platform supports them: the rule above
-  binds the three desktops, and adding iPad means deciding what Escape does to a selection mode
-  that has its own Done button.
+  as the platform's guidelines ask of a list on a touch screen, so until it is entered there is
+  nothing to disable actions over, and the two columns are separate `NavigationSplitView` columns
+  rather than one surface a bar can span.
+- **iPad hardware keyboards get ⌘A in the mode and nothing else**, though the platform supports
+  more: Delete and Escape bind the three desktops, and adding them on iPad means deciding what
+  Escape does to a selection mode that has its own Done button.
 - **Nothing verifies the desktop behaviour end to end.** Each client's rules have unit tests, and
   the batch has its own in `tests_selection.rs`, but what a ⇧-click does to a real list is a
   toolkit behaviour: `clients/windows/uitests` is the one suite that could assert it, and it does

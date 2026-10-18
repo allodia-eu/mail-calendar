@@ -215,13 +215,15 @@ none either, and `GApplication` hands a second launch to the process already run
   window opens in front and that the mailbox can be raised back over it are hand-verified on a
   GNOME session; what a capture there can show is the `app_id` each window carries
   (`swaymsg -t get_tree`), which is the other half of the rule.
-- **On Windows the first press of a double-click still opens the row in the pane, and is undone.**
-  The list raises its own click on that press, before anything can know a window was wanted, so the
-  pane is put back once the double-tap arrives and the trailing click is refused. The end state is
-  the contract's, and the pane usually never repaints, because it goes on drawing what it had while
-  the correction runs. A composer in the pane is left by that first press, and its draft kept in
-  Drafts, as any click on a row leaves it. Anyone who finds a way to defer that press without
-  adding latency to every single click should take it.
+- **On Windows and macOS the first press of a double-click still opens the row in the pane, and
+  is undone.** The list raises its own click on that press, before anything can know a window was
+  wanted, so the pane and the selection are put back once the double-click arrives (on Windows the
+  trailing click is refused as well). The end state is the contract's, and on Windows the pane
+  usually never repaints, because it goes on drawing what it had while the correction runs; on
+  macOS the message it goes back to is opened again. A composer in the pane is left by that first
+  press, and its draft kept in Drafts, as any click on a row leaves it. Anyone who finds a way to
+  defer that press without adding latency to every single click should take it. macOS defers it
+  in nothing: its list's selection is the toolkit's, so a click opens as Mail's own does.
 
   In the Drafts folder the first press resumes the draft into the composer ([`drafts.md`](drafts.md)),
   and a composer cannot be put back the way the pane is, so a double-click there opens no window:

@@ -1,10 +1,11 @@
-// The message list's selection rules (`docs/list-selection.md`), without a window: what each
-// modifier means, what survives a snapshot rebuild, which of the paired actions the bar offers,
-// and what a conversation row becomes when the batch goes to the core.
+// The message list's selection rules (`docs/list-selection.md`), without a window: what survives a
+// snapshot rebuild, which of the paired actions the bar offers, and what a conversation row and a
+// message picked inside one become when the batch goes to the core.
 //
-// The last two fail silently in the running app: a button offering the action that changes nothing
-// does nothing when clicked, and a conversation sent as its latest message archives one reply
-// while the rest of the thread stays in the inbox.
+// What a click or a modifier does is the list control's and is not restated here. The rest fail
+// silently in the running app: a button offering the action that changes nothing does nothing when
+// clicked, and a conversation sent as its latest message archives one reply while the rest of the
+// thread stays in the inbox.
 
 import Foundation
 import MailcalBindings
@@ -39,9 +40,17 @@ import Testing
         )
     }
 
-    private func thread(_ id: String, unreadCount: UInt32 = 0) -> SnapshotRow {
-        .thread(
-            row: ThreadRow(
+    private func member(_ key: String, unread: Bool = false) -> ThreadMessage {
+        ThreadMessage(
+            account: "acct-1", key: key, from: "sender", avatar: avatar(), date: "2026-07-20",
+            preview: "", unread: unread, outgoing: false, draft: false, hasAttachment: false
+        )
+    }
+
+    private func conversation(
+        _ id: String, unreadCount: UInt32 = 0, messages: [ThreadMessage] = []
+    ) -> ThreadRow {
+        ThreadRow(
                 account: "acct-1",
                 threadId: id,
                 latestKey: "\(id)-latest",
@@ -53,61 +62,21 @@ import Testing
                 unreadCount: unreadCount,
                 hasAttachment: false,
                 preview: "",
-                messages: []
-            )
+                messages: messages
         )
     }
 
-    private func keys(_ selection: MailSelection) -> [String] {
-        selection.selectedRows.map { row in
+    private func thread(_ id: String, unreadCount: UInt32 = 0) -> SnapshotRow {
+        .thread(row: conversation(id, unreadCount: unreadCount))
+    }
+
+    private func keys(_ selection: MailSelection, expanded: [ThreadRow] = []) -> [String] {
+        selection.selectedRows(expanded: expanded).map { row in
             switch row {
             case .message(_, let key): return key
             case .thread(_, let threadId): return threadId
             }
         }
-    }
-
-    @Test func aPlainClickPicksOneRowAndDropsTheRest() {
-        let rows = [flat("m1"), flat("m2")]
-        var selection = MailSelection()
-
-        selection.click(rows, 0, .toggle)
-        selection.click(rows, 1, .toggle)
-        #expect(keys(selection) == ["m1", "m2"])
-
-        selection.click(rows, 1, .replace)
-        #expect(keys(selection) == ["m2"], "a plain click starts over")
-    }
-
-    @Test func commandClickAddsThenRemovesTheSameRow() {
-        let rows = [flat("m1"), flat("m2")]
-        var selection = MailSelection()
-
-        selection.click(rows, 0, .replace)
-        selection.click(rows, 1, .toggle)
-        #expect(keys(selection) == ["m1", "m2"])
-
-        selection.click(rows, 1, .toggle)
-        #expect(keys(selection) == ["m1"], "the second click deselects")
-    }
-
-    @Test func shiftClickTakesTheRangeBetweenTheAnchorAndTheRow() {
-        let rows = [flat("m1"), flat("m2"), flat("m3"), flat("m4")]
-        var selection = MailSelection()
-
-        selection.click(rows, 1, .replace)
-        selection.click(rows, 3, .range)
-        #expect(keys(selection) == ["m2", "m3", "m4"])
-
-        // Upwards from the same anchor, which is what correcting an over-long range does.
-        selection.click(rows, 0, .range)
-        #expect(keys(selection) == ["m1", "m2"])
-    }
-
-    @Test func aShiftClickWithNothingToExtendFromPicksTheOneRow() {
-        var selection = MailSelection()
-        selection.click([flat("m1"), flat("m2")], 1, .range)
-        #expect(keys(selection) == ["m2"])
     }
 
     /// The archived rows are gone from the next snapshot. A selection that kept them would act on
@@ -123,15 +92,18 @@ import Testing
         #expect(selection.isEmpty, "an emptied list empties the selection")
     }
 
-    @Test func aRangeAfterItsAnchorLeftTheListPicksTheOneRow() {
+    /// Folding a conversation away takes its messages off the list, so a message picked inside
+    /// it leaves the selection with them.
+    @Test func aMessageOfAFoldedConversationLeavesTheSelection() {
+        let open = conversation("t1", messages: [member("t1-a"), member("t1-b")])
         var selection = MailSelection()
-        selection.click([flat("m1"), flat("m2")], 0, .replace)
+        selection.keys = [SelectionKey(open.messages[0])]
 
-        // m1 was archived; the anchor goes with it rather than pointing at whatever moved up.
-        let rows = [flat("m2"), flat("m3")]
-        selection.retainListed(rows)
-        selection.click(rows, 1, .range)
-        #expect(keys(selection) == ["m3"])
+        selection.retainListed([.thread(row: open)], expanded: [open])
+        #expect(keys(selection) == ["t1-a"], "still listed while the conversation is open")
+
+        selection.retainListed([.thread(row: open)])
+        #expect(selection.isEmpty)
     }
 
     @Test func theBarOffersMarkReadWhileAnythingSelectedIsUnread() {
@@ -171,10 +143,10 @@ import Testing
         var selection = MailSelection()
         #expect(selection.paneLabel(mode: .flat) == nil, "nothing picked, nothing to say")
 
-        selection.click(rows, 0, .replace)
+        selection.keys = [SelectionKey(rows[0])]
         #expect(selection.paneLabel(mode: .flat) == nil, "the one row is what the pane is showing")
 
-        selection.click(rows, 2, .range)
+        selection.selectAll(rows)
         // The words are the catalog's; what this asserts is that the list the rows were picked in
         // decides which noun, since a threaded row stands for a whole conversation.
         let flatLabel = selection.paneLabel(mode: .flat)
@@ -190,8 +162,8 @@ import Testing
         var selection = MailSelection()
         selection.selectAll(rows)
 
-        #expect(selection.selectedRows.count == 1)
-        if case .thread(let account, let threadId) = selection.selectedRows[0] {
+        #expect(selection.selectedRows().count == 1)
+        if case .thread(let account, let threadId) = selection.selectedRows()[0] {
             #expect(account == "acct-1")
             #expect(threadId == "t1")
         } else {
@@ -204,27 +176,50 @@ import Testing
         )
     }
 
-    @Test func aRowMenuOnASelectedRowCoversTheWholeSelection() {
-        let rows = [flat("m1"), flat("m2"), flat("m3")]
-        var selection = MailSelection()
-        selection.click(rows, 0, .replace)
-        selection.click(rows, 2, .toggle)
-
-        // `contains` is what the row menu asks before it dispatches the batch instead of the
-        // single-row intent (`docs/list-selection.md`, rule 12).
-        #expect(selection.contains(rows[0]))
-        #expect(selection.contains(rows[2]))
-        #expect(!selection.contains(rows[1]), "a menu on an unselected row is about that row alone")
-    }
-
     @Test func aSelectedConversationIsNotTheMessageRowThatSharesItsId() {
-        let rows = [thread("x")]
         var selection = MailSelection()
-        selection.click(rows, 0, .replace)
+        selection.selectAll([thread("x")])
 
         // The two travel to the core as different shapes, so a message menu may not act on a
         // selection holding only the conversation whose id happens to match.
         #expect(!selection.contains(flat("x")))
+    }
+
+    /// A message picked inside a conversation travels as the message it is, and is left out when
+    /// its whole conversation is picked too: the core expands the conversation to it already.
+    @Test func aMessageInsideASelectedConversationIsNotSentTwice() {
+        let open = conversation("t1", messages: [member("t1-a"), member("t1-b")])
+        var selection = MailSelection()
+        selection.keys = [SelectionKey(open.messages[1])]
+        #expect(keys(selection, expanded: [open]) == ["t1-b"])
+        if case .message = selection.selectedRows(expanded: [open])[0] {} else {
+            Issue.record("a message picked inside a conversation must travel as a message")
+        }
+
+        selection.keys.insert(SelectionKey(.thread(row: open)))
+        #expect(keys(selection, expanded: [open]) == ["t1"])
+    }
+
+    @Test func aMessagePickedInsideAConversationCountsForTheBar() {
+        let open = conversation("t1", messages: [member("t1-a", unread: true)])
+        var selection = MailSelection()
+        selection.keys = [SelectionKey(open.messages[0])]
+
+        #expect(selection.readAction(in: [.thread(row: open)], expanded: [open]) == .markRead)
+        #expect(selection.flagAction(in: [.thread(row: open)], expanded: [open]) == .flag)
+    }
+
+    /// A threaded list calls its rows conversations, a single-message one drawn as a message row
+    /// included, but a message picked inside an expanded conversation is a message.
+    @Test func thePaneCallsAMessagePickedInsideAConversationAMessage() {
+        let open = conversation("t1", messages: [member("t1-a")])
+        var selection = MailSelection()
+        selection.keys = [SelectionKey(.thread(row: open)), SelectionKey(flat("m1"))]
+        let conversations = selection.paneLabel(mode: .threaded, expanded: [open])
+        #expect(conversations != selection.paneLabel(mode: .flat))
+
+        selection.keys = [SelectionKey(.thread(row: open)), SelectionKey(open.messages[0])]
+        #expect(selection.paneLabel(mode: .threaded, expanded: [open]) != conversations)
     }
 
     @Test func onlyTheActionsThatEmptyTheRowClearTheSelection() {
