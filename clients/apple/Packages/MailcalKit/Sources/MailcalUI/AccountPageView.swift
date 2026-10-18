@@ -183,6 +183,8 @@ struct AccountUsesSection: View {
 
     @State private var switching: AccountCapability?
     @State private var confirmingOff: AccountCapability?
+    /// The use under which the sign-in of its own is open.
+    @State private var separateServerUnder: AccountCapability?
 
     init(
         model: MailboxModel, entry: AccountEntry, alert: Binding<AccountPageAlert?>,
@@ -243,6 +245,27 @@ struct AccountUsesSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            separateServer(capability)
+        }
+    }
+
+    /// A sign-in of its own, under a use whose server needs one or refused the account's
+    /// (docs/accounts.md rule 18): a button, then the form it opens.
+    @ViewBuilder
+    private func separateServer(_ capability: AccountCapability) -> some View {
+        if SeparateServerRules.offered(entry, capability),
+           let ask = SeparateServerRules.ask(entry)
+        {
+            if separateServerUnder == capability {
+                AccountSeparateServerForm(model: model, ask: ask) { separateServerUnder = nil }
+                    .padding(.top, 4)
+            } else {
+                Button(L10n.settings_account_use_separate_sign_in()) {
+                    separateServerUnder = capability
+                }
+                .controlSize(.small)
+                .disabled(separateServerUnder != nil || switching != nil)
             }
         }
     }

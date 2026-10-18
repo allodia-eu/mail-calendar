@@ -69,7 +69,9 @@ extension MailboxModel {
             } catch {
                 // The sign-in worked, so the add's own reason is the one to show.
                 showSetupFailure(error)
-                keepExistingAccountOffer(error, configToml: configToml)
+                // What the sign-in did not reach is asked about again before an update.
+                keepExistingAccountOffer(
+                    error, configToml: configToml, unreached: start.unreached)
                 return .notAdded
             }
             setupError = nil

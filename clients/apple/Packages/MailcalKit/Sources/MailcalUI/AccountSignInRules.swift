@@ -36,12 +36,16 @@ struct ExistingAccountUpdate: Equatable {
     let accountId: String
     /// The config the refused add was given. It carries the credential, so it is never logged.
     let configToml: String
+    /// The calendar and contacts the sign-in that produced the config does not reach, which the
+    /// update asks about first (docs/accounts.md rule 18).
+    let unreached: [AccountCapability]
 
     /// The offer a failed add makes; `nil` for every failure but an account already set up.
-    init?(refusal error: Error, configToml: String) {
+    init?(refusal error: Error, configToml: String, unreached: [AccountCapability] = []) {
         guard case let MailcalError.AlreadySetUp(accountId) = error else { return nil }
         self.accountId = accountId
         self.configToml = configToml
+        self.unreached = unreached
     }
 }
 

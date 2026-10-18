@@ -17,12 +17,16 @@ extension MailboxModel {
     }
 
     /// Signs `id` in through its provider: again, from its stored grant, or for the first time in
-    /// place of its password. The account keeps its id, uses, links, settings and mail.
+    /// place of its password. The account keeps its id, uses, links, settings and mail. A switch
+    /// that would not reach the account's calendar or contacts asks through `ask` before the
+    /// browser opens (docs/accounts.md rule 18); with no `ask`, such a switch is abandoned.
     ///
     /// Not guarded against a second press while the browser is up: a newer request ends the
     /// browser of the one before it (docs/provider-oauth.md rule 13), as a Microsoft or Google
     /// sign-in in place does. The core's own work is guarded by `signInSwitchBusy`.
-    func signInThroughProvider(_ id: String, redirectURI: String) async -> ConsentEnded {
+    func signInThroughProvider(
+        _ id: String, redirectURI: String, ask: UnreachedAsker? = nil
+    ) async -> ConsentEnded {
         guard let app else { return .failed(L10n.app_unavailable()) }
         consentBrowser?.cancel()
         consentAttempt &+= 1
@@ -42,6 +46,14 @@ extension MailboxModel {
             }.value
             guard consentAttempt == attempt else { return .cancelled }
             signInSwitchBusy = nil
+            let unreached: UnreachedUses?
+            switch await answerUnreached(start.unreached, ask) {
+            case let .proceed(answer): unreached = answer
+            case .abandon:
+                endSignInSwitch(attempt)
+                return .cancelled
+            }
+            guard consentAttempt == attempt else { return .cancelled }
             signingInAgain = id
             // ASWebAuthenticationSession must start on the main actor. It catches the redirect
             // of both an IMAP and a JMAP grant, which share the app's scheme.
@@ -52,7 +64,8 @@ extension MailboxModel {
             // The exchange, the connect and the store all block.
             try await Task.detached(priority: .userInitiated) {
                 try app.completeAccountSignIn(
-                    accountId: id, pending: start.pending, callbackUrl: callbackURL)
+                    accountId: id, pending: start.pending, callbackUrl: callbackURL,
+                    unreached: unreached)
             }.value
             logBrowserSignIn("account", "the account was signed in through its provider in place")
             endSignInSwitch(attempt)
@@ -112,22 +125,35 @@ extension MailboxModel {
     // MARK: An account already set up
 
     /// Keeps what the refusal of an add needs to offer updating the account already there.
-    func keepExistingAccountOffer(_ error: Error, configToml: String) {
-        setupExistingAccount = ExistingAccountUpdate(refusal: error, configToml: configToml)
+    /// `unreached` is what the sign-in that produced the config said it would not reach.
+    func keepExistingAccountOffer(
+        _ error: Error, configToml: String, unreached: [AccountCapability] = []
+    ) {
+        setupExistingAccount = ExistingAccountUpdate(
+            refusal: error, configToml: configToml, unreached: unreached)
     }
 
     /// Puts the credential the refused add was given on the account already there, and ends
     /// setup as an add does. The account is already in every list, so nothing is added and no
-    /// name is asked.
-    func updateExistingAccount() {
+    /// name is asked. A credential that would not reach the account's calendar or contacts asks
+    /// through `ask` first; Cancel leaves the refusal on screen.
+    func updateExistingAccount(ask: UnreachedAsker? = nil) {
         guard let app, let offer = setupExistingAccount, !updatingExistingAccount else { return }
-        updatingExistingAccount = true
         Task { @MainActor in
+            // Asked before the offer turns to "Connecting", so the button stays behind the alert.
+            let unreached: UnreachedUses?
+            switch await self.answerUnreached(offer.unreached, ask) {
+            case let .proceed(answer): unreached = answer
+            case .abandon: return
+            }
+            guard !self.updatingExistingAccount, self.setupExistingAccount == offer else { return }
+            self.updatingExistingAccount = true
             defer { self.updatingExistingAccount = false }
             do {
                 try await Task.detached(priority: .userInitiated) {
                     try app.useCredentialFrom(
-                        accountId: offer.accountId, configToml: offer.configToml)
+                        accountId: offer.accountId, configToml: offer.configToml,
+                        unreached: unreached)
                 }.value
                 self.setupExistingAccount = nil
                 self.accountWasAdded()
@@ -137,5 +163,15 @@ extension MailboxModel {
                 self.setupError = setupFailureMessage(error)
             }
         }
+    }
+
+    /// What a sign-in hands the core for the uses it said it would not reach, asking the person
+    /// through `ask` when there are any.
+    func answerUnreached(
+        _ unreached: [AccountCapability], _ ask: UnreachedAsker?
+    ) async -> UnreachedDecision {
+        guard let set = SeparateServerRules.asks(unreached) else { return .proceed(nil) }
+        guard let ask else { return SeparateServerRules.decision(unreached, answer: nil) }
+        return SeparateServerRules.decision(unreached, answer: await ask(set))
     }
 }

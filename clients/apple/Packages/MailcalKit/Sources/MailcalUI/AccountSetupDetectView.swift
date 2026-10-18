@@ -9,8 +9,9 @@
 import SwiftUI
 import MailcalBindings
 
-/// The setup screen: the link step once an account has been added and another can fill
-/// something it lacks (docs/onboarding.md, "After the connect"), the email-first flow otherwise.
+/// The setup screen: once an account has been added, the password of a calendar or contacts
+/// server its sign-in did not reach, then the link step when another account can fill something
+/// it lacks (docs/onboarding.md, "After the connect"); the email-first flow otherwise.
 /// One view for the first run and a later add, so the two cannot drift.
 struct AccountSetupScreen: View {
     var model: MailboxModel
@@ -18,7 +19,9 @@ struct AccountSetupScreen: View {
     var firstRun: Bool
 
     var body: some View {
-        if model.setupFlow.links != nil {
+        if let ask = model.setupFlow.separateServer {
+            SeparateServerStepView(model: model, ask: ask)
+        } else if model.setupFlow.links != nil {
             SetupLinkStepView(model: model)
         } else {
             // A fresh view whenever the link step hands back to it, so "Add another account"

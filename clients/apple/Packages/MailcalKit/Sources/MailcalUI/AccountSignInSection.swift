@@ -18,6 +18,8 @@ struct AccountSignInSection: View {
     /// The password field is drawn: the person chose the switch to a password.
     @State private var choosingPassword = false
     @State private var password = ""
+    /// The question a switch asks before the browser opens, while it is on screen.
+    @State private var question: UnreachedQuestion?
 
     /// The core is working on this account's sign-in, so nothing here may start another.
     private var busy: Bool { model.signInSwitchBusy == entry.id }
@@ -49,6 +51,7 @@ struct AccountSignInSection: View {
                 }
             }
         }
+        .unreachedUsesAlert($question)
         // Asked again once a switch lands, because the other way in is a different question.
         .task(id: OptionsKey(account: entry.id, signIn: entry.signIn)) {
             options = nil
@@ -105,7 +108,10 @@ struct AccountSignInSection: View {
         result = nil
         let id = entry.id
         Task {
-            switch await model.signInThroughProvider(id, redirectURI: redirect) {
+            let ended = await model.signInThroughProvider(id, redirectURI: redirect) { set in
+                await UnreachedQuestion.ask(set) { question = $0 }
+            }
+            switch ended {
             case .signedIn:
                 result = AccountSettingsLabels.signInDone(action)
             case .cancelled:
