@@ -145,7 +145,7 @@ struct AccountPageView: View {
                         uses: withheld.map(AccountSettingsLabels.use).joined(separator: ", "))
             case .cancelled:
                 break
-            case let .failed(detail):
+            case let .failed(detail, _):
                 alert = AccountPageAlert(title: L10n.settings_account_signin_failed(), detail: detail)
             }
         }

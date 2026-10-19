@@ -66,7 +66,7 @@ extension MailboxModel {
             // The core's messages name endpoints, scopes and error codes, never an address or a
             // secret, so showing and logging one stays inside the never-log-content rule.
             logAppleLifecycle("allodia: sign-in did not complete (\(error))")
-            return .failed("\(error)")
+            return .failed(signInRemedy(error) ?? "\(error)")
         }
     }
 

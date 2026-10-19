@@ -116,7 +116,7 @@ struct AccountSignInSection: View {
                 result = AccountSettingsLabels.signInDone(action)
             case .cancelled:
                 break
-            case let .failed(detail):
+            case let .failed(detail, _):
                 alert = AccountPageAlert(
                     title: AccountSettingsLabels.signInFailed(action), detail: detail)
             }

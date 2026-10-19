@@ -80,7 +80,7 @@ extension MailboxModel {
         } catch {
             logBrowserSignIn("account", "signing in did not complete (\(coreMessage(error)))")
             endSignInSwitch(attempt)
-            return .failed(coreMessage(error))
+            return .failure(error)
         }
     }
 
@@ -116,8 +116,8 @@ extension MailboxModel {
     func signInThroughProviderFromBanner(_ id: String) {
         Task {
             let ended = await signInThroughProvider(id, redirectURI: ImapOAuthConfig.redirectURI)
-            if case .failed = ended {
-                accountNotice = L10n.signin_expired_failed()
+            if let notice = ended.bannerNotice {
+                accountNotice = notice
             }
         }
     }

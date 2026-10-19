@@ -18,6 +18,8 @@ enum ImapSignInOutcome {
     case connected
     case cancelled
     case failed
+    /// Signing in again as `setupError` says settles it, so the sign-in stays offered.
+    case retry
     /// Signed in, but the add was refused; `setupError` says why.
     case notAdded
 }
@@ -45,6 +47,7 @@ extension MailboxModel {
             return .failed
         }
         setupExistingAccount = nil
+        setupError = nil
         // The session's `presentationContextProvider` is a WEAK reference, so this local is what
         // keeps the provider alive; the awaited `authorize` call spans the whole presentation, so
         // it cannot be released while the browser is up.
@@ -80,11 +83,16 @@ extension MailboxModel {
             // The person dismissed the browser. Not an error, and nothing to say about it.
             return .cancelled
         } catch {
-            // The form shows the localised "you can use a password instead" line; the specific
-            // cause goes to the diagnostic log rather than in front of the user. The core's
-            // messages name server configuration (an issuer, an endpoint), never the address or a
-            // secret, so this stays inside the never-log-content rule.
+            // Short of a reason signing in again settles, the form shows the localised "you can use
+            // a password instead" line, and the specific cause goes to the diagnostic log rather
+            // than in front of the user. The core's messages name server configuration (an
+            // issuer, an endpoint), never the address or a secret, so this stays inside the
+            // never-log-content rule.
             logAppleLifecycle("imap oauth: sign-in did not complete (\(error))")
+            if let remedy = signInRemedy(error) {
+                setupError = remedy
+                return .retry
+            }
             return .failed
         }
     }

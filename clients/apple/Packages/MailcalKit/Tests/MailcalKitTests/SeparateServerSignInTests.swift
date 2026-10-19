@@ -170,4 +170,19 @@ private let ask = SeparateServerAsk(
             SeparateServerRules.signInFailure(MailcalError.Config("bad"))
                 == coreMessage(MailcalError.Config("bad")))
     }
+
+    @Test func aSignInFromAnotherRequestSaysSoRatherThanThatSigningInFailed() {
+        #expect(SeparateServerRules.signInFailure(MailcalError.StaleSignIn) == L10n.signin_stale())
+    }
+
+    @Test func aUseThatDidNotConnectSaysWhichAndWhy() {
+        #expect(
+            SeparateServerRules.signInFailure(
+                MailcalError.UseNotConnected(capability: .contacts, problem: .unreachable))
+                == L10n.separate_server_unreachable_contacts())
+        #expect(
+            SeparateServerRules.signInFailure(
+                MailcalError.UseNotConnected(capability: .calendar, problem: .needsOwnSignIn))
+                == L10n.settings_account_use_own_sign_in_calendar())
+    }
 }
