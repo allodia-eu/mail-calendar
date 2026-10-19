@@ -124,7 +124,9 @@ if ($chosen) {
   }
 }
 
-if (-not $KeepApp) { Get-Process Mailcal -ErrorAction SilentlyContinue | Stop-Process -Force }
+# Never fatal: a crashed app that Windows Error Reporting still holds refuses to be stopped, and the
+# summary below is what says what the run found.
+if (-not $KeepApp) { Get-Process Mailcal -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
 
 Write-Host ''
 Write-Host ("$($passed.Count) passed, $($failed.Count) failed, $($skipped.Count) skipped, $($excluded.Count) suite(s) not selected, in {0:N0}s" -f $wall.Elapsed.TotalSeconds)

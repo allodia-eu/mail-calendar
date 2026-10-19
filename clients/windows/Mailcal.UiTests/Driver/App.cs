@@ -2,6 +2,7 @@
 // agent listening, and brought to the state every suite starts from. The launch mirrors control.ps1,
 // whose header says why each step is there.
 
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Allodia.Mailcal.UiTests.Driver;
@@ -390,14 +391,27 @@ internal sealed partial class App : IDisposable
     /// </summary>
     private static void End(Process process)
     {
-        if (process.HasExited)
+        try
         {
-            return;
+            if (process.HasExited)
+            {
+                return;
+            }
+            if (!process.CloseMainWindow() || !process.WaitForExit(10_000))
+            {
+                process.Kill();
+                process.WaitForExit(10_000);
+            }
         }
-        if (!process.CloseMainWindow() || !process.WaitForExit(10_000))
+        catch (Win32Exception)
         {
-            process.Kill();
-            process.WaitForExit(10_000);
+            // An app that crashed is held by Windows Error Reporting until its report is written,
+            // and nothing else may open it meanwhile, not even to ask whether it has exited.
+            var id = process.Id;
+            if (!Eventually(() => Process.GetProcessesByName("Mailcal").All(p => p.Id != id), TimeSpan.FromSeconds(60)))
+            {
+                throw new InvalidOperationException($"Mailcal ({id}) cannot be opened and has not gone in 60 s: it crashed and Windows Error Reporting still holds it, or it runs as another user");
+            }
         }
     }
 
