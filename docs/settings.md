@@ -69,9 +69,9 @@ if another platform grows summaries it uses the same keys.
 - **Android's Diagnostics row changed icon.** It borrowed the "info" symbol, which About now
   carries; Diagnostics uses Material's "troubleshoot". Apple already distinguished the two
   (stethoscope / info circle) and Windows draws no category icons.
-- **Only Linux and Android add a later account from Settings alone.** Apple and Windows still
-  offer it in the main window (Apple's sidebar row, Windows' navigation item), and neither opens
-  Accounts with **Add account** yet. Linux's folder pane and Android's switcher have no add.
+- **Windows still offers a later add in the main window**, its navigation item, beside the
+  **Add account** that opens its Accounts category. Apple, Linux and Android add a later account
+  from Settings alone: Apple's folder pane, Linux's folder pane and Android's switcher have no add.
 
 - **The Calendar category's default calendar ships on Android and Linux.** The setting itself is in
   the core (`Preferences::default_calendar`, resolved onto `CalendarRow::is_default`), so Apple and
