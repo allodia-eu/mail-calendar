@@ -90,6 +90,29 @@ internal static class Input
         Send(Mouse(MouseLeftUp));
     }
 
+    /// <summary>
+    /// Rests the pointer on the middle of <paramref name="element"/> for <paramref name="dwellMs"/>,
+    /// arriving in steps as a hand moves it: a pointer warped there leaves the element with no
+    /// pointer-over at all, so nothing a hover raises would be raised.
+    /// </summary>
+    internal static void Hover(Element element, int dwellMs)
+    {
+        if (!element.Rendered)
+        {
+            throw new InvalidOperationException($"'{element.Name}' (#{element.Id}) is not drawn, so a pointer cannot rest on it");
+        }
+        BringToFront(element.Window);
+        var (toX, toY) = ((int)(element.X + element.Width / 2), (int)(element.Y + element.Height / 2));
+        var (fromX, fromY) = (toX - 60, toY - 40);
+        const int steps = 12;
+        for (var i = 0; i <= steps; i++)
+        {
+            MoveTo(fromX + ((toX - fromX) * i / steps), fromY + ((toY - fromY) * i / steps));
+            Thread.Sleep(15);
+        }
+        Thread.Sleep(dwellMs);
+    }
+
     /// <summary>Moves the pointer to a screen point, in physical pixels, as a mouse moves it.</summary>
     private static void MoveTo(int x, int y)
     {

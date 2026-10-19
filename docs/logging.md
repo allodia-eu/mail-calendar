@@ -496,7 +496,7 @@ the log" feature this contract exists to enable. The surface is the same everywh
   job and the script above see it.
 - **No gate exercises the *packaged* half of the Windows session marker.** The composition of both
   shapes is unit-tested (`SessionMarkerTests`) and the running app's line is asserted end-to-end by
-  `clients/windows/uitests/SessionLog.Tests.ps1`, but every gate runs the app **unpackaged**, where
+  `clients/windows/Mailcal.UiTests/Suites/SessionLogTests.cs`, but every gate runs the app **unpackaged**, where
   `AppIdentity.PackageVersion` is `null` and the marker names the marketing version alone. The
   `Package.Current.Id.Version` read itself executes only inside a real MSIX, the same shortfall
   [`versioning.md`](versioning.md) already records for the manifest version stamp. **Verified by

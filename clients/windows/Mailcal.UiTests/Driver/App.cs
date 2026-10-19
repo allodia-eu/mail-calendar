@@ -109,6 +109,10 @@ internal sealed partial class App : IDisposable
             ["MAILCAL_SHOWCASE_SCREEN"] = null,
             ["MAILCAL_APPEARANCE"] = null,
             ["MAILCAL_FAKE_REPLY_DELIVERY"] = null,
+            ["MAILCAL_FAKE_SYNC_HINT"] = null,
+            ["MAILCAL_FAKE_SYNC_PAUSED"] = null,
+            ["MAILCAL_FAKE_SYNC_PROGRESS"] = null,
+            ["MAILCAL_RELEASE_PROBE"] = null,
             ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = null,
             ["MAILCAL_DEV_ACCOUNT"] = dataset switch
             {
