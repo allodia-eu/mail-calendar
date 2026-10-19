@@ -15,6 +15,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class FolderLabelsTests(HarnessApp harness)
 {
     /// <summary>Every row the mailbox draws, by its name exactly: `INBOX` against `Inbox` is the

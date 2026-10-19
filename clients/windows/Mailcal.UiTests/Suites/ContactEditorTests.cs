@@ -23,6 +23,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class ContactEditorTests(HarnessApp harness)
 {
     private void Case(string name, Action<App> body) => harness.Case(name, body, app => app.CloseDialogs());

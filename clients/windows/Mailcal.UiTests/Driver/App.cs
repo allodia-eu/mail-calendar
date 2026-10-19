@@ -30,7 +30,7 @@ internal sealed partial class App : IDisposable
     /// <summary>Launches the newest Debug build on the harness store and waits until it is ready:
     /// past the first-run question and the default-mail-app offer, rows listed, and the calendar
     /// back from the server.</summary>
-    internal static App LaunchOnHarness(IReadOnlyDictionary<string, string>? env = null) => Launch(env, firstRun: false);
+    internal static App LaunchOnHarness(IReadOnlyDictionary<string, string>? env = null) => Launch(env, Dataset.Harness);
 
     /// <summary>
     /// Launches the newest Debug build on an empty store and waits for the account-setup form,
@@ -39,29 +39,41 @@ internal sealed partial class App : IDisposable
     /// (clear-dev-namespace.ps1 says why both), because a first run is defined by there being
     /// nothing in it.
     /// </summary>
-    internal static App LaunchOnFirstRun(IReadOnlyDictionary<string, string>? env = null) => Launch(env, firstRun: true);
+    internal static App LaunchOnFirstRun(IReadOnlyDictionary<string, string>? env = null) => Launch(env, Dataset.FirstRun);
 
-    private static App Launch(IReadOnlyDictionary<string, string>? env, bool firstRun)
+    /// <summary>Launches the newest Debug build on the in-memory showcase dataset and waits until it
+    /// is showing its screen (App.Showcase.cs).</summary>
+    internal static App LaunchOnShowcase(IReadOnlyDictionary<string, string>? env = null) => Launch(env, Dataset.Showcase);
+
+    private static App Launch(IReadOnlyDictionary<string, string>? env, Dataset dataset)
     {
         Stop();
-        if (firstRun)
+        if (dataset == Dataset.FirstRun)
         {
             ClearNamespace("dev-first-run");
         }
-        var (environment, pipe) = LaunchEnvironment(env, firstRun);
+        else if (dataset == Dataset.Showcase)
+        {
+            AssertShowcaseDriver();
+        }
+        var (environment, pipe) = LaunchEnvironment(env, dataset);
         // Through the shell, so the app inherits none of this process's handles: a child holding the
         // test host's output open keeps `dotnet test` waiting after the last case.
         var launchedAt = DateTimeOffset.Now;
         Process? process = null;
         WithEnvironment(environment, () => process = Process.Start(new ProcessStartInfo(Exe()) { UseShellExecute = true }));
         var app = new App(process ?? throw new InvalidOperationException("the app did not start"), Agent.Connect(pipe, TimeSpan.FromSeconds(60)));
-        if (firstRun)
+        switch (dataset)
         {
-            app.WaitSetupForm();
-        }
-        else
-        {
-            app.WaitReady(launchedAt, environment["MAILCAL_DEV_ACCOUNT"]!);
+            case Dataset.FirstRun:
+                app.WaitSetupForm();
+                break;
+            case Dataset.Showcase:
+                app.WaitShowcase(launchedAt, environment);
+                break;
+            default:
+                app.WaitReady(launchedAt, environment["MAILCAL_DEV_ACCOUNT"]!);
+                break;
         }
         return app;
     }
@@ -74,7 +86,7 @@ internal sealed partial class App : IDisposable
     /// </summary>
     internal static App StartedBy(Action activate, IReadOnlyDictionary<string, string>? env = null)
     {
-        var (environment, pipe) = LaunchEnvironment(env, firstRun: false);
+        var (environment, pipe) = LaunchEnvironment(env, Dataset.Harness);
         WithEnvironment(environment, activate);
         Process? process = null;
         if (!Eventually(() => (process = Process.GetProcessesByName("Mailcal").FirstOrDefault()) is not null, TimeSpan.FromSeconds(30)))
@@ -85,7 +97,7 @@ internal sealed partial class App : IDisposable
     }
 
     /// <summary>The environment a launch is made with, and the pipe its agent listens on.</summary>
-    private static (Dictionary<string, string?> Environment, string Pipe) LaunchEnvironment(IReadOnlyDictionary<string, string>? env, bool firstRun)
+    private static (Dictionary<string, string?> Environment, string Pipe) LaunchEnvironment(IReadOnlyDictionary<string, string>? env, Dataset dataset)
     {
         var pipe = $"mailcal-uitests-{Environment.ProcessId}-{++_launches}";
         var environment = new Dictionary<string, string?>
@@ -98,10 +110,22 @@ internal sealed partial class App : IDisposable
             ["MAILCAL_APPEARANCE"] = null,
             ["MAILCAL_FAKE_REPLY_DELIVERY"] = null,
             ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = null,
-            ["MAILCAL_DEV_ACCOUNT"] = firstRun ? "first-run" : Environment.GetEnvironmentVariable("MAILCAL_DEV_ACCOUNT") ?? "stalwart",
-            ["MAILCAL_EXTRA_CA"] = Path.Combine(Repo, "docker", "stalwart", "tls", "harness-ca.pem"),
+            ["MAILCAL_DEV_ACCOUNT"] = dataset switch
+            {
+                Dataset.FirstRun => "first-run",
+                Dataset.Showcase => null,
+                _ => Environment.GetEnvironmentVariable("MAILCAL_DEV_ACCOUNT") ?? "stalwart",
+            },
+            ["MAILCAL_EXTRA_CA"] = dataset == Dataset.Showcase ? null : Path.Combine(Repo, "docker", "stalwart", "tls", "harness-ca.pem"),
             ["MAILCAL_TEST_AGENT"] = pipe,
         };
+        if (dataset == Dataset.Showcase)
+        {
+            foreach (var (name, value) in ShowcaseDefaults)
+            {
+                environment[name] = value;
+            }
+        }
         foreach (var (name, value) in env ?? new Dictionary<string, string>())
         {
             environment[name] = value;
@@ -285,7 +309,10 @@ internal sealed partial class App : IDisposable
         ?? throw new InvalidOperationException("no Debug Mailcal.exe under clients/windows/Mailcal/bin; run clients/windows/build-and-run.ps1 -NoRun first");
 
     /// <summary>Whether there is a Debug build to launch.</summary>
-    internal static bool HasBuild()
+    internal static bool HasBuild() => Built.Value;
+
+    /// <summary>Looked for once a run: every case asks while the run is being discovered.</summary>
+    private static readonly Lazy<bool> Built = new(() =>
     {
         try
         {
@@ -295,7 +322,7 @@ internal sealed partial class App : IDisposable
         {
             return false;
         }
-    }
+    });
 
     private static void Stop()
     {

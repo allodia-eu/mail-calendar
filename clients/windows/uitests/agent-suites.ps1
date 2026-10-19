@@ -3,20 +3,28 @@
 # from run-ui-tests.ps1 so one command still runs every suite. Dot-source it; it defines functions.
 #
 # A suite there is a `<Name>Tests` class in Mailcal.UiTests/Suites, named here `<Name>.Tests` like
-# a file in this directory, so `-Filter Drafts*` selects `DraftsTests`.
-# They all run on the harness dataset: they launch the app themselves, through the agent.
+# a file in this directory, so `-Filter Drafts*` selects `DraftsTests`. Each declares its dataset
+# as a trait, `[Trait("Dataset", "showcase")]`, which is what -Dataset selects on; it launches the
+# app itself, through the agent.
 
 $AgentSuitesProject = Join-Path $PSScriptRoot '..\Mailcal.UiTests'
 
 <#
 .SYNOPSIS
-The agent suites -Filter selects, as @{ Name = 'Drafts.Tests'; Class = 'DraftsTests' }.
+The agent suites -Filter selects, as @{ Name = 'Drafts.Tests'; Class = 'DraftsTests'; Dataset = 'harness' }.
+A suite that declares no dataset is refused: it would run under no -Dataset at all.
 #>
 function Get-AgentSuites {
   param([Parameter(Mandatory)] [string] $Filter)
   Get-ChildItem -Path (Join-Path $AgentSuitesProject 'Suites') -Filter '*Tests.cs' |
     ForEach-Object {
-      [pscustomobject]@{ Name = ($_.BaseName -replace 'Tests$', '') + '.Tests'; Class = $_.BaseName }
+      $declared = Select-String -LiteralPath $_.FullName -Pattern '\[Trait\("Dataset", "([a-z-]+)"\)\]' | Select-Object -First 1
+      if (-not $declared) { throw "$($_.Name) declares no [Trait(""Dataset"", …)], so no -Dataset would run it" }
+      [pscustomobject]@{
+        Name    = ($_.BaseName -replace 'Tests$', '') + '.Tests'
+        Class   = $_.BaseName
+        Dataset = $declared.Matches[0].Groups[1].Value
+      }
     } |
     Where-Object { $_.Name -like $Filter } |
     Sort-Object Name

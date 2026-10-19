@@ -13,6 +13,7 @@ namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(TwoAccountHarnessCollection.Name)]
 [TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
+[Trait("Dataset", "harness")]
 public sealed class MeetingInviteesTests(TwoAccountHarnessApp harness)
 {
     private static readonly string Title = $"Invitees {DateTime.Now:yyyyMMdd-HHmmss}";

@@ -21,6 +21,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
+[Trait("Dataset", "harness")]
 public sealed class SetupCertificateTests(SetupHarnessApp harness) : IClassFixture<SetupHarnessApp>
 {
     private const string Server = "https://localhost:12443";

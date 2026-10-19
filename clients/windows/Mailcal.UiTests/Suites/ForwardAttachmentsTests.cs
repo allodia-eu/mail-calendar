@@ -16,6 +16,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class ForwardAttachmentsTests(HarnessApp harness)
 {
     private const string Subject = "Message with a text attachment";

@@ -20,6 +20,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(ImapHarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class FolderPanePositionTests(ImapHarnessApp harness)
 {
     private const string Subject = "Kickoff notes";

@@ -16,6 +16,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class FolderMenuTests(HarnessApp harness)
 {
     private static readonly string TopLevel = Catalog.English("folder_move_top_level");

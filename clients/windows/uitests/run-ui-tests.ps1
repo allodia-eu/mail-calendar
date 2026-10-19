@@ -520,20 +520,22 @@ foreach ($group in ($plan | Group-Object -Property Key)) {
 }
 
 # The agent suites launch the app themselves, so they go after every group above has finished
-# with its own launch.
+# with its own launch, in one `dotnet test` for every dataset selected.
 if ($agentSuites) {
-  if ($Dataset -notcontains 'harness') {
-    foreach ($suite in $agentSuites) { $excluded += "$($suite.Name): dataset 'harness' is not in -Dataset" }
+  foreach ($suite in $agentSuites | Where-Object { $Dataset -notcontains $_.Dataset }) {
+    $excluded += "$($suite.Name): dataset '$($suite.Dataset)' is not in -Dataset"
   }
-  else {
-    Write-Host "==> $(($agentSuites.Name) -join ', ')  [dataset: harness, through the test agent]" -ForegroundColor Cyan
+  $chosen = @($agentSuites | Where-Object { $Dataset -contains $_.Dataset })
+  if ($chosen) {
+    $datasets = ($chosen.Dataset | Sort-Object -Unique) -join ', '
+    Write-Host "==> $(($chosen.Name) -join ', ')  [dataset: $datasets, through the test agent]" -ForegroundColor Cyan
     $agentWatch = [Diagnostics.Stopwatch]::StartNew()
-    $agentResult = Invoke-AgentSuites -Suites $agentSuites -RequireHarness:$RequireHarness
+    $agentResult = Invoke-AgentSuites -Suites $chosen -RequireHarness:$RequireHarness
     $passed += $agentResult.Passed.Count
     $failed += $agentResult.Failed
     $skippedCases += $agentResult.Skipped
     $caseSeconds += $agentWatch.Elapsed.TotalSeconds
-    Write-Host ("      {0:N1}s for {1} case(s), the app's launch included" -f
+    Write-Host ("      {0:N1}s for {1} case(s), the app's launches included" -f
       $agentWatch.Elapsed.TotalSeconds, ($agentResult.Passed.Count + $agentResult.Failed.Count + $agentResult.Skipped.Count)) -ForegroundColor DarkGray
   }
 }

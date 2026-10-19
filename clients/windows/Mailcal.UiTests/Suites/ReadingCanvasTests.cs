@@ -24,6 +24,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(DarkHarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class ReadingCanvasTests(DarkHarnessApp harness)
 {
     private const string Plain = "Harness baseline message";

@@ -22,6 +22,11 @@ internal static partial class TestAgent
     {
         described["focused"] = peer.HasKeyboardFocus();
         described["help"] = peer.GetHelpText();
+        // The weight the text is drawn in, which UI Automation's text pattern reports for a TextBlock.
+        if (peer is FrameworkElementAutomationPeer { Owner: TextBlock drawn })
+        {
+            described["fontWeight"] = drawn.FontWeight.Weight;
+        }
         if (peer.GetPattern(PatternInterface.Value) is IValueProvider value)
         {
             described["value"] = value.Value;
