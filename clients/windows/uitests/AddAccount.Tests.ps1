@@ -130,7 +130,7 @@ $Suite = @{
             'the last use on is held on: an account used for nothing is not one')
           Set-UiaToggle (Find-UiaElement -AutomationId 'SetupUseMail') -On
           Assert-True (Test-UiaShown 'SetupMailServerIMAP') 'switching mail back on brings its servers back'
-          Invoke-UiaElement (Find-UiaElement -AutomationId 'SetupManualButton' -Type 'Button')
+          Invoke-UiaElement (Find-UiaElement -AutomationId 'SetupManualButton' -Type 'Hyperlink')
           Assert-True ($null -ne (Wait-UiaElement -AutomationId 'ImapHost' -Type 'Edit' -TimeoutSec 5)) (
             '"Set up manually" from the found card offers its servers to edit')
         }
