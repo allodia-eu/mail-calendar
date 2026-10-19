@@ -56,7 +56,7 @@ impl MailcalApp {
                 // line in the whole flow for support: `invalid_grant` means the code was
                 // stale or replayed, and a callback rejection names which check failed.
                 log::warn!("imap oauth: token exchange FAILED; {err}");
-                MailcalError::Connect(err.to_string())
+                crate::error::exchange_error(&err)
             })?;
         // `offline_access` is always requested, so a refresh token is mandatory: without one
         // the account stops syncing about an hour after setup, which is far worse to diagnose

@@ -119,10 +119,18 @@ pub enum OAuthError {
     /// A success response could not be parsed as a token response: a protocol mismatch.
     #[error("decoding oauth response: {0}")]
     Decode(String),
-    /// The redirect callback was malformed or forged: unparseable, missing `code`, or a
-    /// `state` that doesn't match the one issued (a possible CSRF).
+    /// The redirect callback was malformed or forged: unparseable, missing its `state` or `code`,
+    /// or naming another issuer.
     #[error("oauth callback: {0}")]
     Callback(String),
+    /// The redirect echoed a `state` other than the one issued: it answers another authorisation
+    /// request, so its code is never exchanged.
+    ///
+    /// Its own variant because it has an innocent cause a person can act on as well as a hostile
+    /// one (RFC 6749 §10.12): a provider whose login page returns, after the sign-in, to an older
+    /// request the same browser left unfinished. Signing in again then goes straight through.
+    #[error("oauth callback: state mismatch (another authorization request, or a forged one)")]
+    StateMismatch,
 }
 
 /// The output of [`OAuthClient::begin`]: the URL to open, and the `state` + [`Pkce`]
@@ -254,8 +262,8 @@ impl OAuthClient {
 /// # Errors
 ///
 /// Returns [`OAuthError::Endpoint`] if the callback carries a provider `error`, or
-/// [`OAuthError::Callback`] if it is unparseable, forged (a `state` or `iss` mismatch),
-/// or missing the `code`.
+/// [`OAuthError::StateMismatch`] if it answers another request, or [`OAuthError::Callback`]
+/// if it is unparseable, names another issuer, or is missing the `state` or `code`.
 pub fn parse_callback(
     expected_state: &str,
     expected_issuer: Option<&str>,
@@ -273,11 +281,7 @@ pub fn parse_callback(
     }
     match params.get("state") {
         Some(state) if state == expected_state => {}
-        Some(_) => {
-            return Err(OAuthError::Callback(
-                "state mismatch (possible CSRF)".to_owned(),
-            ));
-        }
+        Some(_) => return Err(OAuthError::StateMismatch),
         None => return Err(OAuthError::Callback("callback missing state".to_owned())),
     }
     if let Some(expected) = expected_issuer {
@@ -357,14 +361,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_callback_rejects_a_state_mismatch() {
+    fn parse_callback_rejects_a_state_mismatch_as_another_request() {
         let err = parse_callback(
             "expected",
             None,
             "eu.allodia.mailcal://oauth?code=c&state=attacker",
         )
         .unwrap_err();
-        assert!(matches!(err, OAuthError::Callback(_)));
+        assert!(matches!(err, OAuthError::StateMismatch));
     }
 
     #[test]

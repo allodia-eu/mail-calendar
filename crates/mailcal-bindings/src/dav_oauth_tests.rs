@@ -78,11 +78,10 @@ fn only_a_mailbox_s_calendar_or_contacts_can_be_signed_in_to() {
     );
 }
 
-#[test]
-fn a_sign_in_started_for_another_account_is_not_completed() {
-    let (app, id) = booted("dav-oauth-other");
-    let pending = serde_json::json!({
-        "account_id": "someone-else@example.com",
+/// A sign-in begun for `account_id`, whose redirect is expected to echo the state `s`.
+fn pending_for(account_id: &str) -> String {
+    serde_json::json!({
+        "account_id": account_id,
         "calendar": true,
         "contacts": false,
         "login": "alice@example.com",
@@ -99,7 +98,13 @@ fn a_sign_in_started_for_another_account_is_not_completed() {
         "state": "s",
         "verifier": "v",
     })
-    .to_string();
+    .to_string()
+}
+
+#[test]
+fn a_sign_in_started_for_another_account_is_not_completed() {
+    let (app, id) = booted("dav-oauth-other");
+    let pending = pending_for("someone-else@example.com");
 
     let completed = app.complete_separate_server_sign_in(
         id,
@@ -109,6 +114,25 @@ fn a_sign_in_started_for_another_account_is_not_completed() {
 
     assert!(
         matches!(completed, Err(MailcalError::Config(_))),
+        "{:?}",
+        completed.err()
+    );
+    assert_eq!(app.accounts_snapshot().accounts.len(), 1);
+}
+
+#[test]
+fn a_redirect_from_another_sign_in_is_named_and_its_code_never_exchanged() {
+    let (app, id) = booted("dav-oauth-stale");
+
+    // The token endpoint is unreachable, so reaching it would answer `Connect` instead.
+    let completed = app.complete_separate_server_sign_in(
+        id.clone(),
+        pending_for(&id),
+        "mailcal.test://sign-in?code=c&state=an-older-request".to_owned(),
+    );
+
+    assert!(
+        matches!(completed, Err(MailcalError::StaleSignIn)),
         "{:?}",
         completed.err()
     );

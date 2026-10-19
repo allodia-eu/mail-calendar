@@ -132,6 +132,14 @@ impl MailcalApp {
             Err(MailcalError::AlreadySetUp {
                 account_id: existing,
             }) if existing != account_id => (existing, false),
+            // An account used for nothing but these fails as a whole when none of them connects,
+            // and it is still these that did not.
+            Err(MailcalError::Connect(_)) => {
+                return Err(MailcalError::UseNotConnected {
+                    capability: uses.first().copied().unwrap_or(Capability::Calendar).into(),
+                    problem: crate::UseProblem::Unreachable,
+                });
+            }
             Err(error) => return Err(error),
         };
         if added && let Some(error) = self.failed_use(&moved_to, uses) {
@@ -162,21 +170,21 @@ impl MailcalApp {
         let id = AccountId::try_from(account_id).ok()?;
         let problems = self.app.use_problems(&id);
         uses.iter()
-            .filter_map(|capability| match capability {
-                Capability::Calendar => problems.calendar,
-                Capability::Contacts => problems.contacts,
-                _ => None,
-            })
-            .map(|problem| match problem {
-                mailcal_app::UseProblem::SignInRefused => MailcalError::SignInRefused {
-                    reason: "the calendar or contacts server refused the password".to_owned(),
-                },
-                mailcal_app::UseProblem::Unreachable => MailcalError::Connect(
-                    "the calendar or contacts server could not be reached".to_owned(),
-                ),
-                mailcal_app::UseProblem::NeedsOwnSignIn => MailcalError::Config(
-                    "the calendar or contacts server needs a sign-in of its own".to_owned(),
-                ),
+            .filter_map(|&capability| {
+                let problem = match capability {
+                    Capability::Calendar => problems.calendar,
+                    Capability::Contacts => problems.contacts,
+                    _ => None,
+                }?;
+                Some(match problem {
+                    mailcal_app::UseProblem::SignInRefused => MailcalError::SignInRefused {
+                        reason: "the calendar or contacts server refused the password".to_owned(),
+                    },
+                    other => MailcalError::UseNotConnected {
+                        capability: capability.into(),
+                        problem: other.into(),
+                    },
+                })
             })
             .next()
     }

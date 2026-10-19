@@ -183,7 +183,7 @@ pub(crate) async fn authorize(
     let tokens = client
         .complete(callback_url, &pending.state, &pending.verifier, now)
         .await
-        .map_err(|err| MailcalError::Connect(err.to_string()))?;
+        .map_err(|err| crate::error::exchange_error(&err))?;
     // `offline_access` was requested, so a refresh token is mandatory; without it the
     // account would break an hour after setup.
     let refresh_token = tokens.refresh_token.ok_or_else(|| {

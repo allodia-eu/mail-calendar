@@ -36,6 +36,13 @@ capturing the redirect), because that is inherently platform-specific.
    client passes the **raw callback URL** back to the core (`complete_microsoft_login`); it does
    not parse tokens itself.
 
+   A mismatched `state` is refused before anything is exchanged, and every sign-in the core
+   completes answers it as `MailcalError::StaleSignIn`, never as a failed connect. Its usual cause
+   is innocent: a provider's login page that returns, once the person has signed in there, to an
+   older request the same browser left unfinished. Each client says so in the person's language
+   (`signin_stale`), with the sign-in still offered: the browser is now signed in at the provider,
+   so the next attempt goes straight through.
+
 4. **Tokens live only in the OS keystore.** The stored account config carries **only** the
    refresh token (the single at-rest secret), never a password; access tokens are minted on
    demand and never persisted. The config secret redacts itself in logs. Storage is the same OS
@@ -630,6 +637,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | System browser (no in-app WebView) | — | ✅ `ASWebAuthenticationSession` | ✅ default browser + protocol activation | ✅ Chrome Custom Tabs | ✅ default browser + loopback |
 | Redirect capture | — | ✅ custom scheme | ✅ custom-scheme protocol activation | ✅ custom-scheme `intent-filter` | ✅ `127.0.0.1` Rust `TcpListener` |
 | `state` validated on callback | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A callback from another request said as one, the sign-in still offered (rule 3, `StaleSignIn`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Refresh token only, in OS keystore | ✅ | ✅ Keychain | ✅ Credential Manager | ✅ Android Keystore | ✅ Secret Service |
 | Token refresh + rotation persistence | ✅ refresh · rotation **verified live** (Graph + JMAP both rotate) | ✅ | ✅ refresh · rotation **verified live** `CredentialStoreSink` (Graph + JMAP) | ✅ verified on-device | ✅ verified live (Graph + JMAP) |
 | One refresh in flight per account (no replay on a ratcheting server, rule 5) | ✅ | — | — | — | — |

@@ -244,7 +244,7 @@ impl MailcalApp {
             })
             .map_err(|err| {
                 log::warn!("dav oauth: token exchange FAILED; {err}");
-                MailcalError::Connect(err.to_string())
+                crate::error::exchange_error(&err)
             })?;
         let refresh_token = tokens.refresh_token.ok_or_else(|| {
             log::warn!("dav oauth: the server issued no refresh token");

@@ -19,6 +19,7 @@
 use engine_api::AccountId;
 use engine_core::sync::SyncUpdate;
 use engine_provider::{ContactSourceSync, ContactsProvider, Provider};
+use futures::StreamExt;
 use provider_caldav::{CardDavConfig, CardDavProvider};
 
 use crate::{
@@ -31,9 +32,14 @@ use crate::{
 /// listing it returns is not account-scoped by this value.
 const DISCOVERY_ACCOUNT: &str = "carddav-discovery";
 
+/// How many address books connect at once. No DAV server here states a ceiling, so this only
+/// keeps an account with many shared books from opening a connection for each at the same time.
+const BOOKS_AT_ONCE: usize = 4;
+
 /// Connects one CardDAV adapter per address book the account exposes.
 ///
-/// Discovers the books over a throwaway connection, then binds a provider to each. A book
+/// Discovers the books over one connection, rebinds it to the first and connects the rest side by
+/// side, a few at a time. A book
 /// that cannot be connected is **skipped with a warning rather than failing the account**:
 /// one unreadable shared book must not cost the user their personal contacts. An account
 /// whose server advertises no contact support, or which exposes no books at all, yields an
@@ -92,17 +98,40 @@ pub async fn connect_carddav_contact_providers(
 
     let books = discover_address_books(&discovery).await?;
     log::info!("carddav: discovered {} address book(s)", books.len());
+    let mut books = books.into_iter();
+    let Some(first) = books.next() else {
+        return Ok(Vec::new());
+    };
 
-    let mut providers: Vec<Box<dyn ContactsProvider>> = Vec::new();
-    for book in books {
-        match CardDavProvider::connect(config.clone().with_address_book(book.clone())).await {
-            Ok(provider) => providers.push(Box::new(provider)),
+    // The discovery connection already holds the home, so the first book rebinds it. Every other
+    // book needs a connection of its own, and each connect discovers the home again, so they run
+    // side by side: one after another, a slow server's round trips add up to what the account's
+    // connect waits for.
+    let first = discovery.rebind(&first).map_err(|error| (first, error));
+    let rest = futures::stream::iter(books)
+        .map(|book| {
+            let config = config.clone().with_address_book(book.clone());
+            async move {
+                CardDavProvider::connect(config)
+                    .await
+                    .map_err(|error| (book, error))
+            }
+        })
+        .buffered(BOOKS_AT_ONCE)
+        .collect::<Vec<_>>()
+        .await;
+    Ok(std::iter::once(first)
+        .chain(rest)
+        .filter_map(|bound| match bound {
+            Ok(provider) => Some(Box::new(provider) as Box<dyn ContactsProvider>),
             // Skipped, not fatal; see the doc comment. Logged with the book id only: an
             // address-book id is not contact content (docs/logging.md).
-            Err(error) => log::warn!("carddav: skipping address book {book}: {error}"),
-        }
-    }
-    Ok(providers)
+            Err((book, error)) => {
+                log::warn!("carddav: skipping address book {book}: {error}");
+                None
+            }
+        })
+        .collect())
 }
 
 /// Lists the address-book ids the connected adapter can see.

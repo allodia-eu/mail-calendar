@@ -462,6 +462,7 @@
 	"signin_expired_failed": "Die erneute Anmeldung hat nicht funktioniert. Bitte versuchen Sie es noch einmal.",
 	"signin_refused": "Der Server hat diese Anmeldung nicht akzeptiert. Prüfen Sie Ihre Eingabe und versuchen Sie es erneut.",
 	"signin_different_account": "Sie haben sich mit einem anderen Konto angemeldet. Melden Sie sich erneut mit der Adresse dieses Kontos an.",
+	"signin_stale": "Der Browser kam von einer früheren, nicht abgeschlossenen Anmeldung zurück. Melden Sie sich erneut an; das sollte jetzt direkt gelingen.",
 	"account_already_set_up": "Dieses Konto ist bereits eingerichtet.",
 
 	"tz_changed_title": "Zeitzone geändert",
@@ -512,6 +513,8 @@
 	"separate_server_title_contacts": "Ihre Kontakte liegen auf einem separaten Server",
 	"separate_server_body": "{host} verlangt eine eigene Anmeldung. Dafür wird ein eigenes Konto eingerichtet, das mit diesem verknüpft ist.",
 	"separate_server_skip": "Überspringen",
+	"separate_server_unreachable_calendar": "Ihr Kalenderserver war nicht erreichbar oder hat nicht rechtzeitig geantwortet. Es wurde nichts geändert; bitte versuchen Sie es erneut.",
+	"separate_server_unreachable_contacts": "Ihr Adressbuchserver war nicht erreichbar oder hat nicht rechtzeitig geantwortet. Es wurde nichts geändert; bitte versuchen Sie es erneut.",
 	"setup_signed_in_uses_title": "Wählen Sie, wofür Sie dieses Konto verwenden",
 	"setup_signed_in_uses_note": "Ihr Server bietet diese Funktionen für dieses Konto an.",
 	"setup_signed_in_uses_saving": "Wird gesichert…",

@@ -462,6 +462,7 @@
 	"signin_expired_failed": "Non è stato possibile accedere di nuovo. Riprova.",
 	"signin_refused": "Il server non ha accettato questo accesso. Controlla i dati inseriti e riprova.",
 	"signin_different_account": "Hai effettuato l’accesso con un altro account. Accedi di nuovo con l’indirizzo di questo account.",
+	"signin_stale": "Il browser è tornato da un accesso precedente che non era stato completato. Accedi di nuovo; ora dovrebbe riuscire subito.",
 	"account_already_set_up": "Questo account è già configurato.",
 
 	"tz_changed_title": "Fuso orario cambiato",
@@ -512,6 +513,8 @@
 	"separate_server_title_contacts": "I contatti si trovano su un server separato",
 	"separate_server_body": "{host} richiede un accesso proprio. Verrà configurato per loro un account separato, collegato a questo.",
 	"separate_server_skip": "Salta",
+	"separate_server_unreachable_calendar": "Non è stato possibile raggiungere il server del calendario, oppure non ha risposto in tempo. Non è stato modificato nulla; riprova.",
+	"separate_server_unreachable_contacts": "Non è stato possibile raggiungere il server della rubrica, oppure non ha risposto in tempo. Non è stato modificato nulla; riprova.",
 	"setup_signed_in_uses_title": "Scegli per cosa usare questo account",
 	"setup_signed_in_uses_note": "Il tuo server offre questi servizi per questo account.",
 	"setup_signed_in_uses_saving": "Salvataggio…",

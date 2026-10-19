@@ -331,7 +331,7 @@ impl MailcalApp {
                 // was missing or wrong; `invalid_grant` means the code was stale or replayed.
                 // Without this the user only ever sees "signing in didn't work".
                 log::warn!("jmap oauth: token exchange FAILED; {err}");
-                MailcalError::Connect(err.to_string())
+                crate::error::exchange_error(&err)
             })?;
         // `offline_access` is always requested, so a refresh token is mandatory; without one
         // the account would stop syncing about an hour after setup, which is far worse to

@@ -118,7 +118,17 @@ fn a_calendar_server_that_does_not_answer_moves_nothing() {
         "alice".to_owned(),
         "dav-pw".to_owned(),
     );
-    assert!(linked.is_err(), "{linked:?}");
+    assert!(
+        matches!(
+            linked,
+            Err(MailcalError::UseNotConnected {
+                capability: AccountCapability::Calendar,
+                problem: crate::UseProblem::Unreachable,
+            })
+        ),
+        "names the use that did not connect, for a client to say in the person's language: \
+         {linked:?}"
+    );
     unchanged(&app, &id);
 }
 

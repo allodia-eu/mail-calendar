@@ -462,6 +462,7 @@
 	"signin_expired_failed": "Opnieuw aanmelden is niet gelukt. Probeer het nog een keer.",
 	"signin_refused": "De server heeft deze aanmelding niet geaccepteerd. Controleer wat je hebt ingevuld en probeer het opnieuw.",
 	"signin_different_account": "Je hebt je aangemeld met een ander account. Meld je opnieuw aan met het adres van dit account.",
+	"signin_stale": "De browser kwam terug van een eerdere aanmelding die niet was afgerond. Meld je opnieuw aan; dat zou nu direct moeten lukken.",
 	"account_already_set_up": "Dit account is al ingesteld.",
 
 	"tz_changed_title": "Tijdzone gewijzigd",
@@ -512,6 +513,8 @@
 	"separate_server_title_contacts": "Je contacten staan op een aparte server",
 	"separate_server_body": "{host} vraagt een eigen aanmelding. Ze worden ingesteld als een eigen account, gekoppeld aan dit account.",
 	"separate_server_skip": "Overslaan",
+	"separate_server_unreachable_calendar": "Je agendaserver was niet bereikbaar of antwoordde niet op tijd. Er is niets gewijzigd; probeer het opnieuw.",
+	"separate_server_unreachable_contacts": "Je adresboekserver was niet bereikbaar of antwoordde niet op tijd. Er is niets gewijzigd; probeer het opnieuw.",
 	"setup_signed_in_uses_title": "Kies waarvoor je dit account gebruikt",
 	"setup_signed_in_uses_note": "Je server biedt deze aan voor dit account.",
 	"setup_signed_in_uses_saving": "Bezig met opslaan…",

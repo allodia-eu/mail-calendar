@@ -38,6 +38,11 @@ use crate::account_registry::ConnectFailure;
 /// blackholed host costs the user a pause rather than a launch.
 const DISCOVERY_DEADLINE: Duration = Duration::from_secs(10);
 
+/// The same bound for an account not used for mail, which has no mailbox to hold up: its contacts
+/// are one of the only things it connects, so a slow server is given time to answer rather than
+/// failing the account. Still bounded, because a dial holds one of a few slots at launch.
+const NO_MAILBOX_DEADLINE: Duration = Duration::from_secs(30);
+
 /// What a contacts binding answers: the sources it bound, or why it bound none.
 type Bound = Result<Vec<Box<dyn ContactsProvider>>, ConnectFailure>;
 
@@ -46,8 +51,27 @@ async fn bounded(
     family: &str,
     discovery: impl Future<Output = Result<Vec<Box<dyn ContactsProvider>>, AccountError>>,
 ) -> Bound {
+    bounded_by(DISCOVERY_DEADLINE, family, discovery).await
+}
+
+/// How long an account's contacts discovery may take: [`DISCOVERY_DEADLINE`] when a mailbox waits
+/// on the same connect, [`NO_MAILBOX_DEADLINE`] when none does.
+pub(crate) const fn discovery_deadline(used_for_mail: bool) -> Duration {
+    if used_for_mail {
+        DISCOVERY_DEADLINE
+    } else {
+        NO_MAILBOX_DEADLINE
+    }
+}
+
+/// [`bounded`] under `deadline`.
+async fn bounded_by(
+    deadline: Duration,
+    family: &str,
+    discovery: impl Future<Output = Result<Vec<Box<dyn ContactsProvider>>, AccountError>>,
+) -> Bound {
     let started = Instant::now();
-    match tokio::time::timeout(DISCOVERY_DEADLINE, discovery).await {
+    match tokio::time::timeout(deadline, discovery).await {
         Ok(Ok(providers)) => {
             log::info!(
                 "{family}: bound {} contact source(s) in {}ms",
@@ -66,11 +90,11 @@ async fn bounded(
         Err(_) => {
             log::warn!(
                 "{family}: contacts discovery timed out after {}s",
-                DISCOVERY_DEADLINE.as_secs(),
+                deadline.as_secs(),
             );
             Err(ConnectFailure::unreachable(format!(
                 "{family}: contacts discovery timed out after {}s",
-                DISCOVERY_DEADLINE.as_secs(),
+                deadline.as_secs(),
             )))
         }
     }
@@ -83,15 +107,18 @@ async fn bounded(
 /// Without a section of their own, contacts reuse the CalDAV origin and credentials (see
 /// `mailcal_account::contacts`), so an account set up before this feature existed gains contacts
 /// with no re-entry of anything.
+/// `used_for_mail` decides how long discovery may take ([`discovery_deadline`]).
 pub(crate) async fn connect_caldav_contacts(
     config: &AccountConfig,
     tokens: mailcal_account::ImapTokens<'_>,
+    used_for_mail: bool,
 ) -> Bound {
     if config.caldav.is_none() && config.carddav.is_none() {
         log::info!("carddav: contacts skipped; account has no address book server");
         return Ok(Vec::new());
     }
-    bounded(
+    bounded_by(
+        discovery_deadline(used_for_mail),
         "carddav",
         mailcal_account::connect_carddav_contact_providers(config, tokens),
     )
@@ -158,4 +185,16 @@ pub(crate) async fn connect_jmap_contacts(
         mailcal_account::connect_jmap_contact_providers(config, tokens),
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DISCOVERY_DEADLINE, NO_MAILBOX_DEADLINE, discovery_deadline};
+
+    #[test]
+    fn an_account_without_mail_gives_a_slow_contacts_server_longer() {
+        assert_eq!(discovery_deadline(true), DISCOVERY_DEADLINE);
+        assert_eq!(discovery_deadline(false), NO_MAILBOX_DEADLINE);
+        assert!(NO_MAILBOX_DEADLINE > DISCOVERY_DEADLINE);
+    }
 }

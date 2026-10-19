@@ -462,6 +462,7 @@
 	"signin_expired_failed": "La reconnexion n’a pas abouti. Veuillez réessayer.",
 	"signin_refused": "Le serveur n’a pas accepté cette connexion. Vérifiez ce que vous avez saisi et réessayez.",
 	"signin_different_account": "Vous vous êtes connecté avec un autre compte. Reconnectez-vous avec l’adresse de ce compte.",
+	"signin_stale": "Le navigateur est revenu d’une connexion précédente qui n’avait pas été terminée. Connectez-vous à nouveau ; cela devrait maintenant aboutir directement.",
 	"account_already_set_up": "Ce compte est déjà configuré.",
 
 	"tz_changed_title": "Fuseau horaire modifié",
@@ -512,6 +513,8 @@
 	"separate_server_title_contacts": "Vos contacts sont sur un serveur distinct",
 	"separate_server_body": "{host} demande sa propre connexion. Un compte distinct, lié à celui-ci, sera configuré pour eux.",
 	"separate_server_skip": "Ignorer",
+	"separate_server_unreachable_calendar": "Impossible de joindre votre serveur d’agenda, ou il n’a pas répondu à temps. Rien n’a été modifié ; veuillez réessayer.",
+	"separate_server_unreachable_contacts": "Impossible de joindre votre serveur de carnet d’adresses, ou il n’a pas répondu à temps. Rien n’a été modifié ; veuillez réessayer.",
 	"setup_signed_in_uses_title": "Choisissez à quoi sert ce compte",
 	"setup_signed_in_uses_note": "Votre serveur propose ces services pour ce compte.",
 	"setup_signed_in_uses_saving": "Enregistrement…",

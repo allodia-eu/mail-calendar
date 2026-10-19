@@ -73,7 +73,11 @@ impl AccountDial {
                     }),
                     part(
                         on(Capability::Contacts),
-                        boot::connect_caldav_contacts(&config, tokens.as_ref()),
+                        boot::connect_caldav_contacts(
+                            &config,
+                            tokens.as_ref(),
+                            on(Capability::Mail),
+                        ),
                     ),
                 );
                 let assembled = assemble(mail, calendar, contacts)?;

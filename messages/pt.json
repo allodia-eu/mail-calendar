@@ -462,6 +462,7 @@
 	"signin_expired_failed": "Não foi possível iniciar sessão de novo. Tente novamente.",
 	"signin_refused": "O servidor não aceitou este início de sessão. Verifique o que introduziu e tente novamente.",
 	"signin_different_account": "Iniciou sessão com outra conta. Inicie sessão novamente com o endereço desta conta.",
+	"signin_stale": "O navegador voltou de um início de sessão anterior que não foi concluído. Inicie sessão novamente; agora deverá funcionar de imediato.",
 	"account_already_set_up": "Esta conta já está configurada.",
 
 	"tz_changed_title": "Fuso horário alterado",
@@ -512,6 +513,8 @@
 	"separate_server_title_contacts": "Os seus contactos estão num servidor separado",
 	"separate_server_body": "{host} precisa de um início de sessão próprio. Será configurada para eles uma conta separada, ligada a esta.",
 	"separate_server_skip": "Ignorar",
+	"separate_server_unreachable_calendar": "Não foi possível contactar o seu servidor de calendário, ou não respondeu a tempo. Nada foi alterado; tente novamente.",
+	"separate_server_unreachable_contacts": "Não foi possível contactar o seu servidor de livro de endereços, ou não respondeu a tempo. Nada foi alterado; tente novamente.",
 	"setup_signed_in_uses_title": "Escolha para que usa esta conta",
 	"setup_signed_in_uses_note": "O seu servidor disponibiliza estes serviços para esta conta.",
 	"setup_signed_in_uses_saving": "A guardar…",

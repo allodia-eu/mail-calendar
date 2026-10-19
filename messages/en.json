@@ -462,6 +462,7 @@
 	"signin_expired_failed": "Signing in again didn’t work. Please try again.",
 	"signin_refused": "The server didn’t accept this sign-in. Check what you entered and try again.",
 	"signin_different_account": "You signed in with a different account. Sign in again with this account’s address.",
+	"signin_stale": "The browser came back from an earlier sign-in that wasn’t finished. Sign in again; it should go straight through now.",
 	"account_already_set_up": "This account is already set up.",
 
 	"tz_changed_title": "Time zone changed",
@@ -512,6 +513,8 @@
 	"separate_server_title_contacts": "Your contacts are on a separate server",
 	"separate_server_body": "{host} needs a sign-in of its own. They’ll be set up as an account of their own, linked to this one.",
 	"separate_server_skip": "Skip",
+	"separate_server_unreachable_calendar": "Couldn’t reach your calendar server, or it didn’t answer in time. Nothing was changed; please try again.",
+	"separate_server_unreachable_contacts": "Couldn’t reach your address book server, or it didn’t answer in time. Nothing was changed; please try again.",
 	"setup_signed_in_uses_title": "Choose what to use this account for",
 	"setup_signed_in_uses_note": "Your server offers these for this account.",
 	"setup_signed_in_uses_saving": "Saving…",
