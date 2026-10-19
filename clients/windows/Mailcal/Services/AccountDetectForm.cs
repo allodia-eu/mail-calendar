@@ -46,7 +46,10 @@ internal sealed record DetectRoute(
     // What the found card offers the account for, and the calendar and address-book servers found
     // beside the route (docs/account-autodetect.md rule 8). Empty for a route the core offers no
     // choice on, and for the manual form.
-    UseOffer? Uses = null);
+    UseOffer? Uses = null,
+    // The servers detection found, as the core words them for the found card, which names them
+    // rather than offering them to edit. Empty on every route but IMAP.
+    IReadOnlyList<DetectedServerRow>? Servers = null);
 
 /// <summary>Pure routing + connect-gating for the detection flow (no WinUI types, so it's testable).</summary>
 internal static class AccountDetectForm
@@ -84,7 +87,8 @@ internal static class AccountDetectForm
             ImapHost: imap.ImapHost, SmtpHost: imap.SmtpHost ?? string.Empty, JmapServer: string.Empty,
             CaldavUrl: imap.CaldavUrl ?? string.Empty, NeedsApproval: !imap.IsTrusted, Reason: null,
             ImapSecurity: imap.ImapSecurity, SmtpSecurity: imap.SmtpSecurity,
-            OauthIssuer: imap.OauthIssuer),
+            OauthIssuer: imap.OauthIssuer,
+            Servers: imap.Outgoing is { } outgoing ? [imap.Incoming, outgoing] : [imap.Incoming]),
 
         SetupRecommendation.Microsoft microsoft => new DetectRoute(
             IsManual: false, Tab: DetectTab.Microsoft, Email: microsoft.Email,
@@ -102,6 +106,9 @@ internal static class AccountDetectForm
 
         _ => Manual(MissReason.NothingFound),
     };
+
+    /// <summary>One detected server as the found card names it: host, port and security.</summary>
+    internal static string ServerLine(DetectedServerRow row) => $"{row.Hostname}:{row.Port} · {row.Security}";
 
     /// <summary>
     /// Whether Connect is allowed for a detected result: the field requirements for the tab, plus

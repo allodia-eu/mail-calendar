@@ -139,6 +139,7 @@ public sealed partial class AccountSetupView : UserControl
         _needsApproval = route.NeedsApproval;
         _detectedTab = route.IsManual ? null : route.Tab;
         _detectedUses = route.Uses ?? UseOffer.None;
+        _detectedServers = route.Servers ?? [];
         _imap.AdoptDetected(route.ImapHost, route.ImapSecurity);
         _smtp.AdoptDetected(route.SmtpHost, route.SmtpSecurity);
         ShowServerSettings();

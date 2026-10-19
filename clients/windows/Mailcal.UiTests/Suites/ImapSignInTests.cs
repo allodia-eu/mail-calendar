@@ -122,7 +122,7 @@ public sealed class ImapSignInTests(HarnessApp harness)
     {
         app.Agent.SetValue(OpenSetup(app), address);
         app.Agent.Invoke(app.Agent.Find(Filter.ById("ContinueButton", "Button"))!);
-        if (app.Agent.Wait(Filter.ById("Username", "Edit"), TimeSpan.FromSeconds(30)) is null)
+        if (app.Agent.Wait(Filter.ById("SetupMailServerIMAP", "Text"), TimeSpan.FromSeconds(30)) is null)
         {
             throw new InvalidOperationException($"detection for {address} never reached the account form");
         }
@@ -187,7 +187,7 @@ public sealed class ImapSignInTests(HarnessApp harness)
         {
             OpenDetectedCard(app, "alice@localhost");
             Watch(app, "the sign-in offer", s => s.ContainsKey("ImapSignInButton"));
-            Assert.True(Field(app, "ImapPort") == "12995",
+            Assert.True(app.Agent.Find(Filter.ById("SetupMailServerIMAP", "Text"))?.Name.Contains(":12995 ", StringComparison.Ordinal) == true,
                 "the harness autoconfig names IMAP on 12995, which is what this case needs to have on screen first");
             app.Agent.Invoke(app.Agent.Find(Filter.ById("BackButton", "Button"))!);
             app.Agent.Invoke(app.Agent.Wait(Filter.ById("ManualButton", "Button"), TimeSpan.FromSeconds(5))!);

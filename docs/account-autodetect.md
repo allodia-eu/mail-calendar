@@ -346,8 +346,8 @@ The **CalDAV follow-on** offers the discovered calendar as an ✉ Email / 📅 C
 card on every client (a pre-checked opt-out toggle when found, an opt-in manual field otherwise,
 hidden until the offer is accepted, so an empty box never reads as a calendar we failed to fill
 in); on Apple, Linux and Windows the card is the core's choices, contacts included (rule 8). The
-Windows prefilled form itself is now UIA-verified on a Windows host (a live IMAP detection
-routed `someone@gmail.com` to the form with its host fields filled); the discovered-CalDAV
+Windows found card names its servers rather than offering them to edit, and `AddAccount.Tests.ps1`
+reads them as lines, with no server field on screen until "Set up manually"; the discovered-CalDAV
 prefill specifically is still owed.
 
 The **host DNS resolver** (MX **and** SRV via one `MxResolver` port) is the only per-platform

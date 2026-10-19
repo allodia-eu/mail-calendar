@@ -116,15 +116,23 @@ $Suite = @{
           }
           Assert-True ($null -eq (Find-UiaElement -AutomationId 'SetupUseCalendarServer')) (
             'a calendar that was found is named by its host, not asked for')
+          Assert-True (Test-UiaShown 'SetupMailServerIMAP') 'the mail server that was found is named too'
+          foreach ($field in 'ImapHost', 'ImapPort', 'SmtpHost', 'Username') {
+            Assert-True (-not (Test-UiaShown $field)) (
+              "detected servers are shown to confirm, not to retype ($field): the manual form edits them")
+          }
           Set-UiaToggle (Find-UiaElement -AutomationId 'SetupUseMail')
-          Assert-True (-not (Test-UiaShown 'ImapHost')) (
+          Assert-True (-not (Test-UiaShown 'SetupMailServerIMAP')) (
             'the mail servers follow the mail toggle, so an account not used for mail shows none')
           Set-UiaToggle (Find-UiaElement -AutomationId 'SetupUseCalendar')
           $contacts = Find-UiaElement -AutomationId 'SetupUseContacts'
           Assert-True ((Get-UiaToggle $contacts) -and -not $contacts.Current.IsEnabled) (
             'the last use on is held on: an account used for nothing is not one')
           Set-UiaToggle (Find-UiaElement -AutomationId 'SetupUseMail') -On
-          Assert-True (Test-UiaShown 'ImapHost') 'switching mail back on brings its servers back'
+          Assert-True (Test-UiaShown 'SetupMailServerIMAP') 'switching mail back on brings its servers back'
+          Invoke-UiaElement (Find-UiaElement -AutomationId 'SetupManualButton' -Type 'Button')
+          Assert-True ($null -ne (Wait-UiaElement -AutomationId 'ImapHost' -Type 'Edit' -TimeoutSec 5)) (
+            '"Set up manually" from the found card offers its servers to edit')
         }
         finally { Close-AddAccount }
       }
