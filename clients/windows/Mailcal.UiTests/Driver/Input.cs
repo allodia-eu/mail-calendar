@@ -175,14 +175,15 @@ internal static class Input
     internal const ushort Shift = 0x10;
     internal const ushort Control = 0x11;
 
-    /// <summary>Turns the wheel over a screen point, in notches: positive is away from the user.</summary>
-    internal static void Wheel(int x, int y, int notches)
+    /// <summary>Turns the wheel over a screen point, in notches: positive is away from the user, or with
+    /// <paramref name="horizontal"/> to the right.</summary>
+    internal static void Wheel(int x, int y, int notches, bool horizontal = false)
     {
         SetCursorPos(x, y);
         Send(new NativeInput
         {
             Type = InputMouse,
-            Union = new InputUnion { Mouse = new MouseInput { Data = unchecked((uint)(notches * 120)), Flags = MouseWheel } },
+            Union = new InputUnion { Mouse = new MouseInput { Data = unchecked((uint)(notches * 120)), Flags = horizontal ? MouseHorizontalWheel : MouseWheel } },
         });
     }
 
@@ -221,6 +222,7 @@ internal static class Input
     private const uint MouseRightDown = 0x0008;
     private const uint MouseRightUp = 0x0010;
     private const uint MouseWheel = 0x0800;
+    private const uint MouseHorizontalWheel = 0x01000;
     private const uint MouseMove = 0x0001;
     private const uint MouseAbsolute = 0x8000;
     private const uint MouseVirtualDesk = 0x4000;

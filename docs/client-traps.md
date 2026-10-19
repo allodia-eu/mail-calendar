@@ -77,7 +77,7 @@ that same file.
   accident**. A test that measures one width passes over the defect; the assertion has to force the
   labelled width and say so when it cannot reach it
   ([`ReadingActionRowTests.cs`](../clients/windows/Mailcal.UiTests/Suites/ReadingActionRowTests.cs),
-  [`SelectionBar.Tests.ps1`](../clients/windows/uitests/SelectionBar.Tests.ps1)).
+  [`SelectionBarTests.cs`](../clients/windows/Mailcal.UiTests/Suites/SelectionBarTests.cs)).
 - **`Path.GetInvalidFileNameChars()` answers differently per host, and `Mailcal.Tests` is not a
   Windows assembly.** On Windows it returns the familiar set; on Linux, `/` and NUL alone, so `:`,
   `*`, `?` and `\` all come back as legal. The Windows client only ever *runs* on Windows, but its

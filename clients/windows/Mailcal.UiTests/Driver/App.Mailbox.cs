@@ -29,9 +29,17 @@ internal sealed partial class App
         {
             return shown;
         }
-        if (Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = Mailbox.Hwnd }) is not null)
+        // Through All Accounts' Inbox, which every store with an account draws; the calendar leaves
+        // its tree closed. On the first-run form there is none, and no list to go back to.
+        if (Agent.Find(Filter.Named(Catalog.English("sidebar_all_accounts"), "ListItem") with { Window = Mailbox.Hwnd }) is { } all)
         {
-            OpenFolder(Catalog.English("folder_inbox"));
+            Agent.Expand(all);
+            if (Agent.Wait(Filter.Named(Catalog.English("folder_inbox"), "ListItem") with { Under = all }, TimeSpan.FromSeconds(10)) is { } inbox)
+            {
+                Agent.Invoke(inbox);
+                Agent.Wait(list, Patience);
+                Agent.Settle();
+            }
         }
         return Agent.Find(list) ?? throw new InvalidOperationException("the message list (#RowsList) is not on screen");
     }

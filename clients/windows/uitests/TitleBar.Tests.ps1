@@ -28,7 +28,7 @@
 # "Where the field lives"). That is a placement rule, so it is geometry: a field merely PRESENT in
 # the caption, drawn hard against one edge, satisfies every lookup and none of the rule. New Mail
 # is NOT here, deliberately, it is at the head of the actions bar under the caption
-# (SelectionBar.Tests.ps1), where a collapsed folder pane cannot take it off screen.
+# (SelectionBarTests in Mailcal.UiTests), where a collapsed folder pane cannot take it off screen.
 #
 # Dataset is `showcase`: these are rules about markup and rendering, no mail action is dispatched,
 # and the pinned window frame keeps the caption's geometry predictable for the pixel sample.

@@ -64,7 +64,7 @@
 #     row through a CONTROL inside it (a ScrollViewer, a TextBlock), whose x:Name is already its
 #     AutomationId.
 #     ⚠️ The cost is invisible, which is why this is worth re-reading: #SelectionBar is on a Border,
-#     and SelectionBar.Tests waited thirty seconds for it, twice a run, then DISCARDED the $null
+#     and a suite waited thirty seconds for it, twice a run, then DISCARDED the $null
 #     and passed on elements it found by other means. A whole minute of every run, and nothing on
 #     screen or in the summary said so. If a wait's result is not read, it is not a wait.
 #   * THE COMPOSER'S MESSAGE BODY. It is a web page, one group named "Write your message" here;
