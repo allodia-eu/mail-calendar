@@ -22,6 +22,11 @@ internal static partial class TestAgent
     {
         described["focused"] = peer.HasKeyboardFocus();
         described["help"] = peer.GetHelpText();
+        // The weight the text is drawn in, which UI Automation's text pattern reports for a TextBlock.
+        if (peer is FrameworkElementAutomationPeer { Owner: TextBlock drawn })
+        {
+            described["fontWeight"] = drawn.FontWeight.Weight;
+        }
         if (peer.GetPattern(PatternInterface.Value) is IValueProvider value)
         {
             described["value"] = value.Value;
@@ -163,6 +168,15 @@ internal static partial class TestAgent
     {
         PeerOf(HandleIn(request)).SetFocus();
         return new JsonObject { ["ok"] = true };
+    }
+
+    /// <summary>The nearest ancestor with a peer of an element the walk has met, or none: a layout
+    /// panel between them has no peer, so the answer can be several levels up.</summary>
+    private static JsonObject Parent(JsonObject request)
+    {
+        var peer = PeerOf(HandleIn(request));
+        var parent = ParentOf.TryGetValue(peer, out var up) && up.TryGetTarget(out var found) ? found : null;
+        return new JsonObject { ["elements"] = parent is null ? new JsonArray() : new JsonArray(Describe(parent)) };
     }
 
     /// <summary>The element that has the keyboard, in whichever window has it, or none.</summary>

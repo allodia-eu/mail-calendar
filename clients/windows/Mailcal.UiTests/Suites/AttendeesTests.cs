@@ -22,6 +22,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class AttendeesTests(HarnessApp harness)
 {
     private const string Meeting = "Quarterly planning";

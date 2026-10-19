@@ -300,7 +300,7 @@
          Pure BCL on purpose, so the writer and the reader can share the two argument keys and be
          pinned together here. The failure is silent either way round: a key spelled differently
          on one side, or half a pair acted on, is a click that opens nothing or the wrong thing,
-         and the toast itself is outside the UI-Automation tree that uitests can see. -->
+         and the toast itself is outside the UI-Automation tree the UI suites can see. -->
     <Compile Include="..\Mailcal\Services\NotificationOpenInbox.cs" Link="Services\NotificationOpenInbox.cs" />
     <!-- The mail-link (`mailto:`) activation gate: is this launch one, and which URI is in it. Pure
          BCL on purpose, the parse belongs to the shared core and the composer to the shell, so what

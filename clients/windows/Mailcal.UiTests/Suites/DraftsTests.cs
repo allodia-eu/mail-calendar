@@ -17,6 +17,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class DraftsTests(HarnessApp harness)
 {
     private static string Subject(string what) => $"Draft suite {DraftsFlow.Run} {what}";

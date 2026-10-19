@@ -29,9 +29,17 @@ internal sealed partial class App
         {
             return shown;
         }
-        if (Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = Mailbox.Hwnd }) is not null)
+        // Through All Accounts' Inbox, which every store with an account draws; the calendar leaves
+        // its tree closed. On the first-run form there is none, and no list to go back to.
+        if (Agent.Find(Filter.Named(Catalog.English("sidebar_all_accounts"), "ListItem") with { Window = Mailbox.Hwnd }) is { } all)
         {
-            OpenFolder(Catalog.English("folder_inbox"));
+            Agent.Expand(all);
+            if (Agent.Wait(Filter.Named(Catalog.English("folder_inbox"), "ListItem") with { Under = all }, TimeSpan.FromSeconds(10)) is { } inbox)
+            {
+                Agent.Invoke(inbox);
+                Agent.Wait(list, Patience);
+                Agent.Settle();
+            }
         }
         return Agent.Find(list) ?? throw new InvalidOperationException("the message list (#RowsList) is not on screen");
     }
@@ -130,12 +138,7 @@ internal sealed partial class App
     /// </summary>
     internal void TypeInto(Element field, string text)
     {
-        Input.Click(Steady(field));
-        if (!Eventually(() => Agent.Read(field).Focused, TimeSpan.FromSeconds(5)))
-        {
-            throw new InvalidOperationException($"#{field.Id} did not take the keyboard when clicked");
-        }
-        Agent.Settle(quiet: TimeSpan.FromMilliseconds(200), floor: TimeSpan.FromMilliseconds(300), cap: TimeSpan.FromSeconds(1));
+        ClickToType(field);
         if (text.Length == 0)
         {
             return;
@@ -152,6 +155,22 @@ internal sealed partial class App
         {
             throw new InvalidOperationException($"#{field.Id} never held what was typed into it ('{Agent.Read(field).Value}')");
         }
+    }
+
+    /// <summary>
+    /// Clicks <paramref name="field"/> and returns once it can take characters: past its focus and a
+    /// moment more, for the reason <see cref="TypeInto"/> gives. For keys whose effect is the
+    /// field's own business, such as a comma that finishes an address, where what the field holds
+    /// afterwards is what the case asserts.
+    /// </summary>
+    internal void ClickToType(Element field)
+    {
+        Input.Click(Steady(field));
+        if (!Eventually(() => Agent.Read(field).Focused, TimeSpan.FromSeconds(5)))
+        {
+            throw new InvalidOperationException($"#{field.Id} did not take the keyboard when clicked");
+        }
+        Agent.Settle(quiet: TimeSpan.FromMilliseconds(200), floor: TimeSpan.FromMilliseconds(300), cap: TimeSpan.FromSeconds(1));
     }
 
     /// <summary>
@@ -256,14 +275,14 @@ internal sealed partial class App
     {
         CloseExtraWindows();
         CloseComposer();
-        foreach (var id in new[] { "CloseButton", "CancelButton" })
+        if (Agent.Find(Filter.ById("CancelButton", "Button") with { OnScreen = true }) is { } cancel)
         {
-            if (Agent.Find(Filter.ById(id, "Button") with { OnScreen = true }) is { } close)
-            {
-                Agent.Invoke(close);
-                Agent.Settle();
-            }
+            Agent.Invoke(cancel);
+            Agent.Settle();
         }
+        // Waited out, not pressed and left: a press made while a dialog's dimming layer is still
+        // closing opens nothing.
+        CloseDialogs();
     }
 
     /// <summary>The screen pixels under <paramref name="element"/>, read with its window in front:
@@ -280,6 +299,15 @@ internal sealed partial class App
         using var graphics = Graphics.FromImage(bitmap);
         graphics.CopyFromScreen(area.X, area.Y, 0, 0, bitmap.Size);
         return bitmap;
+    }
+
+    /// <summary>The median luminance of an empty band of <paramref name="window"/>'s caption, right of
+    /// the title and left of the caption buttons: the one surface that spans the app's whole theme
+    /// and carries no text there.</summary>
+    internal static double CaptionLuminance(long window)
+    {
+        var bounds = Desktop.Bounds(window);
+        return Luminance(window, new Rectangle(bounds.X + (int)(bounds.Width * 0.55), bounds.Y + 12, 120, 8)).Median;
     }
 
     /// <summary>The median, darkest and lightest luminance (0 to 255, Rec. 601, as an eye weights

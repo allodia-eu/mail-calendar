@@ -124,7 +124,7 @@ fn tree(suite: &str) -> Repo {
     Repo::new(&[
         ("clients/windows/Mailcal/Views/ReadingView.xaml", VIEW),
         ("clients/windows/Mailcal/Views/ReadingView.xaml.cs", CODE),
-        ("clients/windows/uitests/Reading.Tests.ps1", suite),
+        ("clients/windows/control.ps1", suite),
     ])
 }
 
@@ -174,7 +174,7 @@ fn a_csharp_suite_s_lookups_are_read_and_checked() {
         ("clients/windows/Mailcal/Views/ReadingView.xaml", VIEW),
         ("clients/windows/Mailcal/Views/ReadingView.xaml.cs", CODE),
         (
-            "clients/windows/uitests/Reading.Tests.ps1",
+            "clients/windows/control.ps1",
             "Find-UiaElement -AutomationId 'PrimaryButton'
 ",
         ),

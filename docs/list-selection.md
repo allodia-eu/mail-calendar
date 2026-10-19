@@ -222,7 +222,7 @@ batch they all dispatch into is `crates/mailcal-app/src/mail_ops/bulk.rs`.
   Escape does to a selection mode that has its own Done button.
 - **Nothing verifies the desktop behaviour end to end.** Each client's rules have unit tests, and
   the batch has its own in `tests_selection.rs`, but what a ⇧-click does to a real list is a
-  toolkit behaviour: `clients/windows/uitests` is the one suite that could assert it, and it does
+  toolkit behaviour: `clients/windows/Mailcal.UiTests` is the one suite that could assert it, and it does
   not yet. Until it does, a modifier click is checked by hand.
 
 ## Enforcement

@@ -23,6 +23,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class EventSeriesScopeTests(HarnessApp harness)
 {
     /// <summary>The daily series of the four the harness seeds (docker/stalwart/seed-calendar-week.sh):

@@ -17,6 +17,7 @@ namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(TwoAccountHarnessCollection.Name)]
 [TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
+[Trait("Dataset", "harness")]
 public sealed class EventAnswerTests(TwoAccountHarnessApp harness)
 {
     private static readonly string Title = $"Answer {DateTime.Now:yyyyMMdd-HHmmss}";

@@ -84,6 +84,24 @@ internal sealed class SetupFlow(App app)
         return app.Dialog(holding);
     }
 
+    /// <summary>The categories' tags, in the order the dialog draws them.</summary>
+    internal List<string> Categories() =>
+        Agent.FindAll(new Filter { Type = "ListItem", Under = Settings() })
+            .Where(item => item.Id.StartsWith("SettingsCategory_", StringComparison.Ordinal))
+            .Select(item => item.Id["SettingsCategory_".Length..])
+            .ToList();
+
+    /// <summary>Opens the category tagged <paramref name="tag"/> and returns the dialog, its panel
+    /// drawn.</summary>
+    internal Element OpenCategory(string tag)
+    {
+        var dialog = Settings();
+        Agent.Select(Agent.Find(new Filter { Id = $"SettingsCategory_{tag}", Under = dialog })
+            ?? throw new InvalidOperationException($"Settings offers no '{tag}' category"));
+        Agent.Settle(quiet: TimeSpan.FromMilliseconds(200));
+        return dialog;
+    }
+
     /// <summary>
     /// The account rows of Settings → Accounts, drawn afresh, by leaving the category and coming
     /// back, so what they show is the core's answer and not a value the client kept; and selecting

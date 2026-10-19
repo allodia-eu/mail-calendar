@@ -354,7 +354,7 @@ and summarises. The order is cheapest-first rather than CI's, so the step most l
 your change fails first.
 
 Nothing in it needs a device, simulator, emulator or Docker: the suites that do stay out
-(`clients/windows/uitests`, `clients/apple/Scripts/test-ui.sh`, `scripts/dev/test-linux-ui.sh`,
+(`clients/windows/Mailcal.UiTests`, `clients/apple/Scripts/test-ui.sh`, `scripts/dev/test-linux-ui.sh`,
 `scripts/dev/test-android-native-fault.sh`, anything behind `scripts/dev/boot.sh`),
 because a gate that cannot run is a gate people stop running. `--clients` adds only the headless,
 host-appropriate ones and **says what it skipped and why**: a skip that reads like a pass is the
@@ -371,7 +371,7 @@ window:
 
 ```powershell
 clients/windows/build-and-run.ps1 -NoRun        # cdylib -> bindings -> headless gate -> Mailcal.Tests -> app
-clients/windows/uitests/run-ui-tests.ps1        # UI Automation assertions against the RUNNING app
+clients/windows/uitests/run-ui-tests.ps1        # UI suites: assertions against the RUNNING app
 ```
 
 CI runs the second one too, but only `-Dataset showcase,first-run`: the harness is a Linux
@@ -467,9 +467,9 @@ were broken right now, would this tell me?*
   cross-platform test count is not coverage: read the per-file `running N tests` lines.
 - **`Mailcal.Tests` cannot link WinUI types** (plain `net10.0`), so an unwired binding, an
   unassigned property and a control opening in the wrong state are all invisible to it. State a rule
-  there when it can be stated without WinUI, and in `uitests/` when the thing under test is what the
-  user sees. Read [`run-ui-tests.ps1`](clients/windows/uitests/run-ui-tests.ps1)'s header first: the
-  dataset choice decides whether your test proves anything.
+  there when it can be stated without WinUI, and in `Mailcal.UiTests` when the thing under test is
+  what the user sees. Read [`run-ui-tests.ps1`](clients/windows/uitests/run-ui-tests.ps1)'s header
+  first: the dataset choice decides whether your test proves anything.
 - **Build on the host's *own* architecture.** Every dual-arch script defaults to it, so passing
   `-Arch` explicitly, copying the CI job's line, is the only way to get this wrong: it recompiles
   the cdylib for a target `cargo test` did not build and **silently drops the gates that must

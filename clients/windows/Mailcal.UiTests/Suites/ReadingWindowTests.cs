@@ -26,6 +26,7 @@ using static Allodia.Mailcal.UiTests.Suites.ReadingWindowFlow;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(DebugLogHarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class ReadingWindowTests(DebugLogHarnessApp harness)
 {
     private void Case(string name, Action<App, ReadingWindowFlow> body) =>

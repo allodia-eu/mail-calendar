@@ -18,8 +18,12 @@ internal static class Harness
     internal const string Bob = "bob@test.local";
     internal const string Dave = "dave@test.local";
 
-    /// <summary>Whether the harness answers on its JMAP port.</summary>
-    internal static bool IsUp()
+    /// <summary>Whether the harness answers on its JMAP port. Asked once a run: every harness case
+    /// asks while the run is being discovered, and a harness that is down costs the whole timeout
+    /// each time.</summary>
+    internal static bool IsUp() => Up.Value;
+
+    private static readonly Lazy<bool> Up = new(() =>
     {
         try
         {
@@ -30,7 +34,7 @@ internal static class Harness
         {
             return false;
         }
-    }
+    });
 
     /// <summary>Stores <paramref name="message"/> in <paramref name="role"/> of alice's account,
     /// with <paramref name="keywords"/>.</summary>

@@ -18,6 +18,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class ComposerFocusTests(HarnessApp harness)
 {
     // How many suggestions the overlap assertion needs before it means anything: three already clear

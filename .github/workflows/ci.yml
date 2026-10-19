@@ -789,22 +789,16 @@ jobs:
       - name: Register the Windows App Runtime
         run: ./clients/windows/uitests/install-windows-app-runtime.ps1 -Arch x64
 
-      # Every press the UI suites make goes through Microsoft's winapp CLI (clients/windows/winapp.ps1).
-      # The script installs the release it pins and checks it against GitHub's published digest,
-      # rather than taking whatever winget serves that day.
-      - name: Install winapp
-        run: ./clients/windows/uitests/install-winapp.ps1 -Arch x64
-
       # A runner comes up at 1024x768 and the showcase suites measure a 1440x900 window. Clipped,
       # the two ways they lie are both silent: a screen grab past the edge returns black, so every
       # theme reads as dark, and a NavigationView below its own breakpoint changes display mode, so
-      # the sidebar assertions measure a pane that is not the one shipped. `run-ui-tests.ps1`
-      # refuses to run on a desktop too small, so this is a precondition rather than a nicety.
+      # the sidebar assertions measure a pane that is not the one shipped. The showcase launch
+      # refuses a desktop too small, so this is a precondition rather than a nicety.
       - name: Give the desktop session a size the suites can measure
         run: ./clients/windows/uitests/set-desktop-resolution.ps1 -Width 1920 -Height 1080
 
       # `showcase,first-run` and not `harness`: the harness is a Linux container, and a GitHub
-      # Windows runner runs only Windows ones, so twelve suites cannot run here at all and are
+      # Windows runner runs only Windows ones, so the harness suites cannot run here at all and are
       # named as not selected rather than left to look like passes. What that leaves out is a real
       # gap, stated in docs/background-sync.md and the runner's own header: nothing CI checks
       # proves a mail action survived a round trip.
@@ -812,7 +806,7 @@ jobs:
       # No `continue-on-error`. A suite that is allowed to fail is a suite nobody fixes, and this
       # one has already caught a shipped bug (an unread row that bolded nothing) that every
       # headless gate passed.
-      - name: UI Automation suite (showcase + first-run)
+      - name: UI suites (showcase + first-run)
         run: ./clients/windows/uitests/run-ui-tests.ps1 -Dataset showcase,first-run
 
       # The suite shoots the desktop at the moment a case throws, which is the only time the app is
@@ -824,7 +818,8 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: windows-ui-suite-failures
-          path: clients/windows/uitests/failures/
+          path: |
+            clients/windows/Mailcal.UiTests/failures/
           if-no-files-found: ignore
 
   android:

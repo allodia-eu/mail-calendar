@@ -575,7 +575,7 @@
                      unified inbox): a subtle "Verbonden" when reachable, a caution "Niet verbonden"
                      with a warning glyph otherwise. Click it for the details + a retry. -->
                 <!-- Icon + text content, so no UIA Name is derived; the status IS the label, so it
-                     is bound as the spoken name too (uitests/Accessibility.Tests.ps1). -->
+                     is bound as the spoken name too (Mailcal.UiTests/Suites/AccessibilityTests.cs). -->
                 <Button Grid.Column="2" Padding="6,2" Background="Transparent" BorderThickness="0" VerticalAlignment="Center"
                         AutomationProperties.AutomationId="ConnectionStatus"
                         AutomationProperties.Name="{x:Bind Model.ConnectionStatusText, Mode=OneWay}">

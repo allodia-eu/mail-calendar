@@ -26,6 +26,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class ImapSignInTests(HarnessApp harness)
 {
     // Written as lookups so check-automation-ids reads them.

@@ -1,7 +1,7 @@
 // A debug-only count of what the app has closed and the runtime still holds: windows, composers and
-// editor web views. The UI suite reads it from the log (uitests/ReleaseProbe.Tests.ps1), because a
-// closed window that is never freed looks exactly like one that is, and Mailcal.Tests cannot host a
-// window at all.
+// editor web views. The UI suite reads it from the log (Mailcal.UiTests/Suites/ReleaseProbeTests.cs),
+// because a closed window that is never freed looks exactly like one that is, and Mailcal.Tests
+// cannot host a window at all.
 //
 // Off unless MAILCAL_RELEASE_PROBE=1 at launch. Every call to it is compiled out of a release build.
 

@@ -69,7 +69,7 @@ ran. Closing is not an `Intent`: it moves nothing, marks nothing and signals not
 refers to it or to anything it held, its view and its web view included. A closed window that is
 still held draws nothing, and where closing a web view ends its process regardless (WebView2 does)
 even a process count stays flat, so only a count of what the app holds can see it; on Windows that
-is `uitests/ReleaseProbe.Tests.ps1`.
+is `Mailcal.UiTests/Suites/ReleaseProbeTests.cs`.
 
 **A window's reader id is the host's to mint, and cannot name the pane.** The pane's slot is a
 different kind of thing in the core, not a reserved string, so no host bug can empty the pane by

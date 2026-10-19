@@ -90,6 +90,29 @@ internal static class Input
         Send(Mouse(MouseLeftUp));
     }
 
+    /// <summary>
+    /// Rests the pointer on the middle of <paramref name="element"/> for <paramref name="dwellMs"/>,
+    /// arriving in steps as a hand moves it: a pointer warped there leaves the element with no
+    /// pointer-over at all, so nothing a hover raises would be raised.
+    /// </summary>
+    internal static void Hover(Element element, int dwellMs)
+    {
+        if (!element.Rendered)
+        {
+            throw new InvalidOperationException($"'{element.Name}' (#{element.Id}) is not drawn, so a pointer cannot rest on it");
+        }
+        BringToFront(element.Window);
+        var (toX, toY) = ((int)(element.X + element.Width / 2), (int)(element.Y + element.Height / 2));
+        var (fromX, fromY) = (toX - 60, toY - 40);
+        const int steps = 12;
+        for (var i = 0; i <= steps; i++)
+        {
+            MoveTo(fromX + ((toX - fromX) * i / steps), fromY + ((toY - fromY) * i / steps));
+            Thread.Sleep(15);
+        }
+        Thread.Sleep(dwellMs);
+    }
+
     /// <summary>Moves the pointer to a screen point, in physical pixels, as a mouse moves it.</summary>
     private static void MoveTo(int x, int y)
     {
@@ -120,19 +143,47 @@ internal static class Input
             new NativeInput { Type = InputKeyboard, Union = new InputUnion { Keyboard = new KeyboardInput { Virtual = virtualKey, Scan = scan, Flags = KeyUp } } });
     }
 
+    /// <summary>Presses <paramref name="virtualKey"/> with <paramref name="modifiers"/> held, as a
+    /// hand does: the modifiers down, the key, the modifiers up in reverse.</summary>
+    internal static void Chord(ushort virtualKey, params ushort[] modifiers)
+    {
+        foreach (var modifier in modifiers)
+        {
+            Send(KeyDown(modifier));
+        }
+        Press(virtualKey);
+        foreach (var modifier in modifiers.Reverse())
+        {
+            Send(KeyDown(modifier, up: true));
+        }
+    }
+
+    private static NativeInput KeyDown(ushort virtualKey, bool up = false) => new()
+    {
+        Type = InputKeyboard,
+        Union = new InputUnion
+        {
+            Keyboard = new KeyboardInput { Virtual = virtualKey, Scan = (ushort)MapVirtualKeyW(virtualKey, MapVirtualKeyToScanCode), Flags = up ? KeyUp : 0 },
+        },
+    };
+
     private const uint MapVirtualKeyToScanCode = 0;
 
     internal const ushort Escape = 0x1B;
     internal const ushort Enter = 0x0D;
+    internal const ushort Tab = 0x09;
+    internal const ushort Shift = 0x10;
+    internal const ushort Control = 0x11;
 
-    /// <summary>Turns the wheel over a screen point, in notches: positive is away from the user.</summary>
-    internal static void Wheel(int x, int y, int notches)
+    /// <summary>Turns the wheel over a screen point, in notches: positive is away from the user, or with
+    /// <paramref name="horizontal"/> to the right.</summary>
+    internal static void Wheel(int x, int y, int notches, bool horizontal = false)
     {
         SetCursorPos(x, y);
         Send(new NativeInput
         {
             Type = InputMouse,
-            Union = new InputUnion { Mouse = new MouseInput { Data = unchecked((uint)(notches * 120)), Flags = MouseWheel } },
+            Union = new InputUnion { Mouse = new MouseInput { Data = unchecked((uint)(notches * 120)), Flags = horizontal ? MouseHorizontalWheel : MouseWheel } },
         });
     }
 
@@ -171,6 +222,7 @@ internal static class Input
     private const uint MouseRightDown = 0x0008;
     private const uint MouseRightUp = 0x0010;
     private const uint MouseWheel = 0x0800;
+    private const uint MouseHorizontalWheel = 0x01000;
     private const uint MouseMove = 0x0001;
     private const uint MouseAbsolute = 0x8000;
     private const uint MouseVirtualDesk = 0x4000;

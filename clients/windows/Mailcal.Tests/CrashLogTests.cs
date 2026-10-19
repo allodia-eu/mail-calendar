@@ -1,5 +1,5 @@
 // The crash line (Services/CrashLog.cs). Until this file there was no gate on it at all: neither
-// this suite nor uitests/ mentioned WatchForCrashes, so the one line that says the app died rather
+// this suite nor the UI suites mentioned WatchForCrashes, so the one line that says the app died rather
 // than quit was carried on trust.
 //
 // What is testable here is the composition, and it is pinned the way SessionMarkerTests pins the

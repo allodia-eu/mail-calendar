@@ -26,6 +26,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class EventRepeatTests(HarnessApp harness)
 {
     private const string Weekly = "Team sync";

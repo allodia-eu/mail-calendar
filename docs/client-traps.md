@@ -77,7 +77,7 @@ that same file.
   accident**. A test that measures one width passes over the defect; the assertion has to force the
   labelled width and say so when it cannot reach it
   ([`ReadingActionRowTests.cs`](../clients/windows/Mailcal.UiTests/Suites/ReadingActionRowTests.cs),
-  [`SelectionBar.Tests.ps1`](../clients/windows/uitests/SelectionBar.Tests.ps1)).
+  [`SelectionBarTests.cs`](../clients/windows/Mailcal.UiTests/Suites/SelectionBarTests.cs)).
 - **`Path.GetInvalidFileNameChars()` answers differently per host, and `Mailcal.Tests` is not a
   Windows assembly.** On Windows it returns the familiar set; on Linux, `/` and NUL alone, so `:`,
   `*`, `?` and `\` all come back as legal. The Windows client only ever *runs* on Windows, but its
@@ -422,8 +422,9 @@ that same file.
   three forced collections, a few megabytes each, while handlers on elements inside the same
   windows held nothing. The tell is `gcroot` in `dotnet-dump` finding no managed root for an object
   that survives every collection. Unsubscribe inside the `Closed` handler, which
-  `WindowChrome.Dress` does for every window it dresses; `uitests/ReleaseProbe.Tests.ps1` counts
-  what is still held after a close.
+  `WindowChrome.Dress` does for every window it dresses, or take the window from the handler's
+  `sender` rather than capturing it; `Mailcal.UiTests/Suites/ReleaseProbeTests.cs` counts what is
+  still held after a close.
 - **WinUI's `FocusManager` static *moves* act on whichever element holds focus now, which may be in
   a different window.** `TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = other })`
   reads as "move focus into `other`" and is not: the search root only bounds where the *next*

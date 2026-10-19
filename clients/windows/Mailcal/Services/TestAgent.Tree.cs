@@ -109,6 +109,13 @@ internal static partial class TestAgent
             : children;
     }
 
+    /// <summary>Whether the element is in UI Automation's raw view only (an avatar, a print page):
+    /// the control view a screen reader reads leaves it out, so every lookup does too. Its children
+    /// keep their own view.</summary>
+    private static bool HiddenFromAssistiveTechnology(AutomationPeer peer) =>
+        peer is FrameworkElementAutomationPeer { Owner: { } owner }
+        && Microsoft.UI.Xaml.Automation.AutomationProperties.GetAccessibilityView(owner) == AccessibilityView.Raw;
+
     private static string? SignalOf(AutomationPeer peer) =>
         peer is FrameworkElementAutomationPeer { Owner: { } owner } && Signals.TryGetValue(owner, out var state) ? state : null;
 
@@ -200,6 +207,7 @@ internal static partial class TestAgent
         foreach (var peer in Walk(RootsOf(request)))
         {
             if (ReferenceEquals(peer, under)
+                || HiddenFromAssistiveTechnology(peer)
                 || (id is not null && peer.GetAutomationId() != id)
                 || (name is not null && peer.GetName() != name)
                 || (like is not null && !like.IsMatch(peer.GetName() ?? ""))
@@ -285,7 +293,9 @@ internal static partial class TestAgent
         // A peer measures from its window's client area; a press is aimed at the screen.
         var rect = peer.GetBoundingRectangle();
         var origin = new ClientPoint();
-        var known = WindowOf.TryGetValue(peer, out var window);
+        // A peer met outside a walk, such as one a read handed back, has no window recorded: its
+        // element's root says which.
+        var known = WindowOf.TryGetValue(peer, out var window) || (window = WindowByRoot(peer)) is not null;
         if (known)
         {
             ClientToScreen((nint)Hwnd(window!), ref origin);
@@ -315,6 +325,11 @@ internal static partial class TestAgent
         }
         return described;
     }
+
+    private static Window? WindowByRoot(AutomationPeer peer) =>
+        peer is FrameworkElementAutomationPeer { Owner: { XamlRoot: { } root } }
+            ? OpenWindows().FirstOrDefault(w => ReferenceEquals(w.Content?.XamlRoot, root))
+            : null;
 
     /// <summary>A name pattern as PowerShell's <c>-like</c> reads one, which the suites were written
     /// against: <c>*</c> and <c>?</c>, case ignored.</summary>

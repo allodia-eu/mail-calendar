@@ -1,7 +1,8 @@
 // The running app: launched on the harness store, or on an empty one for a first run, with its test
-// agent listening, and brought to the state every suite starts from. The launch mirrors control.ps1
-// and the readiness mirrors uitests/dataset.ps1, whose headers say why each step is there.
+// agent listening, and brought to the state every suite starts from. The launch mirrors control.ps1,
+// whose header says why each step is there.
 
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Allodia.Mailcal.UiTests.Driver;
@@ -10,6 +11,9 @@ namespace Allodia.Mailcal.UiTests.Driver;
 internal sealed partial class App : IDisposable
 {
     private readonly Process _process;
+
+    /// <summary>What it was launched with: a second activation is given the same.</summary>
+    private Dictionary<string, string?> _environment = [];
 
     internal Agent Agent { get; }
 
@@ -30,7 +34,7 @@ internal sealed partial class App : IDisposable
     /// <summary>Launches the newest Debug build on the harness store and waits until it is ready:
     /// past the first-run question and the default-mail-app offer, rows listed, and the calendar
     /// back from the server.</summary>
-    internal static App LaunchOnHarness(IReadOnlyDictionary<string, string>? env = null) => Launch(env, firstRun: false);
+    internal static App LaunchOnHarness(IReadOnlyDictionary<string, string>? env = null) => Launch(env, Dataset.Harness);
 
     /// <summary>
     /// Launches the newest Debug build on an empty store and waits for the account-setup form,
@@ -39,29 +43,44 @@ internal sealed partial class App : IDisposable
     /// (clear-dev-namespace.ps1 says why both), because a first run is defined by there being
     /// nothing in it.
     /// </summary>
-    internal static App LaunchOnFirstRun(IReadOnlyDictionary<string, string>? env = null) => Launch(env, firstRun: true);
+    internal static App LaunchOnFirstRun(IReadOnlyDictionary<string, string>? env = null) => Launch(env, Dataset.FirstRun);
 
-    private static App Launch(IReadOnlyDictionary<string, string>? env, bool firstRun)
+    /// <summary>Launches the newest Debug build on the in-memory showcase dataset and waits until it
+    /// is showing its screen (App.Showcase.cs).</summary>
+    internal static App LaunchOnShowcase(IReadOnlyDictionary<string, string>? env = null) => Launch(env, Dataset.Showcase);
+
+    private static App Launch(IReadOnlyDictionary<string, string>? env, Dataset dataset)
     {
         Stop();
-        if (firstRun)
+        if (dataset == Dataset.FirstRun)
         {
             ClearNamespace("dev-first-run");
         }
-        var (environment, pipe) = LaunchEnvironment(env, firstRun);
+        else if (dataset == Dataset.Showcase)
+        {
+            AssertShowcaseDriver();
+        }
+        var (environment, pipe) = LaunchEnvironment(env, dataset);
         // Through the shell, so the app inherits none of this process's handles: a child holding the
         // test host's output open keeps `dotnet test` waiting after the last case.
         var launchedAt = DateTimeOffset.Now;
         Process? process = null;
         WithEnvironment(environment, () => process = Process.Start(new ProcessStartInfo(Exe()) { UseShellExecute = true }));
-        var app = new App(process ?? throw new InvalidOperationException("the app did not start"), Agent.Connect(pipe, TimeSpan.FromSeconds(60)));
-        if (firstRun)
+        var app = new App(process ?? throw new InvalidOperationException("the app did not start"), Agent.Connect(pipe, TimeSpan.FromSeconds(60)))
         {
-            app.WaitSetupForm();
-        }
-        else
+            _environment = environment,
+        };
+        switch (dataset)
         {
-            app.WaitReady(launchedAt, environment["MAILCAL_DEV_ACCOUNT"]!);
+            case Dataset.FirstRun:
+                app.WaitSetupForm();
+                break;
+            case Dataset.Showcase:
+                app.WaitShowcase(launchedAt, environment);
+                break;
+            default:
+                app.WaitReady(launchedAt, environment["MAILCAL_DEV_ACCOUNT"]!);
+                break;
         }
         return app;
     }
@@ -74,7 +93,7 @@ internal sealed partial class App : IDisposable
     /// </summary>
     internal static App StartedBy(Action activate, IReadOnlyDictionary<string, string>? env = null)
     {
-        var (environment, pipe) = LaunchEnvironment(env, firstRun: false);
+        var (environment, pipe) = LaunchEnvironment(env, Dataset.Harness);
         WithEnvironment(environment, activate);
         Process? process = null;
         if (!Eventually(() => (process = Process.GetProcessesByName("Mailcal").FirstOrDefault()) is not null, TimeSpan.FromSeconds(30)))
@@ -85,7 +104,7 @@ internal sealed partial class App : IDisposable
     }
 
     /// <summary>The environment a launch is made with, and the pipe its agent listens on.</summary>
-    private static (Dictionary<string, string?> Environment, string Pipe) LaunchEnvironment(IReadOnlyDictionary<string, string>? env, bool firstRun)
+    private static (Dictionary<string, string?> Environment, string Pipe) LaunchEnvironment(IReadOnlyDictionary<string, string>? env, Dataset dataset)
     {
         var pipe = $"mailcal-uitests-{Environment.ProcessId}-{++_launches}";
         var environment = new Dictionary<string, string?>
@@ -97,11 +116,27 @@ internal sealed partial class App : IDisposable
             ["MAILCAL_SHOWCASE_SCREEN"] = null,
             ["MAILCAL_APPEARANCE"] = null,
             ["MAILCAL_FAKE_REPLY_DELIVERY"] = null,
+            ["MAILCAL_FAKE_SYNC_HINT"] = null,
+            ["MAILCAL_FAKE_SYNC_PAUSED"] = null,
+            ["MAILCAL_FAKE_SYNC_PROGRESS"] = null,
+            ["MAILCAL_RELEASE_PROBE"] = null,
             ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = null,
-            ["MAILCAL_DEV_ACCOUNT"] = firstRun ? "first-run" : Environment.GetEnvironmentVariable("MAILCAL_DEV_ACCOUNT") ?? "stalwart",
-            ["MAILCAL_EXTRA_CA"] = Path.Combine(Repo, "docker", "stalwart", "tls", "harness-ca.pem"),
+            ["MAILCAL_DEV_ACCOUNT"] = dataset switch
+            {
+                Dataset.FirstRun => "first-run",
+                Dataset.Showcase => null,
+                _ => Environment.GetEnvironmentVariable("MAILCAL_DEV_ACCOUNT") ?? "stalwart",
+            },
+            ["MAILCAL_EXTRA_CA"] = dataset == Dataset.Showcase ? null : Path.Combine(Repo, "docker", "stalwart", "tls", "harness-ca.pem"),
             ["MAILCAL_TEST_AGENT"] = pipe,
         };
+        if (dataset == Dataset.Showcase)
+        {
+            foreach (var (name, value) in ShowcaseDefaults)
+            {
+                environment[name] = value;
+            }
+        }
         foreach (var (name, value) in env ?? new Dictionary<string, string>())
         {
             environment[name] = value;
@@ -133,6 +168,23 @@ internal sealed partial class App : IDisposable
         }
     }
 
+    /// <summary>
+    /// Starts the exe again with <paramref name="argument"/>, as the shell does for a mail link while
+    /// the app runs: the app is single-instanced, so the new process hands the activation to this one
+    /// and exits. In this launch's environment, without its agent, which this copy already holds.
+    /// </summary>
+    internal void HandOver(string argument) => StartAnother(argument).Dispose();
+
+    /// <summary>Starts another copy of the exe with <paramref name="argument"/>, in this launch's
+    /// environment without its agent, and returns its process.</summary>
+    internal Process StartAnother(string argument)
+    {
+        var environment = new Dictionary<string, string?>(_environment) { ["MAILCAL_TEST_AGENT"] = null };
+        Process? started = null;
+        WithEnvironment(environment, () => started = Process.Start(new ProcessStartInfo(Exe(), argument) { UseShellExecute = true }));
+        return started ?? throw new InvalidOperationException($"the exe did not start with {argument}");
+    }
+
     /// <summary>Closes the mailbox as a person does, rather than ending the process: the window's
     /// Closed handler is what lets go of what the app registered. Whether it had gone within
     /// <paramref name="timeout"/>.</summary>
@@ -145,7 +197,7 @@ internal sealed partial class App : IDisposable
     /// <summary>
     /// The welcome question answered with Get started, then the setup form. Ready means the question
     /// was answered and not merely that the form is up: a core that failed to open draws the form
-    /// with no welcome question before it (uitests/dataset.ps1 has the case it hid).
+    /// with no welcome question before it.
     /// </summary>
     private void WaitSetupForm()
     {
@@ -285,7 +337,33 @@ internal sealed partial class App : IDisposable
         ?? throw new InvalidOperationException("no Debug Mailcal.exe under clients/windows/Mailcal/bin; run clients/windows/build-and-run.ps1 -NoRun first");
 
     /// <summary>Whether there is a Debug build to launch.</summary>
-    internal static bool HasBuild()
+    internal static bool HasBuild() => Built.Value;
+
+    /// <summary>
+    /// Whether this checkout builds with the Allodia sign-in, which is derived from the registration
+    /// (clients/windows/core-features.ps1): the environment first, then the repository's .env, the
+    /// last assignment winning.
+    /// </summary>
+    internal static bool AllodiaRegistered()
+    {
+        var value = Environment.GetEnvironmentVariable("MAILCAL_ALLODIA_CLIENT_ID");
+        var file = Path.Combine(Repo, ".env");
+        if (string.IsNullOrWhiteSpace(value) && File.Exists(file))
+        {
+            foreach (var line in File.ReadLines(file))
+            {
+                var assignment = System.Text.RegularExpressions.Regex.Match(line.Trim(), @"^(?:export\s+)?MAILCAL_ALLODIA_CLIENT_ID\s*=\s*(.*)$");
+                if (assignment.Success)
+                {
+                    value = assignment.Groups[1].Value.Trim().Trim('"', '\'');
+                }
+            }
+        }
+        return !string.IsNullOrWhiteSpace(value);
+    }
+
+    /// <summary>Looked for once a run: every case asks while the run is being discovered.</summary>
+    private static readonly Lazy<bool> Built = new(() =>
     {
         try
         {
@@ -295,14 +373,45 @@ internal sealed partial class App : IDisposable
         {
             return false;
         }
-    }
+    });
 
     private static void Stop()
     {
         foreach (var running in Process.GetProcessesByName("Mailcal"))
         {
-            running.Kill();
-            running.WaitForExit(10_000);
+            End(running);
+        }
+    }
+
+    /// <summary>
+    /// Ends <paramref name="process"/> through its window's close, as a person does, and kills it only
+    /// when that has not ended it in ten seconds. A killed app leaves its WebView2 browser behind for a
+    /// while, holding the profile the next launch's editors start in, and an editor waiting on it
+    /// keeps its composer in memory for as long as it waits.
+    /// </summary>
+    private static void End(Process process)
+    {
+        try
+        {
+            if (process.HasExited)
+            {
+                return;
+            }
+            if (!process.CloseMainWindow() || !process.WaitForExit(10_000))
+            {
+                process.Kill();
+                process.WaitForExit(10_000);
+            }
+        }
+        catch (Win32Exception)
+        {
+            // An app that crashed is held by Windows Error Reporting until its report is written,
+            // and nothing else may open it meanwhile, not even to ask whether it has exited.
+            var id = process.Id;
+            if (!Eventually(() => Process.GetProcessesByName("Mailcal").All(p => p.Id != id), TimeSpan.FromSeconds(60)))
+            {
+                throw new InvalidOperationException($"Mailcal ({id}) cannot be opened and has not gone in 60 s: it crashed and Windows Error Reporting still holds it, or it runs as another user");
+            }
         }
     }
 
@@ -321,11 +430,7 @@ internal sealed partial class App : IDisposable
     public void Dispose()
     {
         // The app first: the pipe is the app's to close, and a suite that ends must not leave it running.
-        if (!_process.HasExited)
-        {
-            _process.Kill();
-            _process.WaitForExit(10_000);
-        }
+        End(_process);
         _process.Dispose();
         Agent.Dispose();
     }

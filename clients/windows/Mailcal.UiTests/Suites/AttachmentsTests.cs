@@ -14,6 +14,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class AttachmentsTests(HarnessApp harness)
 {
     private const string ManyAttachments = "Message with many attachments";

@@ -13,13 +13,13 @@
 // set, and put back afterwards: the app keeps its bounds for the next launch. The message is marked
 // unread and read again, so the suite leaves the mailbox as it found it.
 
-using System.Runtime.InteropServices;
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
 
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(ImapHarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class FolderPanePositionTests(ImapHarnessApp harness)
 {
     private const string Subject = "Kickoff notes";
@@ -75,16 +75,10 @@ public sealed class FolderPanePositionTests(ImapHarnessApp harness)
     public void AnUnreadCountThatMovesLeavesTheRowsThePaneShowsWhereTheyWere()
     {
         var oneUnread = Catalog.English("a11y_unread_count_one").Replace("{count}", "1");
-        System.Drawing.Rectangle saved = default;
-        var maximised = false;
+        IDisposable? shrunk = null;
         harness.Case(nameof(AnUnreadCountThatMovesLeavesTheRowsThePaneShowsWhereTheyWere), app =>
         {
-            var hwnd = (nint)app.Mailbox.Hwnd;
-            saved = Desktop.Bounds(app.Mailbox.Hwnd);
-            maximised = IsZoomed(hwnd);
-            var scale = Input.Scale(app.Mailbox.Hwnd);
-            ShowWindow(hwnd, Restore);
-            MoveWindow(hwnd, saved.X, saved.Y, (int)(1200 * scale), (int)(560 * scale), true);
+            shrunk = Desktop.Resized(app.Mailbox.Hwnd, 1200, 560);
             app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
             app.Agent.Expand(Account(app));
             foreach (var folder in Opened)
@@ -133,19 +127,7 @@ public sealed class FolderPanePositionTests(ImapHarnessApp harness)
                     app.Agent.Collapse(row);
                 }
             }
-            var hwnd = (nint)app.Mailbox.Hwnd;
-            MoveWindow(hwnd, saved.X, saved.Y, saved.Width, saved.Height, true);
-            if (maximised)
-            {
-                ShowWindow(hwnd, Maximise);
-            }
+            shrunk?.Dispose();
         });
     }
-
-    private const int Restore = 9;
-    private const int Maximise = 3;
-
-    [DllImport("user32.dll")] private static extern bool MoveWindow(nint hwnd, int x, int y, int width, int height, bool repaint);
-    [DllImport("user32.dll")] private static extern bool IsZoomed(nint hwnd);
-    [DllImport("user32.dll")] private static extern bool ShowWindow(nint hwnd, int command);
 }

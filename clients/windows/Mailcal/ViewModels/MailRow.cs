@@ -310,7 +310,8 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
     /// "Allodia.Mailcal.ViewModels.MailRow" on every row until this existed. That is why
     /// <see cref="ToString"/> below returns this: the fallback IS the announcement, so the fix has
     /// to live where the fallback looks. Nothing about the visual row reveals the defect, and no
-    /// headless gate can see it, <c>uitests/Accessibility.Tests.ps1</c> is what watches it now.
+    /// headless gate can see it, <c>Mailcal.UiTests/Suites/AccessibilityTests.cs</c> is what
+    /// watches it now.
     ///
     /// The three state words are appended rather than woven in: each already exists in the catalog,
     /// so a row stays fully localised without a new phrase to translate per state combination.

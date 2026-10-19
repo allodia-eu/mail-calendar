@@ -35,7 +35,7 @@ namespace Allodia.Mailcal.Views;
 /// navigable, because the plain template binds <c>Content</c> and <c>Tag</c>, which a
 /// NavigationViewItem also has. What they silently lost was their
 /// <c>AutomationProperties.AutomationId</c>, so every automation lookup of NavCalendar/NavContacts
-/// broke while the app on screen looked untouched. The uitests caught it; a screenshot could not.
+/// broke while the app on screen looked untouched. The UI suites caught it; a screenshot could not.
 /// Hence <see cref="SidebarItem.AutomationId"/>, and hence no <c>null</c> branch below, returning
 /// null to mean "leave this one alone" is not something a DataTemplateSelector may do (WinUI
 /// rejects it outright: "Null encountered as data template").

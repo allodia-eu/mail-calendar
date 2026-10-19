@@ -139,6 +139,15 @@ internal sealed class Agent : IDisposable
     /// <summary>Toggles a check box or toggle button; the state it is in afterwards.</summary>
     internal string Toggle(Element element) => (string)Call(Handle("toggle", element))["toggle"]!;
 
+    /// <summary>Puts a check box or toggle button <paramref name="on"/> or off, whichever it was.</summary>
+    internal void SetToggle(Element element, bool on)
+    {
+        if ((Read(element).Toggle == "On") != on)
+        {
+            Toggle(element);
+        }
+    }
+
     internal void ScrollIntoView(Element element) => Call(Handle("scrollIntoView", element));
 
     /// <summary>Opens a combo box or a drop-down.</summary>
@@ -148,6 +157,9 @@ internal sealed class Agent : IDisposable
     internal void Collapse(Element element) => Call(Handle("collapse", element));
 
     internal void Focus(Element element) => Call(Handle("focus", element));
+
+    /// <summary>The nearest ancestor of <paramref name="element"/> that has a peer, or null.</summary>
+    internal Element? Parent(Element element) => Elements(Call(Handle("parent", element))).FirstOrDefault();
 
     /// <summary>The element that has the keyboard, or null when nothing in the app does.</summary>
     internal Element? Focused() => Elements(Call(Op("focused"))).FirstOrDefault();

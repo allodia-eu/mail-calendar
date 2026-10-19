@@ -41,8 +41,6 @@ const EXEMPT: &[&str] = &[
     "crates/mailcal-bindings/src/showcase_data/",
     "crates/mailcal-bindings/src/showcase_bodies/",
     // These values are coupled to assertions in the same test files.
-    "clients/windows/uitests/SyncHint.Tests.ps1",
-    "clients/windows/uitests/SyncHintBodies.Tests.ps1",
     "crates/mailcal-app/tests/fixtures/imip/README.md",
 ];
 

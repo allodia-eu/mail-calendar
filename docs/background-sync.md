@@ -323,7 +323,8 @@ When you change background delivery or new-mail notifications:
      else, and the Windows App SDK fails the process fast if the notification platform is not
      registered first ([`client-traps.md`](client-traps.md)).
      `cargo xtask check-notification-registration` pins the ordering in the source, in CI, and
-     `uitests/NotificationLaunch.Tests.ps1` runs the real binary through a notification activation.
+     `Mailcal.UiTests/Suites/NotificationLaunchTests.cs` runs the real binary through a
+     notification activation.
      ⚠️ That suite has to **close the app first**, since a running instance has already registered
      the platform and a second process then reads its activation on a broken build as well as a
      fixed one, and it has to wait out the full **7 to 8 seconds** the failfast takes. It skips on a
