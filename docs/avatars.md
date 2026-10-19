@@ -163,7 +163,7 @@ a dot on every layout looks fine until you notice the phone's subjects are trunc
 
 - **Nothing on Windows asserts that the circle is on screen.** It is decoration, so it is hidden
   from assistive technology, and UI Automation is the only machine that looks at the running
-  client, so being correctly hidden is exactly what puts it out of reach. `Accessibility.Tests.ps1`
+  client, so being correctly hidden is exactly what puts it out of reach. `AccessibilityTests.cs`
   holds the half that can be checked (that it is *not* announced), the unit rules hold the
   projection, and what it draws is verified by eye against the seeded harness.
 - **No photo reaches a client over the JMAP contacts path.** Against the harness, the same cards
@@ -190,7 +190,7 @@ When you change what an avatar shows:
 2. Derive the letters from the shared `initials`, never a second copy, and take the colour from
    the shared palette. Two surfaces disagreeing about a person is the failure this prevents.
 3. Keep the avatar hidden from assistive technology. On Windows this is what
-   `uitests/Accessibility.Tests.ps1` will fail on.
+   `Mailcal.UiTests/Suites/AccessibilityTests.cs` will fail on.
 4. Never widen the accepted image formats without reading
    [`rendering-security.md`](rendering-security.md) first.
 
