@@ -11,6 +11,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -67,6 +68,8 @@ internal fun AppNavScaffold(
             }
         },
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) { content() }
+        // Consumed as well as applied, so a screen inside that pads for the keyboard subtracts the
+        // navigation bar this padding already clears rather than counting it twice.
+        Box(modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding)) { content() }
     }
 }

@@ -9,11 +9,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 
 // A single-line text field for the setup form; [placeholder] is shown when empty and
 // [keyboardType] tailors the soft keyboard (email/password vs. plain text). [missing] marks a field
-// Connect found empty, and takes the focus to it.
+// Connect found empty, and takes the focus to it. [onGo], when set, is what the keyboard's action
+// key does, so a one-field step goes on without the keyboard being put away first.
 @androidx.compose.runtime.Composable
 internal fun SetupField(
     value: String,
@@ -22,6 +25,7 @@ internal fun SetupField(
     placeholder: String? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
     missing: Boolean = false,
+    onGo: (() -> Unit)? = null,
 ) {
     val focus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
     androidx.compose.runtime.LaunchedEffect(missing) {
@@ -35,7 +39,11 @@ internal fun SetupField(
         singleLine = true,
         label = { Text(label) },
         placeholder = placeholder?.let { text -> { Text(text) } },
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = keyboardType,
+            imeAction = if (onGo != null) ImeAction.Go else ImeAction.Default,
+        ),
+        keyboardActions = KeyboardActions(onGo = onGo?.let { go -> { go() } }),
     )
 }
 

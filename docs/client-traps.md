@@ -92,6 +92,15 @@ that same file.
   A WebView layout bug cannot be caught by the JVM suite: Robolectric has no renderer; prove it
   against a real WebView (`adb forward` to `webview_devtools_remote_<pid>` + CDP
   `Runtime.evaluate`).
+- **An Android screen with a text field pads for the keyboard itself.** The app is edge-to-edge,
+  so the window keeps its size when the keyboard opens and covers whatever is below the field:
+  the page cannot be scrolled to the button under it until the keyboard is put away. Put
+  `imePadding()` on the screen's column, after any `systemBarsPadding()` and before its
+  `verticalScroll`. Inside the tab scaffold, whose padding already clears the navigation bar,
+  that padding is consumed too (`consumeWindowInsets`), or the bar is subtracted twice. The
+  system adjusts a floating `Dialog` and a `ModalBottomSheet` pads itself; a dialog drawn with
+  `decorFitsSystemWindows = false`, like the composer, is a screen again. Robolectric opens no
+  keyboard, so prove it on a device: focus the field and scroll to the last control.
 - **`adb reverse` survives airplane mode, so an Android emulator cannot go offline by itself.**
   The dev harness is reached through that tunnel rather than through the device's network stack,
   so a send in airplane mode still succeeds and nothing queues, while the core is told the device
