@@ -137,17 +137,18 @@ public sealed partial class MailboxModel
     /// Through the shared <see cref="SignInFlight"/>: a sign-in abandoned in the browser cannot be
     /// told from one in progress, so the next request supersedes it rather than waiting on it.
     /// </remarks>
-    internal Task<ConsentEnded> SignInAgainAsync(string accountId, AccountCapability[] adding)
+    internal Task<ConsentEnded> SignInAgainAsync(
+        string accountId, AccountCapability[] adding, Action<SignInStep>? step = null)
     {
         if (_connecting || _app is null)
         {
             return Task.FromResult(new ConsentEnded(false, L10n.AppUnavailable()));
         }
-        return _signIn.RunAsync(cancel => ConsentFlowAsync(_app, accountId, adding, cancel));
+        return _signIn.RunAsync(cancel => ConsentFlowAsync(_app, accountId, adding, step ?? (_ => { }), cancel));
     }
 
     private async Task<ConsentEnded> ConsentFlowAsync(
-        MailcalApp app, string accountId, AccountCapability[] adding, CancellationToken cancel)
+        MailcalApp app, string accountId, AccountCapability[] adding, Action<SignInStep> step, CancellationToken cancel)
     {
         IsSigningIn = true;
         try
@@ -159,6 +160,7 @@ public sealed partial class MailboxModel
                 using var loopback = new GoogleLoopback();
                 start = app.BeginAccountConsent(accountId, loopback.RedirectUri, adding);
                 await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
+                step(SignInStep.Browser);
                 callbackUrl = await WaitForGoogleCallbackAsync(loopback, cancel);
             }
             else
@@ -166,8 +168,10 @@ public sealed partial class MailboxModel
                 using var callback = ProtocolAuthCallback.Expect(MicrosoftOAuthConfig.CallbackHost);
                 start = app.BeginAccountConsent(accountId, MicrosoftOAuthConfig.RedirectUri, adding);
                 await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
+                step(SignInStep.Browser);
                 callbackUrl = await callback.WaitAsync(cancel);
             }
+            step(SignInStep.Calling);
             // The exchange, the connect and the catch-up all block.
             await Task.Run(() => app.CompleteAccountConsent(start.Pending, callbackUrl));
             Log.Info("an account was signed in again in place");

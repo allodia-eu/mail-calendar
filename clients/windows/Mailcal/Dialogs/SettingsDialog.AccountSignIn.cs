@@ -11,6 +11,7 @@
 // Cancel that retires it (AccountSignInProgress); only a blocking core call disables them.
 
 using Allodia.Mailcal.Services;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -124,7 +125,6 @@ public sealed partial class SettingsDialog
         _signInDrawn = all;
         _signInDrawnAccount = entry.Id;
         ShowSignInProgress(entry.Id);
-        DrawUnreachedQuestion(controls, entry.Id);
     }
 
     /// <summary>"Use a password instead", which opens the field it is typed into. The field never
@@ -193,14 +193,15 @@ public sealed partial class SettingsDialog
         EndUnreachedQuestion();
         var attempt = _signInProgress.Start(entry.Id);
         ShowSignInProgress(entry.Id);
-        SayOnAccounts(SignInWaiting(entry));
+        SayOnAccounts(null);
         var ended = await _model.AccountSignInAsync(
             entry.Id,
-            unreached => AskUnreachedAsync(entry, unreached),
+            AskUnreachedAsync,
             step =>
             {
                 _signInProgress.Step(attempt, step);
                 ShowSignInProgress(entry.Id);
+                SaySignInStep(entry, step);
             });
         if (!_signInProgress.End(attempt))
         {
@@ -221,6 +222,24 @@ public sealed partial class SettingsDialog
                 error),
             _ => null,
         });
+    }
+
+    /// <summary>Says where a browser sign-in is: waiting on the browser while it is out, then
+    /// connecting while the code is exchanged and the account connects, which takes seconds when a
+    /// calendar moves to an account of its own. Nothing is said before the browser opens:
+    /// discovery and any question come first, and a line asking for the browser while nothing is
+    /// in it is a dead end.</summary>
+    private void SaySignInStep(AccountEntry entry, SignInStep step)
+    {
+        if (step == SignInStep.Browser)
+        {
+            SayOnAccounts(new AccountNotice(
+                InfoBarSeverity.Informational, string.Empty, L10n.SettingsAccountSigninWaiting(AccountNameText.Of(entry))));
+        }
+        else if (step == SignInStep.Calling && _accountNotice is { Severity: InfoBarSeverity.Informational })
+        {
+            SayOnAccounts(new AccountNotice(InfoBarSeverity.Informational, string.Empty, L10n.StatusConnecting()));
+        }
     }
 
     /// <summary>Draws where <paramref name="accountId"/>'s sign-in is onto the section drawn

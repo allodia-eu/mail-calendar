@@ -374,10 +374,6 @@
                         Style="{StaticResource CaptionTextBlockStyle}"
                         TextWrapping="Wrap"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <!-- What becomes of the calendar and contacts the sign-in does not reach, asked
-                         before the update (docs/accounts.md rule 18). Built in code
-                         (AccountSetupView.SeparateServer.cs). -->
-                    <StackPanel x:Name="UpdateQuestionHost" Margin="0,8,0,0" />
                 </StackPanel>
 
                 <!-- Back to the address step at the start; Connect (IMAP/JMAP) or Sign in

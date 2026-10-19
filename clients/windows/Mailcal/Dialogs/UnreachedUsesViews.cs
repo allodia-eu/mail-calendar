@@ -1,16 +1,18 @@
 // What a calendar and contacts a sign-in does not reach put in front of a person
 // (docs/accounts.md rule 18): the question a switch to the provider asks before the browser opens,
-// and the form that gives them a sign-in of their own. Both are drawn inline, in the panel that
-// asks: Settings and the add-account form are ContentDialogs already, and WinUI allows one at a
-// time per XamlRoot. The decisions are UnreachedUsesRules', which the unit suite drives.
+// and the form that gives them a sign-in of their own. The question is asked over the whole of the
+// surface that asks it, the form is drawn inline. The decisions are UnreachedUsesRules', which the
+// unit suite drives.
 
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using uniffi.mailcal_bindings;
+using Windows.Foundation;
 using Windows.UI;
 
 namespace Allodia.Mailcal.Dialogs;
@@ -68,6 +70,10 @@ internal sealed record SeparateServerForm(
     }
 }
 
+/// <summary>A question being asked: its answer, and the way to take it away unanswered, which
+/// answers it as Cancel.</summary>
+internal sealed record UnreachedPrompt(Task<UnreachedAnswer> Answer, Action Dismiss);
+
 /// <summary>The sign-in at the server's own provider, above the login: the button, its Cancel
 /// and ring while an attempt is out, and the note beneath. Collapsed until the core offers it.</summary>
 internal sealed record SeparateServerSignInRow(StackPanel Panel, Button Button, Button Cancel, ProgressRing Ring);
@@ -91,6 +97,41 @@ internal static class UnreachedUsesViews
     };
 
     /// <summary>
+    /// Asks the question centred over <paramref name="over"/>, with the rest dimmed, so it cannot
+    /// be missed below a fold. It is a flyout rather than a ContentDialog because Settings and the
+    /// add-account form are ContentDialogs already and WinUI shows one at a time, dropping the
+    /// second, which would read as Cancel. Escape or a click outside answers Cancel.
+    /// </summary>
+    internal static UnreachedPrompt Ask(
+        FrameworkElement over, IReadOnlyList<AccountCapability> unreached, Func<Func<bool, Color>, Brush> paint)
+    {
+        var answer = new TaskCompletionSource<UnreachedAnswer>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var flyout = new Flyout { LightDismissOverlayMode = LightDismissOverlayMode.On };
+        var question = Question(unreached, paint, chosen =>
+        {
+            answer.TrySetResult(chosen);
+            flyout.Hide();
+        });
+        question.Width = 360;
+        flyout.Content = question;
+        flyout.Closed += (_, _) => answer.TrySetResult(UnreachedAnswer.Cancel);
+        // Centred by hand: a flyout placed Full fills the window's height whatever its content.
+        // Below a point, it is centred on it across and starts at it down, so the point is set
+        // half the question's height above the middle.
+        question.Measure(new Size(question.Width, double.PositiveInfinity));
+        flyout.ShowAt(over, new FlyoutShowOptions
+        {
+            Placement = FlyoutPlacementMode.Bottom,
+            Position = new Point(over.ActualWidth / 2, Math.Max(0, (over.ActualHeight - question.DesiredSize.Height) / 2)),
+        });
+        return new UnreachedPrompt(answer.Task, () =>
+        {
+            answer.TrySetResult(UnreachedAnswer.Cancel);
+            flyout.Hide();
+        });
+    }
+
+    /// <summary>
     /// The question, with keep (the default), stop and cancel. <paramref name="answered"/> is
     /// called once, with every button disabled from then on. <paramref name="paint"/> resolves a
     /// colour for the panel's theme: stop is drawn as destructive, because it deletes what the
@@ -110,14 +151,17 @@ internal static class UnreachedUsesViews
         AutomationProperties.SetHeadingLevel(title, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level2);
         panel.Children.Add(title);
         panel.Children.Add(new TextBlock { Text = L10n.SigninUnreachedBody(), TextWrapping = TextWrapping.Wrap });
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        // Stacked, each the question's width: the three labels do not fit on one line in every
+        // locale.
+        var buttons = new StackPanel { Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
         var keep = new Button
         {
             Content = L10n.SigninUnreachedKeep(),
             Style = (Style)Application.Current.Resources["AccentButtonStyle"],
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         AutomationProperties.SetAutomationId(keep, "UnreachedKeep");
-        var stop = new Button { Content = L10n.SigninUnreachedStop() };
+        var stop = new Button { Content = L10n.SigninUnreachedStop(), HorizontalAlignment = HorizontalAlignment.Stretch };
         AutomationProperties.SetAutomationId(stop, "UnreachedStop");
         // Lightweight styling, so the colour holds through hover and press, which a plain
         // Foreground does not.
@@ -126,7 +170,7 @@ internal static class UnreachedUsesViews
         {
             stop.Resources[key] = critical;
         }
-        var cancel = new Button { Content = L10n.ActionCancel() };
+        var cancel = new Button { Content = L10n.ActionCancel(), HorizontalAlignment = HorizontalAlignment.Stretch };
         AutomationProperties.SetAutomationId(cancel, "UnreachedCancel");
         void Answer(UnreachedAnswer answer)
         {

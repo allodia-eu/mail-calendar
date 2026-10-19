@@ -200,9 +200,8 @@ public sealed partial class SettingsDialog
     /// <paramref name="adding"/>, and says how it ended. A cancelled sign-in says nothing.</summary>
     private async Task SignInAgainFromPageAsync(AccountEntry entry, AccountCapability[] adding)
     {
-        SayOnAccounts(new AccountNotice(
-            InfoBarSeverity.Informational, string.Empty, L10n.SettingsAccountSigninWaiting(AccountNameText.Of(entry))));
-        var ended = await _model.SignInAgainAsync(entry.Id, adding);
+        SayOnAccounts(null);
+        var ended = await _model.SignInAgainAsync(entry.Id, adding, step => SaySignInStep(entry, step));
         NotifyAccounts(ended switch
         {
             { SignedIn: true } => SignedInNotice(entry.Id),

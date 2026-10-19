@@ -24,7 +24,7 @@ public sealed partial class AccountSetupView
     private bool _separateShown;
 
     // The update question waiting, answered as Cancel when the form moves on without it.
-    private TaskCompletionSource<UnreachedAnswer>? _updateAsking;
+    private UnreachedPrompt? _updateAsking;
 
     // The step's sign-in at its server's own provider: what was offered, and the attempt out.
     private readonly SeparateServerSignIn _separateSignIn = new();
@@ -122,28 +122,20 @@ public sealed partial class AccountSetupView
         }
     }
 
-    /// <summary>Asks, under the update button, what becomes of <paramref name="unreached"/>.</summary>
+    /// <summary>Asks, over the form, what becomes of <paramref name="unreached"/> before the
+    /// update.</summary>
     private Task<UnreachedAnswer> AskUpdateQuestionAsync(IReadOnlyList<AccountCapability> unreached)
     {
         ClearUpdateQuestion();
-        var asking = new TaskCompletionSource<UnreachedAnswer>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _updateAsking = asking;
         _brushes ??= new ThemeBrushes(this);
-        UpdateExistingButton.Visibility = Visibility.Collapsed;
-        UpdateQuestionHost.Children.Add(UnreachedUsesViews.Question(unreached, _brushes.Of, answer =>
-        {
-            ClearUpdateQuestion();
-            asking.TrySetResult(answer);
-        }));
-        return asking.Task;
+        _updateAsking = UnreachedUsesViews.Ask(this, unreached, _brushes.Of);
+        return _updateAsking.Answer;
     }
 
     /// <summary>Takes the update question away, answered as Cancel if it was still open.</summary>
     private void ClearUpdateQuestion()
     {
-        _updateAsking?.TrySetResult(UnreachedAnswer.Cancel);
+        _updateAsking?.Dismiss();
         _updateAsking = null;
-        UpdateQuestionHost.Children.Clear();
-        UpdateExistingButton.Visibility = Visibility.Visible;
     }
 }
