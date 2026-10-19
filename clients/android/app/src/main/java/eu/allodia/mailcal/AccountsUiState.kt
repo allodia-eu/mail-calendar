@@ -12,6 +12,7 @@ import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.MailcalException
+import uniffi.mailcal_bindings.UseProblem
 
 /** How a notice reads: a success is said briefly, a warning or failure waits to be dismissed. */
 internal enum class NoticeKind { SUCCESS, WARNING, FAILURE }
@@ -111,6 +112,8 @@ internal fun coreErrorText(error: Throwable): String? = when (error) {
     // The record carries the account's id, an address; the core's own words carry none.
     is MailcalException.AlreadySetUp -> "that account is already set up"
     is MailcalException.DifferentAccount -> "that sign-in is for a different account"
+    is MailcalException.StaleSignIn -> "the browser returned from another sign-in"
+    is MailcalException.UseNotConnected -> useNotConnectedText(error.capability, error.problem)
     is MailcalException.Engine -> error.v1
     is MailcalException.Composer -> error.v1
     else -> error.message
@@ -118,13 +121,67 @@ internal fun coreErrorText(error: Throwable): String? = when (error) {
 
 /**
  * What to show a person for a core refusal: a refused sign-in in their language, since the
- * server's reply is meant for a developer, and an account already set up or a sign-in as another
- * account likewise; anything else
- * as [coreErrorText] has it.
+ * server's reply is meant for a developer, and an account already set up, a sign-in as another
+ * account, a browser returning from another sign-in and a calendar or address book that did not
+ * connect likewise; anything else as [coreErrorText] has it.
  */
 internal fun coreErrorSaid(error: Throwable, ctx: Context): String? = when (error) {
     is MailcalException.SignInRefused -> L10n.signin_refused(ctx)
     is MailcalException.AlreadySetUp -> L10n.account_already_set_up(ctx)
     is MailcalException.DifferentAccount -> L10n.signin_different_account(ctx)
+    is MailcalException.StaleSignIn -> L10n.signin_stale(ctx)
+    is MailcalException.UseNotConnected -> useNotConnectedSaid(error.capability, error.problem, ctx)
     else -> coreErrorText(error)
+}
+
+/**
+ * What a sign-in completion whose failures read as [fallback] says: the browser returning from
+ * another sign-in has a remedy of its own (docs/provider-oauth.md rule 3), so it is said as that.
+ */
+internal fun signInFailedSaid(error: Throwable, ctx: Context, fallback: String): String = when (error) {
+    is MailcalException.StaleSignIn -> L10n.signin_stale(ctx)
+    else -> fallback
+}
+
+/**
+ * What signing an existing account in again says when it did not complete, from a banner or its
+ * page: a browser returning from another sign-in, a sign-in as another account and a refusal each
+ * have words of their own; anything else is the plain retry line, the cause being for the log.
+ */
+internal fun signInAgainSaid(error: Throwable, ctx: Context): String = when (error) {
+    is MailcalException.StaleSignIn -> L10n.signin_stale(ctx)
+    is MailcalException.DifferentAccount -> L10n.signin_different_account(ctx)
+    is MailcalException.SignInRefused -> L10n.signin_refused(ctx)
+    else -> L10n.signin_expired_failed(ctx)
+}
+
+/**
+ * What a calendar or address book that did not connect on a server of its own says
+ * (docs/accounts.md rule 18). The core never names mail here; it reads as the calendar if it does.
+ */
+internal fun useNotConnectedSaid(capability: AccountCapability, problem: UseProblem, ctx: Context): String {
+    val contacts = capability == AccountCapability.CONTACTS
+    return when (problem) {
+        UseProblem.UNREACHABLE -> if (contacts) {
+            L10n.separate_server_unreachable_contacts(ctx)
+        } else {
+            L10n.separate_server_unreachable_calendar(ctx)
+        }
+        UseProblem.NEEDS_OWN_SIGN_IN -> if (contacts) {
+            L10n.settings_account_use_own_sign_in_contacts(ctx)
+        } else {
+            L10n.settings_account_use_own_sign_in_calendar(ctx)
+        }
+        UseProblem.SIGN_IN_REFUSED -> L10n.signin_refused(ctx)
+    }
+}
+
+private fun useNotConnectedText(capability: AccountCapability, problem: UseProblem): String {
+    val use = if (capability == AccountCapability.CONTACTS) "the address book" else "the calendar"
+    val why = when (problem) {
+        UseProblem.UNREACHABLE -> "its server could not be reached"
+        UseProblem.NEEDS_OWN_SIGN_IN -> "its server needs a sign-in of its own"
+        UseProblem.SIGN_IN_REFUSED -> "its server refused the sign-in"
+    }
+    return "$use did not connect: $why"
 }

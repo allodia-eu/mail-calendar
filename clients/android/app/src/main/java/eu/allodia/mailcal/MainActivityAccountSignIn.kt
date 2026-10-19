@@ -120,7 +120,12 @@ internal fun MainActivity.completeAccountSignIn(callbackUrl: String) {
                     AccountNotice(
                         NoticeKind.FAILURE,
                         signInFailedTitle(claimed.switching),
-                        coreErrorSaid(it, this) ?: L10n.error_unknown(this),
+                        // Switching from a password is not a sign-in again, so it says the cause.
+                        if (claimed.switching) {
+                            coreErrorSaid(it, this) ?: L10n.error_unknown(this)
+                        } else {
+                            signInAgainSaid(it, this)
+                        },
                     ),
                 )
             }

@@ -265,7 +265,7 @@ internal fun MainActivity.completeAccountConsent(callbackUrl: String) {
                     AccountNotice(
                         NoticeKind.FAILURE,
                         L10n.settings_account_signin_failed(this),
-                        coreErrorSaid(it, this) ?: L10n.signin_expired_failed(this),
+                        signInAgainSaid(it, this),
                     ),
                 )
             }

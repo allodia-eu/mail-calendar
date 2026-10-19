@@ -359,8 +359,8 @@ class MainActivity : AppCompatActivity() {
     // Who is signed in to an Allodia account, or null. Seeded at connect from what boot restored
     // and re-read after every sign-in or sign-out; it is a local read that never asks the service.
     internal var allodiaAccount by mutableStateOf<AllodiaAccount?>(null)
-    // The last Allodia sign-in or sign-out failure, in the service's own words, or null. Cleared
-    // when a new attempt starts.
+    // What the Allodia card says about the last sign-in or sign-out that failed (allodiaFailureSaid),
+    // or null. Cleared when a new attempt starts.
     internal var allodiaFailure by mutableStateOf<String?>(null)
     // What the person's other devices have to say about their mail accounts. Empty until a pass
     // has run, which is not the same as a pass that found nothing.

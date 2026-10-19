@@ -95,10 +95,10 @@ internal fun MainActivity.completeImapSignIn(callbackUrl: String) {
                 activity.addAccount(configToml, unreached)
             }
         } catch (e: Exception) {
-            logUiWarn("imap sign-in complete failed: ${e.message}")
+            logUiWarn("imap sign-in complete failed: ${coreErrorText(e)}")
             activity.mainHandler.post {
                 activity.signingInImap = false
-                activity.addError = L10n.setup_imap_signin_failed(activity)
+                activity.addError = signInFailedSaid(e, activity, L10n.setup_imap_signin_failed(activity))
             }
         }
     }

@@ -7,6 +7,7 @@
 // The setup wizard never offers it.
 package eu.allodia.mailcal
 
+import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,13 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AllodiaAccount
+import uniffi.mailcal_bindings.MailcalException
 
 /**
  * What the card needs to draw itself. Held by the activity rather than the composable so a sign-in
  * survives the browser hop: the redirect re-enters through `onNewIntent`, not through this screen.
  *
  * [available] is what this build carries, false for a build from source, and the card is then not
- * mounted at all.
+ * mounted at all. [failure] is the line the card shows, as [allodiaFailureSaid] puts it.
  */
 internal data class AllodiaSettings(
     val available: Boolean = false,
@@ -109,11 +111,21 @@ internal fun AllodiaAccountCard(
             state.failure?.let { failure ->
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    L10n.settings_allodia_failed(ctx, failure),
+                    failure,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
             }
         }
     }
+}
+
+/**
+ * What the card says for a sign-in or sign-out that did not complete: the service's own words,
+ * apart from the browser returning from another sign-in, whose remedy is signing in again
+ * (docs/provider-oauth.md rule 3).
+ */
+internal fun allodiaFailureSaid(error: Throwable, ctx: Context): String = when (error) {
+    is MailcalException.StaleSignIn -> L10n.signin_stale(ctx)
+    else -> L10n.settings_allodia_failed(ctx, coreErrorText(error).orEmpty())
 }
