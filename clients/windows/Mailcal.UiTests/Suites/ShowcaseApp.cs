@@ -13,6 +13,19 @@ public class ShowcaseApp : UiApp
     private protected override App Launch() => App.LaunchOnShowcase(Env);
 }
 
+/// <summary>
+/// The showcase pinned to the appearance this desktop is not in, which is what makes an appearance
+/// assertion mean something on any host: one that asked for dark on a dark desktop would pass with
+/// the setting reaching nothing.
+/// </summary>
+public class OppositeAppearanceApp : ShowcaseApp
+{
+    internal static readonly bool DesktopDark = Desktop.Dark();
+
+    protected override IReadOnlyDictionary<string, string> Env { get; } =
+        new Dictionary<string, string> { ["MAILCAL_APPEARANCE"] = DesktopDark ? "light" : "dark" };
+}
+
 [CollectionDefinition(Name)]
 public sealed class ShowcaseCollection : ICollectionFixture<ShowcaseApp>
 {

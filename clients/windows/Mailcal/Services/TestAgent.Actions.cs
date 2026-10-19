@@ -170,6 +170,15 @@ internal static partial class TestAgent
         return new JsonObject { ["ok"] = true };
     }
 
+    /// <summary>The nearest ancestor with a peer of an element the walk has met, or none: a layout
+    /// panel between them has no peer, so the answer can be several levels up.</summary>
+    private static JsonObject Parent(JsonObject request)
+    {
+        var peer = PeerOf(HandleIn(request));
+        var parent = ParentOf.TryGetValue(peer, out var up) && up.TryGetTarget(out var found) ? found : null;
+        return new JsonObject { ["elements"] = parent is null ? new JsonArray() : new JsonArray(Describe(parent)) };
+    }
+
     /// <summary>The element that has the keyboard, in whichever window has it, or none.</summary>
     private static JsonObject Focused()
     {

@@ -51,6 +51,9 @@ an obvious reimplementation finds nothing:
 - **A text box's value is not on its peer.** WinUI implements the value pattern of a `TextBox` and a
   `PasswordBox` inside the framework, so the agent reads and sets the box itself, which is what
   UI Automation's value pattern does to it.
+- **An element hidden from assistive technology is in no lookup.** An avatar or a print page sets
+  `AccessibilityView.Raw`, which puts it in UI Automation's raw view only; the control view a
+  screen reader reads leaves it out, and so does every agent lookup. The failure dump still lists it.
 - **A text box's placeholder is a text under it.** The agent sees the box's template, so an empty
   box with a placeholder holds one Text element and one with a header holds another; count against
   a box known to have the one being asked about.

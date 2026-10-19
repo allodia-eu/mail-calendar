@@ -74,6 +74,10 @@ internal static class Desktop
         return double.Parse(value.Value, System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Whether this desktop is in dark mode, which is what an app that follows it draws.</summary>
+    internal static bool Dark() =>
+        Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 1) is 0;
+
     /// <summary>The window's rectangle on screen, in physical pixels.</summary>
     internal static System.Drawing.Rectangle Bounds(long hwnd)
     {

@@ -47,9 +47,14 @@ internal sealed partial class App
             Eventually(() => Agent.FindAll(close).Count < open.Count, TimeSpan.FromSeconds(5));
             closed = true;
         }
-        if (!Eventually(() => !Agent.FindAll(new Filter { Type = "Window", Window = Mailbox.Hwnd }).Any(w => w.Class == "Popup"), TimeSpan.FromSeconds(5)))
+        // A popup with no size draws nothing and catches no press, whatever it holds: a closed
+        // suggestion list or tooltip can leave one behind.
+        IReadOnlyList<Element> popups = [];
+        if (!Eventually(() => (popups = Agent.FindAll(new Filter { Type = "Window", Window = Mailbox.Hwnd })
+                .Where(w => w.Class == "Popup" && w.Width > 0 && w.Height > 0).ToList()).Count == 0, TimeSpan.FromSeconds(5)))
         {
-            throw new InvalidOperationException("a dialog was still closing 5 s after it was closed");
+            var held = popups.Select(p => $"'{p.Name}' #{p.Id} {p.Width}x{p.Height} holding {Agent.FindAll(new Filter { Under = p }).Count}");
+            throw new InvalidOperationException($"a dialog was still closing 5 s after it was closed: {string.Join(" | ", held)}");
         }
     }
 }

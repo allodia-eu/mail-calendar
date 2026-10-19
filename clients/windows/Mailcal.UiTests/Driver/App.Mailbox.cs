@@ -275,14 +275,14 @@ internal sealed partial class App
     {
         CloseExtraWindows();
         CloseComposer();
-        foreach (var id in new[] { "CloseButton", "CancelButton" })
+        if (Agent.Find(Filter.ById("CancelButton", "Button") with { OnScreen = true }) is { } cancel)
         {
-            if (Agent.Find(Filter.ById(id, "Button") with { OnScreen = true }) is { } close)
-            {
-                Agent.Invoke(close);
-                Agent.Settle();
-            }
+            Agent.Invoke(cancel);
+            Agent.Settle();
         }
+        // Waited out, not pressed and left: a press made while a dialog's dimming layer is still
+        // closing opens nothing.
+        CloseDialogs();
     }
 
     /// <summary>The screen pixels under <paramref name="element"/>, read with its window in front:
@@ -299,6 +299,15 @@ internal sealed partial class App
         using var graphics = Graphics.FromImage(bitmap);
         graphics.CopyFromScreen(area.X, area.Y, 0, 0, bitmap.Size);
         return bitmap;
+    }
+
+    /// <summary>The median luminance of an empty band of <paramref name="window"/>'s caption, right of
+    /// the title and left of the caption buttons: the one surface that spans the app's whole theme
+    /// and carries no text there.</summary>
+    internal static double CaptionLuminance(long window)
+    {
+        var bounds = Desktop.Bounds(window);
+        return Luminance(window, new Rectangle(bounds.X + (int)(bounds.Width * 0.55), bounds.Y + 12, 120, 8)).Median;
     }
 
     /// <summary>The median, darkest and lightest luminance (0 to 255, Rec. 601, as an eye weights

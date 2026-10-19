@@ -158,6 +158,9 @@ internal sealed class Agent : IDisposable
 
     internal void Focus(Element element) => Call(Handle("focus", element));
 
+    /// <summary>The nearest ancestor of <paramref name="element"/> that has a peer, or null.</summary>
+    internal Element? Parent(Element element) => Elements(Call(Handle("parent", element))).FirstOrDefault();
+
     /// <summary>The element that has the keyboard, or null when nothing in the app does.</summary>
     internal Element? Focused() => Elements(Call(Op("focused"))).FirstOrDefault();
 

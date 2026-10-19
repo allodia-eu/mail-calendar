@@ -378,8 +378,26 @@ internal sealed partial class App : IDisposable
     {
         foreach (var running in Process.GetProcessesByName("Mailcal"))
         {
-            running.Kill();
-            running.WaitForExit(10_000);
+            End(running);
+        }
+    }
+
+    /// <summary>
+    /// Ends <paramref name="process"/> through its window's close, as a person does, and kills it only
+    /// when that has not ended it in ten seconds. A killed app leaves its WebView2 browser behind for a
+    /// while, holding the profile the next launch's editors start in, and an editor waiting on it
+    /// keeps its composer in memory for as long as it waits.
+    /// </summary>
+    private static void End(Process process)
+    {
+        if (process.HasExited)
+        {
+            return;
+        }
+        if (!process.CloseMainWindow() || !process.WaitForExit(10_000))
+        {
+            process.Kill();
+            process.WaitForExit(10_000);
         }
     }
 
@@ -398,11 +416,7 @@ internal sealed partial class App : IDisposable
     public void Dispose()
     {
         // The app first: the pipe is the app's to close, and a suite that ends must not leave it running.
-        if (!_process.HasExited)
-        {
-            _process.Kill();
-            _process.WaitForExit(10_000);
-        }
+        End(_process);
         _process.Dispose();
         Agent.Dispose();
     }

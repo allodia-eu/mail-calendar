@@ -133,6 +133,7 @@ internal static partial class TestAgent
                 "scrollIntoView" => OnUi(() => ScrollIntoView(request)),
                 "focus" => OnUi(() => Focus(request)),
                 "focused" => OnUi(Focused),
+                "parent" => OnUi(() => Parent(request)),
                 "scrollTo" => OnUi(() => ScrollTo(request)),
                 "settle" => Settle(request),
                 "dump" => OnUi(() => Dump(request)),

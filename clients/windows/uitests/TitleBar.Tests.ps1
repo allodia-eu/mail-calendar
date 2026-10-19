@@ -15,7 +15,7 @@
 #     asserts the same invariant on a light-mode box instead of inverting into a false failure.
 #     The run is pinned to MAILCAL_APPEARANCE=system, because the app now HAS a light/dark setting
 #     of its own (docs/settings.md -> General) and a developer who has set it would otherwise fail
-#     this case for the right reason under the wrong name. Appearance.Tests.ps1 owns that setting;
+#     this case for the right reason under the wrong name. AppearanceTests (Mailcal.UiTests) owns that setting;
 #     this file is about the caption following whatever the app resolved to.
 #   * the pane toggle moved INTO the caption and still works. A forwarded event handler
 #     (PaneToggleRequested -> Nav.IsPaneOpen) is exactly the kind of wiring that compiles, renders,

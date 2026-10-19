@@ -34,9 +34,16 @@ public sealed class RecipientFinishTests(ShowcaseApp showcase)
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(300));
     }
 
+    /// <summary>A character at a time, at a typist's pace. Sent in one burst with Shift+Tab pressed
+    /// within a second of it, the second Shift+Tab took focus out of the window's content
+    /// altogether; the same burst left three seconds first behaves as typing does.</summary>
     private static void Type(App app, string text)
     {
-        Input.Type(text);
+        foreach (var character in text)
+        {
+            Input.Type(character.ToString());
+            Thread.Sleep(40);
+        }
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(300));
     }
 
