@@ -210,3 +210,7 @@ pub(crate) async fn reconnect_all(
 #[cfg(test)]
 #[path = "reconnect/signin_refused_tests.rs"]
 mod signin_refused_tests;
+
+#[cfg(test)]
+#[path = "reconnect/refresh_redial_tests.rs"]
+mod refresh_redial_tests;

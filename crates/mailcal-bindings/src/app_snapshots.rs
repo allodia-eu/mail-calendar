@@ -29,10 +29,14 @@ impl MailcalApp {
         let retry_disconnected = match &intent {
             // Coming back online: the device is up (the OS just reported it), so always re-dial.
             Intent::ReportNetworkReachable { reachable: true } => true,
-            // A manual / boot refresh: only re-dial when we believe we're online, so repeatedly
-            // pulling to refresh behind the offline banner doesn't storm a dead network each time
-            // (the same offline gate `refresh_mail` itself uses).
-            Intent::RefreshMail => !self.app.connectivity().offline,
+            // A refresh of mail, the calendar or contacts: only re-dial when we believe we're
+            // online, so repeatedly pulling to refresh behind the offline banner doesn't storm a
+            // dead network each time (the same offline gate `refresh_mail` itself uses). The
+            // calendar's and contacts' own count: the line above each that names a use that could
+            // not be reached says a refresh tries it again (`docs/accounts.md` rule 16).
+            Intent::RefreshMail | Intent::RefreshCalendar | Intent::RefreshContacts => {
+                !self.app.connectivity().offline
+            }
             _ => false,
         };
         // Every IMAP socket from before the network came back looks open and is not, so the
