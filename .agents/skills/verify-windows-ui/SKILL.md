@@ -167,10 +167,9 @@ all; `winapp.ps1`'s header has the detail:
   counts the window's WebView2 hosts between suites for the same reason (`dataset.ps1`), and says
   what it found when it relaunches.
 
-What still uses in-process input, and why: `Search.Tests` times the moment of one keystroke, which a
-`winapp` call cannot place inside its own process; touch is below. The suites in
-[`Mailcal.UiTests`](../../../clients/windows/Mailcal.UiTests) send their own
-(`Driver/Input.cs`), a horizontal wheel among it.
+Touch is below. The suites in [`Mailcal.UiTests`](../../../clients/windows/Mailcal.UiTests) send
+their own input (`Driver/Input.cs`), among it a horizontal wheel `winapp` has no verb for and a
+keystroke timed to the moment it is sent, which a `winapp` process start would delay.
 
 For exploring by hand, `winapp ui` on its own is a good instrument: `inspect -i` for the interactive
 elements with their slugs, `search <text> --root <selector> --type <type>`, `get-property -p

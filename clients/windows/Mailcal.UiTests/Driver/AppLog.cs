@@ -41,6 +41,38 @@ internal static partial class AppLog
         return text[last.Index..];
     }
 
+    /// <summary>How long app.log is now: a handle on "what the app writes from here on".</summary>
+    internal static long Length() => File.Exists(Path) ? new FileInfo(Path).Length : 0;
+
+    /// <summary>
+    /// What the log has grown by since <paramref name="offset"/>. An offset does not survive a
+    /// rotation: a file shorter than the offset it was given has rotated, and the bytes past the
+    /// offset are in app.log.1.
+    /// </summary>
+    internal static string Since(long offset) =>
+        Length() >= offset ? ReadFrom(Path, offset) : ReadFrom(Path + ".1", offset) + ReadFrom(Path, 0);
+
+    /// <summary>One file's text from byte <paramref name="offset"/>, shared for writing as
+    /// <see cref="Read"/> is; "" when the file is shorter or missing.</summary>
+    private static string ReadFrom(string path, long offset)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            if (stream.Length <= offset)
+            {
+                return "";
+            }
+            stream.Seek(offset, SeekOrigin.Begin);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            return reader.ReadToEnd();
+        }
+        catch (IOException)
+        {
+            return "";
+        }
+    }
+
     /// <summary>The newest session's lines, whenever it started, or "" if the log holds no banner.</summary>
     internal static string NewestSession() => Session(DateTimeOffset.MinValue.AddSeconds(1));
 

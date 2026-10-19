@@ -103,7 +103,7 @@ namespace Allodia
 
         /// <summary>
         /// Bring a window to the front before pressing or typing at it: real input goes to whatever
-        /// is in front (Show-WinappWindow, and Search.Tests' timed keystroke).
+        /// is in front (Show-WinappWindow).
         /// </summary>
         [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
 

@@ -9,9 +9,8 @@
 # A suite finds an element in-process, with exact names and a scoped walk, and hands it here to be
 # clicked, hovered, dragged or typed at. `winapp` does the pressing because it is DPI-aware and
 # injects real pointer and keyboard input, so a press lands where it was aimed at any display
-# scale. It is the PowerShell suites' one implementation of input, with one exception that measures
-# the input itself: Search.Tests times a keystroke a winapp process start would delay. The suites in
-# Mailcal.UiTests send their own (Driver/Input.cs).
+# scale. It is the PowerShell suites' implementation of input; the suites in Mailcal.UiTests send
+# their own (Driver/Input.cs).
 #
 # Why finding stays in-process: every `winapp` verb is a process of its own, 0.2–0.7 s a call
 # (winapp 0.7.1, measured against this app), where an in-process read takes milliseconds. A suite
