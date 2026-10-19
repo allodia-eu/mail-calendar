@@ -71,7 +71,7 @@ public sealed partial class AccountSetupView
         {
             OnboardingAllodiaPanel.Children.Add(new TextBlock
             {
-                Text = L10n.SettingsAllodiaFailed(failure),
+                Text = failure,
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = ThemePalette.Brush(ThemePalette.Critical(this.IsDark())),
             });
@@ -265,7 +265,7 @@ public sealed partial class AccountSetupView
         _onboardingFailure = null;
         _onboardingSigningIn = true;
         RenderOnboarding();
-        _onboardingFailure = await Model.SignInToAllodiaAsync(create);
+        _onboardingFailure = (await Model.SignInToAllodiaAsync(create))?.Said;
         _onboardingSigningIn = false;
         RenderOnboarding();
         if (_onboardingFailure is null)

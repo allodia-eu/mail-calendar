@@ -140,15 +140,18 @@ internal sealed class SeparateServerSignIn
     internal bool Busy => Phase != SeparateSignInPhase.Idle;
 
     /// <summary>
-    /// What a failed sign-in says under the form. <paramref name="failed"/> for everything but a
-    /// sign-in that came back as another account, because the server's own reply is meant for a
-    /// developer. The sentences are passed in because L10n cannot be linked into the test
-    /// assembly; callers pass <c>L10n.SetupImapSigninFailed()</c> and
-    /// <c>L10n.SigninDifferentAccount()</c>.
+    /// What a failed sign-in says under the form: <paramref name="failed"/>, since the server's own
+    /// reply is meant for a developer, except where the core typed an outcome a person can act
+    /// on: a sign-in that came back as another account, a browser that returned from another
+    /// sign-in, and a calendar or address book that did not connect. A refused sign-in stays
+    /// <paramref name="failed"/>. Callers pass <c>L10n.SetupImapSigninFailed()</c> and
+    /// <c>CoreErrorCopy.Words()</c>.
     /// </summary>
-    internal static string Said(Exception error, string failed, string differentAccount) => error switch
+    internal static string Said(Exception error, string failed, CoreErrorWords words) => error switch
     {
-        MailcalException.DifferentAccount => differentAccount,
+        MailcalException.DifferentAccount => words.DifferentAccount,
+        MailcalException.StaleSignIn => words.StaleSignIn,
+        MailcalException.UseNotConnected use => CoreError.NotConnected(use.@capability, use.@problem, words),
         _ => failed,
     };
 }

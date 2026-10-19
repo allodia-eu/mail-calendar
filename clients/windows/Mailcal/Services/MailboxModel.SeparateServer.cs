@@ -30,7 +30,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"giving a calendar and contacts a sign-in of their own failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount());
+            return CoreErrorCopy.Said(ex);
         }
     }
 

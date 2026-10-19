@@ -107,6 +107,11 @@ public sealed partial class MailboxModel
             Log.Info("imap sign-in cancelled by user");
             return ImapSignInOutcome.Cancelled;
         }
+        catch (uniffi.mailcal_bindings.MailcalException.StaleSignIn)
+        {
+            Log.Warn("imap sign-in: the browser returned from another sign-in");
+            return ImapSignInOutcome.Stale;
+        }
         catch (Exception ex)
         {
             // A provider need not offer any of this, so the form says so in plain words and keeps

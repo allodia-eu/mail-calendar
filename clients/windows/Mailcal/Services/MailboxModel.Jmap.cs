@@ -105,6 +105,11 @@ public sealed partial class MailboxModel
             Log.Info("jmap sign-in cancelled by user");
             return JmapSignInOutcome.Cancelled;
         }
+        catch (uniffi.mailcal_bindings.MailcalException.StaleSignIn)
+        {
+            Log.Warn("jmap sign-in: the browser returned from another sign-in");
+            return JmapSignInOutcome.Stale;
+        }
         catch (Exception ex)
         {
             // Discovery is allowed to fail, a JMAP server need not offer any of this, so the
@@ -172,7 +177,7 @@ public sealed partial class MailboxModel
             // Say so on the banner in plain words; the OAuth cause goes to the diagnostic log.
             // The core leaves the prompt raised on every failure, so the retry is one click away.
             Log.Error($"jmap re-authentication failed: {CoreError.Describe(ex)}");
-            SetSignInReauthFailed(true);
+            SetSignInReauthFailed(ex);
         }
         finally
         {

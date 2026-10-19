@@ -152,6 +152,7 @@ public sealed partial class AccountSetupView
         ImapUsePasswordButton.Visibility =
             _imapSignIn.ShowPasswordInstead ? Visibility.Visible : Visibility.Collapsed;
         ImapUsePasswordButton.IsEnabled = _imapSignIn.PasswordEnabled;
+        ImapSignInFailedBar.Message = _imapSignIn.FailureIsStale ? L10n.SigninStale() : L10n.SetupImapSigninFailed();
         ImapSignInFailedBar.IsOpen = _imapSignIn.ShowFailure;
         ImapRegistrationNeededNote.Visibility =
             _imapSignIn.ShowRegistrationNeeded ? Visibility.Visible : Visibility.Collapsed;

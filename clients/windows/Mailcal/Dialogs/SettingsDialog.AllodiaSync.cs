@@ -19,6 +19,9 @@ public sealed partial class SettingsDialog
 {
     // The last "keep this device's settings" failure, in the store's own words, or null.
     private string? _allodiaSyncFailure;
+    // Whether the last sign-in from a reauth offer found the browser returning from another
+    // sign-in, which the offer says beneath its button.
+    private bool _allodiaAgainStale;
 
     /// <summary>
     /// The section, or null when there is nothing to say, including before the first pass has
@@ -115,6 +118,7 @@ public sealed partial class SettingsDialog
                 var again = new Button { Content = L10n.SettingsAllodiaReauthAction() };
                 again.Click += async (_, _) => await SignInToAllodiaAgainAsync();
                 panel.Children.Add(again);
+                AddAllodiaAgainStale(panel);
                 return panel;
             }
             case AllodiaGrantHealth.SignedOut:
@@ -125,6 +129,7 @@ public sealed partial class SettingsDialog
                 var again = new Button { Content = L10n.SettingsAllodiaSignIn() };
                 again.Click += async (_, _) => await SignInToAllodiaAgainAsync();
                 panel.Children.Add(again);
+                AddAllodiaAgainStale(panel);
                 return panel;
             }
             default:
@@ -153,7 +158,24 @@ public sealed partial class SettingsDialog
         {
             await _model.SyncAllodiaAccountsAsync();
         }
-        Apply(() => _allodiaSyncFailure = failure);
+        Apply(() =>
+        {
+            _allodiaSyncFailure = failure?.Said;
+            _allodiaAgainStale = failure?.Stale == true;
+        });
+    }
+
+    // The one sign-in failure a reauth offer says: its remedy is the button above it.
+    private void AddAllodiaAgainStale(StackPanel panel)
+    {
+        if (!_allodiaAgainStale)
+        {
+            return;
+        }
+        var line = Description(L10n.SigninStale());
+        line.Opacity = 1;
+        line.Foreground = (Microsoft.UI.Xaml.Media.Brush)_brushes.Of(ThemePalette.Critical);
+        panel.Children.Add(line);
     }
 
     /// <summary>

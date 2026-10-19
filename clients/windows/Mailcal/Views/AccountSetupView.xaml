@@ -137,9 +137,9 @@
                         <HyperlinkButton x:Name="ImapUsePasswordButton"
                                          Content="{x:Bind l10n:L10n.SetupImapSigninPasswordInstead(), Mode=OneTime}"
                                          Padding="0" Visibility="Collapsed" Click="OnUseImapPassword" />
+                        <!-- Its message is set beside IsOpen, by which failure it is. -->
                         <InfoBar x:Name="ImapSignInFailedBar" IsOpen="False" IsClosable="False"
-                                 Severity="Warning"
-                                 Message="{x:Bind l10n:L10n.SetupImapSigninFailed(), Mode=OneTime}" />
+                                 Severity="Warning" />
                     </StackPanel>
 
                     <!-- Said rather than left to be guessed at. Without this line, a provider
@@ -232,8 +232,7 @@
                         <!-- A failed sign-in says so here and leaves the field below usable,
                              never a dead end, and never a raw protocol error in front of the user. -->
                         <InfoBar x:Name="JmapSignInFailedBar" IsOpen="False" IsClosable="False"
-                                 Severity="Warning"
-                                 Message="{x:Bind l10n:L10n.SetupJmapSigninFailed(), Mode=OneTime}" />
+                                 Severity="Warning" />
                     </StackPanel>
 
                     <!-- The manual way in: a secret, and the server to present it to. Grouped so it

@@ -26,6 +26,10 @@ internal enum ImapSignInOutcome
 
     /// <summary>Discovery, the browser hop, or the token exchange failed.</summary>
     Failed,
+
+    /// <summary>The browser returned from another sign-in, so the code was discarded; signing in
+    /// again goes straight through.</summary>
+    Stale,
 }
 
 /// <summary>What the setup form should ask for, as the mail server answered it.</summary>
@@ -73,6 +77,8 @@ internal sealed class ImapSignInGate
 
     // The key whose sign-in failed, so editing the account takes the note away with it.
     private string? _failedFor;
+    // Whether that failure was a browser returning from another sign-in.
+    private bool _stale;
     private bool _signingIn;
 
     // Whether the password field is on screen and stays there while the account is asked about
@@ -108,6 +114,10 @@ internal sealed class ImapSignInGate
 
     /// <summary>Whether the "signing in didn't work" note is up for the current fields.</summary>
     internal bool ShowFailure => _failedFor == Key;
+
+    /// <summary>Whether the note up is the one for a browser that returned from another sign-in
+    /// rather than the "signing in didn't work" line.</summary>
+    internal bool FailureIsStale => ShowFailure && _stale;
 
     /// <summary>
     /// Whether to explain that this provider admits only pre-registered applications. Worth its
@@ -213,15 +223,17 @@ internal sealed class ImapSignInGate
     {
         _signingIn = true;
         _failedFor = null;
+        _stale = false;
     }
 
     /// <summary>The sign-in finished. Only a genuine failure raises the note; a cancel is not an error.</summary>
     internal void SignInFinished(ImapSignInOutcome outcome)
     {
         _signingIn = false;
-        if (outcome == ImapSignInOutcome.Failed)
+        if (outcome is ImapSignInOutcome.Failed or ImapSignInOutcome.Stale)
         {
             _failedFor = Key;
+            _stale = outcome == ImapSignInOutcome.Stale;
             _passwordHeld = true;
         }
     }
@@ -235,6 +247,7 @@ internal sealed class ImapSignInGate
         _answeredFor = null;
         _answer = ImapAuthAnswer.Unknown;
         _failedFor = null;
+        _stale = false;
         _signingIn = false;
         _passwordHeld = false;
     }

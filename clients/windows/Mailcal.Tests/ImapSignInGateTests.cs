@@ -115,6 +115,27 @@ public sealed class ImapSignInGateTests
     }
 
     [Fact]
+    public void ABrowserBackFromAnotherSignInIsAFailureOfItsOwnThatLeavesTheSignInOffered()
+    {
+        var gate = Asked(ImapAuthAnswer.SignInOnly);
+        gate.SignInStarted();
+        gate.SignInFinished(ImapSignInOutcome.Stale);
+
+        Assert.True(gate.ShowFailure);
+        Assert.True(gate.FailureIsStale);
+        Assert.True(gate.ButtonEnabled);
+        Assert.True(gate.ShowPassword);
+        Assert.True(gate.PasswordEnabled);
+
+        // The next attempt takes the note away, and a plain failure is not said as stale.
+        gate.SignInStarted();
+        Assert.False(gate.FailureIsStale);
+        gate.SignInFinished(ImapSignInOutcome.Failed);
+        Assert.True(gate.ShowFailure);
+        Assert.False(gate.FailureIsStale);
+    }
+
+    [Fact]
     public void ACancelledSignInIsNotAFailure()
     {
         // Closing the browser is a decision, not an error, and a red note over it would be wrong.

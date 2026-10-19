@@ -105,6 +105,7 @@ public sealed partial class AccountSetupView
         }
         JmapSignInPanel.Visibility = _jmapSignIn.ShowButton ? Visibility.Visible : Visibility.Collapsed;
         JmapSignInButton.IsEnabled = _jmapSignIn.ButtonEnabled;
+        JmapSignInFailedBar.Message = _jmapSignIn.FailureIsStale ? L10n.SigninStale() : L10n.SetupJmapSigninFailed();
         JmapSignInFailedBar.IsOpen = _jmapSignIn.ShowFailure;
         // Only an in-flight sign-in takes the manual secret away; a failure hands it straight back.
         JmapPassword.IsEnabled = _jmapSignIn.ManualEnabled;

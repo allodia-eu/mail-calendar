@@ -115,7 +115,7 @@ public sealed partial class MailboxModel
         {
             Log.Error($"a calendar server's sign-in failed: {CoreError.Describe(ex)}");
             return SeparateSignInEnd.Failed(
-                SeparateServerSignIn.Said(ex, L10n.SetupImapSigninFailed(), L10n.SigninDifferentAccount()));
+                SeparateServerSignIn.Said(ex, L10n.SetupImapSigninFailed(), CoreErrorCopy.Words()));
         }
         finally
         {

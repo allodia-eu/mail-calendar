@@ -39,24 +39,78 @@ internal static class CoreError
         // The record carries the account's id, an address; the core's own words carry none.
         uniffi.mailcal_bindings.MailcalException.AlreadySetUp => "that account is already set up",
         uniffi.mailcal_bindings.MailcalException.DifferentAccount => "that sign-in is for a different account",
+        uniffi.mailcal_bindings.MailcalException.StaleSignIn => "the browser returned from another sign-in",
+        // The generated message is a dump of both fields.
+        uniffi.mailcal_bindings.MailcalException.UseNotConnected use =>
+            $"{UseName(use.@capability)} did not connect: {ProblemName(use.@problem)}",
         _ => Describe(error.Message, error.GetType().Name),
     };
 
     /// <summary>
-    /// What to show a person for <paramref name="error"/>: <paramref name="signInRefused"/> when
-    /// the server refused the sign-in, since its reply is meant for a developer,
-    /// <paramref name="alreadySetUp"/> when the account being added is already set up,
-    /// <paramref name="differentAccount"/> when a sign-in came back as another account, and
-    /// <see cref="Describe(Exception)"/> otherwise. The sentences are passed in because L10n
-    /// cannot be linked into the test assembly; callers pass <c>L10n.SigninRefused()</c>,
-    /// <c>L10n.AccountAlreadySetUp()</c> and <c>L10n.SigninDifferentAccount()</c>.
+    /// What to show a person for <paramref name="error"/>: the sentence <paramref name="words"/>
+    /// holds for each outcome the core types for a person, since the server's reply is meant for
+    /// a developer, and <see cref="Describe(Exception)"/> otherwise.
     /// </summary>
-    internal static string Said(Exception error, string signInRefused, string alreadySetUp, string differentAccount) => error switch
+    internal static string Said(Exception error, CoreErrorWords words) => error switch
     {
-        uniffi.mailcal_bindings.MailcalException.SignInRefused => signInRefused,
-        uniffi.mailcal_bindings.MailcalException.AlreadySetUp => alreadySetUp,
-        uniffi.mailcal_bindings.MailcalException.DifferentAccount => differentAccount,
+        uniffi.mailcal_bindings.MailcalException.SignInRefused => words.SignInRefused,
+        uniffi.mailcal_bindings.MailcalException.AlreadySetUp => words.AlreadySetUp,
+        uniffi.mailcal_bindings.MailcalException.DifferentAccount => words.DifferentAccount,
+        uniffi.mailcal_bindings.MailcalException.StaleSignIn => words.StaleSignIn,
+        uniffi.mailcal_bindings.MailcalException.UseNotConnected use =>
+            NotConnected(use.@capability, use.@problem, words),
         _ => Describe(error),
+    };
+
+    /// <summary>
+    /// <see cref="Said(Exception, CoreErrorWords)"/> on a route that says "Couldn't connect"
+    /// around it. A sign-in the browser returned from another request is said on its own: nothing
+    /// failed to connect, and its remedy is to sign in again.
+    /// </summary>
+    internal static string SaidAsConnect(Exception error, CoreErrorWords words) =>
+        error is uniffi.mailcal_bindings.MailcalException.StaleSignIn
+            ? words.StaleSignIn
+            : words.ConnectFailed(Said(error, words));
+
+    /// <summary>
+    /// What a banner asking for a sign-in again says after one launched from it failed:
+    /// <paramref name="failed"/> ("Signing in again didn't work"), except for the two outcomes
+    /// whose remedy differs, a sign-in that came back as another account and a browser that
+    /// returned from another sign-in. <paramref name="error"/> is null for a failure the core did
+    /// not raise, such as a browser that did not open.
+    /// </summary>
+    internal static string SaidOnBanner(Exception? error, CoreErrorWords words, string failed) => error switch
+    {
+        uniffi.mailcal_bindings.MailcalException.StaleSignIn => words.StaleSignIn,
+        uniffi.mailcal_bindings.MailcalException.DifferentAccount => words.DifferentAccount,
+        _ => failed,
+    };
+
+    /// <summary>What a calendar or address book that did not connect on a server of its own
+    /// says. <paramref name="capability"/> is never mail here, and is read as the calendar if it
+    /// is.</summary>
+    internal static string NotConnected(
+        uniffi.mailcal_bindings.AccountCapability capability,
+        uniffi.mailcal_bindings.UseProblem problem,
+        CoreErrorWords words)
+    {
+        var contacts = capability == uniffi.mailcal_bindings.AccountCapability.Contacts;
+        return problem switch
+        {
+            uniffi.mailcal_bindings.UseProblem.NeedsOwnSignIn => contacts ? words.OwnSignInContacts : words.OwnSignInCalendar,
+            uniffi.mailcal_bindings.UseProblem.SignInRefused => words.SignInRefused,
+            _ => contacts ? words.UnreachableContacts : words.UnreachableCalendar,
+        };
+    }
+
+    private static string UseName(uniffi.mailcal_bindings.AccountCapability capability) =>
+        capability == uniffi.mailcal_bindings.AccountCapability.Contacts ? "the address book" : "the calendar";
+
+    private static string ProblemName(uniffi.mailcal_bindings.UseProblem problem) => problem switch
+    {
+        uniffi.mailcal_bindings.UseProblem.NeedsOwnSignIn => "its server needs a sign-in of its own",
+        uniffi.mailcal_bindings.UseProblem.SignInRefused => "its server refused the sign-in",
+        _ => "its server could not be reached",
     };
 
     /// <summary>
@@ -87,3 +141,20 @@ internal static class CoreError
         return i > 2 && i < message.Length && message[i] == '=' ? message[(i + 1)..] : message;
     }
 }
+
+/// <summary>
+/// The sentences <see cref="CoreError.Said(Exception, CoreErrorWords)"/> chooses from. Passed in
+/// because L10n cannot be linked into the test assembly; the app builds them from the catalog in
+/// <c>CoreErrorCopy</c>.
+/// </summary>
+/// <param name="ConnectFailed">"Couldn't connect: {error}".</param>
+internal sealed record CoreErrorWords(
+    string SignInRefused,
+    string AlreadySetUp,
+    string DifferentAccount,
+    string StaleSignIn,
+    string UnreachableCalendar,
+    string UnreachableContacts,
+    string OwnSignInCalendar,
+    string OwnSignInContacts,
+    Func<string, string> ConnectFailed);

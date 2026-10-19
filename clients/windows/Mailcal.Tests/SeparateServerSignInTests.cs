@@ -144,11 +144,31 @@ public class SeparateServerSignInTests
         Assert.False(failed?.GoesOn);
     }
 
+    private static readonly CoreErrorWords Words = new(
+        "refused", "set up", "other", "stale", "calendar unreachable", "contacts unreachable",
+        "calendar own sign-in", "contacts own sign-in", error => error);
+
     [Fact]
-    public void AFailureSaysTheSignInFailedUnlessItCameBackAsAnotherAccount()
+    public void AFailureSaysTheSignInFailedUnlessTheCoreTypedWhatToDo()
     {
-        Assert.Equal("other", SeparateServerSignIn.Said(new MailcalException.DifferentAccount(), "failed", "other"));
-        Assert.Equal("failed", SeparateServerSignIn.Said(new MailcalException.Connect("token exchange"), "failed", "other"));
-        Assert.Equal("failed", SeparateServerSignIn.Said(new TimeoutException(), "failed", "other"));
+        Assert.Equal("other", SeparateServerSignIn.Said(new MailcalException.DifferentAccount(), "failed", Words));
+        Assert.Equal("stale", SeparateServerSignIn.Said(new MailcalException.StaleSignIn(), "failed", Words));
+        Assert.Equal("failed", SeparateServerSignIn.Said(new MailcalException.Connect("token exchange"), "failed", Words));
+        Assert.Equal("failed", SeparateServerSignIn.Said(new TimeoutException(), "failed", Words));
+        // A refused sign-in stays the form's own failure.
+        Assert.Equal("failed", SeparateServerSignIn.Said(new MailcalException.SignInRefused("401"), "failed", Words));
     }
+
+    [Theory]
+    [InlineData(nameof(AccountCapability.Calendar), nameof(UseProblem.Unreachable), "calendar unreachable")]
+    [InlineData(nameof(AccountCapability.Contacts), nameof(UseProblem.Unreachable), "contacts unreachable")]
+    [InlineData(nameof(AccountCapability.Calendar), nameof(UseProblem.NeedsOwnSignIn), "calendar own sign-in")]
+    [InlineData(nameof(AccountCapability.Contacts), nameof(UseProblem.NeedsOwnSignIn), "contacts own sign-in")]
+    [InlineData(nameof(AccountCapability.Contacts), nameof(UseProblem.SignInRefused), "refused")]
+    public void AUseThatDidNotConnectSaysWhichAndWhy(string capability, string problem, string said) =>
+        Assert.Equal(said, SeparateServerSignIn.Said(NotConnected(capability, problem), "failed", Words));
+
+    // Named rather than typed: the generated enums are internal, and a public test cannot take them.
+    private static MailcalException.UseNotConnected NotConnected(string capability, string problem) =>
+        new(Enum.Parse<AccountCapability>(capability), Enum.Parse<UseProblem>(problem));
 }

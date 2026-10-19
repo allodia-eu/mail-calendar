@@ -8,8 +8,12 @@ using uniffi.mailcal_bindings;
 namespace Allodia.Mailcal.Services;
 
 /// <summary>How signing an account in again ended. A cancelled one carries neither: the person
-/// closed it, and nothing is said.</summary>
-internal sealed record ConsentEnded(bool SignedIn, string? Error);
+/// closed it, and nothing is said. <paramref name="Cause"/> is the core's error, from which the
+/// expired-sign-in banner chooses its own line (<see cref="CoreError.SaidOnBanner"/>).</summary>
+internal sealed record ConsentEnded(bool SignedIn, string? Error, Exception? Cause = null)
+{
+    internal static ConsentEnded Failed(Exception error) => new(false, CoreErrorCopy.Said(error), error);
+}
 
 public sealed partial class MailboxModel
 {
@@ -52,7 +56,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"switching an account's use failed: {CoreError.Describe(ex)}");
-            return (UseChangeOutcome.Applied, CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount()));
+            return (UseChangeOutcome.Applied, CoreErrorCopy.Said(ex));
         }
     }
 
@@ -73,7 +77,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"linking an account failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount());
+            return CoreErrorCopy.Said(ex);
         }
     }
 
@@ -99,7 +103,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"editing an account's servers failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount());
+            return CoreErrorCopy.Said(ex);
         }
     }
 
@@ -119,7 +123,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"replacing an account's secret failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount());
+            return CoreErrorCopy.Said(ex);
         }
     }
 
@@ -185,7 +189,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"signing an account in again failed: {CoreError.Describe(ex)}");
-            return new ConsentEnded(false, CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount()));
+            return ConsentEnded.Failed(ex);
         }
         finally
         {

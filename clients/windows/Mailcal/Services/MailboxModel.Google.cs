@@ -96,7 +96,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"google sign-in failed: {CoreError.Describe(ex)}");
-            SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount()));
+            SetupError = CoreErrorCopy.SaidAsConnect(ex);
         }
         finally
         {

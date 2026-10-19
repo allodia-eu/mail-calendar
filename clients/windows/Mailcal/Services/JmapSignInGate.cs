@@ -25,6 +25,10 @@ internal enum JmapSignInOutcome
 
     /// <summary>Discovery, the browser hop, or the token exchange failed.</summary>
     Failed,
+
+    /// <summary>The browser returned from another sign-in, so the code was discarded; signing in
+    /// again goes straight through.</summary>
+    Stale,
 }
 
 /// <summary>
@@ -46,6 +50,8 @@ internal sealed class JmapSignInGate
 
     // The key whose sign-in failed, so editing the address takes the note away with it.
     private string? _failedFor;
+    // Whether that failure was a browser returning from another sign-in.
+    private bool _stale;
     private bool _signingIn;
 
     // Whether these fields are being shown as a DETECTED result rather than the manual form. It
@@ -60,6 +66,10 @@ internal sealed class JmapSignInGate
 
     /// <summary>Whether the "signing in didn't work" note is up for the current fields.</summary>
     internal bool ShowFailure => _failedFor == Key;
+
+    /// <summary>Whether the note up is the one for a browser that returned from another sign-in
+    /// rather than the "signing in didn't work" line.</summary>
+    internal bool FailureIsStale => ShowFailure && _stale;
 
     /// <summary>
     /// Whether the password/API-token field stays usable. Only an in-flight sign-in takes it away
@@ -139,15 +149,17 @@ internal sealed class JmapSignInGate
     {
         _signingIn = true;
         _failedFor = null;
+        _stale = false;
     }
 
     /// <summary>The sign-in finished. Only a genuine failure raises the note, a cancel is not an error.</summary>
     internal void SignInFinished(JmapSignInOutcome outcome)
     {
         _signingIn = false;
-        if (outcome == JmapSignInOutcome.Failed)
+        if (outcome is JmapSignInOutcome.Failed or JmapSignInOutcome.Stale)
         {
             _failedFor = Key;
+            _stale = outcome == JmapSignInOutcome.Stale;
         }
     }
 
@@ -160,6 +172,7 @@ internal sealed class JmapSignInGate
         _answeredFor = null;
         _available = false;
         _failedFor = null;
+        _stale = false;
         _signingIn = false;
         _detectedCard = false;
     }

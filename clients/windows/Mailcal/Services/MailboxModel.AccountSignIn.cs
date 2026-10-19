@@ -148,7 +148,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"an account's sign-in failed: {CoreError.Describe(ex)}");
-            return new ConsentEnded(false, CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount()));
+            return ConsentEnded.Failed(ex);
         }
         finally
         {
@@ -175,7 +175,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"switching an account to a password failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount());
+            return CoreErrorCopy.Said(ex);
         }
     }
 
@@ -204,7 +204,7 @@ public sealed partial class MailboxModel
         {
             Log.Error($"updating the account already set up failed: {CoreError.Describe(ex)}");
             IsSubmitting = false;
-            SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp(), L10n.SigninDifferentAccount()));
+            SetupError = CoreErrorCopy.SaidAsConnect(ex);
         }
     }
 }

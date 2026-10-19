@@ -48,10 +48,10 @@ public sealed partial class MailboxModel
     /// grant rather than starting a discovery from an address.</summary>
     private sealed record ExpiredSignIn(string Id, string Name, AccountProvider? Provider);
 
-    // Set when a re-authentication launched from the banner failed, so the banner can say so
-    // instead of leaving the click looking like it did nothing. Cleared on the next attempt; a
-    // success clears the whole banner, since the core retracts the prompt.
-    private bool _signInReauthFailed;
+    // What the banner says after a re-authentication launched from it failed, so the click does
+    // not look like it did nothing. Cleared on the next attempt; a success clears the whole
+    // banner, since the core retracts the prompt.
+    private string? _signInReauthFailure;
 
     /// <summary>Records the latest connectivity and refreshes its bound view helpers, then
     /// raises <see cref="ConnectivityChanged"/> so the sidebar can re-badge accounts (the nav
@@ -161,7 +161,7 @@ public sealed partial class MailboxModel
             var prompt = CanRelaunchSignIn
                 ? L10n.SigninExpiredPrompt(names)
                 : L10n.SigninExpiredPromptSettings(names);
-            return _signInReauthFailed ? $"{prompt} {L10n.SigninExpiredFailed()}" : prompt;
+            return _signInReauthFailure is { } failure ? $"{prompt} {failure}" : prompt;
         }
     }
 
@@ -190,7 +190,7 @@ public sealed partial class MailboxModel
         {
             return;
         }
-        SetSignInReauthFailed(false);
+        SetSignInReauthFailure(null);
         switch (AccountSettingsRules.Remedy(account.Provider))
         {
             case SignInRemedy.ProviderConsent:
@@ -235,11 +235,11 @@ public sealed partial class MailboxModel
     /// </summary>
     private async Task SignInAgainFromBannerAsync(string accountId)
     {
-        SetSignInReauthFailed(false);
+        SetSignInReauthFailure(null);
         var ended = await SignInAgainAsync(accountId, []);
         if (ended.Error is not null)
         {
-            SetSignInReauthFailed(true);
+            SetSignInReauthFailed(ended.Cause);
         }
     }
 
@@ -249,15 +249,21 @@ public sealed partial class MailboxModel
         var ended = await AccountSignInAsync(accountId);
         if (ended.Error is not null)
         {
-            SetSignInReauthFailed(true);
+            SetSignInReauthFailed(ended.Cause);
         }
     }
 
-    /// <summary>Records whether the last banner-launched re-authentication failed, and refreshes
-    /// the banner text that reports it.</summary>
-    private void SetSignInReauthFailed(bool failed)
+    /// <summary>Records that the last banner-launched re-authentication failed, said in plain
+    /// words by <see cref="CoreError.SaidOnBanner"/>, since the cause is an OAuth protocol
+    /// string.</summary>
+    private void SetSignInReauthFailed(Exception? cause) =>
+        SetSignInReauthFailure(CoreErrorCopy.SaidOnBanner(cause));
+
+    /// <summary>Sets what the banner says about the last attempt, null for nothing, and refreshes
+    /// the banner text.</summary>
+    private void SetSignInReauthFailure(string? failure)
     {
-        _signInReauthFailed = failed;
+        _signInReauthFailure = failure;
         Raise(nameof(SignInExpiredText));
     }
 
