@@ -111,7 +111,7 @@ public sealed partial class AccountSetupView
         var caption = (Style)Application.Current.Resources["CaptionTextBlockStyle"];
         var secondary = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
         var detail = new TextBlock { Text = AccountDetectForm.ServerLine(server), Style = caption, Foreground = secondary };
-        AutomationProperties.SetAutomationId(detail, "SetupMailServer" + server.Protocol);
+        AutomationProperties.SetAutomationId(detail, server.Protocol == "SMTP" ? "SetupMailServerSMTP" : "SetupMailServerIMAP");
         return new StackPanel
         {
             Orientation = Orientation.Horizontal,

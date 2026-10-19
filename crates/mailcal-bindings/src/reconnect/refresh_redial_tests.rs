@@ -55,6 +55,8 @@ fn a_refresh_of_the_calendar_or_contacts_dials_an_unreachable_account_again() {
     ] {
         let before = connections.load(Ordering::SeqCst);
         app.dispatch(intent);
-        wait_for(what, || connections.load(Ordering::SeqCst) > before && settled());
+        wait_for(what, || {
+            connections.load(Ordering::SeqCst) > before && settled()
+        });
     }
 }
