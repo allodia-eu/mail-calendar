@@ -9,7 +9,7 @@
 // It stops at the frame rather than the sentence because L10n.cs cannot be linked into this
 // assembly, the same reason InvitationFormat stops where InvitationText begins. Mapping a frame to
 // its catalog string is EventRepeatText (Dialogs/), and the rendered sentence is asserted on the
-// running app by clients/windows/uitests. The Windows twin of Apple's EventRepeatTextTests and
+// running app by Mailcal.UiTests (EventRepeatTests). The Windows twin of Apple's EventRepeatTextTests and
 // Android's EventRecurrenceTextTest.
 using System.Globalization;
 using System.Linq;

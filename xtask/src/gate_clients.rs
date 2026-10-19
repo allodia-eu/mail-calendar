@@ -160,7 +160,7 @@ fn windows(run: &Runner<'_>) -> Vec<Step> {
             &["build", "clients/windows/Mailcal.UiTests", "--nologo"],
         ),
         run.skip(
-            "windows (WinUI app + uitests)",
+            "windows (WinUI app + UI suites)",
             "needs a Windows desktop session: run build-and-run.ps1 and uitests/run-ui-tests.ps1 \
              there",
         ),

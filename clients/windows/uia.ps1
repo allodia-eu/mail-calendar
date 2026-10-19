@@ -34,8 +34,7 @@
 # WHAT UIA REACHES THAT YOU MIGHT NOT EXPECT: a WinUI TextBlock exposes TextPattern, so the FONT
 # WEIGHT the user is actually looking at is readable, Get-UiaFontWeight returns 400/600/700 off the
 # rendered text. "Is this row bold?" is therefore an assertion, not a screenshot someone squints at,
-# and it catches a binding that was never wired as well as one bound to the wrong property. The
-# suites in uitests/ are built on it.
+# and it catches a binding that was never wired as well as one bound to the wrong property.
 #
 # FINDING HERE, PRESSING THROUGH winapp.ps1. This file finds and reads; it never moves the pointer
 # or types. Every click, double-click, right-click, hover, drag, wheel and keystroke goes through
@@ -47,11 +46,10 @@
 # does what 0.6.1 could not: --root and --type scoping, FontWeight through get-property, explicit
 # --action, the window's DPI in `status`):
 #   * EVERY VERB IS A PROCESS: 140 ms to start, 0.2 to 0.7 s a call, where an in-process read takes
-#     milliseconds. A suite reads the tree hundreds of times; it presses a handful.
+#     milliseconds. A check reads the tree many times; it presses a handful.
 #   * A TEXT SELECTOR IS A SUBSTRING, and --class-name only narrows a text match, so "the element of
 #     class CalendarSurface" cannot be asked at all.
-#   * WHILE A COMPOSER IS OPEN, winapp's walk of the window never ends (winapp.ps1 says why), and
-#     eleven of the 49 suites open one.
+#   * WHILE A COMPOSER IS OPEN, winapp's walk of the window never ends (winapp.ps1 says why).
 # Batched in-process use is upstream work (microsoft/winappCli#824); revisit this when it ships.
 #
 # WHAT NOTHING HERE REACHES, do not burn time trying:
@@ -97,9 +95,6 @@ namespace Allodia
     public static class UiaDpi
     {
         [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
-
-        /// <summary>The primary display's DPI, for a question asked before there is a window.</summary>
-        [DllImport("user32.dll")] public static extern uint GetDpiForSystem();
 
         /// <summary>
         /// Bring a window to the front before pressing or typing at it: real input goes to whatever
@@ -197,6 +192,7 @@ function Get-MailcalWindow {
   if ($started) { $script:UiaElement::FromHandle($started.MainWindowHandle) }
 }
 
+
 <#
 .SYNOPSIS
 How many WebView2 hosts the mailbox window holds, shown or hidden: one for each message body and
@@ -221,10 +217,9 @@ and waits until it is gone, its editor's browser window included. Returns whethe
 nothing and returns $false with no composer open.
 .DESCRIPTION
 By AutomationId, never by the label, which is whatever language the app runs in. It throws rather
-than returning with the composer still there: a composer left open is closed later by the runner,
-and a winapp lookup that runs while its editor is still closing walks into the editor and times out
-in a suite that never opened it. The editor is waited for by its own window handle, which the
-automation tree stops showing before the window itself goes.
+than returning with the composer still there: a winapp lookup that runs while its editor is still
+closing walks into the editor and times out. The editor is waited for by its own window handle,
+which the automation tree stops showing before the window itself goes.
 #>
 function Close-Composer {
   param([int] $TimeoutSec = 15)
@@ -267,7 +262,7 @@ function Get-UiaScale {
 The name THIS build calls itself: "MailCal" unbranded, whatever `branding/allodia.env` says when
 that file is present.
 .DESCRIPTION
-Never write the branded name in a suite. The app's name is injected, not written in a client
+Never write the branded name in a script. The app's name is injected, not written in a client
 (docs/branding.md), so a literal asserts against a build nobody but the brand owner makes: CI is
 unbranded, every fork is unbranded, and the caption there reads "MailCal". The failure names the
 caption rather than the branding, which is how this cost a CI run to find.
@@ -287,67 +282,8 @@ function Get-BrandAppTitle {
   $value.InnerText
 }
 
-<#
-.SYNOPSIS
-A window's minimise / maximise / close buttons, keyed by automation id.
-.DESCRIPTION
-The SYSTEM draws these, on a surface that is not in the XAML tree, so they are NOT under the app's
-own caption control and a search scoped to it finds none of them. They sit in a pane of the window's
-own, which is why $Root is a WINDOW here (default: the mailbox) and never #AppTitleBar.
 
-They are the part of a custom caption that most easily ends up wrong while everything else about it
-is right, because nothing but a rendered window says so: a window either asks for them to match the
-caption's height or gets 32 epx ones, a third of a row above the icon and the name beside them.
-#>
-function Get-CaptionButtons {
-  param([object] $Root)
-  $buttons = [ordered] @{}
-  foreach ($id in 'Minimize', 'Maximize', 'Close') {
-    $button = Find-UiaElement -AutomationId $id -Type 'Button' -Root $Root
-    if (-not $button) {
-      throw "the window carries no '$id' caption button. Extending into the caption hides the " +
-        'system strip and leaves these three in place; a window that lost them cannot be closed ' +
-        'with a pointer at all'
-    }
-    $buttons[$id] = $button
-  }
-  $buttons
-}
 
-<#
-.SYNOPSIS
-How tall a caption is in this app, in the logical units XAML is written in.
-.DESCRIPTION
-Read out of App.xaml, where every window's caption reads it from (Services/WindowCaption.cs), rather
-than written here again: a suite carrying its own copy of the number asserts that the app matches
-the SUITE, and stays green on the day the two stop agreeing.
-#>
-function Get-CaptionHeightDip {
-  $appXaml = Join-Path $PSScriptRoot 'Mailcal/App.xaml'
-  if (-not (Test-Path -LiteralPath $appXaml)) { throw "no $appXaml to read the caption height from" }
-  $value = ([xml] (Get-Content -Raw -LiteralPath $appXaml)).SelectSingleNode(
-    "//*[local-name()='Double'][@*[local-name()='Key']='AppCaptionHeight']")
-  if (-not $value) { throw "$appXaml no longer defines AppCaptionHeight" }
-  [double] $value.InnerText
-}
-
-<#
-.SYNOPSIS
-The desktop's size in the LOGICAL units a XAML window is sized in: @(width, height).
-.DESCRIPTION
-For the one question that has to be answered before the app exists: is this desktop big enough to
-hold the window the suites are about to measure? `Screen.PrimaryScreen.Bounds` alone will not do
-it. PowerShell 7 is per-monitor DPI aware, so that property reports PHYSICAL pixels, 2880x1920 on
-a 200% display; comparing it against a size written in XAML says yes to a desktop half the size
-it needs. Dividing by the system scale puts both sides in the same unit.
-#>
-function Get-DesktopLogicalSize {
-  Add-Type -AssemblyName System.Windows.Forms
-  $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-  $dpi = [Allodia.UiaDpi]::GetDpiForSystem()
-  $scale = if ($dpi -gt 0) { $dpi / 96.0 } else { 1.0 }
-  @([int] [Math]::Round($bounds.Width / $scale), [int] [Math]::Round($bounds.Height / $scale))
-}
 
 <#
 .SYNOPSIS
@@ -356,8 +292,8 @@ $Dip, a size as written in XAML, in the physical pixels BoundingRectangle report
 Convert before comparing a measured rectangle against ANY constant taken from XAML. The two units
 agree only at 100%, so the naive comparison is a test that passes on the author's monitor and fails
 on the next person's, and the direction that does not fail is worse: a floor assertion on a scaled
-display silently accepts half of what it names. Every other suite here compares one measured edge
-against another, which needs none of this.
+display silently accepts half of what it names. Comparing one measured edge against another needs
+none of this.
 #>
 function ConvertTo-UiaPixels {
   param([Parameter(Mandatory)] [double] $Dip)
@@ -500,11 +436,7 @@ function Show-UiaElement {
 The Settings dialog if it is already open, else $null. Never opens it.
 .DESCRIPTION
 The passive half of Get-SettingsDialog, for a caller that wants to ASSERT on whether Settings is
-up rather than get it up. Both live here, and neither is redefined in a suite: the runner
-dot-sources every *.Tests.ps1 into ONE scope in alphabetical order, so a helper defined in two
-suites silently resolves to whichever sorted last, a suite that opened Settings for itself would
-hand the passive version to every suite after it, which then reads "Settings has no About
-category" against the whole window.
+up rather than get it up.
 #>
 function Find-SettingsDialog {
   Get-UiaTree -Root (Get-MailcalWindow) |
@@ -583,9 +515,8 @@ function Open-SettingsAccount {
 .SYNOPSIS
 Wait for the window to stop changing shape, or until $CapMs is spent.
 .DESCRIPTION
-The settle after an action used to be a flat sleep of its whole budget, on every call. That is the
-thing this file tells everyone else not to do, and it was the single biggest line item in the suite's
-running time, the invoke primitive alone is called from forty-odd places, several of them in loops.
+A flat sleep of the whole budget after every action is the thing this file tells everyone else
+not to do, and the invoke primitive settles after every press.
 
 Quiescence is two consecutive walks agreeing on the shape of the tree. A walk costs real time, so
 this can never be much cheaper than two of them, but two walks is still a fraction of the budget a
@@ -596,7 +527,7 @@ started when the click returns, so the first two walks can agree simply because 
 yet. The floor is the minimum time this waits before it is willing to believe "settled".
 #>
 function Wait-UiaQuiet {
-  # THE HOT PATH OF THE WHOLE SUITE, so that nobody optimises it twice. Each turn reads three
+  # THE HOT PATH OF THIS FILE, so that nobody optimises it twice. Each turn reads three
   # properties off every node, and two consecutive turns have to agree, so one settle is at least
   # two full walks. Measured on the showcase list, 130 nodes: 309ms a walk.
   #
@@ -790,27 +721,6 @@ function Wait-UiaGone {
   return $false
 }
 
-<#
-.SYNOPSIS
-The screen pixels of a rectangle (physical pixels) as a Bitmap the caller disposes, read with
--Element's window in front.
-.DESCRIPTION
-The pixels come off the composited desktop, so they are whatever is drawn there: any window lying
-over the app is read as the app's own colours. The window is brought to the front first.
-#>
-function Get-UiaScreenPixels {
-  param(
-    [Parameter(Mandatory)] [object] $Element,
-    [Parameter(Mandatory)] [int] $X, [Parameter(Mandatory)] [int] $Y,
-    [Parameter(Mandatory)] [int] $Width, [Parameter(Mandatory)] [int] $Height
-  )
-  Show-WinappWindow (Get-UiaWindowHandle $Element)
-  Add-Type -AssemblyName System.Drawing
-  $bmp = New-Object System.Drawing.Bitmap $Width, $Height
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  try { $g.CopyFromScreen($X, $Y, 0, 0, $bmp.Size) } finally { $g.Dispose() }
-  $bmp
-}
 
 <#
 .SYNOPSIS

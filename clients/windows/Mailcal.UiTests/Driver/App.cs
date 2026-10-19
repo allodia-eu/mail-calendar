@@ -1,6 +1,6 @@
 // The running app: launched on the harness store, or on an empty one for a first run, with its test
-// agent listening, and brought to the state every suite starts from. The launch mirrors control.ps1
-// and the readiness mirrors uitests/dataset.ps1, whose headers say why each step is there.
+// agent listening, and brought to the state every suite starts from. The launch mirrors control.ps1,
+// whose header says why each step is there.
 
 using System.Diagnostics;
 
@@ -196,7 +196,7 @@ internal sealed partial class App : IDisposable
     /// <summary>
     /// The welcome question answered with Get started, then the setup form. Ready means the question
     /// was answered and not merely that the form is up: a core that failed to open draws the form
-    /// with no welcome question before it (uitests/dataset.ps1 has the case it hid).
+    /// with no welcome question before it.
     /// </summary>
     private void WaitSetupForm()
     {

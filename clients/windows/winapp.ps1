@@ -1,20 +1,20 @@
 #!/usr/bin/env pwsh
 # Physical input for the running client, through Microsoft's `winapp ui` CLI.
 #
-# uia.ps1 dot-sources this, so every suite and script that uses it has both halves:
+# uia.ps1 dot-sources this, so every script that uses it has both halves:
 #
-#     $row = Get-MailRowByTitle 'Your June usage report'   # FOUND in-process (uia.ps1)
-#     Invoke-WinappClick $row -Right                        # PRESSED by winapp (here)
+#     $row = Get-MailRows | Select-Object -First 1   # FOUND in-process (uia.ps1)
+#     Invoke-WinappClick $row -Right                  # PRESSED by winapp (here)
 #
-# A suite finds an element in-process, with exact names and a scoped walk, and hands it here to be
+# A script finds an element in-process, with exact names and a scoped walk, and hands it here to be
 # clicked, hovered, dragged or typed at. `winapp` does the pressing because it is DPI-aware and
 # injects real pointer and keyboard input, so a press lands where it was aimed at any display
-# scale. It is the PowerShell suites' implementation of input; the suites in Mailcal.UiTests send
-# their own (Driver/Input.cs).
+# scale. It is for driving the app by hand; the suites in Mailcal.UiTests send their own input
+# (Driver/Input.cs).
 #
 # Why finding stays in-process: every `winapp` verb is a process of its own, 0.2–0.7 s a call
-# (winapp 0.7.1, measured against this app), where an in-process read takes milliseconds. A suite
-# reads the tree hundreds of times and presses a handful, so the presses can pay that and the reads
+# (winapp 0.7.1, measured against this app), where an in-process read takes milliseconds. A check
+# reads the tree many times and presses a handful, so the presses can pay that and the reads
 # cannot. A batched in-process `winapp` is upstream work (microsoft/winappCli#824).
 #
 # Traps, each found by hitting it on winapp 0.7.1:
@@ -28,9 +28,8 @@
 #     editor's WebView2 that the UI Automation tree does not have. A lookup that finds its element
 #     returns, slowly; a search over the whole window does not return at all, and that holds until
 #     the editor's browser window has gone, which can be after the composer has left the screen.
-#     So a composer is closed by Close-Composer (uia.ps1), which waits for that window, and the
-#     runner counts the hosts between suites (dataset.ps1). Every call here is capped, and one that
-#     runs out says so rather than hanging the suite. A keystroke and a press at a point look
+#     So a composer is closed by Close-Composer (uia.ps1), which waits for that window. Every call
+#     here is capped, and one that runs out says so rather than hanging the script. A keystroke and a press at a point look
 #     nothing up, so both work in a composer.
 
 $script:WinappMinimum = [version] '0.7.0'
@@ -39,7 +38,7 @@ function Get-WinappPath {
   if ($script:WinappPath) { return $script:WinappPath }
   $command = Get-Command winapp -ErrorAction SilentlyContinue
   if (-not $command) {
-    throw "winapp is not installed, and every press in these suites goes through it: winget install Microsoft.WinAppCLI"
+    throw "winapp is not installed, and every press here goes through it: winget install Microsoft.WinAppCLI"
   }
   $reported = (& $command.Source --version 2>$null | Select-Object -First 1) -replace '[^0-9.].*$', ''
   $version = $null
@@ -58,10 +57,10 @@ Throws when winapp reports an error or exits non-zero, and when it has not answe
 -TimeoutSec, killing it.
 
 A search walks the whole window while the app is free to change it, and an element that goes away
-under the walk fails the search with "Element is no longer accessible" (winapp 0.7.1), as a suite
-does right after the one before it closed a window. A search presses nothing, so that one failure
-is asked again, up to $WinappSearchAttempts times in all. Every other verb is asked once: a press
-that failed partway may already have landed, and repeating it would press twice.
+under the walk fails the search with "Element is no longer accessible" (winapp 0.7.1), as one does
+right after a window has closed. A search presses nothing, so that one failure is asked again, up
+to $WinappSearchAttempts times in all. Every other verb is asked once: a press that failed partway
+may already have landed, and repeating it would press twice.
 #>
 function Invoke-Winapp {
   param(
@@ -182,7 +181,7 @@ winapp's selector for -Element: the one element with its name, its control type 
 .DESCRIPTION
 winapp's slugs are hashes minted per run, so one is looked up afresh rather than kept across
 launches. A match by name alone would be a substring match, which is how a press meant for one
-element lands on another that contains its name; the bounds pin it to the element the suite found.
+element lands on another that contains its name; the bounds pin it to the element the caller found.
 An element with no name is looked up by its AutomationId, which winapp searches too.
 #>
 function Get-WinappSelector {

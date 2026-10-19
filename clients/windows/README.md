@@ -16,7 +16,7 @@ NordSecurity's [`uniffi-bindgen-cs`](https://github.com/NordSecurity/uniffi-bind
 ./build-and-run.ps1 -Arch x64       # cross-build the x64 client (see the warning below)
 ./build-and-run.ps1 -Configuration Release -NoRun
 ./build-and-run.ps1 -SelfContained  # bundle the Windows App SDK; costs notifications
-./uitests/run-ui-tests.ps1          # UI Automation assertions against the RUNNING app
+./uitests/run-ui-tests.ps1          # UI suites: assertions against the RUNNING app
 ```
 
 **Leave `-Arch` off unless you specifically need the other architecture.** It defaults to the
@@ -147,9 +147,8 @@ versa.
   version is pinned in `Cargo.lock` (the tag tracks the core's UniFFI 0.31, a generator built
   against a different UniFFI can't read the cdylib's metadata). It's excluded from the workspace
   `default-members`, so a bare `cargo build` and non-Windows hosts never compile it.
-- **`winapp`** 0.7 or later, for the UI suite only: `winget install Microsoft.WinAppCLI`. Every
-  click, hover, drag and keystroke the suite makes goes through it ([`winapp.ps1`](winapp.ps1)), and
-  `run-ui-tests.ps1` refuses to start without it.
+- **`winapp`** 0.7 or later, only for driving the app by hand: `winget install Microsoft.WinAppCLI`.
+  The presses [`winapp.ps1`](winapp.ps1) makes go through it; the UI suites send their own input.
 
 Latest-only, no legacy: the app's compile + runtime closure is **.NET 10** exclusively (no
 .NET Framework). Verified on an `aarch64-pc-windows-msvc` host: Windows 11, VS Community
@@ -297,12 +296,14 @@ remove the old package first (MSIX blocks reinstalling the same `1.0.0.0` with c
   - `Images/`, launcher art: MSIX tile/store PNGs + `app.ico` (exe icon), all derived from the
     brand source icon by `generate-assets.ps1`.
 - `MailcalVerify/`, the headless runtime gate (no UI, no network: drives the demo loop).
-- `uitests/`, the UI Automation suite: assertions against the app as it actually renders, which is
-  the whole class of bug `Mailcal.Tests` cannot see (a binding nothing assigns, a control that
-  opens in the wrong state). `run-ui-tests.ps1`'s header is the guide to writing one, and reading
-  it first is not optional: the dataset a suite declares decides whether it proves anything.
-  `set-desktop-resolution.ps1`, `install-windows-app-runtime.ps1` and `install-winapp.ps1` are the
-  three things a CI runner needs that a developer machine already has.
+- `Mailcal.UiTests/`, the UI suites: assertions against the app as it actually renders, made from
+  inside it through its debug-only test agent, which is the whole class of bug `Mailcal.Tests`
+  cannot see (a binding nothing assigns, a control that opens in the wrong state). Its README is
+  the guide to writing a case, and reading it first is not optional: the dataset a suite declares
+  decides whether it proves anything.
+- `uitests/`, what runs them: `run-ui-tests.ps1` selects the suites by dataset, and
+  `set-desktop-resolution.ps1` and `install-windows-app-runtime.ps1` are the two things a CI runner
+  needs that a developer machine already has.
 - `build-and-run.ps1`, cdylib → bindings → gate → WinUI app → launch (the dev loop).
 - `package.ps1`, cdylib (both arches) → bindings → MSIX bundle → `.msixupload` (the Store path),
   or `-Channel Direct` → an unsigned `.msixbundle` plus the staged Windows App Runtime, for the

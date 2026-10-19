@@ -27,8 +27,8 @@ public abstract class UiApp : IDisposable
 
     /// <summary>
     /// Runs one case against a clean surface, then <paramref name="cleanup"/> whatever happened. A
-    /// failure leaves a screenshot and what the agent saw in failures/, named after the case, because
-    /// whoever reads it did not write the test. A cleanup that fails after the case failed is not
+    /// failure leaves a screenshot, what the agent saw and the exception in failures/, named after the
+    /// case, because whoever reads it did not write the test. A cleanup that fails after the case failed is not
     /// allowed to replace the case's own failure: that one is the answer. With
     /// <paramref name="reset"/> false the surface is left as the case before it left it, for a case
     /// that goes on from there in a suite whose cases run in the order written.
@@ -46,7 +46,7 @@ public abstract class UiApp : IDisposable
         }
         catch (Exception e)
         {
-            SaveFailure(name);
+            SaveFailure(name, e);
             failed = e;
         }
         try
@@ -55,7 +55,7 @@ public abstract class UiApp : IDisposable
         }
         catch (Exception e) when (failed is null)
         {
-            SaveFailure(name + "-cleanup");
+            SaveFailure(name + "-cleanup", e);
             throw new InvalidOperationException($"the case passed, and putting things back after it failed: {e.Message}", e);
         }
         catch (Exception e)
@@ -68,13 +68,14 @@ public abstract class UiApp : IDisposable
         }
     }
 
-    private void SaveFailure(string name)
+    private void SaveFailure(string name, Exception failure)
     {
         var dir = Path.Combine(App.Repo, "clients", "windows", "Mailcal.UiTests", "failures");
         Directory.CreateDirectory(dir);
         var stem = Path.Combine(dir, string.Concat(name.Select(c => char.IsLetterOrDigit(c) ? c : '-')));
         try
         {
+            File.WriteAllText(stem + ".error.txt", failure.ToString());
             var screen = SystemInformation.VirtualScreen;
             using var shot = new Bitmap(screen.Width, screen.Height);
             using (var graphics = Graphics.FromImage(shot))
