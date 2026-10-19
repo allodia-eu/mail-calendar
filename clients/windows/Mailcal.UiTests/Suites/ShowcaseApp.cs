@@ -32,13 +32,20 @@ public sealed class ShowcaseCollection : ICollectionFixture<ShowcaseApp>
     public const string Name = "showcase";
 }
 
-/// <summary>
-/// A case on the showcase. It needs a Debug build and nothing else, so it skips, saying why, only
-/// without one: CI builds one before it runs these.
-/// </summary>
-public sealed class ShowcaseFactAttribute : FactAttribute
+/// <summary>The app on an emptied first-run store, past the welcome question, on the account-setup
+/// form: what a person sees once. It needs no server.</summary>
+public sealed class FirstRunApp : HarnessApp
 {
-    public ShowcaseFactAttribute()
+    protected override bool FirstRun => true;
+}
+
+/// <summary>
+/// A case that needs no server: on the showcase, or on a first run. It needs a Debug build and
+/// nothing else, so it skips, saying why, only without one: CI builds one before it runs these.
+/// </summary>
+public sealed class OfflineFactAttribute : FactAttribute
+{
+    public OfflineFactAttribute()
     {
         if (!App.HasBuild())
         {

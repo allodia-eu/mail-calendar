@@ -66,7 +66,7 @@ public sealed partial class MailLinkTests(ShowcaseApp showcase)
         return seen;
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AMailLinkOpensTheComposerWithEveryFieldItNamed() => Case(nameof(AMailLinkOpensTheComposerWithEveryFieldItNamed), app =>
     {
         OpenLink(app, Link);
@@ -76,7 +76,7 @@ public sealed partial class MailLinkTests(ShowcaseApp showcase)
         Assert.Equal("Lunch on Friday", app.Agent.Read(app.Agent.Find(Filter.ById("SubjectBox"))!).Value);
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ALinkCannotDictateWhoTheMessageComesFrom() => Case(nameof(ALinkCannotDictateWhoTheMessageComesFrom), app =>
     {
         // The allowlist is the core's; the client is where it would be undone, by some other

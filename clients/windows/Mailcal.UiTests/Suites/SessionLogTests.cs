@@ -38,7 +38,7 @@ public sealed partial class SessionLogTests(ShowcaseApp showcase)
             : throw new InvalidOperationException($"the session-start line no longer parses: {line}");
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheRunningAppStampedASessionMarkerOfItsOwn() => showcase.Case(nameof(TheRunningAppStampedASessionMarkerOfItsOwn), app =>
     {
         // Against the live process, not a wall-clock window: a marker left by an earlier run would
@@ -48,7 +48,7 @@ public sealed partial class SessionLogTests(ShowcaseApp showcase)
         Assert.True(when >= started, $"the newest session marker is from {when}, the running app started at {started}: this process wrote none, so Log.Init was never reached");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheSessionMarkerNamesTheBuildTheLogCameFrom() => showcase.Case(nameof(TheSessionMarkerNamesTheBuildTheLogCameFrom), _ =>
     {
         // /VERSION holds the last released version, so a log with no version in it cannot be pinned

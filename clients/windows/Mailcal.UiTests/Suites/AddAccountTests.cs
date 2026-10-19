@@ -50,7 +50,7 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
 
     private static bool On(App app, string id) => Shown(app, id) is { } box && app.Agent.Read(box).Toggle == "On";
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheFormOpensOverTheShellWhichStaysWhereItWas() => Case(nameof(TheFormOpensOverTheShellWhichStaysWhereItWas), app =>
     {
         OpenForm(app);
@@ -60,7 +60,7 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
         Assert.True(Shown(app, "AddAccountDialog") is not null, "the form is hosted in the add-account dialog");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheAddressStepCanBeCancelledAndCancellingClosesTheDialog() => Case(nameof(TheAddressStepCanBeCancelledAndCancellingClosesTheDialog), app =>
     {
         OpenForm(app);
@@ -68,7 +68,7 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
         Assert.True(app.Agent.WaitGone(Filter.ById("DetectEmail"), TimeSpan.FromSeconds(5)), "Cancel on the address step closes the dialog");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheSecondStepGoesBackToTheAddressInsideTheDialog() => Case(nameof(TheSecondStepGoesBackToTheAddressInsideTheDialog), app =>
     {
         const string address = "someone@example.com";
@@ -83,7 +83,7 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
         Assert.Equal(address, app.Agent.Read(box).Value);
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheFoundCardOffersMailTheCalendarAndContactsAsDetectionFoundThem() => Case(nameof(TheFoundCardOffersMailTheCalendarAndContactsAsDetectionFoundThem), app =>
     {
         // northwind.example publishes its mail and a calendar, and contacts are looked for at the
@@ -104,7 +104,7 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
         Assert.True(app.Agent.Wait(Filter.ById("ImapHost"), TimeSpan.FromSeconds(3)) is not null, "switching mail back on brings its servers back");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ACalendarTheDomainDoesNotPublishStartsOffAndSwitchedOnAsksForItsServer() => Case(nameof(ACalendarTheDomainDoesNotPublishStartsOffAndSwitchedOnAsksForItsServer), app =>
     {
         // oldschool.example publishes its mail and no calendar.
@@ -115,7 +115,7 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
         Assert.True(app.Agent.Wait(Filter.ById("SetupUseCalendarServer"), TimeSpan.FromSeconds(3)) is not null, "switching it on asks for the server");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ADomainWithACalendarAndAddressBookAndNoMailGetsACardOfItsOwn() => Case(nameof(ADomainWithACalendarAndAddressBookAndNoMailGetsACardOfItsOwn), app =>
     {
         // cloud.example publishes CalDAV and CardDAV and no mail server.

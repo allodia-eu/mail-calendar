@@ -19,7 +19,7 @@ public sealed class SettingsAboutTests(ShowcaseApp showcase)
     private static List<string> AboutTexts(App app, SetupFlow settings) =>
         app.Agent.FindAll(new Filter { Type = "Text", Under = settings.OpenCategory("about") }).Select(t => t.Name).ToList();
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void SettingsOffersAboutAndOffersItLast() => Case(nameof(SettingsOffersAboutAndOffersItLast), (_, settings) =>
     {
         // Last, because it is what you go looking for rather than adjust (docs/settings.md).
@@ -27,7 +27,7 @@ public sealed class SettingsAboutTests(ShowcaseApp showcase)
         Assert.True(categories.LastOrDefault() == "about", $"About comes last; the order is {string.Join(" | ", categories)}");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AboutNamesTheReleaseThisBuildIs() => Case(nameof(AboutNamesTheReleaseThisBuildIs), (app, settings) =>
     {
         // /VERSION, which check-version-sync keeps equal to the crate version, so this states the
@@ -38,7 +38,7 @@ public sealed class SettingsAboutTests(ShowcaseApp showcase)
             $"About quotes the release /VERSION holds ({version}); the panel reads: {string.Join(" / ", texts)}");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AboutAttributesTheToolkitThisClientActuallyLinksAndNoOther() => Case(nameof(AboutAttributesTheToolkitThisClientActuallyLinksAndNoOther), (app, settings) =>
     {
         var texts = AboutTexts(app, settings);
@@ -50,7 +50,7 @@ public sealed class SettingsAboutTests(ShowcaseApp showcase)
         Assert.True(foreign.Count == 0, $"Windows links none of these, and attributing them is a false notice: {string.Join(" / ", foreign)}");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheSupportAddressIsOnThePageWithAControlThatOpensIt() => Case(nameof(TheSupportAddressIsOnThePageWithAControlThatOpensIt), (app, settings) =>
     {
         var texts = AboutTexts(app, settings);

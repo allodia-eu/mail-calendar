@@ -46,7 +46,7 @@ public sealed class TitleBarTests(SystemAppearanceApp showcase) : IClassFixture<
         app.Steady(app.Agent.Find(Filter.Named(Catalog.English("sidebar_all_accounts"), "ListItem") with { Window = app.Mailbox.Hwnd })
             ?? throw new InvalidOperationException("the sidebar has no All Accounts entry")).Width;
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheCaptionIsTheAppsOwnTitleBarCarryingTheAppName() => showcase.Case(nameof(TheCaptionIsTheAppsOwnTitleBarCarryingTheAppName), app =>
     {
         // The name this build was given, never the brand's literal: CI and every fork are unbranded.
@@ -55,7 +55,7 @@ public sealed class TitleBarTests(SystemAppearanceApp showcase) : IClassFixture<
             $"the caption names the app ('{title}'): it is what tells one window from another in Alt-Tab and the taskbar");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheCaptionIsDrawnInTheDesktopsOwnLightDarkMode() => showcase.Case(nameof(TheCaptionIsDrawnInTheDesktopsOwnLightDarkMode), app =>
     {
         // Sampled in the gap between the search field and the caption buttons, bare caption in every
@@ -74,7 +74,7 @@ public sealed class TitleBarTests(SystemAppearanceApp showcase) : IClassFixture<
             $"the desktop is {(dark ? "dark" : "light")} and the caption sampled at {luminance}: a caption that keeps its own theme draws a pale bar over a dark app, or the reverse");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheCaptionButtonsAreAsTallAsTheCaptionTheySitIn() => showcase.Case(nameof(TheCaptionButtonsAreAsTallAsTheCaptionTheySitIn), app =>
     {
         // The one part of the caption the app does not draw, so it follows the caption only when the
@@ -86,7 +86,7 @@ public sealed class TitleBarTests(SystemAppearanceApp showcase) : IClassFixture<
         }
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ThePaneToggleLivesInTheCaptionAndNowhereElse() => showcase.Case(nameof(ThePaneToggleLivesInTheCaptionAndNowhereElse), app =>
     {
         var buttons = app.Agent.FindAll(new Filter { Type = "Button", Under = Caption(app) }).Select(b => b.Id).ToList();
@@ -96,7 +96,7 @@ public sealed class TitleBarTests(SystemAppearanceApp showcase) : IClassFixture<
         Assert.True(app.Agent.Find(Filter.ById("TogglePaneButton")) is null, "the NavigationView draws no pane toggle of its own as well");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheCaptionsPaneToggleCollapsesAndReopensTheSidebar() => showcase.Case(nameof(TheCaptionsPaneToggleCollapsesAndReopensTheSidebar), app =>
     {
         var toggle = app.Agent.Find(new Filter { Id = "PART_PaneToggleButton", Type = "Button", Under = Caption(app) })
@@ -111,7 +111,7 @@ public sealed class TitleBarTests(SystemAppearanceApp showcase) : IClassFixture<
         Assert.Equal(open, PaneItemWidth(app));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheSearchFieldIsCentredOverTheWindowNotOverAPane() => showcase.Case(nameof(TheSearchFieldIsCentredOverTheWindowNotOverAPane), app =>
     {
         // The default scope is every account and folder, so a field over the message list reached

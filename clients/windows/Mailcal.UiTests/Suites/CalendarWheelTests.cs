@@ -52,7 +52,7 @@ public sealed class CalendarWheelTests(ShowcaseApp showcase)
         return Period(app);
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AHorizontalWheelMovesTheGrid() => Case(nameof(AHorizontalWheelMovesTheGrid), app =>
     {
         var before = Period(app);
@@ -69,7 +69,7 @@ public sealed class CalendarWheelTests(ShowcaseApp showcase)
         Assert.True(after != before, $"the grid still says '{after}' after 96 notches: the owner and the driver are content and the surface never draws");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ScrollingFurtherTravelsFurtherRatherThanTurningOnePage() => Case(nameof(ScrollingFurtherTravelsFurtherRatherThanTurningOnePage), app =>
     {
         var today = app.Agent.Find(Filter.ById("CalendarToday", "Button")) ?? throw new InvalidOperationException("no Today button");

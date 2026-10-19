@@ -34,7 +34,7 @@ public sealed class SettingsAllodiaTests(ShowcaseApp showcase)
         return settings.OpenCategory("allodia");
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheAllodiaAccountIsTheFirstCategoryOrTheBuildHasNoRouteAndItIsAbsent() => Case(nameof(TheAllodiaAccountIsTheFirstCategoryOrTheBuildHasNoRouteAndItIsAbsent), (_, settings) =>
     {
         // First, above the mail settings: it is the identity the rest of the app hangs off.
@@ -45,7 +45,7 @@ public sealed class SettingsAllodiaTests(ShowcaseApp showcase)
         }
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void SignedOutTheCategoryOffersAWayInAndAWayToCreate() => Case(nameof(SignedOutTheCategoryOffersAWayInAndAWayToCreate), (app, settings) =>
     {
         if (AllodiaPanel(settings) is not { } panel)
@@ -59,7 +59,7 @@ public sealed class SettingsAllodiaTests(ShowcaseApp showcase)
         Assert.True(buttons.Contains(Catalog.English("settings_allodia_create")), $"and a way to create one; it offers {string.Join(" | ", buttons)}");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void SignedOutTheCategorySaysNothingAboutASubscription() => Case(nameof(SignedOutTheCategorySaysNothingAboutASubscription), (app, settings) =>
     {
         if (AllodiaPanel(settings) is not { } panel)
@@ -72,7 +72,7 @@ public sealed class SettingsAllodiaTests(ShowcaseApp showcase)
         Assert.DoesNotContain(Catalog.English("settings_subscription_heading"), texts);
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AccountsIsMailAccountsAgainTheAllodiaCardHasLeftIt() => Case(nameof(AccountsIsMailAccountsAgainTheAllodiaCardHasLeftIt), (app, settings) =>
     {
         // Left in both, it would read as two accounts, and an Allodia account holds no mailbox.

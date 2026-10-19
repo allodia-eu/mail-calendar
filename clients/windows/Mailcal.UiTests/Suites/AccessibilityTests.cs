@@ -50,18 +50,18 @@ public sealed partial class AccessibilityTests(ShowcaseApp showcase)
         }
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void NoInteractiveElementAnnouncesADotNetTypeName() => showcase.Case(nameof(NoInteractiveElementAnnouncesADotNetTypeName), app =>
     {
         var offenders = app.Agent.FindAll(new Filter { OnScreen = true }).Where(e => Interactive.Contains(e.Type) && TypeName().IsMatch(e.Name)).Select(e => e.Name).Distinct().ToList();
         Assert.True(offenders.Count == 0, $"a class name is what a screen reader reads aloud, so these are unusable without sight and identical to each other: {string.Join(", ", offenders)}");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void EveryMailboxRowAnnouncesItsSenderSubjectAndDate() => showcase.Case(nameof(EveryMailboxRowAnnouncesItsSenderSubjectAndDate), app =>
         AssertAnnouncesWhatItShows(app, app.Rows(), "row"));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheAvatarBesideASenderIsNotAnnounced() => showcase.Case(nameof(TheAvatarBesideASenderIsNotAnnounced), app =>
     {
         // docs/avatars.md: the circle restates the sender's initials, so announced, a screen reader
@@ -73,7 +73,7 @@ public sealed partial class AccessibilityTests(ShowcaseApp showcase)
         Assert.True(spoken.Count == 0, $"a monogram reaches the accessibility tree, read before every sender's name: {string.Join(", ", spoken)}");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void EveryButtonCarriesASpokenName() => showcase.Case(nameof(EveryButtonCarriesASpokenName), app =>
     {
         // A WinUI button derives a name from string content, never from an icon and label panel. On
@@ -84,7 +84,7 @@ public sealed partial class AccessibilityTests(ShowcaseApp showcase)
         Assert.True(unnamed.Count == 0, $"an unnamed button announces only \"button\": {string.Join(" ", unnamed)}");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void EverySettingsPickerCarriesASpokenName() => showcase.Case(nameof(EverySettingsPickerCarriesASpokenName), app =>
     {
         // A combo box takes no name from a heading beside it, so without one it announces only its
@@ -99,7 +99,7 @@ public sealed partial class AccessibilityTests(ShowcaseApp showcase)
         Assert.True(unnamed.Count == 0, $"a picker with no name says what a setting is set to and never what it is; give it AutomationProperties.Name or a Header. Unnamed under: {string.Join(", ", unnamed)}");
     }, app => app.CloseDialogs());
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void EveryAgendaRowAnnouncesItsEventNotItsClass() => showcase.Case(nameof(EveryAgendaRowAnnouncesItsEventNotItsClass), app =>
     {
         // The sweep above sees only what is on screen, which is how the agenda kept the template

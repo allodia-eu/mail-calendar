@@ -30,7 +30,7 @@ public sealed class MailListHoverTests(ShowcaseApp showcase)
         return rows.Count >= 4 ? app.Steady(rows[3]) : throw new InvalidOperationException($"the list holds {rows.Count} row(s); this needs a few to cross");
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheHoverIsRealAButtonThatHasATooltipRaisesIt() => showcase.Case(nameof(TheHoverIsRealAButtonThatHasATooltipRaisesIt), app =>
     {
         // The control for the case below, which asserts that nothing appears and so passes as readily
@@ -47,7 +47,7 @@ public sealed class MailListHoverTests(ShowcaseApp showcase)
         Assert.True(ToolTips(app).Count == 1, "resting the pointer on Reply raised no tooltip, so the pointer does not reach the window and the next case would pass whatever the list draws");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void HoveringAMessageRowSaysNothing() => showcase.Case(nameof(HoveringAMessageRowSaysNothing), app =>
     {
         Input.Hover(TargetRow(app), HoverSettleMs);
@@ -56,7 +56,7 @@ public sealed class MailListHoverTests(ShowcaseApp showcase)
             $"the pointer resting on a message row raised: {string.Join(" | ", tips)}. The framework raises one of its own for a keyboard accelerator unless the list says not to");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AndTheKeysTheListIsSilentAboutStillWork() => showcase.Case(nameof(AndTheKeysTheListIsSilentAboutStillWork), app =>
     {
         // Silencing the accelerator's tooltip must not take the accelerator with it. Escape, because

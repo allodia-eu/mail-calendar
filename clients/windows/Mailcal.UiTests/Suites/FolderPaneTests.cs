@@ -73,7 +73,7 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
 
     private static void Settle(App app) => app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(600));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void EveryRowInThePaneAnnouncesItsOwnName() => showcase.Case(nameof(EveryRowInThePaneAnnouncesItsOwnName), app =>
     {
         foreach (var name in new[] { AllAccounts, First, Second, Catalog.English("folder_drafts"), "Archive" })
@@ -83,7 +83,7 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
         Assert.Equal(3, PaneRows(app, Inbox).Count);
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void BothAccountsShowTheirFoldersWhileNeitherIsSelected() => showcase.Case(nameof(BothAccountsShowTheirFoldersWhileNeitherIsSelected), app =>
     {
         // Under the old rule, expansion was selection, and at most one account showed its folders.
@@ -91,7 +91,7 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
         Assert.True(Shown(PaneRow(app, Catalog.English("folder_drafts"))), "the first account, which nothing selected, still shows its folders");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheUnreadCountReadsAsASentenceOnTheFolderAndOnTheUnifiedInbox() => showcase.Case(nameof(TheUnreadCountReadsAsASentenceOnTheFolderAndOnTheUnifiedInbox), app =>
     {
         // "Inbox, 4" read aloud is a position in a list; the badge carries the words. The one after
@@ -102,7 +102,7 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
         Assert.Null(Unread(app, PaneRow(app, AllAccounts)));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AFolderWithNothingUnreadCarriesNoBadgeAtAll() => showcase.Case(nameof(AFolderWithNothingUnreadCarriesNoBadgeAtAll), app =>
     {
         // Zero is not drawn, which also covers a provider reporting no count (rule 6), and the
@@ -111,7 +111,7 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
         Assert.Null(Unread(app, PaneRow(app, First)));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ShuttingOneAccountLeavesTheOtherOneOpen() => showcase.Case(nameof(ShuttingOneAccountLeavesTheOtherOneOpen), app =>
     {
         var account = PaneRow(app, First);
@@ -127,7 +127,7 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
         Assert.True(Shown(PaneRow(app, Catalog.English("folder_drafts"))), "reopening restores the tree");
     }, app => app.Agent.Expand(PaneRow(app, First)));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheUnifiedListIsAGroupOverAnInboxAndTheHeaderNamesTheInbox() => showcase.Case(nameof(TheUnifiedListIsAGroupOverAnInboxAndTheHeaderNamesTheInbox), app =>
     {
         // Rule 16: the user selects the Inbox under the heading, and rule 13 names the list after it.
@@ -138,7 +138,7 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
         Assert.Equal(Inbox, Header(app));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheGroupsRowOpensAndShutsItsTreeRatherThanNavigating() => showcase.Case(nameof(TheGroupsRowOpensAndShutsItsTreeRatherThanNavigating), app =>
     {
         // Rule 17: a heading that navigated would claim an "every account" scope the core has none for.
@@ -157,7 +157,7 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
         Assert.Equal(3, OnScreen(app, Inbox));
     }, app => app.Agent.Expand(PaneRow(app, AllAccounts)));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void CollapsingThePaneIsNotTheUserShuttingATree() => showcase.Case(nameof(CollapsingThePaneIsNotTheUserShuttingATree), app =>
     {
         // A pane on its way to the icon strip takes every tree down with it through the same binding
@@ -174,7 +174,7 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
         Assert.Equal(3, OnScreen(app, Inbox));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AFolderOpensEvenThoughNoAccountIsSelected() => showcase.Case(nameof(AFolderOpensEvenThoughNoAccountIsSelected), app =>
     {
         // From All Inboxes, a folder press once did nothing at all: the unified scope ignores a
@@ -186,14 +186,14 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
         Assert.Single(app.Rows());
     }, app => Open(app, UnifiedInbox(app)!, Inbox));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AnEmptyOutboxIsNotARowSayingZero() => showcase.Case(nameof(AnEmptyOutboxIsNotARowSayingZero), app =>
         // Rule 18: the Outbox is on the pane only while something is in it, and the showcase
         // queues nothing. The other half, its appearing with a queued message, needs a send that
         // cannot go out, which needs a server taken away: proven by hand and by the core's tests.
         Assert.Empty(PaneRows(app, Catalog.English("folder_outbox"))));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AFolderKeyOpensTheMailboxOfTheAccountWhoseTreeItIsIn() => showcase.Case(nameof(AFolderKeyOpensTheMailboxOfTheAccountWhoseTreeItIsIn), app =>
     {
         // Both accounts key a folder `sent`, and only the account tells them apart (rule 14); the

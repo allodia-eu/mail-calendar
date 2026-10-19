@@ -67,13 +67,13 @@ public sealed partial class SearchTests(ShowcaseApp showcase)
         app.Agent.FindAll(new Filter { Type = "Text", Window = app.Mailbox.Hwnd }).Select(t => t.Name).FirstOrDefault(n => CountLine().IsMatch(n))
         ?? throw new InvalidOperationException("the message list draws no count line");
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ASearchListsTheConversationItsMatchesBelongToNotTheMatches() => Case(nameof(ASearchListsTheConversationItsMatchesBelongToNotTheMatches), app =>
         // Rule 9: a flat row per matching message made one thread one thing in the mailbox and
         // another here, and archiving the row did two things on two screens.
         Assert.Single(Search(app, WholeThread, 1)));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AndTheRowCarriesTheWholeConversationNotThePartThatMatched() => Case(nameof(AndTheRowCarriesTheWholeConversationNotThePartThatMatched), app =>
     {
         // The badge is what the row stands for: fewer than the thread's messages is a fragment
@@ -84,7 +84,7 @@ public sealed partial class SearchTests(ShowcaseApp showcase)
         Assert.Equal(ThreadMessages, badge is null ? 0 : int.Parse(badge.Name, CultureInfo.InvariantCulture));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ACountOfOneReadsAsOne() => Case(nameof(ACountOfOneReadsAsOne), app =>
     {
         // The catalog's plural forms from the client's side; nothing else on Windows exercises the
@@ -93,7 +93,7 @@ public sealed partial class SearchTests(ShowcaseApp showcase)
         Assert.Equal("1 conversation", CountFooter(app));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ACountOfNoneStaysPluralWhichIsWhatMakesTheLineAboveAnAssertion() => Case(nameof(ACountOfNoneStaysPluralWhichIsWhatMakesTheLineAboveAnAssertion), app =>
     {
         // English takes the plural at zero; without this, a client saying "1 conversation" for every
@@ -102,7 +102,7 @@ public sealed partial class SearchTests(ShowcaseApp showcase)
         Assert.Equal("0 conversations", CountFooter(app));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AConversationIsLabelledByTheMessageThatMatchedNotByItsNewest() => Case(nameof(AConversationIsLabelledByTheMessageThatMatchedNotByItsNewest), app =>
     {
         // The query matches the two older messages, so the row reads as Eva's reply. Labelled by
@@ -114,7 +114,7 @@ public sealed partial class SearchTests(ShowcaseApp showcase)
         Assert.DoesNotContain(Newest, rows[0].Name, StringComparison.Ordinal);
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheCoreIsAskedAfterTheTypingStopsNotWhileItIsHappening() => Case(nameof(TheCoreIsAskedAfterTheTypingStopsNotWhileItIsHappening), app =>
     {
         // Rule 10's client half: only the client knows a keystroke happened, so only it can stop nine

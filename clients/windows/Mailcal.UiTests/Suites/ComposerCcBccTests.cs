@@ -37,7 +37,7 @@ public sealed class ComposerCcBccTests(ShowcaseApp showcase)
     private static Element Chevron(App app) =>
         Field(app, "CcBccToggle") ?? throw new InvalidOperationException("no CcBccToggle: the composer draws no way to reach Cc and Bcc at all");
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ANewMessageOpensWithCcAndBccCollapsed() => Case(nameof(ANewMessageOpensWithCcAndBccCollapsed), app =>
     {
         Assert.True(Field(app, "ToField") is not null, "the composer opened without To, the one recipient field it always shows");
@@ -45,7 +45,7 @@ public sealed class ComposerCcBccTests(ShowcaseApp showcase)
         Assert.True(Field(app, "BccField") is null, "Bcc is on screen before anyone asked for it");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheChevronIsDrawnLevelWithTheToInputNotWithTheFieldAroundIt() => Case(nameof(TheChevronIsDrawnLevelWithTheToInputNotWithTheFieldAroundIt), app =>
     {
         var input = app.Steady(Field(app, "ToField")!);
@@ -55,7 +55,7 @@ public sealed class ComposerCcBccTests(ShowcaseApp showcase)
         Assert.True(drift <= budget, $"the chevron's centre is {drift}px off the To input's, against {budget}px: it is aligned against something other than its input");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheChevronRevealsCcAndBccAndPutsThemAwayAgain() => Case(nameof(TheChevronRevealsCcAndBccAndPutsThemAwayAgain), app =>
     {
         app.Agent.SetToggle(Chevron(app), on: true);
@@ -65,7 +65,7 @@ public sealed class ComposerCcBccTests(ShowcaseApp showcase)
         Assert.True(app.Agent.WaitGone(Filter.ById("CcField"), TimeSpan.FromSeconds(3)), "Cc stayed on screen after the chevron was unchecked: the reveal is one-way");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void OnAShortWindowTheMessageKeepsRoomToWriteInWithCcAndBccOpen()
     {
         IDisposable? shrunk = null;

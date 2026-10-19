@@ -232,9 +232,9 @@ Fill it at boot, from `allodia_sign_in_available()`, and let whichever window op
   contract but were not built on the host this was written on. Reaching either needs an Allodia
   account with **two** linked mail accounts, which no client can fake.
 - The **absent-registration case** is asserted by the Android, Linux and Windows suites
-  (`OnboardingAllodiaCardTest`, `setup_onboarding_tests`, `uitests/Onboarding.Tests.ps1`, which
-  derives the expectation from the build's own registration, and so states the rule for both build
-  shapes). It is the rule that fails while rendering perfectly (a lone "or connect directly"
+  (`OnboardingAllodiaCardTest`, `setup_onboarding_tests`,
+  `Mailcal.UiTests/Suites/OnboardingTests.cs`, which derives the expectation from the build's own
+  registration, and so states the rule for both build shapes). It is the rule that fails while rendering perfectly (a lone "or connect directly"
   heading under nothing), so Apple still owes it a check of its own.
 - **What carries the "not answered yet" distinction is the type, and only at the render site.**
   Each client's card takes an optional list, so flattening it there is a compile error on three of

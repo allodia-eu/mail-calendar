@@ -22,7 +22,7 @@ public sealed class SettingsNotificationsTests(ShowcaseApp showcase)
         app.Agent.Find(new Filter { Id = "NotificationsToggle", Under = settings.OpenCategory("notifications") })
         ?? throw new InvalidOperationException("the Notifications category draws no new-mail switch (docs/settings.md slot 7)");
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void SettingsOffersNotificationsBetweenSignaturesAndPrivacy() => Case(nameof(SettingsOffersNotificationsBetweenSignaturesAndPrivacy), (_, settings) =>
     {
         // The taxonomy's own neighbours rather than an index, which moves whenever a category is
@@ -33,7 +33,7 @@ public sealed class SettingsNotificationsTests(ShowcaseApp showcase)
             $"Notifications sits between Signatures and Privacy on every platform (docs/settings.md); the order is {string.Join(" | ", categories)}");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheCategoryDrawsASwitchTheUserCanActuallyMove() => Case(nameof(TheCategoryDrawsASwitchTheUserCanActuallyMove), (app, settings) =>
     {
         var toggle = Toggle(app, settings);
@@ -41,7 +41,7 @@ public sealed class SettingsNotificationsTests(ShowcaseApp showcase)
         Assert.True(toggle.Rendered, "the switch is on screen, not merely in the tree");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheChoiceSurvivesLeavingTheCategoryAndComingBack()
     {
         string? original = null;

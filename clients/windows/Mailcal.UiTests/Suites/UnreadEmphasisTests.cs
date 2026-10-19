@@ -37,17 +37,17 @@ public sealed class UnreadEmphasisTests(ShowcaseApp showcase)
         return app.Agent.Read(label).FontWeight ?? throw new InvalidOperationException($"'{label.Name}' reports no font weight");
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AnUnreadMessageBoldsItsSubject() => showcase.Case(nameof(AnUnreadMessageBoldsItsSubject), app =>
         Assert.Equal(SemiBold, Weight(app, Unread.Title, Unread.Title)));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AnUnreadMessageBoldsItsSenderToo() => showcase.Case(nameof(AnUnreadMessageBoldsItsSenderToo), app =>
         // The accent dot alone is a small target for the eye, and the sender is what says whether
         // an unread row is worth opening.
         Assert.Equal(SemiBold, Weight(app, Unread.Title, Unread.Sender)));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AReadMessageLeavesSubjectAndSenderAlone() => showcase.Case(nameof(AReadMessageLeavesSubjectAndSenderAlone), app =>
     {
         Assert.Equal(Normal, Weight(app, Read.Title, Read.Title));
@@ -55,7 +55,7 @@ public sealed class UnreadEmphasisTests(ShowcaseApp showcase)
         Assert.Equal(Normal, Weight(app, Read.Title, Read.Sender));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void UnreadAndReadAreActuallyDistinguishable() => showcase.Case(nameof(UnreadAndReadAreActuallyDistinguishable), app =>
     {
         // One weight returned from both arms compiles, renders and passes every case above against
@@ -64,7 +64,7 @@ public sealed class UnreadEmphasisTests(ShowcaseApp showcase)
         Assert.True(Weight(app, Unread.Title, Unread.Sender) > Weight(app, Read.Title, Read.Sender), "and so is an unread sender");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AnUnreadConversationHeaderBoldsSubjectAndSender() => showcase.Case(nameof(AnUnreadConversationHeaderBoldsSubjectAndSender), app =>
     {
         // A conversation is unread while anything in it is: the header may not read as settled

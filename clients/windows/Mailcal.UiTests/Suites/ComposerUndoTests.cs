@@ -115,7 +115,7 @@ public sealed class ComposerUndoTests(ShowcaseApp showcase)
         Thread.Sleep(600);
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AFinishedAddressUndoesToTheTextThatWasTypedAndRedoesToItsPill() => Case(nameof(AFinishedAddressUndoesToTheTextThatWasTypedAndRedoesToItsPill), (app, to) =>
     {
         TypeInto(app, to, $"{Address},");
@@ -131,7 +131,7 @@ public sealed class ComposerUndoTests(ShowcaseApp showcase)
         Assert.Equal("", Value(app, to));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ARemovedRecipientComesBackWithCtrlZFromTheFieldTheCaretWasPutBackIn() => Case(nameof(ARemovedRecipientComesBackWithCtrlZFromTheFieldTheCaretWasPutBackIn), (app, to) =>
     {
         TypeInto(app, to, $"{Address}, carol@example.test,");
@@ -144,7 +144,7 @@ public sealed class ComposerUndoTests(ShowcaseApp showcase)
         Assert.True(Pills(app).Count == 2, "Ctrl+Z brings the removed recipient back");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TwoQuickUndosAreTwoStepsAndBothRedo() => Case(nameof(TwoQuickUndosAreTwoStepsAndBothRedo), (app, to) =>
     {
         TypeInto(app, to, $"{Address}, carol@example.test,");
@@ -161,7 +161,7 @@ public sealed class ComposerUndoTests(ShowcaseApp showcase)
         Assert.Equal("", Value(app, to));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheToFieldsRightClickMenuUndoesAndRedoesTheFieldsOwnSteps() => Case(nameof(TheToFieldsRightClickMenuUndoesAndRedoesTheFieldsOwnSteps), (app, to) =>
     {
         TypeInto(app, to, $"{Address},");
@@ -180,7 +180,7 @@ public sealed class ComposerUndoTests(ShowcaseApp showcase)
         Assert.True(Pills(app).Count == 1, "the menu's Redo puts the pill back");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheBodyAnswersTheChordsAndItsRightClickMenusUndoAndRedoAreTheSameHistory() => Case(nameof(TheBodyAnswersTheChordsAndItsRightClickMenusUndoAndRedoAreTheSameHistory), (app, _) =>
     {
         ClickBody(app);
@@ -209,7 +209,7 @@ public sealed class ComposerUndoTests(ShowcaseApp showcase)
         Assert.Contains("hello", BodyText(), StringComparison.Ordinal);
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void SubjectRedoesOnShiftCtrlZAsWellAsCtrlY() => Case(nameof(SubjectRedoesOnShiftCtrlZAsWellAsCtrlY), (app, _) =>
     {
         var subject = app.Agent.Find(Filter.ById("SubjectBox")) ?? throw new InvalidOperationException("no Subject field");

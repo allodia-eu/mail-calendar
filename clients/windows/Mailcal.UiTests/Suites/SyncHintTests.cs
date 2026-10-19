@@ -20,7 +20,7 @@ public sealed class SyncHintApp : ShowcaseApp
 [Trait("Dataset", "showcase")]
 public sealed class SyncHintTests(SyncHintApp showcase) : IClassFixture<SyncHintApp>
 {
-    [ShowcaseFact]
+    [OfflineFact]
     public void ABackgroundSyncNamesItsAccountAndItsFolderCounts() => showcase.Case(nameof(ABackgroundSyncNamesItsAccountAndItsFolderCounts), app =>
         // The whole caption: the address proves the client resolved the id against its own
         // accounts, and the counts that both numbers travelled.
@@ -28,7 +28,7 @@ public sealed class SyncHintTests(SyncHintApp showcase) : IClassFixture<SyncHint
             Catalog.English("sync_hint_account").Replace("{account}", SyncStatusFlow.Account).Replace("{done}", "3").Replace("{total}", "12"),
             SyncStatusFlow.Caption(app).Name));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheHintSharesTheFooterRowAndNeverOpensOneOfItsOwn() => showcase.Case(nameof(TheHintSharesTheFooterRowAndNeverOpensOneOfItsOwn), app =>
     {
         SyncStatusFlow.AssertInStatusLine(app);
@@ -44,7 +44,7 @@ public sealed class SyncHintTests(SyncHintApp showcase) : IClassFixture<SyncHint
             $"the connection status (right edge {status.X + status.Width}) stays inside the list's column (right edge {list.X + list.Width})");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ABackgroundSyncRaisesNoBarSoTheMessageListDoesNotMove() => showcase.Case(nameof(ABackgroundSyncRaisesNoBarSoTheMessageListDoesNotMove), app =>
     {
         SyncStatusFlow.Caption(app);

@@ -62,7 +62,7 @@ public sealed partial class SenderNameTests(ShowcaseApp showcase)
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void EveryAccountPageOffersTheFieldBecauseNoProviderHereHoldsTheName() => Case(nameof(EveryAccountPageOffersTheFieldBecauseNoProviderHereHoldsTheName), (app, settings) =>
     {
         foreach (var index in new[] { 0, 1 })
@@ -78,7 +78,7 @@ public sealed partial class SenderNameTests(ShowcaseApp showcase)
         }
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheNameSitsAboveWhatTheAccountStores() => Case(nameof(TheNameSitsAboveWhatTheAccountStores), (app, settings) =>
     {
         // The one control on the page whose effect a stranger sees comes first (docs/settings.md).
@@ -103,7 +103,7 @@ public sealed partial class SenderNameTests(ShowcaseApp showcase)
         throw new InvalidOperationException("no scroll position draws both rows, so their order cannot be measured");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ATypedNameReachesTheCoreAndThePageReadsItBackFromThere()
     {
         string? was = null;
@@ -123,7 +123,7 @@ public sealed partial class SenderNameTests(ShowcaseApp showcase)
         });
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheComposersFromReadsAsTheRecipientWillReadItNameAndAddress() => Case(nameof(TheComposersFromReadsAsTheRecipientWillReadItNameAndAddress), (app, _) =>
     {
         // Rule 7: the From shows the whole of what arrives, `Name <address>`, as the recipient's
@@ -147,7 +147,7 @@ public sealed partial class SenderNameTests(ShowcaseApp showcase)
         }
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ClearingTheFieldIsAnAnswerNotANoOpTheAccountGoesBackToABareAddress()
     {
         string? was = null;

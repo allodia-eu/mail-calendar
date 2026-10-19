@@ -42,14 +42,14 @@ public sealed class SelectionBarTests(ShowcaseApp showcase)
     private static string Edges(Dictionary<string, Element> buttons) =>
         string.Join(" | ", buttons.Select(b => $"{b.Key}={b.Value.Y:0.#}..{b.Value.Y + b.Value.Height:0.#}"));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void EveryButtonInTheActionsBarIsTheSameHeight() => showcase.Case(nameof(EveryButtonInTheActionsBarIsTheSameHeight), app =>
     {
         var buttons = Buttons(app);
         Assert.True(Spread(buttons.Values.Select(b => b.Height)) <= Tolerance, $"the bar's buttons are one height, or the row reads as ragged. Edges: {Edges(buttons)}");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void EveryButtonInTheActionsBarSitsOnTheSameTopAndBottomEdges() => showcase.Case(nameof(EveryButtonInTheActionsBarSitsOnTheSameTopAndBottomEdges), app =>
     {
         // Equal heights alone are also met by buttons stepping down the bar.
@@ -58,7 +58,7 @@ public sealed class SelectionBarTests(ShowcaseApp showcase)
         Assert.True(Spread(buttons.Values.Select(b => b.Y + b.Height)) <= Tolerance, $"and a bottom edge. Edges: {Edges(buttons)}");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void NewMailStandsAtTheHeadOfTheBarAndNeverFollowsTheSelection() => showcase.Case(nameof(NewMailStandsAtTheHeadOfTheBarAndNeverFollowsTheSelection), app =>
     {
         var buttons = Buttons(app);
@@ -68,7 +68,7 @@ public sealed class SelectionBarTests(ShowcaseApp showcase)
         Assert.True(buttons["ComposeButton"].X + buttons["ComposeButton"].Width <= buttons["SelectionMarkRead"].X, "New Mail comes before the selection's own buttons");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void NewMailSurvivesACollapsedFolderPane() => showcase.Case(nameof(NewMailSurvivesACollapsedFolderPane), app =>
     {
         // Why it is on this row at all: it used to head the folder pane, which collapses to a strip
@@ -83,7 +83,7 @@ public sealed class SelectionBarTests(ShowcaseApp showcase)
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void SyncStandsAtTheEndOfTheBarAndNeverFollowsTheSelection() => showcase.Case(nameof(SyncStandsAtTheEndOfTheBarAndNeverFollowsTheSelection), app =>
     {
         var buttons = Buttons(app);

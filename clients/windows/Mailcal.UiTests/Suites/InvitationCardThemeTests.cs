@@ -71,7 +71,7 @@ public sealed class InvitationCardThemeTests(InvitationCardThemeApp showcase) : 
         return (median - darkest >= lightest - median ? darkest : lightest, median);
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void EveryLineOfTheInvitationCardHasInkAgainstItsOwnGround() => showcase.Case(nameof(EveryLineOfTheInvitationCardHasInkAgainstItsOwnGround), app =>
     {
         var lines = CardLines(app);
@@ -84,7 +84,7 @@ public sealed class InvitationCardThemeTests(InvitationCardThemeApp showcase) : 
         }
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AndTheInkIsOnTheSideThisAppearanceDemandsNotTheDesktops() => showcase.Case(nameof(AndTheInkIsOnTheSideThisAppearanceDemandsNotTheDesktops), app =>
     {
         var darkApp = !OppositeAppearanceApp.DesktopDark;

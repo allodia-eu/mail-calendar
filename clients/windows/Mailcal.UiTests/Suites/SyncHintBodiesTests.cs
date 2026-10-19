@@ -21,7 +21,7 @@ public sealed class SyncHintBodiesApp : ShowcaseApp
 [Trait("Dataset", "showcase")]
 public sealed class SyncHintBodiesTests(SyncHintBodiesApp showcase) : IClassFixture<SyncHintBodiesApp>
 {
-    [ShowcaseFact]
+    [OfflineFact]
     public void ABodyWarmReportsHowManyMessagesAreDownSoFarNotAFolderCount() => showcase.Case(nameof(ABodyWarmReportsHowManyMessagesAreDownSoFarNotAFolderCount), app =>
         Assert.Equal(
             Catalog.English("sync_hint_bodies").Replace("{account}", SyncStatusFlow.Account).Replace("{done}", "2,022"),

@@ -52,7 +52,7 @@ public sealed class RecipientFinishTests(ShowcaseApp showcase)
 
     private static string Value(App app, Element to) => app.Agent.Read(to).Value ?? "";
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void EnterFinishesTheTypedAddressAndKeepsTheCaretInTheField() => Case(nameof(EnterFinishesTheTypedAddressAndKeepsTheCaretInTheField), (app, to) =>
     {
         Type(app, Address);
@@ -64,7 +64,7 @@ public sealed class RecipientFinishTests(ShowcaseApp showcase)
         Assert.Equal(Address, Value(app, to));
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void LeavingTheFieldFinishesTheTypedAddress() => Case(nameof(LeavingTheFieldFinishesTheTypedAddress), (app, _) =>
     {
         Type(app, Address);
@@ -72,7 +72,7 @@ public sealed class RecipientFinishTests(ShowcaseApp showcase)
         Assert.True(Pills(app).Count == 1, "leaving To finishes the typed address into a pill");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void LeavingTheFieldByShiftTabThroughAPillFinishesTheTypedAddress() => Case(nameof(LeavingTheFieldByShiftTabThroughAPillFinishesTheTypedAddress), (app, to) =>
     {
         Type(app, $"{Address},carol@example.test");
@@ -84,7 +84,7 @@ public sealed class RecipientFinishTests(ShowcaseApp showcase)
         Assert.True(Pills(app).Count == 2, $"leaving the field from a pill finishes the typed address (focus is on {focused?.Type} '{focused?.Name}')");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AClickOnAPillsRemoveButtonRemovesItAndFinishesNothing() => Case(nameof(AClickOnAPillsRemoveButtonRemovesItAndFinishesNothing), (app, to) =>
     {
         Type(app, $"{Address},carol");

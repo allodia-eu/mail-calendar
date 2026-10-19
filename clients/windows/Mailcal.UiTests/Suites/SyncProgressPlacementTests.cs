@@ -37,7 +37,7 @@ public sealed class SyncProgressPlacementTests(SyncProgressApp showcase) : IClas
             ? element
             : throw new InvalidOperationException($"#{id} is not drawn");
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AReportedDownloadRaisesTheBarCarryingTheCountsTheCoreGaveIt() => showcase.Case(nameof(AReportedDownloadRaisesTheBarCarryingTheCountsTheCoreGaveIt), app =>
     {
         Bar(app);
@@ -47,7 +47,7 @@ public sealed class SyncProgressPlacementTests(SyncProgressApp showcase) : IClas
             "the caption beside the bar reads the counts the core reported");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheBarSitsBelowTheMessageListSoABackgroundSyncCannotMoveARow() => showcase.Case(nameof(TheBarSitsBelowTheMessageListSoABackgroundSyncCannotMoveARow), app =>
     {
         var list = Drawn(app, "RowsList");
@@ -55,7 +55,7 @@ public sealed class SyncProgressPlacementTests(SyncProgressApp showcase) : IClas
         Assert.True(bar.Y >= list.Y + list.Height, $"the bar's top ({bar.Y}) is at or below the list's bottom ({list.Y + list.Height})");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AndAboveTheFooterWhichIsStillTheBottomMostRow() => showcase.Case(nameof(AndAboveTheFooterWhichIsStillTheBottomMostRow), app =>
     {
         // Two rows sharing one grid row draw over each other, which the XAML compiler accepts.
@@ -64,7 +64,7 @@ public sealed class SyncProgressPlacementTests(SyncProgressApp showcase) : IClas
         Assert.True(status.Y >= bar.Y + bar.Height, $"the connection status starts at {status.Y}, above the bar's bottom ({bar.Y + bar.Height})");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void NoMessageRowIsLeftUnderneathTheBar() => showcase.Case(nameof(NoMessageRowIsLeftUnderneathTheBar), app =>
     {
         // The list gives the space up rather than drawing beneath the bar, which would pass every

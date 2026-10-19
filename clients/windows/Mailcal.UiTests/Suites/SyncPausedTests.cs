@@ -22,7 +22,7 @@ public sealed class SyncPausedApp : ShowcaseApp
 [Trait("Dataset", "showcase")]
 public sealed class SyncPausedTests(SyncPausedApp showcase) : IClassFixture<SyncPausedApp>
 {
-    [ShowcaseFact]
+    [OfflineFact]
     public void APausedAccountSaysSoInTheStatusLineAndSaysWhenInItsTooltip() => showcase.Case(nameof(APausedAccountSaysSoInTheStatusLineAndSaysWhenInItsTooltip), app =>
         // The spoken name is the whole sentence, bound explicitly: a screen reader given the text
         // alone would hear "Sync paused" and never the wait. It is the tooltip's string too, so
@@ -31,7 +31,7 @@ public sealed class SyncPausedTests(SyncPausedApp showcase) : IClassFixture<Sync
             Catalog.English("sync_paused_detail").Replace("{account}", SyncStatusFlow.Account).Replace("{count}", "5"),
             SyncStatusFlow.Caption(app).Name));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ThePauseKeepsTheStatusLineOffItsOwnRowExactlyAsTheHintDoes() => showcase.Case(nameof(ThePauseKeepsTheStatusLineOffItsOwnRowExactlyAsTheHintDoes), app =>
         SyncStatusFlow.AssertInStatusLine(app));
 }

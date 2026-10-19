@@ -79,7 +79,7 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
         }
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AComposerClosedInThePaneIsReleased() => showcase.Case(nameof(AComposerClosedInThePaneIsReleased), app =>
     {
         var before = Watched();
@@ -92,7 +92,7 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
         AssertReleasedSince(before, $"{Cycles} composers were discarded");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AComposerDiscardedBeforeItsEditorHasLoadedIsReleased() => showcase.Case(nameof(AComposerDiscardedBeforeItsEditorHasLoadedIsReleased), app =>
     {
         // Discarded while the web view may still be starting: nothing waits for the editor first.
@@ -105,7 +105,7 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
         AssertReleasedSince(before, $"{Cycles} composers were discarded at once");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void AReadingWindowAndTheComposerWindowRaisedFromItAreReleased() => showcase.Case(nameof(AReadingWindowAndTheComposerWindowRaisedFromItAreReleased), app =>
     {
         var before = Watched();
@@ -132,7 +132,7 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
         AssertReleasedSince(before, $"{Cycles} reading and composer windows were closed");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void ASignatureEditorIsReleasedWhenItIsCancelled() => showcase.Case(nameof(ASignatureEditorIsReleasedWhenItIsCancelled), app =>
     {
         var before = Watched();

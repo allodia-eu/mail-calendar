@@ -66,16 +66,16 @@ public sealed class AppearanceTests(AppearanceApp showcase) : IClassFixture<Appe
             ?? throw new InvalidOperationException($"Settings → General offers no '{Catalog.English(key)}': all three are the contract (docs/settings.md)"));
     }
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheAppPaintsItselfInItsOwnAppearanceNotTheDesktops() => showcase.Case(nameof(TheAppPaintsItselfInItsOwnAppearanceNotTheDesktops), app =>
         AssertDark(app, !DesktopDark,
             $"the run is pinned to {Scheme(!DesktopDark)} on a {Scheme(DesktopDark)} desktop; matching the desktop means the setting does not reach the content root"));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void SettingsGeneralOffersFollowTheSystemLightAndDark() => showcase.Case(nameof(SettingsGeneralOffersFollowTheSystemLightAndDark), app =>
         Assert.Equal(3, Choices(app).Count));
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void PickingAnAppearanceRepaintsTheWindowAtOnceBothWays() => showcase.Case(nameof(PickingAnAppearanceRepaintsTheWindowAtOnceBothWays), app =>
     {
         var choices = Choices(app);
@@ -85,7 +85,7 @@ public sealed class AppearanceTests(AppearanceApp showcase) : IClassFixture<Appe
         AssertDark(app, !DesktopDark, "picking back has to move it back: a repaint that runs one way passes a one-way test", settings: true);
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void UseSystemSettingHandsTheWindowBackToTheDesktop() => showcase.Case(nameof(UseSystemSettingHandsTheWindowBackToTheDesktop), app =>
     {
         app.Agent.Select(Choices(app)["settings_appearance_system"]);

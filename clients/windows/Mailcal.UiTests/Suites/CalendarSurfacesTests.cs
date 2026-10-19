@@ -31,7 +31,7 @@ public sealed class CalendarSurfacesTests(CalendarShowcaseApp showcase) : IClass
         app.Agent.Wait(Filter.ById("CalendarGrid") with { OnScreen = true }, App.Patience)
         ?? throw new InvalidOperationException("no CalendarGrid within 30 s: an id on the host Grid rather than the surface reaches nothing");
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void TheWeekGridIsReachableByIdAndDrawn() => showcase.Case(nameof(TheWeekGridIsReachableByIdAndDrawn), app =>
     {
         var grid = Grid(app);
@@ -39,7 +39,7 @@ public sealed class CalendarSurfacesTests(CalendarShowcaseApp showcase) : IClass
             $"the grid drew {grid.Height}px tall; it is the detail pane, so anything this small is not the surface");
     });
 
-    [ShowcaseFact]
+    [OfflineFact]
     public void PickingADifferentZoomActuallyPutsTheWeekGridAway() => showcase.Case(nameof(PickingADifferentZoomActuallyPutsTheWeekGridAway), app =>
     {
         // What stops the case above passing on a surface that is always there. Month, because it is
