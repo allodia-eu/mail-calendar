@@ -399,8 +399,10 @@ impl AppModel {
                 None => self.settings.refresh_in_place(),
             },
             ConsentFrom::MainWindow => {
-                self.notice = matches!(outcome, Outcome::Failed(_))
-                    .then(|| l10n::signin_expired_failed().to_owned());
+                self.notice = match outcome {
+                    Outcome::Failed(said) => Some(super::core_error::signing_in_again_failed(said)),
+                    Outcome::Switched | Outcome::Cancelled => None,
+                };
                 self.settings.refresh_in_place();
             }
         }

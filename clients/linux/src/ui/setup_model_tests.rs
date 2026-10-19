@@ -345,6 +345,7 @@ fn only_a_refused_password_takes_the_field_away() {
         },
         ImapSignIn::Password,
         ImapSignIn::Failed,
+        ImapSignIn::Stale,
     ] {
         assert!(!keeps.refuses_password(), "{keeps:?}");
     }

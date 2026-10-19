@@ -83,6 +83,7 @@ impl AppModel {
         match outcome {
             GoogleOutcome::Added(account) => self.account_signed_in(account, sender),
             GoogleOutcome::Cancelled => self.setup.retry_form(),
+            GoogleOutcome::Stale => self.setup.failed(l10n::signin_stale().to_owned()),
             GoogleOutcome::Failed(error) => {
                 self.setup.failed(l10n::status_connect_failed(&error));
             }
@@ -153,6 +154,7 @@ impl AppModel {
         match outcome {
             MicrosoftOutcome::Added(account) => self.account_signed_in(account, sender),
             MicrosoftOutcome::Cancelled => self.setup.retry_form(),
+            MicrosoftOutcome::Stale => self.setup.failed(l10n::signin_stale().to_owned()),
             MicrosoftOutcome::Failed(error) => {
                 self.setup.failed(l10n::status_connect_failed(&error));
             }

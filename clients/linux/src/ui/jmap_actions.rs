@@ -245,6 +245,10 @@ impl AppModel {
                 log::warn!("jmap sign-in failed");
                 self.setup.jmap_sign_in_failed();
             }
+            JmapOutcome::Stale => {
+                log::warn!("jmap sign-in: the browser returned from another sign-in");
+                self.setup.jmap_sign_in_stale();
+            }
             JmapOutcome::NotAdded(failure) => {
                 log::warn!("jmap sign-in succeeded, but the account was not added");
                 self.setup.connect_failed(*failure);
@@ -297,7 +301,7 @@ impl AppModel {
         jmap::launch_browser(&authorization_url, move || {
             failed.emit(AppInput::JmapReauthFinished(
                 attempt,
-                JmapReauthOutcome::Failed,
+                JmapReauthOutcome::Failed(crate::l10n::signin_expired_failed().to_owned()),
             ));
         });
         let (Some(app), Some(cancel)) =
@@ -312,7 +316,9 @@ impl AppModel {
                     jmap::complete_reauth(&app, account_id, pending, callback_url)
                 }
                 CallbackOutcome::Cancelled => JmapReauthOutcome::Cancelled,
-                CallbackOutcome::Failed(_) => JmapReauthOutcome::Failed,
+                CallbackOutcome::Failed(_) => {
+                    JmapReauthOutcome::Failed(crate::l10n::signin_expired_failed().to_owned())
+                }
             };
             sender.emit(AppInput::JmapReauthFinished(attempt, outcome));
         });
@@ -332,9 +338,9 @@ impl AppModel {
                 }
             }
             JmapReauthOutcome::Cancelled => {}
-            JmapReauthOutcome::Failed => {
+            JmapReauthOutcome::Failed(said) => {
                 log::warn!("jmap re-authentication failed");
-                self.notice = Some(crate::l10n::signin_expired_failed().to_owned());
+                self.notice = Some(said);
             }
         }
     }

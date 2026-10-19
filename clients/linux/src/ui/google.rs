@@ -2,7 +2,7 @@
 
 use std::sync::{Arc, atomic::AtomicBool};
 
-use mailcal_bindings::{GoogleLoginStart, MailcalApp, begin_google_login};
+use mailcal_bindings::{GoogleLoginStart, MailcalApp, MailcalError, begin_google_login};
 
 use super::oauth_loopback::{self, CallbackOutcome, OAuthLoopback};
 use crate::l10n;
@@ -11,6 +11,8 @@ use crate::l10n;
 pub(crate) enum GoogleOutcome {
     Added(String),
     Cancelled,
+    /// The browser came back from another sign-in, which signing in again settles.
+    Stale,
     Failed(String),
 }
 
@@ -54,6 +56,7 @@ pub(super) fn complete(
         // The core writes the grant through the host's `AccountCredentialStore` and rolls the
         // add back itself when that write fails, so there is nothing for the client to persist.
         Ok(account) => GoogleOutcome::Added(account.id),
+        Err(MailcalError::StaleSignIn) => GoogleOutcome::Stale,
         Err(error) => GoogleOutcome::Failed(error.to_string()),
     }
 }

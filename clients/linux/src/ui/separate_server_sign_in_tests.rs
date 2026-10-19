@@ -144,4 +144,15 @@ fn a_refusal_reads_as_the_form_says_it() {
         super::said(&MailcalError::DifferentAccount),
         l10n::signin_different_account()
     );
+    assert_eq!(
+        super::said(&MailcalError::StaleSignIn),
+        l10n::signin_stale()
+    );
+    assert_eq!(
+        super::said(&MailcalError::UseNotConnected {
+            capability: AccountCapability::Contacts,
+            problem: mailcal_bindings::UseProblem::NeedsOwnSignIn,
+        }),
+        l10n::settings_account_use_own_sign_in_contacts()
+    );
 }

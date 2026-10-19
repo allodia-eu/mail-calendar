@@ -199,6 +199,28 @@ fn a_failed_sign_in_leaves_the_waiting_screen_whatever_form_is_under_it() {
     assert_eq!(state.phase, Phase::Form);
 }
 
+#[test]
+fn a_stale_sign_in_is_its_own_answer_and_leaves_the_form_as_a_failure_does() {
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(jmap_form());
+    assert!(state.jmap_oauth_available("alice@example.test", "https://jmap.example.test", true));
+    state.jmap_sign_in_stale();
+    assert_eq!(detected_sign_in(&state), JmapSignIn::Stale);
+    assert_eq!(state.phase, Phase::Form);
+    assert!(detected_sign_in(&state).show_offer());
+    assert!(detected_sign_in(&state).show_manual());
+
+    let mut state = SetupState::closed();
+    state.open(false);
+    state.show_form(imap_form());
+    state.imap_signing_in();
+    state.imap_sign_in_stale();
+    assert_eq!(detected_imap_sign_in(&state), ImapSignIn::Stale);
+    assert_eq!(state.phase, Phase::Form);
+    assert!(detected_imap_sign_in(&state).show_password());
+}
+
 fn typed(email: &str) -> ManualForm {
     ManualForm {
         kind: AccountKind::Jmap,

@@ -29,6 +29,7 @@ pub(super) struct Onboarding {
     /// Whether this build carries an Allodia registration at all.
     pub(super) offered: bool,
     pub(super) progress: Progress,
+    /// The last sign-in's failure, already in the words the screen shows.
     pub(super) failure: Option<String>,
     /// What the last pass answered with, or `None` while none has answered.
     ///
@@ -117,7 +118,7 @@ pub(super) fn append(
         Progress::Offering => append_recommendation(content, sender),
     }
     if let Some(failure) = &state.failure {
-        let error = gtk::Label::new(Some(&l10n::settings_allodia_failed(failure)));
+        let error = gtk::Label::new(Some(failure));
         error.set_xalign(0.0);
         error.set_wrap(true);
         error.add_css_class("error");

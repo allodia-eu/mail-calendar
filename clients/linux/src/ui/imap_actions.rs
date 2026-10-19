@@ -168,6 +168,10 @@ impl AppModel {
                 log::warn!("imap sign-in failed");
                 self.setup.imap_sign_in_failed();
             }
+            ImapOutcome::Stale => {
+                log::warn!("imap sign-in: the browser returned from another sign-in");
+                self.setup.imap_sign_in_stale();
+            }
             ImapOutcome::NotAdded(failure) => {
                 log::warn!("imap sign-in succeeded, but the account was not added");
                 self.setup.connect_failed(*failure);

@@ -7,7 +7,7 @@
 
 use std::sync::{Arc, atomic::AtomicBool};
 
-use mailcal_bindings::{AccountCapability, ImapLoginRequest, MailcalApp};
+use mailcal_bindings::{AccountCapability, ImapLoginRequest, MailcalApp, MailcalError};
 
 use super::{
     oauth_loopback::{self, OAuthLoopback},
@@ -30,6 +30,8 @@ pub(crate) enum ImapOutcome {
     Added(String),
     Cancelled,
     Failed,
+    /// The browser came back from another sign-in.
+    Stale,
     /// Signed in, but the add was refused; what to tell the person, and the account already
     /// set up when that is why.
     NotAdded(Box<super::setup_model::ConnectFailure>),
@@ -102,8 +104,10 @@ pub(super) fn complete(
     callback_url: String,
     unreached: Vec<AccountCapability>,
 ) -> ImapOutcome {
-    let Ok(config) = app.complete_imap_login(pending, callback_url) else {
-        return ImapOutcome::Failed;
+    let config = match app.complete_imap_login(pending, callback_url) {
+        Ok(config) => config,
+        Err(MailcalError::StaleSignIn) => return ImapOutcome::Stale,
+        Err(_) => return ImapOutcome::Failed,
     };
     // `add_account` writes the grant through the host's `AccountCredentialStore` and rolls the
     // add back itself when that write fails, so a failure here has left nothing behind.

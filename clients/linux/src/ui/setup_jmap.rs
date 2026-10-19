@@ -39,8 +39,8 @@ pub(super) fn detected_fields(
     if form.sign_in.show_offer() {
         content.append(&body(l10n::setup_jmap_signin_note()));
     }
-    if form.sign_in == JmapSignIn::Failed {
-        let message = body(l10n::setup_jmap_signin_failed());
+    if let Some(failure) = sign_in_failure(form.sign_in) {
+        let message = body(failure);
         message.add_css_class("error");
         content.append(&message);
     }
@@ -127,8 +127,8 @@ pub(super) fn manual_fields(
     );
     content.append(&email);
     content.append(&server);
-    if form.sign_in == JmapSignIn::Failed {
-        let message = body(l10n::setup_jmap_signin_failed());
+    if let Some(failure) = sign_in_failure(form.sign_in) {
+        let message = body(failure);
         message.add_css_class("error");
         content.append(&message);
     }
@@ -234,9 +234,19 @@ fn host_of(server_url: &str) -> String {
         .unwrap_or_else(|| server_url.to_owned())
 }
 
+/// What the form says about a sign-in that did not finish, when one did not.
+fn sign_in_failure(sign_in: JmapSignIn) -> Option<&'static str> {
+    match sign_in {
+        JmapSignIn::Failed => Some(l10n::setup_jmap_signin_failed()),
+        JmapSignIn::Stale => Some(l10n::signin_stale()),
+        JmapSignIn::Checking | JmapSignIn::Unavailable | JmapSignIn::Offered => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{JmapSignIn, host_of};
+    use super::{JmapSignIn, host_of, sign_in_failure};
+    use crate::l10n;
 
     #[test]
     fn a_detected_server_that_offers_sign_in_takes_the_secret_away_until_it_fails() {
@@ -248,8 +258,29 @@ mod tests {
         // A failed sign-in is not a dead end: the secret comes back beside the retry.
         assert!(JmapSignIn::Failed.show_offer());
         assert!(JmapSignIn::Failed.show_manual());
+        assert!(JmapSignIn::Stale.show_offer());
+        assert!(JmapSignIn::Stale.show_manual());
         assert!(!JmapSignIn::Unavailable.show_offer());
         assert!(JmapSignIn::Unavailable.show_manual());
+    }
+
+    #[test]
+    fn a_stale_sign_in_says_so_rather_than_that_signing_in_failed() {
+        assert_eq!(
+            sign_in_failure(JmapSignIn::Failed),
+            Some(l10n::setup_jmap_signin_failed())
+        );
+        assert_eq!(
+            sign_in_failure(JmapSignIn::Stale),
+            Some(l10n::signin_stale())
+        );
+        for silent in [
+            JmapSignIn::Checking,
+            JmapSignIn::Unavailable,
+            JmapSignIn::Offered,
+        ] {
+            assert_eq!(sign_in_failure(silent), None, "{silent:?}");
+        }
     }
 
     #[test]

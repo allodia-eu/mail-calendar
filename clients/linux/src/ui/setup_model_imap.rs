@@ -37,6 +37,9 @@ pub(crate) enum ImapSignIn {
     /// A sign-in was started and did not finish. The password field comes back, because that
     /// is the route left, and the reason is said rather than left to be guessed at.
     Failed,
+    /// As `Failed`, but the browser came back from another sign-in, which signing in again
+    /// settles.
+    Stale,
 }
 
 impl ImapSignIn {
@@ -60,7 +63,7 @@ impl ImapSignIn {
             | Self::RegistrationNeeded {
                 password_also_works,
             } => *password_also_works,
-            Self::Password | Self::Failed => true,
+            Self::Password | Self::Failed | Self::Stale => true,
         }
     }
 

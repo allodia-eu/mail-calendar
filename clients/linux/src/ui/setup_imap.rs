@@ -223,13 +223,16 @@ fn sign_in_explanation(content: &gtk::Box, sign_in: &ImapSignIn) {
         ImapSignIn::RegistrationNeeded {
             password_also_works: false,
         } => content.append(&body(l10n::setup_imap_signin_unsupported())),
-        ImapSignIn::Failed => {
-            let message = body(l10n::setup_imap_signin_failed());
-            message.add_css_class("error");
-            content.append(&message);
-        }
+        ImapSignIn::Failed => content.append(&error_body(l10n::setup_imap_signin_failed())),
+        ImapSignIn::Stale => content.append(&error_body(l10n::signin_stale())),
         ImapSignIn::Password => {}
     }
+}
+
+fn error_body(text: &str) -> gtk::Label {
+    let message = body(text);
+    message.add_css_class("error");
+    message
 }
 
 /// The manual form: every field typed by hand, for a server autodetection could not find.

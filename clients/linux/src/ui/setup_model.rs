@@ -200,11 +200,13 @@ pub(crate) enum JmapSignIn {
     Unavailable,
     Offered,
     Failed,
+    /// The browser came back from another sign-in; signing in again goes straight through.
+    Stale,
 }
 
 impl JmapSignIn {
     pub(super) const fn show_offer(self) -> bool {
-        matches!(self, Self::Offered | Self::Failed)
+        matches!(self, Self::Offered | Self::Failed | Self::Stale)
     }
 
     /// Whether the **detected** card shows its secret field. Not while the pre-flight is still
@@ -212,7 +214,7 @@ impl JmapSignIn {
     /// and the answer decides whether it belongs there at all. The manual form always keeps its
     /// fields: see [`super::setup_jmap`].
     pub(super) const fn show_manual(self) -> bool {
-        matches!(self, Self::Unavailable | Self::Failed)
+        matches!(self, Self::Unavailable | Self::Failed | Self::Stale)
     }
 }
 
