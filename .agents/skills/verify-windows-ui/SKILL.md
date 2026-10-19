@@ -19,7 +19,8 @@ Two instruments, one job each, and **neither is reimplemented in a script**:
   dot-sources. Every click, double-click, right-click, hover, drag, wheel and keystroke goes through
   it: it is DPI-aware and injects real pointer and keyboard input, so a press lands where it was
   aimed at any scale, a flyout opens, a tooltip rises. A suite does not P/Invoke `mouse_event` or
-  call `SendKeys` of its own; the three places that still do say why, in place.
+  call `SendKeys` of its own. The suites in `Mailcal.UiTests` send their own input
+  (`Driver/Input.cs`).
 
 Reading does not move to `winapp` too, and `uia.ps1`'s header says why with the numbers: each
 `winapp` verb is a process of its own, a text selector is a substring match, and while a composer
