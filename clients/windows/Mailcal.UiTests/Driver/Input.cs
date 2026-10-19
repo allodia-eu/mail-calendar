@@ -143,10 +143,37 @@ internal static class Input
             new NativeInput { Type = InputKeyboard, Union = new InputUnion { Keyboard = new KeyboardInput { Virtual = virtualKey, Scan = scan, Flags = KeyUp } } });
     }
 
+    /// <summary>Presses <paramref name="virtualKey"/> with <paramref name="modifiers"/> held, as a
+    /// hand does: the modifiers down, the key, the modifiers up in reverse.</summary>
+    internal static void Chord(ushort virtualKey, params ushort[] modifiers)
+    {
+        foreach (var modifier in modifiers)
+        {
+            Send(KeyDown(modifier));
+        }
+        Press(virtualKey);
+        foreach (var modifier in modifiers.Reverse())
+        {
+            Send(KeyDown(modifier, up: true));
+        }
+    }
+
+    private static NativeInput KeyDown(ushort virtualKey, bool up = false) => new()
+    {
+        Type = InputKeyboard,
+        Union = new InputUnion
+        {
+            Keyboard = new KeyboardInput { Virtual = virtualKey, Scan = (ushort)MapVirtualKeyW(virtualKey, MapVirtualKeyToScanCode), Flags = up ? KeyUp : 0 },
+        },
+    };
+
     private const uint MapVirtualKeyToScanCode = 0;
 
     internal const ushort Escape = 0x1B;
     internal const ushort Enter = 0x0D;
+    internal const ushort Tab = 0x09;
+    internal const ushort Shift = 0x10;
+    internal const ushort Control = 0x11;
 
     /// <summary>Turns the wheel over a screen point, in notches: positive is away from the user.</summary>
     internal static void Wheel(int x, int y, int notches)

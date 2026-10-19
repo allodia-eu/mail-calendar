@@ -130,12 +130,7 @@ internal sealed partial class App
     /// </summary>
     internal void TypeInto(Element field, string text)
     {
-        Input.Click(Steady(field));
-        if (!Eventually(() => Agent.Read(field).Focused, TimeSpan.FromSeconds(5)))
-        {
-            throw new InvalidOperationException($"#{field.Id} did not take the keyboard when clicked");
-        }
-        Agent.Settle(quiet: TimeSpan.FromMilliseconds(200), floor: TimeSpan.FromMilliseconds(300), cap: TimeSpan.FromSeconds(1));
+        ClickToType(field);
         if (text.Length == 0)
         {
             return;
@@ -152,6 +147,22 @@ internal sealed partial class App
         {
             throw new InvalidOperationException($"#{field.Id} never held what was typed into it ('{Agent.Read(field).Value}')");
         }
+    }
+
+    /// <summary>
+    /// Clicks <paramref name="field"/> and returns once it can take characters: past its focus and a
+    /// moment more, for the reason <see cref="TypeInto"/> gives. For keys whose effect is the
+    /// field's own business, such as a comma that finishes an address, where what the field holds
+    /// afterwards is what the case asserts.
+    /// </summary>
+    internal void ClickToType(Element field)
+    {
+        Input.Click(Steady(field));
+        if (!Eventually(() => Agent.Read(field).Focused, TimeSpan.FromSeconds(5)))
+        {
+            throw new InvalidOperationException($"#{field.Id} did not take the keyboard when clicked");
+        }
+        Agent.Settle(quiet: TimeSpan.FromMilliseconds(200), floor: TimeSpan.FromMilliseconds(300), cap: TimeSpan.FromSeconds(1));
     }
 
     /// <summary>

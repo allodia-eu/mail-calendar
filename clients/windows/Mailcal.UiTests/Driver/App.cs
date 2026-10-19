@@ -11,6 +11,9 @@ internal sealed partial class App : IDisposable
 {
     private readonly Process _process;
 
+    /// <summary>What it was launched with: a second activation is given the same.</summary>
+    private Dictionary<string, string?> _environment = [];
+
     internal Agent Agent { get; }
 
     /// <summary>Whether the app is still running: a crash leaves every other read stale.</summary>
@@ -62,7 +65,10 @@ internal sealed partial class App : IDisposable
         var launchedAt = DateTimeOffset.Now;
         Process? process = null;
         WithEnvironment(environment, () => process = Process.Start(new ProcessStartInfo(Exe()) { UseShellExecute = true }));
-        var app = new App(process ?? throw new InvalidOperationException("the app did not start"), Agent.Connect(pipe, TimeSpan.FromSeconds(60)));
+        var app = new App(process ?? throw new InvalidOperationException("the app did not start"), Agent.Connect(pipe, TimeSpan.FromSeconds(60)))
+        {
+            _environment = environment,
+        };
         switch (dataset)
         {
             case Dataset.FirstRun:
@@ -159,6 +165,17 @@ internal sealed partial class App : IDisposable
                 Environment.SetEnvironmentVariable(name, value);
             }
         }
+    }
+
+    /// <summary>
+    /// Starts the exe again with <paramref name="argument"/>, as the shell does for a mail link while
+    /// the app runs: the app is single-instanced, so the new process hands the activation to this one
+    /// and exits. In this launch's environment, without its agent, which this copy already holds.
+    /// </summary>
+    internal void HandOver(string argument)
+    {
+        var environment = new Dictionary<string, string?>(_environment) { ["MAILCAL_TEST_AGENT"] = null };
+        WithEnvironment(environment, () => Process.Start(new ProcessStartInfo(Exe(), argument) { UseShellExecute = true })?.Dispose());
     }
 
     /// <summary>Closes the mailbox as a person does, rather than ending the process: the window's
