@@ -165,7 +165,7 @@ public sealed class HarnessFactAttribute : FactAttribute
         set
         {
             _needsAllodia = value;
-            if (value && Skip is null && !AllodiaRegistered())
+            if (value && Skip is null && !App.AllodiaRegistered())
             {
                 Skip = "this build has no Allodia sign-in: MAILCAL_ALLODIA_CLIENT_ID is set in neither the environment nor .env";
             }
@@ -173,24 +173,4 @@ public sealed class HarnessFactAttribute : FactAttribute
     }
 
     private bool _needsAllodia;
-
-    /// <summary>The environment first, then the repository's .env, the last assignment winning, as
-    /// core-features.ps1 reads them.</summary>
-    private static bool AllodiaRegistered()
-    {
-        var value = Environment.GetEnvironmentVariable("MAILCAL_ALLODIA_CLIENT_ID");
-        var file = Path.Combine(App.Repo, ".env");
-        if (string.IsNullOrWhiteSpace(value) && File.Exists(file))
-        {
-            foreach (var line in File.ReadLines(file))
-            {
-                var assignment = System.Text.RegularExpressions.Regex.Match(line.Trim(), @"^(?:export\s+)?MAILCAL_ALLODIA_CLIENT_ID\s*=\s*(.*)$");
-                if (assignment.Success)
-                {
-                    value = assignment.Groups[1].Value.Trim().Trim('"', '\'');
-                }
-            }
-        }
-        return !string.IsNullOrWhiteSpace(value);
-    }
 }

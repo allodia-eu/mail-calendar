@@ -55,7 +55,7 @@ if another platform grows summaries it uses the same keys.
 
 - **Nothing presses the account category's browser hand-off.** Manage, Delete and the end-session
   hop each open a URL in the system browser, and no suite on any platform follows it: Windows
-  ([`SettingsAllodia.Tests.ps1`](../clients/windows/uitests/SettingsAllodia.Tests.ps1), 2026-08-27)
+  ([`SettingsAllodiaTests.cs`](../clients/windows/Mailcal.UiTests/Suites/SettingsAllodiaTests.cs), 2026-08-27)
   asserts the category's place, both signed-out routes and that Accounts no longer carries the card
   against the running client, and the Linux widget suite asserts each button reaches its own input.
   Both stop at the launch. What the pages themselves show is unverified from here.

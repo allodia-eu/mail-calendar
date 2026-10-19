@@ -315,6 +315,29 @@ internal sealed partial class App : IDisposable
     /// <summary>Whether there is a Debug build to launch.</summary>
     internal static bool HasBuild() => Built.Value;
 
+    /// <summary>
+    /// Whether this checkout builds with the Allodia sign-in, which is derived from the registration
+    /// (clients/windows/core-features.ps1): the environment first, then the repository's .env, the
+    /// last assignment winning.
+    /// </summary>
+    internal static bool AllodiaRegistered()
+    {
+        var value = Environment.GetEnvironmentVariable("MAILCAL_ALLODIA_CLIENT_ID");
+        var file = Path.Combine(Repo, ".env");
+        if (string.IsNullOrWhiteSpace(value) && File.Exists(file))
+        {
+            foreach (var line in File.ReadLines(file))
+            {
+                var assignment = System.Text.RegularExpressions.Regex.Match(line.Trim(), @"^(?:export\s+)?MAILCAL_ALLODIA_CLIENT_ID\s*=\s*(.*)$");
+                if (assignment.Success)
+                {
+                    value = assignment.Groups[1].Value.Trim().Trim('"', '\'');
+                }
+            }
+        }
+        return !string.IsNullOrWhiteSpace(value);
+    }
+
     /// <summary>Looked for once a run: every case asks while the run is being discovered.</summary>
     private static readonly Lazy<bool> Built = new(() =>
     {
