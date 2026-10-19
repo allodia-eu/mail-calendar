@@ -176,7 +176,7 @@ role-bearing folder in a fixture and the app renames it: assert the app's word, 
 with no role, or the assertion is one that cannot fail. The Windows pane's rendered shape (that each row
 carries a name a screen reader can read, that the badge reads as a sentence, that a shut account
 takes its folders off screen, and that clicking a folder opens **that** folder) is
-`FolderPane.Tests.ps1`, because none of it is visible to an assembly that cannot link WinUI. Rule 14
+`FolderPaneTests.cs`, because none of it is visible to an assembly that cannot link WinUI. Rule 14
 is the reason the last of those is there: a unit test can see that a row knows its account, and only
 a running window can see that the mail list then changes.
 

@@ -54,6 +54,11 @@ an obvious reimplementation finds nothing:
 - **An element hidden from assistive technology is in no lookup.** An avatar or a print page sets
   `AccessibilityView.Raw`, which puts it in UI Automation's raw view only; the control view a
   screen reader reads leaves it out, and so does every agent lookup. The failure dump still lists it.
+- **A shut tree's rows are in no lookup.** UI Automation keeps a collapsed tree item's children,
+  offscreen; the agent's walk does not reach them. Ask whether a row is on screen, never whether it
+  exists.
+- **A closed picker names its selection by the bound object.** Its items have no containers until
+  it opens, so read a ComboBox's selection with it open, where the label is the one drawn.
 - **A text box's placeholder is a text under it.** The agent sees the box's template, so an empty
   box with a placeholder holds one Text element and one with a header holds another; count against
   a box known to have the one being asked about.
