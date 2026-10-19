@@ -32,6 +32,9 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" />
+    <!-- A skip a case decides as it runs, for a host that turns out unable to answer it: xUnit 2
+         decides a skip only while it discovers the cases, before the app has said anything. -->
+    <PackageReference Include="Xunit.SkippableFact" Version="1.5.23" />
   </ItemGroup>
 
 </Project>

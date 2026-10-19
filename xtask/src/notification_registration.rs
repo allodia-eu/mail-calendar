@@ -13,8 +13,8 @@
 //! Windows Error Reporting knows, and only if someone thinks to look.
 //!
 //! No gate can click a notification, and the launch itself reaches only a Windows host
-//! (`clients/windows/uitests/NotificationLaunch.Tests.ps1`). This is the half that runs everywhere:
-//! the ordering is decidable from the source, and the source is one file.
+//! (`clients/windows/Mailcal.UiTests/Suites/NotificationLaunchTests.cs`). This is the half that
+//! runs everywhere: the ordering is decidable from the source, and the source is one file.
 
 use std::path::Path;
 

@@ -172,10 +172,16 @@ internal sealed partial class App : IDisposable
     /// the app runs: the app is single-instanced, so the new process hands the activation to this one
     /// and exits. In this launch's environment, without its agent, which this copy already holds.
     /// </summary>
-    internal void HandOver(string argument)
+    internal void HandOver(string argument) => StartAnother(argument).Dispose();
+
+    /// <summary>Starts another copy of the exe with <paramref name="argument"/>, in this launch's
+    /// environment without its agent, and returns its process.</summary>
+    internal Process StartAnother(string argument)
     {
         var environment = new Dictionary<string, string?>(_environment) { ["MAILCAL_TEST_AGENT"] = null };
-        WithEnvironment(environment, () => Process.Start(new ProcessStartInfo(Exe(), argument) { UseShellExecute = true })?.Dispose());
+        Process? started = null;
+        WithEnvironment(environment, () => started = Process.Start(new ProcessStartInfo(Exe(), argument) { UseShellExecute = true }));
+        return started ?? throw new InvalidOperationException($"the exe did not start with {argument}");
     }
 
     /// <summary>Closes the mailbox as a person does, rather than ending the process: the window's
