@@ -171,7 +171,7 @@ impl StoredConfig {
 pub(crate) fn placeholder(id: AccountId, connected: &ConnectedAccount) -> BoxedAccount {
     Account {
         id,
-        providers: Vec::new(),
+        providers: Vec::new().into(),
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: connected.identity(),

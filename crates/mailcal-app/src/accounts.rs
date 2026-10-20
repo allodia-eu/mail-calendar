@@ -30,7 +30,10 @@ pub struct Account<P> {
     pub id: AccountId,
     /// The mail providers: one per folder the account listed when it connected where mail syncs
     /// per folder (IMAP, Graph), one for the whole account otherwise (JMAP, Gmail).
-    pub providers: Vec<P>,
+    ///
+    /// Shared so that [`App::replace_uses`] can give the account a new calendar and address book
+    /// around the mailbox it already has.
+    pub providers: Arc<[P]>,
     /// The calendar providers (one per synced calendar), if calendar is configured.
     pub calendar_providers: Vec<P>,
     /// The contact providers: one per address book for CardDAV (source-bound adapters),
@@ -126,6 +129,30 @@ impl<P: Provider> App<P> {
             accounts.push(Arc::new(account));
             false
         }
+    }
+
+    /// Gives the live account `account.id` the calendar and contact providers `account` carries,
+    /// keeping the mail providers it already has, and reports whether it was still there.
+    ///
+    /// For a retry of a calendar or address book that failed beside a working mailbox: the
+    /// mailbox is connected, so nothing about it is replaced, synced or watched again. Nothing is
+    /// synced here either; the caller refreshes the calendar and contacts it reconnected.
+    pub async fn replace_uses(&self, account: Account<P>) -> bool {
+        let mut accounts = self.accounts.write().await;
+        let Some(at) = accounts
+            .iter()
+            .position(|existing| existing.id == account.id)
+        else {
+            return false;
+        };
+        self.forget_calendar_users(&account.id);
+        accounts[at] = Arc::new(Account {
+            providers: Arc::clone(&accounts[at].providers),
+            ..account
+        });
+        drop(accounts);
+        self.observer.surface_changed(Surface::Settings);
+        true
     }
 
     /// Registers a newly-added user account without syncing, then gives it the product default
@@ -320,3 +347,7 @@ mod calendar_users;
 #[cfg(test)]
 #[path = "tests_mail_surfaces.rs"]
 mod mail_surfaces_tests;
+
+#[cfg(test)]
+#[path = "accounts_replace_uses_tests.rs"]
+mod replace_uses_tests;

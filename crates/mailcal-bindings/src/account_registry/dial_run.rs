@@ -25,6 +25,20 @@ where
     if on { open.await.into() } else { Part::Off }
 }
 
+/// The mailbox's part: opened as [`part`] would, or, when the dial is of the uses alone, taken as
+/// connected without opening it, so its calendar and contacts assemble as they do beside a
+/// working mailbox.
+async fn mail_part<T, F>(on: bool, open_mail: bool, open: F) -> Part<T>
+where
+    F: Future<Output = Result<Vec<T>, ConnectFailure>>,
+{
+    if on && !open_mail {
+        Part::Bound(Vec::new())
+    } else {
+        part(on, open).await
+    }
+}
+
 impl AccountDial {
     /// Opens the account's providers for each capability it is used for.
     ///
@@ -42,6 +56,33 @@ impl AccountDial {
         id: &AccountId,
         display_zone: TimeZoneId,
     ) -> Result<DialOutcome, ConnectFailure> {
+        self.open(id, display_zone, true).await
+    }
+
+    /// Opens the account's calendar and contacts again, and never its mailbox: the account is
+    /// connected, and what failed beside it is all a retry has to reach. The outcome carries no
+    /// mail providers; [`App::replace_uses`](mailcal_app::App::replace_uses) keeps the live ones.
+    ///
+    /// A JMAP account still reads its session, since its calendar and contacts are bound from it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConnectFailure`] only for a JMAP session that could not be read, or for an
+    /// account without mail of which nothing connected.
+    pub(crate) async fn run_uses(
+        self,
+        id: &AccountId,
+        display_zone: TimeZoneId,
+    ) -> Result<DialOutcome, ConnectFailure> {
+        self.open(id, display_zone, false).await
+    }
+
+    async fn open(
+        self,
+        id: &AccountId,
+        display_zone: TimeZoneId,
+        open_mail: bool,
+    ) -> Result<DialOutcome, ConnectFailure> {
         let capabilities = self.capabilities().clone();
         let on = |capability| capabilities.contains(capability);
         match self {
@@ -55,7 +96,7 @@ impl AccountDial {
                 // Calendar and contacts both talk to the same CalDAV host, so they run
                 // concurrently with mail rather than making the mailbox wait for either.
                 let (mail, calendar, contacts) = tokio::join!(
-                    part(on(Capability::Mail), async {
+                    mail_part(on(Capability::Mail), open_mail, async {
                         mailcal_account::connect_mail_providers(
                             &connections,
                             &config,
@@ -106,7 +147,7 @@ impl AccountDial {
                 // `calendar_reauth_required`. An account stored before its affiliation was
                 // recorded is asked beside them, and the token sink stores the answer.
                 let (mail, (calendar, calendar_reauth_required), contacts, ()) = tokio::join!(
-                    part(on(Capability::Mail), async {
+                    mail_part(on(Capability::Mail), open_mail, async {
                         mailcal_account::connect_graph_mail_providers(id, Arc::clone(&tokens), None)
                             .await
                             .map_err(ConnectFailure::from)
@@ -159,7 +200,7 @@ impl AccountDial {
                 // All three spend the same token, concurrently, and an account stored before its
                 // affiliation was recorded is asked beside them.
                 let (mail, calendar, contacts, ()) = tokio::join!(
-                    part(on(Capability::Mail), async {
+                    mail_part(on(Capability::Mail), open_mail, async {
                         mailcal_account::connect_google_mail_providers(Arc::clone(&tokens), None)
                             .await
                             .map_err(ConnectFailure::from)
@@ -263,7 +304,7 @@ fn outcome(
     DialOutcome {
         account: Account {
             id: id.clone(),
-            providers: assembled.mail,
+            providers: assembled.mail.into(),
             calendar_providers: assembled.calendar,
             contact_providers: assembled.contacts,
             identity,

@@ -191,7 +191,7 @@ async fn a_disconnected_account_still_lists_and_keeps_its_outage_badge() {
     let healthy = account("a", FakeProvider::new());
     let disconnected = Account {
         id: AccountId::try_from("b").unwrap(),
-        providers: Vec::new(),
+        providers: Vec::new().into(),
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("b@example.com"),

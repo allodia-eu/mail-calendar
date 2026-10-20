@@ -31,7 +31,7 @@ fn app_with_prefs(
         Engine::open_in_memory().unwrap(),
         vec![Account {
             id: AccountId::try_from("acct-1").unwrap(),
-            providers: vec![provider],
+            providers: vec![provider].into(),
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
@@ -222,7 +222,8 @@ fn app_using_identity(
             id: AccountId::try_from("acct-1").unwrap(),
             providers: vec![IdentityProvider {
                 name: name.map(str::to_owned),
-            }],
+            }]
+            .into(),
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),

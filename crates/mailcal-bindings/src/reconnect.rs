@@ -27,6 +27,9 @@ use crate::{
 };
 
 mod schedule;
+mod uses;
+
+pub(crate) use uses::reconnect_uses;
 
 /// Dials every account in `plans`, at most `MAX_CONCURRENT_DIALS` at a time: on success joins it
 /// back into the app (which syncs and clears its outage badge) and restarts its background sync

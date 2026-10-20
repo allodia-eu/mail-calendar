@@ -195,7 +195,7 @@ async fn a_calendar_that_no_longer_connects_is_offered_no_answer() {
 
     app.add_account_deferred(crate::Account {
         id: engine_api::AccountId::try_from("acct-a").unwrap(),
-        providers: vec![InvitationFake::new()],
+        providers: vec![InvitationFake::new()].into(),
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: engine_api::EmailAddress::new("me@test.local"),
