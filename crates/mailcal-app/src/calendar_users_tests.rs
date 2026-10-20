@@ -62,7 +62,7 @@ impl engine_provider::CalendarWrites for CalendarServer {
 fn account(calendar: Option<CalendarServer>) -> Account<CalendarServer> {
     Account {
         id: AccountId::try_from("alice@dav:cloud.example").unwrap(),
-        providers: Vec::new(),
+        providers: Vec::new().into(),
         calendar_providers: calendar.into_iter().collect(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("alice@cloud.example"),

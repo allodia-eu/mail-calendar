@@ -90,7 +90,7 @@ fn submit_app() -> (Arc<App<SubmitProvider>>, Arc<Mutex<Vec<Draft>>>) {
         engine,
         vec![Account {
             id: AccountId::try_from("acct-1").unwrap(),
-            providers: vec![provider],
+            providers: vec![provider].into(),
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
@@ -115,7 +115,7 @@ fn submit_app_counting() -> (Arc<App<SubmitProvider>>, Arc<SendSignals>) {
         Engine::open_in_memory().unwrap(),
         vec![Account {
             id: AccountId::try_from("acct-1").unwrap(),
-            providers: vec![SubmitProvider::new()],
+            providers: vec![SubmitProvider::new()].into(),
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
@@ -139,7 +139,7 @@ fn app_over(provider: SubmitProvider) -> Arc<App<SubmitProvider>> {
         Engine::open_in_memory().unwrap(),
         vec![Account {
             id: AccountId::try_from("acct-1").unwrap(),
-            providers: vec![provider],
+            providers: vec![provider].into(),
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),

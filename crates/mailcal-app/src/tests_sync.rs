@@ -240,7 +240,7 @@ async fn providerless_placeholder_sync_is_skipped_not_busy() {
     let app = app(Vec::new(), &surfaces);
     let account = Account {
         id: AccountId::try_from("acct-1").unwrap(),
-        providers: Vec::<FakeProvider>::new(),
+        providers: Vec::<FakeProvider>::new().into(),
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@acct-1.local"),
