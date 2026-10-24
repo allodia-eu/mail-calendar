@@ -35,6 +35,7 @@ use super::{
     shell_sidebar::{restore_pane_width, sidebar_pane},
     sync_line,
     time_zone::TimeZonePrompt,
+    timestamps::MailClock,
     unfiled_copy::UnfiledCopyPrompt,
     welcome::WelcomeWindow,
 };
@@ -318,8 +319,8 @@ impl AppWidgets {
         }
         self.rendered_sidebar_selection
             .sync(&self.sidebar, &model.snapshot);
-        let display_zone = model.calendar.display_zone();
-        let rendering = MailboxRendering::new(&model.snapshot, display_zone);
+        let mail_clock = MailClock::of(&model.calendar);
+        let rendering = MailboxRendering::new(&model.snapshot, &mail_clock);
         if self.rendered_snapshot.as_ref() != Some(&rendering) {
             // One widget, two lists. The Outbox holds no stored mail, so the progressive
             // renderer has nothing to reconcile against and is left out of the path entirely;
@@ -341,7 +342,7 @@ impl AppWidgets {
                     &model.snapshot,
                     &model.expanded_threads,
                     mail_actions::in_junk_folder(&model.snapshot),
-                    display_zone,
+                    &mail_clock,
                     &self.sender,
                 );
             }

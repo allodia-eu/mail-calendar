@@ -16,7 +16,7 @@ use crate::ui::{
     contacts::pane::tests as contacts, destinations::tests as destinations,
     folder_pane::tests as folder_pane, invitation::widget_tests as invitation,
     recipients::field::tests as recipients, search::bar::tests as search,
-    settings::signatures::tests as signatures,
+    settings::signatures::tests as signatures, timestamps::MailClock,
 };
 
 fn fixture(subject: &str) -> FlatRow {
@@ -46,7 +46,7 @@ fn flat_snapshot_projects_without_losing_state() {
         &SnapshotRow::Flat {
             row: fixture("Quarterly planning"),
         },
-        "Europe/Amsterdam",
+        &MailClock::new("Europe/Amsterdam", true),
     );
     assert_eq!(display.title, "Quarterly planning");
     assert_eq!(display.subtitle, "sender");
@@ -54,14 +54,14 @@ fn flat_snapshot_projects_without_losing_state() {
     assert!(display.unread);
     assert!(!display.flagged);
     assert!(display.has_attachment);
-    assert_eq!(display.zone, "Europe/Amsterdam");
+    assert_eq!(display.clock, MailClock::new("Europe/Amsterdam", true));
 }
 
 #[test]
 fn a_flag_change_is_part_of_the_row_rendering_key() {
     let mut row = fixture("Flagged");
     row.flagged = true;
-    let display = display_row(&SnapshotRow::Flat { row }, "UTC");
+    let display = display_row(&SnapshotRow::Flat { row }, &MailClock::new("UTC", true));
     assert!(display.flagged);
 }
 
@@ -73,8 +73,21 @@ fn a_time_zone_change_is_part_of_the_row_rendering_key() {
     }];
 
     assert_ne!(
-        MailboxRendering::new(&snapshot, "UTC"),
-        MailboxRendering::new(&snapshot, "Europe/Amsterdam")
+        MailboxRendering::new(&snapshot, &MailClock::new("UTC", true)),
+        MailboxRendering::new(&snapshot, &MailClock::new("Europe/Amsterdam", true))
+    );
+}
+
+#[test]
+fn a_clock_setting_change_is_part_of_the_row_rendering_key() {
+    let mut snapshot = crate::ui::model::empty_mailbox();
+    snapshot.rows = vec![SnapshotRow::Flat {
+        row: fixture("Clock"),
+    }];
+
+    assert_ne!(
+        MailboxRendering::new(&snapshot, &MailClock::new("UTC", true)),
+        MailboxRendering::new(&snapshot, &MailClock::new("UTC", false))
     );
 }
 
@@ -84,13 +97,16 @@ fn a_photo_arriving_is_part_of_the_row_rendering_key() {
     snapshot.rows = vec![SnapshotRow::Flat {
         row: fixture("Photo"),
     }];
-    let before = MailboxRendering::new(&snapshot, "UTC");
+    let before = MailboxRendering::new(&snapshot, &MailClock::new("UTC", true));
     let SnapshotRow::Flat { row } = &mut snapshot.rows[0] else {
         unreachable!("the fixture is flat")
     };
     row.avatar.image_path = Some("/tmp/content-addressed-photo.png".to_owned());
 
-    assert_ne!(before, MailboxRendering::new(&snapshot, "UTC"));
+    assert_ne!(
+        before,
+        MailboxRendering::new(&snapshot, &MailClock::new("UTC", true))
+    );
 }
 
 #[test]
@@ -338,7 +354,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         flat_row(
             &fixture_from("Research & Development", "Allodia Mail & Calendar"),
             &super::RowMenus::default(),
-            "UTC",
+            &MailClock::new("UTC", true),
             &row_sender,
         )
     });
@@ -367,7 +383,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     let hostile = flat_row(
         &fixture("<b>Wire transfer</b>"),
         &super::RowMenus::default(),
-        "UTC",
+        &MailClock::new("UTC", true),
         &row_sender,
     );
     let hostile_shown = rendered_labels(hostile.upcast_ref::<gtk::Widget>());
@@ -382,7 +398,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     let actionable = flat_row(
         &fixture("Quarterly planning"),
         &super::RowMenus::default(),
-        "UTC",
+        &MailClock::new("UTC", true),
         &action_sender,
     );
     actionable

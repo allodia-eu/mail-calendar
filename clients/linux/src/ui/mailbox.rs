@@ -15,7 +15,8 @@ use super::{
     AppInput, avatar, mail_actions_menu,
     mailbox_display::{flat_display, message_display, thread_display},
     model::OpenedMessage,
-    row_action, timestamps,
+    row_action,
+    timestamps::{self, MailClock},
 };
 pub(super) use super::{mail_actions_menu::RowMenus, mailbox_display::MailboxRendering};
 #[cfg(test)]
@@ -52,21 +53,21 @@ pub(crate) fn render_messages(
     snapshot: &MailboxListSnapshot,
     expanded: &HashSet<ThreadKey>,
     in_junk_folder: bool,
-    zone: &str,
+    clock: &MailClock,
     sender: &relm4::Sender<AppInput>,
 ) {
     install_styles();
     let next: Vec<DisplayRow> = snapshot
         .rows
         .iter()
-        .map(|row| display_row(row, zone))
+        .map(|row| display_row(row, clock))
         .collect();
     let menus = RowMenus {
         in_junk_folder,
         ..RowMenus::default()
     };
     reconcile(list, previous, &next, |index| {
-        build_row(&snapshot.rows[index], expanded, &menus, zone, sender)
+        build_row(&snapshot.rows[index], expanded, &menus, clock, sender)
     });
 }
 
@@ -74,14 +75,14 @@ pub(super) fn build_row(
     row: &SnapshotRow,
     expanded: &HashSet<ThreadKey>,
     menus: &RowMenus,
-    zone: &str,
+    clock: &MailClock,
     sender: &relm4::Sender<AppInput>,
 ) -> gtk::Widget {
     match row {
-        SnapshotRow::Flat { row } => flat_row(row, menus, zone, sender).upcast(),
+        SnapshotRow::Flat { row } => flat_row(row, menus, clock, sender).upcast(),
         SnapshotRow::Thread { row } => {
             let key = ThreadKey::of(row);
-            thread_row(row, expanded.contains(&key), menus, zone, sender).upcast()
+            thread_row(row, expanded.contains(&key), menus, clock, sender).upcast()
         }
     }
 }
@@ -174,10 +175,10 @@ pub(super) fn plain_text_row() -> adw::ActionRow {
 fn flat_row(
     row: &FlatRow,
     menus: &RowMenus,
-    zone: &str,
+    clock: &MailClock,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ActionRow {
-    let display = flat_display(row, zone);
+    let display = flat_display(row, clock);
     // Subjects and senders are the server's text: markup-shaped input must render as itself, and
     // a bare ampersand must not be read as an entity.
     let widget = plain_text_row();
@@ -195,7 +196,11 @@ fn flat_row(
     if display.has_attachment {
         widget.add_suffix(&attachment_icon());
     }
-    widget.add_suffix(&meta_label(&timestamps::relative_date(&display.date, zone)));
+    widget.add_suffix(&meta_label(&timestamps::relative_date(
+        &display.date,
+        &clock.zone,
+        clock.use_24_hour,
+    )));
     let opened = OpenedMessage {
         account: row.account.clone(),
         key: row.key.clone(),
@@ -276,10 +281,10 @@ fn thread_row(
     row: &ThreadRow,
     expanded: bool,
     menus: &RowMenus,
-    zone: &str,
+    clock: &MailClock,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ExpanderRow {
-    let display = thread_display(row, zone);
+    let display = thread_display(row, clock);
     let widget = adw::ExpanderRow::new();
     // Before the text, for the reason `plain_text_row` gives.
     widget.set_use_markup(false);
@@ -296,7 +301,11 @@ fn thread_row(
     if display.has_attachment {
         widget.add_suffix(&attachment_icon());
     }
-    widget.add_suffix(&meta_label(&timestamps::relative_date(&display.date, zone)));
+    widget.add_suffix(&meta_label(&timestamps::relative_date(
+        &display.date,
+        &clock.zone,
+        clock.use_24_hour,
+    )));
     widget.add_suffix(&mail_actions_menu::thread_menu_button(
         &widget,
         &row.account,
@@ -318,7 +327,7 @@ fn thread_row(
         input.emit(AppInput::OpenThreadMessage(Box::new(opened.clone())));
     });
     for message in &row.messages {
-        widget.add_row(&thread_message_row(row, message, zone, sender));
+        widget.add_row(&thread_message_row(row, message, clock, sender));
     }
     // Restore the disclosure the host recorded **before** listening for it, so rebuilding an open
     // conversation isn't reported back as a fresh toggle; which would re-open its message and
@@ -340,7 +349,7 @@ fn thread_row(
 fn thread_message_row(
     thread: &ThreadRow,
     message: &ThreadMessage,
-    zone: &str,
+    clock: &MailClock,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ActionRow {
     let display = message_display(message);
@@ -363,7 +372,11 @@ fn thread_message_row(
     if display.has_attachment {
         widget.add_suffix(&attachment_icon());
     }
-    widget.add_suffix(&meta_label(&timestamps::relative_date(&display.date, zone)));
+    widget.add_suffix(&meta_label(&timestamps::relative_date(
+        &display.date,
+        &clock.zone,
+        clock.use_24_hour,
+    )));
     // The conversation's subject heads the reading view, and seeds a reply's; a message on a
     // thread carries no subject of its own here.
     let opened = OpenedMessage {

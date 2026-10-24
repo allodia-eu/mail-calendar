@@ -180,6 +180,17 @@ pub(super) fn date_heading(date: Date) -> String {
 }
 
 pub(in crate::ui) fn clock(minutes: u32, use_24_hour: bool) -> String {
+    let full = full_clock(minutes, use_24_hour);
+    if use_24_hour || minutes % 60 != 0 {
+        full
+    } else {
+        full.replacen(":00", "", 1)
+    }
+}
+
+/// [`clock`] with the minutes always written, `2:00 PM`: what every client's mail prints, so a
+/// quoted time reads the same whichever client wrote it.
+pub(in crate::ui) fn full_clock(minutes: u32, use_24_hour: bool) -> String {
     let hour = minutes / 60;
     let minute = minutes % 60;
     if use_24_hour {
@@ -190,15 +201,22 @@ pub(in crate::ui) fn clock(minutes: u32, use_24_hour: bool) -> String {
             0 => 12,
             value => value,
         };
-        if minute == 0 {
-            format!("{display_hour} {suffix}")
-        } else {
-            format!("{display_hour}:{minute:02} {suffix}")
-        }
+        format!("{display_hour}:{minute:02} {suffix}")
     }
 }
 
 pub(super) fn local_date_time(raw: &str, zone: &str, use_24_hour: bool) -> String {
+    date_time(raw, zone, " · ", &|minutes| clock(minutes, use_24_hour))
+}
+
+/// An engine timestamp as its date, `separator`, and `time_of` its minutes past midnight: an
+/// instant in `zone`, a floating wall-clock as it stands, anything else as its leading date.
+pub(in crate::ui) fn date_time(
+    raw: &str,
+    zone: &str,
+    separator: &str,
+    time_of: &dyn Fn(u32) -> String,
+) -> String {
     if raw.is_empty() {
         return String::new();
     }
@@ -209,11 +227,11 @@ pub(super) fn local_date_time(raw: &str, zone: &str, use_24_hour: bool) -> Strin
         let minutes = u32::try_from(value.hour()).unwrap_or(0) * 60
             + u32::try_from(value.minute()).unwrap_or(0);
         return format!(
-            "{:04}-{:02}-{:02} · {}",
+            "{:04}-{:02}-{:02}{separator}{}",
             value.year(),
             value.month(),
             value.day(),
-            clock(minutes, use_24_hour)
+            time_of(minutes)
         );
     }
     if let Some(value) = raw
@@ -222,7 +240,7 @@ pub(super) fn local_date_time(raw: &str, zone: &str, use_24_hour: bool) -> Strin
         .or_else(|| parse_wall(raw))
     {
         let minutes = u32::from(value.hour()) * 60 + u32::from(value.minute());
-        return format!("{} · {}", value.date(), clock(minutes, use_24_hour));
+        return format!("{}{separator}{}", value.date(), time_of(minutes));
     }
     raw.get(..10).unwrap_or(raw).to_owned()
 }

@@ -273,7 +273,7 @@ impl ReadingPane {
         // the same words the pane shows.
         *self.export_name.borrow_mut() = export_name_for(subject);
         self.from.set_text(&opened.from);
-        let date = timestamps::local_date_time(&opened.date, clock.zone);
+        let date = timestamps::local_date_time(&opened.date, clock.zone, clock.use_24_hour);
         self.date.set_text(&date);
         // Printing lays the page out in a web view, so a host without one has nothing to print
         // with.
