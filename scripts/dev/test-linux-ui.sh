@@ -288,7 +288,18 @@ while time.monotonic() < deadline:
         {
             "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
             "methodCalls": [
-                ["Email/query", {"accountId": account, "limit": 50}, "q"],
+                # Newest first: unsorted, Stalwart answers oldest first, so once a mailbox holds
+                # more than the limit, which every run adds to, the message just sent is never in
+                # the window.
+                [
+                    "Email/query",
+                    {
+                        "accountId": account,
+                        "sort": [{"property": "receivedAt", "isAscending": False}],
+                        "limit": 50,
+                    },
+                    "q",
+                ],
                 [
                     "Email/get",
                     {
