@@ -205,7 +205,9 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
       configured server stays what setup stored: an account without mail takes its id from it.
       The home the principal names (iCloud's `pNN` host) is kept in memory only, and the
       calendar and contacts are connected again from the principal after 24 hours of uptime
-      (`DAV_FRESH_FOR`), so a home the server moved is followed within a day. Editing the
+      (`DAV_FRESH_FOR`), so a home the server moved is followed within a day. A redial that
+      cannot reach one the account has working keeps that connection, and the next retry dials
+      it again. Editing the
       servers forgets the principals.
     - **When to look again.** A stored principal the server says is gone (a `404`, `410` or
       `403`, or no home) sends the connect back to the configured server. When that is gone too,
@@ -231,7 +233,11 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
       **Not now** is the default response, so a stray Return or tap never allows; it needs no
       call and leaves the use paused. **Allow new server** (`accept_server_change`) moves the
       account as above, and a refused new server leaves it paused as it was
-      (`server_changed_failed`). A paused use that connects again by itself is no longer paused,
+      (`server_changed_failed`). Every use the change moves has to connect on its new server,
+      not only the mailbox. Allow hands back the question the client showed, because a lookup
+      can replace it while it is on screen: a replaced one moves nothing and is asked in its
+      place (`ServerChangeAnswer::Replaced`), so the credential never goes to a site the person
+      was not shown. A paused use that connects again by itself is no longer paused,
       and a failed dial of the whole account keeps the pause, since it answers nothing.
     - The lookup needs the host's DNS for the SRV records, which each client hands the core once,
       right after building the app (`set_dns_resolver`); before that the core does not look again.

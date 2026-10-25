@@ -29,6 +29,7 @@ import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.ServerChange
+import uniffi.mailcal_bindings.ServerChangeAnswer
 import uniffi.mailcal_bindings.UseProblem
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
@@ -139,7 +140,7 @@ class ServerChangeTest {
         shown(prompt, mutableListOf())
 
         assertTrue(prompt.start())
-        prompt.finished("acct-a", allowed = false)
+        prompt.finished("acct-a", Result.failure(IllegalStateException("refused")))
         compose.waitForIdle()
 
         compose.onNodeWithText(L10n.server_changed_failed(ctx())).assertIsDisplayed()
@@ -151,11 +152,27 @@ class ServerChangeTest {
         val prompt = ServerChangePrompt()
         prompt.open(ShownServerChange("acct-a", "ada@example.com", change(calendar = true, contacts = false)))
         assertTrue(prompt.start())
-        prompt.finished("acct-b", allowed = true)
+        prompt.finished("acct-b", Result.success(ServerChangeAnswer.Moved))
         assertTrue("an answer for another account changes nothing", prompt.allowing)
-        prompt.finished("acct-a", allowed = true)
+        prompt.finished("acct-a", Result.success(ServerChangeAnswer.Moved))
         assertNull(prompt.shown)
         assertFalse(prompt.allowing)
+    }
+
+    @Test
+    fun a_question_replaced_while_shown_asks_the_new_one_and_says_nothing_failed() {
+        val prompt = ServerChangePrompt()
+        shown(prompt, mutableListOf())
+        val replaced = ServerChange("icloud.com", "example.org", calendar = true, contacts = true)
+
+        assertTrue(prompt.start())
+        prompt.finished("acct-a", Result.success(ServerChangeAnswer.Replaced(replaced)))
+        compose.waitForIdle()
+
+        assertEquals(replaced, prompt.shown?.change)
+        assertFalse(prompt.allowing)
+        compose.onNodeWithText(L10n.server_changed_now(ctx(), "example.org")).assertExists()
+        compose.onNodeWithText(L10n.server_changed_failed(ctx())).assertDoesNotExist()
     }
 
     @Test

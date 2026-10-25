@@ -6,6 +6,7 @@ using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Dialogs;
 
@@ -15,11 +16,12 @@ internal static class ServerChangeDialog
     /// is pending, such as one allowed meanwhile.</summary>
     internal static async Task AskAsync(XamlRoot root, MailboxModel model, string accountId)
     {
-        var change = await model.PendingServerChangeAsync(accountId);
-        if (change is null)
+        if (await model.PendingServerChangeAsync(accountId) is not { } pending)
         {
             return;
         }
+        // Declared, so the lambda below that replaces it reads it as never null.
+        ServerChange change = pending;
         var copy = ServerChangeViews.Copy(change, model.AccountAddress(accountId));
         var content = ServerChangeViews.Panel(copy, titled: false);
         var dialog = new ContentDialog
@@ -42,14 +44,28 @@ internal static class ServerChangeDialog
             dialog.IsPrimaryButtonEnabled = false;
             content.Say(null);
             content.Busy(true);
-            var allowed = await model.AcceptServerChangeAsync(accountId);
+            var answer = await model.AcceptServerChangeAsync(accountId, change);
             busy = false;
             content.Busy(false);
             dialog.IsPrimaryButtonEnabled = true;
-            if (!allowed)
+            switch (answer)
             {
-                args.Cancel = true;
-                content.Say(L10n.ServerChangedFailed());
+                case ServerChangeAnswer.Moved:
+                    break;
+                case ServerChangeAnswer.Replaced replaced:
+                    // A lookup replaced the question while it was shown, and nothing moved: ask
+                    // the new one in its place.
+                    args.Cancel = true;
+                    change = replaced.@change;
+                    copy = ServerChangeViews.Copy(change, model.AccountAddress(accountId));
+                    content = ServerChangeViews.Panel(copy, titled: false);
+                    dialog.Title = copy.Title;
+                    dialog.Content = content.Panel;
+                    break;
+                default:
+                    args.Cancel = true;
+                    content.Say(L10n.ServerChangedFailed());
+                    break;
             }
             deferral.Complete();
         };

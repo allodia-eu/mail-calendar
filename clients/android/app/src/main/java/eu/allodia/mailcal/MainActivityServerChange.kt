@@ -4,6 +4,7 @@
 package eu.allodia.mailcal
 
 import kotlin.concurrent.thread
+import uniffi.mailcal_bindings.ServerChangeAnswer
 
 /** Opens the question for [accountId]; one no longer waiting redraws the lines instead. */
 internal fun MainActivity.reviewServerChange(accountId: String) {
@@ -18,24 +19,33 @@ internal fun MainActivity.reviewServerChange(accountId: String) {
     accountSettings.serverChange.open(ShownServerChange(accountId, address, change))
 }
 
-/** Allow: the pause lifts once the new server has connected; a failure changes nothing. */
+/**
+ * Allow: the pause lifts once the new server has connected; a failure changes nothing. A question a
+ * lookup replaced while it was on screen moves nothing, and the new one is shown in its place.
+ */
 internal fun MainActivity.allowServerChange() {
     val instance = app ?: return
     val prompt = accountSettings.serverChange
-    val accountId = prompt.shown?.accountId ?: return
+    val shown = prompt.shown ?: return
     if (!prompt.start()) return
     thread(name = "mailcal-server-change") {
-        val answer = runCatching { instance.acceptServerChange(accountId) }
+        val answer = runCatching { instance.acceptServerChange(shown.accountId, shown.change) }
         mainHandler.post {
             answer.onSuccess {
-                logUiInfo("accounts: a calendar or address book moved to its new server")
-                refreshAccountsSnapshot()
-                refreshConnectivity()
+                when (it) {
+                    is ServerChangeAnswer.Moved -> {
+                        logUiInfo("accounts: a calendar or address book moved to its new server")
+                        refreshAccountsSnapshot()
+                        refreshConnectivity()
+                    }
+                    is ServerChangeAnswer.Replaced ->
+                        logUiInfo("accounts: the server change was replaced while it was shown")
+                }
             }
             answer.onFailure {
                 logUiWarn("accounts: a new calendar or address book server did not connect: ${coreErrorText(it)}")
             }
-            prompt.finished(accountId, answer.isSuccess)
+            prompt.finished(shown.accountId, answer)
         }
     }
 }

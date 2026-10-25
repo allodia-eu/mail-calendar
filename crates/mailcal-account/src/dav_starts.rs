@@ -39,14 +39,60 @@ impl DavStarts {
         self.calendar.is_none() && self.contacts.is_none()
     }
 
-    /// `self` with each principal `learned` names in place of the stored one; a use `learned`
-    /// knows nothing about keeps what it had.
+    /// `self` with what each use's connect `learned` in place of the stored principal; a use
+    /// that did not connect keeps what it had.
     #[must_use]
-    pub fn updated_with(&self, learned: &Self) -> Self {
+    pub fn updated_with(&self, learned: &DavLearned) -> Self {
         Self {
-            calendar: learned.calendar.clone().or_else(|| self.calendar.clone()),
-            contacts: learned.contacts.clone().or_else(|| self.contacts.clone()),
+            calendar: learned.calendar.applied_to(self.calendar.as_ref()),
+            contacts: learned.contacts.applied_to(self.contacts.as_ref()),
         }
+    }
+}
+
+/// What one connect of a use said about where the next one starts.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Learned {
+    /// The use did not connect, so it says nothing.
+    #[default]
+    Nothing,
+    /// The use connected, and its server named this principal.
+    Principal(String),
+    /// The use connected, and its server named no principal: the next connect starts from the
+    /// configured server, and a stored principal it fell back from is forgotten.
+    NoPrincipal,
+}
+
+impl Learned {
+    /// What a use that connected learned, from the principal its server named.
+    #[must_use]
+    pub fn connected(principal: Option<String>) -> Self {
+        principal.map_or(Self::NoPrincipal, Self::Principal)
+    }
+
+    fn applied_to(&self, stored: Option<&String>) -> Option<String> {
+        match self {
+            Self::Nothing => stored.cloned(),
+            Self::Principal(url) => Some(url.clone()),
+            Self::NoPrincipal => None,
+        }
+    }
+}
+
+/// What one dial learned about where each DAV use's next connect starts.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DavLearned {
+    /// The calendar's.
+    pub calendar: Learned,
+    /// The address book's.
+    pub contacts: Learned,
+}
+
+impl DavLearned {
+    /// Whether neither use connected.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.calendar == Learned::Nothing && self.contacts == Learned::Nothing
     }
 }
 

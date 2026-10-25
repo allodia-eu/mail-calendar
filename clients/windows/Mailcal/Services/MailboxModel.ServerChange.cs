@@ -27,24 +27,26 @@ public sealed partial class MailboxModel
         }
     }
 
-    /// <summary>Allows the new server, which the core connects before it stores anything.</summary>
-    /// <returns>Whether it connected and the pause lifted; on false nothing changed.</returns>
-    internal async Task<bool> AcceptServerChangeAsync(string accountId)
+    /// <summary>Allows the new server if it is still <paramref name="shown"/>, which the core
+    /// connects before it stores anything.</summary>
+    /// <returns><see cref="ServerChangeAnswer.Moved"/> once it connected and the pause lifted;
+    /// <see cref="ServerChangeAnswer.Replaced"/> with the question to ask instead when a lookup
+    /// replaced it while it was shown; null when it failed. Only the first changes anything.</returns>
+    internal async Task<ServerChangeAnswer?> AcceptServerChangeAsync(string accountId, ServerChange shown)
     {
         if (_app is not { } app)
         {
-            return false;
+            return null;
         }
         try
         {
             // Blocking: it dials the new server.
-            await Task.Run(() => app.AcceptServerChange(accountId));
-            return true;
+            return await Task.Run(() => app.AcceptServerChange(accountId, shown));
         }
         catch (Exception ex)
         {
             Log.Error($"allowing a new server failed: {CoreError.Describe(ex)}");
-            return false;
+            return null;
         }
     }
 

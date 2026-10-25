@@ -3,7 +3,7 @@
 //! sends. "Not now" needs no call: the use stays paused, and its page offers the question again.
 
 use adw::prelude::*;
-use mailcal_bindings::ServerChange;
+use mailcal_bindings::{ServerChange, ServerChangeAnswer};
 
 use super::{AppInput, AppModel, account_settings::AccountsInput, settings::notice::Notice};
 use crate::l10n;
@@ -13,7 +13,7 @@ const ALLOW: &str = "allow";
 
 /// What the dialog is about: the server change, and the address of the account it moves.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct Review {
+pub(crate) struct Review {
     pub(super) address: String,
     pub(super) change: ServerChange,
 }
@@ -113,11 +113,12 @@ pub(super) fn ask(
     sender: &relm4::Sender<AppInput>,
 ) {
     let asked = dialog(review).choose_future(Some(parent));
-    let (sender, account) = (sender.clone(), account.to_owned());
+    let (sender, account, review) = (sender.clone(), account.to_owned(), review.clone());
     gtk::glib::MainContext::default().spawn_local(async move {
         if asked.await.as_str() == ALLOW {
             sender.emit(AppInput::Accounts(AccountsInput::AllowServerChange {
                 account,
+                review,
                 from,
             }));
         }
@@ -133,21 +134,33 @@ pub(super) fn failed() -> Notice {
 }
 
 /// What follows an allow. A failure asked from the calendar or the contacts opens the account's
-/// page, where the question is offered again, and says it there.
-fn allowed(ok: bool, account: String, from: ReviewFrom) -> AccountsInput {
-    match (ok, from) {
-        (true, _) => AccountsInput::Changed(None),
-        (false, ReviewFrom::Settings) => AccountsInput::Refused(failed()),
-        (false, ReviewFrom::Outage) => AccountsInput::ServerChangeFailed(account),
+/// page, where the question is offered again, and says it there. A question a lookup replaced
+/// while it was on screen moved nothing, and is asked again as it stands now.
+fn allowed(
+    answer: Option<ServerChangeAnswer>,
+    account: String,
+    review: Review,
+    from: ReviewFrom,
+) -> AccountsInput {
+    match (answer, from) {
+        (Some(ServerChangeAnswer::Moved), _) => AccountsInput::Changed(None),
+        (Some(ServerChangeAnswer::Replaced { change }), _) => AccountsInput::ServerChangeReplaced {
+            account,
+            review: Review { change, ..review },
+            from,
+        },
+        (None, ReviewFrom::Settings) => AccountsInput::Refused(failed()),
+        (None, ReviewFrom::Outage) => AccountsInput::ServerChangeFailed(account),
     }
 }
 
 impl AppModel {
-    /// Allows the new server, which connects to it before anything is stored, so it runs off the
-    /// main thread.
+    /// Allows the new server if it is still the one `review` showed. The core connects to it
+    /// before anything is stored, so it runs off the main thread.
     pub(super) fn allow_server_change(
         &mut self,
         account: String,
+        review: Review,
         from: ReviewFrom,
         sender: relm4::Sender<AppInput>,
     ) {
@@ -160,9 +173,23 @@ impl AppModel {
             ));
         }
         std::thread::spawn(move || {
-            let ok = app.accept_server_change(account.clone()).is_ok();
-            sender.emit(AppInput::Accounts(allowed(ok, account, from)));
+            let answer = app
+                .accept_server_change(account.clone(), review.change.clone())
+                .ok();
+            sender.emit(AppInput::Accounts(allowed(answer, account, review, from)));
         });
+    }
+
+    /// Asks `review` over the window the person answered the question it replaced in.
+    pub(super) fn ask_server_change_again(
+        account: &str,
+        review: &Review,
+        from: ReviewFrom,
+        sender: &relm4::Sender<AppInput>,
+    ) {
+        if let Some(window) = relm4::main_adw_application().active_window() {
+            ask(&window, account, review, from, sender);
+        }
     }
 }
 

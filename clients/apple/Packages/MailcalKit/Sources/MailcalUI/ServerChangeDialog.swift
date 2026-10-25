@@ -27,21 +27,37 @@ extension MailboxModel {
         return ServerChangeReview(account: id, address: signInName(id), change: change)
     }
 
-    /// Allows the new server. Blocking in the core, which connects it first; on a failure nothing
-    /// changed and the use stays paused.
-    func acceptServerChange(_ id: String) async -> Bool {
-        guard let app else { return false }
+    /// Allows the new server if it is still the one `review` shows. Blocking in the core, which
+    /// connects it first; on a failure nothing changed and the use stays paused.
+    func acceptServerChange(_ review: ServerChangeReview) async -> ServerChangeAllow {
+        guard let app else { return .failed }
+        let (id, shown) = (review.account, review.change)
         do {
-            try await Task.detached(priority: .userInitiated) {
-                try app.acceptServerChange(accountId: id)
+            let answer = try await Task.detached(priority: .userInitiated) {
+                try app.acceptServerChange(accountId: id, shown: shown)
             }.value
-            refreshAccountsSnapshot()
-            return true
+            switch answer {
+            case .moved:
+                refreshAccountsSnapshot()
+                return .moved
+            case let .replaced(change):
+                logAppleLifecycle("accounts: the server change was replaced while it was shown")
+                return .replaced(
+                    ServerChangeReview(account: id, address: review.address, change: change))
+            }
         } catch {
             logAppleLifecycle("accounts: allowing a new server failed (\(coreMessage(error)))")
-            return false
+            return .failed
         }
     }
+}
+
+/// What an Allow came to, as the dialog acts on it.
+enum ServerChangeAllow {
+    case moved
+    /// A lookup replaced the question on screen, so nothing moved: ask this one instead.
+    case replaced(ServerChangeReview)
+    case failed
 }
 
 extension View {
@@ -50,7 +66,9 @@ extension View {
         _ model: MailboxModel, _ review: Binding<ServerChangeReview?>
     ) -> some View {
         sheet(item: review) { shown in
-            ServerChangeDialog(model: model, review: shown) { review.wrappedValue = nil }
+            ServerChangeDialog(
+                model: model, review: shown, replace: { review.wrappedValue = $0 },
+                close: { review.wrappedValue = nil })
         }
     }
 }
@@ -58,6 +76,8 @@ extension View {
 struct ServerChangeDialog: View {
     var model: MailboxModel
     let review: ServerChangeReview
+    /// Shows another question in place of this one; the sheet stays, being the same account's.
+    let replace: (ServerChangeReview) -> Void
     let close: () -> Void
 
     @State private var allowing = false
@@ -126,12 +146,12 @@ struct ServerChangeDialog: View {
         allowing = true
         failed = false
         Task {
-            let accepted = await model.acceptServerChange(review.account)
+            let answer = await model.acceptServerChange(review)
             allowing = false
-            if accepted {
-                close()
-            } else {
-                failed = true
+            switch answer {
+            case .moved: close()
+            case let .replaced(next): replace(next)
+            case .failed: failed = true
             }
         }
     }

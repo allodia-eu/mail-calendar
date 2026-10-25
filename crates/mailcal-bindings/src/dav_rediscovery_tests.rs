@@ -111,6 +111,11 @@ fn boot(name: &str, base_url: &str) -> (std::sync::Arc<crate::MailcalApp>, Strin
 /// A server that answers every request `404 Not Found`: there, but without the start it was
 /// given.
 fn gone_server() -> String {
+    answering(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+}
+
+/// A server that answers every request with `response`.
+fn answering(response: &'static [u8]) -> String {
     use std::io::{Read, Write};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
     let addr = listener.local_addr().expect("the bound address");
@@ -119,12 +124,22 @@ fn gone_server() -> String {
             let Ok(mut stream) = stream else { continue };
             let mut buf = [0u8; 4096];
             let _ = stream.read(&mut buf);
-            let _ = stream.write_all(
-                b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-            );
+            let _ = stream.write_all(response);
         }
     });
     format!("http://{addr}/dav")
+}
+
+/// Waits up to twenty seconds for `id` to be looked for again.
+fn looked_for_again(app: &crate::MailcalApp, id: &str) {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !app.rediscovery.attempts.lock().unwrap().contains_key(id) {
+        assert!(
+            Instant::now() < deadline,
+            "the account was never looked for again"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
 }
 
 /// A calendar server that says its start is gone is looked for again once the reconnect is done
@@ -133,14 +148,20 @@ fn gone_server() -> String {
 fn a_calendar_server_whose_start_is_gone_is_looked_for_again() {
     let (app, id) = boot("dav-rediscovery-gone", &gone_server());
 
-    let deadline = Instant::now() + Duration::from_secs(20);
-    while !app.rediscovery.attempts.lock().unwrap().contains_key(&id) {
-        assert!(
-            Instant::now() < deadline,
-            "the account was never looked for again"
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    looked_for_again(&app, &id);
+}
+
+/// A calendar server that refuses the sign-in is looked for again too, also for an account it is
+/// all of: a provider that moved can leave its old server refusing every credential.
+#[test]
+fn a_calendar_server_that_refuses_the_sign_in_is_looked_for_again() {
+    let refusing = answering(
+        b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"dav\"\r\n\
+          Content-Length: 0\r\nConnection: close\r\n\r\n",
+    );
+    let (app, id) = boot("dav-rediscovery-refused", &refusing);
+
+    looked_for_again(&app, &id);
 }
 
 /// A calendar server that does not answer is tried again as it is, and never looked for again: an

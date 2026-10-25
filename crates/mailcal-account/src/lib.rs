@@ -71,7 +71,7 @@ pub use config_edit::{EditedAccount, EndpointEdit};
 pub use consent::{requested_scopes, withheld};
 pub use contacts::{connect_carddav_contact_providers, connect_carddav_learning};
 pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
-pub use dav_starts::{DavStarts, DavStartsFile};
+pub use dav_starts::{DavLearned, DavStarts, DavStartsFile, Learned};
 use engine_core::{ids::AccountId, sync::SyncUpdate};
 use engine_provider::Provider;
 pub use error::AccountError;

@@ -1,6 +1,6 @@
 //! The server-change dialog's copy and what an allow comes to.
 
-use mailcal_bindings::ServerChange;
+use mailcal_bindings::{ServerChange, ServerChangeAnswer};
 
 use super::{Review, ReviewFrom, allowed, body_markup, failed, title};
 use crate::{
@@ -84,20 +84,49 @@ fn only_the_sites_are_bold_and_nothing_the_server_named_is_markup() {
 #[test]
 fn a_failed_allow_is_said_where_it_was_asked_and_a_good_one_redraws() {
     let account = "alice@example.org@imap.example.org";
+    let shown = || review(change(true, false));
     assert!(matches!(
-        allowed(true, account.to_owned(), ReviewFrom::Outage),
+        allowed(
+            Some(ServerChangeAnswer::Moved),
+            account.to_owned(),
+            shown(),
+            ReviewFrom::Outage
+        ),
         AccountsInput::Changed(None)
     ));
     assert!(matches!(
-        allowed(false, account.to_owned(), ReviewFrom::Settings),
+        allowed(None, account.to_owned(), shown(), ReviewFrom::Settings),
         AccountsInput::Refused(notice) if notice == failed()
     ));
     assert!(matches!(
-        allowed(false, account.to_owned(), ReviewFrom::Outage),
+        allowed(None, account.to_owned(), shown(), ReviewFrom::Outage),
         AccountsInput::ServerChangeFailed(id) if id == account
     ));
     assert!(matches!(
         failed(),
         Notice::Error { detail, .. } if detail == l10n::server_changed_failed()
+    ));
+}
+
+#[test]
+fn a_question_replaced_while_shown_is_asked_again_as_it_stands_and_nothing_fails() {
+    let account = "alice@example.org@imap.example.org";
+    let mut now = change(true, true);
+    now.proposed_site = "example.org".to_owned();
+    let answer = ServerChangeAnswer::Replaced {
+        change: now.clone(),
+    };
+
+    let next = allowed(
+        Some(answer),
+        account.to_owned(),
+        review(change(true, false)),
+        ReviewFrom::Outage,
+    );
+
+    assert!(matches!(
+        next,
+        AccountsInput::ServerChangeReplaced { account: id, review: asked, from: ReviewFrom::Outage }
+            if id == account && asked == review(now)
     ));
 }

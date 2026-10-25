@@ -678,6 +678,12 @@ MAILCAL_FAKE_SYNC_PROGRESS=1200/3387 scripts/dev/boot.sh windows
 MAILCAL_FAKE_SYNC_HINT=eva.jansen@example.com:3/12 scripts/dev/boot.sh windows
 MAILCAL_FAKE_SYNC_HINT=eva.jansen@example.com:2022 scripts/dev/boot.sh macos
 
+# Every platform, showcase only: the first account's calendar paused for a server found on another
+# site (docs/account-autodetect.md rule 14), so the banner, Review and the question it opens can be
+# driven. Reads in the CORE. Allowing it is refused, since a showcase account has no servers to
+# change, so the refusal is what Allow shows.
+MAILCAL_SHOWCASE_SERVER_CHANGE=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
+
 # Every platform: come up light or dark whatever the machine is set to (`system` forces the
 # machine's own setting back on). It pins how the run STARTS; a pick in Settings still wins for
 # the rest of the session, and nothing is persisted. Android has no env vars, so build-and-run.sh

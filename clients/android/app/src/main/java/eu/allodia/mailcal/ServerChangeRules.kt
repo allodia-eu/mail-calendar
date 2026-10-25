@@ -11,6 +11,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import uniffi.mailcal_bindings.ServerChange
+import uniffi.mailcal_bindings.ServerChangeAnswer
 
 /** The dialog's words, in the order it draws them. */
 internal data class ServerChangeCopy(
@@ -98,11 +99,19 @@ internal class ServerChangePrompt {
         return true
     }
 
-    /** Allow answered for [accountId]; an answer for a question no longer open is dropped. */
-    fun finished(accountId: String, allowed: Boolean) {
-        if (shown?.accountId != accountId) return
+    /**
+     * Allow answered for [accountId]; an answer for a question no longer open is dropped. A question
+     * that was replaced stays open, asking the new one.
+     */
+    fun finished(accountId: String, answer: Result<ServerChangeAnswer>) {
+        val question = shown ?: return
+        if (question.accountId != accountId) return
         allowing = false
-        if (allowed) shown = null else failed = true
+        when (val moved = answer.getOrNull()) {
+            null -> failed = true
+            is ServerChangeAnswer.Moved -> shown = null
+            is ServerChangeAnswer.Replaced -> shown = question.copy(change = moved.change)
+        }
     }
 
     /** Not now, or the question closing: nothing is asked of the core. */

@@ -71,6 +71,9 @@ pub(crate) async fn reconnect_all(
             // for an outage detail the user reads in the UI: the log lines below use the position.
             let account_type = plan.account_type();
             let label = plan.label();
+            let uses_mail = plan
+                .capabilities()
+                .contains(mailcal_account::Capability::Mail);
             match plan.run(&id, display_zone).await {
                 Ok(outcome) => {
                     // The user may have removed the account during the (slow) dial: its plan was
@@ -138,6 +141,14 @@ pub(crate) async fn reconnect_all(
                     app.note_use_problems(&id, app.use_problems(&id).paused_only());
                     // Not re-queued: only a replaced credential can change the answer.
                     log::warn!("reconnect: account[{index}] sign-in refused by the server: {err}");
+                    // Without mail, the server that refused is its calendar or address book
+                    // server, which may have moved and left the old one refusing.
+                    if !uses_mail {
+                        unanswered
+                            .lock()
+                            .expect("unanswered mutex poisoned")
+                            .push(id.as_str().to_owned());
+                    }
                     None
                 }
                 Err(err) => {

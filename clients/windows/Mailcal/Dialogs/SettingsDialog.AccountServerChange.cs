@@ -86,11 +86,22 @@ public sealed partial class SettingsDialog
         {
             _serverChangeOpen = open with { Busy = true, Error = null };
             DrawServerChange(_serverChangeOpen);
-            var allowed = await _model.AcceptServerChangeAsync(open.AccountId);
-            if (allowed)
+            var answer = await _model.AcceptServerChangeAsync(open.AccountId, open.Change);
+            if (answer is ServerChangeAnswer.Moved)
             {
                 // The page redraws from the snapshot, in which the use is no longer paused.
                 _serverChangeOpen = null;
+                _serverChangeDrawn = null;
+                NotifyAccounts(null);
+                return;
+            }
+            if (answer is ServerChangeAnswer.Replaced replaced)
+            {
+                // A lookup replaced the question while it was shown, and nothing moved: the
+                // redraw asks the new one in its place.
+                _serverChangeOpen = _serverChangeOpen is { } shown
+                    ? shown with { Change = replaced.@change, Busy = false, Error = null }
+                    : null;
                 _serverChangeDrawn = null;
                 NotifyAccounts(null);
                 return;

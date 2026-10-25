@@ -680,22 +680,25 @@ jobs:
       # beside the arm64 the tests actually run. The script builds before it boots the simulator,
       # and says why.
       #
-      # **Three classes of twelve, and that is the ten-minute budget rather than a judgement about
-      # the rest.**
+      # **Five classes of seventeen, and that is the ten-minute budget rather than a judgement
+      # about the rest.**
       # A UI test costs what no other gate here costs: a simulator to boot and then the app's own
-      # launch per test. The four that run are the four that hold something written down: the
+      # launch per test. The five that run are the five that hold something written down: the
       # action row's order and the header that scrolls out from under it
       # (docs/reading-actions.md), the calendar pinch (docs/calendar.md), which is also the
-      # regression test for a gesture that reached the iOS grid not at all, and Settings as the one
-      # place a later account is added (docs/settings.md). The rest run from
-      # `clients/apple/Scripts/test-ui.sh` on a developer's machine; `ComposerPresentationTests`
-      # is the slowest class in the bundle by some way. Add a `--only` below to move one in.
+      # regression test for a gesture that reached the iOS grid not at all, Settings as the one
+      # place a later account is added (docs/settings.md), and the question a server found on
+      # another site asks before anything is sent to it (docs/account-autodetect.md rule 14). The
+      # rest run from `clients/apple/Scripts/test-ui.sh` on a developer's machine;
+      # `ComposerPresentationTests` is the slowest class in the bundle by some way. Add a `--only`
+      # below to move one in.
       - name: Build + test the iOS app (showcase dataset)
         if: matrix.platform == 'ios'
         run: |
           clients/apple/Scripts/test-ui.sh --no-core \
             --only ReadingActionRowTests --only ReadingHeaderScrollTests \
-            --only CalendarPinchTests --only SettingsAddAccountTests
+            --only CalendarPinchTests --only SettingsAddAccountTests \
+            --only ServerChangeTests
 
       # MailcalKit's suite compiled for iOS, which `swift test` on the macOS leg never does, so the
       # phone's side of a rule is tested only here: among others, what a new-mail notification is

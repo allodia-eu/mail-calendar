@@ -51,6 +51,8 @@ pub(crate) use connect::{connect_google_calendars, connect_jmap_calendars};
 pub(crate) use contacts::{
     connect_caldav_contacts, connect_google_contacts, connect_graph_contacts, connect_jmap_contacts,
 };
+#[cfg(all(test, debug_assertions))]
+pub(crate) use inmemory::pause_for_a_server_change;
 // The in-memory demo/showcase builders (no real account, no network) live in their own module.
 pub(crate) use inmemory::{build_demo, build_showcase, build_showcase_first_run};
 // Only `record_dial_outcome`'s own tests name the shape of a failure.

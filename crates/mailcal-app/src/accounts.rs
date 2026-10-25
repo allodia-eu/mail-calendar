@@ -11,7 +11,7 @@ use std::{sync::Arc, time::Instant};
 use engine_api::{AccountId, ContactsProvider, EmailAddress, Provider};
 use mailcal_viewmodel::AccountRow;
 
-use crate::{App, Surface, form_factor::FormFactor, scope::Scope};
+use crate::{App, Surface, UseProblem, UseProblems, form_factor::FormFactor, scope::Scope};
 
 /// How much history a newly added account syncs.
 ///
@@ -55,6 +55,17 @@ pub struct Account<P> {
     /// its dial lands, whose calendar is unknown rather than empty; an account with no provider
     /// of some kind after its dial simply has none.
     pub dialled: bool,
+}
+
+/// What [`App::replace_uses`] did with a redial of an account's calendar and contacts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UsesReplaced {
+    /// The account has the redial's calendar and contacts.
+    Replaced,
+    /// The redial could not reach a use the account has working, so it keeps what it had.
+    Kept,
+    /// The account was removed during the redial.
+    Gone,
 }
 
 impl<P> core::fmt::Debug for Account<P> {
@@ -132,19 +143,31 @@ impl<P: Provider> App<P> {
     }
 
     /// Gives the live account `account.id` the calendar and contact providers `account` carries,
-    /// keeping the mail providers it already has, and reports whether it was still there.
+    /// keeping the mail providers it already has.
     ///
-    /// For a retry of a calendar or address book that failed beside a working mailbox: the
-    /// mailbox is connected, so nothing about it is replaced, synced or watched again. Nothing is
-    /// synced here either; the caller refreshes the calendar and contacts it reconnected.
-    pub async fn replace_uses(&self, account: Account<P>) -> bool {
+    /// For a retry of a calendar or address book that failed beside a working mailbox, and for
+    /// the daily redial of ones that work: the mailbox is connected, so nothing about it is
+    /// replaced, synced or watched again. Nothing is synced here either; the caller refreshes
+    /// the calendar and contacts it reconnected. A redial that `problems` says could not reach a
+    /// use the live account has working installs nothing, because an outage says nothing about
+    /// the servers and a working connection is not traded for none.
+    pub async fn replace_uses(&self, account: Account<P>, problems: UseProblems) -> UsesReplaced {
         let mut accounts = self.accounts.write().await;
         let Some(at) = accounts
             .iter()
             .position(|existing| existing.id == account.id)
         else {
-            return false;
+            return UsesReplaced::Gone;
         };
+        let live = &accounts[at];
+        let lost = |problem: Option<UseProblem>, working: bool| {
+            working && problem == Some(UseProblem::Unreachable)
+        };
+        if lost(problems.calendar, !live.calendar_providers.is_empty())
+            || lost(problems.contacts, !live.contact_providers.is_empty())
+        {
+            return UsesReplaced::Kept;
+        }
         self.forget_calendar_users(&account.id);
         accounts[at] = Arc::new(Account {
             providers: Arc::clone(&accounts[at].providers),
@@ -152,7 +175,7 @@ impl<P: Provider> App<P> {
         });
         drop(accounts);
         self.observer.surface_changed(Surface::Settings);
-        true
+        UsesReplaced::Replaced
     }
 
     /// Registers a newly-added user account without syncing, then gives it the product default

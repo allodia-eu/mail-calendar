@@ -183,7 +183,7 @@ pub(crate) struct DialOutcome {
     pub(crate) use_problems: mailcal_app::UseProblems,
     /// The DAV principals the dial learned, for the registry to store
     /// ([`AccountRegistry::learn_dav_starts`](super::AccountRegistry::learn_dav_starts)).
-    pub(crate) learned: mailcal_account::DavStarts,
+    pub(crate) learned: mailcal_account::DavLearned,
     /// Whether the calendar or contacts failed in a way worth finding their servers again for
     /// ([`ConnectFailure::worth_rediscovering`]).
     pub(crate) rediscover: bool,

@@ -34,15 +34,29 @@ fn app(name: &str) -> (Arc<MailcalApp>, String) {
 }
 
 fn pause(app: &MailcalApp, id: &str) {
+    pause_on(app, id, "example.net");
+}
+
+fn pause_on(app: &MailcalApp, id: &str, site: &str) {
     app.app.note_server_change(
         &engine_api::AccountId::try_from(id).unwrap(),
         mailcal_app::ServerChange {
             previous_site: "example.com".to_owned(),
-            proposed_site: "example.net".to_owned(),
+            proposed_site: site.to_owned(),
             calendar_url: Some("http://127.0.0.1:1/elsewhere".to_owned()),
             contacts_url: None,
         },
     );
+}
+
+/// The question [`pause`] puts to the person.
+fn shown() -> crate::ServerChange {
+    crate::ServerChange {
+        previous_site: "example.com".to_owned(),
+        proposed_site: "example.net".to_owned(),
+        calendar: true,
+        contacts: false,
+    }
 }
 
 #[test]
@@ -52,22 +66,14 @@ fn the_dialog_reads_the_change_the_account_waits_on() {
 
     pause(&app, &id);
 
-    assert_eq!(
-        app.pending_server_change(id),
-        Some(crate::ServerChange {
-            previous_site: "example.com".to_owned(),
-            proposed_site: "example.net".to_owned(),
-            calendar: true,
-            contacts: false,
-        })
-    );
+    assert_eq!(app.pending_server_change(id), Some(shown()));
 }
 
 #[test]
 fn allowing_a_change_nobody_proposed_is_refused() {
     let (app, id) = app("server-change-none");
     assert!(matches!(
-        app.accept_server_change(id),
+        app.accept_server_change(id, shown()),
         Err(MailcalError::Config(_))
     ));
 }
@@ -78,9 +84,36 @@ fn a_new_server_that_does_not_connect_leaves_the_account_paused_where_it_was() {
     pause(&app, &id);
     let before = app.accounts_snapshot().accounts[0].endpoints.clone();
 
-    assert!(app.accept_server_change(id.clone()).is_err());
+    assert!(app.accept_server_change(id.clone(), shown()).is_err());
 
     assert!(app.pending_server_change(id).is_some(), "still asked about");
+    assert_eq!(app.accounts_snapshot().accounts[0].endpoints, before);
+}
+
+/// A lookup can replace the question while it is on screen. Allowing what was shown must not
+/// move the account to a site it never named: nothing moves, and the answer is the new question.
+#[test]
+fn allowing_a_question_a_lookup_replaced_moves_nothing_and_answers_the_new_one() {
+    let (app, id) = app("server-change-replaced");
+    pause(&app, &id);
+    pause_on(&app, &id, "example.org");
+    let before = app.accounts_snapshot().accounts[0].endpoints.clone();
+
+    let answer = app.accept_server_change(id.clone(), shown());
+
+    let now = crate::ServerChange {
+        proposed_site: "example.org".to_owned(),
+        ..shown()
+    };
+    assert!(matches!(
+        answer,
+        Ok(crate::ServerChangeAnswer::Replaced { change }) if change == now
+    ));
+    assert_eq!(
+        app.pending_server_change(id),
+        Some(now),
+        "still asked about"
+    );
     assert_eq!(app.accounts_snapshot().accounts[0].endpoints, before);
 }
 

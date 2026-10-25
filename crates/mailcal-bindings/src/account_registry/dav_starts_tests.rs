@@ -25,6 +25,14 @@ fn principal(url: &str) -> DavStarts {
     }
 }
 
+/// What a dial learned when its calendar connected and its server named `url`.
+fn learned(url: &str) -> mailcal_account::DavLearned {
+    mailcal_account::DavLearned {
+        calendar: mailcal_account::Learned::Principal(url.to_owned()),
+        contacts: mailcal_account::Learned::Nothing,
+    }
+}
+
 fn stored(registry: &AccountRegistry, id: &str) -> DavStarts {
     match registry.dial(id).expect("registered") {
         crate::account_registry::AccountDial::Imap { config, .. } => config.dav_starts,
@@ -39,7 +47,7 @@ fn a_learned_principal_is_dialled_from_and_survives_a_relaunch() {
     registry.keep_dav_starts_in(file.clone());
     registry.pre_register("alice".to_owned(), entry()).commit();
 
-    registry.learn_dav_starts("alice", &principal("https://dav.example.net/alice/"));
+    registry.learn_dav_starts("alice", &learned("https://dav.example.net/alice/"));
     assert_eq!(
         stored(&registry, "alice"),
         principal("https://dav.example.net/alice/")
@@ -63,7 +71,7 @@ fn removing_the_account_forgets_its_principals() {
     let registry = AccountRegistry::new();
     registry.keep_dav_starts_in(file.clone());
     registry.pre_register("alice".to_owned(), entry()).commit();
-    registry.learn_dav_starts("alice", &principal("https://dav.example.net/alice/"));
+    registry.learn_dav_starts("alice", &learned("https://dav.example.net/alice/"));
 
     registry.remove("alice");
 
@@ -76,9 +84,9 @@ fn a_dial_that_learned_nothing_keeps_what_was_stored() {
     let registry = AccountRegistry::new();
     registry.keep_dav_starts_in(file);
     registry.pre_register("alice".to_owned(), entry()).commit();
-    registry.learn_dav_starts("alice", &principal("https://dav.example.net/alice/"));
+    registry.learn_dav_starts("alice", &learned("https://dav.example.net/alice/"));
 
-    registry.learn_dav_starts("alice", &DavStarts::default());
+    registry.learn_dav_starts("alice", &mailcal_account::DavLearned::default());
 
     assert_eq!(
         stored(&registry, "alice"),

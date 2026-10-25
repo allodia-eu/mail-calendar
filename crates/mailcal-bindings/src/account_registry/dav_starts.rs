@@ -36,7 +36,7 @@ impl AccountRegistry {
     }
 
     /// Stores the principals a dial of `id` learned, where they differ from what it held.
-    pub(crate) fn learn_dav_starts(&self, id: &str, learned: &DavStarts) {
+    pub(crate) fn learn_dav_starts(&self, id: &str, learned: &mailcal_account::DavLearned) {
         if learned.is_empty() {
             return;
         }

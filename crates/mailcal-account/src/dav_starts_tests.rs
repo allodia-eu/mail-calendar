@@ -1,4 +1,4 @@
-use super::{DavStarts, DavStartsFile};
+use super::{DavLearned, DavStarts, DavStartsFile, Learned};
 
 fn dir(name: &str) -> std::path::PathBuf {
     let dir =
@@ -59,12 +59,15 @@ fn an_unreadable_file_is_an_empty_cache() {
 }
 
 #[test]
-fn a_use_learned_nothing_about_keeps_what_it_had() {
+fn a_use_that_did_not_connect_keeps_what_it_had() {
     let stored = DavStarts {
         calendar: Some("https://dav.example.net/old/".to_owned()),
         contacts: Some("https://books.example.net/b/".to_owned()),
     };
-    let learned = calendar("https://dav.example.net/new/");
+    let learned = DavLearned {
+        calendar: Learned::Principal("https://dav.example.net/new/".to_owned()),
+        contacts: Learned::Nothing,
+    };
     assert_eq!(
         stored.updated_with(&learned),
         DavStarts {
@@ -72,4 +75,16 @@ fn a_use_learned_nothing_about_keeps_what_it_had() {
             contacts: Some("https://books.example.net/b/".to_owned()),
         }
     );
+}
+
+/// A stored principal the server said was gone, with a fallback connect that named none, is
+/// forgotten: otherwise every later connect spends a request on it first.
+#[test]
+fn a_use_that_connected_naming_no_principal_forgets_the_stored_one() {
+    let stored = calendar("https://dav.example.net/gone/");
+    let learned = DavLearned {
+        calendar: Learned::connected(None),
+        contacts: Learned::Nothing,
+    };
+    assert_eq!(stored.updated_with(&learned), DavStarts::default());
 }

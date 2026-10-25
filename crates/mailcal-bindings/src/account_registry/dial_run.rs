@@ -93,8 +93,8 @@ impl AccountDial {
                 ..
             } => {
                 let username = config.username().to_owned();
-                let learned_calendar = std::sync::Mutex::new(None);
-                let learned_contacts = std::sync::Mutex::new(None);
+                let learned_calendar = std::sync::Mutex::new(mailcal_account::Learned::Nothing);
+                let learned_contacts = std::sync::Mutex::new(mailcal_account::Learned::Nothing);
                 // Calendar and contacts both talk to the same CalDAV host, so they run
                 // concurrently with mail rather than making the mailbox wait for either.
                 let (mail, calendar, contacts) = tokio::join!(
@@ -113,7 +113,7 @@ impl AccountDial {
                             .await
                             .map(|connected| {
                                 *learned_calendar.lock().expect("learned mutex poisoned") =
-                                    connected.principal;
+                                    mailcal_account::Learned::connected(connected.principal);
                                 vec![connected.providers]
                             })
                             .map_err(ConnectFailure::from)
@@ -133,7 +133,7 @@ impl AccountDial {
                     .calendar_failure
                     .as_ref()
                     .map(|failure| format!("{username}: {failure}"));
-                let learned = mailcal_account::DavStarts {
+                let learned = mailcal_account::DavLearned {
                     calendar: learned_calendar
                         .into_inner()
                         .expect("learned mutex poisoned"),
@@ -203,7 +203,7 @@ impl AccountDial {
                     assembled,
                     None,
                     calendar_reauth_required,
-                    mailcal_account::DavStarts::default(),
+                    mailcal_account::DavLearned::default(),
                 ))
             }
             Self::Google {
@@ -247,7 +247,7 @@ impl AccountDial {
                     assembled,
                     None,
                     false,
-                    mailcal_account::DavStarts::default(),
+                    mailcal_account::DavLearned::default(),
                 ))
             }
             Self::Jmap {
@@ -294,7 +294,7 @@ impl AccountDial {
                     assembled,
                     None,
                     false,
-                    mailcal_account::DavStarts::default(),
+                    mailcal_account::DavLearned::default(),
                 ))
             }
         }
@@ -313,7 +313,7 @@ fn outcome(
     >,
     calendar_error: Option<String>,
     calendar_reauth_required: bool,
-    learned: mailcal_account::DavStarts,
+    learned: mailcal_account::DavLearned,
 ) -> DialOutcome {
     // A calendar withheld for a missing scope already reads as "needs permission"; it is not also
     // a failure to report.

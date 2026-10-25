@@ -55,6 +55,14 @@ pub(crate) enum AccountsInput {
     /// (`super::server_change`).
     AllowServerChange {
         account: String,
+        review: super::server_change::Review,
+        from: super::server_change::ReviewFrom,
+    },
+    /// A lookup replaced the question while it was shown, so the allow moved nothing: ask the
+    /// new one.
+    ServerChangeReplaced {
+        account: String,
+        review: super::server_change::Review,
         from: super::server_change::ReviewFrom,
     },
     /// Allowing it failed, asked from outside Settings: the account's page says so.
@@ -178,9 +186,18 @@ impl AppModel {
             AccountsInput::Refused(notice) => self.settings.say(notice),
             AccountsInput::SignIn(input) => self.sign_in_input(input, sender),
             AccountsInput::Separate(input) => self.separate_input(input, sender),
-            AccountsInput::AllowServerChange { account, from } => {
-                self.allow_server_change(account, from, sender);
+            AccountsInput::AllowServerChange {
+                account,
+                review,
+                from,
+            } => {
+                self.allow_server_change(account, review, from, sender);
             }
+            AccountsInput::ServerChangeReplaced {
+                account,
+                review,
+                from,
+            } => Self::ask_server_change_again(&account, &review, from, &sender),
             AccountsInput::ServerChangeFailed(account) => {
                 self.settings
                     .open_on_account(account, super::server_change::failed());

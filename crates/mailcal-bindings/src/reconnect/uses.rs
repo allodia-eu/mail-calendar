@@ -10,7 +10,7 @@
 use std::sync::{Arc, Mutex};
 
 use engine_api::{AccountId, Provider, TimeZoneId};
-use mailcal_app::App;
+use mailcal_app::{App, UsesReplaced};
 
 use crate::{
     SharedRegistry,
@@ -42,35 +42,45 @@ pub(crate) async fn reconnect_uses(
                 // Removed during the dial: its plan predates the removal.
                 Ok(_) if !registry.contains(id.as_str()) => {}
                 Ok(outcome) => {
-                    app.note_use_problems(&id, outcome.use_problems);
                     registry.learn_dav_starts(id.as_str(), &outcome.learned);
-                    registry.note_dav_dialled(id.as_str(), std::time::Instant::now());
                     if outcome.rediscover {
                         unanswered
                             .lock()
                             .expect("unanswered mutex poisoned")
                             .push(id.as_str().to_owned());
                     }
-                    if outcome.account.calendar_providers.is_empty() {
-                        if outcome.calendar_reauth_required {
-                            app.note_calendar_reauth_required(&id);
-                        }
-                    } else {
-                        app.clear_calendar_reauth_required(&id);
-                    }
                     let problems = outcome.use_problems;
-                    if app.replace_uses(outcome.account).await {
-                        log::info!(
-                            "reconnect: account[{index}] calendar and contacts dialled again; \
-                             calendar {:?}, contacts {:?}",
-                            problems.calendar,
-                            problems.contacts,
-                        );
-                        reconnected
-                            .lock()
-                            .expect("reconnected mutex poisoned")
-                            .push(id);
+                    let reauth = outcome.calendar_reauth_required;
+                    let calendar = !outcome.account.calendar_providers.is_empty();
+                    match app.replace_uses(outcome.account, problems).await {
+                        UsesReplaced::Replaced => {}
+                        // Not noted as dialled, so the next retry dials it again.
+                        UsesReplaced::Kept => {
+                            log::info!(
+                                "reconnect: account[{index}] calendar or contacts did not answer \
+                                 the redial; keeping the connection it has"
+                            );
+                            return;
+                        }
+                        UsesReplaced::Gone => return,
                     }
+                    app.note_use_problems(&id, problems);
+                    registry.note_dav_dialled(id.as_str(), std::time::Instant::now());
+                    if calendar {
+                        app.clear_calendar_reauth_required(&id);
+                    } else if reauth {
+                        app.note_calendar_reauth_required(&id);
+                    }
+                    log::info!(
+                        "reconnect: account[{index}] calendar and contacts dialled again; \
+                         calendar {:?}, contacts {:?}",
+                        problems.calendar,
+                        problems.contacts,
+                    );
+                    reconnected
+                        .lock()
+                        .expect("reconnected mutex poisoned")
+                        .push(id);
                 }
                 // What its calendar and contacts last failed with still stands.
                 Err(err) => {
