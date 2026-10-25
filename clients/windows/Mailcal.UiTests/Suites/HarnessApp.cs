@@ -18,6 +18,14 @@ public class HarnessApp : IDisposable
 
     internal App App => _app ??= FirstRun ? App.LaunchOnFirstRun(Env) : App.LaunchOnHarness(Env);
 
+    /// <summary>Quits the app and launches it again on the first-run store as it was left, with this
+    /// launch's switches: for a case about the dial a launch makes.</summary>
+    internal void RelaunchOnFirstRunStore()
+    {
+        _app?.Dispose();
+        _app = App.RelaunchOnFirstRunStore(Env);
+    }
+
     /// <summary>Whether this launch starts from an empty store, on the account-setup form.</summary>
     protected virtual bool FirstRun => false;
 
@@ -169,6 +177,21 @@ public sealed class DarkHarnessApp : HarnessApp
 public sealed class SetupHarnessApp : HarnessApp
 {
     protected override bool FirstRun => true;
+}
+
+/// <summary>The app on an empty store beside the harness, told that looking an account's calendar and
+/// contacts servers up again finds them at <see cref="Moved"/> (MAILCAL_FAKE_SERVER_CHANGE, debug
+/// builds only): the one answer no loopback server gives, everything around it real.</summary>
+public sealed class ServerChangeHarnessApp : HarnessApp
+{
+    /// <summary>The harness again, under a host name rather than its address: another site to the
+    /// question, and the same server to the connect that allowing it makes.</summary>
+    internal const string Moved = "http://localhost:28080";
+
+    protected override bool FirstRun => true;
+
+    protected override IReadOnlyDictionary<string, string> Env { get; } =
+        new Dictionary<string, string> { ["MAILCAL_FAKE_SERVER_CHANGE"] = Moved };
 }
 
 [CollectionDefinition(Name)]

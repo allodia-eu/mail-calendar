@@ -245,3 +245,58 @@ fn a_question_names_every_site_its_allow_would_send_the_credential_to() {
         "the contacts moved to a site the question does not name"
     );
 }
+
+mod staged {
+    use super::{CALDAV, stored};
+    use crate::dav_rediscovery::staged::staged_change;
+
+    #[test]
+    fn every_server_the_account_stores_moves_to_the_one_named() {
+        let mut harness = stored();
+        harness.caldav_url = Some("https://localhost:12443".to_owned());
+        harness.carddav_url = Some("https://localhost:12443".to_owned());
+        let change =
+            staged_change(&harness, " http://127.0.0.1:28080 ").expect("a URL stages a change");
+        assert_eq!(
+            change.calendar_url.as_deref(),
+            Some("http://127.0.0.1:28080")
+        );
+        assert_eq!(
+            change.contacts_url.as_deref(),
+            Some("http://127.0.0.1:28080")
+        );
+        assert_eq!(
+            (change.previous_site.as_str(), change.proposed_site.as_str()),
+            ("localhost", "127.0.0.1"),
+            "a host the Public Suffix List cannot place is named as it is, as the loopback harness needs"
+        );
+    }
+
+    #[test]
+    fn a_use_the_account_has_no_server_for_does_not_move() {
+        let mut calendar_only = stored();
+        calendar_only.carddav_url = None;
+        let change = staged_change(&calendar_only, "https://dav.elsewhere.example.net/")
+            .expect("the calendar moves");
+        assert_eq!(change.contacts_url, None);
+        assert_eq!(
+            (change.previous_site.as_str(), change.proposed_site.as_str()),
+            ("example.com", "example.net"),
+            "a site is its registrable domain, as a real lookup names it"
+        );
+    }
+
+    #[test]
+    fn a_value_that_names_no_server_stages_nothing() {
+        assert_eq!(staged_change(&stored(), "calendar"), None);
+        assert_eq!(staged_change(&stored(), ""), None);
+        let mut none = stored();
+        none.caldav_url = None;
+        none.carddav_url = None;
+        assert_eq!(
+            staged_change(&none, CALDAV),
+            None,
+            "an account with no DAV server has nothing to move"
+        );
+    }
+}

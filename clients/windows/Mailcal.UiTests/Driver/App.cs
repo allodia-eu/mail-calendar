@@ -41,10 +41,25 @@ internal sealed partial class App : IDisposable
     /// </summary>
     internal static App LaunchOnFirstRun(IReadOnlyDictionary<string, string>? env = null) => Launch(env, firstRun: true);
 
-    private static App Launch(IReadOnlyDictionary<string, string>? env, bool firstRun)
+    /// <summary>
+    /// Launches the newest Debug build again on the first-run store as the last launch left it,
+    /// account and all, as a person reopening the app does: for a case about what a launch's own
+    /// dial does to an account set up through the form. Returns once the sidebar is drawn.
+    /// </summary>
+    internal static App RelaunchOnFirstRunStore(IReadOnlyDictionary<string, string>? env = null)
+    {
+        var app = Launch(env, firstRun: true, keepStore: true);
+        if (app.Agent.Wait(Filter.ById("SettingsItem") with { OnScreen = true }, TimeSpan.FromSeconds(60)) is null)
+        {
+            throw new InvalidOperationException("the relaunch never drew its sidebar");
+        }
+        return app;
+    }
+
+    private static App Launch(IReadOnlyDictionary<string, string>? env, bool firstRun, bool keepStore = false)
     {
         Stop();
-        if (firstRun)
+        if (firstRun && !keepStore)
         {
             ClearNamespace("dev-first-run");
         }
@@ -55,6 +70,10 @@ internal sealed partial class App : IDisposable
         Process? process = null;
         WithEnvironment(environment, () => process = Process.Start(new ProcessStartInfo(Exe()) { UseShellExecute = true }));
         var app = new App(process ?? throw new InvalidOperationException("the app did not start"), Agent.Connect(pipe, TimeSpan.FromSeconds(60)));
+        if (keepStore)
+        {
+            return app;
+        }
         if (firstRun)
         {
             app.WaitSetupForm();

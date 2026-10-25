@@ -19,6 +19,8 @@ use mailcal_account::account_log_handle;
 
 use crate::{AccountEndpoints, MailcalApp, MxResolver, autodetect::CallbackMxResolver};
 
+mod staged;
+
 /// How long after one attempt an account is looked for again: a server that is down rather than
 /// moved answers the same lookup the same way, and asking every retry would only cost requests.
 const RETRY_AFTER: Duration = Duration::from_secs(60 * 60);
@@ -106,6 +108,12 @@ impl MailcalApp {
             return;
         };
         if !self.rediscovery.due(account_id, Instant::now()) {
+            return;
+        }
+        if let Some(change) = staged::pretended(&stored) {
+            if let Ok(id) = engine_api::AccountId::try_from(account_id) {
+                self.app.note_server_change(&id, change);
+            }
             return;
         }
         let host = stored

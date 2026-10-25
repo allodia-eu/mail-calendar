@@ -211,10 +211,12 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
     - **When to look again.** A stored principal the server says is gone (a `404`, `410` or
       `403`, or no home) sends the connect back to the configured server. When that is gone too,
       or the server refuses the sign-in, the core runs rule 8's lookup again for the account's
-      address (`dav_rediscovery`), at most once an hour per account. A server that does not
-      answer (a timeout, a DNS failure, a `5xx`, a `429`, a certificate that does not verify)
-      changes nothing and is never looked for again: an outage says nothing about where the
-      server is, so it never leads to a setup screen.
+      address (`dav_rediscovery`), at most once an hour per account. A refusal counts when a
+      calendar or address-book server made it: a mail server's says nothing about where the
+      calendar went, so an account with mail is looked for again only for its own calendar or
+      contacts. A server that does not answer (a timeout, a DNS failure, a `5xx`, a `429`, a
+      certificate that does not verify) changes nothing and is never looked for again: an outage
+      says nothing about where the server is, so it never leads to a setup screen.
     - **What is followed.** A server found somewhere new under the registrable domain of the
       one it replaces or of the address, over HTTPS, is followed through the same door as
       editing the servers in Settings (`update_account_endpoints`): the new server connects
@@ -541,6 +543,12 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   the JMAP found card showing `JMAP · api.fastmail.com`, **trusted, no warning**
   (`autodetect: jmap via JmapSrv (trusted)` in the log). Detection's job (route + prefill the right
   server) ends there; the subsequent JMAP-connect authentication is a separate concern.
+- **Rule 14's question** is reached against the harness through the debug-only
+  `MAILCAL_FAKE_SERVER_CHANGE` ([`debugging.md`](debugging.md)), which substitutes the lookup's
+  answer and nothing else: a loopback server has no site the question could name. Windows drives
+  it end to end in `Mailcal.UiTests` (`ServerChangeTests`): a refused sign-in, the paused uses on
+  the account's page, the inline question, an allow the new server refuses, and one that moves the
+  account.
 - **Linux** additionally has a **GTK widget suite** driven on a private headless compositor, in the crate's single GTK
   test (GTK initialises once, on one thread, so what it covers lives in files beside it): which
   surface each route renders and (the half a screenshot cannot check) what it must *not* put on

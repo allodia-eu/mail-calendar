@@ -664,6 +664,14 @@ MAILCAL_SWIPE=archive scripts/dev/boot.sh windows
 # client support; the failure path also needs the CalDAV half of the harness.
 MAILCAL_FAKE_REPLY_DELIVERY=failed:5.2 scripts/dev/boot.sh windows --account stalwart-imap
 
+# Every platform: pretend that looking an account's calendar and contacts servers up again found
+# them at this URL. The ONLY way to reach the paused use and its "Review" question, because a
+# loopback server has no site the question could name (docs/account-autodetect.md rule 14). The
+# lookup still runs only once a stored server refuses the sign-in or says its start is gone, so
+# change the harness password (or let a test do it); allowing the change connects to the URL for
+# real. Reads in the CORE, debug builds only.
+MAILCAL_FAKE_SERVER_CHANGE=http://localhost:28080 scripts/dev/boot.sh windows
+
 # Every platform: hold the download bar up with a staged count, so where it sits can be measured
 # rather than glimpsed: a real pass is up for a fraction of a second against any local fixture.
 # Reads in the CORE (it replaces the snapshot the host pulls, and nothing downstream of it), so it
