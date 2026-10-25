@@ -57,6 +57,19 @@ pub(crate) fn resolve(root: &Path) -> Result<Brand, String> {
     })
 }
 
+/// The product token the build names itself by in an HTTP `User-Agent` (RFC 9110 §10.1.5): the
+/// name in lowercase, each run of anything but an ASCII letter or digit as one hyphen.
+/// "Allodia Mail & Calendar" is `allodia-mail-calendar`; `None` when nothing is left.
+pub(crate) fn product_token(name: &str) -> Option<String> {
+    let token = name
+        .to_ascii_lowercase()
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    (!token.is_empty()).then_some(token)
+}
+
 /// Replaces [`APP_NAME_PLACEHOLDER`] in every message of every locale.
 pub(crate) fn replace_app_name(raw: &mut Raw, name: &str) {
     for messages in raw.maps.values_mut() {
@@ -153,7 +166,8 @@ mod tests {
     };
 
     use super::{
-        APP_ID_KEY, APP_NAME_KEY, APP_NAME_PLACEHOLDER, parse, replace_app_name, tracking, value,
+        APP_ID_KEY, APP_NAME_KEY, APP_NAME_PLACEHOLDER, parse, product_token, replace_app_name,
+        tracking, value,
     };
     use crate::model::Raw;
 
@@ -295,5 +309,20 @@ mod tests {
         let err = value(&dir, APP_NAME_KEY, None).expect_err("nothing names the app");
 
         assert!(err.contains("MAILCAL_APP_NAME"), "{err}");
+    }
+
+    #[test]
+    fn the_user_agent_names_the_product_as_one_lowercase_token() {
+        assert_eq!(
+            product_token("Allodia Mail & Calendar").as_deref(),
+            Some("allodia-mail-calendar")
+        );
+        assert_eq!(product_token("MailCal").as_deref(), Some("mailcal"));
+        assert_eq!(product_token("  Été 2 Go!").as_deref(), Some("t-2-go"));
+        assert_eq!(
+            product_token("Почта"),
+            None,
+            "nothing is left to name it by"
+        );
     }
 }

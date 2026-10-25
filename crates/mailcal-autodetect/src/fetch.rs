@@ -89,6 +89,7 @@ impl Fetcher {
             .map_err(|e| DetectError::Tls(e.to_string()))?;
         let client = tls
             .reqwest_builder()
+            .user_agent(mailcal_user_agent::HEADER)
             .redirect(Policy::none())
             .connect_timeout(config.http_timeout)
             .timeout(config.http_timeout)

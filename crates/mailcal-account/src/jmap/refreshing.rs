@@ -146,10 +146,14 @@ impl RefreshingJmapProvider {
             }
         }
         log::debug!("jmap: access token changed; rebuilding the provider session");
-        let config = JmapConfig::new(self.base_url.clone(), Credentials::bearer(token.clone()))
-            .with_tls(self.tls.clone())
-            .with_retry(self.tokens.retry())
-            .with_connect_observer(connect_logger("jmap"));
+        let config = JmapConfig::new(
+            self.base_url.clone(),
+            Credentials::bearer(token.clone()),
+            crate::user_agent(),
+        )
+        .with_tls(self.tls.clone())
+        .with_retry(self.tokens.retry())
+        .with_connect_observer(connect_logger("jmap"));
         let rebuilt = JmapProvider::connect(config)
             .await
             .map_err(|err| ProviderError::retryable(err.to_string()))?;

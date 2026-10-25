@@ -39,6 +39,11 @@ names itself, and `mailcal-l10n` substitutes it at codegen time. Every call site
 takes no argument: the name is a build-time constant, not something a caller passes, and a
 per-locale copy of a constant could only drift.
 
+**The `User-Agent`** every HTTP request carries, through the engine's adapters and the core's own
+clients alike, is the name as one lowercase token with the version from [`VERSION`](../VERSION):
+`allodia-mail-calendar/0.13.0`, or `mailcal/0.13.0` unbranded. `mailcal-user-agent` derives it at
+build time, so it follows the name with nothing else to keep in step.
+
 **The id** is taken from the most authoritative source each platform offers at the point of use.
 
 | | Name | Application id | Store / package identity |

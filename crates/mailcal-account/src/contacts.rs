@@ -107,6 +107,7 @@ async fn connect_carddav_at(
         // set up before scheme normalisation still connects.
         normalize_caldav_base_url(endpoint.base_url),
         auth.credentials,
+        crate::user_agent(),
     );
     if let Some(hosts) = auth.hosts {
         config = config.with_credential_hosts(hosts);

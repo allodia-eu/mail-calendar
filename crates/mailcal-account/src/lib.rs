@@ -159,6 +159,12 @@ pub async fn connect_caldav(
         .map(|connected| connected.providers)
 }
 
+/// The `User-Agent` every engine adapter this crate opens sends ([`mailcal_user_agent`]).
+pub(crate) fn user_agent() -> engine_api::UserAgent {
+    engine_api::UserAgent::new(mailcal_user_agent::PRODUCT, mailcal_user_agent::VERSION)
+        .expect("the build names the product and version as tokens")
+}
+
 /// A DAV connect's providers, and the principal the server named on the way: what a host
 /// stores for the next connect to start from ([`DavStarts`]).
 pub struct DavConnected<T> {
@@ -230,6 +236,7 @@ async fn connect_caldav_at(
         // defaulting it to https:// here too, so existing configs connect without re-entry.
         normalize_caldav_base_url(&caldav.base_url),
         auth.credentials,
+        crate::user_agent(),
     );
     if let Some(hosts) = auth.hosts {
         config = config.with_credential_hosts(hosts);
@@ -289,6 +296,12 @@ mod error_tests;
 #[cfg(test)]
 mod tests {
     use super::{AccountConfig, AccountError, connect_caldav};
+
+    /// The engine's adapters send the same header as the requests this application makes itself.
+    #[test]
+    fn the_engine_names_this_application_as_its_own_requests_do() {
+        assert_eq!(super::user_agent().as_str(), mailcal_user_agent::HEADER);
+    }
 
     #[tokio::test]
     async fn connect_caldav_without_a_caldav_section_is_an_error() {

@@ -207,6 +207,7 @@ pub fn load_microsoft_str(text: &str) -> Result<MicrosoftConfig, ConfigError> {
 pub async fn fetch_primary_address(access_token: &str) -> Result<String, AccountError> {
     let http = tls_with(&[])?
         .reqwest_builder()
+        .user_agent(mailcal_user_agent::HEADER)
         .build()
         .map_err(|err| AccountError::Graph(format!("me lookup client: {err}")))?;
     let resp = http

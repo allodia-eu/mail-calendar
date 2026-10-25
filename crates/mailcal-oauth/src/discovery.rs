@@ -85,6 +85,7 @@ pub fn discovery_client_with(
 ) -> Result<reqwest::Client, OAuthError> {
     let tls = engine_tls::client_config(policy).map_err(OAuthError::Tls)?;
     tls.reqwest_builder()
+        .user_agent(mailcal_user_agent::HEADER)
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(OAuthError::Transport)

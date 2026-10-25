@@ -128,6 +128,7 @@ impl RefreshingGraphProvider {
             MailboxPrincipal::Me,
             &self.tls,
             &self.tokens.retry(),
+            &crate::user_agent(),
         )
         .map_err(ProviderError::from)?;
         let mut graph = GraphProvider::new(client, self.folder.clone());
@@ -234,8 +235,14 @@ async fn list_folders(
     tls: &TlsClientConfig,
 ) -> Result<Vec<Mailbox>, AccountError> {
     let token = tokens.access_token().await?;
-    let client = GraphClient::for_mailbox(token, MailboxPrincipal::Me, tls, &tokens.retry())
-        .map_err(|err| AccountError::Graph(err.to_string()))?;
+    let client = GraphClient::for_mailbox(
+        token,
+        MailboxPrincipal::Me,
+        tls,
+        &tokens.retry(),
+        &crate::user_agent(),
+    )
+    .map_err(|err| AccountError::Graph(err.to_string()))?;
     let inbox =
         MailboxId::try_from("inbox").map_err(|err| AccountError::Mailbox(err.to_string()))?;
     // Both lines carry the account's handle. One device holds several Microsoft accounts, this
