@@ -234,13 +234,7 @@ impl MailcalApp {
         };
         let zone = self.device_zone.clone();
         let outcome = match self.runtime.block_on(|| dial.run(&account_id, zone)) {
-            Ok(outcome) => {
-                self.registry
-                    .learn_dav_starts(account_id.as_str(), &outcome.learned);
-                self.registry
-                    .note_dav_dialled(account_id.as_str(), std::time::Instant::now());
-                outcome
-            }
+            Ok(outcome) => outcome,
             Err(err) => {
                 // Put the registry back as it was: remove the entry this added.
                 registered.rollback(&self.registry);
@@ -279,6 +273,12 @@ impl MailcalApp {
         // Nothing is re-inserted here: the registered entry already carries the live token source,
         // including any rotation the dial reported into it.
         registered.commit();
+        // Only once committed: an account that was not added keeps no principal for the next
+        // one set up under its id.
+        self.registry
+            .learn_dav_starts(account_id.as_str(), &outcome.learned);
+        self.registry
+            .note_dav_dialled(account_id.as_str(), std::time::Instant::now());
         self.app
             .note_use_problems(&account.id, outcome.use_problems);
         // Connected *and* stored: this account will still be here at the next launch, which is

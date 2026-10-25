@@ -188,3 +188,21 @@ fn allowing_the_change_lifts_the_pause() {
     assert_eq!(app.use_problems(&id), UseProblems::default());
     assert_eq!(app.server_change(&id), None);
 }
+
+#[test]
+fn the_same_server_change_found_again_changes_nothing_on_screen() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("a", FakeProvider::new())], &surfaces);
+    let id = engine_api::AccountId::try_from("a").unwrap();
+    app.note_server_change(&id, change(true, false));
+    surfaces.lock().unwrap().clear();
+
+    app.note_server_change(&id, change(true, false));
+    assert!(surfaces.lock().unwrap().is_empty());
+
+    app.note_server_change(&id, change(true, true));
+    assert!(
+        surfaces.lock().unwrap().contains(&Surface::Connectivity),
+        "a different change is a different question"
+    );
+}

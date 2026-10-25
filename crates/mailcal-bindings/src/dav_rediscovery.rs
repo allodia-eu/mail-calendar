@@ -176,6 +176,14 @@ impl Moved {
             follow: mailcal_autodetect::may_follow(found, stored, address),
         })
     }
+
+    /// The site it was on and the site it was found on, when both can be named.
+    fn sites(&self) -> Option<(String, String)> {
+        Some((
+            mailcal_autodetect::site_of(&self.stored)?,
+            mailcal_autodetect::site_of(&self.found)?,
+        ))
+    }
 }
 
 /// What discovery found somewhere new, sorted by whether it may be followed: `stored` with each
@@ -212,15 +220,28 @@ fn moved_endpoints(
             ..stored.clone()
         });
 
-    let (ask_caldav, ask_carddav) = (pick(&caldav, false), pick(&carddav, false));
-    let asked = caldav.iter().chain(&carddav).find(|moved| !moved.follow);
-    let change = asked.and_then(|moved| {
-        Some(mailcal_app::ServerChange {
-            previous_site: mailcal_autodetect::site_of(&moved.stored)?,
-            proposed_site: mailcal_autodetect::site_of(&moved.found)?,
-            calendar_url: ask_caldav,
-            contacts_url: ask_carddav,
-        })
+    let ask = |moved: &Option<Moved>| {
+        let moved = moved.as_ref().filter(|moved| !moved.follow)?;
+        Some((moved.sites()?, moved.found.clone()))
+    };
+    let (ask_caldav, ask_carddav) = (ask(&caldav), ask(&carddav));
+    // The question names one pair of sites, so only what moves between those two goes in it:
+    // allowing it must not send the credential to a site it did not name. A service that moves
+    // anywhere else is asked about at the next lookup.
+    let sites = ask_caldav
+        .as_ref()
+        .or(ask_carddav.as_ref())
+        .map(|(sites, _)| sites.clone());
+    let change = sites.map(|sites| {
+        let between = |ask: Option<((String, String), String)>| {
+            ask.filter(|(moved, _)| *moved == sites).map(|(_, url)| url)
+        };
+        mailcal_app::ServerChange {
+            calendar_url: between(ask_caldav),
+            contacts_url: between(ask_carddav),
+            previous_site: sites.0.clone(),
+            proposed_site: sites.1.clone(),
+        }
     });
     (endpoints, change)
 }

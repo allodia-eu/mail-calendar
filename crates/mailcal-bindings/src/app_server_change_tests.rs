@@ -83,3 +83,30 @@ fn a_new_server_that_does_not_connect_leaves_the_account_paused_where_it_was() {
     assert!(app.pending_server_change(id).is_some(), "still asked about");
     assert_eq!(app.accounts_snapshot().accounts[0].endpoints, before);
 }
+
+/// A mailbox that connects does not carry an allow on its own: a use that moves and did not
+/// connect on its new server refuses it, naming that use.
+#[test]
+fn a_moved_use_that_did_not_connect_refuses_the_allow_beside_a_working_mailbox() {
+    use mailcal_account::Capability;
+    use mailcal_app::{UseProblem, UseProblems};
+
+    use crate::account_repair::unconnected;
+
+    let calendar_down = UseProblems {
+        calendar: Some(UseProblem::Unreachable),
+        contacts: None,
+    };
+    assert!(matches!(
+        unconnected(calendar_down, &[Capability::Calendar]),
+        Some(MailcalError::UseNotConnected {
+            capability: crate::AccountCapability::Calendar,
+            problem: crate::UseProblem::Unreachable,
+        })
+    ));
+    assert!(
+        unconnected(calendar_down, &[Capability::Contacts]).is_none(),
+        "only the uses that move have to connect"
+    );
+    assert!(unconnected(calendar_down, &[]).is_none());
+}

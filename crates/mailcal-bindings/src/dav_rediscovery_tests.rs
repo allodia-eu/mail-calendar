@@ -211,3 +211,16 @@ fn one_service_is_followed_while_the_other_is_asked_about() {
 fn the_same_servers_ask_nothing() {
     assert!(asked(&found(CALDAV, CARDDAV)).is_none());
 }
+
+#[test]
+fn a_question_names_every_site_its_allow_would_send_the_credential_to() {
+    let calendar = "https://dav.elsewhere.example.net/.well-known/caldav";
+    let books = "https://books.another.example.org/.well-known/carddav";
+    let change = asked(&found(calendar, books)).expect("asked about");
+    assert_eq!(change.proposed_site, "example.net");
+    assert_eq!(change.calendar_url.as_deref(), Some(calendar));
+    assert_eq!(
+        change.contacts_url, None,
+        "the contacts moved to a site the question does not name"
+    );
+}

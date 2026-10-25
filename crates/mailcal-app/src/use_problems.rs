@@ -134,7 +134,8 @@ impl<P> App<P> {
     }
 
     /// Pauses `account`'s calendar or contacts, whichever `change` moves, until the person allows
-    /// the servers found on another site, or the use connects again by itself.
+    /// the servers found on another site, or the use connects again by itself. Signals
+    /// [`Surface::Connectivity`] only when that changes.
     pub fn note_server_change(&self, account: &AccountId, change: ServerChange) {
         let mut state = self
             .use_problems
@@ -152,6 +153,11 @@ impl<P> App<P> {
             problems.contacts = Some(UseProblem::ServerChanged);
         }
         if !problems.any(UseProblem::ServerChanged) {
+            return;
+        }
+        let unchanged = state.problems.get(account.as_str()) == Some(&problems)
+            && state.changes.get(account.as_str()) == Some(&change);
+        if unchanged {
             return;
         }
         state.problems.insert(account.as_str().to_owned(), problems);

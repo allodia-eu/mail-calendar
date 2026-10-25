@@ -73,12 +73,10 @@ impl AccountRegistry {
     }
 
     fn store_dav_starts(&self, id: &str, starts: &DavStarts) {
-        let file = self
-            .dav_starts
-            .lock()
-            .expect("dav-starts mutex poisoned")
-            .clone();
-        if let Some(file) = file
+        // Held across the write: the file is read, changed and written whole, and dials run
+        // concurrently, so two stores interleaved would lose one account's principals.
+        let file = self.dav_starts.lock().expect("dav-starts mutex poisoned");
+        if let Some(file) = file.as_ref()
             && let Err(error) = file.store(id, starts)
         {
             // The cache only saves the next connect a step: it starts from the configured server

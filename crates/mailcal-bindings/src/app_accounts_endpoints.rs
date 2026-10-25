@@ -33,6 +33,20 @@ impl MailcalApp {
         account_id: String,
         endpoints: AccountEndpoints,
     ) -> Result<(), MailcalError> {
+        self.replace_endpoints(account_id, endpoints, &[])
+    }
+}
+
+impl MailcalApp {
+    /// [`MailcalApp::update_account_endpoints`], refusing the edit unless each use in
+    /// `must_connect` connects on the new servers, with
+    /// [`MailcalError::UseNotConnected`] naming the first that did not.
+    pub(crate) fn replace_endpoints(
+        &self,
+        account_id: String,
+        endpoints: AccountEndpoints,
+        must_connect: &[mailcal_account::Capability],
+    ) -> Result<(), MailcalError> {
         let (config_toml, moved) = self
             .registry
             .edited_endpoints(&account_id, &endpoints.into())?;
@@ -51,6 +65,7 @@ impl MailcalApp {
             "edited servers",
             &forget,
             None,
+            must_connect,
         )?;
         self.app.accounts_changed();
         Ok(())

@@ -7,6 +7,7 @@
 //! the person allows it.
 
 use engine_api::AccountId;
+use mailcal_account::Capability;
 
 use crate::{AccountEndpoints, MailcalApp, MailcalError};
 
@@ -54,8 +55,9 @@ impl MailcalApp {
     ///
     /// # Errors
     ///
-    /// Returns [`MailcalError::Config`] when the account waits on no server change, and what
-    /// [`MailcalApp::update_account_endpoints`] returns when the new servers do not connect; the
+    /// Returns [`MailcalError::Config`] when the account waits on no server change,
+    /// [`MailcalError::UseNotConnected`] when a use it moves does not connect on its new server,
+    /// and what [`MailcalApp::update_account_endpoints`] returns when the account does not; the
     /// account stays paused as it was.
     pub fn accept_server_change(&self, account_id: String) -> Result<(), MailcalError> {
         let id = AccountId::try_from(account_id.as_str())
@@ -78,7 +80,16 @@ impl MailcalApp {
             password: None,
             ..stored
         };
-        self.update_account_endpoints(account_id, endpoints)?;
+        // A mailbox that connects is not enough: the uses that move have to connect on the new
+        // servers too, or the account stays paused where it was.
+        let moved: Vec<_> = [
+            (change.calendar_url.is_some(), Capability::Calendar),
+            (change.contacts_url.is_some(), Capability::Contacts),
+        ]
+        .into_iter()
+        .filter_map(|(moved, capability)| moved.then_some(capability))
+        .collect();
+        self.replace_endpoints(account_id, endpoints, &moved)?;
         self.app.forget_server_change(&id);
         Ok(())
     }

@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use mailcal_account::CredentialOrigin;
+use mailcal_account::{Capability, CredentialOrigin};
 
 use crate::{MailcalApp, MailcalError, account_sign_in::Replacement, boot, connection_log};
 
@@ -61,7 +61,7 @@ impl MailcalApp {
         persistence: CredentialPersistence,
         family: &'static str,
     ) -> Result<(), MailcalError> {
-        self.install_replacement(account_id, prepared, persistence, family, &[], None)
+        self.install_replacement(account_id, prepared, persistence, family, &[], None, &[])
     }
 
     /// [`Self::install_repaired_account`] for a grant a browser sign-in just issued, which must
@@ -82,11 +82,14 @@ impl MailcalApp {
             family,
             &[],
             Some(address),
+            &[],
         )
     }
 
     /// [`Self::install_repaired_account`], forgetting `forget` once the replacement has connected
     /// and been stored and before it syncs: the domains whose server it moved to another host.
+    /// Each use in `must_connect` has to connect beside the account, or nothing is stored.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn install_replacement(
         &self,
         account_id: &str,
@@ -95,6 +98,7 @@ impl MailcalApp {
         family: &'static str,
         forget: &[engine_api::SearchDomain],
         mailbox: Option<&str>,
+        must_connect: &[Capability],
     ) -> Result<(), MailcalError> {
         let id = prepared.account.id.clone();
         if id.as_str() != account_id {
@@ -113,12 +117,7 @@ impl MailcalApp {
             .runtime
             .block_on(|| dial.run(&id, self.device_zone.clone()))
         {
-            Ok(outcome) => {
-                self.registry.learn_dav_starts(account_id, &outcome.learned);
-                self.registry
-                    .note_dav_dialled(account_id, std::time::Instant::now());
-                outcome
-            }
+            Ok(outcome) => outcome,
             Err(error) => {
                 registered.rollback(&self.registry);
                 log::warn!(
@@ -139,6 +138,15 @@ impl MailcalApp {
             );
             return Err(MailcalError::DifferentAccount);
         }
+        if let Some(error) = unconnected(outcome.use_problems, must_connect) {
+            registered.rollback(&self.registry);
+            log::warn!(
+                "credential repair: [{}] a use the {family} replacement moved did not connect; \
+                 the account is unchanged",
+                mailcal_account::account_log_handle(account_id),
+            );
+            return Err(error);
+        }
         let persisted = match persistence {
             CredentialPersistence::Provided(config_toml) => {
                 self.persist_credential(account_id, config_toml)
@@ -150,6 +158,11 @@ impl MailcalApp {
             return Err(error);
         }
         registered.commit();
+        // Only once committed: a principal learned by a replacement that was rolled back would
+        // start the next connect of the account it did not replace.
+        self.registry.learn_dav_starts(account_id, &outcome.learned);
+        self.registry
+            .note_dav_dialled(account_id, std::time::Instant::now());
         self.app.note_use_problems(&id, outcome.use_problems);
         if let Some(error) = outcome.calendar_error {
             self.calendar_connect_errors
@@ -211,6 +224,24 @@ impl MailcalApp {
     }
 }
 
+/// The first use in `required` that `problems` says did not connect, as the error that says so.
+pub(crate) fn unconnected(
+    problems: mailcal_app::UseProblems,
+    required: &[Capability],
+) -> Option<MailcalError> {
+    required.iter().find_map(|&capability| {
+        let problem = match capability {
+            Capability::Calendar => problems.calendar,
+            Capability::Contacts => problems.contacts,
+            _ => None,
+        }?;
+        Some(MailcalError::UseNotConnected {
+            capability: capability.into(),
+            problem: problem.into(),
+        })
+    })
+}
+
 impl MailcalApp {
     /// Connects `account_id` with `replacement`, then stores it and installs it in place of the
     /// account's registry entry, deleting what the device holds of each of `forget`; on any
@@ -246,6 +277,7 @@ impl MailcalApp {
                 "sign-in",
                 forget,
                 Some(&address),
+                &[],
             )?;
         } else {
             self.install_replacement(
@@ -255,6 +287,7 @@ impl MailcalApp {
                 "sign-in",
                 forget,
                 None,
+                &[],
             )?;
         }
         self.app.accounts_changed();
