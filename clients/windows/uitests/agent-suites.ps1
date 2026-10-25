@@ -24,6 +24,47 @@ function Get-AgentSuites {
 
 <#
 .SYNOPSIS
+What each case did, read from `dotnet test`'s console logger at normal verbosity, as
+@{ Passed; Failed; Skipped } lists of "<suite> / <case>: <why>" and the same cases in run order.
+.DESCRIPTION
+A failure's reason is the logger's "Error Message:" block, every line up to "Stack Trace:". Its
+first line is the message an assertion was given, which names neither an exception nor an assert
+unless the case threw one.
+#>
+function ConvertFrom-AgentTestOutput {
+  param([AllowEmptyCollection()] [AllowEmptyString()] [string[]] $Lines = @())
+  $result = @{ Passed = @(); Failed = @(); Skipped = @(); Order = @() }
+  for ($i = 0; $i -lt $Lines.Count; $i++) {
+    if ($Lines[$i] -notmatch '^\s+(Passed|Failed|Skipped) Allodia\.Mailcal\.UiTests\.Suites\.(\w+)Tests\.(\w+)') { continue }
+    $outcome = $Matches[1]
+    $case = "$($Matches[2]).Tests / $($Matches[3])"
+    $why = ''
+    switch ($outcome) {
+      'Passed' { $result.Passed += $case }
+      'Skipped' {
+        $why = if ($i + 1 -lt $Lines.Count) { $Lines[$i + 1].Trim() } else { '' }
+        $result.Skipped += "${case}: $why"
+      }
+      'Failed' {
+        $message = @()
+        $j = $i + 1
+        if ($j -lt $Lines.Count -and $Lines[$j].Trim() -eq 'Error Message:') {
+          for ($j++; $j -lt $Lines.Count -and $Lines[$j].Trim() -ne 'Stack Trace:'; $j++) {
+            if ($Lines[$j] -match '^\s+(Passed|Failed|Skipped) Allodia\.') { break }
+            if ($Lines[$j].Trim()) { $message += $Lines[$j].Trim() }
+          }
+        }
+        $why = $message -join ' '
+        $result.Failed += "${case}: $why"
+      }
+    }
+    $result.Order += [pscustomobject]@{ Outcome = $outcome; Case = $case; Why = $why }
+  }
+  $result
+}
+
+<#
+.SYNOPSIS
 Runs the given agent suites with `dotnet test` and returns what each case did, as
 @{ Passed; Failed; Skipped } lists of "<suite> / <case>: <why>".
 .DESCRIPTION
@@ -42,21 +83,12 @@ function Invoke-AgentSuites {
   finally {
     Remove-Item env:MAILCAL_UITESTS_REQUIRE_HARNESS -ErrorAction SilentlyContinue
   }
-  $result = @{ Passed = @(); Failed = @(); Skipped = @() }
-  for ($i = 0; $i -lt $output.Count; $i++) {
-    if ($output[$i] -notmatch '^\s+(Passed|Failed|Skipped) Allodia\.Mailcal\.UiTests\.Suites\.(\w+)Tests\.(\w+)') { continue }
-    $case = "$($Matches[2]).Tests / $($Matches[3])"
-    switch ($Matches[1]) {
-      'Passed' { $result.Passed += $case; Write-Host "  PASS  $case" -ForegroundColor Green }
-      'Skipped' {
-        $why = if ($i + 1 -lt $output.Count) { $output[$i + 1].Trim() } else { '' }
-        $result.Skipped += "${case}: $why"; Write-Host "  SKIP  $case" -ForegroundColor Yellow
-      }
-      'Failed' {
-        $why = ($output[($i + 1)..([Math]::Min($i + 3, $output.Count - 1))] | Where-Object { $_ -match 'Exception|Assert' } | Select-Object -First 1)
-        $result.Failed += "${case}: $("$why".Trim())"; Write-Host "  FAIL  $case" -ForegroundColor Red
-        Write-Host "        $("$why".Trim())" -ForegroundColor Red
-      }
+  $result = ConvertFrom-AgentTestOutput -Lines $output
+  foreach ($line in $result.Order) {
+    switch ($line.Outcome) {
+      'Passed' { Write-Host "  PASS  $($line.Case)" -ForegroundColor Green }
+      'Skipped' { Write-Host "  SKIP  $($line.Case)" -ForegroundColor Yellow }
+      'Failed' { Write-Host "  FAIL  $($line.Case)" -ForegroundColor Red; Write-Host "        $($line.Why)" -ForegroundColor Red }
     }
   }
   # A build that failed, or a run that reported nothing, is a failure that names no case.
