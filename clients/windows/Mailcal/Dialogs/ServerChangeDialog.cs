@@ -1,0 +1,66 @@
+// The question a calendar or address book server found on another site asks, as the calendar and
+// contacts screens open it (docs/account-autodetect.md rule 14). The account's page draws the same
+// question inline (SettingsDialog.AccountServerChange.cs).
+
+using Allodia.Mailcal.Services;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Controls;
+
+namespace Allodia.Mailcal.Dialogs;
+
+internal static class ServerChangeDialog
+{
+    /// <summary>Asks about <paramref name="accountId"/>'s pending change; shows nothing when none
+    /// is pending, such as one allowed meanwhile.</summary>
+    internal static async Task AskAsync(XamlRoot root, MailboxModel model, string accountId)
+    {
+        var change = await model.PendingServerChangeAsync(accountId);
+        if (change is null)
+        {
+            return;
+        }
+        var copy = ServerChangeViews.Copy(change, model.AccountAddress(accountId));
+        var content = ServerChangeViews.Panel(copy, titled: false);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = copy.Title,
+            Content = content.Panel,
+            PrimaryButtonText = L10n.ServerChangedAllow(),
+            CloseButtonText = L10n.ServerChangedNotNow(),
+            // Enter and Escape both answer "Not now": allowing a server is never the easy press.
+            DefaultButton = ContentDialogButton.Close,
+        };
+        AutomationProperties.SetAutomationId(dialog, "ServerChangePrompt");
+        var busy = false;
+        dialog.PrimaryButtonClick += async (_, args) =>
+        {
+            // Open until the core answers, so a failure is said where the question was asked.
+            var deferral = args.GetDeferral();
+            busy = true;
+            dialog.IsPrimaryButtonEnabled = false;
+            content.Say(null);
+            content.Busy(true);
+            var allowed = await model.AcceptServerChangeAsync(accountId);
+            busy = false;
+            content.Busy(false);
+            dialog.IsPrimaryButtonEnabled = true;
+            if (!allowed)
+            {
+                args.Cancel = true;
+                content.Say(L10n.ServerChangedFailed());
+            }
+            deferral.Complete();
+        };
+        // Closing would not stop an allow already under way, so "Not now" waits for its answer.
+        dialog.Closing += (_, args) =>
+        {
+            if (busy)
+            {
+                args.Cancel = true;
+            }
+        };
+        await DialogHelper.ShowAsync(dialog);
+    }
+}

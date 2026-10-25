@@ -239,6 +239,11 @@
          last-synced sentence, one per account. L10n-free, the words arrive as parameters. -->
     <Compile Include="..\Mailcal\Services\UseOutageLines.cs" Link="Services\UseOutageLines.cs" />
     <Compile Include="..\Mailcal\ViewModels\UseOutageLine.cs" Link="ViewModels\UseOutageLine.cs" />
+    <!-- The question a calendar or address book server found on another site asks
+         (docs/account-autodetect.md rule 14): which title, body and closing line a change earns,
+         and where each site sits in its line, which is drawn in bold. L10n-free, the words arrive
+         as parameters. -->
+    <Compile Include="..\Mailcal\Services\ServerChangeCopy.cs" Link="Services\ServerChangeCopy.cs" />
     <Compile Include="..\Mailcal\Services\AccountEndpointEdit.cs" Link="Services\AccountEndpointEdit.cs" />
     <!-- What a setup card's toggles make of an account (docs/account-autodetect.md rule 8): which
          uses it is set up with and which servers it stores. Silent when wrong: contacts found only

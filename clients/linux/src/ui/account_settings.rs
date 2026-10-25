@@ -51,6 +51,14 @@ pub(crate) enum AccountsInput {
     /// A sign-in of its own for a mailbox's calendar and contacts, from its page or from setup
     /// (`super::separate_sign_in`).
     Separate(super::separate_sign_in::SeparateInput),
+    /// Allow the server found on another site for an account's calendar or contacts
+    /// (`super::server_change`).
+    AllowServerChange {
+        account: String,
+        from: super::server_change::ReviewFrom,
+    },
+    /// Allowing it failed, asked from outside Settings: the account's page says so.
+    ServerChangeFailed(String),
 }
 
 /// An account's edited servers and sign-in, on their way to the core.
@@ -170,6 +178,13 @@ impl AppModel {
             AccountsInput::Refused(notice) => self.settings.say(notice),
             AccountsInput::SignIn(input) => self.sign_in_input(input, sender),
             AccountsInput::Separate(input) => self.separate_input(input, sender),
+            AccountsInput::AllowServerChange { account, from } => {
+                self.allow_server_change(account, from, sender);
+            }
+            AccountsInput::ServerChangeFailed(account) => {
+                self.settings
+                    .open_on_account(account, super::server_change::failed());
+            }
         }
     }
 

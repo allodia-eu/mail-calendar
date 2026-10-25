@@ -181,7 +181,7 @@ use tuning::{
     MIN_LOAD_WINDOW, PAGE, SEARCH_FETCH_LIMIT, SEARCH_LIMIT, WINDOW_BUCKET, WINDOW_ROW_FACTOR,
 };
 pub use unfiled_copy::UnfiledCopy;
-pub use use_problems::{UseProblem, UseProblems};
+pub use use_problems::{ServerChange, UseProblem, UseProblems};
 use view_settings::load_view_mode;
 pub use zones::available_time_zones;
 
@@ -393,7 +393,7 @@ pub struct App<P> {
     mail_reauth_accounts: Mutex<BTreeSet<String>>,
     /// What stopped each account's calendar or contacts from connecting while the account itself
     /// did ([`use_problems`](crate::use_problems)).
-    use_problems: Mutex<BTreeMap<String, use_problems::UseProblems>>,
+    use_problems: Mutex<use_problems::UseState>,
     /// Where each account's links are read from ([`account_links`]).
     links: Mutex<account_links::LinkState>,
     /// Accounts whose stored OAuth grant is **dead**: the refresh token expired or was revoked,

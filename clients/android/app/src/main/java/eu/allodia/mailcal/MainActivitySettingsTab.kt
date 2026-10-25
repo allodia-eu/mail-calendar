@@ -221,5 +221,6 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     onConnectSeparate = { username, password -> connectPageSeparate(username, password) },
     onSeparateFormShown = { askSeparateSignIn(accountSettings.separate) },
     onSeparateProviderSignIn = { signInSeparate(accountSettings.separate) },
+    onReviewServerChange = { id -> reviewServerChange(id) },
     onRemove = { id -> removeAccount(id) },
 )

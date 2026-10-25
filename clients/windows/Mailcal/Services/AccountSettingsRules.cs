@@ -31,6 +31,11 @@ internal enum UseNote
     OwnSignInCalendar,
     /// <summary>As <see cref="OwnSignInCalendar"/>, for the address book.</summary>
     OwnSignInContacts,
+    /// <summary>On, and paused for a server found on another site that the person has not
+    /// allowed yet.</summary>
+    ServerChangedCalendar,
+    /// <summary>As <see cref="ServerChangedCalendar"/>, for the address book.</summary>
+    ServerChangedContacts,
 }
 
 /// <summary>How one use's switch is drawn.</summary>
@@ -206,9 +211,15 @@ internal static class AccountSettingsRules
             UseProblem.Unreachable => calendar ? UseNote.UnreachableCalendar : UseNote.UnreachableContacts,
             UseProblem.SignInRefused => calendar ? UseNote.RefusedCalendar : UseNote.RefusedContacts,
             UseProblem.NeedsOwnSignIn => calendar ? UseNote.OwnSignInCalendar : UseNote.OwnSignInContacts,
+            UseProblem.ServerChanged => calendar ? UseNote.ServerChangedCalendar : UseNote.ServerChangedContacts,
             _ => calendar ? UseNote.OwnSignInCalendar : UseNote.OwnSignInContacts,
         };
     }
+
+    /// <summary>Whether <paramref name="note"/> offers a review of the server change, which is
+    /// what allows the new server.</summary>
+    internal static bool ReviewsServerChange(UseNote note) =>
+        note is UseNote.ServerChangedCalendar or UseNote.ServerChangedContacts;
 
     /// <summary>
     /// The switch for <paramref name="capability"/>. The last of mail, calendar and contacts

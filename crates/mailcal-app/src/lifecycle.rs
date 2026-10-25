@@ -137,7 +137,7 @@ impl<P: Provider> App<P> {
             unreachable_accounts: Mutex::new(BTreeMap::new()),
             calendar_reauth_accounts: Mutex::new(BTreeSet::new()),
             mail_reauth_accounts: Mutex::new(BTreeSet::new()),
-            use_problems: Mutex::new(BTreeMap::new()),
+            use_problems: Mutex::default(),
             links: Mutex::default(),
             signin_expired_accounts: Mutex::new(BTreeSet::new()),
             observer,

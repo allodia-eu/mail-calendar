@@ -16,6 +16,9 @@ struct UseOutageLine: Equatable, Identifiable {
     /// The account whose page the line's action opens.
     let account: String
     let text: String
+    /// Whether the action is "Review", which asks about a server on another site, rather than
+    /// opening the account's page.
+    var reviews = false
 
     var id: String { account }
 }
@@ -40,7 +43,8 @@ enum UseOutageRules {
         outages.map {
             UseOutageLine(
                 account: $0.accountId,
-                text: text($0.problem, use, address: address($0.accountId))
+                text: text($0.problem, use, address: address($0.accountId)),
+                reviews: $0.problem == .serverChanged
             )
         }
     }

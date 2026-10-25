@@ -43,7 +43,9 @@ pub(crate) async fn reconnect_uses(
                 Ok(_) if !registry.contains(id.as_str()) => {}
                 Ok(outcome) => {
                     app.note_use_problems(&id, outcome.use_problems);
-                    if outcome.calendar_error.is_some() {
+                    registry.learn_dav_starts(id.as_str(), &outcome.learned);
+                    registry.note_dav_dialled(id.as_str(), std::time::Instant::now());
+                    if outcome.rediscover {
                         unanswered
                             .lock()
                             .expect("unanswered mutex poisoned")

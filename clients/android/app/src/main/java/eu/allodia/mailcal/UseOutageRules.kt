@@ -15,8 +15,11 @@ internal enum class OutageUse(val capability: AccountCapability) {
     CONTACTS(AccountCapability.CONTACTS),
 }
 
-/** One line above the week or the list: the account it names, whose page its action opens. */
-internal data class OutageLine(val accountId: String, val text: String)
+/**
+ * One line above the week or the list: the account it names, whose page its action opens, or,
+ * when [reviews], whose new server its action asks about (docs/account-autodetect.md rule 14).
+ */
+internal data class OutageLine(val accountId: String, val text: String, val reviews: Boolean = false)
 
 internal object UseOutageRules {
     /** Title, reason and "last synced", in that order, as one line. */
@@ -46,7 +49,11 @@ internal object UseOutageRules {
         }.orEmpty()
         return outages.map { outage ->
             val address = addressOf(outage.accountId)
-            OutageLine(outage.accountId, text(ctx, use, address, outage.problem))
+            OutageLine(
+                outage.accountId,
+                text(ctx, use, address, outage.problem),
+                reviews = reviewsServerChange(problemNote(use.capability, outage.problem)),
+            )
         }
     }
 }

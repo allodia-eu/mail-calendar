@@ -46,8 +46,8 @@
             </InfoBar>
             <!-- A calendar that did not connect on an account that did, one bar per account: the
                  week below is what was last synced (docs/calendar.md §4). "Account settings" opens
-                 that account's page, where the remedy is. With no outage the list is empty and
-                 takes no space. -->
+                 that account's page, where the remedy is, and "Review" a paused server change's
+                 question. With no outage the list is empty and takes no space. -->
             <ItemsControl ItemsSource="{x:Bind Model.CalendarOutageLines, Mode=OneWay}"
                           AutomationProperties.AutomationId="CalendarOutages">
                 <ItemsControl.ItemTemplate>
@@ -59,7 +59,7 @@
                                  AutomationProperties.AutomationId="CalendarOutageBanner"
                                  Message="{x:Bind Text, Mode=OneTime}">
                             <InfoBar.Content>
-                                <Button Content="{x:Bind l10n:L10n.UseOutageOpenAccount(), Mode=OneTime}"
+                                <Button Content="{x:Bind Action, Mode=OneTime}"
                                         Margin="0,8,0,12"
                                         Tag="{x:Bind Mode=OneTime}"
                                         AutomationProperties.AutomationId="CalendarOutageAction"

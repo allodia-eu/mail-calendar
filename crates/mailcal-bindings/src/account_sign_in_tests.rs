@@ -48,6 +48,7 @@ fn imap_account(who: &str, signed_in: bool) -> (String, String) {
         oauth: signed_in.then(grant),
         certificate_exceptions: Vec::new(),
         shape: mailcal_account::AccountShape::default(),
+        dav_starts: mailcal_account::DavStarts::default(),
     };
     let id = config.account_id().expect("a valid account id");
     (
@@ -153,6 +154,7 @@ fn calendar_account(who: &str, password: &str) -> (String, String) {
         oauth: None,
         certificate_exceptions: Vec::new(),
         shape: mailcal_account::AccountShape::default(),
+        dav_starts: mailcal_account::DavStarts::default(),
     };
     let id = config.account_id().expect("a valid account id");
     (

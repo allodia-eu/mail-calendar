@@ -19,6 +19,8 @@ internal static class AccountUseText
         UseNote.RefusedContacts => L10n.SettingsAccountUseRefusedContacts(),
         UseNote.OwnSignInCalendar => L10n.SettingsAccountUseOwnSignInCalendar(),
         UseNote.OwnSignInContacts => L10n.SettingsAccountUseOwnSignInContacts(),
+        UseNote.ServerChangedCalendar => L10n.SettingsAccountUseServerChangedCalendar(),
+        UseNote.ServerChangedContacts => L10n.SettingsAccountUseServerChangedContacts(),
         _ => null,
     };
 
@@ -27,5 +29,7 @@ internal static class AccountUseText
         L10n.CalendarOutageTitle,
         L10n.ContactsOutageTitle,
         Note,
-        L10n.UseOutageLastSynced());
+        L10n.UseOutageLastSynced(),
+        L10n.UseOutageOpenAccount(),
+        L10n.ServerChangedReview());
 }

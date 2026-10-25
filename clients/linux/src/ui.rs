@@ -106,6 +106,7 @@ mod selection_input;
 mod separate_server_sign_in;
 mod separate_sign_in;
 mod separate_sign_in_view;
+mod server_change;
 mod settings;
 mod setup;
 mod setup_already_set_up;

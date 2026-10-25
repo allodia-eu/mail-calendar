@@ -186,6 +186,7 @@ struct AccountUsesSection: View {
     @State private var confirmingOff: AccountCapability?
     /// The use under which the sign-in of its own is open.
     @State private var separateServerUnder: AccountCapability?
+    @State private var serverChange: ServerChangeReview?
 
     init(
         model: MailboxModel, entry: AccountEntry, alert: Binding<AccountPageAlert?>,
@@ -246,6 +247,12 @@ struct AccountUsesSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if AccountSettingsRules.reviewsServerChange(toggle.note) {
+                Button(L10n.server_changed_review()) {
+                    serverChange = model.serverChangeReview(entry.id)
+                }
+                .controlSize(.small)
             }
             separateServer(capability)
         }

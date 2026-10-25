@@ -169,6 +169,15 @@ impl AccountError {
         }
     }
 
+    /// Whether this is a DAV server saying the start it was given is **gone**: a `404`, `410` or
+    /// `403`, or an answer that names no home (the engine's `Permanent` class). Distinct from a
+    /// server that could not be reached (a timeout, DNS, a `5xx`, `429`), which changes nothing:
+    /// only a gone start is worth finding the servers again for (RFC 6764 §6).
+    #[must_use]
+    pub fn is_gone(&self) -> bool {
+        matches!(self, Self::CalDav(err) if err.failure_class() == FailureClass::Permanent)
+    }
+
     /// The verdict for the connect that first presents a DAV endpoint's credential: an
     /// [authentication-class](FailureClass::Authentication) refusal becomes
     /// [`Self::SigninRejected`], anything else [`Self::CalDav`].

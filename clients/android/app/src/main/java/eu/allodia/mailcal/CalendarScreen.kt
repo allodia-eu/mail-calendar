@@ -105,9 +105,11 @@ internal fun CalendarScreen(
     // action that signs one in again in place to grant it.
     calendarReauth: List<NamedAccount> = emptyList(),
     onReconnectCalendar: (accountId: String) -> Unit = {},
-    // The calendars that did not connect, one line each, and the account page their action opens.
+    // The calendars that did not connect, one line each, and the account page their action opens,
+    // or the question that allows a calendar's new server.
     outages: List<OutageLine> = emptyList(),
     onOpenAccount: (accountId: String) -> Unit = {},
+    onReviewServerChange: (accountId: String) -> Unit = {},
     clock: () -> LocalDateTime = { LocalDateTime.now() },
 ) {
     val ctx = LocalContext.current
@@ -285,7 +287,7 @@ internal fun CalendarScreen(
         // A Microsoft account connected before calendar support (or with revoked consent) syncs no
         // calendar until it re-authenticates, prompt for it here, where its absence is felt.
         CalendarReauthBanner(calendarReauth, onReconnectCalendar, ctx)
-        UseOutageBanner(outages, onOpenAccount, ctx)
+        UseOutageBanner(outages, onOpenAccount, ctx, onReviewServerChange)
         if (pager.mode.isMonth) {
             HorizontalPager(
                 state = pagerState,

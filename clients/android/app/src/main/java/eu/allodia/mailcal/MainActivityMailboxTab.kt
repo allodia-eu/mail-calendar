@@ -103,6 +103,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 writeLine = contactWrites.line(LocalContext.current),
                                 outages = outageLines(OutageUse.CONTACTS, LocalContext.current),
                                 onOpenAccount = { id -> openAccountPage(id) },
+                                onReviewServerChange = { id -> reviewServerChange(id) },
                                 canCreate = contactWrites.targets.isNotEmpty(),
                                 onCreate = {
                                     contactWrites.editor =
@@ -269,6 +270,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 onReconnectCalendar = { id -> signInAgain(id, emptyList()) },
                                 outages = outageLines(OutageUse.CALENDAR, LocalContext.current),
                                 onOpenAccount = { id -> openAccountPage(id) },
+                                onReviewServerChange = { id -> reviewServerChange(id) },
                             )
                           } else {
                             // The folder navigation drawer wraps the mailbox screen so it can

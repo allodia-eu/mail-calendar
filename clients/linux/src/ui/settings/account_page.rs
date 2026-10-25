@@ -10,7 +10,11 @@ use super::{
 };
 use crate::{
     l10n,
-    ui::{AppInput, account_settings::AccountsInput},
+    ui::{
+        AppInput,
+        account_settings::AccountsInput,
+        server_change::{self, Review, ReviewFrom},
+    },
 };
 
 pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
@@ -113,8 +117,30 @@ fn uses_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup 
         {
             section.add(&action);
         }
+        // Under the note that says it is paused: the question about the server found elsewhere.
+        if account_rows::review_after(entry) == Some(capability)
+            && let Some(action) = review_row(ctx, entry)
+        {
+            section.add(&action);
+        }
     }
     section
+}
+
+/// "Review", which asks whether to allow the server the calendar or contacts was found on.
+fn review_row(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::ButtonRow> {
+    let review = Review {
+        address: entry.address.clone(),
+        change: ctx.app.pending_server_change(entry.id.clone())?,
+    };
+    let row = adw::ButtonRow::new();
+    row.set_use_markup(false);
+    row.set_title(l10n::server_changed_review());
+    let (parent, sender, account) = (ctx.window.clone(), ctx.sender.clone(), entry.id.clone());
+    row.connect_activated(move |_| {
+        server_change::ask(&parent, &account, &review, ReviewFrom::Settings, &sender);
+    });
+    Some(row)
 }
 
 /// Asks before switching a use off; cancelling puts the switch back.

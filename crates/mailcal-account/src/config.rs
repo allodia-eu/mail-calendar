@@ -96,6 +96,11 @@ pub struct AccountConfig {
     /// kind's own section.
     #[serde(skip)]
     pub shape: crate::AccountShape,
+    /// The principal each DAV use named on its last successful connect, where its next connect
+    /// starts ([`DavStarts`](crate::DavStarts)). Kept beside the stored config by the host, never
+    /// in it: a cache of what worked, not what setup chose.
+    #[serde(skip)]
+    pub dav_starts: crate::DavStarts,
 }
 
 /// An IMAP endpoint: the `host:port` to dial, the TLS server name, and credentials.

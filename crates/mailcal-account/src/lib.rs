@@ -22,6 +22,7 @@ mod connect_log;
 mod consent;
 mod contacts;
 mod contacts_edit;
+mod dav_starts;
 mod delegate_info;
 /// Dev-only extra-CA trust for the local test harness; compiled out of production builds (present
 /// in a debug build, or a release build with the `dev-harness` feature for the Android dev loop).
@@ -68,8 +69,9 @@ pub use config::{
 pub use config_dav::{CardDavAccount, grant_reaches};
 pub use config_edit::{EditedAccount, EndpointEdit};
 pub use consent::{requested_scopes, withheld};
-pub use contacts::connect_carddav_contact_providers;
+pub use contacts::{connect_carddav_contact_providers, connect_carddav_learning};
 pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
+pub use dav_starts::{DavStarts, DavStartsFile};
 use engine_core::{ids::AccountId, sync::SyncUpdate};
 use engine_provider::Provider;
 pub use error::AccountError;
@@ -152,6 +154,60 @@ pub async fn connect_caldav(
     account: &AccountConfig,
     tokens: ImapTokens<'_>,
 ) -> Result<Box<dyn Provider>, AccountError> {
+    connect_caldav_learning(account, tokens)
+        .await
+        .map(|connected| connected.providers)
+}
+
+/// A DAV connect's providers, and the principal the server named on the way: what a host
+/// stores for the next connect to start from ([`DavStarts`]).
+pub struct DavConnected<T> {
+    /// The connected providers.
+    pub providers: T,
+    /// The principal URL the server named, absolute, when it named one.
+    pub principal: Option<String>,
+}
+
+impl<T> std::fmt::Debug for DavConnected<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The providers hold connection handles; the principal is what the result is about.
+        f.debug_struct("DavConnected")
+            .field("principal", &self.principal)
+            .finish_non_exhaustive()
+    }
+}
+
+/// [`connect_caldav`], reporting the principal the server named. It starts at the principal the
+/// last connect stored ([`DavStarts::calendar`]) when there is one, and from the configured
+/// server when there is none or the server says it is gone, so a principal that moved within the
+/// server is found again without looking up DNS.
+///
+/// # Errors
+///
+/// As [`connect_caldav`].
+pub async fn connect_caldav_learning(
+    account: &AccountConfig,
+    tokens: ImapTokens<'_>,
+) -> Result<DavConnected<Box<dyn Provider>>, AccountError> {
+    if let Some(start) = account.dav_starts.calendar.as_deref() {
+        match connect_caldav_at(account, tokens, Some(start)).await {
+            Err(err) if err.is_gone() => {
+                log::info!(
+                    "caldav: the stored principal is gone; starting from the configured server"
+                );
+            }
+            connected => return connected,
+        }
+    }
+    connect_caldav_at(account, tokens, None).await
+}
+
+/// One CalDAV connect, starting at `start` when given and at the configured server otherwise.
+async fn connect_caldav_at(
+    account: &AccountConfig,
+    tokens: ImapTokens<'_>,
+    start: Option<&str>,
+) -> Result<DavConnected<Box<dyn Provider>>, AccountError> {
     let endpoint = account.caldav_endpoint().ok_or(AccountError::NoCalDav)?;
     let auth =
         config_dav::dav_credentials(account, endpoint, mailcal_oauth::DavUse::Calendars, tokens)
@@ -167,6 +223,9 @@ pub async fn connect_caldav(
     if let Some(hosts) = auth.hosts {
         config = config.with_credential_hosts(hosts);
     }
+    if let Some(start) = start {
+        config = config.with_discovery_path(start);
+    }
     let config = config
     // A clone shares the record of what it refused, so a refusal reads back from `tls`.
     .with_tls(tls.clone())
@@ -181,7 +240,11 @@ pub async fn connect_caldav(
         None => connect_primary_calendar(config).await,
     }
     .map_err(|err| err.over_tls(&tls))?;
-    Ok(Box::new(provider))
+    let principal = provider.principal_url().map(str::to_owned);
+    Ok(DavConnected {
+        providers: Box::new(provider),
+        principal,
+    })
 }
 
 /// Connects and rebinds to the account's first discovered calendar, for a config

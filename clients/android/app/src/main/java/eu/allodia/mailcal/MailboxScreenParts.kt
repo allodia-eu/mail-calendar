@@ -173,12 +173,14 @@ internal fun CalendarReauthBanner(
 
 // Above the week or the contacts list, one line per account whose calendar or address book did
 // not connect while the account did (docs/accounts.md rule 16). "Account settings" opens that
-// account's page, where the remedy is.
+// account's page, where the remedy is; a server found on another site is reviewed in place
+// (docs/account-autodetect.md rule 14).
 @androidx.compose.runtime.Composable
 internal fun UseOutageBanner(
     lines: List<OutageLine>,
     onOpenAccount: (accountId: String) -> Unit,
     ctx: Context,
+    onReviewServerChange: (accountId: String) -> Unit = {},
 ) {
     lines.forEach { line ->
         Row(
@@ -201,8 +203,14 @@ internal fun UseOutageBanner(
                 modifier = Modifier.weight(1f),
             )
             Spacer(modifier = Modifier.width(8.dp))
-            TextButton(onClick = { onOpenAccount(line.accountId) }) {
-                Text(L10n.use_outage_open_account(ctx))
+            if (line.reviews) {
+                TextButton(onClick = { onReviewServerChange(line.accountId) }) {
+                    Text(L10n.server_changed_review(ctx))
+                }
+            } else {
+                TextButton(onClick = { onOpenAccount(line.accountId) }) {
+                    Text(L10n.use_outage_open_account(ctx))
+                }
             }
         }
     }

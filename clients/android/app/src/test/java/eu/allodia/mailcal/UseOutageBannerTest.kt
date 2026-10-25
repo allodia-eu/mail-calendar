@@ -1,5 +1,7 @@
 // The calendar and contacts screens draw one line per use that did not connect, above the week or
-// the list, and its one action opens that account's page in Settings (docs/accounts.md rule 16).
+// the list, and its one action opens that account's page in Settings (docs/accounts.md rule 16),
+// or, for a server found on another site, the question that allows it
+// (docs/account-autodetect.md rule 14).
 package eu.allodia.mailcal
 
 import androidx.compose.ui.test.assertCountEquals
@@ -17,12 +19,14 @@ import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.CalendarWriteStatus
 
 private const val ACCOUNT_SETTINGS = "Account settings"
+private const val REVIEW = "Review"
 
 @RunWith(RobolectricTestRunner::class)
 class UseOutageBannerTest {
     @get:Rule val compose = createComposeRule()
 
     private val opened = mutableListOf<String>()
+    private val reviewed = mutableListOf<String>()
 
     private val ada = OutageLine("acct-a", "The calendar for ada@example.com isn’t connected.")
     private val bob = OutageLine("acct-b", "The calendar for bob@example.com isn’t connected.")
@@ -54,6 +58,7 @@ class UseOutageBannerTest {
                     onSetCalendarColor = { _, _, _ -> },
                     outages = outages,
                     onOpenAccount = { opened += it },
+                    onReviewServerChange = { reviewed += it },
                     clock = { GRID_NOW },
                 )
             }
@@ -70,6 +75,7 @@ class UseOutageBannerTest {
                     detailFor = { null },
                     outages = outages,
                     onOpenAccount = { opened += it },
+                    onReviewServerChange = { reviewed += it },
                 )
             }
         }
@@ -112,5 +118,27 @@ class UseOutageBannerTest {
         contacts(emptyList())
 
         compose.onNodeWithText(ACCOUNT_SETTINGS).assertDoesNotExist()
+    }
+
+    @Test
+    fun a_server_found_on_another_site_is_reviewed_rather_than_opening_the_account() {
+        val moved = OutageLine("acct-a", "Calendar paused.", reviews = true)
+        calendar(listOf(moved, bob))
+
+        compose.onAllNodesWithText(ACCOUNT_SETTINGS).assertCountEquals(1)
+        compose.onNodeWithText(REVIEW).performClick()
+
+        assertEquals(listOf("acct-a"), reviewed)
+        assertEquals(emptyList<String>(), opened)
+    }
+
+    @Test
+    fun the_contacts_list_reviews_a_server_found_on_another_site() {
+        contacts(listOf(OutageLine("acct-a", "Address book paused.", reviews = true)))
+
+        compose.onNodeWithText(ACCOUNT_SETTINGS).assertDoesNotExist()
+        compose.onNodeWithText(REVIEW).performClick()
+
+        assertEquals(listOf("acct-a"), reviewed)
     }
 }

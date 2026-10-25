@@ -42,6 +42,10 @@ public sealed partial class SettingsDialog
         {
             row.Children.Add(separate);
         }
+        if (ServerChangeAction(entry, capability, rule.Note) is { } review)
+        {
+            row.Children.Add(review);
+        }
 
         // Switching off deletes what the device holds of the use, so it is asked first; cancelling
         // puts the switch back.

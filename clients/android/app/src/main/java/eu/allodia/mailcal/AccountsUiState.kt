@@ -71,6 +71,9 @@ internal class AccountsUiState {
     /** A calendar or address book being given a sign-in of its own, from its account's page. */
     val separate = SeparateSignIn()
 
+    /** A calendar or address book server found on another site, being asked about. */
+    val serverChange = ServerChangePrompt()
+
     /**
      * A first sign-in from the setup form claims the redirect a sign-in again was waiting for. That
      * one can no longer finish, so its page stops saying it is under way, or "Sign in again" would
@@ -173,6 +176,11 @@ internal fun useNotConnectedSaid(capability: AccountCapability, problem: UseProb
             L10n.settings_account_use_own_sign_in_calendar(ctx)
         }
         UseProblem.SIGN_IN_REFUSED -> L10n.signin_refused(ctx)
+        UseProblem.SERVER_CHANGED -> if (contacts) {
+            L10n.settings_account_use_server_changed_contacts(ctx)
+        } else {
+            L10n.settings_account_use_server_changed_calendar(ctx)
+        }
     }
 }
 
@@ -182,6 +190,7 @@ private fun useNotConnectedText(capability: AccountCapability, problem: UseProbl
         UseProblem.UNREACHABLE -> "its server could not be reached"
         UseProblem.NEEDS_OWN_SIGN_IN -> "its server needs a sign-in of its own"
         UseProblem.SIGN_IN_REFUSED -> "its server refused the sign-in"
+        UseProblem.SERVER_CHANGED -> "its server was found on another site and waits to be allowed"
     }
     return "$use did not connect: $why"
 }

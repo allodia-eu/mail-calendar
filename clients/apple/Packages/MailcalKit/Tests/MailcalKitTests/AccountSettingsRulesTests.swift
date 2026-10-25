@@ -46,6 +46,34 @@ private func mailboxOnly() -> AccountEntry {
         #expect(AccountSettingsRules.useSwitch(account, .mail).note == UseNote.none)
     }
 
+    @Test func aUsePausedForANewServerSaysSoAndOffersReview() {
+        var account = entry(.dav, [(.calendar, .on), (.contacts, .on)])
+        account.uses[0] = AccountUse(capability: .calendar, state: .on, problem: .serverChanged)
+        account.uses[1] = AccountUse(capability: .contacts, state: .on, problem: .serverChanged)
+        let calendar = AccountSettingsRules.useSwitch(account, .calendar).note
+        let contacts = AccountSettingsRules.useSwitch(account, .contacts).note
+        #expect(calendar == .problem(.serverChanged, .calendar))
+        #expect(
+            AccountSettingsLabels.note(calendar)
+                == L10n.settings_account_use_server_changed_calendar())
+        #expect(
+            AccountSettingsLabels.note(contacts)
+                == L10n.settings_account_use_server_changed_contacts())
+        #expect(AccountSettingsRules.reviewsServerChange(calendar))
+        #expect(AccountSettingsRules.reviewsServerChange(contacts))
+    }
+
+    @Test func onlyAServerChangeOffersReview() {
+        let notes: [UseNote] = [
+            .none, .last, .needsContacts, .withheld, .notOffered,
+            .problem(.needsOwnSignIn, .calendar), .problem(.signInRefused, .contacts),
+            .problem(.unreachable, .calendar),
+        ]
+        for note in notes {
+            #expect(!AccountSettingsRules.reviewsServerChange(note))
+        }
+    }
+
     @Test func theLastUseCannotBeSwitchedOff() {
         let mailbox = mailboxOnly()
         #expect(

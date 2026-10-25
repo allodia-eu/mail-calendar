@@ -234,7 +234,13 @@ impl MailcalApp {
         };
         let zone = self.device_zone.clone();
         let outcome = match self.runtime.block_on(|| dial.run(&account_id, zone)) {
-            Ok(outcome) => outcome,
+            Ok(outcome) => {
+                self.registry
+                    .learn_dav_starts(account_id.as_str(), &outcome.learned);
+                self.registry
+                    .note_dav_dialled(account_id.as_str(), std::time::Instant::now());
+                outcome
+            }
             Err(err) => {
                 // Put the registry back as it was: remove the entry this added.
                 registered.rollback(&self.registry);

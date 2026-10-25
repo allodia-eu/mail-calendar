@@ -45,6 +45,10 @@ fn use_not_connected(capability: AccountCapability, problem: UseProblem) -> &'st
         UseProblem::NeedsOwnSignIn if contacts => l10n::settings_account_use_own_sign_in_contacts(),
         UseProblem::NeedsOwnSignIn => l10n::settings_account_use_own_sign_in_calendar(),
         UseProblem::SignInRefused => l10n::signin_refused(),
+        UseProblem::ServerChanged if contacts => {
+            l10n::settings_account_use_server_changed_contacts()
+        }
+        UseProblem::ServerChanged => l10n::settings_account_use_server_changed_calendar(),
     }
 }
 
@@ -129,6 +133,16 @@ mod tests {
                 UseProblem::SignInRefused,
                 l10n::signin_refused(),
             ),
+            (
+                AccountCapability::Calendar,
+                UseProblem::ServerChanged,
+                l10n::settings_account_use_server_changed_calendar(),
+            ),
+            (
+                AccountCapability::Contacts,
+                UseProblem::ServerChanged,
+                l10n::settings_account_use_server_changed_contacts(),
+            ),
             // Mail never moves to a server of its own; were it named, it reads as the calendar.
             (
                 AccountCapability::Mail,
@@ -139,6 +153,11 @@ mod tests {
                 AccountCapability::Mail,
                 UseProblem::NeedsOwnSignIn,
                 l10n::settings_account_use_own_sign_in_calendar(),
+            ),
+            (
+                AccountCapability::Mail,
+                UseProblem::ServerChanged,
+                l10n::settings_account_use_server_changed_calendar(),
             ),
         ];
         for (capability, problem, expected) in cases {

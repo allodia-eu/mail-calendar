@@ -82,10 +82,16 @@ pub(crate) async fn reconnect_all(
                         return None;
                     }
                     app.note_use_problems(&id, outcome.use_problems);
+                    registry.learn_dav_starts(id.as_str(), &outcome.learned);
+                    registry.note_dav_dialled(id.as_str(), std::time::Instant::now());
                     if let Some(detail) = &outcome.calendar_error {
                         log::warn!(
                             "reconnect: account[{index}] mail up but calendar failed: {detail}"
                         );
+                    }
+                    // Only a server that said its start is gone, or refused the sign-in, is worth
+                    // finding again; one that did not answer is tried again as it is.
+                    if outcome.rediscover {
                         unanswered
                             .lock()
                             .expect("unanswered mutex poisoned")
@@ -129,7 +135,7 @@ pub(crate) async fn reconnect_all(
                     app.note_signin_expired(&id);
                     // The account failed whole, so what its calendar or contacts last said is
                     // no longer the news; the account's own prompt is.
-                    app.note_use_problems(&id, mailcal_app::UseProblems::default());
+                    app.note_use_problems(&id, app.use_problems(&id).paused_only());
                     // Not re-queued: only a replaced credential can change the answer.
                     log::warn!("reconnect: account[{index}] sign-in refused by the server: {err}");
                     None
@@ -142,14 +148,16 @@ pub(crate) async fn reconnect_all(
                     // detail on the existing badge. Then re-queue it for the
                     // next attempt.
                     app.note_account_unreachable(&id, Some(format!("{label}: {err}")));
-                    app.note_use_problems(&id, mailcal_app::UseProblems::default());
+                    app.note_use_problems(&id, app.use_problems(&id).paused_only());
                     disconnected
                         .lock()
                         .expect("disconnected mutex poisoned")
                         .insert(id.as_str().to_owned());
                     log::warn!("reconnect: account[{index}] still unreachable: {err}");
-                    // A certificate that does not verify is asked about, never looked past.
-                    if !err.certificate_rejected() {
+                    // Looked for again only when a DAV server said its start is gone: an outage
+                    // changes nothing, and a certificate that does not verify is asked about,
+                    // never looked past.
+                    if err.worth_rediscovering() {
                         unanswered
                             .lock()
                             .expect("unanswered mutex poisoned")

@@ -170,6 +170,15 @@ private fun UseRow(entry: AccountEntry, capability: AccountCapability, ui: Accou
             modifier = Modifier.testTag("account-use-separate-${capability.name}"),
         ) { Text(L10n.settings_account_use_separate_sign_in(ctx)) }
     }
+    // Its server was found on another site: the question that allows it
+    // (docs/account-autodetect.md rule 14).
+    if (reviewsServerChange(rule.note)) {
+        TextButton(
+            onClick = { ui.onReviewServerChange(entry.id) },
+            enabled = !waiting,
+            modifier = Modifier.testTag("account-use-review-${capability.name}"),
+        ) { Text(L10n.server_changed_review(ctx)) }
+    }
     if (confirmingOff) {
         AlertDialog(
             onDismissRequest = { confirmingOff = false },
@@ -202,6 +211,8 @@ internal fun useNoteText(ctx: android.content.Context, note: UseNote): String? =
     UseNote.REFUSED_CONTACTS -> L10n.settings_account_use_refused_contacts(ctx)
     UseNote.OWN_SIGN_IN_CALENDAR -> L10n.settings_account_use_own_sign_in_calendar(ctx)
     UseNote.OWN_SIGN_IN_CONTACTS -> L10n.settings_account_use_own_sign_in_contacts(ctx)
+    UseNote.SERVER_CHANGED_CALENDAR -> L10n.settings_account_use_server_changed_calendar(ctx)
+    UseNote.SERVER_CHANGED_CONTACTS -> L10n.settings_account_use_server_changed_contacts(ctx)
     UseNote.NONE -> null
 }
 

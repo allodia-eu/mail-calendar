@@ -131,6 +131,8 @@ pub(crate) fn build_accounts(
     let allodia = crate::allodia::take_stored(&mut configs).filter(|_| start_live_sync);
 
     let registry = AccountRegistry::new();
+    // Before any account is registered, so each one's learned DAV principals come with it.
+    registry.keep_dav_starts_in(mailcal_account::DavStartsFile::in_dir(&base));
     // The token sink every OAuth account's refresh shares, built over the host's store before
     // anything connects: so a rotation handed back by the very first refresh of this process
     // is persisted rather than dropped. Neither kind of boot has a later moment to install it:

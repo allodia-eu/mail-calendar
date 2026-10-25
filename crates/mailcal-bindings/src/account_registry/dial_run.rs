@@ -93,6 +93,8 @@ impl AccountDial {
                 ..
             } => {
                 let username = config.username().to_owned();
+                let learned_calendar = std::sync::Mutex::new(None);
+                let learned_contacts = std::sync::Mutex::new(None);
                 // Calendar and contacts both talk to the same CalDAV host, so they run
                 // concurrently with mail rather than making the mailbox wait for either.
                 let (mail, calendar, contacts) = tokio::join!(
@@ -107,9 +109,13 @@ impl AccountDial {
                         .map_err(ConnectFailure::from)
                     }),
                     part(on(Capability::Calendar) && config.caldav.is_some(), async {
-                        mailcal_account::connect_caldav(&config, tokens.as_ref())
+                        mailcal_account::connect_caldav_learning(&config, tokens.as_ref())
                             .await
-                            .map(|provider| vec![provider])
+                            .map(|connected| {
+                                *learned_calendar.lock().expect("learned mutex poisoned") =
+                                    connected.principal;
+                                vec![connected.providers]
+                            })
                             .map_err(ConnectFailure::from)
                     }),
                     part(
@@ -118,6 +124,7 @@ impl AccountDial {
                             &config,
                             tokens.as_ref(),
                             on(Capability::Mail),
+                            &learned_contacts,
                         ),
                     ),
                 );
@@ -126,6 +133,14 @@ impl AccountDial {
                     .calendar_failure
                     .as_ref()
                     .map(|failure| format!("{username}: {failure}"));
+                let learned = mailcal_account::DavStarts {
+                    calendar: learned_calendar
+                        .into_inner()
+                        .expect("learned mutex poisoned"),
+                    contacts: learned_contacts
+                        .into_inner()
+                        .expect("learned mutex poisoned"),
+                };
                 Ok(outcome(
                     id,
                     on(Capability::Mail),
@@ -133,6 +148,7 @@ impl AccountDial {
                     assembled,
                     calendar_error,
                     false,
+                    learned,
                 ))
             }
             Self::Microsoft {
@@ -187,6 +203,7 @@ impl AccountDial {
                     assembled,
                     None,
                     calendar_reauth_required,
+                    mailcal_account::DavStarts::default(),
                 ))
             }
             Self::Google {
@@ -230,6 +247,7 @@ impl AccountDial {
                     assembled,
                     None,
                     false,
+                    mailcal_account::DavStarts::default(),
                 ))
             }
             Self::Jmap {
@@ -269,7 +287,15 @@ impl AccountDial {
                     Part::Off
                 };
                 let assembled = assemble(mail, calendar, contacts)?;
-                Ok(outcome(id, uses_mail, identity, assembled, None, false))
+                Ok(outcome(
+                    id,
+                    uses_mail,
+                    identity,
+                    assembled,
+                    None,
+                    false,
+                    mailcal_account::DavStarts::default(),
+                ))
             }
         }
     }
@@ -287,9 +313,15 @@ fn outcome(
     >,
     calendar_error: Option<String>,
     calendar_reauth_required: bool,
+    learned: mailcal_account::DavStarts,
 ) -> DialOutcome {
     // A calendar withheld for a missing scope already reads as "needs permission"; it is not also
     // a failure to report.
+    let rediscover = assembled
+        .calendar_failure
+        .iter()
+        .chain(&assembled.contacts_failure)
+        .any(ConnectFailure::worth_rediscovering);
     let use_problems = mailcal_app::UseProblems {
         calendar: assembled
             .calendar_failure
@@ -314,6 +346,8 @@ fn outcome(
         calendar_error,
         calendar_reauth_required,
         use_problems,
+        learned,
+        rediscover,
     }
 }
 

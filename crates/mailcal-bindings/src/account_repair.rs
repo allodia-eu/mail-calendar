@@ -113,7 +113,12 @@ impl MailcalApp {
             .runtime
             .block_on(|| dial.run(&id, self.device_zone.clone()))
         {
-            Ok(outcome) => outcome,
+            Ok(outcome) => {
+                self.registry.learn_dav_starts(account_id, &outcome.learned);
+                self.registry
+                    .note_dav_dialled(account_id, std::time::Instant::now());
+                outcome
+            }
             Err(error) => {
                 registered.rollback(&self.registry);
                 log::warn!(

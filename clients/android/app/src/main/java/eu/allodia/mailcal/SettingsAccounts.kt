@@ -74,6 +74,9 @@ internal class AccountsSettingsUi(
     val onConnectSeparate: (username: String, password: String) -> Unit = { _, _ -> },
     val onSeparateFormShown: () -> Unit = {},
     val onSeparateProviderSignIn: () -> Unit = {},
+    // A calendar or address book whose server was found on another site: the question that
+    // allows it (docs/account-autodetect.md rule 14).
+    val onReviewServerChange: (accountId: String) -> Unit = {},
     val onRemove: (accountId: String) -> Unit = {},
     val onDismissNotice: () -> Unit = { state.notice = null },
 )

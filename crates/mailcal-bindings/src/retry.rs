@@ -52,12 +52,16 @@ impl MailcalApp {
         let queued: HashSet<String> = ids.iter().cloned().collect();
         // An account whose mail is up but whose calendar or address book could not be reached has
         // those dialled again: nothing else would, until the next launch.
+        // So is one whose calendar and contacts connected more than a day ago: their next connect
+        // starts from the principal again, so a home the server moved is followed within a day.
+        let due = self.registry.dav_due(std::time::Instant::now());
         for id in self
             .app
             .accounts_with_use_problem(mailcal_app::UseProblem::Unreachable)
             .into_keys()
+            .chain(due)
         {
-            if !queued.contains(&id) {
+            if !queued.contains(&id) && !ids.contains(&id) {
                 ids.push(id);
             }
         }

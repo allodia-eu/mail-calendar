@@ -101,7 +101,21 @@ fn problem_note(capability: AccountCapability, problem: UseProblem) -> &'static 
         UseProblem::SignInRefused => l10n::settings_account_use_refused_contacts(),
         UseProblem::NeedsOwnSignIn if calendar => l10n::settings_account_use_own_sign_in_calendar(),
         UseProblem::NeedsOwnSignIn => l10n::settings_account_use_own_sign_in_contacts(),
+        UseProblem::ServerChanged if calendar => {
+            l10n::settings_account_use_server_changed_calendar()
+        }
+        UseProblem::ServerChanged => l10n::settings_account_use_server_changed_contacts(),
     }
+}
+
+/// The use whose row the account page's "Review" sits under: the last of those paused for a
+/// server found on another site, so it follows every note that says so. `None` when none is.
+pub(super) fn review_after(entry: &AccountEntry) -> Option<AccountCapability> {
+    entry
+        .uses
+        .iter()
+        .rfind(|use_| use_.problem == Some(UseProblem::ServerChanged))
+        .map(|use_| use_.capability)
 }
 
 /// The line above the calendar week or the contacts list for a use that did not connect

@@ -40,6 +40,10 @@ impl MailcalApp {
         let prepared =
             boot::prepare_stored_account(&config_toml, &sink, CredentialOrigin::FreshSignIn)?;
         let forget: Vec<_> = moved.iter().map(domain_of).collect();
+        // The principals the old servers named would start the new config's connects at the
+        // old servers, so they go first; a failed replacement only costs the next connect its
+        // shortcut.
+        self.registry.forget_dav_starts(&account_id);
         self.install_replacement(
             &account_id,
             prepared,
