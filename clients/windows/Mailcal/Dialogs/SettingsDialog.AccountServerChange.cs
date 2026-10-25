@@ -100,7 +100,7 @@ public sealed partial class SettingsDialog
                 // A lookup replaced the question while it was shown, and nothing moved: the
                 // redraw asks the new one in its place.
                 _serverChangeOpen = _serverChangeOpen is { } shown
-                    ? shown with { Change = replaced.@change, Busy = false, Error = null }
+                    ? shown with { Change = replaced.Change, Busy = false, Error = null }
                     : null;
                 _serverChangeDrawn = null;
                 NotifyAccounts(null);

@@ -56,7 +56,7 @@ internal static class ServerChangeDialog
                     // A lookup replaced the question while it was shown, and nothing moved: ask
                     // the new one in its place.
                     args.Cancel = true;
-                    change = replaced.@change;
+                    change = replaced.Change;
                     copy = ServerChangeViews.Copy(change, model.AccountAddress(accountId));
                     content = ServerChangeViews.Panel(copy, titled: false);
                     dialog.Title = copy.Title;
