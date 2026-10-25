@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Run the Linux reading/composer + search + calendar (incl. organising a meeting) + invitations +
-# contacts (incl. the editor's refusal) + mail actions + printing +
-# signatures + MCP + cross-account merge acceptance path on a private Wayland + D-Bus session. Controls
-# are selected through GTK's AT-SPI tree, never by screen coordinates. The only mailbox is the local
-# Stalwart fixture, and every screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
+# contacts (incl. the editor's refusal) + mail actions + printing + signatures + MCP + cross-account
+# merge + server-change question acceptance path on a private Wayland + D-Bus session. Controls are
+# selected through GTK's AT-SPI tree, never by screen coordinates. The mailbox is the local Stalwart
+# fixture, then the showcase for the one state no fixture can stage; every screenshot/tree/log is
+# kept under target/ui-test-artifacts for inspection.
 #
 # It expects the deterministic seed, the one `harness.sh up` lays down. Against a `--bulk` mailbox
 # it goes intermittently red somewhere it has no quarrel with: an AT-SPI poll is a walk of the whole
@@ -100,6 +101,12 @@ launch_app() { # <open-subject> <log-prefix> [arguments...]
   local open_subject="$1"
   local log_prefix="$2"
   shift 2
+  # Only when set: the core reads MAILCAL_SHOWCASE_SERVER_CHANGE as on whenever it exists, empty
+  # included, so an unconditional `--env` would stage the pause on every showcase launch.
+  local showcase_env=()
+  [[ -z "${MAILCAL_SHOWCASE:-}" ]] || showcase_env+=(--env=MAILCAL_SHOWCASE="$MAILCAL_SHOWCASE")
+  [[ -z "${MAILCAL_SHOWCASE_SERVER_CHANGE:-}" ]] ||
+    showcase_env+=(--env=MAILCAL_SHOWCASE_SERVER_CHANGE="$MAILCAL_SHOWCASE_SERVER_CHANGE")
   # No --env=WAYLAND_DISPLAY: `sdk_exec` passes --socket=wayland, and flatpak binds whatever
   # $WAYLAND_DISPLAY names on the host to `wayland-0` *inside* the sandbox. Naming the host's
   # socket here would name one that does not exist in there, and the client would find no display.
@@ -122,6 +129,7 @@ launch_app() { # <open-subject> <log-prefix> [arguments...]
     --env=MAILCAL_FORCE_ANALYTICS_WELCOME=1 \
     --env=MAILCAL_OPEN_SUBJECT="$open_subject" \
     --env=MAILCAL_SHOWCASE_SCREEN="${MAILCAL_SHOWCASE_SCREEN:-}" \
+    "${showcase_env[@]}" \
     --env=XDG_DATA_HOME="$XDG_DATA_HOME" \
     --env=XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
     --env=XDG_CACHE_HOME="$XDG_CACHE_HOME" \
@@ -1452,6 +1460,53 @@ PY
   click_notification_cold "$clicked_cold" "$portal_capture"
   opened_from_notification "$clicked_cold"
   capture notification-click-cold
+
+  # The question a calendar paused for a server on another site asks (docs/account-autodetect.md
+  # rule 14), on the showcase: MAILCAL_SHOWCASE_SERVER_CHANGE has the core pause its first
+  # account's calendar for a move from example.com to example.net, which no harness fixture can
+  # stage. Neither key a person might press to get past it allows anything: Escape is the close
+  # response and Return the default, and both are "Not now". A showcase account has no servers to
+  # change, so the core refuses the allow, and the refusal being said is what proves Allow reached
+  # it.
+  stop_app
+  MAILCAL_SHOWCASE=1 MAILCAL_SHOWCASE_SERVER_CHANGE=1 MAILCAL_SHOWCASE_SCREEN=calendar \
+    launch_app "" "$ARTIFACT_DIR/server-change"
+  local paused="Calendar paused: waiting for you to confirm a new server."
+  local asked="Your calendar server has changed"
+  "$PYTHON" "$ATSPI" wait --name-substring "$paused" --showing --timeout 60
+  local key
+  for key in Escape Return; do
+    "$PYTHON" "$ATSPI" activate --name "Review" --role "push button" --timeout 20
+    "$PYTHON" "$ATSPI" wait --name "$asked" --showing --timeout 20
+    "$PYTHON" "$ATSPI" wait --name-substring "Before: example.com" --showing --timeout 20
+    "$PYTHON" "$ATSPI" wait --name-substring "Now: example.net" --showing --timeout 20
+    [[ "$key" == Return ]] || capture server-change-asked
+    linux_session_type -k "$key"
+    "$PYTHON" "$ATSPI" wait --name "$asked" --absent --timeout 20
+    "$PYTHON" "$ATSPI" wait --name-substring "$paused" --showing --timeout 20
+    "$PYTHON" "$ATSPI" wait --name "Review" --role "push button" --showing --timeout 20
+  done
+
+  "$PYTHON" "$ATSPI" activate --name "Review" --role "push button" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "$asked" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Allow new server" --role "push button" --timeout 20
+  # Asked from the calendar, so the refusal is said on the account's page, which asks again.
+  "$PYTHON" "$ATSPI" wait --name "Couldn’t change this account" --showing --timeout 30
+  "$PYTHON" "$ATSPI" wait \
+    --name "The new server couldn’t be reached, so nothing was changed. Please try again later." \
+    --showing --timeout 20
+  capture server-change-refused
+  # Escape reaches the refusal only when it is the window on top, which for one raised as Settings
+  # opens means it waited for Settings to draw; sway stacks windows in the order they map.
+  linux_session_type -k Escape
+  "$PYTHON" "$ATSPI" wait --name "Couldn’t change this account" --absent --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "$paused" --within "Settings" --within-role frame --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "Review" --within "Settings" --within-role frame --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate \
+    --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
+  "$PYTHON" "$ATSPI" wait --name-substring "$paused" --showing --timeout 20
 
   if grep -Eq 'critical from |unhandled error from ' "$XDG_DATA_HOME/mailcal/mailcal.log"; then
     grep -E 'critical from |unhandled error from ' "$XDG_DATA_HOME/mailcal/mailcal.log" \
