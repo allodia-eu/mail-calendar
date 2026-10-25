@@ -287,10 +287,12 @@ impl SettingsWindow {
         {
             redraw::keep_offset(&scroll, offset);
         }
-        if !reuse {
+        if reuse {
+            notice::show_due(&window, &toasts, state.notice, &mut self.shown_notice);
+        } else {
             window.present();
+            notice::show_due_once_drawn(&window, &toasts, state.notice, &mut self.shown_notice);
         }
-        notice::show_due(&window, &toasts, state.notice, &mut self.shown_notice);
         self.toasts = Some(toasts);
         self.edited = std::rc::Rc::default();
         redraw::watch_edits(content.upcast_ref(), &self.edited);
