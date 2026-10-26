@@ -124,7 +124,7 @@ fn read_request(stream: &mut std::net::TcpStream) -> String {
             break;
         }
     }
-    String::from_utf8_lossy(&raw).into_owned()
+    String::from_utf8_lossy_owned(raw)
 }
 
 /// One `application/x-www-form-urlencoded` value out of a request body.

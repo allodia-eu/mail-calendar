@@ -54,7 +54,7 @@ version = "0.13.0"
 edition = "2024"
 # Every build compiles with the pin in rust-toolchain.toml, the Flatpak and snap included, so this
 # moves with it; clippy's `incompatible_msrv` keeps an API newer than this out until it does.
-rust-version = "1.98"
+rust-version = "1.99"
 publish = false
 # The application is GPL-3.0-only (docs/pledge.md, LICENSE). Stated here so `cargo metadata`
 # carries it, and in REUSE.toml for every non-Rust file; `reuse lint` gates the pair.

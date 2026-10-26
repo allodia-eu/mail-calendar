@@ -230,7 +230,7 @@ fn percent_decode(value: &str) -> String {
         out.push(bytes[index]);
         index += 1;
     }
-    String::from_utf8_lossy(&out).into_owned()
+    String::from_utf8_lossy_owned(out)
 }
 
 /// The numeric value of one ASCII hex digit, or `None` if `byte` isn't one.

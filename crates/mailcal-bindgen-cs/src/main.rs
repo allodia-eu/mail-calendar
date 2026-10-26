@@ -11,7 +11,7 @@
 //! both its argument type and its `BindingGenerator` private, so there is no seam to redirect.
 
 use std::{
-    fs::{File, FileTimes},
+    fs::FileTimes,
     io,
     path::{Path, PathBuf},
     time::SystemTime,
@@ -96,11 +96,7 @@ fn restore_if_unchanged(file: &Snapshot) -> io::Result<bool> {
     if std::fs::read(&file.path)? != file.bytes {
         return Ok(false);
     }
-    // Opening for write does not truncate without `truncate(true)`, nothing here changes a byte.
-    File::options()
-        .write(true)
-        .open(&file.path)?
-        .set_times(FileTimes::new().set_modified(file.modified))?;
+    std::fs::set_times(&file.path, FileTimes::new().set_modified(file.modified))?;
     Ok(true)
 }
 
