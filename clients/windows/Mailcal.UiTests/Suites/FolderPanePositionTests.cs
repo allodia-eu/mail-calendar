@@ -10,7 +10,9 @@
 // "Nested folders"), and Projects/Clients/Acme holds the message whose read state this moves.
 //
 // WHY A SMALL WINDOW. Whether the pane scrolls depends on the desktop, so the window's height is
-// set, and put back afterwards: the app keeps its bounds for the next launch. The message is marked
+// set, and put back afterwards: the app keeps its bounds for the next launch. It is low enough that
+// Archive's subfolders scroll out of view on the default seed, which has only six folder rows below
+// them; `harness.sh up --bulk` adds more. The message is marked
 // unread and read again, so the suite leaves the mailbox as it found it.
 
 using Allodia.Mailcal.UiTests.Driver;
@@ -69,7 +71,7 @@ public sealed class FolderPanePositionTests(ImapHarnessApp harness)
         IDisposable? shrunk = null;
         harness.Case(nameof(AnUnreadCountThatMovesLeavesTheRowsThePaneShowsWhereTheyWere), app =>
         {
-            shrunk = Desktop.Resized(app.Mailbox.Hwnd, 1200, 560);
+            shrunk = Desktop.Resized(app.Mailbox.Hwnd, 1200, 480);
             app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
             app.Agent.Expand(Account(app));
             foreach (var folder in Opened)
