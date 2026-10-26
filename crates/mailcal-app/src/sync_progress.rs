@@ -48,6 +48,18 @@ pub(crate) struct ProgressForwarder<'a, P: Provider> {
     app: &'a App<P>,
 }
 
+impl<P: Provider> ProgressForwarder<'_, P> {
+    /// Names `account` as one this awaited pass is downloading, so its list says nothing about
+    /// being empty until the pass has ended.
+    pub(crate) fn awaits(&self, account: &AccountId) {
+        self.app
+            .sync_progress
+            .lock()
+            .expect("sync-progress mutex poisoned")
+            .await_account(self.id, account.as_str());
+    }
+}
+
 impl<P: Provider> SyncObserver for ProgressForwarder<'_, P> {
     fn committed(&self, commit: &SyncCommit<'_>) {
         self.progress.committed(commit);
@@ -115,6 +127,15 @@ impl<P: Provider> App<P> {
             .lock()
             .expect("sync-progress mutex poisoned")
             .snapshot()
+    }
+
+    /// Whether a download the user is waiting on is still running for any of `accounts`.
+    pub(crate) fn awaiting_download(&self, accounts: &[AccountId]) -> bool {
+        let names: Vec<&str> = accounts.iter().map(AccountId::as_str).collect();
+        self.sync_progress
+            .lock()
+            .expect("sync-progress mutex poisoned")
+            .awaiting_any(&names)
     }
 
     /// Marks a sync as started with a log label for the first known progress denominator.

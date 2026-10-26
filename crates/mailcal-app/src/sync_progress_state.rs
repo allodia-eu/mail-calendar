@@ -6,7 +6,7 @@
 //! what is here is the bookkeeping that produces it.
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -50,6 +50,9 @@ struct SyncPass {
     /// The accounts this pass is syncing, keyed by id so the hint's order is stable across
     /// snapshots. Only tracked for a pass that could reach the hint.
     accounts: BTreeMap<String, AccountPass>,
+    /// The accounts an awaited pass is downloading, named when it begins: their lists have no
+    /// rows yet because nothing has arrived, which is not the list being empty.
+    awaited_accounts: BTreeSet<String>,
 }
 
 impl SyncPass {
@@ -92,6 +95,7 @@ impl SyncProgressState {
                 announceable,
                 progress: Arc::clone(&progress),
                 accounts: BTreeMap::new(),
+                awaited_accounts: BTreeSet::new(),
             },
         );
         (id, progress)
@@ -101,6 +105,22 @@ impl SyncProgressState {
         if let Some(pass) = self.passes.remove(&id) {
             pass.progress.finish();
         }
+    }
+
+    /// Names `account` as one the awaited pass `id` is downloading.
+    pub(crate) fn await_account(&mut self, id: u64, account: &str) {
+        if let Some(pass) = self.passes.get_mut(&id).filter(|pass| pass.awaited) {
+            pass.awaited_accounts.insert(account.to_owned());
+        }
+    }
+
+    /// Whether an awaited pass is still downloading any of `accounts`.
+    pub(crate) fn awaiting_any(&self, accounts: &[&str]) -> bool {
+        self.passes.values().any(|pass| {
+            accounts
+                .iter()
+                .any(|account| pass.awaited_accounts.contains(*account))
+        })
     }
 
     /// Registers an account and how many folders its pass set out to sync.

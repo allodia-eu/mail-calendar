@@ -358,3 +358,31 @@ async fn account_depth(app: &App<WindowProvider>, account: &str) -> u16 {
         .find(|row| row.account_id == account)
         .map_or(0, |row| row.sync_depth_months)
 }
+
+/// While a new account's first download runs, its list has no rows because nothing has arrived
+/// yet, not because the window holds none: it explains nothing until the download has ended, and
+/// then says what it found.
+#[tokio::test]
+async fn a_list_explains_nothing_while_a_new_accounts_first_download_runs() {
+    let app = test_app(Vec::new());
+    app.dispatch(super::Intent::RefreshMail).await;
+    let id = AccountId::try_from("acct").unwrap();
+    app.add_new_account_deferred(account("acct", WindowProvider::new(Vec::new())))
+        .await;
+
+    let pass = app.begin_sync_labeled(true, true, 1, "account-add");
+    pass.awaits(&id);
+    app.rebuild_snapshot().await;
+    assert_eq!(
+        app.mailbox_list().empty_reason,
+        None,
+        "a download still running has not found the list empty",
+    );
+
+    app.end_sync(&pass);
+    app.rebuild_snapshot().await;
+    assert!(
+        app.mailbox_list().empty_reason.is_some(),
+        "once the download has ended, an empty list says why",
+    );
+}
