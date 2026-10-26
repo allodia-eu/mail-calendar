@@ -35,7 +35,7 @@ sync that follows lands, the same moment the pane's count changes, so the two ne
 | macOS | Dock tile | `NSApp.dockTile.badgeLabel` (`AppBadge.swift`) | each mailbox snapshot (`MailcalModel.Reload.swift`) | goes with the process | System Settings → Notifications, the app's badge switch |
 | iOS/iPadOS | Home Screen icon | `UNUserNotificationCenter.setBadgeCount` (`AppBadge.swift`) | each mailbox snapshot, and the end of every background pass (`BackgroundSync.swift`) | stays, and the next pass rewrites it | Settings → Notifications, the app's Badges switch |
 | Windows | taskbar button | `BadgeNotificationManager` (`Services/AppBadge.cs`), in a packaged build only | each mailbox snapshot (`MailboxModel.Projection.cs`) | cleared as the main window closes (`App.xaml.cs`) | Settings → Personalisation → Taskbar, "Show badges on taskbar apps" |
-| Linux | the dock's launcher | Unity `LauncherEntry.Update`, a session-bus broadcast (`ui/launcher_badge.rs`) | each mailbox snapshot (`calendar_actions.rs`, `pull_mailbox`) | cleared on the application's `shutdown` (`main.rs`) | the dock. Ubuntu Dock, KDE Plasma and Plank draw it; GNOME Shell without a dock extension draws nothing |
+| Linux | the dock's launcher | Unity `LauncherEntry.Update`, a session-bus broadcast (`ui/launcher_badge.rs`) | each mailbox snapshot, read after every message the window handles (`ui/component.rs`) | cleared on the application's `shutdown` (`main.rs`) | the dock. Ubuntu Dock, KDE Plasma and Plank draw it; GNOME Shell without a dock extension draws nothing |
 | Android | none (rule 7) | — | — | — | — |
 
 The Linux signal needs no permission in either package. The Flatpak's bus proxy passes a signal

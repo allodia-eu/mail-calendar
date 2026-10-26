@@ -77,6 +77,13 @@ impl SimpleComponent for AppWindow {
                 other => opening.hold(other),
             },
         }
+        // Many paths replace the mailbox snapshot, so the count is read after every message
+        // rather than at each of them; an unchanged count sends nothing (`docs/app-badge.md`).
+        if let Self::Open(model) = self
+            && model.app.is_some()
+        {
+            model.launcher_badge.show(model.snapshot.unified_unread);
+        }
     }
 
     fn update_view(&self, widgets: &mut Self::Widgets, _sender: ComponentSender<Self>) {
