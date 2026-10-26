@@ -101,6 +101,8 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
    `.well-known/carddav`, concurrently; the SRV target is preferred, then the domain's own, the
    email domain before the provider's. After a clean miss (not an offline one) the email domain
    alone is probed, and a hit there is a **calendar-and-contacts** result rather than nothing.
+   Each probe is a `PROPFIND` at depth 0, the request a DAV client bootstraps with (RFC 6764
+   §6), not a `GET`: iCloud's CalDAV server answers a `GET` at its well-known with `400`.
    Only an HTTPS `401` (a credential challenge) or `207` (a WebDAV multi-status) counts, so a
    catch-all `301`-to-homepage is not a false positive, and because only HTTPS is followed, a
    discovered endpoint is always tamper-resistant-sourced. **Which uses the found card offers,

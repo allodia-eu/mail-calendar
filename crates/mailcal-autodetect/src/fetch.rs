@@ -68,12 +68,21 @@ pub(crate) trait Fetch: Send + Sync {
     /// Fetches `url`, following redirects by hand, never erroring (see
     /// [`FetchOutcome`]).
     async fn get(&self, url: &Url) -> FetchOutcome;
+
+    /// [`Fetch::get`] as a `PROPFIND` at depth 0, the request a DAV client bootstraps with
+    /// (RFC 6764 §6). Some servers answer a plain `GET` at their well-known with an error and
+    /// challenge only a `PROPFIND`: iCloud's CalDAV server answers `400`.
+    async fn propfind(&self, url: &Url) -> FetchOutcome;
 }
 
 #[async_trait::async_trait]
 impl Fetch for Fetcher {
     async fn get(&self, url: &Url) -> FetchOutcome {
         Fetcher::get(self, url).await
+    }
+
+    async fn propfind(&self, url: &Url) -> FetchOutcome {
+        Fetcher::propfind(self, url).await
     }
 }
 
@@ -106,12 +115,27 @@ impl Fetcher {
     /// every hop stayed on HTTPS. Never returns an error: a failure folds into
     /// [`FetchOutcome::NetworkError`] or [`FetchOutcome::Miss`].
     pub(crate) async fn get(&self, url: &Url) -> FetchOutcome {
+        self.fetch(&reqwest::Method::GET, url).await
+    }
+
+    /// [`Fetcher::get`] as a `PROPFIND` at depth 0 with no body, which asks for the
+    /// resource's properties without naming any (RFC 4918 §9.1). Each redirect hop repeats it.
+    pub(crate) async fn propfind(&self, url: &Url) -> FetchOutcome {
+        let method = reqwest::Method::from_bytes(b"PROPFIND").expect("PROPFIND is a method");
+        self.fetch(&method, url).await
+    }
+
+    async fn fetch(&self, method: &reqwest::Method, url: &Url) -> FetchOutcome {
         let mut current = url.clone();
         let mut trusted = true;
 
         for _hop in 0..=self.max_redirects {
             trusted &= current.scheme() == "https";
-            let response = match self.client.get(current.clone()).send().await {
+            let mut request = self.client.request(method.clone(), current.clone());
+            if method.as_str() == "PROPFIND" {
+                request = request.header("Depth", "0");
+            }
+            let response = match request.send().await {
                 Ok(response) => response,
                 Err(err) => {
                     log::debug!("autodetect fetch failed for {current}: {err}");
