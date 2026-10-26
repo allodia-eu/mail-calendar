@@ -34,7 +34,7 @@ sync that follows lands, the same moment the pane's count changes, so the two ne
 |---|---|---|---|---|---|
 | macOS | Dock tile | `NSApp.dockTile.badgeLabel` (`AppBadge.swift`) | each mailbox snapshot (`MailcalModel.Reload.swift`) | goes with the process | System Settings → Notifications, the app's badge switch |
 | iOS/iPadOS | Home Screen icon | `UNUserNotificationCenter.setBadgeCount` (`AppBadge.swift`) | each mailbox snapshot, and the end of every background pass (`BackgroundSync.swift`) | stays, and the next pass rewrites it | Settings → Notifications, the app's Badges switch |
-| Windows | taskbar button | `BadgeNotificationManager` (`Services/AppBadge.cs`), through the notification registration `NewMailNotifier.Arm` makes | each mailbox snapshot (`MailboxModel.Projection.cs`) | cleared as the main window closes (`App.xaml.cs`) | Settings → Personalisation → Taskbar, "Show badges on taskbar apps" |
+| Windows | taskbar button | `BadgeNotificationManager` (`Services/AppBadge.cs`), in a packaged build only | each mailbox snapshot (`MailboxModel.Projection.cs`) | cleared as the main window closes (`App.xaml.cs`) | Settings → Personalisation → Taskbar, "Show badges on taskbar apps" |
 | Linux | the dock's launcher | Unity `LauncherEntry.Update`, a session-bus broadcast (`ui/launcher_badge.rs`) | each mailbox snapshot (`calendar_actions.rs`, `pull_mailbox`) | cleared on the application's `shutdown` (`main.rs`) | the dock. Ubuntu Dock, KDE Plasma and Plank draw it; GNOME Shell without a dock extension draws nothing |
 | Android | none (rule 7) | — | — | — | — |
 
@@ -43,6 +43,11 @@ addressed to no one, and the snap's `desktop` plug, which the GNOME extension ad
 interface and member. In a snap, the dock knows the app by the desktop file snapd installed,
 `<instance>_<app>.desktop`, never by the application id.
 
+On Windows the badge needs package identity: `BadgeNotificationManager` refuses every call from a
+process without one, however its notifications are registered. Both shipped channels are packages
+([`windows-channels.md`](windows-channels.md)), so only the unpackaged dev loop
+(`build-and-run.ps1`) draws no badge, and it says so once in its log.
+
 ## Where each rule lives
 
 Rules 1 and 2 are the core's: `unified_unread` is summed in
@@ -50,8 +55,9 @@ Rules 1 and 2 are the core's: `unified_unread` is summed in
 (`mailcal-viewmodel`). Rules 3 to 5 are each client's, and so is the mapping of zero to no badge:
 `AppBadgeTests.swift` and `noNotificationSetsTheIconBadge` (`NewMailNoticesTests.swift`) on Apple,
 and `launcher_badge.rs`'s own tests on Linux, which also hold the snap's desktop-file id. Nothing
-in a Windows test can read the taskbar, so `AppBadge.cs` is checked by eye: open the app with
-unread mail, read the taskbar button, mark a message read, and close the window.
+in a Windows test can read the taskbar, so `AppBadge.cs` is checked by eye, in a packaged build
+(`package.ps1 -Sign`): open the app with unread mail, read the taskbar button, mark a message
+read, and close the window.
 
 ## Enforcement
 

@@ -3,9 +3,12 @@
 // row shows, and nothing at zero.
 //
 // The badge outlives the process, and nothing updates it while the app is closed, so the window's
-// close clears it rather than leaving a count to go stale. It needs the notification registration
-// NewMailNotifier.Arm makes in both build shapes; where that failed, so does this, and it costs
-// the badge alone.
+// close clears it rather than leaving a count to go stale.
+//
+// Packaged builds only. Every call on BadgeNotificationManager throws E_ILLEGAL_METHOD_CALL in a
+// process without package identity, whatever notification registration it holds, so the
+// unpackaged dev loop draws no badge and says so once in the log. Both shipped channels are
+// packages (docs/windows-channels.md).
 
 using Microsoft.Windows.BadgeNotifications;
 
@@ -32,6 +35,15 @@ internal static class AppBadge
         {
             return;
         }
+        if (!AppIdentity.IsPackaged)
+        {
+            if (!_warned)
+            {
+                _warned = true;
+                Log.Info("app badge: none, this build runs without package identity");
+            }
+            return;
+        }
         try
         {
             if (unread == 0)
@@ -47,7 +59,7 @@ internal static class AppBadge
         }
         catch (Exception ex)
         {
-            // Once per process: where the registration failed, every snapshot fails the same way.
+            // Once per process: a shell that refused one write refuses the next snapshot's too.
             if (!_warned)
             {
                 _warned = true;

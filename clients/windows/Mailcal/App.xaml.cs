@@ -59,7 +59,6 @@ public partial class App : Application
         Services.TestAgent.Start(_window);
         _window.Closed += (_, _) =>
         {
-            // First, while the notification registration the badge is written through still stands.
             Services.AppBadge.Clear();
             Services.NewMailNotifier.Disarm();
         };
