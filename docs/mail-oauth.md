@@ -122,7 +122,7 @@ is recorded here.
     lets it.** The grant is stored once, at the root (`[oauth]`), and "repair this account" is a
     re-authorisation rather than a typed secret. IMAP and SMTP present it over SASL. The calendar
     and address book present it as Bearer, and only when both hold
-    (`config_dav::dav_credentials`):
+    (`mailcal_account::grant_reaches`):
     - the sign-in **asked for** that use's scope (`urn:ietf:params:oauth:scope:calendars` or
       `…:contacts`, or the earlier drafts' `caldav`/`carddav`). The requested set, because a
       server may grant in its own vocabulary (Fastmail answers with JMAP capability names and
@@ -138,7 +138,10 @@ is recorded here.
       server is the one exception, for a local test server.
 
     Otherwise nothing is sent and the use needs a sign-in of its own
-    (`AccountError::DavNeedsOwnSignIn`). A DAV server's own RFC 9728 metadata never decides this:
+    (`AccountError::DavNeedsOwnSignIn`). The same rule is read before the browser opens, so a
+    sign-in says which uses it will not reach first, and each becomes an account of its own,
+    linked to the mailbox ([`accounts.md`](accounts.md) rule 18). A DAV server's own RFC 9728
+    metadata never decides this:
     it is self-asserted, and a hostile server can name any issuer. TLS verification is what makes
     a host name mean anything here. What remains is a host taken over inside the issuer's own
     registrable domain, which an issuer closes by publishing `protected_resources`. Soverin is
@@ -163,6 +166,18 @@ is recorded here.
     `carddav` stand in for `calendars` and `contacts` the same way. Where a server offers both
     forms only the standard name is asked for, and an earlier name is matched whole, never as
     the last segment of a vendor's URL.
+
+13. **A calendar or address book the mailbox's sign-in does not reach may sign in at its own
+    server's issuer** (`separate_server_offers_sign_in`, `begin_separate_server_sign_in`,
+    `complete_separate_server_sign_in`). The server is asked who signs it in, unauthenticated, as
+    a JMAP server is (RFC 9728 through its `401`, else the well-known document), and the issuer it
+    names is used only where rule 10's host test holds for that issuer and every server that
+    moves: the server's metadata finds the issuer and never decides where a token goes. The issuer
+    must register apps (RFC 7591) and offer a scope for every use that moves; what is asked for is
+    `offline_access` and those uses' scopes, never mail (`mailcal_oauth::select_dav_scopes`). The
+    account it makes is the one a password makes ([`accounts.md`](accounts.md) rule 18), holding
+    the grant instead, and a sign-in naming another account is refused as rule 10's mailbox
+    sign-in is. Anything short of that offers the password form alone.
 
 ## What is deliberately not done
 
@@ -192,7 +207,8 @@ is recorded here.
   Neither binds a token to what was named: one Fastmail token issued for its JMAP session opens
   IMAP, SMTP, CalDAV and CardDAV, and a Stalwart token opens all of its endpoints. Neither sends
   the token response's `username` (§3.5), so the address the person typed stays the account's
-  identity.
+  identity. Where a server does send one, signing an existing account in refuses a grant issued
+  for another account ([`accounts.md`](accounts.md) rule 17).
 
 - **No mechanism knob.** Which SASL mechanism carries the token is negotiated by the engine
   from what the server advertises, and a caller able to pin one would be encoding which
@@ -212,6 +228,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | A drawn password field stays while an edited account is asked again | n/a | ✅ | ✅ | ✅ | ✅ |
 | Browser sign-in + redirect capture | n/a | ✅ `ASWebAuthenticationSession` | ✅ protocol activation | ✅ Custom Tab | ✅ loopback |
 | Grant stored with no password beside it | ✅ | n/a | n/a | n/a | ✅ |
+| A separate calendar server signed in to at its own issuer (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | One re-dial on an expired token | ✅ | n/a | n/a | n/a | n/a |
 
 ## Known gaps

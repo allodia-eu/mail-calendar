@@ -17,22 +17,26 @@ extension MailboxModel {
     /// Every route that adds an account ends here: the manual form, the Microsoft and Google
     /// sign-ins, and the JMAP and IMAP ones (whose routes converge before this).
     ///
-    /// Setup moves on to the link step when another account can fill something this one lacks,
-    /// back to the step an "Add another account" left, or closes. The pass to the person's other
-    /// devices belongs to every route rather than to the form: an account added without one stays
-    /// on this device until the next launch, and its page draws no sharing control.
+    /// Setup moves on to a password for the calendar or contacts server when the account's
+    /// sign-in did not reach it, then to the link step when another account can fill something
+    /// this one lacks, back to the step an "Add another account" left, or closes. The pass to the
+    /// person's other devices belongs to every route rather than to the form: an account added
+    /// without one stays on this device until the next launch, and its page draws no sharing
+    /// control.
     ///
     /// `account` is the row the add returned, when the route has it. A route with none ends the
     /// flow without asking a name, rather than guessing which account it just added.
     func accountWasAdded(_ account: AccountRow? = nil) {
         setupError = nil
+        setupExistingAccount = nil
         syncAfterAccountChange()
         refreshAccountsSnapshot()
         guard let account else {
             finishSetup()
             return
         }
-        if let entry = accountEntry(account.id) {
+        let entry = accountEntry(account.id)
+        if let entry {
             let withheld = AccountSettingsRules.withheld(entry)
             if !withheld.isEmpty {
                 withheldWaiting = AccountPageNotice(
@@ -42,7 +46,20 @@ extension MailboxModel {
                         uses: withheld.map(AccountSettingsLabels.use).joined(separator: ", ")))
             }
         }
-        if !setupFlow.accountAdded(account.id, stepFor: setupLinkStep) {
+        // The add's own dial has said whether the calendar or contacts need a sign-in of their
+        // own, so the step before the link step is read from the same snapshot.
+        let separateServer = entry.flatMap(SeparateServerRules.ask)
+        if !setupFlow.accountAdded(
+            account.id, separateServer: separateServer, stepFor: setupLinkStep)
+        {
+            finishSetup()
+        }
+    }
+
+    /// The separate-server step answered: on to the link step, or the end of setup.
+    func setupSeparateServerDone() {
+        refreshAccountsSnapshot()
+        if !setupFlow.separateServerDone(stepFor: setupLinkStep) {
             finishSetup()
         }
     }
@@ -94,10 +111,11 @@ extension MailboxModel {
         setupStartOffer = nil
     }
 
-    /// What the last attempt on the setup form left behind: the error, and a certificate it was
-    /// refused or accepted.
+    /// What the last attempt on the setup form left behind: the error, the account it was
+    /// refused as already being, and a certificate it was refused or accepted.
     func clearSetupAttempt() {
         setupError = nil
+        setupExistingAccount = nil
         setupRejectedCertificate = nil
         setupAcceptedCertificate = nil
     }

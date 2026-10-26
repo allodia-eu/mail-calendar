@@ -204,6 +204,7 @@ async fn connect_one(
     let engine_config = JmapConfig::new(
         config.base_url.clone(),
         Credentials::bearer(access_token.clone()),
+        crate::user_agent(),
     )
     .with_tls(tls.clone())
     .with_retry(tokens.retry())

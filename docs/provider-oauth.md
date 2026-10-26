@@ -36,6 +36,13 @@ capturing the redirect), because that is inherently platform-specific.
    client passes the **raw callback URL** back to the core (`complete_microsoft_login`); it does
    not parse tokens itself.
 
+   A mismatched `state` is refused before anything is exchanged, and every sign-in the core
+   completes answers it as `MailcalError::StaleSignIn`, never as a failed connect. Its usual cause
+   is innocent: a provider's login page that returns, once the person has signed in there, to an
+   older request the same browser left unfinished. Each client says so in the person's language
+   (`signin_stale`), with the sign-in still offered: the browser is now signed in at the provider,
+   so the next attempt goes straight through.
+
 4. **Tokens live only in the OS keystore.** The stored account config carries **only** the
    refresh token (the single at-rest secret), never a password; access tokens are minted on
    demand and never persisted. The config secret redacts itself in logs. Storage is the same OS
@@ -396,6 +403,9 @@ capturing the redirect), because that is inherently platform-specific.
     could not fix it. The only cure left was to remove the account and add it back, discarding the
     local store to repair a credential. So `account_provider` reports the two families apart
     (`Jmap` · `JmapOauth`), and every client offers the button for the OAuth one; see rule 14.
+    An IMAP account is split the same way (`Password` · `ImapOauth`): one signed in through its
+    provider signs in again in place with `begin_account_sign_in` and `complete_account_sign_in`,
+    from its stored grant ([`accounts.md`](accounts.md) rule 17).
     For a password or pasted JMAP secret, `replace_account_secret` rebuilds the account from its
     existing endpoints with only that secret changed, connects it before writing anything, then
     replaces the credential through `AccountCredentialStore` and runs a catch-up. A refusal leaves
@@ -482,7 +492,12 @@ capturing the redirect), because that is inherently platform-specific.
     reconnected: `login_hint` targets an address, it does not pin one, so someone with two
     mailboxes at one provider can come back as the wrong one, and filing that grant under the
     original account id would point it at another person's mail while still displaying the original
-    address. Because the account keeps its identity, settings and downloaded mail, a client calls
+    address. No discovered server we have met names the account in its token response (§3.5
+    `username`), so the address the person typed cannot be compared there; what is compared is
+    the session the new grant opens: one that names sending identities and none of them is the
+    account's address is another mailbox, and is refused before anything is stored (`sends_as`).
+    A server that names no identities cannot be told apart this way, and is taken at its word.
+    Because the account keeps its identity, settings and downloaded mail, a client calls
     neither `add_account` nor its own secure-store write on this path.
 
 15. **The client registrations are injected at build time, and a build without one does not offer
@@ -622,6 +637,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | System browser (no in-app WebView) | — | ✅ `ASWebAuthenticationSession` | ✅ default browser + protocol activation | ✅ Chrome Custom Tabs | ✅ default browser + loopback |
 | Redirect capture | — | ✅ custom scheme | ✅ custom-scheme protocol activation | ✅ custom-scheme `intent-filter` | ✅ `127.0.0.1` Rust `TcpListener` |
 | `state` validated on callback | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A callback from another request said as one, the sign-in still offered (rule 3, `StaleSignIn`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Refresh token only, in OS keystore | ✅ | ✅ Keychain | ✅ Credential Manager | ✅ Android Keystore | ✅ Secret Service |
 | Token refresh + rotation persistence | ✅ refresh · rotation **verified live** (Graph + JMAP both rotate) | ✅ | ✅ refresh · rotation **verified live** `CredentialStoreSink` (Graph + JMAP) | ✅ verified on-device | ✅ verified live (Graph + JMAP) |
 | One refresh in flight per account (no replay on a ratcheting server, rule 5) | ✅ | — | — | — | — |

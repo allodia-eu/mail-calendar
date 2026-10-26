@@ -137,9 +137,9 @@
                         <HyperlinkButton x:Name="ImapUsePasswordButton"
                                          Content="{x:Bind l10n:L10n.SetupImapSigninPasswordInstead(), Mode=OneTime}"
                                          Padding="0" Visibility="Collapsed" Click="OnUseImapPassword" />
+                        <!-- Its message is set beside IsOpen, by which failure it is. -->
                         <InfoBar x:Name="ImapSignInFailedBar" IsOpen="False" IsClosable="False"
-                                 Severity="Warning"
-                                 Message="{x:Bind l10n:L10n.SetupImapSigninFailed(), Mode=OneTime}" />
+                                 Severity="Warning" />
                     </StackPanel>
 
                     <!-- Said rather than left to be guessed at. Without this line, a provider
@@ -232,8 +232,7 @@
                         <!-- A failed sign-in says so here and leaves the field below usable,
                              never a dead end, and never a raw protocol error in front of the user. -->
                         <InfoBar x:Name="JmapSignInFailedBar" IsOpen="False" IsClosable="False"
-                                 Severity="Warning"
-                                 Message="{x:Bind l10n:L10n.SetupJmapSigninFailed(), Mode=OneTime}" />
+                                 Severity="Warning" />
                     </StackPanel>
 
                     <!-- The manual way in: a secret, and the server to present it to. Grouped so it
@@ -363,6 +362,19 @@
                     Title="{x:Bind l10n:L10n.SetupErrorTitle(), Mode=OneTime}"
                     Message="{x:Bind Model.SetupError, Mode=OneWay}" />
 
+                <!-- The add was refused because the account is set up already: the sign-in or
+                     password just given can go to that account instead (docs/accounts.md rule 17). -->
+                <StackPanel Spacing="4" Visibility="{x:Bind Model.SetupUpdateVisibility, Mode=OneWay}">
+                    <Button x:Name="UpdateExistingButton"
+                            Content="{x:Bind l10n:L10n.AccountAlreadySetUpUpdate(), Mode=OneTime}"
+                            IsEnabled="{x:Bind Model.NotSubmitting, Mode=OneWay}" Click="OnUpdateExisting" />
+                    <TextBlock
+                        Text="{x:Bind l10n:L10n.AccountAlreadySetUpUpdateNote(), Mode=OneTime}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
                 <!-- Back to the address step at the start; Connect (IMAP/JMAP) or Sign in
                      (Microsoft / Google) at the end, with Cancel beside it when adding another
                      account. The Google button's IsEnabled is driven in code-behind, it depends on
@@ -402,6 +414,11 @@
                 <HyperlinkButton x:Name="SetupManualButton" Content="{x:Bind l10n:L10n.SetupDetectManual(), Mode=OneTime}"
                                  HorizontalAlignment="Center" Visibility="Collapsed" Click="OnSetUpManuallyFromFound" />
             </StackPanel>
+
+            <!-- After a connect, before the link step: a sign-in of their own for a calendar and
+                 contacts the account's did not reach (docs/onboarding.md). Built in code
+                 (AccountSetupView.SeparateServer.cs). -->
+            <StackPanel x:Name="SeparatePanel" Spacing="12" Visibility="Collapsed" />
 
             <!-- The last step, after a connect: linking the new account to another
                  (docs/onboarding.md). Built in code (AccountSetupView.Links.cs). -->

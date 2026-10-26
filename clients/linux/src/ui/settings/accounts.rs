@@ -79,11 +79,14 @@ pub(crate) mod tests {
             id: "alice@dav:cloud.example".to_owned(),
             address: "alice@cloud.example".to_owned(),
             kind: AccountKind::Dav,
+            sign_in: mailcal_bindings::SignInMethod::Password,
             uses: Vec::new(),
             links: mailcal_bindings::AccountLinksView::default(),
             linked_from: Vec::new(),
             link_candidates: mailcal_bindings::LinkCandidates::default(),
             endpoints: None,
+            separate_server: None,
+            distinction: None,
         };
         let row = account_row(&entry, &sender);
         adw::prelude::ActionRowExt::activate(&row);

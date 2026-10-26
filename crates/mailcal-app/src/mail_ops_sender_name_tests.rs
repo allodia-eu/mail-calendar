@@ -31,7 +31,7 @@ fn app_with_prefs(
         Engine::open_in_memory().unwrap(),
         vec![Account {
             id: AccountId::try_from("acct-1").unwrap(),
-            providers: vec![provider],
+            providers: vec![provider].into(),
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
@@ -222,7 +222,8 @@ fn app_using_identity(
             id: AccountId::try_from("acct-1").unwrap(),
             providers: vec![IdentityProvider {
                 name: name.map(str::to_owned),
-            }],
+            }]
+            .into(),
             calendar_providers: Vec::new(),
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
@@ -317,5 +318,36 @@ async fn a_suggestion_is_sanitised_before_it_reaches_the_field() {
     assert!(
         !suggestion.contains('\r') && !suggestion.contains('\n'),
         "{suggestion:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_session_that_names_other_identities_does_not_send_as_this_address() {
+    let app = app_with_identity(None, scratch_prefs("sends-as"));
+    let provider = IdentityProvider { name: None };
+    let account = AccountId::try_from("acct-1").unwrap();
+
+    assert_eq!(
+        app.sends_as(&provider, &account, "Me@Allodia.local").await,
+        Some(true)
+    );
+    assert_eq!(
+        app.sends_as(&provider, &account, "someone-else@allodia.local")
+            .await,
+        Some(false),
+        "a session for another mailbox"
+    );
+}
+
+#[tokio::test]
+async fn a_provider_without_identities_cannot_say_whose_session_it_is() {
+    let (app, _) = app_with_prefs(None);
+    let account = AccountId::try_from("acct-1").unwrap();
+    let provider = ThreadProvider::with(Vec::new());
+
+    assert_eq!(
+        app.sends_as(&provider, &account, "anyone@allodia.local")
+            .await,
+        None
     );
 }

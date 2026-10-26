@@ -232,3 +232,56 @@ fn a_sign_in_that_named_no_scope_leaves_dav_to_the_servers_default() {
     assert!(requests_dav_use(&unnamed, DavUse::Calendars));
     assert!(requests_dav_use(&unnamed, DavUse::Contacts));
 }
+
+#[test]
+fn a_calendar_signed_in_to_on_its_own_asks_for_its_uses_and_no_mail() {
+    let meta = metadata(&[
+        "openid",
+        "offline_access",
+        "urn:ietf:params:oauth:scope:mail",
+        "urn:ietf:params:oauth:scope:contacts",
+        "urn:ietf:params:oauth:scope:calendars",
+    ]);
+    let both = [DavUse::Calendars, DavUse::Contacts];
+
+    assert_eq!(
+        select_dav_scopes(&meta, &both),
+        [
+            "offline_access",
+            "urn:ietf:params:oauth:scope:contacts",
+            "urn:ietf:params:oauth:scope:calendars",
+        ]
+    );
+    assert_eq!(
+        select_dav_scopes(&meta, &[DavUse::Contacts]),
+        ["offline_access", "urn:ietf:params:oauth:scope:contacts"]
+    );
+    assert!(grants_dav_access(
+        &meta,
+        &select_dav_scopes(&meta, &both),
+        &both
+    ));
+}
+
+#[test]
+fn a_calendar_sign_in_needs_every_use_it_moves() {
+    let calendars_only = metadata(&["offline_access", "caldav"]);
+    let both = [DavUse::Calendars, DavUse::Contacts];
+
+    assert!(!grants_dav_access(
+        &calendars_only,
+        &select_dav_scopes(&calendars_only, &both),
+        &both
+    ));
+    assert!(grants_dav_access(
+        &calendars_only,
+        &select_dav_scopes(&calendars_only, &[DavUse::Calendars]),
+        &[DavUse::Calendars]
+    ));
+    let silent = metadata(&[]);
+    assert!(grants_dav_access(
+        &silent,
+        &select_dav_scopes(&silent, &both),
+        &both
+    ));
+}

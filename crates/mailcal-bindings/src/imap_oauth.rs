@@ -27,13 +27,14 @@ use mailcal_account::{
 };
 use mailcal_oauth::OAuthClient;
 use serde::{Deserialize, Serialize};
-use time::OffsetDateTime;
 
 use crate::{ConnectionSecurity, MailcalApp, MailcalError};
 
+mod again;
 mod discovery;
 
 use discovery::discover_registration;
+pub(crate) use discovery::host_only;
 
 /// The client name shown on the provider's consent screen. The product name, per the brand
 /// rule: this is user-facing copy on someone else's page.
@@ -137,11 +138,16 @@ pub struct ImapLoginStart {
     /// An opaque handle (the account's servers, the discovered endpoints, the registered
     /// client id and the PKCE verifier). **Transient; hold it in memory only.**
     pub pending: String,
+    /// The calendar and contacts uses chosen for the account that this sign-in will not reach:
+    /// their server does not take the provider's tokens (`docs/mail-oauth.md` rule 10). Known
+    /// before the browser opens, so a client can say so first (`docs/accounts.md` rule 18).
+    #[uniffi(default = [])]
+    pub unreached: Vec<crate::AccountCapability>,
 }
 
 /// The transient state carried between begin and complete. Round-tripped through the host as
 /// the opaque `pending` handle, and never persisted; it holds the PKCE verifier.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct PendingImapLogin {
     email: String,
     imap_host: String,
@@ -345,51 +351,8 @@ impl MailcalApp {
         pending: String,
         callback_url: String,
     ) -> Result<String, MailcalError> {
-        let pending: PendingImapLogin =
-            serde_json::from_str(&pending).map_err(|err| MailcalError::Config(err.to_string()))?;
-        let grant_shell = grant_shell(&pending);
-        let oauth = OAuthClient::new(grant_shell.provider_config())
-            .map_err(|err| MailcalError::Config(err.to_string()))?;
-        log::info!(
-            "imap oauth: redirect received; exchanging the code at {}",
-            pending.token_endpoint,
-        );
-        let tokens = self
-            .runtime
-            .block_on(|| {
-                oauth.complete(
-                    &callback_url,
-                    &pending.state,
-                    &pending.verifier,
-                    OffsetDateTime::now_utc(),
-                )
-            })
-            .map_err(|err| {
-                // The server's own machine-readable reason, which is the single most useful
-                // line in the whole flow for support: `invalid_grant` means the code was
-                // stale or replayed, and a callback rejection names which check failed.
-                log::warn!("imap oauth: token exchange FAILED; {err}");
-                MailcalError::Connect(err.to_string())
-            })?;
-        // `offline_access` is always requested, so a refresh token is mandatory: without one
-        // the account stops syncing about an hour after setup, which is far worse to diagnose
-        // than failing here.
-        let refresh_token = tokens.refresh_token.ok_or_else(|| {
-            log::warn!(
-                "imap oauth: exchange succeeded but the server issued NO refresh token; granted scope(s): [{}]",
-                tokens.scope,
-            );
-            MailcalError::Connect(
-                "the server issued no refresh token (offline_access was requested)".to_owned(),
-            )
-        })?;
-        log::info!(
-            "imap oauth: sign-in complete; access token valid until {}, granted scope(s): [{}]",
-            tokens.expires_at,
-            tokens.scope,
-        );
-        let (setup, _grant) = pending.into_grant(refresh_token.expose().to_owned());
-        mailcal_account::build_config_toml(&setup)
+        let signed_in = self.exchange_imap_login(pending, callback_url)?;
+        mailcal_account::build_config_toml(&signed_in.setup)
             .map_err(|err| MailcalError::Config(err.to_string()))
     }
 }
@@ -426,11 +389,35 @@ fn start_login(mut pending: PendingImapLogin) -> Result<ImapLoginStart, MailcalE
     pending.state = request.state;
     pending.verifier = request.pkce.verifier().to_owned();
     log::info!("imap oauth: opening the authorization page; awaiting the redirect");
+    let unreached = unreached(&pending)?;
     Ok(ImapLoginStart {
         authorization_url: request.authorization_url,
         pending: serde_json::to_string(&pending)
             .map_err(|err| MailcalError::Config(err.to_string()))?,
+        unreached,
     })
+}
+
+/// The chosen calendar and contacts uses the grant `pending` becomes will not reach, read from
+/// the account it completes into, so what is said before the browser opens is what its connect
+/// then finds.
+fn unreached(pending: &PendingImapLogin) -> Result<Vec<crate::AccountCapability>, MailcalError> {
+    let (setup, _) = pending.clone().into_grant(String::new());
+    let config = mailcal_account::build_config_toml(&setup)
+        .and_then(|toml| mailcal_account::load_str(&toml))
+        .map_err(|err| MailcalError::Config(err.to_string()))?;
+    let unreached = config.uses_its_grant_does_not_reach();
+    if !unreached.is_empty() {
+        log::info!(
+            "imap oauth: this sign-in will not reach the account's {}",
+            unreached
+                .iter()
+                .map(|capability| capability.as_str())
+                .collect::<Vec<_>>()
+                .join(" and "),
+        );
+    }
+    Ok(unreached.into_iter().map(Into::into).collect())
 }
 
 #[cfg(test)]

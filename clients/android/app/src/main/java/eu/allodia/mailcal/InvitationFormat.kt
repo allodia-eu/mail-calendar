@@ -329,13 +329,15 @@ internal fun meetingMinuteSpan(startsAt: String, endsAt: String, zone: String): 
  * What to say about an answer that is on its way out, or null when there is nothing to say.
  *
  * `SAVED` and `IDLE` both return null on purpose: the card already shows the new answer by then
- * (it re-reads the calendar), so a second "Answer sent" line would be noise. `FAILED` is the one
- * that must never be silent, a reply the organiser never received, with the card quietly showing
- * the old answer, is exactly the failure the whole feature exists to prevent.
+ * (it re-reads the calendar), so a second "Answer sent" line would be noise. The two failures are
+ * the ones that must never be silent, a reply the organiser never received, with the card quietly
+ * showing the old answer, is exactly the failure the whole feature exists to prevent. `NOT_SAVED`
+ * was not sent; `UNCONFIRMED` may have been.
  */
 internal fun invitationWriteLine(ctx: Context, status: CalendarWriteStatus): String? = when (status) {
     CalendarWriteStatus.SAVING -> L10n.invitation_sending(ctx)
-    CalendarWriteStatus.FAILED -> L10n.invitation_failed(ctx)
+    CalendarWriteStatus.NOT_SAVED -> L10n.invitation_failed(ctx)
+    CalendarWriteStatus.UNCONFIRMED -> L10n.invitation_unconfirmed(ctx)
     CalendarWriteStatus.SAVED, CalendarWriteStatus.IDLE -> null
 }
 

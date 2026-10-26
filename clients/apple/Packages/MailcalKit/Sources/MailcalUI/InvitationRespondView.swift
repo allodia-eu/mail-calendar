@@ -98,22 +98,19 @@ struct InvitationRespondView: View {
         .disabled(status == .saving)
     }
 
-    /// What happened to the answer. `saving` and `failed` are the two the user must see: a reply
-    /// the organiser never received, reported as sent, is the failure this whole feature exists to
-    /// prevent, so a failure says so in words rather than leaving the old answer on screen.
+    /// What happened to the answer. `saving` and the two failures are what the user must see: a
+    /// reply the organiser never received, reported as sent, is the failure this whole feature
+    /// exists to prevent.
     @ViewBuilder
     private var progress: some View {
-        switch status {
-        case .saving:
+        if status == .saving {
             Label(L10n.invitation_sending(), systemImage: "arrow.triangle.2.circlepath")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-        case .failed:
-            Label(L10n.invitation_failed(), systemImage: "exclamationmark.triangle")
+        } else if let line = invitationWriteLine(status) {
+            Label(line, systemImage: "exclamationmark.triangle")
                 .font(.caption2)
                 .foregroundStyle(.orange)
-        case .saved, .idle:
-            EmptyView()
         }
     }
 }

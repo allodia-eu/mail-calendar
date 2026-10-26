@@ -1,6 +1,6 @@
 //! One account's page in Settings → Accounts: how it travels, what it is used for, the accounts
-//! it relies on, signing in again at its provider or its own servers and password, its mail
-//! settings while it is used for mail, and its removal, last.
+//! it relies on, how it signs in, its own servers and password, its mail settings while it is
+//! used for mail, and its removal, last.
 
 use adw::prelude::*;
 use mailcal_bindings::{AccountCapability, AccountEntry};
@@ -10,13 +10,17 @@ use super::{
 };
 use crate::{
     l10n,
-    ui::{AppInput, account_settings::AccountsInput},
+    ui::{
+        AppInput,
+        account_settings::AccountsInput,
+        server_change::{self, Review, ReviewFrom},
+    },
 };
 
 pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
     let content = page_box(&entry.address);
     content.prepend(&back_button(&ctx.sender));
-    let kind = gtk::Label::new(Some(account_rows::kind_label(entry.kind)));
+    let kind = gtk::Label::new(Some(&super::account_names::kind_line(entry)));
     kind.add_css_class("dim-label");
     kind.set_xalign(0.0);
     content.append(&kind);
@@ -36,6 +40,8 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
     }
     if account_rows::signs_in_at_provider(entry.kind) {
         content.append(&signin_group(ctx, entry));
+    } else if let Some(section) = super::sign_in_section::group(ctx, entry) {
+        content.append(&section);
     }
     if let Some(endpoints) = &entry.endpoints {
         content.append(&account_servers::server_group(
@@ -105,8 +111,36 @@ fn uses_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup 
             }
         });
         section.add(&row);
+        // Under the note that says why: a sign-in of its own for the server that needs one.
+        if crate::ui::separate_sign_in_view::action_after(entry) == Some(capability)
+            && let Some(action) = crate::ui::separate_sign_in_view::page_action(entry, &ctx.sender)
+        {
+            section.add(&action);
+        }
+        // Under the note that says it is paused: the question about the server found elsewhere.
+        if account_rows::review_after(entry) == Some(capability)
+            && let Some(action) = review_row(ctx, entry)
+        {
+            section.add(&action);
+        }
     }
     section
+}
+
+/// "Review", which asks whether to allow the server the calendar or contacts was found on.
+fn review_row(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::ButtonRow> {
+    let review = Review {
+        address: entry.address.clone(),
+        change: ctx.app.pending_server_change(entry.id.clone())?,
+    };
+    let row = adw::ButtonRow::new();
+    row.set_use_markup(false);
+    row.set_title(l10n::server_changed_review());
+    let (parent, sender, account) = (ctx.window.clone(), ctx.sender.clone(), entry.id.clone());
+    row.connect_activated(move |_| {
+        server_change::ask(&parent, &account, &review, ReviewFrom::Settings, &sender);
+    });
+    Some(row)
 }
 
 /// Asks before switching a use off; cancelling puts the switch back.
@@ -172,16 +206,15 @@ fn links_group(
         l10n::settings_account_links_description(),
     );
     for picker in pickers {
-        let labels = std::iter::once(l10n::settings_account_link_none())
-            .chain(picker.options.iter().map(|option| option.address.as_str()))
-            .collect::<Vec<_>>();
+        let names = picker.labels();
+        let labels = names.iter().map(String::as_str).collect::<Vec<_>>();
         let selected = picker
             .selected
             .and_then(|index| u32::try_from(index + 1).ok())
             .unwrap_or(0);
         let (row, dropdown) = super::choice(picker.title, &labels, selected);
-        if let Some(index) = picker.suggested {
-            suggest(&row, &dropdown, &picker.options[index].address, index);
+        if let (Some(index), Some(name)) = (picker.suggested, picker.suggested_name()) {
+            suggest(&row, &dropdown, &name, index);
         }
         let sender = ctx.sender.clone();
         let account = entry.id.clone();
@@ -260,6 +293,7 @@ fn mail_group(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::Preference
     Some(account_mail::mail_group(
         ctx,
         account,
+        &super::account_names::entry_name(entry),
         &snapshot,
         expired,
         provider.as_ref(),
@@ -297,12 +331,12 @@ fn remove_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGrou
 
 /// What removing the account does, naming the accounts that lose their link to it.
 fn remove_message(entry: &AccountEntry) -> String {
-    let mut message = l10n::remove_account_message(&entry.address);
+    let mut message = l10n::remove_account_message(&super::account_names::entry_name(entry));
     if !entry.linked_from.is_empty() {
         let accounts = entry
             .linked_from
             .iter()
-            .map(|linked| linked.address.as_str())
+            .map(super::account_names::linked_name)
             .collect::<Vec<_>>()
             .join(", ");
         message.push(' ');
@@ -355,11 +389,14 @@ mod tests {
             id: "alice@dav:cloud.example".to_owned(),
             address: "alice@cloud.example".to_owned(),
             kind: AccountKind::Dav,
+            sign_in: mailcal_bindings::SignInMethod::Password,
             uses: Vec::new(),
             links: mailcal_bindings::AccountLinksView::default(),
             linked_from: Vec::new(),
             link_candidates: mailcal_bindings::LinkCandidates::default(),
             endpoints: None,
+            separate_server: None,
+            distinction: None,
         };
         assert_eq!(
             remove_message(&entry),
@@ -369,9 +406,26 @@ mod tests {
         entry.linked_from = vec![LinkedAccount {
             id: "alice@example.org@imap.example.org".to_owned(),
             address: "alice@example.org".to_owned(),
+            distinction: None,
         }];
         assert!(
             remove_message(&entry).ends_with(&l10n::remove_account_unlinks("alice@example.org"))
         );
+
+        entry.linked_from[0].distinction = Some(mailcal_bindings::AccountDistinction::Kind {
+            kind: AccountKind::Imap,
+        });
+        let named = l10n::settings_account_distinguished(
+            "alice@example.org",
+            l10n::setup_account_type_password(),
+        );
+        assert!(remove_message(&entry).ends_with(&l10n::remove_account_unlinks(&named)));
+
+        entry.distinction = Some(mailcal_bindings::AccountDistinction::Server {
+            host: "dav.cloud.example".to_owned(),
+        });
+        let removed =
+            l10n::settings_account_distinguished("alice@cloud.example", "dav.cloud.example");
+        assert!(remove_message(&entry).starts_with(&l10n::remove_account_message(&removed)));
     }
 }

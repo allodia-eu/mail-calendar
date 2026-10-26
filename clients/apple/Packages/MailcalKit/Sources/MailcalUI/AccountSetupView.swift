@@ -180,6 +180,7 @@ struct AccountSetupView: View {
             if let error = model.setupError, refusedCertificate == nil {
                 Text(error).font(.callout).foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
+                AlreadySetUpOffer(model: model)
             }
             if let refusedCertificate {
                 CertificateExceptionPanel(
@@ -208,7 +209,8 @@ struct AccountSetupView: View {
 
     /// A connect or a sign-in is running, and its answer belongs to the step on screen.
     var busy: Bool {
-        model.isConnecting || model.microsoftSigningIn || model.googleSigningIn || imapSigningIn
+        model.isConnecting || model.updatingExistingAccount || model.microsoftSigningIn
+            || model.googleSigningIn || imapSigningIn
     }
 
     /// What a Microsoft or Google sign-in for the typed address is offered; nothing for any other

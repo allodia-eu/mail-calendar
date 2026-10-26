@@ -1,5 +1,5 @@
 // What follows a connect on the setup screen (docs/onboarding.md, "After the connect"): the uses a
-// JMAP server offers, the link step, the accounts an "Add another account" adds on the way, which of
+// JMAP server offers, a calendar on a server of its own, the link step, the accounts an "Add another account" adds on the way, which of
 // them are asked their name once the flow ends, and what a sign-in's grant withheld, said after
 // that. Held by the activity, because a browser sign-in leaves the app mid-flow; Compose-free in
 // its decisions, so the JVM suite drives them.
@@ -59,6 +59,21 @@ internal class SetupFlow {
     var uses by mutableStateOf<UsesStep?>(null)
         private set
 
+    /**
+     * The step asking a calendar or address book's own password, ahead of the link step, when the
+     * added account's sign-in does not reach their server (docs/accounts.md rule 18).
+     */
+    val separate = SeparateSignIn()
+
+    /** The account whose link step follows [separate]. */
+    private var separateNext: String? = null
+
+    /** What the IMAP sign-in under way will not reach, from its start until its add. */
+    var signInUnreached: List<AccountCapability> = emptyList()
+
+    /** Whether "Update the existing account" asks what becomes of what its sign-in does not reach. */
+    var askingExisting by mutableStateOf(false)
+
     /** The account whose link step "Add another account" left, to come back to. */
     var returningTo by mutableStateOf<String?>(null)
         private set
@@ -85,8 +100,25 @@ internal class SetupFlow {
     /** What a provider withheld from an account the flow added, said once the names are asked. */
     var withheld: Pair<String, List<AccountCapability>>? = null
 
+    private var existingState by mutableStateOf<ExistingAccount?>(null)
+
+    /**
+     * The account an add was refused for as already set up, offered the credential just given. A
+     * new refusal, or none, asks nothing yet.
+     */
+    var existing: ExistingAccount?
+        get() = existingState
+        set(value) {
+            existingState = value
+            askingExisting = false
+        }
+
+    /** Whether that account is taking the credential. */
+    var updatingExisting by mutableStateOf(false)
+
     /** Whether the link step is what the screen shows. */
-    val showsLinks: Boolean get() = uses == null && returningTo == null && links != null
+    val showsLinks: Boolean
+        get() = uses == null && separate.form == null && returningTo == null && links != null
 
     /** Whether an account has been added in this flow, so leaving it still asks their names. */
     val addedAny: Boolean get() = added.isNotEmpty()
@@ -95,9 +127,10 @@ internal class SetupFlow {
     fun besideFor(account: String): Beside? = beside.firstOrNull { it.account == account }
 
     /**
-     * An account was added: which of the uses its server offers it is used for, when only the
-     * server could say ([choices]); then back to the link step it was added from, on to its own
-     * when another account can fill something it lacks, or the end of the flow.
+     * An account was added: a sign-in of their own for the uses its sign-in does not reach
+     * ([separate]), or which of the uses its server offers it is used for, when only the server
+     * could say ([choices]); then back to the link step it was added from, on to its own when
+     * another account can fill something it lacks, or the end of the flow.
      *
      * @return whether the flow goes on; false means it ends now.
      */
@@ -106,6 +139,7 @@ internal class SetupFlow {
         jmap: Boolean,
         choices: List<SetupChoice>,
         stepFor: (String) -> SetupLinkStep?,
+        separate: SeparateServerForm? = null,
     ): Boolean {
         added += account
         if (jmap) found?.let { beside += it.offerFor(account) }
@@ -115,6 +149,11 @@ internal class SetupFlow {
         // step that cancel returned to.
         val next = returningTo ?: links?.account ?: account
         returningTo = null
+        if (separate != null) {
+            this.separate.open(separate)
+            separateNext = next
+            return true
+        }
         UsesStep.of(account, next, choices)?.let {
             uses = it
             return true
@@ -127,6 +166,15 @@ internal class SetupFlow {
         val step = uses ?: return false
         uses = null
         return onward(step.account, step.next, stepFor)
+    }
+
+    /** The separate server's step connected or was skipped: on to its link step, or the end. */
+    fun separateDone(stepFor: (String) -> SetupLinkStep?): Boolean {
+        val account = separate.form?.accountId ?: return false
+        val next = separateNext ?: account
+        separate.close()
+        separateNext = null
+        return onward(account, next, stepFor)
     }
 
     /** On to [next]'s link step, with [added] picked on it when it was added from it. */
@@ -190,9 +238,12 @@ internal class SetupFlow {
         beside.clear()
         links = null
         uses = null
+        separate.close()
+        separateNext = null
         returningTo = null
         startOn = null
         found = null
+        existing = null
         return names
     }
 }

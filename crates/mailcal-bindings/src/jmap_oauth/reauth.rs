@@ -32,10 +32,7 @@ use engine_core::ids::AccountId;
 use mailcal_account::JmapAccountConfig;
 
 use super::{JmapLoginStart, start_login};
-use crate::{
-    MailcalApp, MailcalError, account_registry::JmapLookup, account_repair::CredentialPersistence,
-    boot,
-};
+use crate::{MailcalApp, MailcalError, account_registry::JmapLookup, boot};
 
 #[uniffi::export]
 impl MailcalApp {
@@ -99,7 +96,7 @@ impl MailcalApp {
         // Prove the account is still a known OAuth JMAP one before spending a code on it: the
         // user may have removed it while the browser was up.
         let stored = self.stored_jmap_config(&account_id)?;
-        let fresh = self
+        let (fresh, named) = self
             .exchange_jmap_login(pending, callback_url)
             .inspect_err(|err| {
                 // Support asks "I tapped Sign in again and nothing happened"; say what the server
@@ -110,6 +107,7 @@ impl MailcalApp {
                      is unchanged and the reconnect prompt stays up"
                 );
             })?;
+        crate::account_sign_in::named_as(named.as_deref(), &stored.email)?;
         let config = reconnected(&stored, fresh)?;
         let config_toml = config
             .to_toml()
@@ -130,12 +128,7 @@ impl MailcalApp {
             &sink,
             mailcal_account::CredentialOrigin::FreshSignIn,
         )?;
-        self.install_repaired_account(
-            &account_id,
-            prepared,
-            CredentialPersistence::RegisteredGrant,
-            "jmap oauth",
-        )?;
+        self.install_signed_in_account(&account_id, prepared, "jmap oauth", &stored.email)?;
         log::info!("jmap oauth: re-authentication complete: the account is connected again");
         Ok(())
     }
@@ -195,9 +188,7 @@ fn same_account(account_id: &str, config: &JmapAccountConfig) -> Result<AccountI
             "jmap oauth: the re-authentication signed in a DIFFERENT account than the one being \
              reconnected; discarding the new grant",
         );
-        return Err(MailcalError::Config(
-            "that sign-in is for a different account than the one being reconnected".to_owned(),
-        ));
+        return Err(MailcalError::DifferentAccount);
     }
     Ok(signed_in)
 }
@@ -207,7 +198,7 @@ mod tests {
     use mailcal_account::{OAuthGrant, Secret};
 
     use super::{JmapAccountConfig, reconnected, same_account};
-    use crate::{AccountProvider, ConnectedAccount};
+    use crate::{AccountProvider, ConnectedAccount, MailcalError};
 
     fn grant() -> OAuthGrant {
         OAuthGrant {
@@ -277,10 +268,7 @@ mod tests {
 
         let err = same_account(reconnecting.as_str(), &other).unwrap_err();
 
-        assert!(
-            err.to_string().contains("different account"),
-            "the message must say what went wrong: {err}",
-        );
+        assert!(matches!(err, MailcalError::DifferentAccount), "{err}");
     }
 
     fn pinned(config: JmapAccountConfig) -> JmapAccountConfig {

@@ -424,10 +424,17 @@ class InvitationWriteLineTest {
         assertNull(invitationWriteLine(ctx(), CalendarWriteStatus.SAVED))
         assertNull(invitationWriteLine(ctx(), CalendarWriteStatus.IDLE))
         assertNotNull(invitationWriteLine(ctx(), CalendarWriteStatus.SAVING))
-        assertNotNull(invitationWriteLine(ctx(), CalendarWriteStatus.FAILED))
+        assertEquals(
+            L10n.invitation_failed(ctx()),
+            invitationWriteLine(ctx(), CalendarWriteStatus.NOT_SAVED),
+        )
+        assertEquals(
+            L10n.invitation_unconfirmed(ctx()),
+            invitationWriteLine(ctx(), CalendarWriteStatus.UNCONFIRMED),
+        )
         assertNotEquals(
             invitationWriteLine(ctx(), CalendarWriteStatus.SAVING),
-            invitationWriteLine(ctx(), CalendarWriteStatus.FAILED),
+            invitationWriteLine(ctx(), CalendarWriteStatus.NOT_SAVED),
         )
     }
 }

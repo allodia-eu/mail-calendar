@@ -8,6 +8,7 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
+mailcal-user-agent = { path = "../mailcal-user-agent" }
 # Object-safe async trait for the fetcher, so the strategies take `Arc<dyn Fetch>` and
 # tests can inject a virtual-time fake in place of real HTTP.
 async-trait = { workspace = true }

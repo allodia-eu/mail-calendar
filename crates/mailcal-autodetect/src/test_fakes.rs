@@ -85,6 +85,8 @@ impl Reply {
 /// default), each after an optional virtual-time delay.
 pub(crate) struct FakeFetch {
     entries: HashMap<String, (Reply, Duration)>,
+    /// What a `PROPFIND` gets where it differs from a `GET`.
+    propfind: HashMap<String, Reply>,
     default: Reply,
 }
 
@@ -93,6 +95,7 @@ impl FakeFetch {
     pub(crate) fn new() -> Self {
         Self {
             entries: HashMap::new(),
+            propfind: HashMap::new(),
             default: Reply::Miss,
         }
     }
@@ -107,6 +110,12 @@ impl FakeFetch {
     /// orchestrator's priority ordering under `tokio` paused time.
     pub(crate) fn on_after(mut self, url: &str, reply: Reply, delay: Duration) -> Self {
         self.entries.insert(url.to_owned(), (reply, delay));
+        self
+    }
+
+    /// Serves `reply` to a `PROPFIND` of `url`, which otherwise gets what a `GET` would.
+    pub(crate) fn on_propfind(mut self, url: &str, reply: Reply) -> Self {
+        self.propfind.insert(url.to_owned(), reply);
         self
     }
 
@@ -128,29 +137,41 @@ impl Fetch for FakeFetch {
         if !delay.is_zero() {
             tokio::time::sleep(delay).await;
         }
-        match reply {
-            Reply::Ok {
-                status,
-                body,
-                trusted,
-                www_authenticate,
-            } => FetchOutcome::Response(FetchResponse {
-                status,
-                www_authenticate,
-                body,
-                trusted,
-                final_url: url.clone(),
-            }),
-            Reply::Landed { final_url, status } => FetchOutcome::Response(FetchResponse {
-                status,
-                www_authenticate: false,
-                body: Vec::new(),
-                trusted: false,
-                final_url: Url::parse(&final_url).expect("a scripted landing URL parses"),
-            }),
-            Reply::Miss => FetchOutcome::Miss,
-            Reply::Net => FetchOutcome::NetworkError,
+        outcome(reply, url)
+    }
+
+    async fn propfind(&self, url: &Url) -> FetchOutcome {
+        match self.propfind.get(url.as_str()) {
+            Some(reply) => outcome(reply.clone(), url),
+            None => self.get(url).await,
         }
+    }
+}
+
+/// What `reply` comes to for a request of `url`.
+fn outcome(reply: Reply, url: &Url) -> FetchOutcome {
+    match reply {
+        Reply::Ok {
+            status,
+            body,
+            trusted,
+            www_authenticate,
+        } => FetchOutcome::Response(FetchResponse {
+            status,
+            www_authenticate,
+            body,
+            trusted,
+            final_url: url.clone(),
+        }),
+        Reply::Landed { final_url, status } => FetchOutcome::Response(FetchResponse {
+            status,
+            www_authenticate: false,
+            body: Vec::new(),
+            trusted: false,
+            final_url: Url::parse(&final_url).expect("a scripted landing URL parses"),
+        }),
+        Reply::Miss => FetchOutcome::Miss,
+        Reply::Net => FetchOutcome::NetworkError,
     }
 }
 

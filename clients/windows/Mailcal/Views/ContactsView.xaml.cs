@@ -151,6 +151,22 @@ public sealed partial class ContactsView : UserControl
 
     private void OnClearSearch(object sender, RoutedEventArgs e) => SearchBox.Text = string.Empty;
 
+    /// <summary>Raised with an account's id when its outage line asks for its page in Settings →
+    /// Accounts; the window opens the dialog, which needs its XamlRoot.</summary>
+    public event System.EventHandler<string>? AccountSettingsRequested;
+
+    /// <summary>Raised with an account's id when its outage line asks to review a server change;
+    /// the window opens the question, which needs its XamlRoot.</summary>
+    public event System.EventHandler<string>? ServerChangeRequested;
+
+    private void OnUseOutageAccount(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is UseOutageLine line)
+        {
+            (line.Reviews ? ServerChangeRequested : AccountSettingsRequested)?.Invoke(this, line.AccountId);
+        }
+    }
+
     private void OnPersonSelected(object sender, SelectionChangedEventArgs e)
     {
         if (PeopleList.SelectedItem is not ContactItem person)

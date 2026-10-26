@@ -28,6 +28,15 @@ impl AppModel {
             .as_ref()
             .map(|app| app.signed_in_setup_choices(account.to_owned()))
             .unwrap_or_default();
+        // The add's own dial found out whether its calendar and contacts need a sign-in of their
+        // own; that is asked before the link step (`docs/onboarding.md`).
+        if let Some(server) = self
+            .app
+            .as_ref()
+            .and_then(|app| super::separate_sign_in::server_of(&app.accounts_snapshot(), account))
+        {
+            self.setup.hold_separate(account, server);
+        }
         match UsesStep::new(account.to_owned(), next.clone(), choices) {
             Some(step) => self.setup.show_uses(step),
             None => self.onward(account, &next, sender),
@@ -35,8 +44,12 @@ impl AppModel {
     }
 
     /// On to `next`'s link step, with `added` picked on it when it came back from adding that
-    /// account, or the end of the flow.
-    fn onward(&mut self, added: &str, next: &str, sender: relm4::Sender<AppInput>) {
+    /// account, or the end of the flow; first to the sign-in of its own `added` needs, if any.
+    pub(super) fn onward(&mut self, added: &str, next: &str, sender: relm4::Sender<AppInput>) {
+        if self.setup.show_separate(added, next) {
+            self.ask_separate_offer(super::separate_sign_in::SeparateFrom::Setup, sender);
+            return;
+        }
         match self.link_step(next) {
             Some(step) => self
                 .setup
@@ -100,6 +113,21 @@ impl AppModel {
         }
     }
 
+    /// The credential a refused add carried went on the account already set up. Setup ends as
+    /// an add does, back to the link step an "Add another account" left or the end of the flow;
+    /// the account is in the list already, so there is nothing to add.
+    pub(super) fn existing_account_updated(&mut self, sender: relm4::Sender<AppInput>) {
+        if let Some(app) = &self.app {
+            self.snapshot = app.mailbox_list();
+            self.connectivity =
+                super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
+        }
+        match self.setup.returning_to.take() {
+            Some(account) => self.onward(&account, &account, sender),
+            None => self.finish_setup(sender),
+        }
+    }
+
     /// Closes the window and asks each added account's name, one after another.
     fn finish_setup(&mut self, sender: relm4::Sender<AppInput>) {
         let added = std::mem::take(&mut self.setup.added);
@@ -138,6 +166,7 @@ impl AppModel {
         if let Some(next) = self.host_tasks.sender_names_waiting.pop_front() {
             self.ask_sender_name(next, sender);
         } else if let Some((account, notice)) = self.host_tasks.withheld.take() {
+            self.ask_sign_in_options(&account, sender);
             self.settings.open_on_account(account, notice);
         }
     }
@@ -152,6 +181,12 @@ impl AppModel {
             if let Some(step) = self.setup.take_uses() {
                 self.onward(&step.account, &step.next, sender);
             }
+            return;
+        }
+        // Closing the step for a sign-in of its own goes on as well, leaving those uses on: the
+        // account's page offers the same sign-in later.
+        if self.setup.visible && self.setup.phase == super::setup_state::Phase::Separate {
+            self.leave_separate_step(sender);
             return;
         }
         let Some(account) = self.setup.returning_to.take() else {

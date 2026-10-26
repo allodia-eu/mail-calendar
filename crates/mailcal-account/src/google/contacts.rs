@@ -145,8 +145,8 @@ fn build(
     tls: &TlsClientConfig,
     retry: &engine_api::RetryConfig,
 ) -> Result<GoogleContactProvider, ProviderError> {
-    let client =
-        GoogleClient::connect(token.to_owned(), tls, retry).map_err(ProviderError::from)?;
+    let client = GoogleClient::connect(token.to_owned(), tls, retry, &crate::user_agent())
+        .map_err(ProviderError::from)?;
     Ok(match source {
         GoogleContactSource::Connections => GoogleContactProvider::connections(client),
         GoogleContactSource::OtherContacts => GoogleContactProvider::other_contacts(client),

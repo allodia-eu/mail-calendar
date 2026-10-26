@@ -301,9 +301,9 @@ public struct ContentView: View {
             Button(L10n.action_cancel(), role: .cancel) {}
         } message: { account in
             // Naming the accounts that lose their link to it (`docs/accounts.md` rule 12).
-            Text(AccountSettingsLabels.removal(
-                address: account.email,
-                unlinked: model.accountEntry(account.id).flatMap(AccountSettingsRules.unlinked)))
+            Text(
+                model.accountEntry(account.id).map { AccountSettingsLabels.removal($0) }
+                    ?? AccountSettingsLabels.removal(address: account.email, unlinked: nil))
         }
         // The composer is a page sheet on iPad and the whole screen on iPhone (`taskPresentation`).
         // macOS no longer presents it at all: it renders INSIDE the detail column, in place of the

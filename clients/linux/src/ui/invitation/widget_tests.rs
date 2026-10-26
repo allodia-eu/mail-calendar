@@ -273,12 +273,18 @@ pub(crate) fn a_settling_write_is_reported_and_a_settled_one_is_not() {
     );
     let root = view.widget().clone().upcast_ref::<gtk::Widget>().clone();
 
-    view.set_write_status(CalendarWriteStatus::Failed);
+    view.set_write_status(CalendarWriteStatus::NotSaved);
     assert!(
         visible_labels(&root)
             .iter()
             .any(|text| text == l10n::invitation_failed()),
-        "a reply the organizer never received, reported as sent, is the failure this exists to stop"
+        "a reply the organiser never received, reported as sent, is the failure this exists to stop"
+    );
+    view.set_write_status(CalendarWriteStatus::Unconfirmed);
+    assert!(
+        visible_labels(&root)
+            .iter()
+            .any(|text| text == l10n::invitation_unconfirmed())
     );
     // Saved says nothing on purpose: the card has been rebuilt from the calendar by then and
     // already shows the new answer.

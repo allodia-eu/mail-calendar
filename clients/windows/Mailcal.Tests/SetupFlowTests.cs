@@ -15,6 +15,7 @@ public class SetupFlowTests
             Id: "alice@imap",
             Address: "alice@example.org",
             Kind: kind,
+            SignIn: SignInMethod.Password,
             Uses: [new AccountUse(AccountCapability.Mail, CapabilityState.On, null)],
             Links: new AccountLinksView(null, null, null),
             LinkedFrom: [],
@@ -102,6 +103,52 @@ public class SetupFlowTests
 
         var lonely = new SetupFlow();
         Assert.False(lonely.AccountAdded("someone-else", StepsOf(Snapshot())));
+    }
+
+    [Fact]
+    public void ASeparateServerComesBeforeTheLinkStep()
+    {
+        var steps = StepsOf(Snapshot());
+        var separate = new SeparateServerStep(
+            "alice@imap", [AccountCapability.Calendar], UnreachedTitle.Calendar, "dav.example.org", "alice@example.org");
+        var flow = new SetupFlow();
+        Assert.True(flow.AccountAdded("alice@imap", steps, separate));
+        Assert.Same(separate, flow.SeparateServer);
+        Assert.Null(flow.Links);
+
+        // Connected or skipped, the account's own link step follows.
+        Assert.True(flow.SeparateServerDone(steps));
+        Assert.Null(flow.SeparateServer);
+        Assert.Equal("alice@imap", flow.Links?.Account);
+        Assert.False(flow.SeparateServerDone(steps));
+
+        // With nothing to link, the flow ends after it.
+        var lonely = new SetupFlow();
+        Assert.True(lonely.AccountAdded("someone-else", steps, separate with { AccountId = "someone-else" }));
+        Assert.False(lonely.SeparateServerDone(steps));
+        Assert.Equal(["someone-else"], lonely.Finish());
+    }
+
+    [Fact]
+    public void ASeparateServerOnAnotherAccountReturnsToTheStepItWasAddedFrom()
+    {
+        var steps = StepsOf(Snapshot());
+        var flow = new SetupFlow();
+        flow.AccountAdded("alice@imap", steps);
+        flow.AddLinked();
+        var separate = new SeparateServerStep(
+            "alice@dav", [AccountCapability.Contacts], UnreachedTitle.Contacts, "dav.example.org", "alice");
+        Assert.True(flow.AccountAdded("alice@dav", steps, separate));
+        Assert.Null(flow.ReturningTo);
+        Assert.True(flow.SeparateServerDone(steps));
+        Assert.Equal("alice@imap", flow.Links?.Account);
+
+        // Finishing on the step itself leaves nothing behind.
+        var dismissed = new SetupFlow();
+        dismissed.AccountAdded("alice@imap", steps, separate);
+        Assert.Equal(["alice@imap"], dismissed.Finish());
+        Assert.Null(dismissed.SeparateServer);
+        Assert.False(dismissed.SeparateServerDone(steps));
     }
 
     [Fact]

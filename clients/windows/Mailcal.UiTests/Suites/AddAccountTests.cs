@@ -94,14 +94,21 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
             Assert.True(On(app, use), $"a use whose server was found starts on (rule 8): #{use}");
         }
         Assert.True(Shown(app, "SetupUseCalendarServer") is null, "a calendar that was found is named by its host, not asked for");
+        Assert.True(Shown(app, "SetupMailServerIMAP") is not null, "the mail server that was found is named too");
+        foreach (var field in new[] { "ImapHost", "ImapPort", "SmtpHost", "Username" })
+        {
+            Assert.True(Shown(app, field) is null, $"detected servers are shown to confirm, not to retype (#{field}): the manual form edits them");
+        }
         app.Agent.SetToggle(Shown(app, "SetupUseMail")!, on: false);
-        Assert.True(app.Agent.WaitGone(Filter.ById("ImapHost"), TimeSpan.FromSeconds(3)), "the mail servers follow the mail toggle");
+        Assert.True(app.Agent.WaitGone(Filter.ById("SetupMailServerIMAP"), TimeSpan.FromSeconds(3)), "the mail servers follow the mail toggle");
         app.Agent.SetToggle(Shown(app, "SetupUseCalendar")!, on: false);
         app.Agent.Settle();
         var contacts = Shown(app, "SetupUseContacts")!;
         Assert.True(On(app, "SetupUseContacts") && !contacts.Enabled, "the last use on is held on: an account used for nothing is not one");
         app.Agent.SetToggle(Shown(app, "SetupUseMail")!, on: true);
-        Assert.True(app.Agent.Wait(Filter.ById("ImapHost"), TimeSpan.FromSeconds(3)) is not null, "switching mail back on brings its servers back");
+        Assert.True(app.Agent.Wait(Filter.ById("SetupMailServerIMAP"), TimeSpan.FromSeconds(3)) is not null, "switching mail back on brings its servers back");
+        app.Agent.Invoke(Shown(app, "SetupManualButton") ?? throw new InvalidOperationException("the found card offers no way to set up manually"));
+        Assert.True(app.Agent.Wait(Filter.ById("ImapHost", "Edit"), TimeSpan.FromSeconds(5)) is not null, "\"Set up manually\" from the found card offers its servers to edit");
     });
 
     [OfflineFact]

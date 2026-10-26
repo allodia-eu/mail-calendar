@@ -30,7 +30,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.SendStatus
 
@@ -158,7 +157,7 @@ internal fun CalendarReauthBanner(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = L10n.calendar_reauth_prompt(ctx, accounts.joinToString(", ") { it.email }),
+            text = L10n.calendar_reauth_prompt(ctx, accounts.joinToString(", ") { it.name }),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
             modifier = Modifier.weight(1f),
@@ -168,6 +167,51 @@ internal fun CalendarReauthBanner(
         // re-renders after each clears, walking through them one sign-in at a time.
         TextButton(onClick = { accounts.firstOrNull()?.let { onReconnect(it.id) } }) {
             Text(L10n.calendar_reauth_action(ctx))
+        }
+    }
+}
+
+// Above the week or the contacts list, one line per account whose calendar or address book did
+// not connect while the account did (docs/accounts.md rule 16). "Account settings" opens that
+// account's page, where the remedy is; a server found on another site is reviewed in place
+// (docs/account-autodetect.md rule 14).
+@androidx.compose.runtime.Composable
+internal fun UseOutageBanner(
+    lines: List<OutageLine>,
+    onOpenAccount: (accountId: String) -> Unit,
+    ctx: Context,
+    onReviewServerChange: (accountId: String) -> Unit = {},
+) {
+    lines.forEach { line ->
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.tertiaryContainer)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_warning),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = line.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            if (line.reviews) {
+                TextButton(onClick = { onReviewServerChange(line.accountId) }) {
+                    Text(L10n.server_changed_review(ctx))
+                }
+            } else {
+                TextButton(onClick = { onOpenAccount(line.accountId) }) {
+                    Text(L10n.use_outage_open_account(ctx))
+                }
+            }
         }
     }
 }
@@ -199,7 +243,7 @@ internal fun MailReauthBanner(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = L10n.mail_reauth_prompt(ctx, accounts.joinToString(", ") { it.email }),
+            text = L10n.mail_reauth_prompt(ctx, accounts.joinToString(", ") { it.name }),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
             modifier = Modifier.weight(1f),
@@ -216,9 +260,9 @@ internal fun MailReauthBanner(
 /// A banner for accounts whose stored sign-in the server has stopped accepting, an expired or
 /// revoked OAuth grant, or a refused password. Distinct from [ConnectionIssuesBanner]: the server
 /// answered, so "Try again" would never help; only a fresh sign-in does. An OAuth account gets a
-/// button that re-runs its own flow, including a JMAP account connected by signing in, which
-/// re-authorises its own persisted grant; a password or pasted-secret JMAP account opens its page in
-/// Settings, where the new one is entered.
+/// button that re-runs its own flow, including an IMAP or JMAP account connected by signing in,
+/// which signs in again from its own persisted grant; a password or pasted-secret JMAP account opens
+/// its page in Settings, where the new one is entered.
 @androidx.compose.runtime.Composable
 internal fun SignInExpiredBanner(
     accounts: List<ExpiredSignIn>,
@@ -228,9 +272,7 @@ internal fun SignInExpiredBanner(
     onOpenSettings: (account: ExpiredSignIn) -> Unit = {},
 ) {
     val first = accounts.firstOrNull() ?: return
-    val canRelaunch = first.provider == AccountProvider.MICROSOFT ||
-        first.provider == AccountProvider.GOOGLE ||
-        first.provider == AccountProvider.JMAP_OAUTH
+    val canRelaunch = AccountSignInRules.expiredRemedy(first.provider) != ExpiredRemedy.SETTINGS
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -244,7 +286,7 @@ internal fun SignInExpiredBanner(
             tint = MaterialTheme.colorScheme.onTertiaryContainer,
         )
         Spacer(modifier = Modifier.width(8.dp))
-        val names = accounts.joinToString(", ") { it.email }
+        val names = accounts.joinToString(", ") { it.name }
         Text(
             text = if (canRelaunch) {
                 L10n.signin_expired_prompt(ctx, names)
@@ -302,8 +344,8 @@ internal fun AccountSwitcher(
     onSelectAccount: (String?) -> Unit,
     onRemoveAccount: (String) -> Unit,
     modifier: Modifier = Modifier,
-    // The accounts losing their link when an account is removed, named in its confirmation.
-    unlinkedBy: (String) -> String? = { null },
+    // What an account's removal names in its confirmation: the account, and those losing their link.
+    removalOf: (String) -> AccountRemoval? = { null },
 ) {
     val ctx = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
@@ -372,8 +414,7 @@ internal fun AccountSwitcher(
         }
         accountToRemove?.let { account ->
             RemoveAccountDialog(
-                address = account.email,
-                unlinked = unlinkedBy(account.id),
+                removal = removalOf(account.id) ?: AccountRemoval(account.email, null),
                 onConfirm = {
                     onRemoveAccount(account.id)
                     accountToRemove = null

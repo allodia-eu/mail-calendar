@@ -6,8 +6,8 @@ use mailcal_bindings::{
 };
 
 use super::{
-    UseSwitch, link_pickers, needs_permission, signin_description, signs_in_at_provider, summary,
-    use_switch,
+    UseSwitch, link_pickers, needs_permission, outage_line, review_after, signin_description,
+    signs_in_at_provider, summary, use_switch,
 };
 use crate::l10n;
 
@@ -15,6 +15,7 @@ fn linked(id: &str) -> LinkedAccount {
     LinkedAccount {
         id: id.to_owned(),
         address: id.to_owned(),
+        distinction: None,
     }
 }
 
@@ -23,6 +24,7 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
         id: "alice@example.org@imap.example.org".to_owned(),
         address: "alice@example.org".to_owned(),
         kind,
+        sign_in: mailcal_bindings::SignInMethod::Password,
         uses: uses
             .iter()
             .map(|(capability, state)| AccountUse {
@@ -35,6 +37,8 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
         linked_from: Vec::new(),
         link_candidates: LinkCandidates::default(),
         endpoints: None,
+        separate_server: None,
+        distinction: None,
     }
 }
 
@@ -195,6 +199,16 @@ fn signing_in_again_is_offered_where_the_provider_signs_in_and_says_what_is_wron
         signin_description(&entry, true),
         l10n::signin_expired_prompt("alice@example.org")
     );
+    entry.distinction = Some(mailcal_bindings::AccountDistinction::Server {
+        host: "imap.example.org".to_owned(),
+    });
+    assert_eq!(
+        signin_description(&entry, true),
+        l10n::signin_expired_prompt(&l10n::settings_account_distinguished(
+            "alice@example.org",
+            "imap.example.org"
+        ))
+    );
 }
 
 #[test]
@@ -280,4 +294,102 @@ fn a_use_that_did_not_connect_says_why_beneath_its_switch() {
         Some(l10n::settings_account_use_unreachable_contacts())
     );
     assert_eq!(use_switch(&entry, AccountCapability::Mail).note, None);
+}
+
+#[test]
+fn an_outage_line_names_the_account_then_the_reason_its_page_gives_then_the_last_sync() {
+    use mailcal_bindings::UseProblem;
+    let address = "alice@example.org";
+    for (capability, problem, title, reason) in [
+        (
+            AccountCapability::Calendar,
+            UseProblem::NeedsOwnSignIn,
+            l10n::calendar_outage_title(address),
+            l10n::settings_account_use_own_sign_in_calendar(),
+        ),
+        (
+            AccountCapability::Calendar,
+            UseProblem::SignInRefused,
+            l10n::calendar_outage_title(address),
+            l10n::settings_account_use_refused_calendar(),
+        ),
+        (
+            AccountCapability::Calendar,
+            UseProblem::Unreachable,
+            l10n::calendar_outage_title(address),
+            l10n::settings_account_use_unreachable_calendar(),
+        ),
+        (
+            AccountCapability::Contacts,
+            UseProblem::NeedsOwnSignIn,
+            l10n::contacts_outage_title(address),
+            l10n::settings_account_use_own_sign_in_contacts(),
+        ),
+        (
+            AccountCapability::Contacts,
+            UseProblem::SignInRefused,
+            l10n::contacts_outage_title(address),
+            l10n::settings_account_use_refused_contacts(),
+        ),
+        (
+            AccountCapability::Contacts,
+            UseProblem::Unreachable,
+            l10n::contacts_outage_title(address),
+            l10n::settings_account_use_unreachable_contacts(),
+        ),
+        (
+            AccountCapability::Calendar,
+            UseProblem::ServerChanged,
+            l10n::calendar_outage_title(address),
+            l10n::settings_account_use_server_changed_calendar(),
+        ),
+        (
+            AccountCapability::Contacts,
+            UseProblem::ServerChanged,
+            l10n::contacts_outage_title(address),
+            l10n::settings_account_use_server_changed_contacts(),
+        ),
+    ] {
+        assert!(title.contains(address));
+        assert_eq!(
+            outage_line(capability, problem, address),
+            format!("{title} {reason} {}", l10n::use_outage_last_synced()),
+            "{capability:?} {problem:?}"
+        );
+    }
+}
+
+#[test]
+fn a_use_paused_for_a_new_server_says_so_and_the_last_of_them_carries_the_review() {
+    use mailcal_bindings::UseProblem;
+    let mut entry = entry(
+        AccountKind::Dav,
+        &[
+            (AccountCapability::Calendar, CapabilityState::On),
+            (AccountCapability::Contacts, CapabilityState::On),
+        ],
+    );
+    assert_eq!(review_after(&entry), None);
+
+    entry.uses[0].problem = Some(UseProblem::ServerChanged);
+    let calendar = use_switch(&entry, AccountCapability::Calendar);
+    assert_eq!(
+        calendar.note,
+        Some(l10n::settings_account_use_server_changed_calendar())
+    );
+    assert!(
+        calendar.active,
+        "a paused use is still one the account is used for"
+    );
+    assert_eq!(review_after(&entry), Some(AccountCapability::Calendar));
+
+    entry.uses[1].problem = Some(UseProblem::ServerChanged);
+    assert_eq!(
+        use_switch(&entry, AccountCapability::Contacts).note,
+        Some(l10n::settings_account_use_server_changed_contacts())
+    );
+    assert_eq!(review_after(&entry), Some(AccountCapability::Contacts));
+
+    entry.uses[1].problem = Some(UseProblem::Unreachable);
+    assert_eq!(review_after(&entry), Some(AccountCapability::Calendar));
 }

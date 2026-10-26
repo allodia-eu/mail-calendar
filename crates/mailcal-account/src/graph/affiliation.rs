@@ -21,7 +21,7 @@ pub async fn graph_affiliation(
     retry: &RetryConfig,
 ) -> Result<Affiliation, AccountError> {
     let tls = tls_with(&[])?;
-    let client = GraphClient::connect(access_token, &tls, retry)
+    let client = GraphClient::connect(access_token, &tls, retry, &crate::user_agent())
         .map_err(|err| AccountError::Graph(err.to_string()))?;
     client
         .affiliation()
@@ -41,7 +41,7 @@ pub async fn google_affiliation(
     retry: &RetryConfig,
 ) -> Result<Affiliation, AccountError> {
     let tls = tls_with(&[])?;
-    let client = GoogleClient::connect(access_token, &tls, retry)
+    let client = GoogleClient::connect(access_token, &tls, retry, &crate::user_agent())
         .map_err(|err| AccountError::Google(err.to_string()))?;
     client
         .affiliation()

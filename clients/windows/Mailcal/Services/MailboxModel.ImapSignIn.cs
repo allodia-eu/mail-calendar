@@ -81,6 +81,7 @@ public sealed partial class MailboxModel
         IsSubmitting = true;
         SetupError = null;
         string configToml;
+        IReadOnlyList<AccountCapability> unreached;
         try
         {
             // Arm the redirect rendezvous before opening the browser: the browser returns to our
@@ -90,6 +91,9 @@ public sealed partial class MailboxModel
             // Discovery and dynamic client registration are several network round trips, so they
             // block: off the UI thread with them.
             var start = await Task.Run(() => app.BeginImapLogin(request, ImapOAuthConfig.RedirectUri));
+            // The calendar and contacts this sign-in will not reach, which a refusal's offer to
+            // update the account already set up asks about.
+            unreached = start.Unreached ?? [];
             // Open the default browser, where the person is usually already signed in.
             await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
             var callbackUrl = await callback.WaitAsync(cancelToken);
@@ -102,6 +106,11 @@ public sealed partial class MailboxModel
             // quietly; the disposed callback slot ignores any late redirect.
             Log.Info("imap sign-in cancelled by user");
             return ImapSignInOutcome.Cancelled;
+        }
+        catch (uniffi.mailcal_bindings.MailcalException.StaleSignIn)
+        {
+            Log.Warn("imap sign-in: the browser returned from another sign-in");
+            return ImapSignInOutcome.Stale;
         }
         catch (Exception ex)
         {
@@ -119,7 +128,7 @@ public sealed partial class MailboxModel
         // The TOML is the shape the password form produces, so this is the same
         // connect-then-persist path a manual connect takes, including its own error handling,
         // which keeps the form up if the freshly-signed-in account cannot actually connect.
-        await AddAccountAsync(configToml);
+        await AddAccountAsync(configToml, unreached: unreached);
         return ImapSignInOutcome.Added;
     }
 }

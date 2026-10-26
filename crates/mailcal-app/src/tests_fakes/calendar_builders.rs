@@ -22,7 +22,7 @@ use crate::{Account, App, Surface, Telemetry, TimeZoneInit};
 pub(crate) fn calendar_account(id: &str, provider: CalendarFake) -> Account<CalendarFake> {
     Account {
         id: AccountId::try_from(id).unwrap(),
-        providers: Vec::new(),
+        providers: Vec::new().into(),
         calendar_providers: vec![provider],
         contact_providers: Vec::new(),
         identity: EmailAddress::new(format!("me@{id}.local")),

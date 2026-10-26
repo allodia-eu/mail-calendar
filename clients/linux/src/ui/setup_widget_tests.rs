@@ -44,11 +44,16 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     super::setup_uses_widget_tests::a_provider_card_asks_only_for_what_is_chosen(&window);
     super::setup_links::tests::the_link_step_offers_the_accounts_it_can_use(&window);
     super::setup_signed_in::tests::the_uses_step_offers_what_the_server_offers(&window);
+    super::separate_sign_in_view::tests::the_setup_step_asks_for_the_servers_password(&window);
+    super::separate_sign_in_view::tests::the_setup_step_offers_the_sign_in_in_place(&window);
     super::setup_links::beside_tests::the_step_offers_the_server_beside(&window);
     super::setup_flag_tests::a_use_switched_on_without_a_server_asks_for_one(&window);
     super::setup_flag_tests::a_manual_calendar_form_without_a_server_asks_for_one(&window);
     an_untrusted_card_holds_connect_until_it_is_approved(&window);
     a_refused_certificate_holds_connect_until_it_is_accepted(&window);
+    super::setup_already_set_up::tests::the_refusal_offers_the_existing_account_the_new_credential(
+        &window,
+    );
     super::setup_manual_tests::the_manual_form_switches_account_type(&window);
     super::setup_manual_tests::a_miss_explains_itself_on_the_manual_form(&window);
     super::setup_manual_tests::a_refusal_is_answered_in_the_form_it_came_from(&window);
@@ -380,6 +385,7 @@ fn a_refused_certificate_holds_connect_until_it_is_accepted(window: &adw::Applic
             not_before: None,
             not_after: None,
         }),
+        existing: None,
     });
     setup.render(&state, window, &sender);
     let child = setup

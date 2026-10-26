@@ -6,6 +6,7 @@
 // a working account, and an expired password is replaced here too.
 
 using Allodia.Mailcal.Services;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -63,7 +64,7 @@ public sealed partial class SettingsDialog
         };
         stack.Children.Add(save);
         var description = expired
-            ? L10n.SigninExpiredPrompt(entry.Address)
+            ? L10n.SigninExpiredPrompt(AccountNameText.Of(entry))
             : L10n.SettingsAccountServersDescription();
         return Group(L10n.SettingsAccountServersHeading(), description, stack);
     }
@@ -133,8 +134,8 @@ public sealed partial class SettingsDialog
         var remove = new Button { Content = L10n.ActionRemoveAccount() };
         AutomationProperties.SetAutomationId(remove, "AccountRemove");
         var confirm = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
-        var message = L10n.RemoveAccountMessage(entry.Address);
-        if (AccountSettingsRules.Unlinked(entry) is { } unlinked)
+        var message = L10n.RemoveAccountMessage(AccountNameText.Of(entry));
+        if (AccountSettingsRules.Unlinked(entry, AccountNameText.Words) is { } unlinked)
         {
             message += " " + L10n.RemoveAccountUnlinks(unlinked);
         }

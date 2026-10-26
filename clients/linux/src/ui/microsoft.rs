@@ -8,7 +8,7 @@
 
 use std::sync::{Arc, atomic::AtomicBool};
 
-use mailcal_bindings::{MailcalApp, MicrosoftLoginStart, begin_microsoft_login};
+use mailcal_bindings::{MailcalApp, MailcalError, MicrosoftLoginStart, begin_microsoft_login};
 
 use super::oauth_loopback::{self, CallbackOutcome, OAuthLoopback};
 use crate::l10n;
@@ -20,6 +20,8 @@ const MICROSOFT_TENANT: &str = "common";
 pub(crate) enum MicrosoftOutcome {
     Added(String),
     Cancelled,
+    /// The browser came back from another sign-in, which signing in again settles.
+    Stale,
     Failed(String),
 }
 
@@ -68,6 +70,7 @@ pub(super) fn complete(
         Ok(account) => MicrosoftOutcome::Added(account.id),
         // A declined consent or an org policy blocking the app arrives here; it is shown on the
         // sign-in surface rather than swallowed (`docs/provider-oauth.md` rule 9).
+        Err(MailcalError::StaleSignIn) => MicrosoftOutcome::Stale,
         Err(error) => MicrosoftOutcome::Failed(error.to_string()),
     }
 }

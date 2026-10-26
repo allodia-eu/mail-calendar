@@ -10,7 +10,21 @@ import MailcalBindings
 enum ConsentEnded: Equatable {
     case signedIn
     case cancelled
-    case failed(String)
+    /// `remedy` is whether signing in again as `detail` says settles it.
+    case failed(String, remedy: Bool = false)
+
+    /// A failure, said through the core's mapping.
+    static func failure(_ error: Error) -> ConsentEnded {
+        .failed(coreMessage(error), remedy: signInRemedy(error) != nil)
+    }
+
+    /// What the notice above the list says for a sign-in again started from a banner: nothing
+    /// unless it failed, a reason signing in again settles in its own words, and anything else as
+    /// one plain line, because the core's text is an OAuth protocol string.
+    var bannerNotice: String? {
+        guard case let .failed(detail, remedy) = self else { return nil }
+        return remedy ? detail : L10n.signin_expired_failed()
+    }
 }
 
 /// What switching a use on or off answered.
@@ -29,24 +43,34 @@ enum UseChangeOutcome: Equatable {
 enum ConsentBrowser {
     case microsoft(MicrosoftSignIn)
     case google(any GoogleBrowserFlow)
+    /// A standards or JMAP account's sign-in, from its page or the banner.
+    case standards(JmapSignIn)
 
     func cancel() {
         switch self {
         case let .microsoft(signIn): signIn.cancel()
         case let .google(flow): flow.cancel()
+        case let .standards(signIn): signIn.cancel()
         }
     }
 }
 
 /// What a person reads for a core error: its own message, without the enum around it. A refused
 /// sign-in is said in the person's language, since the server's reply is meant for a developer
-/// and the core has logged it, and an account already set up likewise.
+/// and the core has logged it, and an account already set up, a sign-in as another account or
+/// from another request, and a use that did not connect likewise.
 func coreMessage(_ error: Error) -> String {
     switch error {
     case MailcalError.SignInRefused(_):
         return L10n.signin_refused()
     case MailcalError.AlreadySetUp(_):
         return L10n.account_already_set_up()
+    case MailcalError.DifferentAccount:
+        return L10n.signin_different_account()
+    case MailcalError.StaleSignIn:
+        return L10n.signin_stale()
+    case let MailcalError.UseNotConnected(capability, problem):
+        return useNotConnectedMessage(capability, problem)
     case let MailcalError.Config(message), let MailcalError.Connect(message),
          let MailcalError.Engine(message), let MailcalError.Composer(message):
         return message
@@ -54,6 +78,40 @@ func coreMessage(_ error: Error) -> String {
         return reason
     default:
         return error.localizedDescription
+    }
+}
+
+/// What a failed sign-in says when signing in again as it says settles it: the browser came back
+/// from another request, or as another account. `nil` for any other failure, which each route
+/// words its own way.
+func signInRemedy(_ error: Error) -> String? {
+    switch error {
+    case MailcalError.DifferentAccount, MailcalError.StaleSignIn:
+        return coreMessage(error)
+    default:
+        return nil
+    }
+}
+
+/// Why a calendar or address book did not connect to a server of its own (docs/accounts.md rule
+/// 18). The capability is never mail here, and reads as the calendar if it is.
+func useNotConnectedMessage(_ capability: AccountCapability, _ problem: UseProblem) -> String {
+    let contacts = capability == .contacts || capability == .colleagues
+    switch problem {
+    case .unreachable:
+        return contacts
+            ? L10n.separate_server_unreachable_contacts()
+            : L10n.separate_server_unreachable_calendar()
+    case .needsOwnSignIn:
+        return contacts
+            ? L10n.settings_account_use_own_sign_in_contacts()
+            : L10n.settings_account_use_own_sign_in_calendar()
+    case .signInRefused:
+        return L10n.signin_refused()
+    case .serverChanged:
+        return contacts
+            ? L10n.settings_account_use_server_changed_contacts()
+            : L10n.settings_account_use_server_changed_calendar()
     }
 }
 
@@ -159,6 +217,9 @@ extension MailboxModel {
         consentAttempt &+= 1
         let attempt = consentAttempt
         signingInAgain = id
+        // The newest sign-in in place owns every marker, including one a standards account's
+        // sign-in it just ended was holding.
+        signInSwitchBusy = nil
         let google = app.accountProvider(accountId: id) == .google
         let route = google ? "google" : "microsoft"
         do {
@@ -192,7 +253,7 @@ extension MailboxModel {
         } catch {
             logBrowserSignIn(route, "signing in again did not complete (\(coreMessage(error)))")
             endConsent(attempt)
-            return .failed(coreMessage(error))
+            return .failure(error)
         }
     }
 
@@ -207,8 +268,8 @@ extension MailboxModel {
     /// clearing is the answer. A failure is said in the notice above the list.
     func signInAgainFromBanner(_ id: String) {
         Task {
-            if case .failed = await signInAgain(id) {
-                accountNotice = L10n.signin_expired_failed()
+            if let notice = await signInAgain(id).bannerNotice {
+                accountNotice = notice
             }
         }
     }

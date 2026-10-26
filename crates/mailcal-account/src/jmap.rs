@@ -164,10 +164,14 @@ impl JmapAccountConfig {
     /// argument rather than re-derived here so the caller, which already holds the id, cannot
     /// end up with a *second* gate for the account it is connecting (`crate::throttle`).
     fn engine_config(&self, tls: engine_tls::TlsClientConfig, account: &AccountId) -> JmapConfig {
-        JmapConfig::new(self.base_url.clone(), self.credentials())
-            .with_tls(tls)
-            .with_retry(account_retry(account))
-            .with_connect_observer(connect_logger("jmap"))
+        JmapConfig::new(
+            self.base_url.clone(),
+            self.credentials(),
+            crate::user_agent(),
+        )
+        .with_tls(tls)
+        .with_retry(account_retry(account))
+        .with_connect_observer(connect_logger("jmap"))
     }
 
     /// Serializes this config to the `[jmap]` TOML a host stores in its OS secure

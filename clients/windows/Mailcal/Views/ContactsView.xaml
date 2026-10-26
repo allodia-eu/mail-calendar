@@ -33,10 +33,38 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Padding="16,10" ColumnSpacing="10">
+            <!-- An address book that did not connect on an account that did, one bar per account:
+                 its cards below are what was last synced, and offer no edit (§3). "Account
+                 settings" opens that account's page, and "Review" a paused server change's
+                 question. With no outage the list takes no space. -->
+            <ItemsControl Grid.Row="0"
+                          ItemsSource="{x:Bind Model.ContactsOutageLines, Mode=OneWay}"
+                          AutomationProperties.AutomationId="ContactsOutages">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:UseOutageLine">
+                        <InfoBar Margin="12,12,12,0"
+                                 IsOpen="True"
+                                 IsClosable="False"
+                                 Severity="Warning"
+                                 AutomationProperties.AutomationId="ContactsOutageBanner"
+                                 Message="{x:Bind Text, Mode=OneTime}">
+                            <InfoBar.Content>
+                                <Button Content="{x:Bind Action, Mode=OneTime}"
+                                        Margin="0,8,0,12"
+                                        Tag="{x:Bind Mode=OneTime}"
+                                        AutomationProperties.AutomationId="ContactsOutageAction"
+                                        Click="OnUseOutageAccount" />
+                            </InfoBar.Content>
+                        </InfoBar>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Grid Grid.Row="1" Padding="16,10" ColumnSpacing="10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -74,9 +102,9 @@
 
             <!-- The write status: a word about the most recent save, beside the list rather than
                  in the detail pane, because a create is made with no one open and the pane is
-                 collapsed then. "Couldn't confirm" is not "rejected": the change has already
-                 landed on the server and the next sync heals the local copy (§3). -->
-            <TextBlock Grid.Row="1" Margin="16,0,16,8"
+                 collapsed then. "Couldn't save" and "Couldn't confirm" are two sentences: the first
+                 changed nothing on the server, the second may have landed (§3). -->
+            <TextBlock Grid.Row="2" Margin="16,0,16,8"
                        Text="{x:Bind Model.ContactWriteStatusText, Mode=OneWay}"
                        Visibility="{x:Bind Model.ContactWriteStatusVisibility, Mode=OneWay}"
                        TextWrapping="Wrap"
@@ -84,7 +112,7 @@
                        Style="{StaticResource CaptionTextBlockStyle}"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
 
-            <ListView x:Name="PeopleList" Grid.Row="2" Padding="8,0,8,8"
+            <ListView x:Name="PeopleList" Grid.Row="3" Padding="8,0,8,8"
                       AutomationProperties.AutomationId="ContactsList"
                       AutomationProperties.Name="{x:Bind l10n:L10n.ContactsTitle(), Mode=OneTime}"
                       ItemsSource="{x:Bind Model.Contacts, Mode=OneWay}"
@@ -141,7 +169,7 @@
 
             <!-- The two empty states are deliberately different sentences: telling someone who has
                  just searched "No contacts yet" reads as though theirs had vanished. -->
-            <StackPanel Grid.Row="2" Spacing="8" Padding="32"
+            <StackPanel Grid.Row="3" Spacing="8" Padding="32"
                         HorizontalAlignment="Center" VerticalAlignment="Center"
                         AutomationProperties.AutomationId="ContactsEmpty"
                         Visibility="{x:Bind Model.ContactsEmptyVisibility, Mode=OneWay}">

@@ -148,8 +148,13 @@ impl RefreshingGmailProvider {
                 return Ok(Arc::clone(provider));
             }
         }
-        let client = GoogleClient::connect(token.clone(), &self.tls, &self.tokens.retry())
-            .map_err(ProviderError::from)?;
+        let client = GoogleClient::connect(
+            token.clone(),
+            &self.tls,
+            &self.tokens.retry(),
+            &crate::user_agent(),
+        )
+        .map_err(ProviderError::from)?;
         let mut gmail = GmailProvider::new(client);
         if let Some(date) = self.since.and_then(calendar_date) {
             gmail = gmail.with_since(date);

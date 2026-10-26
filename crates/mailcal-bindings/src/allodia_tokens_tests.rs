@@ -109,6 +109,7 @@ fn held(expires_in_minutes: i64) -> mailcal_oauth::TokenSet {
         expires_at: time::OffsetDateTime::now_utc() + Duration::minutes(expires_in_minutes),
         scope: String::new(),
         token_type: "Bearer".to_owned(),
+        username: None,
     }
 }
 

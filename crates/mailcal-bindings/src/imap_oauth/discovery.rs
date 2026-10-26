@@ -281,8 +281,33 @@ async fn resources_to_name(
     named
 }
 
+/// The endpoints signing an account in again names: [`resources_to_name`] over the metadata of
+/// `issuer`, read again. None when there is no issuer to read or it cannot be read, which is
+/// what a refresh names.
+pub(super) async fn resources_again(
+    issuer: Option<&str>,
+    query: &ImapAuthQuery,
+    endpoints: &Endpoints<'_>,
+    scopes: &[String],
+) -> Vec<String> {
+    let Some(issuer) = issuer else {
+        return Vec::new();
+    };
+    let Ok(http) = mailcal_oauth::discovery_client_with(&mailcal_account::setup_trust_policy())
+    else {
+        return Vec::new();
+    };
+    match mailcal_oauth::discover_auth_server(&http, issuer).await {
+        Ok(metadata) => resources_to_name(&http, &metadata, query, endpoints, scopes).await,
+        Err(err) => {
+            log::info!("imap oauth: the issuer's metadata was not read again ({err}); naming none");
+            Vec::new()
+        }
+    }
+}
+
 /// The host of a `host` or `host:port` server field.
-fn host_only(server: &str) -> &str {
+pub(crate) fn host_only(server: &str) -> &str {
     let server = server.trim();
     match server.rsplit_once(':') {
         Some((host, port)) if !host.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => host,

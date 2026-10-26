@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -163,7 +164,7 @@ internal fun AccountSetupFlow(
 
     when (val current = phase) {
         DetectPhase.Email -> Column(
-            modifier = Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp),
+            modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(L10n.setup_detect_title(ctx), style = MaterialTheme.typography.headlineSmall)
@@ -199,9 +200,8 @@ internal fun AccountSetupFlow(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            SetupField(email, { email = it }, L10n.setup_field_email(ctx), L10n.setup_detect_email_placeholder(ctx), KeyboardType.Email)
-            Button(
-                onClick = {
+            val lookUp = {
+                if (email.isNotBlank()) {
                     detecting = scope.launch {
                         phase = DetectPhase.Detecting
                         val detected = detect(email)
@@ -229,7 +229,18 @@ internal fun AccountSetupFlow(
                         onRoute(email.trim(), detected)
                         phase = route(detected, email, signInOffered, imapAuth)
                     }
-                },
+                }
+            }
+            SetupField(
+                email,
+                { email = it },
+                L10n.setup_field_email(ctx),
+                L10n.setup_detect_email_placeholder(ctx),
+                KeyboardType.Email,
+                onGo = lookUp,
+            )
+            Button(
+                onClick = lookUp,
                 enabled = email.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(L10n.setup_detect_action(ctx)) }

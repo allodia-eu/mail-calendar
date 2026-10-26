@@ -1,13 +1,15 @@
 // The Accounts category: every account, mail or not, from the core's one snapshot, each opening a
 // page of its own (docs/accounts.md rule 11, docs/settings.md category 9). The page's sections are
-// partials of their own: what the account is used for and linked to (AccountUses), its servers and
-// its removal (AccountServers), and its mail settings (AccountMail).
+// partials of their own: what the account is used for and linked to (AccountUses), how it signs in
+// (AccountSignIn), its servers and its removal (AccountServers), and its mail settings
+// (AccountMail).
 //
 // State lives in the core. A change on a page forwards to it off the UI thread, and the page is
 // drawn again from the next snapshot; a core signal that changed nothing the page shows leaves it,
 // and whatever is being typed on it, alone.
 
 using Allodia.Mailcal.Services;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -109,25 +111,15 @@ public sealed partial class SettingsDialog
     private static string AccountSummary(AccountEntry entry)
     {
         var uses = string.Join(", ", AccountSettingsRules.InUse(entry).Select(UseName));
-        var lines = new List<string> { $"{KindLabel(entry.Kind)} · {uses}" };
+        var lines = new List<string> { $"{AccountNameText.KindLine(entry)} · {uses}" };
         lines.AddRange(AccountSettingsRules.Linked(entry)
-            .Select(link => L10n.SettingsAccountLinkedLine(UseName(link.Use), link.Address)));
+            .Select(link => L10n.SettingsAccountLinkedLine(UseName(link.Use), AccountNameText.Of(link.Account))));
         if (AccountSettingsRules.NeedsPermission(entry))
         {
             lines.Add(L10n.SettingsAccountNeedsPermission());
         }
         return string.Join("\n", lines);
     }
-
-    /// <summary>The label for an account's kind, as the setup form names the same choice.</summary>
-    private static string KindLabel(AccountKind kind) => kind switch
-    {
-        AccountKind.Dav => L10n.AccountKindDav(),
-        AccountKind.Jmap => L10n.SetupAccountTypeJmap(),
-        AccountKind.Microsoft => L10n.SetupAccountTypeMicrosoft(),
-        AccountKind.Google => L10n.SetupAccountTypeGoogle(),
-        _ => L10n.SetupAccountTypePassword(),
-    };
 
     /// <summary>A use's name, as the main window's sections name it.</summary>
     internal static string UseName(AccountCapability capability) => capability switch
@@ -139,8 +131,8 @@ public sealed partial class SettingsDialog
     };
 
     /// <summary>One account's page: how it travels, what it is used for, the accounts it relies
-    /// on, signing in again or its own servers, its mail settings while it is used for mail, and
-    /// its removal, last.</summary>
+    /// on, how it signs in, its own servers, its mail settings while it is used for mail, and its
+    /// removal, last.</summary>
     private void BuildAccountPage(StackPanel panel, AccountEntry entry)
     {
         var title = new TextBlock
@@ -151,7 +143,7 @@ public sealed partial class SettingsDialog
         };
         AutomationProperties.SetHeadingLevel(title, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level2);
         panel.Children.Add(title);
-        panel.Children.Add(Description(KindLabel(entry.Kind)));
+        panel.Children.Add(Description(AccountNameText.KindLine(entry)));
         // Whether this one travels: first, because it decides whether anything below it is
         // anybody else's business (docs/settings.md).
         if (_model.AccountsSyncMode.TryGetValue(entry.Id, out var mode))
@@ -167,6 +159,10 @@ public sealed partial class SettingsDialog
         if (AccountSettingsRules.SignsInAtProvider(entry.Kind))
         {
             panel.Children.Add(SignInGroup(entry, expired));
+        }
+        else if (AccountSettingsRules.SwitchesSignIn(entry.Kind))
+        {
+            panel.Children.Add(AccountSignInGroup(entry));
         }
         if (entry.Endpoints is { } endpoints)
         {
@@ -196,6 +192,8 @@ public sealed partial class SettingsDialog
     {
         _accountPage = accountId;
         _accountNotice = null;
+        // A page opened again asks its server again: what it takes can have changed meanwhile.
+        _signInOptions.Clear();
         ShowCategory("accounts");
     }
 
@@ -211,7 +209,7 @@ public sealed partial class SettingsDialog
 
     /// <summary>Says <paramref name="notice"/> and leaves the page as it is: for progress, and for
     /// a refusal of what the person typed, which they will want to correct rather than retype.</summary>
-    private void SayOnAccounts(AccountNotice notice)
+    private void SayOnAccounts(AccountNotice? notice)
     {
         _accountNotice = notice;
         if (_accountNoticeBar is { } bar)

@@ -17,10 +17,12 @@ mod certificate;
 mod config;
 mod config_dav;
 mod config_edit;
+mod config_split;
 mod connect_log;
 mod consent;
 mod contacts;
 mod contacts_edit;
+mod dav_starts;
 mod delegate_info;
 /// Dev-only extra-CA trust for the local test harness; compiled out of production builds (present
 /// in a debug build, or a release build with the `dev-harness` feature for the Android dev loop).
@@ -64,11 +66,12 @@ pub use config::{
     AccountConfig, CalDavAccount, ConfigError, ConnectionSecurity, ImapAccount, Secret,
     SmtpAccount, default_path, load, load_str,
 };
-pub use config_dav::CardDavAccount;
+pub use config_dav::{CardDavAccount, grant_reaches};
 pub use config_edit::{EditedAccount, EndpointEdit};
 pub use consent::{requested_scopes, withheld};
-pub use contacts::connect_carddav_contact_providers;
+pub use contacts::{connect_carddav_contact_providers, connect_carddav_learning};
 pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
+pub use dav_starts::{DavLearned, DavStarts, DavStartsFile, Learned};
 use engine_core::{ids::AccountId, sync::SyncUpdate};
 use engine_provider::Provider;
 pub use error::AccountError;
@@ -86,7 +89,9 @@ pub use graph::{
 pub use imap::{
     ImapConnections, connect_imap_mailbox, connect_imap_watcher, connect_mail_providers,
 };
-pub use imap_auth::{ImapAuth, ImapAuthQuery, decide_imap_auth, imap_issuer, log_smtp_auth};
+pub use imap_auth::{
+    ImapAuth, ImapAuthQuery, decide_imap_auth, imap_issuer, imap_offers_password, log_smtp_auth,
+};
 pub use imap_credentials::{ImapTokens, OAuthCredentialSource, imap_credential_source};
 pub use jmap::{
     JmapAccountConfig, JmapSetup, build_jmap_config_toml, connect_jmap_calendar_providers,
@@ -149,6 +154,81 @@ pub async fn connect_caldav(
     account: &AccountConfig,
     tokens: ImapTokens<'_>,
 ) -> Result<Box<dyn Provider>, AccountError> {
+    connect_caldav_learning(account, tokens)
+        .await
+        .map(|connected| connected.providers)
+}
+
+/// The `User-Agent` every engine adapter this crate opens sends ([`mailcal_user_agent`]).
+pub(crate) fn user_agent() -> engine_api::UserAgent {
+    static USER_AGENT: std::sync::LazyLock<engine_api::UserAgent> =
+        std::sync::LazyLock::new(|| {
+            engine_api::UserAgent::new(mailcal_user_agent::PRODUCT, mailcal_user_agent::VERSION)
+                .expect("the build names the product and version as tokens")
+        });
+    USER_AGENT.clone()
+}
+
+/// A DAV connect's providers, and the principal the server named on the way: what a host
+/// stores for the next connect to start from ([`DavStarts`]).
+pub struct DavConnected<T> {
+    /// The connected providers.
+    pub providers: T,
+    /// The principal URL the server named, absolute, when it named one.
+    pub principal: Option<String>,
+}
+
+impl<T> DavConnected<T> {
+    /// `self` from a connect that started at the stored principal `start` and succeeded there: a
+    /// server that named no principal on the way said nothing against it, so it stays the start.
+    /// Only a connect that fell back from it to the configured server forgets it.
+    #[must_use]
+    pub(crate) fn started_at(mut self, start: &str) -> Self {
+        self.principal.get_or_insert_with(|| start.to_owned());
+        self
+    }
+}
+
+impl<T> std::fmt::Debug for DavConnected<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The providers hold connection handles; the principal is what the result is about.
+        f.debug_struct("DavConnected")
+            .field("principal", &self.principal)
+            .finish_non_exhaustive()
+    }
+}
+
+/// [`connect_caldav`], reporting the principal the server named. It starts at the principal the
+/// last connect stored ([`DavStarts::calendar`]) when there is one, and from the configured
+/// server when there is none or the server says it is gone, so a principal that moved within the
+/// server is found again without looking up DNS.
+///
+/// # Errors
+///
+/// As [`connect_caldav`].
+pub async fn connect_caldav_learning(
+    account: &AccountConfig,
+    tokens: ImapTokens<'_>,
+) -> Result<DavConnected<Box<dyn Provider>>, AccountError> {
+    if let Some(start) = account.dav_starts.calendar.as_deref() {
+        match connect_caldav_at(account, tokens, Some(start)).await {
+            Err(err) if err.is_gone() => {
+                log::info!(
+                    "caldav: the stored principal is gone; starting from the configured server"
+                );
+            }
+            connected => return connected.map(|connected| connected.started_at(start)),
+        }
+    }
+    connect_caldav_at(account, tokens, None).await
+}
+
+/// One CalDAV connect, starting at `start` when given and at the configured server otherwise.
+async fn connect_caldav_at(
+    account: &AccountConfig,
+    tokens: ImapTokens<'_>,
+    start: Option<&str>,
+) -> Result<DavConnected<Box<dyn Provider>>, AccountError> {
     let endpoint = account.caldav_endpoint().ok_or(AccountError::NoCalDav)?;
     let auth =
         config_dav::dav_credentials(account, endpoint, mailcal_oauth::DavUse::Calendars, tokens)
@@ -160,9 +240,13 @@ pub async fn connect_caldav(
         // defaulting it to https:// here too, so existing configs connect without re-entry.
         normalize_caldav_base_url(&caldav.base_url),
         auth.credentials,
+        crate::user_agent(),
     );
     if let Some(hosts) = auth.hosts {
         config = config.with_credential_hosts(hosts);
+    }
+    if let Some(start) = start {
+        config = config.with_discovery_path(start);
     }
     let config = config
     // A clone shares the record of what it refused, so a refusal reads back from `tls`.
@@ -178,7 +262,11 @@ pub async fn connect_caldav(
         None => connect_primary_calendar(config).await,
     }
     .map_err(|err| err.over_tls(&tls))?;
-    Ok(Box::new(provider))
+    let principal = provider.principal_url().map(str::to_owned);
+    Ok(DavConnected {
+        providers: Box::new(provider),
+        principal,
+    })
 }
 
 /// Connects and rebinds to the account's first discovered calendar, for a config
@@ -213,6 +301,12 @@ mod error_tests;
 mod tests {
     use super::{AccountConfig, AccountError, connect_caldav};
 
+    /// The engine's adapters send the same header as the requests this application makes itself.
+    #[test]
+    fn the_engine_names_this_application_as_its_own_requests_do() {
+        assert_eq!(super::user_agent().as_str(), mailcal_user_agent::HEADER);
+    }
+
     #[tokio::test]
     async fn connect_caldav_without_a_caldav_section_is_an_error() {
         // No network: the missing-endpoint check short-circuits before connecting.
@@ -224,5 +318,26 @@ mod tests {
             connect_caldav(&config, None).await,
             Err(AccountError::NoCalDav)
         ));
+    }
+
+    /// A connect that succeeded at the stored principal keeps it when the server named none, so
+    /// the next connect does not start from the configured server again.
+    #[test]
+    fn a_connect_from_the_stored_principal_keeps_it_when_the_server_names_none() {
+        let start = "https://dav.example.net/principals/ada/";
+        let unnamed = super::DavConnected {
+            providers: (),
+            principal: None,
+        };
+        assert_eq!(unnamed.started_at(start).principal.as_deref(), Some(start));
+
+        let renamed = super::DavConnected {
+            providers: (),
+            principal: Some("https://dav.example.net/principals/ada2/".to_owned()),
+        };
+        assert_eq!(
+            renamed.started_at(start).principal.as_deref(),
+            Some("https://dav.example.net/principals/ada2/")
+        );
     }
 }

@@ -171,7 +171,12 @@ impl MailcalApp {
                     // stale code and a token minted for the wrong audience. Without it the user
                     // only ever sees "signing in didn't work".
                     log::warn!("allodia: token exchange FAILED; {err}");
-                    MailcalError::Connect(err.to_string())
+                    match &err {
+                        allodia_license::SignInError::OAuth(oauth) => {
+                            crate::error::exchange_error(oauth)
+                        }
+                        other => MailcalError::Connect(other.to_string()),
+                    }
                 })?;
             // `offline_access` is always requested, so a refresh token is mandatory. Without one
             // the sign-in is a session that expires within the hour and cannot come back, which is

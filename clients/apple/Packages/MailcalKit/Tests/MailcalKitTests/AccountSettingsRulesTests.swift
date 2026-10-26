@@ -17,6 +17,7 @@ private func entry(
         id: "alice@example.org@imap.example.org",
         address: "alice@example.org",
         kind: kind,
+        signIn: .password,
         uses: uses.map { AccountUse(capability: $0.0, state: $0.1) },
         links: AccountLinksView(calendar: nil, contacts: nil, mail: nil),
         linkedFrom: [],
@@ -43,6 +44,34 @@ private func mailboxOnly() -> AccountEntry {
         #expect(
             AccountSettingsRules.useSwitch(account, .contacts).note == .problem(.unreachable, .contacts))
         #expect(AccountSettingsRules.useSwitch(account, .mail).note == UseNote.none)
+    }
+
+    @Test func aUsePausedForANewServerSaysSoAndOffersReview() {
+        var account = entry(.dav, [(.calendar, .on), (.contacts, .on)])
+        account.uses[0] = AccountUse(capability: .calendar, state: .on, problem: .serverChanged)
+        account.uses[1] = AccountUse(capability: .contacts, state: .on, problem: .serverChanged)
+        let calendar = AccountSettingsRules.useSwitch(account, .calendar).note
+        let contacts = AccountSettingsRules.useSwitch(account, .contacts).note
+        #expect(calendar == .problem(.serverChanged, .calendar))
+        #expect(
+            AccountSettingsLabels.note(calendar)
+                == L10n.settings_account_use_server_changed_calendar())
+        #expect(
+            AccountSettingsLabels.note(contacts)
+                == L10n.settings_account_use_server_changed_contacts())
+        #expect(AccountSettingsRules.reviewsServerChange(calendar))
+        #expect(AccountSettingsRules.reviewsServerChange(contacts))
+    }
+
+    @Test func onlyAServerChangeOffersReview() {
+        let notes: [UseNote] = [
+            .none, .last, .needsContacts, .withheld, .notOffered,
+            .problem(.needsOwnSignIn, .calendar), .problem(.signInRefused, .contacts),
+            .problem(.unreachable, .calendar),
+        ]
+        for note in notes {
+            #expect(!AccountSettingsRules.reviewsServerChange(note))
+        }
     }
 
     @Test func theLastUseCannotBeSwitchedOff() {
@@ -111,8 +140,84 @@ private func mailboxOnly() -> AccountEntry {
         #expect(AccountSettingsRules.inUse(mailbox) == [.mail])
         let links = AccountSettingsRules.linked(mailbox)
         #expect(links.map(\.use) == [.calendar])
-        #expect(links.map(\.address) == ["alice@cloud.example"])
+        #expect(links.map(\.account.address) == ["alice@cloud.example"])
         #expect(AccountSettingsLabels.summary(mailbox).count == 2)
+    }
+
+    @Test func anAccountIsNamedByItsAddressAloneWhereNoOtherSharesIt() {
+        #expect(
+            AccountSettingsLabels.name(address: "alice@example.org", distinction: nil)
+                == "alice@example.org")
+        #expect(AccountSettingsLabels.name(linked("alice@example.org")) == "alice@example.org")
+    }
+
+    @Test func anAccountSharingItsAddressIsNamedWithItsKindOrItsServer() {
+        let byKind = LinkedAccount(
+            id: "alice@dav", address: "alice@example.org", distinction: .kind(kind: .dav))
+        #expect(
+            AccountSettingsLabels.name(byKind)
+                == L10n.settings_account_distinguished(
+                    address: "alice@example.org", detail: L10n.account_kind_dav()))
+        let byServer = LinkedAccount(
+            id: "alice@imap", address: "alice@example.org",
+            distinction: .server(host: "mail.example.org"))
+        #expect(
+            AccountSettingsLabels.name(byServer)
+                == L10n.settings_account_distinguished(
+                    address: "alice@example.org", detail: "mail.example.org"))
+    }
+
+    @Test func theLinksAndTheRemovalNameAnAccountSharingItsAddress() {
+        let calendar = LinkedAccount(
+            id: "alice@dav", address: "alice@example.org", distinction: .kind(kind: .dav))
+        let named = AccountSettingsLabels.name(calendar)
+        var mailbox = mailboxOnly()
+        mailbox.links = AccountLinksView(calendar: calendar, contacts: nil, mail: nil)
+        #expect(
+            AccountSettingsLabels.summary(mailbox)[1]
+                == L10n.settings_account_linked_line(capability: L10n.nav_calendar(), address: named))
+
+        mailbox.linkedFrom = [calendar, linked("b@example.org")]
+        #expect(AccountSettingsRules.unlinked(mailbox) == "\(named), b@example.org")
+    }
+
+    @Test func theRemovalAndTheSignInNameTheAccountApartFromItsNamesake() {
+        var mailbox = mailboxOnly()
+        mailbox.distinction = .server(host: "mail.example.org")
+        let named = L10n.settings_account_distinguished(
+            address: "alice@example.org", detail: "mail.example.org")
+        #expect(AccountSettingsLabels.name(mailbox) == named)
+        #expect(AccountSettingsLabels.removal(mailbox) == L10n.remove_account_message(email: named))
+        #expect(
+            AccountSettingsLabels.signIn(mailbox, expired: true)
+                == L10n.signin_expired_prompt(accounts: named))
+    }
+
+    @Test func theSignInBannerNamesAnAccountTheSnapshotHoldsWithItsDistinction() {
+        var mailbox = mailboxOnly()
+        mailbox.distinction = .kind(kind: .imap)
+        #expect(
+            AccountSettingsLabels.name(mailbox, or: "alice@example.org")
+                == L10n.settings_account_distinguished(
+                    address: "alice@example.org", detail: AccountSettingsLabels.kind(.imap)))
+        #expect(AccountSettingsLabels.name(nil, or: "alice@example.org") == "alice@example.org")
+    }
+
+    @Test func theKindLineGainsTheHostOnlyForAServerDistinction() {
+        var mailbox = mailboxOnly()
+        let kind = AccountSettingsLabels.kind(.imap)
+        let uses = AccountSettingsLabels.use(.mail)
+        #expect(AccountSettingsLabels.kindLine(mailbox) == kind)
+        #expect(AccountSettingsLabels.summary(mailbox)[0] == "\(kind) · \(uses)")
+
+        // Its kind is already on the row, so naming it again adds nothing.
+        mailbox.distinction = .kind(kind: .imap)
+        #expect(AccountSettingsLabels.kindLine(mailbox) == kind)
+        #expect(AccountSettingsLabels.summary(mailbox)[0] == "\(kind) · \(uses)")
+
+        mailbox.distinction = .server(host: "mail.example.org")
+        #expect(AccountSettingsLabels.kindLine(mailbox) == "\(kind) · mail.example.org")
+        #expect(AccountSettingsLabels.summary(mailbox)[0] == "\(kind) · mail.example.org · \(uses)")
     }
 
     @Test func aPickerIsOfferedOnlyForASlotTheAccountCanHold() {
@@ -193,10 +298,10 @@ private func mailboxOnly() -> AccountEntry {
             password: nil)
         #expect(!AccountSettingsRules.replacesSecret(imap, expired: true, provider: .password))
 
-        // An IMAP account that signed in at its provider reports `.password` without editable
-        // servers, and has no secret a paste could replace.
+        // An IMAP account that signed in at its provider has no editable servers, and no secret a
+        // paste could replace.
         let imapSignedIn = entry(.imap, [(.mail, .on)])
-        #expect(!AccountSettingsRules.replacesSecret(imapSignedIn, expired: true, provider: .password))
+        #expect(!AccountSettingsRules.replacesSecret(imapSignedIn, expired: true, provider: .imapOauth))
     }
 }
 

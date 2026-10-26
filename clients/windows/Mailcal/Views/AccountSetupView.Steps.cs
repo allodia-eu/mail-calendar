@@ -40,7 +40,7 @@ public sealed partial class AccountSetupView
         Model.CancelAddAccount();
         // Cancelling an "Add another account" goes back to the link step it left, which is still
         // this dialog's to show.
-        return Model.SetupLinks is null;
+        return Model.SetupLinks is null && Model.SetupSeparateServer is null;
     }
 
     // Only one browser sign-in runs at a time; cancelling the others is a safe no-op.
@@ -49,6 +49,7 @@ public sealed partial class AccountSetupView
         Model?.CancelMicrosoftSignIn();
         Model?.CancelGoogleSignIn();
         Model?.CancelJmapSignIn();
+        Model?.CancelSeparateServerSignIn();
     }
 
     // Back to the address, which keeps what was typed there. Everything the abandoned route
@@ -69,7 +70,9 @@ public sealed partial class AccountSetupView
         ApprovalPanel.Visibility = Visibility.Collapsed;
         DetectNote.Visibility = Visibility.Collapsed;
         SetupPanel.Visibility = Visibility.Collapsed;
+        SeparatePanel.Visibility = Visibility.Collapsed;
         LinksPanel.Visibility = Visibility.Collapsed;
+        ClearUpdateQuestion();
         DetectPanel.Visibility = Visibility.Visible;
         ContinueButton.IsEnabled = !string.IsNullOrWhiteSpace(DetectEmail.Text);
     }

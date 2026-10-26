@@ -15,6 +15,7 @@ public class AccountSettingsRulesTests
         Id: "alice@example.org@imap.example.org",
         Address: "alice@example.org",
         Kind: kind,
+        SignIn: SignInMethod.Password,
         Uses: uses.Select(use => new AccountUse(use.Item1, use.Item2, null)).ToArray(),
         Links: new AccountLinksView(null, null, null),
         LinkedFrom: [],
@@ -72,6 +73,38 @@ public class AccountSettingsRulesTests
         Assert.True(calendar.Active);
         Assert.Equal(UseNote.UnreachableContacts, AccountSettingsRules.Switch(entry, AccountCapability.Contacts).Note);
         Assert.Equal(UseNote.None, AccountSettingsRules.Switch(entry, AccountCapability.Mail).Note);
+    }
+
+    [Fact]
+    public void AUsePausedForAServerChangeSaysSoAndOffersItsReview()
+    {
+        var entry = Entry(
+            AccountKind.Imap,
+            (AccountCapability.Mail, CapabilityState.On),
+            (AccountCapability.Calendar, CapabilityState.On),
+            (AccountCapability.Contacts, CapabilityState.On));
+        entry.Uses[1] = new AccountUse(AccountCapability.Calendar, CapabilityState.On, UseProblem.ServerChanged);
+        entry.Uses[2] = new AccountUse(AccountCapability.Contacts, CapabilityState.On, UseProblem.ServerChanged);
+
+        var calendar = AccountSettingsRules.Switch(entry, AccountCapability.Calendar);
+        var contacts = AccountSettingsRules.Switch(entry, AccountCapability.Contacts);
+        // Still on: the person chose it, and only the server is in question.
+        Assert.True(calendar.Active && calendar.Enabled);
+        Assert.Equal(UseNote.ServerChangedCalendar, calendar.Note);
+        Assert.Equal(UseNote.ServerChangedContacts, contacts.Note);
+        Assert.True(AccountSettingsRules.ReviewsServerChange(calendar.Note));
+        Assert.True(AccountSettingsRules.ReviewsServerChange(contacts.Note));
+    }
+
+    [Fact]
+    public void OnlyAServerChangeOffersAReview()
+    {
+        foreach (var note in Enum.GetValues<UseNote>())
+        {
+            Assert.Equal(
+                note is UseNote.ServerChangedCalendar or UseNote.ServerChangedContacts,
+                AccountSettingsRules.ReviewsServerChange(note));
+        }
     }
 
     [Fact]
@@ -141,7 +174,7 @@ public class AccountSettingsRulesTests
             Links = new AccountLinksView(Linked("alice@cloud.example"), null, null),
         };
         Assert.Equal([AccountCapability.Mail], AccountSettingsRules.InUse(entry));
-        Assert.Equal([(AccountCapability.Calendar, "alice@cloud.example")], AccountSettingsRules.Linked(entry));
+        Assert.Equal([(AccountCapability.Calendar, Linked("alice@cloud.example"))], AccountSettingsRules.Linked(entry));
     }
 
     [Fact]
@@ -193,9 +226,12 @@ public class AccountSettingsRulesTests
     public void RemovingNamesTheAccountsThatLoseTheirLink()
     {
         var entry = MailboxOnly();
-        Assert.Null(AccountSettingsRules.Unlinked(entry));
-        entry = entry with { LinkedFrom = [Linked("a@example.org"), Linked("b@example.org")] };
-        Assert.Equal("a@example.org, b@example.org", AccountSettingsRules.Unlinked(entry));
+        Assert.Null(AccountSettingsRules.Unlinked(entry, AccountNamesTests.Words));
+        entry = entry with
+        {
+            LinkedFrom = [Linked("a@example.org"), Linked("b@example.org") with { Distinction = new AccountDistinction.Kind(AccountKind.Dav) }],
+        };
+        Assert.Equal("a@example.org, b@example.org (DAV)", AccountSettingsRules.Unlinked(entry, AccountNamesTests.Words));
     }
 
     [Fact]
@@ -223,6 +259,9 @@ public class AccountSettingsRulesTests
         // So does a mailbox listed in the mail settings after the page was drawn, which is where
         // its Mail section comes from.
         Assert.NotEqual(drawn, AccountSettingsRules.Fingerprint(snapshot, [], ["mail:" + MailboxOnly().Id]));
+        // And an account of the same address arriving, which changes how this one is named.
+        var named = MailboxOnly() with { Distinction = new AccountDistinction.Server("imap.example.org") };
+        Assert.NotEqual(drawn, AccountSettingsRules.Fingerprint(new AccountsSnapshot([named]), []));
     }
 
     [Fact]

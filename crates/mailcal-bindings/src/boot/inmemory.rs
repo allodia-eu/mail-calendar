@@ -38,7 +38,7 @@ pub(crate) fn build_demo(
     let engine = Engine::open_in_memory().expect("in-memory engine opens");
     let account = Account {
         id: AccountId::try_from("demo").expect("valid account id"),
-        providers: vec![Box::new(DemoProvider::new()) as Box<dyn Provider>],
+        providers: vec![Box::new(DemoProvider::new()) as Box<dyn Provider>].into(),
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("demo@allodia.local"),
@@ -139,7 +139,8 @@ pub(crate) fn build_showcase(
             primary.mailboxes,
             primary.messages,
             primary.bodies,
-        )) as Box<dyn Provider>],
+        )) as Box<dyn Provider>]
+        .into(),
         calendar_providers: vec![
             Box::new(ShowcaseCalendarProvider::new(calendars, events)) as Box<dyn Provider>
         ],
@@ -163,7 +164,8 @@ pub(crate) fn build_showcase(
             secondary.mailboxes,
             secondary.messages,
             secondary.bodies,
-        )) as Box<dyn Provider>],
+        )) as Box<dyn Provider>]
+        .into(),
         // The second account is mail-only, so the calendar comes solely from the primary.
         calendar_providers: Vec::new(),
         // It does carry contacts, though; one of them the same person as the primary's, which
@@ -221,6 +223,10 @@ pub(crate) fn build_showcase(
             ],
         )
     });
+    #[cfg(debug_assertions)]
+    if std::env::var_os("MAILCAL_SHOWCASE_SERVER_CHANGE").is_some_and(|value| !value.is_empty()) {
+        pause_for_a_server_change(&app, &primary_identity);
+    }
     let registered = [
         listed(
             &primary_identity,
@@ -232,6 +238,24 @@ pub(crate) fn build_showcase(
         ),
     ];
     finish_showcase(app, runtime, device_tz, registered)
+}
+
+/// The account `id`'s calendar waiting on a server found on another site, for
+/// `MAILCAL_SHOWCASE_SERVER_CHANGE`, which puts the question in front of the UI suites
+/// (`docs/account-autodetect.md` rule 14). Allowing it is refused, because a showcase account has
+/// no servers to change.
+#[cfg(debug_assertions)]
+pub(crate) fn pause_for_a_server_change<P>(app: &App<P>, id: &str) {
+    let id = AccountId::try_from(id).expect("valid account id");
+    app.note_server_change(
+        &id,
+        mailcal_app::ServerChange {
+            previous_site: "example.com".to_owned(),
+            proposed_site: "example.net".to_owned(),
+            calendar_url: Some("https://dav.example.net/".to_owned()),
+            contacts_url: None,
+        },
+    );
 }
 
 /// The registry entry that lists the showcase account `id` in Settings → Accounts, used for

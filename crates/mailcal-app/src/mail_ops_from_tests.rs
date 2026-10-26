@@ -65,7 +65,7 @@ fn two_account_app(messages: Vec<Message>) -> (Arc<App<ThreadProvider>>, Outboxe
         vec![
             Account {
                 id: AccountId::try_from("acct-1").unwrap(),
-                providers: vec![first],
+                providers: vec![first].into(),
                 calendar_providers: Vec::new(),
                 contact_providers: Vec::new(),
                 identity: EmailAddress::new("me@allodia.local"),
@@ -74,7 +74,7 @@ fn two_account_app(messages: Vec<Message>) -> (Arc<App<ThreadProvider>>, Outboxe
             },
             Account {
                 id: AccountId::try_from("acct-2").unwrap(),
-                providers: vec![second],
+                providers: vec![second].into(),
                 calendar_providers: Vec::new(),
                 contact_providers: Vec::new(),
                 identity: EmailAddress::new("other@allodia.local"),

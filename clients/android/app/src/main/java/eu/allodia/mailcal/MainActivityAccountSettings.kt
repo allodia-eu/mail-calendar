@@ -50,7 +50,7 @@ internal fun MainActivity.openAccountPage(id: String) {
  * otherwise, since a sign-in started from a banner ends on the mailbox and a notice kept for
  * Settings would greet them there later about something long over.
  */
-private fun MainActivity.say(notice: AccountNotice) {
+internal fun MainActivity.say(notice: AccountNotice) {
     if (showingSettings) {
         accountSettings.notice = notice
     } else {
@@ -265,7 +265,7 @@ internal fun MainActivity.completeAccountConsent(callbackUrl: String) {
                     AccountNotice(
                         NoticeKind.FAILURE,
                         L10n.settings_account_signin_failed(this),
-                        coreErrorSaid(it, this) ?: L10n.signin_expired_failed(this),
+                        signInAgainSaid(it, this),
                     ),
                 )
             }

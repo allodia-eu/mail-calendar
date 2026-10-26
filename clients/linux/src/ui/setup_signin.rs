@@ -65,11 +65,20 @@ impl SetupState {
     }
 
     pub(in crate::ui) fn jmap_sign_in_failed(&mut self) {
+        self.jmap_sign_in_ended(JmapSignIn::Failed);
+    }
+
+    /// The browser came back from another sign-in. Said as such, and the form is left as any
+    /// failure leaves it, because signing in again goes straight through.
+    pub(in crate::ui) fn jmap_sign_in_stale(&mut self) {
+        self.jmap_sign_in_ended(JmapSignIn::Stale);
+    }
+
+    fn jmap_sign_in_ended(&mut self, end: JmapSignIn) {
         if let Some(sign_in) = self.any_jmap_sign_in() {
-            *sign_in = JmapSignIn::Failed;
+            *sign_in = end;
             self.phase = Phase::Form;
-            self.error = None;
-            self.certificate = None;
+            self.clear_feedback();
             self.bump();
         }
     }
@@ -130,12 +139,22 @@ impl SetupState {
         true
     }
 
+    /// A sign-in that ended without an account. The waiting screen is left even when the form
+    /// under it is no longer an IMAP one, so nobody is held on a spinner with nothing to wait for.
     pub(in crate::ui) fn imap_sign_in_failed(&mut self) {
-        if let Some(sign_in) = self.any_imap_sign_in() {
-            *sign_in = ImapSignIn::Failed;
+        self.imap_sign_in_ended(ImapSignIn::Failed);
+    }
+
+    /// As [`Self::imap_sign_in_failed`], for a browser that came back from another sign-in.
+    pub(in crate::ui) fn imap_sign_in_stale(&mut self) {
+        self.imap_sign_in_ended(ImapSignIn::Stale);
+    }
+
+    fn imap_sign_in_ended(&mut self, end: ImapSignIn) {
+        let marked = self.any_imap_sign_in().map(|sign_in| *sign_in = end);
+        if marked.is_some() || self.phase == Phase::ImapSigningIn {
             self.phase = Phase::Form;
-            self.error = None;
-            self.certificate = None;
+            self.clear_feedback();
             self.bump();
         }
     }

@@ -21,6 +21,9 @@ pub struct AccountEntry {
     pub address: String,
     /// Which sign-in the account is, for its label.
     pub kind: AccountKind,
+    /// How it signs in: what its page says, and which switch it may offer
+    /// ([`MailcalApp::account_sign_in_options`](crate::MailcalApp::account_sign_in_options)).
+    pub sign_in: SignInMethod,
     /// Each use the kind can offer, in a fixed order, with its state.
     pub uses: Vec<AccountUse>,
     /// The accounts this one relies on for what it is not used for itself.
@@ -33,6 +36,48 @@ pub struct AccountEntry {
     /// Its servers and login, for an account Settings can edit them on: one that signs in with a
     /// password to servers of its own. `None` for one that signs in through its provider.
     pub endpoints: Option<AccountEndpoints>,
+    /// The calendar and contacts of a mailbox that need a sign-in of their own, and the server
+    /// it would be made at: what its page offers to sign in to (`add_linked_calendar_account`,
+    /// `docs/accounts.md` rule 18). `None` while every use connects, or for an account without a
+    /// mailbox.
+    #[uniffi(default = None)]
+    pub separate_server: Option<SeparateServer>,
+    /// What tells it apart from another account with the same address; `None` when no other
+    /// account has it.
+    #[uniffi(default = None)]
+    pub distinction: Option<AccountDistinction>,
+}
+
+/// What tells an account apart from another with the same address (`docs/accounts.md` rule 8):
+/// a mailbox and the calendar split off from it, or two servers that know one person by one
+/// login.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum AccountDistinction {
+    /// Its kind, which no other account with its address shares.
+    Kind { kind: AccountKind },
+    /// Its server's host, for an account that shares its kind with another of its address too.
+    Server { host: String },
+}
+
+/// A server a mailbox's calendar or contacts need a sign-in of their own at.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct SeparateServer {
+    /// The uses that need it, calendar before contacts.
+    pub uses: Vec<AccountCapability>,
+    /// The server's host, with its port when it names one: what the form says the sign-in is
+    /// for. Never a path, which can carry the person's address.
+    pub host: String,
+    /// The login it holds for that server, which the form starts from.
+    pub username: String,
+}
+
+/// How an account signs in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum SignInMethod {
+    /// With a password, an app password or an API token, stored with the account.
+    Password,
+    /// Through its provider, in the browser: the account stores a grant and no password.
+    Provider,
 }
 
 /// Which sign-in an account is.
@@ -74,6 +119,11 @@ pub enum UseProblem {
     /// Its server could not be reached. The next retry (Refresh, or coming back online) dials it
     /// again.
     Unreachable,
+    /// Its server is gone, and looking again found it on another site: the use is paused until
+    /// the person allows the new server
+    /// ([`MailcalApp::pending_server_change`](crate::MailcalApp::pending_server_change),
+    /// `docs/account-autodetect.md` rule 14). Nothing is sent to it before they do.
+    ServerChanged,
 }
 
 impl From<mailcal_app::UseProblem> for UseProblem {
@@ -82,6 +132,7 @@ impl From<mailcal_app::UseProblem> for UseProblem {
             mailcal_app::UseProblem::NeedsOwnSignIn => Self::NeedsOwnSignIn,
             mailcal_app::UseProblem::SignInRefused => Self::SignInRefused,
             mailcal_app::UseProblem::Unreachable => Self::Unreachable,
+            mailcal_app::UseProblem::ServerChanged => Self::ServerChanged,
         }
     }
 }
@@ -119,6 +170,10 @@ pub struct LinkedAccount {
     pub id: String,
     /// What a person reads it by.
     pub address: String,
+    /// What tells it apart from another account with the same address, which a person reads
+    /// beside it; `None` when no other account has it.
+    #[uniffi(default = None)]
+    pub distinction: Option<AccountDistinction>,
 }
 
 /// The accounts each link slot may name.

@@ -84,17 +84,19 @@ extension MailboxModel {
     }
 
     /// What the contacts list says about the most recent create or edit.
-    ///
-    /// `.failed` means "we could not confirm this saved", never "rejected": a write whose server
-    /// call succeeded and whose reconcile did not has already landed, and the next sync heals the
-    /// local copy. `.invalid` is stated under the form the user is still looking at, so nothing
-    /// repeats it here.
-    var contactWriteLine: String? {
-        switch contactWriteStatus {
+    var contactWriteLine: String? { Self.contactWriteLine(contactWriteStatus) }
+
+    /// The line for `status`. `.notSaved` and `.unconfirmed` are different sentences: one changed
+    /// nothing on the server, the other may have landed, and the next sync settles which.
+    /// `.invalid` is stated under the form the user is still looking at, so nothing repeats it
+    /// here.
+    nonisolated static func contactWriteLine(_ status: ContactWriteStatus) -> String? {
+        switch status {
         case .saving: L10n.contacts_saving()
         case .saved: L10n.contacts_saved()
-        case .failed: L10n.contacts_save_unconfirmed()
-        default: nil
+        case .notSaved: L10n.contacts_save_failed()
+        case .unconfirmed: L10n.contacts_save_unconfirmed()
+        case .idle, .invalid: nil
         }
     }
 

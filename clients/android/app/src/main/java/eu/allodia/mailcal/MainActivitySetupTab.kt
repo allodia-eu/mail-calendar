@@ -37,6 +37,21 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
         SetupUsesStepScreen(step) { chooseSetupUses(it) }
         return
     }
+    // A sign-in that did not reach the calendar or contacts asks their own sign-in next.
+    setupFlow.separate.form?.let { form ->
+        val separate = setupFlow.separate
+        SeparateServerStepScreen(
+            form = form,
+            controls = separate.controls,
+            error = separate.error,
+            onConnect = { username, password -> connectSetupSeparate(username, password) },
+            onSkip = { skipSetupSeparate() },
+            onSignIn = { signInSeparate(separate) },
+            onShown = { askSeparateSignIn(separate) },
+            onLeave = { separate.left() },
+        )
+        return
+    }
     val links = setupFlow.links
     if (setupFlow.showsLinks && links != null) {
         SetupLinkStepScreen(
@@ -50,6 +65,19 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
     }
     // A new form for each account the flow sets up, from the address.
     androidx.compose.runtime.key(setupFlow.form) { SetupForm(instance, ctx) }
+    // Over whichever form was refused: every route that adds from a config ends in addAccount.
+    if (setupFlow.existing != null) {
+        AlreadySetUpDialog(
+            updating = setupFlow.updatingExisting,
+            onUpdate = { pressUpdateExisting() },
+            onDismiss = { if (!setupFlow.updatingExisting) setupFlow.existing = null },
+        )
+        setupFlow.existing?.takeIf { setupFlow.askingExisting }?.let { existing ->
+            UnreachedRules.setOf(existing.unreached)?.let { set ->
+                SignInUnreachedDialog(set) { answerExistingUnreached(it) }
+            }
+        }
+    }
 }
 
 @Composable

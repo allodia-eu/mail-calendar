@@ -129,10 +129,9 @@ public sealed partial class MailboxModel
     /// The outcome of the most recent contact create or edit.
     /// </summary>
     /// <remarks>
-    /// <c>Failed</c> means "we could not confirm this saved", never "rejected": a write whose
-    /// server call succeeded and whose reconcile did not has already landed, and the next sync
-    /// heals the local copy. <c>Invalid</c> is stated under the form the user is still looking at,
-    /// so nothing repeats it out of context here.
+    /// <c>NotSaved</c> changed nothing on the server; <c>Unconfirmed</c> may have landed, and the
+    /// next sync settles which. <c>Invalid</c> is stated under the form the user is still looking
+    /// at, so nothing repeats it out of context here.
     ///
     /// <c>internal</c> because the generated enum is; the view binds the two public members
     /// below, which are a string and a <c>Visibility</c>.
@@ -151,11 +150,13 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>What the contacts list says about the most recent write.</summary>
-    public string ContactWriteStatusText => ContactWriteStatus switch
+    public string ContactWriteStatusText => ContactWriteLines.Of(ContactWriteStatus) switch
     {
-        uniffi.mailcal_bindings.ContactWriteStatus.Saving => L10n.ContactsSaving(),
-        uniffi.mailcal_bindings.ContactWriteStatus.Saved => L10n.ContactsSaved(),
-        uniffi.mailcal_bindings.ContactWriteStatus.Failed => L10n.ContactsSaveUnconfirmed(),
+        ContactWriteLine.Saving => L10n.ContactsSaving(),
+        ContactWriteLine.Saved => L10n.ContactsSaved(),
+        ContactWriteLine.NotSaved => L10n.ContactsSaveFailed(),
+        ContactWriteLine.Unconfirmed => L10n.ContactsSaveUnconfirmed(),
+        ContactWriteLine.None => string.Empty,
         _ => string.Empty,
     };
 

@@ -44,6 +44,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $project = Join-Path $PSScriptRoot '..\Mailcal.UiTests'
+. (Join-Path $PSScriptRoot 'agent-suites.ps1')
 
 $KnownDatasets = @('showcase', 'harness', 'first-run')
 $Dataset = @($Dataset | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
@@ -96,26 +97,15 @@ if ($chosen) {
   finally {
     Remove-Item env:MAILCAL_UITESTS_REQUIRE_HARNESS -ErrorAction SilentlyContinue
   }
-  for ($i = 0; $i -lt $output.Count; $i++) {
-    if ($output[$i] -notmatch '^\s+(Passed|Failed|Skipped) Allodia\.Mailcal\.UiTests\.Suites\.(\w+)Tests\.(\w+)') { continue }
-    $case = "$($Matches[2]).Tests / $($Matches[3])"
-    switch ($Matches[1]) {
-      'Passed' { $passed += $case; Write-Host "  PASS  $case" -ForegroundColor Green }
-      'Skipped' {
-        $why = if ($i + 1 -lt $output.Count) { $output[$i + 1].Trim() } else { '' }
-        $skipped += "${case}: $why"; Write-Host "  SKIP  $case" -ForegroundColor Yellow
-      }
-      'Failed' {
-        # The reason is the line after "Error Message:", which is a heading of its own.
-        $why = ''
-        for ($j = $i + 1; $j -lt [Math]::Min($i + 6, $output.Count); $j++) {
-          if ($output[$j] -match '^\s*Error Message:\s*(.*)$') {
-            $why = if ($Matches[1]) { $Matches[1] } elseif ($j + 1 -lt $output.Count) { $output[$j + 1] } else { '' }
-            break
-          }
-        }
-        $failed += "${case}: $($why.Trim())"; Write-Host "  FAIL  $case" -ForegroundColor Red
-      }
+  $result = ConvertFrom-AgentTestOutput -Lines $output
+  $passed = $result.Passed
+  $failed = $result.Failed
+  $skipped = $result.Skipped
+  foreach ($line in $result.Order) {
+    switch ($line.Outcome) {
+      'Passed' { Write-Host "  PASS  $($line.Case)" -ForegroundColor Green }
+      'Skipped' { Write-Host "  SKIP  $($line.Case)" -ForegroundColor Yellow }
+      'Failed' { Write-Host "  FAIL  $($line.Case)" -ForegroundColor Red; Write-Host "        $($line.Why)" -ForegroundColor Red }
     }
   }
   # A build that failed, or a run that reported nothing, is a failure that names no case.

@@ -104,6 +104,9 @@ internal enum WriteLine
     /// this feature exists to prevent.
     /// </summary>
     Failed,
+
+    /// <summary>The answer may have gone out, and nothing confirmed it did.</summary>
+    Unconfirmed,
 }
 
 /// <summary>The invitation card's rules, free of words and of pixels.</summary>
@@ -177,7 +180,9 @@ internal static class InvitationFormat
     internal static WriteLine Write(CalendarWriteStatus status) => status switch
     {
         CalendarWriteStatus.Saving => WriteLine.Sending,
-        CalendarWriteStatus.Failed => WriteLine.Failed,
+        CalendarWriteStatus.NotSaved => WriteLine.Failed,
+        CalendarWriteStatus.Unconfirmed => WriteLine.Unconfirmed,
+        CalendarWriteStatus.Idle or CalendarWriteStatus.Saved => WriteLine.None,
         _ => WriteLine.None,
     };
 

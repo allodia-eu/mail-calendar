@@ -70,8 +70,8 @@ internal fun CalendarHeader(
         Text(text = title, style = MaterialTheme.typography.titleLarge)
         Row(verticalAlignment = Alignment.CenterVertically) {
             // The result of the user's last create/edit/delete: a spinner while it settles, a
-            // brief check when saved, a tap-to-retry warning when it could not be confirmed. The
-            // retry is a refresh, a full sync reconciles the local view (see CalendarWriteStatus).
+            // brief check when saved, a tap-to-retry warning when it did not save or could not be
+            // confirmed. The retry is a refresh, never a re-send (see CalendarWriteIndicator).
             CalendarWriteBadge(status = writeStatus, onRetry = onRefresh)
             // Only offered when it would actually take you somewhere.
             if (!todayVisible) {
@@ -98,13 +98,14 @@ internal fun CalendarHeader(
 
 /**
  * The small write-status badge in the header. Renders the mapped [CalendarWriteIndicator]: a spinner
- * while `Saving`, a check on `Saved`, and a tap-to-retry warning when the write could not be confirmed
- * (`Failed`). Hidden when `Idle`. The warning's tap is `onRetry`, a refresh, not a re-send.
+ * while `Saving`, a check on `Saved`, and a tap-to-retry warning, labelled for which it is, when the
+ * change was not saved or could not be confirmed. Hidden when `Idle`. The warning's tap is
+ * `onRetry`, a refresh, not a re-send.
  */
 @Composable
 internal fun CalendarWriteBadge(status: CalendarWriteStatus, onRetry: () -> Unit) {
     val ctx = LocalContext.current
-    when (CalendarWriteIndicator.of(status)) {
+    when (val indicator = CalendarWriteIndicator.of(status)) {
         CalendarWriteIndicator.Hidden -> Unit
         CalendarWriteIndicator.Spinner ->
             CircularProgressIndicator(
@@ -123,12 +124,15 @@ internal fun CalendarWriteBadge(status: CalendarWriteStatus, onRetry: () -> Unit
                 modifier = Modifier.padding(horizontal = 12.dp),
             )
 
-        CalendarWriteIndicator.Warning ->
+        CalendarWriteIndicator.NotSaved, CalendarWriteIndicator.Unconfirmed -> {
+            val label = if (indicator == CalendarWriteIndicator.NotSaved) {
+                L10n.calendar_save_failed(ctx)
+            } else {
+                L10n.calendar_save_unconfirmed(ctx)
+            }
             IconButton(
                 onClick = onRetry,
-                modifier = Modifier.semantics {
-                    contentDescription = L10n.calendar_save_unconfirmed(ctx)
-                },
+                modifier = Modifier.semantics { contentDescription = label },
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_warning),
@@ -136,6 +140,7 @@ internal fun CalendarWriteBadge(status: CalendarWriteStatus, onRetry: () -> Unit
                     tint = MaterialTheme.colorScheme.error,
                 )
             }
+        }
     }
 }
 

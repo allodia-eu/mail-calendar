@@ -24,16 +24,24 @@ use crate::{
 };
 
 impl<P: Provider> App<P> {
+    /// Whether `account`'s calendar is connected now: a calendar adapter is bound to it.
+    async fn calendar_connected(&self, account: &AccountId) -> bool {
+        self.account_handle(account)
+            .await
+            .is_some_and(|handle| !handle.calendar_providers.is_empty())
+    }
+
     /// This account's answer to `stored`, when it may give one from the calendar: it is invited,
-    /// it does not organise the meeting, and the account has a way to tell the organiser.
-    /// `None` when any of those fails, which is when a client offers no answer.
+    /// it does not organise the meeting, its calendar is connected, and the account has a way to
+    /// tell the organiser. `None` when any of those fails, which is when a client offers no
+    /// answer.
     pub(crate) async fn answer_from_calendar(
         &self,
         account: &AccountId,
         stored: &Event,
     ) -> Option<ResponseStatus> {
         // An appointment invites nobody, and needs neither the alias list nor the account.
-        if stored.participants.is_empty() {
+        if stored.participants.is_empty() || !self.calendar_connected(account).await {
             return None;
         }
         let addresses = self.account_address_set(account).await;
@@ -68,7 +76,7 @@ impl<P: Provider> App<P> {
             .send_event_response(event, response, reply_subject)
             .await;
         if outcome.is_err() {
-            self.set_calendar_write_status(CalendarWriteStatus::Failed);
+            self.answer_failed();
         }
         outcome
     }
@@ -94,7 +102,13 @@ impl<P: Provider> App<P> {
             .account_handle(&event.account)
             .await
             .ok_or_else(|| "the account is not configured".to_owned())?;
-        let provider = acct.calendar_providers.first();
+        // What the grid shows of a calendar that is not connected is what was last synced; an
+        // answer given from it would tell the organiser one thing and leave the calendar saying
+        // another.
+        let provider = acct
+            .calendar_providers
+            .first()
+            .ok_or_else(|| "the calendar is not connected".to_owned())?;
 
         match self
             .delivery_between(&letter.account, &event.account, Some(&letter.attendee))
@@ -108,8 +122,8 @@ impl<P: Provider> App<P> {
             Delivery::ClientImip => {
                 // The calendar's copy changes where it can be written, so the grid agrees with
                 // what the organiser is told; the reply is what tells them.
-                let answer_store =
-                    provider.filter(|p| p.connection_info().capabilities.calendar_rsvp().is_some());
+                let answer_store = Some(provider)
+                    .filter(|p| p.connection_info().capabilities.calendar_rsvp().is_some());
                 if let Some(provider) = answer_store {
                     let rsvp = EventRsvp::to(&stored, letter.attendee.clone(), response.engine());
                     let write = self
@@ -138,8 +152,6 @@ impl<P: Provider> App<P> {
                 Ok(())
             }
             Delivery::Server => {
-                let provider =
-                    provider.ok_or_else(|| "the account has no calendar provider".to_owned())?;
                 let rsvp = EventRsvp::to(&stored, letter.attendee.clone(), response.engine());
                 let write = self
                     .engine
@@ -151,7 +163,7 @@ impl<P: Provider> App<P> {
                         &rsvp,
                     )
                     .await
-                    .map_err(|err| err.to_string())?;
+                    .map_err(|err| self.answer_write_failed(&err))?;
                 let status = self
                     .settle_calendar_write(provider, &event.account, write.reconciled)
                     .await;

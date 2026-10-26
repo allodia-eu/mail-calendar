@@ -137,8 +137,14 @@ fn build(
     tls: &TlsClientConfig,
     retry: &engine_api::RetryConfig,
 ) -> Result<GraphContactProvider, ProviderError> {
-    let client = GraphClient::for_mailbox(token.to_owned(), MailboxPrincipal::Me, tls, retry)
-        .map_err(ProviderError::from)?;
+    let client = GraphClient::for_mailbox(
+        token.to_owned(),
+        MailboxPrincipal::Me,
+        tls,
+        retry,
+        &crate::user_agent(),
+    )
+    .map_err(ProviderError::from)?;
     Ok(match source {
         GraphContactSource::Personal(book) => {
             GraphContactProvider::personal_folder(client, book.clone())
@@ -259,9 +265,14 @@ pub async fn connect_graph_contact_providers(
     let tls = tls_with(&[])?;
     let token = tokens.access_token().await?;
     let graph = |err: ProviderError| AccountError::Graph(err.to_string());
-    let client =
-        GraphClient::for_mailbox(token.clone(), MailboxPrincipal::Me, &tls, &tokens.retry())
-            .map_err(|err| AccountError::Graph(err.to_string()))?;
+    let client = GraphClient::for_mailbox(
+        token.clone(),
+        MailboxPrincipal::Me,
+        &tls,
+        &tokens.retry(),
+        &crate::user_agent(),
+    )
+    .map_err(|err| AccountError::Graph(err.to_string()))?;
     let root = GraphContactProvider::personal(client);
     let root_book = root
         .contact_destination()

@@ -113,6 +113,25 @@ public class JmapSignInGateTests
     }
 
     [Fact]
+    public void A_browser_back_from_another_sign_in_is_a_failure_of_its_own_that_leaves_the_sign_in_offered()
+    {
+        var gate = Offered();
+        gate.SignInStarted();
+        gate.SignInFinished(JmapSignInOutcome.Stale);
+
+        Assert.True(gate.ShowFailure);
+        Assert.True(gate.FailureIsStale);
+        Assert.True(gate.ManualEnabled);
+        Assert.True(gate.ButtonEnabled);
+
+        // A plain failure after it is not said as stale.
+        gate.SignInStarted();
+        gate.SignInFinished(JmapSignInOutcome.Failed);
+        Assert.True(gate.ShowFailure);
+        Assert.False(gate.FailureIsStale);
+    }
+
+    [Fact]
     public void A_cancelled_sign_in_re_enables_the_manual_path_without_claiming_a_failure()
     {
         var gate = Offered();

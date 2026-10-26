@@ -200,11 +200,13 @@ pub(crate) enum JmapSignIn {
     Unavailable,
     Offered,
     Failed,
+    /// The browser came back from another sign-in; signing in again goes straight through.
+    Stale,
 }
 
 impl JmapSignIn {
     pub(super) const fn show_offer(self) -> bool {
-        matches!(self, Self::Offered | Self::Failed)
+        matches!(self, Self::Offered | Self::Failed | Self::Stale)
     }
 
     /// Whether the **detected** card shows its secret field. Not while the pre-flight is still
@@ -212,7 +214,7 @@ impl JmapSignIn {
     /// and the answer decides whether it belongs there at all. The manual form always keeps its
     /// fields: see [`super::setup_jmap`].
     pub(super) const fn show_manual(self) -> bool {
-        matches!(self, Self::Unavailable | Self::Failed)
+        matches!(self, Self::Unavailable | Self::Failed | Self::Stale)
     }
 }
 
@@ -290,11 +292,13 @@ pub(crate) struct ImapSubmission {
 }
 
 /// What a connect that did not succeed had to say. A refused certificate is its own outcome,
-/// because it is the one failure a pane can offer a way past.
-#[derive(Clone, Default)]
+/// because it is the one failure a pane can offer a way past, and so is an account already set
+/// up, whose credential the pane offers to replace with the one just given.
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ConnectFailure {
     pub(super) message: Option<String>,
     pub(super) certificate: Option<RejectedCertificate>,
+    pub(super) existing: Option<super::setup_already_set_up::ExistingAccount>,
 }
 
 #[derive(Clone)]

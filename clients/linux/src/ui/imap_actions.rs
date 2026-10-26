@@ -68,6 +68,8 @@ impl AppModel {
 
     pub(super) fn start_imap_login(&mut self, form: &ImapForm, sender: relm4::Sender<AppInput>) {
         let (Some(app), Some(_)) = (self.app.clone(), self.secrets.clone()) else {
+            log::warn!("imap sign-in has no core or credential store");
+            self.setup.imap_sign_in_failed();
             return;
         };
         let Ok(loopback) = self.host_tasks.oauth_loopback() else {
@@ -104,6 +106,7 @@ impl AppModel {
             pending,
             expected_state,
             loopback,
+            unreached,
         } = *prepared;
         let failed = sender.clone();
         imap_signin::launch_browser(&authorization_url, move || {
@@ -120,7 +123,7 @@ impl AppModel {
             let outcome = match imap_signin::wait(loopback, &cancel, &expected_state) {
                 CallbackOutcome::Received(callback_url) => {
                     sender.emit(AppInput::ImapCallbackReceived(attempt));
-                    imap_signin::complete(&app, pending, callback_url)
+                    imap_signin::complete(&app, pending, callback_url, unreached)
                 }
                 CallbackOutcome::Cancelled => ImapOutcome::Cancelled,
                 CallbackOutcome::Failed(_) => ImapOutcome::Failed,
@@ -165,13 +168,13 @@ impl AppModel {
                 log::warn!("imap sign-in failed");
                 self.setup.imap_sign_in_failed();
             }
-            ImapOutcome::NotAdded(message) => {
+            ImapOutcome::Stale => {
+                log::warn!("imap sign-in: the browser returned from another sign-in");
+                self.setup.imap_sign_in_stale();
+            }
+            ImapOutcome::NotAdded(failure) => {
                 log::warn!("imap sign-in succeeded, but the account was not added");
-                self.setup
-                    .connect_failed(super::setup_model::ConnectFailure {
-                        message: Some(message),
-                        certificate: None,
-                    });
+                self.setup.connect_failed(*failure);
             }
         }
     }

@@ -7,18 +7,21 @@
 // card that shows only a name says nothing about WHICH account a person is signed in to.
 package eu.allodia.mailcal
 
+import android.content.Context
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AllodiaAccount
+import uniffi.mailcal_bindings.MailcalException
 
 private const val SIGN_IN = "Sign in"
 private const val SIGN_OUT = "Sign out"
@@ -137,7 +140,9 @@ class AllodiaAccountCardTest {
 
     @Test
     fun a_failure_says_what_the_service_said() {
-        card(AllodiaSettings(available = true, failure = "invalid_grant"))
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val failure = allodiaFailureSaid(MailcalException.Connect("invalid_grant"), ctx)
+        card(AllodiaSettings(available = true, failure = failure))
 
         compose.onNodeWithText("Signing in didn’t work: invalid_grant").assertIsDisplayed()
     }

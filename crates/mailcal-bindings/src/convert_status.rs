@@ -68,6 +68,8 @@ impl From<AppConnectivity> for ConnectivitySnapshot {
             calendar_reauth_accounts: snapshot.calendar_reauth_accounts,
             mail_reauth_accounts: snapshot.mail_reauth_accounts,
             signin_expired_accounts: snapshot.signin_expired_accounts,
+            calendar_outages: Vec::new(),
+            contacts_outages: Vec::new(),
         }
     }
 }

@@ -149,9 +149,10 @@ internal sealed partial class InvitationCardView
     /// Reports the write currently settling, without rebuilding the card.
     /// </summary>
     /// <remarks>
-    /// <c>Saving</c> and <c>Failed</c> are the two the user must see. A reply the organiser never
-    /// received, reported as sent, is the failure this whole feature exists to prevent, so a failure
-    /// says so in words rather than leaving the old answer on screen looking settled. <c>Saved</c>
+    /// <c>Saving</c> and the two failures, <c>NotSaved</c> and <c>Unconfirmed</c>, are what the user
+    /// must see. A reply the organiser never received, reported as sent, is the failure this whole
+    /// feature exists to prevent, so a failure says so in words rather than leaving the old answer
+    /// on screen looking settled. <c>Saved</c>
     /// says nothing on purpose: by then the card has been rebuilt from the calendar and already shows
     /// the new answer, so a second line would be noise.
     /// </remarks>
@@ -180,7 +181,7 @@ internal sealed partial class InvitationCardView
         _writeLine.Text = line ?? string.Empty;
         _writeLine.Visibility = line is null ? Visibility.Collapsed : Visibility.Visible;
         _writeLine.Foreground = ThemePalette.Brush(
-            InvitationFormat.Write(status) == WriteLine.Failed
+            InvitationFormat.Write(status) is WriteLine.Failed or WriteLine.Unconfirmed
                 ? ThemePalette.Critical(_dark)
                 : ThemePalette.SecondaryText(_dark));
     }

@@ -80,7 +80,7 @@ private fun MainActivity.beginAllodia(create: Boolean) {
                 if (activity.allodiaAttempt != attempt) return@post
                 activity.signingInAllodia = false
                 activity.allodiaSignInSlow = false
-                activity.allodiaFailure = e.message.orEmpty()
+                activity.allodiaFailure = allodiaFailureSaid(e, activity)
             }
         }
     }
@@ -134,11 +134,11 @@ internal fun MainActivity.completeAllodiaSignIn(callbackUrl: String) {
                 activity.refreshAllodiaSubscription()
             }
         } catch (e: Exception) {
-            logUiWarn("allodia: sign-in did not complete (${e.message})")
+            logUiWarn("allodia: sign-in did not complete (${coreErrorText(e)})")
             activity.mainHandler.post {
                 activity.signingInAllodia = false
                 activity.allodiaSignInSlow = false
-                activity.allodiaFailure = e.message.orEmpty()
+                activity.allodiaFailure = allodiaFailureSaid(e, activity)
             }
         }
     }
@@ -162,7 +162,7 @@ internal fun MainActivity.signOutOfAllodia() {
         null
     } catch (e: Exception) {
         logUiWarn("allodia: sign-out did not complete (${e.message})")
-        e.message.orEmpty()
+        allodiaFailureSaid(e, this)
     }
     allodiaAccount = instance.allodiaAccount()
     // Nothing left to say about other devices once this one is signed out of the account that

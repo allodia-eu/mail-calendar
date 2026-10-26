@@ -21,6 +21,14 @@ public abstract class UiApp : IDisposable
     /// <summary>The launch, made once, on first use.</summary>
     private protected abstract App Launch();
 
+    /// <summary>Quits the app and puts the one <paramref name="launch"/> starts in its place.</summary>
+    private protected void Relaunch(Func<App> launch)
+    {
+        _app?.Dispose();
+        _app = null;
+        _app = launch();
+    }
+
     /// <summary>The MAILCAL_* and log switches this launch is made with. The app reads them once,
     /// at startup, so suites that need different ones need a launch, and a collection, of their own.</summary>
     protected virtual IReadOnlyDictionary<string, string> Env { get; } = new Dictionary<string, string>();

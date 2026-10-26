@@ -133,7 +133,7 @@ would look perfectly right. So:
 | Affordance | Shown when | Because |
 |---|---|---|
 | Create | `contact_targets()` is non-empty | A destination is a **writable** address book. A directory, a suggested-contacts source and a shared book the account may only read are places contacts come *from*; offering one produces a save that fails on the server after the user has typed everything in. |
-| Edit | `editable_cards` is non-empty | Same rule, per person. |
+| Edit | `editable_cards` is non-empty | Same rule, per person, decided by the adapter **bound now**: a card cached from an address book that no longer connects still says its server lets it be edited, and offering that edit produces a save nothing can carry. |
 
 A person with **no** editable card says so ("This contact can't be edited here"), in as many words,
 rather than leaving it to be inferred from an absence or, worse, from a disabled pencil the user
@@ -168,18 +168,34 @@ company contact reads as its company rather than as a blank row.
 
 ### What the status means
 
-`ContactWriteStatus` has the same shape as the calendar's, plus one value:
+`ContactWriteStatus` has the same shape as the calendar's, plus one value. A failure is one of
+three sentences, and each is true:
 
-- **`Failed` does not mean "rejected".** A write whose server call succeeded but whose post-write
-  reconcile came back busy or failed has **landed on the server**; only the local copy is briefly
-  stale, and the next sync heals it. The client says "we could not confirm this saved".
+- **`NotSaved`: nothing changed on the server** ("Couldn't save this contact",
+  `contacts_save_failed`). Nothing was sent (the card's account or address book is not connected,
+  or the card has gone), or the server answered and refused it.
+- **`Unconfirmed`: it may have landed** ("Couldn't confirm this was saved",
+  `contacts_save_unconfirmed`). The request went out and its answer was lost, which the engine
+  marks as needing confirmation, or the write landed and the copy read back to confirm it did not
+  arrive. The next sync settles which, and the core never sends the write again.
 - **`Invalid` is a different sentence**: the core refused the form *before* sending anything, so
   there is something to correct and retrying unchanged would be refused the same way. The client
   states it under the form the user is still looking at, and nowhere else.
 
-The first three belong **beside the list**, never inside the detail pane: a create is made with
-nobody open, so a line drawn there is one the user who just created a contact cannot read, and
-`Failed` is the value it costs most to lose.
+The others belong **beside the list**, never inside the detail pane: a create is made with nobody
+open, so a line drawn there is one the user who just created a contact cannot read, and a save
+that did not happen is the outcome it costs most to lose.
+
+### An address book that is not connected says so above the list
+
+An address book the account is used for can fail while the account connects
+([`accounts.md`](accounts.md) rule 16). Its cards stay listed, and the contacts screen says what
+they are: one line per account above the list, from `ConnectivitySnapshot.contacts_outages`, "The
+address book for {address} isn't connected." followed by the reason the account's page gives and
+"You're seeing what was last synced", with **Account settings** opening that account's page. Its
+cards offer no edit and its books are not offered for a new contact (above), so nothing on screen
+promises a save that cannot be made. Offline, an unreachable address book is left to the offline
+banner; an account whose sign-in expired has its own prompt.
 
 Neither write is durable offline yet: a failed save stays failed rather than queueing, which is the
 same shortfall the calendar writes have.
@@ -330,6 +346,8 @@ change updates in every catalog locale.
 | Create a contact, into a chosen writable address book | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Edit one **source card** of a person, chosen when there are several | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Both write affordances hidden where no write could land | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| An address book that is not connected says so above the list, and its cards offer no edit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A save that did not happen says so; one that may have says it is unconfirmed | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Delete a contact | — | — | — | — | — | — |
 | Composer recipient autosuggest (contacts **+** sent-mail history) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer recipients as **pills**, with per-recipient removal | — | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -423,14 +441,6 @@ change updates in every catalog locale.
   a `JSPROP` line, with `ORG`, `TITLE` and `EMAIL` gone, while `ContactCard/get` shows it intact.
   Verifying through the wrong door therefore reads as exactly the data loss a contacts edit is
   most likely to cause (`.agents/skills/mail-harness`).
-- **`Failed` means two different things, and says the gentler one.** A write that never left the
-  device (no writable book, a card that has gone, an engine call that failed outright) and a write
-  that reached the server but whose reconcile did not settle both land on
-  `ContactWriteStatus::Failed`, and every client renders it as "Saved, but we couldn't confirm it".
-  Saving while offline therefore reassures the user about a card that was never
-  written. `contacts_save_failed` is
-  already in all seven catalogs and is rendered nowhere, waiting for the status to be split; doing
-  that changes the FFI enum and four clients at once, so it is a decision rather than a patch.
 - **`Invalid` is never seen, and is currently unreachable rather than handled.** Every client
   validates the form itself (the same rules `ContactEdit::validate` holds) and closes the editor
   before dispatching, so the core's own refusal has no form left to be stated under. That the two

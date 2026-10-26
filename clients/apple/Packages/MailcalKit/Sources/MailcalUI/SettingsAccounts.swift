@@ -44,6 +44,15 @@ struct AccountsSettingsView: View {
 
     private var list: some View {
         VStack(alignment: .leading, spacing: 20) {
+            // The only place a later account is added (docs/settings.md row 9). It closes
+            // Settings the way an offer below does, for the reason given there.
+            Button(L10n.action_add_account()) {
+                model.setupError = nil
+                model.addAccountWhenSettingsCloses = true
+                close()
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("settings-add-account")
             // What the person's other devices have to say, above their own accounts: an offer
             // becomes one of them.
             // Settings is a modal, and the setup sheet cannot present over it, so this asks for

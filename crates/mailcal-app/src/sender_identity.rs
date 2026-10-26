@@ -138,6 +138,26 @@ impl<P: Provider> App<P> {
         }
     }
 
+    /// Whether `provider`, connected for `account`, may send as `address`, by the identities it
+    /// names: `Some(false)` when it names some and `address` is none of them, which is a session
+    /// for another mailbox; `None` when it has no identity object, names none or did not answer.
+    pub async fn sends_as(&self, provider: &P, account: &AccountId, address: &str) -> Option<bool> {
+        provider
+            .connection_info()
+            .capabilities
+            .sender_identities()?;
+        let identities = self
+            .engine
+            .sender_identities(provider, account)
+            .await
+            .ok()?;
+        (!identities.is_empty()).then(|| {
+            identities
+                .iter()
+                .any(|identity| addresses_match(&identity.address.email, address))
+        })
+    }
+
     /// The provider's identity for this account's own address, from the first provider that
     /// has identities at all.
     async fn provider_sender_identity(&self, account: &AccountId) -> Option<SenderIdentity> {

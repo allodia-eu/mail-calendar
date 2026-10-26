@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
-use mailcal_account::CredentialOrigin;
+use mailcal_account::{Capability, CredentialOrigin};
 
-use crate::{MailcalApp, MailcalError, boot, connection_log};
+use crate::{MailcalApp, MailcalError, account_sign_in::Replacement, boot, connection_log};
 
 /// Which bytes a successful repair writes. OAuth can rotate during its validating dial, so its
 /// durable value comes back out of the registry; a password has no rotation and uses the candidate
@@ -61,11 +61,35 @@ impl MailcalApp {
         persistence: CredentialPersistence,
         family: &'static str,
     ) -> Result<(), MailcalError> {
-        self.install_replacement(account_id, prepared, persistence, family, &[])
+        self.install_replacement(account_id, prepared, persistence, family, &[], None, &[])
+    }
+
+    /// [`Self::install_repaired_account`] for a grant a browser sign-in just issued, which must
+    /// open `address`'s own mailbox: the consent page lets a person pick another account at the
+    /// same provider, and a server that names none in its token response says so only through
+    /// the identities of the session the grant opens.
+    pub(crate) fn install_signed_in_account(
+        &self,
+        account_id: &str,
+        prepared: boot::PreparedAccount,
+        family: &'static str,
+        address: &str,
+    ) -> Result<(), MailcalError> {
+        self.install_replacement(
+            account_id,
+            prepared,
+            CredentialPersistence::RegisteredGrant,
+            family,
+            &[],
+            Some(address),
+            &[],
+        )
     }
 
     /// [`Self::install_repaired_account`], forgetting `forget` once the replacement has connected
     /// and been stored and before it syncs: the domains whose server it moved to another host.
+    /// Each use in `must_connect` has to connect beside the account, or nothing is stored.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn install_replacement(
         &self,
         account_id: &str,
@@ -73,12 +97,12 @@ impl MailcalApp {
         persistence: CredentialPersistence,
         family: &'static str,
         forget: &[engine_api::SearchDomain],
+        mailbox: Option<&str>,
+        must_connect: &[Capability],
     ) -> Result<(), MailcalError> {
         let id = prepared.account.id.clone();
         if id.as_str() != account_id {
-            return Err(MailcalError::Config(
-                "the replacement credential belongs to a different account".to_owned(),
-            ));
+            return Err(MailcalError::DifferentAccount);
         }
         let registered = self
             .registry
@@ -104,6 +128,25 @@ impl MailcalApp {
                 return Err(MailcalError::from(error));
             }
         };
+        if let Some(address) = mailbox
+            && self.opens_another_mailbox(&id, &outcome.account, address)
+        {
+            registered.rollback(&self.registry);
+            log::warn!(
+                "credential repair: [{}] the sign-in opened another mailbox; discarding it",
+                mailcal_account::account_log_handle(account_id),
+            );
+            return Err(MailcalError::DifferentAccount);
+        }
+        if let Some(error) = unconnected(outcome.use_problems, must_connect) {
+            registered.rollback(&self.registry);
+            log::warn!(
+                "credential repair: [{}] a use the {family} replacement moved did not connect; \
+                 the account is unchanged",
+                mailcal_account::account_log_handle(account_id),
+            );
+            return Err(error);
+        }
         let persisted = match persistence {
             CredentialPersistence::Provided(config_toml) => {
                 self.persist_credential(account_id, config_toml)
@@ -115,6 +158,11 @@ impl MailcalApp {
             return Err(error);
         }
         registered.commit();
+        // Only once committed: a principal learned by a replacement that was rolled back would
+        // start the next connect of the account it did not replace.
+        self.registry.learn_dav_starts(account_id, &outcome.learned);
+        self.registry
+            .note_dav_dialled(account_id, std::time::Instant::now());
         self.app.note_use_problems(&id, outcome.use_problems);
         if let Some(error) = outcome.calendar_error {
             self.calendar_connect_errors
@@ -156,6 +204,102 @@ impl MailcalApp {
         self.runtime
             .spawn(async move { app_sync.refresh_repaired_account(&id).await });
         log::info!("credential repair: {family} account connected and stored; catch-up running");
+        Ok(())
+    }
+
+    /// Whether the mail session `account` just opened names identities without `address`.
+    fn opens_another_mailbox(
+        &self,
+        id: &engine_api::AccountId,
+        account: &mailcal_app::Account<Box<dyn engine_api::Provider>>,
+        address: &str,
+    ) -> bool {
+        let Some(provider) = account.providers.first() else {
+            return false;
+        };
+        let app = Arc::clone(&self.app);
+        self.runtime
+            .block_on(|| async move { app.sends_as(provider, id, address).await })
+            == Some(false)
+    }
+}
+
+/// The first use in `required` that `problems` says did not connect, as the error that says so.
+pub(crate) fn unconnected(
+    problems: mailcal_app::UseProblems,
+    required: &[Capability],
+) -> Option<MailcalError> {
+    required.iter().find_map(|&capability| {
+        let problem = match capability {
+            Capability::Calendar => problems.calendar,
+            Capability::Contacts => problems.contacts,
+            _ => None,
+        }?;
+        Some(MailcalError::UseNotConnected {
+            capability: capability.into(),
+            problem: problem.into(),
+        })
+    })
+}
+
+impl MailcalApp {
+    /// Connects `account_id` with `replacement`, then stores it and installs it in place of the
+    /// account's registry entry, deleting what the device holds of each of `forget`; on any
+    /// failure the account keeps what it had.
+    pub(crate) fn install_credential(
+        &self,
+        account_id: &str,
+        replacement: Replacement,
+        forget: &[engine_api::SearchDomain],
+    ) -> Result<(), MailcalError> {
+        let (config_toml, grant, address) = match &replacement {
+            Replacement::Imap(config) => (
+                config.to_toml(),
+                config.is_oauth(),
+                config.username().to_owned(),
+            ),
+            Replacement::Jmap(config) => {
+                (config.to_toml(), config.is_oauth(), config.email.clone())
+            }
+        };
+        let config_toml = config_toml.map_err(|err| MailcalError::Config(err.to_string()))?;
+        let sink = crate::token_sink::token_sink(&self.registry, &self.credential_store);
+        let prepared =
+            boot::prepare_stored_account(&config_toml, &sink, CredentialOrigin::FreshSignIn)?;
+        // A grant can rotate during the connect, so it is stored from the registry, and it must
+        // open this account's own mailbox; a password cannot rotate, so the bytes built here are
+        // the ones to keep.
+        if grant {
+            self.install_replacement(
+                account_id,
+                prepared,
+                CredentialPersistence::RegisteredGrant,
+                "sign-in",
+                forget,
+                Some(&address),
+                &[],
+            )?;
+        } else {
+            self.install_replacement(
+                account_id,
+                prepared,
+                CredentialPersistence::Provided(config_toml),
+                "sign-in",
+                forget,
+                None,
+                &[],
+            )?;
+        }
+        self.app.accounts_changed();
+        log::info!(
+            "sign-in: [{}] now signs in {}",
+            mailcal_account::account_log_handle(account_id),
+            if grant {
+                "through its provider"
+            } else {
+                "with a password"
+            },
+        );
         Ok(())
     }
 }

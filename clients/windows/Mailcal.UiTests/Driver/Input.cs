@@ -87,7 +87,21 @@ internal static class Input
             Thread.Sleep(20);
         }
         Thread.Sleep(dwellMs);
+        // Real input shares the desktop with the person at it: a hand on the mouse or another window
+        // taking the front swallows the drag without a trace in the app. Read both before letting go,
+        // and let go regardless, so a drag spoiled from outside says so rather than reading as a
+        // drop the app ignored. The absolute move rounds, hence the pixel of slack.
+        var moved = GetCursorPos(out var at) && (Math.Abs(at.X - toX) > 2 || Math.Abs(at.Y - toY) > 2);
+        var behind = GetForegroundWindow() != (nint)from.Window;
         Send(Mouse(MouseLeftUp));
+        if (moved)
+        {
+            throw new InvalidOperationException($"the pointer was moved during the drag (at {at.X},{at.Y} rather than {toX},{toY}): input from outside the test, so the drop proves nothing");
+        }
+        if (behind)
+        {
+            throw new InvalidOperationException("another window came to the front during the drag, so the drop proves nothing");
+        }
     }
 
     /// <summary>
@@ -269,8 +283,16 @@ internal static class Input
         public nint Extra;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CursorPoint
+    {
+        public int X;
+        public int Y;
+    }
+
     [DllImport("user32.dll")] private static extern uint SendInput(uint count, NativeInput[] inputs, int size);
     [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] private static extern bool GetCursorPos(out CursorPoint point);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(nint hwnd);
     [DllImport("user32.dll")] private static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] private static extern void keybd_event(byte vk, byte scan, uint flags, nuint extra);

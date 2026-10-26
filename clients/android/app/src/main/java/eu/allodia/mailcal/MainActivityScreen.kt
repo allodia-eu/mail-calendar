@@ -1,8 +1,8 @@
 // The Compose tree onCreate hands to setContent, split out of MainActivity.kt: which top-level
 // screen is showing (welcome, reading, add-account, diagnostics, settings, or the running app's
-// mail/calendar/contacts tabs), the composer over any of them, the two standing prompts (an
-// unfiled copy, an invitation reply) that can be raised from any of them, and the "your name" step
-// an account's arrival raises.
+// mail/calendar/contacts tabs), the composer over any of them, the standing prompts (an unfiled
+// copy, a server found on another site, an invitation reply) that can be raised from any of them,
+// and the "your name" step an account's arrival raises.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.fillMaxSize
@@ -119,6 +119,9 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
                         onRetry = { instance?.dispatch(Intent.RetryUnfiledCopy) },
                         onDismiss = { instance?.dispatch(Intent.DismissUnfiledCopy) },
                     )
+                    // A calendar or address book server found on another site: asked from the
+                    // calendar, the contacts list or the account's page, so drawn over all three.
+                    ServerChangeDialog(accountSettings.serverChange) { allowServerChange() }
                     // The calendar server stored the answer and then reported it could not tell
                     // the organiser. Rendered outside the screen switch above because an
                     // invitation can be answered from the reading view *or* from the list, and

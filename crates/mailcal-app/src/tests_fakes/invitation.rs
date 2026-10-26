@@ -440,7 +440,8 @@ pub(crate) fn invitation_app_with_prefs(
             has_calendar: provider.has_calendar,
             reply_delivery: provider.reply_delivery.clone(),
             calendar_users: provider.calendar_users.clone(),
-        }],
+        }]
+        .into(),
         calendar_providers: if provider.has_calendar {
             vec![provider]
         } else {

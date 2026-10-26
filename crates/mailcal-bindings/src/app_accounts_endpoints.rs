@@ -33,6 +33,20 @@ impl MailcalApp {
         account_id: String,
         endpoints: AccountEndpoints,
     ) -> Result<(), MailcalError> {
+        self.replace_endpoints(account_id, endpoints, &[])
+    }
+}
+
+impl MailcalApp {
+    /// [`MailcalApp::update_account_endpoints`], refusing the edit unless each use in
+    /// `must_connect` connects on the new servers, with
+    /// [`MailcalError::UseNotConnected`] naming the first that did not.
+    pub(crate) fn replace_endpoints(
+        &self,
+        account_id: String,
+        endpoints: AccountEndpoints,
+        must_connect: &[mailcal_account::Capability],
+    ) -> Result<(), MailcalError> {
         let (config_toml, moved) = self
             .registry
             .edited_endpoints(&account_id, &endpoints.into())?;
@@ -40,12 +54,18 @@ impl MailcalApp {
         let prepared =
             boot::prepare_stored_account(&config_toml, &sink, CredentialOrigin::FreshSignIn)?;
         let forget: Vec<_> = moved.iter().map(domain_of).collect();
+        // The principals the old servers named would start the new config's connects at the
+        // old servers, so they go first; a failed replacement only costs the next connect its
+        // shortcut.
+        self.registry.forget_dav_starts(&account_id);
         self.install_replacement(
             &account_id,
             prepared,
             CredentialPersistence::Provided(config_toml),
             "edited servers",
             &forget,
+            None,
+            must_connect,
         )?;
         self.app.accounts_changed();
         Ok(())

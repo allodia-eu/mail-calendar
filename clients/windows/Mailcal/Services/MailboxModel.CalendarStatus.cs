@@ -1,9 +1,10 @@
 // The calendar write-status hint, pulled on a Surface.CalendarStatus change: Saving while a
-// create/edit/delete settles, then the terminal Saved/Failed. Split out of MailboxModel.cs to keep it
+// create/edit/delete settles, then the terminal Saved, NotSaved or Unconfirmed. Split out of MailboxModel.cs to keep it
 // under the 500-line cap; the partial class is defined there and this extends it.
 //
-// The status -> indicator mapping is the pure, unit-tested CalendarWriteIndicators.Of (Calendar layer);
-// this file only turns the indicator into the bound Visibility/text the XAML needs (so the view needs no
+// The status -> indicator and status -> sentence mappings are the pure, unit-tested
+// CalendarWriteIndicators (Calendar layer); this file only turns them into the bound Visibility/text
+// the XAML needs (so the view needs no
 // converters), mirroring how UpdateSendStatus exposes the send hint. The write-capability gate for the
 // "New event" button (CalendarWriteGating, same pure layer) is bound from here too.
 using Allodia.Mailcal.Calendar;
@@ -63,14 +64,17 @@ public sealed partial class MailboxModel
     public Visibility CalendarWriteBusyVisibility => Vis(Indicator == CalendarWriteIndicator.Spinner);
     /// <summary>The success check, shown briefly once the write is confirmed in the store.</summary>
     public Visibility CalendarWriteSavedVisibility => Vis(Indicator == CalendarWriteIndicator.Saved);
-    /// <summary>The tap-to-retry warning, shown when the write could not be confirmed.</summary>
+    /// <summary>The tap-to-refresh warning, shown when the write was not saved or could not be
+    /// confirmed.</summary>
     public Visibility CalendarWriteWarningVisibility => Vis(Indicator == CalendarWriteIndicator.Warning);
     /// <summary>The hint / accessibility text for the current status.</summary>
-    public string CalendarWriteStatusText => _calendarWriteStatus switch
+    public string CalendarWriteStatusText => CalendarWriteIndicators.Line(_calendarWriteStatus) switch
     {
-        CalendarWriteStatus.Saving => L10n.CalendarSaving(),
-        CalendarWriteStatus.Saved => L10n.CalendarSaved(),
-        CalendarWriteStatus.Failed => L10n.CalendarSaveUnconfirmed(),
+        CalendarWriteLine.Saving => L10n.CalendarSaving(),
+        CalendarWriteLine.Saved => L10n.CalendarSaved(),
+        CalendarWriteLine.NotSaved => L10n.CalendarSaveFailed(),
+        CalendarWriteLine.Unconfirmed => L10n.CalendarSaveUnconfirmed(),
+        CalendarWriteLine.None => string.Empty,
         _ => string.Empty,
     };
 

@@ -17,6 +17,8 @@ pub(crate) struct AccountFacts {
     pub(crate) id: String,
     pub(crate) address: String,
     pub(crate) kind: AccountKind,
+    /// How it signs in.
+    pub(crate) sign_in: crate::SignInMethod,
     /// What the account can be used for.
     pub(crate) offered: Capabilities,
     /// What the account is used for, less what its server offers none of.
@@ -32,9 +34,14 @@ pub(crate) struct AccountFacts {
     pub(crate) links: AccountLinks,
     /// Its servers and login, when Settings can edit them.
     pub(crate) endpoints: Option<mailcal_account::EndpointEdit>,
+    /// A mailbox's calendar and contacts servers, each with the login it holds there.
+    pub(crate) dav_servers: Vec<DavServer>,
     /// The addresses its calendar server treats as its user, once asked; empty when it has no
     /// calendar, has not been asked yet, or named none.
     pub(crate) calendar_addresses: Vec<String>,
+    /// The host of the server it is read from (its mailbox's, else its calendar's or address
+    /// book's), for one that names it; `None` for a Microsoft or Google account.
+    pub(crate) server: Option<String>,
 }
 
 /// Every account's entry, in the order `facts` lists them. `calendar_refused` holds the accounts
@@ -46,11 +53,17 @@ pub(crate) fn entries(
     problems: &BTreeMap<String, mailcal_app::UseProblems>,
 ) -> Vec<AccountEntry> {
     let links = valid_links(facts);
+    let told = crate::accounts_distinction::distinctions(facts);
+    let linked = |index: usize| LinkedAccount {
+        id: facts[index].id.clone(),
+        address: facts[index].address.clone(),
+        distinction: told[index].clone(),
+    };
     let named = |target: Option<&AccountId>| {
         target.and_then(|target| {
             facts
                 .iter()
-                .find(|account| account.id == target.as_str())
+                .position(|account| account.id == target.as_str())
                 .map(linked)
         })
     };
@@ -62,6 +75,7 @@ pub(crate) fn entries(
             id: account.id.clone(),
             address: account.address.clone(),
             kind: account.kind,
+            sign_in: account.sign_in,
             uses: uses(
                 account,
                 calendar_refused.contains(&account.id),
@@ -72,8 +86,7 @@ pub(crate) fn entries(
                 contacts: named(own.contacts.as_ref()),
                 mail: named(own.mail.as_ref()),
             },
-            linked_from: facts
-                .iter()
+            linked_from: (0..facts.len())
                 .zip(&links)
                 .filter(|(_, theirs)| {
                     [&theirs.calendar, &theirs.contacts, &theirs.mail]
@@ -87,7 +100,7 @@ pub(crate) fn entries(
                 let offer = |slot| {
                     candidates(facts, &links, index, slot)
                         .into_iter()
-                        .map(|candidate| linked(&facts[candidate]))
+                        .map(linked)
                         .collect()
                 };
                 LinkCandidates {
@@ -98,8 +111,68 @@ pub(crate) fn entries(
                 }
             },
             endpoints: account.endpoints.clone().map(Into::into),
+            separate_server: separate_server(
+                account,
+                problems.get(&account.id).copied().unwrap_or_default(),
+            ),
+            distinction: told[index].clone(),
         })
         .collect()
+}
+
+/// One of a mailbox's DAV servers.
+#[derive(Debug, Clone)]
+pub(crate) struct DavServer {
+    pub(crate) capability: Capability,
+    pub(crate) base_url: String,
+    pub(crate) username: String,
+}
+
+/// The server `account`'s calendar or contacts need a sign-in of their own at: those it is used
+/// for whose server needs one or refused the account's.
+fn separate_server(
+    account: &AccountFacts,
+    problems: mailcal_app::UseProblems,
+) -> Option<crate::SeparateServer> {
+    let needs = |capability| {
+        let problem = match capability {
+            Capability::Calendar => problems.calendar,
+            Capability::Contacts => problems.contacts,
+            _ => None,
+        };
+        account.chosen.contains(capability)
+            && matches!(
+                problem,
+                Some(
+                    mailcal_app::UseProblem::NeedsOwnSignIn
+                        | mailcal_app::UseProblem::SignInRefused
+                )
+            )
+    };
+    let servers: Vec<&DavServer> = account
+        .dav_servers
+        .iter()
+        .filter(|server| needs(server.capability))
+        .collect();
+    let first = servers.first()?;
+    Some(crate::SeparateServer {
+        uses: servers
+            .iter()
+            .map(|server| server.capability.into())
+            .collect(),
+        host: host_of(&first.base_url)?,
+        username: first.username.clone(),
+    })
+}
+
+/// The host of `base_url`, with its port when it names one.
+pub(crate) fn host_of(base_url: &str) -> Option<String> {
+    let url = url::Url::parse(&mailcal_account::normalize_caldav_base_url(base_url)).ok()?;
+    let host = url.host_str()?;
+    Some(match url.port() {
+        Some(port) => format!("{host}:{port}"),
+        None => host.to_owned(),
+    })
 }
 
 /// The ids of the candidates whose calendar server schedules as the mail account's address:
@@ -283,13 +356,6 @@ fn uses(
         .collect()
 }
 
-fn linked(account: &AccountFacts) -> LinkedAccount {
-    LinkedAccount {
-        id: account.id.clone(),
-        address: account.address.clone(),
-    }
-}
-
 #[cfg(test)]
 #[path = "accounts_view_tests.rs"]
-mod tests;
+pub(crate) mod tests;

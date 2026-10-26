@@ -1,6 +1,6 @@
 // One account's page in Settings → Accounts, in the order docs/settings.md gives: how it is shared,
-// what it is used for, the accounts it relies on, signing in again at its provider or its own
-// servers and password, its mail settings while it is used for mail, and its removal, last.
+// what it is used for, the accounts it relies on, how it signs in, its own servers and password,
+// its mail settings while it is used for mail, and its removal, last.
 
 import MailcalBindings
 import SwiftUI
@@ -57,6 +57,8 @@ struct AccountPageView: View {
             }
             if AccountSettingsRules.signsInAtProvider(entry.kind) {
                 signInSection
+            } else if AccountSignInRules.switchesSignIn(entry.kind) {
+                AccountSignInSection(model: model, entry: entry, alert: $alert)
             }
             if let endpoints = entry.endpoints {
                 AccountServersSection(
@@ -92,7 +94,7 @@ struct AccountPageView: View {
             .padding(.bottom, 6)
             Text(entry.address).font(.title3).bold()
             #endif
-            Text(AccountSettingsLabels.kind(entry.kind))
+            Text(AccountSettingsLabels.kindLine(entry))
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -114,7 +116,8 @@ struct AccountPageView: View {
                     signIn(adding: [])
                 }
                 if model.signingInAgain == entry.id {
-                    progress(L10n.settings_account_signin_waiting(email: entry.address))
+                    progress(L10n.settings_account_signin_waiting(
+                        email: AccountSettingsLabels.name(entry)))
                 } else if let signInResult {
                     Text(signInResult)
                         .font(.callout)
@@ -142,7 +145,7 @@ struct AccountPageView: View {
                         uses: withheld.map(AccountSettingsLabels.use).joined(separator: ", "))
             case .cancelled:
                 break
-            case let .failed(detail):
+            case let .failed(detail, _):
                 alert = AccountPageAlert(title: L10n.settings_account_signin_failed(), detail: detail)
             }
         }
@@ -181,6 +184,9 @@ struct AccountUsesSection: View {
 
     @State private var switching: AccountCapability?
     @State private var confirmingOff: AccountCapability?
+    /// The use under which the sign-in of its own is open.
+    @State private var separateServerUnder: AccountCapability?
+    @State private var serverChange: ServerChangeReview?
 
     init(
         model: MailboxModel, entry: AccountEntry, alert: Binding<AccountPageAlert?>,
@@ -241,6 +247,33 @@ struct AccountUsesSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if AccountSettingsRules.reviewsServerChange(toggle.note) {
+                Button(L10n.server_changed_review()) {
+                    serverChange = model.serverChangeReview(entry.id)
+                }
+                .controlSize(.small)
+            }
+            separateServer(capability)
+        }
+    }
+
+    /// A sign-in of its own, under a use whose server needs one or refused the account's
+    /// (docs/accounts.md rule 18): a button, then the form it opens.
+    @ViewBuilder
+    private func separateServer(_ capability: AccountCapability) -> some View {
+        if SeparateServerRules.offered(entry, capability),
+           let ask = SeparateServerRules.ask(entry)
+        {
+            if separateServerUnder == capability {
+                AccountSeparateServerForm(model: model, ask: ask) { separateServerUnder = nil }
+                    .padding(.top, 4)
+            } else {
+                Button(L10n.settings_account_use_separate_sign_in()) {
+                    separateServerUnder = capability
+                }
+                .controlSize(.small)
+                .disabled(separateServerUnder != nil || switching != nil)
             }
         }
     }
@@ -350,7 +383,7 @@ struct LinkPickerRow: View {
             ) {
                 Text(L10n.settings_account_link_none()).tag(String?.none)
                 ForEach(picker.options, id: \.id) { option in
-                    Text(option.address).tag(Optional(option.id))
+                    Text(AccountSettingsLabels.name(option)).tag(Optional(option.id))
                 }
             }
             .pickerStyle(.menu)
@@ -359,7 +392,8 @@ struct LinkPickerRow: View {
             if let suggested = picker.suggested {
                 let option = picker.options[suggested]
                 HStack(spacing: 8) {
-                    Text(L10n.settings_account_link_suggested(address: option.address))
+                    Text(L10n.settings_account_link_suggested(
+                        address: AccountSettingsLabels.name(option)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if suggestButton, selected != suggested {

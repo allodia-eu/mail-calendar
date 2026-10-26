@@ -96,6 +96,11 @@ pub struct AccountConfig {
     /// kind's own section.
     #[serde(skip)]
     pub shape: crate::AccountShape,
+    /// The principal each DAV use named on its last successful connect, where its next connect
+    /// starts ([`DavStarts`](crate::DavStarts)). Kept beside the stored config by the host, never
+    /// in it: a cache of what worked, not what setup chose.
+    #[serde(skip)]
+    pub dav_starts: crate::DavStarts,
 }
 
 /// An IMAP endpoint: the `host:port` to dial, the TLS server name, and credentials.
@@ -189,6 +194,16 @@ impl AccountConfig {
             carddav.password = Some(password);
         }
         updated
+    }
+
+    /// Clones this account signing in with `password` in place of its grant, on every endpoint
+    /// [`with_password`](Self::with_password) writes one to: the switch from signing in through
+    /// the provider to a password.
+    #[must_use]
+    pub fn with_password_instead_of_grant(&self, password: &str) -> Self {
+        let mut updated = self.clone();
+        updated.oauth = None;
+        updated.with_password(password)
     }
 
     /// Clones this account with `grant` replacing its OAuth grant: the re-authorisation

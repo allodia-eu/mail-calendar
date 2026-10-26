@@ -234,6 +234,12 @@ Write-Host "==> Running the winapp driver tests" -ForegroundColor Cyan
 & (Join-Path $here 'winapp.tests.ps1')
 if ($LASTEXITCODE -ne 0) { throw "winapp driver tests failed" }
 
+# 5e. How the UI runner reads an agent suite's result, the one place a failure's reason reaches its
+#     summary. Here for 5c's reason: the code under test is PowerShell reading captured output.
+Write-Host "==> Running the agent-suite result tests" -ForegroundColor Cyan
+& (Join-Path $here 'agent-suites.tests.ps1')
+if ($LASTEXITCODE -ne 0) { throw "agent-suite result tests failed" }
+
 # The shared composer editor is Content-included from clients/composer/dist by Mailcal.csproj, and
 # that bundle is a committed build output rather than one generated per build, so rebuild it from
 # its TypeScript sources before MSBuild copies it. Without bun it says so and carries on: the

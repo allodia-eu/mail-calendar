@@ -74,21 +74,51 @@ struct SetupLinkStep: Equatable {
 struct SetupFlow: Equatable {
     /// The link step on screen; `nil` while the form is on the address or a route.
     private(set) var links: SetupLinkStep?
+    /// The step before the link step, on screen: the account's sign-in did not reach the calendar
+    /// or contacts chosen for it, so their server is asked for a password of its own
+    /// (docs/onboarding.md, "After the connect: a calendar on a server of its own").
+    private(set) var separateServer: SeparateServerAsk?
+    /// The account whose link step follows the separate-server step.
+    private var linksAfterSeparateServer: String?
     /// The account whose link step "Add another account" left, to come back to.
     private(set) var returningTo: String?
     /// The accounts this flow has added so far, in the order added.
     private(set) var added: [String] = []
 
     /// Whether a flow is under way: an account added, or a link step to come back to.
-    var active: Bool { !added.isEmpty || links != nil || returningTo != nil }
+    var active: Bool {
+        !added.isEmpty || links != nil || returningTo != nil || separateServer != nil
+    }
 
-    /// An account was added: back to the link step it was added from, on to its own link step when
-    /// another account can fill something it lacks, or the end of the flow. Answers whether a link
-    /// step is to be shown; otherwise the flow ends.
-    mutating func accountAdded(_ account: String, stepFor: (String) -> SetupLinkStep?) -> Bool {
+    /// An account was added: first to the separate-server step when `separateServer` names one,
+    /// then back to the link step it was added from, on to its own link step when another account
+    /// can fill something it lacks, or the end of the flow. Answers whether a step is to be shown;
+    /// otherwise the flow ends.
+    mutating func accountAdded(
+        _ account: String, separateServer: SeparateServerAsk? = nil,
+        stepFor: (String) -> SetupLinkStep?
+    ) -> Bool {
         added.append(account)
         let target = returningTo ?? links?.account ?? account
         returningTo = nil
+        if let separateServer {
+            self.separateServer = separateServer
+            linksAfterSeparateServer = target
+            links = nil
+            return true
+        }
+        links = stepFor(target)
+        return links != nil
+    }
+
+    /// The separate-server step answered, by Connect or Skip: on to the link step it held back,
+    /// read afresh so it shows what the answer changed. Answers whether a link step is to be
+    /// shown; otherwise the flow ends.
+    mutating func separateServerDone(stepFor: (String) -> SetupLinkStep?) -> Bool {
+        guard let ask = separateServer else { return links != nil }
+        let target = linksAfterSeparateServer ?? ask.account
+        separateServer = nil
+        linksAfterSeparateServer = nil
         links = stepFor(target)
         return links != nil
     }

@@ -19,6 +19,7 @@ public sealed partial class AccountSetupView
     // The route detection took, and what its card offered; null on the manual form.
     private DetectTab? _detectedTab;
     private UseOffer _detectedUses = UseOffer.None;
+    private IReadOnlyList<DetectedServerRow> _detectedServers = [];
 
     // What the panel is drawn for, and its toggles.
     private UseOffer _uses = UseOffer.None;
@@ -71,6 +72,13 @@ public sealed partial class AccountSetupView
                     _mailUse.Checked += (_, _) => ShowMailServers(true);
                     _mailUse.Unchecked += (_, _) => ShowMailServers(false);
                     UsesPanel.Children.Add(_mailUse);
+                    if (_detectedTab == DetectTab.Imap)
+                    {
+                        foreach (var server in _detectedServers)
+                        {
+                            UsesPanel.Children.Add(Following(_mailUse, ServerLine(server)));
+                        }
+                    }
                     break;
                 case AccountCapability.Calendar:
                     UsesPanel.Children.Add(Section(L10n.SetupDetectSectionCalendar()));
@@ -94,6 +102,45 @@ public sealed partial class AccountSetupView
             }
         }
         KeepOneOn();
+    }
+
+    /// <summary>One detected mail server, named rather than offered to edit
+    /// (docs/account-autodetect.md: confirmed, not retyped). "Set up manually" edits it.</summary>
+    private static StackPanel ServerLine(DetectedServerRow server)
+    {
+        var caption = (Style)Application.Current.Resources["CaptionTextBlockStyle"];
+        var secondary = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+        var detail = new TextBlock { Text = AccountDetectForm.ServerLine(server), Style = caption, Foreground = secondary };
+        AutomationProperties.SetAutomationId(detail, server.Protocol == "SMTP" ? "SetupMailServerSMTP" : "SetupMailServerIMAP");
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Thickness(28, 0, 0, 0),
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = server.Protocol,
+                    Style = caption,
+                    Foreground = secondary,
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    Width = 40,
+                },
+                detail,
+            },
+        };
+    }
+
+    /// <summary><paramref name="detail"/>, on screen while <paramref name="box"/> is checked, so a
+    /// use switched off leaves nothing behind claiming otherwise.</summary>
+    private static T Following<T>(CheckBox box, T detail) where T : FrameworkElement
+    {
+        void Follow() => detail.Visibility = box.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        Follow();
+        box.Checked += (_, _) => Follow();
+        box.Unchecked += (_, _) => Follow();
+        return detail;
     }
 
     private static TextBlock Section(string text) => new()
@@ -142,11 +189,7 @@ public sealed partial class AccountSetupView
         }
         if (detail is not null)
         {
-            UsesPanel.Children.Add(detail);
-            void Follow() => detail.Visibility = box.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-            Follow();
-            box.Checked += (_, _) => Follow();
-            box.Unchecked += (_, _) => Follow();
+            UsesPanel.Children.Add(Following(box, detail));
         }
         return (box, typed);
     }
@@ -189,10 +232,14 @@ public sealed partial class AccountSetupView
         }
     }
 
-    /// <summary>The mail servers are on screen while the account is to be used for mail.</summary>
+    /// <summary>The mail servers are on screen to edit while the account is to be used for mail,
+    /// except on the found card, which names them under the mail toggle instead and signs in
+    /// with the address typed.</summary>
     private void ShowMailServers(bool shown)
     {
-        var visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        var found = _detectedTab == DetectTab.Imap;
+        var visibility = shown && !found ? Visibility.Visible : Visibility.Collapsed;
+        Username.Visibility = found ? Visibility.Collapsed : Visibility.Visible;
         ImapServerRow.Visibility = visibility;
         AdvancedHeading.Visibility = visibility;
         SmtpServerRow.Visibility = visibility;

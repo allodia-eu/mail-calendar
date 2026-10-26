@@ -15,7 +15,9 @@ use engine_provider::{ConnectionInfo, ProviderError};
 use mailcal_viewmodel::ConnectivitySnapshot;
 use tokio::sync::watch;
 
-use crate::{App, protocol::Surface, sync::RefreshProgress};
+use crate::{
+    App, CalendarWriteStatus, ContactWriteStatus, protocol::Surface, sync::RefreshProgress,
+};
 
 impl<P: Provider> App<P> {
     /// Whether the device currently has network connectivity. The app's network syncs check
@@ -449,4 +451,26 @@ fn provider_error_of<'a>(error: &'a (dyn StdError + 'static)) -> Option<&'a Prov
         source = err.source();
     }
     None
+}
+
+// A failed calendar or contact write tells the person one of two true things: nothing was saved,
+// or the change may have been and the next sync settles which. The engine decides which
+// (`ApiError::may_have_applied`), where the transport facts are known.
+
+/// The calendar status a failed write settles.
+pub(crate) fn calendar_status(error: &ApiError) -> CalendarWriteStatus {
+    if error.may_have_applied() {
+        CalendarWriteStatus::Unconfirmed
+    } else {
+        CalendarWriteStatus::NotSaved
+    }
+}
+
+/// The contact status a failed write settles.
+pub(crate) fn contact_status(error: &ApiError) -> ContactWriteStatus {
+    if error.may_have_applied() {
+        ContactWriteStatus::Unconfirmed
+    } else {
+        ContactWriteStatus::NotSaved
+    }
 }

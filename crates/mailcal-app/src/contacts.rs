@@ -332,6 +332,7 @@ impl<P: Provider> App<P> {
                         log::warn!("contact_detail: source read failed, offering no edit: {error}");
                         Vec::new()
                     });
+                let sources = self.editable_here(sources).await;
                 log::debug!(
                     "contact_detail: person {person:?} resolved over {} account(s), \
                      {} editable card(s) in {}ms",

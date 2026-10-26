@@ -7,6 +7,7 @@
 // a depth, size or interval change does not, so it sets directly.
 
 using Allodia.Mailcal.ViewModels;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -180,7 +181,7 @@ public sealed partial class SettingsDialog
             : PollIntervals(account, settings.PollIntervals));
         return Group(
             L10n.NavMail(),
-            replacesSecret ? L10n.SigninExpiredPrompt(entry.Address) : L10n.SettingsSyncDescription(),
+            replacesSecret ? L10n.SigninExpiredPrompt(AccountNameText.Of(entry)) : L10n.SettingsSyncDescription(),
             panel);
     }
 

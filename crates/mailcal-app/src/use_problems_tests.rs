@@ -92,3 +92,136 @@ async fn removing_an_account_forgets_its_problems() {
 
     assert_eq!(app.use_problems(&id), UseProblems::default());
 }
+
+#[test]
+fn a_use_switched_off_keeps_no_problem_and_leaves_the_other_alone() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("a", FakeProvider::new())], &surfaces);
+    let id = engine_api::AccountId::try_from("a").unwrap();
+    app.note_use_problems(
+        &id,
+        UseProblems {
+            calendar: Some(UseProblem::NeedsOwnSignIn),
+            contacts: Some(UseProblem::NeedsOwnSignIn),
+        },
+    );
+
+    app.forget_use_problem(&id, true);
+    assert_eq!(
+        app.use_problems(&id),
+        UseProblems {
+            calendar: None,
+            contacts: Some(UseProblem::NeedsOwnSignIn),
+        }
+    );
+    app.forget_use_problem(&id, false);
+    assert!(app.every_use_problem().is_empty());
+}
+
+fn change(calendar: bool, contacts: bool) -> crate::ServerChange {
+    crate::ServerChange {
+        previous_site: "example.com".to_owned(),
+        proposed_site: "example.net".to_owned(),
+        calendar_url: calendar.then(|| "https://dav.example.net/".to_owned()),
+        contacts_url: contacts.then(|| "https://books.example.net/".to_owned()),
+    }
+}
+
+const PAUSED_CALENDAR: UseProblems = UseProblems {
+    calendar: Some(UseProblem::ServerChanged),
+    contacts: None,
+};
+
+#[test]
+fn a_server_change_pauses_only_the_use_it_moves() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("a", FakeProvider::new())], &surfaces);
+    let id = engine_api::AccountId::try_from("a").unwrap();
+
+    app.note_server_change(&id, change(true, false));
+
+    assert_eq!(app.use_problems(&id), PAUSED_CALENDAR);
+    assert_eq!(app.server_change(&id), Some(change(true, false)));
+    assert!(surfaces.lock().unwrap().contains(&Surface::Connectivity));
+    assert!(
+        app.accounts_with_use_problem(UseProblem::Unreachable)
+            .is_empty(),
+        "a paused use is not dialled again by the next retry"
+    );
+}
+
+#[test]
+fn a_paused_use_stays_paused_while_it_still_does_not_connect() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("a", FakeProvider::new())], &surfaces);
+    let id = engine_api::AccountId::try_from("a").unwrap();
+    app.note_server_change(&id, change(true, false));
+
+    app.note_use_problems(&id, UNREACHABLE_CALENDAR);
+
+    assert_eq!(app.use_problems(&id), PAUSED_CALENDAR);
+    assert!(app.server_change(&id).is_some());
+}
+
+#[test]
+fn a_paused_use_that_connects_by_itself_is_no_longer_paused() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("a", FakeProvider::new())], &surfaces);
+    let id = engine_api::AccountId::try_from("a").unwrap();
+    app.note_server_change(&id, change(true, false));
+
+    app.note_use_problems(&id, UseProblems::default());
+
+    assert_eq!(app.use_problems(&id), UseProblems::default());
+    assert_eq!(app.server_change(&id), None, "nothing is left to ask about");
+}
+
+#[test]
+fn allowing_the_change_lifts_the_pause() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("a", FakeProvider::new())], &surfaces);
+    let id = engine_api::AccountId::try_from("a").unwrap();
+    app.note_server_change(&id, change(true, true));
+
+    app.forget_server_change(&id, &change(true, true));
+
+    assert_eq!(app.use_problems(&id), UseProblems::default());
+    assert_eq!(app.server_change(&id), None);
+}
+
+#[test]
+fn the_same_server_change_found_again_changes_nothing_on_screen() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("a", FakeProvider::new())], &surfaces);
+    let id = engine_api::AccountId::try_from("a").unwrap();
+    app.note_server_change(&id, change(true, false));
+    surfaces.lock().unwrap().clear();
+
+    app.note_server_change(&id, change(true, false));
+    assert!(surfaces.lock().unwrap().is_empty());
+
+    app.note_server_change(&id, change(true, true));
+    assert!(
+        surfaces.lock().unwrap().contains(&Surface::Connectivity),
+        "a different change is a different question"
+    );
+}
+
+#[test]
+fn allowing_one_change_leaves_a_newer_one_nobody_allowed_waiting() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("a", FakeProvider::new())], &surfaces);
+    let id = engine_api::AccountId::try_from("a").unwrap();
+    let allowed = change(true, false);
+    app.note_server_change(&id, allowed.clone());
+    // Found by a lookup while the allowed change was still connecting.
+    app.note_server_change(&id, change(true, true));
+
+    app.forget_server_change(&id, &allowed);
+
+    assert_eq!(app.server_change(&id), Some(change(true, true)));
+    assert_eq!(
+        app.use_problems(&id).calendar,
+        Some(UseProblem::ServerChanged)
+    );
+}

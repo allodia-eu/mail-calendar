@@ -28,16 +28,17 @@ internal data class ConnectionIssue(val email: String, val detail: String)
 
 /// An account a banner names: its id, which the remedy is addressed to, and what a person reads it
 /// by.
-internal data class NamedAccount(val id: String, val email: String)
+internal data class NamedAccount(val id: String, val name: String)
 
-/// One account whose stored sign-in the server has stopped accepting: its account id, display
-/// email and provider family, which decides the remedy, `MICROSOFT`/`GOOGLE`/`JMAP_OAUTH` re-run
-/// their browser sign-in, anything else (a password or pasted-secret JMAP account, or an unknown
-/// one) is updated in Settings. The id is what a JMAP re-authentication is addressed to: it
-/// re-authorises that account's own persisted grant rather than starting from an address.
+/// One account whose stored sign-in the server has stopped accepting: its account id, what a
+/// person reads it by and its provider family, which decides the remedy (`AccountSignInRules.expiredRemedy`):
+/// `MICROSOFT`/`GOOGLE`/`JMAP_OAUTH`/`IMAP_OAUTH` re-run their browser sign-in, anything else (a
+/// password or pasted-secret JMAP account, or an unknown one) is updated in Settings. The id is
+/// what a sign-in again is addressed to: it re-authorises that account's own persisted grant
+/// rather than starting from an address.
 internal data class ExpiredSignIn(
     val id: String,
-    val email: String,
+    val name: String,
     val provider: AccountProvider?,
 )
 
@@ -386,6 +387,15 @@ internal fun MainActivity.observeNetworkReachability() {
     activity.app?.dispatch(Intent.ReportNetworkReachable(online))
 }
 
+/**
+ * The lines the calendar or contacts screen draws for a use that did not connect, read from the
+ * connectivity and accounts snapshots in composition, so they follow both.
+ */
+internal fun MainActivity.outageLines(use: OutageUse, ctx: Context): List<OutageLine> =
+    UseOutageRules.lines(ctx, use, connectivity) { id ->
+        accountSettings.addressOf(id, accounts.firstOrNull { it.id == id }?.email)
+    }
+
 // Pulls the current connectivity and resolves each unreachable account to its friendly email +
 // technical detail, so the connection-issues banner can name the affected accounts and reveal
 // the raw error behind a "Details" action. Called at launch, on a CONNECTIVITY signal, and after
@@ -398,6 +408,9 @@ internal fun MainActivity.refreshConnectivity() {
     // mail is in none of the switcher rows (docs/accounts.md rule 8).
     fun address(id: String) =
         accountSettings.addressOf(id, accounts.firstOrNull { it.id == id }?.email)
+    // A prompt to sign in again names the account apart from one that shares its address.
+    fun name(id: String) =
+        accountSettings.nameOf(this, id, accounts.firstOrNull { it.id == id }?.email)
     connectionIssues = if (snapshot.offline) {
         emptyList()
     } else {
@@ -407,9 +420,9 @@ internal fun MainActivity.refreshConnectivity() {
         }
     }
     // A standing permission gap, not a connectivity fault, shown regardless of the offline state.
-    calendarReauth = snapshot.calendarReauthAccounts.map { NamedAccount(it, address(it)) }
+    calendarReauth = snapshot.calendarReauthAccounts.map { NamedAccount(it, name(it)) }
     // Likewise the mail write/send permission gap (a refused send or mail action).
-    mailReauth = snapshot.mailReauthAccounts.map { NamedAccount(it, address(it)) }
+    mailReauth = snapshot.mailReauthAccounts.map { NamedAccount(it, name(it)) }
     // An account whose stored sign-in the server has stopped accepting (an expired or revoked
     // OAuth grant, a refused password). Not an outage, the core keeps it out of
     // `unreachableAccounts`, so it gets its own banner. Carries the provider because the remedy
@@ -417,7 +430,7 @@ internal fun MainActivity.refreshConnectivity() {
     signInExpired = snapshot.signinExpiredAccounts.map { id ->
         ExpiredSignIn(
             id = id,
-            email = address(id),
+            name = name(id),
             provider = instance.accountProvider(id),
         )
     }

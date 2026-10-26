@@ -22,7 +22,7 @@ use std::time::Instant;
 
 use engine_api::{
     AccountId, AddressBookId, ContactCard, ContactId, ContactReconciled, ContactsProvider,
-    PersonId, Provider,
+    PersonId, PersonSource, Provider,
 };
 use mailcal_account::{ContactEdit, build_contact_draft, build_contact_patch};
 
@@ -94,6 +94,39 @@ impl<P: Provider> App<P> {
         targets
     }
 
+    /// `sources` with `writable` kept only where an edit has somewhere to go now: an adapter
+    /// bound to the card's account that writes to a book the card is in.
+    ///
+    /// A stored card says whether its server lets it be edited, which stays true of a card
+    /// synced before its address book stopped connecting; offering its edit then produces a
+    /// save that cannot be sent.
+    pub(crate) async fn editable_here(&self, mut sources: Vec<PersonSource>) -> Vec<PersonSource> {
+        for source in &mut sources {
+            if !source.writable {
+                continue;
+            }
+            source.writable = match self.account_handle(&source.id.account).await {
+                Some(handle) => self
+                    .engine
+                    .contact_destinations(
+                        handle
+                            .contact_providers
+                            .iter()
+                            .map(std::convert::AsRef::as_ref),
+                    )
+                    .iter()
+                    .any(|destination| {
+                        source
+                            .card
+                            .address_books
+                            .contains(&destination.address_book)
+                    }),
+                None => false,
+            };
+        }
+        sources
+    }
+
     /// The editable values of one stored card, for seeding an editor.
     ///
     /// Read from the **card**, never from the person the detail screen showed: the person is a
@@ -130,7 +163,7 @@ impl<P: Provider> App<P> {
         self.set_contact_write_status(ContactWriteStatus::Saving);
         let Some(target) = self.chosen_target(account, address_book).await else {
             log::warn!("create_contact: no writable address book, nothing was saved");
-            self.set_contact_write_status(ContactWriteStatus::Failed);
+            self.set_contact_write_status(ContactWriteStatus::NotSaved);
             return;
         };
         let (Ok(account), Ok(book)) = (
@@ -138,7 +171,7 @@ impl<P: Provider> App<P> {
             AddressBookId::try_from(target.address_book.as_str()),
         ) else {
             log::warn!("create_contact: the chosen destination is not a valid id");
-            self.set_contact_write_status(ContactWriteStatus::Failed);
+            self.set_contact_write_status(ContactWriteStatus::NotSaved);
             return;
         };
         let draft = match build_contact_draft(book.clone(), &generated_contact_uid(), &edit) {
@@ -155,7 +188,7 @@ impl<P: Provider> App<P> {
         // engine takes one by reference.
         let Some(handle) = self.account_handle(&account).await else {
             log::warn!("create_contact: the chosen account is no longer configured");
-            self.set_contact_write_status(ContactWriteStatus::Failed);
+            self.set_contact_write_status(ContactWriteStatus::NotSaved);
             return;
         };
         let Some(provider) = handle.contact_providers.iter().find(|provider| {
@@ -164,7 +197,7 @@ impl<P: Provider> App<P> {
                 .is_some_and(|destination| destination.writable && destination.address_book == book)
         }) else {
             log::warn!("create_contact: the chosen book has no writable adapter bound");
-            self.set_contact_write_status(ContactWriteStatus::Failed);
+            self.set_contact_write_status(ContactWriteStatus::NotSaved);
             return;
         };
         let started = Instant::now();
@@ -187,7 +220,7 @@ impl<P: Provider> App<P> {
                     mailcal_account::account_log_handle(account.as_str()),
                     started.elapsed().as_millis(),
                 );
-                ContactWriteStatus::Failed
+                crate::connectivity::contact_status(&error)
             }
         };
         self.rebuild_contacts().await;
@@ -212,12 +245,12 @@ impl<P: Provider> App<P> {
         self.set_contact_write_status(ContactWriteStatus::Saving);
         let Some(base) = self.stored_card(&person, &account, &card).await else {
             log::warn!("update_contact: no such card in that account, nothing was saved");
-            self.set_contact_write_status(ContactWriteStatus::Failed);
+            self.set_contact_write_status(ContactWriteStatus::NotSaved);
             return;
         };
         let Ok(account) = AccountId::try_from(account.as_str()) else {
             log::warn!("update_contact: the host passed an id that is not an account id");
-            self.set_contact_write_status(ContactWriteStatus::Failed);
+            self.set_contact_write_status(ContactWriteStatus::NotSaved);
             return;
         };
         let patch = match build_contact_patch(&base, &edit) {
@@ -235,7 +268,7 @@ impl<P: Provider> App<P> {
         }
         let Some(handle) = self.account_handle(&account).await else {
             log::warn!("update_contact: the card's account is no longer configured");
-            self.set_contact_write_status(ContactWriteStatus::Failed);
+            self.set_contact_write_status(ContactWriteStatus::NotSaved);
             return;
         };
         // A card belongs to every book it is a member of; the adapter is the one bound to a
@@ -246,7 +279,7 @@ impl<P: Provider> App<P> {
             })
         }) else {
             log::warn!("update_contact: the card's book has no writable adapter bound");
-            self.set_contact_write_status(ContactWriteStatus::Failed);
+            self.set_contact_write_status(ContactWriteStatus::NotSaved);
             return;
         };
         let started = Instant::now();
@@ -270,7 +303,7 @@ impl<P: Provider> App<P> {
                     mailcal_account::account_log_handle(account.as_str()),
                     started.elapsed().as_millis(),
                 );
-                ContactWriteStatus::Failed
+                crate::connectivity::contact_status(&error)
             }
         };
         self.rebuild_contacts().await;
@@ -278,7 +311,7 @@ impl<P: Provider> App<P> {
     }
 
     /// The most recent contact write's status (pulled after a [`Surface::ContactsStatus`]
-    /// signal). See [`ContactWriteStatus`]; in particular, `Failed` does not mean the save was
+    /// signal). See [`ContactWriteStatus`]; in particular, `Unconfirmed` does not mean the save was
     /// lost.
     #[must_use]
     pub fn contact_write_status(&self) -> ContactWriteStatus {
@@ -367,7 +400,7 @@ fn settle(reconciled: ContactReconciled) -> ContactWriteStatus {
         }
         ContactReconciled::Failed(error) => {
             log::warn!("contact write reconciliation failed: {error}");
-            ContactWriteStatus::Failed
+            ContactWriteStatus::Unconfirmed
         }
     }
 }

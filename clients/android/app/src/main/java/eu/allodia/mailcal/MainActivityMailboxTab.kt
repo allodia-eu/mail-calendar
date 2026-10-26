@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.ContactDetail
 import uniffi.mailcal_bindings.EventIntent
 import uniffi.mailcal_bindings.Intent
@@ -102,6 +101,9 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 // user actually recognises.
                                 accountLabels = accountLabels,
                                 writeLine = contactWrites.line(LocalContext.current),
+                                outages = outageLines(OutageUse.CONTACTS, LocalContext.current),
+                                onOpenAccount = { id -> openAccountPage(id) },
+                                onReviewServerChange = { id -> reviewServerChange(id) },
                                 canCreate = contactWrites.targets.isNotEmpty(),
                                 onCreate = {
                                     contactWrites.editor =
@@ -266,6 +268,9 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 // action signs it in again in place to grant it.
                                 calendarReauth = calendarReauth,
                                 onReconnectCalendar = { id -> signInAgain(id, emptyList()) },
+                                outages = outageLines(OutageUse.CALENDAR, LocalContext.current),
+                                onOpenAccount = { id -> openAccountPage(id) },
+                                onReviewServerChange = { id -> reviewServerChange(id) },
                             )
                           } else {
                             // The folder navigation drawer wraps the mailbox screen so it can
@@ -319,8 +324,9 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             selectedAccount = selectedAccount,
                             onSelectAccount = { instance.dispatch(Intent.SelectAccount(it)) },
                             onRemoveAccount = { removeAccount(it) },
-                            unlinkedBy = { id ->
-                                accountSettings.entry(id)?.let(AccountSettingsRules::unlinked)
+                            removalOf = { id ->
+                                accountSettings.entry(id)
+                                    ?.let { accountRemoval(this@MailboxTabContent, it) }
                             },
                             // The folder navigation drawer state, the hamburger icon opens it.
                             drawerState = drawerState,
@@ -410,19 +416,20 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             signInExpired = signInExpired,
                             onOpenAccountPage = { id -> openAccountPage(id) },
                             onSignInExpired = { account ->
-                                when (account.provider) {
+                                when (AccountSignInRules.expiredRemedy(account.provider)) {
                                     // In place: the account keeps its id, settings and mail, where
                                     // a first sign-in would add it again (provider-oauth.md rule 11).
-                                    AccountProvider.MICROSOFT, AccountProvider.GOOGLE ->
+                                    ExpiredRemedy.PROVIDER_CONSENT ->
                                         signInAgain(account.id, emptyList())
                                     // Addressed to the account id, not the address: the core
                                     // re-authorises this account's own stored grant.
-                                    AccountProvider.JMAP_OAUTH ->
+                                    ExpiredRemedy.JMAP_REAUTH ->
                                         reconnectJmap(accountId = account.id)
-                                    // The banner offers no button for these, so this is
-                                    // unreachable; kept exhaustive rather than silently ignoring
-                                    // a family added later.
-                                    else -> Unit
+                                    // From the grant it holds, as its page signs it in again.
+                                    ExpiredRemedy.ACCOUNT_SIGN_IN ->
+                                        startAccountSignIn(account.id, switching = false)
+                                    // The banner offers Settings instead of this button.
+                                    ExpiredRemedy.SETTINGS -> openAccountPage(account.id)
                                 }
                             },
                             // Open the unified Settings screen (grouping, language, time zone,

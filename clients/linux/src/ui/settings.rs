@@ -16,14 +16,18 @@ use crate::{l10n, preferences::HostPreferences};
 
 pub(super) mod about;
 pub(super) mod account_mail;
+mod account_names;
+pub(super) use account_names::entry_name;
 mod account_page;
 mod account_rows;
-pub(super) use account_rows::{LinkPicker, link_pickers, use_name};
+pub(super) mod sign_in_section;
+pub(super) use account_rows::{LinkPicker, link_pickers, outage_line, use_name};
 mod account_servers;
 pub(super) mod account_sync_mode;
 pub(super) mod accounts;
 pub(super) mod allodia;
 pub(super) mod allodia_sync;
+mod category;
 pub(super) mod dark_messages;
 pub(super) mod subscription;
 mod widgets;
@@ -78,6 +82,9 @@ pub(super) struct RenderState<'a> {
         &'a std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
     /// The account whose page Accounts shows, and what the last change on it came to.
     pub(super) account: Option<&'a str>,
+    pub(super) sign_in: &'a super::account_sign_in::SignInSwitchState,
+    /// The form for a sign-in of its own an account's page opened.
+    pub(super) separate: Option<&'a super::separate_sign_in::SeparateForm>,
     pub(super) notice: Option<&'a notice::Raised>,
     pub(super) redraw: Redraw,
 }
@@ -134,6 +141,8 @@ struct PageContext {
         std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
     /// The account whose page Accounts shows, or `None` for the list.
     account: Option<String>,
+    /// What that page's Sign-in section knows: what the server accepts, and a change running.
+    sign_in: super::account_sign_in::SignInSwitchState,
 }
 
 #[derive(Debug, Default)]
@@ -151,6 +160,9 @@ pub(super) struct SettingsWindow {
     toasts: Option<adw::ToastOverlay>,
     /// The last notice shown.
     shown_notice: u64,
+    /// The switch's question and the form for a sign-in of its own, raised over this window or,
+    /// while it is closed, over the main one.
+    prompts: super::separate_sign_in_view::Prompts,
 }
 
 impl SettingsWindow {
@@ -165,6 +177,12 @@ impl SettingsWindow {
         if let Some(app) = app {
             dark_messages::follow(app);
         }
+        self.prompts.sync(
+            state.sign_in.question(),
+            state.separate,
+            &self.front_or(parent),
+            &sender,
+        );
         if state.generation == 0 || state.generation == self.rendered_generation {
             return;
         }
@@ -250,6 +268,7 @@ impl SettingsWindow {
             allodia_subscription: state.allodia_subscription.clone(),
             allodia_accounts_synced: state.allodia_accounts_synced.clone(),
             account: state.account.map(str::to_owned),
+            sign_in: state.sign_in.clone(),
         };
         // Read before the pages read theirs: a change landing in between then reads as one the
         // window has not drawn, and the next signal draws it.
@@ -268,10 +287,12 @@ impl SettingsWindow {
         {
             redraw::keep_offset(&scroll, offset);
         }
-        if !reuse {
+        if reuse {
+            notice::show_due(&window, &toasts, state.notice, &mut self.shown_notice);
+        } else {
             window.present();
+            notice::show_due_once_drawn(&window, &toasts, state.notice, &mut self.shown_notice);
         }
-        notice::show_due(&window, &toasts, state.notice, &mut self.shown_notice);
         self.toasts = Some(toasts);
         self.edited = std::rc::Rc::default();
         redraw::watch_edits(content.upcast_ref(), &self.edited);
@@ -438,61 +459,6 @@ fn page(category: Category, ctx: &PageContext) -> gtk::ScrolledWindow {
     let scroll = gtk::ScrolledWindow::new();
     scroll.set_child(Some(&content));
     scroll
-}
-
-impl Category {
-    const fn name(self) -> &'static str {
-        match self {
-            Self::Allodia => "allodia",
-            Self::General => "general",
-            Self::Calendar => "calendar",
-            Self::Reading => "reading",
-            Self::Composing => "composing",
-            Self::Signatures => "signatures",
-            Self::Notifications => "notifications",
-            Self::Privacy => "privacy",
-            Self::Accounts => "accounts",
-            Self::Advanced => "advanced",
-            Self::Diagnostics => "diagnostics",
-            Self::About => "about",
-        }
-    }
-
-    fn title(self) -> &'static str {
-        match self {
-            // The category and the group inside it are the same thing named twice otherwise, and
-            // the product's own name belongs in one string.
-            Self::Allodia => l10n::settings_allodia_heading(),
-            Self::General => l10n::settings_category_general(),
-            Self::Calendar => l10n::settings_category_calendar(),
-            Self::Reading => l10n::settings_category_reading(),
-            Self::Composing => l10n::settings_category_composing(),
-            Self::Signatures => l10n::settings_category_signatures(),
-            Self::Notifications => l10n::settings_category_notifications(),
-            Self::Privacy => l10n::settings_category_privacy(),
-            Self::Accounts => l10n::settings_category_accounts(),
-            Self::Advanced => l10n::settings_category_advanced(),
-            Self::Diagnostics => l10n::settings_category_diagnostics(),
-            Self::About => l10n::settings_category_about(),
-        }
-    }
-
-    const fn icon(self) -> &'static str {
-        match self {
-            Self::Allodia => icons::SETTINGS_ALLODIA,
-            Self::General => icons::SETTINGS_GENERAL,
-            Self::Calendar => icons::SETTINGS_CALENDAR,
-            Self::Reading => icons::SETTINGS_READING,
-            Self::Composing => icons::SETTINGS_COMPOSING,
-            Self::Signatures => icons::SETTINGS_SIGNATURES,
-            Self::Notifications => icons::SETTINGS_NOTIFICATIONS,
-            Self::Privacy => icons::SETTINGS_PRIVACY,
-            Self::Accounts => icons::SETTINGS_ACCOUNTS,
-            Self::Advanced => icons::SETTINGS_ADVANCED,
-            Self::Diagnostics => icons::SETTINGS_DIAGNOSTICS,
-            Self::About => icons::SETTINGS_ABOUT,
-        }
-    }
 }
 
 #[cfg(test)]

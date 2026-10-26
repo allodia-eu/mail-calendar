@@ -83,6 +83,9 @@ pub(crate) struct ConnectFailure {
     /// Whether the server needs a sign-in of its own, because the account's grant may not reach
     /// it (`docs/mail-oauth.md` rule 10). Nothing was sent to it.
     needs_own_sign_in: bool,
+    /// Whether a DAV server said the start it was given is gone (a `404`, `410` or `403`, or no
+    /// home), rather than not answering: the one failure worth finding the servers again for.
+    gone: bool,
 }
 
 impl ConnectFailure {
@@ -93,7 +96,20 @@ impl ConnectFailure {
             signin_expired: false,
             certificate: None,
             needs_own_sign_in: false,
+            gone: false,
         }
+    }
+
+    /// Whether the servers are worth finding again (RFC 6764 §6): a DAV server said its start is
+    /// gone, or refused the sign-in. An outage is not: it changes nothing.
+    pub(crate) const fn worth_rediscovering(&self) -> bool {
+        self.gone || self.signin_expired
+    }
+
+    /// Whether the server simply did not answer: not a refusal, a start it says is gone, a
+    /// certificate, or a server that needs a sign-in of its own, each of which is an answer.
+    pub(crate) const fn is_outage(&self) -> bool {
+        !self.signin_expired && self.certificate.is_none() && !self.needs_own_sign_in && !self.gone
     }
 
     /// What this failure means for a use that failed beside a working mailbox.
@@ -112,11 +128,6 @@ impl ConnectFailure {
     pub(crate) const fn signin_expired(&self) -> bool {
         self.signin_expired
     }
-
-    /// Whether the server presented a certificate that did not verify.
-    pub(crate) const fn certificate_rejected(&self) -> bool {
-        self.certificate.is_some()
-    }
 }
 
 impl From<AccountError> for ConnectFailure {
@@ -124,6 +135,7 @@ impl From<AccountError> for ConnectFailure {
         Self {
             signin_expired: matches!(err, AccountError::SigninRejected(_)),
             needs_own_sign_in: matches!(err, AccountError::DavNeedsOwnSignIn(_)),
+            gone: err.is_gone(),
             certificate: match &err {
                 AccountError::CertificateRejected { rejected, .. } => {
                     Some(Box::new((**rejected).clone()))
@@ -175,6 +187,14 @@ pub(crate) struct DialOutcome {
     /// What stopped the calendar or contacts from connecting, mail being up: for the account's
     /// page in Settings, and for the next retry.
     pub(crate) use_problems: mailcal_app::UseProblems,
+    /// Which of the calendar and contacts failed only because their server did not answer.
+    pub(crate) unanswered: mailcal_app::Unanswered,
+    /// The DAV principals the dial learned, for the registry to store
+    /// ([`AccountRegistry::learn_dav_starts`](super::AccountRegistry::learn_dav_starts)).
+    pub(crate) learned: mailcal_account::DavLearned,
+    /// Whether the calendar or contacts failed in a way worth finding their servers again for
+    /// ([`ConnectFailure::worth_rediscovering`]).
+    pub(crate) rediscover: bool,
 }
 
 /// How to rebuild one registered account's providers: the credential-bearing half of its

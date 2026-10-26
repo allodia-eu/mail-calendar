@@ -5,8 +5,8 @@
 //
 // The OS delivers the redirect by ACTIVATING this app, which `Program` routes into Deliver on a
 // background thread; the in-flight sign-in awaits the armed slot. One slot is enough because the
-// model only ever lets one browser sign-in run at a time, but the slot is armed for a specific
-// redirect host, so a stray or late activation from the other flow can never complete this one.
+// model only ever lets one browser sign-in run at a time, but the slot is armed for specific
+// redirect hosts, so a stray or late activation from another flow can never complete this one.
 
 using System;
 using System.Threading;
@@ -29,21 +29,23 @@ internal static class ProtocolAuthCallback
 
     private static readonly object Gate = new();
     private static TaskCompletionSource<string>? _pending;
-    private static string? _host;
+    private static string[] _hosts = [];
 
     /// <summary>
-    /// Arms the wait for the next redirect to <paramref name="host"/> (the redirect URI's host,
-    /// <c>auth</c> for Microsoft, <c>jmap-oauth</c> for JMAP). Dispose the result to disarm, so an
-    /// abandoned sign-in leaves no stale slot to swallow the next flow's redirect.
+    /// Arms the wait for the next redirect to one of <paramref name="hosts"/> (the redirect URI's
+    /// host, <c>auth</c> for Microsoft, <c>jmap-oauth</c> for JMAP). More than one only where the
+    /// core picks the redirect: signing an account in again replays the one its grant was
+    /// registered with. Dispose the result to disarm, so an abandoned sign-in leaves no stale slot
+    /// to swallow the next flow's redirect.
     /// </summary>
-    public static Registration Expect(string host)
+    public static Registration Expect(params string[] hosts)
     {
         lock (Gate)
         {
             // RunContinuationsAsynchronously: Deliver runs on the activation background thread, so
             // don't resume the awaiting sign-in inline on it.
             _pending = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _host = host;
+            _hosts = hosts;
             return new Registration(_pending);
         }
     }
@@ -60,11 +62,11 @@ internal static class ProtocolAuthCallback
             {
                 return;
             }
-            if (!string.Equals(_host, uri.Host, StringComparison.OrdinalIgnoreCase))
+            if (!Array.Exists(_hosts, host => string.Equals(host, uri.Host, StringComparison.OrdinalIgnoreCase)))
             {
                 // Never the query (it carries the one-time auth code), only which host arrived,
                 // so a redirect that silently goes nowhere is diagnosable rather than invisible.
-                Log.Warn($"protocol activation for '{uri.Host}' ignored; awaiting '{_host}'");
+                Log.Warn($"protocol activation for '{uri.Host}' ignored; awaiting '{string.Join("', '", _hosts)}'");
                 return;
             }
             _pending.TrySetResult(uri.ToString());
@@ -112,7 +114,7 @@ internal static class ProtocolAuthCallback
                 if (ReferenceEquals(_pending, _tcs))
                 {
                     _pending = null;
-                    _host = null;
+                    _hosts = [];
                 }
             }
         }

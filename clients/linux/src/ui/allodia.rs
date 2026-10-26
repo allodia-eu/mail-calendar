@@ -19,7 +19,7 @@
 
 use std::sync::{Arc, atomic::AtomicBool};
 
-use mailcal_bindings::{AllodiaSignInStart, MailcalApp};
+use mailcal_bindings::{AllodiaSignInStart, MailcalApp, MailcalError};
 
 use super::{
     AppInput, AppModel,
@@ -73,6 +73,7 @@ fn complete(app: &Arc<MailcalApp>, pending: String, callback_url: String) -> All
         // The core stores the grant through the host's `AccountCredentialStore` before it reports
         // success, so there is nothing for the client to persist.
         Ok(_) => AllodiaOutcome::SignedIn,
+        Err(MailcalError::StaleSignIn) => AllodiaOutcome::Failed(l10n::signin_stale().to_owned()),
         Err(error) => AllodiaOutcome::Failed(l10n::settings_allodia_failed(&error.to_string())),
     }
 }

@@ -2,10 +2,11 @@
 //
 // Kept in the pure Calendar layer, no WinUI, no Visibility, so the state machine compiles into the
 // test assembly and is unit-tested without a UI, exactly like the Android and Apple clients. The model
-// (MailboxModel.CalendarStatus.cs) turns the result into the bound view helpers; the XAML renders them.
+// (MailboxModel.CalendarStatus.cs) turns the result into the bound view helpers and the words; the
+// XAML renders them.
 //
-// Warning is deliberately NOT "your change was rejected": the core has confirmed the write reached the
-// server, and a refresh reconciles the local view, so the warning offers a retry (a RefreshCalendar).
+// Both failures draw the warning, and its tap is a refresh (a RefreshCalendar), never a re-send: a
+// write that may have landed is settled by reading the calendar again (docs/calendar.md §13).
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Calendar;
@@ -22,8 +23,21 @@ internal enum CalendarWriteIndicator
     /// <summary>The write settled and the local view holds the server's copy, a brief check.</summary>
     Saved,
 
-    /// <summary>The write could not be confirmed, a warning the user can tap to retry.</summary>
+    /// <summary>The write was not saved or could not be confirmed, a warning the user can tap to
+    /// refresh.</summary>
     Warning,
+}
+
+/// <summary>Which sentence the header's badge carries.</summary>
+internal enum CalendarWriteLine
+{
+    None,
+    Saving,
+    Saved,
+    /// <summary>"Couldn't save this change": nothing changed on the server.</summary>
+    NotSaved,
+    /// <summary>"Couldn't confirm": the change may have landed.</summary>
+    Unconfirmed,
 }
 
 /// <summary>The pure mapping from a core write status to the header indicator.</summary>
@@ -35,8 +49,20 @@ internal static class CalendarWriteIndicators
         CalendarWriteStatus.Idle => CalendarWriteIndicator.Hidden,
         CalendarWriteStatus.Saving => CalendarWriteIndicator.Spinner,
         CalendarWriteStatus.Saved => CalendarWriteIndicator.Saved,
-        CalendarWriteStatus.Failed => CalendarWriteIndicator.Warning,
+        CalendarWriteStatus.NotSaved => CalendarWriteIndicator.Warning,
+        CalendarWriteStatus.Unconfirmed => CalendarWriteIndicator.Warning,
         _ => CalendarWriteIndicator.Hidden,
+    };
+
+    /// <summary>Maps a core <see cref="CalendarWriteStatus"/> to the badge's sentence.</summary>
+    public static CalendarWriteLine Line(CalendarWriteStatus status) => status switch
+    {
+        CalendarWriteStatus.Idle => CalendarWriteLine.None,
+        CalendarWriteStatus.Saving => CalendarWriteLine.Saving,
+        CalendarWriteStatus.Saved => CalendarWriteLine.Saved,
+        CalendarWriteStatus.NotSaved => CalendarWriteLine.NotSaved,
+        CalendarWriteStatus.Unconfirmed => CalendarWriteLine.Unconfirmed,
+        _ => CalendarWriteLine.None,
     };
 
     /// <summary>Whether tapping the indicator should trigger a retry (a RefreshCalendar).</summary>

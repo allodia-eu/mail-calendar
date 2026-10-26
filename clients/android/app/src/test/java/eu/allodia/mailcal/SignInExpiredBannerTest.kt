@@ -33,7 +33,7 @@ class SignInExpiredBannerTest {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
         val account = ExpiredSignIn(
             id = "alice@jmap:api.example.com",
-            email = "alice@example.com",
+            name = "alice@example.com",
             provider = provider,
         )
         compose.setContent {
@@ -55,6 +55,17 @@ class SignInExpiredBannerTest {
         compose.onNodeWithText(SIGN_IN_AGAIN).performClick()
 
         // The id, not the address: the core re-authorises THIS account's persisted grant.
+        assertEquals(listOf("alice@jmap:api.example.com"), signedIn.map { it.id })
+    }
+
+    @Test
+    fun an_imap_account_that_signed_in_is_offered_its_sign_in_again() {
+        banner(AccountProvider.IMAP_OAUTH)
+
+        // It holds a grant and no password, so a password field would be refused.
+        compose.onNodeWithText("Update it in Settings", substring = true).assertDoesNotExist()
+        compose.onNodeWithText(SIGN_IN_AGAIN).performClick()
+
         assertEquals(listOf("alice@jmap:api.example.com"), signedIn.map { it.id })
     }
 

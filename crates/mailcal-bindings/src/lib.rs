@@ -23,6 +23,9 @@ mod about;
 mod account_capability;
 mod account_registry;
 mod account_repair;
+mod account_sign_in;
+mod account_split;
+mod accounts_distinction;
 mod accounts_view;
 mod agent_ui;
 mod allodia;
@@ -54,6 +57,7 @@ mod app_display;
 mod app_folders;
 mod app_month;
 mod app_sender_name;
+mod app_server_change;
 mod app_settings;
 mod app_signatures;
 mod app_snapshots;
@@ -79,6 +83,7 @@ mod convert_status;
 mod crash;
 mod credential_log;
 pub mod credential_store;
+mod dav_oauth;
 mod dav_rediscovery;
 mod demo;
 mod drafts;
@@ -131,9 +136,12 @@ mod showcase_data;
 mod store_files;
 mod timezone;
 mod token_sink;
+mod use_outages;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
 pub use account_capability::AccountCapability;
+pub use account_sign_in::{AccountSignInOptions, AccountSignInStart};
+pub use account_split::UnreachedUses;
 pub use agent_ui::{AgentDraft, AgentHostUi};
 pub use allodia::{
     AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available, is_allodia_account_config,
@@ -157,6 +165,7 @@ pub use app_accounts_consent::AccountConsentStart;
 pub use app_display::stored_appearance;
 pub use app_month::calendar_palette;
 pub use app_sender_name::sender_label;
+pub use app_server_change::{ServerChange, ServerChangeAnswer};
 pub use autodetect::{
     DetectedServerRow, DnsError, MissReason, MxRecord, MxResolution, MxResolver,
     SetupRecommendation, SrvRecord, SrvResolution,
@@ -176,6 +185,7 @@ pub use composer_host::{
 pub use composer_open::{ComposeKind, ComposeOpening, ComposeOrigin, ComposePrefill, QuoteSource};
 pub(crate) use connected_account::ConnectedAccount;
 pub use credential_store::{AccountCredentialStore, CredentialStoreError};
+pub use dav_oauth::SeparateServerSignInStart;
 // Re-exported, not merely `#[uniffi::export]`ed: the generated languages see one flat
 // namespace, so a host reaching these through the FFI never names the module, while the Linux
 // client links this crate as Rust and does (`AGENTS.md`, why that client breaks differently).
@@ -207,8 +217,9 @@ pub use records::{
     },
 };
 pub use records_accounts::{
-    AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse, AccountsSnapshot,
-    CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount, UseProblem,
+    AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,
+    AccountsSnapshot, CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
+    SeparateServer, SignInMethod, UseProblem,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{
@@ -217,7 +228,7 @@ pub use records_calendar::{
     MonthCell, MonthChip, MonthPage, Swatch, TimeFormat, TimedSegment, WeekStart,
 };
 pub use records_connectivity::{
-    AccountProvider, ConnectionInfo, ConnectivitySnapshot, HttpVersion, TlsVersion,
+    AccountProvider, ConnectionInfo, ConnectivitySnapshot, HttpVersion, TlsVersion, UseOutage,
 };
 pub use records_contacts::{
     ContactCardRef, ContactDetail, ContactEdit, ContactRow, ContactTarget, ContactValue,

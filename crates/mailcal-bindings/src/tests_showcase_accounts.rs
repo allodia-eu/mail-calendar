@@ -1,5 +1,6 @@
 //! The showcase's **Settings → Accounts**: that both seeded accounts are listed, each used for
-//! what its seed binds, and that the account-less boot lists none.
+//! what its seed binds, that the account-less boot lists none, and the server change a launch hook
+//! can pause the first one for.
 //!
 //! Every client draws that category from `accounts_snapshot` alone (`docs/accounts.md` rule 11),
 //! so a showcase that registered nothing photographs an empty category, and the client suites
@@ -92,4 +93,29 @@ fn showcase_first_run_lists_no_account() {
         ShowcaseLocale::En,
     );
     assert!(app.accounts_snapshot().accounts.is_empty());
+}
+
+/// What `MAILCAL_SHOWCASE_SERVER_CHANGE` puts in front of the UI suites: the primary account's
+/// calendar paused for a server on another site, and an Allow the showcase refuses, since it has
+/// no servers to change. The account stays paused, so the suites can read the refusal.
+#[cfg(debug_assertions)]
+#[test]
+fn showcase_can_pause_its_calendar_for_a_server_change_it_will_not_allow() {
+    let (tx, _rx) = mpsc::channel();
+    let app = MailcalApp::new_showcase(
+        Box::new(ChannelObserver { tx }),
+        Box::new(NullLogger),
+        LogLevel::Info,
+        "Europe/Amsterdam".to_owned(),
+        ShowcaseLocale::En,
+    );
+    let primary = app.accounts_snapshot().accounts[0].id.clone();
+    crate::boot::pause_for_a_server_change(&app.app, &primary);
+
+    let shown = app
+        .pending_server_change(primary.clone())
+        .expect("the calendar waits on a server change");
+    assert!(shown.calendar && !shown.contacts);
+    assert!(app.accept_server_change(primary.clone(), shown).is_err());
+    assert!(app.pending_server_change(primary).is_some(), "still paused");
 }

@@ -28,6 +28,9 @@ pub(super) struct SetupWindow {
     /// the person is typing in rather than replacing it (`super::setup_pane`).
     rendered_form_generation: u64,
     pane: Option<ConnectPane>,
+    /// The fields of the step for a sign-in of its own, while it is mounted, for the same
+    /// reason as `pane`.
+    separate: Option<super::separate_sign_in_view::Fields>,
 }
 
 impl SetupWindow {
@@ -77,7 +80,17 @@ impl SetupWindow {
                     pane.set_connecting(state.phase == Phase::Connecting);
                     if state.phase == Phase::Form {
                         pane.show_result(state.error.as_deref(), state.certificate.as_ref());
+                        super::setup_already_set_up::show(&window, state, sender);
                     }
+                    self.rendered_generation = state.generation;
+                    self.window = Some(window);
+                    return;
+                }
+                if state.phase == Phase::Separate
+                    && self.rendered_form_generation == state.form_generation
+                    && let (Some(fields), Some(step)) = (&self.separate, &state.separate)
+                {
+                    fields.show(step);
                     self.rendered_generation = state.generation;
                     self.window = Some(window);
                     return;
@@ -94,6 +107,7 @@ impl SetupWindow {
         // whose builder may install a different default while the old child still exists.
         window.set_default_widget(None::<&gtk::Widget>);
         self.pane = None;
+        self.separate = None;
         let content = match state.phase {
             Phase::Email => email_step(&window, state, sender),
             Phase::Detecting => progress(l10n::setup_detect_looking()),
@@ -120,6 +134,15 @@ impl SetupWindow {
                 Some(step) => setup_links::step(&window, step, sender),
                 None => progress(l10n::status_connecting()),
             },
+            Phase::Separate => match &state.separate {
+                Some(step) => {
+                    let (content, fields) =
+                        super::separate_sign_in_view::setup_step(&window, step, sender);
+                    self.separate = Some(fields);
+                    content
+                }
+                None => progress(l10n::status_connecting()),
+            },
         };
         // A found card with every use on is taller than a laptop screen, so the step scrolls
         // inside the window rather than pushing its footer off the bottom of the display.
@@ -130,6 +153,7 @@ impl SetupWindow {
             .child(&content)
             .build();
         window.set_child(Some(&scrolled));
+        super::setup_already_set_up::show(&window, state, sender);
         window.present();
         self.rendered_generation = state.generation;
         self.rendered_form_generation = state.form_generation;

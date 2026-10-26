@@ -49,10 +49,25 @@ internal sealed partial class App : IDisposable
     /// is showing its screen (App.Showcase.cs).</summary>
     internal static App LaunchOnShowcase(IReadOnlyDictionary<string, string>? env = null) => Launch(env, Dataset.Showcase);
 
-    private static App Launch(IReadOnlyDictionary<string, string>? env, Dataset dataset)
+    /// <summary>
+    /// Launches the newest Debug build again on the first-run store as the last launch left it,
+    /// account and all, as a person reopening the app does: for a case about what a launch's own
+    /// dial does to an account set up through the form. Returns once the sidebar is drawn.
+    /// </summary>
+    internal static App RelaunchOnFirstRunStore(IReadOnlyDictionary<string, string>? env = null)
+    {
+        var app = Launch(env, Dataset.FirstRun, keepStore: true);
+        if (app.Agent.Wait(Filter.ById("SettingsItem") with { OnScreen = true }, TimeSpan.FromSeconds(60)) is null)
+        {
+            throw new InvalidOperationException("the relaunch never drew its sidebar");
+        }
+        return app;
+    }
+
+    private static App Launch(IReadOnlyDictionary<string, string>? env, Dataset dataset, bool keepStore = false)
     {
         Stop();
-        if (dataset == Dataset.FirstRun)
+        if (dataset == Dataset.FirstRun && !keepStore)
         {
             ClearNamespace("dev-first-run");
         }
@@ -70,6 +85,10 @@ internal sealed partial class App : IDisposable
         {
             _environment = environment,
         };
+        if (keepStore)
+        {
+            return app;
+        }
         switch (dataset)
         {
             case Dataset.FirstRun:

@@ -11,7 +11,7 @@ use super::{
     setup_model::{
         AccountSubmission, DetectedServer, ImapForm, ImapSignIn, ImapSubmission, ManualForm,
     },
-    setup_pane::{ConnectPane, connecting_readout},
+    setup_pane::{ConnectPane, connecting_readout, feedback_box},
     setup_server_field::ServerPair,
     setup_server_row::manual_server_row,
     setup_uses::{self, ChosenUses},
@@ -83,8 +83,7 @@ pub(super) fn detected_fields(
         (area, password)
     });
     // Where a refusal draws itself, into the pane that asked; filled by `ConnectPane`.
-    let feedback = gtk::Box::new(gtk::Orientation::Vertical, 14);
-    content.append(&feedback);
+    let feedback = feedback_box(content);
 
     let actions = actions(window, required, sender);
     actions.append(&edit_manually_button(sender));
@@ -224,13 +223,16 @@ fn sign_in_explanation(content: &gtk::Box, sign_in: &ImapSignIn) {
         ImapSignIn::RegistrationNeeded {
             password_also_works: false,
         } => content.append(&body(l10n::setup_imap_signin_unsupported())),
-        ImapSignIn::Failed => {
-            let message = body(l10n::setup_imap_signin_failed());
-            message.add_css_class("error");
-            content.append(&message);
-        }
+        ImapSignIn::Failed => content.append(&error_body(l10n::setup_imap_signin_failed())),
+        ImapSignIn::Stale => content.append(&error_body(l10n::signin_stale())),
         ImapSignIn::Password => {}
     }
+}
+
+fn error_body(text: &str) -> gtk::Label {
+    let message = body(text);
+    message.add_css_class("error");
+    message
 }
 
 /// The manual form: every field typed by hand, for a server autodetection could not find.
@@ -269,8 +271,7 @@ pub(super) fn manual_fields(
     );
     content.append(&carddav);
     content.append(&caption(l10n::setup_port_note()));
-    let feedback = gtk::Box::new(gtk::Orientation::Vertical, 14);
-    content.append(&feedback);
+    let feedback = feedback_box(content);
 
     // Leaving either field asks the server what it accepts for what is typed now. The
     // password field stays put throughout, so an answer can only ever *add* a sign-in button

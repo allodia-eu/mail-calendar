@@ -6,6 +6,7 @@
 // switch, as the database reset is.
 
 using Allodia.Mailcal.Services;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -33,9 +34,17 @@ public sealed partial class SettingsDialog
         var toggle = new ToggleSwitch { Header = UseName(capability), IsOn = rule.Active, IsEnabled = rule.Enabled };
         AutomationProperties.SetAutomationId(toggle, $"AccountUse_{capability}");
         row.Children.Add(toggle);
-        if (UseNoteText(rule.Note) is { } note)
+        if (AccountUseText.Note(rule.Note) is { } note)
         {
             row.Children.Add(Description(note));
+        }
+        if (SeparateServerAction(entry, capability) is { } separate)
+        {
+            row.Children.Add(separate);
+        }
+        if (ServerChangeAction(entry, capability, rule.Note) is { } review)
+        {
+            row.Children.Add(review);
         }
 
         // Switching off deletes what the device holds of the use, so it is asked first; cancelling
@@ -89,21 +98,6 @@ public sealed partial class SettingsDialog
         return row;
     }
 
-    private static string? UseNoteText(UseNote note) => note switch
-    {
-        UseNote.Last => L10n.SettingsAccountUseLast(),
-        UseNote.NeedsContacts => L10n.SettingsAccountColleaguesNeedsContacts(),
-        UseNote.Withheld => L10n.SettingsAccountUseWithheld(),
-        UseNote.NotOffered => L10n.SettingsAccountUseNotOffered(),
-        UseNote.UnreachableCalendar => L10n.SettingsAccountUseUnreachableCalendar(),
-        UseNote.UnreachableContacts => L10n.SettingsAccountUseUnreachableContacts(),
-        UseNote.RefusedCalendar => L10n.SettingsAccountUseRefusedCalendar(),
-        UseNote.RefusedContacts => L10n.SettingsAccountUseRefusedContacts(),
-        UseNote.OwnSignInCalendar => L10n.SettingsAccountUseOwnSignInCalendar(),
-        UseNote.OwnSignInContacts => L10n.SettingsAccountUseOwnSignInContacts(),
-        _ => null,
-    };
-
     private async Task SetUseAsync(AccountEntry entry, AccountCapability capability, bool on)
     {
         var (outcome, error) = await _model.SetAccountUseAsync(entry.Id, capability, on);
@@ -148,7 +142,7 @@ public sealed partial class SettingsDialog
         box.Items.Add(L10n.SettingsAccountLinkNone());
         foreach (var option in picker.Options)
         {
-            box.Items.Add(option.Address);
+            box.Items.Add(AccountNameText.Of(option));
         }
         box.SelectedIndex = picker.Selected is { } selected ? selected + 1 : 0;
         box.SelectionChanged += (_, _) =>
@@ -166,7 +160,7 @@ public sealed partial class SettingsDialog
         if (picker.Suggested is { } suggested)
         {
             var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            var text = Description(L10n.SettingsAccountLinkSuggested(picker.Options[suggested].Address));
+            var text = Description(L10n.SettingsAccountLinkSuggested(AccountNameText.Of(picker.Options[suggested])));
             text.VerticalAlignment = VerticalAlignment.Center;
             line.Children.Add(text);
             var link = new Button { Content = L10n.ActionLink() };
@@ -196,7 +190,7 @@ public sealed partial class SettingsDialog
     private UIElement SignInGroup(AccountEntry entry, bool expired)
     {
         var description = expired
-            ? L10n.SigninExpiredPrompt(entry.Address)
+            ? L10n.SigninExpiredPrompt(AccountNameText.Of(entry))
             : AccountSettingsRules.NeedsPermission(entry)
                 ? L10n.SettingsAccountNeedsPermission()
                 : L10n.SettingsAccountSigninDescription();
@@ -210,9 +204,8 @@ public sealed partial class SettingsDialog
     /// <paramref name="adding"/>, and says how it ended. A cancelled sign-in says nothing.</summary>
     private async Task SignInAgainFromPageAsync(AccountEntry entry, AccountCapability[] adding)
     {
-        SayOnAccounts(new AccountNotice(
-            InfoBarSeverity.Informational, string.Empty, L10n.SettingsAccountSigninWaiting(entry.Address)));
-        var ended = await _model.SignInAgainAsync(entry.Id, adding);
+        SayOnAccounts(null);
+        var ended = await _model.SignInAgainAsync(entry.Id, adding, step => SaySignInStep(entry, step));
         NotifyAccounts(ended switch
         {
             { SignedIn: true } => SignedInNotice(entry.Id),

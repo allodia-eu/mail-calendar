@@ -97,7 +97,8 @@ impl From<AppContactWriteStatus> for ContactWriteStatus {
             AppContactWriteStatus::Idle => Self::Idle,
             AppContactWriteStatus::Saving => Self::Saving,
             AppContactWriteStatus::Saved => Self::Saved,
-            AppContactWriteStatus::Failed => Self::Failed,
+            AppContactWriteStatus::NotSaved => Self::NotSaved,
+            AppContactWriteStatus::Unconfirmed => Self::Unconfirmed,
             AppContactWriteStatus::Invalid => Self::Invalid,
         }
     }
@@ -109,7 +110,8 @@ impl From<AppCalendarWriteStatus> for CalendarWriteStatus {
             AppCalendarWriteStatus::Idle => Self::Idle,
             AppCalendarWriteStatus::Saving => Self::Saving,
             AppCalendarWriteStatus::Saved => Self::Saved,
-            AppCalendarWriteStatus::Failed => Self::Failed,
+            AppCalendarWriteStatus::NotSaved => Self::NotSaved,
+            AppCalendarWriteStatus::Unconfirmed => Self::Unconfirmed,
         }
     }
 }

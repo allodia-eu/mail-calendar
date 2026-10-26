@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -35,11 +36,12 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountCapability
 
 @Composable
-private fun StepColumn(content: @Composable () -> Unit) {
+internal fun StepColumn(content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .systemBarsPadding()
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -157,7 +159,8 @@ private fun StepPicker(picker: LinkPicker, picked: Int?, onPick: (Int?) -> Unit)
             modifier = Modifier.fillMaxWidth().testTag("setup-link-${picker.slot.name}"),
         ) {
             Text(
-                picked?.let { picker.options.getOrNull(it)?.address } ?: L10n.settings_account_link_none(ctx),
+                picked?.let { picker.options.getOrNull(it) }?.let { accountName(ctx, it) }
+                    ?: L10n.settings_account_link_none(ctx),
                 modifier = Modifier.weight(1f),
             )
             Icon(painter = painterResource(R.drawable.ic_arrow_drop_down), contentDescription = null)
@@ -172,7 +175,7 @@ private fun StepPicker(picker: LinkPicker, picked: Int?, onPick: (Int?) -> Unit)
             )
             picker.options.forEachIndexed { index, option ->
                 DropdownMenuItem(
-                    text = { Text(option.address) },
+                    text = { Text(accountName(ctx, option)) },
                     onClick = {
                         expanded = false
                         onPick(index)
@@ -183,7 +186,7 @@ private fun StepPicker(picker: LinkPicker, picked: Int?, onPick: (Int?) -> Unit)
     }
     picker.suggested?.let { picker.options.getOrNull(it) }?.let { suggestion ->
         Text(
-            L10n.settings_account_link_suggested(ctx, suggestion.address),
+            L10n.settings_account_link_suggested(ctx, accountName(ctx, suggestion)),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

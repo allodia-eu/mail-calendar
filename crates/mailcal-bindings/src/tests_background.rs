@@ -24,7 +24,7 @@ type SharedApp = Arc<App<Box<dyn Provider>>>;
 fn pushing_account() -> Account<Box<dyn Provider>> {
     Account {
         id: AccountId::try_from("pushing").expect("valid account id"),
-        providers: vec![Box::new(DemoProvider::with_idle()) as Box<dyn Provider>],
+        providers: vec![Box::new(DemoProvider::with_idle()) as Box<dyn Provider>].into(),
         calendar_providers: Vec::new(),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("push@allodia.local"),

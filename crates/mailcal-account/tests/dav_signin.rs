@@ -14,6 +14,11 @@ use tokio::{
 /// Starts an HTTP server on `127.0.0.1` that answers every request with `status`, and returns
 /// its port.
 async fn server_answering(status: &'static str) -> u16 {
+    server_answering_with(status, "").await
+}
+
+/// [`server_answering`], with `headers` (each line ending in `\r\n`) in every answer.
+async fn server_answering_with(status: &'static str, headers: &'static str) -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let port = listener.local_addr().expect("local addr").port();
     tokio::spawn(async move {
@@ -27,8 +32,9 @@ async fn server_answering(status: &'static str) -> u16 {
                         Ok(read) => request.extend_from_slice(&buffer[..read]),
                     }
                 }
-                let response =
-                    format!("HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                let response = format!(
+                    "HTTP/1.1 {status}\r\n{headers}Content-Length: 0\r\nConnection: close\r\n\r\n"
+                );
                 let _ = stream.write_all(response.as_bytes()).await;
                 let _ = stream.shutdown().await;
             });
@@ -67,4 +73,20 @@ async fn a_calendar_the_server_will_not_serve_is_not_a_rejected_signin() {
     let account = dav_only(server_answering("403 Forbidden").await);
     let err = connect_caldav(&account, None).await.err().expect("refused");
     assert!(matches!(err, AccountError::CalDav(_)), "{err}");
+}
+
+#[tokio::test]
+async fn a_server_asking_only_for_another_method_is_neither_gone_nor_a_refused_signin() {
+    // A `401` offering only Digest: the password was never sent, so it was not refused, and the
+    // server answered, so looking it up again would find it where it is.
+    let account = dav_only(
+        server_answering_with(
+            "401 Unauthorized",
+            "WWW-Authenticate: Digest realm=\"dav\", nonce=\"n\"\r\n",
+        )
+        .await,
+    );
+    let err = connect_caldav(&account, None).await.err().expect("refused");
+    assert!(!matches!(err, AccountError::SigninRejected(_)), "{err}");
+    assert!(!err.is_gone(), "{err}");
 }

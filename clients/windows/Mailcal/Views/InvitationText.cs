@@ -100,6 +100,8 @@ internal static class InvitationText
         {
             WriteLine.Sending => L10n.InvitationSending(),
             WriteLine.Failed => L10n.InvitationFailed(),
+            WriteLine.Unconfirmed => L10n.InvitationUnconfirmed(),
+            WriteLine.None => null,
             _ => null,
         };
 }

@@ -220,7 +220,7 @@ const MAX_NTH: u32 = 5;
 ///
 /// The reason is a **shape** (it names a rule part, never the user's meeting) so it is safe to
 /// log. It is not user-facing copy: a client renders the refusal through
-/// `CalendarWriteStatus::Failed` in its own words.
+/// `CalendarWriteStatus::NotSaved` in its own words.
 #[must_use]
 pub fn undrawable_reason(rule: &SimpleRecurrence) -> Option<&'static str> {
     if rule.interval > MAX_INTERVAL {

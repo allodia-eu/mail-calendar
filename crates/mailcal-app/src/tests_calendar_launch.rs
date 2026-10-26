@@ -173,7 +173,7 @@ async fn a_mail_only_account_gets_an_answer_rather_than_a_permanent_loading() {
     let mut account = calendar_account("acct", CalendarFake::with_events(Vec::new()));
     // Connected, and with nothing to connect a calendar to. The mail provider is what separates
     // this from a boot placeholder, which has no providers of any kind; see the test below.
-    account.providers = vec![CalendarFake::with_events(Vec::new())];
+    account.providers = vec![CalendarFake::with_events(Vec::new())].into();
     account.calendar_providers.clear();
     let app = calendar_app(vec![account], &surfaces);
 
@@ -193,7 +193,7 @@ async fn a_mail_only_account_gets_an_answer_rather_than_a_permanent_loading() {
 async fn a_calendar_that_could_not_be_reached_beside_a_working_mailbox_claims_nothing() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut account = calendar_account("acct", CalendarFake::with_events(Vec::new()));
-    account.providers = vec![CalendarFake::with_events(Vec::new())];
+    account.providers = vec![CalendarFake::with_events(Vec::new())].into();
     account.calendar_providers.clear();
     let id = account.id.clone();
     let app = calendar_app(vec![account], &surfaces);
@@ -220,7 +220,7 @@ async fn a_calendar_that_could_not_be_reached_beside_a_working_mailbox_claims_no
 async fn a_calendar_that_needs_its_own_sign_in_does_not_hold_the_week_loading() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut account = calendar_account("acct", CalendarFake::with_events(Vec::new()));
-    account.providers = vec![CalendarFake::with_events(Vec::new())];
+    account.providers = vec![CalendarFake::with_events(Vec::new())].into();
     account.calendar_providers.clear();
     let id = account.id.clone();
     let app = calendar_app(vec![account], &surfaces);
@@ -395,7 +395,7 @@ async fn an_account_with_contacts_alone_does_not_hold_the_calendar_unread() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut contacts_only = calendar_account("acct", CalendarFake::with_events(Vec::new()));
     contacts_only.calendar_providers.clear();
-    contacts_only.providers.clear();
+    contacts_only.providers = Vec::new().into();
     contacts_only.uses_mail = false;
     let app = calendar_app(vec![contacts_only], &surfaces);
 

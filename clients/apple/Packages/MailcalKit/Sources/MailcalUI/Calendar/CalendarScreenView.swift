@@ -92,31 +92,6 @@ struct CalendarScreenView: View {
         )
     }
 
-    /// A Microsoft account connected before calendar support (or with revoked consent) syncs no
-    /// calendar until it signs in again, prompt for it here, where its absence is felt. Mail is
-    /// unaffected, so it uses an informational style, not the error one. "Reconnect" signs that
-    /// account in again in place for everything it is used for (`docs/provider-oauth.md`
-    /// rule 11); the banner clears once the calendar connects.
-    @ViewBuilder private var reauthBanner: some View {
-        let ids = model.connectivity?.calendarReauthAccounts ?? []
-        if let first = ids.first {
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text(L10n.calendar_reauth_prompt(accounts: ids.map(model.accountEmail).joined(separator: ", ")))
-                    .font(.callout).fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                // One button signs the first affected account in again; when several are affected
-                // the banner re-renders after each clears, walking through them one at a time.
-                Button(L10n.calendar_reauth_action()) { model.signInAgainFromBanner(first) }
-                    .buttonStyle(.borderless)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(.thinMaterial)
-            .overlay(alignment: .bottom) { Divider() }
-        }
-    }
-
     var body: some View {
         let calendar = model.gridCalendar
         let today = now
@@ -154,6 +129,7 @@ struct CalendarScreenView: View {
 
         VStack(spacing: 0) {
             reauthBanner
+            outageBanners
             #if os(macOS)
                 CalendarHeaderBar(state: header)
                 Divider()

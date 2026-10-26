@@ -6,6 +6,7 @@ use mailcal_bindings::{
     UseProblem,
 };
 
+use super::account_names::{kind_line, linked_name};
 use crate::l10n;
 
 /// The label for an account's kind, as the setup screen names the same choice.
@@ -39,15 +40,16 @@ pub(super) fn summary(entry: &AccountEntry) -> String {
         .map(|use_| use_name(use_.capability))
         .collect::<Vec<_>>()
         .join(", ");
-    let mut lines = vec![format!("{} · {uses}", kind_label(entry.kind))];
+    let mut lines = vec![format!("{} · {uses}", kind_line(entry))];
     let linked = [
         (AccountCapability::Calendar, &entry.links.calendar),
         (AccountCapability::Contacts, &entry.links.contacts),
         (AccountCapability::Mail, &entry.links.mail),
     ];
     lines.extend(linked.into_iter().filter_map(|(capability, link)| {
-        link.as_ref()
-            .map(|link| l10n::settings_account_linked_line(use_name(capability), &link.address))
+        link.as_ref().map(|link| {
+            l10n::settings_account_linked_line(use_name(capability), &linked_name(link))
+        })
     }));
     if needs_permission(entry) {
         lines.push(l10n::settings_account_needs_permission().to_owned());
@@ -80,7 +82,7 @@ pub(super) const fn signs_in_at_provider(kind: AccountKind) -> bool {
 /// What the sign-in group says beneath its heading: what is wrong, when something is.
 pub(super) fn signin_description(entry: &AccountEntry, expired: bool) -> String {
     if expired {
-        l10n::signin_expired_prompt(&entry.address)
+        l10n::signin_expired_prompt(&super::account_names::entry_name(entry))
     } else if needs_permission(entry) {
         l10n::settings_account_needs_permission().to_owned()
     } else {
@@ -99,7 +101,41 @@ fn problem_note(capability: AccountCapability, problem: UseProblem) -> &'static 
         UseProblem::SignInRefused => l10n::settings_account_use_refused_contacts(),
         UseProblem::NeedsOwnSignIn if calendar => l10n::settings_account_use_own_sign_in_calendar(),
         UseProblem::NeedsOwnSignIn => l10n::settings_account_use_own_sign_in_contacts(),
+        UseProblem::ServerChanged if calendar => {
+            l10n::settings_account_use_server_changed_calendar()
+        }
+        UseProblem::ServerChanged => l10n::settings_account_use_server_changed_contacts(),
     }
+}
+
+/// The use whose row the account page's "Review" sits under: the last of those paused for a
+/// server found on another site, so it follows every note that says so. `None` when none is.
+pub(super) fn review_after(entry: &AccountEntry) -> Option<AccountCapability> {
+    entry
+        .uses
+        .iter()
+        .rfind(|use_| use_.problem == Some(UseProblem::ServerChanged))
+        .map(|use_| use_.capability)
+}
+
+/// The line above the calendar week or the contacts list for a use that did not connect
+/// (`docs/accounts.md` rule 16): which account, why in the words its own page uses, and that what
+/// is on screen is what was last synced.
+pub(in crate::ui) fn outage_line(
+    capability: AccountCapability,
+    problem: UseProblem,
+    address: &str,
+) -> String {
+    let title = if matches!(capability, AccountCapability::Calendar) {
+        l10n::calendar_outage_title(address)
+    } else {
+        l10n::contacts_outage_title(address)
+    };
+    format!(
+        "{title} {} {}",
+        problem_note(capability, problem),
+        l10n::use_outage_last_synced()
+    )
 }
 
 /// How one use's switch is drawn.
@@ -183,6 +219,22 @@ pub(in crate::ui) struct LinkPicker {
     /// The index into `options` of the account to suggest, while nothing is linked: one whose
     /// calendar server schedules as the mail account's address.
     pub(in crate::ui) suggested: Option<usize>,
+}
+
+impl LinkPicker {
+    /// What the dropdown lists: "none", then each account as a person reads it.
+    pub(in crate::ui) fn labels(&self) -> Vec<String> {
+        std::iter::once(l10n::settings_account_link_none().to_owned())
+            .chain(self.options.iter().map(linked_name))
+            .collect()
+    }
+
+    /// The suggested account, as a person reads it.
+    pub(in crate::ui) fn suggested_name(&self) -> Option<String> {
+        self.suggested
+            .and_then(|index| self.options.get(index))
+            .map(linked_name)
+    }
 }
 
 /// The pickers an account's page offers: one per slot it can hold, which is a slot with

@@ -42,7 +42,7 @@ impl OAuthError {
     pub fn reach(&self) -> TokenRequestReach {
         match self {
             // No request was ever built, so none was sent.
-            Self::Tls(_) | Self::Callback(_) => TokenRequestReach::NotSent,
+            Self::Tls(_) | Self::Callback(_) | Self::StateMismatch => TokenRequestReach::NotSent,
             // `is_connect` covers the failures that happen *before* a byte of the request
             // is written: DNS (the backgrounded-Android `EAI_NODATA` storm), a refused or
             // unreachable peer, and a failed TLS handshake. `is_builder` never reached the

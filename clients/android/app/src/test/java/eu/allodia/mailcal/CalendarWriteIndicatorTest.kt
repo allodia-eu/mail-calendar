@@ -1,5 +1,5 @@
 // The calendar write-status badge: the mapping from the core's CalendarWriteStatus to what the
-// header shows, and that a failed write renders a tap-to-retry warning.
+// header shows, and that a write that did not save renders a tap-to-retry warning saying which.
 //
 // The mapping is a plain, Compose-free function so the state machine is pinned without composing a
 // screen (a synthetic tap on a warning icon cannot tell you the mapping is right). The one Compose
@@ -44,36 +44,55 @@ class CalendarWriteIndicatorTest {
             CalendarWriteIndicator.of(CalendarWriteStatus.SAVED),
         )
         assertEquals(
-            CalendarWriteIndicator.Warning,
-            CalendarWriteIndicator.of(CalendarWriteStatus.FAILED),
+            CalendarWriteIndicator.NotSaved,
+            CalendarWriteIndicator.of(CalendarWriteStatus.NOT_SAVED),
+        )
+        assertEquals(
+            CalendarWriteIndicator.Unconfirmed,
+            CalendarWriteIndicator.of(CalendarWriteStatus.UNCONFIRMED),
         )
     }
 
     @Test
+    fun both_failures_and_nothing_else_count_as_failed() {
+        val failed = CalendarWriteStatus.entries.filter { it.failed }
+        assertEquals(listOf(CalendarWriteStatus.NOT_SAVED, CalendarWriteStatus.UNCONFIRMED), failed)
+    }
+
+    @Test
     fun only_the_warning_offers_a_retry() {
-        // The retry is a refresh, and it only makes sense on the unconfirmed state. Offering it on a
-        // spinner or a check would invite the user to "retry" a write that is fine.
-        assertTrue(CalendarWriteIndicator.Warning.offersRetry)
+        // The retry is a refresh, and it only makes sense on a failure. Offering it on a spinner or
+        // a check would invite the user to "retry" a write that is fine.
+        assertTrue(CalendarWriteIndicator.NotSaved.offersRetry)
+        assertTrue(CalendarWriteIndicator.Unconfirmed.offersRetry)
         assertFalse(CalendarWriteIndicator.Spinner.offersRetry)
         assertFalse(CalendarWriteIndicator.Saved.offersRetry)
         assertFalse(CalendarWriteIndicator.Hidden.offersRetry)
     }
 
-    @Test
-    fun a_failed_write_shows_a_warning_whose_tap_retries() {
-        val label = L10n.calendar_save_unconfirmed(ctx())
+    private fun warningRetries(status: CalendarWriteStatus, label: String) {
         var retries = 0
         compose.setContent {
             AppTheme {
-                CalendarWriteBadge(
-                    status = CalendarWriteStatus.FAILED,
-                    onRetry = { retries += 1 },
-                )
+                CalendarWriteBadge(status = status, onRetry = { retries += 1 })
             }
         }
 
         compose.onNodeWithContentDescription(label).assertIsDisplayed().performClick()
         assertEquals(1, retries)
+    }
+
+    @Test
+    fun a_write_not_saved_says_so_and_its_tap_retries() {
+        warningRetries(CalendarWriteStatus.NOT_SAVED, L10n.calendar_save_failed(ctx()))
+        compose.onNodeWithContentDescription(L10n.calendar_save_unconfirmed(ctx()))
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun an_unconfirmed_write_says_so_and_its_tap_retries() {
+        warningRetries(CalendarWriteStatus.UNCONFIRMED, L10n.calendar_save_unconfirmed(ctx()))
+        compose.onNodeWithContentDescription(L10n.calendar_save_failed(ctx())).assertDoesNotExist()
     }
 
     @Test
@@ -98,5 +117,6 @@ class CalendarWriteIndicatorTest {
         compose.onNodeWithContentDescription(L10n.calendar_saved(ctx())).assertDoesNotExist()
         compose.onNodeWithContentDescription(L10n.calendar_save_unconfirmed(ctx()))
             .assertDoesNotExist()
+        compose.onNodeWithContentDescription(L10n.calendar_save_failed(ctx())).assertDoesNotExist()
     }
 }

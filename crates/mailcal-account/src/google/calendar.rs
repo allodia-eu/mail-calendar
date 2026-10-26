@@ -126,8 +126,13 @@ impl RefreshingGoogleCalendarProvider {
                 return Ok(Arc::clone(provider));
             }
         }
-        let client = GoogleClient::connect(token.clone(), &self.tls, &self.tokens.retry())
-            .map_err(ProviderError::from)?;
+        let client = GoogleClient::connect(
+            token.clone(),
+            &self.tls,
+            &self.tokens.retry(),
+            &crate::user_agent(),
+        )
+        .map_err(ProviderError::from)?;
         let provider = Arc::new(
             GoogleCalendarProvider::new(client, self.calendar.clone()).with_window(self.window),
         );
@@ -292,7 +297,7 @@ async fn list_calendars(
     window: CalendarWindow,
 ) -> Result<Vec<Calendar>, AccountError> {
     let token = tokens.access_token().await?;
-    let client = GoogleClient::connect(token, tls, &tokens.retry())
+    let client = GoogleClient::connect(token, tls, &tokens.retry(), &crate::user_agent())
         .map_err(|err| AccountError::Google(err.to_string()))?;
     // The `calendarList` call ignores the bound calendar, so any placeholder id serves to
     // construct the probe (the `primary` alias Google always accepts).

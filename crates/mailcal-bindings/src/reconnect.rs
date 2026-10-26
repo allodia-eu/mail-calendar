@@ -27,6 +27,9 @@ use crate::{
 };
 
 mod schedule;
+mod uses;
+
+pub(crate) use uses::reconnect_uses;
 
 /// Dials every account in `plans`, at most `MAX_CONCURRENT_DIALS` at a time: on success joins it
 /// back into the app (which syncs and clears its outage badge) and restarts its background sync
@@ -68,6 +71,9 @@ pub(crate) async fn reconnect_all(
             // for an outage detail the user reads in the UI: the log lines below use the position.
             let account_type = plan.account_type();
             let label = plan.label();
+            let uses_mail = plan
+                .capabilities()
+                .contains(mailcal_account::Capability::Mail);
             match plan.run(&id, display_zone).await {
                 Ok(outcome) => {
                     // The user may have removed the account during the (slow) dial: its plan was
@@ -79,10 +85,16 @@ pub(crate) async fn reconnect_all(
                         return None;
                     }
                     app.note_use_problems(&id, outcome.use_problems);
+                    registry.learn_dav_starts(id.as_str(), &outcome.learned);
+                    registry.note_dav_dialled(id.as_str(), std::time::Instant::now());
                     if let Some(detail) = &outcome.calendar_error {
                         log::warn!(
                             "reconnect: account[{index}] mail up but calendar failed: {detail}"
                         );
+                    }
+                    // Only a server that said its start is gone, or refused the sign-in, is worth
+                    // finding again; one that did not answer is tried again as it is.
+                    if outcome.rediscover {
                         unanswered
                             .lock()
                             .expect("unanswered mutex poisoned")
@@ -126,9 +138,17 @@ pub(crate) async fn reconnect_all(
                     app.note_signin_expired(&id);
                     // The account failed whole, so what its calendar or contacts last said is
                     // no longer the news; the account's own prompt is.
-                    app.note_use_problems(&id, mailcal_app::UseProblems::default());
+                    app.note_use_problems(&id, app.use_problems(&id).paused_only());
                     // Not re-queued: only a replaced credential can change the answer.
                     log::warn!("reconnect: account[{index}] sign-in refused by the server: {err}");
+                    // Without mail, the server that refused is its calendar or address book
+                    // server, which may have moved and left the old one refusing.
+                    if !uses_mail {
+                        unanswered
+                            .lock()
+                            .expect("unanswered mutex poisoned")
+                            .push(id.as_str().to_owned());
+                    }
                     None
                 }
                 Err(err) => {
@@ -139,14 +159,16 @@ pub(crate) async fn reconnect_all(
                     // detail on the existing badge. Then re-queue it for the
                     // next attempt.
                     app.note_account_unreachable(&id, Some(format!("{label}: {err}")));
-                    app.note_use_problems(&id, mailcal_app::UseProblems::default());
+                    app.note_use_problems(&id, app.use_problems(&id).paused_only());
                     disconnected
                         .lock()
                         .expect("disconnected mutex poisoned")
                         .insert(id.as_str().to_owned());
                     log::warn!("reconnect: account[{index}] still unreachable: {err}");
-                    // A certificate that does not verify is asked about, never looked past.
-                    if !err.certificate_rejected() {
+                    // Looked for again only when a DAV server said its start is gone: an outage
+                    // changes nothing, and a certificate that does not verify is asked about,
+                    // never looked past.
+                    if err.worth_rediscovering() {
                         unanswered
                             .lock()
                             .expect("unanswered mutex poisoned")
@@ -210,3 +232,7 @@ pub(crate) async fn reconnect_all(
 #[cfg(test)]
 #[path = "reconnect/signin_refused_tests.rs"]
 mod signin_refused_tests;
+
+#[cfg(test)]
+#[path = "reconnect/refresh_redial_tests.rs"]
+mod refresh_redial_tests;

@@ -92,7 +92,7 @@ impl AppModel {
                 .accounts
                 .into_iter()
                 .find(|entry| entry.id == account)
-                .map_or(account, |entry| entry.address);
+                .map_or(account, |entry| super::settings::entry_name(&entry));
             self.settings
                 .notify(Notice::Toast(l10n::settings_account_signin_waiting(
                     &address,
@@ -140,8 +140,12 @@ impl AppModel {
                 None => self.settings.refresh_in_place(),
             },
             ConsentFrom::MainWindow => {
-                self.notice = matches!(finished.outcome, ConsentOutcome::Failed(_))
-                    .then(|| l10n::signin_expired_failed().to_owned());
+                self.notice = match &finished.outcome {
+                    ConsentOutcome::Failed(said) => {
+                        Some(super::core_error::signing_in_again_failed(said))
+                    }
+                    ConsentOutcome::SignedIn | ConsentOutcome::Cancelled => None,
+                };
             }
         }
     }

@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "allodia-license"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "base64 0.23.1",
  "mailcal-oauth",
@@ -797,7 +797,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 [[package]]
 name = "engine-api"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "engine-core",
  "engine-http",
@@ -818,7 +818,7 @@ dependencies = [
 [[package]]
 name = "engine-core"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "idna",
  "serde",
@@ -830,7 +830,7 @@ dependencies = [
 [[package]]
 name = "engine-http"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "bytes",
  "engine-provider",
@@ -845,7 +845,7 @@ dependencies = [
 [[package]]
 name = "engine-ical"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "engine-core",
  "engine-provider",
@@ -856,7 +856,7 @@ dependencies = [
 [[package]]
 name = "engine-mime"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "engine-core",
  "mail-parser",
@@ -865,7 +865,7 @@ dependencies = [
 [[package]]
 name = "engine-provider"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "async-trait",
  "engine-core",
@@ -879,7 +879,7 @@ dependencies = [
 [[package]]
 name = "engine-recurrence"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "engine-core",
  "engine-store",
@@ -892,7 +892,7 @@ dependencies = [
 [[package]]
 name = "engine-rfc5322"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "engine-core",
  "engine-provider",
@@ -902,7 +902,7 @@ dependencies = [
 [[package]]
 name = "engine-search"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "engine-core",
  "serde",
@@ -912,7 +912,7 @@ dependencies = [
 [[package]]
 name = "engine-store"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "async-trait",
  "engine-core",
@@ -924,7 +924,7 @@ dependencies = [
 [[package]]
 name = "engine-sync"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "async-trait",
  "engine-core",
@@ -943,7 +943,7 @@ dependencies = [
 [[package]]
 name = "engine-tls"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "reqwest",
  "rustls",
@@ -2166,7 +2166,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-account"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2178,6 +2178,7 @@ dependencies = [
  "log",
  "mailcal-autodetect",
  "mailcal-oauth",
+ "mailcal-user-agent",
  "mailcal-viewmodel",
  "provider-caldav",
  "provider-google",
@@ -2199,7 +2200,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-app"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "ammonia",
  "async-stream",
@@ -2223,11 +2224,12 @@ dependencies = [
 
 [[package]]
 name = "mailcal-autodetect"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "async-trait",
  "engine-tls",
  "log",
+ "mailcal-user-agent",
  "mapi-autodiscover",
  "psl",
  "quick-xml 0.42.0",
@@ -2240,21 +2242,21 @@ dependencies = [
 
 [[package]]
 name = "mailcal-bindgen-cs"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "uniffi-bindgen-cs",
 ]
 
 [[package]]
 name = "mailcal-bindgen-uniffi"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "uniffi",
 ]
 
 [[package]]
 name = "mailcal-bindings"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "allodia-license",
  "async-trait",
@@ -2289,11 +2291,11 @@ dependencies = [
 
 [[package]]
 name = "mailcal-buildenv"
-version = "0.12.1"
+version = "0.13.0"
 
 [[package]]
 name = "mailcal-composer"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "encoding_rs",
  "serde",
@@ -2302,14 +2304,14 @@ dependencies = [
 
 [[package]]
 name = "mailcal-l10n"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "mailcal-linux"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "ashpd",
  "futures",
@@ -2332,7 +2334,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-mcp"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -2348,7 +2350,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-mcp-shim"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "serde_json",
  "tokio",
@@ -2356,11 +2358,12 @@ dependencies = [
 
 [[package]]
 name = "mailcal-oauth"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "base64 0.23.1",
  "engine-tls",
  "mailcal-buildenv",
+ "mailcal-user-agent",
  "psl",
  "reqwest",
  "ring",
@@ -2374,11 +2377,12 @@ dependencies = [
 
 [[package]]
 name = "mailcal-telemetry"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "engine-tls",
  "log",
  "mailcal-app",
+ "mailcal-user-agent",
  "reqwest",
  "serde_json",
  "thiserror",
@@ -2386,8 +2390,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcal-user-agent"
+version = "0.13.0"
+dependencies = [
+ "mailcal-l10n",
+]
+
+[[package]]
 name = "mailcal-viewmodel"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "engine-api",
  "engine-core",
@@ -2395,7 +2406,7 @@ dependencies = [
 
 [[package]]
 name = "mailcal-vpointer"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "wayland-client",
  "wayland-protocols-wlr",
@@ -2916,9 +2927,10 @@ dependencies = [
 [[package]]
 name = "provider-caldav"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "async-trait",
+ "bytes",
  "engine-core",
  "engine-http",
  "engine-ical",
@@ -2934,7 +2946,7 @@ dependencies = [
 [[package]]
 name = "provider-google"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2956,7 +2968,7 @@ dependencies = [
 [[package]]
 name = "provider-graph"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2977,7 +2989,7 @@ dependencies = [
 [[package]]
 name = "provider-imap"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -2995,7 +3007,7 @@ dependencies = [
 [[package]]
 name = "provider-jmap"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -3735,7 +3747,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "store-sqlite"
 version = "0.1.0"
-source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=39882fab63d995833e8f9a7e0a0ef6669f301a03#39882fab63d995833e8f9a7e0a0ef6669f301a03"
+source = "git+https://github.com/allodia-eu/email-calendar-sync-engine?rev=e7ed1780cd4ce930b56cfb3fec6faef6f8470066#e7ed1780cd4ce930b56cfb3fec6faef6f8470066"
 dependencies = [
  "async-trait",
  "engine-core",
@@ -4924,7 +4936,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.12.1"
+version = "0.13.0"
 
 [[package]]
 name = "yasna"

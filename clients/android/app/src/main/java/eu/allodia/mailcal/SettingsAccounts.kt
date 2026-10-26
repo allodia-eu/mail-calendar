@@ -1,7 +1,7 @@
 // The Accounts category: every account, mail or not, from the core's one snapshot, each opening a
 // page of its own (docs/accounts.md rule 11, docs/settings.md category 9). The page's sections are
-// files of their own: what the account is used for and linked to (SettingsAccountPage.kt), its
-// servers, secret and removal (SettingsAccountServers.kt). Add account is first, and the only
+// files of their own: what the account is used for and linked to (SettingsAccountPage.kt), how it
+// signs in (SettingsAccountSignIn.kt), its servers and secret (SettingsAccountServers.kt). Add account is first, and the only
 // place a later account is added.
 //
 // State lives in the core. A change forwards to it off the main thread and the page is drawn again
@@ -40,7 +40,6 @@ import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.LinkSlot
 import uniffi.mailcal_bindings.MailServerKind
-import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 /**
  * What Settings → Accounts draws beyond each account's mail settings: the snapshot and the page
@@ -60,6 +59,24 @@ internal class AccountsSettingsUi(
     val onSignInAgain: (accountId: String, adding: List<AccountCapability>) -> Unit = { _, _ -> },
     val onSaveServers: (accountId: String, AccountEndpoints) -> Unit = { _, _ -> },
     val onReplaceSecret: (accountId: String, secret: String) -> Unit = { _, _ -> },
+    // An IMAP or JMAP account's sign-in (docs/accounts.md rule 17): what its server takes, asked
+    // as its page opens; a browser sign-in, again or in place of a password ([switching]); and a
+    // password in place of signing in.
+    val onAskSignInOptions: (accountId: String) -> Unit = {},
+    val onAccountSignIn: (accountId: String, switching: Boolean) -> Unit = { _, _ -> },
+    val onSwitchToPassword: (accountId: String, password: String) -> Unit = { _, _ -> },
+    // What a switch's sign-in will not reach, answered before the browser opens, and a sign-in of
+    // their own for a calendar or address book that needs one (docs/accounts.md rule 18): the
+    // form, its Connect, whether its server is asked to offer a sign-in at its own provider once it
+    // is drawn, and that sign-in (docs/mail-oauth.md rule 13).
+    val onUnreachedChoice: (UnreachedChoice) -> Unit = {},
+    val onSeparateSignIn: (accountId: String) -> Unit = {},
+    val onConnectSeparate: (username: String, password: String) -> Unit = { _, _ -> },
+    val onSeparateFormShown: () -> Unit = {},
+    val onSeparateProviderSignIn: () -> Unit = {},
+    // A calendar or address book whose server was found on another site: the question that
+    // allows it (docs/account-autodetect.md rule 14).
+    val onReviewServerChange: (accountId: String) -> Unit = {},
     val onRemove: (accountId: String) -> Unit = {},
     val onDismissNotice: () -> Unit = { state.notice = null },
 )
@@ -139,23 +156,14 @@ private fun AccountListRow(entry: AccountEntry, onOpen: () -> Unit) {
 /** The list row's second line: the kind and uses, what it is linked to, and what needs the person. */
 internal fun accountSummary(ctx: Context, entry: AccountEntry): String {
     val uses = AccountSettingsRules.inUse(entry).joinToString(", ") { useName(ctx, it) }
-    val lines = mutableListOf("${kindLabel(ctx, entry.kind)} · $uses")
-    AccountSettingsRules.linked(entry).forEach { (use, address) ->
-        lines += L10n.settings_account_linked_line(ctx, useName(ctx, use), address)
+    val lines = mutableListOf("${kindLine(ctx, entry)} · $uses")
+    AccountSettingsRules.linked(entry).forEach { (use, account) ->
+        lines += L10n.settings_account_linked_line(ctx, useName(ctx, use), accountName(ctx, account))
     }
     if (AccountSettingsRules.needsPermission(entry)) {
         lines += L10n.settings_account_needs_permission(ctx)
     }
     return lines.joinToString("\n")
-}
-
-/** The label for an account's kind, as the setup form names the same choice. */
-internal fun kindLabel(ctx: Context, kind: CoreAccountKind): String = when (kind) {
-    CoreAccountKind.IMAP -> L10n.setup_account_type_password(ctx)
-    CoreAccountKind.DAV -> L10n.account_kind_dav(ctx)
-    CoreAccountKind.JMAP -> L10n.setup_account_type_jmap(ctx)
-    CoreAccountKind.MICROSOFT -> L10n.setup_account_type_microsoft(ctx)
-    CoreAccountKind.GOOGLE -> L10n.setup_account_type_google(ctx)
 }
 
 /** A use's name, as the app's own sections name it. */

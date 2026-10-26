@@ -17,6 +17,8 @@ enum JmapSignInOutcome {
     case connected
     case cancelled
     case failed
+    /// Signing in again as `setupError` says settles it, so the sign-in stays offered.
+    case retry
     /// Signed in, but the add was refused; `setupError` says why.
     case notAdded
 }
@@ -43,6 +45,8 @@ extension MailboxModel {
             setupError = L10n.app_unavailable()
             return .failed
         }
+        setupExistingAccount = nil
+        setupError = nil
         let server = serverURL.isEmpty ? nil : serverURL
         // The session's `presentationContextProvider` is a WEAK reference, so this local is what
         // keeps the provider alive; the awaited `authorize` call spans the whole presentation, so
@@ -66,6 +70,7 @@ extension MailboxModel {
             } catch {
                 // The sign-in worked, so the add's own reason is the one to show.
                 showSetupFailure(error)
+                keepExistingAccountOffer(error, configToml: configToml)
                 return .notAdded
             }
             setupError = nil
@@ -74,11 +79,16 @@ extension MailboxModel {
             // The user dismissed the browser, not an error, and nothing to say about it.
             return .cancelled
         } catch {
-            // The form shows the localised "you can use a password or API token instead" line; the
-            // specific cause goes to the diagnostic log instead of in front of the user. The core's
-            // messages name server configuration (an issuer, an endpoint), never the address or a
-            // secret, so this stays inside the never-log-content rule.
+            // Short of a reason signing in again settles, the form shows the localised "you can use
+            // a password or API token instead" line, and the specific cause goes to the diagnostic
+            // log instead of in front of the user. The core's messages name server configuration
+            // (an issuer, an endpoint), never the address or a secret, so this stays inside the
+            // never-log-content rule.
             logAppleLifecycle("jmap oauth: sign-in did not complete (\(error))")
+            if let remedy = signInRemedy(error) {
+                setupError = remedy
+                return .retry
+            }
             return .failed
         }
     }
@@ -116,7 +126,7 @@ extension MailboxModel {
             // specific cause goes to the diagnostic log: the core's messages name endpoints and
             // error codes, never the address or a secret.
             logAppleLifecycle("jmap oauth: re-authentication did not complete (\(error))")
-            accountNotice = L10n.signin_expired_failed()
+            accountNotice = signInRemedy(error) ?? L10n.signin_expired_failed()
         }
     }
 

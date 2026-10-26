@@ -101,24 +101,7 @@ pub(crate) async fn dav_credentials(
     tokens: ImapTokens<'_>,
 ) -> Result<DavAuth, AccountError> {
     if let Some(grant) = &account.oauth {
-        // The host as the transport's own policy check reads it, so an IPv6 literal, an
-        // internationalised name or a userinfo part is judged as the request will go. The token
-        // travels over TLS only; a loopback server (a local test server) is the one exception.
-        let url =
-            reqwest::Url::parse(&crate::setup::normalize_caldav_base_url(endpoint.base_url)).ok();
-        let host = url
-            .as_ref()
-            .and_then(|url| url.host_str().map(str::to_ascii_lowercase));
-        let over_tls = url.as_ref().is_some_and(|url| {
-            url.scheme() == "https"
-                || host
-                    .as_deref()
-                    .is_some_and(|host| matches!(host, "localhost" | "127.0.0.1" | "[::1]"))
-        });
-        if !over_tls
-            || !mailcal_oauth::requests_dav_use(&grant.scopes, dav_use)
-            || !host.is_some_and(|host| grant.token_may_reach(&host))
-        {
+        if !grant_reaches(grant, endpoint.base_url, dav_use) {
             return Err(AccountError::DavNeedsOwnSignIn(match dav_use {
                 DavUse::Calendars => "calendar",
                 DavUse::Contacts => "contacts",
@@ -145,6 +128,30 @@ pub(crate) async fn dav_credentials(
         },
         hosts: None,
     })
+}
+
+/// Whether `grant`'s token may go to the DAV server at `base_url` for `dav_use`
+/// (`docs/mail-oauth.md` rule 10): its sign-in asked for that use's scope, the server's host is
+/// one its issuer's tokens are for (§3.6), and the token would travel over TLS, a loopback server
+/// (a local test server) being the one exception.
+///
+/// The host is read as the transport's own policy check reads it, so an IPv6 literal, an
+/// internationalised name or a userinfo part is judged as the request will go.
+#[must_use]
+pub fn grant_reaches(grant: &crate::OAuthGrant, base_url: &str, dav_use: DavUse) -> bool {
+    let url = reqwest::Url::parse(&crate::setup::normalize_caldav_base_url(base_url)).ok();
+    let host = url
+        .as_ref()
+        .and_then(|url| url.host_str().map(str::to_ascii_lowercase));
+    let over_tls = url.as_ref().is_some_and(|url| {
+        url.scheme() == "https"
+            || host
+                .as_deref()
+                .is_some_and(|host| matches!(host, "localhost" | "127.0.0.1" | "[::1]"))
+    });
+    over_tls
+        && mailcal_oauth::requests_dav_use(&grant.scopes, dav_use)
+        && host.is_some_and(|host| grant.token_may_reach(&host))
 }
 
 /// The hosts a grant's tokens are for, as the DAV transport asks about each redirect.

@@ -15,6 +15,7 @@ use crate::{
 
 mod account_consent;
 mod account_settings;
+mod account_sign_in;
 mod allodia;
 mod allodia_subscription;
 mod allodia_subscription_facts;
@@ -102,8 +103,13 @@ mod search_actions;
 mod selection;
 mod selection_bar;
 mod selection_input;
+mod separate_server_sign_in;
+mod separate_sign_in;
+mod separate_sign_in_view;
+mod server_change;
 mod settings;
 mod setup;
+mod setup_already_set_up;
 mod setup_dav;
 #[cfg(test)]
 mod setup_flag_tests;
@@ -144,6 +150,7 @@ mod sync_line;
 mod time_zone;
 mod timestamps;
 mod unfiled_copy;
+mod unreached;
 mod update;
 mod update_pull;
 mod update_reauth;

@@ -21,6 +21,18 @@ use super::setup_widgets::{ConnectGate, certificate_gate, show_error};
 /// The widget name of a step's Back button, by which the window hands it to the step's pane.
 pub(super) const BACK: &str = "setup-back";
 
+/// The widget name of a pane's feedback box, by which the window finds it to add the offer an
+/// account already set up makes beneath the refusal (`super::setup_already_set_up`).
+pub(super) const FEEDBACK: &str = "setup-feedback";
+
+/// A pane's feedback box, where a refusal draws itself: appended to `content`, and named.
+pub(super) fn feedback_box(content: &gtk::Box) -> gtk::Box {
+    let feedback = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    feedback.set_widget_name(FEEDBACK);
+    content.append(&feedback);
+    feedback
+}
+
 /// The first widget under `root` named `name`.
 pub(super) fn named(root: &gtk::Widget, name: &str) -> Option<gtk::Widget> {
     if root.widget_name() == name {

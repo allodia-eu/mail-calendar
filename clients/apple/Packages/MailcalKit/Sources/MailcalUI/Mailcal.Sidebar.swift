@@ -248,10 +248,6 @@ extension ContentView {
                         }
                     }
                 }
-                sidebarRow(title: L10n.action_add_account(), icon: "plus.circle") {
-                    model.setupError = nil
-                    model.addingAccount = true
-                }
             }
         }
         .listStyle(.sidebar)

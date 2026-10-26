@@ -23,6 +23,7 @@ extension MailboxModel {
             setupError = L10n.app_unavailable()
             return
         }
+        setupExistingAccount = nil
         // The platform's browser half: iOS an `ASWebAuthenticationSession` with a custom-scheme
         // redirect, macOS a loopback listener. Both are driven identically through the protocol.
         let flow = makeGoogleBrowserFlow()

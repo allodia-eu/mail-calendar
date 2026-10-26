@@ -8,18 +8,18 @@ use super::{Intent, Surface};
 
 /// The state of the most recent calendar write (create / edit / delete), surfaced via
 /// [`Surface::CalendarStatus`] so a host can show the user that their action took: a small
-/// spinner while it settles, a warning when the local view could not be confirmed against
-/// the server.
+/// spinner while it settles, and a warning when it did not save or could not be confirmed.
 ///
 /// The lifecycle mirrors [`SendStatus`]: a write moves it to [`Saving`](Self::Saving), then
-/// to a terminal [`Saved`](Self::Saved) or [`Failed`](Self::Failed). A later write, or a
-/// full [`Intent::RefreshCalendar`], returns it to [`Idle`](Self::Idle).
+/// to a terminal [`Saved`](Self::Saved), [`NotSaved`](Self::NotSaved) or
+/// [`Unconfirmed`](Self::Unconfirmed). A later write, or a full [`Intent::RefreshCalendar`],
+/// returns it to [`Idle`](Self::Idle).
 ///
-/// **[`Failed`](Self::Failed) does not mean "the save was lost."** A write whose server call
-/// succeeded but whose post-write reconcile came back `Busy`/`Failed` has **landed on the
-/// server**: only the local copy is briefly stale, and the next sync heals it (the core never
-/// re-issues the write). `Failed` here means "we could not confirm the local view is current,"
-/// which is what the warning icon should say: not "your change was rejected."
+/// **The two failures are two sentences.** [`NotSaved`](Self::NotSaved) is a write that changed
+/// nothing on the server. [`Unconfirmed`](Self::Unconfirmed) may have landed: a request whose
+/// answer was lost, or a write whose server call succeeded but whose post-write reconcile came
+/// back `Busy`/`Failed`, which has **landed on the server** with only the local copy briefly
+/// stale (the core never re-issues the write).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CalendarWriteStatus {
     /// No calendar write is settling.
@@ -29,20 +29,23 @@ pub enum CalendarWriteStatus {
     Saving,
     /// The most recent write settled and the local view holds the server's copy.
     Saved,
-    /// The most recent write's server call failed, or its reconcile could not be confirmed
-    /// (the change may still have landed; see the type docs).
-    Failed,
+    /// The change was not saved: nothing reached the server (the calendar is not connected, or
+    /// the core refused the change before sending it), or the server answered and refused it.
+    NotSaved,
+    /// The change may have landed and could not be confirmed: the connection failed or the
+    /// server erred after the write was sent, or the write landed and the copy read back to
+    /// confirm it did not arrive. The next sync settles which.
+    Unconfirmed,
 }
 
 /// The state of the most recent contact write (create or edit), surfaced via
 /// [`Surface::ContactsStatus`].
 ///
-/// The same lifecycle as [`CalendarWriteStatus`], and the same warning attached to
-/// [`Failed`](Self::Failed): a write whose server call succeeded but whose post-write
-/// reconcile came back `Busy`/`Failed` **has landed on the server**. Only the local copy is
-/// briefly stale, and the next sync heals it. A separate type from the calendar's because a
-/// separate surface signals it: a client on the contacts screen must not spin because a
-/// calendar write is settling somewhere else.
+/// The same lifecycle as [`CalendarWriteStatus`], and the same line between its two failures:
+/// [`NotSaved`](Self::NotSaved) when nothing reached the server or the server refused it, and
+/// [`Unconfirmed`](Self::Unconfirmed) when the change may have landed. A separate type from the
+/// calendar's because a separate surface signals it: a client on the contacts screen must not
+/// spin because a calendar write is settling somewhere else.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ContactWriteStatus {
     /// No contact write is settling.
@@ -52,15 +55,19 @@ pub enum ContactWriteStatus {
     Saving,
     /// The most recent write settled and the local view holds the server's copy.
     Saved,
-    /// The most recent write's server call failed, or its reconcile could not be confirmed
-    /// (the change may still have landed; see the type docs).
-    Failed,
+    /// The change was not saved: nothing reached the server (its account or address book is
+    /// not connected), or the server answered and refused it.
+    NotSaved,
+    /// The change may have landed and could not be confirmed: the connection failed or the
+    /// server erred after the write was sent, or the write landed and the copy read back to
+    /// confirm it did not arrive. The next sync settles which.
+    Unconfirmed,
     /// The write was refused **before** anything was sent: the edit named nothing to file the
     /// card under, or carried a value that is not an email address.
     ///
-    /// Distinct from [`Failed`](Self::Failed) because the two are different sentences on
-    /// screen. `Failed` is "we could not save this, try again"; this is "there is something
-    /// to correct first", and retrying the same form would fail the same way.
+    /// Distinct from [`NotSaved`](Self::NotSaved) because the two are different sentences on
+    /// screen: this is "there is something to correct first", and retrying the same form would
+    /// fail the same way.
     Invalid,
 }
 

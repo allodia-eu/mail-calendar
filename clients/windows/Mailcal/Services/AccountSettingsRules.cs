@@ -1,6 +1,7 @@
 // What Settings → Accounts says about an account, decided from its snapshot entry alone
-// (docs/accounts.md rules 11 to 13). WinUI-free and L10n-free on purpose, so each rule is
-// reachable from Mailcal.Tests: the words are the dialog's, the decisions are here.
+// (docs/accounts.md rules 11 to 13), how it signs in and what it can switch to (rule 17), and
+// what an expired sign-in and a refused duplicate offer. WinUI-free and L10n-free on purpose, so
+// each rule is reachable from Mailcal.Tests: the words are the dialog's, the decisions are here.
 
 using uniffi.mailcal_bindings;
 
@@ -30,6 +31,11 @@ internal enum UseNote
     OwnSignInCalendar,
     /// <summary>As <see cref="OwnSignInCalendar"/>, for the address book.</summary>
     OwnSignInContacts,
+    /// <summary>On, and paused for a server found on another site that the person has not
+    /// allowed yet.</summary>
+    ServerChangedCalendar,
+    /// <summary>As <see cref="ServerChangedCalendar"/>, for the address book.</summary>
+    ServerChangedContacts,
 }
 
 /// <summary>How one use's switch is drawn.</summary>
@@ -58,6 +64,39 @@ internal enum UseChangeOutcome
     NeedsEndpoint,
 }
 
+/// <summary>The Sign-in section of a standards or JMAP account's page.</summary>
+/// <param name="ThroughProvider">Whether it signs in through its provider now, rather than with a
+/// password: the status line.</param>
+/// <param name="SignInAgain">"Sign in again", from its stored grant.</param>
+/// <param name="SwitchToProvider">Signing in through the provider in place of its password.</param>
+/// <param name="ProviderLabel">The provider's name for that button, when the core has one.</param>
+/// <param name="SwitchToPassword">A password in place of its grant.</param>
+internal sealed record SignInSection(
+    bool ThroughProvider, bool SignInAgain, bool SwitchToProvider, string? ProviderLabel, bool SwitchToPassword)
+{
+    /// <summary>Whether a switch is offered, which the line saying what it keeps goes with.</summary>
+    internal bool OffersSwitch => SwitchToProvider || SwitchToPassword;
+}
+
+/// <summary>What an expired sign-in's banner button runs.</summary>
+internal enum SignInRemedy
+{
+    /// <summary>No browser flow: the password or API token is replaced in Settings.</summary>
+    Settings,
+    /// <summary>Microsoft's or Google's own consent, in place.</summary>
+    ProviderConsent,
+    /// <summary>A JMAP account's stored grant, authorised again.</summary>
+    JmapReauth,
+    /// <summary>A standards account's stored grant, through the account sign-in.</summary>
+    AccountSignIn,
+}
+
+/// <summary>The account an add was refused for, and the config the add was given, which the
+/// refusal offers to put on it (docs/accounts.md rule 17).</summary>
+/// <param name="Unreached">The calendar and contacts the sign-in that gave the config said it would
+/// not reach, which taking the offer asks about first (rule 18).</param>
+internal sealed record ExistingAccountOffer(string AccountId, string ConfigToml, IReadOnlyList<AccountCapability> Unreached);
+
 internal static class AccountSettingsRules
 {
     private static readonly AccountCapability[] Primary =
@@ -74,21 +113,21 @@ internal static class AccountSettingsRules
     private static bool Works(CapabilityState state) =>
         state is CapabilityState.On or CapabilityState.NeedsPermission;
 
-    /// <summary>The links the account holds, as the list row names them.</summary>
-    internal static IReadOnlyList<(AccountCapability Use, string Address)> Linked(AccountEntry entry)
+    /// <summary>The links the account holds, in the order the list row names them.</summary>
+    internal static IReadOnlyList<(AccountCapability Use, LinkedAccount Account)> Linked(AccountEntry entry)
     {
-        var linked = new List<(AccountCapability, string)>();
+        var linked = new List<(AccountCapability, LinkedAccount)>();
         if (entry.Links.Calendar is { } calendar)
         {
-            linked.Add((AccountCapability.Calendar, calendar.Address));
+            linked.Add((AccountCapability.Calendar, calendar));
         }
         if (entry.Links.Contacts is { } contacts)
         {
-            linked.Add((AccountCapability.Contacts, contacts.Address));
+            linked.Add((AccountCapability.Contacts, contacts));
         }
         if (entry.Links.Mail is { } mail)
         {
-            linked.Add((AccountCapability.Mail, mail.Address));
+            linked.Add((AccountCapability.Mail, mail));
         }
         return linked;
     }
@@ -108,18 +147,79 @@ internal static class AccountSettingsRules
     internal static bool SignsInAtProvider(AccountKind kind) =>
         kind is AccountKind.Microsoft or AccountKind.Google;
 
-    /// <summary>What a use that did not connect says beneath its switch. Only a calendar or an
-    /// address book fails on its own; mail decides whether the account connected at all.</summary>
-    private static UseNote ProblemNote(AccountCapability capability, UseProblem problem)
+    /// <summary>Whether an account of <paramref name="kind"/> has the Sign-in section that switches
+    /// between a password and its provider: one with a mailbox server to ask, a standards or JMAP
+    /// account.</summary>
+    internal static bool SwitchesSignIn(AccountKind kind) => kind is AccountKind.Imap or AccountKind.Jmap;
+
+    /// <summary>
+    /// The Sign-in section for <paramref name="entry"/>, given what its server accepts
+    /// (<paramref name="options"/>, null until <c>account_sign_in_options</c> answers). Null for a
+    /// Microsoft or Google account, which signs in again through its own consent, and for a
+    /// calendar or address book used for no mail.
+    /// </summary>
+    internal static SignInSection? SignIn(AccountEntry entry, AccountSignInOptions? options)
+    {
+        if (!SwitchesSignIn(entry.Kind))
+        {
+            return null;
+        }
+        var throughProvider = entry.SignIn switch
+        {
+            SignInMethod.Provider => true,
+            _ => false,
+        };
+        var signIn = options?.SignIn ?? false;
+        var password = options?.Password ?? false;
+        return new SignInSection(
+            ThroughProvider: throughProvider,
+            SignInAgain: throughProvider && signIn,
+            SwitchToProvider: !throughProvider && signIn,
+            ProviderLabel: !throughProvider && signIn ? options?.ProviderLabel : null,
+            SwitchToPassword: throughProvider && password);
+    }
+
+    /// <summary>What the expired-sign-in banner runs for an account of <paramref name="provider"/>.
+    /// Null, a provider the core could not name, has nothing to run.</summary>
+    internal static SignInRemedy Remedy(AccountProvider? provider) => provider switch
+    {
+        AccountProvider.Microsoft or AccountProvider.Google => SignInRemedy.ProviderConsent,
+        AccountProvider.JmapOauth => SignInRemedy.JmapReauth,
+        AccountProvider.ImapOauth => SignInRemedy.AccountSignIn,
+        AccountProvider.Password or AccountProvider.Jmap => SignInRemedy.Settings,
+        _ => SignInRemedy.Settings,
+    };
+
+    /// <summary>What a refused add offers: putting <paramref name="configToml"/> on the account
+    /// already there, when the refusal is that it is set up already.</summary>
+    internal static ExistingAccountOffer? UpdateOffer(
+        Exception error, string configToml, IReadOnlyList<AccountCapability>? unreached = null) => error switch
+    {
+        MailcalException.AlreadySetUp twice when !string.IsNullOrEmpty(configToml) =>
+            new ExistingAccountOffer(twice.accountId, configToml, UnreachedUsesRules.Dav(unreached)),
+        _ => null,
+    };
+
+    /// <summary>What a use that did not connect says beneath its switch, and on the screen that
+    /// shows it (<see cref="UseOutageLines"/>). Only a calendar or an address book fails on its own;
+    /// mail decides whether the account connected at all.</summary>
+    internal static UseNote ProblemNote(AccountCapability capability, UseProblem problem)
     {
         var calendar = capability == AccountCapability.Calendar;
         return problem switch
         {
             UseProblem.Unreachable => calendar ? UseNote.UnreachableCalendar : UseNote.UnreachableContacts,
             UseProblem.SignInRefused => calendar ? UseNote.RefusedCalendar : UseNote.RefusedContacts,
+            UseProblem.NeedsOwnSignIn => calendar ? UseNote.OwnSignInCalendar : UseNote.OwnSignInContacts,
+            UseProblem.ServerChanged => calendar ? UseNote.ServerChangedCalendar : UseNote.ServerChangedContacts,
             _ => calendar ? UseNote.OwnSignInCalendar : UseNote.OwnSignInContacts,
         };
     }
+
+    /// <summary>Whether <paramref name="note"/> offers a review of the server change, which is
+    /// what allows the new server.</summary>
+    internal static bool ReviewsServerChange(UseNote note) =>
+        note is UseNote.ServerChangedCalendar or UseNote.ServerChangedContacts;
 
     /// <summary>
     /// The switch for <paramref name="capability"/>. The last of mail, calendar and contacts
@@ -194,10 +294,10 @@ internal static class AccountSettingsRules
 
     /// <summary>The accounts that lose their link when this one is removed, joined for the
     /// confirmation; null when none does.</summary>
-    internal static string? Unlinked(AccountEntry entry) =>
+    internal static string? Unlinked(AccountEntry entry, AccountNameWords words) =>
         entry.LinkedFrom.Length == 0
             ? null
-            : string.Join(", ", entry.LinkedFrom.Select(linked => linked.Address));
+            : string.Join(", ", entry.LinkedFrom.Select(linked => AccountNames.Of(linked, words)));
 
     /// <summary>What switching a use on or off answered.</summary>
     internal static UseChangeOutcome Outcome(CapabilityChange change) => change switch
@@ -223,6 +323,7 @@ internal static class AccountSettingsRules
             parts.Add(entry.Id);
             parts.Add(entry.Address);
             parts.Add(entry.Kind.ToString());
+            parts.Add(entry.SignIn.ToString());
             parts.AddRange(entry.Uses.Select(use => $"{use.Capability}={use.State}/{use.Problem}"));
             parts.Add(Linked(entry.Links.Calendar));
             parts.Add(Linked(entry.Links.Contacts));
@@ -235,6 +336,10 @@ internal static class AccountSettingsRules
             parts.Add(entry.Endpoints is { } e
                 ? $"{e.ImapHost}|{e.ImapSecurity}|{e.SmtpHost}|{e.SmtpSecurity}|{e.CaldavUrl}|{e.CarddavUrl}|{e.Username}"
                 : "-");
+            parts.Add(entry.SeparateServer is { } separate
+                ? $"{string.Join(',', separate.Uses)}|{separate.Host}|{separate.Username}"
+                : "-");
+            parts.Add(Distinction(entry.Distinction));
         }
         parts.Add("expired");
         parts.AddRange(expired.Order(StringComparer.Ordinal));
@@ -244,5 +349,12 @@ internal static class AccountSettingsRules
     }
 
     private static string Linked(LinkedAccount? linked) =>
-        linked is null ? "-" : $"{linked.Id}={linked.Address}";
+        linked is null ? "-" : $"{linked.Id}={linked.Address}/{Distinction(linked.Distinction)}";
+
+    private static string Distinction(AccountDistinction? distinction) => distinction switch
+    {
+        AccountDistinction.Kind kind => $"kind:{kind.KindValue}",
+        AccountDistinction.Server server => $"server:{server.Host}",
+        _ => "-",
+    };
 }

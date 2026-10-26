@@ -251,6 +251,7 @@ pub async fn fetch_google_primary_address(
     };
     let http = tls_with(&[])?
         .reqwest_builder()
+        .user_agent(mailcal_user_agent::HEADER)
         .build()
         .map_err(|err| AccountError::Google(format!("profile lookup client: {err}")))?;
     let resp = http

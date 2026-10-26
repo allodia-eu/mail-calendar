@@ -152,8 +152,8 @@ impl<P: Provider> App<P> {
     /// ([`Self::create_account`]) and its first calendar, and to that account's chosen calendar
     /// if the passed key is unknown there. `all_day` selects the event form; `timezone` (when set)
     /// creates a timed event in that zone rather than UTC; `notes` its description; `location` its
-    /// place; `recurrence` makes it repeat. A no-op if no account can write, the account has no
-    /// calendar, or the fields are invalid (the skeleton swallows it).
+    /// place; `recurrence` makes it repeat. Settles as not saved, sending nothing, when no
+    /// connected account can write, the account has no calendar, or the fields are invalid.
     // A flat pass-through of `EventIntent::Create`'s fields; each a distinct scalar from the
     // create form. A parameter struct would only re-wrap the same values `dispatch` just
     // destructured, so it stays flat.
@@ -174,6 +174,7 @@ impl<P: Provider> App<P> {
     ) {
         let chosen = account.clone();
         let Some(account) = self.create_account(account).await else {
+            self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return;
         };
         let calendars = self.engine.calendars(&account).await.unwrap_or_default();
@@ -184,9 +185,11 @@ impl<P: Provider> App<P> {
             .and_then(|key| calendars.iter().find(|c| c.id.key().as_str() == key))
             .or_else(|| calendars.first())
         else {
+            self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return;
         };
         let Ok(stamp) = now_utc() else {
+            self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return;
         };
         let uid = generated_uid();
@@ -203,6 +206,7 @@ impl<P: Provider> App<P> {
             recurrence.as_ref(),
             stamp,
         ) else {
+            self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return;
         };
         if let Some(invitees) = invitees {
@@ -210,7 +214,7 @@ impl<P: Provider> App<P> {
                 .meeting_draft(chosen.as_deref(), &account, draft, invitees)
                 .await
             else {
-                self.set_calendar_write_status(CalendarWriteStatus::Failed);
+                self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
                 return;
             };
             draft = meeting;
@@ -235,14 +239,13 @@ impl<P: Provider> App<P> {
                         "create_calendar_event failed for [{}]: {err}",
                         mailcal_account::account_log_handle(account.as_str()),
                     );
-                    CalendarWriteStatus::Failed
+                    crate::connectivity::calendar_status(&err)
                 }
             });
         }
         self.rebuild_calendar_view().await;
-        if let Some(status) = status {
-            self.set_calendar_write_status(status);
-        }
+        // No adapter took the write: the calendar is not connected, and nothing was sent.
+        self.set_calendar_write_status(status.unwrap_or(CalendarWriteStatus::NotSaved));
     }
 
     /// Edits a stored calendar event (retitle, move, or resize) by **patching the stored
@@ -274,7 +277,7 @@ impl<P: Provider> App<P> {
                 .names_a_stored_occurrence(event, &stored, occurrence)
                 .await
         {
-            self.set_calendar_write_status(CalendarWriteStatus::Failed);
+            self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return Err("the edit names no occurrence of this series".to_owned());
         }
         if let Some(changes) = edit.invitees.as_ref().filter(|changes| !changes.is_empty())
@@ -282,7 +285,7 @@ impl<P: Provider> App<P> {
                 .may_apply_roster(&event.account, &stored, changes)
                 .await
         {
-            self.set_calendar_write_status(CalendarWriteStatus::Failed);
+            self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return Err("this account may not change the meeting's invitees".to_owned());
         }
 
@@ -292,19 +295,22 @@ impl<P: Provider> App<P> {
                 // in full, or a wall clock the stored event's form cannot hold. Nothing
                 // happened, and the user must not be left reading an unchanged event with no
                 // sign that their save did not take.
-                self.set_calendar_write_status(CalendarWriteStatus::Failed);
+                self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
                 err.to_string()
             })?;
 
         // Clone the account handle, then write with the read guard released.
-        let acct = self
-            .account_handle(&event.account)
-            .await
-            .ok_or_else(|| format!("account {:?} is not configured", event.account.as_str()))?;
-        let provider = acct
-            .calendar_providers
-            .first()
-            .ok_or_else(|| "the account has no calendar provider".to_owned())?;
+        let Some(acct) = self.account_handle(&event.account).await else {
+            self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
+            return Err(format!(
+                "account {:?} is not configured",
+                event.account.as_str()
+            ));
+        };
+        let Some(provider) = acct.calendar_providers.first() else {
+            self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
+            return Err("the calendar is not connected".to_owned());
+        };
         self.set_calendar_write_status(CalendarWriteStatus::Saving);
         let write = self
             .engine
@@ -318,8 +324,7 @@ impl<P: Provider> App<P> {
             )
             .await
             .map_err(|err| {
-                // The server call itself failed: the edit may not have landed. Surface it.
-                self.set_calendar_write_status(CalendarWriteStatus::Failed);
+                self.set_calendar_write_status(crate::connectivity::calendar_status(&err));
                 err.to_string()
             })?;
 
@@ -351,7 +356,7 @@ impl<P: Provider> App<P> {
                 "delete_calendar_event: no such occurrence for {}",
                 event.account.as_str()
             );
-            self.set_calendar_write_status(CalendarWriteStatus::Failed);
+            self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return;
         }
         let built = now_utc().and_then(|stamp| {
@@ -368,7 +373,7 @@ impl<P: Provider> App<P> {
                     "delete_calendar_event: the delete was not built for {}: {err}",
                     event.account.as_str()
                 );
-                self.set_calendar_write_status(CalendarWriteStatus::Failed);
+                self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
                 return;
             }
         };
@@ -402,14 +407,13 @@ impl<P: Provider> App<P> {
                         "delete_calendar_event failed for {}: {err}",
                         event.account.as_str()
                     );
-                    CalendarWriteStatus::Failed
+                    crate::connectivity::calendar_status(&err)
                 }
             });
         }
         self.rebuild_calendar_view().await;
-        if let Some(status) = status {
-            self.set_calendar_write_status(status);
-        }
+        // No adapter took the write: the calendar is not connected, and nothing was sent.
+        self.set_calendar_write_status(status.unwrap_or(CalendarWriteStatus::NotSaved));
     }
 
     /// Looks up the stored [`Event`] an [`EventRef`] names in its owning account. Shared with

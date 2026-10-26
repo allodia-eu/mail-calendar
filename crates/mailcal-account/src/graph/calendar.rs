@@ -140,6 +140,7 @@ impl RefreshingGraphCalendarProvider {
             MailboxPrincipal::Me,
             &self.tls,
             &self.tokens.retry(),
+            &crate::user_agent(),
         )
         .map_err(ProviderError::from)?;
         let provider = Arc::new(GraphCalendarProvider::new(
@@ -321,8 +322,14 @@ async fn list_calendars(
     display_zone: TimeZoneId,
 ) -> Result<Vec<Calendar>, AccountError> {
     let token = tokens.access_token().await?;
-    let client = GraphClient::for_mailbox(token, MailboxPrincipal::Me, tls, &tokens.retry())
-        .map_err(|err| AccountError::Graph(err.to_string()))?;
+    let client = GraphClient::for_mailbox(
+        token,
+        MailboxPrincipal::Me,
+        tls,
+        &tokens.retry(),
+        &crate::user_agent(),
+    )
+    .map_err(|err| AccountError::Graph(err.to_string()))?;
     let placeholder =
         CalendarId::try_from("calendar").map_err(|err| AccountError::Graph(err.to_string()))?;
     log::debug!("graph: fetching calendar list");

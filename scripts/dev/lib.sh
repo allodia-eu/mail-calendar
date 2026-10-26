@@ -252,17 +252,21 @@ booted_sim_udid() {
   return 1
 }
 
-# The first available iPhone simulator, newest name last so a runner picks the newest it was given.
-# By family rather than by name: this has to work on a GitHub runner, whose installed set is
+# The newest plain iPhone simulator ("iPhone 17"), or the newest iPhone of any kind when there is
+# none. By family rather than by name: this has to work on a GitHub runner, whose installed set is
 # whatever that image shipped with, and a hardcoded model is a gate that stops running the day the
-# image moves.
+# image moves. Plain first because the newest name is not always a phone-shaped one: Xcode 27.1
+# lists the foldable "iPhone Duo" last, and there an XCUITest tap on a popover's button never
+# reaches it, so the UI suite fails on a device it was not written for.
 first_iphone_sim() {
-  local uuid name state pick=""
+  local uuid name state plain="" any=""
   while IFS=$'\t' read -r uuid name state; do
-    [[ "$name" == *iPhone* ]] && pick="$uuid"
+    [[ "$name" == *iPhone* ]] || continue
+    any="$uuid"
+    [[ "$name" =~ ^iPhone\ [0-9]+$ ]] && plain="$uuid"
   done < <(list_available_simulators)
-  [[ -n "$pick" ]] || return 1
-  printf '%s\n' "$pick"
+  [[ -n "${plain:-$any}" ]] || return 1
+  printf '%s\n' "${plain:-$any}"
 }
 
 # The data-container path of the installed app on simulator <udid> (holds its log under

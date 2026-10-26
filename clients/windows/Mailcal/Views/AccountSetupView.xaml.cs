@@ -78,6 +78,11 @@ public sealed partial class AccountSetupView : UserControl
             {
                 ShowRefusedCertificate();
             }
+            // The update question goes with the refusal it was asked from.
+            if (e.PropertyName == nameof(MailboxModel.SetupUpdateVisibility))
+            {
+                ClearUpdateQuestion();
+            }
         };
         model.SetupLinksChanged += OnSetupLinksChanged;
         // Once now: on a first run nothing raises AddingAccount, so the panel would otherwise
@@ -134,6 +139,7 @@ public sealed partial class AccountSetupView : UserControl
         _needsApproval = route.NeedsApproval;
         _detectedTab = route.IsManual ? null : route.Tab;
         _detectedUses = route.Uses ?? UseOffer.None;
+        _detectedServers = route.Servers ?? [];
         _imap.AdoptDetected(route.ImapHost, route.ImapSecurity);
         _smtp.AdoptDetected(route.SmtpHost, route.SmtpSecurity);
         ShowServerSettings();
@@ -348,6 +354,9 @@ public sealed partial class AccountSetupView : UserControl
         GoogleButton.Visibility = google ? Visibility.Visible : Visibility.Collapsed;
         UpdateCanConnect();
         UpdateGoogleSignInEnabled();
+        // Each sign-in gate narrows the Connect just made visible, at once rather than when its
+        // server answers: until then the card shows nothing to act on (docs/mail-oauth.md rule 8).
+        UpdateImapSignIn();
         // The JMAP sign-in button is its own gate (does this server even offer sign-in?), so
         // arriving on the tab, by detection or by picking it, is what starts that lookup.
         UpdateJmapSignIn();

@@ -25,7 +25,7 @@ public sealed partial class SettingsDialog
     // The browser hop is outstanding: the card shows progress and a way out instead of a button
     // that would start a second flow and discard the first one's verifier.
     private bool _allodiaSigningIn;
-    // The last sign-in or sign-out failure, in the service's own words, or null.
+    // What the last sign-in or sign-out failure says, or null.
     private string? _allodiaFailure;
 
     // The card, or null in a build that carries no Allodia registration, which is the ordinary
@@ -42,7 +42,7 @@ public sealed partial class SettingsDialog
         panel.Children.Add(AllodiaState());
         if (_allodiaFailure is { } failure)
         {
-            var error = Description(L10n.SettingsAllodiaFailed(failure));
+            var error = Description(failure);
             error.Opacity = 1;
             error.Foreground =
                 _brushes.Of(ThemePalette.Critical);
@@ -94,7 +94,8 @@ public sealed partial class SettingsDialog
             var signOut = new Button { Content = L10n.SettingsAllodiaSignOut() };
             // The account is forgotten in memory whatever the store does, so the rebuild re-reads
             // rather than assuming: a delete that failed leaves the app signed out and says why.
-            signOut.Click += (_, _) => Apply(() => _allodiaFailure = _model.SignOutOfAllodia());
+            signOut.Click += (_, _) => Apply(() =>
+                _allodiaFailure = _model.SignOutOfAllodia() is { } failed ? L10n.SettingsAllodiaFailed(failed) : null);
             panel.Children.Add(signOut);
             return panel;
         }
@@ -129,7 +130,7 @@ public sealed partial class SettingsDialog
     {
         var failure = await _model.SignInToAllodiaAsync(create);
         _allodiaSigningIn = false;
-        _allodiaFailure = failure;
+        _allodiaFailure = failure?.Said;
         // A sign-in is what the subscription card's reauth state offers as its remedy, and it is
         // the same account afterwards, so nothing about the account would tell the card to ask
         // again. Without this the prompt it just acted on stays on screen for ever.

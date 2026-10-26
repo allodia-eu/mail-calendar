@@ -9,6 +9,7 @@ fn linked(id: &str) -> LinkedAccount {
     LinkedAccount {
         id: id.to_owned(),
         address: id.to_owned(),
+        distinction: None,
     }
 }
 
@@ -19,6 +20,7 @@ fn snapshot() -> AccountsSnapshot {
             id: "alice@imap".to_owned(),
             address: "alice@example.org".to_owned(),
             kind: AccountKind::Imap,
+            sign_in: mailcal_bindings::SignInMethod::Password,
             uses: vec![AccountUse {
                 capability: AccountCapability::Mail,
                 state: CapabilityState::On,
@@ -33,6 +35,8 @@ fn snapshot() -> AccountsSnapshot {
                 suggested: vec!["alice@dav".to_owned()],
             },
             endpoints: None,
+            separate_server: None,
+            distinction: None,
         }],
     }
 }

@@ -120,7 +120,12 @@ internal sealed class DraftsFlow(App app)
         Agent.Invoke(app.RowTitled(subject));
         if (Agent.Wait(Filter.ById("SendButton"), App.Patience) is null)
         {
-            throw new InvalidOperationException($"the Drafts row '{subject}' opened no composer within 30 s");
+            // Opened for reading instead, the app's log names which of its reasons it was.
+            var read = Agent.Find(Filter.ById("ReadingSubject"))?.Name == subject;
+            var why = AppLog.NewestSession().Split('\n').LastOrDefault(line => line.Contains("drafts: opened a draft for reading", StringComparison.Ordinal));
+            throw new InvalidOperationException(read
+                ? $"the Drafts row '{subject}' opened for reading rather than in its composer; the app's log says: {why?.Trim() ?? "nothing, so neither an open that failed nor one that overlapped another"}"
+                : $"the Drafts row '{subject}' opened no composer within 30 s");
         }
         WaitEditorSeeded();
     }

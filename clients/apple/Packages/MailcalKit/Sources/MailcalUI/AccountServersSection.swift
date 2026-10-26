@@ -36,7 +36,7 @@ struct AccountServersSection: View {
         SettingsGroup(
             heading: L10n.settings_account_servers_heading(),
             description: expired
-                ? L10n.signin_expired_prompt(accounts: entry.address)
+                ? L10n.signin_expired_prompt(accounts: AccountSettingsLabels.name(entry))
                 : L10n.settings_account_servers_description()
         ) {
             VStack(alignment: .leading, spacing: 12) {

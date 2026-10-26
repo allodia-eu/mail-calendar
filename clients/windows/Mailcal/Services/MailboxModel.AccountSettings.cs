@@ -8,8 +8,12 @@ using uniffi.mailcal_bindings;
 namespace Allodia.Mailcal.Services;
 
 /// <summary>How signing an account in again ended. A cancelled one carries neither: the person
-/// closed it, and nothing is said.</summary>
-internal sealed record ConsentEnded(bool SignedIn, string? Error);
+/// closed it, and nothing is said. <paramref name="Cause"/> is the core's error, from which the
+/// expired-sign-in banner chooses its own line (<see cref="CoreError.SaidOnBanner"/>).</summary>
+internal sealed record ConsentEnded(bool SignedIn, string? Error, Exception? Cause = null)
+{
+    internal static ConsentEnded Failed(Exception error) => new(false, CoreErrorCopy.Said(error), error);
+}
 
 public sealed partial class MailboxModel
 {
@@ -52,7 +56,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"switching an account's use failed: {CoreError.Describe(ex)}");
-            return (UseChangeOutcome.Applied, CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp()));
+            return (UseChangeOutcome.Applied, CoreErrorCopy.Said(ex));
         }
     }
 
@@ -73,7 +77,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"linking an account failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
+            return CoreErrorCopy.Said(ex);
         }
     }
 
@@ -99,7 +103,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"editing an account's servers failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
+            return CoreErrorCopy.Said(ex);
         }
     }
 
@@ -119,7 +123,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"replacing an account's secret failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
+            return CoreErrorCopy.Said(ex);
         }
     }
 
@@ -137,17 +141,18 @@ public sealed partial class MailboxModel
     /// Through the shared <see cref="SignInFlight"/>: a sign-in abandoned in the browser cannot be
     /// told from one in progress, so the next request supersedes it rather than waiting on it.
     /// </remarks>
-    internal Task<ConsentEnded> SignInAgainAsync(string accountId, AccountCapability[] adding)
+    internal Task<ConsentEnded> SignInAgainAsync(
+        string accountId, AccountCapability[] adding, Action<SignInStep>? step = null)
     {
         if (_connecting || _app is null)
         {
             return Task.FromResult(new ConsentEnded(false, L10n.AppUnavailable()));
         }
-        return _signIn.RunAsync(cancel => ConsentFlowAsync(_app, accountId, adding, cancel));
+        return _signIn.RunAsync(cancel => ConsentFlowAsync(_app, accountId, adding, step ?? (_ => { }), cancel));
     }
 
     private async Task<ConsentEnded> ConsentFlowAsync(
-        MailcalApp app, string accountId, AccountCapability[] adding, CancellationToken cancel)
+        MailcalApp app, string accountId, AccountCapability[] adding, Action<SignInStep> step, CancellationToken cancel)
     {
         IsSigningIn = true;
         try
@@ -159,6 +164,7 @@ public sealed partial class MailboxModel
                 using var loopback = new GoogleLoopback();
                 start = app.BeginAccountConsent(accountId, loopback.RedirectUri, adding);
                 await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
+                step(SignInStep.Browser);
                 callbackUrl = await WaitForGoogleCallbackAsync(loopback, cancel);
             }
             else
@@ -166,8 +172,10 @@ public sealed partial class MailboxModel
                 using var callback = ProtocolAuthCallback.Expect(MicrosoftOAuthConfig.CallbackHost);
                 start = app.BeginAccountConsent(accountId, MicrosoftOAuthConfig.RedirectUri, adding);
                 await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
+                step(SignInStep.Browser);
                 callbackUrl = await callback.WaitAsync(cancel);
             }
+            step(SignInStep.Calling);
             // The exchange, the connect and the catch-up all block.
             await Task.Run(() => app.CompleteAccountConsent(start.Pending, callbackUrl));
             Log.Info("an account was signed in again in place");
@@ -181,7 +189,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"signing an account in again failed: {CoreError.Describe(ex)}");
-            return new ConsentEnded(false, CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp()));
+            return ConsentEnded.Failed(ex);
         }
         finally
         {

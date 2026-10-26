@@ -1,7 +1,8 @@
 // One account's page in Settings → Accounts, and its first questions: how it is shared, what it
-// is used for (docs/accounts.md rule 13), which other accounts fill what it is not (rule 12), and,
-// for one that signs in at its provider, signing in again (docs/provider-oauth.md rule 11). The
-// servers, the mail settings and the removal follow, in that order (docs/settings.md).
+// is used for (docs/accounts.md rule 13), which other accounts fill what it is not (rule 12), and
+// how it signs in: again, for Microsoft and Google (docs/provider-oauth.md rule 11), or switched,
+// for IMAP and JMAP (docs/accounts.md rule 17). The servers, the mail settings and the removal
+// follow, in that order (docs/settings.md).
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Box
@@ -56,7 +57,7 @@ internal fun AccountPage(
 ) {
     val ctx = LocalContext.current
     Text(
-        kindLabel(ctx, entry.kind),
+        kindLine(ctx, entry),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -73,6 +74,18 @@ internal fun AccountPage(
     ) {
         entry.uses.forEach { use -> UseRow(entry, use.capability, ui) }
     }
+    ui.state.separate.form?.takeIf { it.accountId == entry.id }?.let { form ->
+        SeparateServerDialog(
+            form = form,
+            controls = ui.state.separate.controls,
+            error = ui.state.separate.error,
+            onConnect = ui.onConnectSeparate,
+            onDismiss = { ui.state.separate.close() },
+            onSignIn = ui.onSeparateProviderSignIn,
+            onShown = ui.onSeparateFormShown,
+            onLeave = { ui.state.separate.left() },
+        )
+    }
     val pickers = AccountSettingsRules.linkPickers(entry)
     if (pickers.isNotEmpty()) {
         Spacer(modifier = Modifier.height(8.dp))
@@ -88,13 +101,15 @@ internal fun AccountPage(
         Spacer(modifier = Modifier.height(8.dp))
         SignInGroup(entry, expired, ui)
     }
+    // Where Microsoft and Google sign in again, an IMAP or JMAP account says how it signs in and
+    // offers the other way (docs/accounts.md rule 17).
+    if (AccountSignInRules.switchable(entry.kind)) {
+        Spacer(modifier = Modifier.height(8.dp))
+        AccountSignInGroup(entry, ui)
+    }
     entry.endpoints?.let { endpoints ->
         Spacer(modifier = Modifier.height(8.dp))
         ServersGroup(entry, endpoints, expired, ui)
-    }
-    if (entry.id in ui.pastedSecret) {
-        Spacer(modifier = Modifier.height(8.dp))
-        SecretGroup(entry, ui)
     }
     mail()
     Spacer(modifier = Modifier.height(16.dp))
@@ -147,6 +162,23 @@ private fun UseRow(entry: AccountEntry, capability: AccountCapability, ui: Accou
         Spacer(modifier = Modifier.width(8.dp))
         Switch(checked = checked, onCheckedChange = null, enabled = rule.enabled && !waiting)
     }
+    // A calendar or address book the account's sign-in does not reach: one of its own (rule 18).
+    if (UnreachedRules.offersSeparate(entry, capability)) {
+        TextButton(
+            onClick = { ui.onSeparateSignIn(entry.id) },
+            enabled = !waiting,
+            modifier = Modifier.testTag("account-use-separate-${capability.name}"),
+        ) { Text(L10n.settings_account_use_separate_sign_in(ctx)) }
+    }
+    // Its server was found on another site: the question that allows it
+    // (docs/account-autodetect.md rule 14).
+    if (reviewsServerChange(rule.note)) {
+        TextButton(
+            onClick = { ui.onReviewServerChange(entry.id) },
+            enabled = !waiting,
+            modifier = Modifier.testTag("account-use-review-${capability.name}"),
+        ) { Text(L10n.server_changed_review(ctx)) }
+    }
     if (confirmingOff) {
         AlertDialog(
             onDismissRequest = { confirmingOff = false },
@@ -168,7 +200,7 @@ private fun UseRow(entry: AccountEntry, capability: AccountCapability, ui: Accou
     }
 }
 
-private fun useNoteText(ctx: android.content.Context, note: UseNote): String? = when (note) {
+internal fun useNoteText(ctx: android.content.Context, note: UseNote): String? = when (note) {
     UseNote.LAST -> L10n.settings_account_use_last(ctx)
     UseNote.NEEDS_CONTACTS -> L10n.settings_account_colleagues_needs_contacts(ctx)
     UseNote.WITHHELD -> L10n.settings_account_use_withheld(ctx)
@@ -179,6 +211,8 @@ private fun useNoteText(ctx: android.content.Context, note: UseNote): String? = 
     UseNote.REFUSED_CONTACTS -> L10n.settings_account_use_refused_contacts(ctx)
     UseNote.OWN_SIGN_IN_CALENDAR -> L10n.settings_account_use_own_sign_in_calendar(ctx)
     UseNote.OWN_SIGN_IN_CONTACTS -> L10n.settings_account_use_own_sign_in_contacts(ctx)
+    UseNote.SERVER_CHANGED_CALENDAR -> L10n.settings_account_use_server_changed_calendar(ctx)
+    UseNote.SERVER_CHANGED_CONTACTS -> L10n.settings_account_use_server_changed_contacts(ctx)
     UseNote.NONE -> null
 }
 
@@ -198,7 +232,7 @@ internal fun linkTitle(ctx: android.content.Context, slot: LinkSlot): String = w
 private fun LinkRow(entry: AccountEntry, picker: LinkPicker, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
-    val current = picker.selected?.let { picker.options[it].address }
+    val current = picker.selected?.let { accountName(ctx, picker.options[it]) }
         ?: L10n.settings_account_link_none(ctx)
     Text(linkTitle(ctx, picker.slot), style = MaterialTheme.typography.labelLarge)
     Box {
@@ -222,7 +256,7 @@ private fun LinkRow(entry: AccountEntry, picker: LinkPicker, ui: AccountsSetting
             )
             picker.options.forEachIndexed { index, option ->
                 DropdownMenuItem(
-                    text = { Text(option.address) },
+                    text = { Text(accountName(ctx, option)) },
                     onClick = {
                         expanded = false
                         if (picker.selected != index) ui.onSetLink(entry.id, picker.slot, option.id)
@@ -235,7 +269,7 @@ private fun LinkRow(entry: AccountEntry, picker: LinkPicker, ui: AccountsSetting
         val suggestion = picker.options[index]
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                L10n.settings_account_link_suggested(ctx, suggestion.address),
+                L10n.settings_account_link_suggested(ctx, accountName(ctx, suggestion)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
@@ -257,7 +291,7 @@ private fun LinkRow(entry: AccountEntry, picker: LinkPicker, ui: AccountsSetting
 private fun SignInGroup(entry: AccountEntry, expired: Boolean, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
     val description = when {
-        expired -> L10n.signin_expired_prompt(ctx, entry.address)
+        expired -> L10n.signin_expired_prompt(ctx, accountName(ctx, entry))
         AccountSettingsRules.needsPermission(entry) -> L10n.settings_account_needs_permission(ctx)
         else -> L10n.settings_account_signin_description(ctx)
     }
@@ -299,8 +333,7 @@ private fun RemoveAccount(entry: AccountEntry, ui: AccountsSettingsUi) {
     ) { Text(L10n.action_remove_account(ctx)) }
     if (confirming) {
         RemoveAccountDialog(
-            address = entry.address,
-            unlinked = AccountSettingsRules.unlinked(entry),
+            removal = accountRemoval(ctx, entry),
             onConfirm = {
                 confirming = false
                 ui.onRemove(entry.id)
@@ -316,14 +349,13 @@ private fun RemoveAccount(entry: AccountEntry, ui: AccountsSettingsUi) {
  */
 @Composable
 internal fun RemoveAccountDialog(
-    address: String,
-    unlinked: String?,
+    removal: AccountRemoval,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val ctx = LocalContext.current
-    val message = L10n.remove_account_message(ctx, address) +
-        (unlinked?.let { " " + L10n.remove_account_unlinks(ctx, it) } ?: "")
+    val message = L10n.remove_account_message(ctx, removal.name) +
+        (removal.unlinked?.let { " " + L10n.remove_account_unlinks(ctx, it) } ?: "")
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(L10n.remove_account_title(ctx)) },

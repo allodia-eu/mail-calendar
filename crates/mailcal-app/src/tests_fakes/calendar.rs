@@ -115,9 +115,9 @@ pub(crate) struct CalendarFake {
     /// write receipt. Defaults to [`ReplyDelivery::NotReported`], which is what the great
     /// majority of servers say; including auto-scheduling ones that deliver perfectly.
     pub(super) reply_delivery: ReplyDelivery,
-    /// When set, every patch fails. The write path has no outbox behind it, so a failed edit
-    /// is simply a lost edit: a test has to be able to prove the app says so.
-    pub(super) reject_patches: bool,
+    /// When set, every patch fails with what it makes. The write path has no outbox behind it,
+    /// so a failed edit is simply a lost edit: a test has to be able to prove the app says so.
+    pub(super) patch_failure: Option<fn() -> ProviderError>,
     /// When set, every read fails before it reaches anything: the account is there, the network
     /// is not. The store therefore stays as empty as it was, which is the shape a first launch
     /// with no connection has and the one case where claiming a materialized window is a lie.
@@ -162,7 +162,7 @@ impl CalendarFake {
             delete_guards: Arc::new(Mutex::new(Vec::new())),
             patches: Arc::new(Mutex::new(Vec::new())),
             reply_delivery: ReplyDelivery::NotReported,
-            reject_patches: false,
+            patch_failure: None,
             unreachable: false,
             reject_event_delta: false,
             syncs: Arc::new(AtomicUsize::new(0)),
@@ -383,10 +383,8 @@ impl CalendarWrites for CalendarFake {
             end: edit.patch.end_edit().cloned(),
             invitees: edit.patch.invitee_edit().cloned(),
         });
-        if self.reject_patches {
-            return Err(ProviderError::invalid_state(
-                "the server rejected the patch",
-            ));
+        if let Some(failure) = self.patch_failure {
+            return Err(failure());
         }
         Ok(EventWriteReceipt::new(
             base.id.clone(),

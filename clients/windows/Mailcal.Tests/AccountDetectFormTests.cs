@@ -228,6 +228,21 @@ public class AccountDetectFormTests
     }
 
     [Fact]
+    public void TheFoundCardNamesTheServersDetectionFoundRatherThanOfferingThemToEdit()
+    {
+        var both = AccountDetectForm.Route(Imap(trusted: true));
+        Assert.Equal(["IMAP", "SMTP"], both.Servers!.Select(s => s.Protocol));
+        Assert.Equal("imap.example.com:993 · SSL/TLS", AccountDetectForm.ServerLine(both.Servers![0]));
+
+        // No submission server found: the card names the one it has.
+        var incomingOnly = AccountDetectForm.Route(Imap(trusted: true, withSmtp: false));
+        Assert.Equal(["IMAP"], incomingOnly.Servers!.Select(s => s.Protocol));
+
+        // The manual form types its servers, so it has none to name.
+        Assert.Null(AccountDetectForm.Route(new SetupRecommendation.Manual(MissReason.NothingFound)).Servers);
+    }
+
+    [Fact]
     public void AnImapPasswordIsRequiredOnlyWhileItsFieldIsOnScreen()
     {
         // A server that refuses passwords draws no field, and the sign-in is the action there.

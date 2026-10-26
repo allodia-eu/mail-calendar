@@ -65,7 +65,7 @@ pub(super) fn server_group(
 ) -> adw::PreferencesGroup {
     let section = group(
         l10n::settings_account_servers_heading(),
-        &description(&entry.address, expired),
+        &description(&super::account_names::entry_name(entry), expired),
     );
     let imap = endpoints.imap_host.as_deref().map(|address| {
         server_rows(

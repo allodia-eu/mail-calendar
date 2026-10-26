@@ -384,3 +384,33 @@ pub(crate) fn the_write_affordances_appear_only_where_a_write_could_land() {
         detail_text(&pane)
     );
 }
+
+#[test]
+fn every_write_status_says_its_own_sentence_or_nothing() {
+    use mailcal_bindings::ContactWriteStatus;
+
+    use super::status_text;
+    use crate::l10n;
+    assert_eq!(status_text(ContactWriteStatus::Idle), None);
+    assert_eq!(
+        status_text(ContactWriteStatus::Invalid),
+        None,
+        "stated under the form instead"
+    );
+    assert_eq!(
+        status_text(ContactWriteStatus::Saving),
+        Some(l10n::contacts_saving())
+    );
+    assert_eq!(
+        status_text(ContactWriteStatus::Saved),
+        Some(l10n::contacts_saved())
+    );
+    assert_eq!(
+        status_text(ContactWriteStatus::NotSaved),
+        Some(l10n::contacts_save_failed())
+    );
+    assert_eq!(
+        status_text(ContactWriteStatus::Unconfirmed),
+        Some(l10n::contacts_save_unconfirmed())
+    );
+}

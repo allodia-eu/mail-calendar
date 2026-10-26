@@ -1,6 +1,6 @@
 // What follows a connect on the setup screen (docs/onboarding.md, "After the connect"), driven from
 // the activity because every route that adds an account ends here, a browser sign-in included: the
-// uses a JMAP server offers, the link step, "Add another account", the name each added account is
+// uses a JMAP server offers, a calendar on a server of its own, the link step, "Add another account", the name each added account is
 // asked once the flow ends, and what a provider withheld, said on the account's page after that.
 package eu.allodia.mailcal
 
@@ -16,7 +16,8 @@ internal fun MainActivity.linkStepFor(account: String): SetupLinkStep? =
 
 /**
  * An account was added. A sign-in at the provider may have been granted less than was chosen, which
- * is said once setup and its name prompts are done ([signedInAtProvider]).
+ * is said once setup and its name prompts are done ([signedInAtProvider]); a calendar or address
+ * book whose server needs a sign-in of its own asks for it next, as the add's dial found it.
  */
 internal fun MainActivity.afterAccountAdded(account: String, signedInAtProvider: Boolean = false) {
     val instance = app ?: return
@@ -35,7 +36,13 @@ internal fun MainActivity.afterAccountAdded(account: String, signedInAtProvider:
         return
     }
     val choices = instance.signedInSetupChoices(account)
-    val goesOn = setupFlow.accountAdded(account, entry?.kind == CoreAccountKind.JMAP, choices, ::linkStepFor)
+    val goesOn = setupFlow.accountAdded(
+        account,
+        jmap = entry?.kind == CoreAccountKind.JMAP,
+        choices = choices,
+        stepFor = ::linkStepFor,
+        separate = UnreachedRules.form(entry),
+    )
     if (!goesOn) finishSetup()
 }
 
@@ -114,11 +121,24 @@ internal fun MainActivity.cancelSetup() {
     }
 }
 
-/** What one setup form left behind: its error, a refused certificate and its acceptance. */
+/**
+ * What one setup form left behind: its error, a refused certificate and its acceptance, and the
+ * offer to update an account already set up.
+ */
 private fun MainActivity.clearSetupForm() {
     addError = null
     addFailure = null
     setupAcceptedCertificate = null
+    setupFlow.existing = null
+}
+
+/**
+ * The account already set up took the credential the form was given. Nothing was added, so the
+ * flow goes back to the link step it was opened from, or ends.
+ */
+internal fun MainActivity.endSetupAfterUpdate() {
+    clearSetupForm()
+    if (!setupFlow.cancelled(::linkStepFor)) finishSetup()
 }
 
 /** The end of the flow: the setup screen goes, and each account added is asked its name in turn. */

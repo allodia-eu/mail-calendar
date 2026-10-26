@@ -2,7 +2,7 @@
 
 use std::sync::{Arc, atomic::AtomicBool};
 
-use mailcal_bindings::MailcalApp;
+use mailcal_bindings::{MailcalApp, MailcalError};
 use url::Url;
 
 use super::oauth_loopback::{self, OAuthLoopback};
@@ -28,15 +28,19 @@ pub(crate) enum JmapOutcome {
     Added(String),
     Cancelled,
     Failed,
-    /// Signed in, but the add was refused; what to tell the person.
-    NotAdded(String),
+    /// The browser came back from another sign-in.
+    Stale,
+    /// Signed in, but the add was refused; what to tell the person, and the account already
+    /// set up when that is why.
+    NotAdded(Box<super::setup_model::ConnectFailure>),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum JmapReauthOutcome {
     Reauthenticated,
     Cancelled,
-    Failed,
+    /// What the banner says.
+    Failed(String),
 }
 
 pub(super) fn prepare(
@@ -81,14 +85,14 @@ pub(super) fn wait(
     )
 }
 
-fn authorization_state(authorization_url: &str) -> Option<String> {
+pub(super) fn authorization_state(authorization_url: &str) -> Option<String> {
     Url::parse(authorization_url)
         .ok()?
         .query_pairs()
         .find_map(|(key, value)| (key == "state").then(|| value.into_owned()))
 }
 
-fn authorization_redirect_uri(authorization_url: &str) -> Option<String> {
+pub(super) fn authorization_redirect_uri(authorization_url: &str) -> Option<String> {
     let redirect = Url::parse(authorization_url)
         .ok()?
         .query_pairs()
@@ -128,14 +132,20 @@ pub(super) fn complete(
     pending: String,
     callback_url: String,
 ) -> JmapOutcome {
-    let Ok(config) = app.complete_jmap_login(pending, callback_url) else {
-        return JmapOutcome::Failed;
+    let config = match app.complete_jmap_login(pending, callback_url) {
+        Ok(config) => config,
+        Err(MailcalError::StaleSignIn) => return JmapOutcome::Stale,
+        Err(_) => return JmapOutcome::Failed,
     };
     // `add_account` writes the grant through the host's `AccountCredentialStore` and rolls the
     // add back itself when that write fails, so a failure here has left nothing behind.
-    match app.add_account(config) {
+    match app.add_account(config.clone()) {
         Ok(account) => JmapOutcome::Added(account.id),
-        Err(error) => JmapOutcome::NotAdded(super::core_error::said(&error)),
+        Err(error) => JmapOutcome::NotAdded(Box::new(super::setup_already_set_up::refusal(
+            error,
+            Some(config),
+            false,
+        ))),
     }
 }
 
@@ -147,7 +157,9 @@ pub(super) fn complete_reauth(
 ) -> JmapReauthOutcome {
     match app.complete_jmap_reauth(account_id, pending, callback_url) {
         Ok(()) => JmapReauthOutcome::Reauthenticated,
-        Err(_) => JmapReauthOutcome::Failed,
+        Err(error) => JmapReauthOutcome::Failed(super::core_error::signing_in_again_failed(
+            &super::core_error::said(&error),
+        )),
     }
 }
 

@@ -47,7 +47,7 @@ extension ContentView {
         if let first = ids.first {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text(L10n.mail_reauth_prompt(accounts: ids.map(model.accountEmail).joined(separator: ", ")))
+                Text(L10n.mail_reauth_prompt(accounts: ids.map(model.signInName).joined(separator: ", ")))
                     .font(.callout).fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 // One button signs the first affected account in again; when several are affected
@@ -66,15 +66,15 @@ extension ContentView {
     /// OAuth grant (Google `invalid_grant`, a Microsoft `AADSTS700082`), or a refused password.
     /// Distinct from the two permission prompts above: nothing about the account syncs, and
     /// distinct from the offline/unreachable badges because the server *was* reached and a retry
-    /// will never help. A Microsoft or Google account is signed in again in place, and a JMAP
-    /// account connected by signing in re-authorises its own persisted grant; a password or
-    /// pasted-secret account opens its page in Settings, where the new one is entered.
+    /// will never help. A Microsoft or Google account is signed in again in place, and a JMAP or
+    /// IMAP account connected by signing in signs in again from its own persisted grant; a
+    /// password or pasted-secret account opens its page in Settings, where the new one is entered.
     @ViewBuilder var signInExpiredBanner: some View {
         let accounts = model.signInExpiredAccounts
         if let first = accounts.first {
-            let emails = accounts.map(\.email).joined(separator: ", ")
-            let browserFlow = first.provider == .microsoft || first.provider == .google
-                || first.provider == .jmapOauth
+            let emails = accounts.map(\.name).joined(separator: ", ")
+            let remedy = AccountSignInRules.remedy(first.provider)
+            let browserFlow = remedy != .settings
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 Text(
@@ -86,11 +86,11 @@ extension ContentView {
                 Spacer()
                 // One button signs the first affected account in again; with several affected the
                 // banner re-renders after each clears, walking through them one at a time.
-                switch first.provider {
-                case .microsoft, .google:
+                switch remedy {
+                case .consent:
                     Button(L10n.signin_expired_action()) { model.signInAgainFromBanner(first.id) }
                         .buttonStyle(.borderless)
-                case .jmapOauth:
+                case .jmapReauth:
                     // Addressed to the account id, not the address: the core re-authorises that
                     // account's own stored grant rather than starting a discovery from an email.
                     Button(L10n.signin_expired_action()) {
@@ -98,7 +98,15 @@ extension ContentView {
                     }
                     .buttonStyle(.borderless)
                     .disabled(model.jmapReconnecting)
-                default:
+                case .accountSignIn:
+                    // Addressed to the account id too, and signed in from its stored grant. Live
+                    // while the browser is up, so a sign-in abandoned there never wedges it.
+                    Button(L10n.signin_expired_action()) {
+                        model.signInThroughProviderFromBanner(first.id)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(model.signInSwitchBusy == first.id)
+                case .settings:
                     Button(L10n.settings_title()) { model.openAccountPage(first.id) }
                         .buttonStyle(.borderless)
                 }

@@ -196,3 +196,52 @@ async fn a_slow_server_hits_the_request_timeout() {
         "got {outcome:?}"
     );
 }
+
+/// Every lookup names this application (`mailcal_user_agent`), so a provider can tell its traffic
+/// apart from anyone else's.
+#[tokio::test]
+async fn every_request_names_this_application() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let seen = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 8192];
+        let read = stream.read(&mut buf).unwrap();
+        let _ = stream.write_all(response("200 OK", &[], "").as_bytes());
+        String::from_utf8_lossy(&buf[..read]).to_ascii_lowercase()
+    });
+
+    let _ = fetcher(&DetectConfig::default())
+        .get(&url(&base, "/config"))
+        .await;
+
+    let request = seen.join().unwrap();
+    let expected = format!("user-agent: {}\r\n", mailcal_user_agent::HEADER);
+    assert!(request.contains(&expected), "{request}");
+}
+
+/// A DAV probe is a `PROPFIND` at depth 0, the request a DAV client bootstraps with.
+#[tokio::test]
+async fn a_propfind_asks_at_depth_zero() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let seen = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 8192];
+        let read = stream.read(&mut buf).unwrap();
+        let _ = stream.write_all(response("401 Unauthorized", &[], "").as_bytes());
+        String::from_utf8_lossy(&buf[..read]).to_ascii_lowercase()
+    });
+
+    let outcome = fetcher(&DetectConfig::default())
+        .propfind(&url(&base, "/.well-known/caldav"))
+        .await;
+
+    let request = seen.join().unwrap();
+    assert!(
+        request.starts_with("propfind /.well-known/caldav "),
+        "{request}"
+    );
+    assert!(request.contains("\r\ndepth: 0\r\n"), "{request}");
+    assert!(matches!(outcome, FetchOutcome::Response(resp) if resp.status == 401));
+}

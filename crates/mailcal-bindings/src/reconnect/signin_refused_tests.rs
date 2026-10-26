@@ -42,7 +42,7 @@ fn refusing_server() -> (String, Arc<AtomicUsize>) {
 }
 
 /// Waits up to five seconds for `done`.
-fn wait_for(what: &str, done: impl Fn() -> bool) {
+pub(super) fn wait_for(what: &str, done: impl Fn() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(5);
     while !done() {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
@@ -51,7 +51,7 @@ fn wait_for(what: &str, done: impl Fn() -> bool) {
 }
 
 /// A JMAP password account for `who` at `base_url`, and its id.
-fn account(who: &str, base_url: &str) -> (String, engine_api::AccountId) {
+pub(super) fn account(who: &str, base_url: &str) -> (String, engine_api::AccountId) {
     let config = format!(
         "[jmap]\nemail = \"{who}@example.org\"\nbase_url = \"{base_url}\"\npassword = \"pw\"\n"
     );
@@ -83,6 +83,7 @@ macro_rules! boot {
         .expect("the app boots over an account that will not sign in")
     }};
 }
+pub(super) use boot;
 
 #[test]
 fn a_refused_sign_in_is_dialled_again_only_for_a_new_credential() {

@@ -182,7 +182,7 @@ mod tests {
     /// The editor that sent a write waits on its status, so a write the boundary cannot read is
     /// settled as failed rather than dropped.
     #[test]
-    fn a_create_the_core_cannot_read_settles_as_failed() {
+    fn a_create_the_core_cannot_read_settles_as_not_saved() {
         let (tx, _rx) = std::sync::mpsc::channel();
         let app = crate::MailcalApp::new_showcase(
             Box::new(crate::tests::ChannelObserver { tx }),
@@ -196,7 +196,7 @@ mod tests {
 
         assert_eq!(
             app.calendar_write_status(),
-            crate::CalendarWriteStatus::Failed
+            crate::CalendarWriteStatus::NotSaved
         );
     }
 }

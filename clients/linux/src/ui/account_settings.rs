@@ -19,6 +19,8 @@ use crate::l10n;
 pub(crate) enum AccountsInput {
     /// Open an account's page, or go back to the list.
     Show(Option<String>),
+    /// Put Settings on screen at an account's page, from outside the window.
+    Open(String),
     /// Switch one of an account's uses on or off.
     SetUse {
         account: String,
@@ -44,6 +46,27 @@ pub(crate) enum AccountsInput {
     Changed(Option<Notice>),
     /// A change was refused: say so, and leave the page as the person left it.
     Refused(Notice),
+    /// The Sign-in section of an IMAP or JMAP account (`super::account_sign_in`).
+    SignIn(super::account_sign_in::SignInInput),
+    /// A sign-in of its own for a mailbox's calendar and contacts, from its page or from setup
+    /// (`super::separate_sign_in`).
+    Separate(super::separate_sign_in::SeparateInput),
+    /// Allow the server found on another site for an account's calendar or contacts
+    /// (`super::server_change`).
+    AllowServerChange {
+        account: String,
+        review: super::server_change::Review,
+        from: super::server_change::ReviewFrom,
+    },
+    /// A lookup replaced the question while it was shown, so the allow moved nothing: ask the
+    /// new one.
+    ServerChangeReplaced {
+        account: String,
+        review: super::server_change::Review,
+        from: super::server_change::ReviewFrom,
+    },
+    /// Allowing it failed, asked from outside Settings: the account's page says so.
+    ServerChangeFailed(String),
 }
 
 /// An account's edited servers and sign-in, on their way to the core.
@@ -136,9 +159,13 @@ impl AppModel {
     pub(super) fn accounts_input(&mut self, input: AccountsInput, sender: relm4::Sender<AppInput>) {
         match input {
             AccountsInput::Show(account) => {
+                if let Some(account) = &account {
+                    self.ask_sign_in_options(account, sender);
+                }
                 self.settings.account = account;
                 self.settings.refresh_in_place();
             }
+            AccountsInput::Open(account) => self.settings.open_account(account),
             AccountsInput::SetUse {
                 account,
                 capability,
@@ -157,6 +184,24 @@ impl AppModel {
             AccountsInput::Changed(Some(notice)) => self.settings.notify(notice),
             AccountsInput::Changed(None) => self.settings.refresh_in_place(),
             AccountsInput::Refused(notice) => self.settings.say(notice),
+            AccountsInput::SignIn(input) => self.sign_in_input(input, sender),
+            AccountsInput::Separate(input) => self.separate_input(input, sender),
+            AccountsInput::AllowServerChange {
+                account,
+                review,
+                from,
+            } => {
+                self.allow_server_change(account, review, from, sender);
+            }
+            AccountsInput::ServerChangeReplaced {
+                account,
+                review,
+                from,
+            } => Self::ask_server_change_again(&account, &review, from, &sender),
+            AccountsInput::ServerChangeFailed(account) => {
+                self.settings
+                    .open_on_account(account, super::server_change::failed());
+            }
         }
     }
 

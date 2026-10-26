@@ -246,9 +246,7 @@ fn same_address(stored: &str, signed_in: &str) -> Result<(), MailcalError> {
         Ok(())
     } else {
         log::warn!("consent: the sign-in was for a different account; discarding the new grant");
-        Err(MailcalError::Config(
-            "that sign-in is for a different account than the one being signed in again".to_owned(),
-        ))
+        Err(MailcalError::DifferentAccount)
     }
 }
 

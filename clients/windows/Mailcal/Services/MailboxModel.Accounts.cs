@@ -130,7 +130,7 @@ public sealed partial class MailboxModel
         {
             // An invalid config (or a Rust panic surfacing as PanicException) stays on the form
             // rather than crashing, like macOS.
-            SetupError = CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
+            SetupError = CoreErrorCopy.Said(ex);
             return;
         }
         _ = AddAccountAsync(configToml, offersCertificateException: true);
@@ -170,7 +170,7 @@ public sealed partial class MailboxModel
         {
             // An invalid config (e.g. a missing secret) or a Rust panic surfacing as PanicException
             // stays on the form rather than crashing, like macOS.
-            SetupError = CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
+            SetupError = CoreErrorCopy.Said(ex);
             return;
         }
         _ = AddAccountAsync(configToml);
@@ -255,7 +255,7 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"microsoft sign-in failed: {CoreError.Describe(ex)}");
-            SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp()));
+            SetupError = CoreErrorCopy.SaidAsConnect(ex);
         }
         finally
         {
@@ -360,7 +360,7 @@ public sealed partial class MailboxModel
             _ui.TryEnqueue(() =>
             {
                 _connecting = false;
-                SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp()));
+                SetupError = CoreErrorCopy.SaidAsConnect(ex);
                 NeedsSetup = true;
                 EndLaunch();
             });
@@ -372,9 +372,11 @@ public sealed partial class MailboxModel
     /// AddAccount blocks on the IMAP login, so it runs off the UI thread. The core writes the
     /// config to the Credential Manager itself, only once it connects, so a bad config is never
     /// stored, and so the write no longer waits on this UI-thread hop. A failure keeps the form
-    /// up.
+    /// up. <paramref name="unreached"/> is what a sign-in said it would not reach, which the
+    /// refusal's offer asks about.
     /// </summary>
-    private async Task AddAccountAsync(string configToml, bool offersCertificateException = false)
+    private async Task AddAccountAsync(
+        string configToml, bool offersCertificateException = false, IReadOnlyList<AccountCapability>? unreached = null)
     {
         IsSubmitting = true;
         try
@@ -394,7 +396,7 @@ public sealed partial class MailboxModel
                     Log.Warn($"calendar (CalDAV) failed to connect: {calendarError}");
                 }
                 Log.Info($"account added: {LogHandle(row.Id)}");
-                // The link step, or the end of setup and the name it sends under (docs/sending.md).
+                // The next step, or the end of setup and the name it sends under (docs/sending.md).
                 AccountAdded(row.Id);
                 // The core synced the new account and refreshed the snapshot (the observer
                 // reloads the sidebar + unified inbox); nudge a mail sync too.
@@ -427,7 +429,9 @@ public sealed partial class MailboxModel
                     SetupError = L10n.StatusConnectFailed(refused.reason);
                     return;
                 }
-                SetupError = L10n.StatusConnectFailed(CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp()));
+                SetupError = CoreErrorCopy.SaidAsConnect(ex);
+                // After the refusal it belongs to, which replacing the error clears.
+                SetupExisting = AccountSettingsRules.UpdateOffer(ex, configToml, unreached);
             });
         }
     }
@@ -469,7 +473,7 @@ public sealed partial class MailboxModel
             // credential, which would bring it back at the next launch. Say so rather than letting
             // it reappear unexplained.
             Log.Error($"remove account failed: {CoreError.Describe(ex)}");
-            return CoreError.Said(ex, L10n.SigninRefused(), L10n.AccountAlreadySetUp());
+            return CoreErrorCopy.Said(ex);
         }
     }
 

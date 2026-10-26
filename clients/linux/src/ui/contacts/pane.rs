@@ -229,35 +229,20 @@ impl ContactsPane {
     }
 
     /// The write strip: a spinner while a save settles, then a word about how it went.
-    ///
-    /// `Failed` says "we could not confirm this", never "rejected": a write whose server call
-    /// succeeded and whose reconcile did not has already landed, and the next sync heals the
-    /// local copy.
     fn render_status(&self, status: ContactWriteStatus) {
-        self.status_spinner.stop();
-        match status {
-            // `Invalid` is stated under the form the user is still looking at, so the strip
-            // stays quiet rather than repeating it out of context.
-            ContactWriteStatus::Idle | ContactWriteStatus::Invalid => {
-                self.status.set_visible(false);
-            }
-            ContactWriteStatus::Saving => {
+        let saving = status == ContactWriteStatus::Saving;
+        self.status_spinner.set_visible(saving);
+        if saving {
+            self.status_spinner.start();
+        } else {
+            self.status_spinner.stop();
+        }
+        match status_text(status) {
+            Some(text) => {
                 self.status.set_visible(true);
-                self.status_spinner.start();
-                self.status_spinner.set_visible(true);
-                self.status_label.set_label(l10n::contacts_saving());
+                self.status_label.set_label(text);
             }
-            ContactWriteStatus::Saved => {
-                self.status.set_visible(true);
-                self.status_spinner.set_visible(false);
-                self.status_label.set_label(l10n::contacts_saved());
-            }
-            ContactWriteStatus::Failed => {
-                self.status.set_visible(true);
-                self.status_spinner.set_visible(false);
-                self.status_label
-                    .set_label(l10n::contacts_save_unconfirmed());
-            }
+            None => self.status.set_visible(false),
         }
     }
 
@@ -388,6 +373,19 @@ fn value_group(group: &ValueGroup) -> adw::PreferencesGroup {
         widget.add(&row);
     }
     widget
+}
+
+/// What the write strip says. `NotSaved` changed nothing on the server; `Unconfirmed` may have
+/// landed, and the next sync settles which. `Invalid` is stated under the form the person is
+/// still looking at, so the strip stays quiet rather than repeating it out of context.
+pub(super) fn status_text(status: ContactWriteStatus) -> Option<&'static str> {
+    match status {
+        ContactWriteStatus::Idle | ContactWriteStatus::Invalid => None,
+        ContactWriteStatus::Saving => Some(l10n::contacts_saving()),
+        ContactWriteStatus::Saved => Some(l10n::contacts_saved()),
+        ContactWriteStatus::NotSaved => Some(l10n::contacts_save_failed()),
+        ContactWriteStatus::Unconfirmed => Some(l10n::contacts_save_unconfirmed()),
+    }
 }
 
 #[cfg(test)]

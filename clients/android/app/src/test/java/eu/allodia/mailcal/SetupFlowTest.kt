@@ -177,7 +177,8 @@ class SetupFlowTest {
         val snapshot = AccountsSnapshot(listOf(jmap))
         val flow = SetupFlow()
         flow.found = FoundBeside("alice@example.org", "https://dav.example.org/", null)
-        assertTrue(flow.accountAdded("alice@jmap", true, emptyList()) { flow.besideFor(it)?.let { b -> SetupLinkStep.of(snapshot, it, ::standards, b) } })
+        val stepFor: (String) -> SetupLinkStep? = { flow.besideFor(it)?.let { b -> SetupLinkStep.of(snapshot, it, ::standards, b) } }
+        assertTrue(flow.accountAdded("alice@jmap", true, emptyList(), stepFor))
         assertNotNull(flow.links?.beside)
 
         val offer = flow.addBeside()

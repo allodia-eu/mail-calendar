@@ -39,13 +39,17 @@ internal enum class UseNote {
     /** On, and its server needs a sign-in of its own. */
     OWN_SIGN_IN_CALENDAR,
     OWN_SIGN_IN_CONTACTS,
+
+    /** Paused: its server was found on another site, and waits for the person to allow it. */
+    SERVER_CHANGED_CALENDAR,
+    SERVER_CHANGED_CONTACTS,
 }
 
 /**
- * What a use that did not connect says beneath its switch. Only a calendar or an address book
- * fails on its own; mail decides whether the account connected at all.
+ * What a use that did not connect says beneath its switch, and on the screen that shows it. Only a
+ * calendar or an address book fails on its own; mail decides whether the account connected at all.
  */
-private fun problemNote(capability: AccountCapability, problem: UseProblem): UseNote {
+internal fun problemNote(capability: AccountCapability, problem: UseProblem): UseNote {
     val calendar = capability == AccountCapability.CALENDAR
     return when (problem) {
         UseProblem.UNREACHABLE ->
@@ -54,8 +58,14 @@ private fun problemNote(capability: AccountCapability, problem: UseProblem): Use
             if (calendar) UseNote.REFUSED_CALENDAR else UseNote.REFUSED_CONTACTS
         UseProblem.NEEDS_OWN_SIGN_IN ->
             if (calendar) UseNote.OWN_SIGN_IN_CALENDAR else UseNote.OWN_SIGN_IN_CONTACTS
+        UseProblem.SERVER_CHANGED ->
+            if (calendar) UseNote.SERVER_CHANGED_CALENDAR else UseNote.SERVER_CHANGED_CONTACTS
     }
 }
+
+/** Whether a use saying [note] offers the question that allows its new server. */
+internal fun reviewsServerChange(note: UseNote): Boolean =
+    note == UseNote.SERVER_CHANGED_CALENDAR || note == UseNote.SERVER_CHANGED_CONTACTS
 
 /**
  * How one use's switch is drawn. [active] is on; a use waiting on a permission is drawn off,
@@ -109,10 +119,10 @@ internal object AccountSettingsRules {
         entry.uses.filter { works(it.state) }.map { it.capability }
 
     /** The links the account holds, as the list row names them. */
-    fun linked(entry: AccountEntry): List<Pair<AccountCapability, String>> = listOfNotNull(
-        entry.links.calendar?.let { AccountCapability.CALENDAR to it.address },
-        entry.links.contacts?.let { AccountCapability.CONTACTS to it.address },
-        entry.links.mail?.let { AccountCapability.MAIL to it.address },
+    fun linked(entry: AccountEntry): List<Pair<AccountCapability, LinkedAccount>> = listOfNotNull(
+        entry.links.calendar?.let { AccountCapability.CALENDAR to it },
+        entry.links.contacts?.let { AccountCapability.CONTACTS to it },
+        entry.links.mail?.let { AccountCapability.MAIL to it },
     )
 
     /** Whether a use the account is used for waits on the provider's permission. */
@@ -192,9 +202,12 @@ internal object AccountSettingsRules {
         }
     }
 
-    /** The accounts that lose their link when this one is removed, joined; null when none does. */
-    fun unlinked(entry: AccountEntry): String? =
-        entry.linkedFrom.takeIf { it.isNotEmpty() }?.joinToString(", ") { it.address }
+    /**
+     * The accounts that lose their link when this one is removed, each as [name] names it, joined;
+     * null when none does.
+     */
+    fun unlinked(entry: AccountEntry, name: (LinkedAccount) -> String): String? =
+        entry.linkedFrom.takeIf { it.isNotEmpty() }?.joinToString(", ", transform = name)
 
     /** What switching a use on or off answered. */
     fun outcome(change: CapabilityChange): UseChangeOutcome = when (change) {

@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use super::{discover_with, may_follow};
+use super::{discover_with, may_follow, site_of};
 use crate::{
     DetectConfig,
     mx::MxResolver,
@@ -87,4 +87,18 @@ async fn discovery_asked_again_finds_where_the_srv_record_points_now() {
 
     assert_eq!(found.caldav_url.as_deref(), Some(moved));
     assert!(may_follow(moved, STORED, EMAIL));
+}
+
+#[test]
+fn a_site_is_the_registrable_domain_a_person_recognises() {
+    assert_eq!(
+        site_of("https://p01-caldav.icloud.com/123/calendars/").as_deref(),
+        Some("icloud.com")
+    );
+    assert_eq!(
+        site_of("https://caldav.example.co.uk/dav/").as_deref(),
+        Some("example.co.uk")
+    );
+    assert_eq!(site_of("https://localhost/dav/"), None);
+    assert_eq!(site_of("not a url"), None);
 }

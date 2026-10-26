@@ -58,13 +58,15 @@ enum AccountSettingsRules {
         state == .on || state == .needsPermission
     }
 
-    /// The links the account holds, as the list row names them.
-    static func linked(_ entry: AccountEntry) -> [(use: AccountCapability, address: String)] {
+    /// The links the account holds, in the order the list row names them.
+    static func linked(
+        _ entry: AccountEntry
+    ) -> [(use: AccountCapability, account: LinkedAccount)] {
         [
             (AccountCapability.calendar, entry.links.calendar),
             (.contacts, entry.links.contacts),
             (.mail, entry.links.mail),
-        ].compactMap { use, link in link.map { (use, $0.address) } }
+        ].compactMap { use, link in link.map { (use, $0) } }
     }
 
     /// Whether a use the account is used for waits on the provider's permission.
@@ -120,6 +122,12 @@ enum AccountSettingsRules {
         )
     }
 
+    /// Whether the line under a use's switch offers "Review": the use is paused for a server on
+    /// another site, which only the person can allow.
+    static func reviewsServerChange(_ note: UseNote) -> Bool {
+        if case .problem(.serverChanged, _) = note { true } else { false }
+    }
+
     /// The pickers an account's page offers: one per slot it can hold, which is a slot with
     /// candidates or one already linked. A link the candidates no longer offer is kept as the
     /// first option, so the picker shows what is stored rather than "none".
@@ -146,14 +154,13 @@ enum AccountSettingsRules {
     /// The accounts that lose their link when this one is removed, joined for the confirmation;
     /// `nil` when none does.
     static func unlinked(_ entry: AccountEntry) -> String? {
-        entry.linkedFrom.isEmpty ? nil : entry.linkedFrom.map(\.address).joined(separator: ", ")
+        entry.linkedFrom.isEmpty
+            ? nil : entry.linkedFrom.map { AccountSettingsLabels.name($0) }.joined(separator: ", ")
     }
 
     /// Whether the mail settings offer a new password or API token: a JMAP account whose pasted
     /// secret the server stopped accepting. An account whose servers are editable takes its new
-    /// password there, and one that signs in at a provider signs in again instead. An IMAP account
-    /// that signed in at its provider also reports `.password` and has no editable servers, but
-    /// holds no secret a paste could replace.
+    /// password there, and one that signs in at a provider signs in again instead.
     static func replacesSecret(
         _ entry: AccountEntry, expired: Bool, provider: AccountProvider?
     ) -> Bool {
@@ -174,6 +181,39 @@ enum AccountSettingsLabels {
         }
     }
 
+    /// What a person reads an account by: its address, with what tells it apart from another
+    /// account with the same address (docs/accounts.md rule 8).
+    static func name(address: String, distinction: AccountDistinction?) -> String {
+        switch distinction {
+        case nil: address
+        case let .kind(accountKind):
+            L10n.settings_account_distinguished(address: address, detail: kind(accountKind))
+        case let .server(host):
+            L10n.settings_account_distinguished(address: address, detail: host)
+        }
+    }
+
+    static func name(_ account: LinkedAccount) -> String {
+        name(address: account.address, distinction: account.distinction)
+    }
+
+    static func name(_ entry: AccountEntry) -> String {
+        name(address: entry.address, distinction: entry.distinction)
+    }
+
+    /// `entry`'s name, or `address` alone for an account the accounts snapshot does not hold.
+    static func name(_ entry: AccountEntry?, or address: String) -> String {
+        entry.map { name($0) } ?? address
+    }
+
+    /// The account's kind, as its row and its page say it under the address. Where another account
+    /// shares its address and its kind, the server's host follows: the kind alone would not tell
+    /// the two apart.
+    static func kindLine(_ entry: AccountEntry) -> String {
+        guard case let .server(host) = entry.distinction else { return kind(entry.kind) }
+        return "\(kind(entry.kind)) · \(host)"
+    }
+
     /// A use's name, as the main window's sections name it.
     static func use(_ capability: AccountCapability) -> String {
         switch capability {
@@ -188,9 +228,9 @@ enum AccountSettingsLabels {
     /// is linked to, and whether something needs the person.
     static func summary(_ entry: AccountEntry) -> [String] {
         let uses = AccountSettingsRules.inUse(entry).map(use).joined(separator: ", ")
-        var lines = ["\(kind(entry.kind)) · \(uses)"]
+        var lines = ["\(kindLine(entry)) · \(uses)"]
         lines += AccountSettingsRules.linked(entry).map {
-            L10n.settings_account_linked_line(capability: use($0.use), address: $0.address)
+            L10n.settings_account_linked_line(capability: use($0.use), address: name($0.account))
         }
         if AccountSettingsRules.needsPermission(entry) {
             lines.append(L10n.settings_account_needs_permission())
@@ -210,8 +250,9 @@ enum AccountSettingsLabels {
         }
     }
 
-    /// The line under a calendar or an address book that did not connect.
-    private static func problemNote(_ problem: UseProblem, calendar: Bool) -> String {
+    /// The line under a calendar or an address book that did not connect, which its outage line
+    /// above the week or the contacts list repeats.
+    static func problemNote(_ problem: UseProblem, calendar: Bool) -> String {
         switch problem {
         case .unreachable:
             calendar
@@ -225,6 +266,10 @@ enum AccountSettingsLabels {
             calendar
                 ? L10n.settings_account_use_own_sign_in_calendar()
                 : L10n.settings_account_use_own_sign_in_contacts()
+        case .serverChanged:
+            calendar
+                ? L10n.settings_account_use_server_changed_calendar()
+                : L10n.settings_account_use_server_changed_contacts()
         }
     }
 
@@ -239,7 +284,7 @@ enum AccountSettingsLabels {
 
     /// What removing the account does, naming the accounts that lose their link to it.
     static func removal(_ entry: AccountEntry) -> String {
-        removal(address: entry.address, unlinked: AccountSettingsRules.unlinked(entry))
+        removal(address: name(entry), unlinked: AccountSettingsRules.unlinked(entry))
     }
 
     static func removal(address: String, unlinked: String?) -> String {
@@ -250,7 +295,7 @@ enum AccountSettingsLabels {
 
     /// The sign-in section's line: what is wrong, when something is.
     static func signIn(_ entry: AccountEntry, expired: Bool) -> String {
-        if expired { return L10n.signin_expired_prompt(accounts: entry.address) }
+        if expired { return L10n.signin_expired_prompt(accounts: name(entry)) }
         if AccountSettingsRules.needsPermission(entry) {
             return L10n.settings_account_needs_permission()
         }

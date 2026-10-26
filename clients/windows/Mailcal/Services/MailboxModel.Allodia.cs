@@ -12,6 +12,10 @@ using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
 
+/// <summary>A failed sign-in to an Allodia account: the sentence to show, and whether the browser
+/// returned from another sign-in, which a reauth offer says beneath its button.</summary>
+internal sealed record AllodiaSignInFailure(string Said, bool Stale);
+
 public sealed partial class MailboxModel
 {
     // Cancels a sign-in that is waiting on the browser redirect. A custom-scheme flow gets no
@@ -29,14 +33,14 @@ public sealed partial class MailboxModel
 
     /// <summary>
     /// Runs a sign-in and returns <c>null</c> on success or when the user gave up, and the failure
-    /// text otherwise. The core reads the service's own OAuth metadata, mints the authorisation
+    /// otherwise. The core reads the service's own OAuth metadata, mints the authorisation
     /// URL, exchanges the redirect, asks whose account it is and stores the grant.
     /// </summary>
-    internal async Task<string?> SignInToAllodiaAsync(bool create = false)
+    internal async Task<AllodiaSignInFailure?> SignInToAllodiaAsync(bool create = false)
     {
         if (_app is null)
         {
-            return L10n.AppUnavailable();
+            return new(L10n.SettingsAllodiaFailed(L10n.AppUnavailable()), false);
         }
         using var cancel = new CancellationTokenSource();
         _allodiaSignIn = cancel;
@@ -71,7 +75,11 @@ public sealed partial class MailboxModel
         catch (Exception ex)
         {
             Log.Error($"allodia: sign-in failed: {CoreError.Describe(ex)}");
-            return CoreError.Describe(ex);
+            // A browser that returned from another sign-in is said on its own: nothing failed,
+            // and signing in again goes straight through.
+            return ex is MailcalException.StaleSignIn
+                ? new AllodiaSignInFailure(L10n.SigninStale(), true)
+                : new AllodiaSignInFailure(L10n.SettingsAllodiaFailed(CoreErrorCopy.Said(ex)), false);
         }
         finally
         {
