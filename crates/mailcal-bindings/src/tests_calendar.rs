@@ -3,22 +3,22 @@
 //! The showcase app's events sit around *today*, so the assertions here hold whenever the
 //! suite runs rather than expiring on a date nobody chose.
 
-use std::{
-    sync::mpsc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::{sync::mpsc, time::Duration};
 
 use super::*;
 use crate::tests::{ChannelObserver, NullLogger};
 
-/// Today's `YYYY-MM-DD` in UTC: the anchor a client would pass.
+/// The zone every showcase app here is built for.
+const ZONE: &str = "Europe/Amsterdam";
+
+/// Today's `YYYY-MM-DD` in `ZONE`, the date the showcase seeds its week around and the anchor a
+/// client there would pass. Not the UTC date: for an hour or two after local midnight the two
+/// differ, and on a Monday that hour is last week, which the showcase leaves empty.
 fn today() -> String {
-    let days = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("after the epoch")
-        .as_secs()
-        / 86_400;
-    mailcal_viewmodel::calendar::days::date_at(i64::try_from(days).expect("in range")).to_string()
+    // The seed's own clock, read at its pinned morning hour, which falls on the same date in UTC.
+    let seeded = crate::showcase_data::seeded_now(&crate::device_zone(ZONE.to_owned()));
+    let days = seeded.unix_timestamp().div_euclid(86_400);
+    mailcal_viewmodel::calendar::days::date_at(days).to_string()
 }
 
 /// A client asks for a page and gets a drawable grid: day columns, positioned blocks,
@@ -32,7 +32,7 @@ fn a_client_pulls_a_drawable_week_straight_through_the_ffi() {
         Box::new(ChannelObserver { tx }),
         Box::new(NullLogger),
         LogLevel::Info,
-        "Europe/Amsterdam".to_owned(),
+        ZONE.to_owned(),
         ShowcaseLocale::En,
     );
 
@@ -64,7 +64,7 @@ fn a_client_pulls_a_drawable_week_straight_through_the_ffi() {
     let page = app.calendar_range(app.week_start_date(today()), 7);
     assert!(page.is_materialized);
     assert_eq!(page.days.len(), 7);
-    assert_eq!(page.timezone, "Europe/Amsterdam");
+    assert_eq!(page.timezone, ZONE);
 
     // The showcase's three calendars (Work, Personal, Family), each with a resolved colour the
     // client paints with directly; including the label colour, so it never computes contrast
@@ -118,7 +118,7 @@ fn the_zoom_picks_the_columns() {
         Box::new(ChannelObserver { tx }),
         Box::new(NullLogger),
         LogLevel::Info,
-        "Europe/Amsterdam".to_owned(),
+        ZONE.to_owned(),
         ShowcaseLocale::En,
     );
     let columns = |n| app.calendar_range(today(), n).days.len();
@@ -143,7 +143,7 @@ fn a_junk_anchor_still_returns_a_drawable_page() {
         Box::new(ChannelObserver { tx }),
         Box::new(NullLogger),
         LogLevel::Info,
-        "Europe/Amsterdam".to_owned(),
+        ZONE.to_owned(),
         ShowcaseLocale::En,
     );
     let page = app.calendar_range("not-a-date".to_owned(), 7);
@@ -161,7 +161,7 @@ fn a_client_pulls_one_events_detail_through_the_ffi() {
         Box::new(ChannelObserver { tx }),
         Box::new(NullLogger),
         LogLevel::Info,
-        "Europe/Amsterdam".to_owned(),
+        ZONE.to_owned(),
         ShowcaseLocale::En,
     );
     app.dispatch(Intent::RefreshCalendar);
@@ -310,7 +310,7 @@ fn a_create_carries_its_repeat_rule_across_the_boundary() {
             account: None,
             calendar: None,
             all_day: false,
-            timezone: Some("Europe/Amsterdam".to_owned()),
+            timezone: Some(ZONE.to_owned()),
             notes: None,
             location: None,
             recurrence: Some(weekly_rule()),
