@@ -146,7 +146,7 @@ fn setting_up_a_detected_account_by_hand_opens_its_own_type_prefilled() {
 
     assert_eq!(manual.kind, AccountKind::Jmap);
     assert_eq!(manual.jmap_server, "https://jmap.example.test");
-    assert!(manual.imap_host.is_empty());
+    assert_eq!(manual.imap_host, "");
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn a_microsoft_card_set_up_by_hand_stays_a_microsoft_sign_in() {
 fn the_picker_round_trips_every_account_type() {
     for kind in AccountKind::offered() {
         assert_eq!(AccountKind::from_position(kind.position()), kind);
-        assert!(!kind.label().is_empty());
+        assert_ne!(kind.label(), "");
     }
     // A position no row can produce falls back to the first type rather than panicking.
     assert_eq!(AccountKind::from_position(9), AccountKind::Imap);

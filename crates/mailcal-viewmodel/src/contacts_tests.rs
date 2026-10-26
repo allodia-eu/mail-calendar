@@ -315,5 +315,5 @@ fn the_detail_offers_only_the_cards_that_can_be_edited() {
         &person,
         &[stored(&personal, false), stored(&directory, false)],
     );
-    assert!(read_only.editable_cards.is_empty());
+    assert_eq!(read_only.editable_cards, []);
 }

@@ -211,7 +211,7 @@ async fn opting_in_mints_an_id_and_starts_sending() {
     let id = stored
         .analytics_install_id
         .expect("an id is minted at consent");
-    assert!(!id.is_empty());
+    assert_ne!(id, "");
     assert_eq!(stored.analytics_notice_version, Some(NOTICE_VERSION));
     assert!(
         stored.analytics_consented_at.is_some(),

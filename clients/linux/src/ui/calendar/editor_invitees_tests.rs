@@ -119,7 +119,7 @@ fn an_organiser_opens_the_list_with_the_rows_they_may_edit() {
         organising("").initial_invitees(),
         vec![invitee("grace@example.org", MeetingInviteeRole::Required)]
     );
-    assert!(editing_with("", None).initial_invitees().is_empty());
+    assert_eq!(editing_with("", None).initial_invitees(), []);
 }
 
 #[test]

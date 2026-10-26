@@ -142,7 +142,7 @@ fn non_ascii_text_around_and_inside_an_address_is_byte_safe() {
         one("Café → https://exämple.com/ü, merci").0,
         "https://exämple.com/ü"
     );
-    assert!(found("ééé hhh mmm www").is_empty());
+    assert_eq!(found("ééé hhh mmm www"), []);
 }
 
 #[test]
@@ -189,5 +189,5 @@ fn text_without_an_address_is_one_segment_and_empty_text_is_none() {
             link: None
         }]
     );
-    assert!(segments("").is_empty());
+    assert_eq!(segments(""), []);
 }

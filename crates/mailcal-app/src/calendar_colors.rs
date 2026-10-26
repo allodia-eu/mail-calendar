@@ -252,7 +252,7 @@ mod default_calendar_tests {
     #[test]
     fn nothing_writable_means_no_default_at_all() {
         let rows = mark_default(vec![row("a", "shared", false)], Some(&chose("a", "shared")));
-        assert!(defaulted(&rows).is_empty());
+        assert_eq!(defaulted(&rows), [] as [&str; 0]);
     }
 
     #[test]

@@ -409,16 +409,16 @@ mod tests {
                 .any(|(r, _)| r.contains("issue"))
         );
         // A single digit is not a ticket, and `#` continuing an identifier is not a reference.
-        assert!(forbidden("\"step #1\"").is_empty());
-        assert!(forbidden("\"colour ab#12\"").is_empty());
+        assert_eq!(forbidden("\"step #1\""), []);
+        assert_eq!(forbidden("\"colour ab#12\""), []);
     }
 
     #[test]
     fn a_raw_account_id_is_caught_with_or_without_a_specifier() {
-        assert!(!forbidden("\"syncing {account_id}\"").is_empty());
-        assert!(!forbidden("\"syncing {account:?}\"").is_empty());
+        assert_ne!(forbidden("\"syncing {account_id}\""), []);
+        assert_ne!(forbidden("\"syncing {account:?}\""), []);
         // A different field is nobody's business.
-        assert!(forbidden("\"syncing {folder}\"").is_empty());
+        assert_eq!(forbidden("\"syncing {folder}\""), []);
     }
 
     #[test]

@@ -77,7 +77,7 @@ fn each_state_offers_only_what_is_safe_for_it() {
 fn a_message_no_composer_can_hold_offers_no_edit() {
     for state in [QueuedState::Waiting, QueuedState::NotSent] {
         assert!(!actions(state, false).contains(&QueuedAction::Edit));
-        assert!(!actions(state, false).is_empty());
+        assert_ne!(actions(state, false), []);
     }
 }
 

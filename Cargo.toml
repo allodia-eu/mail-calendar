@@ -52,6 +52,12 @@ default-members = [
 [workspace.package]
 version = "0.13.0"
 edition = "2024"
+# The oldest compiler that builds a shipped artifact, which can trail the pin in
+# rust-toolchain.toml: the Flatpak compiles with Flathub's `rust-stable` SDK extension
+# (clients/linux/flatpak), as do the local SDK builds of `build-and-run.sh` and `test-linux-ui.sh`,
+# and Flathub ships a Rust release weeks after it lands. Raise this, and with it the floor for a
+# newly stable API or Cargo key, once that extension carries the version; clippy's
+# `incompatible_msrv` holds the line until then.
 rust-version = "1.98"
 publish = false
 # The application is GPL-3.0-only (docs/pledge.md, LICENSE). Stated here so `cargo metadata`
@@ -179,6 +185,9 @@ debug = 0
 # afterwards. Note the client build scripts hardcode the `debug`/`release` directory names, so to
 # get full debug info THROUGH one of them, override the dev profile for that one invocation
 # instead: `CARGO_PROFILE_DEV_DEBUG=full ./clients/apple/Scripts/build-core.sh`.
+#
+# Not Cargo's built-in `debug` profile: that one writes to `target/debug/` beside `dev`, which is
+# the directory this profile exists to stay out of.
 [profile.debugger]
 inherits = "dev"
 debug = "full"

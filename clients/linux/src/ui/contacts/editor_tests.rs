@@ -140,5 +140,5 @@ fn blank_rows_are_dropped_rather_than_refused() {
         panic!("a form with an emptied row was refused");
     };
     assert_eq!(edit.emails, vec!["ada@example.test".to_owned()]);
-    assert!(edit.phones.is_empty());
+    assert_eq!(edit.phones, [] as [String; 0]);
 }

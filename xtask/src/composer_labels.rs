@@ -292,7 +292,7 @@ mod tests {
     fn a_quoted_string_that_is_not_a_key_is_not_read_as_one() {
         // The text after the key is what tells a map entry from an ordinary string.
         let swift = "        let title = \"bold\"\n";
-        assert!(keys_in(swift, ("\"", "\": L10n.")).is_empty());
+        assert_eq!(keys_in(swift, ("\"", "\": L10n.")), [] as [String; 0]);
     }
 
     #[test]

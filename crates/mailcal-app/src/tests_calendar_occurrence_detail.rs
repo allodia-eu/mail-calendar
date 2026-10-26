@@ -88,12 +88,7 @@ async fn an_occurrence_names_itself_so_a_client_knows_what_it_may_ask() {
 async fn the_series_names_no_occurrence() {
     // What an agenda row opens, and the only thing a one-off event can be. A client reads this
     // to decide whether to put its scope question at all.
-    assert!(
-        detail_for(moved_standup(), None)
-            .await
-            .occurrence_start
-            .is_empty()
-    );
+    assert_eq!(detail_for(moved_standup(), None).await.occurrence_start, "");
 }
 
 #[tokio::test]
@@ -104,7 +99,7 @@ async fn a_token_naming_no_occurrence_falls_back_to_the_series() {
     let series = detail_for(moved_standup(), None).await;
     let stale = detail_for(moved_standup(), Some("2019-01-01T09:30:00")).await;
 
-    assert!(stale.occurrence_start.is_empty());
+    assert_eq!(stale.occurrence_start, "");
     assert_eq!(stale.start, series.start);
     assert_eq!(stale.end, series.end);
 }
@@ -113,7 +108,7 @@ async fn a_token_naming_no_occurrence_falls_back_to_the_series() {
 async fn nonsense_in_the_token_is_not_a_crash() {
     // It crosses the FFI as a string, so it can hold anything a client sends.
     let detail = detail_for(moved_standup(), Some("not-a-time")).await;
-    assert!(detail.occurrence_start.is_empty());
+    assert_eq!(detail.occurrence_start, "");
 }
 
 #[tokio::test]

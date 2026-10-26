@@ -66,8 +66,8 @@ fn a_handle_written_before_these_fields_existed_still_parses() {
     let endpoints: Endpoints = serde_json::from_str(older).unwrap();
     assert_eq!(endpoints.token_endpoint, "https://as.example.com/token");
     assert!(endpoints.end_session_endpoint.is_none());
-    assert!(endpoints.prompt_values_supported.is_empty());
-    assert!(endpoints.scopes.is_empty());
+    assert_eq!(endpoints.prompt_values_supported, [] as [String; 0]);
+    assert_eq!(endpoints.scopes, [] as [String; 0]);
 }
 
 /// A build that reaches a deployment predating a scope loses the feature, not the sign-in.

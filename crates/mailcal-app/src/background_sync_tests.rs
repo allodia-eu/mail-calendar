@@ -171,7 +171,7 @@ fn undated_messages_are_never_reported() {
 #[test]
 fn an_empty_inbox_has_no_high_water() {
     let scan = newly_arrived(&[], "inbox", Some(OWNER), None, None);
-    assert!(scan.previews.is_empty());
+    assert_eq!(scan.previews, []);
     assert_eq!(
         scan.high_water, None,
         "the caller seeds an empty inbox to now"
@@ -219,7 +219,7 @@ fn a_message_whose_body_has_not_been_fetched_previews_as_empty() {
         &AccountId::try_from("acct").unwrap(),
         &message,
     ));
-    assert!(preview.preview.is_empty());
+    assert_eq!(preview.preview, "");
 }
 
 #[test]

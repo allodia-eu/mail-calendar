@@ -266,7 +266,7 @@ async fn send_message_is_unreachable_while_direct_send_is_off() {
     .await
     .expect_err("the tool is not listed, so it is not callable");
     assert!(matches!(refused, ToolFailure::Unknown(_)));
-    assert!(recorder.lock().unwrap().sends.is_empty());
+    assert_eq!(recorder.lock().unwrap().sends, [] as [Vec<String>; 0]);
 }
 
 #[tokio::test]
@@ -289,7 +289,7 @@ async fn send_message_refuses_an_unknown_recipient_and_allows_a_known_one() {
     .await
     .expect_err("the guard refuses exfiltration to an address the user has never written to");
     assert!(matches!(refused, ToolFailure::Refused(_)));
-    assert!(recorder.lock().unwrap().sends.is_empty());
+    assert_eq!(recorder.lock().unwrap().sends, [] as [Vec<String>; 0]);
 
     call(
         &ctx,

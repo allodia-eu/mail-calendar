@@ -74,7 +74,7 @@ async fn a_created_contact_reaches_the_list() {
     );
     app.dispatch(Intent::Contacts(ContactsIntent::RefreshContacts))
         .await;
-    assert!(app.contacts().rows.is_empty());
+    assert_eq!(app.contacts().rows, []);
 
     app.dispatch(Intent::Contacts(ContactsIntent::CreateContact {
         account: None,
@@ -217,7 +217,7 @@ async fn a_read_only_card_offers_no_edit() {
         .await;
     let row = app.contacts().rows.remove(0);
     let detail = app.contact_detail(&row.id).await.expect("the detail");
-    assert!(detail.editable_cards.is_empty());
+    assert_eq!(detail.editable_cards, []);
 }
 
 /// An editor is seeded from the **card**, never from the person: the person is a merge, and
@@ -378,7 +378,7 @@ async fn an_unfilable_contact_is_refused_before_anything_is_sent() {
     }))
     .await;
     assert_eq!(app.contact_write_status(), ContactWriteStatus::Invalid);
-    assert!(writes.entries().is_empty());
+    assert_eq!(writes.entries(), []);
 
     app.dispatch(Intent::Contacts(ContactsIntent::CreateContact {
         account: None,
@@ -387,7 +387,7 @@ async fn an_unfilable_contact_is_refused_before_anything_is_sent() {
     }))
     .await;
     assert_eq!(app.contact_write_status(), ContactWriteStatus::Invalid);
-    assert!(writes.entries().is_empty());
+    assert_eq!(writes.entries(), []);
 }
 
 /// A destination the client named and the core cannot find is a refusal, not a redirection: the
@@ -418,7 +418,7 @@ async fn a_named_destination_that_is_gone_files_nowhere() {
     }))
     .await;
     assert!(writes.entries().is_empty(), "{:?}", writes.entries());
-    assert!(app.contacts().rows.is_empty());
+    assert_eq!(app.contacts().rows, []);
     assert_eq!(app.contact_write_status(), ContactWriteStatus::NotSaved);
 
     // Naming neither half still means "wherever contacts go", which is the whole picker for a

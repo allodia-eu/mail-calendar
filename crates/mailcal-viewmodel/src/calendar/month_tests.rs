@@ -122,7 +122,7 @@ fn a_multi_day_event_appears_on_every_day_it_covers() {
         assert_eq!(titles(&grid, iso), vec!["Offsite"], "{iso}");
     }
     // The end is exclusive: a three-day event does not bleed into a fourth.
-    assert!(titles(&grid, "2026-07-18").is_empty());
+    assert_eq!(titles(&grid, "2026-07-18"), [] as [String; 0]);
 
     // A timed event crossing LOCAL midnight lands on both days, and starts at midnight on the
     // second, because it did not begin again that morning.

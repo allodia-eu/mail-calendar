@@ -91,7 +91,7 @@ fn the_day_axis_runs_consecutively_from_the_anchor_and_snaps_to_nothing() {
 
 #[test]
 fn zero_columns_is_an_empty_axis_rather_than_a_panic() {
-    assert!(days_from(date("2026-07-09"), 0).is_empty());
+    assert_eq!(days_from(date("2026-07-09"), 0), []);
 }
 
 #[test]

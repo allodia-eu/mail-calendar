@@ -235,7 +235,7 @@ mod tests {
             Some(cid)
         );
         assert_eq!(attachments[0].media_type, "image/png");
-        assert!(!attachments[0].content.is_empty());
+        assert_ne!(attachments[0].content, [] as [u8; 0]);
     }
 
     #[test]
@@ -277,7 +277,7 @@ mod tests {
         );
         let attachments = reattach_signature_cids(&mut doc);
 
-        assert!(attachments.is_empty());
+        assert_eq!(attachments, []);
         let html = signature_html(&doc);
         assert_eq!(html.matches("data:").count(), 2);
         assert!(!html.contains("cid:"));
@@ -328,7 +328,7 @@ mod tests {
         };
         let before = doc.clone();
         sanitize_signature_bodies(&mut doc);
-        assert!(reattach_signature_cids(&mut doc).is_empty());
+        assert_eq!(reattach_signature_cids(&mut doc), []);
         assert_eq!(doc, before);
     }
 }

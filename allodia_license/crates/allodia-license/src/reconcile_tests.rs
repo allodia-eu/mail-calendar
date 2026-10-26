@@ -69,7 +69,7 @@ fn nothing_changed_on_either_side_is_nothing_to_do() {
     let config = imap("someone@example.com", "imap.example.com");
     let local = vec![synced("a", config.clone(), "rec-1", 4)];
     let remote = list(vec![record("rec-1", 4, config)], vec![]);
-    assert!(reconcile(&local, &remote).is_empty());
+    assert_eq!(reconcile(&local, &remote), []);
 }
 
 #[test]
@@ -247,7 +247,7 @@ fn an_account_deleted_elsewhere_is_not_offered_back_in_the_same_pass() {
         )],
         vec![gone("rec-9", 2)],
     );
-    assert!(reconcile(&[], &remote).is_empty());
+    assert_eq!(reconcile(&[], &remote), []);
 }
 
 /// Detached means fully local: no pull, and no push either.
@@ -281,7 +281,7 @@ fn a_detached_accounts_record_is_not_offered_as_a_new_one() {
     let mut local = vec![synced("a", config.clone(), "rec-1", 4)];
     local[0].sync.as_mut().unwrap().detached = true;
     let remote = list(vec![record("rec-1", 4, config)], vec![]);
-    assert!(reconcile(&local, &remote).is_empty());
+    assert_eq!(reconcile(&local, &remote), []);
 }
 
 /// A `since` delta carries only what changed, so an unchanged account is simply absent.
@@ -293,7 +293,7 @@ fn an_account_missing_from_a_delta_is_not_treated_as_deleted() {
     let config = imap("someone@example.com", "imap.example.com");
     let local = vec![synced("a", config, "rec-1", 4)];
     let remote = list(vec![], vec![]);
-    assert!(reconcile(&local, &remote).is_empty());
+    assert_eq!(reconcile(&local, &remote), []);
 }
 
 #[test]

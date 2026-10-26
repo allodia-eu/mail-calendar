@@ -40,7 +40,7 @@ fn an_omitted_response_scope_means_as_requested_not_nothing() {
     let requested = vec!["openid".to_owned(), "mailcal:accounts:read".to_owned()];
     let granted = GrantedScopes::from_response("", &requested);
     assert!(granted.grants("mailcal:accounts:read"));
-    assert!(granted.missing(&["mailcal:accounts:read"]).is_empty());
+    assert_eq!(granted.missing(&["mailcal:accounts:read"]), [] as [&str; 0]);
 }
 
 #[test]

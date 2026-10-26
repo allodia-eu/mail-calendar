@@ -46,11 +46,11 @@ fn microsoft_google_and_calendar_accounts_have_no_such_section() {
 fn before_the_server_answers_the_section_says_only_how_it_signs_in() {
     let password = section(AccountKind::Imap, SignInMethod::Password, None).expect("a section");
     assert_eq!(password.status, l10n::settings_account_signs_in_password());
-    assert!(password.controls.is_empty());
+    assert_eq!(password.controls, []);
     assert!(!password.switches());
     let provider = section(AccountKind::Jmap, SignInMethod::Provider, None).expect("a section");
     assert_eq!(provider.status, l10n::settings_account_signs_in_provider());
-    assert!(provider.controls.is_empty());
+    assert_eq!(provider.controls, []);
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn a_password_account_switches_to_signing_in_where_its_server_offers_it() {
         Some(&options(false, true)),
     )
     .expect("a section");
-    assert!(password_only.controls.is_empty());
+    assert_eq!(password_only.controls, []);
 }
 
 fn rendered(group: &adw::PreferencesGroup) -> Vec<String> {

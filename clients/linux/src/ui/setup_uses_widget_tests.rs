@@ -217,7 +217,7 @@ pub(super) fn the_manual_form_sets_up_calendar_and_contacts_alone(window: &adw::
     };
     assert_eq!(submission.uses, Some(vec![AccountCapability::Contacts]));
     assert_eq!(submission.carddav_url, "https://cloud.example.test/dav");
-    assert!(submission.imap_host.is_empty());
+    assert_eq!(submission.imap_host, "");
     let config = AccountSubmission::Imap(submission)
         .config_toml()
         .expect("an address book alone is an account");

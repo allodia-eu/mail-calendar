@@ -207,7 +207,7 @@ async fn removing_an_account_forgets_engine_data_and_sync_settings() {
     app.remove_account(&AccountId::try_from("acct").unwrap())
         .await;
 
-    assert!(stored_keys(&app, "acct").await.is_empty());
+    assert_eq!(stored_keys(&app, "acct").await, [] as [String; 0]);
     app.add_account(account("acct", window_provider())).await;
     assert_eq!(account_depth(&app, "acct").await, expected_default_depth());
     assert_eq!(stored_keys(&app, "acct").await, expected_default_keys());

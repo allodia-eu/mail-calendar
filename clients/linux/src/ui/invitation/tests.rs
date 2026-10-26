@@ -71,7 +71,7 @@ fn a_meeting_of_one_is_a_sentence_rather_than_arithmetic() {
         attendees(&tally(1, 1, 0, 0, 0)),
         l10n::invitation_attendees_one()
     );
-    assert!(attendees(&tally(0, 0, 0, 0, 0)).is_empty());
+    assert_eq!(attendees(&tally(0, 0, 0, 0, 0)), "");
 }
 
 #[test]

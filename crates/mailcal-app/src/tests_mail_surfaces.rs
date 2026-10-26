@@ -74,5 +74,5 @@ async fn an_account_with_mail_is_not_badged_for_its_calendar_alone() {
 
     app.refresh_calendar().await;
 
-    assert!(app.connectivity().unreachable_accounts.is_empty());
+    assert_eq!(app.connectivity().unreachable_accounts, [] as [String; 0]);
 }

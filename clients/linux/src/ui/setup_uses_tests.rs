@@ -58,7 +58,7 @@ fn contacts_found_through_the_calendar_keep_its_server_with_the_calendar_off() {
         Some(vec![AccountCapability::Mail, AccountCapability::Contacts])
     );
     assert_eq!(kept.caldav_url, CALDAV);
-    assert!(kept.carddav_url.is_empty());
+    assert_eq!(kept.carddav_url, "");
 }
 
 #[test]
@@ -69,7 +69,7 @@ fn a_use_switched_off_stores_no_server() {
 
     let without_mail = chosen(&offer(CALDAV, CARDDAV), Some(false), ON, OFF, None);
     assert_eq!(without_mail.uses, Some(vec![AccountCapability::Calendar]));
-    assert!(without_mail.carddav_url.is_empty());
+    assert_eq!(without_mail.carddav_url, "");
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn a_server_not_found_is_the_one_typed() {
         OFF,
         None,
     );
-    assert!(dropped.caldav_url.is_empty());
+    assert_eq!(dropped.caldav_url, "");
 }
 
 #[test]

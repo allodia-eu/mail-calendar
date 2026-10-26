@@ -134,7 +134,7 @@ async fn a_send_the_user_says_did_not_arrive_goes_out_again() {
     app.dispatch(Intent::Outbox(OutboxIntent::ConfirmNotSent(target(&row))))
         .await;
 
-    assert!(app.mailbox_list().outbox.is_empty());
+    assert_eq!(app.mailbox_list().outbox, []);
     assert_eq!(handed.load(Ordering::SeqCst), 2);
 }
 
@@ -151,7 +151,7 @@ async fn a_send_the_user_says_arrived_leaves_the_outbox_unsent() {
         .await;
     reconnect(&app).await;
 
-    assert!(app.mailbox_list().outbox.is_empty());
+    assert_eq!(app.mailbox_list().outbox, []);
     assert_eq!(handed.load(Ordering::SeqCst), 1);
 }
 

@@ -396,11 +396,11 @@ fn restore_cid_leaves_foreign_data_images_and_is_a_noop_without_parts() {
     let foreign = r#"<img src="data:image/png;base64,d29ybGQ=">"#;
     let (restored, matched) = restore_cid_images(foreign, &part_refs);
     assert_eq!(restored, foreign);
-    assert!(matched.is_empty());
+    assert_eq!(matched, [] as [&InlinePart; 0]);
     // No parts at all: unchanged.
     let (r2, m2) = restore_cid_images(foreign, &[]);
     assert_eq!(r2, foreign);
-    assert!(m2.is_empty());
+    assert_eq!(m2, [] as [&InlinePart; 0]);
 }
 
 #[test]

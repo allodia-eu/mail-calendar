@@ -77,7 +77,7 @@ fn nothing_is_settled_until_the_service_has_attached_it() {
         ledger.apply("t-1", LinkOutcome::Linked, 2_000),
         Settled::Settled
     );
-    assert!(ledger.pending().is_empty());
+    assert_eq!(ledger.pending(), []);
 }
 
 /// A purchase serving another Allodia account is settled rather than retried forever: it is real,
@@ -92,7 +92,7 @@ fn a_purchase_claimed_by_another_account_is_settled_and_dropped() {
         ledger.apply("t-1", LinkOutcome::ClaimedElsewhere, 1_000),
         Settled::Settled
     );
-    assert!(ledger.pending().is_empty());
+    assert_eq!(ledger.pending(), []);
 }
 
 /// StoreKit re-delivers every unfinished transaction at launch and again through its updates
@@ -148,7 +148,7 @@ fn a_purchase_from_allodias_own_checkout_is_not_something_to_attach() {
         ..purchase("t-1")
     }]);
 
-    assert!(ledger.pending().is_empty());
+    assert_eq!(ledger.pending(), []);
 }
 
 /// A fresh purchase is attempted at once; that is what carries an ordinary one straight through.

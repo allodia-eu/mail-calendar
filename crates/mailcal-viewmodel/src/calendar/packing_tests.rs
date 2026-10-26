@@ -125,7 +125,7 @@ fn an_empty_span_overlaps_nothing() {
 
 #[test]
 fn no_spans_is_no_placements() {
-    assert!(pack(&[]).is_empty());
+    assert_eq!(pack(&[]), []);
 }
 
 // --- invariants over generated input ------------------------------------------------

@@ -89,9 +89,9 @@ fn a_row_offers_what_its_flags_allow_and_a_pending_row_nothing() {
     pending.editable = false;
     pending.accepts_folders = false;
     pending.accepts_messages = false;
-    assert!(folder_menu(&pending).is_empty());
+    assert_eq!(folder_menu(&pending), []);
     assert_eq!(account_menu(true), vec![FolderMenuItem::NewFolder]);
-    assert!(account_menu(false).is_empty());
+    assert_eq!(account_menu(false), []);
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn move_to_lists_top_level_first_and_never_the_folder_what_is_inside_it_or_where
 
 #[test]
 fn a_top_level_folder_with_nowhere_to_go_is_offered_nothing() {
-    assert!(move_candidates(&[row("work", "Work", None)], "work").is_empty());
+    assert_eq!(move_candidates(&[row("work", "Work", None)], "work"), []);
 }
 
 #[test]

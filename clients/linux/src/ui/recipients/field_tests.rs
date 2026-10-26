@@ -65,7 +65,7 @@ pub(crate) fn a_seeded_field_draws_every_address_as_a_pill() {
     // An empty field draws no pill row at all, rather than an empty strip above the input.
     let cc = field("Cc");
     cc.seed("");
-    assert!(pill_labels(&cc).is_empty());
+    assert_eq!(pill_labels(&cc), [] as [String; 0]);
     assert!(!cc.inner.pills.is_visible());
     assert_eq!(cc.text(), "");
 }
@@ -357,7 +357,7 @@ pub(crate) fn an_owners_enter_finishes_nothing() {
             .inner
             .key_pressed(gtk::gdk::Key::Return, 0, gtk::gdk::ModifierType::empty());
     assert_eq!(enter, gtk::glib::Propagation::Proceed);
-    assert!(pill_labels(&invitees).is_empty());
+    assert_eq!(pill_labels(&invitees), [] as [String; 0]);
 }
 
 /// The field is left when focus lands outside it, and only then: a pill's remove button is still

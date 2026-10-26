@@ -234,7 +234,7 @@ fn the_summary_names_the_kind_the_uses_and_the_links() {
 #[test]
 fn a_picker_is_offered_only_for_a_slot_the_account_can_hold() {
     let mut entry = mailbox_only();
-    assert!(link_pickers(&entry).is_empty());
+    assert_eq!(link_pickers(&entry), []);
 
     entry.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
     entry.links.calendar = Some(linked("b@cloud.example"));

@@ -159,7 +159,7 @@ async fn an_offline_launch_over_an_unsynced_store_says_loading_not_empty() {
         !page.is_materialized,
         "a calendar nobody could read must read as loading, never as an empty week"
     );
-    assert!(page.grid.timed.is_empty());
+    assert_eq!(page.grid.timed, []);
 }
 
 /// The opposite lie, and it needs guarding just as much: an account with **no calendar provider**
@@ -184,7 +184,7 @@ async fn a_mail_only_account_gets_an_answer_rather_than_a_permanent_loading() {
         page.is_materialized,
         "an account that can never have a calendar has an empty one, not an unknown one"
     );
-    assert!(page.grid.timed.is_empty());
+    assert_eq!(page.grid.timed, []);
 }
 
 /// A calendar that could not be reached beside a working mailbox has not reported "no calendar":

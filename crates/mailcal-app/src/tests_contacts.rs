@@ -295,8 +295,8 @@ async fn a_blank_autosuggest_query_returns_nothing() {
     app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
         .await;
 
-    assert!(app.recipient_suggestions("").await.is_empty());
-    assert!(app.recipient_suggestions("   ").await.is_empty());
+    assert_eq!(app.recipient_suggestions("").await, []);
+    assert_eq!(app.recipient_suggestions("   ").await, []);
 }
 
 #[tokio::test]

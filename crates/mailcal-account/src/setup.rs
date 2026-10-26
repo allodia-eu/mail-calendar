@@ -435,7 +435,7 @@ mod tests {
     fn build_config_toml_writes_no_exception_when_none_was_accepted() {
         let toml = build_config_toml(&full_setup()).unwrap();
         assert!(!toml.contains("certificate_exception"));
-        assert!(load_str(&toml).unwrap().certificate_exceptions.is_empty());
+        assert_eq!(load_str(&toml).unwrap().certificate_exceptions, []);
     }
 
     #[test]

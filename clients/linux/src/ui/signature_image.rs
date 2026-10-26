@@ -143,7 +143,7 @@ mod tests {
     fn the_cap_is_named_in_the_message() {
         let limit = format_limit();
 
-        assert!(!limit.is_empty());
+        assert_ne!(limit, "");
         assert!(
             limit.contains(char::is_numeric),
             "the message has to name a size the user can compare against: {limit}"

@@ -230,15 +230,15 @@ async fn only_a_stored_message_with_html_opens_with_its_quote() {
     };
 
     let html = resume("rich-1").await;
-    assert!(!html.body_html.is_empty());
+    assert_ne!(html.body_html, "");
     assert!(
         html.quote.is_some(),
         "a stored HTML reply opens with its original"
     );
 
     let text = resume("plain-1").await;
-    assert!(text.body_html.is_empty());
-    assert!(!text.body_text.is_empty());
+    assert_eq!(text.body_html, "");
+    assert_ne!(text.body_text, "");
     assert!(
         text.quote.is_none(),
         "a stored text reply opened with a quote of its own"
@@ -408,7 +408,7 @@ async fn reopen_reply(key: &str, source: &[u8]) -> crate::ComposeOpening {
 #[tokio::test]
 async fn a_reopened_quote_carries_the_originals_headers_and_no_body() {
     let html = reopen_reply("html-reply", HTML_REPLY).await;
-    assert!(!html.body_html.is_empty());
+    assert_ne!(html.body_html, "");
     let quote = html
         .quote
         .expect("a reopened HTML reply completes its attribution from the original");

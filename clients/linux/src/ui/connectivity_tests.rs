@@ -448,10 +448,10 @@ fn the_outage_lines_follow_the_snapshot_and_open_the_accounts_page(
         ConnectivityState::from_snapshot(cleared, &[], no_address, no_address, |_| None, no_change);
     banners.render(&cleared, PrimaryView::Calendar);
     assert!(!banners.calendar_outages.root.is_visible());
-    assert!(texts(&banners.calendar_outages).is_empty());
+    assert_eq!(texts(&banners.calendar_outages), [] as [String; 0]);
     banners.render(&cleared, PrimaryView::Contacts);
     assert!(!banners.contacts_outages.root.is_visible());
-    assert!(texts(&banners.contacts_outages).is_empty());
+    assert_eq!(texts(&banners.contacts_outages), [] as [String; 0]);
 
     // A paused use's line offers the review of its new server rather than the account's page.
     let mut paused = snapshot();

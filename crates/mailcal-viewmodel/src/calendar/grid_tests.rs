@@ -184,7 +184,7 @@ fn an_all_day_event_covers_exactly_its_own_day() {
         )],
         &zone(),
     );
-    assert!(grid.timed.is_empty());
+    assert_eq!(grid.timed, []);
     assert_eq!(grid.all_day.len(), 1);
     assert_eq!((grid.all_day[0].day, grid.all_day[0].days), (2, 1));
     assert_eq!(grid.all_day_lanes, 1);
@@ -249,7 +249,7 @@ fn a_long_timed_booking_bands_instead_of_drawing_a_full_height_block() {
         )],
         &zone(),
     );
-    assert!(grid.timed.is_empty());
+    assert_eq!(grid.timed, []);
     assert_eq!((grid.all_day[0].day, grid.all_day[0].days), (2, 2));
 
     // ...but a 23-hour one is still a block, split across the two days it touches.
@@ -262,7 +262,7 @@ fn a_long_timed_booking_bands_instead_of_drawing_a_full_height_block() {
         )],
         &zone(),
     );
-    assert!(grid.all_day.is_empty());
+    assert_eq!(grid.all_day, []);
     assert_eq!(grid.timed.len(), 2);
 }
 
@@ -354,5 +354,5 @@ fn an_unresolvable_zone_drops_the_block_rather_than_misplacing_it() {
         )],
         &custom,
     );
-    assert!(grid.timed.is_empty());
+    assert_eq!(grid.timed, []);
 }

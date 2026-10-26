@@ -4,6 +4,9 @@
 # key contains the rustc version — stops a floating `stable` from silently invalidating every
 # cache mid-day, which is what a 1.96.0 -> 1.96.1 -> 1.97.0 drift did on 2026-07-09.
 #
+# The Flatpak is the exception: it compiles with Flathub's `rust-stable` SDK extension, which is why
+# `rust-version` in Cargo.toml can trail this pin.
+#
 # Bumping is a deliberate, standalone PR: a new stable can add default-warn rustc/clippy lints, and
 # the workspace denies all warnings (see the root Cargo.toml), so the bump is where those surface
 # and get fixed — not a red build on someone's unrelated change.
@@ -12,5 +15,5 @@
 # the nightly pinned in rust-nightly.toml instead. Run it via `cargo xtask gate`, which reads
 # that file — the same one ci.yml reads (see AGENTS.md).
 [toolchain]
-channel = "1.98.1"
+channel = "1.99.1"
 components = ["clippy"]

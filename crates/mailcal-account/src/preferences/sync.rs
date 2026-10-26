@@ -380,7 +380,7 @@ mod tests {
         assert_eq!(eff.strategy, SyncStrategy::Poll);
         // The stored interval is honoured on the fallback (snapped to the allowed set).
         assert_eq!(eff.poll_interval_mins, 90);
-        assert!(eff.push_folders.is_empty());
+        assert_eq!(eff.push_folders, [] as [String; 0]);
     }
 
     #[test]

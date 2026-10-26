@@ -32,14 +32,13 @@ fn nothing_to_choose_is_no_step_and_what_is_not_chosen_is_switched_off() {
         step().changes(&[AccountCapability::Mail, AccountCapability::Contacts]),
         [(AccountCapability::Calendar, false)]
     );
-    assert!(
-        step()
-            .changes(&[
-                AccountCapability::Mail,
-                AccountCapability::Calendar,
-                AccountCapability::Contacts,
-            ])
-            .is_empty()
+    assert_eq!(
+        step().changes(&[
+            AccountCapability::Mail,
+            AccountCapability::Calendar,
+            AccountCapability::Contacts,
+        ]),
+        []
     );
 }
 
@@ -67,9 +66,9 @@ fn a_use_ticked_in_the_step_is_switched_on_before_any_is_switched_off() {
             (AccountCapability::Calendar, false)
         ]
     );
-    assert!(
-        step.changes(&[AccountCapability::Mail, AccountCapability::Calendar])
-            .is_empty()
+    assert_eq!(
+        step.changes(&[AccountCapability::Mail, AccountCapability::Calendar]),
+        []
     );
 }
 

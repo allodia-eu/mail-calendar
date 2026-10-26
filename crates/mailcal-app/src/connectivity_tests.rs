@@ -173,7 +173,7 @@ async fn a_boot_outage_carries_a_detail_a_reachable_resync_does_not_clobber() {
 
     // Recovering clears both the badge and the detail.
     app.set_account_reachable(&id, true);
-    assert!(app.connectivity().unreachable_accounts.is_empty());
+    assert_eq!(app.connectivity().unreachable_accounts, [] as [String; 0]);
     assert!(
         app.connection_detail(&id).is_none(),
         "recovery clears the detail"

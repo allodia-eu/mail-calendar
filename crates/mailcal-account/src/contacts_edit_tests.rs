@@ -354,7 +354,7 @@ fn a_card_without_components_seeds_its_whole_name() {
     });
     let read = ContactEdit::from_card(&card);
     assert_eq!(read.given_name, "Ada Lovelace");
-    assert!(read.surname.is_empty());
+    assert_eq!(read.surname, "");
     assert!(
         build_contact_patch(&card, &read)
             .expect("a valid patch")
