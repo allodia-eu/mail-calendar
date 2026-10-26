@@ -17,6 +17,7 @@ use crate::AccountEndpoints;
 /// server it stores moves to the URL `raw` names. A site is the registrable domain, or the host
 /// itself where the Public Suffix List cannot place one. `None` when `raw` names no server or the
 /// account stores none.
+#[cfg(any(debug_assertions, test))]
 pub(super) fn staged_change(
     stored: &AccountEndpoints,
     raw: &str,
@@ -34,6 +35,7 @@ pub(super) fn staged_change(
     })
 }
 
+#[cfg(any(debug_assertions, test))]
 fn site(url: &str) -> Option<String> {
     mailcal_autodetect::site_of(url)
         .or_else(|| url::Url::parse(url).ok()?.host_str().map(str::to_owned))
