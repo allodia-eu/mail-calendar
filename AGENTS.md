@@ -412,8 +412,9 @@ emits a variant such as `EventIntent.Create` as a positional record and drops th
 code compiles and its logic holds, not that the toolkit the user gets behaves. What runs against
 the shipped runtime is `test-linux-ui.sh` and `build-and-run.sh`, both defaulting to it via
 [`scripts/dev/sdk.sh`](scripts/dev/sdk.sh); pass `--host` to the latter for the faster loop.
-`cargo fmt` stays on the host either way, because the SDK's Rust is stable and stable rustfmt
-silently ignores every nightly option in [`rustfmt.toml`](rustfmt.toml).
+The SDK builds compile with the host's rustup toolchain, so they follow
+[`rust-toolchain.toml`](rust-toolchain.toml) like every other build. `cargo fmt` stays on the host
+either way: it needs no GTK, and it runs on the nightly the gate selects.
 
 `clients/linux/package.sh` is the packaging gate: it builds `--release` in the GNOME SDK, generates
 the desktop entry and AppStream metainfo from the resolved listing and [`VERSION`](VERSION), and

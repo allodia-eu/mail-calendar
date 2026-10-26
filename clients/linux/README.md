@@ -65,8 +65,7 @@ performed by any script:
 ```sh
 sudo apt install --yes flatpak flatpak-builder
 flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install --user flathub \
-  org.gnome.Platform//50 org.gnome.Sdk//50 org.freedesktop.Sdk.Extension.rust-stable//25.08
+flatpak install --user flathub org.gnome.Platform//50 org.gnome.Sdk//50
 ```
 
 **That runtime: not the `-dev` packages above: is what the client is verified against.** The
@@ -256,8 +255,7 @@ Use only the demo or Stalwart harness for captures, never a personal account.
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak install --user flathub org.gnome.Platform//50 org.gnome.Sdk//50 \
-                                org.freedesktop.Sdk.Extension.rust-stable//25.08
+flatpak install --user flathub org.gnome.Platform//50 org.gnome.Sdk//50
 clients/linux/package.sh --install --run
 ```
 
@@ -358,9 +356,11 @@ private data-directory socket. Development builds use the relay beside `mailcal-
   ([`store-listing.md`](../../docs/store-listing.md)): which is also why the generated metainfo
   carries the sovereignty framing and no feature bullets.
 - **Flathub builds with no network and requires every source declared in the manifest.** This
-  manifest instead passes `--share=network` to the build and lets cargo fetch crates.io and the
-  pinned engine commit. A submission additionally needs a generated `cargo-sources.json`
-  (flatpak-builder-tools) regenerated whenever `Cargo.lock` moves.
+  manifest instead passes `--share=network` to the build and lets rustup fetch the pinned toolchain
+  and cargo fetch crates.io and the pinned engine commit. A submission additionally needs a
+  generated `cargo-sources.json` (flatpak-builder-tools) regenerated whenever `Cargo.lock` moves,
+  and the toolchain declared as a source: the static.rust-lang.org archive of the pinned version,
+  per architecture with its checksum.
 - **The gallery has no published images.** `showcase.sh linux` captures them; nothing uploads them
   yet (see `store-listing.md` → Known gaps).
 

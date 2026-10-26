@@ -54,7 +54,7 @@ sdk_available() {
 # why nothing here performs it silently.
 sdk_install_hint() {
   local version="${1:-$(sdk_runtime_version)}"
-  printf 'flatpak install --user flathub org.gnome.Platform//%s org.gnome.Sdk//%s org.freedesktop.Sdk.Extension.rust-stable//25.08\n' \
+  printf 'flatpak install --user flathub org.gnome.Platform//%s org.gnome.Sdk//%s\n' \
     "$version" "$version"
 }
 
@@ -65,15 +65,16 @@ SDK_SH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sdk.sh"
 # display and a session bus that a plain build has no use for.
 SDK_CARGO_EXTRA=()
 
-# The target directory for SDK builds. Deliberately **not** the host's: a different libc and a
-# different rustc mean cargo would rebuild the world on every switch between the two.
+# The target directory for SDK builds. Deliberately **not** the host's: the sandbox links the
+# runtime's libc and GTK, so its artifacts are not the host's to reuse, nor its binaries the host's
+# to run.
 sdk_target_dir() {
   printf '%s\n' "$REPO_ROOT/target/flatpak-sdk"
 }
 
 # Where cargo puts SDK intermediates. Outside the checkout so worktrees share one copy, and
 # separate from the host's for the reason above: the repo's own `build.build-dir` would otherwise
-# mix both toolchains into one directory. `MAILCAL_SDK_BUILD_DIR` opts one checkout out, for the
+# mix both kinds of build into one directory. `MAILCAL_SDK_BUILD_DIR` opts one checkout out, for the
 # reason `CARGO_BUILD_BUILD_DIR` opts out a host build: a build running from a checkout whose
 # scripts predate the claim in `sdk_cargo` takes no lock, and can still interleave with this one.
 sdk_build_dir() {
@@ -82,10 +83,10 @@ sdk_build_dir() {
 
 # Runs cargo inside the SDK.
 #
-# The SDK carries its own rust-stable extension, so `rust-toolchain.toml` does not apply here,
-# there is no rustup inside to read it. That also puts `cargo fmt` out of reach: the extension is
-# stable, and rustfmt.toml is all nightly options, which stable rustfmt *warns about and ignores*
-# rather than refusing. Formatting stays on the host, where it needs no GTK anyway.
+# The compiler is the host's rustup, reached through the host filesystem the sandbox already sees,
+# so `rust-toolchain.toml` decides it here as it does everywhere else, and the proxy installs a
+# missing toolchain the way it would on the host. rustup's toolchains need only an old glibc, so
+# they run on the runtime's. Formatting stays on the host, where it needs no GTK anyway.
 #
 # An empty `RUSTC_WRAPPER` is how cargo is told *no wrapper*: a `rustc-wrapper` in the host's
 # config resolves against the sandbox's PATH, which that binary is not on, and cargo fails before
@@ -121,9 +122,12 @@ sdk_cargo() {
 # `sdk_cargo` without the claim: only for a caller that already holds it.
 sdk_cargo_unclaimed() {
   local version installation
+  local cargo_home="${CARGO_HOME:-$HOME/.cargo}" rustup_home="${RUSTUP_HOME:-$HOME/.rustup}"
   version="$(sdk_runtime_version)"
   installation="$(sdk_installation "$version")" ||
     die "the GNOME $version SDK is not installed: $(sdk_install_hint "$version")"
+  [[ -x "$cargo_home/bin/rustup" ]] ||
+    die "no rustup in $cargo_home/bin: the SDK builds with the host's rustup toolchain (clients/linux/README.md)"
   # `flatpak` itself reads XDG_DATA_HOME to find the user installation, and a test session may have
   # redirected it; hand it back the real one.
   env XDG_DATA_HOME="$HOME/.local/share" flatpak run "$installation" --devel \
@@ -131,10 +135,11 @@ sdk_cargo_unclaimed() {
     --env=CARGO_TARGET_DIR="$(sdk_target_dir)" \
     --env=CARGO_BUILD_BUILD_DIR="$(sdk_build_dir)" \
     --env=RUSTC_WRAPPER= \
-    --env=CARGO_HOME="$HOME/.cargo" \
+    --env=CARGO_HOME="$cargo_home" \
+    --env=RUSTUP_HOME="$rustup_home" \
     "${SDK_CARGO_EXTRA[@]}" \
     --command=sh "org.gnome.Sdk//$version" -c \
-    'export PATH=/usr/lib/sdk/rust-stable/bin:$PATH; cd "$1"; shift; exec cargo "$@"' \
+    'export PATH="$CARGO_HOME/bin:$PATH"; cd "$1"; shift; exec cargo "$@"' \
     -- "$REPO_ROOT" "$@"
 }
 

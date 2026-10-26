@@ -1186,9 +1186,7 @@ jobs:
           sudo apt-get install --yes flatpak flatpak-builder
           flatpak remote-add --user --if-not-exists flathub \
             https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user --noninteractive flathub \
-            org.gnome.Platform//50 org.gnome.Sdk//50 \
-            org.freedesktop.Sdk.Extension.rust-stable//25.08
+          flatpak install --user --noninteractive flathub org.gnome.Platform//50 org.gnome.Sdk//50
           clients/linux/package.sh --bundle
 
       - name: Keep the bundle

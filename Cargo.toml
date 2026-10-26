@@ -52,12 +52,8 @@ default-members = [
 [workspace.package]
 version = "0.13.0"
 edition = "2024"
-# The oldest compiler that builds a shipped artifact, which can trail the pin in
-# rust-toolchain.toml: the Flatpak compiles with Flathub's `rust-stable` SDK extension
-# (clients/linux/flatpak), as do the local SDK builds of `build-and-run.sh` and `test-linux-ui.sh`,
-# and Flathub ships a Rust release weeks after it lands. Raise this, and with it the floor for a
-# newly stable API or Cargo key, once that extension carries the version; clippy's
-# `incompatible_msrv` holds the line until then.
+# Every build compiles with the pin in rust-toolchain.toml, the Flatpak and snap included, so this
+# moves with it; clippy's `incompatible_msrv` keeps an API newer than this out until it does.
 rust-version = "1.98"
 publish = false
 # The application is GPL-3.0-only (docs/pledge.md, LICENSE). Stated here so `cargo metadata`
