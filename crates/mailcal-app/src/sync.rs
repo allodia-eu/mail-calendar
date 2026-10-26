@@ -155,7 +155,6 @@ impl<P: Provider> App<P> {
         // Adding an account is an explicit, user-awaited download; show the bar even if other
         // accounts' mail is already on screen.
         let progress = self.begin_sync_labeled(true, true, account.providers.len(), "account-add");
-        progress.awaits(id);
         let tuning = self.sync_tuning_for(id);
         let acct = self.account_ordinal(id).await;
         let outcome = sync_account_providers(
@@ -168,6 +167,7 @@ impl<P: Provider> App<P> {
         )
         .await;
         self.end_sync(&progress);
+        self.note_first_download(id, false);
         if let Some(reachable) = outcome.reachable {
             self.set_account_reachable(id, reachable);
         }

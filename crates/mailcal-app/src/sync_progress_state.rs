@@ -50,9 +50,6 @@ struct SyncPass {
     /// The accounts this pass is syncing, keyed by id so the hint's order is stable across
     /// snapshots. Only tracked for a pass that could reach the hint.
     accounts: BTreeMap<String, AccountPass>,
-    /// The accounts an awaited pass is downloading, named when it begins: their lists have no
-    /// rows yet because nothing has arrived, which is not the list being empty.
-    awaited_accounts: BTreeSet<String>,
 }
 
 impl SyncPass {
@@ -75,6 +72,10 @@ pub(crate) struct SyncProgressState {
     /// one was named. Stored as a **deadline** rather than a remaining wait so the figure a
     /// host renders is recomputed on every pull instead of ageing in place.
     paused: BTreeMap<String, Option<Instant>>,
+    /// Accounts just added whose first download is still to come or under way: their lists have
+    /// no rows yet because nothing has arrived, which is not the list being empty. Named before
+    /// the account's first snapshot is built, and dropped when that download ends.
+    first_downloads: BTreeSet<String>,
 }
 
 impl SyncProgressState {
@@ -95,7 +96,6 @@ impl SyncProgressState {
                 announceable,
                 progress: Arc::clone(&progress),
                 accounts: BTreeMap::new(),
-                awaited_accounts: BTreeSet::new(),
             },
         );
         (id, progress)
@@ -107,20 +107,21 @@ impl SyncProgressState {
         }
     }
 
-    /// Names `account` as one the awaited pass `id` is downloading.
-    pub(crate) fn await_account(&mut self, id: u64, account: &str) {
-        if let Some(pass) = self.passes.get_mut(&id).filter(|pass| pass.awaited) {
-            pass.awaited_accounts.insert(account.to_owned());
-        }
+    /// Notes that `account`, just added, has its first download still to come or under way.
+    pub(crate) fn first_download_pending(&mut self, account: &str) {
+        self.first_downloads.insert(account.to_owned());
     }
 
-    /// Whether an awaited pass is still downloading any of `accounts`.
+    /// Notes that `account`'s first download has ended, however it went, or that it is gone.
+    pub(crate) fn first_download_over(&mut self, account: &str) {
+        self.first_downloads.remove(account);
+    }
+
+    /// Whether any of `accounts` still waits for its first download.
     pub(crate) fn awaiting_any(&self, accounts: &[&str]) -> bool {
-        self.passes.values().any(|pass| {
-            accounts
-                .iter()
-                .any(|account| pass.awaited_accounts.contains(*account))
-        })
+        accounts
+            .iter()
+            .any(|account| self.first_downloads.contains(*account))
     }
 
     /// Registers an account and how many folders its pass set out to sync.

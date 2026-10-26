@@ -48,18 +48,6 @@ pub(crate) struct ProgressForwarder<'a, P: Provider> {
     app: &'a App<P>,
 }
 
-impl<P: Provider> ProgressForwarder<'_, P> {
-    /// Names `account` as one this awaited pass is downloading, so its list says nothing about
-    /// being empty until the pass has ended.
-    pub(crate) fn awaits(&self, account: &AccountId) {
-        self.app
-            .sync_progress
-            .lock()
-            .expect("sync-progress mutex poisoned")
-            .await_account(self.id, account.as_str());
-    }
-}
-
 impl<P: Provider> SyncObserver for ProgressForwarder<'_, P> {
     fn committed(&self, commit: &SyncCommit<'_>) {
         self.progress.committed(commit);
@@ -129,7 +117,21 @@ impl<P: Provider> App<P> {
             .snapshot()
     }
 
-    /// Whether a download the user is waiting on is still running for any of `accounts`.
+    /// Notes whether `account`, just added, still waits for its first download: `true` before its
+    /// first snapshot is built, `false` once that download has ended or the account is gone.
+    pub(crate) fn note_first_download(&self, account: &AccountId, pending: bool) {
+        let mut state = self
+            .sync_progress
+            .lock()
+            .expect("sync-progress mutex poisoned");
+        if pending {
+            state.first_download_pending(account.as_str());
+        } else {
+            state.first_download_over(account.as_str());
+        }
+    }
+
+    /// Whether a just-added account among `accounts` still waits for its first download.
     pub(crate) fn awaiting_download(&self, accounts: &[AccountId]) -> bool {
         let names: Vec<&str> = accounts.iter().map(AccountId::as_str).collect();
         self.sync_progress

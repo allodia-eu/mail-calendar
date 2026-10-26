@@ -189,6 +189,9 @@ impl<P: Provider> App<P> {
     /// three-month depth before its first background sync starts.
     pub async fn add_new_account_deferred(&self, account: Account<P>) {
         let id = account.id.clone();
+        // Before the account's first snapshot, which would otherwise call its list empty while
+        // the download that fills it is still to start.
+        self.note_first_download(&id, true);
         self.add_account_deferred(account).await;
         self.set_account_sync_depth(id.as_str(), new_account_sync_depth_months())
             .await;
@@ -201,6 +204,7 @@ impl<P: Provider> App<P> {
     /// credential from the OS secure store separately (the bindings layer orchestrates both). A
     /// no-op if no such account is configured.
     pub async fn remove_account(&self, id: &AccountId) {
+        self.note_first_download(id, false);
         {
             let mut accounts = self.accounts.write().await;
             accounts.retain(|existing| existing.id != *id);
