@@ -5,11 +5,15 @@
 # are selected through GTK's AT-SPI tree, never by screen coordinates. The only mailbox is the local
 # Stalwart fixture, and every screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
 #
-# It expects the deterministic seed, the one `harness.sh up` lays down. Against a `--bulk` mailbox
-# it goes intermittently red somewhere it has no quarrel with: an AT-SPI poll is a walk of the whole
-# remote tree, about a second and a half over D-Bus once the bulk folders are in it, and the send
-# status the run asserts on is on screen for two and a half. Reseed with `harness.sh reset` before
-# reading such a failure as a regression.
+# It expects the deterministic seed, the one `harness.sh up` lays down. Each run leaves its own mail
+# in Alice's Inbox (about ten messages: notifications, invitations, a bounce), so the list grows
+# from one run to the next and a fixture's place in it is not fixed. The run reaches a seeded
+# message by searching for it, and judges a list by the mail it delivered itself, which is always
+# at the top; a check that waits for a fixture row by position would pass only on a fresh seed.
+# Against a `--bulk` mailbox it goes intermittently red somewhere it has no quarrel with: an AT-SPI
+# poll is a walk of the whole remote tree, about a second and a half over D-Bus once the bulk
+# folders are in it, and the send status the run asserts on is on screen for two and a half.
+# Reseed with `harness.sh reset` before reading such a failure as a regression.
 #
 #   scripts/dev/test-linux-ui.sh
 #   scripts/dev/test-linux-ui.sh --start-harness
@@ -462,7 +466,7 @@ run_inside_session() {
   [[ "$portal_ready" == 1 ]] || die "notification portal fixture did not become ready"
 
   bob_invites_alice "$ANSWER_TITLE"
-  launch_app "${MAILCAL_OPEN_SUBJECT:-}" "$ARTIFACT_DIR/app"
+  launch_app "" "$ARTIFACT_DIR/app"
 
   cleanup() {
     local status=$?
@@ -545,11 +549,19 @@ run_inside_session() {
     --name "Inbox" --role "push button" --index 1 --enabled --showing --timeout 20
   # Folder and message rows expose a native primary-action button. Invoking it over AT-SPI, not
   # Return or a pointer coordinate, is the accessibility contract this run qualifies.
-  local archive_measure inbox_measure archive_switch_ms inbox_switch_ms
+  #
+  # The switch to Archive is timed until the Inbox's top row leaves, read off the screen rather than
+  # named here: which message that is depends on what earlier runs delivered, and a row the list
+  # never built is absent before the switch starts.
+  local archive_measure inbox_measure archive_switch_ms inbox_switch_ms inbox_top
+  inbox_top="$("$PYTHON" "$ATSPI" wait \
+    --role "list item" --within "Message list" --within-role list --showing --timeout 30 |
+    sed -En 's/^list item name="(.*)"( description=.*)?$/\1/p')"
+  [[ -n "$inbox_top" ]] || die "the Inbox showed no message row to switch away from"
   archive_measure="$("$PYTHON" "$ATSPI" measure \
     --name "Archive" --role "push button" \
     --within "Archive" --within-role "list item" \
-    --until-name "$REMOTE_SUBJECT" --until-role "list item" --until-absent --timeout 30)"
+    --until-name "$inbox_top" --until-role "list item" --until-absent --timeout 30)"
   printf '%s\n' "$archive_measure"
   archive_switch_ms="$(printf '%s\n' "$archive_measure" | sed -n 's/^elapsed_ms=//p')"
   inbox_measure="$("$PYTHON" "$ATSPI" measure \
@@ -786,6 +798,23 @@ PY
   fi
   capture settings-feedback
 
+  # Opened by searching the Inboxes alone: each run's reply to this fixture is filed in Sent and
+  # shares its thread, so across all mail the match is one conversation named after the newest
+  # reply, and opening it shows that reply rather than the fixture's blocked image. Within the
+  # Inboxes the fixture is the newest match, so the row is named after it and opens it. Until a
+  # run has replied, the row is a message of its own, whose button carries the subject; after,
+  # it is a conversation, whose button is "Open".
+  "$PYTHON" "$ATSPI" activate --name "Mail" --timeout 20
+  "$PYTHON" "$ATSPI" set-text --name "Search mail" --text "$REMOTE_SUBJECT" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Inboxes" --role "toggle button" --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "$REMOTE_SUBJECT" --role "list item" --enabled --showing --timeout 45
+  "$PYTHON" "$ATSPI" activate \
+    --name "$REMOTE_SUBJECT" --role "push button" \
+    --within "$REMOTE_SUBJECT" --within-role "list item" --timeout 2 2>/dev/null ||
+    "$PYTHON" "$ATSPI" activate \
+      --name "Open" --role "push button" \
+      --within "$REMOTE_SUBJECT" --within-role "list item" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Reply" --enabled --showing --timeout 30
   "$PYTHON" "$ATSPI" wait \
     --name "Remote images are blocked to protect your privacy." --showing --timeout 30
@@ -823,6 +852,8 @@ PY
   "$PYTHON" "$ATSPI" activate --name "Send" --timeout 20
   wait "$sent_wait_pid"
   capture sent
+  # Clearing the query puts the scope back to all mail, which is where the forward leg searches.
+  "$PYTHON" "$ATSPI" set-text --name "Search mail" --text "" --timeout 20
 
   # Forwarding carries the original's files, shown as ordinary attachment rows
   # (docs/sending.md -> "What a forward carries"). What only a live run shows is that the staging
@@ -921,14 +952,15 @@ PY
   # The query is a thread, which is what shows that the results carry the list's grouping
   # (`docs/search.md`, rule 9): the two messages that matched arrive as one conversation row
   # carrying both, not as a row each. The count badge is how a client states that from the
-  # accessibility bus, the row itself being named after the newest match. The remote-image
-  # fixture matches nothing in it and must leave.
+  # accessibility bus. The row is named after the newest match, and the seed delivers the root and
+  # the reply in the same second, so either can name it: it is found by the words both share.
+  # The last message the notification leg delivered matches nothing in it and must leave; being
+  # this run's newest, it is the top row of the unsearched list however much mail earlier runs
+  # left behind.
   "$PYTHON" "$ATSPI" set-text --name "Search mail" --text "kickoff" --timeout 20
-  "$PYTHON" "$ATSPI" wait \
-    --name "Project kickoff" --role "list item" --enabled --showing --timeout 30
-  "$PYTHON" "$ATSPI" wait \
-    --name "2 messages" --within "Project kickoff" --showing --timeout 30
-  "$PYTHON" "$ATSPI" wait --name "$REMOTE_SUBJECT" --role "list item" --absent --timeout 30
+  "$PYTHON" "$ATSPI" wait --name-substring "Project kickoff" --role "list item" \
+    --contains-name "2 messages" --enabled --showing --timeout 30
+  "$PYTHON" "$ATSPI" wait --name "$notification_after" --role "list item" --absent --timeout 30
   # Rule 8: how far back it looked; the harness account's depth is the shipping default; and the
   # route to the setting that decides it. A statement the user cannot act on is half the value.
   "$PYTHON" "$ATSPI" wait --name "Searching the last 3 months" --showing --timeout 20
@@ -939,14 +971,14 @@ PY
     --name "All mail" --role "toggle button" --enabled --showing --timeout 20
   "$PYTHON" "$ATSPI" activate --name "Inboxes" --role "toggle button" --timeout 20
   "$PYTHON" "$ATSPI" wait \
-    --name "Project kickoff" --role "list item" --enabled --showing --timeout 30
+    --name-substring "Project kickoff" --role "list item" --enabled --showing --timeout 30
   capture search-results
 
   # Rules 5 and 6: clearing the field leaves search; the folder view returns, threaded again,
   # and takes the filter with it, so no narrowing is left claiming to be in force.
   "$PYTHON" "$ATSPI" set-text --name "Search mail" --text "" --timeout 20
   "$PYTHON" "$ATSPI" wait \
-    --name "$REMOTE_SUBJECT" --role "list item" --enabled --showing --timeout 30
+    --name "$notification_after" --role "list item" --enabled --showing --timeout 30
   "$PYTHON" "$ATSPI" wait --name "All mail" --role "toggle button" --absent --timeout 20
   capture search-cleared
 
@@ -1565,7 +1597,6 @@ LIBGL_ALWAYS_SOFTWARE=1 \
     MAILCAL_DEV_ACCOUNT=stalwart \
     MAILCAL_CALENDAR_VIEW=agenda \
     MAILCAL_FAKE_DEVICE_TIMEZONE=Pacific/Auckland \
-    MAILCAL_OPEN_SUBJECT="$REMOTE_SUBJECT" \
     MAILCAL_SHOWCASE_SCREEN=signatures \
     REMOTE_SENDER="$REMOTE_SENDER" \
     CALENDAR_CRUD_TITLE="$CALENDAR_CRUD_TITLE" \
