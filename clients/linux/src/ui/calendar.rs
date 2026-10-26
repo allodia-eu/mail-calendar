@@ -32,3 +32,6 @@ pub(crate) mod detail_tests;
 #[cfg(test)]
 #[path = "calendar/dialogs_series_widget_tests.rs"]
 pub(crate) mod dialog_tests;
+#[cfg(test)]
+#[path = "calendar/views_widget_tests.rs"]
+pub(crate) mod views_tests;

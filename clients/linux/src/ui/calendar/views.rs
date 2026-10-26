@@ -4,6 +4,7 @@ use std::{cell::RefCell, collections::HashSet};
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
+use mailcal_bindings::{CalendarSnapshot, MonthPage};
 
 use super::{
     super::AppInput,
@@ -15,11 +16,40 @@ use crate::{l10n, ui::icons};
 
 const MONTH_CAPACITY: usize = 4;
 
+/// What the agenda last drew. The pane renders on every input the app receives, the time-zone
+/// poll included, and rebuilding replaces every row: a press on a button that is replaced before
+/// GTK delivers it is lost, and keyboard focus on a row goes with the row.
+#[derive(PartialEq)]
+pub(super) struct AgendaDrawn {
+    agenda: CalendarSnapshot,
+    materialized: bool,
+    use_24_hour: bool,
+}
+
+/// What the month grid last drew, for the reason [`AgendaDrawn`] gives.
+#[derive(PartialEq)]
+pub(super) struct MonthDrawn {
+    month: MonthPage,
+    use_24_hour: bool,
+    dark: bool,
+}
+
+/// Draws the agenda, unless `drawn` says it already shows what `model` holds.
 pub(super) fn render_agenda(
     list: &gtk::ListBox,
     model: &CalendarModel,
     sender: &relm4::Sender<AppInput>,
+    drawn: &mut Option<AgendaDrawn>,
 ) {
+    let now = AgendaDrawn {
+        agenda: model.agenda.clone(),
+        materialized: model.page.is_materialized,
+        use_24_hour: model.use_24_hour,
+    };
+    if drawn.as_ref() == Some(&now) {
+        return;
+    }
+    *drawn = Some(now);
     clear_list(list);
     if !model.page.is_materialized {
         list.append(&message_row(l10n::calendar_loading_range()));
@@ -94,11 +124,22 @@ pub(super) fn render_agenda(
     }
 }
 
+/// Draws the month grid, unless `drawn` says it already shows what `model` holds.
 pub(super) fn render_month(
     grid: &gtk::Grid,
     model: &CalendarModel,
     sender: &relm4::Sender<AppInput>,
+    drawn: &mut Option<MonthDrawn>,
 ) {
+    let now = MonthDrawn {
+        month: model.month.clone(),
+        use_24_hour: model.use_24_hour,
+        dark: adw::StyleManager::default().is_dark(),
+    };
+    if drawn.as_ref() == Some(&now) {
+        return;
+    }
+    *drawn = Some(now);
     clear_grid(grid);
     if !model.month.is_materialized {
         let label = gtk::Label::new(Some(l10n::calendar_loading_range()));

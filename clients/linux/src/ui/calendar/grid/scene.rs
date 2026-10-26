@@ -17,14 +17,14 @@ pub(super) const LANE_HEIGHT: f64 = 26.0;
 const COLLAPSED_LANES: u32 = 3;
 const VISIBLE_COLLAPSED_LANES: u32 = COLLAPSED_LANES - 1;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct DayPaint {
     pub(super) date: time::Date,
     pub(super) label: String,
     pub(super) is_today: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct EventPaint {
     pub(super) identity: EventIdentity,
     pub(super) title: String,
@@ -41,7 +41,7 @@ pub(super) struct EventPaint {
     pub(super) awaiting: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct BandPaint {
     pub(super) identity: EventIdentity,
     pub(super) title: String,
@@ -55,7 +55,7 @@ pub(super) struct BandPaint {
     pub(super) awaiting: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct CreatePaint {
     pub(super) background: Rgb,
     pub(super) border: Rgb,
@@ -165,6 +165,24 @@ impl GridScene {
             viewport_height: 0.0,
             drag: None,
         }
+    }
+
+    /// Whether `other` draws the same page: everything but where the viewport sits, how tall an
+    /// hour is in it, and a create drag in progress, which belong to the surface rather than to
+    /// what the core laid out.
+    pub(super) fn same_page(&self, other: &Self) -> bool {
+        self.week_number == other.week_number
+            && self.days == other.days
+            && self.events == other.events
+            && self.bands == other.bands
+            && self.hidden_per_day == other.hidden_per_day
+            && self.banner_lanes == other.banner_lanes
+            && self.visible_hours == other.visible_hours
+            && self.use_24_hour == other.use_24_hour
+            && self.is_materialized == other.is_materialized
+            && self.dark == other.dark
+            && self.timezone == other.timezone
+            && self.create == other.create
     }
 
     /// The pinned header: day names above the all-day banner. It never scrolls.
@@ -424,6 +442,19 @@ mod tests {
 
         scene.fit_viewport(360.0);
         assert!((scene.hour_height - 30.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn scrolling_or_resizing_leaves_the_page_the_same_and_a_new_layout_does_not() {
+        let page = GridScene::empty();
+        let mut scrolled = page.clone();
+        scrolled.set_viewport_top(480.0);
+        scrolled.fit_viewport(720.0);
+        assert!(page.same_page(&scrolled));
+
+        let mut moved = page.clone();
+        moved.timezone = "Europe/Lisbon".to_owned();
+        assert!(!page.same_page(&moved));
     }
 
     #[test]

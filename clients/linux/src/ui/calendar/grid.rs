@@ -36,6 +36,8 @@ pub(super) struct GridSurface {
     drawing: gtk::DrawingArea,
     hits: gtk::Fixed,
     scene: Rc<RefCell<GridScene>>,
+    /// Whether `render` has laid a page out yet: until it has, the empty scene is not a page.
+    rendered: Cell<bool>,
     framing: Rc<Framing>,
     /// Retained so enabling a screen reader while the app is open rebuilds the semantic overlay.
     _accessibility_settings: gtk::gio::Settings,
@@ -160,6 +162,7 @@ impl GridSurface {
             drawing,
             hits,
             scene,
+            rendered: Cell::new(false),
             framing,
             _accessibility_settings: accessibility_settings,
             #[cfg(feature = "dev-harness")]
@@ -169,9 +172,13 @@ impl GridSurface {
     }
 
     pub(super) fn render(&self, model: &CalendarModel, dark: bool) {
-        let drag = self.scene.borrow_mut().drag.take();
         let mut scene = GridScene::from_model(model, dark);
-        scene.drag = drag;
+        // Rebuilding replaces every hit target, for the reason `views::AgendaDrawn` gives; the
+        // viewport, scroll, resize and accessibility handlers keep an unchanged page current.
+        if self.rendered.replace(true) && self.scene.borrow().same_page(&scene) {
+            return;
+        }
+        scene.drag = self.scene.borrow_mut().drag.take();
         let adjustment = self.scroller.vadjustment();
         scene.set_viewport_top(adjustment.value());
         let header_height = pixel_size(scene.header_height().ceil());

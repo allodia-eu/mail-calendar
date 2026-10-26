@@ -221,6 +221,10 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::calendar::widget_tests::the_day_names_stay_on_screen_when_the_hours_scroll();
     crate::ui::calendar::dialog_tests::neither_series_question_states_its_title_twice();
     crate::ui::calendar::dialog_tests::the_editor_never_pre_empts_the_scope_question();
+    crate::ui::calendar::views_tests::
+        an_unchanged_agenda_keeps_its_rows_and_a_changed_one_is_drawn_again();
+    crate::ui::calendar::views_tests::
+        an_unchanged_month_keeps_its_cells_and_a_changed_one_is_drawn_again();
     crate::ui::calendar::detail_tests::maybe_leaves_the_detail_open_and_it_follows_the_store();
     crate::ui::calendar::detail_tests::decline_asks_before_it_answers_and_then_closes_the_detail();
     crate::ui::calendar::invitees_editor::tests::

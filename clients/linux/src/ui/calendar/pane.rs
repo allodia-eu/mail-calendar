@@ -13,7 +13,7 @@ use super::{
     grid::GridSurface,
     manager::CalendarManager,
     model::{CalendarDialog, CalendarMode, CalendarModel},
-    views,
+    views::{self, AgendaDrawn, MonthDrawn},
 };
 use crate::{l10n, ui::icons};
 
@@ -33,7 +33,9 @@ pub(crate) struct CalendarPane {
     surfaces: gtk::Stack,
     grid: GridSurface,
     month: gtk::Grid,
+    month_drawn: Option<MonthDrawn>,
     agenda: gtk::ListBox,
+    agenda_drawn: Option<AgendaDrawn>,
     parent: adw::ApplicationWindow,
     sender: relm4::Sender<AppInput>,
     shown_dialog_generation: u64,
@@ -130,7 +132,9 @@ impl CalendarPane {
             surfaces,
             grid,
             month,
+            month_drawn: None,
             agenda,
+            agenda_drawn: None,
             parent: parent.clone(),
             sender,
             shown_dialog_generation: 0,
@@ -165,11 +169,11 @@ impl CalendarPane {
         render_status(self, model.write_status);
         match model.mode {
             CalendarMode::Month => {
-                views::render_month(&self.month, model, &self.sender);
+                views::render_month(&self.month, model, &self.sender, &mut self.month_drawn);
                 self.surfaces.set_visible_child_name("month");
             }
             CalendarMode::Agenda => {
-                views::render_agenda(&self.agenda, model, &self.sender);
+                views::render_agenda(&self.agenda, model, &self.sender, &mut self.agenda_drawn);
                 self.surfaces.set_visible_child_name("agenda");
             }
             _ => {
