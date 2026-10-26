@@ -174,6 +174,13 @@ impl Provider for ReconnectingImapProvider {
         .await
     }
 
+    /// Passes each chunk on as it arrives: a first sync of a large mailbox takes many seconds,
+    /// and each chunk is what puts its rows on screen.
+    ///
+    /// A dead session fails on its first command, so a retryable failure before any chunk is
+    /// redialled once and the pass run again. After one, the drop is reported instead: the chunks
+    /// passed on are already committed, and the next pass resumes from the last checkpoint they
+    /// carried, on a fresh session.
     fn stream_email<'a>(
         &'a self,
         account: &'a AccountId,
@@ -186,42 +193,34 @@ impl Provider for ReconnectingImapProvider {
         let cursor = cursor.cloned();
         Box::pin(async_stream::try_stream! {
             let mut retried = false;
-            loop {
+            'attempt: loop {
                 let provider = self.delegate().await?;
-                let mut chunks = Vec::new();
-                let result = {
-                    let mut stream = provider.stream_email(
-                        &account,
-                        cursor.as_ref(),
-                        window,
-                        fetch_batch,
-                        chunk_size,
-                    );
-                    let mut result = Ok(());
-                    while let Some(chunk) = stream.next().await {
-                        match chunk {
-                            Ok(chunk) => chunks.push(chunk),
-                            Err(err) => {
-                                result = Err(err);
-                                break;
-                            }
-                        }
-                    }
-                    result
-                };
-                match result {
-                    Ok(()) => {
-                        for chunk in chunks {
+                let mut stream = provider.stream_email(
+                    &account,
+                    cursor.as_ref(),
+                    window,
+                    fetch_batch,
+                    chunk_size,
+                );
+                let mut passed_on = false;
+                while let Some(chunk) = stream.next().await {
+                    match chunk {
+                        Ok(chunk) => {
+                            passed_on = true;
                             yield chunk;
                         }
-                        break;
+                        Err(err) if err.class() == FailureClass::Retryable => {
+                            self.invalidate();
+                            if passed_on || retried {
+                                Err(err)?;
+                            }
+                            retried = true;
+                            continue 'attempt;
+                        }
+                        Err(err) => Err(err)?,
                     }
-                    Err(err) if !retried && err.class() == FailureClass::Retryable => {
-                        self.invalidate();
-                        retried = true;
-                    }
-                    Err(err) => Err(err)?,
                 }
+                break;
             }
         })
     }
@@ -415,3 +414,7 @@ impl MailboxWrites for ReconnectingImapProvider {
 #[cfg(test)]
 #[path = "reconnect_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "reconnect_stream_tests.rs"]
+mod stream_tests;
