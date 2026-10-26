@@ -29,8 +29,9 @@ use engine_core::{
     sync::{SyncScope, SyncState, SyncUpdate},
 };
 use engine_provider::{
-    Capabilities, ConnectionInfo, EventDeletion, EventDraft, EventEdit, EventWriteReceipt,
-    OverrideSurvival, Provider, ProviderError, ProviderResult, ScopeSync, WriteGuard,
+    CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion, EventDraft, EventEdit,
+    EventRsvp, EventWriteReceipt, OverrideSurvival, Provider, ProviderError, ProviderResult,
+    ScopeSync, WriteGuard,
 };
 use engine_tls::TlsClientConfig;
 use provider_google::{CalendarWindow, GoogleCalendarProvider, GoogleClient};
@@ -248,6 +249,25 @@ impl CalendarWrites for RefreshingGoogleCalendarProvider {
         let provider = self.delegate().await?;
         provider.delete_event(account, base, deletion).await
     }
+
+    async fn rsvp_event(
+        &self,
+        account: &AccountId,
+        base: &Event,
+        rsvp: &EventRsvp,
+    ) -> ProviderResult<EventWriteReceipt> {
+        // Guarded like a patch, so a single attempt.
+        let provider = self.delegate().await?;
+        provider.rsvp_event(account, base, rsvp).await
+    }
+
+    async fn calendar_user_addresses(
+        &self,
+        account: &AccountId,
+    ) -> ProviderResult<CalendarUserAddresses> {
+        let provider = self.delegate().await?;
+        provider.calendar_user_addresses(account).await
+    }
 }
 
 /// Connects the Google calendar provider a Google account syncs its agenda through: **one**
@@ -318,6 +338,22 @@ mod tests {
     use mailcal_oauth::{GOOGLE_SCOPES, OAuthClient, OAuthProviderConfig};
 
     use super::*;
+    use crate::graph::test_support::{
+        assert_calendar_answers_reach_the_delegate, dead_grant_token_endpoint, source_at,
+    };
+
+    /// The Google sibling of the Graph wrapper's test: an answer to an invitation reaches the
+    /// adapter rather than the trait's unsupported default.
+    #[tokio::test]
+    async fn invitation_answers_are_forwarded_to_google() {
+        let (endpoint, _hits) = dead_grant_token_endpoint();
+        let provider = RefreshingGoogleCalendarProvider::new(
+            source_at(endpoint, None),
+            rolling_window().unwrap(),
+            tls_with(&[]).unwrap(),
+        );
+        assert_calendar_answers_reach_the_delegate(&provider).await;
+    }
 
     fn google_source() -> Arc<GraphTokenSource> {
         let provider = OAuthProviderConfig::google(

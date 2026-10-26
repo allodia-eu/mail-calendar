@@ -28,8 +28,9 @@ use engine_core::{
     time::TimeZoneId,
 };
 use engine_provider::{
-    Capabilities, ConnectionInfo, EventDeletion, EventDraft, EventEdit, EventWriteReceipt,
-    OverrideSurvival, Provider, ProviderError, ProviderResult, ScopeSync, WriteGuard,
+    CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion, EventDraft, EventEdit,
+    EventRsvp, EventWriteReceipt, OverrideSurvival, Provider, ProviderError, ProviderResult,
+    ScopeSync, WriteGuard,
 };
 use engine_tls::TlsClientConfig;
 use provider_graph::{CalendarWindow, GraphCalendarProvider, GraphClient, MailboxPrincipal};
@@ -267,6 +268,25 @@ impl CalendarWrites for RefreshingGraphCalendarProvider {
         let provider = self.delegate().await?;
         provider.delete_event(account, base, deletion).await
     }
+
+    async fn rsvp_event(
+        &self,
+        account: &AccountId,
+        base: &Event,
+        rsvp: &EventRsvp,
+    ) -> ProviderResult<EventWriteReceipt> {
+        // Guarded like a patch, so a single attempt.
+        let provider = self.delegate().await?;
+        provider.rsvp_event(account, base, rsvp).await
+    }
+
+    async fn calendar_user_addresses(
+        &self,
+        account: &AccountId,
+    ) -> ProviderResult<CalendarUserAddresses> {
+        let provider = self.delegate().await?;
+        provider.calendar_user_addresses(account).await
+    }
 }
 
 /// Connects the Graph calendar provider a Microsoft account syncs its agenda through: **one**
@@ -363,9 +383,26 @@ fn is_calendar_access_denied(err: &ProviderError) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        super::token_source::test_support::{mock_token_endpoint, source_at},
+        super::token_source::test_support::{
+            assert_calendar_answers_reach_the_delegate, dead_grant_token_endpoint,
+            mock_token_endpoint, source_at,
+        },
         *,
     };
+
+    /// This wrapper forwards each verb by hand, and one it leaves out answers with the trait's
+    /// default: an invitation answer refused as unsupported, although Graph answers it.
+    #[tokio::test]
+    async fn invitation_answers_are_forwarded_to_graph() {
+        let (endpoint, _hits) = dead_grant_token_endpoint();
+        let provider = RefreshingGraphCalendarProvider::new(
+            source_at(endpoint, None),
+            rolling_window().unwrap(),
+            TimeZoneId::utc(),
+            tls_with(&[]).unwrap(),
+        );
+        assert_calendar_answers_reach_the_delegate(&provider).await;
+    }
 
     #[test]
     fn serves_every_calendar_with_enforced_writes_and_a_scope_each() {
