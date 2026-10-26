@@ -177,10 +177,10 @@ impl Provider for ReconnectingImapProvider {
     /// Passes each chunk on as it arrives: a first sync of a large mailbox takes many seconds,
     /// and each chunk is what puts its rows on screen.
     ///
-    /// A dead session fails on its first command, so a retryable failure before any chunk is
-    /// redialled once and the pass run again. After one, the drop is reported instead: the chunks
-    /// passed on are already committed, and the next pass resumes from the last checkpoint they
-    /// carried, on a fresh session.
+    /// A retryable failure, a dead session's first command or a connection dropped partway
+    /// through, is redialled once and the pass run again from its start: rewriting a message
+    /// already passed on is harmless, and the sync counts each message once. A second failure is
+    /// reported, and the next pass resumes from the last checkpoint committed.
     fn stream_email<'a>(
         &'a self,
         account: &'a AccountId,
@@ -202,16 +202,12 @@ impl Provider for ReconnectingImapProvider {
                     fetch_batch,
                     chunk_size,
                 );
-                let mut passed_on = false;
                 while let Some(chunk) = stream.next().await {
                     match chunk {
-                        Ok(chunk) => {
-                            passed_on = true;
-                            yield chunk;
-                        }
+                        Ok(chunk) => yield chunk,
                         Err(err) if err.class() == FailureClass::Retryable => {
                             self.invalidate();
-                            if passed_on || retried {
+                            if retried {
                                 Err(err)?;
                             }
                             retried = true;

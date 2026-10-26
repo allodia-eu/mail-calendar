@@ -1,6 +1,6 @@
 //! Streaming a pass through the redial wrapper: its chunks reach the sync as they arrive, a
-//! connection that dies before the first one is redialled once, and one that dies after is
-//! reported rather than replayed.
+//! connection that dies is redialled once, before the first chunk or after, and a second drop is
+//! reported.
 //!
 //! In their own `#[path]` file to keep `reconnect_tests.rs` under the 500-line limit.
 
@@ -130,21 +130,29 @@ async fn a_connection_that_dies_before_the_first_chunk_is_redialled_once() {
     assert_eq!(redials.load(Ordering::SeqCst), 1);
 }
 
-/// Chunks already passed on are committed, so replaying the pass would deliver them twice. The
-/// drop is reported instead, and the next pass, which resumes from the last committed
-/// checkpoint, runs on a fresh session.
+/// A connection dropped partway through a first sync is redialled once and the pass run again,
+/// rather than leaving the rest for the next pass: the rows already passed on are written again,
+/// which is harmless.
 #[tokio::test]
-async fn a_connection_that_dies_after_a_chunk_is_reported_not_replayed() {
+async fn a_connection_that_dies_after_a_chunk_is_redialled_once() {
     let redials = Arc::new(AtomicUsize::new(0));
-    let provider = wrapper(vec![Step::Chunk, Step::Drop], vec![Step::Chunk], &redials);
+    let provider = wrapper(
+        vec![Step::Chunk, Step::Drop],
+        vec![Step::Chunk, Step::Chunk],
+        &redials,
+    );
+
+    assert_eq!(outcomes(&provider).await, [true, true, true]);
+    assert_eq!(redials.load(Ordering::SeqCst), 1);
+}
+
+/// A drop on the fresh session too is reported, and the next pass resumes from the last
+/// committed checkpoint.
+#[tokio::test]
+async fn a_second_drop_is_reported() {
+    let redials = Arc::new(AtomicUsize::new(0));
+    let provider = wrapper(vec![Step::Drop], vec![Step::Chunk, Step::Drop], &redials);
 
     assert_eq!(outcomes(&provider).await, [true, false]);
-    assert_eq!(redials.load(Ordering::SeqCst), 0, "nothing was replayed");
-
-    assert_eq!(outcomes(&provider).await, [true]);
-    assert_eq!(
-        redials.load(Ordering::SeqCst),
-        1,
-        "the next pass took a fresh session"
-    );
+    assert_eq!(redials.load(Ordering::SeqCst), 1);
 }
