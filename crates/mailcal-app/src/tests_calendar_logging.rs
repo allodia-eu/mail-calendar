@@ -42,7 +42,7 @@ async fn a_calendar_source_that_fails_is_logged_with_its_reason() {
 
     app.dispatch(Intent::RefreshCalendar).await;
 
-    assert_logged("calendar[a1]: source[0] failed in ");
+    assert_logged("calendar[a1]: calendar list failed in ");
     assert_logged("the server could not be reached");
-    assert_logged("refresh_calendar: 2 source(s) on 2 account(s); 1 synced, 0 busy, 1 failed;");
+    assert_logged("refresh_calendar: 1 calendar(s); 1 synced, 0 unchanged, 0 busy, 1 failed;");
 }

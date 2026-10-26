@@ -39,7 +39,7 @@ pub(crate) fn build_demo(
     let account = Account {
         id: AccountId::try_from("demo").expect("valid account id"),
         providers: vec![Box::new(DemoProvider::new()) as Box<dyn Provider>].into(),
-        calendar_providers: Vec::new(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("demo@allodia.local"),
         dialled: true,
@@ -141,9 +141,9 @@ pub(crate) fn build_showcase(
             primary.bodies,
         )) as Box<dyn Provider>]
         .into(),
-        calendar_providers: vec![
+        calendar_provider: Some(
             Box::new(ShowcaseCalendarProvider::new(calendars, events)) as Box<dyn Provider>
-        ],
+        ),
         contact_providers: vec![Box::new(ShowcaseContactsProvider::new(
             crate::showcase_contacts::primary_contacts(),
         )) as Box<dyn engine_api::ContactsProvider>],
@@ -167,7 +167,7 @@ pub(crate) fn build_showcase(
         )) as Box<dyn Provider>]
         .into(),
         // The second account is mail-only, so the calendar comes solely from the primary.
-        calendar_providers: Vec::new(),
+        calendar_provider: None,
         // It does carry contacts, though; one of them the same person as the primary's, which
         // is what makes the merged "in 2 accounts" row visible in the showcase.
         contact_providers: vec![Box::new(ShowcaseContactsProvider::new(

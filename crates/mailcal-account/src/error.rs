@@ -6,8 +6,6 @@
 //! not verify. Each is a different thing for a caller to do, and neither survives being turned
 //! into a message.
 
-use std::fmt;
-
 use engine_core::error::FailureClass;
 use provider_imap::ImapError;
 
@@ -88,13 +86,9 @@ pub enum AccountError {
     /// The CalDAV connection or discovery failed.
     #[error("caldav: {0}")]
     CalDav(#[from] provider_caldav::CalDavError),
-    /// Listing the account's calendars failed (no `calendar` was configured, so the
-    /// connection had to discover one).
-    #[error("caldav calendar discovery: {0}")]
+    /// DAV discovery could not be prepared or completed.
+    #[error("caldav discovery: {0}")]
     CalDavDiscovery(String),
-    /// No calendar collection was discovered, and the config named none to bind to.
-    #[error("no caldav calendar discovered (configure `calendar` in [caldav])")]
-    NoCalendarDiscovered,
     /// Building a calendar event-write failed (a bad uid, time, or href).
     #[error("calendar write: {0}")]
     CalendarWrite(String),
@@ -132,12 +126,6 @@ impl AccountError {
             },
             None => self,
         }
-    }
-
-    /// Wraps a calendar-discovery failure, keeping its message (the source types
-    /// differ: a provider error or an invalid placeholder id).
-    pub(crate) fn caldav_discovery(err: impl fmt::Display) -> Self {
-        Self::CalDavDiscovery(err.to_string())
     }
 
     /// The verdict for the login that **first** presents an IMAP account's password in a dial;

@@ -347,7 +347,7 @@ fn outcome(
         account: Account {
             id: id.clone(),
             providers: assembled.mail.into(),
-            calendar_providers: assembled.calendar,
+            calendar_provider: assembled.calendar.into_iter().next(),
             contact_providers: assembled.contacts,
             identity,
             dialled: true,

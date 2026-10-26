@@ -34,7 +34,7 @@ pub(crate) enum Reach {
 /// Classifies one sync result: success reached the server, a [`ApiError::Busy`] is a
 /// concurrent-sync skip (indeterminate), a refused credential is [`Reach::Expired`], and any
 /// other error is a real unreachability.
-pub(super) fn reach_of<T>(result: &Result<T, SyncError>) -> Reach {
+pub(crate) fn reach_of<T>(result: &Result<T, SyncError>) -> Reach {
     match result {
         Ok(_) => Reach::Reached,
         Err(err) if err.is_busy() => Reach::Busy,

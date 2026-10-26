@@ -96,7 +96,7 @@ pub(super) fn account_with(id: &str, providers: Vec<FakeProvider>) -> Account<Fa
     Account {
         id: AccountId::try_from(id).unwrap(),
         providers: providers.into(),
-        calendar_providers: Vec::new(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new(format!("me@{id}.local")),
         dialled: true,

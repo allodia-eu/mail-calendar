@@ -32,7 +32,7 @@ fn app_with_prefs(
         vec![Account {
             id: AccountId::try_from("acct-1").unwrap(),
             providers: vec![provider].into(),
-            calendar_providers: Vec::new(),
+            calendar_provider: None,
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
             dialled: true,
@@ -224,7 +224,7 @@ fn app_using_identity(
                 name: name.map(str::to_owned),
             }]
             .into(),
-            calendar_providers: Vec::new(),
+            calendar_provider: None,
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
             dialled: true,

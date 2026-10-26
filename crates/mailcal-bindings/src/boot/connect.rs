@@ -29,22 +29,24 @@ pub(crate) async fn connect_jmap_calendars(
     {
         return Ok(Vec::new());
     }
-    mailcal_account::connect_jmap_calendar_providers(config, tokens)
+    mailcal_account::connect_jmap_calendar_provider(config, tokens)
         .await
+        .map(|provider| vec![provider])
         .map_err(|err| {
             log::warn!("jmap: calendar connect failed: {err}");
             ConnectFailure::from(err)
         })
 }
 
-/// Binds a Google account's calendar provider (its primary calendar). Unlike the Graph parallel
-/// there is no re-consent case to report (Google requests the calendar scope at sign-in).
+/// Binds a Google account's calendar provider, which serves every calendar. Unlike the Graph
+/// parallel there is no re-consent case to report (Google requests the calendar scope at sign-in).
 pub(crate) async fn connect_google_calendars(
     id: &engine_api::AccountId,
     tokens: Arc<GraphTokenSource>,
 ) -> Result<Vec<Box<dyn Provider>>, ConnectFailure> {
-    mailcal_account::connect_google_calendar_providers(id, tokens)
+    mailcal_account::connect_google_calendar_provider(id, tokens)
         .await
+        .map(|provider| vec![provider])
         .map_err(|err| {
             log::warn!("google: calendar connect failed: {err}");
             ConnectFailure::from(err)

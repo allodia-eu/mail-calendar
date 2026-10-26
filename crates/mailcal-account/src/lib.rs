@@ -72,17 +72,16 @@ pub use consent::{requested_scopes, withheld};
 pub use contacts::{connect_carddav_contact_providers, connect_carddav_learning};
 pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
 pub use dav_starts::{DavLearned, DavStarts, DavStartsFile, Learned};
-use engine_core::{ids::AccountId, sync::SyncUpdate};
 use engine_provider::Provider;
 pub use error::AccountError;
 pub use event_detail::{DetailOccurrence, EventDetail, InviteeEditability, project_event_detail};
 pub use google::{
-    GoogleConfig, connect_google_calendar_providers, connect_google_contact_providers,
+    GoogleConfig, connect_google_calendar_provider, connect_google_contact_providers,
     connect_google_folder, connect_google_mail_providers, fetch_google_primary_address,
     google_token_source, load_google_str,
 };
 pub use graph::{
-    CredentialOrigin, GraphTokenSource, TokenSink, connect_graph_calendar_providers,
+    CredentialOrigin, GraphTokenSource, TokenSink, connect_graph_calendar_provider,
     connect_graph_contact_providers, connect_graph_folder, connect_graph_mail_providers,
     google_affiliation, graph_affiliation,
 };
@@ -94,7 +93,7 @@ pub use imap_auth::{
 };
 pub use imap_credentials::{ImapTokens, OAuthCredentialSource, imap_credential_source};
 pub use jmap::{
-    JmapAccountConfig, JmapSetup, build_jmap_config_toml, connect_jmap_calendar_providers,
+    JmapAccountConfig, JmapSetup, build_jmap_config_toml, connect_jmap_calendar_provider,
     connect_jmap_contact_providers, connect_jmap_folder, connect_jmap_mail_providers,
     jmap_base_url, load_jmap_str,
 };
@@ -255,42 +254,15 @@ async fn connect_caldav_at(
     // states a ceiling yet.
     .with_retry(throttle::ungated_retry())
     .with_connect_observer(connect_log::connect_logger("caldav"));
-    let provider = match &caldav.calendar {
-        Some(calendar) => CalDavProvider::connect(config.with_calendar(calendar.clone()))
-            .await
-            .map_err(AccountError::from_first_dav_connect),
-        None => connect_primary_calendar(config).await,
-    }
-    .map_err(|err| err.over_tls(&tls))?;
+    let provider = CalDavProvider::connect(config)
+        .await
+        .map_err(AccountError::from_first_dav_connect)
+        .map_err(|err| err.over_tls(&tls))?;
     let principal = provider.principal_url().map(str::to_owned);
     Ok(DavConnected {
         providers: Box::new(provider),
         principal,
     })
-}
-
-/// Connects and rebinds to the account's first discovered calendar, for a config
-/// that did not name one (see [`connect_caldav`]).
-async fn connect_primary_calendar(config: CalDavConfig) -> Result<CalDavProvider, AccountError> {
-    let provider = CalDavProvider::connect(config)
-        .await
-        .map_err(AccountError::from_first_dav_connect)?;
-    // The account scopes the listing but not which collections come back, so a
-    // placeholder id is fine here.
-    let account =
-        AccountId::try_from("caldav-discovery").map_err(AccountError::caldav_discovery)?;
-    let listing = provider
-        .sync_calendars(&account, None)
-        .await
-        .map_err(AccountError::caldav_discovery)?;
-    let first = match listing.update {
-        SyncUpdate::Snapshot { objects, .. } => objects.into_iter().next(),
-        SyncUpdate::Delta { changed, .. } => changed.into_iter().next(),
-    };
-    let calendar = first.ok_or(AccountError::NoCalendarDiscovered)?;
-    provider
-        .rebind(calendar.id.as_str())
-        .map_err(AccountError::from)
 }
 
 #[cfg(test)]

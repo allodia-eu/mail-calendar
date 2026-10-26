@@ -181,7 +181,7 @@ async fn a_window_closed_while_its_open_is_in_flight_keeps_no_body() {
     app.add_account(Account {
         id: AccountId::try_from("acct-1").unwrap(),
         providers: Vec::new().into(),
-        calendar_providers: Vec::new(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@acct-1.local"),
         dialled: true,

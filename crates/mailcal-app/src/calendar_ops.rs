@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use engine_api::{AccountId, Event, LocalDateTime, Provider, ProviderKey};
+use engine_api::{AccountId, Event, Provider, ProviderKey};
 use mailcal_viewmodel::calendar::{self, AccountEvent};
 
 use crate::{
@@ -222,7 +222,7 @@ impl<P: Provider> App<P> {
         // Clone the account handle, then write with the read guard released.
         let mut status = None;
         if let Some(acct) = self.account_handle(&account).await
-            && let Some(provider) = acct.calendar_providers.first()
+            && let Some(provider) = acct.calendar_provider.as_ref()
         {
             self.set_calendar_write_status(CalendarWriteStatus::Saving);
             let write = self
@@ -231,8 +231,13 @@ impl<P: Provider> App<P> {
                 .await;
             status = Some(match write {
                 Ok(write) => {
-                    self.settle_calendar_write(provider, &account, write.reconciled)
-                        .await
+                    self.settle_calendar_write(
+                        provider,
+                        &account,
+                        std::slice::from_ref(&draft.calendar),
+                        write.reconciled,
+                    )
+                    .await
                 }
                 Err(err) => {
                     log::warn!(
@@ -307,7 +312,7 @@ impl<P: Provider> App<P> {
                 event.account.as_str()
             ));
         };
-        let Some(provider) = acct.calendar_providers.first() else {
+        let Some(provider) = acct.calendar_provider.as_ref() else {
             self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return Err("the calendar is not connected".to_owned());
         };
@@ -329,91 +334,16 @@ impl<P: Provider> App<P> {
             })?;
 
         let status = self
-            .settle_calendar_write(provider, &event.account, write.reconciled)
+            .settle_calendar_write(
+                provider,
+                &event.account,
+                &crate::calendar_status::calendars_of(&stored),
+                write.reconciled,
+            )
             .await;
         self.rebuild_calendar_view().await;
         self.set_calendar_write_status(status);
         Ok(())
-    }
-
-    /// Deletes the calendar `event` from its owning account via the engine's outbox (awaited
-    /// inline; there is no background drainer yet), then rebuilds the agenda from the store.
-    /// Routing by the reference's account is the fix:
-    /// event keys are only unique within an account, so two accounts can mint the same key.
-    ///
-    /// `occurrence` names the single instance to remove, by its **original** start; `None`
-    /// deletes the whole series.
-    pub(super) async fn delete_event(&self, event: EventRef, occurrence: Option<LocalDateTime>) {
-        let Some(stored) = self.stored_event(&event).await else {
-            return;
-        };
-        if let Some(named) = occurrence
-            && !self.names_a_stored_occurrence(&event, &stored, named).await
-        {
-            // Refused rather than widened. A delete that could not find the occurrence and
-            // removed the series instead is the one outcome nobody can undo.
-            log::warn!(
-                "delete_calendar_event: no such occurrence for {}",
-                event.account.as_str()
-            );
-            self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
-            return;
-        }
-        let built = now_utc().and_then(|stamp| {
-            mailcal_account::build_event_deletion(&stored, occurrence, stamp)
-                .map_err(|err| err.to_string())
-        });
-        let deletion = match built {
-            Ok(deletion) => deletion,
-            Err(err) => {
-                // Unlike the whole-series delete this cannot simply fall through: the user
-                // asked for one occurrence to go, and returning quietly would leave it on
-                // the grid with nothing anywhere saying the delete never happened.
-                log::warn!(
-                    "delete_calendar_event: the delete was not built for {}: {err}",
-                    event.account.as_str()
-                );
-                self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
-                return;
-            }
-        };
-        // Clone the account handle, then delete with the read guard released.
-        let mut status = None;
-        if let Some(acct) = self.account_handle(&event.account).await
-            && let Some(provider) = acct.calendar_providers.first()
-        {
-            self.set_calendar_write_status(CalendarWriteStatus::Saving);
-            let delete = self
-                .engine
-                .delete_calendar_event(
-                    provider,
-                    &event.account,
-                    &generated_idempotency(),
-                    // The stored event, because removing **one occurrence** of a series is an
-                    // edit of the stored document on CalDAV: the adapter rewrites those bytes
-                    // and needs them. Passed for a whole-event delete too; a transport that
-                    // deletes an object outright ignores it.
-                    Some(&stored),
-                    &deletion,
-                )
-                .await;
-            status = Some(match delete {
-                Ok(delete) => {
-                    self.settle_calendar_write(provider, &event.account, delete.reconciled)
-                        .await
-                }
-                Err(err) => {
-                    log::warn!(
-                        "delete_calendar_event failed for {}: {err}",
-                        event.account.as_str()
-                    );
-                    crate::connectivity::calendar_status(&err)
-                }
-            });
-        }
-        self.rebuild_calendar_view().await;
-        // No adapter took the write: the calendar is not connected, and nothing was sent.
-        self.set_calendar_write_status(status.unwrap_or(CalendarWriteStatus::NotSaved));
     }
 
     /// Looks up the stored [`Event`] an [`EventRef`] names in its owning account. Shared with
@@ -437,7 +367,7 @@ impl<P: Provider> App<P> {
     /// stamps `can_write` onto every row the account contributes. Shared with the
     /// event-detail read ([`crate::calendar_detail`]).
     pub(crate) fn account_can_write(account: &Account<P>) -> bool {
-        account.calendar_providers.first().is_some_and(|provider| {
+        account.calendar_provider.as_ref().is_some_and(|provider| {
             provider
                 .connection_info()
                 .capabilities
@@ -496,3 +426,7 @@ impl<P: Provider> App<P> {
 /// Where a meeting may be organised, and as whom: the create and the roster edit above both ask.
 #[path = "calendar_meeting.rs"]
 mod meeting;
+
+/// Deleting an event or one occurrence of it.
+#[path = "calendar_delete.rs"]
+mod delete;

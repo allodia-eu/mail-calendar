@@ -2070,10 +2070,9 @@ Stated, not buried.
   concurrency gate), gated on the `Calendars.ReadWrite` OAuth scope, so it rides the *same*
   provider-neutral create/patch/delete verbs and per-row `can_write` gating as CalDAV/JMAP, and
   Graph advertises `WriteGuard::Enforced` (a stale `If-Match` ETag is a `412`). It is host-driven
-  and needs no client change: a connected Microsoft account's agenda simply appears. Four limits
-  ride in from the engine's `graph.md` and are **not** yet closed: only the account's **default
-  calendar** is bound (the Graph parallel of CalDAV's primary-calendar bind); the fetch **window**
-  is baked in at connect (a few months back, ~a year on) and re-centred only on reconnect; **one
+  and needs no client change: a connected Microsoft account's agenda simply appears. One provider
+  serves every calendar of the mailbox, each syncing under a scope of its own. Three limits ride
+  in from the engine's `graph.md` and are **not** yet closed: the fetch **window** is baked in at connect (a few months back, ~a year on) and re-centred only on reconnect; **one
   display zone per provider** (the device zone, sent as `Prefer: outlook.timezone` for
   DST-correct expansion; the user's *chosen* display zone still re-projects the agenda in the
   view-model). The CalDAV `412` harness gap above applies to Graph too: no dev account drives its
@@ -2093,8 +2092,8 @@ Stated, not buried.
   the view-model's chosen-zone re-projection is the only zone step. And **both scopes are granted at
   connect** (Gmail + Calendar in one consent), so there is **no scope-upgrade reconnect**: the
   "reconnect to enable calendar" banner below is Microsoft-only; a Google account's agenda simply
-  appears. The same engine-side limits ride in as for Graph: only the account's **primary calendar**
-  is bound, and the fetch **window** is baked in at connect (≈120 days back, ≈400 forward) and
+  appears. One provider serves every calendar of the account. The same engine-side limits ride in
+  as for Graph: the fetch **window** is baked in at connect (≈120 days back, ≈400 forward) and
   re-centred only on reconnect. The `412` harness gap applies here too: no dev account drives the
   `Enforced` path locally.
 - **A scope-missing Microsoft account is told to reconnect, not left silently calendar-less.** Every

@@ -34,8 +34,9 @@ pub struct Account<P> {
     /// Shared so that [`App::replace_uses`] can give the account a new calendar and address book
     /// around the mailbox it already has.
     pub providers: Arc<[P]>,
-    /// The calendar providers (one per synced calendar), if calendar is configured.
-    pub calendar_providers: Vec<P>,
+    /// The calendar provider, if the account is used for calendars: one serves every calendar
+    /// of the sign-in.
+    pub calendar_provider: Option<P>,
     /// The contact providers: one per address book for CardDAV (source-bound adapters),
     /// exactly one for JMAP (account-global), empty when the account has no contacts.
     ///
@@ -170,7 +171,7 @@ impl<P: Provider> App<P> {
             return UsesReplaced::Gone;
         };
         let live = &accounts[at];
-        if (unanswered.calendar && !live.calendar_providers.is_empty())
+        if (unanswered.calendar && live.calendar_provider.is_some())
             || (unanswered.contacts && !live.contact_providers.is_empty())
         {
             return UsesReplaced::Kept;

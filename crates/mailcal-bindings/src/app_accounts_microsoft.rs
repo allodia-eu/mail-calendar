@@ -140,12 +140,12 @@ impl MailcalApp {
         let calendar_reauth_required = outcome.calendar_reauth_required;
         self.app
             .note_use_problems(&account_id, outcome.use_problems);
-        let calendar_providers_len = outcome.account.calendar_providers.len();
-        let calendar_connected = calendar_providers_len > 0;
+        let calendar_connected = outcome.account.calendar_provider.is_some();
         log::info!(
-            "microsoft: connected {} folder provider(s) and {calendar_providers_len} calendar \
-             provider(s); syncing + adding account",
+            "microsoft: connected {} folder provider(s) and {} calendar provider(s); syncing + \
+             adding account",
             outcome.account.providers.len(),
+            usize::from(calendar_connected),
         );
         self.refresh_analytics_accounts();
         let sync_id = account_id.clone();

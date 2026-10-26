@@ -104,7 +104,7 @@ pub(crate) async fn reconnect_all(
                     // prompt (e.g. the user just re-authenticated); if a scope-`403` withheld it,
                     // raise the "reconnect to enable calendar" prompt. A transient calendar
                     // failure leaves the prior state untouched.
-                    if outcome.account.calendar_providers.is_empty() {
+                    if outcome.account.calendar_provider.is_none() {
                         if outcome.calendar_reauth_required {
                             app.note_calendar_reauth_required(&id);
                         }

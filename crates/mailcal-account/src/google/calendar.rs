@@ -1,12 +1,12 @@
 //! Building the Google **calendar** provider a Google account syncs its agenda through, with
 //! automatic OAuth token refresh: the calendar parallel of the Gmail provider in the parent
-//! module, and the Google sibling of [`crate::graph::connect_graph_calendar_providers`].
+//! module, and the Google sibling of [`crate::graph::connect_graph_calendar_provider`].
 //!
 //! Like the mail side, the engine's [`GoogleCalendarProvider`] takes a **static** bearer token,
 //! so this wraps it in a [`RefreshingGoogleCalendarProvider`] that mints a fresh access token
 //! before each network call and delegates to a freshly built provider (reusing its warm
-//! connection pool while the token is unchanged). The provider is bound to **one** calendar;
-//! the account's primary; carrying a fetch window centred on today, re-centred each reconnect.
+//! connection pool while the token is unchanged). One provider serves every calendar of the
+//! account, carrying a fetch window centred on today, re-centred each reconnect.
 //!
 //! Two things are simpler than the Graph calendar: Google is **IANA-native** (event times carry
 //! an IANA `timeZone`), so there is **no display-zone `Prefer` header** to thread through, and
@@ -58,14 +58,11 @@ const WINDOW_DAYS_BACK: i64 = 120;
 /// How many days **ahead** the baked-in fetch window spans (the app's rolling horizon).
 const WINDOW_DAYS_AHEAD: i64 = 400;
 
-/// A [`Provider`] bound to one Google calendar that refreshes its access token before every
-/// network call and delegates to a freshly built [`GoogleCalendarProvider`]. Internal; the
-/// account layer hands callers `Box<dyn Provider>` from
-/// [`connect_google_calendar_providers`].
+/// A [`Provider`] for every calendar of a Google account that refreshes its access token before
+/// every network call and delegates to a freshly built [`GoogleCalendarProvider`]. Internal; the
+/// account layer hands callers `Box<dyn Provider>` from [`connect_google_calendar_provider`].
 #[derive(Debug)]
 pub(crate) struct RefreshingGoogleCalendarProvider {
-    /// The calendar this provider syncs and writes to (the account's primary).
-    calendar: CalendarId,
     /// The shared, self-refreshing token source, shared with the account's Gmail provider so
     /// one refresh serves both.
     tokens: Arc<GraphTokenSource>,
@@ -82,17 +79,14 @@ pub(crate) struct RefreshingGoogleCalendarProvider {
 }
 
 impl RefreshingGoogleCalendarProvider {
-    /// Binds a refreshing calendar provider to `calendar`, sharing `tokens` with the account's
-    /// Gmail provider.
+    /// A refreshing calendar provider sharing `tokens` with the account's Gmail provider.
     #[must_use]
     pub(crate) fn new(
-        calendar: CalendarId,
         tokens: Arc<GraphTokenSource>,
         window: CalendarWindow,
         tls: TlsClientConfig,
     ) -> Self {
         Self {
-            calendar,
             tokens,
             capabilities: Capabilities::none()
                 .with_calendars()
@@ -133,9 +127,7 @@ impl RefreshingGoogleCalendarProvider {
             &crate::user_agent(),
         )
         .map_err(ProviderError::from)?;
-        let provider = Arc::new(
-            GoogleCalendarProvider::new(client, self.calendar.clone()).with_window(self.window),
-        );
+        let provider = Arc::new(GoogleCalendarProvider::new(client).with_window(self.window));
         *self
             .cached
             .lock()
@@ -173,10 +165,10 @@ impl Provider for RefreshingGoogleCalendarProvider {
         }
     }
 
-    fn event_scope(&self, account: &AccountId) -> SyncScope {
+    fn event_scope(&self, account: &AccountId, calendar: &CalendarId) -> SyncScope {
         SyncScope::GoogleCalendar {
             account: account.clone(),
-            calendar: self.calendar.clone(),
+            calendar: calendar.clone(),
         }
     }
 
@@ -203,12 +195,13 @@ impl Provider for RefreshingGoogleCalendarProvider {
     async fn sync_events(
         &self,
         account: &AccountId,
+        calendar: &CalendarId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<ScopeSync<Event>> {
         let mut provider = self.delegate().await?;
         let mut reconnected = false;
         loop {
-            match provider.sync_events(account, cursor).await {
+            match provider.sync_events(account, calendar, cursor).await {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
                     self.invalidate_delegate();
@@ -258,34 +251,32 @@ impl CalendarWrites for RefreshingGoogleCalendarProvider {
 }
 
 /// Connects the Google calendar provider a Google account syncs its agenda through: **one**
-/// token-refreshing provider bound to the account's **primary** calendar: the Google parallel
-/// of [`connect_graph_calendar_providers`](crate::connect_graph_calendar_providers). Enumerates
-/// `calendarList` once with a fresh token, picks the primary (falling back to the first), and
-/// binds a shared-token refreshing provider carrying a fetch window centred on today.
+/// token-refreshing provider for every calendar of the account, carrying a fetch window centred
+/// on today: the Google parallel of
+/// [`connect_graph_calendar_provider`](crate::connect_graph_calendar_provider). Reads
+/// `calendarList` once with a fresh token first, so a calendar the account cannot reach fails
+/// here rather than on every refresh.
 ///
 /// The caller connects this only for its non-fatal effect: a calendar failure leaves mail up
 /// with an empty agenda.
 ///
 /// # Errors
 ///
-/// Returns [`AccountError`] if the initial token refresh or the calendar-list sync fails, or the
-/// account has no calendar at all.
-pub async fn connect_google_calendar_providers(
+/// Returns [`AccountError`] if the initial token refresh or the calendar-list read fails.
+pub async fn connect_google_calendar_provider(
     account_id: &AccountId,
     tokens: Arc<GraphTokenSource>,
-) -> Result<Vec<Box<dyn Provider>>, AccountError> {
+) -> Result<Box<dyn Provider>, AccountError> {
     let tls = tls_with(&[])?;
     let window = rolling_window()?;
     let calendars = list_calendars(account_id, &tokens, &tls, window).await?;
-    let calendar = calendars
-        .iter()
-        .find(|calendar| calendar.is_default)
-        .or_else(|| calendars.first())
-        .map(|calendar| calendar.id.clone())
-        .ok_or_else(|| AccountError::Google("account has no calendar".to_owned()))?;
-    Ok(vec![Box::new(RefreshingGoogleCalendarProvider::new(
-        calendar, tokens, window, tls,
-    ))])
+    log::debug!(
+        "google: calendar list returned {} calendar(s)",
+        calendars.len()
+    );
+    Ok(Box::new(RefreshingGoogleCalendarProvider::new(
+        tokens, window, tls,
+    )))
 }
 
 /// Enumerates the account's calendars (a full snapshot) with a one-off client on a fresh access
@@ -299,25 +290,16 @@ async fn list_calendars(
     let token = tokens.access_token().await?;
     let client = GoogleClient::connect(token, tls, &tokens.retry(), &crate::user_agent())
         .map_err(|err| AccountError::Google(err.to_string()))?;
-    // The `calendarList` call ignores the bound calendar, so any placeholder id serves to
-    // construct the probe (the `primary` alias Google always accepts).
-    let placeholder =
-        CalendarId::try_from("primary").map_err(|err| AccountError::Google(err.to_string()))?;
     log::debug!("google: fetching calendar list");
-    let listing = GoogleCalendarProvider::new(client, placeholder)
+    let listing = GoogleCalendarProvider::new(client)
         .with_window(window)
         .sync_calendars(account_id, None)
         .await
         .map_err(|err| AccountError::Google(err.to_string()))?;
-    let calendars = match listing.update {
+    Ok(match listing.update {
         SyncUpdate::Snapshot { objects, .. } => objects,
         SyncUpdate::Delta { changed, .. } => changed,
-    };
-    log::debug!(
-        "google: calendar list returned {} calendar(s)",
-        calendars.len()
-    );
-    Ok(calendars)
+    })
 }
 
 /// The event fetch window, centred on today: a few months back and a bit over a year ahead,
@@ -355,11 +337,10 @@ mod tests {
     }
 
     #[test]
-    fn binds_a_calendar_provider_with_enforced_writes_and_the_bound_scopes() {
+    fn serves_every_calendar_with_enforced_writes_and_a_scope_each() {
         let account = AccountId::try_from("alice@gmail.com@mail.google.com").unwrap();
         let calendar = CalendarId::try_from("primary").unwrap();
         let provider = RefreshingGoogleCalendarProvider::new(
-            calendar.clone(),
             google_source(),
             rolling_window().unwrap(),
             tls_with(&[]).unwrap(),
@@ -375,7 +356,7 @@ mod tests {
         // iMIP reply on top of the one Google's `sendUpdates` already sent.
         assert!(info.capabilities.calendar_scheduling());
         assert_eq!(
-            provider.event_scope(&account),
+            provider.event_scope(&account, &calendar),
             SyncScope::GoogleCalendar {
                 account: account.clone(),
                 calendar,

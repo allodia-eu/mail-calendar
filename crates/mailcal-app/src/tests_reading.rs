@@ -100,7 +100,7 @@ async fn open_message_waits_for_a_still_dialing_account_then_loads() {
     app.add_account(Account {
         id: AccountId::try_from("acct-1").unwrap(),
         providers: Vec::new().into(),
-        calendar_providers: Vec::new(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@acct-1.local"),
         dialled: true,
@@ -157,7 +157,7 @@ async fn open_message_gives_up_after_the_dial_window_when_no_provider_connects()
     app.add_account(Account {
         id: AccountId::try_from("acct-1").unwrap(),
         providers: Vec::new().into(),
-        calendar_providers: Vec::new(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@acct-1.local"),
         dialled: true,
@@ -223,7 +223,7 @@ async fn an_open_that_outlasts_the_threshold_announces_the_wait_first() {
     app.add_account(Account {
         id: AccountId::try_from("acct-1").unwrap(),
         providers: Vec::new().into(),
-        calendar_providers: Vec::new(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@acct-1.local"),
         dialled: true,

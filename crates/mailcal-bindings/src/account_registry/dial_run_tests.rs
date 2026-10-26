@@ -180,7 +180,7 @@ async fn a_withheld_calendar_asks_for_consent_without_being_dialled() {
         .await
         .unwrap_or_else(|failure| panic!("nothing was dialled: {failure}"));
     assert!(outcome.calendar_reauth_required);
-    assert!(outcome.account.calendar_providers.is_empty());
+    assert!(outcome.account.calendar_provider.is_none());
 }
 
 /// A redial of the calendar and contacts leaves the mailbox alone: it is already connected, and

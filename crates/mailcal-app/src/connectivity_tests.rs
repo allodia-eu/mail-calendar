@@ -192,7 +192,7 @@ async fn a_disconnected_account_still_lists_and_keeps_its_outage_badge() {
     let disconnected = Account {
         id: AccountId::try_from("b").unwrap(),
         providers: Vec::new().into(),
-        calendar_providers: Vec::new(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("b@example.com"),
         dialled: true,

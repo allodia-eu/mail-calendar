@@ -293,6 +293,7 @@ impl Provider for InvitationFake {
     async fn sync_events(
         &self,
         _account: &AccountId,
+        _calendar: &CalendarId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<ScopeSync<Event>> {
         if cursor.is_some() {
@@ -442,11 +443,7 @@ pub(crate) fn invitation_app_with_prefs(
             calendar_users: provider.calendar_users.clone(),
         }]
         .into(),
-        calendar_providers: if provider.has_calendar {
-            vec![provider]
-        } else {
-            Vec::new()
-        },
+        calendar_provider: provider.has_calendar.then_some(provider),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@test.local"),
         dialled: true,

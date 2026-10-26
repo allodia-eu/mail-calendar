@@ -247,8 +247,8 @@ impl<P: Provider> App<P> {
             .await
             .ok_or_else(|| "the account is not configured".to_owned())?;
         let provider = acct
-            .calendar_providers
-            .first()
+            .calendar_provider
+            .as_ref()
             .ok_or_else(|| "the account has no calendar provider".to_owned())?;
 
         let write = self
@@ -264,7 +264,12 @@ impl<P: Provider> App<P> {
             .map_err(|err| self.answer_write_failed(&err))?;
 
         let status = self
-            .settle_calendar_write(provider, &calendar, write.reconciled)
+            .settle_calendar_write(
+                provider,
+                &calendar,
+                &crate::calendar_status::calendars_of(&stored),
+                write.reconciled,
+            )
             .await;
 
         // The answer is stored. Whether anyone was *told* is a separate question, and this

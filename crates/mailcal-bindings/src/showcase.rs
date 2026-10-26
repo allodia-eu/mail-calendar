@@ -234,6 +234,7 @@ impl Provider for ShowcaseCalendarProvider {
     async fn sync_events(
         &self,
         _account: &AccountId,
+        _calendar: &engine_api::CalendarId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<ScopeSync<Event>> {
         let (events, revision) = &*self.events();

@@ -52,7 +52,7 @@ pub(crate) async fn reconnect_uses(
                     let problems = outcome.use_problems;
                     let unanswered = outcome.unanswered;
                     let reauth = outcome.calendar_reauth_required;
-                    let calendar = !outcome.account.calendar_providers.is_empty();
+                    let calendar = outcome.account.calendar_provider.is_some();
                     match app.replace_uses(outcome.account, unanswered).await {
                         UsesReplaced::Replaced => {}
                         // Not noted as dialled, so the next retry dials it again.

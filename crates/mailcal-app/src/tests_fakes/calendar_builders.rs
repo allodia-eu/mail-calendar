@@ -23,7 +23,7 @@ pub(crate) fn calendar_account(id: &str, provider: CalendarFake) -> Account<Cale
     Account {
         id: AccountId::try_from(id).unwrap(),
         providers: Vec::new().into(),
-        calendar_providers: vec![provider],
+        calendar_provider: Some(provider),
         contact_providers: Vec::new(),
         identity: EmailAddress::new(format!("me@{id}.local")),
         dialled: true,

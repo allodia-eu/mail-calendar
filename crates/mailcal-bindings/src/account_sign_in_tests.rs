@@ -148,7 +148,6 @@ fn calendar_account(who: &str, password: &str) -> (String, String) {
             base_url: "http://127.0.0.1:1/dav".to_owned(),
             username: format!("{who}@example.com"),
             password: Some(mailcal_account::Secret::new(password.to_owned())),
-            calendar: None,
         }),
         carddav: None,
         oauth: None,

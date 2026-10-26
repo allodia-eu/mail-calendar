@@ -162,11 +162,11 @@ pub async fn connect_jmap_folder(
 /// Returns [`AccountError::Jmap`] if the connection or session discovery fails, or
 /// [`AccountError::SigninRejected`] if the server refuses the account's credential: a dead OAuth
 /// grant, or a password/API token it answers `401` to.
-pub async fn connect_jmap_calendar_providers(
+pub async fn connect_jmap_calendar_provider(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
-) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    Ok(vec![connect_one(config, tokens, None).await?])
+) -> Result<Box<dyn Provider>, AccountError> {
+    Ok(connect_one(config, tokens, None).await?)
 }
 
 /// Connects a single JMAP provider from `config`, boxed behind the neutral

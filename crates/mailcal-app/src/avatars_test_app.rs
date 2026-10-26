@@ -163,7 +163,7 @@ pub(super) fn app(contacts: FakeContacts, surfaces: &Arc<Mutex<Vec<Surface>>>) -
         vec![Account {
             id: AccountId::try_from("work").unwrap(),
             providers: vec![MailOnly].into(),
-            calendar_providers: Vec::new(),
+            calendar_provider: None,
             contact_providers: vec![Box::new(contacts)],
             identity: EmailAddress::new("me@work.local"),
             dialled: true,

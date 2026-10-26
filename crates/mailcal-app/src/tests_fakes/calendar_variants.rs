@@ -110,4 +110,30 @@ impl CalendarFake {
             ..Self::scheduling(events)
         }
     }
+
+    /// A CalDAV-shaped server: the calendars `(id, collection tag)` and the events on them,
+    /// each calendar's events under a scope of its own.
+    pub(crate) fn on_dav(calendars: &[(&str, &str)], events: Vec<Event>) -> Self {
+        let calendars = calendars
+            .iter()
+            .map(|(id, tag)| {
+                let mut calendar = engine_core::calendar::Calendar::new(
+                    engine_core::ids::CalendarId::try_from(*id).unwrap(),
+                    *id,
+                );
+                calendar.collection_tag = Some(engine_core::version::CollectionTag::new(*tag));
+                calendar
+            })
+            .collect();
+        Self {
+            calendars,
+            per_calendar: true,
+            ..Self::with_events(events)
+        }
+    }
+
+    /// The calendar each event fetch named, in order.
+    pub(crate) fn event_fetches(&self) -> std::sync::Arc<std::sync::Mutex<Vec<String>>> {
+        std::sync::Arc::clone(&self.event_fetches)
+    }
 }

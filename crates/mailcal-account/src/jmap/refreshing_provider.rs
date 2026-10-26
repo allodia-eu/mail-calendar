@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use engine_api::{CalendarWrites, ProviderKey};
 use engine_core::{
     calendar::{Calendar, Event},
-    ids::AccountId,
+    ids::{AccountId, CalendarId},
     mail::{Mailbox, Message},
     raw::RawMime,
     sync::{SyncScope, SyncState, SyncWindow},
@@ -169,7 +169,7 @@ impl Provider for RefreshingJmapProvider {
         }
     }
 
-    fn event_scope(&self, account: &AccountId) -> SyncScope {
+    fn event_scope(&self, account: &AccountId, _calendar: &CalendarId) -> SyncScope {
         SyncScope::JmapType {
             account: account.clone(),
             data_type: engine_core::sync::JmapDataType::CalendarEvent,
@@ -187,9 +187,13 @@ impl Provider for RefreshingJmapProvider {
     async fn sync_events(
         &self,
         account: &AccountId,
+        calendar: &CalendarId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<ScopeSync<Event>> {
-        self.delegate().await?.sync_events(account, cursor).await
+        self.delegate()
+            .await?
+            .sync_events(account, calendar, cursor)
+            .await
     }
 
     /// The identities the session's submission account can send as, forwarded to the

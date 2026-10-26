@@ -34,7 +34,7 @@ mod config;
 mod contacts;
 mod mail_provider;
 
-pub use calendar::connect_google_calendar_providers;
+pub use calendar::connect_google_calendar_provider;
 pub use config::{GoogleConfig, fetch_google_primary_address, load_google_str};
 pub use contacts::connect_google_contact_providers;
 

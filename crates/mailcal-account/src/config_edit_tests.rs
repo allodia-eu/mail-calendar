@@ -37,11 +37,6 @@ fn unchanged_settings_move_nothing_and_pin_the_id_and_uses() {
         edited.config.shape.capabilities,
         Some(config.capabilities())
     );
-    assert_eq!(
-        edited.config.caldav.as_ref().unwrap().calendar.as_deref(),
-        Some("/dav/calendars/alice/work/"),
-        "the calendar chosen on the same server is kept"
-    );
     let stored = edited.config.to_toml().unwrap();
     assert!(stored.contains("password = \"old\""), "{stored}");
 }
@@ -86,10 +81,6 @@ fn a_new_port_security_or_password_keeps_the_data_and_a_new_host_does_not() {
     );
     let caldav = edited.config.caldav.as_ref().unwrap();
     assert_eq!(caldav.base_url, "https://cloud.example.net/remote.php/dav");
-    assert!(
-        caldav.calendar.is_none(),
-        "a calendar on another server is chosen again"
-    );
     assert_eq!(
         edited
             .config

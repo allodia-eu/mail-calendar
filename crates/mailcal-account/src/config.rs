@@ -154,9 +154,6 @@ pub struct CalDavAccount {
     /// ([`docs/mail-oauth.md`](../../../docs/mail-oauth.md)).
     #[serde(default)]
     pub password: Option<Secret>,
-    /// The calendar collection to sync (defaults to discovery's primary).
-    #[serde(default)]
-    pub calendar: Option<String>,
 }
 
 impl AccountConfig {
@@ -258,9 +255,6 @@ impl AccountConfig {
             table.insert("username".into(), caldav.username.clone().into());
             if let Some(password) = &caldav.password {
                 table.insert("password".into(), password.expose().to_owned().into());
-            }
-            if let Some(calendar) = &caldav.calendar {
-                table.insert("calendar".into(), calendar.clone().into());
             }
             root.insert("caldav".into(), table.into());
         }

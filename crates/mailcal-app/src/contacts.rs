@@ -150,7 +150,7 @@ impl<P: Provider> App<P> {
             }
             // An account with neither mail nor a calendar learns here whether its server
             // answers; the calendar pass answers for one that has a calendar.
-            if !account.uses_mail && account.calendar_providers.is_empty() {
+            if !account.uses_mail && account.calendar_provider.is_none() {
                 if let Some(reachable) = reachability(Reach::Busy, reaches.iter().copied()) {
                     self.set_account_reachable(&account.id, reachable);
                 }

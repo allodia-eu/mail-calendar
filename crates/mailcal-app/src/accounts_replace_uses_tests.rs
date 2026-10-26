@@ -17,7 +17,7 @@ async fn new_uses_keep_the_mailbox_the_account_already_has() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut account = calendar_account("acct", CalendarFake::with_events(Vec::new()));
     account.providers = vec![CalendarFake::with_events(Vec::new())].into();
-    account.calendar_providers.clear();
+    account.calendar_provider = None;
     let id = account.id.clone();
     let app = calendar_app(vec![account], &surfaces);
     let mailbox = Arc::clone(&app.account_handle(&id).await.unwrap().providers);
@@ -34,9 +34,8 @@ async fn new_uses_keep_the_mailbox_the_account_already_has() {
         Arc::ptr_eq(&live.providers, &mailbox),
         "the mailbox is the one it had"
     );
-    assert_eq!(
-        live.calendar_providers.len(),
-        1,
+    assert!(
+        live.calendar_provider.is_some(),
         "the calendar is the new one"
     );
 }
@@ -71,16 +70,15 @@ async fn a_redial_that_cannot_reach_a_working_calendar_keeps_it() {
     let app = calendar_app(vec![account], &surfaces);
 
     let mut redialled = calendar_account("acct", CalendarFake::with_events(Vec::new()));
-    redialled.calendar_providers.clear();
+    redialled.calendar_provider = None;
     assert_eq!(
         app.replace_uses(redialled, CALENDAR_UNREACHED).await,
         UsesReplaced::Kept
     );
 
     let live = app.account_handle(&id).await.unwrap();
-    assert_eq!(
-        live.calendar_providers.len(),
-        1,
+    assert!(
+        live.calendar_provider.is_some(),
         "an outage is not traded for the connection that works"
     );
 }
@@ -89,11 +87,11 @@ async fn a_redial_that_cannot_reach_a_working_calendar_keeps_it() {
 async fn a_retry_of_a_calendar_that_never_connected_installs_what_it_found() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut account = calendar_account("acct", CalendarFake::with_events(Vec::new()));
-    account.calendar_providers.clear();
+    account.calendar_provider = None;
     let app = calendar_app(vec![account], &surfaces);
 
     let mut redialled = calendar_account("acct", CalendarFake::with_events(Vec::new()));
-    redialled.calendar_providers.clear();
+    redialled.calendar_provider = None;
     assert_eq!(
         app.replace_uses(redialled, CALENDAR_UNREACHED).await,
         UsesReplaced::Replaced,

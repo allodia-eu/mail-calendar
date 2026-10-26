@@ -87,7 +87,7 @@ impl<P: Provider> App<P> {
         // decision below.
         let survival = account
             .as_ref()
-            .and_then(|account| account.calendar_providers.first())
+            .and_then(|account| account.calendar_provider.as_ref())
             .and_then(|provider| provider.connection_info().capabilities.override_survival());
         series_edit_warning(
             survival,

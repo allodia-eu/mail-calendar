@@ -366,7 +366,7 @@ impl<P: Provider> App<P> {
         account
             .providers
             .iter()
-            .chain(account.calendar_providers.iter())
+            .chain(account.calendar_provider.iter())
             .map(Provider::connection_info)
             .collect()
     }

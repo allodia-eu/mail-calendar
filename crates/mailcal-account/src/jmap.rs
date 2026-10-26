@@ -31,7 +31,7 @@ mod refreshing_provider;
 mod setup;
 
 pub use connect::{
-    connect_jmap_calendar_providers, connect_jmap_contact_providers, connect_jmap_folder,
+    connect_jmap_calendar_provider, connect_jmap_contact_providers, connect_jmap_folder,
     connect_jmap_mail_providers,
 };
 pub use setup::{JmapSetup, build_jmap_config_toml, jmap_base_url};

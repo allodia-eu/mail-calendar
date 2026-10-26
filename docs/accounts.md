@@ -141,5 +141,3 @@ it, while bob's calendar is offered without being suggested.
 - **Switching colleagues off deletes the account's own contacts too**, until its next contacts
   sync brings them back: the store keeps directory cards beside the account's own with no line
   between them, so it can forget only both.
-- **One calendar per CalDAV account.** The account binds the calendar discovery finds first, or the
-  one it names.

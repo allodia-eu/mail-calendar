@@ -172,7 +172,7 @@ pub(crate) fn placeholder(id: AccountId, connected: &ConnectedAccount) -> BoxedA
     Account {
         id,
         providers: Vec::new().into(),
-        calendar_providers: Vec::new(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: connected.identity(),
         // Listed before its dial lands: what its calendar holds is not known yet.
@@ -210,7 +210,7 @@ pub(crate) fn is_jmap_toml(config_toml: &str) -> bool {
     mailcal_account::load_jmap_str(config_toml).is_ok()
 }
 
-/// Binds a Microsoft account's Graph calendar provider (its default calendar).
+/// Binds a Microsoft account's Graph calendar provider, which serves every calendar.
 ///
 /// Returns the providers or the failure, **and** whether the failure was a *scope-denied* `403`;
 /// i.e. the account's OAuth grant predates the `Calendars.ReadWrite` scope, so the user must
@@ -221,8 +221,8 @@ pub(crate) async fn connect_graph_calendars(
     tokens: Arc<GraphTokenSource>,
     display_zone: TimeZoneId,
 ) -> (Result<Vec<Box<dyn Provider>>, ConnectFailure>, bool) {
-    match mailcal_account::connect_graph_calendar_providers(id, tokens, display_zone).await {
-        Ok(providers) => (Ok(providers), false),
+    match mailcal_account::connect_graph_calendar_provider(id, tokens, display_zone).await {
+        Ok(provider) => (Ok(vec![provider]), false),
         Err(err @ mailcal_account::AccountError::CalendarAccessDenied(_)) => {
             log::warn!("graph: calendar access denied; re-authentication needed: {err}");
             (Err(ConnectFailure::from(err)), true)

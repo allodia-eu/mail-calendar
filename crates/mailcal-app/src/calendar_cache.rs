@@ -202,7 +202,7 @@ impl<P: Provider> App<P> {
         let mut every_account_connected = true;
         for account in self.account_handles().await {
             let account_id = account.id.as_str().to_owned();
-            expects_calendars |= !account.calendar_providers.is_empty();
+            expects_calendars |= account.calendar_provider.is_some();
             // A calendar that could not be reached beside a working mailbox has not reported "no
             // calendar", and the next retry may yet read it. One that needs a sign-in of its own,
             // or refused the account's, will not arrive however long the week is held back, so

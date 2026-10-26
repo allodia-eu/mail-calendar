@@ -172,7 +172,7 @@ impl MailcalApp {
         }
         // As a reconnect does: a calendar that came up retracts the prompt to re-consent for it,
         // and one the grant still withholds raises it.
-        if outcome.account.calendar_providers.is_empty() {
+        if outcome.account.calendar_provider.is_none() {
             if outcome.calendar_reauth_required {
                 self.app.note_calendar_reauth_required(&id);
             }

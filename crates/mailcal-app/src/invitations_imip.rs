@@ -85,7 +85,7 @@ impl<P: Provider> App<P> {
         let calendar_open = self
             .account_handle(answer.calendar)
             .await
-            .is_some_and(|acct| !acct.calendar_providers.is_empty());
+            .is_some_and(|acct| acct.calendar_provider.is_some());
         let stored = match answer.stored.clone() {
             _ if !calendar_open => {
                 log::info!("respond_to_invitation: the calendar is not connected; replying only");
@@ -127,8 +127,8 @@ impl<P: Provider> App<P> {
             .await
             .ok_or_else(|| "the account is not configured".to_owned())?;
         let provider = acct
-            .calendar_providers
-            .first()
+            .calendar_provider
+            .as_ref()
             .ok_or_else(|| "the account has no calendar provider".to_owned())?;
         let rsvp = EventRsvp::to(stored, answer.attendee, answer.response.engine());
         let write = self
@@ -143,7 +143,12 @@ impl<P: Provider> App<P> {
             .await
             .map_err(|err| err.to_string())?;
         let status = self
-            .settle_calendar_write(provider, answer.calendar, write.reconciled)
+            .settle_calendar_write(
+                provider,
+                answer.calendar,
+                &crate::calendar_status::calendars_of(stored),
+                write.reconciled,
+            )
             .await;
         self.set_calendar_write_status(status);
         Ok(())
@@ -187,7 +192,7 @@ impl<P: Provider> App<P> {
             .account_handle(account)
             .await
             .ok_or_else(|| "the account is not configured".to_owned())?;
-        let Some(provider) = acct.calendar_providers.first() else {
+        let Some(provider) = acct.calendar_provider.as_ref() else {
             log::info!("respond_to_invitation: no calendar on this account; replying only");
             return Ok(None);
         };
@@ -200,7 +205,8 @@ impl<P: Provider> App<P> {
         let document = crate::itip::for_storage(raw.as_str())
             .ok_or_else(|| "the invitation carries no calendar object to store".to_owned())?;
 
-        // The account's first calendar, the same default a new event takes (`calendar_ops`).
+        // The calendar a new event on this account would take: the user's default where it is
+        // this account's and writable, otherwise the account's first writable calendar.
         //
         // Read from the **store**, which is empty until a calendar sync has run, and answering
         // an invitation must not require the user to have visited the Calendar tab first. Found
@@ -223,8 +229,8 @@ impl<P: Provider> App<P> {
                 .await
                 .map_err(|err| err.to_string())?;
         }
-        let collection = calendars
-            .first()
+        let collection = self
+            .calendar_for_new_events(account, &calendars)
             .ok_or_else(|| "this account has no calendar to add the meeting to".to_owned())?;
         let href = event_href(collection.id.key().as_str(), event.uid.as_str())
             .ok_or_else(|| "the meeting's id cannot be made into a calendar address".to_owned())?;
@@ -240,7 +246,12 @@ impl<P: Provider> App<P> {
             Ok(landed) => {
                 log::info!("respond_to_invitation: stored the invitation on the calendar");
                 let status = self
-                    .settle_calendar_write(provider, account, landed.reconciled)
+                    .settle_calendar_write(
+                        provider,
+                        account,
+                        std::slice::from_ref(&collection.id),
+                        landed.reconciled,
+                    )
                     .await;
                 self.set_calendar_write_status(status);
             }
@@ -260,7 +271,7 @@ impl<P: Provider> App<P> {
                 );
                 let _ = self
                     .engine
-                    .reconcile_calendar_events(provider, account)
+                    .reconcile_calendar_events(provider, account, &collection.id)
                     .await;
             }
         }

@@ -136,19 +136,10 @@ impl AccountConfig {
                 security: edit.smtp_security,
             }
         });
-        edited.caldav = given(&edit.caldav_url).map(|url| {
-            let base_url = normalize_caldav_base_url(&url);
-            let calendar = self
-                .caldav
-                .as_ref()
-                .filter(|old| same_host(&old.base_url, &base_url))
-                .and_then(|old| old.calendar.clone());
-            CalDavAccount {
-                base_url,
-                username: username.to_owned(),
-                password: password.clone(),
-                calendar,
-            }
+        edited.caldav = given(&edit.caldav_url).map(|url| CalDavAccount {
+            base_url: normalize_caldav_base_url(&url),
+            username: username.to_owned(),
+            password: password.clone(),
         });
         edited.carddav = given(&edit.carddav_url).map(|url| CardDavAccount {
             base_url: normalize_caldav_base_url(&url),
