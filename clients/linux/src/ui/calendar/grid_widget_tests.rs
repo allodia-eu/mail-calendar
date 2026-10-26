@@ -10,7 +10,7 @@ use super::{
 };
 use crate::ui::{
     AppInput,
-    calendar::{EventIdentity, paint::Rgb},
+    calendar::{CalendarModel, EventIdentity, paint::Rgb},
 };
 
 pub(crate) fn the_create_drag_owns_the_primary_pointer_before_event_buttons() {
@@ -356,6 +356,41 @@ fn drawn_top(surface: &GridSurface) -> f64 {
 /// a frame after the viewport that decided them. Draining the pending sources once sees none of
 /// that. The deadline is generous because it is only ever spent when the assertion is about to
 /// fail: a run that works returns on the frame it holds.
+/// The app renders on every input it receives, so a render that changes nothing leaves the hit
+/// targets a press may be landing on where they are, and a new page replaces them.
+pub(crate) fn an_unchanged_page_keeps_its_hit_targets_and_a_new_one_replaces_them() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let surface = GridSurface::new(sender);
+    let window = gtk::Window::new();
+    window.set_default_size(900, 600);
+    window.set_child(Some(&surface.root));
+    window.present();
+    settle(|| surface.drawing.width() > 0);
+    let mut model = CalendarModel::empty(
+        time::Date::from_calendar_date(2026, time::Month::October, 26).unwrap(),
+    );
+    model.page.is_materialized = true;
+    surface.render(&model, false);
+    // A rebuild empties the overlay before it decides what to put back, whether or not the
+    // desktop has accessibility on, so a child left here says whether one happened.
+    let marker = gtk::Label::new(None);
+    surface.hits.put(&marker, 0.0, 0.0);
+
+    surface.render(&model, false);
+    assert!(
+        marker.parent().is_some(),
+        "a render that changed nothing replaced the hit targets a press may be landing on"
+    );
+
+    model.page.timezone = "Europe/Lisbon".to_owned();
+    surface.render(&model, false);
+    assert!(
+        marker.parent().is_none(),
+        "the grid went on offering the hit targets of a page that had changed"
+    );
+    window.close();
+}
+
 fn settle(ready: impl Fn() -> bool) {
     let context = gtk::glib::MainContext::default();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);

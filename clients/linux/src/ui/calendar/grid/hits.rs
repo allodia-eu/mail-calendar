@@ -105,8 +105,8 @@ pub(super) fn rebuild_hits_with(
         // Keyboard-reachable, but never focused *by the click itself*. A change to the page, such
         // as the edit a click can lead to, rebuilds this overlay and destroys the button the click
         // landed on; GTK then moves focus off the dying widget and the scrolled window animates
-        // to reveal whatever inherits it, the first target, at the top of the day. The reader was
-        // hours further down.
+        // to reveal whatever inherits it, the first target, at the top of the day, however far
+        // down the reader was.
         button.set_focus_on_click(false);
         button.set_tooltip_text(Some(&hit.spoken));
         button.update_property(&[AccessibleProperty::Label(&hit.spoken)]);

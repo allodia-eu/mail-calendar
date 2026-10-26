@@ -19,7 +19,6 @@ const MONTH_CAPACITY: usize = 4;
 /// What the agenda last drew. The pane renders on every input the app receives, the time-zone
 /// poll included, and rebuilding replaces every row: a press on a button that is replaced before
 /// GTK delivers it is lost, and keyboard focus on a row goes with the row.
-#[derive(PartialEq)]
 pub(super) struct AgendaDrawn {
     agenda: CalendarSnapshot,
     materialized: bool,
@@ -27,7 +26,6 @@ pub(super) struct AgendaDrawn {
 }
 
 /// What the month grid last drew, for the reason [`AgendaDrawn`] gives.
-#[derive(PartialEq)]
 pub(super) struct MonthDrawn {
     month: MonthPage,
     use_24_hour: bool,
@@ -41,15 +39,18 @@ pub(super) fn render_agenda(
     sender: &relm4::Sender<AppInput>,
     drawn: &mut Option<AgendaDrawn>,
 ) {
-    let now = AgendaDrawn {
+    if drawn.as_ref().is_some_and(|drawn| {
+        drawn.agenda == model.agenda
+            && drawn.materialized == model.page.is_materialized
+            && drawn.use_24_hour == model.use_24_hour
+    }) {
+        return;
+    }
+    *drawn = Some(AgendaDrawn {
         agenda: model.agenda.clone(),
         materialized: model.page.is_materialized,
         use_24_hour: model.use_24_hour,
-    };
-    if drawn.as_ref() == Some(&now) {
-        return;
-    }
-    *drawn = Some(now);
+    });
     clear_list(list);
     if !model.page.is_materialized {
         list.append(&message_row(l10n::calendar_loading_range()));
@@ -131,15 +132,17 @@ pub(super) fn render_month(
     sender: &relm4::Sender<AppInput>,
     drawn: &mut Option<MonthDrawn>,
 ) {
-    let now = MonthDrawn {
-        month: model.month.clone(),
-        use_24_hour: model.use_24_hour,
-        dark: adw::StyleManager::default().is_dark(),
-    };
-    if drawn.as_ref() == Some(&now) {
+    let dark = adw::StyleManager::default().is_dark();
+    if drawn.as_ref().is_some_and(|drawn| {
+        drawn.month == model.month && drawn.use_24_hour == model.use_24_hour && drawn.dark == dark
+    }) {
         return;
     }
-    *drawn = Some(now);
+    *drawn = Some(MonthDrawn {
+        month: model.month.clone(),
+        use_24_hour: model.use_24_hour,
+        dark,
+    });
     clear_grid(grid);
     if !model.month.is_materialized {
         let label = gtk::Label::new(Some(l10n::calendar_loading_range()));
