@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn serves_every_calendar_with_enforced_writes_and_a_scope_each() {
         let account = AccountId::try_from("alice@gmail.com@mail.google.com").unwrap();
-        let calendar = CalendarId::try_from("primary").unwrap();
+        let calendar = CalendarId::try_from("alice@gmail.com").unwrap();
         let provider = RefreshingGoogleCalendarProvider::new(
             google_source(),
             rolling_window().unwrap(),
