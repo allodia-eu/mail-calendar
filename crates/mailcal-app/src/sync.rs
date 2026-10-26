@@ -167,7 +167,6 @@ impl<P: Provider> App<P> {
         )
         .await;
         self.end_sync(&progress);
-        self.note_first_download(id, false);
         if let Some(reachable) = outcome.reachable {
             self.set_account_reachable(id, reachable);
         }

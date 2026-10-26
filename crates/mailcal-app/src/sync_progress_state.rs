@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use engine_api::AccountProgress;
+use engine_api::{AccountId, AccountProgress};
 use mailcal_viewmodel::{AccountSyncProgress, SyncProgressSnapshot, ThrottledAccount};
 
 /// What one sync pass learned about an account's rate limit.
@@ -72,9 +72,9 @@ pub(crate) struct SyncProgressState {
     /// one was named. Stored as a **deadline** rather than a remaining wait so the figure a
     /// host renders is recomputed on every pull instead of ageing in place.
     paused: BTreeMap<String, Option<Instant>>,
-    /// Accounts just added whose first download is still to come or under way: their lists have
-    /// no rows yet because nothing has arrived, which is not the list being empty. Named before
-    /// the account's first snapshot is built, and dropped when that download ends.
+    /// Accounts just added whose inbox no pass has read yet: their lists have no rows because
+    /// nothing has arrived, which is not the list being empty. Named before the account's first
+    /// snapshot is built, and dropped once a pass has read its inbox or the account is gone.
     first_downloads: BTreeSet<String>,
 }
 
@@ -112,16 +112,16 @@ impl SyncProgressState {
         self.first_downloads.insert(account.to_owned());
     }
 
-    /// Notes that `account`'s first download has ended, however it went, or that it is gone.
+    /// Notes that a pass has read `account`'s inbox, or that the account is gone.
     pub(crate) fn first_download_over(&mut self, account: &str) {
         self.first_downloads.remove(account);
     }
 
     /// Whether any of `accounts` still waits for its first download.
-    pub(crate) fn awaiting_any(&self, accounts: &[&str]) -> bool {
+    pub(crate) fn awaiting_any(&self, accounts: &[AccountId]) -> bool {
         accounts
             .iter()
-            .any(|account| self.first_downloads.contains(*account))
+            .any(|account| self.first_downloads.contains(account.as_str()))
     }
 
     /// Registers an account and how many folders its pass set out to sync.

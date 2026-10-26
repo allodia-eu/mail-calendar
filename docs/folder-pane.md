@@ -113,8 +113,9 @@ advertises LIST-STATUS, else one `STATUS` per mailbox.
 is in comes from `App::empty_reason`, over the **narrowest** sync depth of the accounts in view, so
 the unified inbox answers the way a search horizon does: one account bounded at six months is
 enough for the server to hold mail this device has not. A list whose first download is still to
-come, or still running for an account just added, has no rows for another reason, so it answers
-`None` until that download has ended. Each client maps the enum to its own
+come, or whose account was just added and has not had its inbox read yet (a first download that
+failed or found its folders busy has not), has no rows for another reason, so it answers `None`
+until it is read. Each client maps the enum to its own
 catalog copy and draws it over the rows rather than in place of the list, so the surfaces around it
 do not move as a folder fills: `EmptyMailboxView` (Apple), `MailboxEmpty` (Android),
 `mailbox_empty::render` into the `GtkListBox` placeholder (Linux), and `EmptyMailboxLine` behind

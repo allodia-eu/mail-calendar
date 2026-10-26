@@ -176,8 +176,8 @@ impl<P: Provider> App<P> {
         // and "this folder is empty" is not something we know there (`docs/folder-pane.md`,
         // rule 20).
         if snapshot.total == 0
-            && !self.list_download_pending(selected, folder).await
             && !self.awaiting_download(&accounts)
+            && !self.list_download_pending(selected, folder).await
         {
             // A level of the tree holds no mail at any depth, so offering the depth setting
             // there would claim older mail is waiting on the server.

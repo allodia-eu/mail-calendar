@@ -25,6 +25,8 @@ impl AppObserver for SilentObserver {
 struct WindowProvider {
     messages: Vec<Message>,
     caps: Capabilities,
+    /// Whether the mail download fails, as on a server that cannot be reached.
+    fails: bool,
 }
 
 impl WindowProvider {
@@ -32,6 +34,14 @@ impl WindowProvider {
         Self {
             messages,
             caps: Capabilities::none().with_mail(),
+            fails: false,
+        }
+    }
+
+    fn failing() -> Self {
+        Self {
+            fails: true,
+            ..Self::new(Vec::new())
         }
     }
 }
@@ -84,6 +94,11 @@ impl Provider for WindowProvider {
         _fetch_batch: usize,
         _chunk_size: usize,
     ) -> EmailStream<'a> {
+        if self.fails {
+            return Box::pin(futures::stream::iter(vec![Err(
+                engine_provider::ProviderError::retryable("server unreachable"),
+            )]));
+        }
         if cursor.is_some() {
             return Box::pin(futures::stream::iter(vec![Ok(EmailChunk::additive(
                 Vec::new(),
@@ -381,4 +396,19 @@ async fn a_list_explains_nothing_until_a_new_accounts_first_download_has_ended()
         app.mailbox_list().empty_reason.is_some(),
         "once the download has ended, an empty list says why",
     );
+}
+
+/// A first download that failed read nothing, so the list still does not know it is empty: it
+/// explains nothing until a pass has read the account's inbox.
+#[tokio::test]
+async fn a_list_explains_nothing_after_a_new_accounts_first_download_failed() {
+    let app = test_app(Vec::new());
+    app.dispatch(super::Intent::RefreshMail).await;
+    let id = AccountId::try_from("acct").unwrap();
+    app.add_new_account_deferred(account("acct", WindowProvider::failing()))
+        .await;
+
+    app.sync_added_mail(&id).await;
+
+    assert_eq!(app.mailbox_list().empty_reason, None);
 }
