@@ -161,8 +161,12 @@ pub async fn connect_caldav(
 
 /// The `User-Agent` every engine adapter this crate opens sends ([`mailcal_user_agent`]).
 pub(crate) fn user_agent() -> engine_api::UserAgent {
-    engine_api::UserAgent::new(mailcal_user_agent::PRODUCT, mailcal_user_agent::VERSION)
-        .expect("the build names the product and version as tokens")
+    static USER_AGENT: std::sync::LazyLock<engine_api::UserAgent> =
+        std::sync::LazyLock::new(|| {
+            engine_api::UserAgent::new(mailcal_user_agent::PRODUCT, mailcal_user_agent::VERSION)
+                .expect("the build names the product and version as tokens")
+        });
+    USER_AGENT.clone()
 }
 
 /// A DAV connect's providers, and the principal the server named on the way: what a host
