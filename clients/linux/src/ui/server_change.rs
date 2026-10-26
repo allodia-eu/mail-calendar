@@ -143,7 +143,7 @@ fn allowed(
     from: ReviewFrom,
 ) -> AccountsInput {
     match (answer, from) {
-        (Some(ServerChangeAnswer::Moved), _) => AccountsInput::Changed(None),
+        (Some(ServerChangeAnswer::Settled), _) => AccountsInput::Changed(None),
         (Some(ServerChangeAnswer::Replaced { change }), _) => AccountsInput::ServerChangeReplaced {
             account,
             review: Review { change, ..review },
@@ -189,6 +189,9 @@ impl AppModel {
     ) {
         if let Some(window) = relm4::main_adw_application().active_window() {
             ask(&window, account, review, from, sender);
+        } else {
+            // Nothing moved, and the use stays paused, so its banner and page still offer Review.
+            log::info!("accounts: the server change was replaced with no window open to ask in");
         }
     }
 }

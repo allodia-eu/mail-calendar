@@ -101,12 +101,6 @@ launch_app() { # <open-subject> <log-prefix> [arguments...]
   local open_subject="$1"
   local log_prefix="$2"
   shift 2
-  # Only when set: the core reads MAILCAL_SHOWCASE_SERVER_CHANGE as on whenever it exists, empty
-  # included, so an unconditional `--env` would stage the pause on every showcase launch.
-  local showcase_env=()
-  [[ -z "${MAILCAL_SHOWCASE:-}" ]] || showcase_env+=(--env=MAILCAL_SHOWCASE="$MAILCAL_SHOWCASE")
-  [[ -z "${MAILCAL_SHOWCASE_SERVER_CHANGE:-}" ]] ||
-    showcase_env+=(--env=MAILCAL_SHOWCASE_SERVER_CHANGE="$MAILCAL_SHOWCASE_SERVER_CHANGE")
   # No --env=WAYLAND_DISPLAY: `sdk_exec` passes --socket=wayland, and flatpak binds whatever
   # $WAYLAND_DISPLAY names on the host to `wayland-0` *inside* the sandbox. Naming the host's
   # socket here would name one that does not exist in there, and the client would find no display.
@@ -129,7 +123,8 @@ launch_app() { # <open-subject> <log-prefix> [arguments...]
     --env=MAILCAL_FORCE_ANALYTICS_WELCOME=1 \
     --env=MAILCAL_OPEN_SUBJECT="$open_subject" \
     --env=MAILCAL_SHOWCASE_SCREEN="${MAILCAL_SHOWCASE_SCREEN:-}" \
-    "${showcase_env[@]}" \
+    --env=MAILCAL_SHOWCASE="${MAILCAL_SHOWCASE:-}" \
+    --env=MAILCAL_SHOWCASE_SERVER_CHANGE="${MAILCAL_SHOWCASE_SERVER_CHANGE:-}" \
     --env=XDG_DATA_HOME="$XDG_DATA_HOME" \
     --env=XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
     --env=XDG_CACHE_HOME="$XDG_CACHE_HOME" \

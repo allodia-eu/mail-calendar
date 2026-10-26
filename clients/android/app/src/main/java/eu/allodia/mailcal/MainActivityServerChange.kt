@@ -33,8 +33,8 @@ internal fun MainActivity.allowServerChange() {
         mainHandler.post {
             answer.onSuccess {
                 when (it) {
-                    is ServerChangeAnswer.Moved -> {
-                        logUiInfo("accounts: a calendar or address book moved to its new server")
+                    is ServerChangeAnswer.Settled -> {
+                        logUiInfo("accounts: the server change is settled")
                         refreshAccountsSnapshot()
                         refreshConnectivity()
                     }

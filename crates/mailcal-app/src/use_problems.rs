@@ -178,13 +178,17 @@ impl<P> App<P> {
     }
 
     /// Forgets the change `account` waited on, once the person allowed it: what its uses report
-    /// next comes from the dial of the new servers.
-    pub fn forget_server_change(&self, account: &AccountId) {
+    /// next comes from the dial of the new servers. Only `allowed` is forgotten: a lookup may have
+    /// found another change while the allowed one was connecting, and nobody has allowed that.
+    pub fn forget_server_change(&self, account: &AccountId, allowed: &ServerChange) {
         let changed = {
             let mut state = self
                 .use_problems
                 .lock()
                 .expect("use-problems mutex poisoned");
+            if state.changes.get(account.as_str()) != Some(allowed) {
+                return;
+            }
             state.changes.remove(account.as_str());
             let before = state
                 .problems

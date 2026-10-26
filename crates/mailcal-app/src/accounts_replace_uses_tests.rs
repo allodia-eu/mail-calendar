@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use engine_api::AccountId;
 use fakes::{CalendarFake, calendar_account, calendar_app};
 
-use crate::{UseProblem, UseProblems, UsesReplaced};
+use crate::{Unanswered, UsesReplaced};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -25,7 +25,7 @@ async fn new_uses_keep_the_mailbox_the_account_already_has() {
     // What a dial of the uses alone hands back: a calendar, and no mail providers.
     let redialled = calendar_account("acct", CalendarFake::with_events(Vec::new()));
     assert_eq!(
-        app.replace_uses(redialled, UseProblems::default()).await,
+        app.replace_uses(redialled, Unanswered::default()).await,
         UsesReplaced::Replaced
     );
 
@@ -48,7 +48,7 @@ async fn an_account_removed_during_the_dial_is_not_brought_back() {
 
     let gone = calendar_account("gone", CalendarFake::with_events(Vec::new()));
     assert_eq!(
-        app.replace_uses(gone, UseProblems::default()).await,
+        app.replace_uses(gone, Unanswered::default()).await,
         UsesReplaced::Gone
     );
     assert!(
@@ -58,9 +58,9 @@ async fn an_account_removed_during_the_dial_is_not_brought_back() {
     );
 }
 
-const CALENDAR_UNREACHED: UseProblems = UseProblems {
-    calendar: Some(UseProblem::Unreachable),
-    contacts: None,
+const CALENDAR_UNREACHED: Unanswered = Unanswered {
+    calendar: true,
+    contacts: false,
 };
 
 #[tokio::test]

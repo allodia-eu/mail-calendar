@@ -87,7 +87,7 @@ public sealed partial class SettingsDialog
             _serverChangeOpen = open with { Busy = true, Error = null };
             DrawServerChange(_serverChangeOpen);
             var answer = await _model.AcceptServerChangeAsync(open.AccountId, open.Change);
-            if (answer is ServerChangeAnswer.Moved)
+            if (answer is ServerChangeAnswer.Settled)
             {
                 // The page redraws from the snapshot, in which the use is no longer paused.
                 _serverChangeOpen = null;

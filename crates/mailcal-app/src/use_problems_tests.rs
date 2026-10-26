@@ -183,7 +183,7 @@ fn allowing_the_change_lifts_the_pause() {
     let id = engine_api::AccountId::try_from("a").unwrap();
     app.note_server_change(&id, change(true, true));
 
-    app.forget_server_change(&id);
+    app.forget_server_change(&id, &change(true, true));
 
     assert_eq!(app.use_problems(&id), UseProblems::default());
     assert_eq!(app.server_change(&id), None);
@@ -204,5 +204,24 @@ fn the_same_server_change_found_again_changes_nothing_on_screen() {
     assert!(
         surfaces.lock().unwrap().contains(&Surface::Connectivity),
         "a different change is a different question"
+    );
+}
+
+#[test]
+fn allowing_one_change_leaves_a_newer_one_nobody_allowed_waiting() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("a", FakeProvider::new())], &surfaces);
+    let id = engine_api::AccountId::try_from("a").unwrap();
+    let allowed = change(true, false);
+    app.note_server_change(&id, allowed.clone());
+    // Found by a lookup while the allowed change was still connecting.
+    app.note_server_change(&id, change(true, true));
+
+    app.forget_server_change(&id, &allowed);
+
+    assert_eq!(app.server_change(&id), Some(change(true, true)));
+    assert_eq!(
+        app.use_problems(&id).calendar,
+        Some(UseProblem::ServerChanged)
     );
 }

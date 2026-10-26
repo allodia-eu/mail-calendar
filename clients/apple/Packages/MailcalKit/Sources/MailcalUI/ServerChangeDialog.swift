@@ -37,9 +37,9 @@ extension MailboxModel {
                 try app.acceptServerChange(accountId: id, shown: shown)
             }.value
             switch answer {
-            case .moved:
+            case .settled:
                 refreshAccountsSnapshot()
-                return .moved
+                return .settled
             case let .replaced(change):
                 logAppleLifecycle("accounts: the server change was replaced while it was shown")
                 return .replaced(
@@ -54,7 +54,8 @@ extension MailboxModel {
 
 /// What an Allow came to, as the dialog acts on it.
 enum ServerChangeAllow {
-    case moved
+    /// Nothing waits any more: the account moved, or the question was settled elsewhere.
+    case settled
     /// A lookup replaced the question on screen, so nothing moved: ask this one instead.
     case replaced(ServerChangeReview)
     case failed
@@ -149,7 +150,7 @@ struct ServerChangeDialog: View {
             let answer = await model.acceptServerChange(review)
             allowing = false
             switch answer {
-            case .moved: close()
+            case .settled: close()
             case let .replaced(next): replace(next)
             case .failed: failed = true
             }

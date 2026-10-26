@@ -39,8 +39,9 @@ impl From<&mailcal_app::ServerChange> for ServerChange {
 /// What allowing a server change came to, when nothing failed.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum ServerChangeAnswer {
-    /// The account moved onto the new servers, and the pause lifted.
-    Moved,
+    /// Nothing waits on the person any more: the account moved onto the new servers, now or by
+    /// an answer given elsewhere, or the use connected again by itself.
+    Settled,
     /// A lookup replaced the question shown before it was allowed. Nothing moved; `change` is
     /// the question to show in its place.
     Replaced {
@@ -71,7 +72,8 @@ impl MailcalApp {
     ///
     /// # Errors
     ///
-    /// Returns [`MailcalError::Config`] when the account waits on no server change,
+    /// Returns [`MailcalError::Config`] for an id that is not an account's or an account with no
+    /// servers to change,
     /// [`MailcalError::UseNotConnected`] when a use it moves does not connect on its new server,
     /// and what [`MailcalApp::update_account_endpoints`] returns when the account does not; the
     /// account stays paused as it was.
@@ -82,9 +84,11 @@ impl MailcalApp {
     ) -> Result<ServerChangeAnswer, MailcalError> {
         let id = AccountId::try_from(account_id.as_str())
             .map_err(|err| MailcalError::Config(err.to_string()))?;
-        let change = self.app.server_change(&id).ok_or_else(|| {
-            MailcalError::Config("no server change is waiting for this account".to_owned())
-        })?;
+        // Allowed from another surface meanwhile, or the use connected again by itself: either
+        // way the question is over.
+        let Some(change) = self.app.server_change(&id) else {
+            return Ok(ServerChangeAnswer::Settled);
+        };
         let pending = ServerChange::from(&change);
         if pending != shown {
             return Ok(ServerChangeAnswer::Replaced { change: pending });
@@ -114,8 +118,8 @@ impl MailcalApp {
         .filter_map(|(moved, capability)| moved.then_some(capability))
         .collect();
         self.replace_endpoints(account_id, endpoints, &moved)?;
-        self.app.forget_server_change(&id);
-        Ok(ServerChangeAnswer::Moved)
+        self.app.forget_server_change(&id, &change);
+        Ok(ServerChangeAnswer::Settled)
     }
 }
 

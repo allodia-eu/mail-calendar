@@ -333,6 +333,16 @@ fn outcome(
             .as_ref()
             .map(ConnectFailure::use_problem),
     };
+    let unanswered = mailcal_app::Unanswered {
+        calendar: assembled
+            .calendar_failure
+            .as_ref()
+            .is_some_and(ConnectFailure::is_outage),
+        contacts: assembled
+            .contacts_failure
+            .as_ref()
+            .is_some_and(ConnectFailure::is_outage),
+    };
     DialOutcome {
         account: Account {
             id: id.clone(),
@@ -346,6 +356,7 @@ fn outcome(
         calendar_error,
         calendar_reauth_required,
         use_problems,
+        unanswered,
         learned,
         rediscover,
     }

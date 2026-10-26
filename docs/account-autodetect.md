@@ -205,10 +205,9 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
       configured server stays what setup stored: an account without mail takes its id from it.
       The home the principal names (iCloud's `pNN` host) is kept in memory only, and the
       calendar and contacts are connected again from the principal after 24 hours of uptime
-      (`DAV_FRESH_FOR`), so a home the server moved is followed within a day. A redial that
-      cannot reach one the account has working keeps that connection, and the next retry dials
-      it again. Editing the
-      servers forgets the principals.
+      (`DAV_FRESH_FOR`), so a home the server moved is followed within a day. A redial whose
+      server does not answer for one the account has working keeps that connection, and the next
+      retry dials it again. Editing the servers forgets the principals.
     - **When to look again.** A stored principal the server says is gone (a `404`, `410` or
       `403`, or no home) sends the connect back to the configured server. When that is gone too,
       or the server refuses the sign-in, the core runs rule 8's lookup again for the account's
@@ -237,8 +236,11 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
       not only the mailbox. Allow hands back the question the client showed, because a lookup
       can replace it while it is on screen: a replaced one moves nothing and is asked in its
       place (`ServerChangeAnswer::Replaced`), so the credential never goes to a site the person
-      was not shown. A paused use that connects again by itself is no longer paused,
-      and a failed dial of the whole account keeps the pause, since it answers nothing.
+      was not shown. One already settled, from another surface or by the use connecting again,
+      answers `Settled`, which closes the question rather than reporting a failure, and a change a
+      lookup found while the allowed one was connecting stays to be asked. A paused use that
+      connects again by itself is no longer paused, and a failed dial of the whole account keeps
+      the pause, since it answers nothing.
     - The lookup needs the host's DNS for the SRV records, which each client hands the core once,
       right after building the app (`set_dns_resolver`); before that the core does not look again.
 

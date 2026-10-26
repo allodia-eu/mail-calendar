@@ -69,13 +69,15 @@ fn the_dialog_reads_the_change_the_account_waits_on() {
     assert_eq!(app.pending_server_change(id), Some(shown()));
 }
 
+/// An allow for a question already settled, from another surface or by the use connecting again,
+/// is not a failure: nothing waits, so the client closes the question.
 #[test]
-fn allowing_a_change_nobody_proposed_is_refused() {
+fn allowing_a_question_already_settled_says_it_is_settled() {
     let (app, id) = app("server-change-none");
-    assert!(matches!(
-        app.accept_server_change(id, shown()),
-        Err(MailcalError::Config(_))
-    ));
+    assert_eq!(
+        app.accept_server_change(id, shown()).ok(),
+        Some(crate::ServerChangeAnswer::Settled)
+    );
 }
 
 #[test]

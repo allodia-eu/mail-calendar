@@ -152,9 +152,9 @@ class ServerChangeTest {
         val prompt = ServerChangePrompt()
         prompt.open(ShownServerChange("acct-a", "ada@example.com", change(calendar = true, contacts = false)))
         assertTrue(prompt.start())
-        prompt.finished("acct-b", Result.success(ServerChangeAnswer.Moved))
+        prompt.finished("acct-b", Result.success(ServerChangeAnswer.Settled))
         assertTrue("an answer for another account changes nothing", prompt.allowing)
-        prompt.finished("acct-a", Result.success(ServerChangeAnswer.Moved))
+        prompt.finished("acct-a", Result.success(ServerChangeAnswer.Settled))
         assertNull(prompt.shown)
         assertFalse(prompt.allowing)
     }

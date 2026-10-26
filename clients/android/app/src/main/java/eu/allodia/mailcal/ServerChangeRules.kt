@@ -107,10 +107,10 @@ internal class ServerChangePrompt {
         val question = shown ?: return
         if (question.accountId != accountId) return
         allowing = false
-        when (val moved = answer.getOrNull()) {
+        when (val answered = answer.getOrNull()) {
             null -> failed = true
-            is ServerChangeAnswer.Moved -> shown = null
-            is ServerChangeAnswer.Replaced -> shown = question.copy(change = moved.change)
+            is ServerChangeAnswer.Settled -> shown = null
+            is ServerChangeAnswer.Replaced -> shown = question.copy(change = answered.change)
         }
     }
 

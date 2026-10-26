@@ -11,7 +11,7 @@ use std::{sync::Arc, time::Instant};
 use engine_api::{AccountId, ContactsProvider, EmailAddress, Provider};
 use mailcal_viewmodel::AccountRow;
 
-use crate::{App, Surface, UseProblem, UseProblems, form_factor::FormFactor, scope::Scope};
+use crate::{App, Surface, form_factor::FormFactor, scope::Scope};
 
 /// How much history a newly added account syncs.
 ///
@@ -55,6 +55,16 @@ pub struct Account<P> {
     /// its dial lands, whose calendar is unknown rather than empty; an account with no provider
     /// of some kind after its dial simply has none.
     pub dialled: bool,
+}
+
+/// Which of an account's calendar and contacts a dial could not reach because the server did not
+/// answer, as opposed to answering with a refusal or a start it says is gone.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Unanswered {
+    /// The calendar's server did not answer.
+    pub calendar: bool,
+    /// The address book's server did not answer.
+    pub contacts: bool,
 }
 
 /// What [`App::replace_uses`] did with a redial of an account's calendar and contacts.
@@ -148,10 +158,10 @@ impl<P: Provider> App<P> {
     /// For a retry of a calendar or address book that failed beside a working mailbox, and for
     /// the daily redial of ones that work: the mailbox is connected, so nothing about it is
     /// replaced, synced or watched again. Nothing is synced here either; the caller refreshes
-    /// the calendar and contacts it reconnected. A redial that `problems` says could not reach a
-    /// use the live account has working installs nothing, because an outage says nothing about
-    /// the servers and a working connection is not traded for none.
-    pub async fn replace_uses(&self, account: Account<P>, problems: UseProblems) -> UsesReplaced {
+    /// the calendar and contacts it reconnected. A redial whose server did not answer
+    /// (`unanswered`) for a use the live account has working installs nothing, because an outage
+    /// says nothing about the servers and a working connection is not traded for none.
+    pub async fn replace_uses(&self, account: Account<P>, unanswered: Unanswered) -> UsesReplaced {
         let mut accounts = self.accounts.write().await;
         let Some(at) = accounts
             .iter()
@@ -160,11 +170,8 @@ impl<P: Provider> App<P> {
             return UsesReplaced::Gone;
         };
         let live = &accounts[at];
-        let lost = |problem: Option<UseProblem>, working: bool| {
-            working && problem == Some(UseProblem::Unreachable)
-        };
-        if lost(problems.calendar, !live.calendar_providers.is_empty())
-            || lost(problems.contacts, !live.contact_providers.is_empty())
+        if (unanswered.calendar && !live.calendar_providers.is_empty())
+            || (unanswered.contacts && !live.contact_providers.is_empty())
         {
             return UsesReplaced::Kept;
         }

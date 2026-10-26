@@ -50,7 +50,7 @@ internal static class ServerChangeDialog
             dialog.IsPrimaryButtonEnabled = true;
             switch (answer)
             {
-                case ServerChangeAnswer.Moved:
+                case ServerChangeAnswer.Settled:
                     break;
                 case ServerChangeAnswer.Replaced replaced:
                     // A lookup replaced the question while it was shown, and nothing moved: ask

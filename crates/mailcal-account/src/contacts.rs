@@ -79,7 +79,7 @@ pub async fn connect_carddav_learning(
                     "carddav: the stored principal is gone; starting from the configured server"
                 );
             }
-            connected => return connected,
+            connected => return connected.map(|connected| connected.started_at(start)),
         }
     }
     connect_carddav_at(account, tokens, None).await

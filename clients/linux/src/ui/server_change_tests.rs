@@ -87,7 +87,7 @@ fn a_failed_allow_is_said_where_it_was_asked_and_a_good_one_redraws() {
     let shown = || review(change(true, false));
     assert!(matches!(
         allowed(
-            Some(ServerChangeAnswer::Moved),
+            Some(ServerChangeAnswer::Settled),
             account.to_owned(),
             shown(),
             ReviewFrom::Outage

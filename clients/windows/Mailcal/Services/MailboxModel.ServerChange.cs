@@ -29,9 +29,10 @@ public sealed partial class MailboxModel
 
     /// <summary>Allows the new server if it is still <paramref name="shown"/>, which the core
     /// connects before it stores anything.</summary>
-    /// <returns><see cref="ServerChangeAnswer.Moved"/> once it connected and the pause lifted;
-    /// <see cref="ServerChangeAnswer.Replaced"/> with the question to ask instead when a lookup
-    /// replaced it while it was shown; null when it failed. Only the first changes anything.</returns>
+    /// <returns><see cref="ServerChangeAnswer.Settled"/> once nothing waits any more, the account
+    /// having moved now or by an answer given elsewhere; <see cref="ServerChangeAnswer.Replaced"/>
+    /// with the question to ask instead when a lookup replaced it while it was shown; null when it
+    /// failed and nothing changed.</returns>
     internal async Task<ServerChangeAnswer?> AcceptServerChangeAsync(string accountId, ServerChange shown)
     {
         if (_app is not { } app)

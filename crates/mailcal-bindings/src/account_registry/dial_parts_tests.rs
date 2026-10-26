@@ -158,3 +158,12 @@ fn a_failure_says_what_a_person_can_do_about_it() {
         UseProblem::Unreachable
     );
 }
+
+/// Only a server that did not answer is an outage, the one failure a redial may not trade a working
+/// connection for; a refusal or a server that needs its own sign-in answered.
+#[test]
+fn only_a_server_that_did_not_answer_is_an_outage() {
+    assert!(unreachable("calendar").is_outage());
+    assert!(!signin_expired().is_outage());
+    assert!(!ConnectFailure::from(AccountError::DavNeedsOwnSignIn("calendar")).is_outage());
+}

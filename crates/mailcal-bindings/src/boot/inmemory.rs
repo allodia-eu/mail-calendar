@@ -224,7 +224,7 @@ pub(crate) fn build_showcase(
         )
     });
     #[cfg(debug_assertions)]
-    if std::env::var_os("MAILCAL_SHOWCASE_SERVER_CHANGE").is_some() {
+    if std::env::var_os("MAILCAL_SHOWCASE_SERVER_CHANGE").is_some_and(|value| !value.is_empty()) {
         pause_for_a_server_change(&app, &primary_identity);
     }
     let registered = [

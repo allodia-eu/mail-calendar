@@ -168,6 +168,17 @@ pub struct DavConnected<T> {
     pub principal: Option<String>,
 }
 
+impl<T> DavConnected<T> {
+    /// `self` from a connect that started at the stored principal `start` and succeeded there: a
+    /// server that named no principal on the way said nothing against it, so it stays the start.
+    /// Only a connect that fell back from it to the configured server forgets it.
+    #[must_use]
+    pub(crate) fn started_at(mut self, start: &str) -> Self {
+        self.principal.get_or_insert_with(|| start.to_owned());
+        self
+    }
+}
+
 impl<T> std::fmt::Debug for DavConnected<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // The providers hold connection handles; the principal is what the result is about.
@@ -196,7 +207,7 @@ pub async fn connect_caldav_learning(
                     "caldav: the stored principal is gone; starting from the configured server"
                 );
             }
-            connected => return connected,
+            connected => return connected.map(|connected| connected.started_at(start)),
         }
     }
     connect_caldav_at(account, tokens, None).await
@@ -290,5 +301,26 @@ mod tests {
             connect_caldav(&config, None).await,
             Err(AccountError::NoCalDav)
         ));
+    }
+
+    /// A connect that succeeded at the stored principal keeps it when the server named none, so
+    /// the next connect does not start from the configured server again.
+    #[test]
+    fn a_connect_from_the_stored_principal_keeps_it_when_the_server_names_none() {
+        let start = "https://dav.example.net/principals/ada/";
+        let unnamed = super::DavConnected {
+            providers: (),
+            principal: None,
+        };
+        assert_eq!(unnamed.started_at(start).principal.as_deref(), Some(start));
+
+        let renamed = super::DavConnected {
+            providers: (),
+            principal: Some("https://dav.example.net/principals/ada2/".to_owned()),
+        };
+        assert_eq!(
+            renamed.started_at(start).principal.as_deref(),
+            Some("https://dav.example.net/principals/ada2/")
+        );
     }
 }
