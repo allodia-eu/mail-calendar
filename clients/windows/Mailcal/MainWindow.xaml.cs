@@ -115,6 +115,7 @@ public sealed partial class MainWindow : Window
                 or nameof(MailboxModel.SelectedFolder)
                 or nameof(MailboxModel.Destination)
                 or nameof(MailboxModel.UnifiedExpanded)
+                or nameof(MailboxModel.UnifiedUnread)
                 // The Outbox row appears and disappears with the queue (docs/folder-pane.md,
                 // rule 18), and it holds the pane's highlight while it is the list on screen,
                 // which neither selection scalar above can say: both are null there and on the

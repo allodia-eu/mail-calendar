@@ -50,17 +50,8 @@ public sealed class FolderPanePositionTests(ImapHarnessApp harness)
 
     /// <summary>What Acme's row says about its unread mail: "" when it draws no count, null while
     /// the pane has no Acme row, which a pane rebuilding its rows has for a moment.</summary>
-    private static string? AcmeUnread(App app)
-    {
-        if (FolderRow(app, "Acme") is not { } acme)
-        {
-            return null;
-        }
-        var counts = Catalog.Everywhere("a11y_unread_count").Concat(Catalog.Everywhere("a11y_unread_count_one"))
-            .Select(pattern => new System.Text.RegularExpressions.Regex("^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace(@"\{count}", @"\d+") + "$"))
-            .ToList();
-        return string.Concat(app.Agent.FindAll(new Filter { Under = acme }).Select(e => e.Name).Where(name => counts.Any(c => c.IsMatch(name))));
-    }
+    private static string? AcmeUnread(App app) =>
+        FolderRow(app, "Acme") is { } acme ? app.PaneUnread(acme) : null;
 
     /// <summary>Presses the toolbar's read toggle and gives Acme's count ten seconds to read
     /// <paramref name="expect"/>. What it reads is asserted after the rows, so a pane that lost its

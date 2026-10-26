@@ -44,6 +44,25 @@ internal sealed partial class App
         return Agent.Find(list) ?? throw new InvalidOperationException("the message list (#RowsList) is not on screen");
     }
 
+    /// <summary>What a folder-pane row says about its own unread mail, in any catalog language: ""
+    /// when it draws no count. Off the row's own subtree: an account or group row holds its folder
+    /// rows, and their counts are not its own.</summary>
+    internal string PaneUnread(Element row)
+    {
+        var nested = Agent.FindAll(new Filter { Type = "ListItem", Under = row })
+            .SelectMany(item => Agent.FindAll(new Filter { Under = item }).Prepend(item))
+            .Select(e => e.Handle).ToHashSet();
+        return string.Concat(Agent.FindAll(new Filter { Under = row })
+            .Where(e => !nested.Contains(e.Handle))
+            .Select(e => e.Name)
+            .Where(name => UnreadSentences.Value.Any(sentence => sentence.IsMatch(name))));
+    }
+
+    private static readonly Lazy<List<System.Text.RegularExpressions.Regex>> UnreadSentences = new(() =>
+        Catalog.Everywhere("a11y_unread_count").Concat(Catalog.Everywhere("a11y_unread_count_one"))
+            .Select(pattern => new System.Text.RegularExpressions.Regex("^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace(@"\{count}", @"\d+") + "$"))
+            .ToList());
+
     /// <summary>The row holding a text matching <paramref name="title"/>, scrolled into view because
     /// a row below the fold can be found but not pressed; throws naming what the list holds.</summary>
     internal Element RowTitled(string title)
