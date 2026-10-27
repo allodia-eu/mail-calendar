@@ -49,6 +49,7 @@ mod series_warning;
 mod setup;
 mod setup_choices;
 mod signatures;
+mod stream_redial;
 mod throttle;
 mod tls;
 

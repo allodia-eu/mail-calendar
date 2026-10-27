@@ -1,19 +1,31 @@
-//! Streaming a pass through the redial wrapper: its chunks reach the sync as they arrive, a
-//! connection that dies is redialled once, before the first chunk or after, and a second drop is
-//! reported.
-//!
-//! In their own `#[path]` file to keep `reconnect_tests.rs` under the 500-line limit.
+//! Streaming a pass through [`redialling_stream`]: its chunks reach the sync as they arrive, a
+//! refusal keeps what came before it, a connection that dies is redialled once, before the first
+//! chunk or after, and a second drop is reported.
 
 use std::{
     collections::BTreeSet,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
-use engine_core::sync::SyncUpdate;
-use engine_provider::{Capabilities, EmailChunk};
+use async_trait::async_trait;
+use engine_api::CalendarWrites;
+use engine_core::{
+    error::FailureClass,
+    ids::AccountId,
+    mail::Mailbox,
+    sync::{SyncState, SyncUpdate, SyncWindow},
+};
+use engine_provider::{
+    Capabilities, ConnectionInfo, EmailChunk, EmailStream, Provider, ProviderError, ProviderResult,
+    ScopeSync,
+};
+use futures::StreamExt;
 
-use super::*;
+use super::redialling_stream;
 
 /// What one step of a scripted pass does.
 #[derive(Clone, Copy)]
@@ -22,6 +34,8 @@ enum Step {
     Chunk,
     /// The connection drops.
     Drop,
+    /// The server refuses for now, as Gmail does once a user's per-minute quota is spent.
+    Refuse,
     /// The server goes quiet, as one still sending a large mailbox does.
     Hang,
 }
@@ -62,6 +76,7 @@ impl Provider for StreamDelegate {
                 match step {
                     Step::Chunk => yield EmailChunk::additive_held(Vec::new(), Vec::new(), None),
                     Step::Drop => Err(ProviderError::new(FailureClass::Retryable, "connection reset"))?,
+                    Step::Refuse => Err(ProviderError::new(FailureClass::RateLimited, "quota spent"))?,
                     Step::Hang => futures::future::pending::<()>().await,
                 }
             }
@@ -76,30 +91,37 @@ fn account() -> AccountId {
     AccountId::try_from("acct").expect("valid account id")
 }
 
-fn mailbox() -> MailboxId {
-    MailboxId::try_from("INBOX").expect("valid mailbox id")
-}
-
-/// A wrapper over a session playing `first`, whose redials play `then` and are counted.
-fn wrapper(
-    first: Vec<Step>,
-    then: Vec<Step>,
-    redials: &Arc<AtomicUsize>,
-) -> ReconnectingImapProvider {
+/// A pass whose first delegate plays `first` and whose every later one plays `then`; each
+/// delegate after the first is a redial, and is counted.
+fn pass<'a>(first: Vec<Step>, then: Vec<Step>, redials: &Arc<AtomicUsize>) -> EmailStream<'a> {
+    let handed_out = Arc::new(AtomicUsize::new(0));
     let redials = Arc::clone(redials);
-    let redial: Redial = Box::new(move || {
-        redials.fetch_add(1, Ordering::SeqCst);
-        let steps = then.clone();
-        Box::pin(async move { Ok(Arc::new(StreamDelegate { steps }) as Arc<dyn Provider>) })
-    });
-    ReconnectingImapProvider::adopt(Arc::new(StreamDelegate { steps: first }), mailbox(), redial)
+    let delegate = move || {
+        let steps = if handed_out.fetch_add(1, Ordering::SeqCst) == 0 {
+            first.clone()
+        } else {
+            redials.fetch_add(1, Ordering::SeqCst);
+            then.clone()
+        };
+        async move { Ok(Arc::new(StreamDelegate { steps })) }
+    };
+    redialling_stream(
+        delegate,
+        || {},
+        &account(),
+        None,
+        SyncWindow::full(),
+        200,
+        50,
+    )
 }
 
 /// Every outcome of one pass, `true` for a chunk and `false` for an error.
-async fn outcomes(provider: &ReconnectingImapProvider) -> Vec<bool> {
-    let account = account();
-    let stream = provider.stream_email(&account, None, SyncWindow::full(), 200, 50);
-    stream.map(|item| item.is_ok()).collect().await
+async fn outcomes(first: Vec<Step>, then: Vec<Step>, redials: &Arc<AtomicUsize>) -> Vec<bool> {
+    pass(first, then, redials)
+        .map(|item| item.is_ok())
+        .collect()
+        .await
 }
 
 /// A first sync of a large mailbox takes many seconds, and each chunk is what puts rows on
@@ -107,9 +129,7 @@ async fn outcomes(provider: &ReconnectingImapProvider) -> Vec<bool> {
 #[tokio::test]
 async fn a_pass_reaches_the_sync_as_it_arrives() {
     let redials = Arc::new(AtomicUsize::new(0));
-    let provider = wrapper(vec![Step::Chunk, Step::Hang], Vec::new(), &redials);
-    let account = account();
-    let mut stream = provider.stream_email(&account, None, SyncWindow::full(), 200, 50);
+    let mut stream = pass(vec![Step::Chunk, Step::Hang], Vec::new(), &redials);
 
     let first = tokio::time::timeout(Duration::from_secs(5), stream.next()).await;
 
@@ -119,14 +139,37 @@ async fn a_pass_reaches_the_sync_as_it_arrives() {
     );
 }
 
+/// The sync commits each chunk it is given, so a pass refused partway keeps what it fetched
+/// before the refusal. Held back until the pass ended, the chunks went down with it, and a
+/// mailbox larger than one quota window never stored a message.
+#[tokio::test]
+async fn a_refusal_after_a_chunk_keeps_the_chunk() {
+    let redials = Arc::new(AtomicUsize::new(0));
+
+    let seen = outcomes(
+        vec![Step::Chunk, Step::Chunk, Step::Refuse],
+        Vec::new(),
+        &redials,
+    )
+    .await;
+
+    assert_eq!(seen, [true, true, false]);
+    assert_eq!(
+        redials.load(Ordering::SeqCst),
+        0,
+        "a refusal is not a dead connection"
+    );
+}
+
 /// A session that died while the machine slept fails on its first command: redialled once, the
 /// pass runs on the fresh one.
 #[tokio::test]
 async fn a_connection_that_dies_before_the_first_chunk_is_redialled_once() {
     let redials = Arc::new(AtomicUsize::new(0));
-    let provider = wrapper(vec![Step::Drop], vec![Step::Chunk, Step::Chunk], &redials);
 
-    assert_eq!(outcomes(&provider).await, [true, true]);
+    let seen = outcomes(vec![Step::Drop], vec![Step::Chunk, Step::Chunk], &redials).await;
+
+    assert_eq!(seen, [true, true]);
     assert_eq!(redials.load(Ordering::SeqCst), 1);
 }
 
@@ -136,13 +179,15 @@ async fn a_connection_that_dies_before_the_first_chunk_is_redialled_once() {
 #[tokio::test]
 async fn a_connection_that_dies_after_a_chunk_is_redialled_once() {
     let redials = Arc::new(AtomicUsize::new(0));
-    let provider = wrapper(
+
+    let seen = outcomes(
         vec![Step::Chunk, Step::Drop],
         vec![Step::Chunk, Step::Chunk],
         &redials,
-    );
+    )
+    .await;
 
-    assert_eq!(outcomes(&provider).await, [true, true, true]);
+    assert_eq!(seen, [true, true, true]);
     assert_eq!(redials.load(Ordering::SeqCst), 1);
 }
 
@@ -151,8 +196,9 @@ async fn a_connection_that_dies_after_a_chunk_is_redialled_once() {
 #[tokio::test]
 async fn a_second_drop_is_reported() {
     let redials = Arc::new(AtomicUsize::new(0));
-    let provider = wrapper(vec![Step::Drop], vec![Step::Chunk, Step::Drop], &redials);
 
-    assert_eq!(outcomes(&provider).await, [true, false]);
+    let seen = outcomes(vec![Step::Drop], vec![Step::Chunk, Step::Drop], &redials).await;
+
+    assert_eq!(seen, [true, false]);
     assert_eq!(redials.load(Ordering::SeqCst), 1);
 }

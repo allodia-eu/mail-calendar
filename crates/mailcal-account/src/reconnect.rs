@@ -189,36 +189,15 @@ impl Provider for ReconnectingImapProvider {
         fetch_batch: usize,
         chunk_size: usize,
     ) -> EmailStream<'a> {
-        let account = account.clone();
-        let cursor = cursor.cloned();
-        Box::pin(async_stream::try_stream! {
-            let mut retried = false;
-            'attempt: loop {
-                let provider = self.delegate().await?;
-                let mut stream = provider.stream_email(
-                    &account,
-                    cursor.as_ref(),
-                    window,
-                    fetch_batch,
-                    chunk_size,
-                );
-                while let Some(chunk) = stream.next().await {
-                    match chunk {
-                        Ok(chunk) => yield chunk,
-                        Err(err) if err.class() == FailureClass::Retryable => {
-                            self.invalidate();
-                            if retried {
-                                Err(err)?;
-                            }
-                            retried = true;
-                            continue 'attempt;
-                        }
-                        Err(err) => Err(err)?,
-                    }
-                }
-                break;
-            }
-        })
+        crate::stream_redial::redialling_stream(
+            || self.delegate(),
+            || self.invalidate(),
+            account,
+            cursor,
+            window,
+            fetch_batch,
+            chunk_size,
+        )
     }
 
     /// A mail write **is** safely auto-retried on a dropped socket: every [`MailEdit`] compiles to
@@ -410,7 +389,3 @@ impl MailboxWrites for ReconnectingImapProvider {
 #[cfg(test)]
 #[path = "reconnect_tests.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "reconnect_stream_tests.rs"]
-mod stream_tests;

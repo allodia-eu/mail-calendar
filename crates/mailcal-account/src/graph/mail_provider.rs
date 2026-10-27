@@ -16,7 +16,6 @@ use engine_provider::{
     MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderResult, ReportReceipt,
     ScopeSync, SenderIdentity, SubmissionReceipt,
 };
-use futures::StreamExt;
 
 use super::{RefreshingGraphProvider, should_reconnect};
 
@@ -75,48 +74,15 @@ impl Provider for RefreshingGraphProvider {
         fetch_batch: usize,
         chunk_size: usize,
     ) -> EmailStream<'a> {
-        let account = account.clone();
-        let cursor = cursor.cloned();
-        Box::pin(async_stream::try_stream! {
-            let mut reconnected = false;
-            loop {
-                let provider = self.delegate().await?;
-                    let mut chunks = Vec::new();
-                let result = {
-                    let mut stream = provider.stream_email(
-                        &account,
-                        cursor.as_ref(),
-                        window,
-                        fetch_batch,
-                        chunk_size,
-                    );
-                    let mut result = Ok(());
-                    while let Some(chunk) = stream.next().await {
-                        match chunk {
-                            Ok(chunk) => chunks.push(chunk),
-                            Err(err) => {
-                                result = Err(err);
-                                break;
-                            }
-                        }
-                    }
-                    result
-                };
-                match result {
-                    Ok(()) => {
-                        for chunk in chunks {
-                            yield chunk;
-                        }
-                        break;
-                    }
-                    Err(err) if !reconnected && should_reconnect(&err) => {
-                        self.invalidate_delegate();
-                        reconnected = true;
-                    }
-                    Err(err) => Err(err)?,
-                }
-            }
-        })
+        crate::stream_redial::redialling_stream(
+            || self.delegate(),
+            || self.invalidate_delegate(),
+            account,
+            cursor,
+            window,
+            fetch_batch,
+            chunk_size,
+        )
     }
 
     async fn fetch_message_source(
