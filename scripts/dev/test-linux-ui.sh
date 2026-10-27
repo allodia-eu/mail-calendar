@@ -1052,7 +1052,12 @@ PY
     --name "Calendar" --role "toggle button" \
     --within "Settings" --within-role frame --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Default calendar" --showing --timeout 20
-  "$PYTHON" "$ATSPI" wait --role "check box" --showing --timeout 20
+  # The seed gives Alice two writable calendars, and both are offered. Grouped check buttons speak
+  # as radio buttons; a lone one would be a check box.
+  for calendar in "Stalwart Calendar (alice@test.local)" "Work"; do
+    "$PYTHON" "$ATSPI" wait --name "$calendar" --role "radio button" \
+      --within "Settings" --within-role frame --showing --timeout 20
+  done
   "$PYTHON" "$ATSPI" activate \
     --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
   capture calendar-management
