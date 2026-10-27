@@ -110,15 +110,28 @@ two different things is worse than no number.
 notification that named its folder), so `folders_done` reaching it means the pass finished, not
 that the mail ran out.
 
+### A refresh someone asked for shows that it is working
+
+A refresh the user started (the refresh button, ⌘R, pull to refresh) shows that it is running
+until its pass ends, **on the control they used**: the button turns into a spinner and cannot be
+pressed again, and a pull-to-refresh spinner stays up until the pass ends rather than until the
+request is sent. It is not a fourth surface: it says nothing about how much is arriving, takes no
+layout, and needs no copy beyond the control's own accessibility name, which says the refresh is
+running. A pass that finds nothing still showed it was looked for; one that downloads still gets
+the bar as well.
+
+The core reports a refresh someone asked for as in flight from the moment it is dispatched until
+its pass ends, so no client keeps its own timer or guesses from a snapshot that did not change.
+
 ## Per-platform
 
-| Platform | Bar | Hint and pause | The pause's detail | Where |
-|---|:---:|:---:|---|---|
-| macOS | ✅ under the list, above the footer | ✅ in the footer, beside the message count | hover (`.help`) | `Mailcal.Detail.swift` |
-| iPhone · iPadOS | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip (there is no footer); the bar wins when both are up | inline, wrapping as far as the list's column needs | `Mailcal.Layout.swift` |
-| Windows | ✅ its own `Auto` row under the list | ✅ in the footer status line, between the message count and "Connected" | hover (`ToolTipService.ToolTip`) | `Views/MailListView.xaml`, `Services/MailboxModel.SyncProgress.cs` |
-| Android | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip | inline | `SyncStatusParts.kt` |
-| Linux | ✅ a strip under the list; the bar wins over the hint | ✅ the mail list's bottom bar | hover (`set_tooltip_text`) | `ui/shell.rs`, `ui/sync_line.rs` |
+| Platform | Bar | Hint and pause | The pause's detail | Refresh shows it is working | Where |
+|---|:---:|:---:|---|:---:|---|
+| macOS | ✅ under the list, above the footer | ✅ in the footer, beside the message count | hover (`.help`) | ❌ the button sends and forgets | `Mailcal.Detail.swift` |
+| iPhone · iPadOS | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip (there is no footer); the bar wins when both are up | inline, wrapping as far as the list's column needs | ❌ the pull spinner ends when the request is sent | `Mailcal.Layout.swift` |
+| Windows | ✅ its own `Auto` row under the list | ✅ in the footer status line, between the message count and "Connected" | hover (`ToolTipService.ToolTip`) | ❌ | `Views/MailListView.xaml`, `Services/MailboxModel.SyncProgress.cs` |
+| Android | ✅ a strip under the list, outside the pull-to-refresh box | ✅ the same strip | inline | ❌ | `SyncStatusParts.kt` |
+| Linux | ✅ a strip under the list; the bar wins over the hint | ✅ the mail list's bottom bar | hover (`set_tooltip_text`) | ❌ | `ui/shell.rs`, `ui/sync_line.rs` |
 
 Copy for all three comes from the shared catalog (`sync_downloading*`, `sync_hint_*`,
 `sync_paused*`) and is assembled client-side like every other string
