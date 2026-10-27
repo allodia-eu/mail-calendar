@@ -21,7 +21,7 @@ struct CalendarPass {
     busy: usize,
     failed: usize,
     /// Every event the engine refused to expand. Such an event is stored and the rest of the
-    /// calendar materializes, so this is not a sync failure, but it draws *nowhere*, and dropping
+    /// calendar materialises, so this is not a sync failure, but it draws *nowhere*, and dropping
     /// the report is what makes that unreproducible.
     refused: Vec<UnexpandableEvent>,
 }
@@ -161,7 +161,7 @@ impl<P: Provider> App<P> {
                 self.apply_signin_expired(&account.id, signin_expired(list, reaches.into_iter()));
             }
         }
-        // A delta expands only changed events. Re-expanding keeps a quiet account materialized
+        // A delta expands only changed events. Re-expanding keeps a quiet account materialised
         // as the rolling window advances.
         match self.engine.expand_horizon(&account.id, horizon, zone).await {
             Ok(expansion) => pass.refused.extend(expansion.unexpandable),

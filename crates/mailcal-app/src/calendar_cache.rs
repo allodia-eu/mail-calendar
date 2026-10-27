@@ -68,7 +68,8 @@ pub(crate) struct CachedCalendar {
     /// When absent, `resolved_calendars` assigns a palette hue no other calendar is already using,
     /// so two colourless calendars never come out the same.
     pub(crate) server_color: Option<String>,
-    /// Whether this account's calendar provider supports writes.
+    /// Whether this calendar may be written: its account's provider writes, and the calendar is
+    /// not read-only to the account.
     pub(crate) can_write: bool,
     /// Whether a meeting may be organised here (`App::account_can_invite`).
     pub(crate) can_invite: bool,
@@ -211,14 +212,19 @@ impl<P: Provider> App<P> {
                 && self.use_problems(&account.id).calendar != Some(crate::UseProblem::Unreachable);
             let can_write = Self::account_can_write(&account);
             let can_invite = Self::account_can_invite(&account);
-            for calendar in self.engine.calendars(&account.id).await.unwrap_or_default() {
+            let mut listed = self.engine.calendars(&account.id).await.unwrap_or_default();
+            // The server's default first, so the first writable row `mark_default` falls back to
+            // is the calendar `calendar_for_new_events` picks.
+            listed.sort_by_key(|calendar| !calendar.is_default);
+            let read_only = crate::calendar_ops::read_only_calendars(&listed);
+            for calendar in listed {
                 calendars.push(CachedCalendar {
                     account: account_id.clone(),
                     account_address: account.identity.email.clone(),
                     id: calendar.id.key().as_str().to_owned(),
                     name: calendar.name,
                     server_color: calendar.color,
-                    can_write,
+                    can_write: can_write && calendar.access.may_write,
                     can_invite,
                 });
             }
@@ -283,8 +289,9 @@ impl<P: Provider> App<P> {
                 // Whether the block may be *dragged*, which is a strictly narrower question than
                 // whether its calendar may be written: a meeting somebody else called can sit on
                 // a writable calendar and still must not be silently re-timed.
-                let can_move =
-                    can_write && crate::invitations::owns_or_organizes(event, &addresses);
+                let writable =
+                    can_write && !crate::calendar_ops::on_read_only_calendars(event, &read_only);
+                let can_move = writable && crate::invitations::owns_or_organizes(event, &addresses);
                 // The token that names *this* occurrence to a write, minted only for a series;
                 // a client hands it straight back after asking the user whether they meant one
                 // occurrence or all of them. Empty on a one-off, which is also how a client
@@ -324,7 +331,7 @@ impl<P: Provider> App<P> {
                     start: row.start,
                     end: row.end,
                     all_day: event.is_all_day(),
-                    can_write,
+                    can_write: writable,
                     can_move,
                     occurrence_start,
                     participation,

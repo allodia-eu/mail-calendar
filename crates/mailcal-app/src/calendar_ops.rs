@@ -84,6 +84,8 @@ impl<P: Provider> App<P> {
         let mut events = Vec::new();
         for account in self.account_handles().await {
             let can_write = Self::account_can_write(&account);
+            let read_only =
+                read_only_calendars(&self.engine.calendars(&account.id).await.unwrap_or_default());
             let account_id = account.id.as_str().to_owned();
             let keys = wanted.get(&account_id).map_or(&[][..], Vec::as_slice);
             // The account's own addresses, so an unanswered hold reads as one in the agenda too.
@@ -99,8 +101,8 @@ impl<P: Provider> App<P> {
                     .map(|event| AccountEvent {
                         account: account_id.clone(),
                         participation: crate::invitations::diary_participation(&event, &addresses),
+                        can_write: can_write && !on_read_only_calendars(&event, &read_only),
                         event,
-                        can_write,
                     }),
             );
         }
@@ -149,11 +151,12 @@ impl<P: Provider> App<P> {
     /// `account`/`calendar` are the client's picker choice: the owning account id and the
     /// calendar's row key (`CalendarRow.id`). The event lands in that calendar when the account
     /// can write; otherwise it falls back to the default writable account
-    /// ([`Self::create_account`]) and its first calendar, and to that account's chosen calendar
-    /// if the passed key is unknown there. `all_day` selects the event form; `timezone` (when set)
-    /// creates a timed event in that zone rather than UTC; `notes` its description; `location` its
-    /// place; `recurrence` makes it repeat. Settles as not saved, sending nothing, when no
-    /// connected account can write, the account has no calendar, or the fields are invalid.
+    /// ([`Self::create_account`]) and the calendar new events take there
+    /// ([`Self::calendar_for_new_events`]), which is also where a key unknown there lands.
+    /// `all_day` selects the event form; `timezone` (when set) creates a timed event in that
+    /// zone rather than UTC; `notes` its description; `location` its place; `recurrence` makes
+    /// it repeat. Settles as not saved, sending nothing, when no connected account can write,
+    /// the account has no calendar, or the fields are invalid.
     // A flat pass-through of `EventIntent::Create`'s fields; each a distinct scalar from the
     // create form. A parameter struct would only re-wrap the same values `dispatch` just
     // destructured, so it stays flat.
@@ -179,11 +182,11 @@ impl<P: Provider> App<P> {
         };
         let calendars = self.engine.calendars(&account).await.unwrap_or_default();
         // The chosen calendar, matched by the row key the picker sends (`CalendarRow.id` is a
-        // calendar's `key()`), else the account's first calendar.
+        // calendar's `key()`), else the one new events take on this account.
         let Some(calendar) = calendar
             .as_deref()
             .and_then(|key| calendars.iter().find(|c| c.id.key().as_str() == key))
-            .or_else(|| calendars.first())
+            .or_else(|| self.calendar_for_new_events(&account, &calendars))
         else {
             self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return;
@@ -421,6 +424,23 @@ impl<P: Provider> App<P> {
         }
         self.calendar_account().await
     }
+}
+
+/// The keys of the calendars among `calendars` that may not be written to: a share granted
+/// read-only, a subscribed feed. [`App::account_can_write`] answers for the provider; a calendar
+/// narrows that for itself.
+pub(crate) fn read_only_calendars(calendars: &[engine_api::Calendar]) -> HashSet<String> {
+    calendars
+        .iter()
+        .filter(|calendar| !calendar.access.may_write)
+        .map(|calendar| calendar.id.key().as_str().to_owned())
+        .collect()
+}
+
+/// Whether every calendar `event` is on is one of `read_only`.
+pub(crate) fn on_read_only_calendars(event: &Event, read_only: &HashSet<String>) -> bool {
+    let mut on = event.calendars.iter().peekable();
+    on.peek().is_some() && on.all(|id| read_only.contains(id.key().as_str()))
 }
 
 /// Where a meeting may be organised, and as whom: the create and the roster edit above both ask.

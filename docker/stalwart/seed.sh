@@ -263,9 +263,9 @@ make_calendar "$WORK_COLLECTION" Work
 put_calendar "$CAL_DIR/work/planning.ics" work-2101 "$WORK_COLLECTION"
 put_calendar "$CAL_DIR/work/offsite.ics" work-2102 "$WORK_COLLECTION"
 
-# The six fixtures above are pinned to absolute dates in early 2026 because they encode ENGINE
-# semantics that must not drift (floating time, a zoneless all-day, a DST boundary, a recurrence with
-# an overridden instance). They are the deterministic CI fixture, and they stay.
+# The six default-calendar fixtures above are pinned to absolute dates in early 2026 because they
+# encode ENGINE semantics that must not drift (floating time, a zoneless all-day, a DST boundary, a
+# recurrence with an overridden instance). They are the deterministic CI fixture, and they stay.
 #
 # They are also all in the past, so a grid seeded with only them opens EMPTY, and an empty grid
 # teaches you nothing about a grid. The living week re-anchors a second set on the current Monday at

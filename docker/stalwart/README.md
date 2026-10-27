@@ -207,14 +207,17 @@ docker/stalwart/
 ├── seed-calendar-week.sh   # the living week, re-anchored on the current Monday at every seed
 └── seed/
     ├── mail/*.eml          # messages: dup/missing Message-ID, attachment, HTML+remote image, …
-    └── calendar/*.ics      # events: recurring+exceptions, attendees, …
+    ├── calendar/*.ics      # events: recurring+exceptions, attendees, …
+    └── calendar/work/*.ics # alice's second calendar, Work: one sign-in serving two calendars
 ```
 
 ## The living week
 
 The six `seed/calendar/*.ics` fixtures are pinned to absolute dates in early 2026 because they encode
 **engine** semantics that must not drift: floating time, a zoneless all-day, a DST boundary, a
-recurrence with an overridden instance. They are the deterministic CI fixture and they stay.
+recurrence with an overridden instance. They are the deterministic CI fixture and they stay. Two
+more, in `seed/calendar/work/`, go into a second calendar alice owns, named Work, so every client
+is debugged against one account with several calendars.
 
 They are also all in the past, so a grid seeded with only them opens **empty**, and an empty grid
 teaches you nothing about a grid. `seed-calendar-week.sh` re-anchors a second set on the **current

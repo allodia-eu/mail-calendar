@@ -117,7 +117,8 @@ impl<P: Provider> App<P> {
     }
 
     /// Which of `account`'s `calendars` a new event goes to when nothing names one: the stored
-    /// default while it is this account's and still writable, otherwise the first writable one.
+    /// default while it is this account's and still writable, otherwise the writable calendar the
+    /// server names its default, otherwise the first writable one.
     pub(crate) fn calendar_for_new_events<'c>(
         &self,
         account: &AccountId,
@@ -127,17 +128,21 @@ impl<P: Provider> App<P> {
             .calendar_prefs
             .lock()
             .expect("calendar-prefs mutex poisoned");
-        let writable = |calendar: &&engine_api::Calendar| calendar.access.may_write;
+        let writable: Vec<&'c engine_api::Calendar> = calendars
+            .iter()
+            .filter(|calendar| calendar.access.may_write)
+            .collect();
         prefs
             .default_calendar()
             .filter(|choice| choice.account == account.as_str())
             .and_then(|choice| {
-                calendars
+                writable
                     .iter()
-                    .filter(writable)
                     .find(|calendar| calendar.id.as_str() == choice.calendar)
             })
-            .or_else(|| calendars.iter().find(writable))
+            .or_else(|| writable.iter().find(|calendar| calendar.is_default))
+            .or_else(|| writable.first())
+            .copied()
     }
 
     /// Chooses the calendar new events are filed on, and persists it.

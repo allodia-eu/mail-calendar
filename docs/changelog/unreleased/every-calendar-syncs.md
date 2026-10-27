@@ -6,7 +6,9 @@ Bump: minor
 > One connection now serves every calendar an account has. Before, only the first calendar of an
 > iCloud, Fastmail or other CalDAV account synced, and creating an event in another one failed. A
 > calendar with nothing new is no longer asked for its events, so a refresh with no changes is one
-> request however many calendars the account holds.
+> request however many calendars the account holds. A calendar shared read-only, or a subscribed one
+> such as public holidays, is shown but never offered for an event, and a new event goes to the
+> calendar the server names its default unless the user chose another.
 
 **English**
 

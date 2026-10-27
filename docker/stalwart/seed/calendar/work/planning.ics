@@ -24,7 +24,7 @@ UID:work-2101@test.local
 DTSTAMP:20260101T000000Z
 DTSTART;TZID=Europe/Amsterdam:20260319T140000
 DTEND;TZID=Europe/Amsterdam:20260319T150000
-SUMMARY:Quarterly planning
+SUMMARY:Roadmap review
 DESCRIPTION:A zoned event in the second calendar: what syncs here must sync under its own scope.
 END:VEVENT
 END:VCALENDAR

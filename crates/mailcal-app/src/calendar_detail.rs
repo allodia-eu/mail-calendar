@@ -35,9 +35,17 @@ impl<P: Provider> App<P> {
         let started = Instant::now();
         let stored = self.stored_event(event).await?;
         let account = self.account_handle(&event.account).await;
+        let read_only = crate::calendar_ops::read_only_calendars(
+            &self
+                .engine
+                .calendars(&event.account)
+                .await
+                .unwrap_or_default(),
+        );
         let can_write = account
             .as_ref()
-            .is_some_and(|account| Self::account_can_write(account));
+            .is_some_and(|account| Self::account_can_write(account))
+            && !crate::calendar_ops::on_read_only_calendars(&stored, &read_only);
         let at = match occurrence.filter(|token| !token.is_empty()) {
             Some(token) => self.resolve_occurrence(event, &stored, token).await,
             None => None,

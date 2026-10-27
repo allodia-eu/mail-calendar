@@ -99,3 +99,64 @@ async fn a_new_event_in_the_second_calendar_is_written_and_reread_there() {
         "the reconcile re-read the calendar written to, and no other"
     );
 }
+
+/// A create with no calendar named, as from a "New event" with the default untouched.
+fn create_unnamed() -> Intent {
+    Intent::Events(EventIntent::Create {
+        title: "Planning".to_owned(),
+        start: "2026-09-01T09:00:00Z".to_owned(),
+        end: "2026-09-01T09:30:00Z".to_owned(),
+        account: Some("acct".to_owned()),
+        calendar: None,
+        all_day: false,
+        timezone: None,
+        notes: None,
+        location: None,
+        recurrence: None,
+        invitees: None,
+    })
+}
+
+/// A calendar shared read-only (Google's holidays and birthdays are two) is listed beside the
+/// account's own, on an account whose provider writes. It is neither offered for writing nor the
+/// default, and a new event does not go to it.
+#[tokio::test]
+async fn a_read_only_calendar_of_a_writable_account_is_not_written_to() {
+    let provider = CalendarFake::on_dav(&[("birthdays", "b-1"), ("work", "w-1")], Vec::new())
+        .read_only_calendar("birthdays");
+    let targets = provider.create_targets();
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = calendar_app(vec![calendar_account("acct", provider)], &surfaces);
+    app.dispatch(Intent::RefreshCalendar).await;
+
+    let rows = app.calendars();
+    let row = |id: &str| rows.iter().find(|row| row.id == id).unwrap();
+    assert!(!row("birthdays").can_write, "{rows:?}");
+    assert!(row("work").can_write && row("work").is_default, "{rows:?}");
+
+    app.dispatch(create_unnamed()).await;
+    assert_eq!(targets.lock().unwrap().as_slice(), ["work"]);
+}
+
+/// With nothing chosen, a new event goes to the calendar the server names its default (Google's
+/// primary, Graph's default), not to whichever calendar the store lists first.
+#[tokio::test]
+async fn the_servers_default_calendar_takes_new_events_when_nothing_is_chosen() {
+    let provider = CalendarFake::on_dav(&[("family", "f-1"), ("primary", "p-1")], Vec::new())
+        .server_default("primary");
+    let targets = provider.create_targets();
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = calendar_app(vec![calendar_account("acct", provider)], &surfaces);
+    app.dispatch(Intent::RefreshCalendar).await;
+
+    let defaulted: Vec<String> = app
+        .calendars()
+        .into_iter()
+        .filter(|row| row.is_default)
+        .map(|row| row.id)
+        .collect();
+    assert_eq!(defaulted, ["primary"]);
+
+    app.dispatch(create_unnamed()).await;
+    assert_eq!(targets.lock().unwrap().as_slice(), ["primary"]);
+}

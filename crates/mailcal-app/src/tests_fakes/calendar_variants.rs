@@ -132,6 +132,26 @@ impl CalendarFake {
         }
     }
 
+    /// The same server, with `calendar` shared with this account read-only.
+    pub(crate) fn read_only_calendar(mut self, calendar: &str) -> Self {
+        for listed in self
+            .calendars
+            .iter_mut()
+            .filter(|c| c.id.as_str() == calendar)
+        {
+            listed.access = engine_core::calendar::CalendarAccess::reader();
+        }
+        self
+    }
+
+    /// The same server, naming `calendar` its default for new events.
+    pub(crate) fn server_default(mut self, calendar: &str) -> Self {
+        for listed in &mut self.calendars {
+            listed.is_default = listed.id.as_str() == calendar;
+        }
+        self
+    }
+
     /// The calendar each event fetch named, in order.
     pub(crate) fn event_fetches(&self) -> std::sync::Arc<std::sync::Mutex<Vec<String>>> {
         std::sync::Arc::clone(&self.event_fetches)

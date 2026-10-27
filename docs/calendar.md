@@ -123,7 +123,10 @@ and offers the override.
 **Which calendar a new event lands on is a setting, and the core resolves it.** `CalendarRow` carries
 **`is_default`**, and exactly one row has it whenever any calendar can be written to. The order is:
 the user's stored choice (Settings → Calendar) **while that calendar still exists and can still be
-written to**, otherwise the first writable calendar.
+written to**, otherwise the writable calendar its server names the default (Google's primary,
+Graph's default), otherwise the first writable calendar. A calendar is writable when its account's
+provider writes **and** the calendar is not read-only to the account: a share granted read-only, or
+a subscribed feed such as Google's holidays, is listed but never offered for an event.
 
 Both halves of that condition are load-bearing. A choice outlives its calendar when an account is
 removed or a calendar is deleted server-side, and it outlives its *writability* when a share is
@@ -2071,8 +2074,9 @@ Stated, not buried.
   provider-neutral create/patch/delete verbs and per-row `can_write` gating as CalDAV/JMAP, and
   Graph advertises `WriteGuard::Enforced` (a stale `If-Match` ETag is a `412`). It is host-driven
   and needs no client change: a connected Microsoft account's agenda simply appears. One provider
-  serves every calendar of the mailbox, each syncing under a scope of its own. Three limits ride
-  in from the engine's `graph.md` and are **not** yet closed: the fetch **window** is baked in at connect (a few months back, ~a year on) and re-centred only on reconnect; **one
+  serves every calendar of the mailbox, each syncing under a scope of its own. Two limits ride in
+  from the engine's `graph.md` and are **not** yet closed: the fetch **window** is baked in at
+  connect (a few months back, ~a year on) and re-centred only on reconnect; **one
   display zone per provider** (the device zone, sent as `Prefer: outlook.timezone` for
   DST-correct expansion; the user's *chosen* display zone still re-projects the agenda in the
   view-model). The CalDAV `412` harness gap above applies to Graph too: no dev account drives its
