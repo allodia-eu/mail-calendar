@@ -123,7 +123,7 @@ impl<P: Provider> App<P> {
             connector,
             attempted_folders: Mutex::new(HashSet::new()),
             synced_folders: Mutex::new(HashSet::new()),
-            prefetching: Mutex::new(HashSet::new()),
+            prefetching: crate::prefetch::Prefetching::default(),
             avatar_photos: Mutex::new(HashMap::new()),
             avatar_pass: Mutex::new(crate::avatars::AvatarPass::default()),
             row_cache: Mutex::new(None),

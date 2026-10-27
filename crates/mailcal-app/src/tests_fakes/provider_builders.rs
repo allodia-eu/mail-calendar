@@ -370,7 +370,17 @@ impl FakeProvider {
     /// Makes [`Provider::fetch_message_source`] fail for these message keys, so a test can
     /// model bodies the provider persistently cannot serve.
     pub(crate) fn with_failing_sources<I: IntoIterator<Item = String>>(mut self, keys: I) -> Self {
-        self.source_failures = keys.into_iter().collect();
+        self.source_failures = keys.into_iter().map(|key| (key, false)).collect();
+        self
+    }
+
+    /// Makes [`Provider::fetch_message_source`] fail **permanently** for these message keys: a
+    /// body the server will never give back, however often it is asked.
+    pub(crate) fn with_unfetchable_sources<I: IntoIterator<Item = String>>(
+        mut self,
+        keys: I,
+    ) -> Self {
+        self.source_failures = keys.into_iter().map(|key| (key, true)).collect();
         self
     }
 

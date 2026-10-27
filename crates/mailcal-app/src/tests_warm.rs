@@ -430,3 +430,21 @@ async fn a_server_that_keeps_refusing_is_asked_a_bounded_number_of_times_per_pas
     // The first ask and one after each of the three pauses; then the pass ends.
     assert_eq!(fetches.load(Ordering::SeqCst), 4);
 }
+
+#[tokio::test]
+async fn a_body_the_server_can_never_give_back_is_asked_for_once_per_session() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = FakeProvider::new().with_unfetchable_sources(["m1".to_owned()]);
+    let fetches = provider.source_fetches();
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+
+    app.dispatch(Intent::RefreshMail).await;
+    let first = fetches.load(Ordering::SeqCst);
+    assert_eq!(first, 2, "the first pass asks for both bodies");
+    app.dispatch(Intent::RefreshMail).await;
+    assert_eq!(
+        fetches.load(Ordering::SeqCst),
+        first,
+        "a later pass does not ask again for the body the server said it can never give"
+    );
+}

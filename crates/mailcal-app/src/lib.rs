@@ -313,9 +313,9 @@ pub struct App<P> {
     /// The folders bound to a scope of their own that a pass or a refresh has synced this
     /// session, by `(account, folder key)`.
     synced_folders: Mutex<HashSet<(String, String)>>,
-    /// Accounts (by id) with a body-warming pass currently in flight, so overlapping
-    /// post-sync prefetch triggers collapse into the one running drain (`prefetch`).
-    prefetching: Mutex<HashSet<String>>,
+    /// Which accounts have a body-warming pass in flight, and which bodies a server said it can
+    /// never give back (`prefetch`).
+    prefetching: prefetch::Prefetching,
     /// What is known about each sender's photo, keyed by canonical address.
     ///
     /// In memory only: the durable cache is the engine's, and this exists so that projecting a

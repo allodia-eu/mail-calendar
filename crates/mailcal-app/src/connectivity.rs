@@ -419,6 +419,11 @@ pub(crate) fn is_throttled(error: &(dyn StdError + 'static)) -> bool {
     provider_error_of(error).is_some_and(|provider| provider.class() == FailureClass::RateLimited)
 }
 
+/// Whether the provider said asking again cannot succeed.
+pub(crate) fn is_permanent(error: &(dyn StdError + 'static)) -> bool {
+    provider_error_of(error).is_some_and(|provider| provider.class() == FailureClass::Permanent)
+}
+
 /// How long the provider said to wait, where it named an instant.
 ///
 /// `None` covers both "not a throttle" and "a throttle that named nothing": about two Gmail
