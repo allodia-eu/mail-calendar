@@ -234,6 +234,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::reading::attachment_tests::the_reading_header_formats_its_timestamp();
     crate::ui::reading::attachment_tests::an_attachment_name_is_never_parsed_as_markup();
     crate::ui::reading::attachment_tests::an_attachment_button_still_reads_as_its_verb();
+    crate::ui::reading::attachment_tests::the_attachment_rows_sit_in_a_list();
     crate::ui::reading::attachment_tests::the_page_survives_the_gap_before_the_next_body_lands();
     crate::ui::reading::attachment_tests::
         the_reading_header_leaves_the_window_its_corner_and_its_name();

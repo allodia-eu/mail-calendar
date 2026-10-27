@@ -91,6 +91,41 @@ pub(crate) fn an_attachment_button_still_reads_as_its_verb() {
     assert_eq!(button.label().as_deref(), Some(l10n::action_save()));
 }
 
+/// Each attachment is a row the keyboard can reach, so its Open and Save buttons are too.
+pub(crate) fn the_attachment_rows_sit_in_a_list() {
+    let window = adw::ApplicationWindow::builder().build();
+    let (sender, _receiver) = relm4::channel::<super::super::AppInput>();
+    let pane = ReadingPane::new(&window, sender.clone(), ReadingSource::Pane);
+    let mut state = crate::ui::model::ReadingState::new(crate::ui::model::empty_reading());
+    state.snapshot.key = "message".to_owned();
+    state.snapshot.plain = Some("Body".to_owned());
+    state.snapshot.attachments = ["Q3 report.pdf", "Q4 report.pdf"]
+        .into_iter()
+        .zip(1..)
+        .map(|(file_name, id)| AttachmentRow {
+            id,
+            file_name: file_name.to_owned(),
+            media_type: "application/pdf".to_owned(),
+            size: 2048,
+        })
+        .collect();
+    state.open(opened("message"));
+    let clock = InvitationClock {
+        zone: "Europe/Amsterdam",
+        use_24_hour: true,
+        write_status: CalendarWriteStatus::Idle,
+        generation: 1,
+    };
+    pane.render(&state, None, false, clock, &sender);
+
+    let rendered = labels(pane.widget().upcast_ref());
+    assert!(
+        rendered.iter().any(|text| text == "Q4 report.pdf"),
+        "{rendered:?}"
+    );
+    crate::ui::mailbox::tests::every_row_belongs_to_a_list(pane.widget().upcast_ref());
+}
+
 /// The body area is one page for the whole of an open, so a body arriving changes the text on
 /// it and never the page itself.
 ///
