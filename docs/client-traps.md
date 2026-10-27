@@ -442,6 +442,17 @@ that same file.
   `WindowChrome.Dress` does for every window it dresses, or take the window from the handler's
   `sender` rather than capturing it; `Mailcal.UiTests/Suites/ReleaseProbeTests.cs` counts what is
   still held after a close.
+- **A closed WinUI tree is given back on a rendered frame, and an idle window draws none.** A XAML
+  object reached from a managed wrapper is released on the UI thread, so a wrapper finalised on the
+  finaliser thread queues its release, and XAML drains that queue (`UIAffinityReleaseQueue`) only
+  inside a frame. The event arguments a handler was given are such wrappers, and focus arguments
+  name elements: a composer discarded while its To field had focus is held by the `LosingFocus`
+  arguments naming that field, through the field's handlers, until something on screen changes.
+  So a collection in an idle window reports held what the next hover would free, about one run in
+  four, and it reads exactly like a leak: no managed root, `RefCounted` handles on the composer's
+  controls, and freed by whatever draws next: focusing a text box frees it, because its caret
+  draws, and a programmatic focus on a button does not. The release probe draws frames while it
+  collects (`CompositionTarget.Rendering`); a handler on a native object still holds through them.
 - **WinUI's `FocusManager` static *moves* act on whichever element holds focus now, which may be in
   a different window.** `TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = other })`
   reads as "move focus into `other`" and is not: the search root only bounds where the *next*
