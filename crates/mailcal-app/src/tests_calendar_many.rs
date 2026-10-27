@@ -160,3 +160,38 @@ async fn the_servers_default_calendar_takes_new_events_when_nothing_is_chosen() 
     app.dispatch(create_unnamed()).await;
     assert_eq!(targets.lock().unwrap().as_slice(), ["primary"]);
 }
+
+/// An account whose server lists no calendar, or only calendars it may read, contributes no
+/// writable row, so it takes no new event even when it is the one named: the create goes to the
+/// account that has somewhere to put it.
+#[tokio::test]
+async fn a_new_event_skips_an_account_with_no_writable_calendar() {
+    for (case, nowhere) in [
+        ("no calendar", CalendarFake::with_calendars(&[])),
+        (
+            "only a read-only calendar",
+            CalendarFake::with_calendars(&["holidays"]).read_only_calendar("holidays"),
+        ),
+    ] {
+        let nowhere_creations = nowhere.creations();
+        let elsewhere = CalendarFake::with_calendars(&["work"]);
+        let elsewhere_targets = elsewhere.create_targets();
+        let surfaces = Arc::new(Mutex::new(Vec::new()));
+        let app = calendar_app(
+            vec![
+                calendar_account("acct", nowhere),
+                calendar_account("other", elsewhere),
+            ],
+            &surfaces,
+        );
+        app.dispatch(Intent::RefreshCalendar).await;
+
+        app.dispatch(create_unnamed()).await;
+        assert!(nowhere_creations.lock().unwrap().is_empty(), "{case}");
+        assert_eq!(
+            elsewhere_targets.lock().unwrap().as_slice(),
+            ["work"],
+            "{case}"
+        );
+    }
+}

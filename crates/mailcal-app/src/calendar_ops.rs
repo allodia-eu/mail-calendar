@@ -379,50 +379,46 @@ impl<P: Provider> App<P> {
         })
     }
 
-    /// The account a new event is created in: the selected account when its calendar can be
-    /// written, else the first account whose calendar can: the same `can_write` rule a
-    /// client disables its create affordance on, so an enabled "New event" and the routed
-    /// write cannot disagree. `None` (the create is a no-op) when no account can write.
-    async fn calendar_account(&self) -> Option<AccountId> {
+    /// The accounts a new event can go to, in account order: those whose provider writes and
+    /// which list at least one calendar they may write. That is exactly the accounts with a
+    /// `can_write` calendar row, which is what a client enables its create affordance on, so an
+    /// enabled "New event" and the routed write cannot disagree.
+    async fn accounts_taking_new_events(&self) -> Vec<AccountId> {
+        let writers: Vec<AccountId> = self
+            .accounts
+            .read()
+            .await
+            .iter()
+            .filter(|account| Self::account_can_write(account))
+            .map(|account| account.id.clone())
+            .collect();
+        let mut taking = Vec::new();
+        for account in writers {
+            let calendars = self.engine.calendars(&account).await.unwrap_or_default();
+            if calendars.iter().any(|calendar| calendar.access.may_write) {
+                taking.push(account);
+            }
+        }
+        taking
+    }
+
+    /// The account a create is routed to: the client's explicit picker choice, else the
+    /// selected account, else the first account, among those that can take a new event
+    /// ([`Self::accounts_taking_new_events`]). A choice that has since lost its last writable
+    /// calendar still lands somewhere writable rather than failing. `None` (the create is a
+    /// no-op) when no account can take one.
+    async fn create_account(&self, chosen: Option<String>) -> Option<AccountId> {
+        let taking = self.accounts_taking_new_events().await;
         let selected = self
             .scope
             .lock()
             .expect("scope mutex poisoned")
             .account()
             .cloned();
-        let accounts = self.accounts.read().await;
-        if let Some(selected) = selected
-            && accounts
-                .iter()
-                .any(|a| a.id == selected && Self::account_can_write(a))
-        {
-            return Some(selected);
-        }
-        accounts
-            .iter()
-            .find(|a| Self::account_can_write(a))
-            .map(|a| a.id.clone())
-    }
-
-    /// The account a create is routed to: the client's explicit picker choice when it is a
-    /// configured, **writable** account, else the default ([`Self::calendar_account`]). Keeping
-    /// the fallback on the same `can_write` rule means an enabled "New event" and the routed
-    /// write cannot disagree: a picker choice that has since gone read-only still lands
-    /// somewhere writable rather than failing. `None` when no account can write.
-    async fn create_account(&self, chosen: Option<String>) -> Option<AccountId> {
-        if let Some(chosen) = chosen {
-            let writable = self
-                .accounts
-                .read()
-                .await
-                .iter()
-                .find(|a| a.id.as_str() == chosen && Self::account_can_write(a))
-                .map(|a| a.id.clone());
-            if writable.is_some() {
-                return writable;
-            }
-        }
-        self.calendar_account().await
+        let preferred = chosen
+            .and_then(|chosen| taking.iter().find(|a| a.as_str() == chosen).cloned())
+            .or_else(|| selected.filter(|selected| taking.contains(selected)));
+        preferred.or_else(|| taking.into_iter().next())
     }
 }
 

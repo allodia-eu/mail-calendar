@@ -2051,10 +2051,12 @@ Stated, not buried.
   `can_write: false` (an affordance that can never fire is just a mystery) while the global
   **"New event"** button is **disabled**, never hidden, so the header keeps its shape; it enables
   only when some `CalendarRow` on the page reports `can_write: true`, and an empty calendar list
-  (nothing synced yet) counts as no. The create routing keeps that promise: `calendar_account`
-  targets the selected account only when it can write, else the first account that can, and a
-  create with no writable account anywhere is the documented no-op, so an enabled button cannot
-  route a write to an account the core knows will refuse it. Two consequences worth knowing. The
+  (nothing synced yet) counts as no. The create routing keeps that promise: `create_account`
+  counts an account only when it has a `can_write` calendar (its provider writes **and** it lists
+  a calendar it may write), takes the picker's choice or else the selected account when that one
+  counts, else the first account that does, and a create with no such account anywhere is the
+  documented no-op, so an enabled button cannot route a write to an account the core knows will
+  refuse it, or to one with nowhere to put it. Two consequences worth knowing. The
   **showcase** dataset's calendar provider advertises no write guard, so under showcase the
   calendar now renders read-only (New event disabled, no delete affordances), honest, since its
   writes always went into a void, but it changes what showcase screenshots show. The **Windows**
