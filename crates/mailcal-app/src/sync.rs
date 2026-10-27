@@ -32,7 +32,7 @@ const STREAM_FETCH_BATCH: usize = 200;
 /// how coarsely a cold list may fill in: a chunk at a time, each a fraction of the
 /// [`STREAM_FETCH_BATCH`] the network already made the user wait for.
 pub(crate) const STREAM_CHUNK_SIZE: usize = 50;
-const ACCOUNT_SYNC_BUSY_RETRY_ATTEMPTS: usize = 30;
+pub(crate) const ACCOUNT_SYNC_BUSY_RETRY_ATTEMPTS: usize = 30;
 const ACCOUNT_SYNC_BUSY_RETRY_MS: [u64; 5] = [250, 500, 1_000, 2_000, 5_000];
 
 /// What a [`refresh_mail`](App::refresh_mail) pass is allowed to say about its downloads.
@@ -391,7 +391,7 @@ impl<P: Provider> App<P> {
     }
 }
 
-fn busy_retry_delay(attempt: usize) -> Duration {
+pub(crate) fn busy_retry_delay(attempt: usize) -> Duration {
     Duration::from_millis(
         ACCOUNT_SYNC_BUSY_RETRY_MS
             .get(attempt)

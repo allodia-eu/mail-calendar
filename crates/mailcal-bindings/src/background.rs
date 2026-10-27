@@ -262,7 +262,16 @@ async fn watch_loop(
                         // healthy and re-issued IDLE, nothing to do until the next change.
                         Ok(_) => {}
                         Err(err) => {
-                            log::warn!("watch[{log_scope}] dropped ({err}); reconnecting",);
+                            let uptime = connected_at.elapsed();
+                            if server_ended_a_healthy_watch(uptime, err.class()) {
+                                log::info!(
+                                    "watch[{log_scope}] ended by the server after {}s ({err}); \
+                                     reconnecting",
+                                    uptime.as_secs(),
+                                );
+                            } else {
+                                log::warn!("watch[{log_scope}] dropped ({err}); reconnecting");
+                            }
                             break;
                         }
                     }
@@ -282,6 +291,14 @@ async fn watch_loop(
         // device goes offline during the wait, the top-of-loop gate parks the retry entirely.
         tokio::time::sleep(backoff.next_delay()).await;
     }
+}
+
+/// Whether a watch that ran for `uptime` and then failed with `class` was simply closed by its
+/// server: a session past [`HEALTHY_WATCH_UPTIME`] ending in a retryable failure, such as a
+/// `* BYE` some servers send after a fixed time. Routine, so it is reported as such; a watch
+/// that dropped almost at once, or failed for a reason a reconnect will not cure, is a warning.
+fn server_ended_a_healthy_watch(uptime: Duration, class: engine_api::FailureClass) -> bool {
+    uptime >= HEALTHY_WATCH_UPTIME && class == engine_api::FailureClass::Retryable
 }
 
 fn watch_log_scope(account_id: &str, folder_key: &str) -> String {
@@ -350,6 +367,22 @@ mod tests {
         assert!(scope.ends_with("/folder-opaque-key"));
         assert!(!scope.contains("alice"));
         assert!(!scope.contains('@'));
+    }
+
+    #[test]
+    fn a_long_watch_the_server_closed_is_routine_and_anything_else_a_warning() {
+        use engine_api::FailureClass;
+        let long = HEALTHY_WATCH_UPTIME + Duration::from_secs(270);
+        assert!(server_ended_a_healthy_watch(long, FailureClass::Retryable));
+        assert!(!server_ended_a_healthy_watch(
+            Duration::from_secs(2),
+            FailureClass::Retryable
+        ));
+        assert!(!server_ended_a_healthy_watch(
+            long,
+            FailureClass::Authentication
+        ));
+        assert!(!server_ended_a_healthy_watch(long, FailureClass::Permanent));
     }
 
     #[test]

@@ -191,6 +191,13 @@ impl FakeProvider {
         }
     }
 
+    /// The same provider, syncing its mail under `mailbox_key`'s own scope as an IMAP folder
+    /// does, rather than one scope for the whole account.
+    pub(crate) fn bound_to(mut self, mailbox_key: &str) -> Self {
+        self.email_mailbox = Some(MailboxId::try_from(mailbox_key).unwrap());
+        self
+    }
+
     /// A shared handle to the edits this provider receives.
     pub(crate) fn edits(&self) -> Arc<Mutex<Vec<MailEdit>>> {
         Arc::clone(&self.edits)

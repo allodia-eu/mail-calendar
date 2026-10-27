@@ -14,7 +14,7 @@ use std::{
 };
 
 use engine_api::{AccountId, EmailAddress, StreamTuning};
-use fakes::{FakeProvider, account, app};
+use fakes::{FakeConnector, FakeProvider, account, app, app_with_connector};
 use mailcal_account::SyncDepth;
 
 use super::{Account, sync_account::sync_account_providers};
@@ -262,4 +262,55 @@ async fn providerless_placeholder_sync_is_skipped_not_busy() {
 
     assert_eq!(outcome.reachable, None);
     assert_eq!(outcome.busy_scopes, 0);
+}
+
+/// A watch fires because mail arrived. If another sync holds the folder when it does, that sync
+/// may have read the server before the message landed, so the watch's refresh must wait for the
+/// folder rather than give up: giving up left the message unseen until the next change.
+#[tokio::test]
+async fn a_watch_refresh_waits_for_a_busy_folder_and_then_brings_the_new_message() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let (provider, after_commit, finish) =
+        FakeProvider::blocking(vec![fakes::message("m1", "a", "Already here")]);
+    // IMAP-shaped: the account pass and the watch's refresh sync the folder under one scope.
+    let provider = provider.bound_to("a");
+    let connector = FakeConnector::new(vec![(
+        "a".to_owned(),
+        vec![
+            fakes::message("m1", "a", "Already here"),
+            fakes::message("m2", "a", "Arrived during the sync"),
+        ],
+    )]);
+    let app = Arc::new(app_with_connector(
+        vec![account("acct-1", provider)],
+        connector,
+        &surfaces,
+    ));
+    let id = AccountId::try_from("acct-1").unwrap();
+
+    let holder = tokio::spawn({
+        let app = Arc::clone(&app);
+        let id = id.clone();
+        async move { app.refresh_account(&id).await }
+    });
+    after_commit.notified().await;
+
+    let watch = tokio::spawn({
+        let app = Arc::clone(&app);
+        let id = id.clone();
+        async move { app.resync_folder(&id, "a", "watch").await }
+    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(
+        !watch.is_finished(),
+        "the watch's refresh must wait for the folder, not give up while another sync holds it"
+    );
+
+    finish.notify_one();
+    holder.await.unwrap();
+    let changed = tokio::time::timeout(Duration::from_secs(3), watch)
+        .await
+        .expect("the watch's refresh finishes once the folder is free")
+        .unwrap();
+    assert!(changed, "and it brings in the message that arrived");
 }

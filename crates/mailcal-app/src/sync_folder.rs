@@ -11,7 +11,11 @@ use std::time::Instant;
 
 use engine_api::{AccountId, MailSyncReport, MailboxRole, Provider, SyncScope};
 
-use crate::{App, sync_unbound::scope_folder};
+use crate::{
+    App,
+    sync::{ACCOUNT_SYNC_BUSY_RETRY_ATTEMPTS, busy_retry_delay},
+    sync_unbound::scope_folder,
+};
 
 impl<P: Provider> App<P> {
     /// Re-syncs a single watched folder on an IMAP `IDLE` push notification, then rebuilds the
@@ -62,10 +66,29 @@ impl<P: Provider> App<P> {
             // A targeted refresh, not a pass: the notification already named the folder, so
             // re-listing the account's folders to serve it is a round trip that can tell us
             // nothing, and on a server without LIST-STATUS it is a round trip *per folder*.
-            let report = self
-                .engine
-                .refresh_folders(core::slice::from_ref(&provider), id, tuning, &progress)
-                .await;
+            // Another sync holding the folder may have read the server before whatever this
+            // refresh is for landed, so it waits for the folder rather than giving up, on the
+            // account pass's schedule.
+            let mut attempt = 0;
+            let report = loop {
+                let report = self
+                    .engine
+                    .refresh_folders(core::slice::from_ref(&provider), id, tuning, &progress)
+                    .await;
+                let busy = report
+                    .first_error()
+                    .is_some_and(engine_api::SyncError::is_busy);
+                if !busy || attempt + 1 == ACCOUNT_SYNC_BUSY_RETRY_ATTEMPTS {
+                    break report;
+                }
+                let delay = busy_retry_delay(attempt);
+                log::info!(
+                    "refresh[a{acct}/{label}]: another sync holds the folder; trying again in {}ms",
+                    delay.as_millis(),
+                );
+                tokio::time::sleep(delay).await;
+                attempt += 1;
+            };
             log_refresh(acct, label, &report);
             report.upserted() + report.tombstoned() > 0
         };
