@@ -12,7 +12,8 @@ use engine_api::{AccountId, ProviderKey};
 pub(crate) struct Prefetching {
     /// Accounts with a pass in flight, so overlapping triggers collapse into the running drain.
     in_flight: Mutex<HashSet<String>>,
-    /// Per account, the bodies whose fetch failed permanently this session. Asking again only
+    /// Per account, the bodies a server said it can never give back this session
+    /// ([`ApiError::item_unavailable`](engine_api::ApiError::item_unavailable)). Asking again only
     /// repeats the answer, so no later pass asks; a restart tries each once more.
     unfetchable: Mutex<HashMap<String, HashSet<ProviderKey>>>,
 }
@@ -31,20 +32,14 @@ impl Prefetching {
         })
     }
 
-    pub(crate) fn is_unfetchable(&self, account: &AccountId, key: &ProviderKey) -> bool {
+    /// The bodies of `account` a server said it can never give back this session.
+    pub(crate) fn unfetchable(&self, account: &AccountId) -> HashSet<ProviderKey> {
         self.unfetchable
             .lock()
             .expect("unfetchable mutex poisoned")
             .get(account.as_str())
-            .is_some_and(|keys| keys.contains(key))
-    }
-
-    pub(crate) fn unfetchable_count(&self, account: &AccountId) -> usize {
-        self.unfetchable
-            .lock()
-            .expect("unfetchable mutex poisoned")
-            .get(account.as_str())
-            .map_or(0, HashSet::len)
+            .cloned()
+            .unwrap_or_default()
     }
 
     pub(crate) fn mark_unfetchable(&self, account: &AccountId, key: ProviderKey) {
@@ -54,6 +49,14 @@ impl Prefetching {
             .entry(account.as_str().to_owned())
             .or_default()
             .insert(key);
+    }
+
+    /// Forgets a removed account, so an id added again starts by asking for every body.
+    pub(crate) fn forget(&self, account: &AccountId) {
+        self.unfetchable
+            .lock()
+            .expect("unfetchable mutex poisoned")
+            .remove(account.as_str());
     }
 }
 
@@ -70,5 +73,22 @@ impl Drop for PrefetchGuard<'_> {
             .lock()
             .expect("prefetching mutex poisoned")
             .remove(&self.account);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_removed_account_leaves_no_unfetchable_body_behind() {
+        let state = Prefetching::default();
+        let account = AccountId::try_from("acct-1").unwrap();
+        state.mark_unfetchable(&account, ProviderKey::new("m1").unwrap());
+        assert_eq!(state.unfetchable(&account).len(), 1);
+
+        state.forget(&account);
+
+        assert!(state.unfetchable(&account).is_empty());
     }
 }

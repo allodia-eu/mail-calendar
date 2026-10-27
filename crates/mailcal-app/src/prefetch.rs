@@ -22,7 +22,7 @@ use futures::{StreamExt, stream::FuturesUnordered};
 
 use crate::{
     App,
-    connectivity::{is_permanent, is_throttled, throttled_for},
+    connectivity::{is_throttled, throttled_for},
     form_factor::FormFactor,
 };
 
@@ -141,7 +141,8 @@ struct Pass {
     /// The first failure's shape, for the summary line; engine errors carry protocol and folder
     /// context, never message content, so this stays within the logging privacy rule.
     first_error: Option<String>,
-    /// Bodies whose fetch failed permanently this pass, and the first such failure's shape.
+    /// Bodies the server said it can never give back this pass, and the first such failure's
+    /// shape.
     unfetchable: usize,
     unfetchable_error: Option<String>,
 }
@@ -164,15 +165,15 @@ impl<P: Provider> App<P> {
     /// Single-flight per account: a pass started while another is already
     /// draining the same account returns immediately (the running pass re-queries the missing
     /// set until it is empty, so it picks up what a newer sync added). Best-effort: a failed
-    /// body is skipped for the rest of the pass (a later pass, or the on-demand open,
-    /// retries it), and no new batch starts once the app goes offline or the account is
-    /// removed mid-warm; the batches already out finish. A **throttled** body is not a failed
-    /// one: the pass stops asking, waits the server's stated time (or
-    /// [`UNSTATED_THROTTLE_PAUSE`] where it named none), and asks again for what was refused
-    /// and what it had not reached, up to [`THROTTLE_PAUSES_PER_PASS`] times and never
-    /// sleeping past [`LONGEST_THROTTLE_PAUSE`]. A no-op offline, for an unknown
-    /// account, or once the cache is already warm; an all-warm pass is one key scan in the
-    /// engine, fetching and deserializing nothing.
+    /// body is skipped for the rest of the pass (a later pass, or the on-demand open, retries
+    /// it; a body the server says it can **never** give back waits for the open or a restart),
+    /// and no new batch starts once the app goes offline or the account is removed mid-warm; the
+    /// batches already out finish. A **throttled** body is not a failed one: the pass stops
+    /// asking, waits the server's stated time (or [`UNSTATED_THROTTLE_PAUSE`] where it named
+    /// none), and asks again for what was refused and what it had not reached, up to
+    /// [`THROTTLE_PAUSES_PER_PASS`] times and never sleeping past [`LONGEST_THROTTLE_PAUSE`]. A
+    /// no-op offline, for an unknown account, or once the cache is already warm; an all-warm
+    /// pass is one key scan in the engine, fetching and deserializing nothing.
     pub(crate) async fn prefetch_account_bodies(&self, account: &AccountId) {
         if !self.is_online() {
             return;
@@ -199,6 +200,8 @@ impl<P: Provider> App<P> {
         let size_limit = self.effective_message_size_limit(account.as_str());
         let mut pass = Pass::default();
         let mut pauses = 0usize;
+        // Read once: a body this pass finds unfetchable is already in `pass.attempted`.
+        let unfetchable = self.prefetching.unfetchable(account);
         loop {
             // Widen the query as failures accumulate: the work list is newest-first, so a
             // clump of persistently failing messages would otherwise fill every page and
@@ -208,16 +211,14 @@ impl<P: Provider> App<P> {
                 .engine
                 .mail_missing_body(
                     core::slice::from_ref(account),
-                    pass.attempted.len()
-                        + self.prefetching.unfetchable_count(account)
-                        + PREFETCH_BATCH,
+                    pass.attempted.len() + unfetchable.len() + PREFETCH_BATCH,
                 )
                 .await
                 .unwrap_or_default();
             // In the page's own order, which is newest-first.
             let mut folders: Vec<(ProviderKey, Option<String>)> = Vec::new();
             for row in page {
-                if self.prefetching.is_unfetchable(account, &row.mail.key) {
+                if unfetchable.contains(&row.mail.key) {
                     continue;
                 }
                 if pass.attempted.insert(row.mail.key.clone()) {
@@ -448,7 +449,7 @@ impl<P: Provider> App<P> {
                             self.note_warming(account, Some(warmed_count(pass.warmed)));
                         }
                     }
-                    Err(err) if is_permanent(&err) => {
+                    Err(err) if err.item_unavailable() => {
                         if let Some(message) = batch.messages.get(index) {
                             self.prefetching
                                 .mark_unfetchable(account, message.id.key().clone());

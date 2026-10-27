@@ -72,7 +72,7 @@ pub(super) use invitation::{
     RecordedPuts, RecordedRsvps as InvitationRsvps, RecordedSends, invitation_app,
     invitation_app_with_prefs, linked_invitation_app, shared_calendar_app,
 };
-pub(super) use provider::{EditGate, FakeProvider};
+pub(super) use provider::{EditGate, FakeProvider, SourceFailure};
 
 /// Records the surfaces the app signals, so the test can assert the loop fired.
 struct RecordingObserver {

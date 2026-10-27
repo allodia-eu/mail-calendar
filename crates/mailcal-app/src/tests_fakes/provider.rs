@@ -27,6 +27,7 @@ use super::message;
 #[allow(clippy::duplicate_mod)]
 #[path = "provider_builders.rs"]
 mod builders;
+pub(crate) use builders::SourceFailure;
 
 /// A minimal JMAP-shaped fake: one Inbox and a configurable set of messages, a snapshot on
 /// first sync of a scope and an empty delta afterwards. Records the edits it receives so a
@@ -91,9 +92,8 @@ pub(crate) struct FakeProvider {
     /// test can put a *second* write to one message inside the first's round trip: the shape a
     /// host produces by marking a message read when it opens and archiving it a moment later.
     edit_gate: Option<EditGate>,
-    /// Message keys whose [`Provider::fetch_message_source`] fails, and whether permanently:
-    /// otherwise a **conflict**, as stale keys after an IMAP `UIDVALIDITY` renumbering are.
-    source_failures: Vec<(String, bool)>,
+    /// Message keys whose [`Provider::fetch_message_source`] fails, and how.
+    source_failures: Vec<(String, SourceFailure)>,
     /// How many of the next source fetches the server refuses as throttled, and the wait each
     /// refusal names (`None`: a bare `429`, as Stalwart sends). Shared, so a test can read how
     /// many refusals are left.
@@ -356,12 +356,8 @@ impl Provider for FakeProvider {
             return Err(ProviderError::rate_limited("too many requests", wait));
         }
         let key = message.id.key().as_str();
-        if let Some((_, permanent)) = self.source_failures.iter().find(|(k, _)| k == key) {
-            return Err(if *permanent {
-                ProviderError::permanent("the server cannot give this message back")
-            } else {
-                ProviderError::conflict("UIDVALIDITY changed for a: re-sync before retrying")
-            });
+        if let Some((_, failure)) = self.source_failures.iter().find(|(k, _)| k == key) {
+            return Err(failure.error());
         }
         if let Some(raw) = &self.source_override {
             return Ok(RawMime::new(raw.clone()));

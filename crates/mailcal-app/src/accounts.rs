@@ -254,6 +254,8 @@ impl<P: Provider> App<P> {
             .lock()
             .expect("synced-folders mutex poisoned")
             .retain(|(a, _)| a != acct);
+        // …and the bodies its server refused, so a re-added id asks for them again.
+        self.prefetching.forget(id);
         self.inbox_keys
             .lock()
             .expect("inbox-key mutex poisoned")

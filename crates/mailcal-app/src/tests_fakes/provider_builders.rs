@@ -15,7 +15,8 @@ use engine_core::{
     mail::{Mailbox, MailboxRole, Message},
 };
 use engine_provider::{
-    Capabilities, MailEdit, MessageReport, ReportControls, ReportEvidence, ReportVerdicts,
+    Capabilities, MailEdit, MessageReport, ProviderError, ReportControls, ReportEvidence,
+    ReportVerdicts,
 };
 use tokio::sync::Notify;
 
@@ -367,20 +368,20 @@ impl FakeProvider {
         self
     }
 
-    /// Makes [`Provider::fetch_message_source`] fail for these message keys, so a test can
-    /// model bodies the provider persistently cannot serve.
-    pub(crate) fn with_failing_sources<I: IntoIterator<Item = String>>(mut self, keys: I) -> Self {
-        self.source_failures = keys.into_iter().map(|key| (key, false)).collect();
-        self
+    /// Makes [`Provider::fetch_message_source`] fail with a **conflict** for these message keys,
+    /// so a test can model stale keys.
+    pub(crate) fn with_failing_sources<I: IntoIterator<Item = String>>(self, keys: I) -> Self {
+        self.with_source_failures(SourceFailure::Conflict, keys)
     }
 
-    /// Makes [`Provider::fetch_message_source`] fail **permanently** for these message keys: a
-    /// body the server will never give back, however often it is asked.
-    pub(crate) fn with_unfetchable_sources<I: IntoIterator<Item = String>>(
+    /// Makes [`Provider::fetch_message_source`] fail as `failure` says for these message keys.
+    pub(crate) fn with_source_failures<I: IntoIterator<Item = String>>(
         mut self,
+        failure: SourceFailure,
         keys: I,
     ) -> Self {
-        self.source_failures = keys.into_iter().map(|key| (key, true)).collect();
+        self.source_failures
+            .extend(keys.into_iter().map(|key| (key, failure)));
         self
     }
 
@@ -406,5 +407,30 @@ impl FakeProvider {
     pub(crate) fn refusing_signin(mut self) -> Self {
         self.refuses_signin = true;
         self
+    }
+}
+
+/// How [`Provider::fetch_message_source`] fails for a message the fake was told to refuse.
+#[derive(Clone, Copy)]
+pub(crate) enum SourceFailure {
+    /// Stale keys, as after an IMAP `UIDVALIDITY` renumbering.
+    Conflict,
+    /// A permanent refusal about the account or the request, not the message.
+    Refused,
+    /// A message the server stored but can never give back.
+    Unavailable,
+}
+
+impl SourceFailure {
+    pub(super) fn error(self) -> ProviderError {
+        match self {
+            Self::Conflict => {
+                ProviderError::conflict("UIDVALIDITY changed for a: re-sync before retrying")
+            }
+            Self::Refused => ProviderError::permanent("403 the mailbox refuses this client"),
+            Self::Unavailable => {
+                ProviderError::item_unavailable("the server cannot give this message back")
+            }
+        }
     }
 }
