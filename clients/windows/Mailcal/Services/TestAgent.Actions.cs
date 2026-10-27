@@ -193,7 +193,7 @@ internal static partial class TestAgent
     {
         var percent = (double?)request["percent"] ?? 100;
         var root = PeerOf(HandleIn(request));
-        var window = WindowOf.TryGetValue(root, out var known) ? known : OpenWindows()[0];
+        var window = WindowFor(root) ?? OpenWindows()[0];
         foreach (var peer in Walk([(root, window)]))
         {
             if (peer.GetPattern(PatternInterface.Scroll) is IScrollProvider { VerticallyScrollable: true } scroll)

@@ -23,7 +23,7 @@ internal static partial class TestAgent
     private static readonly Dictionary<int, WeakReference<AutomationPeer>> Handles = new();
     private static readonly ConditionalWeakTable<AutomationPeer, StrongBox<int>> HandleOf = new();
     private static readonly ConditionalWeakTable<AutomationPeer, WeakReference<AutomationPeer>> ParentOf = new();
-    private static readonly ConditionalWeakTable<AutomationPeer, Window> WindowOf = new();
+    private static readonly ConditionalWeakTable<AutomationPeer, WeakReference<Window>> WindowOf = new();
     private static int _nextHandle;
 
     /// <summary>The windows still open, the mailbox first.</summary>
@@ -65,7 +65,7 @@ internal static partial class TestAgent
             {
                 continue;
             }
-            WindowOf.AddOrUpdate(peer, window);
+            WindowOf.AddOrUpdate(peer, new WeakReference<Window>(window));
             yield return peer;
             if (IsBrowser(peer) || ChildrenOf(peer) is not { } children)
             {
@@ -179,7 +179,7 @@ internal static partial class TestAgent
         if (request["under"] is JsonNode under)
         {
             var peer = PeerOf(HandleIn(request, "under"));
-            var window = WindowOf.TryGetValue(peer, out var known) ? known : OpenWindows()[0];
+            var window = WindowFor(peer) ?? OpenWindows()[0];
             return [(peer, window)];
         }
         if (request["window"] is JsonNode hwnd)
@@ -293,12 +293,10 @@ internal static partial class TestAgent
         // A peer measures from its window's client area; a press is aimed at the screen.
         var rect = peer.GetBoundingRectangle();
         var origin = new ClientPoint();
-        // A peer met outside a walk, such as one a read handed back, has no window recorded: its
-        // element's root says which.
-        var known = WindowOf.TryGetValue(peer, out var window) || (window = WindowByRoot(peer)) is not null;
-        if (known)
+        var window = WindowFor(peer);
+        if (window is not null)
         {
-            ClientToScreen((nint)Hwnd(window!), ref origin);
+            ClientToScreen((nint)Hwnd(window), ref origin);
         }
         var described = new JsonObject
         {
@@ -313,7 +311,7 @@ internal static partial class TestAgent
             ["ht"] = rect.Height,
             ["offscreen"] = peer.IsOffscreen(),
             ["enabled"] = peer.IsEnabled(),
-            ["window"] = known ? Hwnd(window!) : 0,
+            ["window"] = window is null ? 0 : Hwnd(window),
         };
         if (SignalOf(peer) is { } signal)
         {
@@ -326,10 +324,26 @@ internal static partial class TestAgent
         return described;
     }
 
-    private static Window? WindowByRoot(AutomationPeer peer) =>
-        peer is FrameworkElementAutomationPeer { Owner: { XamlRoot: { } root } }
-            ? OpenWindows().FirstOrDefault(w => ReferenceEquals(w.Content?.XamlRoot, root))
+    /// <summary>
+    /// The open window <paramref name="peer"/>'s element is drawn in, or null when it is in none.
+    /// Read off the element's own root, climbing to the nearest walked ancestor that has an element
+    /// where the peer has none, as a list's item peers do. The window a walk met it in comes last:
+    /// that one may have closed since, and a closed window's handle reads as 0.
+    /// </summary>
+    private static Window? WindowFor(AutomationPeer peer)
+    {
+        var open = OpenWindows();
+        for (AutomationPeer? at = peer; at is not null; at = ParentOf.TryGetValue(at, out var up) && up.TryGetTarget(out var parent) ? parent : null)
+        {
+            if (at is FrameworkElementAutomationPeer { Owner: { XamlRoot: { } root } })
+            {
+                return open.FirstOrDefault(w => ReferenceEquals(w.Content?.XamlRoot, root));
+            }
+        }
+        return WindowOf.TryGetValue(peer, out var walked) && walked.TryGetTarget(out var window) && open.Contains(window)
+            ? window
             : null;
+    }
 
     /// <summary>A name pattern as PowerShell's <c>-like</c> reads one, which the suites were written
     /// against: <c>*</c> and <c>?</c>, case ignored.</summary>
