@@ -25,9 +25,10 @@ use engine_core::{
     version::{ETag, RevisionTokens},
 };
 use engine_provider::{
-    Capabilities, ConnectionInfo, Draft, EmailChunk, EmailStream, EventRsvp, EventWrite,
-    EventWriteReceipt, OverrideSurvival, Provider, ProviderError, ProviderResult, ReplyDelivery,
-    RsvpControls, RsvpResponse, ScopeSync, SubmissionReceipt, WriteGuard, WritePrecondition,
+    CalendarListing, Capabilities, ConnectionInfo, Draft, EmailChunk, EmailStream, EventRsvp,
+    EventWrite, EventWriteReceipt, OverrideSurvival, Provider, ProviderError, ProviderResult,
+    ReplyDelivery, RsvpControls, RsvpResponse, ScopeSync, SubmissionReceipt, WriteGuard,
+    WritePrecondition,
 };
 use meeting::{imip_source, invitation_message, invited_event};
 
@@ -276,18 +277,20 @@ impl Provider for InvitationFake {
         &self,
         _account: &AccountId,
         cursor: Option<&SyncState>,
-    ) -> ProviderResult<ScopeSync<Calendar>> {
+    ) -> ProviderResult<CalendarListing> {
         if cursor.is_some() {
             return Ok(ScopeSync::new(
                 SyncUpdate::delta(Vec::new(), Vec::new()),
                 SyncState::new("cal-2"),
-            ));
+            )
+            .into());
         }
         let calendar = Calendar::new(CalendarId::try_from("/cal/").unwrap(), "Work");
         Ok(ScopeSync::new(
             SyncUpdate::snapshot(vec![calendar.clone()], [calendar.id.key().clone()].into()),
             SyncState::new("cal-1"),
-        ))
+        )
+        .into())
     }
 
     async fn sync_events(

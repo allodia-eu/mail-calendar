@@ -28,9 +28,9 @@ use engine_core::{
     time::TimeZoneId,
 };
 use engine_provider::{
-    CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion, EventDraft, EventEdit,
-    EventRsvp, EventWriteReceipt, OverrideSurvival, Provider, ProviderError, ProviderResult,
-    ScopeSync, WriteGuard,
+    CalendarListing, CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion,
+    EventDraft, EventEdit, EventRsvp, EventWriteReceipt, OverrideSurvival, Provider, ProviderError,
+    ProviderResult, ScopeSync, WriteGuard,
 };
 use engine_tls::TlsClientConfig;
 use provider_graph::{CalendarWindow, GraphCalendarProvider, GraphClient, MailboxPrincipal};
@@ -194,7 +194,7 @@ impl Provider for RefreshingGraphCalendarProvider {
         &self,
         account: &AccountId,
         cursor: Option<&SyncState>,
-    ) -> ProviderResult<ScopeSync<Calendar>> {
+    ) -> ProviderResult<CalendarListing> {
         let mut provider = self.delegate().await?;
         let mut reconnected = false;
         loop {
@@ -353,7 +353,7 @@ async fn list_calendars(
                 AccountError::Graph(err.to_string())
             }
         })?;
-    Ok(match listing.update {
+    Ok(match listing.sync.update {
         SyncUpdate::Snapshot { objects, .. } => objects,
         SyncUpdate::Delta { changed, .. } => changed,
     })

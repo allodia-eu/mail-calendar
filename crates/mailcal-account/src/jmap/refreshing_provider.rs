@@ -14,18 +14,18 @@
 use async_trait::async_trait;
 use engine_api::{CalendarWrites, ProviderKey};
 use engine_core::{
-    calendar::{Calendar, Event},
+    calendar::Event,
     ids::{AccountId, CalendarId},
     mail::{Mailbox, Message},
     raw::RawMime,
     sync::{SyncScope, SyncState, SyncWindow},
 };
 use engine_provider::{
-    CalendarUserAddresses, ConnectionInfo, Draft, EmailStream, EventDeletion, EventDraft,
-    EventEdit, EventRsvp, EventWrite, EventWriteReceipt, HandOver, MailEdit, MailEditReceipt,
-    MailboxEdit, MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderError,
-    ProviderResult, ReportReceipt, ScopeSync, SenderIdentity, SenderIdentityId, SourceStream,
-    SubmissionReceipt,
+    CalendarListing, CalendarUserAddresses, ConnectionInfo, Draft, EmailStream, EventDeletion,
+    EventDraft, EventEdit, EventRsvp, EventWrite, EventWriteReceipt, HandOver, MailEdit,
+    MailEditReceipt, MailboxEdit, MailboxEditReceipt, MailboxWrites, MessageReport, Provider,
+    ProviderError, ProviderResult, ReportReceipt, ScopeSync, SenderIdentity, SenderIdentityId,
+    SourceStream, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -181,7 +181,7 @@ impl Provider for RefreshingJmapProvider {
         &self,
         account: &AccountId,
         cursor: Option<&SyncState>,
-    ) -> ProviderResult<ScopeSync<Calendar>> {
+    ) -> ProviderResult<CalendarListing> {
         self.delegate().await?.sync_calendars(account, cursor).await
     }
 

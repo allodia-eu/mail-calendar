@@ -113,20 +113,19 @@ impl CalendarFake {
 
     /// A CalDAV-shaped server: the calendars `(id, collection tag)` and the events on them,
     /// each calendar's events under a scope of its own.
-    pub(crate) fn on_dav(calendars: &[(&str, &str)], events: Vec<Event>) -> Self {
-        let calendars = calendars
+    pub(crate) fn on_dav(listed: &[(&str, &str)], events: Vec<Event>) -> Self {
+        let id = |id: &str| engine_core::ids::CalendarId::try_from(id).unwrap();
+        let calendars = listed
             .iter()
-            .map(|(id, tag)| {
-                let mut calendar = engine_core::calendar::Calendar::new(
-                    engine_core::ids::CalendarId::try_from(*id).unwrap(),
-                    *id,
-                );
-                calendar.collection_tag = Some(engine_core::version::CollectionTag::new(*tag));
-                calendar
-            })
+            .map(|(calendar, _)| engine_core::calendar::Calendar::new(id(calendar), *calendar))
+            .collect();
+        let tags = listed
+            .iter()
+            .map(|(calendar, tag)| (id(calendar), engine_core::version::CollectionTag::new(*tag)))
             .collect();
         Self {
             calendars,
+            tags,
             per_calendar: true,
             ..Self::with_events(events)
         }

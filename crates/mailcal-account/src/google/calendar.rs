@@ -29,9 +29,9 @@ use engine_core::{
     sync::{SyncScope, SyncState, SyncUpdate},
 };
 use engine_provider::{
-    CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion, EventDraft, EventEdit,
-    EventRsvp, EventWriteReceipt, OverrideSurvival, Provider, ProviderError, ProviderResult,
-    ScopeSync, WriteGuard,
+    CalendarListing, CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion,
+    EventDraft, EventEdit, EventRsvp, EventWriteReceipt, OverrideSurvival, Provider, ProviderError,
+    ProviderResult, ScopeSync, WriteGuard,
 };
 use engine_tls::TlsClientConfig;
 use provider_google::{CalendarWindow, GoogleCalendarProvider, GoogleClient};
@@ -177,7 +177,7 @@ impl Provider for RefreshingGoogleCalendarProvider {
         &self,
         account: &AccountId,
         cursor: Option<&SyncState>,
-    ) -> ProviderResult<ScopeSync<Calendar>> {
+    ) -> ProviderResult<CalendarListing> {
         let mut provider = self.delegate().await?;
         let mut reconnected = false;
         loop {
@@ -316,7 +316,7 @@ async fn list_calendars(
         .sync_calendars(account_id, None)
         .await
         .map_err(|err| AccountError::Google(err.to_string()))?;
-    Ok(match listing.update {
+    Ok(match listing.sync.update {
         SyncUpdate::Snapshot { objects, .. } => objects,
         SyncUpdate::Delta { changed, .. } => changed,
     })

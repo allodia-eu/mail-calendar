@@ -2,9 +2,12 @@
 //! Split out of `tests_fakes.rs` to keep each file under the size limit; a submodule of the
 //! shared `fakes` module, reusing its `RecordingObserver`.
 
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
+use std::{
+    collections::BTreeMap,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use engine_api::{
@@ -18,11 +21,11 @@ use engine_core::{
     raw::RawIcal,
     sync::{JmapDataType, SyncScope, SyncState, SyncUpdate},
     time::{CalendarDateTime, LocalDateTime},
-    version::{ETag, RevisionTokens},
+    version::{CollectionTag, ETag, RevisionTokens},
 };
 use engine_provider::{
-    Capabilities, ConnectionInfo, DeleteTarget, DraftRecurrence, EventDeletion, EventDraft,
-    EventEdit, EventRsvp, EventWriteReceipt, OverrideSurvival, PatchTarget, Provider,
+    CalendarListing, Capabilities, ConnectionInfo, DeleteTarget, DraftRecurrence, EventDeletion,
+    EventDraft, EventEdit, EventRsvp, EventWriteReceipt, OverrideSurvival, PatchTarget, Provider,
     ProviderError, ProviderResult, ReplyDelivery, RsvpControls, RsvpResponse, ScopeSync,
     WriteGuard,
 };
@@ -135,6 +138,8 @@ pub(crate) struct CalendarFake {
     /// When set, each calendar's events sync under a scope of their own, as on CalDAV;
     /// otherwise every calendar shares one, as on JMAP.
     pub(super) per_calendar: bool,
+    /// The collection tag the calendar list shows for each calendar, as a CalDAV listing does.
+    pub(super) tags: BTreeMap<CalendarId, CollectionTag>,
     /// The calendar each event fetch named, in order.
     pub(super) event_fetches: Arc<Mutex<Vec<String>>>,
 }
@@ -173,6 +178,7 @@ impl CalendarFake {
             syncs: Arc::new(AtomicUsize::new(0)),
             calendar_users: CalendarUserAddresses::Unknown,
             per_calendar: false,
+            tags: BTreeMap::new(),
             event_fetches: Arc::new(Mutex::new(Vec::new())),
         }
     }
@@ -261,7 +267,7 @@ impl Provider for CalendarFake {
         &self,
         _account: &AccountId,
         cursor: Option<&SyncState>,
-    ) -> ProviderResult<ScopeSync<Calendar>> {
+    ) -> ProviderResult<CalendarListing> {
         self.syncs.fetch_add(1, Ordering::Relaxed);
         if self.unreachable {
             return Err(ProviderError::invalid_state(
@@ -269,16 +275,22 @@ impl Provider for CalendarFake {
             ));
         }
         if cursor.is_some() {
-            return Ok(ScopeSync::new(
-                SyncUpdate::delta(Vec::new(), Vec::new()),
-                SyncState::new("cal-2"),
-            ));
+            return Ok(CalendarListing {
+                sync: ScopeSync::new(
+                    SyncUpdate::delta(Vec::new(), Vec::new()),
+                    SyncState::new("cal-2"),
+                ),
+                tags: self.tags.clone(),
+            });
         }
         let present = self.calendars.iter().map(|c| c.id.key().clone()).collect();
-        Ok(ScopeSync::new(
-            SyncUpdate::snapshot(self.calendars.clone(), present),
-            SyncState::new("cal-1"),
-        ))
+        Ok(CalendarListing {
+            sync: ScopeSync::new(
+                SyncUpdate::snapshot(self.calendars.clone(), present),
+                SyncState::new("cal-1"),
+            ),
+            tags: self.tags.clone(),
+        })
     }
 
     fn event_scope(&self, account: &AccountId, calendar: &CalendarId) -> SyncScope {
