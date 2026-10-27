@@ -48,6 +48,12 @@ From a terminal in the machine's logged-in desktop session, in a checkout nothin
    machine and dispatch, or leave those platforms to CI and report them as unexercised locally.
 5. **Send each builder one message** with `SendMessage`, in the shape below.
 
+**Every message is acknowledged on arrival, in both directions.** A sender cannot see whether a
+message reached the other side, so the receiver answers at once with a one-line `ack`, before any
+other work: a builder when a task arrives, this session when a report arrives. A sender with no
+ack after a few minutes knows the message did not land, which is a different problem from a
+builder that is busy.
+
 ## The message
 
 Self-contained, because the builder has none of this session's context:
@@ -55,6 +61,7 @@ Self-contained, because the builder has none of this session's context:
 ```
 Verify <branch> at <sha> on this machine, for <platforms>.
 
+0. Before anything else, reply with SendMessage to "<this session's name>": "ack <sha>".
 1. git fetch origin, then put this checkout on <branch> at exactly <sha>. If the working tree is
    dirty, or the local branch has commits origin lacks, stop and reply saying so: discard nothing.
 2. Run what AGENTS.md's "Building & verifying" names for this host, plus <the UI suite | the
@@ -77,11 +84,15 @@ harness suites when it touches a mail or calendar write. Naming them makes the r
   its fix onto what it finds, so a push from here in between turns a fix to a shared file into a
   conflict on a machine nobody is watching.
 - Replies arrive as messages. Until then, work on something else or end the turn; do not poll.
-- **A builder that goes quiet** is waiting on a permission prompt, or ended its turn without
-  replying. Ask the developer to look at it: sending the task again runs it twice.
+- **No ack within a few minutes** means the task did not arrive: check the builder's row in
+  `ListAgents` and send it once more.
+- **A builder that acked and then goes quiet** is waiting on a permission prompt, or ended its turn
+  without replying. Ask the developer to look at it: sending the task again runs it twice.
 
 ## When every builder has replied
 
+- **Ack each report as it arrives** ("ack, received"), before reading it closely: the builder
+  otherwise cannot tell its report landed.
 - **Check the sha in each reply** against the one you sent. A builder on a stale checkout reports a
   pass for code it never ran.
 - `git pull --rebase` the branch and read what each builder committed as you would any diff: it is
