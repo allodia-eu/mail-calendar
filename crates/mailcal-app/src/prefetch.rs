@@ -224,10 +224,13 @@ impl<P: Provider> App<P> {
                 .run_batches(account, batches, width, &mut pass, &mut conflicted)
                 .await;
             // Once per folder per pass, after the page's batches are in: a re-sync rebuilds the
-            // folder's keys, and the loop's next query returns the fresh ones.
+            // folder's keys, and the loop's next query returns the fresh ones. A folder another
+            // sync holds is being rebuilt by that sync, so waiting for it would only hold the warm
+            // pass, and its hint, for as long as that sync runs.
             for folder in conflicted {
                 if pass.resynced.insert(folder.clone()) {
-                    self.resync_folder(account, &folder, "body-conflict").await;
+                    self.resync_folder(account, &folder, "body-conflict", false)
+                        .await;
                 }
             }
             match round {

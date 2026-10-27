@@ -266,7 +266,7 @@ async fn providerless_placeholder_sync_is_skipped_not_busy() {
 
 /// A watch fires because mail arrived. If another sync holds the folder when it does, that sync
 /// may have read the server before the message landed, so the watch's refresh must wait for the
-/// folder rather than give up: giving up left the message unseen until the next change.
+/// folder rather than give up, or the message stays unseen until the next change.
 #[tokio::test]
 async fn a_watch_refresh_waits_for_a_busy_folder_and_then_brings_the_new_message() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
@@ -298,7 +298,7 @@ async fn a_watch_refresh_waits_for_a_busy_folder_and_then_brings_the_new_message
     let watch = tokio::spawn({
         let app = Arc::clone(&app);
         let id = id.clone();
-        async move { app.resync_folder(&id, "a", "watch").await }
+        async move { app.resync_folder(&id, "a", "watch", true).await }
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert!(

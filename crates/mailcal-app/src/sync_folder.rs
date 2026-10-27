@@ -26,7 +26,7 @@ impl<P: Provider> App<P> {
     /// the provider. A no-op without a connector (the demo / tests) or if the folder can't
     /// be connected (a transient blip: the next notification or poll catches it).
     pub async fn sync_watched_folder(&self, id: &AccountId, folder_key: &str) {
-        if self.resync_folder(id, folder_key, "watch").await {
+        if self.resync_folder(id, folder_key, "watch", true).await {
             // Warm the just-delivered bodies right away (after the list shows the new rows),
             // so a push-notified message opens instantly (and offline) by the time the user
             // taps it. Uses the account's own mail connection, not the sync's short-lived
@@ -42,11 +42,16 @@ impl<P: Provider> App<P> {
     /// derives threads, and drops the provider; returns whether the folder actually changed.
     /// A no-op (`false`) offline, without a connector (the demo / tests), or if the folder
     /// can't be connected (a transient blip: the next notification or poll catches it).
+    ///
+    /// With `wait_while_busy`, a folder another sync holds is retried on the account pass's
+    /// schedule rather than given up: that sync may have read the server before whatever this
+    /// refresh is for landed. Without it, a busy folder is left to the sync holding it.
     pub(crate) async fn resync_folder(
         &self,
         id: &AccountId,
         folder_key: &str,
         label: &'static str,
+        wait_while_busy: bool,
     ) -> bool {
         // A push notification can't arrive while offline, but guard anyway so a racing
         // just-dropped connection doesn't attempt a doomed on-demand connect.
@@ -66,9 +71,6 @@ impl<P: Provider> App<P> {
             // A targeted refresh, not a pass: the notification already named the folder, so
             // re-listing the account's folders to serve it is a round trip that can tell us
             // nothing, and on a server without LIST-STATUS it is a round trip *per folder*.
-            // Another sync holding the folder may have read the server before whatever this
-            // refresh is for landed, so it waits for the folder rather than giving up, on the
-            // account pass's schedule.
             let mut attempt = 0;
             let report = loop {
                 let report = self
@@ -78,7 +80,7 @@ impl<P: Provider> App<P> {
                 let busy = report
                     .first_error()
                     .is_some_and(engine_api::SyncError::is_busy);
-                if !busy || attempt + 1 == ACCOUNT_SYNC_BUSY_RETRY_ATTEMPTS {
+                if !busy || !wait_while_busy || attempt + 1 == ACCOUNT_SYNC_BUSY_RETRY_ATTEMPTS {
                     break report;
                 }
                 let delay = busy_retry_delay(attempt);
@@ -303,6 +305,10 @@ fn log_refresh(acct: usize, label: &str, report: &MailSyncReport) {
     let ms = report.elapsed.as_millis();
     let folder = report.folders.first();
     match report.first_error() {
+        // The folder is left to the sync that holds it, which is not a failure of anything.
+        Some(err) if err.is_busy() => log::info!(
+            "refresh[a{acct}/{label}]: another sync holds the folder; left to it after {ms}ms"
+        ),
         Some(err) => log::warn!("refresh[a{acct}/{label}]: failed in {ms}ms: {err}"),
         None => log::info!(
             "refresh[a{acct}/{label}]: +{} -{} in {ms}ms (fetch {}ms, derive {}ms, store {}ms)",
