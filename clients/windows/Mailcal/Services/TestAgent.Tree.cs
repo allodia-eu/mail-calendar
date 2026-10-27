@@ -333,7 +333,7 @@ internal static partial class TestAgent
     private static Window? WindowFor(AutomationPeer peer)
     {
         var open = OpenWindows();
-        for (AutomationPeer? at = peer; at is not null; at = ParentOf.TryGetValue(at, out var up) && up.TryGetTarget(out var parent) ? parent : null)
+        for (AutomationPeer? at = peer; at is not null; at = ParentPeer(at))
         {
             if (at is FrameworkElementAutomationPeer { Owner: { XamlRoot: { } root } })
             {
@@ -344,6 +344,15 @@ internal static partial class TestAgent
             ? window
             : null;
     }
+
+    /// <summary>
+    /// The peer above <paramref name="peer"/>: the one the walk met it under, else the one it names
+    /// itself. The walk's record is keyed on the managed wrapper, and a weak reference to a WinRT
+    /// object gives back a new wrapper for the same peer once the walked one is collected, so after a
+    /// collection the record is gone.
+    /// </summary>
+    private static AutomationPeer? ParentPeer(AutomationPeer peer) =>
+        ParentOf.TryGetValue(peer, out var up) && up.TryGetTarget(out var parent) ? parent : peer.GetParent();
 
     /// <summary>A name pattern as PowerShell's <c>-like</c> reads one, which the suites were written
     /// against: <c>*</c> and <c>?</c>, case ignored.</summary>

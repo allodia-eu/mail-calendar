@@ -159,7 +159,7 @@ internal static partial class TestAgent
                 scroll.ScrollIntoView();
                 return new JsonObject { ["ok"] = true };
             }
-            at = ParentOf.TryGetValue(at, out var up) && up.TryGetTarget(out var parent) ? parent : null;
+            at = ParentPeer(at);
         }
         return new JsonObject { ["ok"] = false };
     }
@@ -175,7 +175,7 @@ internal static partial class TestAgent
     private static JsonObject Parent(JsonObject request)
     {
         var peer = PeerOf(HandleIn(request));
-        var parent = ParentOf.TryGetValue(peer, out var up) && up.TryGetTarget(out var found) ? found : null;
+        var parent = ParentPeer(peer);
         return new JsonObject { ["elements"] = parent is null ? new JsonArray() : new JsonArray(Describe(parent)) };
     }
 

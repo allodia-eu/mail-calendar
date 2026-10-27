@@ -137,6 +137,7 @@ internal static partial class TestAgent
                 "scrollTo" => OnUi(() => ScrollTo(request)),
                 "settle" => Settle(request),
                 "dump" => OnUi(() => Dump(request)),
+                "collect" => OnUi(Collect),
                 _ => throw new AgentException($"an unknown op '{op}'"),
             };
         }
@@ -177,6 +178,14 @@ internal static partial class TestAgent
             throw new AgentException("the UI thread did not answer within 30 s");
         }
         return done.Task.Result;
+    }
+
+    /// <summary>A collection, for a suite that has to know the agent survives one: the release probe
+    /// collects while the suites run.</summary>
+    private static JsonObject Collect()
+    {
+        GC.Collect();
+        return new JsonObject { ["ok"] = true };
     }
 
     /// <summary>A request the agent cannot answer, said to the suite rather than thrown at the app.</summary>

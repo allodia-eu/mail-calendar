@@ -113,6 +113,9 @@ internal sealed class Agent : IDisposable
     }
 
     /// <summary>The element's state now: its value, toggle, selection and focus as well.</summary>
+    /// <summary>Has the app collect, as the release probe does while a suite runs.</summary>
+    internal void Collect() => Call(Op("collect"));
+
     internal ElementState Read(Element element) => ElementState.From(Call(Handle("read", element)));
 
     /// <summary>Presses the element: Invoke, or Select where it cannot be invoked. A control that is
