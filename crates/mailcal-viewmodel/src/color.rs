@@ -265,11 +265,18 @@ fn parse(raw: &str) -> Option<Rgb> {
                     b: b * 17,
                 })
             }
-            6 => Some(Rgb {
-                r: u8::from_str_radix(&hex[0..2], 16).ok()?,
-                g: u8::from_str_radix(&hex[2..4], 16).ok()?,
-                b: u8::from_str_radix(&hex[4..6], 16).ok()?,
-            }),
+            // `#rrggbbaa` is CalDAV's `calendar-color` as Apple defines it (iCloud sends it); a
+            // calendar is drawn opaque, so the alpha only has to be valid hex.
+            6 | 8 => {
+                if hex.len() == 8 {
+                    u8::from_str_radix(&hex[6..8], 16).ok()?;
+                }
+                Some(Rgb {
+                    r: u8::from_str_radix(&hex[0..2], 16).ok()?,
+                    g: u8::from_str_radix(&hex[2..4], 16).ok()?,
+                    b: u8::from_str_radix(&hex[4..6], 16).ok()?,
+                })
+            }
             _ => None,
         };
     }

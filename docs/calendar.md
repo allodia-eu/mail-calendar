@@ -104,15 +104,20 @@ A calendar's colour is chosen in the **core** (so all three clients agree) in th
 user can always override the result (the manager, §12):
 
 1. **A user override**, if set.
-2. **The server's colour**, snapped to the nearest palette hue. A user migrating from another client
-   keeps their coding: their red calendar stays red-ish. (Only the ten-hue Allodia palette is ever
-   rendered: Allodia Orange is reserved for actions, so a calendar can never borrow it.)
-3. **A palette hue no other calendar is already using.** When the server sends no colour, the calendar
-   is given a hue that is not already taken (by another calendar's override, its server colour, or
-   another colourless calendar), so a freshly connected account comes up in *distinct* colours instead
-   of a wall of blue, **across accounts too**. Assigned in the calendars' stable order, so adding a
-   calendar takes a fresh hue rather than recolouring the ones already on screen; once all ten hues are
-   in use it cycles, because a calendar must always have *a* colour.
+2. **The server's colour**, snapped to the nearest palette hue, **while no earlier calendar holds
+   that hue**. A user migrating from another client keeps their coding: their red calendar stays
+   red-ish. (Only the ten-hue Allodia palette is ever rendered: Allodia Orange is reserved for
+   actions, so a calendar can never borrow it.) A server may send `#rrggbb` or, as iCloud does,
+   `#rrggbbaa`; the alpha is ignored. Every server colour claims its hue before any calendar is
+   given one in step 3, so a calendar without a colour never takes a hue a server named.
+3. **A palette hue no other calendar is already using.** When the server sends no colour, or sends
+   one an earlier calendar already holds (Yahoo names one colour for every calendar, and two
+   accounts can name the same one), the calendar is given a hue that is not already taken (by
+   another calendar's override, a server colour, or an earlier calendar given one here), so every
+   calendar comes up in a *distinct* colour instead of a wall of blue, **across accounts too**.
+   Assigned in the calendars' stable order, so adding a calendar takes a fresh hue rather than
+   recolouring the ones already on screen; once all ten hues are in use it cycles, because a
+   calendar must always have *a* colour.
 
 This is a cross-platform product decision. It lives in the core (`calendar/color.rs` and the cache's
 `resolved_calendars`), so a client never assigns a colour itself: it only draws the resolved swatch

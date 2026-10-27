@@ -103,6 +103,16 @@ impl CalendarFake {
         }
     }
 
+    /// A writable account listing these calendars, each `(id, the colour its server sends)`.
+    pub(crate) fn with_server_colors(calendars: &[(&str, Option<&str>)]) -> Self {
+        let ids: Vec<&str> = calendars.iter().map(|(id, _)| *id).collect();
+        let mut fake = Self::with_calendars(&ids);
+        for (calendar, (_, color)) in fake.calendars.iter_mut().zip(calendars) {
+            calendar.color = color.map(str::to_owned);
+        }
+        fake
+    }
+
     /// The same scheduling server, naming the addresses it schedules as for this user.
     pub(crate) fn scheduling_as(events: Vec<Event>, users: CalendarUserAddresses) -> Self {
         Self {

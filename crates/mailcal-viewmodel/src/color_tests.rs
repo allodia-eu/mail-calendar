@@ -79,6 +79,13 @@ fn junk_falls_back_to_the_palette_rather_than_rendering_a_guess() {
 }
 
 #[test]
+fn a_color_with_an_alpha_channel_parses_as_its_opaque_color() {
+    // CalDAV's `calendar-color` (Apple's extension) is `#RRGGBBAA`, as iCloud sends it.
+    assert_eq!(parse("#F09650FF").unwrap(), rgb("#f09650"));
+    assert_eq!(nearest_index("#0E61B9FF"), nearest_index("#0e61b9"));
+}
+
+#[test]
 fn shorthand_and_named_colors_parse() {
     assert_eq!(rgb("#abc"), rgb("#aabbcc"));
     assert_eq!(parse("Red").unwrap(), rgb("#ff0000"));

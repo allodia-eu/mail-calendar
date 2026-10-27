@@ -4,8 +4,9 @@
 //!
 //! The rule is a product decision and lives in the core so all three clients agree
 //! (`docs/calendar.md` → "Colour defaults"): a calendar's colour is the user's override, else
-//! the server's colour snapped to the palette, else a palette hue no other calendar is already
-//! using: so a freshly connected account comes up in distinct hues, not a wall of blue.
+//! the server's colour snapped to the palette while no earlier calendar holds that hue, else a
+//! palette hue no other calendar is using: so every calendar comes up in a distinct hue, across
+//! accounts, not a wall of blue.
 
 use std::collections::HashSet;
 
@@ -61,28 +62,43 @@ impl<P: Provider> App<P> {
             .lock()
             .expect("calendar-prefs mutex poisoned");
 
-        // A calendar's colour is, in order: the user's override, else the server's colour, else a
-        // palette hue **no other calendar is already using**. This runs in the core, so all three
-        // clients inherit the same defaults; the user can still override any of them
-        // (docs/calendar.md → "Colour defaults").
+        // A calendar's colour is, in order: the user's override, else the server's colour while no
+        // earlier calendar holds its hue, else a palette hue **no other calendar is using**. This
+        // runs in the core, so all three clients inherit the same defaults; the user can still
+        // override any of them (docs/calendar.md → "Colour defaults").
         //
-        // First pass: which palette hues are already spoken for, by an override or a server
-        // colour, each snapped to the palette. A colourless calendar avoids these, so a
-        // freshly connected account comes up in distinct hues instead of a wall of blue,
-        // across accounts too.
-        let mut taken: HashSet<usize> = cache
+        // First pass: the overrides claim their hues; they are the user's own choice and are kept
+        // even where two coincide.
+        let decided: Vec<_> = cache
             .calendars
             .iter()
-            .filter_map(|calendar| {
-                let decided = prefs.get(&calendar.account, &calendar.id);
-                let fixed = decided.color.or_else(|| calendar.server_color.clone());
-                fixed.as_deref().and_then(nearest_index)
+            .map(|calendar| prefs.get(&calendar.account, &calendar.id))
+            .collect();
+        let mut taken: HashSet<usize> = decided
+            .iter()
+            .filter_map(|decided| decided.color.as_deref().and_then(nearest_index))
+            .collect();
+
+        // Second pass: each server colour, snapped to the palette, keeps its hue unless an
+        // earlier calendar holds it. A server that names one colour for every calendar (Yahoo),
+        // or two accounts naming the same one, would otherwise draw several calendars alike.
+        // Done before any colourless calendar is given a hue, so none takes a server's.
+        let server_hues: Vec<Option<usize>> = cache
+            .calendars
+            .iter()
+            .zip(&decided)
+            .map(|(calendar, decided)| {
+                if decided.color.is_some() {
+                    return None;
+                }
+                let hue = calendar.server_color.as_deref().and_then(nearest_index)?;
+                taken.insert(hue).then_some(hue)
             })
             .collect();
 
-        // Second pass: resolve each, handing every colourless calendar the next free hue in the
-        // cache's stable order: so adding a calendar takes a fresh colour without recolouring the
-        // ones already on screen.
+        // Third pass: every calendar left (no colour of its own, or one an earlier calendar
+        // holds) takes the next free hue in the cache's stable order, so adding a calendar
+        // takes a fresh colour without recolouring the ones already on screen.
         let mut next = 0usize;
         // A DEBUG-only diagnostic: *why* is each calendar the colour it is; override, the server's
         // own colour, or an auto-assigned distinct hue. Answers a "the colour didn't change / isn't
@@ -94,8 +110,9 @@ impl<P: Provider> App<P> {
         let rows: Vec<CalendarRow> = cache
             .calendars
             .iter()
-            .map(|calendar| {
-                let decided = prefs.get(&calendar.account, &calendar.id);
+            .zip(decided)
+            .zip(server_hues)
+            .map(|((calendar, decided), server_hue)| {
                 let (color, source) = if decided.color.is_some() {
                     (
                         resolve_color(
@@ -105,11 +122,8 @@ impl<P: Provider> App<P> {
                         ),
                         "override",
                     )
-                } else if calendar.server_color.is_some() {
-                    (
-                        resolve_color(None, calendar.server_color.as_deref(), 0),
-                        "server",
-                    )
+                } else if let Some(hue) = server_hue {
+                    (resolve_color(None, None, hue), "server")
                 } else {
                     (
                         resolve_color(None, None, claim_free_palette(&mut next, &mut taken)),

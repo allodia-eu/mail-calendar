@@ -12,6 +12,9 @@ use crate::{App, Intent, Surface};
 #[path = "tests_fakes.rs"]
 mod fakes;
 
+#[path = "tests_calendar_colors.rs"]
+mod colors;
+
 /// Today's date, in UTC: the anchor the fixtures are built around.
 fn today() -> engine_api::CalendarDate {
     date_at(
