@@ -60,7 +60,7 @@ pub(super) fn summary(entry: &AccountEntry) -> String {
 
 /// Whether the account is used for a use in `state`: on, or waiting on the provider's permission.
 /// A use the server does not offer is not one, whatever was chosen.
-const fn works(state: CapabilityState) -> bool {
+pub(in crate::ui) const fn works(state: CapabilityState) -> bool {
     matches!(
         state,
         CapabilityState::On | CapabilityState::NeedsPermission

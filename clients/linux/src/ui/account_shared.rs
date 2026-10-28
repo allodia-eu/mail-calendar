@@ -3,7 +3,10 @@
 
 use std::collections::{HashMap, HashSet};
 
-use mailcal_bindings::{SharedMailboxEntry, SharedMailboxSupport, SharedMailboxesView, Surface};
+use mailcal_bindings::{
+    AccountCapability, AccountsSnapshot, SharedMailboxEntry, SharedMailboxSupport,
+    SharedMailboxesView, Surface,
+};
 
 use super::{
     AppInput, AppModel,
@@ -37,6 +40,8 @@ pub(crate) struct SharedState {
     answers: HashMap<String, SharedMailboxesView>,
     /// The accounts whose server is being asked now, so a second ask does not overlap it.
     asking: HashSet<String>,
+    /// What each account was used for when its server was last asked.
+    uses: HashMap<String, Vec<AccountCapability>>,
 }
 
 impl SharedState {
@@ -45,18 +50,37 @@ impl SharedState {
         self.answers.get(account)
     }
 
-    /// Whether asking `account` again may answer something new without a request to its server:
-    /// it was not connected yet, or could not open a shared mailbox, which a use switched on or a
-    /// sign-in completed changes.
-    fn may_have_changed(&self, account: &str) -> bool {
+    /// Whether asking `account`, now used for `uses`, again may answer something new: it was not
+    /// connected yet, or could not open a shared mailbox, which a sign-in completed changes; or
+    /// what it is used for changed, and switching mail or shared mailboxes off removes every one
+    /// chosen. Anything else would be a request to its server on every signal.
+    fn may_have_changed(&self, account: &str, uses: &[AccountCapability]) -> bool {
         !self.asking.contains(account)
-            && self.answers.get(account).is_none_or(|view| {
-                matches!(
-                    view.support,
-                    SharedMailboxSupport::NotConnected | SharedMailboxSupport::Unsupported
-                )
-            })
+            && (self.uses.get(account).is_none_or(|asked| asked != uses)
+                || self.answers.get(account).is_none_or(|view| {
+                    matches!(
+                        view.support,
+                        SharedMailboxSupport::NotConnected | SharedMailboxSupport::Unsupported
+                    )
+                }))
     }
+}
+
+/// What `account` is used for in `snapshot`, in the snapshot's order.
+fn in_use(snapshot: &AccountsSnapshot, account: &str) -> Vec<AccountCapability> {
+    snapshot
+        .accounts
+        .iter()
+        .find(|entry| entry.id == account)
+        .map(|entry| {
+            entry
+                .uses
+                .iter()
+                .filter(|use_| super::settings::account_rows::works(use_.state))
+                .map(|use_| use_.capability)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn input(message: SharedInput) -> AppInput {
@@ -71,6 +95,8 @@ impl AppModel {
             return;
         };
         self.settings.shared.asking.insert(account.to_owned());
+        let uses = in_use(&app.accounts_snapshot(), account);
+        self.settings.shared.uses.insert(account.to_owned(), uses);
         let account = account.to_owned();
         std::thread::spawn(move || {
             let view = app.shared_mailboxes(account.clone()).ok();
@@ -119,8 +145,8 @@ impl AppModel {
     }
 
     /// Asks the open account page's server again when its answer may have changed: the account
-    /// has connected since, or its shared-mailboxes use was switched on. An account connecting is
-    /// announced by one of these three signals.
+    /// has connected since, or a use was switched on or off. Either is announced by one of these
+    /// three signals.
     pub(super) fn ask_shared_mailboxes_again(
         &mut self,
         surface: &Surface,
@@ -135,7 +161,11 @@ impl AppModel {
         let Some(account) = self.settings.account.clone() else {
             return;
         };
-        if self.settings.shared.may_have_changed(&account) {
+        let Some(app) = &self.app else {
+            return;
+        };
+        let uses = in_use(&app.accounts_snapshot(), &account);
+        if self.settings.shared.may_have_changed(&account, &uses) {
             self.ask_shared_mailboxes(&account, sender);
         }
     }
@@ -173,7 +203,7 @@ impl AppModel {
 
 #[cfg(test)]
 mod tests {
-    use mailcal_bindings::{SharedMailboxSupport, SharedMailboxesView};
+    use mailcal_bindings::{AccountCapability, SharedMailboxSupport, SharedMailboxesView};
 
     use super::SharedState;
 
@@ -191,14 +221,22 @@ mod tests {
 
     #[test]
     fn a_page_asks_again_only_while_the_answer_may_still_change() {
-        assert!(SharedState::default().may_have_changed("a"));
-        assert!(answered(SharedMailboxSupport::NotConnected).may_have_changed("a"));
-        assert!(answered(SharedMailboxSupport::Unsupported).may_have_changed("a"));
+        let mail = [AccountCapability::Mail];
+        let asked = |support| {
+            let mut state = answered(support);
+            state.uses.insert("a".to_owned(), mail.to_vec());
+            state
+        };
+        assert!(SharedState::default().may_have_changed("a", &mail));
+        assert!(asked(SharedMailboxSupport::NotConnected).may_have_changed("a", &mail));
+        assert!(asked(SharedMailboxSupport::Unsupported).may_have_changed("a", &mail));
         // Listing again would be a request to the server on every signal.
-        assert!(!answered(SharedMailboxSupport::Listed).may_have_changed("a"));
-        assert!(!answered(SharedMailboxSupport::Unreachable).may_have_changed("a"));
-        let mut asking = answered(SharedMailboxSupport::NotConnected);
+        assert!(!asked(SharedMailboxSupport::Listed).may_have_changed("a", &mail));
+        assert!(!asked(SharedMailboxSupport::Unreachable).may_have_changed("a", &mail));
+        // Switching mail off removes every mailbox chosen, which the last answer still shows on.
+        assert!(asked(SharedMailboxSupport::Listed).may_have_changed("a", &[]));
+        let mut asking = asked(SharedMailboxSupport::NotConnected);
         asking.asking.insert("a".to_owned());
-        assert!(!asking.may_have_changed("a"), "one ask at a time");
+        assert!(!asking.may_have_changed("a", &mail), "one ask at a time");
     }
 }
