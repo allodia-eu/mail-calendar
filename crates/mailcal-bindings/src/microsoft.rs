@@ -108,7 +108,7 @@ pub(crate) fn start(
         &mailcal_oauth::scopes::MICROSOFT,
         &chosen
             .clone()
-            .unwrap_or_else(|| Capability::ALL.into_iter().collect()),
+            .unwrap_or_else(|| Capability::LEGACY.into_iter().collect()),
     );
     log::info!(
         "oauth: starting Microsoft sign-in ({}); requesting {} Graph scope(s): [{}]",

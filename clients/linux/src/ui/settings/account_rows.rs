@@ -27,6 +27,7 @@ pub(in crate::ui) fn use_name(capability: AccountCapability) -> &'static str {
         AccountCapability::Calendar => l10n::nav_calendar(),
         AccountCapability::Contacts => l10n::nav_contacts(),
         AccountCapability::Colleagues => l10n::account_use_colleagues(),
+        AccountCapability::SharedMailboxes => l10n::account_use_shared_mailboxes(),
     }
 }
 
@@ -153,8 +154,9 @@ pub(super) struct UseSwitch {
 }
 
 /// The switch for `capability` on `entry`. The last of mail, calendar and contacts cannot be
-/// switched off, and colleagues cannot be switched on without contacts: the core refuses both, so
-/// the switch says why rather than letting the person find out.
+/// switched off, and colleagues cannot be switched on without contacts, nor shared mailboxes
+/// without mail: the core refuses each, so the switch says why rather than letting the person
+/// find out.
 pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) -> UseSwitch {
     let used = |wanted| {
         entry
@@ -178,9 +180,9 @@ pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) ->
     let last = state == CapabilityState::On
         && primary.contains(&capability)
         && primary.iter().filter(|wanted| used(**wanted)).count() == 1;
-    let without_contacts = capability == AccountCapability::Colleagues
-        && state == CapabilityState::Off
-        && !used(AccountCapability::Contacts);
+    let without = |sub, within| capability == sub && state == CapabilityState::Off && !used(within);
+    let without_contacts = without(AccountCapability::Colleagues, AccountCapability::Contacts);
+    let without_mail = without(AccountCapability::SharedMailboxes, AccountCapability::Mail);
     let not_offered = state == CapabilityState::NotOffered;
     let problem = entry
         .uses
@@ -195,6 +197,8 @@ pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) ->
         Some(l10n::settings_account_use_last())
     } else if without_contacts {
         Some(l10n::settings_account_colleagues_needs_contacts())
+    } else if without_mail {
+        Some(l10n::settings_account_shared_needs_mail())
     } else if state == CapabilityState::NeedsPermission {
         Some(l10n::settings_account_use_withheld())
     } else {
@@ -203,7 +207,7 @@ pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) ->
     UseSwitch {
         active,
         asks: state == CapabilityState::NeedsPermission,
-        sensitive: !last && !without_contacts && !not_offered,
+        sensitive: !last && !without_contacts && !without_mail && !not_offered,
         note,
     }
 }

@@ -71,16 +71,16 @@ impl MicrosoftConfig {
     #[must_use]
     pub fn capabilities(&self) -> crate::Capabilities {
         crate::affiliation::within(
-            &self.shape.capabilities_or(crate::Capability::ALL),
+            &self.shape.capabilities_or(crate::Capability::LEGACY),
             &self.offered(),
         )
     }
 
-    /// What this account can be used for: no colleagues on a personal account, which has no
-    /// directory and is never granted one.
+    /// What this account can be used for: no colleagues and no shared mailboxes on a personal
+    /// account, which has no organisation to have either.
     #[must_use]
     pub fn offered(&self) -> crate::Capabilities {
-        crate::affiliation::offered(self.affiliation.as_ref())
+        crate::affiliation::offered(self.affiliation.as_ref(), true)
     }
 
     /// The uses this account is chosen for that its grant does not allow.

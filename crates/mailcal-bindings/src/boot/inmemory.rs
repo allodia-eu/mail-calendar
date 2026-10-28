@@ -274,7 +274,7 @@ fn listed(id: &str, uses: impl IntoIterator<Item = Capability>) -> (String, Conn
         shape: AccountShape {
             id: Some(AccountId::try_from(id).expect("valid account id")),
             capabilities: Some(uses.into_iter().collect()),
-            links: mailcal_account::AccountLinks::default(),
+            ..AccountShape::default()
         },
     };
     (

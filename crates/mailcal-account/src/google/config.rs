@@ -90,7 +90,7 @@ impl GoogleConfig {
     #[must_use]
     pub fn capabilities(&self) -> crate::Capabilities {
         crate::affiliation::within(
-            &self.shape.capabilities_or(crate::Capability::ALL),
+            &self.shape.capabilities_or(crate::Capability::LEGACY),
             &self.offered(),
         )
     }
@@ -99,7 +99,7 @@ impl GoogleConfig {
     /// Workspace directory.
     #[must_use]
     pub fn offered(&self) -> crate::Capabilities {
-        crate::affiliation::offered(self.affiliation.as_ref())
+        crate::affiliation::offered(self.affiliation.as_ref(), false)
     }
 
     /// Whether the grant can ask who the account belongs to: `userinfo` answers to

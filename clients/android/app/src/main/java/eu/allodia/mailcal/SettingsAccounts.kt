@@ -172,6 +172,7 @@ internal fun useName(ctx: Context, capability: AccountCapability): String = when
     AccountCapability.CALENDAR -> L10n.nav_calendar(ctx)
     AccountCapability.CONTACTS -> L10n.nav_contacts(ctx)
     AccountCapability.COLLEAGUES -> L10n.account_use_colleagues(ctx)
+    AccountCapability.SHARED_MAILBOXES -> L10n.account_use_shared_mailboxes(ctx)
 }
 
 /**

@@ -19,7 +19,10 @@
 
 use std::sync::Arc;
 
-use engine_core::{ids::AddressBookId, sync::SyncUpdate};
+use engine_core::{
+    ids::{AddressBookId, SharedMailboxId},
+    sync::SyncUpdate,
+};
 use engine_provider::{ContactSourceSync, ContactsProvider, Provider};
 use provider_jmap::{Credentials, JmapConfig, JmapProvider};
 
@@ -47,6 +50,8 @@ pub(crate) type JmapTokens<'a> = Option<&'a Arc<GraphTokenSource>>;
 /// Sync-depth is applied per sync by the app's [`engine_api::StreamTuning`], so this
 /// construction path does not bake a date window into the provider.
 ///
+/// `shared` binds the provider to a mailbox shared with the account rather than its own.
+///
 /// # Errors
 ///
 /// Returns [`AccountError::Jmap`] if the connection or session discovery fails, or
@@ -55,8 +60,9 @@ pub(crate) type JmapTokens<'a> = Option<&'a Arc<GraphTokenSource>>;
 pub async fn connect_jmap_mail_providers(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
+    shared: Option<&SharedMailboxId>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    Ok(vec![connect_one(config, tokens, None).await?])
+    Ok(vec![connect_one(config, tokens, None, shared).await?])
 }
 
 /// Connects the JMAP contacts provider an account syncs its address books through.
@@ -78,7 +84,7 @@ pub async fn connect_jmap_contact_providers(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
 ) -> Result<Vec<Box<dyn ContactsProvider>>, AccountError> {
-    let discovery = connect_one(config, tokens, None).await?;
+    let discovery = connect_one(config, tokens, None, None).await?;
     if !discovery.connection_info().capabilities.contacts() {
         log::info!("jmap: session advertises no contacts support; skipping address books");
         return Ok(Vec::new());
@@ -92,7 +98,7 @@ pub async fn connect_jmap_contact_providers(
     if book.is_none() {
         log::info!("jmap: no address book to write into; contacts will be read-only");
     }
-    Ok(vec![connect_one(config, tokens, book).await?])
+    Ok(vec![connect_one(config, tokens, book, None).await?])
 }
 
 /// The account's default **writable** address book, else the first writable one it lists, else
@@ -133,7 +139,8 @@ async fn default_address_book(provider: &dyn ContactsProvider) -> Option<Address
 /// provider syncs the account-wide email scope, so the specific folder is irrelevant
 /// : the reconnected provider covers it (a cheap delta after the boot sync). The JMAP
 /// parallel of [`connect_imap_mailbox`](crate::connect_imap_mailbox) /
-/// [`connect_graph_folder`](crate::connect_graph_folder).
+/// [`connect_graph_folder`](crate::connect_graph_folder). `shared` names the shared mailbox the
+/// folder belongs to.
 ///
 /// # Errors
 ///
@@ -143,11 +150,12 @@ async fn default_address_book(provider: &dyn ContactsProvider) -> Option<Address
 pub async fn connect_jmap_folder(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
+    shared: Option<&SharedMailboxId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     // Upcast: `ContactsProvider: Provider`, so the contacts-shaped box this connect returns
     // is a mail provider too. Explicit because a coercion site in tail position is not one
     // Rust infers.
-    Ok(connect_one(config, tokens, None).await?)
+    Ok(connect_one(config, tokens, None, shared).await?)
 }
 
 /// Connects the JMAP calendar provider a JMAP account syncs its agenda through:
@@ -166,7 +174,7 @@ pub async fn connect_jmap_calendar_provider(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
 ) -> Result<Box<dyn Provider>, AccountError> {
-    Ok(connect_one(config, tokens, None).await?)
+    Ok(connect_one(config, tokens, None, None).await?)
 }
 
 /// Connects a single JMAP provider from `config`, boxed behind the neutral
@@ -179,20 +187,23 @@ pub async fn connect_jmap_calendar_provider(
 ///
 /// `contact_book` binds the provider's contact **write** destination. Only the contacts
 /// connect passes one; the mail and calendar paths never write a card, and a destination they
-/// carried would be one more thing to keep in step for nothing.
+/// carried would be one more thing to keep in step for nothing. `shared` binds it to a mailbox
+/// shared with the account rather than the account's own.
 async fn connect_one(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
     contact_book: Option<AddressBookId>,
+    shared: Option<&SharedMailboxId>,
 ) -> Result<Box<dyn ContactsProvider>, AccountError> {
     let tls = tls_with(&[])?;
     let Some(tokens) = tokens.filter(|_| config.is_oauth()) else {
         let account = config
             .account_id()
             .map_err(|err| AccountError::Jmap(err.to_string()))?;
-        let provider = JmapProvider::connect(config.engine_config(tls, &account))
-            .await
-            .map_err(|err| AccountError::from_jmap_connect(&err))?;
+        let provider =
+            JmapProvider::connect(bind_shared(config.engine_config(tls, &account), shared))
+                .await
+                .map_err(|err| AccountError::from_jmap_connect(&err))?;
         return Ok(Box::new(bind_book(provider, contact_book)));
     };
 
@@ -209,22 +220,33 @@ async fn connect_one(
     .with_tls(tls.clone())
     .with_retry(tokens.retry())
     .with_connect_observer(connect_logger("jmap"));
-    let provider = JmapProvider::connect(engine_config)
+    let provider = JmapProvider::connect(bind_shared(engine_config, shared))
         .await
         .map_err(|err| AccountError::from_jmap_connect(&err))?;
     let capabilities = provider.connection_info().capabilities;
-    Ok(Box::new(RefreshingJmapProvider::new(
-        config.base_url.clone(),
-        Arc::clone(tokens),
-        tls,
-        access_token,
-        bind_book(provider, contact_book.clone()),
-        capabilities,
-        // The wrapper rebuilds its delegate on every token change, so it has to be told the
-        // book too: a rebuilt delegate that forgot it would silently stop advertising a write
-        // destination an hour into the session.
-        contact_book,
-    )))
+    Ok(Box::new(
+        RefreshingJmapProvider::new(
+            config.base_url.clone(),
+            Arc::clone(tokens),
+            tls,
+            access_token,
+            bind_book(provider, contact_book.clone()),
+            capabilities,
+            // The wrapper rebuilds its delegate on every token change, so it has to be told the
+            // book too: a rebuilt delegate that forgot it would silently stop advertising a write
+            // destination an hour into the session.
+            contact_book,
+        )
+        .with_shared_mailbox(shared.cloned()),
+    ))
+}
+
+/// `config` bound to the mailbox `shared` names, or to the account's own when it is `None`.
+pub(super) fn bind_shared(config: JmapConfig, shared: Option<&SharedMailboxId>) -> JmapConfig {
+    match shared {
+        Some(handle) => config.with_shared_mailbox(handle.clone()),
+        None => config,
+    }
 }
 
 fn bind_book(provider: JmapProvider, book: Option<AddressBookId>) -> JmapProvider {

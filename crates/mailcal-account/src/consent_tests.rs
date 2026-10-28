@@ -119,3 +119,40 @@ fn a_use_nobody_chose_is_never_withheld() {
     let granted = vec!["https://mail.google.com/".to_owned()];
     assert!(withheld(&GOOGLE, &set(&[Capability::Mail]), Some(&granted)).is_empty());
 }
+
+#[test]
+fn shared_mailboxes_ask_for_the_shared_mail_scopes_beside_mail_and_only_at_microsoft() {
+    let shared = "https://graph.microsoft.com/Mail.ReadWrite.Shared";
+    let send = "https://graph.microsoft.com/Mail.Send.Shared";
+    let with_mail = requested_scopes(
+        &MICROSOFT,
+        &set(&[Capability::Mail, Capability::SharedMailboxes]),
+    );
+    assert!(as_set(&with_mail).contains(shared) && as_set(&with_mail).contains(send));
+    let mail_alone = requested_scopes(&MICROSOFT, &set(&[Capability::Mail]));
+    assert!(!as_set(&mail_alone).contains(shared));
+    let without_mail = requested_scopes(
+        &MICROSOFT,
+        &set(&[Capability::Calendar, Capability::SharedMailboxes]),
+    );
+    assert!(!as_set(&without_mail).contains(shared));
+    assert_eq!(
+        requested_scopes(
+            &GOOGLE,
+            &set(&[Capability::Mail, Capability::SharedMailboxes])
+        ),
+        requested_scopes(&GOOGLE, &set(&[Capability::Mail]))
+    );
+}
+
+#[test]
+fn a_grant_without_the_shared_mail_scope_withholds_shared_mailboxes_alone() {
+    let chosen = set(&[Capability::Mail, Capability::SharedMailboxes]);
+    let granted: Vec<String> = ["Mail.ReadWrite", "Mail.Send", "User.Read"]
+        .map(str::to_owned)
+        .to_vec();
+    assert_eq!(
+        withheld(&MICROSOFT, &chosen, Some(&granted)),
+        set(&[Capability::SharedMailboxes])
+    );
+}

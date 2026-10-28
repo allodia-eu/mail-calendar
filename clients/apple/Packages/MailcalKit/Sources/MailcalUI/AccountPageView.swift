@@ -204,7 +204,9 @@ struct AccountUsesSection: View {
             description: L10n.settings_account_uses_description()
         ) {
             VStack(alignment: .leading, spacing: 10) {
-                ForEach(entry.uses, id: \.capability) { use in
+                // No switch for shared mailboxes: this client has no section to choose one
+                // (docs/shared-mailboxes.md §3).
+                ForEach(entry.uses.filter { $0.capability != .sharedMailboxes }, id: \.capability) { use in
                     row(use.capability)
                 }
             }

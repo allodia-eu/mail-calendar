@@ -159,7 +159,7 @@ async fn live_the_folder_pass_is_not_throttled_on_a_large_mailbox() {
         .expect("token source");
 
     // Exactly what the app connects at startup: one provider per listed folder.
-    let providers = connect_graph_mail_providers(&account, Arc::clone(&tokens), None)
+    let providers = connect_graph_mail_providers(&account, Arc::clone(&tokens), None, None)
         .await
         .expect("connect the account's mail providers");
     assert!(

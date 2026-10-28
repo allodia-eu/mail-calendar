@@ -424,6 +424,16 @@ jobs:
           cargo test -p mailcal-account --test live_imap_auth -- --nocapture
           cargo test -p mailcal-bindings --test live_imap_oauth -- --nocapture
 
+      # Shared mailboxes over JMAP and IMAP: alice's sign-in lists the `support` group mailbox,
+      # and choosing it syncs the group's mail, sends as its address and files the copy in its
+      # own Sent.
+      - name: Run the gated shared-mailbox live test
+        env:
+          STALWART_HTTP_ADDR: 127.0.0.1:28080
+          MAILCAL_EXTRA_CA: ${{ github.workspace }}/docker/stalwart/tls/harness-ca.pem
+          MAILCAL_HARNESS_IMAP: localhost:12993
+        run: cargo test -p mailcal-bindings --test live_shared_mailboxes -- --nocapture
+
       - name: Dump Stalwart logs on failure
         if: failure()
         working-directory: docker/stalwart

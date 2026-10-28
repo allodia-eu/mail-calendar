@@ -67,6 +67,8 @@ pub(crate) enum AccountsInput {
     },
     /// Allowing it failed, asked from outside Settings: the account's page says so.
     ServerChangeFailed(String),
+    /// The shared mailboxes on an account's page (`super::account_shared`).
+    Shared(super::account_shared::SharedInput),
 }
 
 /// An account's edited servers and sign-in, on their way to the core.
@@ -120,7 +122,7 @@ fn use_changed(
 }
 
 /// A change the account's page could not make, and why.
-fn change_failed(detail: String) -> Notice {
+pub(super) fn change_failed(detail: String) -> Notice {
     Notice::Error {
         title: l10n::settings_account_change_failed_title().to_owned(),
         detail,
@@ -160,7 +162,8 @@ impl AppModel {
         match input {
             AccountsInput::Show(account) => {
                 if let Some(account) = &account {
-                    self.ask_sign_in_options(account, sender);
+                    self.ask_sign_in_options(account, sender.clone());
+                    self.ask_shared_mailboxes(account, sender);
                 }
                 self.settings.account = account;
                 self.settings.refresh_in_place();
@@ -202,6 +205,7 @@ impl AppModel {
                 self.settings
                     .open_on_account(account, super::server_change::failed());
             }
+            AccountsInput::Shared(input) => self.shared_input(input, sender),
         }
     }
 

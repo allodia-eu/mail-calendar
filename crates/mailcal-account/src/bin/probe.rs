@@ -51,7 +51,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The probe syncs the whole mailbox (no sync-depth window) for the de-risk run.
     let connections = mailcal_account::ImapConnections::new();
     let providers =
-        mailcal_account::connect_mail_providers(&connections, &config, None, &account).await?;
+        mailcal_account::connect_mail_providers(&connections, &config, None, &account, None)
+            .await?;
 
     eprintln!("Syncing {} folder(s)…", providers.len());
     // One pass over the whole account: the engine syncs the folder list once and fans the

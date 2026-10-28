@@ -1,6 +1,6 @@
 # Privacy Policy: Allodia Mail & Calendar
 
-**Version 2.6 · Effective: 2026-10-01**
+**Version 2.7 · Effective: 2026-10-28**
 
 Allodia Mail & Calendar is a mail and calendar app that runs on your device and connects to the
 mail provider **you** choose. This policy explains, in plain language, what that means for your
@@ -102,6 +102,15 @@ suggesting an address, and adding or editing one), plus the small picture shown 
 sender, which it downloads from your provider and keeps on your device. Nothing is uploaded to
 Allodia, and if you decline, the rest of the account still works; you simply see no contacts and
 no pictures.
+
+**Mailboxes shared with you.** If someone has given you access to their mailbox, such as a team's,
+you can add it to the app in Settings → Accounts. The app opens it with the sign-in of the account
+it was shared with, from the same provider, and keeps its mail on your device exactly as it keeps
+your own. When you sign in with **Microsoft**, the app asks for access to mailboxes shared with you
+only while that option is ticked, and you see it on the consent screen; because Microsoft does not
+list them, you type the address of the one you want, and the app sends that address to Microsoft
+alone, to check that you can open it. Nothing about a shared mailbox is sent to Allodia, not even
+with an Allodia account, and switching one off removes its mail from your device.
 
 **The name you send under.** If you set a sender name for an account in Settings, the app stores
 it on your device and, where your provider lets it, also saves it to that account's own settings,

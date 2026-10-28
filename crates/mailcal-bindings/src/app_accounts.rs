@@ -340,6 +340,10 @@ impl MailcalApp {
         // removal the person has already made is not undone by a service that did not answer.
         #[cfg(feature = "allodia-license")]
         self.forget_allodia_record(&id);
+        // Its shared mailboxes go with it: they are opened by its sign-in.
+        for (child, _) in self.registry.shared_mailboxes(&id) {
+            self.drop_shared_mailbox(&child);
+        }
         self.registry.remove(&id);
         self.clear_links_to(&id);
         self.refresh_analytics_accounts();

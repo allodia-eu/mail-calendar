@@ -181,6 +181,10 @@ impl AccountConfig {
                 uses.contains(capability) && host(self, capability) != host(&edited, capability)
             })
             .collect();
+        // A shared mailbox's handle names a store on the mail server it was found on.
+        if host(self, Capability::Mail) != host(&edited, Capability::Mail) {
+            edited.shape.shared_mailboxes.clear();
+        }
         Ok(EditedAccount {
             config: edited,
             moved,

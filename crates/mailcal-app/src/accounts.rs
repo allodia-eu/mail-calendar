@@ -381,6 +381,10 @@ mod domains;
 #[path = "calendar_users.rs"]
 mod calendar_users;
 
+#[path = "shared_mailboxes.rs"]
+mod shared_mailboxes;
+pub use shared_mailboxes::{SharedMailboxLookup, SharedMailboxOffer};
+
 #[cfg(test)]
 #[path = "tests_mail_surfaces.rs"]
 mod mail_surfaces_tests;

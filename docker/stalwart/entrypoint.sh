@@ -99,6 +99,10 @@ apply <<'EOF'
 {"@type":"update","object":"Http","value":{"rateLimitAnonymous":null}}
 EOF
 
+# The shared-mailbox fixture's first half: `support`, a group mailbox with no sign-in of its own,
+# with alice as a member, so her session lists it beside her own (RFC 8620 §1.6.2) and her IMAP
+# login reaches it under `Shared Folders` (RFC 2342). seed.sh holds the second half.
+#
 # bob and dave, and STARTTLS listeners for IMAP (143) and SMTP submission (587). Stalwart supports
 # both but recommends implicit TLS (993/465), so a fresh bootstrap has neither; they are here to
 # exercise the engine's STARTTLS transports, which real, older servers require.
@@ -107,6 +111,8 @@ if [ "${HARNESS_SEED:-1}" != 0 ]; then
 {"@type":"upsert","object":"Domain","matchOn":["name"],"value":{"domain":{"name":"test.local"}}}
 {"@type":"upsert","object":"Account","matchOn":["name"],"value":{"bob":{"@type":"User","name":"bob","domainId":"#domain","description":"Bob Tester","credentials":{"0":{"@type":"Password","secret":"harness-bob-pw"}},"roles":{"@type":"User"}}}}
 {"@type":"upsert","object":"Account","matchOn":["name"],"value":{"dave":{"@type":"User","name":"dave","domainId":"#domain","description":"Dave Tester","credentials":{"0":{"@type":"Password","secret":"harness-dave-pw"}},"roles":{"@type":"User"}}}}
+{"@type":"upsert","object":"Account","matchOn":["name"],"value":{"support":{"@type":"Group","name":"support","domainId":"#domain","description":"Support Team"}}}
+{"@type":"upsert","object":"Account","matchOn":["name"],"value":{"alice":{"@type":"User","name":"alice","domainId":"#domain","description":"Alice Tester","credentials":{"0":{"@type":"Password","secret":"harness-alice-pw"}},"roles":{"@type":"User"},"memberGroupIds":{"#support":true}}}}
 {"@type":"upsert","object":"NetworkListener","matchOn":["name"],"value":{"imap":{"name":"imap","bind":{"[::]:143":true},"protocol":"imap","useTls":true,"tlsImplicit":false},"submission":{"name":"submission","bind":{"[::]:587":true},"protocol":"smtp","useTls":true,"tlsImplicit":false}}}
 EOF
 fi

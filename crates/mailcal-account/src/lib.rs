@@ -48,6 +48,7 @@ mod repeat_summary;
 mod series_warning;
 mod setup;
 mod setup_choices;
+mod shared_mailbox;
 mod signatures;
 mod stream_redial;
 mod throttle;
@@ -126,6 +127,7 @@ pub use setup::{
     AccountSetup, SetupCredential, build_config_toml, imap_default_port, smtp_default_port,
 };
 pub use setup_choices::{SetupChoice, google_choices, microsoft_choices, standards_choices};
+pub use shared_mailbox::SharedMailboxChoice;
 pub use signatures::{
     AccountSignatureAssignment, SignatureId, SignatureSlot, Signatures, StoredSignature,
     load_signatures, save_signatures, signatures_path,

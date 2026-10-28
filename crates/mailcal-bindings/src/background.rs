@@ -246,7 +246,7 @@ async fn watch_loop(
         // Don't even attempt a connect while the device is offline; park until it returns,
         // so an overnight outage doesn't retry every few seconds against a dead resolver.
         await_online(&mut online).await;
-        let Some((config, connections, tokens)) = registry.imap(&account_id) else {
+        let Some(((config, connections, tokens), shared)) = registry.imap_store(&account_id) else {
             // The account's config is gone (removed), or it's a Microsoft account (Graph
             // has no IMAP IDLE; it polls), nothing to watch here.
             return;
@@ -256,6 +256,7 @@ async fn watch_loop(
             &config,
             tokens.as_ref(),
             &folder_key,
+            shared.as_ref(),
         )
         .await
         {

@@ -105,7 +105,7 @@ fn a_calendar_and_contacts_route_offers_no_mail() {
 /// A personal address has no organisation directory, so colleagues are not offered before a
 /// sign-in that could never grant them (`docs/accounts.md` rule 3).
 #[test]
-fn a_personal_address_is_offered_no_colleagues() {
+fn a_personal_address_is_offered_no_colleagues_and_no_shared_mailboxes() {
     let three = [
         choice(Capability::Mail, true, true),
         choice(Capability::Calendar, true, true),
@@ -135,7 +135,7 @@ fn a_personal_address_is_offered_no_colleagues() {
         let organisation = SetupRecommendation::Microsoft {
             email: email.to_owned(),
         };
-        assert_eq!(organisation.choices().len(), 4, "{email}");
+        assert_eq!(organisation.choices().len(), 5, "{email}");
     }
 }
 
@@ -143,20 +143,22 @@ fn a_personal_address_is_offered_no_colleagues() {
 fn a_provider_sign_in_offers_everything_switched_on() {
     let everything = [
         choice(Capability::Mail, true, true),
+        choice(Capability::SharedMailboxes, true, true),
         choice(Capability::Calendar, true, true),
         choice(Capability::Contacts, true, true),
         choice(Capability::Colleagues, true, true),
     ];
-    for route in [
-        SetupRecommendation::Microsoft {
-            email: EMAIL.to_owned(),
-        },
-        SetupRecommendation::Google {
-            email: EMAIL.to_owned(),
-        },
-    ] {
-        assert_eq!(route.choices(), everything);
-    }
+    let microsoft = SetupRecommendation::Microsoft {
+        email: EMAIL.to_owned(),
+    };
+    assert_eq!(microsoft.choices(), everything);
+    // A Gmail sign-in cannot open another mailbox.
+    let google = SetupRecommendation::Google {
+        email: EMAIL.to_owned(),
+    };
+    let mut without_shared = everything.to_vec();
+    without_shared.remove(1);
+    assert_eq!(google.choices(), without_shared);
 }
 
 /// A JMAP account's session says what it offers, and nothing is known of it before sign-in.

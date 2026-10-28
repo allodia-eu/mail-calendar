@@ -27,6 +27,9 @@ ALICE_PW="${HARNESS_ALICE_PW:-harness-alice-pw}"
 # claim of the feature and cannot be shown with one account (entrypoint.sh provisions both).
 BOB="bob@test.local"
 BOB_PW="${HARNESS_BOB_PW:-harness-bob-pw}"
+# The support group mailbox as alice reaches it, under the `Shared Folders` namespace. The space is
+# percent-encoded because the path rides a curl URL.
+SUPPORT_SHARED="Shared%20Folders/support@test.local"
 
 IMAPS="imaps://127.0.0.1:993"
 HTTP="http://127.0.0.1:8080"
@@ -39,6 +42,9 @@ log() { printf '[seed] %s\n' "$1"; }
 
 # curl over implicit-TLS IMAP, accepting the self-signed test cert.
 imap() { curl -sk --user "$ALICE:$ALICE_PW" "$@"; }
+# The same, signed in as bob or dave: only a folder's owner can grant access to it.
+imap_bob() { curl -sk --user "$BOB:$BOB_PW" --url "$@"; }
+imap_dave() { curl -sk --user "dave@test.local:${HARNESS_DAVE_PW:-harness-dave-pw}" --url "$@"; }
 
 imap_append() { # file  mailbox
   # curl's IMAP APPEND needs the literal size upfront, so it cannot stream from
@@ -246,6 +252,23 @@ imap_append "$MAIL_DIR/12-banded-newsletter.eml" INBOX
 log "appending the dark-mode fixtures to INBOX (reading-view colour scheme; sequence-safe)"
 imap_append "$MAIL_DIR/14-dark-mode-colours.eml" INBOX
 imap_append "$MAIL_DIR/15-sender-dark-mode.eml" INBOX
+
+# The shared-mailbox fixture's second half (entrypoint.sh creates the group). Two stores alice
+# can open besides her own, differing on purpose in their rights: as a member of `support` she
+# holds every right on its folders, while bob grants her only lookup and read on his INBOX.
+# Stalwart reports both as writable accounts, so only the per-folder rights tell them apart.
+log "granting alice read-only (lr) access to bob's INBOX"
+imap_bob "$IMAPS/INBOX" --request "SETACL \"INBOX\" \"$ALICE\" lr" >/dev/null
+
+# A third shape: dave shares one folder of his and not his Inbox, so the store alice reaches has
+# no Inbox at all.
+log "sharing dave's Board folder with alice (lr), and nothing else of his"
+imap_dave "$IMAPS/" --request "CREATE Board" >/dev/null 2>&1 || true
+imap_dave "$IMAPS/Board" --request "SETACL \"Board\" \"$ALICE\" lr" >/dev/null
+
+log "seeding the support group mailbox"
+imap_clear "$SUPPORT_SHARED/INBOX"
+imap_append "$MAIL_DIR/16-shared-support.eml" "$SUPPORT_SHARED/INBOX"
 
 log "putting calendar fixtures into the default calendar"
 put_calendar "$CAL_DIR/one-off.ics" oneoff-2001

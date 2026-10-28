@@ -36,6 +36,7 @@ use mailcal_account::{
     JmapAccountConfig,
 };
 
+use super::shared::SharedDial;
 use crate::{BoxedAccount, ConnectedAccount};
 
 /// The most accounts dialed at once, shared by every path that dials more than one.
@@ -217,6 +218,9 @@ pub(crate) enum AccountDial {
         tokens: Option<Arc<GraphTokenSource>>,
         /// What the account is used for; a capability it is not used for is never opened.
         capabilities: Capabilities,
+        /// The shared mailbox this dial opens with the account's sign-in, `None` for the
+        /// account's own.
+        shared: Option<SharedDial>,
     },
     /// A Microsoft account: bind its Graph folder providers through the shared token source.
     Microsoft {
@@ -230,6 +234,9 @@ pub(crate) enum AccountDial {
         withheld: Capabilities,
         /// Whether the account was stored before its affiliation was recorded, so the dial asks.
         affiliation_unknown: bool,
+        /// The shared mailbox this dial opens with the account's sign-in, `None` for the
+        /// account's own.
+        shared: Option<SharedDial>,
     },
     /// A Google account: bind its account-global Gmail provider (+ calendar) through the shared
     /// token source.
@@ -255,6 +262,9 @@ pub(crate) enum AccountDial {
         capabilities: Capabilities,
         /// Where the dial records what the session offers.
         session: crate::jmap_session::JmapSession,
+        /// The shared mailbox this dial opens with the account's sign-in, `None` for the
+        /// account's own.
+        shared: Option<SharedDial>,
     },
 }
 
@@ -272,6 +282,7 @@ impl AccountDial {
                 connections: Arc::clone(connections),
                 tokens: tokens.clone(),
                 capabilities: config.capabilities(),
+                shared: None,
             },
             ConnectedAccount::Microsoft { config, tokens } => Self::Microsoft {
                 tokens: Arc::clone(tokens),
@@ -279,6 +290,7 @@ impl AccountDial {
                 capabilities: entry.opened_capabilities(),
                 withheld: config.withheld_capabilities(),
                 affiliation_unknown: config.affiliation.is_none(),
+                shared: None,
             },
             ConnectedAccount::Google { config, tokens } => Self::Google {
                 tokens: Arc::clone(tokens),
@@ -295,6 +307,7 @@ impl AccountDial {
                 tokens: tokens.clone(),
                 capabilities: config.capabilities(),
                 session: session.clone(),
+                shared: None,
             },
         }
     }
@@ -325,6 +338,14 @@ impl AccountDial {
     /// so carrying the address here is fine: the logs use `account[{index}]`.
     pub(crate) fn label(&self) -> String {
         match self {
+            Self::Imap {
+                shared: Some(shared),
+                ..
+            }
+            | Self::Jmap {
+                shared: Some(shared),
+                ..
+            } => shared.identity.email.clone(),
             Self::Imap { config, .. } => config.username().to_owned(),
             Self::Microsoft { identity, .. } | Self::Google { identity, .. } => {
                 identity.email.clone()
@@ -345,6 +366,7 @@ impl AccountDial {
         if !self.capabilities().contains(Capability::Mail) {
             return None;
         }
+        let shared = self.shared_handle().cloned();
         match self {
             Self::Imap {
                 config,
@@ -356,12 +378,14 @@ impl AccountDial {
                 &config,
                 tokens.as_ref(),
                 mailbox_key,
+                shared.as_ref(),
             )
             .await
             .ok(),
             // Graph binds the folder unwindowed; the app passes the depth per sync.
             Self::Microsoft { tokens, .. } => {
-                mailcal_account::connect_graph_folder(tokens, mailbox_key, None).ok()
+                mailcal_account::connect_graph_folder(tokens, mailbox_key, None, shared.as_ref())
+                    .ok()
             }
             // Gmail's provider is account-wide (one scope covers every label), so (like JMAP) the
             // reconnected provider serves any `mailbox_key`; there is no per-folder binding.
@@ -370,7 +394,7 @@ impl AccountDial {
             }
             // JMAP's provider is account-wide for the same reason.
             Self::Jmap { config, tokens, .. } => {
-                mailcal_account::connect_jmap_folder(&config, tokens.as_ref())
+                mailcal_account::connect_jmap_folder(&config, tokens.as_ref(), shared.as_ref())
                     .await
                     .ok()
             }

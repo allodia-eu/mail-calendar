@@ -25,14 +25,15 @@ pub(crate) enum UseChange {
 
 impl AccountRegistry {
     /// Switches `capability` on or off for `id`. Switching contacts off switches colleagues off
-    /// with it, since they are only read beside contacts.
+    /// with it, since they are only read beside contacts, and switching mail off switches shared
+    /// mailboxes off with it.
     ///
     /// # Errors
     ///
     /// Returns [`MailcalError::Config`] for an unknown account, a use its kind or its server
-    /// cannot offer, colleagues without contacts, or a change that would leave it used for none of
-    /// mail, calendar and contacts that its server offers: such an account is removed, never
-    /// emptied.
+    /// cannot offer, colleagues without contacts, shared mailboxes without mail, or a change that
+    /// would leave it used for none of mail, calendar and contacts that its server offers: such
+    /// an account is removed, never emptied.
     pub(crate) fn set_use(
         &self,
         id: &str,
@@ -57,10 +58,7 @@ impl AccountRegistry {
         }
         let next: Capabilities = chosen
             .iter()
-            .filter(|&kept| {
-                on || (kept != capability
-                    && !(capability == Capability::Contacts && kept == Capability::Colleagues))
-            })
+            .filter(|&kept| on || (kept != capability && !depends_on(kept, capability)))
             .chain(on.then_some(capability))
             .collect();
         if [Capability::Mail, Capability::Calendar, Capability::Contacts]
@@ -71,6 +69,9 @@ impl AccountRegistry {
         }
         if capability == Capability::Colleagues && on && !next.contains(Capability::Contacts) {
             return refused("colleagues are only read beside contacts");
+        }
+        if capability == Capability::SharedMailboxes && on && !next.contains(Capability::Mail) {
+            return refused("shared mailboxes are only opened beside mail");
         }
         if on {
             match opens(entry, &next, capability) {
@@ -123,6 +124,15 @@ impl AccountRegistry {
     }
 }
 
+/// Whether `sub` is a choice within `capability`, which goes with it.
+fn depends_on(sub: Capability, capability: Capability) -> bool {
+    matches!(
+        (sub, capability),
+        (Capability::Colleagues, Capability::Contacts)
+            | (Capability::SharedMailboxes, Capability::Mail)
+    )
+}
+
 /// Whether switching `capability` on, making the choice `next`, can open it.
 enum Opens {
     Yes,
@@ -156,13 +166,19 @@ fn opens(entry: &ConnectedAccount, next: &Capabilities, capability: Capability) 
             next,
             config.granted_scopes.as_deref(),
         )),
-        _ if capability == Capability::Colleagues => Opens::NotOffered,
+        _ if matches!(
+            capability,
+            Capability::Colleagues | Capability::SharedMailboxes
+        ) =>
+        {
+            Opens::NotOffered
+        }
         ConnectedAccount::Imap { config, .. } => {
             let has_server = match capability {
                 Capability::Mail => config.imap.is_some(),
                 Capability::Calendar => config.caldav.is_some(),
                 Capability::Contacts => config.carddav.is_some() || config.caldav.is_some(),
-                Capability::Colleagues => false,
+                Capability::Colleagues | Capability::SharedMailboxes => false,
             };
             if has_server {
                 Opens::Yes

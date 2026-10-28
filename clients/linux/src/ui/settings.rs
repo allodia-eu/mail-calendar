@@ -40,6 +40,7 @@ pub(super) mod notice;
 mod pages;
 pub(super) mod redraw;
 pub(super) mod sender_name;
+mod shared_mailboxes;
 mod signature_editor;
 pub(super) mod signatures;
 mod state;
@@ -83,6 +84,7 @@ pub(super) struct RenderState<'a> {
     /// The account whose page Accounts shows, and what the last change on it came to.
     pub(super) account: Option<&'a str>,
     pub(super) sign_in: &'a super::account_sign_in::SignInSwitchState,
+    pub(super) shared: &'a super::account_shared::SharedState,
     /// The form for a sign-in of its own an account's page opened.
     pub(super) separate: Option<&'a super::separate_sign_in::SeparateForm>,
     pub(super) notice: Option<&'a notice::Raised>,
@@ -143,6 +145,8 @@ struct PageContext {
     account: Option<String>,
     /// What that page's Sign-in section knows: what the server accepts, and a change running.
     sign_in: super::account_sign_in::SignInSwitchState,
+    /// What each account's server said of its shared mailboxes.
+    shared: super::account_shared::SharedState,
 }
 
 #[derive(Debug, Default)]
@@ -269,6 +273,7 @@ impl SettingsWindow {
             allodia_accounts_synced: state.allodia_accounts_synced.clone(),
             account: state.account.map(str::to_owned),
             sign_in: state.sign_in.clone(),
+            shared: state.shared.clone(),
         };
         // Read before the pages read theirs: a change landing in between then reads as one the
         // window has not drawn, and the next signal draws it.

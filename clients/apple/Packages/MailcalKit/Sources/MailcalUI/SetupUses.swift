@@ -45,7 +45,7 @@ struct UseOffer: Equatable {
         switch capability {
         case .calendar: caldavURL
         case .contacts: carddavURL.isEmpty ? caldavURL : carddavURL
-        case .mail, .colleagues: ""
+        case .mail, .colleagues, .sharedMailboxes: ""
         }
     }
 }
@@ -93,6 +93,8 @@ struct UseChoices: Equatable {
         case .calendar: calendar?.on ?? false
         case .contacts: contacts?.on ?? false
         case .colleagues: colleagues ?? false
+        // Not offered: this client has no section to choose one (docs/shared-mailboxes.md §3).
+        case .sharedMailboxes: false
         }
     }
 
@@ -114,6 +116,7 @@ struct UseChoices: Equatable {
             contacts?.on = on
             if !on, colleagues != nil { colleagues = false }
         case .colleagues: colleagues = on
+        case .sharedMailboxes: break
         }
     }
 
@@ -121,7 +124,7 @@ struct UseChoices: Equatable {
         switch capability {
         case .calendar: calendar?.typed = text
         case .contacts: contacts?.typed = text
-        case .mail, .colleagues: break
+        case .mail, .colleagues, .sharedMailboxes: break
         }
     }
 
@@ -129,7 +132,7 @@ struct UseChoices: Equatable {
         switch capability {
         case .calendar: calendar?.typed ?? ""
         case .contacts: contacts?.typed ?? ""
-        case .mail, .colleagues: ""
+        case .mail, .colleagues, .sharedMailboxes: ""
         }
     }
 

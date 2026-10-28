@@ -259,7 +259,8 @@ pub(super) fn the_manual_mail_form_takes_an_address_book(window: &adw::Applicati
 }
 
 /// A Microsoft sign-in asks only for what the card chose: colleagues beneath contacts and gone
-/// with them, and the choice carried into the sign-in (`docs/accounts.md` rule 10).
+/// with them, shared mailboxes beneath mail, and the choice carried into the sign-in
+/// (`docs/accounts.md` rule 10).
 pub(super) fn a_provider_card_asks_only_for_what_is_chosen(window: &adw::ApplicationWindow) {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let mut state = SetupState::closed();
@@ -281,7 +282,9 @@ pub(super) fn a_provider_card_asks_only_for_what_is_chosen(window: &adw::Applica
     let calendar = toggle(l10n::setup_detect_calendar_enable());
     let contacts = toggle(l10n::setup_detect_contacts_enable());
     let colleagues = toggle(l10n::setup_detect_colleagues_enable());
-    assert!(toggle(l10n::setup_detect_mail_enable()).is_active());
+    let mail = toggle(l10n::setup_detect_mail_enable());
+    let shared = toggle(l10n::setup_detect_shared_mailboxes_enable());
+    assert!(mail.is_active() && shared.is_active() && shared.is_sensitive());
     assert!(calendar.is_active() && contacts.is_active() && colleagues.is_active());
     assert!(visible_entries(&child).is_empty(), "nothing to type");
 
@@ -293,5 +296,15 @@ pub(super) fn a_provider_card_asks_only_for_what_is_chosen(window: &adw::Applica
         panic!("the sign-in starts");
     };
     assert_eq!(email, "alice@contoso.example");
-    assert_eq!(uses, Some(vec![AccountCapability::Mail]));
+    assert_eq!(
+        uses,
+        Some(vec![
+            AccountCapability::Mail,
+            AccountCapability::SharedMailboxes
+        ])
+    );
+    // Mail can now be switched off, the last use standing being contacts again.
+    contacts.set_active(true);
+    mail.set_active(false);
+    assert!(!shared.is_active() && !shared.is_sensitive());
 }

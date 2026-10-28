@@ -221,6 +221,7 @@ enum AccountSettingsLabels {
         case .calendar: L10n.nav_calendar()
         case .contacts: L10n.nav_contacts()
         case .colleagues: L10n.account_use_colleagues()
+        case .sharedMailboxes: L10n.account_use_shared_mailboxes()
         }
     }
 

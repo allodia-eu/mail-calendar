@@ -15,14 +15,14 @@ use std::sync::{Arc, Mutex};
 
 use engine_core::{
     error::FailureClass,
-    ids::{AccountId, MailboxId},
+    ids::{AccountId, MailboxId, SharedMailboxId},
     mail::Mailbox,
     sync::SyncUpdate,
     time::CalendarDate,
 };
 use engine_provider::{
     Capabilities, IdentityControls, Provider, ProviderError, ProviderResult, ReportControls,
-    ReportEvidence, ReportVerdicts,
+    ReportEvidence, ReportVerdicts, SharedMailboxes,
 };
 use engine_tls::TlsClientConfig;
 use provider_graph::{GraphClient, GraphProvider, MailboxPrincipal};
@@ -50,6 +50,8 @@ use crate::{AccountError, log_handle::account_log_handle, pass_syncs, tls::tls_w
 #[derive(Debug)]
 pub(crate) struct RefreshingGraphProvider {
     folder: MailboxId,
+    /// Whose mailbox the folder is in: the signed-in person's own, or one shared with them.
+    principal: MailboxPrincipal,
     tokens: Arc<GraphTokenSource>,
     capabilities: Capabilities,
     /// The sync-depth cutoff, applied to the built delegate so the initial snapshot is
@@ -65,17 +67,19 @@ pub(crate) struct RefreshingGraphProvider {
 }
 
 impl RefreshingGraphProvider {
-    /// Binds a refreshing provider to `folder` (windowed to `since`), sharing `tokens`
-    /// with the account's other folders.
+    /// Binds a refreshing provider to `folder` of `principal`'s mailbox (windowed to `since`),
+    /// sharing `tokens` with the account's other folders.
     #[must_use]
     pub(crate) fn new(
         folder: MailboxId,
+        principal: MailboxPrincipal,
         tokens: Arc<GraphTokenSource>,
         since: Option<Date>,
         tls: TlsClientConfig,
     ) -> Self {
         Self {
             folder,
+            principal,
             tokens,
             capabilities: Capabilities::none()
                 .with_mail()
@@ -100,7 +104,10 @@ impl RefreshingGraphProvider {
                 // Forwarded below, and **read-only**: a Graph mailbox's display name is a
                 // directory attribute a tenant administrator owns, so claiming `Writable`
                 // here would put an editor in front of an edit that cannot land.
-                .with_sender_identities(IdentityControls::ReadOnly),
+                .with_sender_identities(IdentityControls::ReadOnly)
+                // Forwarded by this wrapper's `Provider`: a fact about the sign-in, whichever
+                // mailbox this provider is bound to.
+                .with_shared_mailboxes(SharedMailboxes::ByAddress),
             since,
             tls,
             cached: Mutex::new(None),
@@ -125,7 +132,7 @@ impl RefreshingGraphProvider {
         }
         let client = GraphClient::for_mailbox(
             token.clone(),
-            MailboxPrincipal::Me,
+            self.principal.clone(),
             &self.tls,
             &self.tokens.retry(),
             &crate::user_agent(),
@@ -178,24 +185,29 @@ fn calendar_date(date: Date) -> Option<CalendarDate> {
 /// shared-token `RefreshingGraphProvider` to each folder's id: the Graph parallel of
 /// [`connect_mail_providers`](crate::connect_mail_providers), and bound in full for the same
 /// reason, since an account pass syncs what is bound and nothing else. The `tokens` source
-/// carries the account's credentials and id.
+/// carries the account's credentials and id. With `shared`, the folders are those of the mailbox
+/// shared with the account that it names.
 ///
 /// # Errors
 ///
-/// Returns [`AccountError`] if the initial token refresh or the folder-list sync fails.
+/// Returns [`AccountError`] if the initial token refresh or the folder-list sync fails, or
+/// `shared` is no handle this adapter produces.
 pub async fn connect_graph_mail_providers(
     account_id: &AccountId,
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
+    shared: Option<&SharedMailboxId>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
     let tls = tls_with(&[])?;
-    let folders = list_folders(&tokens, account_id, &tls).await?;
+    let principal = principal(shared)?;
+    let folders = list_folders(&tokens, account_id, &tls, &principal).await?;
     let providers = folders
         .into_iter()
         .filter(pass_syncs)
         .map(|mailbox| {
             Box::new(RefreshingGraphProvider::new(
                 mailbox.id,
+                principal.clone(),
                 Arc::clone(&tokens),
                 since,
                 tls.clone(),
@@ -208,22 +220,36 @@ pub async fn connect_graph_mail_providers(
 /// Builds a Graph provider bound to one folder of a Microsoft account (one listed after the
 /// account connected, or opened before any pass synced it), sharing the account's `tokens`. Sync;
 /// the token is fetched lazily on the first call. The Graph parallel of
-/// [`connect_imap_mailbox`](crate::connect_imap_mailbox).
+/// [`connect_imap_mailbox`](crate::connect_imap_mailbox). `shared` names the shared mailbox the
+/// folder belongs to.
 ///
 /// # Errors
 ///
-/// Returns [`AccountError::Mailbox`] if `mailbox_key` is not a valid folder id.
+/// Returns [`AccountError::Mailbox`] if `mailbox_key` is not a valid folder id, and
+/// [`AccountError::Graph`] if `shared` is no handle this adapter produces.
 pub fn connect_graph_folder(
     tokens: Arc<GraphTokenSource>,
     mailbox_key: &str,
     since: Option<Date>,
+    shared: Option<&SharedMailboxId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let folder =
         MailboxId::try_from(mailbox_key).map_err(|err| AccountError::Mailbox(err.to_string()))?;
     let tls = tls_with(&[])?;
     Ok(Box::new(RefreshingGraphProvider::new(
-        folder, tokens, since, tls,
+        folder,
+        principal(shared)?,
+        tokens,
+        since,
+        tls,
     )))
+}
+
+/// The signed-in person's own mailbox, or the shared one `shared` names.
+fn principal(shared: Option<&SharedMailboxId>) -> Result<MailboxPrincipal, AccountError> {
+    shared.map_or(Ok(MailboxPrincipal::Me), |handle| {
+        MailboxPrincipal::shared(handle).map_err(|err| AccountError::Graph(err.to_string()))
+    })
 }
 
 /// Enumerates the account's mail folders (a full snapshot), using a one-off client with a
@@ -233,11 +259,12 @@ async fn list_folders(
     tokens: &Arc<GraphTokenSource>,
     account_id: &AccountId,
     tls: &TlsClientConfig,
+    principal: &MailboxPrincipal,
 ) -> Result<Vec<Mailbox>, AccountError> {
     let token = tokens.access_token().await?;
     let client = GraphClient::for_mailbox(
         token,
-        MailboxPrincipal::Me,
+        principal.clone(),
         tls,
         &tokens.retry(),
         &crate::user_agent(),
@@ -285,7 +312,8 @@ mod tests {
     #[tokio::test]
     async fn drafts_are_advertised_and_forwarded_to_graph() {
         let (endpoint, _hits) = dead_grant_token_endpoint();
-        let provider = connect_graph_folder(source_at(endpoint, None), "drafts", None).unwrap();
+        let provider =
+            connect_graph_folder(source_at(endpoint, None), "drafts", None, None).unwrap();
         assert_drafts_reach_the_delegate(provider.as_ref()).await;
     }
 
@@ -308,7 +336,7 @@ mod tests {
         let (endpoint, _hits) = mock_token_endpoint(vec![]);
         let source = source_at(endpoint, None);
         let account = AccountId::try_from("alice@example.com@graph.microsoft.com").unwrap();
-        let provider = connect_graph_folder(source, "custom-folder-id", None).unwrap();
+        let provider = connect_graph_folder(source, "custom-folder-id", None, None).unwrap();
         // Mail read + writes (mark-read/flag, move, delete) + submission (sendMail is
         // account-level, so any folder-bound provider advertises it), no calendar; all
         // reported before any delegate is built (no network yet), so a host can gate mail

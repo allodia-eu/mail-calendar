@@ -63,6 +63,7 @@ mod endpoints;
 mod links;
 mod registered;
 mod set_up;
+mod shared;
 mod sign_in;
 mod uses;
 
@@ -155,11 +156,13 @@ impl AccountRegistry {
     /// The dial is a *snapshot* (configs cloned, token sources `Arc`-shared) so the caller holds no
     /// lock across the network round trip.
     pub(crate) fn dial(&self, id: &str) -> Option<AccountDial> {
-        self.entries
+        let own = self
+            .entries
             .lock()
             .expect("account registry mutex poisoned")
             .get(id)
-            .map(AccountDial::from_entry)
+            .map(AccountDial::from_entry);
+        own.or_else(|| self.dial_shared(id))
     }
 
     /// What `id` stores beside its kind's own section, or `None` if it is not registered.
@@ -187,10 +190,12 @@ impl AccountRegistry {
     /// Whether `id` is still registered, asked after a slow dial, in case the user removed the
     /// account while it ran.
     pub(crate) fn contains(&self, id: &str) -> bool {
-        self.entries
+        let own = self
+            .entries
             .lock()
             .expect("account registry mutex poisoned")
-            .contains_key(id)
+            .contains_key(id);
+        own || self.shared_parent(id).is_some()
     }
 
     /// The provider family of `id` (`imap` / `graph` / `google` / `jmap`), safe for a diagnostic

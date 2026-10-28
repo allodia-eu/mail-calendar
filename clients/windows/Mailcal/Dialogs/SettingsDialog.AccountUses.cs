@@ -20,7 +20,9 @@ public sealed partial class SettingsDialog
     private UIElement UsesGroup(AccountEntry entry)
     {
         var stack = new StackPanel { Spacing = 8 };
-        foreach (var use in entry.Uses)
+        // No switch for shared mailboxes: this client has no section to choose one
+        // (docs/shared-mailboxes.md §3).
+        foreach (var use in entry.Uses.Where(use => use.Capability != AccountCapability.SharedMailboxes))
         {
             stack.Children.Add(UseRow(entry, use.Capability));
         }

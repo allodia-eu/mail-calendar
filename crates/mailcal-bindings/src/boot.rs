@@ -391,8 +391,11 @@ fn prepare_accounts(
         // account than the store does, and it must be adopted rather than raced.
         match prepare_stored_account(config_toml, sink, CredentialOrigin::Stored) {
             Ok(prepared) => {
-                registry.pre_register(prepared.account.id.as_str().to_owned(), prepared.connected);
+                let id = prepared.account.id.as_str().to_owned();
+                registry.pre_register(id.clone(), prepared.connected);
                 accounts.push(prepared.account);
+                // Listed after the account whose sign-in opens them.
+                accounts.extend(registry.shared_placeholders(&id));
             }
             Err(err) => account_errors.push(err.to_string()),
         }

@@ -72,7 +72,11 @@ internal fun AccountPage(
         L10n.settings_account_uses_heading(ctx),
         L10n.settings_account_uses_description(ctx),
     ) {
-        entry.uses.forEach { use -> UseRow(entry, use.capability, ui) }
+        // No switch for shared mailboxes: this client has no section to choose one
+        // (docs/shared-mailboxes.md §3).
+        entry.uses
+            .filter { it.capability != AccountCapability.SHARED_MAILBOXES }
+            .forEach { use -> UseRow(entry, use.capability, ui) }
     }
     ui.state.separate.form?.takeIf { it.accountId == entry.id }?.let { form ->
         SeparateServerDialog(

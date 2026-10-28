@@ -172,3 +172,22 @@ fn switching_only_the_security_takes_that_security_s_standard_port() {
         "smtp.example.org:587"
     );
 }
+
+#[test]
+fn a_mail_server_on_another_host_keeps_no_shared_mailbox_the_old_one_opened() {
+    let shared = "\n[[shared_mailbox]]\nhandle = \"Shared Folders/support@example.org\"\nname = \"support\"\n";
+    let config = load_str(&format!("{STANDARDS}{shared}")).unwrap();
+    assert_eq!(config.shape.shared_mailboxes.len(), 1);
+
+    let mut edit = config.endpoints();
+    edit.password = Some("new".to_owned());
+    let kept = config.with_endpoints(&edit).unwrap();
+    assert_eq!(
+        kept.config.shape.shared_mailboxes,
+        config.shape.shared_mailboxes
+    );
+
+    edit.imap_host = Some("mail.example.net".to_owned());
+    let moved = config.with_endpoints(&edit).unwrap();
+    assert_eq!(moved.config.shape.shared_mailboxes, []);
+}

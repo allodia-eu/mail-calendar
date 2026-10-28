@@ -85,14 +85,20 @@ impl AccountDial {
     ) -> Result<DialOutcome, ConnectFailure> {
         let capabilities = self.capabilities().clone();
         let on = |capability| capabilities.contains(capability);
+        let shared = self.shared_handle().cloned();
         match self {
             Self::Imap {
                 config,
                 connections,
                 tokens,
+                shared: ref shared_dial,
                 ..
             } => {
                 let username = config.username().to_owned();
+                let identity = shared_dial.as_ref().map_or_else(
+                    || EmailAddress::new(username.clone()),
+                    |shared| shared.identity.clone(),
+                );
                 let learned_calendar = std::sync::Mutex::new(mailcal_account::Learned::Nothing);
                 let learned_contacts = std::sync::Mutex::new(mailcal_account::Learned::Nothing);
                 // Calendar and contacts both talk to the same CalDAV host, so they run
@@ -104,6 +110,7 @@ impl AccountDial {
                             &config,
                             tokens.as_ref(),
                             id,
+                            shared.as_ref(),
                         )
                         .await
                         .map_err(ConnectFailure::from)
@@ -144,7 +151,7 @@ impl AccountDial {
                 Ok(outcome(
                     id,
                     on(Capability::Mail),
-                    EmailAddress::new(username),
+                    identity,
                     assembled,
                     calendar_error,
                     false,
@@ -164,9 +171,14 @@ impl AccountDial {
                 // recorded is asked beside them, and the token sink stores the answer.
                 let (mail, (calendar, calendar_reauth_required), contacts, ()) = tokio::join!(
                     mail_part(on(Capability::Mail), open_mail, async {
-                        mailcal_account::connect_graph_mail_providers(id, Arc::clone(&tokens), None)
-                            .await
-                            .map_err(ConnectFailure::from)
+                        mailcal_account::connect_graph_mail_providers(
+                            id,
+                            Arc::clone(&tokens),
+                            None,
+                            shared.as_ref(),
+                        )
+                        .await
+                        .map_err(ConnectFailure::from)
                     }),
                     async {
                         if on(Capability::Calendar) {
@@ -254,22 +266,28 @@ impl AccountDial {
                 config,
                 tokens,
                 session,
+                shared: shared_dial,
                 ..
             } => {
-                let identity = config.identity();
+                let identity =
+                    shared_dial.map_or_else(|| config.identity(), |shared| shared.identity);
                 // The session says which of mail, calendars and contacts the account has, and the
                 // mail provider is what reads it. An account not used for mail still reads its
                 // session that way and binds no mail from it; a session that cannot be read leaves
                 // nothing on the account that could connect, so it is the account's failure either
                 // way.
-                let providers =
-                    mailcal_account::connect_jmap_mail_providers(&config, tokens.as_ref())
-                        .await
-                        .map_err(ConnectFailure::from)?;
-                if let Some(provider) = providers.first() {
+                let providers = mailcal_account::connect_jmap_mail_providers(
+                    &config,
+                    tokens.as_ref(),
+                    shared.as_ref(),
+                )
+                .await
+                .map_err(ConnectFailure::from)?;
+                // A shared mailbox's session is its parent's to record, not this dial's.
+                if let Some(provider) = providers.first().filter(|_| shared.is_none()) {
                     session.record(provider.connection_info().capabilities);
                 }
-                let has_mail = !session.lacks().contains(Capability::Mail);
+                let has_mail = shared.is_some() || !session.lacks().contains(Capability::Mail);
                 let calendar = part(
                     on(Capability::Calendar),
                     boot::connect_jmap_calendars(&config, tokens.as_ref(), &providers),

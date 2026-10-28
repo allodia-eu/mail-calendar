@@ -95,6 +95,7 @@ impl MailcalApp {
         )
         .map_err(|err| MailcalError::Connect(err.to_string()))?;
         tokens.seed_access_token(authorized.access_token, authorized.expires_at);
+        let shared_before = self.registry.shared_mailboxes(account_id.as_str());
         let registered = self.registry.pre_register(
             account_id.as_str().to_owned(),
             ConnectedAccount::Microsoft {
@@ -180,6 +181,15 @@ impl MailcalApp {
             },
         );
         self.refresh_background(&row.id);
+        // Signing an existing account in again: a shared mailbox the new choice no longer opens
+        // goes, and the rest were opened with the grant just replaced.
+        let shared_after = self.registry.shared_mailboxes(&row.id);
+        for (child, _) in shared_before {
+            if !shared_after.iter().any(|(kept, _)| *kept == child) {
+                self.drop_shared_mailbox(&child);
+            }
+        }
+        self.redial_shared_mailboxes(&row.id);
         let app_sync = Arc::clone(&self.app);
         self.runtime
             .spawn(async move { app_sync.sync_added_account(&sync_id).await });

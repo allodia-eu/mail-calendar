@@ -8,21 +8,24 @@ use mailcal_oauth::scopes::{ProviderScopes, ScopeGroup};
 
 use crate::{Capabilities, Capability};
 
-/// The scope group a capability asks for at `provider`.
-const fn group(provider: &ProviderScopes, capability: Capability) -> &ScopeGroup {
+/// The scope group a capability asks for at `provider`, `None` for one it has no scopes for.
+const fn group(provider: &ProviderScopes, capability: Capability) -> Option<&ScopeGroup> {
     match capability {
-        Capability::Mail => &provider.mail,
-        Capability::Calendar => &provider.calendar,
-        Capability::Contacts => &provider.contacts,
-        Capability::Colleagues => &provider.colleagues,
+        Capability::Mail => Some(&provider.mail),
+        Capability::Calendar => Some(&provider.calendar),
+        Capability::Contacts => Some(&provider.contacts),
+        Capability::Colleagues => Some(&provider.colleagues),
+        Capability::SharedMailboxes => provider.shared_mailboxes.as_ref(),
     }
 }
 
 /// The uses whose scopes are asked for: colleagues only beside contacts, because the directory
-/// is only ever read as part of the address book.
+/// is only ever read as part of the address book, and shared mailboxes only beside mail.
 fn asked(capabilities: &Capabilities) -> impl Iterator<Item = Capability> + '_ {
-    capabilities.iter().filter(|capability| {
-        *capability != Capability::Colleagues || capabilities.contains(Capability::Contacts)
+    capabilities.iter().filter(|capability| match capability {
+        Capability::Colleagues => capabilities.contains(Capability::Contacts),
+        Capability::SharedMailboxes => capabilities.contains(Capability::Mail),
+        _ => true,
     })
 }
 
@@ -32,7 +35,11 @@ pub fn requested_scopes(provider: &ProviderScopes, capabilities: &Capabilities) 
     provider
         .always
         .iter()
-        .chain(asked(capabilities).flat_map(|capability| group(provider, capability).requested))
+        .chain(
+            asked(capabilities)
+                .filter_map(|capability| group(provider, capability))
+                .flat_map(|group| group.requested),
+        )
         .map(|scope| (*scope).to_owned())
         .collect()
 }
@@ -53,7 +60,9 @@ pub fn withheld(
         return Capabilities::default();
     };
     asked(capabilities)
-        .filter(|capability| !provider.holds(granted, group(provider, *capability).needed))
+        .filter(|capability| {
+            group(provider, *capability).is_some_and(|group| !provider.holds(granted, group.needed))
+        })
         .collect()
 }
 

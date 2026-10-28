@@ -217,6 +217,11 @@ fn check_uses(uses: &Capabilities, caldav: bool, carddav: bool) -> Result<(), Co
             "colleagues come from a Microsoft or Google directory",
         ));
     }
+    if uses.contains(Capability::SharedMailboxes) {
+        return Err(ConfigError::Refused(
+            "a standards account lists its shared mailboxes without being asked for them",
+        ));
+    }
     if uses.iter().next().is_none() {
         return Err(ConfigError::Incomplete("what the account is used for"));
     }

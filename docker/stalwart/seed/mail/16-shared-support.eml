@@ -1,0 +1,13 @@
+From: Customer <customer@example.com>
+To: Support <support@test.local>
+Subject: Order 4711 arrived damaged
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+Message-ID: <shared-0016@test.local>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+The one message in the support group mailbox.
+
+The seeder appends it to Shared Folders/support@test.local/INBOX, the path alice reaches the
+group mailbox through. It is in none of alice's own folders, so finding it anywhere but under
+the support mailbox means a sync crossed from one store into another.

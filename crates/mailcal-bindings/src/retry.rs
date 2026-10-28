@@ -49,6 +49,24 @@ impl MailcalApp {
             .expect("disconnected mutex poisoned")
             .drain()
             .collect();
+        // A shared mailbox is opened by its parent's sign-in, so dialling the parent again dials
+        // it again too: otherwise it keeps a connection made with what the parent had before.
+        let shared: Vec<String> = ids
+            .iter()
+            .flat_map(|id| self.registry.shared_mailboxes(id))
+            .map(|(child, _)| child.as_str().to_owned())
+            .filter(|child| !ids.contains(child))
+            .collect();
+        ids.extend(shared);
+        // A parent's dial replaces the connections its shared mailboxes draw on, so a shared
+        // mailbox whose parent is dialled now is dialled once that dial is over, on what it made.
+        let dialled: HashSet<String> = ids.iter().cloned().collect();
+        let (after_parent, now): (Vec<String>, Vec<String>) = ids.into_iter().partition(|id| {
+            self.registry
+                .shared_parent(id)
+                .is_some_and(|(parent, _)| dialled.contains(&parent))
+        });
+        ids = now;
         let queued: HashSet<String> = ids.iter().cloned().collect();
         // An account whose mail is up but whose calendar or address book could not be reached has
         // those dialled again: nothing else would, until the next launch.
@@ -129,6 +147,13 @@ impl MailcalApp {
             let mut unanswered = reconnect_uses.await;
             unanswered.extend(reconnect.await);
             drop(claim);
+            if let Some(app) = app.as_ref().filter(|_| !after_parent.is_empty()) {
+                app.disconnected
+                    .lock()
+                    .expect("disconnected mutex poisoned")
+                    .extend(after_parent);
+                app.retry_connections();
+            }
             // Off the runtime: looking again blocks on discovery and on the move's connect.
             if let Some(app) = app.filter(|_| !unanswered.is_empty()) {
                 std::thread::spawn(move || {

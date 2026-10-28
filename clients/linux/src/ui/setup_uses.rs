@@ -40,14 +40,18 @@ struct Picked<'a> {
 /// an address book found apart from the calendar, or the one typed. Contacts found only through
 /// the calendar's server keep that server even with the calendar off, because that is where they
 /// are looked for, and the stored uses keep the calendar closed. Colleagues count only beside
-/// contacts.
+/// contacts, and shared mailboxes only beside mail.
 fn chosen(
     offer: &UseOffer,
     mail: Option<bool>,
     calendar: Option<Picked<'_>>,
     contacts: Option<Picked<'_>>,
-    colleagues: Option<bool>,
+    subs: Subchoices,
 ) -> ChosenUses {
+    let Subchoices {
+        shared_mailboxes,
+        colleagues,
+    } = subs;
     let calendar_on = calendar.is_some_and(|picked| picked.on);
     let contacts_on = contacts.is_some_and(|picked| picked.on);
     let found_or_typed = |found: &str, picked: Option<Picked<'_>>| {
@@ -72,6 +76,8 @@ fn chosen(
     let uses = (!offer.choices.is_empty()).then(|| {
         [
             (mail == Some(true)).then_some(AccountCapability::Mail),
+            (mail == Some(true) && shared_mailboxes == Some(true))
+                .then_some(AccountCapability::SharedMailboxes),
             calendar_on.then_some(AccountCapability::Calendar),
             contacts_on.then_some(AccountCapability::Contacts),
             (contacts_on && colleagues == Some(true)).then_some(AccountCapability::Colleagues),
@@ -85,6 +91,14 @@ fn chosen(
         caldav_url,
         carddav_url,
     }
+}
+
+/// The choices within a use: shared mailboxes within mail, colleagues within contacts; `None`
+/// for one the card did not offer.
+#[derive(Clone, Copy, Debug, Default)]
+struct Subchoices {
+    shared_mailboxes: Option<bool>,
+    colleagues: Option<bool>,
 }
 
 /// A calendar or contacts choice on screen: the toggle, and beneath it the server detection
@@ -102,6 +116,7 @@ pub(super) struct UseToggles {
     calendar: Option<DavToggle>,
     contacts: Option<DavToggle>,
     colleagues: Option<gtk::CheckButton>,
+    shared_mailboxes: Option<gtk::CheckButton>,
 }
 
 impl UseToggles {
@@ -122,7 +137,13 @@ impl UseToggles {
             self.mail.as_ref().map(gtk::CheckButton::is_active),
             picked(calendar.as_ref()),
             picked(contacts.as_ref()),
-            self.colleagues.as_ref().map(gtk::CheckButton::is_active),
+            Subchoices {
+                shared_mailboxes: self
+                    .shared_mailboxes
+                    .as_ref()
+                    .map(gtk::CheckButton::is_active),
+                colleagues: self.colleagues.as_ref().map(gtk::CheckButton::is_active),
+            },
         )
     }
 }
@@ -140,6 +161,7 @@ pub(super) fn append(
         calendar: None,
         contacts: None,
         colleagues: None,
+        shared_mailboxes: None,
     };
     for choice in &offer.choices {
         match choice.capability {
@@ -153,6 +175,14 @@ pub(super) fn append(
                     follow(&enabled, row);
                 }
                 toggles.mail = Some(enabled);
+            }
+            AccountCapability::SharedMailboxes => {
+                toggles.shared_mailboxes = Some(subchoice(
+                    content,
+                    choice,
+                    l10n::setup_detect_shared_mailboxes_enable(),
+                    toggles.mail.as_ref(),
+                ));
             }
             AccountCapability::Calendar => {
                 content.append(&section(l10n::setup_detect_section_calendar()));
@@ -182,14 +212,12 @@ pub(super) fn append(
                 ));
             }
             AccountCapability::Colleagues => {
-                let enabled = gtk::CheckButton::with_label(l10n::setup_detect_colleagues_enable());
-                enabled.set_active(choice.on);
-                enabled.set_margin_start(24);
-                content.append(&enabled);
-                if let Some(contacts) = &toggles.contacts {
-                    beneath(&contacts.enabled, &enabled);
-                }
-                toggles.colleagues = Some(enabled);
+                toggles.colleagues = Some(subchoice(
+                    content,
+                    choice,
+                    l10n::setup_detect_colleagues_enable(),
+                    toggles.contacts.as_ref().map(|contacts| &contacts.enabled),
+                ));
             }
         }
     }
@@ -239,16 +267,35 @@ fn follow(toggle: &gtk::CheckButton, widget: &impl IsA<gtk::Widget>) {
     toggle.connect_toggled(move |toggle| widget.set_visible(toggle.is_active()));
 }
 
-/// Colleagues come from the organisation's directory beside the person's own contacts, so they
-/// are offered only while contacts are on, as on the account's page in Settings.
-fn beneath(contacts: &gtk::CheckButton, colleagues: &gtk::CheckButton) {
-    colleagues.set_sensitive(contacts.is_active());
-    let colleagues = colleagues.clone();
-    contacts.connect_toggled(move |contacts| {
-        if !contacts.is_active() {
-            colleagues.set_active(false);
+/// A choice within a use, indented beneath it: colleagues within contacts, shared mailboxes
+/// within mail.
+fn subchoice(
+    content: &gtk::Box,
+    choice: &SetupChoice,
+    label: &str,
+    within: Option<&gtk::CheckButton>,
+) -> gtk::CheckButton {
+    let enabled = gtk::CheckButton::with_label(label);
+    enabled.set_active(choice.on);
+    enabled.set_margin_start(24);
+    content.append(&enabled);
+    if let Some(within) = within {
+        beneath(within, &enabled);
+    }
+    enabled
+}
+
+/// A choice within a use is offered only while that use is on, as on the account's page in
+/// Settings: colleagues come from the organisation's directory beside the person's own contacts,
+/// and a shared mailbox is opened beside the account's own mail.
+fn beneath(within: &gtk::CheckButton, sub: &gtk::CheckButton) {
+    sub.set_sensitive(within.is_active());
+    let sub = sub.clone();
+    within.connect_toggled(move |within| {
+        if !within.is_active() {
+            sub.set_active(false);
         }
-        colleagues.set_sensitive(contacts.is_active());
+        sub.set_sensitive(within.is_active());
     });
 }
 

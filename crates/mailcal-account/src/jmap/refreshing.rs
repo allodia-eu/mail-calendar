@@ -19,7 +19,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use engine_core::ids::AddressBookId;
+use engine_core::ids::{AddressBookId, SharedMailboxId};
 use engine_provider::{Capabilities, Provider, ProviderError, ProviderResult};
 use engine_tls::TlsClientConfig;
 use provider_jmap::{Credentials, JmapConfig, JmapProvider};
@@ -45,6 +45,8 @@ pub(crate) struct RefreshingJmapProvider {
     /// JMAP adapter advertises no write destination until it has one, so a rebuild that
     /// dropped it would turn contacts read-only an hour into the session.
     contact_book: Option<AddressBookId>,
+    /// The shared mailbox every rebuilt delegate is bound to, `None` for the account's own.
+    shared: Option<SharedMailboxId>,
     /// The built delegate, cached by the access token it was built with. Rebuilt only when a
     /// refresh produced a new token; never per request, which would re-run session discovery
     /// and open a fresh TLS connection every single call.
@@ -84,8 +86,16 @@ impl RefreshingJmapProvider {
             capabilities,
             tls,
             contact_book,
+            shared: None,
             cached: Mutex::new(Some((access_token, Arc::new(initial)))),
         }
+    }
+
+    /// Binds every rebuilt delegate to the mailbox `shared` names; the initial delegate is
+    /// already bound to it.
+    pub(crate) fn with_shared_mailbox(mut self, shared: Option<SharedMailboxId>) -> Self {
+        self.shared = shared;
+        self
     }
 
     /// The capabilities the initial session reported.
@@ -154,9 +164,10 @@ impl RefreshingJmapProvider {
         .with_tls(self.tls.clone())
         .with_retry(self.tokens.retry())
         .with_connect_observer(connect_logger("jmap"));
-        let rebuilt = JmapProvider::connect(config)
-            .await
-            .map_err(|err| ProviderError::retryable(err.to_string()))?;
+        let rebuilt =
+            JmapProvider::connect(super::connect::bind_shared(config, self.shared.as_ref()))
+                .await
+                .map_err(|err| ProviderError::retryable(err.to_string()))?;
         // Re-bound, because a delegate that forgot its address book advertises no write
         // destination: contacts would quietly become read-only an hour into the session.
         let provider = Arc::new(match self.contact_book.clone() {

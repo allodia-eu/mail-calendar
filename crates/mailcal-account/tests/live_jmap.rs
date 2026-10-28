@@ -58,7 +58,7 @@ async fn jmap_account_connects_syncs_and_reads_a_body() {
     let id = config.account_id().expect("account id");
 
     // One provider covers the whole account (JMAP's scope is account-wide).
-    let providers = connect_jmap_mail_providers(&config, None)
+    let providers = connect_jmap_mail_providers(&config, None, None)
         .await
         .expect("connect JMAP provider");
     assert_eq!(providers.len(), 1, "one account-wide JMAP provider");

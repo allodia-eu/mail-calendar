@@ -120,6 +120,12 @@ pub(crate) async fn reconnect_all(
                         &outcome.account,
                     );
                     app.add_account_deferred(outcome.account).await;
+                    // A shared mailbox never passes through the step that asks an added account
+                    // for its name, so it takes its provider's name here, once: a stored name
+                    // ends the asking.
+                    if registry.shared_parent(id.as_str()).is_some() {
+                        app.needs_sender_name(&id).await;
+                    }
                     connected
                         .lock()
                         .expect("connected mutex poisoned")

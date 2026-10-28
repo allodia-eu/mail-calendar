@@ -38,6 +38,9 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
     if !pickers.is_empty() {
         content.append(&links_group(ctx, entry, pickers));
     }
+    if let Some(shared) = super::shared_mailboxes::section(ctx, entry) {
+        content.append(&shared);
+    }
     if account_rows::signs_in_at_provider(entry.kind) {
         content.append(&signin_group(ctx, entry));
     } else if let Some(section) = super::sign_in_section::group(ctx, entry) {

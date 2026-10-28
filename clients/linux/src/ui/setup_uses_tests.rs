@@ -1,6 +1,15 @@
 use mailcal_bindings::{AccountCapability, SetupChoice};
 
-use super::{ChosenUses, Picked, UseOffer, allowed, chosen, url_host};
+use super::{ChosenUses, Picked, Subchoices, UseOffer, allowed, chosen, url_host};
+
+const NO_SUB: Subchoices = Subchoices {
+    shared_mailboxes: None,
+    colleagues: None,
+};
+const COLLEAGUES: Subchoices = Subchoices {
+    shared_mailboxes: None,
+    colleagues: Some(true),
+};
 
 const CALDAV: &str = "https://dav.example.org/caldav";
 const CARDDAV: &str = "https://dav.example.org/carddav";
@@ -37,7 +46,7 @@ const OFF: Option<Picked<'static>> = Some(Picked {
 #[test]
 fn everything_found_and_kept_stores_both_endpoints_and_every_use() {
     assert_eq!(
-        chosen(&offer(CALDAV, CARDDAV), Some(true), ON, ON, None),
+        chosen(&offer(CALDAV, CARDDAV), Some(true), ON, ON, NO_SUB),
         ChosenUses {
             uses: Some(vec![
                 AccountCapability::Mail,
@@ -52,7 +61,7 @@ fn everything_found_and_kept_stores_both_endpoints_and_every_use() {
 
 #[test]
 fn contacts_found_through_the_calendar_keep_its_server_with_the_calendar_off() {
-    let kept = chosen(&offer(CALDAV, ""), Some(true), OFF, ON, None);
+    let kept = chosen(&offer(CALDAV, ""), Some(true), OFF, ON, NO_SUB);
     assert_eq!(
         kept.uses,
         Some(vec![AccountCapability::Mail, AccountCapability::Contacts])
@@ -63,11 +72,11 @@ fn contacts_found_through_the_calendar_keep_its_server_with_the_calendar_off() {
 
 #[test]
 fn a_use_switched_off_stores_no_server() {
-    let mail_only = chosen(&offer(CALDAV, CARDDAV), Some(true), OFF, OFF, None);
+    let mail_only = chosen(&offer(CALDAV, CARDDAV), Some(true), OFF, OFF, NO_SUB);
     assert_eq!(mail_only.uses, Some(vec![AccountCapability::Mail]));
     assert!(mail_only.caldav_url.is_empty() && mail_only.carddav_url.is_empty());
 
-    let without_mail = chosen(&offer(CALDAV, CARDDAV), Some(false), ON, OFF, None);
+    let without_mail = chosen(&offer(CALDAV, CARDDAV), Some(false), ON, OFF, NO_SUB);
     assert_eq!(without_mail.uses, Some(vec![AccountCapability::Calendar]));
     assert_eq!(without_mail.carddav_url, "");
 }
@@ -85,7 +94,7 @@ fn a_server_not_found_is_the_one_typed() {
             on: true,
             typed: "book.example.org",
         }),
-        None,
+        NO_SUB,
     );
     assert_eq!(typed.caldav_url, "cal.example.org");
     assert_eq!(typed.carddav_url, "book.example.org");
@@ -98,7 +107,7 @@ fn a_server_not_found_is_the_one_typed() {
             typed: "cal.example.org",
         }),
         OFF,
-        None,
+        NO_SUB,
     );
     assert_eq!(dropped.caldav_url, "");
 }
@@ -109,7 +118,7 @@ fn a_card_that_offered_no_choice_leaves_the_uses_to_the_servers() {
         caldav_url: CALDAV.to_owned(),
         ..UseOffer::default()
     };
-    assert_eq!(chosen(&none, None, None, None, None).uses, None);
+    assert_eq!(chosen(&none, None, None, None, NO_SUB).uses, None);
 }
 
 #[test]
@@ -131,7 +140,7 @@ fn contacts_are_looked_for_at_a_calendar_typed_in_place_of_one_found() {
             typed: "cal.example.org",
         }),
         ON,
-        None,
+        NO_SUB,
     );
     assert_eq!(typed.caldav_url, "cal.example.org");
     assert!(
@@ -167,18 +176,18 @@ fn colleagues_count_only_beside_contacts() {
         ..UseOffer::default()
     };
     assert_eq!(
-        chosen(&provider, Some(false), OFF, ON, Some(true)).uses,
+        chosen(&provider, Some(false), OFF, ON, COLLEAGUES).uses,
         Some(vec![
             AccountCapability::Contacts,
             AccountCapability::Colleagues
         ])
     );
     assert_eq!(
-        chosen(&provider, Some(true), OFF, OFF, Some(true)).uses,
+        chosen(&provider, Some(true), OFF, OFF, COLLEAGUES).uses,
         Some(vec![AccountCapability::Mail])
     );
     // A provider names no server, and none is stored.
-    let everything = chosen(&provider, Some(true), ON, ON, Some(true));
+    let everything = chosen(&provider, Some(true), ON, ON, COLLEAGUES);
     assert!(everything.caldav_url.is_empty() && everything.carddav_url.is_empty());
 }
 
@@ -199,4 +208,38 @@ fn a_manual_sign_in_asks_only_for_what_the_typed_address_is_offered() {
         provider_setup_choices(AccountKind::Microsoft, "someone@contoso.example".to_owned());
     assert_eq!(allowed(chosen.clone(), &organisation), chosen);
     assert_eq!(allowed(None, &organisation), None);
+}
+
+#[test]
+fn shared_mailboxes_count_only_beside_mail() {
+    let provider = UseOffer {
+        choices: [
+            AccountCapability::Mail,
+            AccountCapability::SharedMailboxes,
+            AccountCapability::Contacts,
+        ]
+        .into_iter()
+        .map(|capability| SetupChoice {
+            capability,
+            on: true,
+            server_found: true,
+        })
+        .collect(),
+        ..UseOffer::default()
+    };
+    let shared = Subchoices {
+        shared_mailboxes: Some(true),
+        colleagues: None,
+    };
+    assert_eq!(
+        chosen(&provider, Some(true), None, OFF, shared).uses,
+        Some(vec![
+            AccountCapability::Mail,
+            AccountCapability::SharedMailboxes
+        ])
+    );
+    assert_eq!(
+        chosen(&provider, Some(false), None, ON, shared).uses,
+        Some(vec![AccountCapability::Contacts])
+    );
 }

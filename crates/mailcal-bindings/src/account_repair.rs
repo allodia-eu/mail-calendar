@@ -200,6 +200,7 @@ impl MailcalApp {
             .expect("disconnected mutex poisoned")
             .remove(account_id);
         self.refresh_background(account_id);
+        self.redial_shared_mailboxes(account_id);
         let app_sync = Arc::clone(&self.app);
         self.runtime
             .spawn(async move { app_sync.refresh_repaired_account(&id).await });

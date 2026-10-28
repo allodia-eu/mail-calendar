@@ -24,7 +24,7 @@ mod tests {
     fn the_header_is_the_product_and_the_version_both_tokens() {
         assert_eq!(HEADER, format!("{PRODUCT}/{VERSION}"));
         for token in [PRODUCT, VERSION] {
-            assert!(!token.is_empty());
+            assert_ne!(token, "");
             assert!(
                 token
                     .chars()

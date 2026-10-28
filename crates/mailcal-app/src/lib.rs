@@ -130,7 +130,7 @@ mod view_snapshots;
 mod window;
 mod zones;
 
-pub use accounts::{Account, Unanswered, UsesReplaced};
+pub use accounts::{Account, SharedMailboxLookup, SharedMailboxOffer, Unanswered, UsesReplaced};
 use background_sync::NotifyMarksState;
 pub use background_sync::{AccountNewMail, BackgroundNewMail, NewMailPreview};
 pub use calendar_cache::{CalendarPage, MonthPage};

@@ -60,6 +60,7 @@ fn a_written_shape_reads_back_unchanged() {
             contacts: Some(id("alice@dav:cloud.example")),
             mail: None,
         },
+        ..AccountShape::default()
     };
     let mut root = toml::Table::new();
     shape.write_into(&mut root);
@@ -103,4 +104,28 @@ fn a_capability_this_build_does_not_know_is_kept_and_counts_for_nothing() {
         toml::to_string(&root).unwrap().trim(),
         r#"capabilities = ["mail", "tasks"]"#
     );
+}
+
+#[test]
+fn the_shared_mailboxes_an_account_is_used_for_read_back_as_written() {
+    let text = r#"
+[[shared_mailbox]]
+handle = "Shared Folders/support@example.org"
+name = "support@example.org"
+address = "support@example.org"
+
+[[shared_mailbox]]
+handle = "Shared Folders/team"
+name = "team"
+"#;
+    let shape = AccountShape::read(text).unwrap();
+    assert_eq!(shape.shared_mailboxes.len(), 2);
+    assert_eq!(
+        shape.shared_mailboxes[0].address.as_deref(),
+        Some("support@example.org")
+    );
+    assert_eq!(shape.shared_mailboxes[1].address, None);
+    let mut root = toml::Table::new();
+    shape.write_into(&mut root);
+    assert_eq!(AccountShape::read(&root.to_string()).unwrap(), shape);
 }

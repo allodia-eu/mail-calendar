@@ -34,7 +34,7 @@ use engine_core::{
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, HandOver, MailEdit, MailEditReceipt, MailboxEdit,
     MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderError, ProviderResult,
-    ReportReceipt, ScopeSync, SourceStream, SubmissionReceipt,
+    ReportReceipt, ScopeSync, SharedMailbox, SourceStream, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -357,6 +357,13 @@ impl Provider for ReconnectingImapProvider {
             async move { provider.report_message(&account, &report).await }
         })
         .await
+    }
+
+    /// The mailboxes the account's login opens besides its own, read through the same redial as
+    /// a sync: the folder this provider is bound to plays no part in the answer.
+    async fn list_shared_mailboxes(&self) -> ProviderResult<Vec<SharedMailbox>> {
+        self.with_reconnect(|provider| async move { provider.list_shared_mailboxes().await })
+            .await
     }
 }
 

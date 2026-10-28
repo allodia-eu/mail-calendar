@@ -75,7 +75,8 @@ impl<P: Provider> App<P> {
     /// would be a write that changes nothing, and on Gmail a settings write per account added.
     ///
     /// ⚠️ Talks to the provider, like [`App::suggested_sender_name`], and is asked once, by
-    /// the flow that adds an account.
+    /// the flow that adds an account, or for a shared mailbox, which no such flow adds, each
+    /// time it connects without a name.
     pub async fn needs_sender_name(&self, account: &AccountId) -> bool {
         // An account without mail sends nothing, so it has no name to send under.
         if self

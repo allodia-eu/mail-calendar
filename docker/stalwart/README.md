@@ -196,6 +196,12 @@ than duplicating. Add an account or a setting there, as another line of the plan
 | `dave@test.local`  | `harness-dave-pw`  | a second invitee, so a meeting can add one person and remove another with both told |
 | `admin`            | `harness-admin-pw` | fallback admin (management)   |
 
+**Shared mailboxes.** `support@test.local` is a group with no password of its own, and alice is a
+member, so her JMAP session lists it as a second account and her IMAP login reaches it under
+`Shared Folders/support@test.local`, with one message in its Inbox. Bob also grants alice lookup
+and read on his own Inbox (`Shared Folders/bob@test.local`). The two differ on purpose: alice may
+write to the first and only read the second, and nothing above the folder rights says so.
+
 ## Layout
 
 ```text
