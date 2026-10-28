@@ -101,6 +101,15 @@ public class SharedMailboxRulesTests
     }
 
     [Fact]
+    public void AnAnswerToAnOlderAskNeverReplacesAFresherOne()
+    {
+        Assert.True(SharedMailboxRules.Fresher(1, null));
+        Assert.True(SharedMailboxRules.Fresher(3, 2));
+        // The page's ask, started before a switch's, lands after the switch's answer was kept.
+        Assert.False(SharedMailboxRules.Fresher(2, 3));
+    }
+
+    [Fact]
     public void TheSameAnswerTwiceIsTheSameAnswer()
     {
         // The generated records hold an array, which a record compares by reference.

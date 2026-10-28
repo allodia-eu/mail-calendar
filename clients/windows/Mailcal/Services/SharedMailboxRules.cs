@@ -75,6 +75,13 @@ internal static class SharedMailboxRules
     /// <summary>What the account is used for, as the page compares it from one signal to the next.</summary>
     internal static string Uses(AccountEntry entry) => string.Join(",", AccountSettingsRules.InUse(entry));
 
+    /// <summary>Whether an answer replaces the one kept: only when its ask started after the kept
+    /// one's. A switch or an add asks again and applies its answer while the page's own ask may
+    /// still be out, and that older answer landing later would put back what the switch changed.</summary>
+    /// <param name="ticket">When this answer's ask started, from a counter taken before each ask.</param>
+    /// <param name="kept">When the kept answer's ask started; null when none is kept.</param>
+    internal static bool Fresher(long ticket, long? kept) => kept is null || ticket > kept;
+
     /// <summary>Whether two answers draw the same section; the generated record compares its array
     /// by reference.</summary>
     internal static bool Same(SharedMailboxesView? a, SharedMailboxesView? b) =>

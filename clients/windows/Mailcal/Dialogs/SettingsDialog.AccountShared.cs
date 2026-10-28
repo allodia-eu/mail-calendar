@@ -3,9 +3,10 @@
 // one. Which rows and lines each answer draws is SharedMailboxRules, which the unit suite drives.
 //
 // The server is asked when the page opens, and again on a core signal only while the answer may
-// still change: before it has listed anything, or once the account's uses have changed. The page keeps a slot for the section and fills it when the answer arrives, so the
-// answer redraws nothing else and takes nothing the person was typing. A nested ContentDialog is not
-// allowed, so switching a mailbox off is confirmed inline, under its switch, as a use is.
+// still change: before it has listed anything, or once the account's uses have changed. The page
+// keeps a slot for the section and fills it when the answer arrives, so the answer redraws nothing
+// else and takes nothing the person was typing. A nested ContentDialog is not allowed, so switching
+// a mailbox off is confirmed inline, under its switch, as a use is.
 
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
@@ -21,8 +22,13 @@ public sealed partial class SettingsDialog
     // What each account's server last answered; an account absent has not answered.
     private readonly Dictionary<string, SharedMailboxesView> _sharedAnswers = new();
 
-    // The accounts whose server is being asked now, so a signal does not ask again over it.
-    private readonly HashSet<string> _sharedAsking = [];
+    // How many asks of each account's server are out now, so a signal does not ask again over one.
+    private readonly Dictionary<string, int> _sharedAsking = new();
+
+    // A counter taken before each ask, and the value the kept answer's ask took, so an answer to an
+    // older ask never replaces a fresher one (SharedMailboxRules.Fresher).
+    private long _sharedTicket;
+    private readonly Dictionary<string, long> _sharedKept = new();
 
     // What each account was used for when its server was last asked.
     private readonly Dictionary<string, string> _sharedAskedUses = new();
@@ -37,7 +43,7 @@ public sealed partial class SettingsDialog
         _sharedDrawn = (entry.Id, slot);
         _sharedAnswers.TryGetValue(entry.Id, out var view);
         FillShared(slot, entry.Id, view);
-        if (view is null && !_sharedAsking.Contains(entry.Id))
+        if (view is null && !_sharedAsking.ContainsKey(entry.Id))
         {
             _ = AskSharedAsync(entry);
         }
@@ -54,7 +60,7 @@ public sealed partial class SettingsDialog
         }
         _sharedAnswers.TryGetValue(entry.Id, out var answer);
         var usesChanged = _sharedAskedUses.TryGetValue(entry.Id, out var asked) && asked != SharedMailboxRules.Uses(entry);
-        if (SharedMailboxRules.MayHaveChanged(answer, _sharedAsking.Contains(entry.Id), usesChanged))
+        if (SharedMailboxRules.MayHaveChanged(answer, _sharedAsking.ContainsKey(entry.Id), usesChanged))
         {
             _ = AskSharedAsync(entry);
         }
@@ -68,9 +74,18 @@ public sealed partial class SettingsDialog
 
     private async Task AskSharedAsync(string accountId)
     {
-        _sharedAsking.Add(accountId);
+        var ticket = ++_sharedTicket;
+        _sharedAsking[accountId] = _sharedAsking.GetValueOrDefault(accountId) + 1;
         var view = await _model.SharedMailboxesAsync(accountId);
-        _sharedAsking.Remove(accountId);
+        if (--_sharedAsking[accountId] == 0)
+        {
+            _sharedAsking.Remove(accountId);
+        }
+        if (!SharedMailboxRules.Fresher(ticket, _sharedKept.TryGetValue(accountId, out var kept) ? kept : null))
+        {
+            return;
+        }
+        _sharedKept[accountId] = ticket;
         var had = _sharedAnswers.TryGetValue(accountId, out var previous);
         if (view is null)
         {
@@ -208,14 +223,16 @@ public sealed partial class SettingsDialog
             field.IsEnabled = add.IsEnabled = false;
             SayOnAccounts(null);
             var found = await _model.ResolveSharedMailboxAsync(accountId, address);
-            if (found.Mailbox is { } mailbox)
+            var error = found.Error;
+            if (found.Mailbox is { } mailbox && (error = await _model.SetSharedMailboxAsync(accountId, mailbox, true)) is null)
             {
-                await SetSharedAsync(accountId, mailbox, true);
+                await AskSharedAsync(accountId);
+                NotifyAccounts(null);
                 return;
             }
-            // A refusal leaves the address where it was typed, to correct.
+            // A refusal leaves the address where it was typed, to correct or to try again.
             field.IsEnabled = add.IsEnabled = true;
-            SayOnAccounts(found.Error is { } error
+            SayOnAccounts(error is not null
                 ? ChangeFailed(error)
                 : new AccountNotice(InfoBarSeverity.Warning, L10n.SettingsAccountSharedNotFound(), string.Empty));
         }

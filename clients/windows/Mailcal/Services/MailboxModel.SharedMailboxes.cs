@@ -1,6 +1,9 @@
 // The shared mailboxes an account's page offers (docs/shared-mailboxes.md rules 3, 7 and 8). Asking
 // the server and checking a typed address are requests to it, and switching one off deletes what
 // the device holds of it, so every call runs off the UI thread.
+//
+// A failure is logged as the event alone: the core's text can quote the address typed, which no log
+// line carries (docs/logging.md, docs/shared-mailboxes.md rule 9). The person is shown it.
 
 using uniffi.mailcal_bindings;
 
@@ -26,7 +29,7 @@ public sealed partial class MailboxModel
         }
         catch (Exception ex)
         {
-            Log.Warn($"asking for an account's shared mailboxes failed: {CoreError.Describe(ex)}");
+            Log.Warn($"accounts: asking for shared mailboxes failed ({ex.GetType().Name})");
             return null;
         }
     }
@@ -44,7 +47,7 @@ public sealed partial class MailboxModel
         }
         catch (Exception ex)
         {
-            Log.Warn($"looking up a shared mailbox failed: {CoreError.Describe(ex)}");
+            Log.Warn($"accounts: adding a shared mailbox failed ({ex.GetType().Name})");
             return new SharedLookup(null, CoreErrorCopy.Said(ex));
         }
     }
@@ -65,7 +68,7 @@ public sealed partial class MailboxModel
         }
         catch (Exception ex)
         {
-            Log.Error($"switching a shared mailbox failed: {CoreError.Describe(ex)}");
+            Log.Error($"accounts: switching a shared mailbox failed ({ex.GetType().Name})");
             return CoreErrorCopy.Said(ex);
         }
     }
