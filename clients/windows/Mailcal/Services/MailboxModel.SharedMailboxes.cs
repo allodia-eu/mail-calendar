@@ -2,8 +2,9 @@
 // the server and checking a typed address are requests to it, and switching one off deletes what
 // the device holds of it, so every call runs off the UI thread.
 //
-// A failure is logged as the event alone: the core's text can quote the address typed, which no log
-// line carries (docs/logging.md, docs/shared-mailboxes.md rule 9). The person is shown it.
+// A lookup or a switch that failed is logged as the event alone: the core's text can quote the
+// address typed, which no log line carries (docs/logging.md, docs/shared-mailboxes.md rule 9). The
+// person is shown it.
 
 using uniffi.mailcal_bindings;
 
@@ -16,7 +17,9 @@ internal sealed record SharedLookup(SharedMailboxEntry? Mailbox, string? Error);
 public sealed partial class MailboxModel
 {
     /// <summary>Which mailboxes the account's sign-in opens besides its own, as its server
-    /// answered; null when the account is not set up or the core failed.</summary>
+    /// answered; null when the account is not set up or is a shared mailbox itself.</summary>
+    /// <remarks>Such a refusal is not logged: the core makes it before any request, and the page
+    /// asks again on every signal while it has no answer.</remarks>
     internal async Task<SharedMailboxesView?> SharedMailboxesAsync(string accountId)
     {
         if (_app is not { } app)
@@ -27,8 +30,13 @@ public sealed partial class MailboxModel
         {
             return await Task.Run(() => app.SharedMailboxes(accountId));
         }
+        catch (MailcalException)
+        {
+            return null;
+        }
         catch (Exception ex)
         {
+            // A panic: the core answers every ordinary failure as above.
             Log.Warn($"accounts: asking for shared mailboxes failed ({ex.GetType().Name})");
             return null;
         }
