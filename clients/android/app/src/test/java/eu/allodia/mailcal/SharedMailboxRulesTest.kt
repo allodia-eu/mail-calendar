@@ -89,18 +89,31 @@ class SharedMailboxRulesTest {
         assertTrue(state.startAsking("a", mail))
         assertFalse("one ask at a time", state.startAsking("a", mail))
         assertFalse(state.asksAgain("a", mail))
-        state.answered("a", sharedView(SharedMailboxSupport.NOT_CONNECTED))
+        state.answered("a", sharedView(SharedMailboxSupport.NOT_CONNECTED), state.read())
         assertTrue(state.asksAgain("a", mail))
-        state.answered("a", sharedView(SharedMailboxSupport.UNSUPPORTED))
+        state.answered("a", sharedView(SharedMailboxSupport.UNSUPPORTED), state.read())
         assertTrue(state.asksAgain("a", mail))
         // Listing again would be a request to the server on every signal.
-        state.answered("a", sharedView(SharedMailboxSupport.LISTED))
+        state.answered("a", sharedView(SharedMailboxSupport.LISTED), state.read())
         assertFalse(state.asksAgain("a", mail))
-        state.answered("a", sharedView(SharedMailboxSupport.UNREACHABLE))
+        state.answered("a", sharedView(SharedMailboxSupport.UNREACHABLE), state.read())
         assertFalse(state.asksAgain("a", mail))
         // Switching mail off removes every mailbox chosen, which the last answer still shows on.
         assertTrue(state.asksAgain("a", emptyList()))
-        state.answered("a", null)
+        state.answered("a", null, state.read())
         assertTrue(state.asksAgain("a", mail))
+    }
+
+    @Test
+    fun an_answer_read_before_the_one_shown_does_not_replace_it() {
+        val state = SharedMailboxesState()
+        val support = sharedMailbox("Support", "support@example.org")
+        // The page opens and asks; a switch is made and reads its answer before that ask lands.
+        val ask = state.read()
+        val afterSwitch = state.read()
+        state.answered("a", sharedView(SharedMailboxSupport.LISTED, support.copy(selected = true)), afterSwitch)
+        state.answered("a", sharedView(SharedMailboxSupport.LISTED, support), ask)
+
+        assertTrue(state.answers.getValue("a").mailboxes.single().selected)
     }
 }

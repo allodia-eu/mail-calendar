@@ -13,9 +13,10 @@ internal fun MainActivity.askSharedMailboxes(accountId: String) {
     val shared = accountSettings.shared
     if (!shared.startAsking(accountId, inUse(accountId))) return
     thread(name = "mailcal-shared-mailboxes") {
+        val read = shared.read()
         // A refusal is an account that is not set up: it has no section.
         val view = runCatching { instance.sharedMailboxes(accountId) }.getOrNull()
-        mainHandler.post { shared.answered(accountId, view) }
+        mainHandler.post { shared.answered(accountId, view, read) }
     }
 }
 
@@ -41,12 +42,14 @@ internal fun MainActivity.setSharedMailbox(accountId: String, mailbox: SharedMai
     shared.pending = PendingShared(accountId, mailbox.handle, on)
     thread(name = "mailcal-shared-mailbox-set") {
         val answer = runCatching { instance.setSharedMailbox(accountId, mailbox, on) }
+        val read = shared.read()
         val view = runCatching { instance.sharedMailboxes(accountId) }.getOrNull()
         mainHandler.post {
             shared.pending = null
-            shared.answered(accountId, view)
+            shared.answered(accountId, view, read)
             answer.onFailure {
-                logUiWarn("accounts: switching a shared mailbox failed: ${coreErrorText(it)}")
+                // The event alone: the core's words can quote the typed address (docs/logging.md).
+                logUiWarn("accounts: switching a shared mailbox failed")
                 accountSettings.notice = changeFailed(coreErrorSaid(it, this))
             }
             refreshAccountsSnapshot()
@@ -69,10 +72,11 @@ internal fun MainActivity.addSharedMailbox(accountId: String, address: String) {
                 instance.setSharedMailbox(accountId, found, true)
             }
         }
+        val read = shared.read()
         val view = runCatching { instance.sharedMailboxes(accountId) }.getOrNull()
         mainHandler.post {
             shared.adding = null
-            shared.answered(accountId, view)
+            shared.answered(accountId, view, read)
             answer.onSuccess { found ->
                 if (found != null) {
                     shared.addedOne()
@@ -85,7 +89,8 @@ internal fun MainActivity.addSharedMailbox(accountId: String, address: String) {
                 }
             }
             answer.onFailure {
-                logUiWarn("accounts: adding a shared mailbox failed: ${coreErrorText(it)}")
+                // The event alone: a Graph refusal quotes the address typed (docs/logging.md).
+                logUiWarn("accounts: adding a shared mailbox failed")
                 accountSettings.notice = changeFailed(coreErrorSaid(it, this))
             }
             refreshAccountsSnapshot()

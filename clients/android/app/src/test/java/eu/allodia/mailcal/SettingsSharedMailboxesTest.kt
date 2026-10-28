@@ -44,7 +44,7 @@ class SettingsSharedMailboxesTest {
         val entry = mailboxOnly()
         state.snapshot = AccountsSnapshot(listOf(entry))
         state.page = entry.id
-        state.shared.answered(entry.id, view)
+        state.shared.answered(entry.id, view, state.shared.read())
         val ui = AccountsSettingsUi(
             state = state,
             onAskSharedMailboxes = { asked += it },

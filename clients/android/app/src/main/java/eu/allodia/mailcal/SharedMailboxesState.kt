@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import java.util.concurrent.atomic.AtomicLong
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.SharedMailboxEntry
 import uniffi.mailcal_bindings.SharedMailboxSupport
@@ -103,6 +104,12 @@ internal class SharedMailboxesState {
     /** What each account was used for when its server was last asked. */
     private val asked = mutableMapOf<String, List<AccountCapability>>()
 
+    /** Numbers each read of the core's answer in the order they start, on any thread. */
+    private val reads = AtomicLong()
+
+    /** The read each account's shown answer came from. */
+    private val shown = mutableMapOf<String, Long>()
+
     /** A switch the core is still answering. */
     var pending by mutableStateOf<PendingShared?>(null)
 
@@ -134,9 +141,18 @@ internal class SharedMailboxesState {
         accountId !in asking &&
             SharedMailboxRules.mayHaveChanged(answers[accountId], asked[accountId], uses)
 
-    /** The server answered for [accountId]; null is an account that is no longer set up. */
-    fun answered(accountId: String, view: SharedMailboxesView?) {
+    /** A read of the core's answer about to start, to hand back with what it read. */
+    fun read(): Long = reads.incrementAndGet()
+
+    /**
+     * The core answered [read] for [accountId]; null is an account that is no longer set up. A read
+     * that started before the one shown is older than it, and is dropped: an ask from the page
+     * opening must not undo what a switch read after it.
+     */
+    fun answered(accountId: String, view: SharedMailboxesView?, read: Long) {
         asking.remove(accountId)
+        if (read < (shown[accountId] ?: 0L)) return
+        shown[accountId] = read
         // An answer equal to the last one leaves the page alone.
         if (answers[accountId] == view) return
         answers = if (view == null) answers - accountId else answers + (accountId to view)
