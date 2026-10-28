@@ -21,10 +21,8 @@ struct SetupUsesSection<MailRows: View>: View {
             case .mail: mailCard
             case .calendar: davCard(.calendar)
             case .contacts: davCard(.contacts)
-            // Drawn inside the contacts card, beneath the toggle it depends on.
-            case .colleagues: EmptyView()
-            // Not offered: this client has no section to choose one (docs/shared-mailboxes.md §3).
-            case .sharedMailboxes: EmptyView()
+            // Drawn inside the mail and contacts cards, beneath the toggle each depends on.
+            case .colleagues, .sharedMailboxes: EmptyView()
             }
         }
         .onChange(of: flagged) { _, missing in
@@ -41,6 +39,12 @@ struct SetupUsesSection<MailRows: View>: View {
             toggle(.mail, L10n.setup_detect_mail_enable())
             // Following the toggle, so a use switched off leaves nothing behind claiming otherwise.
             if choices.isOn(.mail) { mailRows() }
+            if choices.offer.choice(.sharedMailboxes) != nil {
+                // A shared mailbox is opened beside the account's own mail, so it is offered only
+                // while mail is on.
+                toggle(.sharedMailboxes, L10n.setup_detect_shared_mailboxes_enable())
+                    .padding(.leading, 20)
+            }
         }
     }
 
