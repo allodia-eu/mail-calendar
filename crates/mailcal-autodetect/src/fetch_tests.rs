@@ -11,7 +11,7 @@ use std::{
 
 use url::Url;
 
-use super::{FetchOutcome, Fetcher};
+use super::{FetchOutcome, Fetcher, redirect_target};
 use crate::DetectConfig;
 
 /// A canned HTTP response: status line, extra headers, and a body with a correct
@@ -134,6 +134,29 @@ async fn a_redirect_chain_is_followed_to_the_final_response() {
     };
     assert_eq!(resp.body, b"final");
     assert_eq!(resp.final_url.path(), "/third");
+}
+
+#[test]
+fn a_plaintext_redirect_to_the_same_host_is_followed_over_tls() {
+    // A server behind a TLS-terminating proxy builds its redirects as if it were served in
+    // plaintext. The host has just answered over TLS, so the hop stays on it; the engine
+    // follows the same rule when it connects (`engine_provider::redirect_target`).
+    let current = Url::parse("https://dav.example.com/.well-known/caldav").unwrap();
+    let next = |location| redirect_target(&current, location).map(String::from);
+    assert_eq!(
+        next("http://dav.example.com/remote.php/dav/").as_deref(),
+        Some("https://dav.example.com/remote.php/dav/")
+    );
+    // Another host, or a port of its own, says nothing about TLS there: the hop is followed
+    // as it is, and the result is untrusted.
+    assert_eq!(
+        next("http://cal.example.net/dav/").as_deref(),
+        Some("http://cal.example.net/dav/")
+    );
+    assert_eq!(
+        next("http://dav.example.com:8080/dav/").as_deref(),
+        Some("http://dav.example.com:8080/dav/")
+    );
 }
 
 #[tokio::test]

@@ -259,7 +259,7 @@ async fn connect_caldav_at(
     .with_connect_observer(connect_log::connect_logger("caldav"));
     let provider = CalDavProvider::connect(config)
         .await
-        .map_err(AccountError::from_first_dav_connect)
+        .map_err(|err| AccountError::from_first_dav_connect(err, AccountError::CalDav))
         .map_err(|err| err.over_tls(&tls))?;
     let principal = provider.principal_url().map(str::to_owned);
     Ok(DavConnected {

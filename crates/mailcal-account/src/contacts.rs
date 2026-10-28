@@ -127,7 +127,9 @@ async fn connect_carddav_at(
 
     let discovery = CardDavProvider::connect(config.clone())
         .await
-        .map_err(|err| AccountError::from_first_dav_connect(err).over_tls(&tls))?;
+        .map_err(|err| {
+            AccountError::from_first_dav_connect(err, AccountError::CardDav).over_tls(&tls)
+        })?;
     let principal = discovery.principal_url().map(str::to_owned);
     let none = |principal| DavConnected {
         providers: Vec::new(),

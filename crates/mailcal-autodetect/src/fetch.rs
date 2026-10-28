@@ -145,7 +145,12 @@ impl Fetcher {
 
             let status = response.status();
             if status.is_redirection() {
-                let Some(next) = redirect_target(&current, &response) else {
+                let location = response
+                    .headers()
+                    .get(LOCATION)
+                    .and_then(|value| value.to_str().ok());
+                let Some(next) = location.and_then(|location| redirect_target(&current, location))
+                else {
                     log::debug!("autodetect redirect without a usable Location at {current}");
                     return FetchOutcome::Miss;
                 };
@@ -196,10 +201,23 @@ impl Fetcher {
     }
 }
 
-/// Resolves a redirect `response`'s `Location` against the `current` URL.
-fn redirect_target(current: &Url, response: &reqwest::Response) -> Option<Url> {
-    let location = response.headers().get(LOCATION)?.to_str().ok()?;
-    current.join(location).ok()
+/// Resolves a redirect's `location` against the `current` URL.
+///
+/// A plaintext hop from TLS to the same host, naming no port of its own, is taken over TLS: a
+/// server behind a TLS-terminating proxy builds its redirects as if it were served in
+/// plaintext, and the host has just answered over TLS. The engine connects by the same rule
+/// (`engine_provider::redirect_target`), so a server found here is one it can reach. Any other
+/// plaintext hop is followed as it is, and leaves the result untrusted.
+fn redirect_target(current: &Url, location: &str) -> Option<Url> {
+    let mut next = current.join(location).ok()?;
+    if current.scheme() == "https"
+        && next.scheme() == "http"
+        && next.host() == current.host()
+        && next.port().is_none()
+    {
+        next.set_scheme("https").ok()?;
+    }
+    Some(next)
 }
 
 #[cfg(test)]

@@ -202,7 +202,7 @@ impl MailcalApp {
             expanded: true,
         };
         let protocol = prepared.connected.protocol();
-        let family = prepared.connected.account_type();
+        let family = prepared.connected.dialled();
         let stores_a_password = prepared.connected.stores_a_password();
         // The setup funnel: which protocol was attempted, and did it connect. Paired with
         // `setup_completed` / `setup_failed` below, this answers "how many people never get an
