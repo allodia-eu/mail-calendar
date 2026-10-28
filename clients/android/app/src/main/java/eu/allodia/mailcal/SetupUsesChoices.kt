@@ -1,5 +1,6 @@
 // What the account is used for, chosen on the setup screen: mail, calendar and contacts on the found
-// card and the calendar-and-contacts card, colleagues too before a Microsoft or Google sign-in, and
+// card and the calendar-and-contacts card, colleagues too before a Microsoft or Google sign-in and
+// shared mailboxes before a Microsoft one (docs/shared-mailboxes.md rule 2), and
 // the uses a JMAP server offers after one (docs/account-autodetect.md rule 8, docs/accounts.md rule
 // 10). Which uses are offered and how each starts is the core's; what the toggles make of the
 // account is SetupUses, which the JVM suite drives. This file holds the toggles and draws them.
@@ -31,6 +32,7 @@ internal class UseToggles(val offer: UseOffer) {
     var calendar by mutableStateOf(starts(AccountCapability.CALENDAR))
     var contacts by mutableStateOf(starts(AccountCapability.CONTACTS))
     var colleagues by mutableStateOf(starts(AccountCapability.COLLEAGUES))
+    var sharedMailboxes by mutableStateOf(starts(AccountCapability.SHARED_MAILBOXES))
     var calendarTyped by mutableStateOf("")
     var contactsTyped by mutableStateOf("")
 
@@ -55,6 +57,7 @@ internal class UseToggles(val offer: UseOffer) {
         picked(AccountCapability.CALENDAR, calendar, calendarTyped),
         picked(AccountCapability.CONTACTS, contacts, contactsTyped),
         colleagues.takeIf { offered(AccountCapability.COLLEAGUES) },
+        sharedMailboxes.takeIf { offered(AccountCapability.SHARED_MAILBOXES) },
     )
 
     /**
@@ -96,6 +99,8 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
                 SectionHeader("✉", L10n.setup_detect_section_email(ctx))
                 UseBox(L10n.setup_detect_mail_enable(ctx), toggles.mail, toggles.canFlip(toggles.mail), "MAIL") {
                     toggles.mail = it
+                    // A shared mailbox is opened beside the account's own mail.
+                    if (!it) toggles.sharedMailboxes = false
                 }
             }
             AccountCapability.CALENDAR -> {
@@ -150,8 +155,14 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
                     "COLLEAGUES",
                 ) { toggles.colleagues = it }
             }
-            // Not offered: this client has no section to choose one (docs/shared-mailboxes.md §3).
-            AccountCapability.SHARED_MAILBOXES -> {}
+            AccountCapability.SHARED_MAILBOXES -> Row(modifier = Modifier.padding(start = 24.dp)) {
+                UseBox(
+                    L10n.setup_detect_shared_mailboxes_enable(ctx),
+                    toggles.sharedMailboxes,
+                    toggles.mail,
+                    "SHARED_MAILBOXES",
+                ) { toggles.sharedMailboxes = it }
+            }
         }
     }
 }

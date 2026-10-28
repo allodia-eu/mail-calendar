@@ -222,5 +222,8 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     onSeparateFormShown = { askSeparateSignIn(accountSettings.separate) },
     onSeparateProviderSignIn = { signInSeparate(accountSettings.separate) },
     onReviewServerChange = { id -> reviewServerChange(id) },
+    onAskSharedMailboxes = { id -> askSharedMailboxes(id) },
+    onSetSharedMailbox = { id, mailbox, on -> setSharedMailbox(id, mailbox, on) },
+    onAddSharedMailbox = { id, address -> addSharedMailbox(id, address) },
     onRemove = { id -> removeAccount(id) },
 )
