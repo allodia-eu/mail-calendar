@@ -112,7 +112,9 @@ struct AccountSharedMailboxesSection: View {
 
     /// A refusal leaves the address where it was typed, to correct.
     private func add() {
-        guard let address = SharedMailboxRules.address(typed), !adding else { return }
+        guard let address = SharedMailboxRules.address(typed), !adding, switching == nil else {
+            return
+        }
         adding = true
         let id = entry.id
         Task {
@@ -157,14 +159,19 @@ struct SharedMailboxesAsking: ViewModifier {
 
     private func askAgain() {
         guard !asking, SharedMailboxRules.mayAskAgain(answer) else { return }
+        // Claimed before the task starts: one snapshot changes `entry`, `accounts` and
+        // `connectivity` together, and each would otherwise start an ask of its own.
+        asking = true
         Task { await ask() }
     }
 
     private func ask() async {
         asking = true
+        let before = answer
         let fresh = await model.sharedMailboxes(entry.id)
         asking = false
-        // Only a different answer redraws, so what is being typed on the page is left alone.
-        if fresh != answer { answer = fresh }
+        // A switch or an add answered while this was asked is newer, so it stays. Otherwise only
+        // a different answer redraws, so what is being typed on the page is left alone.
+        if answer == before, fresh != answer { answer = fresh }
     }
 }

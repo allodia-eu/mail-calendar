@@ -32,7 +32,8 @@ extension MailboxModel {
             }.value
             return nil
         } catch {
-            logAppleLifecycle("accounts: switching a shared mailbox failed (\(coreMessage(error)))")
+            // Never the core's message: it can name the mailbox, which is someone else's.
+            logAppleLifecycle("accounts: switching a shared mailbox failed")
             return coreMessage(error)
         }
     }
@@ -47,8 +48,9 @@ extension MailboxModel {
                 try app.resolveSharedMailbox(accountId: id, address: address)
             }.value
         } catch {
-            // Never the address: it names someone else's mailbox.
-            logAppleLifecycle("accounts: looking up a shared mailbox failed (\(coreMessage(error)))")
+            // Never the core's message: Microsoft's refusal quotes the address typed, and the
+            // mailbox is someone else's.
+            logAppleLifecycle("accounts: looking up a shared mailbox failed")
             return .failed(coreMessage(error))
         }
         guard let found else { return .notFound }
