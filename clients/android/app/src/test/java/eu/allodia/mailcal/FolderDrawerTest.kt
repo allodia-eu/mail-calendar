@@ -13,6 +13,7 @@ package eu.allodia.mailcal
 import android.content.Context
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -20,6 +21,8 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -27,6 +30,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.GraphicsMode
 import uniffi.mailcal_bindings.AccountFolderRow
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.FolderRole
@@ -112,6 +116,27 @@ class FolderDrawerTest {
 
     private fun account(id: String, email: String, expanded: Boolean) =
         AccountRow(id = id, email = email, name = "", expanded = expanded)
+
+    // Real text measurement: the legacy graphics give every glyph no width, so nothing wraps.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `an account's address too long for its row stays one line, never cut at a hyphen`() {
+        val address = "team-orderconfirmations-and-deliveries@example.org"
+        drawer(
+            accounts = listOf(account("team", address, expanded = false)),
+            accountFolders = listOf(accountFolderRow("team", emptyList())),
+        )
+
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(address).performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
+            it(layouts)
+        }
+        val layout = layouts.single()
+        // A break after the hyphen with a one-line limit would end the line at "team-".
+        assertEquals(1, layout.lineCount)
+        assertEquals(address.length, layout.getLineEnd(0))
+        assertTrue("shortened rather than overflowing the row", layout.isLineEllipsized(0))
+    }
 
     @Test
     fun `a folder inside a folder is drawn and its chevron shuts it without selecting it`() {
