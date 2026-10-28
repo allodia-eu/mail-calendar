@@ -29,7 +29,7 @@ core sanitises it **once** for every client (never re-implemented per platform):
 
 - **Removed:** `<script>` + contents, event handlers (`on*`), `<iframe>`/`<object>`/`<embed>`/
   `<form>`, `<base>`/`<meta>` (so a message can't set its own refresh/CSP), and any URL scheme
-  other than `http(s)`/`mailto`/`data`/`cid`.
+  other than `http(s)`/`mailto`/`tel`/`data`/`cid`.
 - **Kept:** presentational HTML/CSS: inline `style`, `<style>` blocks, `class` and `id` (stripping
   CSS makes real mail illegible), and remote `<img>` sources (the load is gated downstream, not the
   markup). `id` is a selector hook exactly like `class`: a newsletter's mobile layout commonly
@@ -47,7 +47,10 @@ core sanitises it **once** for every client (never re-implemented per platform):
   The finder is `mailcal_app::linkify`, the one the native surfaces under Gate 8 use, so an address
   is a link on every surface or on none, and its scheme is always one gate 4a opens. A link loads
   nothing, so it never raises `has_remote_images`. Bare domains and bare email addresses are not
-  linked: too much ordinary prose matches them.
+  linked: too much ordinary prose matches them. A `tel:` address written as text is not linked
+  either: a bare number is not enough to say it is one, and dialling what turns out to be something
+  else is a call the reader did not ask for. A sender who wants a number to be dialled marks it up
+  as a link, which the sanitiser keeps.
 - **Reported:** `has_remote_images`: whether the body *would* load a remote resource (remote
   `<img>`, CSS `url(...)`, `@import`, protocol-relative `//…`, refs inside `<style>`), so a client
   offers the "load remote images" confirmation only when there is something to gate.
@@ -137,8 +140,8 @@ can't leak data:
 4. **No new windows / popups.**
    - **4a. External link handoff.** A link the user **clicks/taps** opens in the OS default
      browser/handler instead of the inert web view, but **only** for the safe scheme allowlist
-     **`http` / `https` / `mailto`**; `data:`/`cid:`/`file:`/custom app schemes/etc. are never
-     handed off. The allow-or-ignore decision is **shared Rust**: `should_open_external_link`
+     **`http` / `https` / `mailto` / `tel`**; `data:`/`cid:`/`file:`/custom app schemes/etc. are
+     never handed off. The allow-or-ignore decision is **shared Rust**: `should_open_external_link`
      (FFI), the single source of truth, so every client decides identically and **cannot
      drift**; it is the same scheme set the sanitiser keeps on `<a href>` (a link the sanitiser
      strips can never be clicked, so the two must agree). Only the actual launch is native
@@ -204,7 +207,7 @@ cell is filled.
 | **2a**: no inspector in a release build | `isInspectable` is never set, and it is off by default | `setWebContentsDebuggingEnabled` is never called, so the platform allows it only in a debuggable (debug) build | `AreDevToolsEnabled` is off outside `DEBUG`, and every `WEBVIEW2_*` variable is removed from the process before the first web view (`WebViewInspection`), because the loader appends `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` to the app's own options | `enable_developer_extras` is never set, and `WEBKIT_INSPECTOR_SERVER` exposes no page without it |
 | In-view navigation blocked | `decidePolicyFor` cancels all but the initial in-memory load | `shouldOverrideUrlLoading → true` | `NavigationStarting` cancels all but our `NavigateToString` | `decide-policy` permits only the expected initial `about:blank` load; all later navigation is ignored |
 | New windows blocked | navigation policy cancels; no `WKUIDelegate` opens windows | (navigation cancelled) | `NewWindowRequested.Handled = true` | `create → None`; `NewWindowAction` is ignored |
-| External link handoff (user-activated; scheme decided by shared Rust `should_open_external_link`: `http`/`https`/`mailto` only) | `.linkActivated` → `NSWorkspace.shared.open` | `hasGesture()` → `Intent.ACTION_VIEW` | `IsUserInitiated` (nav + `NewWindowRequested`) → `Launcher.LaunchUriAsync` | `is_user_gesture` → shared gate → `GAppInfo` OS handler; WebKit navigation stays cancelled |
+| External link handoff (user-activated; scheme decided by shared Rust `should_open_external_link`: `http`/`https`/`mailto`/`tel` only) | `.linkActivated` → `NSWorkspace.shared.open` | `hasGesture()` → `Intent.ACTION_VIEW` | `IsUserInitiated` (nav + `NewWindowRequested`) → `Launcher.LaunchUriAsync` | `is_user_gesture` → shared gate → `GAppInfo` OS handler; WebKit navigation stays cancelled |
 | No file/content access | n/a (no file URLs; nil base) | `allowFileAccess = false`, `allowContentAccess = false` | (no file access; in-memory doc) | file/universal access from file URLs disabled; no file URL is loaded |
 | Opaque document origin | `loadHTMLString(_, baseURL: nil)` | `loadDataWithBaseURL(null, …)` | `NavigateToString(…)` | `load_html(_, None)` |
 | Remote sub-resources blocked by default | document CSP + nil base origin **(CSP-only; see gaps)** | document CSP + **`shouldInterceptRequest`** hard-block unless opted in | document CSP + **`WebResourceRequested`** 403 hard-block unless opted in | document CSP + native `UserContentFilter` blocks `http(s)` unless opted in |

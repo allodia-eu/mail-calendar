@@ -127,13 +127,29 @@ describe("the link editor's address field", () => {
     expect(normalizeLinkAddress("example.com:8080/x")).toBe("https://example.com:8080/x");
     expect(normalizeLinkAddress("someone@example.com")).toBe("mailto:someone@example.com");
     expect(normalizeLinkAddress("mailto:someone@example.com")).toBe("mailto:someone@example.com");
+    expect(normalizeLinkAddress("tel:+15032223333")).toBe("tel:+15032223333");
+    expect(normalizeLinkAddress("TEL:+44-20-7946-0958")).toBe(
+      "TEL:+44-20-7946-0958",
+    );
   });
 
   test("refuses what cannot be a link", () => {
-    for (const typed of ["", "   ", "javascript:alert(1)", "file:///etc/passwd", "hello", "exa mple.com"]) {
+    for (const typed of [
+      "",
+      "   ",
+      "javascript:alert(1)",
+      "file:///etc/passwd",
+      "hello",
+      "exa mple.com",
+      "+15032223333",
+      "503-222-3333",
+      "tel:",
+      "sms:+15032223333",
+    ]) {
       expect(normalizeLinkAddress(typed)).toBeNull();
     }
     expect(safeLinkHref("https://")).toBeNull();
+    expect(safeLinkHref("tel:")).toBeNull();
   });
 });
 

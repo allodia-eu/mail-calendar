@@ -118,6 +118,7 @@ fn bare_domains_and_addresses_and_other_schemes_are_left_alone() {
         "ftp://example.com",
         "file:///etc/passwd",
         "data:text/html,x",
+        "tel:+15032223333",
     ] {
         assert!(found(text).is_empty(), "expected nothing in {text:?}");
     }

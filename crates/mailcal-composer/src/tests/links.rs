@@ -85,6 +85,22 @@ fn an_address_shown_as_itself_is_written_once_in_the_plain_text() {
 }
 
 #[test]
+fn a_telephone_link_reaches_the_anchor_and_the_plain_text() {
+    // A number is shown by its words and dialled through its target, so the plain-text part
+    // carries the target beside them; a reader with no markup can still act on it.
+    let output = render(&document(vec![
+        run("Call ", false, None),
+        run("503-222-3333", false, Some("tel:+15032223333")),
+    ]))
+    .expect("renders");
+    assert_eq!(
+        output.html,
+        html_doc("<div>Call <a href=\"tel:+15032223333\">503-222-3333</a></div>")
+    );
+    assert_eq!(output.plain_text, "Call 503-222-3333 <tel:+15032223333>");
+}
+
+#[test]
 fn a_hostile_target_in_the_document_sends_the_words_without_a_link() {
     // The editor is not the only thing that can write a document, so the target is checked as it
     // is read: a `javascript:` link, or one trying to break out of the attribute, arrives as text.

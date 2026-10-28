@@ -17,7 +17,7 @@ import {
 } from "./dom";
 
 /// `mailcal_composer::LINK_SCHEMES`: the schemes a sent link may carry.
-const SCHEMES = ["http:", "https:", "mailto:"];
+const SCHEMES = ["http:", "https:", "mailto:", "tel:"];
 
 /// The prefixes an address typed into the body starts with, and whether it opens over `https`.
 /// The same four the reading view's linkifier recognises (`mailcal_app::linkify`), so what the user

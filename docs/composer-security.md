@@ -360,22 +360,25 @@ port:
       assume was attached.
     - **Neither the files nor the text is logged.** Names are the user's own; counts only (Gate 8).
 16. **A link in the body points only where a link in a read message may.** A run's `link` is one
-    of `mailcal_composer::LINK_SCHEMES` (`http`, `https`, `mailto`), the list the reading view's
-    sanitiser and `should_open_external_link` use, so nothing can be sent that our own reader would
-    refuse to open. It is made in the shared bundle and nowhere else:
+    of `mailcal_composer::LINK_SCHEMES` (`http`, `https`, `mailto`, `tel`), the list the reading
+    view's sanitiser and `should_open_external_link` use, so nothing can be sent that our own
+    reader would refuse to open. It is made in the shared bundle and nowhere else:
     - **The link editor** (the toolbar's Link button, or Ctrl/Cmd+K) takes the words and the
       address in a dialog the host draws over its window, asked for through Gate 2's channel. A
       panel inside the WebView is bounded by the WebView's own frame, which a small window shrinks
       until the panel cannot be used. An address without a scheme becomes `https://`, an email
       address `mailto:`, and any other scheme is refused in the field: the rule is
       `mailcal_composer::link_address`, which each dialog asks as the user types, so Apply is
-      enabled exactly when the link can be made. A host that draws no dialog leaves the bundle's
+      enabled exactly when the link can be made. A `tel:` address is kept as typed, which is the one
+      way a message dials a number, and a bare number is refused rather than completed into one: a
+      guess that is wrong dials a stranger. A host that draws no dialog leaves the bundle's
       own popover to ask, under the same rule. The selection is saved before anything takes focus
       and restored before anything is applied.
     - **An address typed into the body** becomes a link when the word ends with Space or Enter:
       only the word ending at the caret, only `http://`, `https://`, `mailto:` or a `www.` host,
       the prefixes the reading view's linkifier recognises, with the sentence's punctuation left
-      outside.
+      outside. A `tel:` address typed this way stays text, for the same reason the dialog never
+      completes one.
     - **Rust holds it on submit.** `LinkUrl` re-checks every target (scheme, no whitespace or
       control character, 2048 bytes at most) and escapes it into the `href`. A target it refuses is
       dropped and the words are sent as text, the same leniency a colour gets. The plain-text part

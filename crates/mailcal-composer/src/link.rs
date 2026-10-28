@@ -10,8 +10,10 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 
 /// The URL schemes a link may carry. Deliberately strict: never `javascript:`, `data:`, `file:`
-/// or a custom application scheme.
-pub const LINK_SCHEMES: [&str; 3] = ["http", "https", "mailto"];
+/// or a custom application scheme. `tel` is here because dialling a number is something a message
+/// legitimately asks for: the URI is handed to the OS as written, exactly as a `mailto:` is, and
+/// the OS decides what its dialler makes of it.
+pub const LINK_SCHEMES: [&str; 4] = ["http", "https", "mailto", "tel"];
 
 /// The longest link the composer sends. Far above any real address, and low enough that a
 /// document cannot inflate a message through one attribute.
@@ -91,12 +93,15 @@ mod tests {
     use super::{LinkUrl, has_link_scheme};
 
     #[test]
-    fn accepts_web_and_mail_links() {
+    fn accepts_web_mail_and_telephone_links() {
         for good in [
             "https://example.com",
             "http://example.com/a?b=c&d=e#f",
             "HTTPS://Example.com",
             "mailto:someone@example.com",
+            "tel:+15032223333",
+            "tel:+44-20-7946-0958;ext=1234",
+            "TEL:+15032223333",
             "  https://example.com  ",
         ] {
             assert!(LinkUrl::new(good).is_some(), "expected {good:?} to be kept");
@@ -111,10 +116,16 @@ mod tests {
             "data:text/html,<script>x</script>",
             "file:///etc/passwd",
             "myapp://open",
+            "sms:+15032223333",
+            "callto:+15032223333",
+            "sip:ada@example.test",
+            "whatsapp://send?phone=15032223333",
             "example.com",
             "/relative",
             "https://",
             "mailto:",
+            "tel:",
+            "tel:+1 503 222 3333",
             "https://exa mple.com",
             "https://example.com/\nBcc: x",
             "",

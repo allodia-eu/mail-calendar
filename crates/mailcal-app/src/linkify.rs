@@ -4,7 +4,9 @@
 //! client draws natively (a plain-text body, an event's notes, an invitation's description), so a
 //! link is a link in all of them or in none. Recognised: `http://` and `https://` addresses,
 //! `mailto:` addresses and a bare `www.` host, which is opened over `https`. Bare domains and bare
-//! email addresses are not: too much ordinary prose matches them.
+//! email addresses are not: too much ordinary prose matches them. A `tel:` address is not either;
+//! the link editor is the only way to make one, so a number in a message is never dialled by
+//! accident.
 
 use std::ops::Range;
 
