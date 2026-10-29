@@ -108,6 +108,10 @@ func useNotConnectedMessage(_ capability: AccountCapability, _ problem: UseProbl
             : L10n.settings_account_use_own_sign_in_calendar()
     case .signInRefused:
         return L10n.signin_refused()
+    case .serverChanged:
+        return contacts
+            ? L10n.settings_account_use_server_changed_contacts()
+            : L10n.settings_account_use_server_changed_calendar()
     }
 }
 

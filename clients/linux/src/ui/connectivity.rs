@@ -6,12 +6,13 @@ use adw::prelude::*;
 use gtk::gio::{self, prelude::NetworkMonitorExt};
 use mailcal_bindings::{
     AccountCapability, AccountProvider, AccountRow, ConnectivitySnapshot, Intent, MailcalApp,
-    UseOutage,
+    ServerChange, UseOutage, UseProblem,
 };
 
 use super::{
     AppInput, PrimaryView,
     account_settings::AccountsInput,
+    server_change::{self, Review, ReviewFrom},
     settings::{entry_name, outage_line},
 };
 use crate::l10n;
@@ -49,6 +50,7 @@ impl ConnectivityState {
             |id| entry(id).map(|entry| entry.address),
             |id| entry(id).map(|entry| entry_name(&entry)),
             |id| app.account_provider(id.to_owned()),
+            |id| app.pending_server_change(id.to_owned()),
         )
     }
 
@@ -58,6 +60,7 @@ impl ConnectivityState {
         address: impl Fn(&str) -> Option<String>,
         name: impl Fn(&str) -> Option<String>,
         provider: impl Fn(&str) -> Option<AccountProvider>,
+        pending_change: impl Fn(&str) -> Option<ServerChange>,
     ) -> Self {
         let named_by = |id: &str| name(id).unwrap_or_else(|| account_email(accounts, id));
         let expired_signins = snapshot
@@ -83,9 +86,15 @@ impl ConnectivityState {
                 .map(|outage| {
                     let address = address(&outage.account_id)
                         .unwrap_or_else(|| account_email(accounts, &outage.account_id));
+                    let change = if outage.problem == UseProblem::ServerChanged {
+                        pending_change(&outage.account_id)
+                    } else {
+                        None
+                    };
                     OutageLine {
                         text: outage_line(capability, outage.problem, &address),
                         account: outage.account_id,
+                        review: change.map(|change| Review { address, change }),
                     }
                 })
                 .collect()
@@ -112,6 +121,8 @@ impl ConnectivityState {
 pub(super) struct OutageLine {
     pub(super) account: String,
     pub(super) text: String,
+    /// The server change a paused use waits on, which its button asks about instead.
+    pub(super) review: Option<Review>,
 }
 
 /// An account a banner names, with the id its button acts on.
@@ -320,12 +331,19 @@ impl OutageBanners {
             let banner = adw::Banner::new("");
             banner.set_use_markup(false);
             banner.set_title(&line.text);
-            banner.set_button_label(Some(l10n::use_outage_open_account()));
             let input = self.sender.clone();
             let account = line.account.clone();
-            banner.connect_button_clicked(move |_| {
-                input.emit(AppInput::Accounts(AccountsInput::Open(account.clone())));
-            });
+            if let Some(review) = line.review.clone() {
+                banner.set_button_label(Some(l10n::server_changed_review()));
+                banner.connect_button_clicked(move |banner| {
+                    server_change::ask(banner, &account, &review, ReviewFrom::Outage, &input);
+                });
+            } else {
+                banner.set_button_label(Some(l10n::use_outage_open_account()));
+                banner.connect_button_clicked(move |_| {
+                    input.emit(AppInput::Accounts(AccountsInput::Open(account.clone())));
+                });
+            }
             banner.set_revealed(true);
             self.root.append(&banner);
         }

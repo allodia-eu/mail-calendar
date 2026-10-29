@@ -20,6 +20,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed partial class InvitationPreviewTests(HarnessApp harness)
 {
     private const string FreeDayInvite = "Weekend walk"; // on the empty weekend day, 11:00 to 12:00

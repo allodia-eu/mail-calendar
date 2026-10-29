@@ -14,6 +14,7 @@ namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(FakeReplyHarnessCollection.Name)]
 [TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
+[Trait("Dataset", "harness")]
 public sealed class EventAnswerReplyPromptTests(FakeReplyHarnessApp harness)
 {
     private static readonly string Stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);

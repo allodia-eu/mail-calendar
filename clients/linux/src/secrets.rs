@@ -357,11 +357,11 @@ mod tests {
         namespaced_file_store(&path, key, Some("dev"))
             .remove("allodia-account")
             .expect("remove the dev entry");
-        assert!(
+        assert_eq!(
             namespaced_file_store(&path, key, Some("dev"))
                 .configs()
-                .expect("dev configs")
-                .is_empty()
+                .expect("dev configs"),
+            [] as [String; 0]
         );
         assert_eq!(
             file_store(&path, key).configs().expect("real configs"),

@@ -120,7 +120,7 @@ async fn rich_reply_threads_and_carries_the_composer_html() {
     // Recipients are the ones supplied; Bcc carried through; Re: subject derived in core.
     assert_eq!(draft.to.len(), 1);
     assert_eq!(draft.to[0].email, "reply@remote.test");
-    assert!(draft.cc.is_empty());
+    assert_eq!(draft.cc, []);
     assert_eq!(draft.bcc.len(), 1);
     assert_eq!(draft.bcc[0].email, "discreet@remote.test");
     assert_eq!(draft.subject, "Re: Quarterly report");

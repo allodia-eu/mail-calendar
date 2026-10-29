@@ -24,6 +24,7 @@ fn root_book() -> AddressBookId {
         MailboxPrincipal::Me,
         &tls,
         &retry,
+        &crate::user_agent(),
     )
     .unwrap();
     GraphContactProvider::personal(client)

@@ -36,6 +36,7 @@ use mailcal_account::{
     JmapAccountConfig,
 };
 
+use super::shared::SharedDial;
 use crate::{BoxedAccount, ConnectedAccount};
 
 /// The most accounts dialed at once, shared by every path that dials more than one.
@@ -83,6 +84,9 @@ pub(crate) struct ConnectFailure {
     /// Whether the server needs a sign-in of its own, because the account's grant may not reach
     /// it (`docs/mail-oauth.md` rule 10). Nothing was sent to it.
     needs_own_sign_in: bool,
+    /// Whether a DAV server said the start it was given is gone (a `404`, `410` or `403`, or no
+    /// home), rather than not answering: the one failure worth finding the servers again for.
+    gone: bool,
 }
 
 impl ConnectFailure {
@@ -93,7 +97,20 @@ impl ConnectFailure {
             signin_expired: false,
             certificate: None,
             needs_own_sign_in: false,
+            gone: false,
         }
+    }
+
+    /// Whether the servers are worth finding again (RFC 6764 §6): a DAV server said its start is
+    /// gone, or refused the sign-in. An outage is not: it changes nothing.
+    pub(crate) const fn worth_rediscovering(&self) -> bool {
+        self.gone || self.signin_expired
+    }
+
+    /// Whether the server simply did not answer: not a refusal, a start it says is gone, a
+    /// certificate, or a server that needs a sign-in of its own, each of which is an answer.
+    pub(crate) const fn is_outage(&self) -> bool {
+        !self.signin_expired && self.certificate.is_none() && !self.needs_own_sign_in && !self.gone
     }
 
     /// What this failure means for a use that failed beside a working mailbox.
@@ -112,11 +129,6 @@ impl ConnectFailure {
     pub(crate) const fn signin_expired(&self) -> bool {
         self.signin_expired
     }
-
-    /// Whether the server presented a certificate that did not verify.
-    pub(crate) const fn certificate_rejected(&self) -> bool {
-        self.certificate.is_some()
-    }
 }
 
 impl From<AccountError> for ConnectFailure {
@@ -124,6 +136,7 @@ impl From<AccountError> for ConnectFailure {
         Self {
             signin_expired: matches!(err, AccountError::SigninRejected(_)),
             needs_own_sign_in: matches!(err, AccountError::DavNeedsOwnSignIn(_)),
+            gone: err.is_gone(),
             certificate: match &err {
                 AccountError::CertificateRejected { rejected, .. } => {
                     Some(Box::new((**rejected).clone()))
@@ -175,6 +188,14 @@ pub(crate) struct DialOutcome {
     /// What stopped the calendar or contacts from connecting, mail being up: for the account's
     /// page in Settings, and for the next retry.
     pub(crate) use_problems: mailcal_app::UseProblems,
+    /// Which of the calendar and contacts failed only because their server did not answer.
+    pub(crate) unanswered: mailcal_app::Unanswered,
+    /// The DAV principals the dial learned, for the registry to store
+    /// ([`AccountRegistry::learn_dav_starts`](super::AccountRegistry::learn_dav_starts)).
+    pub(crate) learned: mailcal_account::DavLearned,
+    /// Whether the calendar or contacts failed in a way worth finding their servers again for
+    /// ([`ConnectFailure::worth_rediscovering`]).
+    pub(crate) rediscover: bool,
 }
 
 /// How to rebuild one registered account's providers: the credential-bearing half of its
@@ -197,6 +218,9 @@ pub(crate) enum AccountDial {
         tokens: Option<Arc<GraphTokenSource>>,
         /// What the account is used for; a capability it is not used for is never opened.
         capabilities: Capabilities,
+        /// The shared mailbox this dial opens with the account's sign-in, `None` for the
+        /// account's own.
+        shared: Option<SharedDial>,
     },
     /// A Microsoft account: bind its Graph folder providers through the shared token source.
     Microsoft {
@@ -210,6 +234,9 @@ pub(crate) enum AccountDial {
         withheld: Capabilities,
         /// Whether the account was stored before its affiliation was recorded, so the dial asks.
         affiliation_unknown: bool,
+        /// The shared mailbox this dial opens with the account's sign-in, `None` for the
+        /// account's own.
+        shared: Option<SharedDial>,
     },
     /// A Google account: bind its account-global Gmail provider (+ calendar) through the shared
     /// token source.
@@ -235,6 +262,9 @@ pub(crate) enum AccountDial {
         capabilities: Capabilities,
         /// Where the dial records what the session offers.
         session: crate::jmap_session::JmapSession,
+        /// The shared mailbox this dial opens with the account's sign-in, `None` for the
+        /// account's own.
+        shared: Option<SharedDial>,
     },
 }
 
@@ -252,6 +282,7 @@ impl AccountDial {
                 connections: Arc::clone(connections),
                 tokens: tokens.clone(),
                 capabilities: config.capabilities(),
+                shared: None,
             },
             ConnectedAccount::Microsoft { config, tokens } => Self::Microsoft {
                 tokens: Arc::clone(tokens),
@@ -259,6 +290,7 @@ impl AccountDial {
                 capabilities: entry.opened_capabilities(),
                 withheld: config.withheld_capabilities(),
                 affiliation_unknown: config.affiliation.is_none(),
+                shared: None,
             },
             ConnectedAccount::Google { config, tokens } => Self::Google {
                 tokens: Arc::clone(tokens),
@@ -275,6 +307,7 @@ impl AccountDial {
                 tokens: tokens.clone(),
                 capabilities: config.capabilities(),
                 session: session.clone(),
+                shared: None,
             },
         }
     }
@@ -305,6 +338,14 @@ impl AccountDial {
     /// so carrying the address here is fine: the logs use `account[{index}]`.
     pub(crate) fn label(&self) -> String {
         match self {
+            Self::Imap {
+                shared: Some(shared),
+                ..
+            }
+            | Self::Jmap {
+                shared: Some(shared),
+                ..
+            } => shared.identity.email.clone(),
             Self::Imap { config, .. } => config.username().to_owned(),
             Self::Microsoft { identity, .. } | Self::Google { identity, .. } => {
                 identity.email.clone()
@@ -325,6 +366,7 @@ impl AccountDial {
         if !self.capabilities().contains(Capability::Mail) {
             return None;
         }
+        let shared = self.shared_handle().cloned();
         match self {
             Self::Imap {
                 config,
@@ -336,12 +378,14 @@ impl AccountDial {
                 &config,
                 tokens.as_ref(),
                 mailbox_key,
+                shared.as_ref(),
             )
             .await
             .ok(),
             // Graph binds the folder unwindowed; the app passes the depth per sync.
             Self::Microsoft { tokens, .. } => {
-                mailcal_account::connect_graph_folder(tokens, mailbox_key, None).ok()
+                mailcal_account::connect_graph_folder(tokens, mailbox_key, None, shared.as_ref())
+                    .ok()
             }
             // Gmail's provider is account-wide (one scope covers every label), so (like JMAP) the
             // reconnected provider serves any `mailbox_key`; there is no per-folder binding.
@@ -350,7 +394,7 @@ impl AccountDial {
             }
             // JMAP's provider is account-wide for the same reason.
             Self::Jmap { config, tokens, .. } => {
-                mailcal_account::connect_jmap_folder(&config, tokens.as_ref())
+                mailcal_account::connect_jmap_folder(&config, tokens.as_ref(), shared.as_ref())
                     .await
                     .ok()
             }

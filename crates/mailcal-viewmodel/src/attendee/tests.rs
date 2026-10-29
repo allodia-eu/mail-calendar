@@ -280,7 +280,7 @@ fn a_name_carrying_a_bidi_override_is_sanitized_before_it_reaches_a_label() {
 
 #[test]
 fn an_event_nobody_was_invited_to_has_no_attendees() {
-    assert!(event_attendees(&event_with(vec![])).is_empty());
+    assert_eq!(event_attendees(&event_with(vec![])), []);
 }
 
 #[test]

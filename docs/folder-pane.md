@@ -112,7 +112,10 @@ advertises LIST-STATUS, else one `STATUS` per mailbox.
 **Rule 20 is decided in the core and only worded by the clients.** Which of the two cases a list
 is in comes from `App::empty_reason`, over the **narrowest** sync depth of the accounts in view, so
 the unified inbox answers the way a search horizon does: one account bounded at six months is
-enough for the server to hold mail this device has not. Each client maps the enum to its own
+enough for the server to hold mail this device has not. A list whose first download is still to
+come, or whose account was just added and has not had its inbox read yet (a first download that
+failed or found its folders busy has not), has no rows for another reason, so it answers `None`
+until it is read. Each client maps the enum to its own
 catalog copy and draws it over the rows rather than in place of the list, so the surfaces around it
 do not move as a folder fills: `EmptyMailboxView` (Apple), `MailboxEmpty` (Android),
 `mailbox_empty::render` into the `GtkListBox` placeholder (Linux), and `EmptyMailboxLine` behind
@@ -176,7 +179,7 @@ role-bearing folder in a fixture and the app renames it: assert the app's word, 
 with no role, or the assertion is one that cannot fail. The Windows pane's rendered shape (that each row
 carries a name a screen reader can read, that the badge reads as a sentence, that a shut account
 takes its folders off screen, and that clicking a folder opens **that** folder) is
-`FolderPane.Tests.ps1`, because none of it is visible to an assembly that cannot link WinUI. Rule 14
+`FolderPaneTests.cs`, because none of it is visible to an assembly that cannot link WinUI. Rule 14
 is the reason the last of those is there: a unit test can see that a row knows its account, and only
 a running window can see that the mail list then changes.
 

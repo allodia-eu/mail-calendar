@@ -48,7 +48,6 @@ fn parses_a_full_account_and_redacts_secrets() {
 
     let caldav = config.caldav.as_ref().expect("caldav present");
     assert_eq!(caldav.base_url, "https://caldav.soverin.net");
-    assert!(caldav.calendar.is_none());
 
     // Secrets never appear in Debug output (so logging a config is safe).
     let dump = format!("{config:?}");
@@ -109,16 +108,18 @@ fn parses_an_imap_only_account() {
     let _ = config.imap_config(Arc::new(config.imap_password_credentials().unwrap()));
 }
 
+/// One provider serves every calendar, so a config stored when it named one still loads, and the
+/// name is not written back.
 #[test]
-fn parses_an_explicit_caldav_calendar() {
+fn a_stored_caldav_calendar_is_read_past_and_not_written_back() {
     let config: AccountConfig = toml::from_str(
         "[imap]\naddr=\"h:993\"\nserver_name=\"h\"\nusername=\"u\"\npassword=\"p\"\n\
          [caldav]\nbase_url=\"https://dav.example.com\"\nusername=\"u\"\npassword=\"p\"\n\
          calendar=\"work\"\n",
     )
-    .expect("valid config");
-    let caldav = config.caldav.as_ref().expect("caldav present");
-    assert_eq!(caldav.calendar.as_deref(), Some("work"));
+    .expect("an old config still loads");
+    assert!(config.caldav.is_some());
+    assert!(!config.to_toml().unwrap().contains("calendar"));
 }
 
 #[test]
@@ -172,10 +173,6 @@ fn replacing_a_password_preserves_every_endpoint_and_updates_caldav_too() {
     );
     assert_eq!(parsed.smtp.as_ref().unwrap().addr, "submit.example.com:587");
     assert_eq!(parsed.caldav.as_ref().unwrap().username, "calendar-alias");
-    assert_eq!(
-        parsed.caldav.as_ref().unwrap().calendar.as_deref(),
-        Some("work")
-    );
 }
 
 fn config_with(username: &str, server_name: &str) -> AccountConfig {

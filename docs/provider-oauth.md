@@ -302,9 +302,12 @@ capturing the redirect), because that is inherently platform-specific.
     | `Calendars.ReadWrite` | `/calendars`, `/events`, `POST /events/{id}/accept`, `decline`, `tentativelyAccept` | the calendar, event edits, answering invitations | calendar |
     | `Contacts.ReadWrite` | `/contacts`, `/contactFolders`, `/contacts/delta` | the account's own contacts, adding and editing them | contacts |
     | `User.ReadBasic.All` | `GET /users` (at the tenant, not under `/me`), `/users/{id}/photo` | colleagues from a work or school directory, and their photos | colleagues, beside contacts; never on a personal account, which has no directory |
+    | `Mail.ReadWrite.Shared` | the `Mail.ReadWrite` calls under `/users/{address}` rather than `/me`, and `GET /users/{address}/mailFolders/inbox` to check an address the person typed | a mailbox the person was given access to, read and written like their own ([`shared-mailboxes.md`](shared-mailboxes.md)) | shared mailboxes, beside mail; never on a personal account |
+    | `Mail.Send.Shared` | `POST /users/{address}/sendMail` | sending from that mailbox's address; `Mail.ReadWrite.Shared` does not grant it | shared mailboxes, beside mail |
 
     **A use the grant withholds is not opened.** Each use has one scope it cannot open without
-    (`Mail.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `User.ReadBasic.All`), and a
+    (`Mail.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `User.ReadBasic.All`,
+    `Mail.ReadWrite.Shared`), and a
     stored `granted_scopes` without it leaves that use closed, compared as Microsoft spells the
     scope back (`Mail.ReadWrite`, any case, for `https://graph.microsoft.com/Mail.ReadWrite`). Mail
     is no exception: an account whose grant withholds it opens as an account without mail

@@ -91,8 +91,8 @@ pub(crate) fn shared_calendar_app(
 fn mailbox(id: &str, identity: &str, mail: InvitationFake) -> Account<InvitationFake> {
     Account {
         id: AccountId::try_from(id).unwrap(),
-        providers: vec![mail],
-        calendar_providers: Vec::new(),
+        providers: vec![mail].into(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new(identity),
         dialled: true,
@@ -103,8 +103,8 @@ fn mailbox(id: &str, identity: &str, mail: InvitationFake) -> Account<Invitation
 fn calendar_account(calendar: InvitationFake) -> Account<InvitationFake> {
     Account {
         id: AccountId::try_from(CALENDAR_ACCOUNT).unwrap(),
-        providers: Vec::new(),
-        calendar_providers: vec![calendar],
+        providers: Vec::new().into(),
+        calendar_provider: Some(calendar),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("login@dav.test.local"),
         dialled: true,

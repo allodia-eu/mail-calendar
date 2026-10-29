@@ -338,7 +338,7 @@ opens there and nothing of the user's is displaced.
   a reason worth retrying, which means taking the mail server away between the connect and the
   send. The showcase seeds have no server to take away, and a Windows CI runner cannot run the
   harness at all, so what the suites gate is the half that holds at zero: that the pane draws no
-  Outbox row when nothing is waiting (`FolderPane.Tests.ps1`). The rest is the core's own tests
+  Outbox row when nothing is waiting (`FolderPaneTests.cs`). The rest is the core's own tests
   (`outbox_tests.rs`) plus, per client, the row rules a unit suite can reach
   (`OutboxRowTests.cs`, `SidebarTreeTests.cs`, `outbox_tests.rs` in `clients/linux`,
   `OutboxTest.kt`). Verify the running client by hand: bring the harness up, connect, stop its

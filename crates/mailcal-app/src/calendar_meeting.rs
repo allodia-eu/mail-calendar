@@ -16,7 +16,7 @@ impl<P: Provider> App<P> {
     /// RFC 6638 auto-scheduling CalDAV server, JMAP, Graph, Google).
     pub(crate) fn account_can_invite(account: &Account<P>) -> bool {
         Self::account_can_write(account)
-            && account.calendar_providers.first().is_some_and(|provider| {
+            && account.calendar_provider.as_ref().is_some_and(|provider| {
                 provider
                     .connection_info()
                     .capabilities

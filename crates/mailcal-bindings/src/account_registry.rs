@@ -54,16 +54,21 @@ use crate::{AccountProvider, ConnectedAccount};
 mod affiliation;
 mod calendar_users;
 mod credentials;
+mod dav_fresh;
+mod dav_starts;
 mod dial;
 mod dial_parts;
 mod dial_run;
 mod endpoints;
 mod links;
+mod registered;
 mod set_up;
+mod shared;
 mod sign_in;
 mod uses;
 
 pub(crate) use dial::{AccountDial, ConnectFailure, MAX_CONCURRENT_DIALS, dial_all};
+pub(crate) use registered::Registered;
 pub(crate) use sign_in::SignInConfig;
 pub(crate) use uses::UseChange;
 
@@ -79,6 +84,11 @@ pub(crate) struct AccountRegistry {
     /// The issuer each password account's provider names for it in its own autoconfig, once the
     /// sign-in options have looked, so starting the sign-in does not look again.
     sign_in_issuers: Mutex<HashMap<String, Option<String>>>,
+    /// Where each account's learned DAV principals are kept, once the boot has said
+    /// (`dav_starts.rs`); `None` for a boot with nothing to keep them in.
+    dav_starts: Mutex<Option<mailcal_account::DavStartsFile>>,
+    /// When each standards account's calendar and contacts last connected (`dav_fresh.rs`).
+    dav_dialled: Mutex<HashMap<String, std::time::Instant>>,
 }
 
 /// What one rotation did to the registry, for the token sink to report and persist.
@@ -117,6 +127,7 @@ impl AccountRegistry {
     /// a caller cannot keep a second copy to write back later.
     pub(crate) fn pre_register(&self, id: String, entry: ConnectedAccount) -> Registered {
         self.forget_answers(&id);
+        let entry = self.with_stored_dav_starts(&id, entry);
         let replaced = self
             .entries
             .lock()
@@ -128,6 +139,7 @@ impl AccountRegistry {
     /// Forgets `id`: the account has been removed.
     pub(crate) fn remove(&self, id: &str) {
         self.forget_answers(id);
+        self.forget_dav_starts(id);
         self.entries
             .lock()
             .expect("account registry mutex poisoned")
@@ -144,11 +156,13 @@ impl AccountRegistry {
     /// The dial is a *snapshot* (configs cloned, token sources `Arc`-shared) so the caller holds no
     /// lock across the network round trip.
     pub(crate) fn dial(&self, id: &str) -> Option<AccountDial> {
-        self.entries
+        let own = self
+            .entries
             .lock()
             .expect("account registry mutex poisoned")
             .get(id)
-            .map(AccountDial::from_entry)
+            .map(AccountDial::from_entry);
+        own.or_else(|| self.dial_shared(id))
     }
 
     /// What `id` stores beside its kind's own section, or `None` if it is not registered.
@@ -176,10 +190,12 @@ impl AccountRegistry {
     /// Whether `id` is still registered, asked after a slow dial, in case the user removed the
     /// account while it ran.
     pub(crate) fn contains(&self, id: &str) -> bool {
-        self.entries
+        let own = self
+            .entries
             .lock()
             .expect("account registry mutex poisoned")
-            .contains_key(id)
+            .contains_key(id);
+        own || self.shared_parent(id).is_some()
     }
 
     /// The provider family of `id` (`imap` / `graph` / `google` / `jmap`), safe for a diagnostic
@@ -460,37 +476,6 @@ pub(crate) enum JmapLookup {
     NotJmap,
     /// No such account; removed while the browser was open.
     Unknown,
-}
-
-/// A registry entry written **before** its connect, holding whatever it displaced so a failed
-/// connect can put the registry back exactly as it was.
-///
-/// The displaced entry matters more than it looks. `complete_microsoft_login` is *also* the
-/// re-authentication path (the host re-runs sign-in for an account it already has) so an entry is
-/// routinely there already, and a rollback that merely *removed* would delete a live account's
-/// re-connection state because its re-auth failed.
-pub(crate) struct Registered {
-    id: String,
-    replaced: Option<ConnectedAccount>,
-}
-
-impl Registered {
-    /// Undoes the pre-registration after a failed connect: restores the entry that was displaced,
-    /// or removes the one this added.
-    pub(crate) fn rollback(self, registry: &AccountRegistry) {
-        let mut entries = registry
-            .entries
-            .lock()
-            .expect("account registry mutex poisoned");
-        match self.replaced {
-            Some(previous) => entries.insert(self.id, previous),
-            None => entries.remove(&self.id),
-        };
-    }
-
-    /// Commits the registration by consuming the rollback token. The entry already contains the
-    /// live token source prepared before the dial; committing must not replace any part of it.
-    pub(crate) fn commit(self) {}
 }
 
 #[cfg(test)]

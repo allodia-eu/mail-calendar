@@ -8,6 +8,7 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
+mailcal-user-agent = { path = "../mailcal-user-agent" }
 # The port this crate implements, and the `Batch` wire type it serializes.
 mailcal-app = { workspace = true }
 # The one host-selected TLS policy, shared with IMAP/CalDAV/JMAP/Graph and OAuth. `reqwest` is

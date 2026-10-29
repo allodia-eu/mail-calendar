@@ -73,7 +73,7 @@ async fn a_pasted_picture_leaves_as_a_cid_part_with_no_host_blob() {
     assert!(!html.contains("data:image"), "{html}");
     assert_eq!(draft.attachments.len(), 1);
     assert_eq!(draft.attachments[0].media_type, "image/png");
-    assert!(!draft.attachments[0].content.is_empty());
+    assert_ne!(draft.attachments[0].content, [] as [u8; 0]);
     match &draft.attachments[0].disposition {
         DraftAttachmentDisposition::Inline { content_id } => {
             assert_eq!(content_id.as_str(), "pasted@test.local");

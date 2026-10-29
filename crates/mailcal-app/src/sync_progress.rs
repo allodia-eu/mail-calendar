@@ -95,6 +95,11 @@ impl<P: Provider> SyncObserver for ProgressForwarder<'_, P> {
     fn folder_sync_finished(&self, account: &AccountId, scope: &SyncScope, synced: bool) {
         if synced {
             self.app.note_folder_synced(account, scope);
+            // A new account's list is known to be what it is once its inbox has been read, by
+            // whichever pass read it: one that found the scope busy, or failed, has not.
+            if self.app.covers_inbox(account, scope) {
+                self.app.note_first_download(account, false);
+            }
         }
         self.app.note_folder_finished(self.id, account);
     }
@@ -115,6 +120,41 @@ impl<P: Provider> App<P> {
             .lock()
             .expect("sync-progress mutex poisoned")
             .snapshot()
+    }
+
+    /// Notes whether `account`, just added, still waits for its first download: `true` before its
+    /// first snapshot is built, `false` once a pass has read its inbox or the account is gone.
+    pub(crate) fn note_first_download(&self, account: &AccountId, pending: bool) {
+        let mut state = self
+            .sync_progress
+            .lock()
+            .expect("sync-progress mutex poisoned");
+        if pending {
+            state.first_download_pending(account.as_str());
+        } else {
+            state.first_download_over(account.as_str());
+        }
+    }
+
+    /// Whether a just-added account among `accounts` still waits for its first download.
+    pub(crate) fn awaiting_download(&self, accounts: &[AccountId]) -> bool {
+        self.sync_progress
+            .lock()
+            .expect("sync-progress mutex poisoned")
+            .awaiting_any(accounts)
+    }
+
+    /// Whether `scope` holds `account`'s inbox: a scope over the whole account does, and so does
+    /// any while the account's inbox is not known yet.
+    fn covers_inbox(&self, account: &AccountId, scope: &SyncScope) -> bool {
+        let Some(folder) = crate::sync_unbound::scope_folder(scope) else {
+            return true;
+        };
+        self.inbox_keys
+            .lock()
+            .expect("inbox-key mutex poisoned")
+            .get(account.as_str())
+            .is_none_or(|inbox| inbox == folder.key().as_str())
     }
 
     /// Marks a sync as started with a log label for the first known progress denominator.

@@ -96,6 +96,11 @@ pub struct AccountConfig {
     /// kind's own section.
     #[serde(skip)]
     pub shape: crate::AccountShape,
+    /// The principal each DAV use named on its last successful connect, where its next connect
+    /// starts ([`DavStarts`](crate::DavStarts)). Kept beside the stored config by the host, never
+    /// in it: a cache of what worked, not what setup chose.
+    #[serde(skip)]
+    pub dav_starts: crate::DavStarts,
 }
 
 /// An IMAP endpoint: the `host:port` to dial, the TLS server name, and credentials.
@@ -149,9 +154,6 @@ pub struct CalDavAccount {
     /// ([`docs/mail-oauth.md`](../../../docs/mail-oauth.md)).
     #[serde(default)]
     pub password: Option<Secret>,
-    /// The calendar collection to sync (defaults to discovery's primary).
-    #[serde(default)]
-    pub calendar: Option<String>,
 }
 
 impl AccountConfig {
@@ -253,9 +255,6 @@ impl AccountConfig {
             table.insert("username".into(), caldav.username.clone().into());
             if let Some(password) = &caldav.password {
                 table.insert("password".into(), password.expose().to_owned().into());
-            }
-            if let Some(calendar) = &caldav.calendar {
-                table.insert("calendar".into(), calendar.clone().into());
             }
             root.insert("caldav".into(), table.into());
         }

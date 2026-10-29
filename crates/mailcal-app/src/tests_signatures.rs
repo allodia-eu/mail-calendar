@@ -37,7 +37,7 @@ async fn a_created_signature_is_listed_and_its_body_fetched_on_demand() {
 
     // The create returns the minted id, so a host can select what it just made without
     // re-pulling and guessing which row is new.
-    assert!(!row.id.is_empty());
+    assert_ne!(row.id, "");
     assert_eq!(row.name, "Work");
     assert!(surfaces.lock().unwrap().contains(&Surface::Settings));
 
@@ -335,7 +335,7 @@ async fn removing_an_account_drops_its_assignment_but_keeps_the_shared_library()
     // The library is intact…
     let snapshot = app.signatures().await;
     assert_eq!(snapshot.signatures.len(), 1);
-    assert!(snapshot.accounts.is_empty());
+    assert_eq!(snapshot.accounts, []);
     // …and the removed account's assignment is gone, so a re-add starts with no signature rather
     // than inheriting one the user may have deleted meanwhile.
     assert!(

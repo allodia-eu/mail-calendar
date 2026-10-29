@@ -180,5 +180,39 @@ async fn a_withheld_calendar_asks_for_consent_without_being_dialled() {
         .await
         .unwrap_or_else(|failure| panic!("nothing was dialled: {failure}"));
     assert!(outcome.calendar_reauth_required);
-    assert!(outcome.account.calendar_providers.is_empty());
+    assert!(outcome.account.calendar_provider.is_none());
+}
+
+/// A redial of the calendar and contacts leaves the mailbox alone: it is already connected, and
+/// signing in to it again is what makes a provider such as Yahoo limit the account's sign-ins.
+#[tokio::test]
+async fn a_dial_of_the_uses_alone_never_opens_the_mailbox() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let imap = listener.local_addr().unwrap();
+    let opened = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let seen = std::sync::Arc::clone(&opened);
+    tokio::spawn(async move {
+        while listener.accept().await.is_ok() {
+            seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    });
+    let config = IMAP.replace(
+        "127.0.0.1:1\"\nserver_name",
+        &format!("{imap}\"\nserver_name"),
+    );
+    let entry = ConnectedAccount::imap_account(mailcal_account::load_str(&config).unwrap(), None);
+    let id = engine_api::AccountId::try_from("alice@example.org@localhost").unwrap();
+
+    let outcome = AccountDial::from_entry(&entry)
+        .run_uses(&id, TimeZoneId::utc())
+        .await
+        .unwrap_or_else(|failure| panic!("the mailbox decides, and it was not dialled: {failure}"));
+
+    assert_eq!(opened.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert!(outcome.account.uses_mail);
+    assert_eq!(
+        outcome.use_problems.calendar,
+        Some(mailcal_app::UseProblem::Unreachable),
+        "the calendar was dialled again"
+    );
 }

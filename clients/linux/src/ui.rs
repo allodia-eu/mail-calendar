@@ -15,6 +15,7 @@ use crate::{
 
 mod account_consent;
 mod account_settings;
+mod account_shared;
 mod account_sign_in;
 mod allodia;
 mod allodia_subscription;
@@ -71,6 +72,7 @@ mod invitation_actions;
 mod jmap;
 mod jmap_actions;
 mod launch;
+mod launcher_badge;
 mod linked_text;
 mod mail_actions;
 mod mail_actions_menu;
@@ -106,6 +108,7 @@ mod selection_input;
 mod separate_server_sign_in;
 mod separate_sign_in;
 mod separate_sign_in_view;
+mod server_change;
 mod settings;
 mod setup;
 mod setup_already_set_up;
@@ -171,6 +174,7 @@ pub(crate) use destinations::PrimaryView;
 use host_tasks::HostTasks;
 pub(crate) use input::AppInput;
 pub(crate) use launch::AppWindow;
+pub(crate) use launcher_badge::clear as clear_launcher_badge;
 use mail_actions::DeleteTarget;
 use mailbox::ThreadKey;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
@@ -275,6 +279,8 @@ pub(crate) struct AppModel {
     boot_error: Option<String>,
     webview_available: bool,
     calendar_refresh: calendar_actions::CalendarRefreshGate,
+    /// The unified Inbox unread on the app's icon in a dock (`docs/app-badge.md`).
+    launcher_badge: launcher_badge::LauncherBadge,
     calendar_manager_generation: u64,
     setup: SetupState,
     /// What this launch knows about the person's other devices, apart from the pass itself.

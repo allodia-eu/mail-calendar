@@ -302,7 +302,7 @@ pub(crate) fn the_buy_buttons_name_their_period_and_their_price() {
 pub(crate) fn an_account_that_cannot_buy_is_offered_nothing() {
     let (sender, _receiver) = relm4::channel();
     let row = free_row(&sender, &[], false);
-    assert!(button_labels(&row).is_empty());
+    assert_eq!(button_labels(&row), [] as [String; 0]);
     // An untouched row answers with the empty string rather than nothing, which is the same
     // absence and the shape the account card next door already asserts on.
     assert!(row.subtitle().is_none_or(|subtitle| subtitle.is_empty()));

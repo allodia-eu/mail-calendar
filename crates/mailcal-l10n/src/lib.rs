@@ -111,6 +111,23 @@ pub fn generate(
     write_files(out, files)
 }
 
+/// The product token this build sends in its `User-Agent`, from the brand's name resolved by the
+/// rule [`generate`] uses, for a build script. "Allodia Mail & Calendar" is
+/// `allodia-mail-calendar`.
+///
+/// # Errors
+///
+/// Returns a message when no name resolves, or the name holds no ASCII letter or digit.
+pub fn user_agent_product(root: &Path) -> Result<String, String> {
+    let brand = brand::resolve(root)?;
+    brand::product_token(&brand.name).ok_or_else(|| {
+        format!(
+            "the app name {:?} has no ASCII letter or digit to name it by in a User-Agent",
+            brand.name
+        )
+    })
+}
+
 /// One file the catalog emits, and whether this run changed it on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Generated {

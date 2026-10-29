@@ -8,7 +8,9 @@ import Testing
 @testable import MailcalUI
 
 @Suite struct UseOutageRulesTests {
-    private static let problems: [UseProblem] = [.needsOwnSignIn, .signInRefused, .unreachable]
+    private static let problems: [UseProblem] = [
+        .needsOwnSignIn, .signInRefused, .unreachable, .serverChanged,
+    ]
 
     @Test(arguments: problems)
     func aCalendarLineIsTitleReasonAndLastSynced(_ problem: UseProblem) {
@@ -40,9 +42,19 @@ import Testing
             (.needsOwnSignIn, .contacts, L10n.settings_account_use_own_sign_in_contacts()),
             (.signInRefused, .contacts, L10n.settings_account_use_refused_contacts()),
             (.unreachable, .contacts, L10n.settings_account_use_unreachable_contacts()),
+            (.serverChanged, .calendar, L10n.settings_account_use_server_changed_calendar()),
+            (.serverChanged, .contacts, L10n.settings_account_use_server_changed_contacts()),
         ]
         for (problem, use, reason) in reasons {
             #expect(UseOutageRules.text(problem, use, address: "a@b.test").contains(reason))
+        }
+    }
+
+    @Test(arguments: problems)
+    func onlyAServerChangeIsReviewedRatherThanOpeningThePage(_ problem: UseProblem) {
+        let outages = [UseOutage(accountId: "a-id", problem: problem)]
+        for use in [OutageUse.calendar, .contacts] {
+            #expect(UseOutageRules.lines(outages, use) { $0 }[0].reviews == (problem == .serverChanged))
         }
     }
 

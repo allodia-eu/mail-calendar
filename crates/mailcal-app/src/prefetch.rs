@@ -26,6 +26,10 @@ use crate::{
     form_factor::FormFactor,
 };
 
+#[path = "prefetch_state.rs"]
+mod state;
+pub(crate) use state::Prefetching;
+
 /// Holds an account in the status hint's body phase for as long as a warm is running, and takes
 /// it out however the warm ends.
 ///
@@ -137,6 +141,10 @@ struct Pass {
     /// The first failure's shape, for the summary line; engine errors carry protocol and folder
     /// context, never message content, so this stays within the logging privacy rule.
     first_error: Option<String>,
+    /// Bodies the server said it can never give back this pass, and the first such failure's
+    /// shape.
+    unfetchable: usize,
+    unfetchable_error: Option<String>,
 }
 
 impl<P: Provider> App<P> {
@@ -157,20 +165,20 @@ impl<P: Provider> App<P> {
     /// Single-flight per account: a pass started while another is already
     /// draining the same account returns immediately (the running pass re-queries the missing
     /// set until it is empty, so it picks up what a newer sync added). Best-effort: a failed
-    /// body is skipped for the rest of the pass (a later pass, or the on-demand open,
-    /// retries it), and no new batch starts once the app goes offline or the account is
-    /// removed mid-warm; the batches already out finish. A **throttled** body is not a failed
-    /// one: the pass stops asking, waits the server's stated time (or
-    /// [`UNSTATED_THROTTLE_PAUSE`] where it named none), and asks again for what was refused
-    /// and what it had not reached, up to [`THROTTLE_PAUSES_PER_PASS`] times and never
-    /// sleeping past [`LONGEST_THROTTLE_PAUSE`]. A no-op offline, for an unknown
-    /// account, or once the cache is already warm; an all-warm pass is one key scan in the
-    /// engine, fetching and deserializing nothing.
+    /// body is skipped for the rest of the pass (a later pass, or the on-demand open, retries
+    /// it; a body the server says it can **never** give back waits for the open or a restart),
+    /// and no new batch starts once the app goes offline or the account is removed mid-warm; the
+    /// batches already out finish. A **throttled** body is not a failed one: the pass stops
+    /// asking, waits the server's stated time (or [`UNSTATED_THROTTLE_PAUSE`] where it named
+    /// none), and asks again for what was refused and what it had not reached, up to
+    /// [`THROTTLE_PAUSES_PER_PASS`] times and never sleeping past [`LONGEST_THROTTLE_PAUSE`]. A
+    /// no-op offline, for an unknown account, or once the cache is already warm; an all-warm
+    /// pass is one key scan in the engine, fetching and deserializing nothing.
     pub(crate) async fn prefetch_account_bodies(&self, account: &AccountId) {
         if !self.is_online() {
             return;
         }
-        let Some(_guard) = self.begin_prefetch(account) else {
+        let Some(_guard) = self.prefetching.begin(account) else {
             return;
         };
         let start = Instant::now();
@@ -192,6 +200,8 @@ impl<P: Provider> App<P> {
         let size_limit = self.effective_message_size_limit(account.as_str());
         let mut pass = Pass::default();
         let mut pauses = 0usize;
+        // Read once: a body this pass finds unfetchable is already in `pass.attempted`.
+        let unfetchable = self.prefetching.unfetchable(account);
         loop {
             // Widen the query as failures accumulate: the work list is newest-first, so a
             // clump of persistently failing messages would otherwise fill every page and
@@ -201,13 +211,16 @@ impl<P: Provider> App<P> {
                 .engine
                 .mail_missing_body(
                     core::slice::from_ref(account),
-                    pass.attempted.len() + PREFETCH_BATCH,
+                    pass.attempted.len() + unfetchable.len() + PREFETCH_BATCH,
                 )
                 .await
                 .unwrap_or_default();
             // In the page's own order, which is newest-first.
             let mut folders: Vec<(ProviderKey, Option<String>)> = Vec::new();
             for row in page {
+                if unfetchable.contains(&row.mail.key) {
+                    continue;
+                }
                 if pass.attempted.insert(row.mail.key.clone()) {
                     let folder = row.mailboxes.first().map(|id| id.as_str().to_owned());
                     folders.push((row.mail.key, folder));
@@ -224,10 +237,13 @@ impl<P: Provider> App<P> {
                 .run_batches(account, batches, width, &mut pass, &mut conflicted)
                 .await;
             // Once per folder per pass, after the page's batches are in: a re-sync rebuilds the
-            // folder's keys, and the loop's next query returns the fresh ones.
+            // folder's keys, and the loop's next query returns the fresh ones. A folder another
+            // sync holds is being rebuilt by that sync, so waiting for it would only hold the warm
+            // pass, and its hint, for as long as that sync runs.
             for folder in conflicted {
                 if pass.resynced.insert(folder.clone()) {
-                    self.resync_folder(account, &folder, "body-conflict").await;
+                    self.resync_folder(account, &folder, "body-conflict", false)
+                        .await;
                 }
             }
             match round {
@@ -291,6 +307,13 @@ impl<P: Provider> App<P> {
                 pass.skipped_large,
             );
         }
+        if let Some(err) = pass.unfetchable_error {
+            log::info!(
+                "prefetch: left {} message(s) the server cannot give back; not asked again this \
+                 session; first: {err}",
+                pass.unfetchable,
+            );
+        }
         if let Some(err) = pass.first_error {
             // Deliberately skipped bodies are not failures; counting them here would report a
             // mailbox of large messages as a mailbox that could not be warmed.
@@ -298,7 +321,7 @@ impl<P: Provider> App<P> {
                 "prefetch: {} bodies failed; first error: {err}",
                 pass.attempted
                     .len()
-                    .saturating_sub(pass.warmed + pass.skipped_large),
+                    .saturating_sub(pass.warmed + pass.skipped_large + pass.unfetchable),
             );
         }
     }
@@ -426,6 +449,16 @@ impl<P: Provider> App<P> {
                             self.note_warming(account, Some(warmed_count(pass.warmed)));
                         }
                     }
+                    Err(err) if err.item_unavailable() => {
+                        if let Some(message) = batch.messages.get(index) {
+                            self.prefetching
+                                .mark_unfetchable(account, message.id.key().clone());
+                        }
+                        pass.unfetchable += 1;
+                        if pass.unfetchable_error.is_none() {
+                            pass.unfetchable_error = Some(err.to_string());
+                        }
+                    }
                     Err(err) => {
                         let folder = folders.get(index).cloned().flatten();
                         // A folder already re-synced this pass gets no second one, so its
@@ -454,34 +487,5 @@ impl<P: Provider> App<P> {
         }
         held.extend(queue.flat_map(|batch| batch.messages.into_iter().map(|m| m.id.key().clone())));
         Round::Throttled { keys: held, stated }
-    }
-
-    /// Marks `account` as having a warming pass in flight, or returns `None` if one already
-    /// is. The returned guard clears the mark when dropped, on every exit path.
-    fn begin_prefetch(&self, account: &AccountId) -> Option<PrefetchGuard<'_>> {
-        let mut in_flight = self.prefetching.lock().expect("prefetching mutex poisoned");
-        if !in_flight.insert(account.as_str().to_owned()) {
-            return None;
-        }
-        Some(PrefetchGuard {
-            app: &self.prefetching,
-            account: account.as_str().to_owned(),
-        })
-    }
-}
-
-/// Clears an account's in-flight prefetch mark on drop, so an early return or error path can
-/// never leave the account permanently "already warming".
-struct PrefetchGuard<'a> {
-    app: &'a std::sync::Mutex<HashSet<String>>,
-    account: String,
-}
-
-impl Drop for PrefetchGuard<'_> {
-    fn drop(&mut self) {
-        self.app
-            .lock()
-            .expect("prefetching mutex poisoned")
-            .remove(&self.account);
     }
 }

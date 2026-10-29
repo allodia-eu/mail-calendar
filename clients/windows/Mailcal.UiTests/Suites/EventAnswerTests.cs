@@ -17,6 +17,7 @@ namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(TwoAccountHarnessCollection.Name)]
 [TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
+[Trait("Dataset", "harness")]
 public sealed class EventAnswerTests(TwoAccountHarnessApp harness)
 {
     private static readonly string Title = $"Answer {DateTime.Now:yyyyMMdd-HHmmss}";
@@ -103,8 +104,12 @@ public sealed class EventAnswerTests(TwoAccountHarnessApp harness)
         Assert.True(app.Agent.WaitGone(Filter.ById("CloseButton", "Button"), TimeSpan.FromSeconds(10)), "the detail closes with the meeting");
         Harness.WaitSchedulingMail(Harness.Alice, "Declined:", Title);
         var agenda = flow.ShowAgenda();
-        var copies = app.Agent.FindAll(new Filter { Type = "ListItem", Under = agenda, Has = Filter.Named(Title, "Text") });
-        Assert.True(copies.Count == 1, $"only Alice's copy is left; a declined meeting is hidden from Bob's calendar ({copies.Count} rows)");
+        // The organiser's mail says the server holds the answer; Bob's calendar is redrawn from it
+        // a moment later, so the count is waited for.
+        var copies = 0;
+        Assert.True(App.Eventually(
+            () => (copies = app.Agent.FindAll(new Filter { Type = "ListItem", Under = agenda, Has = Filter.Named(Title, "Text") }).Count) == 1,
+            App.Patience), $"only Alice's copy is left; a declined meeting is hidden from Bob's calendar ({copies} rows)");
 
         // Alice's copy goes too, so the next run starts from a clean calendar.
         flow.OpenMeetingDetail(Title, Harness.Alice);

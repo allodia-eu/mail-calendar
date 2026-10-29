@@ -17,10 +17,14 @@ use crate::ConfigError;
 ///
 /// `Colleagues` is a sub-choice of `Contacts` on a Microsoft or Google account: the people in
 /// the person's work or school directory, which a provider grants as a separate permission.
+/// `SharedMailboxes` is the same for `Mail` on a Microsoft account: the mailboxes the person was
+/// given access to (`docs/shared-mailboxes.md`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Capability {
     /// Reading and sending mail.
     Mail,
+    /// Mailboxes the person was given access to, beside the account's own.
+    SharedMailboxes,
     /// The account's calendar.
     Calendar,
     /// The account's own contacts.
@@ -31,7 +35,17 @@ pub enum Capability {
 
 impl Capability {
     /// Every capability, in the order they are listed.
-    pub const ALL: [Self; 4] = [Self::Mail, Self::Calendar, Self::Contacts, Self::Colleagues];
+    pub const ALL: [Self; 5] = [
+        Self::Mail,
+        Self::SharedMailboxes,
+        Self::Calendar,
+        Self::Contacts,
+        Self::Colleagues,
+    ];
+    /// What a Microsoft or Google account that stores no choice is used for: every use there
+    /// was before the choice existed. Shared mailboxes came later, and asking an account stored
+    /// before them for a permission its grant never held would put a prompt on every one.
+    pub const LEGACY: [Self; 4] = [Self::Mail, Self::Calendar, Self::Contacts, Self::Colleagues];
 
     /// The name the stored config spells it with.
     #[must_use]
@@ -41,6 +55,7 @@ impl Capability {
             Self::Calendar => "calendar",
             Self::Contacts => "contacts",
             Self::Colleagues => "colleagues",
+            Self::SharedMailboxes => "shared_mailboxes",
         }
     }
 
@@ -159,6 +174,9 @@ pub struct AccountShape {
     /// The accounts this one relies on.
     #[serde(default)]
     pub links: AccountLinks,
+    /// The mailboxes this account's sign-in opens besides its own that it is used for.
+    #[serde(default, rename = "shared_mailbox")]
+    pub shared_mailboxes: Vec<crate::SharedMailboxChoice>,
 }
 
 impl AccountShape {
@@ -204,6 +222,14 @@ impl AccountShape {
                 }
             }
             root.insert("links".into(), links.into());
+        }
+        if !self.shared_mailboxes.is_empty() {
+            let tables: Vec<toml::Value> = self
+                .shared_mailboxes
+                .iter()
+                .map(|choice| choice.write_into().into())
+                .collect();
+            root.insert("shared_mailbox".into(), tables.into());
         }
     }
 }

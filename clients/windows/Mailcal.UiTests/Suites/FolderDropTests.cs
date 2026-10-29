@@ -17,6 +17,7 @@ namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(ImapHarnessCollection.Name)]
 [TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
+[Trait("Dataset", "harness")]
 public sealed class FolderDropTests(ImapHarnessApp harness)
 {
     private const string Subject = "Filed under Projects";

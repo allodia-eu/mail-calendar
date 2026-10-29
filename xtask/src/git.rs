@@ -253,7 +253,10 @@ mod tests {
     #[test]
     fn an_absent_array_is_empty_not_an_error() {
         // A parse that finds nothing must be visible to the caller, which compares against empty.
-        assert!(array_words("nothing here\n", "ALL_SCREENS").is_empty());
+        assert_eq!(
+            array_words("nothing here\n", "ALL_SCREENS"),
+            [] as [String; 0]
+        );
     }
 
     #[test]

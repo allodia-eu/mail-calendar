@@ -62,7 +62,18 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
     /// <summary>The unified Inbox badge: every account's Inbox unread, summed. <c>0</c> shows
     /// none. It belongs on that row rather than on the All Accounts heading above it, which
     /// carries no count for the reason an account row carries none (docs/folder-pane.md, rule 8).</summary>
-    public uint UnifiedUnread { get; private set; }
+    /// <remarks>
+    /// It notifies because a snapshot raises its account and folder changes before this is read,
+    /// so a pane redrawn on those alone draws the previous sum; when only the counts moved, nothing
+    /// else redraws it.
+    /// </remarks>
+    public uint UnifiedUnread
+    {
+        get => _unifiedUnread;
+        private set => Set(ref _unifiedUnread, value);
+    }
+
+    private uint _unifiedUnread;
 
     /// <summary>
     /// Whether the All Accounts group's tree is open in the folder pane. The core's value, and
@@ -71,10 +82,10 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
     /// (docs/folder-pane.md, rule 16).
     /// </summary>
     /// <remarks>
-    /// It notifies, unlike <see cref="UnifiedUnread"/> beside it, because the pane is reconciled
-    /// off a handful of named signals and this one arrives on its own: the persisted value comes
-    /// back in the first snapshot **after** the accounts are published, so a shell waiting for a
-    /// collection change would read the default and open a group the user had shut.
+    /// It notifies because the pane is reconciled off a handful of named signals and this one
+    /// arrives on its own: the persisted value comes back in the first snapshot **after** the
+    /// accounts are published, so a shell waiting for a collection change would read the default
+    /// and open a group the user had shut.
     /// </remarks>
     public bool UnifiedExpanded
     {

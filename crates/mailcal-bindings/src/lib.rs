@@ -57,7 +57,9 @@ mod app_display;
 mod app_folders;
 mod app_month;
 mod app_sender_name;
+mod app_server_change;
 mod app_settings;
+mod app_shared_mailboxes;
 mod app_signatures;
 mod app_snapshots;
 mod autodetect;
@@ -164,6 +166,8 @@ pub use app_accounts_consent::AccountConsentStart;
 pub use app_display::stored_appearance;
 pub use app_month::calendar_palette;
 pub use app_sender_name::sender_label;
+pub use app_server_change::{ServerChange, ServerChangeAnswer};
+pub use app_shared_mailboxes::{SharedMailboxEntry, SharedMailboxSupport, SharedMailboxesView};
 pub use autodetect::{
     DetectedServerRow, DnsError, MissReason, MxRecord, MxResolution, MxResolver,
     SetupRecommendation, SrvRecord, SrvResolution,

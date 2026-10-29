@@ -130,7 +130,7 @@ mod view_snapshots;
 mod window;
 mod zones;
 
-pub use accounts::Account;
+pub use accounts::{Account, SharedMailboxLookup, SharedMailboxOffer, Unanswered, UsesReplaced};
 use background_sync::NotifyMarksState;
 pub use background_sync::{AccountNewMail, BackgroundNewMail, NewMailPreview};
 pub use calendar_cache::{CalendarPage, MonthPage};
@@ -181,7 +181,7 @@ use tuning::{
     MIN_LOAD_WINDOW, PAGE, SEARCH_FETCH_LIMIT, SEARCH_LIMIT, WINDOW_BUCKET, WINDOW_ROW_FACTOR,
 };
 pub use unfiled_copy::UnfiledCopy;
-pub use use_problems::{UseProblem, UseProblems};
+pub use use_problems::{ServerChange, UseProblem, UseProblems};
 use view_settings::load_view_mode;
 pub use zones::available_time_zones;
 
@@ -313,9 +313,9 @@ pub struct App<P> {
     /// The folders bound to a scope of their own that a pass or a refresh has synced this
     /// session, by `(account, folder key)`.
     synced_folders: Mutex<HashSet<(String, String)>>,
-    /// Accounts (by id) with a body-warming pass currently in flight, so overlapping
-    /// post-sync prefetch triggers collapse into the one running drain (`prefetch`).
-    prefetching: Mutex<HashSet<String>>,
+    /// Which accounts have a body-warming pass in flight, and which bodies a server said it can
+    /// never give back (`prefetch`).
+    prefetching: prefetch::Prefetching,
     /// What is known about each sender's photo, keyed by canonical address.
     ///
     /// In memory only: the durable cache is the engine's, and this exists so that projecting a
@@ -393,7 +393,7 @@ pub struct App<P> {
     mail_reauth_accounts: Mutex<BTreeSet<String>>,
     /// What stopped each account's calendar or contacts from connecting while the account itself
     /// did ([`use_problems`](crate::use_problems)).
-    use_problems: Mutex<BTreeMap<String, use_problems::UseProblems>>,
+    use_problems: Mutex<use_problems::UseState>,
     /// Where each account's links are read from ([`account_links`]).
     links: Mutex<account_links::LinkState>,
     /// Accounts whose stored OAuth grant is **dead**: the refresh token expired or was revoked,

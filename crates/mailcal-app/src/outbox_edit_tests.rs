@@ -124,7 +124,7 @@ async fn editing_a_queued_send_moves_all_of_it_back_into_drafts() {
 
     let request = app.compose_request().expect("the composer is offered");
     assert_eq!(request.subject, "Re: Plans");
-    assert!(!request.composition.is_empty());
+    assert_ne!(request.composition, "");
     assert_eq!(request.attachments.len(), 1);
     let file = &request.attachments[0];
     assert_eq!(file.file_name, "plan.pdf");

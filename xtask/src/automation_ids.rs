@@ -1,11 +1,12 @@
 //! Fails when a Windows UI suite looks up an AutomationId the app no longer gives anything.
 //!
-//! The suites under `clients/windows/uitests` find what they drive by AutomationId, and a lookup
-//! for an id nothing carries returns nothing rather than failing: the case reads as the app
-//! misbehaving or, where it asserts that something is gone, passes. Most of the suites need the
-//! local mail harness, which CI cannot start (`run-ui-tests.ps1` says why), so a renamed id stays
-//! unnoticed until someone runs them by hand. The trap that hides it best: giving an element an
-//! explicit AutomationId renames it, because UI Automation reported its `x:Name` until then.
+//! The suites in `clients/windows/Mailcal.UiTests`, and the PowerShell scripts that drive the app
+//! by hand, find what they drive by AutomationId, and a lookup for an id nothing carries returns
+//! nothing rather than failing: the case reads as the app misbehaving or, where it asserts that
+//! something is gone, passes. Most of the suites need the local mail harness, which CI cannot start
+//! (`run-ui-tests.ps1` says why), so a renamed id stays unnoticed until someone runs them by hand.
+//! The trap that hides it best: giving an element an explicit AutomationId renames it, because UI
+//! Automation reported its `x:Name` until then.
 //!
 //! An id the app has is one of:
 //!
@@ -15,11 +16,10 @@
 //!   with a literal appended inside `SetAutomationId`;
 //! * one the platform draws, listed in [`PLATFORM`] with where it comes from.
 //!
-//! A lookup is a quoted id after `-AutomationId`, after `.AutomationId -eq`, `-ne` or `-in`, or as
-//! the first argument of a suite helper whose first parameter is `$AutomationId` or `$Id`; in the
-//! C# suites (`clients/windows/Mailcal.UiTests`), a quoted id passed to `Filter.ById` or set as a
-//! filter's `Id`. An id held in a variable is not followed, so a suite looking one up keeps it
-//! quoted at the lookup.
+//! In the C# suites, a lookup is a quoted id passed to `Filter.ById` or set as a filter's `Id`; in
+//! a script, a quoted id after `-AutomationId`, after `.AutomationId -eq`, `-ne` or `-in`, or as
+//! the first argument of a helper whose first parameter is `$AutomationId` or `$Id`. An id held in
+//! a variable is not followed, so a suite looking one up keeps it quoted at the lookup.
 
 use std::{collections::BTreeSet, path::Path};
 
@@ -34,8 +34,8 @@ use crate::{
 /// The Windows app's sources.
 const APP: &str = "clients/windows/Mailcal";
 
-/// Where the suites and the helpers they share live.
-const SUITES: &str = "clients/windows";
+/// Where the scripts that drive the app by hand live.
+const SCRIPTS: &str = "clients/windows";
 
 /// The C# suites, which reach the app through its test agent.
 const CS_SUITES: &str = "clients/windows/Mailcal.UiTests";
@@ -116,8 +116,8 @@ pub(crate) fn check(root: &Path, platform: &[(&str, &str)]) -> Result<bool, Stri
         ));
     }
 
-    let listed = git::listed(root, &[SUITES])?;
-    let suites: Vec<String> = listed
+    let listed = git::listed(root, &[SCRIPTS])?;
+    let scripts: Vec<String> = listed
         .iter()
         .filter(|name| crate::prose::extension(name) == "ps1")
         .cloned()
@@ -127,7 +127,7 @@ pub(crate) fn check(root: &Path, platform: &[(&str, &str)]) -> Result<bool, Stri
         .filter(|name| name.starts_with(CS_SUITES) && crate::prose::extension(name) == "cs")
         .cloned()
         .collect();
-    let texts: Vec<(String, String)> = suites
+    let texts: Vec<(String, String)> = scripts
         .into_iter()
         .map(|name| git::read(root, &name).map(|text| (name, text)))
         .collect::<Result<_, _>>()?;
@@ -176,7 +176,7 @@ pub(crate) fn check(root: &Path, platform: &[(&str, &str)]) -> Result<bool, Stri
     }
     if count == 0 {
         return Err(format!(
-            "no AutomationId lookups found under {SUITES}: did the suites move?"
+            "no AutomationId lookups found under {SCRIPTS}: did the suites move?"
         ));
     }
     for (id, from) in platform {

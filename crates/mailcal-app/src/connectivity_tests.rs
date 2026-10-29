@@ -173,7 +173,7 @@ async fn a_boot_outage_carries_a_detail_a_reachable_resync_does_not_clobber() {
 
     // Recovering clears both the badge and the detail.
     app.set_account_reachable(&id, true);
-    assert!(app.connectivity().unreachable_accounts.is_empty());
+    assert_eq!(app.connectivity().unreachable_accounts, [] as [String; 0]);
     assert!(
         app.connection_detail(&id).is_none(),
         "recovery clears the detail"
@@ -191,8 +191,8 @@ async fn a_disconnected_account_still_lists_and_keeps_its_outage_badge() {
     let healthy = account("a", FakeProvider::new());
     let disconnected = Account {
         id: AccountId::try_from("b").unwrap(),
-        providers: Vec::new(),
-        calendar_providers: Vec::new(),
+        providers: Vec::new().into(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("b@example.com"),
         dialled: true,

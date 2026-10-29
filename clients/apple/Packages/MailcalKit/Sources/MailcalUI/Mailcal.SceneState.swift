@@ -96,6 +96,9 @@ extension ContentView {
         case .active:
             logAppleLifecycle("scene active")
             restoreSceneIfPossible()
+            // The icon may not show what the model last wrote: a background pass wrote past it,
+            // or the badge permission was granted in Settings after a write the OS ignored.
+            if model.app != nil { model.appBadge.rewrite(model.unifiedUnread) }
             if hasActivatedScene {
                 refreshActiveScene()
             }

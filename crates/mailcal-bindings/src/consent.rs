@@ -52,6 +52,15 @@ pub(crate) fn keep_stored_shape(signed_in: &mut AccountShape, stored: Option<Acc
     if signed_in.capabilities.is_none() {
         signed_in.capabilities = stored.capabilities;
     }
+    // Kept only while the account is still used for them: a choice nothing opens is listed
+    // nowhere and could never be switched off.
+    if signed_in
+        .capabilities
+        .as_ref()
+        .is_some_and(|uses| uses.contains(mailcal_account::Capability::SharedMailboxes))
+    {
+        signed_in.shared_mailboxes = stored.shared_mailboxes;
+    }
 }
 
 #[cfg(test)]

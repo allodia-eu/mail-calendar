@@ -4,15 +4,20 @@ use engine_api::Affiliation;
 
 use crate::{Capabilities, Capability};
 
-/// Every use, less colleagues for a personal account: it has no organisation, so no directory,
-/// and neither provider grants one, so the use would wait on a permission no sign-in can give.
-/// An account whose affiliation is not known yet is offered everything, as before it was asked.
+/// Every use, less colleagues and shared mailboxes for a personal account: it has no
+/// organisation, so no directory and no mailbox shared within one, and the use would wait on a
+/// permission no sign-in can give. Shared mailboxes only where the provider can open one
+/// (`shared_mailboxes`). An account whose affiliation is not known yet is offered everything, as
+/// before it was asked.
 #[must_use]
-pub(crate) fn offered(affiliation: Option<&Affiliation>) -> Capabilities {
+pub(crate) fn offered(affiliation: Option<&Affiliation>, shared_mailboxes: bool) -> Capabilities {
+    let personal = affiliation == Some(&Affiliation::Personal);
     Capability::ALL
         .into_iter()
-        .filter(|capability| {
-            *capability != Capability::Colleagues || affiliation != Some(&Affiliation::Personal)
+        .filter(|capability| match capability {
+            Capability::Colleagues => !personal,
+            Capability::SharedMailboxes => shared_mailboxes && !personal,
+            _ => true,
         })
         .collect()
 }

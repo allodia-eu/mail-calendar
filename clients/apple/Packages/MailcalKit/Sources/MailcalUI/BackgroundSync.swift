@@ -59,13 +59,13 @@ public func handleBackgroundRefresh() async {
     // The FFI pass blocks its thread (the core drives its runtime to completion), so run it off the
     // cooperative pool. The reuse-vs-cold decision happens INSIDE the task so the (non-Sendable) core
     // never crosses an isolation boundary.
-    let outcome: BackgroundSyncOutcome? = await Task.detached(priority: .utility) {
+    let pass: BackgroundPass? = await Task.detached(priority: .utility) {
         // Still-resident app (suspended, not terminated): reuse the live core rather than opening a
         // second store/runtime over the same DB. run_background_sync is safe on a warm instance (a
         // concurrent poll is absorbed as a Busy skip), and reusing it keeps the notify high-water
         // marks in one place, no cross-core preferences race.
         if let live = LiveCore.shared.current() {
-            return live.runBackgroundSync(budgetSeconds: backgroundBudgetSeconds)
+            return BackgroundPass(running: live)
         }
         // Cold process (app was terminated): build a headless core just for this pass; ARC frees it
         // when the closure returns.
@@ -88,7 +88,7 @@ public func handleBackgroundRefresh() async {
                 // the whole grant, which is how a real JMAP account died.
                 credentialStore: KeychainCredentialStore()
             )
-            return core.runBackgroundSync(budgetSeconds: backgroundBudgetSeconds)
+            return BackgroundPass(running: core)
         } catch {
             FileLog.shared.append(
                 level: "WARN",
@@ -98,8 +98,24 @@ public func handleBackgroundRefresh() async {
             return nil
         }
     }.value
-    if let outcome, NotificationPrefs.enabled {
-        await MailNotifier.notifyNewMail(outcome)
+    guard let pass else { return }
+    // The pass read every Inbox's count from its server, and nothing else will update the icon
+    // until the app is opened again (docs/app-badge.md).
+    await AppBadge.write(pass.unifiedUnread)
+    if NotificationPrefs.enabled {
+        await MailNotifier.notifyNewMail(pass.outcome)
+    }
+}
+
+/// What one background pass found: the new mail to announce, and the unread count it left the
+/// unified Inbox with.
+private struct BackgroundPass {
+    let outcome: BackgroundSyncOutcome
+    let unifiedUnread: UInt32
+
+    init(running core: MailcalApp) {
+        outcome = core.runBackgroundSync(budgetSeconds: backgroundBudgetSeconds)
+        unifiedUnread = core.mailboxList().unifiedUnread
     }
 }
 

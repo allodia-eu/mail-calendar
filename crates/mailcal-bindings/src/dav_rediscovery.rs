@@ -19,6 +19,8 @@ use mailcal_account::account_log_handle;
 
 use crate::{AccountEndpoints, MailcalApp, MxResolver, autodetect::CallbackMxResolver};
 
+mod staged;
+
 /// How long after one attempt an account is looked for again: a server that is down rather than
 /// moved answers the same lookup the same way, and asking every retry would only cost requests.
 const RETRY_AFTER: Duration = Duration::from_secs(60 * 60);
@@ -108,6 +110,12 @@ impl MailcalApp {
         if !self.rediscovery.due(account_id, Instant::now()) {
             return;
         }
+        if let Some(change) = staged::pretended(&stored) {
+            if let Ok(id) = engine_api::AccountId::try_from(account_id) {
+                self.app.note_server_change(&id, change);
+            }
+            return;
+        }
         let host = stored
             .caldav_url
             .as_deref()
@@ -131,8 +139,20 @@ impl MailcalApp {
                 return;
             }
         };
-        let Some(moved) = moved_endpoints(&stored, &found, &entry.address, &handle) else {
-            log::info!("rediscovery: [{handle}] discovery names the same servers; kept");
+        let (moved, change) = moved_endpoints(&stored, &found, &entry.address);
+        if let Some(change) = change {
+            // Paused, not followed: a server on another site is what a provider moving looks
+            // like, and also what a changed or tampered DNS answer looks like.
+            log::info!(
+                "rediscovery: [{handle}] a server was found on another site; paused until the \
+                 person allows it"
+            );
+            if let Ok(id) = engine_api::AccountId::try_from(account_id) {
+                self.app.note_server_change(&id, change);
+            }
+        }
+        let Some(moved) = moved else {
+            log::info!("rediscovery: [{handle}] nothing found that may be followed; kept");
             return;
         };
         match self.update_account_endpoints(account_id.to_owned(), moved) {
@@ -146,37 +166,92 @@ impl MailcalApp {
     }
 }
 
-/// `stored` with each server discovery found somewhere new put in place of the old one, when it
-/// may be followed; `None` when nothing moved that may be.
+/// One service's server, found somewhere other than where it was stored.
+struct Moved {
+    stored: String,
+    found: String,
+    /// Whether a stored credential may follow it without asking
+    /// ([`mailcal_autodetect::may_follow`]).
+    follow: bool,
+}
+
+impl Moved {
+    fn of(stored: Option<&str>, found: Option<&str>, address: &str) -> Option<Self> {
+        let (stored, found) = (stored?, found?);
+        (stored != found).then(|| Self {
+            stored: stored.to_owned(),
+            found: found.to_owned(),
+            follow: mailcal_autodetect::may_follow(found, stored, address),
+        })
+    }
+
+    /// The site it was on and the site it was found on, when both can be named.
+    fn sites(&self) -> Option<(String, String)> {
+        Some((
+            mailcal_autodetect::site_of(&self.stored)?,
+            mailcal_autodetect::site_of(&self.found)?,
+        ))
+    }
+}
+
+/// What discovery found somewhere new, sorted by whether it may be followed: `stored` with each
+/// server on the same site put in place of the old one, and the servers found on another site as
+/// a change for the person to allow. Either is `None` when nothing moved that way.
 fn moved_endpoints(
     stored: &AccountEndpoints,
     found: &mailcal_autodetect::DetectedDav,
     address: &str,
-    handle: &str,
-) -> Option<AccountEndpoints> {
-    let follow = |stored: &Option<String>, found: &Option<String>, service: &str| {
-        let (stored, found) = (stored.as_deref()?, found.as_deref()?);
-        if stored == found {
-            return None;
-        }
-        if mailcal_autodetect::may_follow(found, stored, address) {
-            Some(found.to_owned())
-        } else {
-            log::info!(
-                "rediscovery: [{handle}] the {service} server found is not the provider's; not \
-                 followed"
-            );
-            None
-        }
+) -> (Option<AccountEndpoints>, Option<mailcal_app::ServerChange>) {
+    let caldav = Moved::of(
+        stored.caldav_url.as_deref(),
+        found.caldav_url.as_deref(),
+        address,
+    );
+    let carddav = Moved::of(
+        stored.carddav_url.as_deref(),
+        found.carddav_url.as_deref(),
+        address,
+    );
+    let pick = |moved: &Option<Moved>, follow: bool| {
+        moved
+            .as_ref()
+            .filter(|moved| moved.follow == follow)
+            .map(|moved| moved.found.clone())
     };
-    let caldav = follow(&stored.caldav_url, &found.caldav_url, "calendar");
-    let carddav = follow(&stored.carddav_url, &found.carddav_url, "address-book");
-    (caldav.is_some() || carddav.is_some()).then(|| AccountEndpoints {
-        caldav_url: caldav.or_else(|| stored.caldav_url.clone()),
-        carddav_url: carddav.or_else(|| stored.carddav_url.clone()),
-        password: None,
-        ..stored.clone()
-    })
+
+    let (follow_caldav, follow_carddav) = (pick(&caldav, true), pick(&carddav, true));
+    let endpoints =
+        (follow_caldav.is_some() || follow_carddav.is_some()).then(|| AccountEndpoints {
+            caldav_url: follow_caldav.or_else(|| stored.caldav_url.clone()),
+            carddav_url: follow_carddav.or_else(|| stored.carddav_url.clone()),
+            password: None,
+            ..stored.clone()
+        });
+
+    let ask = |moved: &Option<Moved>| {
+        let moved = moved.as_ref().filter(|moved| !moved.follow)?;
+        Some((moved.sites()?, moved.found.clone()))
+    };
+    let (ask_caldav, ask_carddav) = (ask(&caldav), ask(&carddav));
+    // The question names one pair of sites, so only what moves between those two goes in it:
+    // allowing it must not send the credential to a site it did not name. A service that moves
+    // anywhere else is asked about at the next lookup.
+    let sites = ask_caldav
+        .as_ref()
+        .or(ask_carddav.as_ref())
+        .map(|(sites, _)| sites.clone());
+    let change = sites.map(|sites| {
+        let between = |ask: Option<((String, String), String)>| {
+            ask.filter(|(moved, _)| *moved == sites).map(|(_, url)| url)
+        };
+        mailcal_app::ServerChange {
+            calendar_url: between(ask_caldav),
+            contacts_url: between(ask_carddav),
+            previous_site: sites.0.clone(),
+            proposed_site: sites.1.clone(),
+        }
+    });
+    (endpoints, change)
 }
 
 #[cfg(test)]

@@ -4,13 +4,16 @@ use super::{GOOGLE, MICROSOFT, ProviderScopes};
 use crate::{GOOGLE_SCOPES, MICROSOFT_GRAPH_SCOPES};
 
 fn every_group(provider: &ProviderScopes) -> BTreeSet<&'static str> {
-    let groups = [
+    let groups: Vec<_> = [
         provider.mail,
         provider.calendar,
         provider.contacts,
         provider.colleagues,
-    ];
-    for group in groups {
+    ]
+    .into_iter()
+    .chain(provider.shared_mailboxes)
+    .collect();
+    for group in &groups {
         assert!(
             group.requested.contains(&group.needed),
             "{} is needed but not requested",

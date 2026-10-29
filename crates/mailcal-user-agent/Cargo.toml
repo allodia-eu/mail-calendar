@@ -1,0 +1,13 @@
+[package]
+name = "mailcal-user-agent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+license.workspace = true
+
+[lints]
+workspace = true
+
+[build-dependencies]
+mailcal-l10n = { path = "../mailcal-l10n" }

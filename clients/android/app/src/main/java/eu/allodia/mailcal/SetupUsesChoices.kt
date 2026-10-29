@@ -150,6 +150,8 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
                     "COLLEAGUES",
                 ) { toggles.colleagues = it }
             }
+            // Not offered: this client has no section to choose one (docs/shared-mailboxes.md §3).
+            AccountCapability.SHARED_MAILBOXES -> {}
         }
     }
 }

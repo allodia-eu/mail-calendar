@@ -16,6 +16,7 @@ license.workspace = true
 dev-harness = []
 
 [dependencies]
+mailcal-user-agent = { path = "../mailcal-user-agent" }
 engine-api = { workspace = true }
 engine-core = { workspace = true }
 engine-provider = { workspace = true }

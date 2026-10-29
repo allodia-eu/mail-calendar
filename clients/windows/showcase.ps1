@@ -50,7 +50,7 @@ param(
   # Where to write the capture. Not required with -NoCapture, which is the only mode that takes none.
   [string] $Out,
   # Launch into showcase mode and run BOTH safety asserts, but don't fire the shutter, for a caller
-  # that wants the deterministic dataset rather than a picture of it (uitests/run-ui-tests.ps1).
+  # that wants the deterministic dataset rather than a picture of it, such as a person exploring it.
   #
   # It is a separate switch rather than "pass -Out $null" because the asserts are the point: they are
   # what proves the app is showing FICTIONAL mail, and a caller must not be able to skip them by

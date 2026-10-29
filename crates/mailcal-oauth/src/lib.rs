@@ -174,6 +174,7 @@ impl OAuthClient {
             .map_err(OAuthError::Tls)?;
         let http = tls
             .reqwest_builder()
+            .user_agent(mailcal_user_agent::HEADER)
             .build()
             .map_err(OAuthError::Transport)?;
         Ok(Self { http, provider })

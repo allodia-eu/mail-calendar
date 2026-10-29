@@ -12,7 +12,10 @@
 //! use for.
 
 /// An immutable calendar agenda snapshot for a host to render.
-#[derive(uniffi::Record)]
+///
+/// The value derives here and on [`MonthPage`] are for Linux, which redraws a view only when
+/// what it shows has changed.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct CalendarSnapshot {
     /// The events, soonest first.
     pub events: Vec<EventRow>,
@@ -22,7 +25,7 @@ pub struct CalendarSnapshot {
 }
 
 /// One agenda row: an event's key, title, and formatted start.
-#[derive(uniffi::Record)]
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct EventRow {
     /// The id of the account this event belongs to: the host passes it back in
     /// [`EventIntent::Delete`](crate::EventIntent::Delete) so the delete routes to the
@@ -246,7 +249,7 @@ pub struct AllDayBand {
 }
 
 /// One theme's rendering of a calendar colour.
-#[derive(Clone, uniffi::Record)]
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct Swatch {
     /// The chip's fill, `#rrggbb`.
     pub background: String,
@@ -258,7 +261,7 @@ pub struct Swatch {
 }
 
 /// A calendar colour, resolved for both themes.
-#[derive(uniffi::Record)]
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct CalendarColor {
     /// The palette colour it resolved to, `#rrggbb`; what a colour picker shows as selected.
     pub hex: String,
@@ -269,7 +272,7 @@ pub struct CalendarColor {
 }
 
 /// One calendar: the row a calendar manager lists, and the colour key the grid paints from.
-#[derive(uniffi::Record)]
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct CalendarRow {
     /// The owning account's id.
     pub account: String,
@@ -322,7 +325,7 @@ pub struct CalendarPage {
 }
 
 /// One event on one day of the month grid.
-#[derive(uniffi::Record)]
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct MonthChip {
     /// The owning account.
     pub account: String,
@@ -350,7 +353,7 @@ pub struct MonthChip {
 }
 
 /// One day cell of the month grid.
-#[derive(uniffi::Record)]
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct MonthCell {
     /// The date this cell shows, `YYYY-MM-DD`.
     pub date: String,
@@ -367,7 +370,7 @@ pub struct MonthCell {
 }
 
 /// A month, laid out and ready to draw.
-#[derive(uniffi::Record)]
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct MonthPage {
     /// Exactly 42 cells, row-major: six weeks of seven days.
     ///

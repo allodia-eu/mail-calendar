@@ -216,4 +216,28 @@ class AccountSettingsRulesTest {
         )
         assertEquals(UseNote.NONE, AccountSettingsRules.switch(entry, AccountCapability.MAIL).note)
     }
+
+    @Test
+    fun a_use_whose_server_moved_to_another_site_says_it_is_paused_and_offers_review() {
+        val base = accountEntry(
+            CoreAccountKind.IMAP,
+            AccountCapability.MAIL to CapabilityState.ON,
+            AccountCapability.CALENDAR to CapabilityState.ON,
+            AccountCapability.CONTACTS to CapabilityState.ON,
+        )
+        val entry = base.copy(
+            uses = base.uses.map {
+                it.copy(problem = UseProblem.SERVER_CHANGED.takeIf { _ -> it.capability != AccountCapability.MAIL })
+            },
+        )
+        val calendar = AccountSettingsRules.switch(entry, AccountCapability.CALENDAR)
+        val contacts = AccountSettingsRules.switch(entry, AccountCapability.CONTACTS)
+        assertEquals(UseNote.SERVER_CHANGED_CALENDAR, calendar.note)
+        assertEquals(UseNote.SERVER_CHANGED_CONTACTS, contacts.note)
+        assertTrue(reviewsServerChange(calendar.note))
+        assertTrue(reviewsServerChange(contacts.note))
+        // Only a server found elsewhere offers the question.
+        val others = UseNote.entries - setOf(UseNote.SERVER_CHANGED_CALENDAR, UseNote.SERVER_CHANGED_CONTACTS)
+        others.forEach { assertFalse("$it", reviewsServerChange(it)) }
+    }
 }

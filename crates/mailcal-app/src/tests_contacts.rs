@@ -295,8 +295,8 @@ async fn a_blank_autosuggest_query_returns_nothing() {
     app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
         .await;
 
-    assert!(app.recipient_suggestions("").await.is_empty());
-    assert!(app.recipient_suggestions("   ").await.is_empty());
+    assert_eq!(app.recipient_suggestions("").await, []);
+    assert_eq!(app.recipient_suggestions("   ").await, []);
 }
 
 #[tokio::test]
@@ -339,7 +339,7 @@ mod write_outcome;
 async fn an_account_with_contacts_alone_is_unreachable_when_they_are() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut contacts_only = account("book", vec![Box::new(FakeContacts::failing("personal"))]);
-    contacts_only.providers.clear();
+    contacts_only.providers = Vec::new().into();
     contacts_only.uses_mail = false;
     let app = app(vec![contacts_only], &surfaces);
 

@@ -239,6 +239,11 @@
          last-synced sentence, one per account. L10n-free, the words arrive as parameters. -->
     <Compile Include="..\Mailcal\Services\UseOutageLines.cs" Link="Services\UseOutageLines.cs" />
     <Compile Include="..\Mailcal\ViewModels\UseOutageLine.cs" Link="ViewModels\UseOutageLine.cs" />
+    <!-- The question a calendar or address book server found on another site asks
+         (docs/account-autodetect.md rule 14): which title, body and closing line a change earns,
+         and where each site sits in its line, which is drawn in bold. L10n-free, the words arrive
+         as parameters. -->
+    <Compile Include="..\Mailcal\Services\ServerChangeCopy.cs" Link="Services\ServerChangeCopy.cs" />
     <Compile Include="..\Mailcal\Services\AccountEndpointEdit.cs" Link="Services\AccountEndpointEdit.cs" />
     <!-- What a setup card's toggles make of an account (docs/account-autodetect.md rule 8): which
          uses it is set up with and which servers it stores. Silent when wrong: contacts found only
@@ -325,7 +330,7 @@
          Pure BCL on purpose, so the writer and the reader can share the two argument keys and be
          pinned together here. The failure is silent either way round: a key spelled differently
          on one side, or half a pair acted on, is a click that opens nothing or the wrong thing,
-         and the toast itself is outside the UI-Automation tree that uitests can see. -->
+         and the toast itself is outside the UI-Automation tree the UI suites can see. -->
     <Compile Include="..\Mailcal\Services\NotificationOpenInbox.cs" Link="Services\NotificationOpenInbox.cs" />
     <!-- The mail-link (`mailto:`) activation gate: is this launch one, and which URI is in it. Pure
          BCL on purpose, the parse belongs to the shared core and the composer to the shell, so what

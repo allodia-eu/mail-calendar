@@ -172,9 +172,13 @@ impl<P: Provider> App<P> {
         // arguments of list.
         snapshot.outbox = self.all_queued_sends(account_rows).await;
         // Only once the folder has actually been looked at: a list published while its first
-        // download is still to come has no rows yet either, and "this folder is empty" is not
-        // something we know there (`docs/folder-pane.md`, rule 20).
-        if snapshot.total == 0 && !self.list_download_pending(selected, folder).await {
+        // download is still to come, or still running for a new account, has no rows yet either,
+        // and "this folder is empty" is not something we know there (`docs/folder-pane.md`,
+        // rule 20).
+        if snapshot.total == 0
+            && !self.awaiting_download(&accounts)
+            && !self.list_download_pending(selected, folder).await
+        {
             // A level of the tree holds no mail at any depth, so offering the depth setting
             // there would claim older mail is waiting on the server.
             let container = folder.is_some_and(|key| {

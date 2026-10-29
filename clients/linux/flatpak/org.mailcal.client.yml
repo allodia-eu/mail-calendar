@@ -32,8 +32,6 @@ default-branch: stable
 runtime: org.gnome.Platform
 runtime-version: '50'
 sdk: org.gnome.Sdk
-sdk-extensions:
-  - org.freedesktop.Sdk.Extension.rust-stable
 
 command: mailcal
 
@@ -66,15 +64,21 @@ modules:
   - name: mailcal
     buildsystem: simple
     build-options:
-      append-path: /usr/lib/sdk/rust-stable/bin
+      # The compiler is rustup's, reading rust-toolchain.toml, so the Flatpak builds with the
+      # pinned toolchain every other build uses. Flathub's `rust-stable` SDK extension ships a Rust
+      # release weeks after it lands, and the workspace's `rust-version` would have to wait for it.
+      append-path: /run/build/mailcal/cargo/bin
       env:
         CARGO_HOME: /run/build/mailcal/cargo
+        RUSTUP_HOME: /run/build/mailcal/rustup
       build-args:
-        # Cargo fetches crates.io and the pinned engine commit. Flathub's builders run with no
-        # network and require every source declared in the manifest instead: see "Known gaps" in
-        # clients/linux/README.md for what a submission additionally needs.
+        # rustup fetches the toolchain, and cargo crates.io and the pinned engine commit. Flathub's
+        # builders run with no network and require every source declared in the manifest instead:
+        # see "Known gaps" in clients/linux/README.md for what a submission additionally needs.
         - --share=network
     build-commands:
+      - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+        --default-toolchain none --no-modify-path
       # `--locked` so the build resolves to the committed Cargo.lock rather than whatever is newest.
       # Default features, so `dev-harness` and the debug-only account fixture cannot be linked in,
       # the same property the tag-only release build in CI asserts.

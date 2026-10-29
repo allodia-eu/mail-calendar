@@ -95,6 +95,10 @@ class CoreErrorTextTest {
                 L10n.settings_account_use_own_sign_in_contacts(ctx),
             AccountCapability.CALENDAR to UseProblem.SIGN_IN_REFUSED to L10n.signin_refused(ctx),
             AccountCapability.CONTACTS to UseProblem.SIGN_IN_REFUSED to L10n.signin_refused(ctx),
+            AccountCapability.CALENDAR to UseProblem.SERVER_CHANGED to
+                L10n.settings_account_use_server_changed_calendar(ctx),
+            AccountCapability.CONTACTS to UseProblem.SERVER_CHANGED to
+                L10n.settings_account_use_server_changed_contacts(ctx),
             // The core never names mail here; it reads as the calendar.
             AccountCapability.MAIL to UseProblem.UNREACHABLE to L10n.separate_server_unreachable_calendar(ctx),
         )
@@ -115,6 +119,10 @@ class CoreErrorTextTest {
         assertEquals(
             "the calendar did not connect: its server needs a sign-in of its own",
             coreErrorText(MailcalException.UseNotConnected(AccountCapability.CALENDAR, UseProblem.NEEDS_OWN_SIGN_IN)),
+        )
+        assertEquals(
+            "the calendar did not connect: its server was found on another site and waits to be allowed",
+            coreErrorText(MailcalException.UseNotConnected(AccountCapability.CALENDAR, UseProblem.SERVER_CHANGED)),
         )
     }
 

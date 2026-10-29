@@ -231,11 +231,22 @@ async fn watch_loop(
     let mut online = app.online_signal();
     let mut backoff = Backoff::new(&folder_key);
     let log_scope = watch_log_scope(&account_id, &folder_key);
+    // The folder's refreshes run beside the watch, never in it: one can wait minutes for a folder
+    // another sync holds, and the watch has to be back in IDLE meanwhile to hear the next change.
+    let refresher = Refresher::spawn({
+        let (app, account_id, folder_key) =
+            (Arc::clone(&app), account_id.clone(), folder_key.clone());
+        move || {
+            let (app, account_id, folder_key) =
+                (Arc::clone(&app), account_id.clone(), folder_key.clone());
+            async move { sync_watched(&app, &account_id, &folder_key).await }
+        }
+    });
     loop {
         // Don't even attempt a connect while the device is offline; park until it returns,
         // so an overnight outage doesn't retry every few seconds against a dead resolver.
         await_online(&mut online).await;
-        let Some((config, connections, tokens)) = registry.imap(&account_id) else {
+        let Some(((config, connections, tokens), shared)) = registry.imap_store(&account_id) else {
             // The account's config is gone (removed), or it's a Microsoft account (Graph
             // has no IMAP IDLE; it polls), nothing to watch here.
             return;
@@ -245,24 +256,31 @@ async fn watch_loop(
             &config,
             tokens.as_ref(),
             &folder_key,
+            shared.as_ref(),
         )
         .await
         {
             Ok(mut watch) => {
-                let connected_at = Instant::now();
                 // Sync once before trusting the watch, to catch anything that changed while
                 // we were not idling (the engine's prescribed host loop).
-                sync_watched(&app, &account_id, &folder_key).await;
+                refresher.request();
+                let idling_since = Instant::now();
                 loop {
                     match watch.next().await {
-                        Ok(WatchEvent::Changed) => {
-                            sync_watched(&app, &account_id, &folder_key).await;
-                        }
+                        Ok(WatchEvent::Changed) => refresher.request(),
                         // KeepAlive (and any future non-exhaustive variant): the watch is
                         // healthy and re-issued IDLE, nothing to do until the next change.
                         Ok(_) => {}
                         Err(err) => {
-                            log::warn!("watch[{log_scope}] dropped ({err}); reconnecting",);
+                            let uptime = idling_since.elapsed();
+                            if ended_routinely(uptime, err.class()) {
+                                log::info!(
+                                    "watch[{log_scope}] closed after {}s ({err}); reconnecting",
+                                    uptime.as_secs(),
+                                );
+                            } else {
+                                log::warn!("watch[{log_scope}] dropped ({err}); reconnecting");
+                            }
                             break;
                         }
                     }
@@ -270,7 +288,7 @@ async fn watch_loop(
                 // Clear the backoff only if the watch stayed up long enough to be healthy; a
                 // connection that dropped almost immediately is a flapping server, so keep the
                 // escalated delay rather than resetting to the 2s base and busy-looping it.
-                if connected_at.elapsed() >= HEALTHY_WATCH_UPTIME {
+                if idling_since.elapsed() >= HEALTHY_WATCH_UPTIME {
                     backoff.reset();
                 }
             }
@@ -284,11 +302,62 @@ async fn watch_loop(
     }
 }
 
+/// Whether a watch that idled for `uptime` and then failed with `class` ended routinely: a session
+/// past [`HEALTHY_WATCH_UPTIME`] ending in a retryable failure. That is the `* BYE` some servers
+/// send after a fixed time, and equally a connection the network dropped, which the class does not
+/// tell apart, so the line names neither; a reconnect that then fails warns on its own. A watch
+/// that dropped almost at once, or failed for a reason a reconnect will not cure, is a warning.
+fn ended_routinely(uptime: Duration, class: engine_api::FailureClass) -> bool {
+    uptime >= HEALTHY_WATCH_UPTIME && class == engine_api::FailureClass::Retryable
+}
+
 fn watch_log_scope(account_id: &str, folder_key: &str) -> String {
     format!(
         "{}/{folder_key}",
         mailcal_account::account_log_handle(account_id)
     )
+}
+
+/// One watched folder's refreshes, run by a task of their own so the watch never waits on one.
+///
+/// A request that arrives while a refresh runs is kept, and requests that arrive together are one:
+/// [`Notify`](tokio::sync::Notify) holds a single wake-up for a waiter that is not waiting yet. So
+/// a burst of changes during a long refresh costs exactly one more refresh, which reads all of
+/// them. Dropping the refresher, with the watch loop that owns it, stops the task.
+struct Refresher {
+    wake: Arc<tokio::sync::Notify>,
+    task: JoinHandle<()>,
+}
+
+impl Refresher {
+    fn spawn<F, Fut>(refresh: F) -> Self
+    where
+        F: Fn() -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send,
+    {
+        let wake = Arc::new(tokio::sync::Notify::new());
+        let task = tokio::spawn({
+            let wake = Arc::clone(&wake);
+            async move {
+                loop {
+                    wake.notified().await;
+                    refresh().await;
+                }
+            }
+        });
+        Self { wake, task }
+    }
+
+    /// Asks for a refresh: now, or once the one running finishes.
+    fn request(&self) {
+        self.wake.notify_one();
+    }
+}
+
+impl Drop for Refresher {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
 }
 
 /// Re-syncs the watched folder through the core (parsing the account id once per call).
@@ -339,51 +408,5 @@ fn poll_log_scope(account_id: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_watch_log_scope_does_not_expose_the_account_address() {
-        let scope = watch_log_scope("alice@example.test@imap.example.test", "folder-opaque-key");
-
-        assert!(scope.starts_with("acct:"));
-        assert!(scope.ends_with("/folder-opaque-key"));
-        assert!(!scope.contains("alice"));
-        assert!(!scope.contains('@'));
-    }
-
-    #[test]
-    fn backoff_escalates_then_settles_at_the_cap() {
-        let mut backoff = Backoff::new("INBOX");
-        let offset = backoff.offset;
-        // base·2^0, ·2^1, ·2^2 …
-        assert_eq!(backoff.next_delay(), RECONNECT_BACKOFF_BASE + offset);
-        assert_eq!(backoff.next_delay(), RECONNECT_BACKOFF_BASE * 2 + offset);
-        assert_eq!(backoff.next_delay(), RECONNECT_BACKOFF_BASE * 4 + offset);
-        // …then every later delay is pinned to the cap (never the old busy-loop, never
-        // unbounded growth).
-        for _ in 0..12 {
-            assert!(backoff.next_delay() <= RECONNECT_BACKOFF_MAX + offset);
-        }
-        assert_eq!(backoff.next_delay(), RECONNECT_BACKOFF_MAX + offset);
-    }
-
-    #[test]
-    fn reset_returns_to_the_base_delay() {
-        let mut backoff = Backoff::new("Sent");
-        let offset = backoff.offset;
-        for _ in 0..8 {
-            backoff.next_delay();
-        }
-        backoff.reset();
-        assert_eq!(backoff.next_delay(), RECONNECT_BACKOFF_BASE + offset);
-    }
-
-    #[test]
-    fn the_per_watch_offset_is_bounded_and_stable() {
-        // Under a second, and identical across restarts for the same folder (so staggering is
-        // deterministic and logs stay reproducible).
-        assert!(Backoff::new("INBOX").offset < Duration::from_secs(1));
-        assert_eq!(Backoff::new("INBOX").offset, Backoff::new("INBOX").offset);
-    }
-}
+#[path = "background_tests.rs"]
+mod tests;

@@ -103,7 +103,11 @@ impl HttpTelemetrySink {
         // path workspace-wide, so an HTTPS client is built from engine-tls's rustls config.
         let tls = engine_tls::client_config(&engine_tls::TlsPolicy::bundled_and_system())
             .map_err(TelemetryError::Tls)?;
-        let http = tls.reqwest_builder().timeout(REQUEST_TIMEOUT).build()?;
+        let http = tls
+            .reqwest_builder()
+            .user_agent(mailcal_user_agent::HEADER)
+            .timeout(REQUEST_TIMEOUT)
+            .build()?;
 
         let (queue, mut jobs) = mpsc::channel::<Job>(QUEUE_CAPACITY);
         tokio::spawn(async move {

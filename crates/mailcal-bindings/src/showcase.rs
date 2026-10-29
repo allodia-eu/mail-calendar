@@ -21,8 +21,9 @@ use engine_core::{
     sync::{JmapDataType, SyncScope, SyncState, SyncUpdate, SyncWindow},
 };
 use engine_provider::{
-    Capabilities, ConnectionInfo, EmailChunk, EmailStream, EventRsvp, EventWriteReceipt, Provider,
-    ProviderError, ProviderResult, RsvpControls, ScopeSync, WriteGuard,
+    CalendarListing, Capabilities, ConnectionInfo, EmailChunk, EmailStream, EventRsvp,
+    EventWriteReceipt, Provider, ProviderError, ProviderResult, RsvpControls, ScopeSync,
+    WriteGuard,
 };
 
 /// A mail provider serving one account's showcase mailbox: several folders of realistic
@@ -208,18 +209,20 @@ impl Provider for ShowcaseCalendarProvider {
         &self,
         _account: &AccountId,
         cursor: Option<&SyncState>,
-    ) -> ProviderResult<ScopeSync<Calendar>> {
+    ) -> ProviderResult<CalendarListing> {
         if cursor.is_some() {
             return Ok(ScopeSync::new(
                 SyncUpdate::delta(Vec::new(), Vec::new()),
                 SyncState::new("cal-2"),
-            ));
+            )
+            .into());
         }
         let present = self.calendars.iter().map(|c| c.id.key().clone()).collect();
         Ok(ScopeSync::new(
             SyncUpdate::snapshot(self.calendars.clone(), present),
             SyncState::new("cal-1"),
-        ))
+        )
+        .into())
     }
 
     /// Serves the events, keyed on a revision that an [`Self::rsvp_event`] bumps.
@@ -234,6 +237,7 @@ impl Provider for ShowcaseCalendarProvider {
     async fn sync_events(
         &self,
         _account: &AccountId,
+        _calendar: &engine_api::CalendarId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<ScopeSync<Event>> {
         let (events, revision) = &*self.events();

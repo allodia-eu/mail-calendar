@@ -124,7 +124,7 @@ fn read_request(stream: &mut std::net::TcpStream) -> String {
             break;
         }
     }
-    String::from_utf8_lossy(&raw).into_owned()
+    String::from_utf8_lossy_owned(raw)
 }
 
 /// One `application/x-www-form-urlencoded` value out of a request body.
@@ -286,4 +286,43 @@ pub(crate) async fn assert_drafts_reach_the_delegate(provider: &dyn engine_provi
     assert_eq!(saved.class(), FailureClass::Authentication, "{saved}");
     let removed = provider.delete_draft(&account, &key).await.unwrap_err();
     assert_eq!(removed.class(), FailureClass::Authentication, "{removed}");
+}
+
+/// Asserts that `provider`, built over a token source whose grant is dead, takes an invitation
+/// answer and the calendar-user lookup to its delegate, the way
+/// [`assert_drafts_reach_the_delegate`] does for drafts. The defaults answer without asking
+/// anyone: `rsvp_event` refuses as unsupported, and `calendar_user_addresses` reports `Unknown`.
+pub(crate) async fn assert_calendar_answers_reach_the_delegate(
+    provider: &dyn engine_provider::Provider,
+) {
+    use engine_core::{
+        calendar::Event,
+        error::FailureClass,
+        ids::{CalendarId, EventId, Uid},
+        membership::Memberships,
+        time::CalendarDateTime,
+    };
+    use engine_provider::{EventRsvp, RsvpResponse};
+
+    let account = unique_account();
+    let event = Event::new(
+        EventId::try_from("calendar/event-1").expect("valid event id"),
+        Uid::new("event-1@example.com").expect("valid uid"),
+        Memberships::of_one(CalendarId::try_from("calendar").expect("valid calendar id")),
+        CalendarDateTime::Floating("2026-09-01T09:00:00".parse().expect("valid time")),
+    );
+    let rsvp = EventRsvp::to(&event, "mailto:me@example.com", RsvpResponse::Accepted);
+
+    let answered = provider
+        .rsvp_event(&account, &event, &rsvp)
+        .await
+        .unwrap_err();
+    assert_eq!(answered.class(), FailureClass::Authentication, "{answered}");
+    let addresses = provider.calendar_user_addresses(&account).await;
+    assert!(
+        addresses
+            .as_ref()
+            .is_err_and(|err| err.class() == FailureClass::Authentication),
+        "{addresses:?}"
+    );
 }

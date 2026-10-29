@@ -6,7 +6,7 @@ use mailcal_bindings::{
 };
 
 use super::{
-    UseSwitch, link_pickers, needs_permission, outage_line, signin_description,
+    UseSwitch, link_pickers, needs_permission, outage_line, review_after, signin_description,
     signs_in_at_provider, summary, use_switch,
 };
 use crate::l10n;
@@ -234,7 +234,7 @@ fn the_summary_names_the_kind_the_uses_and_the_links() {
 #[test]
 fn a_picker_is_offered_only_for_a_slot_the_account_can_hold() {
     let mut entry = mailbox_only();
-    assert!(link_pickers(&entry).is_empty());
+    assert_eq!(link_pickers(&entry), []);
 
     entry.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
     entry.links.calendar = Some(linked("b@cloud.example"));
@@ -337,6 +337,18 @@ fn an_outage_line_names_the_account_then_the_reason_its_page_gives_then_the_last
             l10n::contacts_outage_title(address),
             l10n::settings_account_use_unreachable_contacts(),
         ),
+        (
+            AccountCapability::Calendar,
+            UseProblem::ServerChanged,
+            l10n::calendar_outage_title(address),
+            l10n::settings_account_use_server_changed_calendar(),
+        ),
+        (
+            AccountCapability::Contacts,
+            UseProblem::ServerChanged,
+            l10n::contacts_outage_title(address),
+            l10n::settings_account_use_server_changed_contacts(),
+        ),
     ] {
         assert!(title.contains(address));
         assert_eq!(
@@ -345,4 +357,39 @@ fn an_outage_line_names_the_account_then_the_reason_its_page_gives_then_the_last
             "{capability:?} {problem:?}"
         );
     }
+}
+
+#[test]
+fn a_use_paused_for_a_new_server_says_so_and_the_last_of_them_carries_the_review() {
+    use mailcal_bindings::UseProblem;
+    let mut entry = entry(
+        AccountKind::Dav,
+        &[
+            (AccountCapability::Calendar, CapabilityState::On),
+            (AccountCapability::Contacts, CapabilityState::On),
+        ],
+    );
+    assert_eq!(review_after(&entry), None);
+
+    entry.uses[0].problem = Some(UseProblem::ServerChanged);
+    let calendar = use_switch(&entry, AccountCapability::Calendar);
+    assert_eq!(
+        calendar.note,
+        Some(l10n::settings_account_use_server_changed_calendar())
+    );
+    assert!(
+        calendar.active,
+        "a paused use is still one the account is used for"
+    );
+    assert_eq!(review_after(&entry), Some(AccountCapability::Calendar));
+
+    entry.uses[1].problem = Some(UseProblem::ServerChanged);
+    assert_eq!(
+        use_switch(&entry, AccountCapability::Contacts).note,
+        Some(l10n::settings_account_use_server_changed_contacts())
+    );
+    assert_eq!(review_after(&entry), Some(AccountCapability::Contacts));
+
+    entry.uses[1].problem = Some(UseProblem::Unreachable);
+    assert_eq!(review_after(&entry), Some(AccountCapability::Calendar));
 }

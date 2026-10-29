@@ -129,7 +129,7 @@ async fn reset_shows_the_download_bar_even_when_mail_is_already_listed() {
     });
     release(&after_commit, &finish).await;
     paint.await.unwrap();
-    assert!(!app.mailbox_list().rows.is_empty());
+    assert_ne!(app.mailbox_list().rows, []);
     assert!(!app.sync_progress().active);
 
     let task = tokio::spawn({

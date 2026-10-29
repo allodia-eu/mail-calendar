@@ -77,7 +77,7 @@ that same file.
   accident**. A test that measures one width passes over the defect; the assertion has to force the
   labelled width and say so when it cannot reach it
   ([`ReadingActionRowTests.cs`](../clients/windows/Mailcal.UiTests/Suites/ReadingActionRowTests.cs),
-  [`SelectionBar.Tests.ps1`](../clients/windows/uitests/SelectionBar.Tests.ps1)).
+  [`SelectionBarTests.cs`](../clients/windows/Mailcal.UiTests/Suites/SelectionBarTests.cs)).
 - **`Path.GetInvalidFileNameChars()` answers differently per host, and `Mailcal.Tests` is not a
   Windows assembly.** On Windows it returns the familiar set; on Linux, `/` and NUL alone, so `:`,
   `*`, `?` and `\` all come back as legal. The Windows client only ever *runs* on Windows, but its
@@ -348,6 +348,14 @@ that same file.
   returns to the app, which raises Settings over it; a modal hidden that way also makes the button
   that opened it look dead. Parent a window to the window it was opened from
   (`SettingsWindow::front_or` in [`settings.rs`](../clients/linux/src/ui/settings.rs)).
+- **A `GtkButton` emits `clicked` a quarter of a second after it is activated, and a button
+  removed in between never does.** `activate`, which both the keyboard and an accessibility click
+  go through, starts a 250 ms timeout and emits at its end; unrealising the button first, which is
+  what clearing its row from a list does, cancels it in silence. The app renders on every input it
+  receives, the time-zone poll included, so a view that clears and refills itself on each render
+  drops presses at random and takes keyboard focus off the row it was on, over a tree that shows
+  the button enabled and in place. Rebuild a view only when what it shows has changed
+  (`AgendaDrawn` in [`views.rs`](../clients/linux/src/ui/calendar/views.rs)).
 - **A size request or a scroll offset set from a `GtkAdjustment` notification never reaches the
   screen.** GTK emits `notify::page-size` and `notify::upper` from inside the viewport's own size
   allocation, which has already measured and placed the child for this frame. A height asked for
@@ -431,8 +439,20 @@ that same file.
   three forced collections, a few megabytes each, while handlers on elements inside the same
   windows held nothing. The tell is `gcroot` in `dotnet-dump` finding no managed root for an object
   that survives every collection. Unsubscribe inside the `Closed` handler, which
-  `WindowChrome.Dress` does for every window it dresses; `uitests/ReleaseProbe.Tests.ps1` counts
-  what is still held after a close.
+  `WindowChrome.Dress` does for every window it dresses, or take the window from the handler's
+  `sender` rather than capturing it; `Mailcal.UiTests/Suites/ReleaseProbeTests.cs` counts what is
+  still held after a close.
+- **A closed WinUI tree is given back on a rendered frame, and an idle window draws none.** A XAML
+  object reached from a managed wrapper is released on the UI thread, so a wrapper finalised on the
+  finaliser thread queues its release, and XAML drains that queue (`UIAffinityReleaseQueue`) only
+  inside a frame. The event arguments a handler was given are such wrappers, and focus arguments
+  name elements: a composer discarded while its To field had focus is held by the `LosingFocus`
+  arguments naming that field, through the field's handlers, until something on screen changes.
+  So a collection in an idle window reports held what the next hover would free, about one run in
+  four, and it reads exactly like a leak: no managed root, `RefCounted` handles on the composer's
+  controls, and freed by whatever draws next: focusing a text box frees it, because its caret
+  draws, and a programmatic focus on a button does not. The release probe draws frames while it
+  collects (`CompositionTarget.Rendering`); a handler on a native object still holds through them.
 - **WinUI's `FocusManager` static *moves* act on whichever element holds focus now, which may be in
   a different window.** `TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = other })`
   reads as "move focus into `other`" and is not: the search root only bounds where the *next*

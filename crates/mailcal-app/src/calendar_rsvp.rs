@@ -28,7 +28,7 @@ impl<P: Provider> App<P> {
     async fn calendar_connected(&self, account: &AccountId) -> bool {
         self.account_handle(account)
             .await
-            .is_some_and(|handle| !handle.calendar_providers.is_empty())
+            .is_some_and(|handle| handle.calendar_provider.is_some())
     }
 
     /// This account's answer to `stored`, when it may give one from the calendar: it is invited,
@@ -106,8 +106,8 @@ impl<P: Provider> App<P> {
         // answer given from it would tell the organiser one thing and leave the calendar saying
         // another.
         let provider = acct
-            .calendar_providers
-            .first()
+            .calendar_provider
+            .as_ref()
             .ok_or_else(|| "the calendar is not connected".to_owned())?;
 
         match self
@@ -138,7 +138,12 @@ impl<P: Provider> App<P> {
                         .await
                         .map_err(|err| err.to_string())?;
                     let status = self
-                        .settle_calendar_write(provider, &event.account, write.reconciled)
+                        .settle_calendar_write(
+                            provider,
+                            &event.account,
+                            &crate::calendar_status::calendars_of(&stored),
+                            write.reconciled,
+                        )
                         .await;
                     self.set_calendar_write_status(status);
                 }
@@ -165,7 +170,12 @@ impl<P: Provider> App<P> {
                     .await
                     .map_err(|err| self.answer_write_failed(&err))?;
                 let status = self
-                    .settle_calendar_write(provider, &event.account, write.reconciled)
+                    .settle_calendar_write(
+                        provider,
+                        &event.account,
+                        &crate::calendar_status::calendars_of(&stored),
+                        write.reconciled,
+                    )
                     .await;
                 let mail = letter.account.clone();
                 let outcome = self

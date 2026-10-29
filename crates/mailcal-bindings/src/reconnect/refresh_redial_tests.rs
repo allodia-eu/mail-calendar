@@ -60,3 +60,51 @@ fn a_refresh_of_the_calendar_or_contacts_dials_an_unreachable_account_again() {
         });
     }
 }
+
+/// A calendar that could not be reached beside a working mailbox is dialled again on its own:
+/// the mailbox is connected, and signing in to it on every retry is what makes a provider limit
+/// the account's sign-ins.
+#[test]
+fn a_retry_of_an_unreachable_calendar_leaves_the_mailbox_alone() {
+    let (imap, mailbox_connections) = silent_server();
+    let (dav, calendar_connections) = silent_server();
+    let config = format!(
+        "[imap]\naddr = \"{}\"\nserver_name = \"localhost\"\nusername = \"alice@example.org\"\n\
+         password = \"pw\"\n\n[caldav]\nbase_url = \"{dav}/dav\"\nusername = \"alice@example.org\"\n\
+         password = \"pw\"\n",
+        imap.trim_start_matches("http://"),
+    );
+    let id = mailcal_account::load_str(&config)
+        .expect("a valid config")
+        .account_id()
+        .expect("a valid account id")
+        .as_str()
+        .to_owned();
+    let app = boot!(new_accounts, "refresh-redial-uses", config);
+    let idle = || app.redialling.lock().unwrap().is_empty();
+    wait_for("the launch's dial", || {
+        app.disconnected.lock().unwrap().contains(&id) && idle()
+    });
+    // What a launch leaves when the mailbox connected and the calendar did not.
+    app.disconnected.lock().unwrap().clear();
+    app.app.note_use_problems(
+        &engine_api::AccountId::try_from(id.as_str()).unwrap(),
+        mailcal_app::UseProblems {
+            calendar: Some(mailcal_app::UseProblem::Unreachable),
+            contacts: None,
+        },
+    );
+    let mailbox_before = mailbox_connections.load(Ordering::SeqCst);
+    let calendar_before = calendar_connections.load(Ordering::SeqCst);
+
+    app.dispatch(Intent::RefreshMail);
+    wait_for("the calendar to be dialled again", || {
+        calendar_connections.load(Ordering::SeqCst) > calendar_before && idle()
+    });
+
+    assert_eq!(
+        mailbox_connections.load(Ordering::SeqCst),
+        mailbox_before,
+        "the retry signed in to a mailbox that was already connected"
+    );
+}

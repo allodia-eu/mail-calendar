@@ -101,6 +101,8 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
    `.well-known/carddav`, concurrently; the SRV target is preferred, then the domain's own, the
    email domain before the provider's. After a clean miss (not an offline one) the email domain
    alone is probed, and a hit there is a **calendar-and-contacts** result rather than nothing.
+   Each probe is a `PROPFIND` at depth 0, the request a DAV client bootstraps with (RFC 6764
+   §6), not a `GET`: iCloud's CalDAV server answers a `GET` at its well-known with `400`.
    Only an HTTPS `401` (a credential challenge) or `207` (a WebDAV multi-status) counts, so a
    catch-all `301`-to-homepage is not a false positive, and because only HTTPS is followed, a
    discovered endpoint is always tamper-resistant-sourced. **Which uses the found card offers,
@@ -194,22 +196,57 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
     A domain that has left Microsoft 365 but kept its `autodiscover` record is routed to the
     Microsoft sign-in; "Set up manually" stays on that card. The locations come from
     `mapi-autodiscover`, which performs no I/O; the fetch is detection's own.
-14. **A calendar or address-book server that stops answering is looked for again, and followed
-    only within its provider.** RFC 6764 §6 has a client keep the servers that worked and
-    bootstrap again when they fail, and a found server is often a provider's own name for one
-    machine (`_caldavs._tcp.fastmail.com` names `d277161.caldav.fastmail.com`), which it may
-    move. So when a reconnect cannot reach an account's calendar or address-book server, the
-    core runs rule 8's lookup again for the account's address (`dav_rediscovery`), at most once
-    an hour per account and never for a refused sign-in or a certificate that did not verify,
-    which have prompts of their own. A server found somewhere new is followed only when its
-    host is under the registrable domain of the server it replaces or of the address, over
-    HTTPS: DNS is not authenticated, so a stored password never follows an answer anywhere else
-    (RFC 6764 §8), and such a find is logged and left. Following goes through the same door as
-    editing the servers in Settings (`update_account_endpoints`): the new server connects before
-    anything is stored, and what the device held of a use whose server moved host is synced
-    again from it. The lookup needs the host's DNS for the SRV records, which each client hands
-    the core once, right after building the app (`set_dns_resolver`); before that the core does
-    not look again.
+14. **A calendar or address-book connect starts at the principal its server named last time,
+    and the servers are looked for again only when that is gone.** RFC 6764 §6 has a client
+    cache "the service details that were successfully used (user identity, principal-URL with
+    full scheme/host/port details)" and bootstrap again when a later connection fails; RFC 6352
+    §9.3 calls the principal URL "the key piece of information" a CardDAV client needs.
+    - **What is kept.** Each connect reports the principal its server named, and the core keeps
+      it beside the stored config (`DavStarts`, one per use, in `dav-principals.toml` in the
+      data directory, never in the credential store), so the next connect starts there. The
+      configured server stays what setup stored: an account without mail takes its id from it.
+      The home the principal names (iCloud's `pNN` host) is kept in memory only, and the
+      calendar and contacts are connected again from the principal after 24 hours of uptime
+      (`DAV_FRESH_FOR`), so a home the server moved is followed within a day. A redial whose
+      server does not answer for one the account has working keeps that connection, and the next
+      retry dials it again. Editing the servers forgets the principals.
+    - **When to look again.** A stored principal the server says is gone (a `404`, `410` or
+      `403`, or no home) sends the connect back to the configured server. When that is gone too,
+      or the server refuses the sign-in, the core runs rule 8's lookup again for the account's
+      address (`dav_rediscovery`), at most once an hour per account. A refusal counts when a
+      calendar or address-book server made it: a mail server's says nothing about where the
+      calendar went, so an account with mail is looked for again only for its own calendar or
+      contacts. A server that does not answer (a timeout, a DNS failure, a `5xx`, a `429`, a
+      certificate that does not verify) changes nothing and is never looked for again: an outage
+      says nothing about where the server is, so it never leads to a setup screen.
+    - **What is followed.** A server found somewhere new under the registrable domain of the
+      one it replaces or of the address, over HTTPS, is followed through the same door as
+      editing the servers in Settings (`update_account_endpoints`): the new server connects
+      before anything is stored, and what the device held of a use whose server moved host is
+      synced again from it.
+    - **What is asked.** A server found on **another site** is never followed silently: that is
+      how a provider moving looks, and also how a changed or tampered DNS answer looks, and
+      RFC 6764 §8 has a client "verify with the user" when a server falls outside the domain it
+      expected. The use is paused (`UseProblem::ServerChanged`, `pending_server_change`) and
+      nothing is sent to the new server. Each client says "Calendar paused: waiting for you to
+      confirm a new server." under the use's switch and above the calendar or contacts, with a
+      **Review** action that asks the question naming both sites (`server_changed_title_*`,
+      `_body_*`, `_before`, `_now`, `_advice`, `_unsure_*`): in a dialog, or inline on the account's
+      page where Settings is itself a dialog that cannot open another (Windows).
+      **Not now** is the default response, so a stray Return or tap never allows; it needs no
+      call and leaves the use paused. **Allow new server** (`accept_server_change`) moves the
+      account as above, and a refused new server leaves it paused as it was
+      (`server_changed_failed`). Every use the change moves has to connect on its new server,
+      not only the mailbox. Allow hands back the question the client showed, because a lookup
+      can replace it while it is on screen: a replaced one moves nothing and is asked in its
+      place (`ServerChangeAnswer::Replaced`), so the credential never goes to a site the person
+      was not shown. One already settled, from another surface or by the use connecting again,
+      answers `Settled`, which closes the question rather than reporting a failure, and a change a
+      lookup found while the allowed one was connecting stays to be asked. A paused use that
+      connects again by itself is no longer paused, and a failed dial of the whole account keeps
+      the pause, since it answers nothing.
+    - The lookup needs the host's DNS for the SRV records, which each client hands the core once,
+      right after building the app (`set_dns_resolver`); before that the core does not look again.
 
 ## Strategy order
 
@@ -340,13 +377,15 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | The found card's choices, decided in the core (rule 8) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | JMAP OAuth metadata chain (RFC 9728 → 8414 → 7591), offered only when advertised | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | `<oAuth2><issuer>` read from the provider's own trusted autoconfig, carried to setup | ✅ | ✅ | ✅ | ⬜ | ✅ |
-| A calendar or address-book server that stops answering looked for again (rule 14) | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
+| A calendar or address-book server whose principal is gone looked for again (rule 14) | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
+| Calendar and contacts connects start at the stored principal; an outage changes nothing (rule 14) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A server found on another site asked about, the use paused until allowed (rule 14) | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The **CalDAV follow-on** offers the discovered calendar as an ✉ Email / 📅 Calendar sectioned
 card on every client (a pre-checked opt-out toggle when found, an opt-in manual field otherwise,
 hidden until the offer is accepted, so an empty box never reads as a calendar we failed to fill
 in); on Apple, Linux and Windows the card is the core's choices, contacts included (rule 8). The
-Windows found card names its servers rather than offering them to edit, and `AddAccount.Tests.ps1`
+Windows found card names its servers rather than offering them to edit, and `AddAccountTests`
 reads them as lines, with no server field on screen until "Set up manually"; the discovered-CalDAV
 prefill specifically is still owed.
 
@@ -373,8 +412,8 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
 
 ## Known gaps
 
-- **Rule 12 is driven on Windows and iOS, not on macOS.** `Onboarding.Tests.ps1` and
-  `AddAccount.Tests.ps1` press "Set up manually", then Back, and read the address back;
+- **Rule 12 is driven on Windows and iOS, not on macOS.** `OnboardingTests.cs` and
+  `AddAccountTests.cs` press "Set up manually", then Back, and read the address back;
   `AccountSetupBackTests` does the same on iOS from the found card and the manual form, on a first
   run and a later add. The Apple UI suite is iOS only, so macOS shares the view but is checked by
   eye. Linux asserts the address it goes back with (`setup_uses_widget_tests`) and that Back waits
@@ -462,10 +501,10 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   screen, so a negative answer changes nothing there and must not rebuild over a secret being
   typed.
 - **No client has yet seen a provider move a server (rule 14).** The core's tests drive the
-  trigger end to end against a port nothing listens on, a moved SRV record, and the rule that
-  keeps a password within its provider (`dav_rediscovery_tests`, `rediscover_tests`); every
-  client hands the core its DNS at launch, but none has run against a server that actually
-  moved, so each cell stays 🚧 until one does.
+  trigger end to end against a server whose start is gone and one that does not answer, a moved
+  SRV record, and the rule that keeps a password within its provider (`dav_rediscovery_tests`,
+  `rediscover_tests`); every client hands the core its DNS at launch, but none has run against
+  a server that actually moved, so each cell stays 🚧 until one does.
 - **TXT `path` records are not read** (RFC 6764 §4). The host resolver has no TXT lookup, so a
   DAV server whose context path is published only in TXT, and not under `.well-known` on the
   SRV target, is not found, and the user adds it manually.
@@ -506,6 +545,12 @@ autodiscovery added a second and third concurrent lookup; the MX-only era ran on
   the JMAP found card showing `JMAP · api.fastmail.com`, **trusted, no warning**
   (`autodetect: jmap via JmapSrv (trusted)` in the log). Detection's job (route + prefill the right
   server) ends there; the subsequent JMAP-connect authentication is a separate concern.
+- **Rule 14's question** is reached against the harness through the debug-only
+  `MAILCAL_FAKE_SERVER_CHANGE` ([`debugging.md`](debugging.md)), which substitutes the lookup's
+  answer and nothing else: a loopback server has no site the question could name. Windows drives
+  it end to end in `Mailcal.UiTests` (`ServerChangeTests`): a refused sign-in, the paused uses on
+  the account's page, the inline question, an allow the new server refuses, and one that moves the
+  account.
 - **Linux** additionally has a **GTK widget suite** driven on a private headless compositor, in the crate's single GTK
   test (GTK initialises once, on one thread, so what it covers lives in files beside it): which
   surface each route renders and (the half a screenshot cannot check) what it must *not* put on

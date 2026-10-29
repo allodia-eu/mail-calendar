@@ -290,7 +290,7 @@ fn read_request(stream: &mut TcpStream) -> String {
             break;
         }
     }
-    String::from_utf8_lossy(&raw).into_owned()
+    String::from_utf8_lossy_owned(raw)
 }
 
 /// **Two cores over one account refresh once.** The device finding, reduced to a test.

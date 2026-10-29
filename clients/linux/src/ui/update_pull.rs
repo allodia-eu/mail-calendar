@@ -12,10 +12,11 @@ use super::{
 use crate::l10n;
 
 impl AppModel {
-    pub(super) fn pull(&mut self, surface: &Surface) {
+    pub(super) fn pull(&mut self, surface: &Surface, sender: &relm4::Sender<super::AppInput>) {
         let Some(app) = self.app.clone() else {
             return;
         };
+        self.ask_shared_mailboxes_again(surface, sender.clone());
         match surface {
             Surface::MailboxList => self.pull_mailbox(&app),
             Surface::Reading => {

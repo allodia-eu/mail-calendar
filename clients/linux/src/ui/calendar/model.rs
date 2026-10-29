@@ -153,7 +153,7 @@ impl CalendarModel {
         }
     }
 
-    fn empty(today: Date) -> Self {
+    pub(super) fn empty(today: Date) -> Self {
         Self {
             mode: CalendarMode::Week,
             focus: today,

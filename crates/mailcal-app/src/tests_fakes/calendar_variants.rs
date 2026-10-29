@@ -103,11 +103,66 @@ impl CalendarFake {
         }
     }
 
+    /// A writable account listing these calendars, each `(id, the colour its server sends)`.
+    pub(crate) fn with_server_colors(calendars: &[(&str, Option<&str>)]) -> Self {
+        let ids: Vec<&str> = calendars.iter().map(|(id, _)| *id).collect();
+        let mut fake = Self::with_calendars(&ids);
+        for (calendar, (_, color)) in fake.calendars.iter_mut().zip(calendars) {
+            calendar.color = color.map(str::to_owned);
+        }
+        fake
+    }
+
     /// The same scheduling server, naming the addresses it schedules as for this user.
     pub(crate) fn scheduling_as(events: Vec<Event>, users: CalendarUserAddresses) -> Self {
         Self {
             calendar_users: users,
             ..Self::scheduling(events)
         }
+    }
+
+    /// A CalDAV-shaped server: the calendars `(id, collection tag)` and the events on them,
+    /// each calendar's events under a scope of its own.
+    pub(crate) fn on_dav(listed: &[(&str, &str)], events: Vec<Event>) -> Self {
+        let id = |id: &str| engine_core::ids::CalendarId::try_from(id).unwrap();
+        let calendars = listed
+            .iter()
+            .map(|(calendar, _)| engine_core::calendar::Calendar::new(id(calendar), *calendar))
+            .collect();
+        let tags = listed
+            .iter()
+            .map(|(calendar, tag)| (id(calendar), engine_core::version::CollectionTag::new(*tag)))
+            .collect();
+        Self {
+            calendars,
+            tags,
+            per_calendar: true,
+            ..Self::with_events(events)
+        }
+    }
+
+    /// The same server, with `calendar` shared with this account read-only.
+    pub(crate) fn read_only_calendar(mut self, calendar: &str) -> Self {
+        for listed in self
+            .calendars
+            .iter_mut()
+            .filter(|c| c.id.as_str() == calendar)
+        {
+            listed.access = engine_core::calendar::CalendarAccess::reader();
+        }
+        self
+    }
+
+    /// The same server, naming `calendar` its default for new events.
+    pub(crate) fn server_default(mut self, calendar: &str) -> Self {
+        for listed in &mut self.calendars {
+            listed.is_default = listed.id.as_str() == calendar;
+        }
+        self
+    }
+
+    /// The calendar each event fetch named, in order.
+    pub(crate) fn event_fetches(&self) -> std::sync::Arc<std::sync::Mutex<Vec<String>>> {
+        std::sync::Arc::clone(&self.event_fetches)
     }
 }

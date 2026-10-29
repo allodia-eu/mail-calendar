@@ -119,6 +119,11 @@ pub enum UseProblem {
     /// Its server could not be reached. The next retry (Refresh, or coming back online) dials it
     /// again.
     Unreachable,
+    /// Its server is gone, and looking again found it on another site: the use is paused until
+    /// the person allows the new server
+    /// ([`MailcalApp::pending_server_change`](crate::MailcalApp::pending_server_change),
+    /// `docs/account-autodetect.md` rule 14). Nothing is sent to it before they do.
+    ServerChanged,
 }
 
 impl From<mailcal_app::UseProblem> for UseProblem {
@@ -127,6 +132,7 @@ impl From<mailcal_app::UseProblem> for UseProblem {
             mailcal_app::UseProblem::NeedsOwnSignIn => Self::NeedsOwnSignIn,
             mailcal_app::UseProblem::SignInRefused => Self::SignInRefused,
             mailcal_app::UseProblem::Unreachable => Self::Unreachable,
+            mailcal_app::UseProblem::ServerChanged => Self::ServerChanged,
         }
     }
 }

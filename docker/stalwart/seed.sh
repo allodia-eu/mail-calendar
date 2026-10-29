@@ -27,10 +27,14 @@ ALICE_PW="${HARNESS_ALICE_PW:-harness-alice-pw}"
 # claim of the feature and cannot be shown with one account (entrypoint.sh provisions both).
 BOB="bob@test.local"
 BOB_PW="${HARNESS_BOB_PW:-harness-bob-pw}"
+# The support group mailbox as alice reaches it, under the `Shared Folders` namespace. The space is
+# percent-encoded because the path rides a curl URL.
+SUPPORT_SHARED="Shared%20Folders/support@test.local"
 
 IMAPS="imaps://127.0.0.1:993"
 HTTP="http://127.0.0.1:8080"
 CAL_COLLECTION="$HTTP/dav/cal/$ALICE/default"
+WORK_COLLECTION="$HTTP/dav/cal/$ALICE/work"
 ALICE_CARDS="$HTTP/dav/card/$ALICE/default"
 BOB_CARDS="$HTTP/dav/card/$BOB/default"
 
@@ -38,6 +42,9 @@ log() { printf '[seed] %s\n' "$1"; }
 
 # curl over implicit-TLS IMAP, accepting the self-signed test cert.
 imap() { curl -sk --user "$ALICE:$ALICE_PW" "$@"; }
+# The same, signed in as bob or dave: only a folder's owner can grant access to it.
+imap_bob() { curl -sk --user "$BOB:$BOB_PW" --url "$@"; }
+imap_dave() { curl -sk --user "dave@test.local:${HARNESS_DAVE_PW:-harness-dave-pw}" --url "$@"; }
 
 imap_append() { # file  mailbox
   # curl's IMAP APPEND needs the literal size upfront, so it cannot stream from
@@ -60,10 +67,26 @@ imap_clear() { # mailbox
   imap_cmd "$1" "EXPUNGE" >/dev/null 2>&1 || true
 }
 
-put_calendar() { # file  uid
+put_calendar() { # file  uid  [collection]
   sed 's/$/\r/' "$1" | curl -sk --user "$ALICE:$ALICE_PW" \
     -X PUT -H 'Content-Type: text/calendar; charset=utf-8' \
-    --data-binary @- "$CAL_COLLECTION/$2.ics"
+    --data-binary @- "${3:-$CAL_COLLECTION}/$2.ics"
+}
+
+# Creates a calendar collection with a display name. 201 = created; 405 = it already exists (a
+# re-seed). Anything else is a real failure.
+make_calendar() { # collection  display name
+  _status=$(curl -s -o /dev/null -w '%{http_code}' --user "$ALICE:$ALICE_PW" \
+    -X MKCALENDAR -H 'Content-Type: application/xml; charset=utf-8' \
+    --data-binary "<?xml version=\"1.0\" encoding=\"utf-8\"?><C:mkcalendar xmlns:D=\"DAV:\" xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><D:set><D:prop><D:displayname>$2</D:displayname></D:prop></D:set></C:mkcalendar>" \
+    "$1/")
+  case "$_status" in
+    201 | 405) : ;;
+    *)
+      log "MKCALENDAR $1/ failed: HTTP $_status"
+      exit 1
+      ;;
+  esac
 }
 
 # CardDAV PUT of one vCard. Takes the collection and credentials explicitly (unlike put_calendar)
@@ -230,6 +253,23 @@ log "appending the dark-mode fixtures to INBOX (reading-view colour scheme; sequ
 imap_append "$MAIL_DIR/14-dark-mode-colours.eml" INBOX
 imap_append "$MAIL_DIR/15-sender-dark-mode.eml" INBOX
 
+# The shared-mailbox fixture's second half (entrypoint.sh creates the group). Two stores alice
+# can open besides her own, differing on purpose in their rights: as a member of `support` she
+# holds every right on its folders, while bob grants her only lookup and read on his INBOX.
+# Stalwart reports both as writable accounts, so only the per-folder rights tell them apart.
+log "granting alice read-only (lr) access to bob's INBOX"
+imap_bob "$IMAPS/INBOX" --request "SETACL \"INBOX\" \"$ALICE\" lr" >/dev/null
+
+# A third shape: dave shares one folder of his and not his Inbox, so the store alice reaches has
+# no Inbox at all.
+log "sharing dave's Board folder with alice (lr), and nothing else of his"
+imap_dave "$IMAPS/" --request "CREATE Board" >/dev/null 2>&1 || true
+imap_dave "$IMAPS/Board" --request "SETACL \"Board\" \"$ALICE\" lr" >/dev/null
+
+log "seeding the support group mailbox"
+imap_clear "$SUPPORT_SHARED/INBOX"
+imap_append "$MAIL_DIR/16-shared-support.eml" "$SUPPORT_SHARED/INBOX"
+
 log "putting calendar fixtures into the default calendar"
 put_calendar "$CAL_DIR/one-off.ics" oneoff-2001
 put_calendar "$CAL_DIR/recurring-weekly.ics" weekly-2002
@@ -238,9 +278,17 @@ put_calendar "$CAL_DIR/virtual-location.ics" virtual-2004
 put_calendar "$CAL_DIR/all-day.ics" allday-2005
 put_calendar "$CAL_DIR/floating.ics" floating-2006
 
-# The six fixtures above are pinned to absolute dates in early 2026 because they encode ENGINE
-# semantics that must not drift (floating time, a zoneless all-day, a DST boundary, a recurrence with
-# an overridden instance). They are the deterministic CI fixture, and they stay.
+# A second calendar on the same account, so one sign-in serving several calendars is what every
+# client is debugged against. Pinned to March 2026 like the fixtures above, so the living week the
+# UI suites read stays as they expect it.
+log "creating the second calendar, Work, and putting its fixtures"
+make_calendar "$WORK_COLLECTION" Work
+put_calendar "$CAL_DIR/work/planning.ics" work-2101 "$WORK_COLLECTION"
+put_calendar "$CAL_DIR/work/offsite.ics" work-2102 "$WORK_COLLECTION"
+
+# The six default-calendar fixtures above are pinned to absolute dates in early 2026 because they
+# encode ENGINE semantics that must not drift (floating time, a zoneless all-day, a DST boundary, a
+# recurrence with an overridden instance). They are the deterministic CI fixture, and they stay.
 #
 # They are also all in the past, so a grid seeded with only them opens EMPTY, and an empty grid
 # teaches you nothing about a grid. The living week re-anchors a second set on the current Monday at

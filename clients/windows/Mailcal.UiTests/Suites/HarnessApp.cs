@@ -1,100 +1,22 @@
-// One app for every harness suite: launching costs seconds, a case costs less, so the suites in the
-// collection share the launch and each case starts by putting away what the last one left.
+// The launches on the local Stalwart harness, one per set of switches, each shared by the suites of
+// its collection, and the attribute that skips a case when the harness or a Debug build is missing.
 
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.Windows.Forms;
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
 
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
-
 namespace Allodia.Mailcal.UiTests.Suites;
 
-/// <summary>The app on the harness store, launched on first use and stopped after the last suite.</summary>
-public class HarnessApp : IDisposable
+/// <summary>The app on the harness store.</summary>
+public class HarnessApp : UiApp
 {
-    private App? _app;
-
-    internal App App => _app ??= FirstRun ? App.LaunchOnFirstRun(Env) : App.LaunchOnHarness(Env);
+    /// <summary>Quits the app and launches it again on the first-run store as it was left, with this
+    /// launch's switches: for a case about the dial a launch makes.</summary>
+    internal void RelaunchOnFirstRunStore() => Relaunch(() => App.RelaunchOnFirstRunStore(Env));
 
     /// <summary>Whether this launch starts from an empty store, on the account-setup form.</summary>
     protected virtual bool FirstRun => false;
 
-    /// <summary>The MAILCAL_* and log switches this launch is made with. The app reads them once,
-    /// at startup, so suites that need different ones need a launch, and a collection, of their own.</summary>
-    protected virtual IReadOnlyDictionary<string, string> Env { get; } = new Dictionary<string, string>();
-
-    /// <summary>
-    /// Runs one case against a clean surface, then <paramref name="cleanup"/> whatever happened. A
-    /// failure leaves a screenshot and what the agent saw in failures/, named after the case, because
-    /// whoever reads it did not write the test. A cleanup that fails after the case failed is not
-    /// allowed to replace the case's own failure: that one is the answer. With
-    /// <paramref name="reset"/> false the surface is left as the case before it left it, for a case
-    /// that goes on from there in a suite whose cases run in the order written.
-    /// </summary>
-    internal void Case(string name, Action<App> body, Action<App>? cleanup = null, bool reset = true)
-    {
-        if (reset)
-        {
-            App.Reset();
-        }
-        Exception? failed = null;
-        try
-        {
-            body(App);
-        }
-        catch (Exception e)
-        {
-            SaveFailure(name);
-            failed = e;
-        }
-        try
-        {
-            cleanup?.Invoke(App);
-        }
-        catch (Exception e) when (failed is null)
-        {
-            SaveFailure(name + "-cleanup");
-            throw new InvalidOperationException($"the case passed, and putting things back after it failed: {e.Message}", e);
-        }
-        catch (Exception e)
-        {
-            failed = new AggregateException(failed!.Message, failed, e);
-        }
-        if (failed is not null)
-        {
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failed).Throw();
-        }
-    }
-
-    private void SaveFailure(string name)
-    {
-        var dir = Path.Combine(App.Repo, "clients", "windows", "Mailcal.UiTests", "failures");
-        Directory.CreateDirectory(dir);
-        var stem = Path.Combine(dir, string.Concat(name.Select(c => char.IsLetterOrDigit(c) ? c : '-')));
-        try
-        {
-            var screen = SystemInformation.VirtualScreen;
-            using var shot = new Bitmap(screen.Width, screen.Height);
-            using (var graphics = Graphics.FromImage(shot))
-            {
-                graphics.CopyFromScreen(screen.Left, screen.Top, 0, 0, shot.Size);
-            }
-            shot.Save(stem + ".png", ImageFormat.Png);
-            File.WriteAllLines(stem + ".tree.txt", App.Agent.Dump());
-        }
-        catch (Exception e) when (e is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            // The failure being reported matters more than its picture.
-        }
-    }
-
-    public void Dispose()
-    {
-        _app?.Dispose();
-        GC.SuppressFinalize(this);
-    }
+    private protected override App Launch() => FirstRun ? App.LaunchOnFirstRun(Env) : App.LaunchOnHarness(Env);
 }
 
 /// <summary>The harness app signed in as Alice and Bob at once (stalwart-multi): for a meeting
@@ -169,6 +91,21 @@ public sealed class DarkHarnessApp : HarnessApp
 public sealed class SetupHarnessApp : HarnessApp
 {
     protected override bool FirstRun => true;
+}
+
+/// <summary>The app on an empty store beside the harness, told that looking an account's calendar and
+/// contacts servers up again finds them at <see cref="Moved"/> (MAILCAL_FAKE_SERVER_CHANGE, debug
+/// builds only): the one answer no loopback server gives, everything around it real.</summary>
+public sealed class ServerChangeHarnessApp : HarnessApp
+{
+    /// <summary>The harness again, under a host name rather than its address: another site to the
+    /// question, and the same server to the connect that allowing it makes.</summary>
+    internal const string Moved = "http://localhost:28080";
+
+    protected override bool FirstRun => true;
+
+    protected override IReadOnlyDictionary<string, string> Env { get; } =
+        new Dictionary<string, string> { ["MAILCAL_FAKE_SERVER_CHANGE"] = Moved };
 }
 
 [CollectionDefinition(Name)]
@@ -247,7 +184,7 @@ public sealed class HarnessFactAttribute : FactAttribute
         set
         {
             _needsAllodia = value;
-            if (value && Skip is null && !AllodiaRegistered())
+            if (value && Skip is null && !App.AllodiaRegistered())
             {
                 Skip = "this build has no Allodia sign-in: MAILCAL_ALLODIA_CLIENT_ID is set in neither the environment nor .env";
             }
@@ -255,24 +192,4 @@ public sealed class HarnessFactAttribute : FactAttribute
     }
 
     private bool _needsAllodia;
-
-    /// <summary>The environment first, then the repository's .env, the last assignment winning, as
-    /// core-features.ps1 reads them.</summary>
-    private static bool AllodiaRegistered()
-    {
-        var value = Environment.GetEnvironmentVariable("MAILCAL_ALLODIA_CLIENT_ID");
-        var file = Path.Combine(App.Repo, ".env");
-        if (string.IsNullOrWhiteSpace(value) && File.Exists(file))
-        {
-            foreach (var line in File.ReadLines(file))
-            {
-                var assignment = System.Text.RegularExpressions.Regex.Match(line.Trim(), @"^(?:export\s+)?MAILCAL_ALLODIA_CLIENT_ID\s*=\s*(.*)$");
-                if (assignment.Success)
-                {
-                    value = assignment.Groups[1].Value.Trim().Trim('"', '\'');
-                }
-            }
-        }
-        return !string.IsNullOrWhiteSpace(value);
-    }
 }

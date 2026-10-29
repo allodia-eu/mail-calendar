@@ -179,7 +179,7 @@ mod tests {
     #[test]
     fn an_absent_set_parses_to_nothing_rather_than_guessing() {
         // The caller treats empty as a failure; guessing would make the check blind.
-        assert!(validate_set("no sets here\n", "$Locale").is_empty());
+        assert_eq!(validate_set("no sets here\n", "$Locale"), [] as [String; 0]);
     }
 
     #[test]

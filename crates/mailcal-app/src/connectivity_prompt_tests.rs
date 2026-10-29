@@ -190,7 +190,7 @@ async fn an_expired_signin_replaces_the_outage_badge_rather_than_joining_it() {
     surfaces.lock().unwrap().clear();
     app.clear_signin_expired(&id);
     let snapshot = app.connectivity();
-    assert!(snapshot.signin_expired_accounts.is_empty());
+    assert_eq!(snapshot.signin_expired_accounts, [] as [String; 0]);
     assert!(surfaces.lock().unwrap().contains(&Surface::Connectivity));
     assert_eq!(
         snapshot.unreachable_accounts,

@@ -107,21 +107,27 @@ async fn bounded_by(
 /// Without a section of their own, contacts reuse the CalDAV origin and credentials (see
 /// `mailcal_account::contacts`), so an account set up before this feature existed gains contacts
 /// with no re-entry of anything.
-/// `used_for_mail` decides how long discovery may take ([`discovery_deadline`]).
+/// `used_for_mail` decides how long discovery may take ([`discovery_deadline`]), and `learned`
+/// receives what the connect said about where the next one starts.
 pub(crate) async fn connect_caldav_contacts(
     config: &AccountConfig,
     tokens: mailcal_account::ImapTokens<'_>,
     used_for_mail: bool,
+    learned: &std::sync::Mutex<mailcal_account::Learned>,
 ) -> Bound {
     if config.caldav.is_none() && config.carddav.is_none() {
         log::info!("carddav: contacts skipped; account has no address book server");
         return Ok(Vec::new());
     }
-    bounded_by(
-        discovery_deadline(used_for_mail),
-        "carddav",
-        mailcal_account::connect_carddav_contact_providers(config, tokens),
-    )
+    bounded_by(discovery_deadline(used_for_mail), "carddav", async {
+        mailcal_account::connect_carddav_learning(config, tokens)
+            .await
+            .map(|connected| {
+                *learned.lock().expect("learned mutex poisoned") =
+                    mailcal_account::Learned::connected(connected.principal);
+                connected.providers
+            })
+    })
     .await
 }
 

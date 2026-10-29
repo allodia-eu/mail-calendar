@@ -23,6 +23,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
+[Trait("Dataset", "harness")]
 public sealed class NotificationClickTests(NotificationHarnessApp harness) : IClassFixture<NotificationHarnessApp>
 {
     // A delivery reaches the running app over IDLE and is then announced; both are well inside this.

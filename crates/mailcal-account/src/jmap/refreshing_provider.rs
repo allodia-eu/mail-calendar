@@ -14,17 +14,18 @@
 use async_trait::async_trait;
 use engine_api::{CalendarWrites, ProviderKey};
 use engine_core::{
-    calendar::{Calendar, Event},
-    ids::AccountId,
+    calendar::Event,
+    ids::{AccountId, CalendarId},
     mail::{Mailbox, Message},
     raw::RawMime,
     sync::{SyncScope, SyncState, SyncWindow},
 };
 use engine_provider::{
-    ConnectionInfo, Draft, EmailStream, EventDeletion, EventDraft, EventEdit, EventWrite,
-    EventWriteReceipt, HandOver, MailEdit, MailEditReceipt, MailboxEdit, MailboxEditReceipt,
-    MailboxWrites, MessageReport, Provider, ProviderError, ProviderResult, ReportReceipt,
-    ScopeSync, SenderIdentity, SenderIdentityId, SourceStream, SubmissionReceipt,
+    CalendarListing, CalendarUserAddresses, ConnectionInfo, Draft, EmailStream, EventDeletion,
+    EventDraft, EventEdit, EventRsvp, EventWrite, EventWriteReceipt, HandOver, MailEdit,
+    MailEditReceipt, MailboxEdit, MailboxEditReceipt, MailboxWrites, MessageReport, Provider,
+    ProviderError, ProviderResult, ReportReceipt, ScopeSync, SenderIdentity, SenderIdentityId,
+    SharedMailbox, SourceStream, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -169,7 +170,7 @@ impl Provider for RefreshingJmapProvider {
         }
     }
 
-    fn event_scope(&self, account: &AccountId) -> SyncScope {
+    fn event_scope(&self, account: &AccountId, _calendar: &CalendarId) -> SyncScope {
         SyncScope::JmapType {
             account: account.clone(),
             data_type: engine_core::sync::JmapDataType::CalendarEvent,
@@ -180,16 +181,20 @@ impl Provider for RefreshingJmapProvider {
         &self,
         account: &AccountId,
         cursor: Option<&SyncState>,
-    ) -> ProviderResult<ScopeSync<Calendar>> {
+    ) -> ProviderResult<CalendarListing> {
         self.delegate().await?.sync_calendars(account, cursor).await
     }
 
     async fn sync_events(
         &self,
         account: &AccountId,
+        calendar: &CalendarId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<ScopeSync<Event>> {
-        self.delegate().await?.sync_events(account, cursor).await
+        self.delegate()
+            .await?
+            .sync_events(account, calendar, cursor)
+            .await
     }
 
     /// The identities the session's submission account can send as, forwarded to the
@@ -242,6 +247,12 @@ impl Provider for RefreshingJmapProvider {
         report: &MessageReport,
     ) -> ProviderResult<ReportReceipt> {
         self.delegate().await?.report_message(account, report).await
+    }
+
+    /// Forwarded, because this wrapper reports the session's own capabilities, which say whether
+    /// the session lists shared mailboxes (see `sender_identities`).
+    async fn list_shared_mailboxes(&self) -> ProviderResult<Vec<SharedMailbox>> {
+        self.delegate().await?.list_shared_mailboxes().await
     }
 }
 
@@ -296,5 +307,67 @@ impl CalendarWrites for RefreshingJmapProvider {
             .await?
             .delete_event(account, base, deletion)
             .await
+    }
+
+    async fn rsvp_event(
+        &self,
+        account: &AccountId,
+        base: &Event,
+        rsvp: &EventRsvp,
+    ) -> ProviderResult<EventWriteReceipt> {
+        self.delegate().await?.rsvp_event(account, base, rsvp).await
+    }
+
+    async fn calendar_user_addresses(
+        &self,
+        account: &AccountId,
+    ) -> ProviderResult<CalendarUserAddresses> {
+        self.delegate()
+            .await?
+            .calendar_user_addresses(account)
+            .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use provider_jmap::{Credentials, JmapConfig, JmapProvider};
+
+    use super::*;
+    use crate::graph::test_support::{
+        assert_calendar_answers_reach_the_delegate, dead_grant_token_endpoint, mock_token_endpoint,
+        source_at,
+    };
+
+    /// The smallest session a calendar account connects with.
+    const SESSION: &str = r#"{"capabilities":{"urn:ietf:params:jmap:core":{},"urn:ietf:params:jmap:calendars":{}},"primaryAccounts":{"urn:ietf:params:jmap:calendars":"c"},"accounts":{"c":{"accountCapabilities":{"urn:ietf:params:jmap:calendars":{}}}},"apiUrl":"https://mail.example.com/jmap/"}"#;
+
+    /// An OAuth JMAP account answers invitations through this wrapper, which forwards each verb
+    /// by hand; one it leaves out answers with the trait's unsupported default.
+    #[tokio::test]
+    async fn invitation_answers_are_forwarded_to_jmap() {
+        let (server, _) = mock_token_endpoint(vec![SESSION.to_owned()]);
+        let base_url = server.trim_end_matches("/token").to_owned();
+        let initial = JmapProvider::connect(JmapConfig::new(
+            base_url.clone(),
+            Credentials::bearer("first-token".to_owned()),
+            crate::user_agent(),
+        ))
+        .await
+        .expect("the session connects");
+        let capabilities = initial.connection_info().capabilities;
+        let (endpoint, _hits) = dead_grant_token_endpoint();
+        let provider = RefreshingJmapProvider::new(
+            base_url,
+            Arc::clone(&source_at(endpoint, None)),
+            crate::tls::tls_with(&[]).unwrap(),
+            "first-token".to_owned(),
+            initial,
+            capabilities,
+            None,
+        );
+        assert_calendar_answers_reach_the_delegate(&provider).await;
     }
 }

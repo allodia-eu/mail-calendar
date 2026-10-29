@@ -97,6 +97,7 @@ fn a_manual_provider_sign_in_offers_what_a_detected_one_does() {
         offered(AccountKind::Microsoft, "alice@contoso.example"),
         [
             AccountCapability::Mail,
+            AccountCapability::SharedMailboxes,
             AccountCapability::Calendar,
             AccountCapability::Contacts,
             AccountCapability::Colleagues,
@@ -104,6 +105,10 @@ fn a_manual_provider_sign_in_offers_what_a_detected_one_does() {
     );
     assert!(
         !offered(AccountKind::Google, "alice@gmail.com").contains(&AccountCapability::Colleagues)
+    );
+    assert!(
+        !offered(AccountKind::Google, "alice@example.com")
+            .contains(&AccountCapability::SharedMailboxes)
     );
     assert!(offered(AccountKind::Imap, "alice@example.com").is_empty());
 }

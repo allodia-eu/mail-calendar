@@ -193,12 +193,14 @@ above). Two couplings apply to everything user-facing: copy may not out-run the 
 | [`search.md`](docs/search.md) | Newest-first ordering (never relevance); default scope is every account and folder except Trash; the scope filter mirrors the mailbox list; leaving search restores the view it opened from. |
 | [`list-selection.md`](docs/list-selection.md) | Selecting several messages: the **selection** is the client's, because its list control already carries the modifier, focus and assistive-technology behaviour; the **batch** is the core's one intent, so a hundred rows cost one sync per account rather than a hundred. A conversation row stands for its whole thread, and a move never takes a Sent copy out of Sent. A selection is scoped to the list on screen and clears with it; the desktop keys are bound on the list, never app-wide. |
 | [`folder-pane.md`](docs/folder-pane.md) | Every account's folders on screen at once; expansion is independent of selection, lives in the core and survives a restart; the unread count is the **server's** and counts messages; no badge at zero; All Inboxes sums the inboxes only; icons come from the folder's **role**, in each platform's native set. |
+| [`app-badge.md`](docs/app-badge.md) | The number on the app's own icon: the unified Inbox unread, the **same** number as All Accounts › Inbox and nothing else, none at zero, never set by a notification. Written from the snapshot and always for a launch's first; a desktop takes it off when the app quits and a phone keeps it, rewritten by its background pass. Android draws no count of its own: it has no API for one. |
 | [`reading-actions.md`](docs/reading-actions.md) | The action row above an open message: reply/reply-all/forward at the start, archive/delete at the end, the **overflow menu** last of all, on every platform including phones. What may go behind it: an action on the message as a document, never a duplicate of a row button, never something irreversible. Exporting writes the **delivered bytes**, never a rebuild of the reading view, under a name the core derives from the subject the client displays. |
 | [`reading-window.md`](docs/reading-window.md) | A message, or a draft, in a window of its own on a desktop. A window is a **view of the running app**, never a second instance: one core, one store, so no toolkit's "New Window" survives. A double-click opens the message and leaves the pane alone; the window carries the whole action row; reply and forward open a composer window of its own; and closing the mailbox sweeps both. Every window's body comes through the pane's own open, into a slot of its own, so a window inherits the mark-read and the loading threshold rather than restating them. |
 | [`avatars.md`](docs/avatars.md) | The circle beside a person: what it is *of* (the canonical **address**, never the name), monogram then photo but never blank, the colour from a stable hash of the address, hidden from assistive technology, and the raster-only sniff a path must pass before a client sees it. |
 | [`icons.md`](docs/icons.md) | Which glyph each platform draws for each meaning, and from which set: the platform's own first, then the set that platform itself sanctions (GNOME's icon-development-kit on Linux, Fluent UI System Icons on Windows), and Lucide **never** in platform chrome. A vendored glyph is copied verbatim under its own licence; on Linux it is served under a name no theme ships, and every name lives in one registry whose test asks **Adwaita**, never the desktop's own theme. |
 | [`reporting.md`](docs/reporting.md) | Marking spam is a **report to the provider**, not a folder move: the report files the message itself, so a client never moves it as well. Which verdicts exist is read from `Capabilities::mail_report` (Gmail has no phishing verdict), and no client may claim the provider acted unless its evidence is `Acknowledged`. A provider that cannot report still gets the message filed. |
 | [`accounts.md`](docs/accounts.md) | An account is **one sign-in** used for a non-empty subset of mail, calendar and contacts, stored with it; one that stores nothing means what its kind always meant. A capability it is not used for is never opened; mail decides for an account used for mail, anything for one without; an account without mail is in **no** mail surface and learns its connectivity from its calendar or contacts; a person reads an account's **address**, never its id. Settings lists every account from one core snapshot; a link fills only a use the account lacks, and removing an account clears every link to it. |
+| [`shared-mailboxes.md`](docs/shared-mailboxes.md) | A mailbox an account's sign-in opens besides its own. The **server** lists them, or on Microsoft checks an address typed under a use of its own beneath mail, and nothing is chosen for the person; a chosen one is stored with the account that opens it, has no sign-in of its own, and is a **mail account of its own** everywhere mail is, sending as its own address and filing in its own Sent. Switching one off deletes what the device holds of it; a mailbox the server stops listing is kept until then. |
 | [`contacts.md`](docs/contacts.md) | One person = a shared canonical email, **never** a name; a merged row says it is a merge and names the accounts; an edit names one **source card**, never the person, and only a writable book is offered. |
 | [`signatures.md`](docs/signatures.md) | Standalone reusable entities in a named library; two independent slots per account; re-resolved when From changes; sanitised on store *and* submit; `data:` images rewritten to `cid:` on send. |
 | [`boot-sequence.md`](docs/boot-sequence.md) | Opening the core at launch. The constructor runs **off the UI thread** and takes the credential store as a parameter, never a later setter; until it returns the window shows a blank page, and after `launch_status_after_ms()` a progress indicator with "Opening your mailbox…", never "Connecting": no account has been dialled yet. |
@@ -354,7 +356,7 @@ and summarises. The order is cheapest-first rather than CI's, so the step most l
 your change fails first.
 
 Nothing in it needs a device, simulator, emulator or Docker: the suites that do stay out
-(`clients/windows/uitests`, `clients/apple/Scripts/test-ui.sh`, `scripts/dev/test-linux-ui.sh`,
+(`clients/windows/Mailcal.UiTests`, `clients/apple/Scripts/test-ui.sh`, `scripts/dev/test-linux-ui.sh`,
 `scripts/dev/test-android-native-fault.sh`, anything behind `scripts/dev/boot.sh`),
 because a gate that cannot run is a gate people stop running. `--clients` adds only the headless,
 host-appropriate ones and **says what it skipped and why**: a skip that reads like a pass is the
@@ -371,7 +373,7 @@ window:
 
 ```powershell
 clients/windows/build-and-run.ps1 -NoRun        # cdylib -> bindings -> headless gate -> Mailcal.Tests -> app
-clients/windows/uitests/run-ui-tests.ps1        # UI Automation assertions against the RUNNING app
+clients/windows/uitests/run-ui-tests.ps1        # UI suites: assertions against the RUNNING app
 ```
 
 CI runs the second one too, but only `-Dataset showcase,first-run`: the harness is a Linux
@@ -412,8 +414,9 @@ emits a variant such as `EventIntent.Create` as a positional record and drops th
 code compiles and its logic holds, not that the toolkit the user gets behaves. What runs against
 the shipped runtime is `test-linux-ui.sh` and `build-and-run.sh`, both defaulting to it via
 [`scripts/dev/sdk.sh`](scripts/dev/sdk.sh); pass `--host` to the latter for the faster loop.
-`cargo fmt` stays on the host either way, because the SDK's Rust is stable and stable rustfmt
-silently ignores every nightly option in [`rustfmt.toml`](rustfmt.toml).
+The SDK builds compile with the host's rustup toolchain, so they follow
+[`rust-toolchain.toml`](rust-toolchain.toml) like every other build. `cargo fmt` stays on the host
+either way: it needs no GTK, and it runs on the nightly the gate selects.
 
 `clients/linux/package.sh` is the packaging gate: it builds `--release` in the GNOME SDK, generates
 the desktop entry and AppStream metainfo from the resolved listing and [`VERSION`](VERSION), and
@@ -467,9 +470,9 @@ were broken right now, would this tell me?*
   cross-platform test count is not coverage: read the per-file `running N tests` lines.
 - **`Mailcal.Tests` cannot link WinUI types** (plain `net10.0`), so an unwired binding, an
   unassigned property and a control opening in the wrong state are all invisible to it. State a rule
-  there when it can be stated without WinUI, and in `uitests/` when the thing under test is what the
-  user sees. Read [`run-ui-tests.ps1`](clients/windows/uitests/run-ui-tests.ps1)'s header first: the
-  dataset choice decides whether your test proves anything.
+  there when it can be stated without WinUI, and in `Mailcal.UiTests` when the thing under test is
+  what the user sees. Read [`run-ui-tests.ps1`](clients/windows/uitests/run-ui-tests.ps1)'s header
+  first: the dataset choice decides whether your test proves anything.
 - **Build on the host's *own* architecture.** Every dual-arch script defaults to it, so passing
   `-Arch` explicitly, copying the CI job's line, is the only way to get this wrong: it recompiles
   the cdylib for a target `cargo test` did not build and **silently drops the gates that must

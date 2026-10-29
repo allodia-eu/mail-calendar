@@ -86,7 +86,7 @@
                              as an unlabelled "button" until AutomationProperties.Name was set. The
                              labels also collapse to icon-only at narrow widths
                              (OnActionToolbarSizeChanged), which is exactly when the spoken name is
-                             the only name left. Kept in sync by uitests/Accessibility.Tests.ps1. -->
+                             the only name left. Kept in sync by Mailcal.UiTests/Suites/AccessibilityTests.cs. -->
                         <Button Click="OnReply" ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionReply(), Mode=OneTime}"
                                 AutomationProperties.AutomationId="ReadingReply"
                                 AutomationProperties.Name="{x:Bind l10n:L10n.ActionReply(), Mode=OneTime}">

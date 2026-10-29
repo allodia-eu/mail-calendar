@@ -1,9 +1,9 @@
 # Mailcal.UiTests
 
-The Windows client's UI suites that reach the app through its **test agent**: assertions against
-the running app, made from inside it. They answer the questions the PowerShell suites in
-[`../uitests`](../uitests) answer, at a fraction of the cost, because finding an element is a call
-on the app's UI thread rather than a cross-process walk of the UI Automation tree.
+The Windows client's UI suites, which reach the app through its **test agent**: assertions against
+the running app, made from inside it. Finding an element is a call on the app's UI thread rather
+than a cross-process walk of the UI Automation tree, which is what lets a suite read the tree as
+often as a rule needs.
 
 ```powershell
 scripts/dev/harness.sh up                         # the seeded Stalwart harness
@@ -11,25 +11,38 @@ clients/windows/build-and-run.ps1 -NoRun          # a Debug build: the agent is 
 dotnet test clients/windows/Mailcal.UiTests       # launches the app itself, and stops it after
 ```
 
-[`run-ui-tests.ps1`](../uitests/run-ui-tests.ps1) runs them too, after its own suites and under the
-same `-Filter` (`Drafts*` selects `DraftsTests`), `-Dataset` and `-RequireHarness`, so one command
-still runs every UI suite before a mail write is pushed.
+[`run-ui-tests.ps1`](../uitests/run-ui-tests.ps1) runs them by the dataset each suite declares
+(`[Trait("Dataset", …)]`), with `-Filter` (`Drafts*` selects `DraftsTests`), `-Dataset` and
+`-RequireHarness`, and summarises what passed, failed, skipped and was not selected. CI runs it with
+`-Dataset showcase,first-run`; the harness suites run on a developer's machine, before a mail write
+is pushed.
 
 A case **skips**, naming why, when the harness is down or there is no Debug build. Set
 `MAILCAL_UITESTS_REQUIRE_HARNESS=1` and it fails instead, so a host meant to have both cannot pass
 by having neither. `MAILCAL_UITESTS_TRACE=1` writes every agent call and its answer, timed, to
 `%TEMP%\mailcal-uitests-trace.log`; lined up against the app's own log, it says which step a server
-write followed. A failing case leaves a screenshot and the element tree the agent saw in
-`failures/`.
+write followed. A failing case leaves a screenshot, the element tree the agent saw and the exception
+in `failures/`, which `run-ui-tests.ps1` empties as it starts.
 
 ## Launches
 
-The app reads its `MAILCAL_*` switches once, at startup, so a launch is a fixture in
-[`Suites/HarnessApp.cs`](Suites/HarnessApp.cs): one per set of switches (which accounts over which
-transport, a pinned appearance, a server verdict faked in the core) shared by every suite in its
-collection, which puts back what each case leaves. A suite that sets an account up through the form
-gets a launch of its own on an emptied first-run store, because what a first run asks is asked once
-a store; so does one whose case quits the app, as a notification click with the app closed does.
+The app reads its `MAILCAL_*` switches once, at startup, so a launch is a fixture: one per set of
+switches (which accounts over which transport, a pinned appearance, a state staged in the core)
+shared by every suite in its collection, which puts back what each case leaves. Each runs on one
+dataset, and a suite declares it as a trait, which is what `run-ui-tests.ps1 -Dataset` selects on:
+
+- **harness** ([`Suites/HarnessApp.cs`](Suites/HarnessApp.cs)): the seeded Stalwart server over a
+  real transport, the only proof that a mail action survived a round trip. Cases are
+  `[HarnessFact]`.
+- **showcase** ([`Suites/ShowcaseApp.cs`](Suites/ShowcaseApp.cs)): the in-memory seed, two
+  accounts, deterministic, English. No server, so CI runs it; it performs no real mail action. The
+  launch refuses a build without the showcase driver, a process that did not enter showcase mode,
+  and a desktop smaller than the 1440x900 window the suites measure. Cases are `[OfflineFact]`.
+- **first-run**: an emptied store on the account-setup form, what a person sees once.
+
+A suite that sets an account up through the form gets a launch of its own on an emptied first-run
+store, because what a first run asks is asked once a store; so does one whose case quits the app,
+as a notification click with the app closed does.
 
 ## The agent
 
@@ -51,6 +64,14 @@ an obvious reimplementation finds nothing:
 - **A text box's value is not on its peer.** WinUI implements the value pattern of a `TextBox` and a
   `PasswordBox` inside the framework, so the agent reads and sets the box itself, which is what
   UI Automation's value pattern does to it.
+- **An element hidden from assistive technology is in no lookup.** An avatar or a print page sets
+  `AccessibilityView.Raw`, which puts it in UI Automation's raw view only; the control view a
+  screen reader reads leaves it out, and so does every agent lookup. The failure dump still lists it.
+- **A shut tree's rows are in no lookup.** UI Automation keeps a collapsed tree item's children,
+  offscreen; the agent's walk does not reach them. Ask whether a row is on screen, never whether it
+  exists.
+- **A closed picker names its selection by the bound object.** Its items have no containers until
+  it opens, so read a ComboBox's selection with it open, where the label is the one drawn.
 - **A text box's placeholder is a text under it.** The agent sees the box's template, so an empty
   box with a placeholder holds one Text element and one with a header holds another; count against
   a box known to have the one being asked about.

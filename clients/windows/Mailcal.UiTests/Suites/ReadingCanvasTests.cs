@@ -24,6 +24,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(DarkHarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class ReadingCanvasTests(DarkHarnessApp harness)
 {
     private const string Plain = "Harness baseline message";
@@ -80,11 +81,9 @@ public sealed class ReadingCanvasTests(DarkHarnessApp harness)
     [HarnessFact]
     public void TheWindowReallyIsDarkWhichIsWhatMakesTheRestOfThisSuiteAnAssertion() => Case(nameof(TheWindowReallyIsDarkWhichIsWhatMakesTheRestOfThisSuiteAnAssertion), app =>
     {
-        // The caption band: it spans the app's whole theme and carries no text.
-        var window = Desktop.Bounds(app.Mailbox.Hwnd);
-        var caption = App.Luminance(app.Mailbox.Hwnd, new Rectangle(window.X + (int)(window.Width * 0.55), window.Y + 12, 120, 8));
-        Assert.True(caption.Median < Mid,
-            $"the caption sampled at {caption.Median}, light, in a run pinned dark with MAILCAL_APPEARANCE; a light window has no sun/moon button, so every case below would prove nothing");
+        var caption = App.CaptionLuminance(app.Mailbox.Hwnd);
+        Assert.True(caption < Mid,
+            $"the caption sampled at {caption}, light, in a run pinned dark with MAILCAL_APPEARANCE; a light window has no sun/moon button, so every case below would prove nothing");
     });
 
     [HarnessFact]

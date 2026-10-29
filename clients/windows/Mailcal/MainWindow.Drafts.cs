@@ -34,11 +34,16 @@ public sealed partial class MainWindow
             read();
             return;
         }
+        // Said, because a draft that opens for reading looks the same whichever of the two it was.
+        var busy = _composerOpening;
         if (await OpenComposerAsync(new ComposeOrigin.Draft(account, key)) is { } context)
         {
             BeginCompose(context);
             return;
         }
+        Log.Debug(busy
+            ? "drafts: opened a draft for reading, since another composer was still opening"
+            : "drafts: opened a draft for reading, since it could not be opened to edit");
         read();
     }
 }

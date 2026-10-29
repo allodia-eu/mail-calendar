@@ -3,7 +3,7 @@
 //! `calendar_ops.rs` to keep each file under the 500-line limit; an `impl App` block here
 //! reuses the runtime's fields, and the write ops in `calendar_ops.rs` call back into it.
 
-use engine_api::{AccountId, ApiError, Provider, Reconciled};
+use engine_api::{AccountId, ApiError, CalendarId, Provider, Reconciled};
 
 use crate::{App, CalendarWriteStatus, Surface};
 
@@ -24,10 +24,13 @@ impl<P: Provider> App<P> {
     /// - `Failed`: the post-write delta failed. The change is on the server but the local view is
     ///   unconfirmed, so we surface [`Unconfirmed`](CalendarWriteStatus::Unconfirmed), *not* "your
     ///   change was not saved"; the next full sync heals the store.
+    ///
+    /// `calendars` are the ones the write touched: the re-read covers those and no other.
     pub(crate) async fn settle_calendar_write<Prov: Provider>(
         &self,
         provider: &Prov,
         account: &AccountId,
+        calendars: &[CalendarId],
         reconciled: Reconciled,
     ) -> CalendarWriteStatus {
         let account_handle = mailcal_account::account_log_handle(account.as_str());
@@ -40,23 +43,24 @@ impl<P: Provider> App<P> {
                 log::info!(
                     "calendar write busy for [{account_handle}]; re-reading the event scope"
                 );
-                match self
-                    .engine
-                    .reconcile_calendar_events(provider, account)
-                    .await
-                {
-                    Ok(_) => CalendarWriteStatus::Saved,
-                    Err(ApiError::Busy) => {
-                        log::info!(
+                let mut status = CalendarWriteStatus::Saved;
+                for calendar in calendars {
+                    match self
+                        .engine
+                        .reconcile_calendar_events(provider, account, calendar)
+                        .await
+                    {
+                        Ok(_) => {}
+                        Err(ApiError::Busy) => log::info!(
                             "reconcile still busy for [{account_handle}]; the in-flight sync will settle it"
-                        );
-                        CalendarWriteStatus::Saved
-                    }
-                    Err(err) => {
-                        log::warn!("post-write reconcile failed for [{account_handle}]: {err}");
-                        CalendarWriteStatus::Unconfirmed
+                        ),
+                        Err(err) => {
+                            log::warn!("post-write reconcile failed for [{account_handle}]: {err}");
+                            status = CalendarWriteStatus::Unconfirmed;
+                        }
                     }
                 }
+                status
             }
             Reconciled::Failed(err) => {
                 log::warn!("calendar write reconciliation failed for [{account_handle}]: {err}");
@@ -119,4 +123,9 @@ impl<P: Provider> App<P> {
             self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
         }
     }
+}
+
+/// The calendars a stored event belongs to: the ones a write to it touches.
+pub(crate) fn calendars_of(event: &engine_api::Event) -> Vec<engine_api::CalendarId> {
+    event.calendars.iter().cloned().collect()
 }

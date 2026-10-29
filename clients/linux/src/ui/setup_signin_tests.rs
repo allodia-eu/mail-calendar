@@ -150,7 +150,7 @@ pub(super) fn a_provider_refusing_passwords_and_this_app_says_so(window: &adw::A
             .iter()
             .any(|text| text == l10n::setup_imap_signin_unsupported())
     );
-    assert!(visible_entries(&child).is_empty());
+    assert_eq!(visible_entries(&child), [] as [gtk::Entry; 0]);
     assert!(!descendant_has_button(&child, l10n::action_connect()));
     assert!(!descendant_has_button(
         &child,

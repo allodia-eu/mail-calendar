@@ -130,7 +130,7 @@ fn a_photo_is_carried_without_discarding_the_monogram() {
     );
     assert_eq!(image_path.as_deref(), Some("/blobs/ada.blob"));
     assert_eq!(initials, "AL");
-    assert!(!light.background.is_empty());
+    assert_ne!(light.background, "");
 }
 
 /// Every avatar's letters must be legible on their own fill, in both themes. The contrast

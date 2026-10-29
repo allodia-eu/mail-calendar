@@ -87,7 +87,44 @@ internal static class Input
             Thread.Sleep(20);
         }
         Thread.Sleep(dwellMs);
+        // Real input shares the desktop with the person at it: a hand on the mouse or another window
+        // taking the front swallows the drag without a trace in the app. Read both before letting go,
+        // and let go regardless, so a drag spoiled from outside says so rather than reading as a
+        // drop the app ignored. The absolute move rounds, hence the pixel of slack.
+        var moved = GetCursorPos(out var at) && (Math.Abs(at.X - toX) > 2 || Math.Abs(at.Y - toY) > 2);
+        var behind = GetForegroundWindow() != (nint)from.Window;
         Send(Mouse(MouseLeftUp));
+        if (moved)
+        {
+            throw new InvalidOperationException($"the pointer was moved during the drag (at {at.X},{at.Y} rather than {toX},{toY}): input from outside the test, so the drop proves nothing");
+        }
+        if (behind)
+        {
+            throw new InvalidOperationException("another window came to the front during the drag, so the drop proves nothing");
+        }
+    }
+
+    /// <summary>
+    /// Rests the pointer on the middle of <paramref name="element"/> for <paramref name="dwellMs"/>,
+    /// arriving in steps as a hand moves it: a pointer warped there leaves the element with no
+    /// pointer-over at all, so nothing a hover raises would be raised.
+    /// </summary>
+    internal static void Hover(Element element, int dwellMs)
+    {
+        if (!element.Rendered)
+        {
+            throw new InvalidOperationException($"'{element.Name}' (#{element.Id}) is not drawn, so a pointer cannot rest on it");
+        }
+        BringToFront(element.Window);
+        var (toX, toY) = ((int)(element.X + element.Width / 2), (int)(element.Y + element.Height / 2));
+        var (fromX, fromY) = (toX - 60, toY - 40);
+        const int steps = 12;
+        for (var i = 0; i <= steps; i++)
+        {
+            MoveTo(fromX + ((toX - fromX) * i / steps), fromY + ((toY - fromY) * i / steps));
+            Thread.Sleep(15);
+        }
+        Thread.Sleep(dwellMs);
     }
 
     /// <summary>Moves the pointer to a screen point, in physical pixels, as a mouse moves it.</summary>
@@ -120,19 +157,47 @@ internal static class Input
             new NativeInput { Type = InputKeyboard, Union = new InputUnion { Keyboard = new KeyboardInput { Virtual = virtualKey, Scan = scan, Flags = KeyUp } } });
     }
 
+    /// <summary>Presses <paramref name="virtualKey"/> with <paramref name="modifiers"/> held, as a
+    /// hand does: the modifiers down, the key, the modifiers up in reverse.</summary>
+    internal static void Chord(ushort virtualKey, params ushort[] modifiers)
+    {
+        foreach (var modifier in modifiers)
+        {
+            Send(KeyDown(modifier));
+        }
+        Press(virtualKey);
+        foreach (var modifier in modifiers.Reverse())
+        {
+            Send(KeyDown(modifier, up: true));
+        }
+    }
+
+    private static NativeInput KeyDown(ushort virtualKey, bool up = false) => new()
+    {
+        Type = InputKeyboard,
+        Union = new InputUnion
+        {
+            Keyboard = new KeyboardInput { Virtual = virtualKey, Scan = (ushort)MapVirtualKeyW(virtualKey, MapVirtualKeyToScanCode), Flags = up ? KeyUp : 0 },
+        },
+    };
+
     private const uint MapVirtualKeyToScanCode = 0;
 
     internal const ushort Escape = 0x1B;
     internal const ushort Enter = 0x0D;
+    internal const ushort Tab = 0x09;
+    internal const ushort Shift = 0x10;
+    internal const ushort Control = 0x11;
 
-    /// <summary>Turns the wheel over a screen point, in notches: positive is away from the user.</summary>
-    internal static void Wheel(int x, int y, int notches)
+    /// <summary>Turns the wheel over a screen point, in notches: positive is away from the user, or with
+    /// <paramref name="horizontal"/> to the right.</summary>
+    internal static void Wheel(int x, int y, int notches, bool horizontal = false)
     {
         SetCursorPos(x, y);
         Send(new NativeInput
         {
             Type = InputMouse,
-            Union = new InputUnion { Mouse = new MouseInput { Data = unchecked((uint)(notches * 120)), Flags = MouseWheel } },
+            Union = new InputUnion { Mouse = new MouseInput { Data = unchecked((uint)(notches * 120)), Flags = horizontal ? MouseHorizontalWheel : MouseWheel } },
         });
     }
 
@@ -171,6 +236,7 @@ internal static class Input
     private const uint MouseRightDown = 0x0008;
     private const uint MouseRightUp = 0x0010;
     private const uint MouseWheel = 0x0800;
+    private const uint MouseHorizontalWheel = 0x01000;
     private const uint MouseMove = 0x0001;
     private const uint MouseAbsolute = 0x8000;
     private const uint MouseVirtualDesk = 0x4000;
@@ -217,8 +283,16 @@ internal static class Input
         public nint Extra;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CursorPoint
+    {
+        public int X;
+        public int Y;
+    }
+
     [DllImport("user32.dll")] private static extern uint SendInput(uint count, NativeInput[] inputs, int size);
     [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] private static extern bool GetCursorPos(out CursorPoint point);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(nint hwnd);
     [DllImport("user32.dll")] private static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] private static extern void keybd_event(byte vk, byte scan, uint flags, nuint extra);

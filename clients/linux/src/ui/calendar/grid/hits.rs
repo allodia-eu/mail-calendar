@@ -102,10 +102,11 @@ pub(super) fn rebuild_hits_with(
     for hit in surface.hits(scene, width) {
         let button = gtk::Button::new();
         button.add_css_class("calendar-hit-target");
-        // Keyboard-reachable, but never focused *by the click itself*. Opening an event rebuilds
-        // this overlay, which destroys the button the click landed on; GTK then moves focus off
-        // the dying widget and the scrolled window animates to reveal whatever inherits it,
-        // the first target, at the top of the day. The reader was hours further down.
+        // Keyboard-reachable, but never focused *by the click itself*. A change to the page, such
+        // as the edit a click can lead to, rebuilds this overlay and destroys the button the click
+        // landed on; GTK then moves focus off the dying widget and the scrolled window animates
+        // to reveal whatever inherits it, the first target, at the top of the day, however far
+        // down the reader was.
         button.set_focus_on_click(false);
         button.set_tooltip_text(Some(&hit.spoken));
         button.update_property(&[AccessibleProperty::Label(&hit.spoken)]);

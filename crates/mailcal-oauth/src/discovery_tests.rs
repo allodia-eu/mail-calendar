@@ -237,7 +237,7 @@ fn a_document_naming_no_logout_or_prompt_support_yields_neither() {
     )
     .unwrap();
     assert!(metadata.end_session_endpoint.is_none());
-    assert!(metadata.prompt_values_supported.is_empty());
+    assert_eq!(metadata.prompt_values_supported, [] as [String; 0]);
 }
 
 #[test]

@@ -82,6 +82,8 @@ impl AccountConfig {
             oauth: None,
             certificate_exceptions: self.certificate_exceptions.clone(),
             shape,
+            // An account of its own learns its principals on its first connect.
+            dav_starts: crate::DavStarts::default(),
         })
     }
 

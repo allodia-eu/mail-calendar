@@ -76,8 +76,9 @@ pass exists precisely to report mail that arrived while nobody was looking.
   per `NewMailPreview`**, identified by its **stable message key**, grouped per account (Android
   group + summary; macOS and iOS `threadIdentifier`). Keying by message, not by account, is a contract
   requirement: because the mark advances past reported mail, a per-account notification would be
-  **replaced** by the next pass's, silently losing an earlier still-unseen message. The app-icon
-  badge (iOS) carries the whole pass's total, not one account's.
+  **replaced** by the next pass's, silently losing an earlier still-unseen message. No
+  notification sets the app-icon badge: the icon carries the unified Inbox unread
+  ([`app-badge.md`](app-badge.md)), which an iOS pass writes once it has run.
 - **Clicking one opens the message it names.** The notification carries the
   `(account, message key)` pair the core keys mail on, because a click may also **start** the app,
   and then nothing the process remembers is left to look the message up in: macOS and iOS put it in
@@ -323,7 +324,8 @@ When you change background delivery or new-mail notifications:
      else, and the Windows App SDK fails the process fast if the notification platform is not
      registered first ([`client-traps.md`](client-traps.md)).
      `cargo xtask check-notification-registration` pins the ordering in the source, in CI, and
-     `uitests/NotificationLaunch.Tests.ps1` runs the real binary through a notification activation.
+     `Mailcal.UiTests/Suites/NotificationLaunchTests.cs` runs the real binary through a
+     notification activation.
      ⚠️ That suite has to **close the app first**, since a running instance has already registered
      the platform and a second process then reads its activation on a broken build as well as a
      fixed one, and it has to wait out the full **7 to 8 seconds** the failfast takes. It skips on a

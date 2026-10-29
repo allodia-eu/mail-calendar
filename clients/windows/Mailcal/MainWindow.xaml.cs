@@ -10,6 +10,7 @@
 //   MainWindow.Theme.cs      the light/dark appearance the core persists
 //   MainWindow.Showcase.cs   the screenshot driver (inert unless ShowcaseMode.IsOn)
 
+using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
@@ -72,6 +73,9 @@ public sealed partial class MainWindow : Window
         // A calendar or address book that is not connected names its account's page.
         CalendarDetail.AccountSettingsRequested += (_, account) => _ = OpenSettingsAsync("accounts", account);
         ContactsDetail.AccountSettingsRequested += (_, account) => _ = OpenSettingsAsync("accounts", account);
+        // One paused for a server on another site asks whether to allow it.
+        CalendarDetail.ServerChangeRequested += (_, account) => _ = ServerChangeDialog.AskAsync(Content.XamlRoot, Model, account);
+        ContactsDetail.ServerChangeRequested += (_, account) => _ = ServerChangeDialog.AskAsync(Content.XamlRoot, Model, account);
         ReadingPanel.Init(Model);
 
         // The sidebar depends on the account set, the selected account's folders, and the
@@ -111,6 +115,7 @@ public sealed partial class MainWindow : Window
                 or nameof(MailboxModel.SelectedFolder)
                 or nameof(MailboxModel.Destination)
                 or nameof(MailboxModel.UnifiedExpanded)
+                or nameof(MailboxModel.UnifiedUnread)
                 // The Outbox row appears and disappears with the queue (docs/folder-pane.md,
                 // rule 18), and it holds the pane's highlight while it is the list on screen,
                 // which neither selection scalar above can say: both are null there and on the

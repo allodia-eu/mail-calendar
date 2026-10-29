@@ -23,7 +23,7 @@ use engine_core::{sync::SyncUpdate, time::LocalDateTime};
 use engine_provider::Provider;
 use mailcal_account::{
     EventEdit, JmapAccountConfig, Secret, build_event_draft, build_event_patch,
-    connect_jmap_calendar_providers, connect_jmap_mail_providers,
+    connect_jmap_calendar_provider, connect_jmap_mail_providers,
 };
 
 /// The harness connection details from the environment, or `None` to skip.
@@ -58,7 +58,7 @@ async fn jmap_account_connects_syncs_and_reads_a_body() {
     let id = config.account_id().expect("account id");
 
     // One provider covers the whole account (JMAP's scope is account-wide).
-    let providers = connect_jmap_mail_providers(&config, None)
+    let providers = connect_jmap_mail_providers(&config, None, None)
         .await
         .expect("connect JMAP provider");
     assert_eq!(providers.len(), 1, "one account-wide JMAP provider");
@@ -134,10 +134,9 @@ async fn jmap_calendar_create_read_patch_delete_round_trips() {
     let id = config.account_id().expect("account id");
 
     // The JMAP *calendar* provider: the same neutral `Provider` the app writes through.
-    let providers = connect_jmap_calendar_providers(&config, None)
+    let provider = &connect_jmap_calendar_provider(&config, None)
         .await
         .expect("connect JMAP calendar provider");
-    let provider = providers.first().expect("a calendar provider");
     // JMAP now advertises writable calendars, but with no per-object guard, so a stale edit
     // is last-writer-wins. This is exactly the `WriteGuard::Absent` the core collapses to
     // `can_write: true`.
@@ -160,13 +159,18 @@ async fn jmap_calendar_create_read_patch_delete_round_trips() {
         .sync_calendar(provider, &id, horizon, &zone)
         .await
         .expect("initial calendar sync");
-    let calendar = engine
-        .calendars(&id)
-        .await
-        .expect("read calendars")
+    // The harness account has two calendars, and the write goes to the one that is not its
+    // first: one sign-in serves both, and a create lands where it is told.
+    let calendars = engine.calendars(&id).await.expect("read calendars");
+    assert!(
+        calendars.len() >= 2,
+        "the harness seeds a second calendar: {}",
+        calendars.len()
+    );
+    let calendar = calendars
         .into_iter()
-        .next()
-        .expect("the harness seeds a calendar");
+        .find(|calendar| calendar.name == "Work")
+        .expect("the harness seeds a calendar named Work");
 
     // Unique per run so a shared harness (and a re-run after a mid-test failure) never
     // collides; the delete at the end removes it on the happy path.

@@ -20,6 +20,8 @@ public class CoreErrorTests
         "contacts unreachable",
         "calendar own sign-in",
         "contacts own sign-in",
+        "calendar server changed",
+        "contacts server changed",
         error => $"couldn't connect: {error}");
 
     [Fact]
@@ -129,6 +131,8 @@ public class CoreErrorTests
     [InlineData(nameof(AccountCapability.Contacts), nameof(UseProblem.NeedsOwnSignIn), "contacts own sign-in")]
     [InlineData(nameof(AccountCapability.Calendar), nameof(UseProblem.SignInRefused), "not accepted")]
     [InlineData(nameof(AccountCapability.Contacts), nameof(UseProblem.SignInRefused), "not accepted")]
+    [InlineData(nameof(AccountCapability.Calendar), nameof(UseProblem.ServerChanged), "calendar server changed")]
+    [InlineData(nameof(AccountCapability.Contacts), nameof(UseProblem.ServerChanged), "contacts server changed")]
     // The core never names mail here; it is read as the calendar.
     [InlineData(nameof(AccountCapability.Mail), nameof(UseProblem.Unreachable), "calendar unreachable")]
     [InlineData(nameof(AccountCapability.Mail), nameof(UseProblem.NeedsOwnSignIn), "calendar own sign-in")]
@@ -143,6 +147,9 @@ public class CoreErrorTests
         Assert.Equal(
             "the calendar did not connect: its server needs a sign-in of its own",
             CoreError.Describe(new MailcalException.UseNotConnected(AccountCapability.Calendar, UseProblem.NeedsOwnSignIn)));
+        Assert.Equal(
+            "the calendar did not connect: it is paused until a server on another site is allowed",
+            CoreError.Describe(new MailcalException.UseNotConnected(AccountCapability.Calendar, UseProblem.ServerChanged)));
     }
 
     [Fact]

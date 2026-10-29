@@ -72,9 +72,10 @@ internal fun ContactsScreen(
     // A word about the most recent write, or null when there is nothing to say.
     writeLine: String? = null,
     // The address books that did not connect, one line each, and the account page their action
-    // opens.
+    // opens, or the question that allows an address book's new server.
     outages: List<OutageLine> = emptyList(),
     onOpenAccount: (accountId: String) -> Unit = {},
+    onReviewServerChange: (accountId: String) -> Unit = {},
     // Editing one card of the open person. The screen has already resolved *which* card, or
     // asked, before this is called.
     onEdit: (ContactDetail) -> Unit = {},
@@ -92,7 +93,7 @@ internal fun ContactsScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            UseOutageBanner(outages, onOpenAccount, ctx)
+            UseOutageBanner(outages, onOpenAccount, ctx, onReviewServerChange)
             OutlinedTextField(
                 value = query,
                 onValueChange = { typed ->

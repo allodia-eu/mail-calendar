@@ -1,6 +1,6 @@
 # Privacybeleid: Allodia Mail & Calendar
 
-**Versie 2.6 · Van kracht: 2026-10-01**
+**Versie 2.7 · Van kracht: 2026-10-28**
 
 Allodia Mail & Calendar is een e-mail- en agenda-app die op je eigen apparaat draait en verbinding
 maakt met de e-mailprovider die **jij** kiest. Dit beleid legt in gewone taal uit wat dat betekent
@@ -110,6 +110,16 @@ contact opzoeken, een adres voorstellen, en er een toevoegen of bewerken), plus 
 naast een afzender, dat de app bij je provider ophaalt en op je apparaat bewaart. Er gaat niets
 naar Allodia, en weiger je, dan blijft de rest van het account gewoon werken; je ziet dan alleen
 geen contacten en geen plaatjes.
+
+**Mailboxen die met je zijn gedeeld.** Heeft iemand je toegang gegeven tot een mailbox, zoals die
+van een team, dan kun je die toevoegen in Instellingen → Accounts. De app opent hem met de
+aanmelding van het account waarmee hij is gedeeld, bij dezelfde provider, en bewaart de mail ervan
+op je apparaat precies zoals je eigen mail. Log je in bij **Microsoft**, dan vraagt de app alleen
+toegang tot mailboxen die met je zijn gedeeld zolang die optie is aangevinkt, en dat zie je op het
+toestemmingsscherm; omdat Microsoft ze niet opsomt, typ je het adres van de mailbox die je wilt, en
+dat adres stuurt de app alleen naar Microsoft, om te controleren dat je hem kunt openen. Er gaat
+niets over een gedeelde mailbox naar Allodia, ook niet met een Allodia-account, en zet je er een
+uit, dan verdwijnt de mail ervan van je apparaat.
 
 **De naam waaronder je verstuurt.** Stel je bij Instellingen een afzendernaam in voor een account,
 dan bewaart de app die op je apparaat en, waar je provider dat toestaat, ook in de instellingen van

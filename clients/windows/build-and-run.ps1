@@ -204,7 +204,7 @@ Write-Host "==> Running the calendar unit tests" -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "calendar unit tests failed" }
 
 # 5a. The UI suites that reach the app through its test agent (Mailcal.UiTests) need a running app
-#     and the harness, so they run in uitests/run-ui-tests.ps1, not here. Compiling them here is
+#     and most of them the harness, so they run in uitests/run-ui-tests.ps1, not here. Compiling them here is
 #     what keeps a change to the app's ids or the agent's protocol from breaking them unseen.
 Write-Host "==> Compiling the agent UI suites" -ForegroundColor Cyan
 & dotnet build (Join-Path $here 'Mailcal.UiTests') -c $Configuration --nologo
@@ -233,6 +233,12 @@ if ($LASTEXITCODE -ne 0) { throw "app-log reader tests failed" }
 Write-Host "==> Running the winapp driver tests" -ForegroundColor Cyan
 & (Join-Path $here 'winapp.tests.ps1')
 if ($LASTEXITCODE -ne 0) { throw "winapp driver tests failed" }
+
+# 5e. How the UI runner reads an agent suite's result, the one place a failure's reason reaches its
+#     summary. Here for 5c's reason: the code under test is PowerShell reading captured output.
+Write-Host "==> Running the agent-suite result tests" -ForegroundColor Cyan
+& (Join-Path $here 'agent-suites.tests.ps1')
+if ($LASTEXITCODE -ne 0) { throw "agent-suite result tests failed" }
 
 # The shared composer editor is Content-included from clients/composer/dist by Mailcal.csproj, and
 # that bundle is a committed build output rather than one generated per build, so rebuild it from

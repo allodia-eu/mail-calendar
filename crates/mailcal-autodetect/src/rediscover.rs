@@ -45,6 +45,15 @@ pub(crate) async fn discover_with(
     Ok(dav::probe(fetcher, resolver, &email.domain, provider.as_ref(), config).await)
 }
 
+/// The site of `url`: the registrable domain of its host (`icloud.com` for
+/// `https://p01-caldav.icloud.com/…`), which is what a person can recognise and what
+/// [`may_follow`] compares. `None` for a URL without a host the Public Suffix List can place.
+#[must_use]
+pub fn site_of(url: &str) -> Option<String> {
+    let host = url::Url::parse(url).ok()?.host_str()?.to_owned();
+    dav::provider_domain(&host).map(|domain| domain.as_str().to_owned())
+}
+
 /// Whether a stored credential may follow `candidate` in place of `stored` without asking: an
 /// HTTPS URL whose host is under the registrable domain of `stored`'s host or of `email`'s
 /// domain. A host the Public Suffix List cannot place (an address, `localhost`) is followed only

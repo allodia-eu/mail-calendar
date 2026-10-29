@@ -57,14 +57,28 @@ impl MailcalApp {
             capability.as_str(),
             if on { "on" } else { "off" },
         );
+        // Switching shared mailboxes off leaves the account's own mail as it is, so it is neither
+        // listed without providers nor dialled again.
+        let redial = on || capability != Capability::SharedMailboxes;
         // Nothing may sync into a domain while it is forgotten, so the account is listed without
         // providers first and dialled again only afterwards.
-        self.list_without_providers(&id);
+        if redial {
+            self.list_without_providers(&id);
+        }
         if !on && matches!(capability, Capability::Calendar | Capability::Contacts) {
             self.app
                 .forget_use_problem(&id, capability == Capability::Calendar);
         }
-        if !on {
+        // The shared mailboxes are opened by this use, so they go with it; the account's own
+        // mail stays unless mail itself was switched off. A refused write is reported once the
+        // account is dialled again, so it is not left listed without providers.
+        let dropped = if !on && matches!(capability, Capability::Mail | Capability::SharedMailboxes)
+        {
+            self.drop_shared_mailboxes(&account_id)
+        } else {
+            Ok(())
+        };
+        if !on && capability != Capability::SharedMailboxes {
             let app = Arc::clone(&self.app);
             let forgotten = id.clone();
             self.runtime.block_on(|| async move {
@@ -72,14 +86,16 @@ impl MailcalApp {
                     .await;
             });
         }
-        self.disconnected
-            .lock()
-            .expect("disconnected mutex poisoned")
-            .insert(account_id);
-        self.retry_connections();
+        if redial {
+            self.disconnected
+                .lock()
+                .expect("disconnected mutex poisoned")
+                .insert(account_id);
+            self.retry_connections();
+        }
         self.refresh_analytics_accounts();
         self.app.accounts_changed();
-        Ok(CapabilityChange::Applied)
+        dropped.map(|()| CapabilityChange::Applied)
     }
 }
 
@@ -99,10 +115,11 @@ impl MailcalApp {
 
 /// What the store forgets when an account stops being used for `capability`. Colleagues are
 /// stored as cards beside the account's own with no line between them, so both go, and the
-/// account's own come back with its next contacts sync.
+/// account's own come back with its next contacts sync. Shared mailboxes are accounts of their
+/// own and are forgotten as such (`MailcalApp::drop_shared_mailboxes`).
 pub(crate) const fn domain_of(capability: Capability) -> SearchDomain {
     match capability {
-        Capability::Mail => SearchDomain::Mail,
+        Capability::Mail | Capability::SharedMailboxes => SearchDomain::Mail,
         Capability::Calendar => SearchDomain::Calendar,
         Capability::Contacts | Capability::Colleagues => SearchDomain::Contacts,
     }

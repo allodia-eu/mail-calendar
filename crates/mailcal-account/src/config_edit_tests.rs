@@ -37,11 +37,6 @@ fn unchanged_settings_move_nothing_and_pin_the_id_and_uses() {
         edited.config.shape.capabilities,
         Some(config.capabilities())
     );
-    assert_eq!(
-        edited.config.caldav.as_ref().unwrap().calendar.as_deref(),
-        Some("/dav/calendars/alice/work/"),
-        "the calendar chosen on the same server is kept"
-    );
     let stored = edited.config.to_toml().unwrap();
     assert!(stored.contains("password = \"old\""), "{stored}");
 }
@@ -86,10 +81,6 @@ fn a_new_port_security_or_password_keeps_the_data_and_a_new_host_does_not() {
     );
     let caldav = edited.config.caldav.as_ref().unwrap();
     assert_eq!(caldav.base_url, "https://cloud.example.net/remote.php/dav");
-    assert!(
-        caldav.calendar.is_none(),
-        "a calendar on another server is chosen again"
-    );
     assert_eq!(
         edited
             .config
@@ -180,4 +171,23 @@ fn switching_only_the_security_takes_that_security_s_standard_port() {
         edited.config.smtp.as_ref().unwrap().addr,
         "smtp.example.org:587"
     );
+}
+
+#[test]
+fn a_mail_server_on_another_host_keeps_no_shared_mailbox_the_old_one_opened() {
+    let shared = "\n[[shared_mailbox]]\nhandle = \"Shared Folders/support@example.org\"\nname = \"support\"\n";
+    let config = load_str(&format!("{STANDARDS}{shared}")).unwrap();
+    assert_eq!(config.shape.shared_mailboxes.len(), 1);
+
+    let mut edit = config.endpoints();
+    edit.password = Some("new".to_owned());
+    let kept = config.with_endpoints(&edit).unwrap();
+    assert_eq!(
+        kept.config.shape.shared_mailboxes,
+        config.shape.shared_mailboxes
+    );
+
+    edit.imap_host = Some("mail.example.net".to_owned());
+    let moved = config.with_endpoints(&edit).unwrap();
+    assert_eq!(moved.config.shape.shared_mailboxes, []);
 }

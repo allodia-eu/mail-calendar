@@ -390,18 +390,18 @@ impl ReadingPane {
         if rows.is_empty() {
             return;
         }
-        let title = gtk::Label::new(Some(l10n::attachments_title()));
-        title.set_xalign(0.0);
-        title.add_css_class("heading");
-        self.attachments.append(&title);
+        let group = adw::PreferencesGroup::builder()
+            .title(l10n::attachments_title())
+            .build();
         for attachment in rows {
-            self.attachments.append(&attachment_row(
+            group.add(&attachment_row(
                 attachment,
                 &self.window,
                 &self.source,
                 sender,
             ));
         }
+        self.attachments.append(&group);
     }
 }
 

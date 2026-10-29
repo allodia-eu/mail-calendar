@@ -345,8 +345,8 @@ impl<P: Provider> App<P> {
     ) -> Option<engine_api::RsvpControls> {
         self.account_handle(account)
             .await?
-            .calendar_providers
-            .first()?
+            .calendar_provider
+            .as_ref()?
             .connection_info()
             .capabilities
             .calendar_rsvp()
@@ -372,8 +372,8 @@ impl<P: Provider> App<P> {
     ) -> Delivery {
         let calendar_caps = match self.account_handle(calendar).await {
             Some(acct) => acct
-                .calendar_providers
-                .first()
+                .calendar_provider
+                .as_ref()
                 .map(|provider| provider.connection_info().capabilities),
             None => None,
         };

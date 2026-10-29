@@ -10,16 +10,18 @@
 // "Nested folders"), and Projects/Clients/Acme holds the message whose read state this moves.
 //
 // WHY A SMALL WINDOW. Whether the pane scrolls depends on the desktop, so the window's height is
-// set, and put back afterwards: the app keeps its bounds for the next launch. The message is marked
+// set, and put back afterwards: the app keeps its bounds for the next launch. It is low enough that
+// Archive's subfolders scroll out of view on the default seed, which has only six folder rows below
+// them; `harness.sh up --bulk` adds more. The message is marked
 // unread and read again, so the suite leaves the mailbox as it found it.
 
-using System.Runtime.InteropServices;
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
 
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(ImapHarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class FolderPanePositionTests(ImapHarnessApp harness)
 {
     private const string Subject = "Kickoff notes";
@@ -50,17 +52,8 @@ public sealed class FolderPanePositionTests(ImapHarnessApp harness)
 
     /// <summary>What Acme's row says about its unread mail: "" when it draws no count, null while
     /// the pane has no Acme row, which a pane rebuilding its rows has for a moment.</summary>
-    private static string? AcmeUnread(App app)
-    {
-        if (FolderRow(app, "Acme") is not { } acme)
-        {
-            return null;
-        }
-        var counts = Catalog.Everywhere("a11y_unread_count").Concat(Catalog.Everywhere("a11y_unread_count_one"))
-            .Select(pattern => new System.Text.RegularExpressions.Regex("^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace(@"\{count}", @"\d+") + "$"))
-            .ToList();
-        return string.Concat(app.Agent.FindAll(new Filter { Under = acme }).Select(e => e.Name).Where(name => counts.Any(c => c.IsMatch(name))));
-    }
+    private static string? AcmeUnread(App app) =>
+        FolderRow(app, "Acme") is { } acme ? app.PaneUnread(acme) : null;
 
     /// <summary>Presses the toolbar's read toggle and gives Acme's count ten seconds to read
     /// <paramref name="expect"/>. What it reads is asserted after the rows, so a pane that lost its
@@ -75,16 +68,10 @@ public sealed class FolderPanePositionTests(ImapHarnessApp harness)
     public void AnUnreadCountThatMovesLeavesTheRowsThePaneShowsWhereTheyWere()
     {
         var oneUnread = Catalog.English("a11y_unread_count_one").Replace("{count}", "1");
-        System.Drawing.Rectangle saved = default;
-        var maximised = false;
+        IDisposable? shrunk = null;
         harness.Case(nameof(AnUnreadCountThatMovesLeavesTheRowsThePaneShowsWhereTheyWere), app =>
         {
-            var hwnd = (nint)app.Mailbox.Hwnd;
-            saved = Desktop.Bounds(app.Mailbox.Hwnd);
-            maximised = IsZoomed(hwnd);
-            var scale = Input.Scale(app.Mailbox.Hwnd);
-            ShowWindow(hwnd, Restore);
-            MoveWindow(hwnd, saved.X, saved.Y, (int)(1200 * scale), (int)(560 * scale), true);
+            shrunk = Desktop.Resized(app.Mailbox.Hwnd, 1200, 480);
             app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
             app.Agent.Expand(Account(app));
             foreach (var folder in Opened)
@@ -133,19 +120,7 @@ public sealed class FolderPanePositionTests(ImapHarnessApp harness)
                     app.Agent.Collapse(row);
                 }
             }
-            var hwnd = (nint)app.Mailbox.Hwnd;
-            MoveWindow(hwnd, saved.X, saved.Y, saved.Width, saved.Height, true);
-            if (maximised)
-            {
-                ShowWindow(hwnd, Maximise);
-            }
+            shrunk?.Dispose();
         });
     }
-
-    private const int Restore = 9;
-    private const int Maximise = 3;
-
-    [DllImport("user32.dll")] private static extern bool MoveWindow(nint hwnd, int x, int y, int width, int height, bool repaint);
-    [DllImport("user32.dll")] private static extern bool IsZoomed(nint hwnd);
-    [DllImport("user32.dll")] private static extern bool ShowWindow(nint hwnd, int command);
 }

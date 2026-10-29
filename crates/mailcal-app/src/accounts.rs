@@ -30,9 +30,13 @@ pub struct Account<P> {
     pub id: AccountId,
     /// The mail providers: one per folder the account listed when it connected where mail syncs
     /// per folder (IMAP, Graph), one for the whole account otherwise (JMAP, Gmail).
-    pub providers: Vec<P>,
-    /// The calendar providers (one per synced calendar), if calendar is configured.
-    pub calendar_providers: Vec<P>,
+    ///
+    /// Shared so that [`App::replace_uses`] can give the account a new calendar and address book
+    /// around the mailbox it already has.
+    pub providers: Arc<[P]>,
+    /// The calendar provider, if the account is used for calendars: one serves every calendar
+    /// of the sign-in.
+    pub calendar_provider: Option<P>,
     /// The contact providers: one per address book for CardDAV (source-bound adapters),
     /// exactly one for JMAP (account-global), empty when the account has no contacts.
     ///
@@ -52,6 +56,27 @@ pub struct Account<P> {
     /// its dial lands, whose calendar is unknown rather than empty; an account with no provider
     /// of some kind after its dial simply has none.
     pub dialled: bool,
+}
+
+/// Which of an account's calendar and contacts a dial could not reach because the server did not
+/// answer, as opposed to answering with a refusal or a start it says is gone.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Unanswered {
+    /// The calendar's server did not answer.
+    pub calendar: bool,
+    /// The address book's server did not answer.
+    pub contacts: bool,
+}
+
+/// What [`App::replace_uses`] did with a redial of an account's calendar and contacts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UsesReplaced {
+    /// The account has the redial's calendar and contacts.
+    Replaced,
+    /// The redial could not reach a use the account has working, so it keeps what it had.
+    Kept,
+    /// The account was removed during the redial.
+    Gone,
 }
 
 impl<P> core::fmt::Debug for Account<P> {
@@ -128,10 +153,46 @@ impl<P: Provider> App<P> {
         }
     }
 
+    /// Gives the live account `account.id` the calendar and contact providers `account` carries,
+    /// keeping the mail providers it already has.
+    ///
+    /// For a retry of a calendar or address book that failed beside a working mailbox, and for
+    /// the daily redial of ones that work: the mailbox is connected, so nothing about it is
+    /// replaced, synced or watched again. Nothing is synced here either; the caller refreshes
+    /// the calendar and contacts it reconnected. A redial whose server did not answer
+    /// (`unanswered`) for a use the live account has working installs nothing, because an outage
+    /// says nothing about the servers and a working connection is not traded for none.
+    pub async fn replace_uses(&self, account: Account<P>, unanswered: Unanswered) -> UsesReplaced {
+        let mut accounts = self.accounts.write().await;
+        let Some(at) = accounts
+            .iter()
+            .position(|existing| existing.id == account.id)
+        else {
+            return UsesReplaced::Gone;
+        };
+        let live = &accounts[at];
+        if (unanswered.calendar && live.calendar_provider.is_some())
+            || (unanswered.contacts && !live.contact_providers.is_empty())
+        {
+            return UsesReplaced::Kept;
+        }
+        self.forget_calendar_users(&account.id);
+        accounts[at] = Arc::new(Account {
+            providers: Arc::clone(&accounts[at].providers),
+            ..account
+        });
+        drop(accounts);
+        self.observer.surface_changed(Surface::Settings);
+        UsesReplaced::Replaced
+    }
+
     /// Registers a newly-added user account without syncing, then gives it the product default
     /// three-month depth before its first background sync starts.
     pub async fn add_new_account_deferred(&self, account: Account<P>) {
         let id = account.id.clone();
+        // Before the account's first snapshot, which would otherwise call its list empty while
+        // the download that fills it is still to start.
+        self.note_first_download(&id, true);
         self.add_account_deferred(account).await;
         self.set_account_sync_depth(id.as_str(), new_account_sync_depth_months())
             .await;
@@ -145,6 +206,7 @@ impl<P: Provider> App<P> {
     /// then calls [`Self::reclaim_removed_account_space`]. A no-op if no such account is
     /// configured.
     pub async fn remove_account(&self, id: &AccountId) {
+        self.note_first_download(id, false);
         {
             let mut accounts = self.accounts.write().await;
             accounts.retain(|existing| existing.id != *id);
@@ -193,6 +255,8 @@ impl<P: Provider> App<P> {
             .lock()
             .expect("synced-folders mutex poisoned")
             .retain(|(a, _)| a != acct);
+        // …and the bodies its server refused, so a re-added id asks for them again.
+        self.prefetching.forget(id);
         self.inbox_keys
             .lock()
             .expect("inbox-key mutex poisoned")
@@ -325,6 +389,14 @@ mod domains;
 #[path = "calendar_users.rs"]
 mod calendar_users;
 
+#[path = "shared_mailboxes.rs"]
+mod shared_mailboxes;
+pub use shared_mailboxes::{SharedMailboxLookup, SharedMailboxOffer};
+
 #[cfg(test)]
 #[path = "tests_mail_surfaces.rs"]
 mod mail_surfaces_tests;
+
+#[cfg(test)]
+#[path = "accounts_replace_uses_tests.rs"]
+mod replace_uses_tests;

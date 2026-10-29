@@ -24,6 +24,6 @@ extension CalendarScreenView {
     /// One line per account whose calendar is on and did not connect: what the week shows of it
     /// is what was last synced, and nothing on it can be changed or answered until it connects.
     var outageBanners: some View {
-        UseOutageBanners(lines: model.calendarOutageLines) { model.openAccountPage($0) }
+        UseOutageBanners(model: model, lines: model.calendarOutageLines)
     }
 }

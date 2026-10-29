@@ -9,7 +9,7 @@
 use std::sync::{Arc, Mutex};
 
 use engine_core::{
-    ids::{AccountId, MailboxId},
+    ids::{AccountId, MailboxId, SharedMailboxId},
     mail::MailboxRole,
     sync::SyncUpdate,
 };
@@ -132,6 +132,15 @@ async fn connect_account(
         .map_err(|err| AccountError::from_first_imap_login(err).over_tls(&tls))
 }
 
+/// The store `shared` names, opened by `imap`'s login and drawing on its connections; `imap`
+/// itself when `shared` is `None`.
+fn store(imap: Arc<LiveImapAccount>, shared: Option<&SharedMailboxId>) -> Arc<LiveImapAccount> {
+    match shared {
+        Some(handle) => Arc::new(imap.with_shared_mailbox(handle.clone())),
+        None => imap,
+    }
+}
+
 /// Parses a stored mailbox key.
 fn mailbox_id(mailbox: &str) -> Result<MailboxId, AccountError> {
     MailboxId::try_from(mailbox).map_err(|err| AccountError::Mailbox(err.to_string()))
@@ -161,7 +170,8 @@ fn make_imap_redial(imap: Arc<LiveImapAccount>, mailbox: MailboxId) -> Redial {
 
 /// Opens one IMAP `mailbox` of `account` through its `connections`: for a folder the account
 /// listed after it was dialled, and for a folder opened before any pass has synced it. Dials
-/// nothing when the account is already connected.
+/// nothing when the account is already connected. `shared` names the shared mailbox the folder
+/// belongs to, `None` for the account's own.
 ///
 /// # Errors
 ///
@@ -172,9 +182,13 @@ pub async fn connect_imap_mailbox(
     account: &AccountConfig,
     tokens: ImapTokens<'_>,
     mailbox: &str,
+    shared: Option<&SharedMailboxId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let mailbox = mailbox_id(mailbox)?;
-    let imap = connections.current_or_connect(account, tokens).await?;
+    let imap = store(
+        connections.current_or_connect(account, tokens).await?,
+        shared,
+    );
     Ok(bind(&imap, mailbox))
 }
 
@@ -183,7 +197,7 @@ pub async fn connect_imap_mailbox(
 /// long as it lives (a connection in `IDLE` cannot `FETCH`), so the host drives it from its own
 /// task and runs the mailbox's sync on the account's other connections when it reports
 /// [`WatchEvent`](engine_provider::WatchEvent)`::Changed`. The keep-alive is the engine's
-/// RFC 2177-safe default.
+/// RFC 2177-safe default. `shared` names the shared mailbox the folder belongs to.
 ///
 /// # Errors
 ///
@@ -195,9 +209,13 @@ pub async fn connect_imap_watcher(
     account: &AccountConfig,
     tokens: ImapTokens<'_>,
     mailbox: &str,
+    shared: Option<&SharedMailboxId>,
 ) -> Result<Box<dyn Watch>, AccountError> {
     let mailbox = mailbox_id(mailbox)?;
-    let imap = connections.current_or_connect(account, tokens).await?;
+    let imap = store(
+        connections.current_or_connect(account, tokens).await?,
+        shared,
+    );
     let watcher = imap
         .watch(mailbox, DEFAULT_IDLE_KEEPALIVE)
         .await
@@ -215,6 +233,11 @@ pub async fn connect_imap_watcher(
 /// is bound once however the server spells it. A folder the account lists later is bound by the
 /// pass that first sees it, through [`connect_imap_mailbox`].
 ///
+/// With `shared`, the folders are the shared mailbox's, opened by the account's login and
+/// drawing on its connections, which are connected only if nothing has yet. A shared mailbox's
+/// folders are named under the server's shared namespace, so its Inbox is the folder listed in
+/// that role rather than one bound by name.
+///
 /// # Errors
 ///
 /// Returns [`AccountError`] if the connection or login fails, the account's credential cannot be
@@ -225,8 +248,16 @@ pub async fn connect_mail_providers(
     account: &AccountConfig,
     tokens: ImapTokens<'_>,
     account_id: &AccountId,
+    shared: Option<&SharedMailboxId>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
-    let imap = connections.connect(account, tokens).await?;
+    let imap = match shared {
+        Some(_) => store(
+            connections.current_or_connect(account, tokens).await?,
+            shared,
+        ),
+        None => connections.connect(account, tokens).await?,
+    };
+    // A placeholder for a shared mailbox: listing its folders reads the store, not this one.
     let inbox_id = mailbox_id("INBOX")?;
     let inbox = imap.provider(inbox_id.clone());
 
@@ -238,12 +269,31 @@ pub async fn connect_mail_providers(
         SyncUpdate::Snapshot { objects, .. } => objects,
         SyncUpdate::Delta { changed, .. } => changed,
     };
-    let others = folders
+    // A shared mailbox may be a single shared folder with no Inbox at all; its folders are bound
+    // as listed, its Inbox first when it has one.
+    let inbox = match shared {
+        Some(_) => folders
+            .iter()
+            .find(|mailbox| mailbox.role == Some(MailboxRole::Inbox))
+            .map(|mailbox| mailbox.id.clone()),
+        None => Some(inbox_id),
+    };
+    let bound: Vec<MailboxId> = inbox
         .into_iter()
-        .filter(|mailbox| mailbox.role != Some(MailboxRole::Inbox) && pass_syncs(mailbox))
-        .map(|mailbox| mailbox.id);
-    Ok(std::iter::once(inbox_id)
-        .chain(others)
+        .chain(
+            folders
+                .into_iter()
+                .filter(|mailbox| mailbox.role != Some(MailboxRole::Inbox) && pass_syncs(mailbox))
+                .map(|mailbox| mailbox.id),
+        )
+        .collect();
+    if bound.is_empty() {
+        return Err(AccountError::MailboxList(
+            "the shared mailbox lists no folder to open".into(),
+        ));
+    }
+    Ok(bound
+        .into_iter()
         .map(|mailbox| bind(&imap, mailbox))
         .collect())
 }

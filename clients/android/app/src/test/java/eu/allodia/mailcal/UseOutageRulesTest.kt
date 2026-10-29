@@ -28,6 +28,7 @@ class UseOutageRulesTest {
             UseProblem.NEEDS_OWN_SIGN_IN to L10n.settings_account_use_own_sign_in_calendar(ctx()),
             UseProblem.SIGN_IN_REFUSED to L10n.settings_account_use_refused_calendar(ctx()),
             UseProblem.UNREACHABLE to L10n.settings_account_use_unreachable_calendar(ctx()),
+            UseProblem.SERVER_CHANGED to L10n.settings_account_use_server_changed_calendar(ctx()),
         )
         assertEquals(UseProblem.entries.toSet(), reasons.keys)
         for ((problem, reason) in reasons) {
@@ -45,6 +46,7 @@ class UseOutageRulesTest {
             UseProblem.NEEDS_OWN_SIGN_IN to L10n.settings_account_use_own_sign_in_contacts(ctx()),
             UseProblem.SIGN_IN_REFUSED to L10n.settings_account_use_refused_contacts(ctx()),
             UseProblem.UNREACHABLE to L10n.settings_account_use_unreachable_contacts(ctx()),
+            UseProblem.SERVER_CHANGED to L10n.settings_account_use_server_changed_contacts(ctx()),
         )
         assertEquals(UseProblem.entries.toSet(), reasons.keys)
         for ((problem, reason) in reasons) {
@@ -98,6 +100,22 @@ class UseOutageRulesTest {
         assertEquals(listOf("acct-b", "acct-a"), lines.map { it.accountId })
         assertTrue(lines[0].text.startsWith(L10n.calendar_outage_title(ctx(), "bob@example.com")))
         assertTrue(lines[1].text.startsWith(L10n.calendar_outage_title(ctx(), "ada@example.com")))
+    }
+
+    @Test
+    fun only_a_server_found_on_another_site_is_reviewed_in_place() {
+        val connectivity = snapshot(
+            calendar = listOf(
+                UseOutage("acct-a", UseProblem.SERVER_CHANGED),
+                UseOutage("acct-b", UseProblem.UNREACHABLE),
+            ),
+            contacts = listOf(UseOutage("acct-a", UseProblem.SERVER_CHANGED)),
+        )
+
+        val calendar = UseOutageRules.lines(ctx(), OutageUse.CALENDAR, connectivity) { it }
+        assertEquals(listOf(true, false), calendar.map { it.reviews })
+        val contacts = UseOutageRules.lines(ctx(), OutageUse.CONTACTS, connectivity) { it }
+        assertEquals(listOf(true), contacts.map { it.reviews })
     }
 
     @Test

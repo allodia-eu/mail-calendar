@@ -18,6 +18,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
+[Trait("Dataset", "harness")]
 public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFixture<SetupHarnessApp>
 {
     private const string Seeded = "harness-alice-pw";

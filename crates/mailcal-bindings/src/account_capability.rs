@@ -10,6 +10,8 @@ use crate::MailcalError;
 pub enum AccountCapability {
     /// Reading and sending mail.
     Mail,
+    /// Mailboxes the person was given access to, beside the account's own, on Microsoft.
+    SharedMailboxes,
     /// The account's calendar.
     Calendar,
     /// The account's own contacts.
@@ -25,6 +27,7 @@ impl From<AccountCapability> for Capability {
             AccountCapability::Calendar => Self::Calendar,
             AccountCapability::Contacts => Self::Contacts,
             AccountCapability::Colleagues => Self::Colleagues,
+            AccountCapability::SharedMailboxes => Self::SharedMailboxes,
         }
     }
 }
@@ -36,6 +39,7 @@ impl From<Capability> for AccountCapability {
             Capability::Calendar => Self::Calendar,
             Capability::Contacts => Self::Contacts,
             Capability::Colleagues => Self::Colleagues,
+            Capability::SharedMailboxes => Self::SharedMailboxes,
         }
     }
 }

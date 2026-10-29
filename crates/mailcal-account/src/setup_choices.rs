@@ -62,25 +62,30 @@ pub fn standards_choices(mail: bool, caldav: bool, carddav: bool) -> Vec<SetupCh
         .collect()
 }
 
-/// The uses a Microsoft sign-in for `email` offers: every one, all on, and colleagues only when
-/// the address is not a personal one.
+/// The uses a Microsoft sign-in for `email` offers: every one, all on, and colleagues and shared
+/// mailboxes only when the address is not a personal one.
 #[must_use]
 pub fn microsoft_choices(email: &str) -> Vec<SetupChoice> {
-    provider_choices(is_microsoft_consumer_domain(email))
+    provider_choices(is_microsoft_consumer_domain(email), true)
 }
 
-/// The uses a Google sign-in for `email` offers, as [`microsoft_choices`] does for Microsoft.
+/// The uses a Google sign-in for `email` offers, as [`microsoft_choices`] does for Microsoft, less
+/// shared mailboxes, which a Gmail sign-in cannot open.
 #[must_use]
 pub fn google_choices(email: &str) -> Vec<SetupChoice> {
-    provider_choices(crate::autodetect::is_google_consumer_domain(email))
+    provider_choices(crate::autodetect::is_google_consumer_domain(email), false)
 }
 
-/// Every use, all on; colleagues left out for a personal account, which has no organisation
-/// directory (`docs/accounts.md` rule 3).
-fn provider_choices(personal: bool) -> Vec<SetupChoice> {
+/// Every use, all on; colleagues and shared mailboxes left out for a personal account, which has
+/// no organisation to have either (`docs/accounts.md` rule 3).
+fn provider_choices(personal: bool, shared_mailboxes: bool) -> Vec<SetupChoice> {
     Capability::ALL
         .into_iter()
-        .filter(|capability| !(personal && *capability == Capability::Colleagues))
+        .filter(|capability| match capability {
+            Capability::Colleagues => !personal,
+            Capability::SharedMailboxes => shared_mailboxes && !personal,
+            _ => true,
+        })
         .map(|capability| found(capability, true))
         .collect()
 }

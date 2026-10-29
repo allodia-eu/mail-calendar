@@ -162,8 +162,8 @@ pub(super) fn app(contacts: FakeContacts, surfaces: &Arc<Mutex<Vec<Surface>>>) -
         Engine::open_in_memory().unwrap(),
         vec![Account {
             id: AccountId::try_from("work").unwrap(),
-            providers: vec![MailOnly],
-            calendar_providers: Vec::new(),
+            providers: vec![MailOnly].into(),
+            calendar_provider: None,
             contact_providers: vec![Box::new(contacts)],
             identity: EmailAddress::new("me@work.local"),
             dialled: true,

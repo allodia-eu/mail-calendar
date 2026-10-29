@@ -11,7 +11,7 @@
 
 use std::path::PathBuf;
 
-use engine_api::Provider;
+use engine_api::{AccountId, Provider};
 use mailcal_account::{
     CalendarPrefs, DefaultCalendar, Preferences, load_preferences, save_preferences,
 };
@@ -114,6 +114,35 @@ impl<P: Provider> App<P> {
     #[allow(clippy::unused_async)]
     pub async fn set_calendar_color(&self, account: &str, calendar: &str, hex: Option<String>) {
         self.edit_calendar(account, calendar, |prefs| prefs.color = hex);
+    }
+
+    /// Which of `account`'s `calendars` a new event goes to when nothing names one: the stored
+    /// default while it is this account's and still writable, otherwise the writable calendar the
+    /// server names its default, otherwise the first writable one.
+    pub(crate) fn calendar_for_new_events<'c>(
+        &self,
+        account: &AccountId,
+        calendars: &'c [engine_api::Calendar],
+    ) -> Option<&'c engine_api::Calendar> {
+        let prefs = self
+            .calendar_prefs
+            .lock()
+            .expect("calendar-prefs mutex poisoned");
+        let writable: Vec<&'c engine_api::Calendar> = calendars
+            .iter()
+            .filter(|calendar| calendar.access.may_write)
+            .collect();
+        prefs
+            .default_calendar()
+            .filter(|choice| choice.account == account.as_str())
+            .and_then(|choice| {
+                writable
+                    .iter()
+                    .find(|calendar| calendar.id.as_str() == choice.calendar)
+            })
+            .or_else(|| writable.iter().find(|calendar| calendar.is_default))
+            .or_else(|| writable.first())
+            .copied()
     }
 
     /// Chooses the calendar new events are filed on, and persists it.

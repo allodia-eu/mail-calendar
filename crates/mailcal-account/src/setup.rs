@@ -217,6 +217,11 @@ fn check_uses(uses: &Capabilities, caldav: bool, carddav: bool) -> Result<(), Co
             "colleagues come from a Microsoft or Google directory",
         ));
     }
+    if uses.contains(Capability::SharedMailboxes) {
+        return Err(ConfigError::Refused(
+            "a standards account lists its shared mailboxes without being asked for them",
+        ));
+    }
     if uses.iter().next().is_none() {
         return Err(ConfigError::Incomplete("what the account is used for"));
     }
@@ -435,7 +440,7 @@ mod tests {
     fn build_config_toml_writes_no_exception_when_none_was_accepted() {
         let toml = build_config_toml(&full_setup()).unwrap();
         assert!(!toml.contains("certificate_exception"));
-        assert!(load_str(&toml).unwrap().certificate_exceptions.is_empty());
+        assert_eq!(load_str(&toml).unwrap().certificate_exceptions, []);
     }
 
     #[test]

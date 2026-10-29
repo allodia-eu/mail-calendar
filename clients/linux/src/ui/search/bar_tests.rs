@@ -198,7 +198,7 @@ pub(crate) fn escape_leaves_search() {
 
     entry(&bar).emit_stop_search();
     match receiver.recv_sync() {
-        Some(AppInput::SearchMail(query)) => assert!(query.is_empty()),
+        Some(AppInput::SearchMail(query)) => assert_eq!(query, ""),
         other => panic!("Escape must leave search, got {other:?}"),
     }
     // Emptied here rather than left for a render: this is the one moment the query changes with

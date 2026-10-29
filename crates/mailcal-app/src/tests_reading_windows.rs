@@ -76,7 +76,7 @@ async fn two_windows_hold_their_own_message_each() {
         "m2"
     );
     // Nothing was opened in the pane, and no window's body leaked into it.
-    assert!(app.reading_view().key.is_empty());
+    assert_eq!(app.reading_view().key, "");
 }
 
 #[tokio::test]
@@ -100,10 +100,9 @@ async fn closing_a_window_frees_its_body_and_leaves_every_other_reader_alone() {
 
     // A closed window reads as the empty snapshot, which is also what one that has never opened
     // reads as: both mean "there is no body here".
-    assert!(
-        app.reading_view_in(&ReaderId::Window("w1".to_owned()))
-            .key
-            .is_empty()
+    assert_eq!(
+        app.reading_view_in(&ReaderId::Window("w1".to_owned())).key,
+        ""
     );
     assert_eq!(app.reading_view().key, "m1", "the pane keeps its message");
 }
@@ -180,8 +179,8 @@ async fn a_window_closed_while_its_open_is_in_flight_keeps_no_body() {
     // still running when the window goes.
     app.add_account(Account {
         id: AccountId::try_from("acct-1").unwrap(),
-        providers: Vec::new(),
-        calendar_providers: Vec::new(),
+        providers: Vec::new().into(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@acct-1.local"),
         dialled: true,

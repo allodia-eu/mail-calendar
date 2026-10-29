@@ -34,7 +34,7 @@ use engine_core::{
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, HandOver, MailEdit, MailEditReceipt, MailboxEdit,
     MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderError, ProviderResult,
-    ReportReceipt, ScopeSync, SourceStream, SubmissionReceipt,
+    ReportReceipt, ScopeSync, SharedMailbox, SourceStream, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -174,6 +174,13 @@ impl Provider for ReconnectingImapProvider {
         .await
     }
 
+    /// Passes each chunk on as it arrives: a first sync of a large mailbox takes many seconds,
+    /// and each chunk is what puts its rows on screen.
+    ///
+    /// A retryable failure, a dead session's first command or a connection dropped partway
+    /// through, is redialled once and the pass run again from its start: rewriting a message
+    /// already passed on is harmless, and the sync counts each message once. A second failure is
+    /// reported, and the next pass resumes from the last checkpoint committed.
     fn stream_email<'a>(
         &'a self,
         account: &'a AccountId,
@@ -182,48 +189,15 @@ impl Provider for ReconnectingImapProvider {
         fetch_batch: usize,
         chunk_size: usize,
     ) -> EmailStream<'a> {
-        let account = account.clone();
-        let cursor = cursor.cloned();
-        Box::pin(async_stream::try_stream! {
-            let mut retried = false;
-            loop {
-                let provider = self.delegate().await?;
-                let mut chunks = Vec::new();
-                let result = {
-                    let mut stream = provider.stream_email(
-                        &account,
-                        cursor.as_ref(),
-                        window,
-                        fetch_batch,
-                        chunk_size,
-                    );
-                    let mut result = Ok(());
-                    while let Some(chunk) = stream.next().await {
-                        match chunk {
-                            Ok(chunk) => chunks.push(chunk),
-                            Err(err) => {
-                                result = Err(err);
-                                break;
-                            }
-                        }
-                    }
-                    result
-                };
-                match result {
-                    Ok(()) => {
-                        for chunk in chunks {
-                            yield chunk;
-                        }
-                        break;
-                    }
-                    Err(err) if !retried && err.class() == FailureClass::Retryable => {
-                        self.invalidate();
-                        retried = true;
-                    }
-                    Err(err) => Err(err)?,
-                }
-            }
-        })
+        crate::stream_redial::redialling_stream(
+            || self.delegate(),
+            || self.invalidate(),
+            account,
+            cursor,
+            window,
+            fetch_batch,
+            chunk_size,
+        )
     }
 
     /// A mail write **is** safely auto-retried on a dropped socket: every [`MailEdit`] compiles to
@@ -383,6 +357,13 @@ impl Provider for ReconnectingImapProvider {
             async move { provider.report_message(&account, &report).await }
         })
         .await
+    }
+
+    /// The mailboxes the account's login opens besides its own, read through the same redial as
+    /// a sync: the folder this provider is bound to plays no part in the answer.
+    async fn list_shared_mailboxes(&self) -> ProviderResult<Vec<SharedMailbox>> {
+        self.with_reconnect(|provider| async move { provider.list_shared_mailboxes().await })
+            .await
     }
 }
 

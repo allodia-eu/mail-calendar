@@ -25,9 +25,10 @@ use engine_core::{
     version::{ETag, RevisionTokens},
 };
 use engine_provider::{
-    Capabilities, ConnectionInfo, Draft, EmailChunk, EmailStream, EventRsvp, EventWrite,
-    EventWriteReceipt, OverrideSurvival, Provider, ProviderError, ProviderResult, ReplyDelivery,
-    RsvpControls, RsvpResponse, ScopeSync, SubmissionReceipt, WriteGuard, WritePrecondition,
+    CalendarListing, Capabilities, ConnectionInfo, Draft, EmailChunk, EmailStream, EventRsvp,
+    EventWrite, EventWriteReceipt, OverrideSurvival, Provider, ProviderError, ProviderResult,
+    ReplyDelivery, RsvpControls, RsvpResponse, ScopeSync, SubmissionReceipt, WriteGuard,
+    WritePrecondition,
 };
 use meeting::{imip_source, invitation_message, invited_event};
 
@@ -276,23 +277,26 @@ impl Provider for InvitationFake {
         &self,
         _account: &AccountId,
         cursor: Option<&SyncState>,
-    ) -> ProviderResult<ScopeSync<Calendar>> {
+    ) -> ProviderResult<CalendarListing> {
         if cursor.is_some() {
             return Ok(ScopeSync::new(
                 SyncUpdate::delta(Vec::new(), Vec::new()),
                 SyncState::new("cal-2"),
-            ));
+            )
+            .into());
         }
         let calendar = Calendar::new(CalendarId::try_from("/cal/").unwrap(), "Work");
         Ok(ScopeSync::new(
             SyncUpdate::snapshot(vec![calendar.clone()], [calendar.id.key().clone()].into()),
             SyncState::new("cal-1"),
-        ))
+        )
+        .into())
     }
 
     async fn sync_events(
         &self,
         _account: &AccountId,
+        _calendar: &CalendarId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<ScopeSync<Event>> {
         if cursor.is_some() {
@@ -440,12 +444,9 @@ pub(crate) fn invitation_app_with_prefs(
             has_calendar: provider.has_calendar,
             reply_delivery: provider.reply_delivery.clone(),
             calendar_users: provider.calendar_users.clone(),
-        }],
-        calendar_providers: if provider.has_calendar {
-            vec![provider]
-        } else {
-            Vec::new()
-        },
+        }]
+        .into(),
+        calendar_provider: provider.has_calendar.then_some(provider),
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@test.local"),
         dialled: true,

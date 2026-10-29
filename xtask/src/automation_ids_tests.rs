@@ -27,7 +27,7 @@ fn an_explicit_id_hides_the_elements_name() {
 #[test]
 fn a_bound_id_is_no_id_and_still_hides_the_name() {
     let xaml = r#"<Button x:Name="Row" AutomationProperties.AutomationId="{Binding Id}" />"#;
-    assert!(xaml_ids(xaml).is_empty());
+    assert_eq!(xaml_ids(xaml), [] as [String; 0]);
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn a_comment_naming_an_id_is_not_a_lookup() {
     let ps = "# a search for -AutomationId 'SubjectText' would find the window's\n\
               <#\n  Find-UiaElement -AutomationId 'Old'\n#>\n\
               throw \"no #$Id here\" # -AutomationId 'Trailing'\n";
-    assert!(lookups(ps, &[]).is_empty());
+    assert_eq!(lookups(ps, &[]), []);
 }
 
 // ---- the whole check ----------------------------------------------------------------------------
@@ -124,7 +124,7 @@ fn tree(suite: &str) -> Repo {
     Repo::new(&[
         ("clients/windows/Mailcal/Views/ReadingView.xaml", VIEW),
         ("clients/windows/Mailcal/Views/ReadingView.xaml.cs", CODE),
-        ("clients/windows/uitests/Reading.Tests.ps1", suite),
+        ("clients/windows/control.ps1", suite),
     ])
 }
 
@@ -174,7 +174,7 @@ fn a_csharp_suite_s_lookups_are_read_and_checked() {
         ("clients/windows/Mailcal/Views/ReadingView.xaml", VIEW),
         ("clients/windows/Mailcal/Views/ReadingView.xaml.cs", CODE),
         (
-            "clients/windows/uitests/Reading.Tests.ps1",
+            "clients/windows/control.ps1",
             "Find-UiaElement -AutomationId 'PrimaryButton'
 ",
         ),

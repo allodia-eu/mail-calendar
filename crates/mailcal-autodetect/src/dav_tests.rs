@@ -206,3 +206,15 @@ async fn a_host_that_never_answers_costs_only_the_probes_budget() {
     let config = DetectConfig::default();
     assert!(started.elapsed() <= config.dns_timeout + config.http_timeout);
 }
+
+/// The probe asks the way a DAV client does, with `PROPFIND`, because a server may answer a plain
+/// `GET` at its well-known with an error: iCloud's CalDAV server answers `400`, and its `401` comes
+/// only to a `PROPFIND`.
+#[tokio::test]
+async fn a_server_that_answers_get_with_an_error_is_found_by_propfind() {
+    let fetch = FakeFetch::new()
+        .on(EMAIL_CALDAV, Reply::status(400, true))
+        .on_propfind(EMAIL_CALDAV, Reply::unauthorized(true));
+    let dav = found(&fetch, None).await;
+    assert_eq!(dav.caldav_url.as_deref(), Some(EMAIL_CALDAV));
+}

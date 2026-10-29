@@ -40,6 +40,7 @@ default-members = [
   "crates/mailcal-viewmodel",
   "crates/mailcal-oauth",
   "crates/mailcal-telemetry",
+  "crates/mailcal-user-agent",
   "crates/mailcal-mcp",
   "crates/mailcal-mcp-shim",
   "crates/mailcal-bindings",
@@ -50,9 +51,11 @@ default-members = [
 # (`cargo xtask check-version-sync`) fails if it ever drifts from `/VERSION`. Bump both together
 # with `scripts/dev/bump-version.sh X.Y.Z`.
 [workspace.package]
-version = "0.13.0"
+version = "0.14.0"
 edition = "2024"
-rust-version = "1.98"
+# Every build compiles with the pin in rust-toolchain.toml, the Flatpak and snap included, so this
+# moves with it; clippy's `incompatible_msrv` keeps an API newer than this out until it does.
+rust-version = "1.99"
 publish = false
 # The application is GPL-3.0-only (docs/pledge.md, LICENSE). Stated here so `cargo metadata`
 # carries it, and in REUSE.toml for every non-Rust file; `reuse lint` gates the pair.
@@ -179,6 +182,9 @@ debug = 0
 # afterwards. Note the client build scripts hardcode the `debug`/`release` directory names, so to
 # get full debug info THROUGH one of them, override the dev profile for that one invocation
 # instead: `CARGO_PROFILE_DEV_DEBUG=full ./clients/apple/Scripts/build-core.sh`.
+#
+# Not Cargo's built-in `debug` profile: that one writes to `target/debug/` beside `dev`, which is
+# the directory this profile exists to stay out of.
 [profile.debugger]
 inherits = "dev"
 debug = "full"
@@ -273,28 +279,28 @@ mapi-autodiscover = { git = "https://github.com/allodia-eu/mapi-client-rs", rev 
 # `.cargo/config.toml` in the directory ABOVE this checkout — see `.cargo/config.toml`, which is
 # tracked (it pins the Windows static-CRT rustflags) and so is no longer the place for it.
 # Re-pin: bump `rev` on every line below to the new engine commit (keep them identical).
-engine-api = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "73650cc6b554df659ccfcf10afb5ac3a8fb1ac29" }
-engine-core = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "73650cc6b554df659ccfcf10afb5ac3a8fb1ac29" }
-engine-provider = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "73650cc6b554df659ccfcf10afb5ac3a8fb1ac29" }
+engine-api = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "05b2ce434d62e0875957a155255a308c5ee13fa3" }
+engine-core = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "05b2ce434d62e0875957a155255a308c5ee13fa3" }
+engine-provider = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "05b2ce434d62e0875957a155255a308c5ee13fa3" }
 # The one host-selected TLS policy shared across IMAP/CalDAV/JMAP/Graph.
-engine-tls = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "73650cc6b554df659ccfcf10afb5ac3a8fb1ac29", features = ["tls-native-certs"] }
+engine-tls = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "05b2ce434d62e0875957a155255a308c5ee13fa3", features = ["tls-native-certs"] }
 # Concrete provider adapters the account layer connects. IMAP first; CalDAV for calendar.
-provider-imap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "73650cc6b554df659ccfcf10afb5ac3a8fb1ac29" }
-provider-caldav = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "73650cc6b554df659ccfcf10afb5ac3a8fb1ac29" }
+provider-imap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "05b2ce434d62e0875957a155255a308c5ee13fa3" }
+provider-caldav = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "05b2ce434d62e0875957a155255a308c5ee13fa3" }
 # The Microsoft Graph mail read/sync + writes adapter (bearer-token): metadata/body sync
 # plus mail edits (mark-read/flag, move, permanent delete). The account layer builds a
 # token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
-provider-graph = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "73650cc6b554df659ccfcf10afb5ac3a8fb1ac29" }
+provider-graph = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "05b2ce434d62e0875957a155255a308c5ee13fa3" }
 # The Google (Gmail + Google Calendar) native-API read/sync + write adapter (bearer-token),
 # the cloud-API counterpart of provider-graph. Gmail mail sync is account-global (one provider,
 # no per-folder fan-out); Google Calendar is IANA-native. The account layer builds a
 # token-refreshing wrapper over it; the OAuth token lifecycle is the host's job (this core).
-provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "73650cc6b554df659ccfcf10afb5ac3a8fb1ac29" }
+provider-google = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "05b2ce434d62e0875957a155255a308c5ee13fa3" }
 # The JMAP mail read/sync + submission + calendar-read adapter (RFC 8620/8621). Takes a
 # base URL + credentials (HTTP Basic username/password, or an OAuth bearer token) and
 # discovers everything else from the session. The account layer injects the shared TLS policy
 # before connecting it directly.
-provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "73650cc6b554df659ccfcf10afb5ac3a8fb1ac29" }
+provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engine", rev = "05b2ce434d62e0875957a155255a308c5ee13fa3" }
 # JSON Schema derivation for the MCP tool surface (crates/mailcal-mcp). MCP requires a
 # draft-2020-12 `inputSchema` per tool; deriving it from the same struct the handler deserializes
 # is what stops a client sending exactly what a tool documented and getting a parse error.

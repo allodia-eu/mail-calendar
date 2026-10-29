@@ -42,7 +42,7 @@ impl InvitationFake {
     /// Drops the calendar provider from the account rather than only clearing its capabilities,
     /// because the two are different states and the code distinguishes them: a provider that
     /// advertises no calendar is still a provider a write can be attempted against, while an
-    /// account with an empty `calendar_providers` has nothing to attempt at all. Modelling only
+    /// account with no `calendar_provider` has nothing to attempt at all. Modelling only
     /// the first would let a store slip through that a real bare mailbox could never reach.
     pub(crate) fn with_mail_only(mut self) -> Self {
         self.caps = Capabilities::none()

@@ -130,6 +130,7 @@ public sealed partial class MailboxModel
         ShowingOutbox = snapshot.ShowingOutbox;
         ApplyShowingDrafts(snapshot.ShowingDrafts);
         UnifiedUnread = snapshot.UnifiedUnread;
+        AppBadge.Show(UnifiedUnread);
         UnifiedExpanded = snapshot.UnifiedExpanded;
         Mode = snapshot.Mode == ViewMode.Threaded ? ViewModeKind.Threaded : ViewModeKind.Flat;
         SelectedAccount = snapshot.SelectedAccount;

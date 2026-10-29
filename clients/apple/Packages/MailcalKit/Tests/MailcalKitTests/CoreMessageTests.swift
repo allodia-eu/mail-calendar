@@ -34,6 +34,9 @@ import Testing
             notConnected(.calendar, .needsOwnSignIn)
                 == L10n.settings_account_use_own_sign_in_calendar())
         #expect(notConnected(.calendar, .signInRefused) == L10n.signin_refused())
+        #expect(
+            notConnected(.calendar, .serverChanged)
+                == L10n.settings_account_use_server_changed_calendar())
     }
 
     @Test func anAddressBookThatDidNotConnectSaysWhy() {
@@ -43,6 +46,9 @@ import Testing
             notConnected(.contacts, .needsOwnSignIn)
                 == L10n.settings_account_use_own_sign_in_contacts())
         #expect(notConnected(.contacts, .signInRefused) == L10n.signin_refused())
+        #expect(
+            notConnected(.contacts, .serverChanged)
+                == L10n.settings_account_use_server_changed_contacts())
     }
 
     @Test func mailThatDidNotConnectReadsAsTheCalendar() {

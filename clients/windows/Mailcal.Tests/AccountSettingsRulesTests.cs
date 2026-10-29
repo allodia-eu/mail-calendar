@@ -76,6 +76,38 @@ public class AccountSettingsRulesTests
     }
 
     [Fact]
+    public void AUsePausedForAServerChangeSaysSoAndOffersItsReview()
+    {
+        var entry = Entry(
+            AccountKind.Imap,
+            (AccountCapability.Mail, CapabilityState.On),
+            (AccountCapability.Calendar, CapabilityState.On),
+            (AccountCapability.Contacts, CapabilityState.On));
+        entry.Uses[1] = new AccountUse(AccountCapability.Calendar, CapabilityState.On, UseProblem.ServerChanged);
+        entry.Uses[2] = new AccountUse(AccountCapability.Contacts, CapabilityState.On, UseProblem.ServerChanged);
+
+        var calendar = AccountSettingsRules.Switch(entry, AccountCapability.Calendar);
+        var contacts = AccountSettingsRules.Switch(entry, AccountCapability.Contacts);
+        // Still on: the person chose it, and only the server is in question.
+        Assert.True(calendar.Active && calendar.Enabled);
+        Assert.Equal(UseNote.ServerChangedCalendar, calendar.Note);
+        Assert.Equal(UseNote.ServerChangedContacts, contacts.Note);
+        Assert.True(AccountSettingsRules.ReviewsServerChange(calendar.Note));
+        Assert.True(AccountSettingsRules.ReviewsServerChange(contacts.Note));
+    }
+
+    [Fact]
+    public void OnlyAServerChangeOffersAReview()
+    {
+        foreach (var note in Enum.GetValues<UseNote>())
+        {
+            Assert.Equal(
+                note is UseNote.ServerChangedCalendar or UseNote.ServerChangedContacts,
+                AccountSettingsRules.ReviewsServerChange(note));
+        }
+    }
+
+    [Fact]
     public void AUseWaitingOnPermissionIsDrawnOffAndSwitchingItOnAsks()
     {
         var entry = Entry(

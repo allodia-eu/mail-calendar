@@ -236,7 +236,7 @@ async fn a_queued_send_can_be_withdrawn() {
     )))
     .await;
 
-    assert!(app.mailbox_list().outbox.is_empty());
+    assert_eq!(app.mailbox_list().outbox, []);
 }
 
 /// "Send now" clears the backoff and drains in the same gesture, so the message goes out

@@ -9,6 +9,7 @@
 
 import MailcalBindings
 import Testing
+import UserNotifications
 
 @testable import MailcalUI
 
@@ -184,16 +185,6 @@ import Testing
             NewMailTarget(account: "b", key: "m2"),
         ])
     }
-
-    @Test func noNotificationSetsABadge() {
-        // The pass total is what arrived just now, not what is unread, and a dock badge reading 3
-        // and then 1 as passes land would say the second. Windows and Linux badge nothing either.
-        let notices = pass([
-            account(id: "a", newCount: 2, messages: [message(key: "m1"), message(key: "m2")]),
-            account(id: "b", label: "other@example.test", messages: [message(key: "m3")]),
-        ])
-        #expect(notices.allSatisfy { $0.badge == nil })
-    }
 }
 #endif
 
@@ -243,5 +234,21 @@ import Testing
                 timedOut: false))
         try #require(notices.count == 2)
         #expect(notices[0].identifier != notices[1].identifier)
+    }
+
+    @Test func noNotificationSetsTheIconBadge() {
+        // The icon carries the unified Inbox unread (`AppBadge`). A notification's badge would
+        // overwrite it with the number one pass found.
+        let notices = NewMailNotices.forPass(
+            BackgroundSyncOutcome(
+                accounts: [
+                    AccountNewMail(
+                        accountId: "a", accountLabel: "a@example.test", newCount: 3,
+                        messages: account("a", keys: ["1"]).messages),
+                    account("b", keys: ["2"]),
+                ],
+                timedOut: false))
+        #expect(notices.count == 3)
+        #expect(notices.allSatisfy { MailNotifier.content($0).badge == nil })
     }
 }

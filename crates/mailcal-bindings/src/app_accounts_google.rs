@@ -126,7 +126,7 @@ impl MailcalApp {
             "google: connected {} mail, {} calendar and {} contacts provider(s); syncing + adding \
              account",
             outcome.account.providers.len(),
-            outcome.account.calendar_providers.len(),
+            usize::from(outcome.account.calendar_provider.is_some()),
             outcome.account.contact_providers.len(),
         );
         self.refresh_analytics_accounts();

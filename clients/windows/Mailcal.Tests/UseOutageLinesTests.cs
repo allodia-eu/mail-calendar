@@ -14,7 +14,9 @@ public class UseOutageLinesTests
         address => $"calendar_outage_title({address})",
         address => $"contacts_outage_title({address})",
         note => $"reason:{note}",
-        "use_outage_last_synced");
+        "use_outage_last_synced",
+        "use_outage_open_account",
+        "server_changed_review");
 
     private static string? AddressOf(string id) => id == "alice-id" ? "alice@example.org" : null;
 
@@ -25,6 +27,8 @@ public class UseOutageLinesTests
     [InlineData(nameof(UseProblem.NeedsOwnSignIn), nameof(AccountCapability.Contacts), "contacts_outage_title(alice@example.org) reason:OwnSignInContacts use_outage_last_synced")]
     [InlineData(nameof(UseProblem.SignInRefused), nameof(AccountCapability.Contacts), "contacts_outage_title(alice@example.org) reason:RefusedContacts use_outage_last_synced")]
     [InlineData(nameof(UseProblem.Unreachable), nameof(AccountCapability.Contacts), "contacts_outage_title(alice@example.org) reason:UnreachableContacts use_outage_last_synced")]
+    [InlineData(nameof(UseProblem.ServerChanged), nameof(AccountCapability.Calendar), "calendar_outage_title(alice@example.org) reason:ServerChangedCalendar use_outage_last_synced")]
+    [InlineData(nameof(UseProblem.ServerChanged), nameof(AccountCapability.Contacts), "contacts_outage_title(alice@example.org) reason:ServerChangedContacts use_outage_last_synced")]
     public void TheLineIsTheTitleThenTheAccountPagesReasonThenLastSynced(
         string problem, string use, string expected)
     {
@@ -50,6 +54,22 @@ public class UseOutageLinesTests
                 var text = UseOutageLines.Text(new UseOutage("alice-id", problem), use, "alice@example.org", Words);
                 Assert.Contains($"reason:{AccountSettingsRules.ProblemNote(use, problem)}", text);
             }
+        }
+    }
+
+    [Theory]
+    [InlineData(nameof(AccountCapability.Calendar))]
+    [InlineData(nameof(AccountCapability.Contacts))]
+    public void APausedServerChangeOffersItsReviewAndEveryOtherProblemTheAccountsPage(string use)
+    {
+        foreach (var problem in Enum.GetValues<UseProblem>())
+        {
+            var line = Assert.Single(UseOutageLines.Of(
+                [new UseOutage("alice-id", problem)], Enum.Parse<AccountCapability>(use), AddressOf, Words));
+            var paused = problem == UseProblem.ServerChanged;
+            Assert.Equal(paused, line.Reviews);
+            Assert.Equal(paused ? "server_changed_review" : "use_outage_open_account", line.Action);
+            Assert.Equal("alice-id", line.AccountId);
         }
     }
 
@@ -100,6 +120,9 @@ public class UseOutageLinesTests
 
         Assert.True(UseOutageLines.Same(first, same));
         Assert.False(UseOutageLines.Same(first, moved));
+        // Same account, a different action: the bar redraws so its button opens the right thing.
+        var paused = UseOutageLines.Of([new UseOutage("alice-id", UseProblem.ServerChanged)], AccountCapability.Calendar, AddressOf, Words);
+        Assert.False(UseOutageLines.Same(first, paused));
         Assert.False(UseOutageLines.Same(first, []));
     }
 

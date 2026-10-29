@@ -159,7 +159,7 @@ async fn an_offline_launch_over_an_unsynced_store_says_loading_not_empty() {
         !page.is_materialized,
         "a calendar nobody could read must read as loading, never as an empty week"
     );
-    assert!(page.grid.timed.is_empty());
+    assert_eq!(page.grid.timed, []);
 }
 
 /// The opposite lie, and it needs guarding just as much: an account with **no calendar provider**
@@ -173,8 +173,8 @@ async fn a_mail_only_account_gets_an_answer_rather_than_a_permanent_loading() {
     let mut account = calendar_account("acct", CalendarFake::with_events(Vec::new()));
     // Connected, and with nothing to connect a calendar to. The mail provider is what separates
     // this from a boot placeholder, which has no providers of any kind; see the test below.
-    account.providers = vec![CalendarFake::with_events(Vec::new())];
-    account.calendar_providers.clear();
+    account.providers = vec![CalendarFake::with_events(Vec::new())].into();
+    account.calendar_provider = None;
     let app = calendar_app(vec![account], &surfaces);
 
     app.refresh_calendar().await;
@@ -184,7 +184,7 @@ async fn a_mail_only_account_gets_an_answer_rather_than_a_permanent_loading() {
         page.is_materialized,
         "an account that can never have a calendar has an empty one, not an unknown one"
     );
-    assert!(page.grid.timed.is_empty());
+    assert_eq!(page.grid.timed, []);
 }
 
 /// A calendar that could not be reached beside a working mailbox has not reported "no calendar":
@@ -193,8 +193,8 @@ async fn a_mail_only_account_gets_an_answer_rather_than_a_permanent_loading() {
 async fn a_calendar_that_could_not_be_reached_beside_a_working_mailbox_claims_nothing() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut account = calendar_account("acct", CalendarFake::with_events(Vec::new()));
-    account.providers = vec![CalendarFake::with_events(Vec::new())];
-    account.calendar_providers.clear();
+    account.providers = vec![CalendarFake::with_events(Vec::new())].into();
+    account.calendar_provider = None;
     let id = account.id.clone();
     let app = calendar_app(vec![account], &surfaces);
     app.note_use_problems(
@@ -220,8 +220,8 @@ async fn a_calendar_that_could_not_be_reached_beside_a_working_mailbox_claims_no
 async fn a_calendar_that_needs_its_own_sign_in_does_not_hold_the_week_loading() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut account = calendar_account("acct", CalendarFake::with_events(Vec::new()));
-    account.providers = vec![CalendarFake::with_events(Vec::new())];
-    account.calendar_providers.clear();
+    account.providers = vec![CalendarFake::with_events(Vec::new())].into();
+    account.calendar_provider = None;
     let id = account.id.clone();
     let app = calendar_app(vec![account], &surfaces);
     app.note_use_problems(
@@ -372,7 +372,7 @@ async fn a_pass_that_connected_nothing_still_draws_the_stored_week() {
 async fn a_refresh_before_the_accounts_are_dialed_claims_nothing() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut placeholder = calendar_account("acct", CalendarFake::with_events(Vec::new()));
-    placeholder.calendar_providers.clear();
+    placeholder.calendar_provider = None;
     placeholder.dialled = false;
     assert!(placeholder.providers.is_empty(), "the shape boot returns");
     let app = calendar_app(vec![placeholder], &surfaces);
@@ -394,8 +394,8 @@ async fn a_refresh_before_the_accounts_are_dialed_claims_nothing() {
 async fn an_account_with_contacts_alone_does_not_hold_the_calendar_unread() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let mut contacts_only = calendar_account("acct", CalendarFake::with_events(Vec::new()));
-    contacts_only.calendar_providers.clear();
-    contacts_only.providers.clear();
+    contacts_only.calendar_provider = None;
+    contacts_only.providers = Vec::new().into();
     contacts_only.uses_mail = false;
     let app = calendar_app(vec![contacts_only], &surfaces);
 

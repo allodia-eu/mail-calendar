@@ -170,10 +170,16 @@ public sealed partial class MainWindow
             return;
         }
         e.Handled = true;
+        // Said either way: a drop that moved nothing leaves nothing else to tell a refusal from a
+        // drag that never arrived.
         if (!Takes(row))
         {
+            Log.Debug(FolderActions.Dragged is null
+                ? "drop: refused, no drag of ours was in hand"
+                : "drop: refused by the row it landed on");
             return;
         }
+        Log.Debug("drop: accepted");
         var account = row.AccountId ?? row.OwnerAccountId!;
         var targetKey = row.AccountId is null ? row.Tag : null;
         switch (FolderActions.Dragged)

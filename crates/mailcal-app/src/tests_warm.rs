@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use fakes::{FakeProvider, account, app, flat_previews, message, msg};
+use fakes::{FakeProvider, SourceFailure, account, app, flat_previews, message, msg};
 
 use super::{Intent, ReaderId};
 
@@ -429,4 +429,43 @@ async fn a_server_that_keeps_refusing_is_asked_a_bounded_number_of_times_per_pas
 
     // The first ask and one after each of the three pauses; then the pass ends.
     assert_eq!(fetches.load(Ordering::SeqCst), 4);
+}
+
+#[tokio::test]
+async fn a_body_the_server_can_never_give_back_is_asked_for_once_per_session() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider =
+        FakeProvider::new().with_source_failures(SourceFailure::Unavailable, ["m1".to_owned()]);
+    let fetches = provider.source_fetches();
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+
+    app.dispatch(Intent::RefreshMail).await;
+    let first = fetches.load(Ordering::SeqCst);
+    assert_eq!(first, 2, "the first pass asks for both bodies");
+    app.dispatch(Intent::RefreshMail).await;
+    assert_eq!(
+        fetches.load(Ordering::SeqCst),
+        first,
+        "a later pass does not ask again for the body the server said it can never give"
+    );
+}
+
+#[tokio::test]
+async fn a_permanent_refusal_that_is_not_about_the_message_is_asked_again_on_the_next_pass() {
+    // A mailbox that refuses this client, or a reply that cannot be read, is permanent too, but
+    // says nothing about the message: the pass after the cause is fixed must warm it.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider =
+        FakeProvider::new().with_source_failures(SourceFailure::Refused, ["m1".to_owned()]);
+    let fetches = provider.source_fetches();
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+
+    app.dispatch(Intent::RefreshMail).await;
+    assert_eq!(fetches.load(Ordering::SeqCst), 2);
+    app.dispatch(Intent::RefreshMail).await;
+    assert_eq!(
+        fetches.load(Ordering::SeqCst),
+        3,
+        "the refused body is asked for again"
+    );
 }

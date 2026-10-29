@@ -19,6 +19,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
+[Trait("Dataset", "harness")]
 public sealed class EventEditorFocusTests(HarnessApp harness)
 {
     // Seeded with notes holding an address (seed-calendar-week.sh), on alice's writable calendar.

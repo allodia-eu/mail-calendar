@@ -1,6 +1,6 @@
 ---
 name: verify-windows-ui
-description: Drive and ASSERT on the running WinUI (Windows) client from a script: find and read through UI Automation (clients/windows/uia.ps1), press through Microsoft's winapp CLI (winapp.ps1), read the composer's message body over DevTools (composer.ps1), and paste real Word and Excel clipboards (office-clipboard.ps1). Use when verifying that a Windows UI change actually works, not just that it compiles. Covers the traps that produce silent FALSE PASSES, and which dataset proves what.
+description: Drive and ASSERT on the running WinUI (Windows) client: add a case to the UI suites (clients/windows/Mailcal.UiTests, through the app's test agent), or explore by hand, finding and reading through UI Automation (clients/windows/uia.ps1), pressing through Microsoft's winapp CLI (winapp.ps1), reading the composer's message body over DevTools (composer.ps1) and pasting real Word and Excel clipboards (office-clipboard.ps1). Use when verifying that a Windows UI change actually works, not just that it compiles. Covers the traps that produce silent FALSE PASSES, and which dataset proves what.
 ---
 
 # verify-windows-ui: prove a Windows UI change actually works
@@ -8,7 +8,9 @@ description: Drive and ASSERT on the running WinUI (Windows) client from a scrip
 Windows-only (needs the built client and a desktop session). To *boot* a client, see **debug-app**;
 this skill is about **asserting** on it afterwards.
 
-Two instruments, one job each, and **neither is reimplemented in a script**:
+A rule goes in the UI suites, [`clients/windows/Mailcal.UiTests`](../../../clients/windows/Mailcal.UiTests)
+(§0.5). For a question you are asking once, two instruments, one job each, and **neither is
+reimplemented in a script**:
 
 - **Finding and reading** is UI Automation, in-process:
   [`clients/windows/uia.ps1`](../../../clients/windows/uia.ps1). Its header documents traps that a
@@ -18,8 +20,9 @@ Two instruments, one job each, and **neither is reimplemented in a script**:
   through [`clients/windows/winapp.ps1`](../../../clients/windows/winapp.ps1), which `uia.ps1`
   dot-sources. Every click, double-click, right-click, hover, drag, wheel and keystroke goes through
   it: it is DPI-aware and injects real pointer and keyboard input, so a press lands where it was
-  aimed at any scale, a flyout opens, a tooltip rises. A suite does not P/Invoke `mouse_event` or
-  call `SendKeys` of its own; the three places that still do say why, in place.
+  aimed at any scale, a flyout opens, a tooltip rises. A script does not P/Invoke `mouse_event` or
+  call `SendKeys` of its own. The suites in `Mailcal.UiTests` send their own input
+  (`Driver/Input.cs`).
 
 Reading does not move to `winapp` too, and `uia.ps1`'s header says why with the numbers: each
 `winapp` verb is a process of its own, a text selector is a substring match, and while a composer
@@ -29,45 +32,47 @@ is open `winapp`'s walk of the window never ends.
 
 ```powershell
 ./clients/windows/build-and-run.ps1 -NoRun     # build first; assertions run against the built exe
-winget install Microsoft.WinAppCLI             # 0.7 or later, once: every press goes through it
 scripts/dev/harness.sh up                      # only if you need a REAL transport (see §3)
+winget install Microsoft.WinAppCLI             # 0.7 or later, once, for pressing by hand
 ```
 
 ## 0.5. Before writing a one-off script, check whether it belongs in the suite
 
-There is a standing UI test suite, [`clients/windows/uitests/`](../../../clients/windows/uitests),
-run with `./clients/windows/uitests/run-ui-tests.ps1`. It is the same UIA primitives as below, with
-a runner that launches the dataset, reports pass/fail, and exits non-zero.
-
-Suites declaring the same dataset and the same `Env` values **share one launch**, so yours may not
-assume a fresh app, and may not read a top-level variable it did not define itself. Both rules, and
-what the runner does between suites to make them safe, are in that script's header: read it before
-adding a file.
+There is a standing set of UI suites, [`clients/windows/Mailcal.UiTests`](../../../clients/windows/Mailcal.UiTests),
+run with `./clients/windows/uitests/run-ui-tests.ps1` (or `dotnet test` on the project). They reach
+the app through its debug-only **test agent**, which walks the automation peers on the app's own UI
+thread, so a lookup costs milliseconds rather than a cross-process walk. Read the project's README
+before adding a case: it carries the agent's traps and the rules for writing one.
 
 **If what you are about to verify is a rule rather than a one-off question, add a case there
 instead.** A rule proven once by hand is a rule that regresses silently the next time; the whole
-reason the suite exists is that `Mailcal.Tests` cannot link anything WinUI-flavoured, so bindings,
+reason the suites exist is that `Mailcal.Tests` cannot link anything WinUI-flavoured, so bindings,
 projected properties and initial control state have no other machine watching them.
 
-A suite file declares its dataset and its cases and nothing else:
+A suite is a class in `Suites/` that declares its dataset as a trait and takes its launch as a
+fixture; [`UnreadEmphasisTests.cs`](../../../clients/windows/Mailcal.UiTests/Suites/UnreadEmphasisTests.cs)
+is a short one to copy:
 
-```powershell
-$Suite = @{
-  Dataset = 'showcase'          # or 'first-run'; a harness suite goes in Mailcal.UiTests (§3)
-  Env = @{ MAILCAL_… = '…' }    # optional; set before launch, removed after the suite
-  Cases = @(
-    @{ Name = 'what must be true'; Body = { Assert-Equal 600 (Get-RowTextWeight -Row $r -Text 'x') 'why' } }
-  )
+```csharp
+[Collection(ShowcaseCollection.Name)]
+[Trait("Dataset", "showcase")]
+public sealed class UnreadEmphasisTests(ShowcaseApp showcase)
+{
+    [OfflineFact]
+    public void AnUnreadMessageBoldsItsSubject() => showcase.Case(nameof(AnUnreadMessageBoldsItsSubject), app =>
+        Assert.Equal(SemiBold, Weight(app, Unread.Title, Unread.Title)));
 }
 ```
 
-**`Env` is how a suite reaches a `MAILCAL_*` switch**, and both halves of the runner's handling
-matter: the app reads them once at startup, so a `$env:` line inside a Body is already too late,
-and one set at a suite file's top level leaks into every suite that sorts after it (§5's
-`MAILCAL_SHOWCASE` trap, which reads as a passing test against the wrong dataset). A harness suite
-in [`Mailcal.UiTests`](../../../clients/windows/Mailcal.UiTests) does the same through its launch
-fixture, which is also how it picks a transport: `MAILCAL_DEV_ACCOUNT=stalwart-imap` for the CalDAV
-half.
+Suites sharing a fixture **share one launch**, so a case may not assume a fresh app: `Case` puts
+back what the shared reset knows about, and a case that leaves anything else passes a cleanup.
+
+**A launch fixture is how a suite reaches a `MAILCAL_*` switch.** The app reads them once at
+startup, so a fixture subclass sets them in its `Env` (`SyncProgressApp` in
+[`SyncProgressPlacementTests.cs`](../../../clients/windows/Mailcal.UiTests/Suites/SyncProgressPlacementTests.cs)),
+and the launch clears every staging switch it was not given, so none leaks into the next fixture
+(§5's `MAILCAL_SHOWCASE` trap, which reads as a passing test against the wrong dataset). A harness
+fixture picks its transport the same way: `MAILCAL_DEV_ACCOUNT=stalwart-imap` for the CalDAV half.
 
 **When the state you need is one the harness cannot produce, fake the *input*, never the surface.**
 [`InvitationReplyPromptTests.cs`](../../../clients/windows/Mailcal.UiTests/Suites/InvitationReplyPromptTests.cs) is the worked example: no server here ever reports a failed iTIP
@@ -142,7 +147,7 @@ because the core never removed it. Verify anything destructive against the **har
 ### The pointer and the keyboard: `winapp`, through `winapp.ps1`
 
 `Invoke-WinappClick` (with `-Right` or `-Double`), `Invoke-WinappHover`, `Invoke-WinappDrag`,
-`Invoke-WinappWheel` and `Send-WinappKeys` each take the element a suite already found and press it.
+`Invoke-WinappWheel` and `Send-WinappKeys` each take the element a script already found and press it.
 Each costs about 2 s, most of it `winapp` looking the element up again, so put presses where the test
 needs them, never in a polling loop. Three traps, each of which pressed the wrong thing or nothing at
 all; `winapp.ps1`'s header has the detail:
@@ -157,19 +162,16 @@ all; `winapp.ps1`'s header has the detail:
   through the editor's WebView2 (the WebView2 lists the window's own `InputSiteWindowClass` among its
   children) that UI Automation does not have. A lookup that finds its element returns in seconds; a
   search for every match, or for something absent, does not return at all. The bridge caps every
-  call and says so. Keystrokes need no lookup, so `Send-WinappKeys` types into a composer; a click
-  into the body uses `Invoke-ClicksAt` (`uitests/appwindows.ps1`).
+  call and says so. Keystrokes need no lookup, so `Send-WinappKeys` types into a composer.
 - **…and until the editor's browser window has gone, which can be after the composer has left the
-  screen.** So a suite closes a composer with `Close-Composer` (`uia.ps1`): Discard by id, the
-  question answered, and a wait on the editor's own window handle. It throws if anything is left. A
-  close that matches a label finds nothing when the label is not there, leaves the composer to the
-  runner, and the next suite's first lookup times out in a suite that never opened one. The runner
-  counts the window's WebView2 hosts between suites for the same reason (`dataset.ps1`), and says
-  what it found when it relaunches.
+  screen.** So close a composer with `Close-Composer` (`uia.ps1`): Discard by id, the question
+  answered, and a wait on the editor's own window handle. It throws if anything is left. A close
+  that matches a label finds nothing when the label is not there, and leaves the composer for the
+  next lookup to walk into.
 
-What still uses in-process input, and why: `Search.Tests` times the moment of one keystroke, which a
-`winapp` call cannot place inside its own process; `CalendarWheel.Tests` needs a horizontal wheel,
-which `winapp` does not have; touch is below.
+Touch is below. The suites in [`Mailcal.UiTests`](../../../clients/windows/Mailcal.UiTests) send
+their own input (`Driver/Input.cs`), among it a horizontal wheel `winapp` has no verb for and a
+keystroke timed to the moment it is sent, which a `winapp` process start would delay.
 
 For exploring by hand, `winapp ui` on its own is a good instrument: `inspect -i` for the interactive
 elements with their slugs, `search <text> --root <selector> --type <type>`, `get-property -p
@@ -290,14 +292,14 @@ published rectangle. (UIA's own `GetClickablePoint()` hit-tests onto the canvas 
   screenshot leaves it set. A later `control.ps1` relaunch then comes up on the in-memory seed while
   printing `account=stalwart`: the verb says harness, the window shows fiction, and nothing
   disagrees. Since the showcase engine doesn't really perform mail actions, a destructive-action test
-  there dispatches into a void and **passes**. `control.ps1` now clears it (2026-07-31, found when a
-  showcase suite first sorted ahead of a harness one); if you launch the exe yourself, clear it too.
+  there dispatches into a void and **passes**. `control.ps1` clears it, and so does the suites'
+  launch; if you launch the exe yourself, clear it too.
 - **A showcase *capture* is impossible on a 2880×1800 display at 200%.** The pinned 1440×900 logical
   frame is exactly the full screen, so inflating it by the resize border makes the window wider than
   the display, centring lands it at x=-13, and `screenshot.ps1` rightly refuses a shot whose left
-  column is off-screen black. That used to block the **whole** UI suite on such a host; the suite now
-  launches with `showcase.ps1 -NoCapture`, which keeps both showcase safety asserts and skips only
-  the shutter. Store screenshots still need a smaller frame or a different display.
+  column is off-screen black. The suites take no capture, and `showcase.ps1 -NoCapture` launches the
+  dataset by hand the same way: both showcase safety asserts, no shutter. Store screenshots still
+  need a smaller frame or a different display.
 - **Two build output trees.** `build-and-run.ps1` writes `bin\arm64\Debug\…`, while a bare
   `dotnet build -r win-arm64` writes `bin\Debug\…`. Scripts pick the **newest** `Mailcal.exe`, so a
   stray plain `dotnet build` silently becomes the thing under test. Build with `build-and-run.ps1`.
@@ -334,9 +336,9 @@ Three ways a Windows UI check reports success over a live defect. Each cost a da
   the mailbox because the app activated the mailbox tens of milliseconds after opening it, and the
   app usually had the front back before any screen read landed. A dozen cases asserting "the window
   is in front" passed throughout, on the machine where the fault reproduced every time. **Assert the
-  cause, not the symptom**: make the app say what it did at DEBUG level, give the suite
-  `Env = @{ ALLODIA_LOG_LEVEL = 'debug' }`, and read `app.log` through `applog.ps1`. A log line is
-  timestamped and cannot be missed by sampling. The rule that holds is not "the window is in front"
+  cause, not the symptom**: make the app say what it did at DEBUG level, launch the suite with
+  `ALLODIA_LOG_LEVEL=debug` (`DebugLogHarnessApp`), and read `app.log` through `Driver/AppLog.cs`.
+  A log line is timestamped and cannot be missed by sampling. The rule that holds is not "the window is in front"
   but "the mailbox takes no activation of its own after a window opens", stated of the activation
   because that is the thing with a cause; the foreground is only where it shows.
 - **A fixture chosen to make one assertion easy can be the one case that does not reproduce.** The
@@ -346,9 +348,9 @@ Three ways a Windows UI check reports success over a live defect. Each cost a da
   safe. The case that reads the log now uses an ordinary message for exactly that reason. When
   picking a fixture, ask which one is closest to the risky path, not which one is easiest to assert
   on.
-- **The driver is part of the measurement, and it raises the main window.** `Invoke-RowClicks`
-  calls `Show-Mailbox` first, and `Close-ExtraWindows` activates the mailbox by closing what was in
-  front of it, so a loop that opens a window every 1.5s stamps an activation into the log on a
+- **The driver is part of the measurement, and it raises the main window.** Every real press brings
+  its element's window to the front first (`Input.BringToFront`), and `App.CloseExtraWindows`
+  activates the mailbox by closing what was in front of it, so a loop that opens a window every 1.5s stamps an activation into the log on a
   cadence that reads exactly like a fault with a fixed delay. Twelve opens in a row "reproduced" a
   steal at 1.47s that way, and the app had logged nothing at all between 0.03s and 1.46s, which is
   what gave it away. Keep the driver out of the observation window: settle well past what you

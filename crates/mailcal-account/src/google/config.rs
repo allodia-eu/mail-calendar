@@ -90,7 +90,7 @@ impl GoogleConfig {
     #[must_use]
     pub fn capabilities(&self) -> crate::Capabilities {
         crate::affiliation::within(
-            &self.shape.capabilities_or(crate::Capability::ALL),
+            &self.shape.capabilities_or(crate::Capability::LEGACY),
             &self.offered(),
         )
     }
@@ -99,7 +99,7 @@ impl GoogleConfig {
     /// Workspace directory.
     #[must_use]
     pub fn offered(&self) -> crate::Capabilities {
-        crate::affiliation::offered(self.affiliation.as_ref())
+        crate::affiliation::offered(self.affiliation.as_ref(), false)
     }
 
     /// Whether the grant can ask who the account belongs to: `userinfo` answers to
@@ -251,6 +251,7 @@ pub async fn fetch_google_primary_address(
     };
     let http = tls_with(&[])?
         .reqwest_builder()
+        .user_agent(mailcal_user_agent::HEADER)
         .build()
         .map_err(|err| AccountError::Google(format!("profile lookup client: {err}")))?;
     let resp = http

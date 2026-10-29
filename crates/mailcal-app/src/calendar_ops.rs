@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use engine_api::{AccountId, Event, LocalDateTime, Provider, ProviderKey};
+use engine_api::{AccountId, Event, Provider, ProviderKey};
 use mailcal_viewmodel::calendar::{self, AccountEvent};
 
 use crate::{
@@ -84,6 +84,8 @@ impl<P: Provider> App<P> {
         let mut events = Vec::new();
         for account in self.account_handles().await {
             let can_write = Self::account_can_write(&account);
+            let read_only =
+                read_only_calendars(&self.engine.calendars(&account.id).await.unwrap_or_default());
             let account_id = account.id.as_str().to_owned();
             let keys = wanted.get(&account_id).map_or(&[][..], Vec::as_slice);
             // The account's own addresses, so an unanswered hold reads as one in the agenda too.
@@ -99,8 +101,8 @@ impl<P: Provider> App<P> {
                     .map(|event| AccountEvent {
                         account: account_id.clone(),
                         participation: crate::invitations::diary_participation(&event, &addresses),
+                        can_write: can_write && !on_read_only_calendars(&event, &read_only),
                         event,
-                        can_write,
                     }),
             );
         }
@@ -149,11 +151,12 @@ impl<P: Provider> App<P> {
     /// `account`/`calendar` are the client's picker choice: the owning account id and the
     /// calendar's row key (`CalendarRow.id`). The event lands in that calendar when the account
     /// can write; otherwise it falls back to the default writable account
-    /// ([`Self::create_account`]) and its first calendar, and to that account's chosen calendar
-    /// if the passed key is unknown there. `all_day` selects the event form; `timezone` (when set)
-    /// creates a timed event in that zone rather than UTC; `notes` its description; `location` its
-    /// place; `recurrence` makes it repeat. Settles as not saved, sending nothing, when no
-    /// connected account can write, the account has no calendar, or the fields are invalid.
+    /// ([`Self::create_account`]) and the calendar new events take there
+    /// ([`Self::calendar_for_new_events`]), which is also where a key unknown there lands.
+    /// `all_day` selects the event form; `timezone` (when set) creates a timed event in that
+    /// zone rather than UTC; `notes` its description; `location` its place; `recurrence` makes
+    /// it repeat. Settles as not saved, sending nothing, when no connected account can write,
+    /// the account has no calendar, or the fields are invalid.
     // A flat pass-through of `EventIntent::Create`'s fields; each a distinct scalar from the
     // create form. A parameter struct would only re-wrap the same values `dispatch` just
     // destructured, so it stays flat.
@@ -179,11 +182,11 @@ impl<P: Provider> App<P> {
         };
         let calendars = self.engine.calendars(&account).await.unwrap_or_default();
         // The chosen calendar, matched by the row key the picker sends (`CalendarRow.id` is a
-        // calendar's `key()`), else the account's first calendar.
+        // calendar's `key()`), else the one new events take on this account.
         let Some(calendar) = calendar
             .as_deref()
             .and_then(|key| calendars.iter().find(|c| c.id.key().as_str() == key))
-            .or_else(|| calendars.first())
+            .or_else(|| self.calendar_for_new_events(&account, &calendars))
         else {
             self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return;
@@ -222,7 +225,7 @@ impl<P: Provider> App<P> {
         // Clone the account handle, then write with the read guard released.
         let mut status = None;
         if let Some(acct) = self.account_handle(&account).await
-            && let Some(provider) = acct.calendar_providers.first()
+            && let Some(provider) = acct.calendar_provider.as_ref()
         {
             self.set_calendar_write_status(CalendarWriteStatus::Saving);
             let write = self
@@ -231,8 +234,13 @@ impl<P: Provider> App<P> {
                 .await;
             status = Some(match write {
                 Ok(write) => {
-                    self.settle_calendar_write(provider, &account, write.reconciled)
-                        .await
+                    self.settle_calendar_write(
+                        provider,
+                        &account,
+                        std::slice::from_ref(&draft.calendar),
+                        write.reconciled,
+                    )
+                    .await
                 }
                 Err(err) => {
                     log::warn!(
@@ -307,7 +315,7 @@ impl<P: Provider> App<P> {
                 event.account.as_str()
             ));
         };
-        let Some(provider) = acct.calendar_providers.first() else {
+        let Some(provider) = acct.calendar_provider.as_ref() else {
             self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return Err("the calendar is not connected".to_owned());
         };
@@ -329,91 +337,16 @@ impl<P: Provider> App<P> {
             })?;
 
         let status = self
-            .settle_calendar_write(provider, &event.account, write.reconciled)
+            .settle_calendar_write(
+                provider,
+                &event.account,
+                &crate::calendar_status::calendars_of(&stored),
+                write.reconciled,
+            )
             .await;
         self.rebuild_calendar_view().await;
         self.set_calendar_write_status(status);
         Ok(())
-    }
-
-    /// Deletes the calendar `event` from its owning account via the engine's outbox (awaited
-    /// inline; there is no background drainer yet), then rebuilds the agenda from the store.
-    /// Routing by the reference's account is the fix:
-    /// event keys are only unique within an account, so two accounts can mint the same key.
-    ///
-    /// `occurrence` names the single instance to remove, by its **original** start; `None`
-    /// deletes the whole series.
-    pub(super) async fn delete_event(&self, event: EventRef, occurrence: Option<LocalDateTime>) {
-        let Some(stored) = self.stored_event(&event).await else {
-            return;
-        };
-        if let Some(named) = occurrence
-            && !self.names_a_stored_occurrence(&event, &stored, named).await
-        {
-            // Refused rather than widened. A delete that could not find the occurrence and
-            // removed the series instead is the one outcome nobody can undo.
-            log::warn!(
-                "delete_calendar_event: no such occurrence for {}",
-                event.account.as_str()
-            );
-            self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
-            return;
-        }
-        let built = now_utc().and_then(|stamp| {
-            mailcal_account::build_event_deletion(&stored, occurrence, stamp)
-                .map_err(|err| err.to_string())
-        });
-        let deletion = match built {
-            Ok(deletion) => deletion,
-            Err(err) => {
-                // Unlike the whole-series delete this cannot simply fall through: the user
-                // asked for one occurrence to go, and returning quietly would leave it on
-                // the grid with nothing anywhere saying the delete never happened.
-                log::warn!(
-                    "delete_calendar_event: the delete was not built for {}: {err}",
-                    event.account.as_str()
-                );
-                self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
-                return;
-            }
-        };
-        // Clone the account handle, then delete with the read guard released.
-        let mut status = None;
-        if let Some(acct) = self.account_handle(&event.account).await
-            && let Some(provider) = acct.calendar_providers.first()
-        {
-            self.set_calendar_write_status(CalendarWriteStatus::Saving);
-            let delete = self
-                .engine
-                .delete_calendar_event(
-                    provider,
-                    &event.account,
-                    &generated_idempotency(),
-                    // The stored event, because removing **one occurrence** of a series is an
-                    // edit of the stored document on CalDAV: the adapter rewrites those bytes
-                    // and needs them. Passed for a whole-event delete too; a transport that
-                    // deletes an object outright ignores it.
-                    Some(&stored),
-                    &deletion,
-                )
-                .await;
-            status = Some(match delete {
-                Ok(delete) => {
-                    self.settle_calendar_write(provider, &event.account, delete.reconciled)
-                        .await
-                }
-                Err(err) => {
-                    log::warn!(
-                        "delete_calendar_event failed for {}: {err}",
-                        event.account.as_str()
-                    );
-                    crate::connectivity::calendar_status(&err)
-                }
-            });
-        }
-        self.rebuild_calendar_view().await;
-        // No adapter took the write: the calendar is not connected, and nothing was sent.
-        self.set_calendar_write_status(status.unwrap_or(CalendarWriteStatus::NotSaved));
     }
 
     /// Looks up the stored [`Event`] an [`EventRef`] names in its owning account. Shared with
@@ -437,7 +370,7 @@ impl<P: Provider> App<P> {
     /// stamps `can_write` onto every row the account contributes. Shared with the
     /// event-detail read ([`crate::calendar_detail`]).
     pub(crate) fn account_can_write(account: &Account<P>) -> bool {
-        account.calendar_providers.first().is_some_and(|provider| {
+        account.calendar_provider.as_ref().is_some_and(|provider| {
             provider
                 .connection_info()
                 .capabilities
@@ -446,53 +379,70 @@ impl<P: Provider> App<P> {
         })
     }
 
-    /// The account a new event is created in: the selected account when its calendar can be
-    /// written, else the first account whose calendar can: the same `can_write` rule a
-    /// client disables its create affordance on, so an enabled "New event" and the routed
-    /// write cannot disagree. `None` (the create is a no-op) when no account can write.
-    async fn calendar_account(&self) -> Option<AccountId> {
+    /// The accounts a new event can go to, in account order: those whose provider writes and
+    /// which list at least one calendar they may write. That is exactly the accounts with a
+    /// `can_write` calendar row, which is what a client enables its create affordance on, so an
+    /// enabled "New event" and the routed write cannot disagree.
+    async fn accounts_taking_new_events(&self) -> Vec<AccountId> {
+        let writers: Vec<AccountId> = self
+            .accounts
+            .read()
+            .await
+            .iter()
+            .filter(|account| Self::account_can_write(account))
+            .map(|account| account.id.clone())
+            .collect();
+        let mut taking = Vec::new();
+        for account in writers {
+            let calendars = self.engine.calendars(&account).await.unwrap_or_default();
+            if calendars.iter().any(|calendar| calendar.access.may_write) {
+                taking.push(account);
+            }
+        }
+        taking
+    }
+
+    /// The account a create is routed to: the client's explicit picker choice, else the
+    /// selected account, else the first account, among those that can take a new event
+    /// ([`Self::accounts_taking_new_events`]). A choice that has since lost its last writable
+    /// calendar still lands somewhere writable rather than failing. `None` (the create is a
+    /// no-op) when no account can take one.
+    async fn create_account(&self, chosen: Option<String>) -> Option<AccountId> {
+        let taking = self.accounts_taking_new_events().await;
         let selected = self
             .scope
             .lock()
             .expect("scope mutex poisoned")
             .account()
             .cloned();
-        let accounts = self.accounts.read().await;
-        if let Some(selected) = selected
-            && accounts
-                .iter()
-                .any(|a| a.id == selected && Self::account_can_write(a))
-        {
-            return Some(selected);
-        }
-        accounts
-            .iter()
-            .find(|a| Self::account_can_write(a))
-            .map(|a| a.id.clone())
+        let preferred = chosen
+            .and_then(|chosen| taking.iter().find(|a| a.as_str() == chosen).cloned())
+            .or_else(|| selected.filter(|selected| taking.contains(selected)));
+        preferred.or_else(|| taking.into_iter().next())
     }
+}
 
-    /// The account a create is routed to: the client's explicit picker choice when it is a
-    /// configured, **writable** account, else the default ([`Self::calendar_account`]). Keeping
-    /// the fallback on the same `can_write` rule means an enabled "New event" and the routed
-    /// write cannot disagree: a picker choice that has since gone read-only still lands
-    /// somewhere writable rather than failing. `None` when no account can write.
-    async fn create_account(&self, chosen: Option<String>) -> Option<AccountId> {
-        if let Some(chosen) = chosen {
-            let writable = self
-                .accounts
-                .read()
-                .await
-                .iter()
-                .find(|a| a.id.as_str() == chosen && Self::account_can_write(a))
-                .map(|a| a.id.clone());
-            if writable.is_some() {
-                return writable;
-            }
-        }
-        self.calendar_account().await
-    }
+/// The keys of the calendars among `calendars` that may not be written to: a share granted
+/// read-only, a subscribed feed. [`App::account_can_write`] answers for the provider; a calendar
+/// narrows that for itself.
+pub(crate) fn read_only_calendars(calendars: &[engine_api::Calendar]) -> HashSet<String> {
+    calendars
+        .iter()
+        .filter(|calendar| !calendar.access.may_write)
+        .map(|calendar| calendar.id.key().as_str().to_owned())
+        .collect()
+}
+
+/// Whether every calendar `event` is on is one of `read_only`.
+pub(crate) fn on_read_only_calendars(event: &Event, read_only: &HashSet<String>) -> bool {
+    let mut on = event.calendars.iter().peekable();
+    on.peek().is_some() && on.all(|id| read_only.contains(id.key().as_str()))
 }
 
 /// Where a meeting may be organised, and as whom: the create and the roster edit above both ask.
 #[path = "calendar_meeting.rs"]
 mod meeting;
+
+/// Deleting an event or one occurrence of it.
+#[path = "calendar_delete.rs"]
+mod delete;

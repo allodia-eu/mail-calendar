@@ -171,7 +171,7 @@ pub(in crate::ui) struct Rect {
 }
 
 /// An opaque colour, as the core's `#rrggbb` swatches resolve to.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::ui) struct Rgb {
     pub(in crate::ui) red: f64,
     pub(in crate::ui) green: f64,

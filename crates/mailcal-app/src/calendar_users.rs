@@ -21,7 +21,7 @@ impl<P: Provider> App<P> {
             )
         };
         let handle = self.account_handle(id).await?;
-        let provider = handle.calendar_providers.first()?;
+        let provider = handle.calendar_provider.as_ref()?;
         if let Some(known) = known {
             return Some(known);
         }

@@ -96,7 +96,7 @@ fn changing_the_frequency_drops_the_parts_that_belonged_to_the_old_one() {
     draft.frequency = RecurrenceFrequency::Weekly;
     let rebuilt = rule_from_draft(&draft);
 
-    assert!(rebuilt.month_days.is_empty());
+    assert_eq!(rebuilt.month_days, [] as [i32; 0]);
     assert_eq!(rebuilt.days, vec![on(RecurrenceWeekday::Tuesday, None)]);
 }
 

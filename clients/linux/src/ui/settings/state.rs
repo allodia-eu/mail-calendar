@@ -57,6 +57,8 @@ pub(in crate::ui) struct SettingsState {
     pub(in crate::ui) account: Option<String>,
     /// What the account page's Sign-in section knows, for the same reason.
     pub(in crate::ui) sign_in: crate::ui::account_sign_in::SignInSwitchState,
+    /// What each account's server said of its shared mailboxes, for the same reason.
+    pub(in crate::ui) shared: crate::ui::account_shared::SharedState,
     /// The form for a sign-in of its own that an account's page opened, while it is open.
     pub(in crate::ui) separate: Option<crate::ui::separate_sign_in::SeparateForm>,
     /// How many such forms have been opened, so each is told from the one before it.
@@ -82,6 +84,7 @@ impl Default for SettingsState {
             allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
             account: None,
             sign_in: crate::ui::account_sign_in::SignInSwitchState::default(),
+            shared: crate::ui::account_shared::SharedState::default(),
             separate: None,
             separate_forms: 0,
             notice: None,
@@ -221,6 +224,7 @@ impl SettingsState {
             allodia_accounts_synced: accounts_synced,
             account: self.account.as_deref(),
             sign_in: &self.sign_in,
+            shared: &self.shared,
             separate: self.separate.as_ref(),
             notice: self.notice.as_ref(),
             redraw: self.redraw,

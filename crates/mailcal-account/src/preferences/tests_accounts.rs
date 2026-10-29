@@ -141,9 +141,9 @@ fn alias_writes_drop_blanks_and_case_insensitive_duplicates() {
 
     // An account nobody configured has no aliases, and clearing the list drops the row rather
     // than persisting an empty one.
-    assert!(prefs.aliases_of("other").is_empty());
+    assert_eq!(prefs.aliases_of("other"), [] as [String; 0]);
     prefs.set_account_aliases("acct", vec![String::new()]);
-    assert!(prefs.aliases_of("acct").is_empty());
+    assert_eq!(prefs.aliases_of("acct"), [] as [String; 0]);
     assert!(
         !prefs.account_aliases.contains_key("acct"),
         "an empty list must not leave a row behind"
@@ -158,6 +158,6 @@ fn removing_an_account_drops_its_aliases() {
     let mut prefs = Preferences::default();
     prefs.set_account_aliases("me@x.test", vec!["info@x.test".to_owned()]);
     assert!(prefs.remove_account_aliases("me@x.test"));
-    assert!(prefs.aliases_of("me@x.test").is_empty());
+    assert_eq!(prefs.aliases_of("me@x.test"), [] as [String; 0]);
     assert!(!prefs.remove_account_aliases("me@x.test"));
 }

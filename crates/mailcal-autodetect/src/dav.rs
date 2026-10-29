@@ -175,7 +175,7 @@ async fn probe_srv(
 /// Fetches one bootstrap URL; a DAV signal returns the endpoint (after any redirects the
 /// fetcher followed).
 async fn probe_url(fetcher: &dyn Fetch, url: &url::Url, config: &DetectConfig) -> Option<String> {
-    match tokio::time::timeout(config.http_timeout, fetcher.get(url)).await {
+    match tokio::time::timeout(config.http_timeout, fetcher.propfind(url)).await {
         Ok(FetchOutcome::Response(response)) if is_dav(&response) => {
             Some(response.final_url.to_string())
         }

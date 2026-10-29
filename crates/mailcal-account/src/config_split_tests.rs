@@ -44,11 +44,7 @@ fn uses(account: &AccountConfig) -> Vec<Capability> {
 
 #[test]
 fn a_password_reaches_whatever_takes_it() {
-    assert!(
-        password_account()
-            .uses_its_grant_does_not_reach()
-            .is_empty()
-    );
+    assert_eq!(password_account().uses_its_grant_does_not_reach(), []);
 }
 
 #[test]
@@ -126,7 +122,7 @@ fn the_mailbox_keeps_mail_and_links_to_where_the_rest_went() {
     assert_eq!(uses(&mailbox), [Capability::Mail]);
     assert_eq!(mailbox.shape.links.calendar.as_ref(), Some(&moved_to));
     assert_eq!(mailbox.shape.links.contacts.as_ref(), Some(&moved_to));
-    assert!(mailbox.uses_its_grant_does_not_reach().is_empty());
+    assert_eq!(mailbox.uses_its_grant_does_not_reach(), []);
 }
 
 #[test]
@@ -184,7 +180,7 @@ fn a_calendar_account_signed_in_at_its_own_provider_keeps_no_password() {
 
     assert!(calendar.is_oauth());
     assert!(calendar.caldav.as_ref().unwrap().password.is_none());
-    assert!(calendar.uses_its_grant_does_not_reach().is_empty());
+    assert_eq!(calendar.uses_its_grant_does_not_reach(), []);
     assert_eq!(
         uses(&calendar),
         [Capability::Calendar, Capability::Contacts]

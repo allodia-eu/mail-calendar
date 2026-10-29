@@ -65,11 +65,11 @@ function Invoke-Relaunch([string] $Hook, [string] $HookValue = '1') {
   # says harness, the window shows fiction, and nothing anywhere disagrees. That is the dataset rule
   # (uia.ps1 header, verify-windows-ui §3) failing silently, and it is worse than a wrong answer,
   # because the showcase engine does not really perform mail actions: a destructive-action test would
-  # dispatch into a void and pass. Found when a showcase suite first sorted ahead of a harness one in
-  # uitests/ (2026-07-31); the mirror of showcase.ps1 clearing MAILCAL_DEV_ACCOUNT for the same reason.
+  # dispatch into a void and pass. The mirror of showcase.ps1 clearing MAILCAL_DEV_ACCOUNT for the
+  # same reason.
   #
   # MAILCAL_APPEARANCE is deliberately NOT in the list: it decides only which colours the window is
-  # painted in, so carrying it across verbs is what lets a whole suite be driven in dark mode.
+  # painted in, so carrying it across verbs is what lets a whole session be driven in dark mode.
   foreach ($v in 'MAILCAL_OPEN_FIRST', 'MAILCAL_CALENDAR', 'MAILCAL_SWIPE',
     'MAILCAL_SHOWCASE', 'MAILCAL_SHOWCASE_SCREEN') {
     Remove-Item "env:$v" -ErrorAction SilentlyContinue

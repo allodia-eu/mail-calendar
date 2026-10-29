@@ -44,6 +44,35 @@ pub(super) fn show_due(
     }
 }
 
+/// [`show_due`] for a window presented in the same turn: waits for its first frame. GTK draws a
+/// toplevel only once the compositor has configured it, so a dialog presented straight away maps
+/// first, and a compositor that stacks windows in the order they map (sway does) leaves it under
+/// the window it is about, with that window holding the keyboard.
+pub(super) fn show_due_once_drawn(
+    window: &gtk::Window,
+    toasts: &adw::ToastOverlay,
+    raised: Option<&Raised>,
+    shown: &mut u64,
+) {
+    let Some(raised) = due(raised, *shown) else {
+        return;
+    };
+    *shown = raised.id;
+    let Some(clock) = window.frame_clock() else {
+        show(window, toasts, &raised.notice);
+        return;
+    };
+    let (window, toasts, notice) = (window.clone(), toasts.clone(), raised.notice.clone());
+    let handler = std::rc::Rc::new(std::cell::Cell::new(None));
+    let first = handler.clone();
+    handler.set(Some(clock.connect_after_paint(move |clock| {
+        if let Some(id) = first.take() {
+            clock.disconnect(id);
+            show(&window, &toasts, &notice);
+        }
+    })));
+}
+
 /// Shows `notice` over `window`.
 pub(super) fn show(window: &gtk::Window, toasts: &adw::ToastOverlay, notice: &Notice) {
     match notice {

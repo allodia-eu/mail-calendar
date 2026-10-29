@@ -12,6 +12,9 @@ use crate::{App, Intent, Surface};
 #[path = "tests_fakes.rs"]
 mod fakes;
 
+#[path = "tests_calendar_colors.rs"]
+mod colors;
+
 /// Today's date, in UTC: the anchor the fixtures are built around.
 fn today() -> engine_api::CalendarDate {
     date_at(
@@ -132,7 +135,7 @@ async fn a_page_beyond_the_horizon_is_unknown_rather_than_confidently_empty() {
     // Three years out is far past the rolling horizon.
     let far = date_at(day_number(today()) + 3 * 365);
     let page = app.calendar_range(app.week_start_date(far), 7);
-    assert!(page.grid.timed.is_empty());
+    assert_eq!(page.grid.timed, []);
     assert!(
         !page.is_materialized,
         "the engine has not expanded this far, so the page is unknown: not empty"
@@ -142,7 +145,7 @@ async fn a_page_beyond_the_horizon_is_unknown_rather_than_confidently_empty() {
     // states are genuinely distinguishable.
     let next_week = date_at(day_number(today()) + 7);
     let page = app.calendar_range(app.week_start_date(next_week), 7);
-    assert!(page.grid.timed.is_empty());
+    assert_eq!(page.grid.timed, []);
     assert!(page.is_materialized);
 }
 
@@ -155,8 +158,8 @@ async fn before_the_first_sync_nothing_is_materialized() {
 
     let page = app.calendar_range(app.week_start_date(today()), 7);
     assert!(!page.is_materialized);
-    assert!(page.grid.timed.is_empty());
-    assert!(page.calendars.is_empty());
+    assert_eq!(page.grid.timed, []);
+    assert_eq!(page.calendars, []);
 }
 
 /// The view picks the columns, and the same cache serves all of them; day, three-day,
@@ -334,7 +337,7 @@ async fn priming_a_never_synced_store_says_loading_rather_than_confidently_empty
         !page.is_materialized,
         "an unsynced store must read as loading, never as an empty week"
     );
-    assert!(page.grid.timed.is_empty());
+    assert_eq!(page.grid.timed, []);
 }
 
 /// A refresh that changed nothing must not tell the host anything changed.

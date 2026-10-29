@@ -233,7 +233,7 @@ fn threaded_hides_conversations_with_no_in_scope_member() {
         ViewMode::Threaded,
         ALL,
     );
-    assert!(snapshot.rows.is_empty());
+    assert_eq!(snapshot.rows, []);
     assert_eq!(snapshot.total, 0);
 }
 

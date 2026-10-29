@@ -125,5 +125,5 @@ fn the_cheaper_rate_and_the_cheaper_shop_come_first() {
 fn ordering_keeps_every_offer_it_was_given() {
     let drawn = ordered(vec![offer(Plan::Monthly, Store::Google)]);
     assert_eq!(drawn.len(), 1);
-    assert!(ordered(Vec::new()).is_empty());
+    assert_eq!(ordered(Vec::new()), []);
 }

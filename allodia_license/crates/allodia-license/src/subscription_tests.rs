@@ -63,8 +63,8 @@ fn a_free_account_reads_as_free_and_may_start_a_checkout() {
     assert!(!subscription.entitled);
     assert_eq!(subscription.plan, "free");
     assert!(subscription.own.is_none());
-    assert!(subscription.stores.is_empty());
-    assert!(subscription.duplicate_billing.is_empty());
+    assert_eq!(subscription.stores, []);
+    assert_eq!(subscription.duplicate_billing, []);
     assert!(subscription.actions.can_start_checkout);
     assert!(!subscription.actions.can_cancel);
 }

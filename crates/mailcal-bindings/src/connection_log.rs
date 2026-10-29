@@ -28,7 +28,7 @@ pub(crate) fn log_account_connection_info(
         account_type,
         "calendar",
         account
-            .calendar_providers
+            .calendar_provider
             .iter()
             .map(|provider| provider.connection_info()),
     ) + log_provider_infos(

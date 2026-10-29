@@ -72,7 +72,7 @@ pub(super) use invitation::{
     RecordedPuts, RecordedRsvps as InvitationRsvps, RecordedSends, invitation_app,
     invitation_app_with_prefs, linked_invitation_app, shared_calendar_app,
 };
-pub(super) use provider::{EditGate, FakeProvider};
+pub(super) use provider::{EditGate, FakeProvider, SourceFailure};
 
 /// Records the surfaces the app signals, so the test can assert the loop fired.
 struct RecordingObserver {
@@ -95,8 +95,8 @@ pub(super) fn account(id: &str, provider: FakeProvider) -> Account<FakeProvider>
 pub(super) fn account_with(id: &str, providers: Vec<FakeProvider>) -> Account<FakeProvider> {
     Account {
         id: AccountId::try_from(id).unwrap(),
-        providers,
-        calendar_providers: Vec::new(),
+        providers: providers.into(),
+        calendar_provider: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new(format!("me@{id}.local")),
         dialled: true,

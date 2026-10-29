@@ -273,6 +273,12 @@ impl MailcalApp {
         // Nothing is re-inserted here: the registered entry already carries the live token source,
         // including any rotation the dial reported into it.
         registered.commit();
+        // Only once committed: an account that was not added keeps no principal for the next
+        // one set up under its id.
+        self.registry
+            .learn_dav_starts(account_id.as_str(), &outcome.learned);
+        self.registry
+            .note_dav_dialled(account_id.as_str(), std::time::Instant::now());
         self.app
             .note_use_problems(&account.id, outcome.use_problems);
         // Connected *and* stored: this account will still be here at the next launch, which is
@@ -335,6 +341,10 @@ impl MailcalApp {
         // removal the person has already made is not undone by a service that did not answer.
         #[cfg(feature = "allodia-license")]
         self.forget_allodia_record(&id);
+        // Its shared mailboxes go with it: they are opened by its sign-in.
+        for (child, _) in self.registry.shared_mailboxes(&id) {
+            self.drop_shared_mailbox(&child);
+        }
         self.registry.remove(&id);
         self.clear_links_to(&id);
         self.refresh_analytics_accounts();

@@ -151,5 +151,101 @@ fn new_accounts_abandons_interrupted_sync_leases_on_boot() {
     let _ = fs::remove_dir_all(data_dir);
 }
 
+/// Keeps every config the core stores, as a host's keychain would.
+struct RecordingCredentialStore(std::sync::Arc<Mutex<Vec<String>>>);
+
+impl crate::AccountCredentialStore for RecordingCredentialStore {
+    fn persist(
+        &self,
+        _account_id: String,
+        config_toml: String,
+    ) -> Result<(), crate::CredentialStoreError> {
+        self.0
+            .lock()
+            .expect("stored mutex poisoned")
+            .push(config_toml);
+        Ok(())
+    }
+
+    fn delete(&self, _account_id: String) -> Result<(), crate::CredentialStoreError> {
+        Ok(())
+    }
+}
+
+fn boot(
+    data_dir: &std::path::Path,
+    configs: Vec<String>,
+    stored: &std::sync::Arc<Mutex<Vec<String>>>,
+) -> std::sync::Arc<MailcalApp> {
+    MailcalApp::new_accounts(
+        Box::new(NoopObserver),
+        Box::new(NullLogger),
+        LogLevel::Info,
+        configs,
+        data_dir.to_string_lossy().into_owned(),
+        "Etc/UTC".to_owned(),
+        crate::analytics::test_device(),
+        Box::new(RecordingCredentialStore(std::sync::Arc::clone(stored))),
+    )
+    .expect("boot")
+}
+
+/// Nothing listens on the discard port, so every dial fails and nothing leaves the machine.
+const ALICE: &str =
+    "[jmap]\nemail = \"alice@example.org\"\nbase_url = \"http://127.0.0.1:9\"\npassword = \"pw\"\n";
+
+#[test]
+fn a_stored_shared_mailbox_is_listed_once_under_its_own_id_after_a_relaunch() {
+    let data_dir = temp_data_dir("shared-relaunch");
+    fs::create_dir_all(&data_dir).expect("create temp data dir");
+    let stored = std::sync::Arc::default();
+    let app = boot(&data_dir, vec![ALICE.to_owned()], &stored);
+    let parent = app.accounts_snapshot().accounts[0].id.clone();
+    app.set_shared_mailbox(
+        parent.clone(),
+        crate::SharedMailboxEntry {
+            handle: "support".to_owned(),
+            name: "Support".to_owned(),
+            address: Some("support@example.org".to_owned()),
+            selected: false,
+            listed: true,
+        },
+        true,
+    )
+    .expect("chosen");
+    let persisted = stored
+        .lock()
+        .expect("stored mutex poisoned")
+        .last()
+        .cloned()
+        .expect("the choice is stored with the account");
+    drop(app);
+
+    let expected = [
+        (parent.clone(), "alice@example.org".to_owned()),
+        (
+            format!("{parent}#shared:support"),
+            "support@example.org".to_owned(),
+        ),
+    ];
+    // As stored, and as a dev launch hands it in: its canned account beside the copy stored for it.
+    for configs in [vec![persisted.clone()], vec![ALICE.to_owned(), persisted]] {
+        let app = boot(&data_dir, configs, &stored);
+        let rows: Vec<(String, String)> = app
+            .sync_settings()
+            .accounts
+            .into_iter()
+            .map(|row| (row.account_id, row.email))
+            .collect();
+        assert_eq!(rows, expected);
+        assert_eq!(
+            app.accounts_snapshot().accounts.len(),
+            1,
+            "alice, listed once"
+        );
+    }
+    let _ = fs::remove_dir_all(data_dir);
+}
+
 #[path = "tests_boot_outbox.rs"]
 mod outbox;

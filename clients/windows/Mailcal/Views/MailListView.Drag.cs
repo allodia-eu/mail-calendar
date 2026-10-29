@@ -23,6 +23,7 @@ public sealed partial class MailListView
             return;
         }
         FolderActions.Dragged = new MessageDrag(SelectionActions.Rows(rows));
+        Log.Debug($"drag: {rows.Length} row(s) picked up for a folder");
         // The payload stays in process; the package carries only the format a drop target checks.
         e.Data.SetData(FolderActions.DragFormat, "messages");
         e.Data.RequestedOperation = DataPackageOperation.Move;

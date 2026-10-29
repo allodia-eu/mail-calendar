@@ -157,7 +157,7 @@ fn an_unpaid_checkout_is_nobody_billing_you() {
         Some(own(AllodiaOwnStatus::PendingFirstPayment, None)),
         Vec::new(),
     );
-    assert!(billers(&pending).is_empty());
+    assert_eq!(billers(&pending), []);
 }
 
 /// "Renews on" against "runs until" is the difference between a charge somebody expects and one

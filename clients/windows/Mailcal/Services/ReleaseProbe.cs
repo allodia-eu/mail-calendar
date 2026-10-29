@@ -1,7 +1,7 @@
 // A debug-only count of what the app has closed and the runtime still holds: windows, composers and
-// editor web views. The UI suite reads it from the log (uitests/ReleaseProbe.Tests.ps1), because a
-// closed window that is never freed looks exactly like one that is, and Mailcal.Tests cannot host a
-// window at all.
+// editor web views. The UI suite reads it from the log (Mailcal.UiTests/Suites/ReleaseProbeTests.cs),
+// because a closed window that is never freed looks exactly like one that is, and Mailcal.Tests
+// cannot host a window at all.
 //
 // Off unless MAILCAL_RELEASE_PROBE=1 at launch. Every call to it is compiled out of a release build.
 
@@ -61,10 +61,16 @@ internal static class ReleaseProbe
     //
     // Never GC.WaitForPendingFinalizers: this runs on the UI thread, and releasing a WinRT object
     // from its finaliser can need that thread.
+    //
+    // Frames are drawn while it runs. XAML releases an object whose wrapper was finalised off the UI
+    // thread on its next frame, and an idle window draws none: the focus event arguments a closed
+    // composer's handlers were given name its text box, which keeps the composer until something on
+    // screen changes (docs/client-traps.md).
     private static async Task ProbeAsync()
     {
         var seen = -1;
         var held = new List<int>();
+        Microsoft.UI.Xaml.Media.CompositionTarget.Rendering += OnRendering;
         for (var round = 0; round < Rounds; round++)
         {
             await Task.Delay(Interval);
@@ -80,9 +86,14 @@ internal static class ReleaseProbe
                 break;
             }
         }
+        Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= OnRendering;
         _probing = false;
         var which = held.Count == 0 ? "" : ": " + string.Join(" ", held.Select(n => $"#{n}"));
         Log.Info($"release probe: {held.Count} of {Watched.Count} closed still held{which}");
+    }
+
+    private static void OnRendering(object? sender, object e)
+    {
     }
 #endif
 }

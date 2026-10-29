@@ -165,8 +165,8 @@ public sealed partial class AccountSetupView
             return;
         }
         // Connect submits that field, so it goes with it: a Connect button under no password field
-        // is a button that can never be pressed. (OnAccountTypeChanged has just set it visible for
-        // this tab; this narrows that, and never widens it to another tab.)
+        // is a button that can never be pressed. (OnAccountTypeChanged sets it visible for this tab
+        // and calls this straight after; this narrows that, and never widens it to another tab.)
         ConnectButton.Visibility = password ? Visibility.Visible : Visibility.Collapsed;
     }
 

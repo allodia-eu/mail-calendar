@@ -122,6 +122,12 @@ enum AccountSettingsRules {
         )
     }
 
+    /// Whether the line under a use's switch offers "Review": the use is paused for a server on
+    /// another site, which only the person can allow.
+    static func reviewsServerChange(_ note: UseNote) -> Bool {
+        if case .problem(.serverChanged, _) = note { true } else { false }
+    }
+
     /// The pickers an account's page offers: one per slot it can hold, which is a slot with
     /// candidates or one already linked. A link the candidates no longer offer is kept as the
     /// first option, so the picker shows what is stored rather than "none".
@@ -215,6 +221,7 @@ enum AccountSettingsLabels {
         case .calendar: L10n.nav_calendar()
         case .contacts: L10n.nav_contacts()
         case .colleagues: L10n.account_use_colleagues()
+        case .sharedMailboxes: L10n.account_use_shared_mailboxes()
         }
     }
 
@@ -260,6 +267,10 @@ enum AccountSettingsLabels {
             calendar
                 ? L10n.settings_account_use_own_sign_in_calendar()
                 : L10n.settings_account_use_own_sign_in_contacts()
+        case .serverChanged:
+            calendar
+                ? L10n.settings_account_use_server_changed_calendar()
+                : L10n.settings_account_use_server_changed_contacts()
         }
     }
 

@@ -1,6 +1,7 @@
 //! Which scopes each use of an account asks for, at the two integrated providers.
 //!
-//! An account is used for some of mail, calendar, contacts and colleagues, and a sign-in asks for
+//! An account is used for some of mail, shared mailboxes, calendar, contacts and colleagues, and a
+//! sign-in asks for
 //! the scopes of those uses only, so a person who wants a calendar is not asked for their mail and
 //! an organisation that approved only the mail scopes can still admit the app. The per-scope
 //! justification an administrator reads is the table in
@@ -34,6 +35,9 @@ pub struct ProviderScopes {
     pub contacts: ScopeGroup,
     /// The organisation's directory, requested only beside contacts.
     pub colleagues: ScopeGroup,
+    /// Other mailboxes the person has been given access to, requested only beside mail; `None`
+    /// where the provider gives a user's own sign-in no way to open one.
+    pub shared_mailboxes: Option<ScopeGroup>,
     /// The resource a scope may be granted under without being named, and which a token response
     /// may name it without: Microsoft answers `Mail.ReadWrite` for a request of
     /// `https://graph.microsoft.com/Mail.ReadWrite`, in whatever case it chooses.
@@ -62,6 +66,13 @@ pub const MICROSOFT: ProviderScopes = ProviderScopes {
         requested: &["https://graph.microsoft.com/User.ReadBasic.All"],
         needed: "https://graph.microsoft.com/User.ReadBasic.All",
     },
+    shared_mailboxes: Some(ScopeGroup {
+        requested: &[
+            "https://graph.microsoft.com/Mail.ReadWrite.Shared",
+            "https://graph.microsoft.com/Mail.Send.Shared",
+        ],
+        needed: "https://graph.microsoft.com/Mail.ReadWrite.Shared",
+    }),
     implied_resource: Some("https://graph.microsoft.com/"),
 };
 
@@ -91,6 +102,9 @@ pub const GOOGLE: ProviderScopes = ProviderScopes {
         requested: &["https://www.googleapis.com/auth/directory.readonly"],
         needed: "https://www.googleapis.com/auth/directory.readonly",
     },
+    // A Gmail account opens another mailbox only through a service account holding
+    // domain-wide delegation, never through a user's own grant.
+    shared_mailboxes: None,
     implied_resource: None,
 };
 

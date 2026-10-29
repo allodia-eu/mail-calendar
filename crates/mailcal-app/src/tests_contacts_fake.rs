@@ -320,8 +320,8 @@ pub(crate) fn card(id: &str, book: &str, name: &str, email: &str) -> ContactCard
 pub(crate) fn account(id: &str, contacts: Vec<Box<dyn ContactsProvider>>) -> Account<MailOnly> {
     Account {
         id: AccountId::try_from(id).unwrap(),
-        providers: vec![MailOnly],
-        calendar_providers: Vec::new(),
+        providers: vec![MailOnly].into(),
+        calendar_provider: None,
         contact_providers: contacts,
         identity: EmailAddress::new(format!("me@{id}.local")),
         dialled: true,

@@ -13,11 +13,15 @@ namespace Allodia.Mailcal.Services;
 /// <param name="ContactsTitle">"The address book for {address} isn't connected."</param>
 /// <param name="Reason">What the account's page says beneath the use's switch.</param>
 /// <param name="LastSynced">"You're seeing what was last synced."</param>
+/// <param name="OpenAccount">"Account settings", the button that opens the account's page.</param>
+/// <param name="Review">"Review", the button that opens the question a server change asks.</param>
 internal sealed record UseOutageWords(
     Func<string, string> CalendarTitle,
     Func<string, string> ContactsTitle,
     Func<UseNote, string?> Reason,
-    string LastSynced);
+    string LastSynced,
+    string OpenAccount,
+    string Review);
 
 internal static class UseOutageLines
 {
@@ -34,8 +38,15 @@ internal static class UseOutageLines
         Func<string, string?> addressOf,
         UseOutageWords words) =>
         outages
-            .Select(outage => new UseOutageLine(
-                outage.AccountId, Text(outage, use, addressOf(outage.AccountId) ?? outage.AccountId, words)))
+            .Select(outage =>
+            {
+                var reviews = AccountSettingsRules.ReviewsServerChange(AccountSettingsRules.ProblemNote(use, outage.Problem));
+                return new UseOutageLine(
+                    outage.AccountId,
+                    Text(outage, use, addressOf(outage.AccountId) ?? outage.AccountId, words),
+                    reviews ? words.Review : words.OpenAccount,
+                    reviews);
+            })
             .ToList();
 
     /// <summary>The title, the reason and the last-synced sentence, joined with a space.</summary>
@@ -48,5 +59,6 @@ internal static class UseOutageLines
 
     /// <summary>Whether two sets of lines draw the same, so an unchanged signal leaves the bars alone.</summary>
     internal static bool Same(IReadOnlyList<UseOutageLine> drawn, IReadOnlyList<UseOutageLine> next) =>
-        drawn.Select(line => (line.AccountId, line.Text)).SequenceEqual(next.Select(line => (line.AccountId, line.Text)));
+        drawn.Select(line => (line.AccountId, line.Text, line.Action))
+            .SequenceEqual(next.Select(line => (line.AccountId, line.Text, line.Action)));
 }

@@ -20,7 +20,9 @@ public sealed partial class SettingsDialog
     private UIElement UsesGroup(AccountEntry entry)
     {
         var stack = new StackPanel { Spacing = 8 };
-        foreach (var use in entry.Uses)
+        // No switch for shared mailboxes: this client has no section to choose one
+        // (docs/shared-mailboxes.md §3).
+        foreach (var use in entry.Uses.Where(use => use.Capability != AccountCapability.SharedMailboxes))
         {
             stack.Children.Add(UseRow(entry, use.Capability));
         }
@@ -41,6 +43,10 @@ public sealed partial class SettingsDialog
         if (SeparateServerAction(entry, capability) is { } separate)
         {
             row.Children.Add(separate);
+        }
+        if (ServerChangeAction(entry, capability, rule.Note) is { } review)
+        {
+            row.Children.Add(review);
         }
 
         // Switching off deletes what the device holds of the use, so it is asked first; cancelling

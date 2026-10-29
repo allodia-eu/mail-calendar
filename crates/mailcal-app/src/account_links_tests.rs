@@ -34,7 +34,7 @@ fn an_account_without_links_is_its_own_calendar_and_mail() {
     let app = app(false);
     assert_eq!(app.invitation_calendar(&id("acct-a")), id("acct-a"));
     assert_eq!(app.invitation_mail(&id("cal-b")), id("cal-b"));
-    assert!(app.invitation_partners(&id("acct-a")).is_empty());
+    assert_eq!(app.invitation_partners(&id("acct-a")), []);
 }
 
 #[test]

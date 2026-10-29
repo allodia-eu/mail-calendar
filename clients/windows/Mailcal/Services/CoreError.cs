@@ -98,6 +98,7 @@ internal static class CoreError
         return problem switch
         {
             uniffi.mailcal_bindings.UseProblem.NeedsOwnSignIn => contacts ? words.OwnSignInContacts : words.OwnSignInCalendar,
+            uniffi.mailcal_bindings.UseProblem.ServerChanged => contacts ? words.ServerChangedContacts : words.ServerChangedCalendar,
             uniffi.mailcal_bindings.UseProblem.SignInRefused => words.SignInRefused,
             _ => contacts ? words.UnreachableContacts : words.UnreachableCalendar,
         };
@@ -109,6 +110,7 @@ internal static class CoreError
     private static string ProblemName(uniffi.mailcal_bindings.UseProblem problem) => problem switch
     {
         uniffi.mailcal_bindings.UseProblem.NeedsOwnSignIn => "its server needs a sign-in of its own",
+        uniffi.mailcal_bindings.UseProblem.ServerChanged => "it is paused until a server on another site is allowed",
         uniffi.mailcal_bindings.UseProblem.SignInRefused => "its server refused the sign-in",
         _ => "its server could not be reached",
     };
@@ -157,4 +159,6 @@ internal sealed record CoreErrorWords(
     string UnreachableContacts,
     string OwnSignInCalendar,
     string OwnSignInContacts,
+    string ServerChangedCalendar,
+    string ServerChangedContacts,
     Func<string, string> ConnectFailed);

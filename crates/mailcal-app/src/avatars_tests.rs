@@ -56,7 +56,7 @@ async fn a_photo_fills_in_and_publishes_exactly_one_snapshot() {
 
     // A resolved address is not asked about again.
     let mut snapshot = snapshot_from("ada@example.test");
-    assert!(app.attach_photos(&mut snapshot).is_empty());
+    assert_eq!(app.attach_photos(&mut snapshot), []);
     assert!(image_path(&snapshot).is_some());
 }
 
@@ -107,7 +107,7 @@ async fn a_card_whose_photo_is_absent_settles_on_the_monogram() {
     app.resolve_sender_photos(wanted).await;
 
     let mut snapshot = snapshot_from("ada@example.test");
-    assert!(app.attach_photos(&mut snapshot).is_empty());
+    assert_eq!(app.attach_photos(&mut snapshot), []);
     assert_eq!(image_path(&snapshot), None);
 }
 

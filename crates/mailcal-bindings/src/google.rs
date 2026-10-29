@@ -105,7 +105,7 @@ pub(crate) fn start(
         &mailcal_oauth::scopes::GOOGLE,
         &chosen
             .clone()
-            .unwrap_or_else(|| Capability::ALL.into_iter().collect()),
+            .unwrap_or_else(|| Capability::LEGACY.into_iter().collect()),
     );
     let requested: Vec<&str> = scopes.iter().map(String::as_str).collect();
     log::info!(

@@ -39,6 +39,10 @@ internal enum class UseNote {
     /** On, and its server needs a sign-in of its own. */
     OWN_SIGN_IN_CALENDAR,
     OWN_SIGN_IN_CONTACTS,
+
+    /** Paused: its server was found on another site, and waits for the person to allow it. */
+    SERVER_CHANGED_CALENDAR,
+    SERVER_CHANGED_CONTACTS,
 }
 
 /**
@@ -54,8 +58,14 @@ internal fun problemNote(capability: AccountCapability, problem: UseProblem): Us
             if (calendar) UseNote.REFUSED_CALENDAR else UseNote.REFUSED_CONTACTS
         UseProblem.NEEDS_OWN_SIGN_IN ->
             if (calendar) UseNote.OWN_SIGN_IN_CALENDAR else UseNote.OWN_SIGN_IN_CONTACTS
+        UseProblem.SERVER_CHANGED ->
+            if (calendar) UseNote.SERVER_CHANGED_CALENDAR else UseNote.SERVER_CHANGED_CONTACTS
     }
 }
+
+/** Whether a use saying [note] offers the question that allows its new server. */
+internal fun reviewsServerChange(note: UseNote): Boolean =
+    note == UseNote.SERVER_CHANGED_CALENDAR || note == UseNote.SERVER_CHANGED_CONTACTS
 
 /**
  * How one use's switch is drawn. [active] is on; a use waiting on a permission is drawn off,

@@ -23,6 +23,8 @@ struct SetupUsesSection<MailRows: View>: View {
             case .contacts: davCard(.contacts)
             // Drawn inside the contacts card, beneath the toggle it depends on.
             case .colleagues: EmptyView()
+            // Not offered: this client has no section to choose one (docs/shared-mailboxes.md §3).
+            case .sharedMailboxes: EmptyView()
             }
         }
         .onChange(of: flagged) { _, missing in

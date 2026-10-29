@@ -25,15 +25,20 @@ fn a_grant_allowing_nothing_chosen_is_refused() {
 }
 
 #[test]
-fn signing_in_again_keeps_the_pinned_id_the_links_and_an_unchanged_choice() {
+fn signing_in_again_keeps_the_pinned_id_the_links_the_shared_mailboxes_and_an_unchanged_choice() {
     let calendar = AccountId::try_from("alice@dav:cloud.example").unwrap();
     let stored = AccountShape {
         id: Some(AccountId::try_from("alice@example.org@graph.microsoft.com").unwrap()),
-        capabilities: Some(set(&[Capability::Mail])),
+        capabilities: Some(set(&[Capability::Mail, Capability::SharedMailboxes])),
         links: AccountLinks {
             calendar: Some(calendar),
             ..AccountLinks::default()
         },
+        shared_mailboxes: vec![mailcal_account::SharedMailboxChoice {
+            handle: engine_api::SharedMailboxId::try_from("support@example.org").unwrap(),
+            name: "Support".to_owned(),
+            address: Some("support@example.org".to_owned()),
+        }],
     };
     let mut signed_in = AccountShape::default();
     keep_stored_shape(&mut signed_in, Some(stored.clone()));
@@ -49,4 +54,6 @@ fn signing_in_again_keeps_the_pinned_id_the_links_and_an_unchanged_choice() {
         Some(set(&[Capability::Mail, Capability::Calendar]))
     );
     assert_eq!(chose_again.links, stored.links);
+    // Chosen again without shared mailboxes, so none is kept that nothing would open.
+    assert!(chose_again.shared_mailboxes.is_empty());
 }

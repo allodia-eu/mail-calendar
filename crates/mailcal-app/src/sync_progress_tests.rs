@@ -69,7 +69,7 @@ fn a_background_pass_that_finds_nothing_says_nothing() {
     state.folder_finished(id, "acct-1");
     let snapshot = state.snapshot();
     assert!(!snapshot.active);
-    assert!(snapshot.accounts.is_empty());
+    assert_eq!(snapshot.accounts, []);
 }
 
 /// The pass that follows the user's own archive/delete/send stays silent even though it does
@@ -81,7 +81,7 @@ fn an_unannounceable_pass_stays_silent_even_while_downloading() {
     downloading(&mut state, id, "acct-1", 1);
     let snapshot = state.snapshot();
     assert!(!snapshot.active);
-    assert!(snapshot.accounts.is_empty());
+    assert_eq!(snapshot.accounts, []);
 }
 
 /// An awaited download is already explained by the bar; naming it a second time in the status
@@ -93,7 +93,7 @@ fn an_awaited_pass_is_never_also_in_the_hint() {
     downloading(&mut state, id, "acct-1", 4);
     let snapshot = state.snapshot();
     assert!(snapshot.active);
-    assert!(snapshot.accounts.is_empty());
+    assert_eq!(snapshot.accounts, []);
 }
 
 /// One background pass covers every account of a `refresh_mail` tick, so an account that finishes
@@ -133,9 +133,9 @@ fn ending_a_background_pass_clears_its_hint() {
     let mut state = SyncProgressState::default();
     let (id, _progress) = state.begin(false, true, 1);
     downloading(&mut state, id, "acct-1", 1);
-    assert!(!state.snapshot().accounts.is_empty());
+    assert_ne!(state.snapshot().accounts, []);
     state.end(id);
-    assert!(state.snapshot().accounts.is_empty());
+    assert_eq!(state.snapshot().accounts, []);
 }
 
 /// The hint is read on every progress signal, so its order may not depend on how the passes
@@ -189,7 +189,7 @@ fn ending_a_warm_clears_its_account() {
     let mut state = SyncProgressState::default();
     state.warming("acct-1", Some(25));
     assert!(state.warming("acct-1", None));
-    assert!(state.snapshot().accounts.is_empty());
+    assert_eq!(state.snapshot().accounts, []);
     assert!(
         !state.warming("acct-1", None),
         "a warm that never entered the hint has nothing to clear, and must not signal"
@@ -276,7 +276,7 @@ mod pauses {
         // re-raises it if the server is still refusing.
         let mut state = SyncProgressState::default();
         state.paused("acct-1", Pause::Until(Duration::ZERO));
-        assert!(state.snapshot().throttled.is_empty());
+        assert_eq!(state.snapshot().throttled, []);
     }
 
     #[test]
@@ -284,7 +284,7 @@ mod pauses {
         let mut state = SyncProgressState::default();
         state.paused("acct-1", Pause::Until(Duration::from_mins(5)));
         assert!(state.paused("acct-1", Pause::Over));
-        assert!(state.snapshot().throttled.is_empty());
+        assert_eq!(state.snapshot().throttled, []);
     }
 
     #[test]

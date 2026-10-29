@@ -38,7 +38,7 @@ async fn a_change_to_a_calendar_that_no_longer_connects_is_not_saved() {
     );
     app.dispatch(Intent::RefreshCalendar).await;
     let mut disconnected = calendar_account("acct-a", CalendarFake::with_events(Vec::new()));
-    disconnected.calendar_providers.clear();
+    disconnected.calendar_provider = None;
     app.add_account_deferred(disconnected).await;
 
     app.dispatch(kickoff()).await;

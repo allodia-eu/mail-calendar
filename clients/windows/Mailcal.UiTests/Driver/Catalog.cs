@@ -10,6 +10,21 @@ internal static class Catalog
         Directory.EnumerateFiles(Path.Combine(App.Repo, "messages"), "*.json")
             .ToDictionary(file => Path.GetFileNameWithoutExtension(file)!, file => JsonNode.Parse(File.ReadAllText(file))!.AsObject()));
 
+    /// <summary>The name this build was given, which the l10n codegen writes into the generated
+    /// resources: it is injected (docs/branding.md), so an unbranded build reads otherwise than the
+    /// catalog's.</summary>
+    internal static string AppTitle()
+    {
+        var resw = Path.Combine(App.Repo, "clients", "windows", "Mailcal", "Strings", "en", "Resources.resw");
+        if (!File.Exists(resw))
+        {
+            throw new InvalidOperationException($"no generated {resw}; build the client first (build-and-run.ps1 -NoRun)");
+        }
+        return System.Xml.Linq.XDocument.Load(resw).Descendants("data")
+            .FirstOrDefault(d => (string?)d.Attribute("name") == "app_title")?.Element("value")?.Value
+            ?? throw new InvalidOperationException($"the generated {resw} carries no app_title");
+    }
+
     /// <summary>The English value of <paramref name="key"/>: the harness store comes up in English.</summary>
     internal static string English(string key) =>
         (string?)Locales.Value["en"][key] ?? throw new InvalidOperationException($"the catalog defines no '{key}'");

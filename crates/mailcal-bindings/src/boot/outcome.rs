@@ -112,10 +112,13 @@ pub(super) async fn dial_registered(
             started.elapsed().as_millis(),
         );
         match outcome {
-            Ok(outcome) => (
-                outcome.account,
-                outcome.calendar_error.map(DialFailure::CalendarOnly),
-            ),
+            Ok(outcome) => {
+                registry.learn_dav_starts(id.as_str(), &outcome.learned);
+                (
+                    outcome.account,
+                    outcome.calendar_error.map(DialFailure::CalendarOnly),
+                )
+            }
             Err(err) => (
                 placeholder,
                 Some(DialFailure::MailFailed {

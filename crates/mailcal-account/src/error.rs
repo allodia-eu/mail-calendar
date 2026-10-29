@@ -6,8 +6,6 @@
 //! not verify. Each is a different thing for a caller to do, and neither survives being turned
 //! into a message.
 
-use std::fmt;
-
 use engine_core::error::FailureClass;
 use provider_imap::ImapError;
 
@@ -88,13 +86,9 @@ pub enum AccountError {
     /// The CalDAV connection or discovery failed.
     #[error("caldav: {0}")]
     CalDav(#[from] provider_caldav::CalDavError),
-    /// Listing the account's calendars failed (no `calendar` was configured, so the
-    /// connection had to discover one).
-    #[error("caldav calendar discovery: {0}")]
+    /// DAV discovery could not be prepared or completed.
+    #[error("caldav discovery: {0}")]
     CalDavDiscovery(String),
-    /// No calendar collection was discovered, and the config named none to bind to.
-    #[error("no caldav calendar discovered (configure `calendar` in [caldav])")]
-    NoCalendarDiscovered,
     /// Building a calendar event-write failed (a bad uid, time, or href).
     #[error("calendar write: {0}")]
     CalendarWrite(String),
@@ -134,12 +128,6 @@ impl AccountError {
         }
     }
 
-    /// Wraps a calendar-discovery failure, keeping its message (the source types
-    /// differ: a provider error or an invalid placeholder id).
-    pub(crate) fn caldav_discovery(err: impl fmt::Display) -> Self {
-        Self::CalDavDiscovery(err.to_string())
-    }
-
     /// The verdict for the login that **first** presents an IMAP account's password in a dial;
     /// the only one whose refusal can mean the password itself is no good. An
     /// [authentication-class](FailureClass::Authentication) refusal becomes
@@ -167,6 +155,22 @@ impl AccountError {
         } else {
             Self::Jmap(err.to_string())
         }
+    }
+
+    /// Whether this is a DAV server saying the start it was given is **gone**: a `404`, `410` or
+    /// `403`, or an answer that names no home (the engine's `Permanent` class). Distinct from a
+    /// server that could not be reached (a timeout, DNS, a `5xx`, `429`), which changes nothing:
+    /// only a gone start is worth finding the servers again for (RFC 6764 §6). A server that
+    /// asks only for an authentication method the credential cannot use is not gone either:
+    /// it answered, and looking it up again would find it where it is.
+    #[must_use]
+    pub fn is_gone(&self) -> bool {
+        matches!(
+            self,
+            Self::CalDav(err)
+                if err.failure_class() == FailureClass::Permanent
+                    && !matches!(err, provider_caldav::CalDavError::UnsupportedAuthentication(_))
+        )
     }
 
     /// The verdict for the connect that first presents a DAV endpoint's credential: an

@@ -361,5 +361,5 @@ async fn a_one_off_carries_no_occurrence_token_so_nothing_is_asked() {
     app.dispatch(Intent::RefreshCalendar).await;
 
     let segment = segment_on_page(&app, 2, "dentist").expect("the event is on the grid");
-    assert!(segment.occurrence_start.is_empty());
+    assert_eq!(segment.occurrence_start, "");
 }

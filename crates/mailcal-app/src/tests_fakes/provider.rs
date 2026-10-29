@@ -27,6 +27,7 @@ use super::message;
 #[allow(clippy::duplicate_mod)]
 #[path = "provider_builders.rs"]
 mod builders;
+pub(crate) use builders::SourceFailure;
 
 /// A minimal JMAP-shaped fake: one Inbox and a configurable set of messages, a snapshot on
 /// first sync of a scope and an empty delta afterwards. Records the edits it receives so a
@@ -91,10 +92,8 @@ pub(crate) struct FakeProvider {
     /// test can put a *second* write to one message inside the first's round trip: the shape a
     /// host produces by marking a message read when it opens and archiving it a moment later.
     edit_gate: Option<EditGate>,
-    /// Message keys whose [`Provider::fetch_message_source`] fails with a **conflict**;
-    /// models stale keys (an IMAP `UIDVALIDITY` renumbering), so a test can prove a
-    /// body-warm pass looks past them and triggers the folder re-sync recovery.
-    source_failures: Vec<String>,
+    /// Message keys whose [`Provider::fetch_message_source`] fails, and how.
+    source_failures: Vec<(String, SourceFailure)>,
     /// How many of the next source fetches the server refuses as throttled, and the wait each
     /// refusal names (`None`: a bare `429`, as Stalwart sends). Shared, so a test can read how
     /// many refusals are left.
@@ -346,7 +345,7 @@ impl Provider for FakeProvider {
         }
         let throttled = self
             .throttled_fetches
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
                 left.checked_sub(1)
             })
             .is_ok();
@@ -356,14 +355,9 @@ impl Provider for FakeProvider {
             });
             return Err(ProviderError::rate_limited("too many requests", wait));
         }
-        if self
-            .source_failures
-            .iter()
-            .any(|k| k == message.id.key().as_str())
-        {
-            return Err(ProviderError::conflict(
-                "UIDVALIDITY changed for a: re-sync before retrying",
-            ));
+        let key = message.id.key().as_str();
+        if let Some((_, failure)) = self.source_failures.iter().find(|(k, _)| k == key) {
+            return Err(failure.error());
         }
         if let Some(raw) = &self.source_override {
             return Ok(RawMime::new(raw.clone()));

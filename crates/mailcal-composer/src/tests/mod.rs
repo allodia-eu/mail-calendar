@@ -173,8 +173,8 @@ fn renders_marks_lists_tables_and_html_escapes_text() {
         output.plain_text,
         "Hello <world>\n- one\n- two\nA1 | B1\nA2 | B2"
     );
-    assert!(output.inline_attachments.is_empty());
-    assert!(output.attachments.is_empty());
+    assert_eq!(output.inline_attachments, []);
+    assert_eq!(output.attachments, []);
 }
 
 #[test]

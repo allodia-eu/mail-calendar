@@ -74,12 +74,52 @@ internal static class Desktop
         return double.Parse(value.Value, System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Whether this desktop is in dark mode, which is what an app that follows it draws.</summary>
+    internal static bool Dark() =>
+        Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 1) is 0;
+
     /// <summary>The window's rectangle on screen, in physical pixels.</summary>
     internal static System.Drawing.Rectangle Bounds(long hwnd)
     {
         GetWindowRect((nint)hwnd, out var r);
         return System.Drawing.Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom);
     }
+
+    /// <summary>
+    /// Sizes <paramref name="hwnd"/> to <paramref name="width"/> by <paramref name="height"/>, in the
+    /// units XAML is written in, restored first if it was maximised; disposing puts it back as it
+    /// was. The app keeps its bounds for the next launch, so a case that shrinks it puts it back.
+    /// </summary>
+    internal static IDisposable Resized(long hwnd, double width, double height)
+    {
+        var handle = (nint)hwnd;
+        var saved = Bounds(hwnd);
+        var maximised = IsZoomed(handle);
+        var scale = GetDpiForWindow(handle) / 96.0;
+        ShowWindow(handle, ShowRestore);
+        MoveWindow(handle, saved.X, saved.Y, (int)(width * scale), (int)(height * scale), true);
+        return new Restore(() =>
+        {
+            MoveWindow(handle, saved.X, saved.Y, saved.Width, saved.Height, true);
+            if (maximised)
+            {
+                ShowWindow(handle, ShowMaximise);
+            }
+        });
+    }
+
+    private sealed class Restore(Action restore) : IDisposable
+    {
+        public void Dispose() => restore();
+    }
+
+    private const int ShowRestore = 9;
+    private const int ShowMaximise = 3;
+
+    [DllImport("user32.dll")] private static extern bool MoveWindow(nint hwnd, int x, int y, int width, int height, bool repaint);
+    [DllImport("user32.dll")] private static extern bool IsZoomed(nint hwnd);
+    [DllImport("user32.dll")] private static extern bool ShowWindow(nint hwnd, int command);
+    [DllImport("user32.dll")] private static extern uint GetDpiForWindow(nint hwnd);
 
     private const uint WmGetIcon = 0x007F;
 
