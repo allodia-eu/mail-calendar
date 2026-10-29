@@ -1,9 +1,18 @@
 //! The shared mailboxes on an account's page (`docs/shared-mailboxes.md`): what the server
 //! answered when the page opened, and switching one on or off.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
 
-use mailcal_bindings::{SharedMailboxEntry, SharedMailboxSupport, SharedMailboxesView, Surface};
+use mailcal_bindings::{
+    AccountCapability, AccountsSnapshot, SharedMailboxEntry, SharedMailboxSupport,
+    SharedMailboxesView, Surface,
+};
 
 use super::{
     AppInput, AppModel,
@@ -15,10 +24,11 @@ use crate::l10n;
 /// The page's shared-mailbox traffic.
 #[derive(Debug)]
 pub(crate) enum SharedInput {
-    /// What `account`'s server answered.
+    /// What `account`'s server answered, in the read numbered `read` ([`SharedState::read`]).
     Answered {
         account: String,
         view: Option<SharedMailboxesView>,
+        read: u64,
     },
     /// Look up the mailbox at `address` and use `account` for it.
     Add { account: String, address: String },
@@ -37,6 +47,12 @@ pub(crate) struct SharedState {
     answers: HashMap<String, SharedMailboxesView>,
     /// The accounts whose server is being asked now, so a second ask does not overlap it.
     asking: HashSet<String>,
+    /// What each account was used for when its server was last asked.
+    uses: HashMap<String, Vec<AccountCapability>>,
+    /// Numbers each read of the core's answer in the order they start, on any thread.
+    reads: Arc<AtomicU64>,
+    /// The read each account's shown answer came from.
+    shown: HashMap<String, u64>,
 }
 
 impl SharedState {
@@ -45,18 +61,58 @@ impl SharedState {
         self.answers.get(account)
     }
 
-    /// Whether asking `account` again may answer something new without a request to its server:
-    /// it was not connected yet, or could not open a shared mailbox, which a use switched on or a
-    /// sign-in completed changes.
-    fn may_have_changed(&self, account: &str) -> bool {
-        !self.asking.contains(account)
-            && self.answers.get(account).is_none_or(|view| {
-                matches!(
-                    view.support,
-                    SharedMailboxSupport::NotConnected | SharedMailboxSupport::Unsupported
-                )
-            })
+    /// Numbers a read of the core's answer about to start, on whichever thread makes it.
+    fn read(reads: &AtomicU64) -> u64 {
+        reads.fetch_add(1, Ordering::SeqCst) + 1
     }
+
+    /// Takes what the core answered for `account` in `read`, and says whether the page changed. A
+    /// read that started before the one shown is older than it, and is dropped: an ask from the
+    /// page opening must not undo what a switch read after it.
+    fn answered(&mut self, account: &str, view: Option<SharedMailboxesView>, read: u64) -> bool {
+        self.asking.remove(account);
+        if read < self.shown.get(account).copied().unwrap_or(0) {
+            return false;
+        }
+        self.shown.insert(account.to_owned(), read);
+        let previous = match view {
+            Some(view) => self.answers.insert(account.to_owned(), view),
+            None => self.answers.remove(account),
+        };
+        previous.as_ref() != self.answers.get(account)
+    }
+
+    /// Whether asking `account`, now used for `uses`, again may answer something new: it was not
+    /// connected yet, or could not open a shared mailbox, which a sign-in completed changes; or
+    /// what it is used for changed, and switching mail or shared mailboxes off removes every one
+    /// chosen. Anything else would be a request to its server on every signal.
+    fn may_have_changed(&self, account: &str, uses: &[AccountCapability]) -> bool {
+        !self.asking.contains(account)
+            && (self.uses.get(account).is_none_or(|asked| asked != uses)
+                || self.answers.get(account).is_none_or(|view| {
+                    matches!(
+                        view.support,
+                        SharedMailboxSupport::NotConnected | SharedMailboxSupport::Unsupported
+                    )
+                }))
+    }
+}
+
+/// What `account` is used for in `snapshot`, in the snapshot's order.
+fn in_use(snapshot: &AccountsSnapshot, account: &str) -> Vec<AccountCapability> {
+    snapshot
+        .accounts
+        .iter()
+        .find(|entry| entry.id == account)
+        .map(|entry| {
+            entry
+                .uses
+                .iter()
+                .filter(|use_| super::settings::account_rows::works(use_.state))
+                .map(|use_| use_.capability)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn input(message: SharedInput) -> AppInput {
@@ -71,24 +127,31 @@ impl AppModel {
             return;
         };
         self.settings.shared.asking.insert(account.to_owned());
+        let uses = in_use(&app.accounts_snapshot(), account);
+        self.settings.shared.uses.insert(account.to_owned(), uses);
         let account = account.to_owned();
+        let reads = Arc::clone(&self.settings.shared.reads);
         std::thread::spawn(move || {
+            let read = SharedState::read(&reads);
             let view = app.shared_mailboxes(account.clone()).ok();
-            sender.emit(input(SharedInput::Answered { account, view }));
+            sender.emit(input(SharedInput::Answered {
+                account,
+                view,
+                read,
+            }));
         });
     }
 
     pub(super) fn shared_input(&mut self, message: SharedInput, sender: relm4::Sender<AppInput>) {
         match message {
-            SharedInput::Answered { account, view } => {
-                self.settings.shared.asking.remove(&account);
-                let previous = match view {
-                    Some(view) => self.settings.shared.answers.insert(account.clone(), view),
-                    None => self.settings.shared.answers.remove(&account),
-                };
+            SharedInput::Answered {
+                account,
+                view,
+                read,
+            } => {
                 // Asked again on every signal while it may change, so only a different answer
                 // redraws: a rebuild takes what the person was typing on the page.
-                if previous.as_ref() != self.settings.shared.answers.get(&account) {
+                if self.settings.shared.answered(&account, view, read) {
                     self.settings.refresh_in_place();
                 }
             }
@@ -103,6 +166,7 @@ impl AppModel {
                 let Some(app) = self.app.clone() else {
                     return;
                 };
+                let reads = Arc::clone(&self.settings.shared.reads);
                 // Blocking: the account is stored through the keyring, and switching a mailbox
                 // off deletes what the device holds of it.
                 std::thread::spawn(move || {
@@ -110,8 +174,13 @@ impl AppModel {
                         .set_shared_mailbox(account.clone(), mailbox, on)
                         .err()
                         .map(|error| change_failed(error.to_string()));
+                    let read = SharedState::read(&reads);
                     let view = app.shared_mailboxes(account.clone()).ok();
-                    sender.emit(input(SharedInput::Answered { account, view }));
+                    sender.emit(input(SharedInput::Answered {
+                        account,
+                        view,
+                        read,
+                    }));
                     sender.emit(AppInput::Accounts(AccountsInput::Changed(notice)));
                 });
             }
@@ -119,8 +188,8 @@ impl AppModel {
     }
 
     /// Asks the open account page's server again when its answer may have changed: the account
-    /// has connected since, or its shared-mailboxes use was switched on. An account connecting is
-    /// announced by one of these three signals.
+    /// has connected since, or a use was switched on or off. Either is announced by one of these
+    /// three signals.
     pub(super) fn ask_shared_mailboxes_again(
         &mut self,
         surface: &Surface,
@@ -135,7 +204,11 @@ impl AppModel {
         let Some(account) = self.settings.account.clone() else {
             return;
         };
-        if self.settings.shared.may_have_changed(&account) {
+        let Some(app) = &self.app else {
+            return;
+        };
+        let uses = in_use(&app.accounts_snapshot(), &account);
+        if self.settings.shared.may_have_changed(&account, &uses) {
             self.ask_shared_mailboxes(&account, sender);
         }
     }
@@ -151,6 +224,7 @@ impl AppModel {
         let Some(app) = self.app.clone() else {
             return;
         };
+        let reads = Arc::clone(&self.settings.shared.reads);
         std::thread::spawn(move || {
             let outcome = match app.resolve_shared_mailbox(account.clone(), address) {
                 Ok(Some(mailbox)) => app
@@ -162,8 +236,13 @@ impl AppModel {
                 ))),
                 Err(error) => Some(AccountsInput::Refused(change_failed(error.to_string()))),
             };
+            let read = SharedState::read(&reads);
             let view = app.shared_mailboxes(account.clone()).ok();
-            sender.emit(input(SharedInput::Answered { account, view }));
+            sender.emit(input(SharedInput::Answered {
+                account,
+                view,
+                read,
+            }));
             sender.emit(AppInput::Accounts(
                 outcome.unwrap_or(AccountsInput::Changed(None)),
             ));
@@ -173,7 +252,7 @@ impl AppModel {
 
 #[cfg(test)]
 mod tests {
-    use mailcal_bindings::{SharedMailboxSupport, SharedMailboxesView};
+    use mailcal_bindings::{AccountCapability, SharedMailboxSupport, SharedMailboxesView};
 
     use super::SharedState;
 
@@ -191,14 +270,43 @@ mod tests {
 
     #[test]
     fn a_page_asks_again_only_while_the_answer_may_still_change() {
-        assert!(SharedState::default().may_have_changed("a"));
-        assert!(answered(SharedMailboxSupport::NotConnected).may_have_changed("a"));
-        assert!(answered(SharedMailboxSupport::Unsupported).may_have_changed("a"));
+        let mail = [AccountCapability::Mail];
+        let asked = |support| {
+            let mut state = answered(support);
+            state.uses.insert("a".to_owned(), mail.to_vec());
+            state
+        };
+        assert!(SharedState::default().may_have_changed("a", &mail));
+        assert!(asked(SharedMailboxSupport::NotConnected).may_have_changed("a", &mail));
+        assert!(asked(SharedMailboxSupport::Unsupported).may_have_changed("a", &mail));
         // Listing again would be a request to the server on every signal.
-        assert!(!answered(SharedMailboxSupport::Listed).may_have_changed("a"));
-        assert!(!answered(SharedMailboxSupport::Unreachable).may_have_changed("a"));
-        let mut asking = answered(SharedMailboxSupport::NotConnected);
+        assert!(!asked(SharedMailboxSupport::Listed).may_have_changed("a", &mail));
+        assert!(!asked(SharedMailboxSupport::Unreachable).may_have_changed("a", &mail));
+        // Switching mail off removes every mailbox chosen, which the last answer still shows on.
+        assert!(asked(SharedMailboxSupport::Listed).may_have_changed("a", &[]));
+        let mut asking = asked(SharedMailboxSupport::NotConnected);
         asking.asking.insert("a".to_owned());
-        assert!(!asking.may_have_changed("a"), "one ask at a time");
+        assert!(!asking.may_have_changed("a", &mail), "one ask at a time");
+    }
+
+    #[test]
+    fn an_answer_read_before_the_one_shown_does_not_replace_it() {
+        let mut state = SharedState::default();
+        let view = |selected| SharedMailboxesView {
+            support: SharedMailboxSupport::Listed,
+            mailboxes: vec![mailcal_bindings::SharedMailboxEntry {
+                handle: "support".to_owned(),
+                name: "Support".to_owned(),
+                address: None,
+                selected,
+                listed: true,
+            }],
+        };
+        // The page opens and asks; a switch is made and reads its answer before that ask lands.
+        let ask = SharedState::read(&state.reads);
+        let after_switch = SharedState::read(&state.reads);
+        assert!(state.answered("a", Some(view(true)), after_switch));
+        assert!(!state.answered("a", Some(view(false)), ask));
+        assert_eq!(state.view("a"), Some(&view(true)));
     }
 }

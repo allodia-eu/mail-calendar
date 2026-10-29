@@ -18,9 +18,8 @@ struct SettingsCategoryDetail: View {
     /// here, because removal is more than the model call: the shell also clears the scene's stored
     /// selection and the open message when they belong to the account going away. Two entry points
     /// (the sidebar's context menu and the button below) must not mean two behaviours, skipping
-    /// that cleanup leaves a removed account's message sitting in the reading pane. Answers why
-    /// the stored sign-in could not be erased, or `nil`.
-    let removeAccount: (String) -> String?
+    /// that cleanup leaves a removed account's message sitting in the reading pane.
+    let removeAccount: (String) -> Void
 
     @State private var confirmingReset = false
 

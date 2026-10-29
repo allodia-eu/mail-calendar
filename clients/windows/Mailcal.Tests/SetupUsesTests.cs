@@ -13,6 +13,7 @@ public class SetupUsesTests
     private const string CardDav = "https://dav.example.org/carddav";
     private static readonly PickedUse On = new(true, string.Empty);
     private static readonly PickedUse Off = new(false, string.Empty);
+    private static readonly Subchoices Colleagues = new(SharedMailboxes: null, Colleagues: true);
 
     private static UseOffer Offer(string caldav, string carddav)
     {
@@ -28,7 +29,11 @@ public class SetupUsesTests
     }
 
     private static UseOffer Provider() => new(
-        new[] { AccountCapability.Mail, AccountCapability.Calendar, AccountCapability.Contacts, AccountCapability.Colleagues }
+        new[]
+            {
+                AccountCapability.Mail, AccountCapability.SharedMailboxes, AccountCapability.Calendar,
+                AccountCapability.Contacts, AccountCapability.Colleagues,
+            }
             .Select(capability => new SetupChoice(capability, true, true)).ToList(),
         string.Empty,
         string.Empty);
@@ -36,7 +41,7 @@ public class SetupUsesTests
     [Fact]
     public void EverythingFoundAndKeptStoresBothEndpointsAndEveryUse()
     {
-        var chosen = SetupUses.Chosen(Offer(CalDav, CardDav), true, On, On, null);
+        var chosen = SetupUses.Chosen(Offer(CalDav, CardDav), true, On, On, default);
         Assert.Equal([AccountCapability.Mail, AccountCapability.Calendar, AccountCapability.Contacts], chosen.Uses);
         Assert.Equal(CalDav, chosen.CaldavUrl);
         Assert.Equal(CardDav, chosen.CarddavUrl);
@@ -45,7 +50,7 @@ public class SetupUsesTests
     [Fact]
     public void ContactsFoundThroughTheCalendarKeepItsServerWithTheCalendarOff()
     {
-        var kept = SetupUses.Chosen(Offer(CalDav, string.Empty), true, Off, On, null);
+        var kept = SetupUses.Chosen(Offer(CalDav, string.Empty), true, Off, On, default);
         Assert.Equal([AccountCapability.Mail, AccountCapability.Contacts], kept.Uses);
         Assert.Equal(CalDav, kept.CaldavUrl);
         Assert.Empty(kept.CarddavUrl);
@@ -54,11 +59,11 @@ public class SetupUsesTests
     [Fact]
     public void AUseSwitchedOffStoresNoServer()
     {
-        var mailOnly = SetupUses.Chosen(Offer(CalDav, CardDav), true, Off, Off, null);
+        var mailOnly = SetupUses.Chosen(Offer(CalDav, CardDav), true, Off, Off, default);
         Assert.Equal([AccountCapability.Mail], mailOnly.Uses);
         Assert.Empty(mailOnly.CaldavUrl + mailOnly.CarddavUrl);
 
-        var withoutMail = SetupUses.Chosen(Offer(CalDav, CardDav), false, On, Off, null);
+        var withoutMail = SetupUses.Chosen(Offer(CalDav, CardDav), false, On, Off, default);
         Assert.Equal([AccountCapability.Calendar], withoutMail.Uses);
         Assert.Empty(withoutMail.CarddavUrl);
     }
@@ -68,13 +73,13 @@ public class SetupUsesTests
     {
         var typed = SetupUses.Chosen(
             Offer(string.Empty, string.Empty), true,
-            new PickedUse(true, " cal.example.org "), new PickedUse(true, "book.example.org"), null);
+            new PickedUse(true, " cal.example.org "), new PickedUse(true, "book.example.org"), default);
         Assert.Equal("cal.example.org", typed.CaldavUrl);
         Assert.Equal("book.example.org", typed.CarddavUrl);
 
         // A box typed into and then switched off stores nothing.
         var dropped = SetupUses.Chosen(
-            Offer(string.Empty, string.Empty), true, new PickedUse(false, "cal.example.org"), Off, null);
+            Offer(string.Empty, string.Empty), true, new PickedUse(false, "cal.example.org"), Off, default);
         Assert.Empty(dropped.CaldavUrl);
     }
 
@@ -82,14 +87,14 @@ public class SetupUsesTests
     public void ACardThatOfferedNoChoiceLeavesTheUsesToTheServers()
     {
         var none = UseOffer.None with { CaldavUrl = CalDav };
-        Assert.Null(SetupUses.Chosen(none, null, null, null, null).Uses);
+        Assert.Null(SetupUses.Chosen(none, null, null, null, default).Uses);
     }
 
     [Fact]
     public void ContactsAreLookedForAtACalendarTypedInPlaceOfOneFound()
     {
         var typed = SetupUses.Chosen(
-            Offer(string.Empty, string.Empty), true, new PickedUse(true, "cal.example.org"), On, null);
+            Offer(string.Empty, string.Empty), true, new PickedUse(true, "cal.example.org"), On, default);
         Assert.Equal("cal.example.org", typed.CaldavUrl);
         Assert.Empty(typed.CarddavUrl);
         Assert.Equal([AccountCapability.Mail, AccountCapability.Calendar, AccountCapability.Contacts], typed.Uses);
@@ -100,11 +105,24 @@ public class SetupUsesTests
     {
         Assert.Equal(
             [AccountCapability.Contacts, AccountCapability.Colleagues],
-            SetupUses.Chosen(Provider(), false, Off, On, true).Uses);
-        Assert.Equal([AccountCapability.Mail], SetupUses.Chosen(Provider(), true, Off, Off, true).Uses);
+            SetupUses.Chosen(Provider(), false, Off, On, Colleagues).Uses);
+        Assert.Equal([AccountCapability.Mail], SetupUses.Chosen(Provider(), true, Off, Off, Colleagues).Uses);
         // A provider names no server, and none is stored.
-        var everything = SetupUses.Chosen(Provider(), true, On, On, true);
+        var everything = SetupUses.Chosen(Provider(), true, On, On, Colleagues);
         Assert.Empty(everything.CaldavUrl + everything.CarddavUrl);
+    }
+
+    [Fact]
+    public void SharedMailboxesCountOnlyBesideMail()
+    {
+        var shared = new Subchoices(SharedMailboxes: true, Colleagues: null);
+        Assert.Equal(
+            [AccountCapability.Mail, AccountCapability.SharedMailboxes],
+            SetupUses.Chosen(Provider(), true, Off, Off, shared).Uses);
+        Assert.Equal([AccountCapability.Calendar], SetupUses.Chosen(Provider(), false, On, Off, shared).Uses);
+        Assert.Equal(
+            [AccountCapability.Mail],
+            SetupUses.Chosen(Provider(), true, Off, Off, shared with { SharedMailboxes = false }).Uses);
     }
 
     [Fact]
@@ -123,9 +141,13 @@ public class SetupUsesTests
     [Fact]
     public void AManualSignInAsksOnlyForWhatTheAddressIsOffered()
     {
-        AccountCapability[] chosen = [AccountCapability.Mail, AccountCapability.Contacts, AccountCapability.Colleagues];
-        // A personal address is offered no colleagues (docs/accounts.md rule 3).
-        var personal = Provider().Choices.Where(choice => choice.Capability != AccountCapability.Colleagues).ToList();
+        AccountCapability[] chosen =
+            [AccountCapability.Mail, AccountCapability.SharedMailboxes, AccountCapability.Contacts, AccountCapability.Colleagues];
+        // A personal address is offered no colleagues (docs/accounts.md rule 3), nor shared
+        // mailboxes (docs/shared-mailboxes.md rule 2).
+        var personal = Provider().Choices
+            .Where(choice => choice.Capability is not (AccountCapability.Colleagues or AccountCapability.SharedMailboxes))
+            .ToList();
         Assert.Equal([AccountCapability.Mail, AccountCapability.Contacts], SetupUses.Allowed(chosen, personal));
         Assert.Equal(chosen, SetupUses.Allowed(chosen, Provider().Choices));
         Assert.Null(SetupUses.Allowed(null, Provider().Choices));

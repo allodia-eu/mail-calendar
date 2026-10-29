@@ -13,6 +13,10 @@ public class HarnessApp : UiApp
     /// launch's switches: for a case about the dial a launch makes.</summary>
     internal void RelaunchOnFirstRunStore() => Relaunch(() => App.RelaunchOnFirstRunStore(Env));
 
+    /// <summary>Quits the app and launches it again on the harness store as it was left: for a case
+    /// about what a launch makes of what an earlier one stored.</summary>
+    internal void RelaunchOnHarness() => Relaunch(() => App.LaunchOnHarness(Env));
+
     /// <summary>Whether this launch starts from an empty store, on the account-setup form.</summary>
     protected virtual bool FirstRun => false;
 
