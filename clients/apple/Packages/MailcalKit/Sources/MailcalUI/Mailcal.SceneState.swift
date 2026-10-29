@@ -69,14 +69,14 @@ extension ContentView {
         model.showContacts()
     }
 
-    @discardableResult
-    func removeAccount(_ id: String) -> String? {
+    /// A failure to erase the stored sign-in arrives as `model.removalFailure`.
+    func removeAccount(_ id: String) {
         if sceneSelectedAccount == id || model.selectedAccount == id {
             sceneSelectedAccount = ""
             sceneSelectedFolder = ""
             clearOpenedMessage()
         }
-        return model.removeAccount(id)
+        Task { await model.removeAccount(id) }
     }
 
     func setOpenedMessage(_ message: OpenedMessage) {

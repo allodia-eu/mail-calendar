@@ -193,12 +193,18 @@ extension MailboxModel {
     /// same port it wrote it through, so it doesn't return on the next launch. The last account
     /// gone returns the window to first-run setup (`docs/accounts.md` rule 11).
     ///
+    /// Off the main actor: the core deletes everything the device holds of the account, which
+    /// takes seconds on a large store.
+    ///
     /// Answers why its stored sign-in could not be erased, or `nil`.
     @discardableResult
-    func removeAccount(_ id: String) -> String? {
+    func removeAccount(_ id: String) async -> String? {
+        guard let app else { return nil }
         var failure: String?
         do {
-            try app?.removeAccount(id: id)
+            try await Task.detached(priority: .userInitiated) {
+                try app.removeAccount(id: id)
+            }.value
         } catch {
             // The account IS gone from the app, only the Keychain erase failed, so it would come
             // back at the next launch. Say so rather than letting it reappear unexplained.
@@ -211,7 +217,7 @@ extension MailboxModel {
         }
         removalFailure = failure
         refreshAccountsSnapshot()
-        if app != nil, accountsSnapshot.accounts.isEmpty {
+        if accountsSnapshot.accounts.isEmpty {
             needsSetup = true
         }
         return failure
