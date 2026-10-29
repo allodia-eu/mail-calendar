@@ -250,6 +250,11 @@
          through the calendar's server lose that server when the calendar is switched off, and the
          account connects with no address book while the card said it would have one. -->
     <Compile Include="..\Mailcal\Services\SetupUses.cs" Link="Services\SetupUses.cs" />
+    <!-- The Shared mailboxes section of an account's page (docs/shared-mailboxes.md rules 3, 7 and
+         8): which switch, line and field each answer draws. Silent when wrong: a section drawn for
+         an account that cannot open one says nothing useful, and one absent while the server is
+         away leaves a chosen mailbox with no switch to turn it off. -->
+    <Compile Include="..\Mailcal\Services\SharedMailboxRules.cs" Link="Services\SharedMailboxRules.cs" />
     <!-- The link step and the flow around it (docs/onboarding.md, "After the connect"): a
          suggestion that starts picked and yields to a pick, and "Add another account" coming back
          to the step it left. A flow that forgets where it came from closes the window on an

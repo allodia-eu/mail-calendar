@@ -369,6 +369,13 @@ struct Prepared {
     account_errors: Vec<String>,
 }
 
+/// Whether `listed` is the account `id` or a shared mailbox its sign-in opens.
+fn opened_by(listed: &str, id: &str) -> bool {
+    listed
+        .strip_prefix(id)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with("#shared:"))
+}
+
 /// Parses every stored config, builds each account's **one** token source, and registers it; all
 /// with **no network at all**.
 ///
@@ -393,9 +400,21 @@ fn prepare_accounts(
             Ok(prepared) => {
                 let id = prepared.account.id.as_str().to_owned();
                 registry.pre_register(id.clone(), prepared.connected);
-                accounts.push(prepared.account);
+                // One account per id. A host that hands one in twice (a dev launch injects its
+                // canned account beside the copy the core stored for it) gets the later config,
+                // which holds what was chosen since, in the first one's place.
+                let at = accounts
+                    .iter()
+                    .position(|account: &BoxedAccount| account.id.as_str() == id);
+                if at.is_some() {
+                    log::warn!("boot: an account was stored twice; the later copy is kept");
+                }
+                accounts.retain(|account| !opened_by(account.id.as_str(), &id));
+                let at = at.unwrap_or(accounts.len());
                 // Listed after the account whose sign-in opens them.
-                accounts.extend(registry.shared_placeholders(&id));
+                let listed =
+                    std::iter::once(prepared.account).chain(registry.shared_placeholders(&id));
+                accounts.splice(at..at, listed);
             }
             Err(err) => account_errors.push(err.to_string()),
         }

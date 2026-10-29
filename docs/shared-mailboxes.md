@@ -40,8 +40,8 @@ address = "support@example.org"                 # absent when the server gives n
 | Listing what a JMAP or IMAP sign-in opens, checking a typed Microsoft address, storing the choice | ✅ | — | — | — | — | — |
 | The Microsoft use: its scopes asked only while chosen, never on a personal account or one stored before it | ✅ | — | — | — | — | — |
 | A chosen one as a mail account of its own: folder pane, All Inboxes, From under its server's name, sending as its address, its own Sent | ✅ | — | — | — | — | — |
-| "Also mailboxes shared with you" beneath mail in a Microsoft setup | — | ✅ | ✅ | ⬜ | ⬜ | ✅ |
-| The Shared mailboxes section on an account's page, the Microsoft address field and the use's switch, switching one off confirmed | — | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| "Also mailboxes shared with you" beneath mail in a Microsoft setup | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The Shared mailboxes section on an account's page, the Microsoft address field and the use's switch, switching one off confirmed | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The mail surfaces need nothing of a client: each draws the core's account rows, and a shared
 mailbox is one of them. A client without the section leaves the use's switch out of its "Used

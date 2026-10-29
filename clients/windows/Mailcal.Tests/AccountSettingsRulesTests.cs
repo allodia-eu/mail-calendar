@@ -58,6 +58,31 @@ public class AccountSettingsRulesTests
     }
 
     [Fact]
+    public void SharedMailboxesWaitForMail()
+    {
+        var entry = Entry(
+            AccountKind.Microsoft,
+            (AccountCapability.Mail, CapabilityState.Off),
+            (AccountCapability.SharedMailboxes, CapabilityState.Off),
+            (AccountCapability.Calendar, CapabilityState.On),
+            (AccountCapability.Contacts, CapabilityState.Off),
+            (AccountCapability.Colleagues, CapabilityState.Off));
+        var shared = AccountSettingsRules.Switch(entry, AccountCapability.SharedMailboxes);
+        Assert.False(shared.Enabled);
+        Assert.Equal(UseNote.NeedsMail, shared.Note);
+
+        entry.Uses[0] = new AccountUse(AccountCapability.Mail, CapabilityState.On, null);
+        Assert.Equal(
+            new UseSwitch(Active: false, Asks: false, Enabled: true, Note: UseNote.None),
+            AccountSettingsRules.Switch(entry, AccountCapability.SharedMailboxes));
+        // Never the last use held on: it is no use of its own without mail.
+        entry.Uses[1] = new AccountUse(AccountCapability.SharedMailboxes, CapabilityState.On, null);
+        entry.Uses[2] = new AccountUse(AccountCapability.Calendar, CapabilityState.Off, null);
+        Assert.True(AccountSettingsRules.Switch(entry, AccountCapability.SharedMailboxes).Enabled);
+        Assert.Equal(UseNote.Last, AccountSettingsRules.Switch(entry, AccountCapability.Mail).Note);
+    }
+
+    [Fact]
     public void AUseThatDidNotConnectSaysWhyBeneathItsSwitch()
     {
         var entry = Entry(

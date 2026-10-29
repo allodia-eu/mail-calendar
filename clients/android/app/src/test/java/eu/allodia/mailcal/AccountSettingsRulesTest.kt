@@ -57,6 +57,26 @@ class AccountSettingsRulesTest {
     }
 
     @Test
+    fun shared_mailboxes_wait_for_mail() {
+        fun microsoft(mail: CapabilityState) = accountEntry(
+            CoreAccountKind.MICROSOFT,
+            AccountCapability.MAIL to mail,
+            AccountCapability.SHARED_MAILBOXES to CapabilityState.OFF,
+            AccountCapability.CALENDAR to CapabilityState.ON,
+        )
+        val shared = AccountSettingsRules.switch(
+            microsoft(CapabilityState.OFF),
+            AccountCapability.SHARED_MAILBOXES,
+        )
+        assertFalse(shared.enabled)
+        assertEquals(UseNote.NEEDS_MAIL, shared.note)
+        assertEquals(
+            UseSwitch(active = false, asks = false, enabled = true, note = UseNote.NONE),
+            AccountSettingsRules.switch(microsoft(CapabilityState.ON), AccountCapability.SHARED_MAILBOXES),
+        )
+    }
+
+    @Test
     fun a_use_waiting_on_permission_is_drawn_off_and_switching_it_on_asks() {
         val entry = accountEntry(
             CoreAccountKind.GOOGLE,

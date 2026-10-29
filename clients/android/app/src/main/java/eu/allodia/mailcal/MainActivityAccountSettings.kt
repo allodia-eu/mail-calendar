@@ -59,7 +59,7 @@ internal fun MainActivity.say(notice: AccountNotice) {
     }
 }
 
-private fun MainActivity.changeFailed(detail: String?) = AccountNotice(
+internal fun MainActivity.changeFailed(detail: String?) = AccountNotice(
     NoticeKind.FAILURE,
     L10n.settings_account_change_failed_title(this),
     detail ?: L10n.error_unknown(this),

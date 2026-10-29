@@ -14,7 +14,7 @@ struct SettingsHubView: View {
     let close: () -> Void
     /// Removes an account by id, handed straight to `SettingsCategoryDetail`, see its own
     /// note for why removal is the shell's job rather than a direct model call.
-    let removeAccount: (String) -> String?
+    let removeAccount: (String) -> Void
 
     @Environment(\.horizontalSizeClass) private var hSize
     // iPad's two-pane selection. Optional because a NavigationSplitView sidebar drives the detail
@@ -31,7 +31,7 @@ struct SettingsHubView: View {
     init(
         model: MailboxModel,
         close: @escaping () -> Void,
-        removeAccount: @escaping (String) -> String?,
+        removeAccount: @escaping (String) -> Void,
         openOn: SettingsCategory
     ) {
         self.model = model

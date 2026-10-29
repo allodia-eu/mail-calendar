@@ -37,6 +37,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import uniffi.mailcal_bindings.AccountFolderRow
@@ -389,7 +390,17 @@ private fun AccountHeader(
     modifier: Modifier = Modifier,
 ) {
     NavigationDrawerItem(
-        label = { Text(account.email, maxLines = 1) },
+        // One line that never breaks: a line break inside an address (after the hyphen in
+        // `team-orders@…`) and a one-line limit leave one word of it on screen. Shortened in the
+        // middle, so the domain stays readable (docs/folder-pane.md rule 11).
+        label = {
+            Text(
+                account.email,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.MiddleEllipsis,
+            )
+        },
         icon = {
             IconButton(
                 onClick = onToggle,

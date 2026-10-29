@@ -1,6 +1,7 @@
 // What the account is used for, chosen on the setup form: mail, calendar and contacts on the IMAP
-// and calendar-and-contacts cards, and colleagues too before a Microsoft or Google sign-in
-// (docs/account-autodetect.md rule 8, docs/accounts.md rule 10). Which uses are offered and how
+// and calendar-and-contacts cards, colleagues too before a Microsoft or Google sign-in, and shared
+// mailboxes before a Microsoft one (docs/account-autodetect.md rule 8, docs/accounts.md rule 10,
+// docs/shared-mailboxes.md rule 2). Which uses are offered and how
 // each starts is the core's; what the toggles make of the account is SetupUses, which the unit
 // suite drives. This partial draws the toggles and reads them back.
 
@@ -24,6 +25,7 @@ public sealed partial class AccountSetupView
     // What the panel is drawn for, and its toggles.
     private UseOffer _uses = UseOffer.None;
     private CheckBox? _mailUse;
+    private CheckBox? _sharedMailboxesUse;
     private CheckBox? _calendarUse;
     private CheckBox? _contactsUse;
     private CheckBox? _colleaguesUse;
@@ -58,7 +60,7 @@ public sealed partial class AccountSetupView
     private void DrawUses(UseOffer offer)
     {
         _uses = offer;
-        _mailUse = _calendarUse = _contactsUse = _colleaguesUse = null;
+        _mailUse = _sharedMailboxesUse = _calendarUse = _contactsUse = _colleaguesUse = null;
         _calendarTyped = _contactsTyped = null;
         UsesPanel.Children.Clear();
         UsesPanel.Visibility = offer.Choices.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -80,6 +82,10 @@ public sealed partial class AccountSetupView
                         }
                     }
                     break;
+                case AccountCapability.SharedMailboxes:
+                    _sharedMailboxesUse = Subchoice(
+                        L10n.SetupDetectSharedMailboxesEnable(), choice.On, "SetupUseSharedMailboxes", _mailUse);
+                    break;
                 case AccountCapability.Calendar:
                     UsesPanel.Children.Add(Section(L10n.SetupDetectSectionCalendar()));
                     (_calendarUse, _calendarTyped) = DavUse(
@@ -94,10 +100,8 @@ public sealed partial class AccountSetupView
                         L10n.SetupHintCarddav(), "SetupUseContacts");
                     break;
                 case AccountCapability.Colleagues:
-                    _colleaguesUse = UseBox(L10n.SetupDetectColleaguesEnable(), choice.On, "SetupUseColleagues");
-                    _colleaguesUse.Margin = new Thickness(28, 0, 0, 0);
-                    UsesPanel.Children.Add(_colleaguesUse);
-                    FollowContacts();
+                    _colleaguesUse = Subchoice(
+                        L10n.SetupDetectColleaguesEnable(), choice.On, "SetupUseColleagues", _contactsUse);
                     break;
             }
         }
@@ -194,21 +198,27 @@ public sealed partial class AccountSetupView
         return (box, typed);
     }
 
-    /// <summary>Colleagues come from the organisation's directory beside the person's own
-    /// contacts, so they are offered only while contacts are on, as on the account's page.</summary>
-    private void FollowContacts()
+    /// <summary>
+    /// A choice within a use, indented beneath it, and offered only while that use is on, as on the
+    /// account's page: colleagues come from the organisation's directory beside the person's own
+    /// contacts, and a shared mailbox is opened beside the account's own mail.
+    /// </summary>
+    private CheckBox Subchoice(string label, bool on, string automationId, CheckBox? within)
     {
-        if (_contactsUse is not { } contacts || _colleaguesUse is not { } colleagues)
+        var box = UseBox(label, on, automationId);
+        box.Margin = new Thickness(28, 0, 0, 0);
+        UsesPanel.Children.Add(box);
+        if (within is not null)
         {
-            return;
+            box.IsEnabled = within.IsChecked == true;
+            within.Checked += (_, _) => box.IsEnabled = true;
+            within.Unchecked += (_, _) =>
+            {
+                box.IsChecked = false;
+                box.IsEnabled = false;
+            };
         }
-        colleagues.IsEnabled = contacts.IsChecked == true;
-        contacts.Checked += (_, _) => colleagues.IsEnabled = true;
-        contacts.Unchecked += (_, _) =>
-        {
-            colleagues.IsChecked = false;
-            colleagues.IsEnabled = false;
-        };
+        return box;
     }
 
     /// <summary>The last use switched on cannot be switched off: an account used for nothing is
@@ -255,7 +265,7 @@ public sealed partial class AccountSetupView
         _mailUse?.IsChecked,
         Picked(_calendarUse, _calendarTyped),
         Picked(_contactsUse, _contactsTyped),
-        _colleaguesUse?.IsChecked);
+        new Subchoices(_sharedMailboxesUse?.IsChecked, _colleaguesUse?.IsChecked));
 
     /// <summary>Points at a server still to be typed for a use switched on, and says whether there
     /// was one; nothing can be set up until it is filled in.</summary>
@@ -288,8 +298,8 @@ public sealed partial class AccountSetupView
 
     /// <summary>
     /// What a Microsoft or Google sign-in asks for: the uses chosen, less any the address it signs
-    /// in with is not offered, so a personal address is never asked for colleagues. Null where
-    /// the form offered no choice, which asks for everything.
+    /// in with is not offered, so a personal address is never asked for colleagues or shared
+    /// mailboxes. Null where the form offered no choice, which asks for everything.
     /// </summary>
     private AccountCapability[]? ProviderUses(AccountKind kind)
     {

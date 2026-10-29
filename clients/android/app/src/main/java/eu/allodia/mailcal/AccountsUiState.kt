@@ -74,6 +74,9 @@ internal class AccountsUiState {
     /** A calendar or address book server found on another site, being asked about. */
     val serverChange = ServerChangePrompt()
 
+    /** The mailboxes each account's sign-in opens besides its own (docs/shared-mailboxes.md). */
+    val shared = SharedMailboxesState()
+
     /**
      * A first sign-in from the setup form claims the redirect a sign-in again was waiting for. That
      * one can no longer finish, so its page stops saying it is under way, or "Sign in again" would

@@ -22,6 +22,9 @@ internal enum class UseNote {
     /** Colleagues, while contacts are off. */
     NEEDS_CONTACTS,
 
+    /** Shared mailboxes, while mail is off. */
+    NEEDS_MAIL,
+
     /** Chosen, and the provider has not granted it. */
     WITHHELD,
 
@@ -139,8 +142,8 @@ internal object AccountSettingsRules {
 
     /**
      * The switch for [capability]. The last of mail, calendar and contacts cannot be switched off,
-     * and colleagues cannot be switched on without contacts: the core refuses both, so the switch
-     * says why rather than letting the person find out.
+     * and colleagues cannot be switched on without contacts, nor shared mailboxes without mail: the
+     * core refuses each, so the switch says why rather than letting the person find out.
      */
     fun switch(entry: AccountEntry, capability: AccountCapability): UseSwitch {
         fun used(wanted: AccountCapability) =
@@ -152,9 +155,10 @@ internal object AccountSettingsRules {
         val last = state == CapabilityState.ON &&
             capability in PRIMARY &&
             PRIMARY.count(::used) == 1
-        val withoutContacts = capability == AccountCapability.COLLEAGUES &&
-            state == CapabilityState.OFF &&
-            !used(AccountCapability.CONTACTS)
+        fun without(sub: AccountCapability, within: AccountCapability) =
+            capability == sub && state == CapabilityState.OFF && !used(within)
+        val withoutContacts = without(AccountCapability.COLLEAGUES, AccountCapability.CONTACTS)
+        val withoutMail = without(AccountCapability.SHARED_MAILBOXES, AccountCapability.MAIL)
         val notOffered = state == CapabilityState.NOT_OFFERED
         val problem = entry.uses.firstOrNull { it.capability == capability }?.problem
         val note = when {
@@ -162,13 +166,14 @@ internal object AccountSettingsRules {
             problem != null -> problemNote(capability, problem)
             last -> UseNote.LAST
             withoutContacts -> UseNote.NEEDS_CONTACTS
+            withoutMail -> UseNote.NEEDS_MAIL
             state == CapabilityState.NEEDS_PERMISSION -> UseNote.WITHHELD
             else -> UseNote.NONE
         }
         return UseSwitch(
             active = state == CapabilityState.ON,
             asks = state == CapabilityState.NEEDS_PERMISSION,
-            enabled = !last && !withoutContacts && !notOffered,
+            enabled = !last && !withoutContacts && !withoutMail && !notOffered,
             note = note,
         )
     }
