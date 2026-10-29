@@ -1,8 +1,9 @@
 // One account's page in Settings → Accounts, and its first questions: how it is shared, what it
-// is used for (docs/accounts.md rule 13), which other accounts fill what it is not (rule 12), and
-// how it signs in: again, for Microsoft and Google (docs/provider-oauth.md rule 11), or switched,
-// for IMAP and JMAP (docs/accounts.md rule 17). The servers, the mail settings and the removal
-// follow, in that order (docs/settings.md).
+// is used for (docs/accounts.md rule 13), which other accounts fill what it is not (rule 12), the
+// mailboxes its sign-in opens besides its own (SettingsSharedMailboxes.kt), and how it signs in:
+// again, for Microsoft and Google (docs/provider-oauth.md rule 11), or switched, for IMAP and JMAP
+// (docs/accounts.md rule 17). The servers, the mail settings and the removal follow, in that order
+// (docs/settings.md).
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Box
@@ -72,11 +73,7 @@ internal fun AccountPage(
         L10n.settings_account_uses_heading(ctx),
         L10n.settings_account_uses_description(ctx),
     ) {
-        // No switch for shared mailboxes: this client has no section to choose one
-        // (docs/shared-mailboxes.md §3).
-        entry.uses
-            .filter { it.capability != AccountCapability.SHARED_MAILBOXES }
-            .forEach { use -> UseRow(entry, use.capability, ui) }
+        entry.uses.forEach { use -> UseRow(entry, use.capability, ui) }
     }
     ui.state.separate.form?.takeIf { it.accountId == entry.id }?.let { form ->
         SeparateServerDialog(
@@ -100,6 +97,7 @@ internal fun AccountPage(
             pickers.forEach { picker -> LinkRow(entry, picker, ui) }
         }
     }
+    SharedMailboxesGroup(entry, ui)
     val expired = entry.id in ui.expired
     if (AccountSettingsRules.signsInAtProvider(entry.kind)) {
         Spacer(modifier = Modifier.height(8.dp))
@@ -207,6 +205,7 @@ private fun UseRow(entry: AccountEntry, capability: AccountCapability, ui: Accou
 internal fun useNoteText(ctx: android.content.Context, note: UseNote): String? = when (note) {
     UseNote.LAST -> L10n.settings_account_use_last(ctx)
     UseNote.NEEDS_CONTACTS -> L10n.settings_account_colleagues_needs_contacts(ctx)
+    UseNote.NEEDS_MAIL -> L10n.settings_account_shared_needs_mail(ctx)
     UseNote.WITHHELD -> L10n.settings_account_use_withheld(ctx)
     UseNote.NOT_OFFERED -> L10n.settings_account_use_not_offered(ctx)
     UseNote.UNREACHABLE_CALENDAR -> L10n.settings_account_use_unreachable_calendar(ctx)
