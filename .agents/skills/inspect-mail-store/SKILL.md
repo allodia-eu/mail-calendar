@@ -51,6 +51,7 @@ harness, prefer `--store dev` and share freely. See `mail-harness` to seed one.
 | `membership` | Which mailbox/folder each object belongs to. |
 | `sync_scope` | Per-scope sync cursors. |
 | `pending_op` | The durable outbox (queued sends/flag changes). |
+| `pending_op_payload` | What a queued op sends, keyed by `op_id`. Kept only while the op can still be sent, so a settled op has none. |
 
 A message's identity is `(scope_key, provider_key)`; `scope_key` embeds the account and folder.
 
