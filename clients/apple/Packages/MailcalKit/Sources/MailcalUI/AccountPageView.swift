@@ -1,6 +1,6 @@
 // One account's page in Settings → Accounts, in the order docs/settings.md gives: how it is shared,
-// what it is used for, the accounts it relies on, how it signs in, its own servers and password,
-// its mail settings while it is used for mail, and its removal, last.
+// what it is used for, the accounts it relies on, its shared mailboxes, how it signs in, its own
+// servers and password, its mail settings while it is used for mail, and its removal, last.
 
 import MailcalBindings
 import SwiftUI
@@ -23,6 +23,8 @@ struct AccountPageView: View {
     /// The line the sign-in section shows once a sign-in has answered.
     @State private var signInResult: String?
     @State private var confirmingRemoval = false
+    /// What the server answered about the mailboxes the account's sign-in opens besides its own.
+    @State private var sharedMailboxes: SharedMailboxesView?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -55,6 +57,8 @@ struct AccountPageView: View {
             if !pickers.isEmpty {
                 AccountLinksSection(model: model, entry: entry, pickers: pickers, alert: $alert)
             }
+            AccountSharedMailboxesSection(
+                model: model, entry: entry, answer: $sharedMailboxes, alert: $alert)
             if AccountSettingsRules.signsInAtProvider(entry.kind) {
                 signInSection
             } else if AccountSignInRules.switchesSignIn(entry.kind) {
@@ -71,6 +75,7 @@ struct AccountPageView: View {
             }
             removeSection
         }
+        .modifier(SharedMailboxesAsking(model: model, entry: entry, answer: $sharedMailboxes))
         .alert(item: $alert) { alert in
             Alert(
                 title: Text(alert.title),
@@ -204,9 +209,7 @@ struct AccountUsesSection: View {
             description: L10n.settings_account_uses_description()
         ) {
             VStack(alignment: .leading, spacing: 10) {
-                // No switch for shared mailboxes: this client has no section to choose one
-                // (docs/shared-mailboxes.md §3).
-                ForEach(entry.uses.filter { $0.capability != .sharedMailboxes }, id: \.capability) { use in
+                ForEach(entry.uses, id: \.capability) { use in
                     row(use.capability)
                 }
             }

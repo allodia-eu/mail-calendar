@@ -65,7 +65,7 @@ private func mailboxOnly() -> AccountEntry {
 
     @Test func onlyAServerChangeOffersReview() {
         let notes: [UseNote] = [
-            .none, .last, .needsContacts, .withheld, .notOffered,
+            .none, .last, .needsContacts, .needsMail, .withheld, .notOffered,
             .problem(.needsOwnSignIn, .calendar), .problem(.signInRefused, .contacts),
             .problem(.unreachable, .calendar),
         ]
@@ -93,6 +93,25 @@ private func mailboxOnly() -> AccountEntry {
 
         account.uses[2] = AccountUse(capability: .contacts, state: .on)
         #expect(AccountSettingsRules.useSwitch(account, .colleagues).enabled)
+    }
+
+    @Test func sharedMailboxesWaitForMail() {
+        var account = entry(
+            .microsoft, [(.mail, .off), (.sharedMailboxes, .off), (.calendar, .on), (.contacts, .off)])
+        let shared = AccountSettingsRules.useSwitch(account, .sharedMailboxes)
+        #expect(!shared.enabled)
+        #expect(shared.note == .needsMail)
+        #expect(AccountSettingsLabels.note(shared.note) == L10n.settings_account_shared_needs_mail())
+
+        account.uses[0] = AccountUse(capability: .mail, state: .on)
+        #expect(
+            AccountSettingsRules.useSwitch(account, .sharedMailboxes)
+                == UseSwitch(active: false, asks: false, enabled: true, note: .none))
+        // Not one of mail, calendar and contacts, so never the last use held on.
+        account.uses[1] = AccountUse(capability: .sharedMailboxes, state: .on)
+        account.uses[2] = AccountUse(capability: .calendar, state: .off)
+        #expect(AccountSettingsRules.useSwitch(account, .sharedMailboxes).enabled)
+        #expect(AccountSettingsRules.useSwitch(account, .mail).note == .last)
     }
 
     @Test func aUseWaitingOnPermissionIsDrawnOffAndSwitchingItOnAsks() {
