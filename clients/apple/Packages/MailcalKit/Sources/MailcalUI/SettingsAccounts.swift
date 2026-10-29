@@ -10,8 +10,8 @@ struct AccountsSettingsView: View {
     var model: MailboxModel
     let close: () -> Void
     /// The shell's removal, which also clears the scene's selection when it named this account.
-    /// Answers why the stored sign-in could not be erased, or `nil`.
-    let removeAccount: (String) -> String?
+    /// A failure to erase the stored sign-in arrives as `model.removalFailure`.
+    let removeAccount: (String) -> Void
 
     var body: some View {
         content.modifier(RemovalFailureAlert(model: model))
@@ -39,7 +39,7 @@ struct AccountsSettingsView: View {
 
     private func remove(_ id: String) {
         model.accountPage = nil
-        _ = removeAccount(id)
+        removeAccount(id)
     }
 
     private var list: some View {

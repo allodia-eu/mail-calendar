@@ -326,7 +326,8 @@ impl MailcalApp {
     /// [`AccountEntry::linked_from`](crate::AccountEntry::linked_from) names them beforehand),
     /// removes it from the runtime (switcher, selection) so its mail leaves the list,
     /// and **erases its credential** from the host's OS secure store so it does not return at the
-    /// next launch. The observer fires as the snapshot rebuilds. A no-op for an unknown id.
+    /// next launch. The observer fires as the snapshot rebuilds. The space the account held is
+    /// reclaimed after this returns, not before. A no-op for an unknown id.
     ///
     /// # Errors
     ///
@@ -357,7 +358,8 @@ impl MailcalApp {
             .remove(&id);
         // Abort the account's push watches / poll timer (apply with no row stops it).
         self.background.apply(&id, None);
-        if let Ok(account_id) = AccountId::try_from(id.as_str()) {
+        let account_id = AccountId::try_from(id.as_str()).ok();
+        if let Some(account_id) = account_id.clone() {
             let app = Arc::clone(&self.app);
             self.runtime
                 .block_on(|| async move { app.remove_account(&account_id).await });
@@ -366,19 +368,26 @@ impl MailcalApp {
             // holds is a snapshot, so nothing else would tell it.
             self.refresh_mcp();
         }
-        // Last, and by the core rather than the host: the stored credential. Erasing it before
-        // the runtime removal would leave a live account with no way back if the process died in
-        // between; doing it here means the only bad outcome left is a stored credential with no
-        // account, which the next launch shows as an account that will not connect; visible,
-        // and reported below rather than silent.
-        self.delete_stored_credential(&id).inspect_err(|err| {
+        // By the core rather than the host: the stored credential. Erasing it before the runtime
+        // removal would leave a live account with no way back if the process died in between;
+        // doing it here means the only bad outcome left is a stored credential with no account,
+        // which the next launch shows as an account that will not connect; visible, and
+        // reported below rather than silent.
+        let erased = self.delete_stored_credential(&id).inspect_err(|err| {
             log::error!(
                 "credentials: [{}] the account was removed from the app, but its stored \
                  credential could NOT be erased ({err}); it will come back as an account at the \
                  next launch",
                 mailcal_account::account_log_handle(&id),
             );
-        })
+        });
+        // Last and not awaited: compacting the store rewrites all of it, seconds on a large one.
+        if account_id.is_some() {
+            let app = Arc::clone(&self.app);
+            self.runtime
+                .spawn(async move { app.reclaim_removed_account_space().await });
+        }
+        erased
     }
 }
 

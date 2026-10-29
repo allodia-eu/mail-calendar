@@ -202,8 +202,9 @@ impl<P: Provider> App<P> {
     /// selected account (falling back to the unified "all inboxes") and forgets its cached
     /// messages and optimistic hints, forgets its engine data, then rebuilds the snapshot so its
     /// mail disappears. The host stops the account's background sync and deletes its stored
-    /// credential from the OS secure store separately (the bindings layer orchestrates both). A
-    /// no-op if no such account is configured.
+    /// credential from the OS secure store separately (the bindings layer orchestrates both),
+    /// then calls [`Self::reclaim_removed_account_space`]. A no-op if no such account is
+    /// configured.
     pub async fn remove_account(&self, id: &AccountId) {
         self.note_first_download(id, false);
         {
@@ -282,13 +283,20 @@ impl<P: Provider> App<P> {
         if self.engine.forget_account(id).await.is_err() {
             log::warn!("remove_account: engine forget failed");
         }
-        // Forgetting the account drops its rows but not the raw sources it cached: those are
-        // named by a content hash a *different* account's copy may still share, so no row
-        // delete can free them. Removing an account is the largest bulk removal there is, so
-        // sweep the ones this account was the last to name.
-        self.reclaim_freed_space("remove-account").await;
         self.rebuild_snapshot().await;
         self.observer.surface_changed(Surface::Settings);
+    }
+
+    /// Reclaims what [`Self::remove_account`] freed. Forgetting an account drops its rows but
+    /// not the raw sources it cached: those are named by a content hash a *different* account's
+    /// copy may still share, so no row delete can free them. Removing an account is the largest
+    /// bulk removal there is, so this sweeps the ones the account was the last to name, then
+    /// compacts the store.
+    ///
+    /// A step of its own because the compaction rewrites the whole store, which takes seconds
+    /// on a large one, and no part of the removal should wait behind it.
+    pub async fn reclaim_removed_account_space(&self) {
+        self.reclaim_freed_space("remove-account").await;
     }
 
     /// Renders the mailbox-list snapshot from the **already-persisted** store, without

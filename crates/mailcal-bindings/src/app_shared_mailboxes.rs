@@ -290,6 +290,9 @@ impl MailcalApp {
         self.runtime
             .block_on(|| async move { app.remove_account(&child).await });
         self.refresh_mcp();
+        let app = Arc::clone(&self.app);
+        self.runtime
+            .spawn(async move { app.reclaim_removed_account_space().await });
     }
 }
 
