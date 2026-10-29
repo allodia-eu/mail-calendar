@@ -203,6 +203,7 @@ impl MailcalApp {
         };
         let protocol = prepared.connected.protocol();
         let family = prepared.connected.dialled();
+        let account_type = prepared.connected.account_type();
         let stores_a_password = prepared.connected.stores_a_password();
         // The setup funnel: which protocol was attempted, and did it connect. Paired with
         // `setup_completed` / `setup_failed` below, this answers "how many people never get an
@@ -292,7 +293,7 @@ impl MailcalApp {
                 .expect("calendar-errors mutex poisoned")
                 .push(error);
         }
-        connection_log::log_account_connection_info("new-account", family, &account);
+        connection_log::log_account_connection_info("new-account", account_type, &account);
         // Register the connected account WITHOUT syncing (`add_new_account_deferred`) so it appears
         // in the switcher and the setup modal can dismiss at once, with the product default
         // three-month depth recorded before the first sync starts.

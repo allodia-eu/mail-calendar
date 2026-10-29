@@ -157,6 +157,22 @@ fn a_plaintext_redirect_to_the_same_host_is_followed_over_tls() {
         next("http://dav.example.com:8080/dav/").as_deref(),
         Some("http://dav.example.com:8080/dav/")
     );
+    // The port that answered over TLS is the one a proxy may pass through.
+    let on_8443 = Url::parse("https://dav.example.com:8443/.well-known/caldav").unwrap();
+    assert_eq!(
+        redirect_target(&on_8443, "http://dav.example.com:8443/dav/").map(String::from),
+        Some("https://dav.example.com:8443/dav/".to_owned())
+    );
+    assert_eq!(
+        redirect_target(&on_8443, "http://dav.example.com/dav/").map(String::from),
+        Some("http://dav.example.com/dav/".to_owned())
+    );
+    // A host sending its TLS visitors to the same URL in plaintext would only redirect the
+    // upgraded hop again, so it is followed as it is.
+    assert_eq!(
+        next("http://dav.example.com/.well-known/caldav").as_deref(),
+        Some("http://dav.example.com/.well-known/caldav")
+    );
 }
 
 #[tokio::test]

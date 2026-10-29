@@ -7,7 +7,8 @@ Bump: patch
 > `.well-known` rewrite does behind a TLS-terminating proxy, is followed over HTTPS, both when
 > setup looks for it and when the engine connects; a plaintext redirect to another host is still
 > refused. A calendar or address book URL with a path now starts discovery at that path rather
-> than at the host's `.well-known`.
+> than at the host's `.well-known`, and goes back to the `.well-known` when the path is gone.
+> Contacts that use the calendar's server still start at its CardDAV `.well-known`.
 
 **English**
 

@@ -41,11 +41,12 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
    (rule 9). The only **untrusted** case is a **non-HTTPS hop** (the `http://` autoconfig
    variants some small providers still publish), which **must be shown to the user and require
    explicit approval** ("I trust these settings") before any credential is sent. This gate is
-   identical on every client. A redirect from HTTPS to `http://` on the **same host**, naming no
-   port of its own, is not such a hop: it is taken over HTTPS instead, because a server behind
-   a TLS-terminating proxy builds its redirects as if it were served in plaintext, and the host
-   has just answered over TLS. The engine connects by the same rule, so what is found here is
-   what it reaches.
+   identical on every client. A redirect from HTTPS to `http://` on the **same host and port**
+   is not such a hop: it is taken over HTTPS instead, because a server behind a
+   TLS-terminating proxy builds its redirects as if it were served in plaintext, and that host
+   and port have just answered over TLS. The engine connects by the same rule, so what is found here is
+   what it reaches. A redirect to the very URL that issued it, in plaintext, is followed as it
+   is: over HTTPS it would only be redirected again.
 
 4. **Autodetect never yields a plaintext config.** The autoconfig parser rejects any
    `socketType` that is not `SSL`/`STARTTLS`, and the recommendation layer only ever routes

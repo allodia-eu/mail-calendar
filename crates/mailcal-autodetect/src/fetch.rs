@@ -203,19 +203,25 @@ impl Fetcher {
 
 /// Resolves a redirect's `location` against the `current` URL.
 ///
-/// A plaintext hop from TLS to the same host, naming no port of its own, is taken over TLS: a
-/// server behind a TLS-terminating proxy builds its redirects as if it were served in
-/// plaintext, and the host has just answered over TLS. The engine connects by the same rule
-/// (`engine_provider::redirect_target`), so a server found here is one it can reach. Any other
-/// plaintext hop is followed as it is, and leaves the result untrusted.
+/// A plaintext hop from TLS to the same host and port is taken over TLS: a server behind a
+/// TLS-terminating proxy builds its redirects as if it were served in plaintext, and that host
+/// and port have just answered over TLS. The engine connects by the same rule
+/// (`engine_provider::redirect_target`), so a server found here is one it can reach. A hop
+/// that over TLS would name `current` itself is a host sending its TLS visitors to plaintext,
+/// and taking it over TLS would only be redirected again. It, and any other plaintext hop, is
+/// followed as it is, and leaves the result untrusted.
 fn redirect_target(current: &Url, location: &str) -> Option<Url> {
-    let mut next = current.join(location).ok()?;
+    let next = current.join(location).ok()?;
     if current.scheme() == "https"
         && next.scheme() == "http"
         && next.host() == current.host()
-        && next.port().is_none()
+        && next.port() == current.port()
     {
-        next.set_scheme("https").ok()?;
+        let mut upgraded = next.clone();
+        upgraded.set_scheme("https").ok()?;
+        if upgraded != *current {
+            return Some(upgraded);
+        }
     }
     Some(next)
 }
