@@ -63,7 +63,8 @@ pub async fn connect_carddav_contact_providers(
 /// [`connect_carddav_contact_providers`], reporting the principal the server named. It starts at
 /// the principal the last connect stored ([`DavStarts::contacts`](crate::DavStarts::contacts))
 /// when there is one, and from the configured server when there is none or the server says it is
-/// gone.
+/// gone. A configured path that is gone falls back to the server's well-known, which is also where
+/// contacts on the calendar's endpoint start.
 ///
 /// # Errors
 ///
@@ -82,8 +83,22 @@ pub async fn connect_carddav_learning(
             connected => return connected.map(|connected| connected.started_at(start)),
         }
     }
-    connect_carddav_at(account, tokens, None).await
+    // Contacts on the calendar's endpoint look for the address book from its origin: the
+    // calendar's path is where a CalDAV server keeps calendars.
+    let Some(carddav) = &account.carddav else {
+        return connect_carddav_at(account, tokens, Some(WELL_KNOWN)).await;
+    };
+    match connect_carddav_at(account, tokens, None).await {
+        Err(err) if err.is_gone() && crate::starts_at_a_path(&carddav.base_url) => {
+            log::info!("carddav: the configured path is gone; starting from the well-known");
+            connect_carddav_at(account, tokens, Some(WELL_KNOWN)).await
+        }
+        connected => connected,
+    }
 }
+
+/// Where a CardDAV server is found from its origin (RFC 6764 §5).
+const WELL_KNOWN: &str = "/.well-known/carddav";
 
 /// One CardDAV connect, starting at `start` when given and at the configured server otherwise.
 async fn connect_carddav_at(
@@ -127,7 +142,9 @@ async fn connect_carddav_at(
 
     let discovery = CardDavProvider::connect(config.clone())
         .await
-        .map_err(|err| AccountError::from_first_dav_connect(err).over_tls(&tls))?;
+        .map_err(|err| {
+            AccountError::from_first_dav_connect(err, AccountError::CardDav).over_tls(&tls)
+        })?;
     let principal = discovery.principal_url().map(str::to_owned);
     let none = |principal| DavConnected {
         providers: Vec::new(),

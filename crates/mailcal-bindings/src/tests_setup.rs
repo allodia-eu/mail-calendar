@@ -163,3 +163,35 @@ fn a_setup_used_for_nothing_is_refused() {
     });
     assert!(matches!(refused, Err(MailcalError::Config(_))));
 }
+
+/// An account used only for calendar and contacts dials no IMAP, so a log line about its connect
+/// does not say it did.
+#[test]
+fn a_calendar_and_contacts_account_is_not_logged_as_an_imap_connect() {
+    let connected = |imap_host: &str, uses: Vec<AccountCapability>| {
+        let toml = account_config_toml(AccountSetup {
+            imap_host: imap_host.to_owned(),
+            username: "alice@cloud.example".to_owned(),
+            password: "secret".to_owned(),
+            smtp_host: None,
+            caldav_base_url: Some("https://cloud.example/remote.php/dav".to_owned()),
+            imap_security: None,
+            smtp_security: None,
+            accepted_certificate: None,
+            carddav_base_url: None,
+            uses: Some(uses),
+        })
+        .expect("a valid account config");
+        crate::connected_account::ConnectedAccount::imap_account(
+            mailcal_account::load_str(&toml).expect("a valid config"),
+            None,
+        )
+    };
+    let dav = connected("", vec![AccountCapability::Calendar]);
+    let mail = connected(
+        "imap.cloud.example",
+        vec![AccountCapability::Mail, AccountCapability::Calendar],
+    );
+    assert_eq!(dav.dialled(), "caldav/carddav");
+    assert_eq!(mail.dialled(), "imap");
+}

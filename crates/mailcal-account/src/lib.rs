@@ -203,7 +203,8 @@ impl<T> std::fmt::Debug for DavConnected<T> {
 /// [`connect_caldav`], reporting the principal the server named. It starts at the principal the
 /// last connect stored ([`DavStarts::calendar`]) when there is one, and from the configured
 /// server when there is none or the server says it is gone, so a principal that moved within the
-/// server is found again without looking up DNS.
+/// server is found again without looking up DNS. A configured path that is gone falls back to the
+/// server's well-known.
 ///
 /// # Errors
 ///
@@ -222,7 +223,21 @@ pub async fn connect_caldav_learning(
             connected => return connected.map(|connected| connected.started_at(start)),
         }
     }
-    connect_caldav_at(account, tokens, None).await
+    let endpoint = account.caldav_endpoint().ok_or(AccountError::NoCalDav)?;
+    match connect_caldav_at(account, tokens, None).await {
+        Err(err) if err.is_gone() && starts_at_a_path(endpoint.base_url) => {
+            log::info!("caldav: the configured path is gone; starting from the well-known");
+            connect_caldav_at(account, tokens, Some("/.well-known/caldav")).await
+        }
+        connected => connected,
+    }
+}
+
+/// Whether a connect to `base_url` starts at a path of its own: the engine asks the server's
+/// well-known only for a URL that names a server alone. A path stored before the engine asked it
+/// may never have answered, so one that is gone sends the connect back to the well-known.
+pub(crate) fn starts_at_a_path(base_url: &str) -> bool {
+    reqwest::Url::parse(&normalize_caldav_base_url(base_url)).is_ok_and(|url| url.path() != "/")
 }
 
 /// One CalDAV connect, starting at `start` when given and at the configured server otherwise.
@@ -259,7 +274,7 @@ async fn connect_caldav_at(
     .with_connect_observer(connect_log::connect_logger("caldav"));
     let provider = CalDavProvider::connect(config)
         .await
-        .map_err(AccountError::from_first_dav_connect)
+        .map_err(|err| AccountError::from_first_dav_connect(err, AccountError::CalDav))
         .map_err(|err| err.over_tls(&tls))?;
     let principal = provider.principal_url().map(str::to_owned);
     Ok(DavConnected {

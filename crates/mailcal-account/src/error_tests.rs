@@ -113,7 +113,7 @@ fn a_dav_401_is_a_rejected_signin() {
         "the engine no longer classifies a 401 as an authentication failure"
     );
     assert!(matches!(
-        AccountError::from_first_dav_connect(dav_status(401)),
+        AccountError::from_first_dav_connect(dav_status(401), AccountError::CardDav),
         AccountError::SigninRejected(_)
     ));
 }
@@ -129,12 +129,20 @@ fn a_dav_connect_that_failed_some_other_way_is_not_a_rejected_signin() {
         let class = err.failure_class();
         assert!(
             matches!(
-                AccountError::from_first_dav_connect(err),
-                AccountError::CalDav(_)
+                AccountError::from_first_dav_connect(err, AccountError::CardDav),
+                AccountError::CardDav(_)
             ),
             "a {class:?} failure was read as a refused credential"
         );
     }
+}
+
+/// A stored address-book start that is gone is found again from the configured server, as a
+/// calendar's is.
+#[test]
+fn a_gone_address_book_start_is_gone() {
+    assert!(AccountError::CardDav(dav_status(404)).is_gone());
+    assert!(!AccountError::CardDav(dav_status(503)).is_gone());
 }
 
 /// The DAV side of the corroboration rule: only the connect decides.

@@ -87,6 +87,22 @@ impl ConnectedAccount {
         }
     }
 
+    /// What a dial of this account connects, for a log line about it: [`Self::account_type`],
+    /// except for an IMAP-kind account not used for mail, which dials only its calendar and
+    /// address book servers.
+    pub(crate) fn dialled(&self) -> &'static str {
+        match self {
+            Self::Imap { config, .. }
+                if !config
+                    .capabilities()
+                    .contains(mailcal_account::Capability::Mail) =>
+            {
+                "caldav/carddav"
+            }
+            _ => self.account_type(),
+        }
+    }
+
     /// The same provider family, as the core's analytics protocol. Safe for the same reason
     /// [`Self::account_type`] is: it names the protocol and nothing else. This binding layer is
     /// the only layer that knows which protocol a `dyn Provider` actually speaks, so it is the
