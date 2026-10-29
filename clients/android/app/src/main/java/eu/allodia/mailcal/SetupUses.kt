@@ -50,7 +50,7 @@ internal object SetupUses {
      * one typed in its place. Contacts store an address book found apart from the calendar, or the
      * one typed. Contacts found only through the calendar's server keep that server even with the
      * calendar off, because that is where they are looked for, and the stored uses keep the
-     * calendar closed. Colleagues count only beside contacts.
+     * calendar closed. Colleagues count only beside contacts, and shared mailboxes only beside mail.
      */
     fun chosen(
         offer: UseOffer,
@@ -58,6 +58,7 @@ internal object SetupUses {
         calendar: PickedUse?,
         contacts: PickedUse?,
         colleagues: Boolean?,
+        sharedMailboxes: Boolean? = null,
     ): ChosenUses {
         val calendarOn = calendar?.on == true
         val contactsOn = contacts?.on == true
@@ -74,7 +75,10 @@ internal object SetupUses {
             null
         } else {
             buildList<AccountCapability> {
-                if (mail == true) add(AccountCapability.MAIL)
+                if (mail == true) {
+                    add(AccountCapability.MAIL)
+                    if (sharedMailboxes == true) add(AccountCapability.SHARED_MAILBOXES)
+                }
                 if (calendarOn) add(AccountCapability.CALENDAR)
                 if (contactsOn) {
                     add(AccountCapability.CONTACTS)

@@ -77,6 +77,7 @@ struct UseChoices: Equatable {
     var calendar: PickedUse?
     var contacts: PickedUse?
     var colleagues: Bool?
+    var sharedMailboxes: Bool?
 
     /// Each use as the core said it starts.
     init(_ offer: UseOffer) {
@@ -85,6 +86,7 @@ struct UseChoices: Equatable {
         calendar = offer.choice(.calendar).map { PickedUse(on: $0.on) }
         contacts = offer.choice(.contacts).map { PickedUse(on: $0.on) }
         colleagues = offer.choice(.colleagues)?.on
+        sharedMailboxes = offer.choice(.sharedMailboxes)?.on
     }
 
     func isOn(_ capability: AccountCapability) -> Bool {
@@ -93,16 +95,17 @@ struct UseChoices: Equatable {
         case .calendar: calendar?.on ?? false
         case .contacts: contacts?.on ?? false
         case .colleagues: colleagues ?? false
-        // Not offered: this client has no section to choose one (docs/shared-mailboxes.md §3).
-        case .sharedMailboxes: false
+        case .sharedMailboxes: sharedMailboxes ?? false
         }
     }
 
     /// Whether the person may flip `capability` now. The last use switched on cannot be switched
     /// off, since an account used for nothing is not one; colleagues come from the organisation's
-    /// directory beside the person's own contacts, so they wait for contacts.
+    /// directory beside the person's own contacts, so they wait for contacts, and a shared mailbox
+    /// is opened beside the account's own mail, so it waits for mail.
     func canFlip(_ capability: AccountCapability) -> Bool {
         if capability == .colleagues { return isOn(.contacts) }
+        if capability == .sharedMailboxes { return isOn(.mail) }
         guard isOn(capability) else { return true }
         return [AccountCapability.mail, .calendar, .contacts].filter(isOn).count > 1
     }
@@ -110,13 +113,15 @@ struct UseChoices: Equatable {
     mutating func set(_ capability: AccountCapability, _ on: Bool) {
         guard on == isOn(capability) || canFlip(capability) else { return }
         switch capability {
-        case .mail: mail = on
+        case .mail:
+            mail = on
+            if !on, sharedMailboxes != nil { sharedMailboxes = false }
         case .calendar: calendar?.on = on
         case .contacts:
             contacts?.on = on
             if !on, colleagues != nil { colleagues = false }
         case .colleagues: colleagues = on
-        case .sharedMailboxes: break
+        case .sharedMailboxes: sharedMailboxes = on
         }
     }
 
@@ -137,7 +142,9 @@ struct UseChoices: Equatable {
     }
 
     var chosen: ChosenUses {
-        SetupUses.chosen(offer, mail: mail, calendar: calendar, contacts: contacts, colleagues: colleagues)
+        SetupUses.chosen(
+            offer, mail: mail, calendar: calendar, contacts: contacts, colleagues: colleagues,
+            sharedMailboxes: sharedMailboxes)
     }
 
     var missing: MissingServer { SetupUses.missing(offer, calendar: calendar, contacts: contacts) }
@@ -148,10 +155,11 @@ enum SetupUses {
     /// the one typed in its place. Contacts store an address book found apart from the calendar,
     /// or the one typed. Contacts found only through the calendar's server keep that server even
     /// with the calendar off, because that is where they are looked for, and the stored uses keep
-    /// the calendar closed. Colleagues count only beside contacts.
+    /// the calendar closed. Colleagues count only beside contacts, and shared mailboxes only beside
+    /// mail.
     static func chosen(
         _ offer: UseOffer, mail: Bool?, calendar: PickedUse?, contacts: PickedUse?,
-        colleagues: Bool?
+        colleagues: Bool?, sharedMailboxes: Bool? = nil
     ) -> ChosenUses {
         let calendarOn = calendar?.on ?? false
         let contactsOn = contacts?.on ?? false
@@ -165,7 +173,10 @@ enum SetupUses {
         var uses: [AccountCapability]?
         if !offer.choices.isEmpty {
             var chosen: [AccountCapability] = []
-            if mail == true { chosen.append(.mail) }
+            if mail == true {
+                chosen.append(.mail)
+                if sharedMailboxes == true { chosen.append(.sharedMailboxes) }
+            }
             if calendarOn { chosen.append(.calendar) }
             if contactsOn {
                 chosen.append(.contacts)

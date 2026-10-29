@@ -86,8 +86,12 @@ pub enum AccountError {
     /// The CalDAV connection or discovery failed.
     #[error("caldav: {0}")]
     CalDav(#[from] provider_caldav::CalDavError),
+    /// The CardDAV connection or discovery failed. The adapter shares CalDAV's error type, so
+    /// this variant is what says the address book was the server dialled.
+    #[error("carddav: {0}")]
+    CardDav(provider_caldav::CalDavError),
     /// DAV discovery could not be prepared or completed.
-    #[error("caldav discovery: {0}")]
+    #[error("dav discovery: {0}")]
     CalDavDiscovery(String),
     /// Building a calendar event-write failed (a bad uid, time, or href).
     #[error("calendar write: {0}")]
@@ -167,7 +171,7 @@ impl AccountError {
     pub fn is_gone(&self) -> bool {
         matches!(
             self,
-            Self::CalDav(err)
+            Self::CalDav(err) | Self::CardDav(err)
                 if err.failure_class() == FailureClass::Permanent
                     && !matches!(err, provider_caldav::CalDavError::UnsupportedAuthentication(_))
         )
@@ -175,18 +179,22 @@ impl AccountError {
 
     /// The verdict for the connect that first presents a DAV endpoint's credential: an
     /// [authentication-class](FailureClass::Authentication) refusal becomes
-    /// [`Self::SigninRejected`], anything else [`Self::CalDav`].
+    /// [`Self::SigninRejected`], anything else what `failed` makes of it ([`Self::CalDav`] or
+    /// [`Self::CardDav`]).
     ///
     /// It decides something only for an account without mail, whose calendar or contacts are
     /// what say whether its sign-in still works (`docs/accounts.md` rule 7). Beside a mailbox the
     /// mailbox decides, and a DAV failure only leaves the calendar or contacts empty. The requests
     /// that follow the connect convert the ordinary way, for the reason
     /// [`Self::from_first_imap_login`] gives.
-    pub(crate) fn from_first_dav_connect(err: provider_caldav::CalDavError) -> Self {
+    pub(crate) fn from_first_dav_connect(
+        err: provider_caldav::CalDavError,
+        failed: fn(provider_caldav::CalDavError) -> Self,
+    ) -> Self {
         if err.failure_class() == FailureClass::Authentication {
             Self::SigninRejected(err.to_string())
         } else {
-            Self::CalDav(err)
+            failed(err)
         }
     }
 }

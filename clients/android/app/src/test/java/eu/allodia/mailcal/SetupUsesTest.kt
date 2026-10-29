@@ -11,6 +11,7 @@ import uniffi.mailcal_bindings.AccountCapability.CALENDAR
 import uniffi.mailcal_bindings.AccountCapability.COLLEAGUES
 import uniffi.mailcal_bindings.AccountCapability.CONTACTS
 import uniffi.mailcal_bindings.AccountCapability.MAIL
+import uniffi.mailcal_bindings.AccountCapability.SHARED_MAILBOXES
 
 private const val CALDAV = "https://dav.example.org/caldav"
 private const val CARDDAV = "https://dav.example.org/carddav"
@@ -91,6 +92,33 @@ class SetupUsesTest {
         // A provider names no server, and none is stored.
         val everything = SetupUses.chosen(provider(), true, on, on, true)
         assertEquals("", everything.caldavUrl + everything.carddavUrl)
+    }
+
+    @Test
+    fun shared_mailboxes_count_only_beside_mail() {
+        val microsoft = UseOffer(
+            listOf(MAIL, SHARED_MAILBOXES, CALENDAR, CONTACTS, COLLEAGUES).map { choice(it, true) },
+        )
+        assertEquals(
+            listOf(MAIL, SHARED_MAILBOXES, CALENDAR),
+            SetupUses.chosen(microsoft, true, on, off, null, sharedMailboxes = true).uses,
+        )
+        assertEquals(listOf(CALENDAR), SetupUses.chosen(microsoft, false, on, off, null, true).uses)
+        assertEquals(listOf(MAIL), SetupUses.chosen(microsoft, true, off, off, null, false).uses)
+    }
+
+    @Test
+    fun the_shared_mailboxes_toggle_starts_where_the_core_said_and_counts_when_offered() {
+        val toggles = UseToggles(
+            UseOffer(listOf(choice(MAIL, true), choice(SHARED_MAILBOXES, true), choice(CALENDAR, true))),
+        )
+        assertTrue(toggles.sharedMailboxes)
+        toggles.calendar = true
+        assertEquals(listOf(MAIL, SHARED_MAILBOXES, CALENDAR), toggles.chosen().uses)
+        // A personal address is offered none, and its toggle counts for nothing.
+        val personal = UseToggles(UseOffer(listOf(choice(MAIL, true), choice(CALENDAR, true))))
+        personal.sharedMailboxes = true
+        assertEquals(listOf(MAIL, CALENDAR), personal.chosen().uses)
     }
 
     @Test

@@ -11,6 +11,8 @@ enum UseNote: Equatable {
     case last
     /// Colleagues, while contacts are off.
     case needsContacts
+    /// Shared mailboxes, while mail is off.
+    case needsMail
     /// Chosen, and the provider has not granted it.
     case withheld
     /// The server offers none, so nothing can switch it on.
@@ -86,8 +88,8 @@ enum AccountSettingsRules {
     }
 
     /// The switch for `capability`. The last of mail, calendar and contacts cannot be switched
-    /// off, and colleagues cannot be switched on without contacts: the core refuses both, so the
-    /// switch says why rather than letting the person find out.
+    /// off, and colleagues cannot be switched on without contacts, nor shared mailboxes without
+    /// mail: the core refuses each, so the switch says why rather than letting the person find out.
     static func useSwitch(_ entry: AccountEntry, _ capability: AccountCapability) -> UseSwitch {
         func used(_ wanted: AccountCapability) -> Bool {
             entry.uses.contains { $0.capability == wanted && works($0.state) }
@@ -98,6 +100,7 @@ enum AccountSettingsRules {
         let last = state == .on && primary.contains(capability)
             && primary.filter(used).count == 1
         let withoutContacts = capability == .colleagues && state == .off && !used(.contacts)
+        let withoutMail = capability == .sharedMailboxes && state == .off && !used(.mail)
         let notOffered = state == .notOffered
         let problem = entry.uses.first { $0.capability == capability }?.problem
         let note: UseNote
@@ -109,6 +112,8 @@ enum AccountSettingsRules {
             note = .last
         } else if withoutContacts {
             note = .needsContacts
+        } else if withoutMail {
+            note = .needsMail
         } else if state == .needsPermission {
             note = .withheld
         } else {
@@ -117,7 +122,7 @@ enum AccountSettingsRules {
         return UseSwitch(
             active: state == .on,
             asks: state == .needsPermission,
-            enabled: !last && !withoutContacts && !notOffered,
+            enabled: !last && !withoutContacts && !withoutMail && !notOffered,
             note: note
         )
     }
@@ -245,6 +250,7 @@ enum AccountSettingsLabels {
         case .none: nil
         case .last: L10n.settings_account_use_last()
         case .needsContacts: L10n.settings_account_colleagues_needs_contacts()
+        case .needsMail: L10n.settings_account_shared_needs_mail()
         case .withheld: L10n.settings_account_use_withheld()
         case .notOffered: L10n.settings_account_use_not_offered()
         case let .problem(problem, capability): problemNote(problem, calendar: capability == .calendar)

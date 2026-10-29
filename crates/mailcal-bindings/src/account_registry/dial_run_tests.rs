@@ -108,7 +108,7 @@ async fn a_dial_of_an_address_book_alone_opens_it() {
     let config = mailcal_account::load_str(CONTACTS_ONLY).unwrap();
     let failure = dial(&ConnectedAccount::imap_account(config, None)).await;
     assert!(
-        failure.contains("carddav"),
+        failure.starts_with("carddav"),
         "the address book was dialled: {failure}"
     );
 }

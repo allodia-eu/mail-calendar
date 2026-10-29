@@ -1,12 +1,15 @@
 //! A calendar connect starts at the principal the last one stored, falls back to the configured
-//! server only when that principal is gone, and reports the principal it found (RFC 6764 §6).
+//! server only when that principal is gone, and reports the principal it found (RFC 6764 §6). A
+//! configured path that is gone falls back to the well-known, for calendars and contacts alike.
 //!
 //! The server here answers the requests of a CalDAV walk by request line and records each one,
 //! so the assertions are on what the server saw.
 
 use std::sync::{Arc, Mutex};
 
-use mailcal_account::{AccountConfig, DavStarts, connect_caldav_learning, load_str};
+use mailcal_account::{
+    AccountConfig, DavStarts, connect_caldav_learning, connect_carddav_learning, load_str,
+};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -118,6 +121,69 @@ async fn a_principal_that_is_gone_falls_back_to_the_configured_server() {
     assert!(
         seen.iter()
             .any(|line| line.starts_with("PROPFIND /.well-known/caldav "))
+    );
+}
+
+#[tokio::test]
+async fn a_configured_path_is_where_the_connect_starts() {
+    let (origin, seen) = server().await;
+    let connected = connect_caldav_learning(&account(&format!("{origin}/p/"), None), None)
+        .await
+        .expect("connects");
+    assert_eq!(connected.principal, Some(format!("{origin}/p/")));
+    let seen = seen.lock().unwrap();
+    assert!(seen[0].starts_with("PROPFIND /p/ "), "{seen:?}");
+    assert!(
+        !seen.iter().any(|line| line.contains("well-known")),
+        "{seen:?}"
+    );
+}
+
+/// A path stored before the engine asked it: it may never have answered, and the server's
+/// well-known still finds the calendar.
+#[tokio::test]
+async fn a_configured_path_that_is_gone_falls_back_to_the_well_known() {
+    let (origin, seen) = server().await;
+    let connected = connect_caldav_learning(&account(&format!("{origin}/gone/"), None), None)
+        .await
+        .expect("connects from the well-known");
+    assert_eq!(connected.principal, Some(format!("{origin}/p/")));
+    let seen = seen.lock().unwrap();
+    assert!(seen[0].starts_with("PROPFIND /gone/ "), "{seen:?}");
+    assert!(
+        seen.iter()
+            .any(|line| line.starts_with("PROPFIND /.well-known/caldav ")),
+        "{seen:?}"
+    );
+}
+
+/// Contacts with no server of their own use the calendar's origin, and look for the address book
+/// where a CardDAV server keeps it, not at the calendar's path.
+#[tokio::test]
+async fn contacts_on_the_calendar_server_start_at_its_carddav_well_known() {
+    let (origin, seen) = server().await;
+    let _ = connect_carddav_learning(&account(&format!("{origin}/p/"), None), None).await;
+    assert!(
+        first_request(&seen).starts_with("PROPFIND /.well-known/carddav "),
+        "{:?}",
+        seen.lock().unwrap()
+    );
+}
+
+#[tokio::test]
+async fn an_address_book_path_that_is_gone_falls_back_to_the_well_known() {
+    let (origin, seen) = server().await;
+    let config = load_str(&format!(
+        "[carddav]\nbase_url = \"{origin}/gone/\"\nusername = \"alice\"\npassword = \"pw\"\n"
+    ))
+    .expect("a contacts account loads");
+    let _ = connect_carddav_learning(&config, None).await;
+    let seen = seen.lock().unwrap();
+    assert!(seen[0].starts_with("PROPFIND /gone/ "), "{seen:?}");
+    assert!(
+        seen.iter()
+            .any(|line| line.starts_with("PROPFIND /.well-known/carddav ")),
+        "{seen:?}"
     );
 }
 
