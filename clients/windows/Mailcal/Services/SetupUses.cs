@@ -27,6 +27,10 @@ internal sealed record UseOffer(IReadOnlyList<SetupChoice> Choices, string Calda
 /// when detection found none.</summary>
 internal readonly record struct PickedUse(bool On, string Typed);
 
+/// <summary>The choices within a use: shared mailboxes within mail, colleagues within contacts;
+/// null for one the card did not offer.</summary>
+internal readonly record struct Subchoices(bool? SharedMailboxes, bool? Colleagues);
+
 /// <summary>What the person chose, as the account is set up with it.</summary>
 /// <param name="Uses">Null when the card offered no choice, so the servers given decide.</param>
 internal sealed record ChosenUses(AccountCapability[]? Uses, string CaldavUrl, string CarddavUrl);
@@ -46,10 +50,11 @@ internal static class SetupUses
     /// the one typed in its place. Contacts store an address book found apart from the calendar,
     /// or the one typed. Contacts found only through the calendar's server keep that server even
     /// with the calendar off, because that is where they are looked for, and the stored uses keep
-    /// the calendar closed. Colleagues count only beside contacts.
+    /// the calendar closed. Colleagues count only beside contacts, and shared mailboxes only
+    /// beside mail.
     /// </summary>
     internal static ChosenUses Chosen(
-        UseOffer offer, bool? mail, PickedUse? calendar, PickedUse? contacts, bool? colleagues)
+        UseOffer offer, bool? mail, PickedUse? calendar, PickedUse? contacts, Subchoices subs)
     {
         var calendarOn = calendar is { On: true };
         var contactsOn = contacts is { On: true };
@@ -67,6 +72,10 @@ internal static class SetupUses
             if (mail == true)
             {
                 chosen.Add(AccountCapability.Mail);
+                if (subs.SharedMailboxes == true)
+                {
+                    chosen.Add(AccountCapability.SharedMailboxes);
+                }
             }
             if (calendarOn)
             {
@@ -75,7 +84,7 @@ internal static class SetupUses
             if (contactsOn)
             {
                 chosen.Add(AccountCapability.Contacts);
-                if (colleagues == true)
+                if (subs.Colleagues == true)
                 {
                     chosen.Add(AccountCapability.Colleagues);
                 }
@@ -105,7 +114,7 @@ internal static class SetupUses
     /// <summary>
     /// What a manual form's provider sign-in asks for: the uses chosen on screen, less any the
     /// address it signs in with is not offered, so a personal address is never asked for
-    /// colleagues.
+    /// colleagues or shared mailboxes.
     /// </summary>
     internal static AccountCapability[]? Allowed(AccountCapability[]? chosen, IReadOnlyList<SetupChoice> offered) =>
         chosen?.Where(capability => offered.Any(choice => choice.Capability == capability)).ToArray();

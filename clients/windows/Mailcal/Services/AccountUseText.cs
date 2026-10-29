@@ -11,6 +11,7 @@ internal static class AccountUseText
     {
         UseNote.Last => L10n.SettingsAccountUseLast(),
         UseNote.NeedsContacts => L10n.SettingsAccountColleaguesNeedsContacts(),
+        UseNote.NeedsMail => L10n.SettingsAccountSharedNeedsMail(),
         UseNote.Withheld => L10n.SettingsAccountUseWithheld(),
         UseNote.NotOffered => L10n.SettingsAccountUseNotOffered(),
         UseNote.UnreachableCalendar => L10n.SettingsAccountUseUnreachableCalendar(),

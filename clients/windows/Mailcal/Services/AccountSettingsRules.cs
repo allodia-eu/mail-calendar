@@ -15,6 +15,8 @@ internal enum UseNote
     Last,
     /// <summary>Colleagues, while contacts are off.</summary>
     NeedsContacts,
+    /// <summary>Shared mailboxes, while mail is off.</summary>
+    NeedsMail,
     /// <summary>Chosen, and the provider has not granted it.</summary>
     Withheld,
     /// <summary>The server offers none, so nothing can switch it on.</summary>
@@ -223,8 +225,9 @@ internal static class AccountSettingsRules
 
     /// <summary>
     /// The switch for <paramref name="capability"/>. The last of mail, calendar and contacts
-    /// cannot be switched off, and colleagues cannot be switched on without contacts: the core
-    /// refuses both, so the switch says why rather than letting the person find out.
+    /// cannot be switched off, and colleagues cannot be switched on without contacts, nor shared
+    /// mailboxes without mail: the core refuses each, so the switch says why rather than letting
+    /// the person find out.
     /// </summary>
     internal static UseSwitch Switch(AccountEntry entry, AccountCapability capability)
     {
@@ -237,21 +240,23 @@ internal static class AccountSettingsRules
         var last = state == CapabilityState.On
             && Primary.Contains(capability)
             && Primary.Count(Used) == 1;
-        var withoutContacts = capability == AccountCapability.Colleagues
-            && state == CapabilityState.Off
-            && !Used(AccountCapability.Contacts);
+        bool Without(AccountCapability sub, AccountCapability within) =>
+            capability == sub && state == CapabilityState.Off && !Used(within);
+        var withoutContacts = Without(AccountCapability.Colleagues, AccountCapability.Contacts);
+        var withoutMail = Without(AccountCapability.SharedMailboxes, AccountCapability.Mail);
         var notOffered = state == CapabilityState.NotOffered;
         var problem = entry.Uses.FirstOrDefault(use => use.Capability == capability)?.Problem;
         var note = notOffered ? UseNote.NotOffered
             : problem is { } failed ? ProblemNote(capability, failed)
             : last ? UseNote.Last
             : withoutContacts ? UseNote.NeedsContacts
+            : withoutMail ? UseNote.NeedsMail
             : state == CapabilityState.NeedsPermission ? UseNote.Withheld
             : UseNote.None;
         return new UseSwitch(
             Active: state == CapabilityState.On,
             Asks: state == CapabilityState.NeedsPermission,
-            Enabled: !last && !withoutContacts && !notOffered,
+            Enabled: !last && !withoutContacts && !withoutMail && !notOffered,
             Note: note);
     }
 
