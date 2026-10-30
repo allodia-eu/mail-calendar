@@ -8,9 +8,11 @@
 # `.cargo/config.toml` ABOVE this checkout — outside the repo, so never active in CI. The repo's own
 # `.cargo/config.toml` is tracked and pins the Windows static-CRT rustflags.)
 #
-# Cost discipline, in wall-clock time and in the 10 GB cache budget. A run aims to finish inside
-# ten minutes; the repository is public, so runner minutes are not billed and a job split into
-# parallel legs is a fair trade when it shortens the run. Four rules hold:
+# Cost discipline, in wall-clock time, in macOS runner minutes and in the 10 GB cache budget. A run
+# aims to finish inside ten minutes. The repository is public, so minutes are not billed, but they
+# are metered, and a macOS minute is metered at ten times a Linux one: in October 2026 the two Apple
+# legs were about 80% of the account's metered usage, most of it the iOS simulator. A job split into
+# parallel legs is still a fair trade when it shortens the run. Five rules hold:
 #   1. Every expensive job gates on `changes`, which derives the affected areas from the actual
 #      change set (scripts/ci/changed-areas.sh). A manual run forces any subset via `areas`.
 #   2. Only `main` writes the shared caches — see the `save-if` notes on each cache step.
@@ -24,6 +26,13 @@
 #      Thirteen of these once had a runner each, for five to sixteen seconds of work apiece: a VM
 #      boot and a slot out of the account's parallel-job allowance for every one of them, which
 #      the client builds then queued behind. Add the next one there too.
+#   5. The iOS simulator runs on a push to `main`, a tag, a manual dispatch and the twice-weekly
+#      schedule, never on a pull request, which builds the iOS app and its test bundles and boots
+#      nothing. Booting and driving a simulator was about 12 of the iOS leg's typical 17 minutes,
+#      and pull requests were two thirds of its runs. The trade: a pull request that breaks only
+#      what the simulator sees turns `main` red after it merges, not before. A branch that wants
+#      the simulator first gets it from a manual run with `areas: apple`. The schedule is for what
+#      no commit moves: the runner image, its Xcode and its simulator runtime.
 #
 # **Every job carries `timeout-minutes`.** They are backstops, not budgets: the slowest job on a
 # push has been the Linux x86_64 leg at ~12 minutes, so 20 leaves room to spare and still catches
@@ -42,6 +51,9 @@ on:
     # wants anyway.
     tags: ['v*']
   pull_request:
+  # Rule 5 above: the Apple legs alone, on `main`, Monday and Thursday at 04:17 UTC.
+  schedule:
+    - cron: '17 4 * * 1,4'
   workflow_dispatch:
     inputs:
       areas:
@@ -139,8 +151,11 @@ jobs:
         id: detect
         env:
           GH_TOKEN: ${{ github.token }}
-          # A manual run bypasses detection entirely: the escape hatch for a missed trigger.
-          FORCE_AREAS: ${{ github.event_name == 'workflow_dispatch' && inputs.areas || '' }}
+          # A manual run bypasses detection entirely: the escape hatch for a missed trigger. A
+          # scheduled run has no change set, and exists for the Apple legs alone (rule 5 above).
+          FORCE_AREAS: >-
+            ${{ github.event_name == 'workflow_dispatch' && inputs.areas
+            || github.event_name == 'schedule' && 'apple' || '' }}
         run: scripts/ci/changed-areas.sh
 
       # rust-toolchain.toml (stable, for everything) and rust-nightly.toml (the rustfmt pin) are
@@ -196,6 +211,8 @@ jobs:
   checks:
     name: Repo-wide checks
     needs: changes
+    # A scheduled run tests the Apple runner image against a tree these checks have already passed.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -455,8 +472,7 @@ jobs:
     # used to spend once on setup (VM boot, checkout, Xcode select, rustup, xcodegen, two cache
     # restores) and a second set of entries out of the repo's 10 GB cache budget. What it buys is
     # the macOS and iOS halves running at the same time, each compiling one cargo target triple
-    # rather than two. The repository is public, so runner minutes are not the constraint the cache
-    # budget still is.
+    # rather than two.
     #
     # `fail-fast: false`, because a red macOS leg and a red iOS leg are different information and a
     # run that cancels one to report the other makes you push again to learn the rest.
@@ -529,7 +545,7 @@ jobs:
       # Keyed per leg, because the two hold different products and would otherwise overwrite each
       # other's entry every time main ran.
       #
-      # `clients/apple/build` holds four things now, and all four are the same trade: keep what
+      # `clients/apple/build` holds three things now, and all three are the same trade: keep what
       # the last run produced so this one need not rebuild it.
       #   - `DerivedData/`, Xcode's own products for the app targets, the UI suite and the verifier.
       #     The dev loop, the showcase captures and `test-ui.sh` all use that path already, so CI
@@ -537,7 +553,6 @@ jobs:
       #   - `KitSPM/`, where the MailcalKit suite builds (clients/apple/Scripts/test-kit.sh). Its
       #     default `.build` is inside the package and nothing cached it, so the suite was a
       #     from-scratch compile of MailcalUI on every run, warm cache or not.
-      #   - `KitIOS/`, the same suite built for the simulator (`test-kit.sh --ios`), on the iOS leg.
       #   - `generated/`, build-core.sh's mirror of the files it generates. They are gitignored, so
       #     a checkout has none of them and every one would otherwise arrive freshly dated and
       #     recompile MailcalBindings and all of MailcalUI behind it.
@@ -608,7 +623,7 @@ jobs:
       # a broken rule should fail in seconds rather than after two xcodebuild invocations. The script
       # owns where SwiftPM builds, and why it must not be where Xcode does. On the macOS leg only:
       # `swift test` builds for the host, so running it on the iOS leg as well would test the same
-      # macOS binary twice. The iOS leg runs the suite on its simulator instead, after the UI suite.
+      # macOS binary twice. The iOS leg runs it on its simulator instead, in the UI suite's run.
       - name: Test MailcalKit
         if: matrix.platform == 'macos'
         run: clients/apple/Scripts/test-kit.sh
@@ -651,14 +666,15 @@ jobs:
       # (clients/apple/Scripts/warm-simulator.sh says what that saves, and what it cannot). The
       # snapshot is one ~700 MB entry per Xcode build, runtime build and device type, so it is
       # written once per image, not once per run; a miss boots cold and keeps the result, which
-      # costs that run about four minutes more.
+      # costs that run about four minutes more. None of it on a pull request, which boots nothing
+      # (rule 5 at the top of this file).
       - name: Choose the UI suite's simulator
-        if: matrix.platform == 'ios'
+        if: matrix.platform == 'ios' && github.event_name != 'pull_request'
         id: warm-sim
         run: clients/apple/Scripts/warm-simulator.sh key >> "$GITHUB_OUTPUT"
 
       - name: Restore the warm simulator
-        if: matrix.platform == 'ios'
+        if: matrix.platform == 'ios' && github.event_name != 'pull_request'
         id: warm-sim-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -666,7 +682,7 @@ jobs:
           key: ${{ steps.warm-sim.outputs.key }}
 
       - name: Seed the simulator, or warm one
-        if: matrix.platform == 'ios'
+        if: matrix.platform == 'ios' && github.event_name != 'pull_request'
         run: clients/apple/Scripts/warm-simulator.sh prepare "$RUNNER_TEMP/warm-simulator" >> "$GITHUB_ENV"
 
       - name: Save the warm simulator
@@ -690,6 +706,13 @@ jobs:
       # beside the arm64 the tests actually run. The script builds before it boots the simulator,
       # and says why.
       #
+      # `--with-kit` runs MailcalKit's suite in the same run, compiled for iOS, which `swift test`
+      # on the macOS leg never does, so the phone's side of a rule is tested only here: among
+      # others, what a new-mail notification is named and what a tap on it opens
+      # (docs/background-sync.md, Enforcement item 4). It belongs in this run rather than a step of
+      # its own: `test-kit.sh --ios` compiles MailcalUI a second time, with this run's simulator
+      # still booted, and that step alone took 3 to 7 minutes for a suite that runs in two seconds.
+      #
       # **Five classes of seventeen, and that is the ten-minute budget rather than a judgement
       # about the rest.**
       # A UI test costs what no other gate here costs: a simulator to boot and then the app's own
@@ -703,20 +726,19 @@ jobs:
       # `ComposerPresentationTests` is the slowest class in the bundle by some way. Add a `--only`
       # below to move one in.
       - name: Build + test the iOS app (showcase dataset)
-        if: matrix.platform == 'ios'
+        if: matrix.platform == 'ios' && github.event_name != 'pull_request'
         run: |
-          clients/apple/Scripts/test-ui.sh --no-core \
+          clients/apple/Scripts/test-ui.sh --no-core --with-kit \
             --only ReadingActionRowTests --only ReadingHeaderScrollTests \
             --only CalendarPinchTests --only SettingsAddAccountTests \
             --only ServerChangeTests
 
-      # MailcalKit's suite compiled for iOS, which `swift test` on the macOS leg never does, so the
-      # phone's side of a rule is tested only here: among others, what a new-mail notification is
-      # named and what a tap on it opens (docs/background-sync.md, Enforcement item 4). On the
-      # simulator the UI suite left booted, so it pays for a build and not for a boot.
-      - name: Test MailcalKit on the iOS simulator
-        if: matrix.platform == 'ios'
-        run: clients/apple/Scripts/test-kit.sh --ios
+      # A pull request compiles everything the step above runs (the app, the UI suite and
+      # MailcalKit's suite, all for the simulator) and boots nothing (rule 5 at the top of this
+      # file).
+      - name: Build the iOS app and its test bundles
+        if: matrix.platform == 'ios' && github.event_name == 'pull_request'
+        run: clients/apple/Scripts/test-ui.sh --no-core --build-only
 
   windows:
     # Fast per-commit gate: x64 Debug only — Rust cdylib -> C# bindings (vendored binshim) ->

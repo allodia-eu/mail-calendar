@@ -51,9 +51,13 @@ targets:
     # to keep in step. ⚠️ Declaring a top-level `schemes:` block instead turns XcodeGen's
     # autogeneration off for every OTHER target, and `-scheme MailcalVerify` then resolves to
     # nothing; this per-target form leaves the rest alone.
+    #
+    # MailcalKitTests is a test target here too, so `test-ui.sh --with-kit` runs it on the same
+    # device from the same build, rather than compiling MailcalUI a second time.
     scheme:
       testTargets:
         - AllodiaMailUITests
+        - package: MailcalKit/MailcalKitTests
       # The local store, so the subscription screen can be driven without an Apple Account of any
       # kind. It resolves both products, completes a purchase instantly and lets it be made again,
       # which is what makes the half after the purchase testable at all: the redemption pass, the
