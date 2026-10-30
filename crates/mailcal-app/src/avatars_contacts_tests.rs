@@ -7,7 +7,10 @@
 
 use std::sync::{Arc, Mutex};
 
-use super::test_app::{FakeContacts, PNG, app, card_with_photo, image_path, snapshot_from};
+use super::test_app::{
+    Directory, FakeContacts, PNG, app, app_with_sources, card_with_photo, image_path,
+    snapshot_from,
+};
 use crate::ContactsIntent;
 
 /// Most people in an address book never send the user mail, so a refresh that re-queued only
@@ -112,4 +115,40 @@ async fn opening_a_contact_draws_the_same_face_the_row_did() {
         "tapping a contact must not swap the photograph for a monogram"
     );
     assert_eq!(detail.avatar.initials, "AL");
+}
+
+/// An account connects one adapter per contact source, and each knows only its own ids. A card
+/// from the second source was asked of the first, which Graph refuses as a malformed id, so a
+/// Microsoft account's directory colleagues stayed monograms and the log warned for each.
+#[tokio::test]
+async fn a_photo_is_asked_of_the_source_that_holds_the_card() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let mut own = card_with_photo("someone@example.test");
+    own.id = engine_core::ids::ContactId::try_from("c0").unwrap();
+    let app = app_with_sources(
+        vec![
+            Box::new(FakeContacts {
+                card: own,
+                photo: None,
+            }),
+            Box::new(Directory(FakeContacts {
+                card: card_with_photo("colleague@example.test"),
+                photo: Some(PNG.to_vec()),
+            })),
+        ],
+        &surfaces,
+    );
+    app.dispatch(crate::Intent::Contacts(ContactsIntent::RefreshContacts))
+        .await;
+
+    let contacts = app.contacts();
+    let row = contacts
+        .rows
+        .iter()
+        .find(|row| row.primary_email == "colleague@example.test")
+        .expect("the directory card");
+    assert!(
+        row.avatar.image_path.is_some(),
+        "the directory card's photo must be fetched from the directory"
+    );
 }
