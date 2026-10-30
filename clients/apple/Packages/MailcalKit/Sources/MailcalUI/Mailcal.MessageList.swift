@@ -92,6 +92,10 @@ extension ContentView {
             primaryAction(keys)
         }
         .onChange(of: selection.keys) { old, keys in
+            // Leaving a conversation folds it away (`docs/row-actions.md`, rule 8).
+            expandedThreads = ConversationExpansion.kept(
+                expandedThreads, selected: keys, rows: visibleRows
+            )
             let before = openedMessage
             let opened = openSoleSelection(keys)
             #if os(macOS)
@@ -106,7 +110,7 @@ extension ContentView {
         .onChange(of: listEntries.map(\.id)) { _, _ in pruneSelection() }
         .onChange(of: openedMessage) { _, opened in followOpenedMessage(opened) }
         .onChange(of: compose == nil) { _, closed in
-            // A Drafts row opens a composer rather than the pane, so nothing else lets go of the
+            // A draft opens a composer rather than the pane, so nothing else lets go of the
             // row when the composer closes, and picking the same row again would change nothing.
             if closed, openedMessage == nil, selection.count == 1 { selection.clear() }
         }
@@ -135,23 +139,29 @@ extension ContentView {
     }
 
     /// Opens what `key` names, unless the pane already shows it, and answers whether the pane took
-    /// it. A Drafts row opens a composer instead, which nothing can put back, so it answers no.
+    /// it. A draft opens a composer instead, which nothing can put back, so it answers no.
     @discardableResult
     private func openEntry(_ key: SelectionKey) -> Bool {
         switch listEntries.first(where: { $0.key == key }) {
         case .row(.flat(let message)):
             guard !isOpenMessage(message.account, message.key) else { return false }
             open(message)
+            return !message.draft
         case .row(.thread(let thread)):
-            guard !threadHoldsOpenMessage(thread) else { return false }
+            guard !threadHoldsOpenMessage(thread) else {
+                // Already the one being read, folded by its chevron: picking it opens it again.
+                expandedThreads.insert(threadKey(thread))
+                return false
+            }
             open(thread)
+            return representative(of: thread)?.draft == false
         case .member(let thread, let message):
             guard !isOpenMessage(message.account, message.key) else { return false }
             openThreadMessage(thread, message)
+            return !message.draft
         case nil:
             return false
         }
-        return !model.showingDrafts
     }
 
     /// Keeps the selection on the message the pane shows when something other than a click
@@ -254,59 +264,4 @@ extension ContentView {
         selection.keys = before.keys
     }
     #endif
-
-    /// The menu a secondary click or a long press raises over `keys`.
-    @ViewBuilder
-    private func rowMenu(_ keys: Set<SelectionKey>) -> some View {
-        if keys.count > 1 {
-            selectionMenu(keys)
-        } else if let key = keys.first {
-            switch listEntries.first(where: { $0.key == key }) {
-            case .row(.flat(let message)): flatRowMenu(message)
-            case .row(.thread(let thread)): threadMenu(thread)
-            case .member(let thread, let message): memberMenu(thread, message)
-            case nil: EmptyView()
-            }
-        }
-    }
-
-    /// A menu over several rows, which the toolkit raises only over the selection. Each item is
-    /// the action its label names, whatever mix the selection holds.
-    @ViewBuilder
-    private func selectionMenu(_ keys: Set<SelectionKey>) -> some View {
-        Button { actOnSelection(.markRead) } label: {
-            Label(L10n.action_mark_read(), systemImage: "envelope.open")
-        }
-        Button { actOnSelection(.markUnread) } label: {
-            Label(L10n.action_mark_unread(), systemImage: "envelope.badge")
-        }
-        Button { actOnSelection(.flag) } label: {
-            Label(L10n.action_flag(), systemImage: "flag")
-        }
-        Button { actOnSelection(.unflag) } label: {
-            Label(L10n.action_clear_flag(), systemImage: "flag.slash")
-        }
-        Divider()
-        Button { actOnSelection(.archive) } label: {
-            Label(L10n.action_archive(), systemImage: "archivebox")
-        }
-        moveToFolderItem(Array(keys))
-        Button { actOnSelection(.delete) } label: {
-            Label(L10n.action_move_to_trash(), systemImage: "trash")
-        }
-        Button(role: .destructive) { actOnSelection(.permanentlyDelete) } label: {
-            Label(L10n.action_delete_permanently(), systemImage: "trash.slash")
-        }
-    }
-
-    /// A conversation's message, by itself.
-    @ViewBuilder
-    private func memberMenu(_ thread: ThreadRow, _ message: ThreadMessage) -> some View {
-        #if os(macOS)
-        // What double-clicking does, reachable without a pointer (`docs/reading-window.md`).
-        Button { openInWindow(thread, message) } label: {
-            Label(L10n.action_open_in_window(), systemImage: "macwindow.on.rectangle")
-        }
-        #endif
-    }
 }

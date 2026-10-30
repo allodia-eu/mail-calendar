@@ -29,7 +29,7 @@ extension ContentView {
     /// the way out (Mailcal.ComposeDraft.swift). On iPhone/iPad it just runs the open.
     func open(_ message: FlatRow) {
         openGuardingDraft {
-            resumeOrRead(message.account, message.key) { openNow(message) }
+            resumeOrRead(message.account, message.key, draft: message.draft) { openNow(message) }
         }
     }
 
@@ -37,11 +37,10 @@ extension ContentView {
         openNow(opened(message))
     }
 
-    /// Opens a Drafts-folder row back into its composer, and every other row for reading.
+    /// Opens a draft back into its composer, and every other message for reading.
     ///
-    /// Told by the **folder**, not by the row: the core answers per message but the list does not
-    /// carry it, so a draft met in a search result or in another folder's thread opens read-only
-    /// (`docs/drafts.md`, known gaps).
+    /// Told by the **row**, never by the folder, so a draft met in a search result or in a
+    /// conversation shown from another folder resumes as one in Drafts does (`docs/drafts.md`).
     ///
     /// Resuming is a round trip: a draft is opened from a list row, so the first open of one
     /// fetches it. The composer appears when the answer does. A draft that could not be opened is
@@ -50,9 +49,10 @@ extension ContentView {
     private func resumeOrRead(
         _ account: String,
         _ key: String,
+        draft: Bool,
         otherwise read: @escaping () -> Void
     ) {
-        guard model.showingDrafts else {
+        guard draft else {
             read()
             return
         }
@@ -60,31 +60,37 @@ extension ContentView {
     }
 
     /// Opens a conversation: expands the thread inline in the list (its messages become rows of
-    /// their own) and opens its representative message in the reading pane: the latest
-    /// **in-scope** message (`latestKey`, the one the row summarises), so a Sent reply filed
-    /// elsewhere doesn't steal focus. In Drafts that message is a draft, and it opens back into
-    /// its composer as a flat row's does.
+    /// their own) and opens its newest message in the reading pane, whatever its kind: a Sent
+    /// reply filed elsewhere or a draft included (`docs/row-actions.md`, rules 2 and 8). In Drafts
+    /// it is the newest draft (`latestKey`, the one the row summarises). A draft opens back into
+    /// its composer wherever it is, as a flat row's does.
     ///
     /// The whole thing goes through the handover, expansion included, so a thread opened beside a
     /// composer replaces it like any other open.
     func open(_ thread: ThreadRow) {
         openGuardingDraft {
             expandedThreads.insert(threadKey(thread))
-            let representative = thread.messages.first(where: { $0.key == thread.latestKey })
-                ?? thread.messages.first
-            if let representative {
-                resumeOrRead(representative.account, representative.key) {
+            if let representative = representative(of: thread) {
+                resumeOrRead(
+                    representative.account, representative.key, draft: representative.draft
+                ) {
                     openThreadMessageNow(thread, representative)
                 }
             }
         }
     }
 
+    /// The message selecting `thread` opens: its newest, or in Drafts the newest draft.
+    func representative(of thread: ThreadRow) -> ThreadMessage? {
+        guard model.showingDrafts else { return thread.messages.first }
+        return thread.messages.first(where: { $0.key == thread.latestKey }) ?? thread.messages.first
+    }
+
     /// Opens one message of a conversation (a sub-row) in the reading pane, or back into its
-    /// composer when the conversation is being shown in Drafts.
+    /// composer when it is a draft.
     func openThreadMessage(_ thread: ThreadRow, _ message: ThreadMessage) {
         openGuardingDraft {
-            resumeOrRead(message.account, message.key) {
+            resumeOrRead(message.account, message.key, draft: message.draft) {
                 openThreadMessageNow(thread, message)
             }
         }
@@ -106,7 +112,7 @@ extension ContentView {
     }
 
     /// The expansion key for a thread (its account-scoped id).
-    func threadKey(_ thread: ThreadRow) -> String { "\(thread.account)/\(thread.threadId)" }
+    func threadKey(_ thread: ThreadRow) -> String { ConversationExpansion.key(thread) }
 
     /// Whether `(account, key)` is the message currently open in the reading pane.
     func isOpenMessage(_ account: String, _ key: String) -> Bool {
@@ -207,55 +213,6 @@ extension ContentView {
         .tint(swipeActionTint(action))
     }
 
-    /// A message row's own menu, about that row alone: a menu over several rows is
-    /// `selectionMenu`.
-    @ViewBuilder
-    func flatRowMenu(_ message: FlatRow) -> some View {
-        Button { open(message) } label: {
-            Label(L10n.action_open(), systemImage: "envelope.open")
-        }
-        #if os(macOS)
-        // The same thing double-clicking does, and the reason it is on the menu: a gesture is not
-        // reachable from the keyboard or by a screen reader, so the feature would otherwise exist
-        // only for people using a pointer (`docs/reading-window.md`).
-        Button { openInWindow(message) } label: {
-            Label(L10n.action_open_in_window(), systemImage: "macwindow.on.rectangle")
-        }
-        #endif
-        Divider()
-        Button { beginReply(message.account, message.key, all: false) } label: {
-            Label(L10n.action_reply(), systemImage: "arrowshape.turn.up.left")
-        }
-        Button { beginReply(message.account, message.key, all: true) } label: {
-            Label(L10n.action_reply_all(), systemImage: "arrowshape.turn.up.left.2")
-        }
-        Button { beginForward(message.account, message.key) } label: {
-            Label(L10n.action_forward(), systemImage: "arrowshape.turn.up.right")
-        }
-        Divider()
-        Button { model.markRead(message.account, message.key, message.unread) } label: {
-            Label(message.unread ? L10n.action_mark_read() : L10n.action_mark_unread(), systemImage: "envelope")
-        }
-        Button { model.setFlagged(message.account, message.key, true) } label: {
-            Label(L10n.action_flag(), systemImage: "flag")
-        }
-        Button { model.setFlagged(message.account, message.key, false) } label: {
-            Label(L10n.action_clear_flag(), systemImage: "flag.slash")
-        }
-        Divider()
-        // Archive alongside Trash, so both destinations are on the menu (not only the swipe).
-        Button { model.archive(message.account, message.key) } label: {
-            Label(L10n.action_archive(), systemImage: "archivebox")
-        }
-        moveToFolderItem([SelectionKey(.flat(row: message))])
-        Button { model.delete(message.account, message.key) } label: {
-            Label(L10n.action_move_to_trash(), systemImage: "trash")
-        }
-        Button(role: .destructive) { model.permanentlyDelete(message.account, message.key) } label: {
-            Label(L10n.action_delete_permanently(), systemImage: "trash.slash")
-        }
-    }
-
     /// A conversation row: subject, message count and latest sender. Expanded, every message on
     /// the thread follows it as a row of its own, received and the account owner's own Sent
     /// replies alike (the core gathers them across folders).
@@ -302,6 +259,10 @@ extension ContentView {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            // Flagged while anything on it is, which is when its menu offers Clear flag.
+            if thread.flagged {
+                Image(systemName: "flag.fill").foregroundStyle(.orange)
+            }
             if thread.hasAttachment {
                 Image(systemName: "paperclip").foregroundStyle(.secondary)
             }
@@ -311,27 +272,6 @@ extension ContentView {
         .padding(.vertical, 3)
         .contentShape(Rectangle())
         .modifier(MessageDragSource(enabled: hasReadingPane) { dragPayload(for: .thread(row: thread)) })
-    }
-
-    /// Right-click actions on a conversation. "Archive conversation" and Move to folder… move the
-    /// received side only; the core leaves any Sent copies in Sent (they stay visible in the thread).
-    @ViewBuilder
-    func threadMenu(_ thread: ThreadRow) -> some View {
-        Button { archiveThread(thread) } label: {
-            Label(L10n.thread_archive(), systemImage: "archivebox")
-        }
-        moveToFolderItem([SelectionKey(.thread(row: thread))])
-    }
-
-    /// Archives a conversation (received messages only) and tidies the UI: collapse it and, if
-    /// the open message was part of it, clear the reading pane, its row is leaving the folder.
-    private func archiveThread(_ thread: ThreadRow) {
-        model.archiveThread(thread.account, thread.threadId)
-        expandedThreads.remove(threadKey(thread))
-        if let opened = openedMessage,
-            thread.messages.contains(where: { $0.account == opened.account && $0.key == opened.key }) {
-            clearOpenedMessage()
-        }
     }
 
     /// The "Sent" or "Draft" capsule beside a conversation message's sender.
@@ -369,6 +309,9 @@ extension ContentView {
                 }
             }
             Spacer()
+            if message.flagged {
+                Image(systemName: "flag.fill").foregroundStyle(.orange)
+            }
             if message.hasAttachment {
                 Image(systemName: "paperclip").foregroundStyle(.secondary)
             }

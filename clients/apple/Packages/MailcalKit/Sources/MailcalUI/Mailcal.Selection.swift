@@ -85,37 +85,47 @@ extension ContentView {
     @ViewBuilder
     private var selectionButtons: some View {
         // One button per pair, labelled from what is selected, so the offered action is always the
-        // one that changes something.
-        let read = selection.readAction(in: visibleRows, expanded: expandedConversations)
-        let flag = selection.flagAction(in: visibleRows, expanded: expandedConversations)
+        // one that changes something. The core answers which half that is, and which buttons
+        // respond, from the same menu a right-click over the selection draws: a conversation
+        // carries no flag of its own, so only it knows whether one of its messages does.
+        let actions = SelectionBarActions(
+            model.rowMenu(selection.selectedRows(expanded: expandedConversations))
+        )
+        let read = actions.read.action == .markRead
+        let flag = actions.flag.action == .flag
         Group {
             Button {
-                actOnSelection(read)
+                actOnSelection(read ? .markRead : .markUnread)
             } label: {
                 Label(
-                    read == .markRead ? L10n.action_mark_read() : L10n.action_mark_unread(),
-                    systemImage: read == .markRead ? "envelope.open" : "envelope.badge"
+                    read ? L10n.action_mark_read() : L10n.action_mark_unread(),
+                    systemImage: read ? "envelope.open" : "envelope.badge"
                 )
             }
+            .disabled(!actions.read.enabled)
             Button {
-                actOnSelection(flag)
+                actOnSelection(flag ? .flag : .unflag)
             } label: {
                 Label(
-                    flag == .flag ? L10n.action_flag() : L10n.action_unflag(),
-                    systemImage: flag == .flag ? "flag" : "flag.slash"
+                    flag ? L10n.action_flag() : L10n.action_unflag(),
+                    systemImage: flag ? "flag" : "flag.slash"
                 )
             }
+            .disabled(!actions.flag.enabled)
             Button { actOnSelection(.archive) } label: {
                 Label(L10n.action_archive(), systemImage: "archivebox")
             }
+            .disabled(!actions.archive.enabled)
             Button { actOnSelection(.delete) } label: {
                 Label(L10n.action_move_to_trash(), systemImage: "trash")
             }
+            .disabled(!actions.delete.enabled)
             // The row's own menu already offers this on every Apple platform, so the bar does too.
             // It asks nothing extra here for the same reason it asks nothing there.
             Button(role: .destructive) { actOnSelection(.permanentlyDelete) } label: {
                 Label(L10n.action_delete_permanently(), systemImage: "trash.slash")
             }
+            .disabled(!actions.permanentlyDelete.enabled)
         }
         // Every action names the selection, so with none they have nothing to act on. Select all
         // is the exception below: it is how a pointer starts a selection in the first place.

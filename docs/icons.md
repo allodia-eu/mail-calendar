@@ -124,6 +124,8 @@ noted beside it, and the two without one are this app's own drawings.
 | Mark unread | `envelope.badge`, `envelope` in the row menu | — | `E715` Mail | `mail-unread-symbolic` |
 | Flag | `flag` | — | `E7C1` Flag | `starred-symbolic` |
 | Remove the flag | `flag.slash` | — | `E7C1` Flag | `non-starred-symbolic` |
+| Report as junk | `xmark.bin` | — | — | — |
+| Report as not junk | `tray.and.arrow.down` | — | — | — |
 | Delete permanently | `trash.slash` | — | `E74D` Delete, in the critical colour | `edit-delete-symbolic` |
 | Select all | `checklist` | — | `E8B3` SelectAll | `edit-select-all-symbolic` |
 | Clear the selection | `xmark` | `ic_close` | `E711` Cancel | `window-close-symbolic` |
