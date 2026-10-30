@@ -201,9 +201,10 @@ pub async fn connect_imap_mailbox(
 ///
 /// # Errors
 ///
-/// Returns [`AccountError`] if `mailbox` is not a valid id, the connection or login fails, or the
-/// engine refuses the watch: the server does not advertise `IDLE`, or the account has no
-/// connection left to spare for it (the host then falls back to polling).
+/// Returns [`AccountError::NoWatchConnection`] when the account has no connection left to spare
+/// for a watch, which the host waits out. Otherwise [`AccountError`] if `mailbox` is not a valid
+/// id, the connection or login fails, or the server does not advertise `IDLE` (the host then
+/// falls back to polling).
 pub async fn connect_imap_watcher(
     connections: &ImapConnections,
     account: &AccountConfig,
@@ -216,6 +217,9 @@ pub async fn connect_imap_watcher(
         connections.current_or_connect(account, tokens).await?,
         shared,
     );
+    if imap.watch_headroom() == 0 {
+        return Err(AccountError::NoWatchConnection);
+    }
     let watcher = imap
         .watch(mailbox, DEFAULT_IDLE_KEEPALIVE)
         .await

@@ -72,8 +72,9 @@ impl<P: Provider> App<P> {
         }
     }
 
-    /// Fetches one card resource's photo through the account's contacts adapter, or `None` when
-    /// it cannot be asked: no adapter is connected for the account, or the fetch failed.
+    /// Fetches one card resource's photo through the adapter whose source holds the card, or
+    /// `None` when it cannot be asked: no connected adapter holds it, or the fetch failed. An
+    /// account connects one adapter per source and each knows only its own ids.
     async fn photo_from_provider(
         &self,
         account: &engine_api::AccountId,
@@ -81,11 +82,17 @@ impl<P: Provider> App<P> {
         media: &ContactResource,
     ) -> Option<PhotoState> {
         let accounts = self.accounts.read().await;
-        let provider = accounts
+        let providers = &accounts
             .iter()
             .find(|candidate| &candidate.id == account)?
-            .contact_providers
-            .first()?;
+            .contact_providers;
+        let provider = match self.engine.contact_source(providers, account, &card.id).await {
+            Ok(provider) => provider?,
+            Err(error) => {
+                log::warn!("avatars: card source read failed: {error}");
+                return None;
+            }
+        };
         let fetched = self
             .engine
             .contact_photo(provider, account, card, media)

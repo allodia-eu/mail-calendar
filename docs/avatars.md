@@ -97,6 +97,11 @@ destination the user did not choose.
 | CardDAV | Contacts with a vCard `PHOTO` |
 | IMAP-only, or any external sender | Monogram. Every provider returns nothing for a stranger. |
 
+A card's photo is asked of the adapter bound to the source that holds it
+(`Engine::contact_source`). An account connects one adapter per source (a Microsoft account's
+contact folders, its organisation contacts and its directory are three), and each knows only its
+own ids.
+
 ## Bytes never cross the FFI; a path does
 
 The engine writes photo bytes to a content-addressed file and the core hands the client **that
@@ -128,7 +133,7 @@ map, the quick re-projection a local change makes as well as the full rebuild; o
 turns the whole list back to monograms and then to the same photos a moment later. A contacts sync
 re-asks about every face, which is how a photo changed on the server arrives, and until the answer
 is in the row keeps the photo it had. The answer replaces it, with a new photo or with none; a
-lookup that could not be asked (no connected provider, a failed read or fetch) is no answer, and
+lookup that could not be asked (no connected provider holds the card, a failed read or fetch) is no answer, and
 the photo stays. Answers come from the index they were asked against, so a pass that began before
 the sync records none of what it found, and a pass turned away because one was running is run by
 that one when it finishes.

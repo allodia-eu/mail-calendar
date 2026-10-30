@@ -292,6 +292,11 @@ async fn watch_loop(
                     backoff.reset();
                 }
             }
+            // The account at its connection limit, which lifts by itself: a line for the log,
+            // not a warning on every retry.
+            Err(err @ mailcal_account::AccountError::NoWatchConnection) => {
+                log::info!("watch[{log_scope}] waiting ({err}); retrying");
+            }
             Err(err) => {
                 log::warn!("watch[{log_scope}] connect failed ({err}); retrying");
             }

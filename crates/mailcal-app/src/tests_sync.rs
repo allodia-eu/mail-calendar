@@ -147,14 +147,19 @@ async fn an_empty_background_refresh_says_nothing_at_all() {
     assert!(!app.sync_progress().active);
 }
 
-/// Changing the depth while another sync owns the folder scope must not silently give up. The
-/// settings path should wait/retry in the background so the wider/narrower window takes effect
-/// without requiring a manual pull-to-refresh after the first sync settles.
+/// A depth change takes the folders from a pass still running under the old window instead of
+/// waiting it out: a Gmail backfill can run for hours, and the cursor it wrote afterwards stood
+/// in for the new window, so the mail the wider one includes was never fetched. The old pass
+/// stops at its next commit rather than starting over.
 #[tokio::test]
-async fn sync_depth_change_waits_for_busy_scope_and_retries() {
+async fn a_depth_change_takes_the_folders_from_a_pass_under_the_old_window() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
-    let (provider, after_commit, finish) =
-        FakeProvider::blocking(vec![fakes::message("m1", "a", "Already syncing")]);
+    // More than one chunk, so the old pass has a commit left to be refused.
+    let messages = (0..=super::sync::STREAM_CHUNK_SIZE)
+        .map(|n| fakes::message(&format!("m{n}"), "a", "Backfill"))
+        .collect();
+    let (provider, after_commit, finish) = FakeProvider::blocking(messages);
+    let syncs = provider.syncs();
     let app = Arc::new(app(vec![account("acct-1", provider)], &surfaces));
     let id = AccountId::try_from("acct-1").unwrap();
 
@@ -169,23 +174,27 @@ async fn sync_depth_change_waits_for_busy_scope_and_retries() {
         let app = Arc::clone(&app);
         async move { app.update_account_sync_depth("acct-1", 0).await }
     });
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    assert!(
-        !update.is_finished(),
-        "a depth change must keep retrying instead of finishing while the scope is busy"
-    );
-
-    finish.notify_one();
-    in_flight.await.unwrap();
     tokio::time::timeout(Duration::from_secs(2), after_commit.notified())
         .await
-        .unwrap();
+        .expect("the depth change waited for the pass under the old window");
+    assert!(!in_flight.is_finished());
+
     finish.notify_one();
+    finish.notify_one();
+    tokio::time::timeout(Duration::from_secs(3), in_flight)
+        .await
+        .unwrap()
+        .unwrap();
     tokio::time::timeout(Duration::from_secs(3), update)
         .await
         .unwrap()
         .unwrap();
 
+    assert_eq!(
+        syncs.load(std::sync::atomic::Ordering::SeqCst),
+        2,
+        "the pass under the old window started over"
+    );
     assert_eq!(app.effective_sync_depth("acct-1"), SyncDepth::AllTime);
 }
 
