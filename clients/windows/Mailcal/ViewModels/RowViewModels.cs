@@ -56,6 +56,9 @@ public sealed class ThreadMessageItem
     /// <summary>Whether the message is unread.</summary>
     public bool Unread { get; init; }
 
+    /// <summary>Whether the message is flagged.</summary>
+    public bool Flagged { get; init; }
+
     /// <summary>Whether the account owner sent it (drives the "Sent" badge).</summary>
     public bool Outgoing { get; init; }
 
@@ -71,6 +74,9 @@ public sealed class ThreadMessageItem
     /// <summary>Bold an unread sender, like the macOS thread sub-row.</summary>
     public Windows.UI.Text.FontWeight FromWeight =>
         Unread ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
+
+    /// <summary>Show the flag only on a flagged message.</summary>
+    public Visibility FlagVisibility => Flagged ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Show the "Sent" badge only on the owner's own messages.</summary>
     public Visibility SentVisibility => Outgoing ? Visibility.Visible : Visibility.Collapsed;

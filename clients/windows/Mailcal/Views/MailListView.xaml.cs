@@ -1,6 +1,6 @@
 // The mailbox detail, the Windows twin of macOS's mailDetail. Renders the Rust-driven row
-// snapshot, with a per-message context menu (reply/forward/read/flag/delete) and a status-line
-// footer. Every action is a dispatched intent; state stays in Rust.
+// snapshot, with the row menu the core decides (MailListView.RowMenu.cs) and a status-line footer.
+// Every action is a dispatched intent; state stays in Rust.
 //
 // The search field is NOT here: it is the window's own, in the title bar (MainWindow.Search.cs),
 // because its scope is every account and every folder rather than this one column.
@@ -80,12 +80,6 @@ public sealed partial class MailListView : UserControl
         }
     }
 
-    // The right-clicked row, captured via the menu item's Tag (robust against flyout
-    // DataContext quirks), with a DataContext fallback.
-    private static MailRow? RowOf(object sender) =>
-        (sender as FrameworkElement)?.Tag as MailRow
-        ?? (sender as FrameworkElement)?.DataContext as MailRow;
-
     // Infinite scroll: the core ships the list one page at a time (the visible window). When
     // the user scrolls within a viewport of the end, ask the core for the next page; it grows
     // the window and re-projects, the reconcile appends the new rows in place (scroll position
@@ -161,7 +155,7 @@ public sealed partial class MailListView : UserControl
     }
 
     // Tap a row to open it in the reading pane: a flat row opens its message, a conversation
-    // row opens its latest message (the model resolves which key to open). The highlight follows
+    // row its newest (the model resolves which). The highlight follows
     // from the open message (SyncSelectionToOpenedMessage), so nothing selects a row here, a
     // collapse, which opens nothing, then correctly leaves the highlight where the reader is.
     private async void OnRowClick(object sender, ItemClickEventArgs e)
@@ -191,7 +185,7 @@ public sealed partial class MailListView : UserControl
             return;
         }
         await LeaveComposerForMessageAsync();
-        // A conversation toggles its inline expansion (and opens its latest message in the
+        // A conversation toggles its inline expansion (and opens its newest message in the
         // reading pane); a flat row opens its message. The sub-rows are Buttons, so their taps
         // don't reach here, only the header does.
         if (row.IsThread)
@@ -204,26 +198,27 @@ public sealed partial class MailListView : UserControl
         }
     }
 
-    // A conversation opening in Drafts opens its latest message, which there is a draft, back
-    // into its composer, as a flat row does (docs/drafts.md).
+    // A conversation opens its newest message, or in Drafts its newest draft, and a draft opens
+    // back into its composer as a flat row's does (docs/drafts.md, docs/row-actions.md rule 2).
     private async Task ToggleThreadAsync(MailRow row)
     {
         if (Model is not { } model)
         {
             return;
         }
-        if (row.IsExpanded || !model.ShowingDrafts || App.Shell is not { } shell)
+        if (row.IsExpanded || App.Shell is not { } shell || model.Representative(row) is not { } message)
         {
             model.ToggleThread(row);
             return;
         }
         model.ToggleThread(row, openLatest: false);
-        await shell.OpenOrResumeAsync(row.Account, row.LatestKey, () => model.OpenMessage(row));
+        await shell.OpenOrResumeAsync(
+            message.Account, message.Key, message.Draft, () => model.OpenThreadMessage(message));
     }
 
-    // In the Drafts folder a row opens the composer it was written in; everywhere else it opens
-    // the reading view (docs/drafts.md). The shell decides, because it is the shell that owns the
-    // composer the draft goes into.
+    // A draft opens the composer it was written in, wherever it is listed; every other message
+    // opens the reading view (docs/drafts.md). The shell decides, because it is the shell that
+    // owns the composer the draft goes into.
     private async Task OpenOrResumeAsync(MailRow row)
     {
         if (Model is not { } model)
@@ -235,17 +230,7 @@ public sealed partial class MailListView : UserControl
             model.OpenMessage(row);
             return;
         }
-        await shell.OpenOrResumeAsync(row.Account, row.Key, () => model.OpenMessage(row));
-    }
-
-    private async void OnOpen(object sender, RoutedEventArgs e)
-    {
-        if (RowOf(sender) is not { } row)
-        {
-            return;
-        }
-        await LeaveComposerForMessageAsync();
-        await OpenOrResumeAsync(row);
+        await shell.OpenOrResumeAsync(row.Account, row.Key, row.Draft, () => model.OpenMessage(row));
     }
 
     // A tap on a conversation sub-row opens that specific message in the reading pane. On the same
@@ -259,131 +244,15 @@ public sealed partial class MailListView : UserControl
             return;
         }
         await LeaveComposerForMessageAsync();
+        await OpenThreadMessageAsync(message);
+    }
+
+    private async Task OpenThreadMessageAsync(ThreadMessageItem message)
+    {
         if (Model is { } model && App.Shell is { } shell)
         {
             await shell.OpenOrResumeAsync(
-                message.Account, message.Key, () => model.OpenThreadMessage(message));
-        }
-    }
-
-    // Right-click a conversation → Archive conversation (the core archives the received side and
-    // leaves any Sent copies in Sent).
-    private void OnArchiveThread(object sender, RoutedEventArgs e)
-    {
-        if (RowOf(sender) is { } row)
-        {
-            Model?.ArchiveConversation(row);
-        }
-    }
-
-    // Reply / reply-all / forward from the row's context menu open the SAME composer as the reading
-    // pane's toolbar and the Compose button, the shell derives the To/Cc pre-fill, the From
-    // account, and the quoted original, and renders it in the reading-pane slot
-    // (MainWindow.Compose.cs). Starting a different draft replaces whatever is already open, so the
-    // open one is left first, which keeps it in Drafts.
-    private async void OnReply(object sender, RoutedEventArgs e) => await BeginReplyAsync(sender, replyAll: false);
-
-    private async void OnReplyAll(object sender, RoutedEventArgs e) => await BeginReplyAsync(sender, replyAll: true);
-
-    private async Task BeginReplyAsync(object sender, bool replyAll)
-    {
-        if (RowOf(sender) is not { } row)
-        {
-            return;
-        }
-        await LeaveComposerForDraftAsync();
-        App.Shell?.ComposeReply(row.Account, row.Key, replyAll);
-    }
-
-    private async void OnForward(object sender, RoutedEventArgs e)
-    {
-        if (RowOf(sender) is not { } row)
-        {
-            return;
-        }
-        await LeaveComposerForDraftAsync();
-        App.Shell?.ComposeForward(row.Account, row.Key);
-    }
-
-    private void OnToggleRead(object sender, RoutedEventArgs e)
-    {
-        if (RowOf(sender) is { } row && !ActedOnSelection(row, row.Unread ? BulkAction.MarkRead : BulkAction.MarkUnread))
-        {
-            Model?.MarkRead(row.Account, row.Key, row.Unread);
-        }
-    }
-
-    private void OnToggleFlag(object sender, RoutedEventArgs e)
-    {
-        if (RowOf(sender) is { } row && !ActedOnSelection(row, row.Flagged ? BulkAction.Unflag : BulkAction.Flag))
-        {
-            Model?.SetFlagged(row.Account, row.Key, !row.Flagged);
-        }
-    }
-
-    // A row menu acts on the WHOLE selection when its own row is part of it, and on that row alone
-    // when it is not (docs/list-selection.md, rule 12). The action is the one the menu item named,
-    // not the one rule 5 derives for the bar: the user read a label and chose it.
-    //
-    // A selected row therefore loses the undo window the single-row path below has, because a batch
-    // has no undo anywhere (that gap is the contract's, not this menu's), and gains the one sync per
-    // account a batch buys.
-    private bool ActedOnSelection(MailRow row, BulkAction action)
-    {
-        if (Model is not { } model || !model.SelectionCovers(row))
-        {
-            return false;
-        }
-        model.ActOnSelection(action);
-        return true;
-    }
-
-    // Archive / Move to Trash from the row's context menu run through the SAME deferred machine as a
-    // swipe, hide the row, dispatch nothing, raise the undo bar (MailListView.Swipe.cs). The swipe
-    // gesture answers to touch, pen, and a precision touchpad, but never to a mouse, so for a
-    // mouse-only user this menu IS the feature; giving it the undo window too is what makes it an
-    // equal path rather than a lesser one.
-    private void OnArchive(object sender, RoutedEventArgs e)
-    {
-        if (RowOf(sender) is { } row && !ActedOnSelection(row, BulkAction.Archive))
-        {
-            PerformSwipe(row, SwipeActionKind.Archive);
-        }
-    }
-
-    private void OnDelete(object sender, RoutedEventArgs e)
-    {
-        if (RowOf(sender) is { } row && !ActedOnSelection(row, BulkAction.Delete))
-        {
-            PerformSwipe(row, SwipeActionKind.Delete);
-        }
-    }
-
-    // The one irreversible item on the row menu, so it asks first whichever set it is about; over a
-    // selection it counts the rows, the way the bar's own button does.
-    private async void OnPermanentlyDelete(object sender, RoutedEventArgs e)
-    {
-        if (RowOf(sender) is not { } row || Model is not { } model)
-        {
-            return;
-        }
-        var many = model.SelectionCovers(row);
-        var result = await DialogHelper.ConfirmAsync(
-            this.XamlRoot,
-            L10n.DeletePermanentlyTitle(),
-            many ? L10n.DeletePermanentlyMessageMany(model.SelectionCount) : L10n.DeletePermanentlyMessage(),
-            L10n.ActionDelete());
-        if (result != ContentDialogResult.Primary)
-        {
-            return;
-        }
-        if (many)
-        {
-            model.ActOnSelection(BulkAction.PermanentlyDelete);
-        }
-        else
-        {
-            model.PermanentlyDelete(row.Account, row.Key);
+                message.Account, message.Key, message.Draft, () => model.OpenThreadMessage(message));
         }
     }
 

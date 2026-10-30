@@ -110,7 +110,7 @@
                     <Border Width="1" Margin="4"
                             Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
                     <Button AutomationProperties.AutomationId="SelectionMarkRead"
-                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
+                            IsEnabled="{x:Bind Model.SelectionReadEnabled, Mode=OneWay}"
                             AutomationProperties.Name="{x:Bind Model.SelectionReadText, Mode=OneWay}"
                             Click="OnSelectionToggleRead">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -119,7 +119,7 @@
                         </StackPanel>
                     </Button>
                     <Button AutomationProperties.AutomationId="SelectionFlag"
-                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
+                            IsEnabled="{x:Bind Model.SelectionFlagEnabled, Mode=OneWay}"
                             AutomationProperties.Name="{x:Bind Model.SelectionFlagText, Mode=OneWay}"
                             Click="OnSelectionToggleFlag">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -128,7 +128,7 @@
                         </StackPanel>
                     </Button>
                     <Button AutomationProperties.AutomationId="SelectionArchive"
-                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
+                            IsEnabled="{x:Bind Model.SelectionArchiveEnabled, Mode=OneWay}"
                             AutomationProperties.Name="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}"
                             Click="OnSelectionArchive">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -137,7 +137,7 @@
                         </StackPanel>
                     </Button>
                     <Button AutomationProperties.AutomationId="SelectionDelete"
-                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
+                            IsEnabled="{x:Bind Model.SelectionDeleteEnabled, Mode=OneWay}"
                             AutomationProperties.Name="{x:Bind l10n:L10n.ActionMoveToTrash(), Mode=OneTime}"
                             Click="OnSelectionDelete">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -150,7 +150,7 @@
                          borrowed glyph that means something else would be
                          worse than the colour and the label saying it. -->
                     <Button AutomationProperties.AutomationId="SelectionDeletePermanently"
-                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
+                            IsEnabled="{x:Bind Model.SelectionPermanentlyDeleteEnabled, Mode=OneWay}"
                             AutomationProperties.Name="{x:Bind l10n:L10n.ActionDeletePermanently(), Mode=OneTime}"
                             Click="OnSelectionPermanentlyDelete">
                         <StackPanel Orientation="Horizontal" Spacing="6">
