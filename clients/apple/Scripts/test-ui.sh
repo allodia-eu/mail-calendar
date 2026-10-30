@@ -14,6 +14,12 @@
 #   Scripts/test-ui.sh --device             # the connected iPhone/iPad
 #   Scripts/test-ui.sh --only NavigationBarTests   # one class, or one test
 #   Scripts/test-ui.sh --no-core            # skip the Rust rebuild (a device still gets its slice)
+#   Scripts/test-ui.sh --with-kit           # MailcalKitTests too, in the same run on the same device
+#   Scripts/test-ui.sh --build-only         # build the app and both test bundles; boot nothing
+#
+# `--with-kit` is the cheap way to run MailcalKit's suite on iOS: the scheme's build has already
+# compiled MailcalUI for this destination, where `test-kit.sh --ios` compiles it again into a
+# derived-data directory of its own.
 #
 # Every test drives the in-memory showcase dataset, so nothing here needs the Docker harness, a
 # stored account or a network. That is what lets the device leg run the same suite: the harness is
@@ -38,6 +44,8 @@ BUILD_CORE=1
 ON_DEVICE=0
 SIMULATOR="${SIMULATOR:-}"
 ONLY=()
+WITH_KIT=0
+BUILD_ONLY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -45,8 +53,11 @@ while [[ $# -gt 0 ]]; do
     --simulator) SIMULATOR="${2:-}"; shift ;;
     --only) ONLY+=("${2:?--only needs a test class or class/method}"); shift ;;
     --no-core) BUILD_CORE=0 ;;
-    -h | --help) sed -n '2,26p' "$0"; exit 0 ;;
-    *) die "unknown option '$1' (want: --device, --simulator <name>, --only <test>, --no-core)" ;;
+    --with-kit) WITH_KIT=1 ;;
+    --build-only) BUILD_ONLY=1 ;;
+    -h | --help) sed -n '2,32p' "$0"; exit 0 ;;
+    *) die "unknown option '$1' (want: --device, --simulator <name>, --only <test>, --no-core," \
+      "--with-kit, --build-only)" ;;
   esac
   shift
 done
@@ -113,6 +124,7 @@ if [[ "${#ONLY[@]}" -gt 0 ]]; then
 else
   TEST_ARGS+=(-only-testing:"$TARGET")
 fi
+[[ "$WITH_KIT" -eq 1 ]] && TEST_ARGS+=(-only-testing:MailcalKitTests)
 
 # Built before the simulator boots, never while it does. A booting simulator takes a three-core
 # runner for itself: booted first, as one `xcodebuild test` needs, it put ten minutes on GitHub's
@@ -120,6 +132,7 @@ fi
 # reuses these products, so the split costs one more package resolution and nothing else.
 info "building $TARGET"
 xcodebuild build-for-testing "${ARGS[@]}"
+[[ "$BUILD_ONLY" -eq 1 ]] && exit 0
 
 if [[ "$ON_DEVICE" -eq 0 ]]; then
   # The keyboard switch below, compiled before the boot rather than by `xcrun swift` after it,

@@ -462,8 +462,9 @@ were broken right now, would this tell me?*
 - **And a build is not the screen.** `clients/apple/Scripts/test-ui.sh` is the XCUITest suite
   (`clients/apple/UITests`), on a simulator or with `--device` on a connected iPhone. It is the only
   Apple gate that can drive a **gesture**, or read the iOS **navigation bar** at all, which `idb`
-  reports as one unlabelled group. It needs a simulator, so the workspace gate leaves it out and CI
-  runs only the classes [`ci.yml`](.github/workflows/ci.yml) names; run it before pushing anything
+  reports as one unlabelled group. It needs a simulator, so the workspace gate leaves it out, and CI
+  runs only the classes [`ci.yml`](.github/workflows/ci.yml) names, and never on a pull request,
+  which compiles the suite and boots nothing. Run it before pushing anything
   that changes what an Apple screen presents.
 - **A `#![cfg(unix)]` test file reports `running 0 tests ... ok` on Windows**, which reads exactly
   like a pass. Any `cfg(windows)` / `cfg(unix)` branch needs a test *per branch*, and a
