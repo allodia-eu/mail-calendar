@@ -187,15 +187,24 @@ fn compose_origin(
         });
     }
     let message = opened?;
-    let (account, key) = (message.account.clone(), message.key.clone());
-    Some(match kind {
+    Some(answer_origin(
+        kind,
+        message.account.clone(),
+        message.key.clone(),
+    ))
+}
+
+/// What an answer of `kind` to one message is opened on: a forward, or a reply to its sender or
+/// to everyone.
+pub(super) fn answer_origin(kind: ComposeKind, account: String, key: String) -> ComposeOrigin {
+    match kind {
         ComposeKind::Forward => ComposeOrigin::Forward { account, key },
         _ => ComposeOrigin::Reply {
             account,
             key,
             all: kind == ComposeKind::ReplyAll,
         },
-    })
+    }
 }
 
 /// The sample answer a showcase run puts above the quote of its designated reply, so the store

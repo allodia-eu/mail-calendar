@@ -3,7 +3,7 @@
 //! The menus a row offers them through are [`super::mail_actions_menu`].
 
 use adw::prelude::*;
-use mailcal_bindings::{BulkAction, FolderRole, Intent, MailboxListSnapshot, SnapshotRow};
+use mailcal_bindings::{BulkAction, Intent, SelectedRow, SnapshotRow};
 
 use super::{AppInput, AppModel, mailbox, mailbox::ThreadKey, model, reader::ReadingSource};
 use crate::l10n;
@@ -16,14 +16,16 @@ pub(crate) struct MessageTarget {
 
 /// What the "delete permanently?" confirmation is about to destroy.
 ///
-/// Both paths ask, because both are irreversible; only the sentence differs, and the selection
-/// arm carries the count so it can say how much is going (`docs/list-selection.md`, rule 6).
+/// Every path asks, because each is irreversible; only the sentence differs, and the arms over
+/// several rows carry them so it can say how much is going (`docs/list-selection.md`, rule 6).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DeleteTarget {
-    /// One message, named from the row's own menu.
+    /// One message, named by a row menu's item.
     Message(MessageTarget),
     /// Every selected row, and how many there are.
     Selection(usize),
+    /// The rows a row menu was opened on, outside the selection.
+    Rows(Vec<SelectedRow>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,21 +55,6 @@ impl MailActionRequest {
     }
 }
 
-pub(super) fn actions_for(unread: bool, flagged: bool, in_junk_folder: bool) -> Vec<ActionKind> {
-    vec![
-        ActionKind::MarkRead(unread),
-        ActionKind::SetFlagged(!flagged),
-        ActionKind::Archive,
-        ActionKind::MoveToTrash,
-        if in_junk_folder {
-            ActionKind::MarkAsNotSpam
-        } else {
-            ActionKind::MarkAsSpam
-        },
-        ActionKind::PermanentlyDelete,
-    ]
-}
-
 pub(super) fn intent_for(target: MessageTarget, action: ActionKind) -> Intent {
     let MessageTarget { account, key } = target;
     match action {
@@ -83,36 +70,6 @@ pub(super) fn intent_for(target: MessageTarget, action: ActionKind) -> Intent {
         ActionKind::MarkAsNotSpam => Intent::MarkAsNotSpam { account, key },
         ActionKind::PermanentlyDelete => Intent::PermanentlyDelete { account, key },
     }
-}
-
-/// The batch equivalent of a row menu's action, or `None` for one that has no batch form.
-///
-/// Spam and not-spam are the two: they are reports rather than moves (`docs/reporting.md`), and
-/// which verdicts a provider offers is read per account, so a selection spanning accounts has no
-/// single answer (`docs/list-selection.md`, Known gaps). A menu item with no batch form acts on
-/// its own row, selection or not.
-pub(super) fn bulk_form(action: ActionKind) -> Option<BulkAction> {
-    match action {
-        ActionKind::MarkRead(true) => Some(BulkAction::MarkRead),
-        ActionKind::MarkRead(false) => Some(BulkAction::MarkUnread),
-        ActionKind::SetFlagged(true) => Some(BulkAction::Flag),
-        ActionKind::SetFlagged(false) => Some(BulkAction::Unflag),
-        ActionKind::Archive => Some(BulkAction::Archive),
-        ActionKind::MoveToTrash => Some(BulkAction::Delete),
-        ActionKind::PermanentlyDelete => Some(BulkAction::PermanentlyDelete),
-        ActionKind::MarkAsSpam | ActionKind::MarkAsNotSpam => None,
-    }
-}
-
-pub(super) fn in_junk_folder(snapshot: &MailboxListSnapshot) -> bool {
-    let Some(selected) = snapshot.selected.as_deref() else {
-        return false;
-    };
-    snapshot
-        .folders
-        .iter()
-        .find(|folder| folder.key == selected)
-        .is_some_and(|folder| matches!(folder.role, Some(FolderRole::Junk)))
 }
 
 #[derive(Default)]
@@ -159,9 +116,8 @@ fn delete_confirmation(
     content.set_margin_end(24);
     let sentence = match &target {
         DeleteTarget::Message(_) => l10n::delete_permanently_message().to_owned(),
-        DeleteTarget::Selection(count) => {
-            l10n::delete_permanently_message_many(i64::try_from(*count).unwrap_or(i64::MAX))
-        }
+        DeleteTarget::Selection(count) => many(*count),
+        DeleteTarget::Rows(rows) => many(rows.len()),
     };
     let message = gtk::Label::new(Some(&sentence));
     message.set_wrap(true);
@@ -187,6 +143,10 @@ fn delete_confirmation(
                     BulkAction::PermanentlyDelete,
                 ));
             }
+            DeleteTarget::Rows(rows) => input.emit(AppInput::PerformRowsAction {
+                rows: rows.clone(),
+                action: BulkAction::PermanentlyDelete,
+            }),
         }
         dialog.close();
     });
@@ -201,36 +161,18 @@ fn delete_confirmation(
     window
 }
 
+fn many(count: usize) -> String {
+    l10n::delete_permanently_message_many(i64::try_from(count).unwrap_or(i64::MAX))
+}
+
 impl AppModel {
+    /// A write on the one message a row menu's item named. A permanent delete arrives here only
+    /// from its confirmation's own button.
     pub(super) fn perform_mail_action(&mut self, request: MailActionRequest) {
         if request.action == ActionKind::PermanentlyDelete {
             self.pending_mail_delete = None;
         }
-        // A menu opened on a selected row is about the whole selection, not the one row it hangs
-        // off (`docs/list-selection.md`, rule 12). The action is the one the item's label named,
-        // not the one the bar derives for itself: the user read it and chose it.
-        if let Some(bulk) = self.selection_form(&request) {
-            self.perform_selection(bulk);
-            return;
-        }
         self.dispatch(request.into_intent());
-    }
-
-    /// The batch this request becomes when its row is one of the selected ones, or `None` when it
-    /// is an ordinary single-row action.
-    fn selection_form(&self, request: &MailActionRequest) -> Option<BulkAction> {
-        // A permanent delete never routes here. It reaches the model as `RequestPermanentDelete`,
-        // which decides between the one row and the selection *before* the confirmation says what
-        // is going, and only that dialog's own button may run it: routing it here would run an
-        // irreversible batch off a sentence that had counted one message.
-        if request.action == ActionKind::PermanentlyDelete {
-            return None;
-        }
-        let target = &request.target;
-        if !self.selection.covers_message(&target.account, &target.key) {
-            return None;
-        }
-        bulk_form(request.action)
     }
 
     /// Runs one action over every selected row, as a single batch in the core.
@@ -261,33 +203,53 @@ impl AppModel {
             return;
         }
         let rows = self.selection.selected_rows();
+        // Decided while the selection still names the rows, since the dispatch below empties it.
+        if self.perform_rows(rows, action) {
+            self.selection.clear();
+        }
+    }
+
+    /// Runs one action the user has already agreed to over `rows`, as a single batch in the core,
+    /// and answers whether it takes them out of the list. A conversation leaving folds away, and
+    /// the reading pane lets go of a message leaving with it.
+    pub(super) fn perform_rows(&mut self, rows: Vec<SelectedRow>, action: BulkAction) -> bool {
         self.pending_mail_delete = None;
         let removes = matches!(
             action,
             BulkAction::Archive | BulkAction::Delete | BulkAction::PermanentlyDelete
         );
-        // Decided while the selection still names the rows, since the dispatch below empties it.
-        let closes_reading = removes && self.selection_holds_open_message();
-        self.dispatch(Intent::ActOnSelection { rows, action });
         if removes {
-            self.selection.clear();
-            if closes_reading {
+            if self.rows_hold_open_message(&rows) {
                 self.reading.close();
             }
+            for row in &rows {
+                if let SelectedRow::Thread { account, thread_id } = row {
+                    self.expanded_threads
+                        .remove(&ThreadKey::new(account, thread_id));
+                }
+            }
         }
+        self.dispatch(Intent::ActOnSelection { rows, action });
+        removes
     }
 
     /// Whether the message in the reading pane is one of the selected rows, a conversation's
-    /// members included. The pane is cleared rather than advanced: the row it would advance to
-    /// may be in the same batch and about to leave too.
+    /// members included.
     pub(super) fn selection_holds_open_message(&self) -> bool {
+        self.rows_hold_open_message(&self.selection.selected_rows())
+    }
+
+    /// Whether the message in the reading pane is one of `rows`, a conversation's members
+    /// included. The pane is cleared rather than advanced: the row it would advance to may be in
+    /// the same batch and about to leave too.
+    fn rows_hold_open_message(&self, rows: &[SelectedRow]) -> bool {
         let Some(opened) = self.reading.opened.as_ref() else {
             return false;
         };
         self.snapshot
             .rows
             .iter()
-            .filter(|row| self.selection.contains(row))
+            .filter(|row| rows.contains(&super::selection::RowKey::of(row).selected_row()))
             .any(|row| match row {
                 SnapshotRow::Flat { row } => row.account == opened.account && row.key == opened.key,
                 SnapshotRow::Thread { row } => row
@@ -335,17 +297,34 @@ impl AppModel {
         }
     }
 
-    /// Records a conversation's inline disclosure and, on opening one, reads its representative
-    /// message; the three-pane behaviour macOS and Windows share. Collapsing leaves the reading
-    /// pane where it is: the user is closing a list row, not the message they are reading.
-    pub(super) fn set_thread_expanded(&mut self, thread: &ThreadKey, expanded: bool) {
+    /// Records a conversation's inline disclosure and, on opening one, opens its newest message
+    /// (`docs/row-actions.md`, rule 8). Collapsing leaves the reading pane where it is: the user
+    /// is closing a list row, not the message they are reading.
+    ///
+    /// A disclosure the model already holds changes nothing: the list draws the model's expansion
+    /// back onto its rows, and the row reports that change too.
+    pub(super) fn set_thread_expanded(
+        &mut self,
+        thread: &ThreadKey,
+        expanded: bool,
+        sender: &relm4::Sender<AppInput>,
+    ) {
         if !expanded {
             self.expanded_threads.remove(thread);
-            return;
+        } else if !self.expanded_threads.contains(thread) {
+            self.open_conversation(thread, sender);
         }
+    }
+
+    /// Expands a conversation and opens its newest message, resuming it when it is a draft.
+    pub(super) fn open_conversation(
+        &mut self,
+        thread: &ThreadKey,
+        sender: &relm4::Sender<AppInput>,
+    ) {
         self.expanded_threads.insert(thread.clone());
-        if let Some(message) = mailbox::thread_representative(&self.snapshot, thread) {
-            self.open_message(message);
+        if let Some((message, draft)) = mailbox::thread_representative(&self.snapshot, thread) {
+            self.open_or_resume(message, draft, sender);
         }
     }
 
@@ -366,30 +345,6 @@ impl AppModel {
                 key,
             },
         });
-    }
-
-    pub(super) fn archive_thread(&mut self, account: &str, thread_id: &str) {
-        let contains_opened = self.reading.opened.as_ref().is_some_and(|opened| {
-            self.snapshot.rows.iter().any(|row| match row {
-                SnapshotRow::Thread { row }
-                    if row.account == account && row.thread_id == thread_id =>
-                {
-                    row.messages.iter().any(|message| {
-                        message.account == opened.account && message.key == opened.key
-                    })
-                }
-                _ => false,
-            })
-        });
-        self.expanded_threads
-            .remove(&mailbox::ThreadKey::new(account, thread_id));
-        self.dispatch(Intent::ArchiveThread {
-            account: account.to_owned(),
-            thread_id: thread_id.to_owned(),
-        });
-        if contains_opened {
-            self.reading.close();
-        }
     }
 }
 

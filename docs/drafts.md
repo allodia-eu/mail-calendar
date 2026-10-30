@@ -344,7 +344,7 @@ and the removal below runs on whatever key the composition had.
 | Discard removes the server copy | ✅ | ✅ | ✅ | ✅ |
 | Resume from the Drafts folder | ✅ | ✅ | ✅ | ✅ |
 | A conversation's row in Drafts resumes its latest draft | ✅ | ✅ | ✅ | ✅ |
-| A draft resumes wherever it is listed, not only in Drafts | ✅ | ⬜ | ⬜ | ⬜ |
+| A draft resumes wherever it is listed, not only in Drafts | ✅ | ⬜ | ⬜ | ✅ |
 | A resumed draft opens formatted, its pictures and quote included | ✅ | ✅ | ✅ | ✅ |
 | Every composer opens through `open_composer` and sends through `submit_composition` | ✅ | ✅ | ✅ | ✅ |
 | A reply or forward saved as a draft keeps its conversation | ✅ | ✅ | ✅ | ✅ |

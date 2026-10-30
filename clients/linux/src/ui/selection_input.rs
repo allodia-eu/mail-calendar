@@ -5,10 +5,12 @@
 //! beside the bar because none of it is the bar: it is the list's own input, and the one place
 //! that decides what a modified click means.
 
-use adw::prelude::*;
-use mailcal_bindings::BulkAction;
+use std::collections::HashSet;
 
-use super::{AppInput, AppModel, selection::SelectMode};
+use adw::prelude::*;
+use mailcal_bindings::{BulkAction, SnapshotRow};
+
+use super::{AppInput, AppModel, mailbox::ThreadKey, selection::SelectMode};
 
 /// Reads Ctrl- and Shift-clicks on the message list, which `GtkListBox` cannot give us.
 ///
@@ -88,12 +90,18 @@ pub(super) fn selection_keys(messages: &gtk::ListBox, sender: &relm4::Sender<App
     messages.add_controller(keys);
 }
 
+/// Draws the model's selection and the conversations it keeps expanded onto the list.
+pub(super) fn sync_list(messages: &gtk::ListBox, model: &AppModel) {
+    sync_selection(messages, model);
+    sync_expansion(messages, &model.snapshot.rows, &model.expanded_threads);
+}
+
 /// Draws the model's selection onto the list.
 ///
 /// The widget owns no selection: GTK moves its own on every click, and this is the one place that
 /// decides what is selected, so the two cannot drift into disagreeing about which rows an action
 /// would reach.
-pub(super) fn sync_selection(messages: &gtk::ListBox, model: &AppModel) {
+fn sync_selection(messages: &gtk::ListBox, model: &AppModel) {
     let mut index = 0;
     while let Some(widget) = messages.row_at_index(index) {
         let selected = usize::try_from(index)
@@ -106,5 +114,33 @@ pub(super) fn sync_selection(messages: &gtk::ListBox, model: &AppModel) {
             messages.unselect_row(&widget);
         }
         index += 1;
+    }
+}
+
+/// Draws the model's record of which conversations are expanded onto their rows, so leaving a
+/// conversation folds it away (`docs/row-actions.md`, rule 8).
+///
+/// A row reports its own disclosure back, and the model ignores a report of what it already
+/// holds, so drawing it here starts nothing.
+pub(super) fn sync_expansion(
+    messages: &gtk::ListBox,
+    rows: &[SnapshotRow],
+    expanded: &HashSet<ThreadKey>,
+) {
+    for (index, row) in rows.iter().enumerate() {
+        let SnapshotRow::Thread { row } = row else {
+            continue;
+        };
+        let Some(widget) = i32::try_from(index)
+            .ok()
+            .and_then(|index| messages.row_at_index(index))
+            .and_downcast::<adw::ExpanderRow>()
+        else {
+            continue;
+        };
+        let open = expanded.contains(&ThreadKey::of(row));
+        if widget.is_expanded() != open {
+            widget.set_expanded(open);
+        }
     }
 }

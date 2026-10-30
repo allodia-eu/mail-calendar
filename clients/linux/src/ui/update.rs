@@ -7,8 +7,7 @@ use relm4::ComponentSender;
 
 use super::{
     AppInput, AppModel, AppWindow, PrimaryView, composer_model::ComposeKind,
-    mail_actions::DeleteTarget, notification_open::present_main_window, reader::ReadingSource,
-    setup_model,
+    notification_open::present_main_window, reader::ReadingSource, setup_model,
 };
 use crate::l10n;
 
@@ -141,11 +140,15 @@ impl AppModel {
             AppInput::SearchMail(query) => self.search_mail(query),
             AppInput::SetSearchScope(scope) => self.set_search_scope(scope),
             AppInput::OpenSyncDepthSettings => self.open_sync_depth_settings(),
-            AppInput::OpenThreadMessage(message) => {
-                self.open_or_resume(*message, sender.input_sender());
+            AppInput::OpenListedMessage { message, draft } => {
+                self.open_or_resume(*message, draft, sender.input_sender());
             }
+            AppInput::OpenConversation(thread) => {
+                self.open_conversation(&thread, sender.input_sender());
+            }
+            AppInput::RowMenuPick(pick) => self.perform_row_pick(*pick, sender.input_sender()),
             AppInput::SetThreadExpanded { thread, expanded } => {
-                self.set_thread_expanded(&thread, expanded);
+                self.set_thread_expanded(&thread, expanded, sender.input_sender());
             }
             AppInput::OpenMessageInWindow(message) => self.open_reading_window(*message),
             AppInput::CloseReadingWindow(window) => self.close_reading_window(&window),
@@ -167,32 +170,19 @@ impl AppModel {
                     reply_subject: Some(reply_subject),
                 });
             }
-            AppInput::SelectRow { index, mode } => {
-                self.selection.click(&self.snapshot.rows, index, mode);
-            }
+            AppInput::SelectRow { index, mode } => self.select_row(index, mode),
             AppInput::SelectAllRows => self.selection.select_all(&self.snapshot.rows),
             AppInput::ClearSelection => self.selection.clear(),
             AppInput::ActOnSelection(action) => self.act_on_selection(action),
             AppInput::PerformSelectionAction(action) => self.perform_selection(action),
+            AppInput::PerformRowsAction { rows, action } => {
+                self.perform_rows(rows, action);
+            }
             AppInput::PerformMailAction(request) => self.perform_mail_action(*request),
             AppInput::PerformOpenedMailAction { source, action } => {
                 self.perform_opened_mail_action(&source, action);
             }
-            AppInput::RequestPermanentDelete(target) => {
-                // A menu opened on a selected row is about the whole selection, so the
-                // confirmation counts it (`docs/list-selection.md`, rule 12).
-                self.pending_mail_delete = Some(
-                    if self.selection.covers_message(&target.account, &target.key) {
-                        DeleteTarget::Selection(self.selection.selected_rows().len())
-                    } else {
-                        DeleteTarget::Message(target)
-                    },
-                );
-            }
             AppInput::DismissPermanentDelete => self.pending_mail_delete = None,
-            AppInput::ArchiveThread { account, thread_id } => {
-                self.archive_thread(&account, &thread_id);
-            }
             AppInput::ActivateSidebar(target) => self.activate_sidebar(&target),
             AppInput::ShowOutbox => self.show_outbox(),
             AppInput::Folder(input) => self.folder_input(input),

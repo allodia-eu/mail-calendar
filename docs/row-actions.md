@@ -17,7 +17,8 @@ user should never have to expand a conversation to do something to it.
 1. **The core decides the menu; a client draws it.** A client asks `row_menu(rows)` as the menu
    opens, with the row under the pointer or the selection it belongs to, and draws the answer:
    the sections in order with a separator between them, each item under its action's label and
-   icon, greyed out where it is not enabled. It adds no item, removes none and enables none. Which
+   icon (on Linux the label alone, as GNOME's menus carry no icons), greyed out where it is not
+   enabled. It adds no item, removes none and enables none. Which
    message a conversation's item is about depends on which member is newest, which was received
    and where each is filed, and five clients working that out would give five answers.
 
@@ -100,16 +101,18 @@ user should never have to expand a conversation to do something to it.
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Row menus drawn from `row_menu` | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| A conversation row's menu offers every message action (rule 3) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| A message inside a conversation offers its own full menu (rule 5) | ✅ | ✅ | ⬜ | n/a: no in-list expansion | ⬜ |
-| One conversation expanded, folding as the selection leaves it (rule 8) | ✅ | ✅ | ⬜ | n/a: a screen of its own | ⬜ |
-| A conversation row, and each message in it, draws its flag (rule 3) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| Row menus drawn from `row_menu` | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| A conversation row's menu offers every message action (rule 3) | ✅ | ✅ | ⬜ | ⬜ | ✅ |
+| A message inside a conversation offers its own full menu (rule 5) | ✅ | ✅ | ⬜ | n/a: no in-list expansion | ✅ |
+| One conversation expanded, folding as the selection leaves it (rule 8) | ✅ | ✅ | ⬜ | n/a: a screen of its own | ✅ |
+| A conversation row, and each message in it, draws its flag (rule 3) | ✅ | ✅ | ⬜ | ⬜ | ✅ |
 | The batch reaches what rules 3 and 4 say | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The last row is the core's, and every client already dispatches into it. On Apple the selection
 bar reads its toggles and what responds from the same answer (`RowMenuPresentation.swift`), and
-`RowMenuTests` in the UI suite long-presses the showcase's conversation and leaves it.
+`RowMenuTests` in the UI suite long-presses the showcase's conversation and leaves it. On Linux
+the bar does the same (`row_menu.rs`), and `test-linux-ui.sh` flags and unflags the harness's
+conversation from its menu and resumes its draft from the Inbox.
 
 ## Enforcement
 

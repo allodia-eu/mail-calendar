@@ -12,7 +12,7 @@ use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::{BulkAction, ViewMode};
 
-use super::{AppInput, selection::SelectionSummary};
+use super::{AppInput, row_menu::BarActions, selection::SelectionSummary};
 use crate::{l10n, ui::icons};
 
 pub(crate) struct SelectionBar {
@@ -21,11 +21,12 @@ pub(crate) struct SelectionBar {
     /// than from a fixed pair (`docs/list-selection.md`, rule 5).
     read: PairedButton,
     flag: PairedButton,
+    archive: gtk::Button,
+    trash: gtk::Button,
+    purge: gtk::Button,
+    clear: gtk::Button,
     #[cfg(test)]
     sync: gtk::Button,
-    /// Everything that names the selection, so it goes insensitive with an empty one. Select all
-    /// is deliberately absent: it is how a pointer starts a selection in the first place.
-    needs_selection: Vec<gtk::Button>,
 }
 
 /// One of the two buttons that stands for a pair of actions, holding the action its current
@@ -126,21 +127,16 @@ impl SelectionBar {
         bar.set_margin_start(4);
         bar.set_margin_end(4);
         bar.append(&scroll);
-        let needs_selection = vec![
-            read.button.clone(),
-            flag.button.clone(),
-            archive,
-            trash,
-            purge,
-            clear,
-        ];
         Self {
             root: bar,
             read,
             flag,
+            archive,
+            trash,
+            purge,
+            clear,
             #[cfg(test)]
             sync,
-            needs_selection,
         }
     }
 
@@ -149,14 +145,30 @@ impl SelectionBar {
     }
 
     /// Brings the bar to what is selected: the two paired actions the selection calls for, and
-    /// whether the actions can be pressed at all.
-    pub(crate) fn render(&self, summary: SelectionSummary) {
-        let selected = summary.count > 0;
-        for button in &self.needs_selection {
-            button.set_sensitive(selected);
-        }
-        self.read.set(summary.read_action());
-        self.flag.set(summary.flag_action());
+    /// which actions respond, as the core's menu over the selection answers both. Select all is
+    /// left alone: it is how a pointer starts a selection in the first place.
+    pub(crate) fn render(&self, summary: SelectionSummary, actions: BarActions) {
+        self.read.set(actions.read.0);
+        self.read.button.set_sensitive(actions.read.1);
+        self.flag.set(actions.flag.0);
+        self.flag.button.set_sensitive(actions.flag.1);
+        self.archive.set_sensitive(actions.archive);
+        self.trash.set_sensitive(actions.delete);
+        self.purge.set_sensitive(actions.permanently_delete);
+        self.clear.set_sensitive(summary.count > 0);
+    }
+
+    /// Every button that names the selection.
+    #[cfg(test)]
+    fn needs_selection(&self) -> [&gtk::Button; 6] {
+        [
+            &self.read.button,
+            &self.flag.button,
+            &self.archive,
+            &self.trash,
+            &self.purge,
+            &self.clear,
+        ]
     }
 }
 

@@ -11,12 +11,14 @@ into a GResource by [`build.rs`](build.rs), then registered on the icon theme, s
 thing on every distribution; a theme can only replace a name it ships, and none ships `mailcal-*`.
 Chrome that is universal, such as the attachment paperclip and flagged star, stays themed. WebKitGTK
 hosts the locked-down reading document and a separate, fresh instance of the shared rich editor.
-Each message row exposes read/unread, flag, archive, Trash, spam and confirmed permanent-delete
-actions, and opens in a window of its own on a double-click or from that same menu
+Every row's menu, a conversation's and a message's inside one included, is the one the core
+answers ([`docs/row-actions.md`](../../docs/row-actions.md)): open, reply, read state, flag, report,
+the moves and a confirmed permanent delete, a conversation's move leaving its Sent copies and
+drafts where they are. A message opens in a window of its own on a double-click or from that menu
 ([`docs/reading-window.md`](../../docs/reading-window.md)); a reply raised in such a window opens
-in a composer window beside it, and closing the mailbox sweeps both. The reading toolbar archives
-or moves to Trash and advances to the next visible message; conversation rows archive the whole
-conversation while leaving Sent copies in Sent. A message that could not be sent waits in the
+in a composer window beside it, and closing the mailbox sweeps both. A draft opens into a composer
+wherever it is listed. The reading toolbar archives or moves to Trash and advances to the next
+visible message. A message that could not be sent waits in the
 **Outbox**, one pane row above the accounts and on screen only while something is in it, whose rows
 offer send-now, edit and cancel on the ones still waiting
 ([`docs/sending.md`](../../docs/sending.md)).

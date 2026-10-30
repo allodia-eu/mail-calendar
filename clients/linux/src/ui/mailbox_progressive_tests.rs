@@ -60,20 +60,13 @@ pub(crate) fn a_new_folder_builds_only_the_visible_rows_synchronously() {
     let mut renderer = ProgressiveRenderer::default();
     let expanded = HashSet::new();
 
-    renderer.render(
-        &list,
-        &snapshot("archive"),
-        &expanded,
-        false,
-        "UTC",
-        &sender,
-    );
+    renderer.render(&list, &snapshot("archive"), &expanded, "UTC", &sender);
     while gtk::glib::MainContext::default().pending() {
         gtk::glib::MainContext::default().iteration(false);
     }
     assert_eq!(row_count(&list), 100);
 
-    renderer.render(&list, &snapshot("inbox"), &expanded, false, "UTC", &sender);
+    renderer.render(&list, &snapshot("inbox"), &expanded, "UTC", &sender);
     assert_eq!(
         row_count(&list),
         INITIAL_ROWS,
@@ -86,8 +79,8 @@ pub(crate) fn a_new_folder_builds_only_the_visible_rows_synchronously() {
     assert_eq!(row_count(&list), 100, "idle batches complete the list");
 
     // A second click before those idle batches finish cancels the first folder's work.
-    renderer.render(&list, &snapshot("drafts"), &expanded, false, "UTC", &sender);
-    renderer.render(&list, &snapshot("sent"), &expanded, false, "UTC", &sender);
+    renderer.render(&list, &snapshot("drafts"), &expanded, "UTC", &sender);
+    renderer.render(&list, &snapshot("sent"), &expanded, "UTC", &sender);
     while gtk::glib::MainContext::default().pending() {
         gtk::glib::MainContext::default().iteration(false);
     }

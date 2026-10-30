@@ -18,7 +18,7 @@ use super::{
     folder_pane::{self, FolderPaneRendering, FolderPaneSelection},
     folder_pane_edit,
     invitation::ReplyPromptDialog,
-    mail_actions::{self, PermanentDeleteDialog},
+    mail_actions::PermanentDeleteDialog,
     mail_toolbar::MailToolbar,
     mailbox::MailboxRendering,
     mailbox_empty,
@@ -28,7 +28,7 @@ use super::{
     reading::{InvitationClock, ReadingPane},
     search::SearchBar,
     selection_bar::{self, SelectionBar, SelectionCountPane},
-    selection_input::{selection_gesture, selection_keys, sync_selection},
+    selection_input::{selection_gesture, selection_keys, sync_list},
     settings::{PaneComposer, SettingsWindow},
     setup::SetupWindow,
     setup_widgets::SenderNamePrompt,
@@ -340,7 +340,6 @@ impl AppWidgets {
                     &self.messages,
                     &model.snapshot,
                     &model.expanded_threads,
-                    mail_actions::in_junk_folder(&model.snapshot),
                     display_zone,
                     &self.sender,
                 );
@@ -349,10 +348,11 @@ impl AppWidgets {
         }
         // After the rows, always: a plain click has already moved the widget's own selection, and
         // this is what brings it back to what the model says (`selection_gesture`).
-        sync_selection(&self.messages, model);
+        sync_list(&self.messages, model);
         self.mailbox_renderer.set_moves(model.move_context());
-        let selection = model.selection.summary(&model.snapshot.rows);
-        self.selection_bar.render(selection);
+        self.mailbox_renderer.answer_menus_from(model.app.as_ref());
+        let selection = model.selection.summary();
+        self.selection_bar.render(selection, model.bar_actions());
         self.selection_pane.render(selection, &model.snapshot.mode);
         let pane = PaneComposer::of(
             model.composer.is_some(),
