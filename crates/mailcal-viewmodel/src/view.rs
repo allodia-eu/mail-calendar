@@ -17,6 +17,7 @@ use crate::{
     avatar::Avatar,
     folders::{AccountFolderRow, FolderRole, FolderRow, sorted_folder_rows},
     outbox::QueuedRow,
+    row_reach::{AccountPlaces, MessageKind},
     view_rows::{build_flat, build_search, build_threaded},
 };
 
@@ -173,15 +174,15 @@ pub struct MailboxListSnapshot {
     pub showing_outbox: bool,
     /// Whether the open folder is the account's **Drafts** folder.
     ///
-    /// What a client switches a row's click on: a draft opens into a composer that saves over
-    /// it, ordinary mail opens into the reading view (`docs/drafts.md`). Answered here rather
-    /// than by each client matching the selected key against a folder role, so the four cannot
-    /// come to disagree about which folder that is.
+    /// What decides which message a conversation row opens: in Drafts its newest draft, the one
+    /// the row summarises, everywhere else its newest message (`docs/row-actions.md`, rule 8).
+    /// Whether that message opens into a composer is the message's own kind, never the folder,
+    /// so a draft met in a search or in another folder's conversation resumes too
+    /// (`docs/drafts.md`). Answered here rather than by each client matching the selected key
+    /// against a folder role, so the four cannot come to disagree about which folder that is.
     ///
-    /// The **role** decides it, never the name: a folder the user called Drafts holds ordinary
-    /// mail, and a composer opened on one of those messages would rewrite it on its first save.
-    /// False in the all-mail and unified views, which list drafts among received mail, and in
-    /// search results, where the same is true.
+    /// The **role** decides it, never the name. False in the all-mail and unified views and in
+    /// search results.
     pub showing_drafts: bool,
     /// Every account's queued sends, oldest first: what the pane's **Outbox** row counts
     /// and what the Outbox list shows.
@@ -220,6 +221,10 @@ pub struct MailboxListSnapshot {
     /// A folder change the server refused, until the user dismisses it or changes a folder
     /// again. In every view mode, beside the pane it concerns.
     pub folder_notice: Option<crate::FolderNotice>,
+    /// Where each account's moves land and which folders a conversation's move leaves alone,
+    /// for the row menu (`docs/row-actions.md`). Not carried across the FFI: a client reads
+    /// the menu, never the folders behind it.
+    pub places: Vec<AccountPlaces>,
 }
 
 /// One mailbox-list row: a single message (flat) or a conversation (threaded).
@@ -264,6 +269,10 @@ pub struct FlatRow {
     /// A short body-preview snippet for a two-line list row (empty if the provider didn't supply
     /// one; Microsoft 365 and JMAP populate it; IMAP does not yet).
     pub preview: String,
+    /// What the message is to its account; [`ThreadMessage::kind`].
+    pub kind: MessageKind,
+    /// The keys of the folders it is filed in; [`ThreadMessage::folders`].
+    pub folders: Vec<String>,
 }
 
 /// A conversation row (threaded mode): a thread and its summary.
@@ -292,8 +301,12 @@ pub struct ThreadRow {
     pub latest_date: String,
     /// How many messages the thread holds.
     pub message_count: u32,
-    /// How many of them are unread.
+    /// How many of the messages it received are unread. The owner's own messages are not
+    /// counted: marking the conversation read does not reach them (`docs/row-actions.md`).
     pub unread_count: u32,
+    /// Whether any message in the conversation is flagged, which is when its row menu offers
+    /// to clear the flag (`docs/row-actions.md`).
+    pub flagged: bool,
     /// Whether any message in the conversation has a non-inline attachment.
     pub has_attachment: bool,
     /// A short preview snippet of the representative message's body (empty if none), for a
@@ -310,10 +323,6 @@ pub struct ThreadRow {
 /// One message within an expanded conversation. A [`ThreadRow`] carries the full, ordered set
 /// so a host renders the whole thread; including the account owner's own Sent replies filed
 /// in another folder, and can open any message for reading by its `key`.
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "mirrored one-for-one by a flat UniFFI record; `outgoing` and `draft` never both hold"
-)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ThreadMessage {
     /// The id of the account this message belongs to.
@@ -333,12 +342,16 @@ pub struct ThreadMessage {
     pub preview: String,
     /// Whether the message is unread.
     pub unread: bool,
-    /// Whether the account owner sent this message (drives the "Sent" badge). Never a draft.
-    pub outgoing: bool,
-    /// Whether the message is a draft, written but not sent (drives the "Draft" badge).
-    pub draft: bool,
+    /// Whether the message is flagged (`$flagged`).
+    pub flagged: bool,
+    /// What the message is to its account: received, sent by the owner, or a draft. Drives
+    /// the "Sent" and "Draft" badges and what the row menu offers (`docs/row-actions.md`).
+    pub kind: MessageKind,
     /// Whether the message has a non-inline attachment.
     pub has_attachment: bool,
+    /// The keys of the folders the message is filed in, for the row menu's question of what a
+    /// move would take. Not carried across the FFI, for [`FlatRow::from_address`]'s reason.
+    pub folders: Vec<String>,
 }
 
 /// Builds the snapshot: projects `messages` (already selected by the app: the unified

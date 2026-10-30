@@ -6,18 +6,20 @@
 //! the whole batch, the writes, then **one** re-sync per account it reached.
 //!
 //! Conversations are expanded here rather than in a client. A threaded row's members come from
-//! the store's thread index, which holds messages the windowed list never listed, and a move must
-//! leave a copy filed in Sent where it is; neither is knowable from the snapshot a client holds.
+//! the store's thread index, which holds messages the windowed list never listed, and which of
+//! them an action reaches is the view-model's table (`docs/row-actions.md`), the one the row menu
+//! labels its items from.
 
 use std::collections::HashSet;
 
-use engine_api::{AccountId, MailEdit, MailListRow, Mailbox, MailboxRole, Provider, ProviderKey};
-use engine_core::ids::MailboxId;
+use engine_api::{AccountId, MailEdit, MailListRow, MailboxRole, Provider, ProviderKey};
+use mailcal_viewmodel::{Member, MessageKind, RowAction, conversation_reach, stays_put};
 
-use super::folders::{folder_name_matches_role, resolve_move_target};
+use super::folders::{resolve_move_target, sent_keys};
 use crate::{
     App, BulkAction,
     reference::{FolderRef, RowRef, ThreadRef},
+    snapshot::{is_sent, owner_email},
 };
 
 impl<P: Provider> App<P> {
@@ -30,20 +32,28 @@ impl<P: Provider> App<P> {
         for (account, rows) in by_account(rows) {
             match action {
                 BulkAction::MarkRead => {
-                    self.bulk_keyword(&account, &rows, |key| MailEdit::mark_seen(key, true))
-                        .await;
+                    self.bulk_keyword(&account, &rows, RowAction::MarkRead, |key| {
+                        MailEdit::mark_seen(key, true)
+                    })
+                    .await;
                 }
                 BulkAction::MarkUnread => {
-                    self.bulk_keyword(&account, &rows, |key| MailEdit::mark_seen(key, false))
-                        .await;
+                    self.bulk_keyword(&account, &rows, RowAction::MarkUnread, |key| {
+                        MailEdit::mark_seen(key, false)
+                    })
+                    .await;
                 }
                 BulkAction::Flag => {
-                    self.bulk_keyword(&account, &rows, |key| MailEdit::set_flagged(key, true))
-                        .await;
+                    self.bulk_keyword(&account, &rows, RowAction::Flag, |key| {
+                        MailEdit::set_flagged(key, true)
+                    })
+                    .await;
                 }
                 BulkAction::Unflag => {
-                    self.bulk_keyword(&account, &rows, |key| MailEdit::set_flagged(key, false))
-                        .await;
+                    self.bulk_keyword(&account, &rows, RowAction::Unflag, |key| {
+                        MailEdit::set_flagged(key, false)
+                    })
+                    .await;
                 }
                 BulkAction::Archive => {
                     self.bulk_move(&account, &rows, Destination::Role(MailboxRole::Archive))
@@ -112,8 +122,14 @@ impl<P: Provider> App<P> {
             .unwrap_or_default()
     }
 
-    /// The in-place edits (read/unread, flag/unflag): every message on every selected row, a
-    /// conversation's Sent copies included, then one re-sync.
+    /// The address `account` sends as, which is what tells its owner's messages apart.
+    async fn owner(&self, account: &AccountId) -> Option<String> {
+        owner_email(&self.account_rows().await, account.as_str()).map(str::to_owned)
+    }
+
+    /// The in-place edits (read/unread, flag/unflag): a message row's own message, and the
+    /// members of a conversation that `action` reaches (received mail for read, the newest
+    /// received message for a flag, every flagged one for unflag), then one re-sync.
     ///
     /// Every edit is queued first, which shows it in the store, then the list is redrawn once,
     /// then the edits are sent: the rows change before any round trip, and a hundred rows cost
@@ -122,18 +138,37 @@ impl<P: Provider> App<P> {
         &self,
         account: &AccountId,
         rows: &[RowRef],
+        action: RowAction,
         build: impl Fn(ProviderKey) -> MailEdit,
     ) {
+        let owner = self.owner(account).await;
         let mut keys = Vec::new();
         for row in rows {
             match row {
                 RowRef::Message(message) => keys.push(message.key.clone()),
-                RowRef::Thread(thread) => keys.extend(
-                    self.thread_members(thread)
-                        .await
-                        .into_iter()
-                        .map(|member| member.mail.key),
-                ),
+                RowRef::Thread(thread) => {
+                    let mut members = self.thread_members(thread).await;
+                    // Newest first, ties on the key, as the list orders a conversation.
+                    members.sort_by(|a, b| {
+                        b.mail
+                            .date_utc
+                            .cmp(&a.mail.date_utc)
+                            .then_with(|| a.mail.key.as_str().cmp(b.mail.key.as_str()))
+                    });
+                    let facts: Vec<Member> = members
+                        .iter()
+                        .map(|member| Member {
+                            kind: MessageKind::of(member, is_sent(member, owner.as_deref())),
+                            unread: member.mail.flags.is_unread(),
+                            flagged: member.mail.flags.flagged(),
+                        })
+                        .collect();
+                    keys.extend(
+                        conversation_reach(action, &facts)
+                            .into_iter()
+                            .map(|at| members[at].mail.key.clone()),
+                    );
+                }
             }
         }
         let keys = deduplicated(keys);
@@ -183,26 +218,24 @@ impl<P: Provider> App<P> {
             }
             Destination::Nowhere => None,
         };
-        let settled = settled_keys(&mailboxes, destination.as_ref());
+        let sent = sent_keys(&mailboxes);
+        let owner = self.owner(account).await;
         let mut keys = Vec::new();
         for row in rows {
             match row {
                 // A message the user selected by itself moves wherever they sent it, even out of
-                // Sent: they named that one message. The Sent rule below is about the members a
-                // *conversation* row stands for, which they did not name one by one.
+                // Sent: they named that one message. What stays put is decided only for the
+                // members a *conversation* row stands for, which they did not name one by one.
                 RowRef::Message(message) => keys.push(message.key.clone()),
-                RowRef::Thread(thread) => keys.extend(
-                    self.thread_members(thread)
-                        .await
-                        .into_iter()
-                        .filter(|member| {
-                            !member
-                                .mailboxes
-                                .iter()
-                                .any(|id| settled.contains(id.as_str()))
-                        })
-                        .map(|member| member.mail.key),
-                ),
+                RowRef::Thread(thread) => {
+                    for member in self.thread_members(thread).await {
+                        let kind = MessageKind::of(&member, is_sent(&member, owner.as_deref()));
+                        let folders = member.mailboxes.iter().map(|id| id.key().as_str());
+                        if !stays_put(kind, folders, &sent) {
+                            keys.push(member.mail.key);
+                        }
+                    }
+                }
             }
         }
         let mut keys = deduplicated(keys);
@@ -266,25 +299,6 @@ fn by_account(rows: Vec<RowRef>) -> Vec<(AccountId, Vec<RowRef>)> {
         }
     }
     grouped
-}
-
-/// The mailbox keys a conversation's members are left in rather than moved out of: the account's
-/// Sent folder(s), and the destination itself.
-///
-/// A Sent copy never leaves Sent (`docs/list-selection.md`), so reopening an archived thread
-/// still shows both the received messages and the owner's own replies; a message already in the
-/// destination has nowhere to go. The Sent lookup takes the RFC 6154 role, then the conventional
-/// name, matching how the destination itself is resolved.
-fn settled_keys(mailboxes: &[Mailbox], destination: Option<&MailboxId>) -> HashSet<String> {
-    mailboxes
-        .iter()
-        .filter(|mailbox| {
-            mailbox.role.as_ref() == Some(&MailboxRole::Sent)
-                || folder_name_matches_role(&mailbox.name, &MailboxRole::Sent)
-        })
-        .map(|mailbox| mailbox.id.key().as_str().to_owned())
-        .chain(destination.map(|id| id.key().as_str().to_owned()))
-        .collect()
 }
 
 /// The keys in first-seen order, without repeats: two selected rows can name the same message

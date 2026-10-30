@@ -226,7 +226,8 @@ pub enum Intent {
         key: String,
     },
     /// Archive a whole conversation: move every message on the thread to the account's Archive
-    /// folder **except** those in the Sent folder (a sent copy never leaves Sent), by thread id.
+    /// folder **except** those in the Sent folder and its drafts, which stay where they are, by
+    /// thread id.
     ArchiveThread {
         /// The id of the account that owns the conversation (the row's `account`).
         account: String,
@@ -237,8 +238,9 @@ pub enum Intent {
     ///
     /// Deliberately not a loop over the single-row intents: each of those re-syncs the account
     /// it touched, so a hundred selected rows would be a hundred account-wide syncs. This hides
-    /// every affected row in one go and syncs each account once. A conversation row stands for
-    /// its whole thread, and a move leaves a copy filed in Sent where it is.
+    /// every affected row in one go and syncs each account once. A conversation row reaches the
+    /// members `docs/row-actions.md` says it does, and a move leaves its Sent copies and drafts
+    /// where they are.
     ActOnSelection {
         /// The selected rows, in list order; they may span accounts.
         rows: Vec<SelectedRow>,

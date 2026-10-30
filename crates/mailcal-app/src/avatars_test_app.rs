@@ -196,6 +196,8 @@ pub(super) fn snapshot_from(address: &str) -> MailboxListSnapshot {
             flagged: false,
             has_attachment: false,
             preview: String::new(),
+            kind: mailcal_viewmodel::MessageKind::Received,
+            folders: Vec::new(),
         })],
         ..MailboxListSnapshot::default()
     }

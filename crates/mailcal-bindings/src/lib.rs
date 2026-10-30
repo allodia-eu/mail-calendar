@@ -125,6 +125,7 @@ mod records_recurrence;
 mod records_repeat_summary;
 mod rendering;
 mod repeat_editor;
+mod row_menu;
 mod runtime;
 pub mod save;
 mod setup;
@@ -255,6 +256,7 @@ pub use rendering::{
     render_message_html, render_message_print_html, should_open_external_link,
 };
 pub use repeat_editor::repeat_change_of;
+pub use row_menu::{MenuMessage, MessageKind, RowAction, RowMenu, RowMenuItem, RowMenuSection};
 pub use setup::{
     AccountSetup, ConnectionSecurity, JmapSetup, MailServerKind, RejectedCertificate,
     account_config_toml, jmap_account_config_toml, standard_port,

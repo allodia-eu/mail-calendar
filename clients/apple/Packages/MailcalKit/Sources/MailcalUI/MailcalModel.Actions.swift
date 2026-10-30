@@ -362,7 +362,7 @@ extension MailboxModel {
     }
 
     /// Archive a whole conversation, move every message on the thread to Archive **except**
-    /// those in the Sent folder (a sent copy never leaves Sent), then re-sync. The core decides
+    /// its Sent copies and drafts, which stay where they are, then re-sync. The core decides
     /// which messages qualify (it knows the folder roles).
     func archiveThread(_ account: String, _ threadId: String) {
         app?.dispatch(intent: .archiveThread(account: account, threadId: threadId))

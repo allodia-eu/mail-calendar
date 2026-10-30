@@ -25,6 +25,7 @@ mod folder_tree;
 mod folders;
 mod report;
 pub(crate) mod result;
+mod row_menu;
 mod send;
 
 use folders::resolve_move_target;
@@ -179,15 +180,16 @@ impl<P: Provider> App<P> {
     }
 
     /// Archives the whole conversation `thread`: moves **every** message on it to the Archive
-    /// folder **except** those filed in the Sent folder: a Sent copy is never moved out of
-    /// Sent, so reopening the thread from Archive still shows both the received messages and the
-    /// owner's Sent replies (the view-model gathers them across folders). Messages already in
+    /// folder **except** those filed in the Sent folder and its drafts: a Sent copy is never
+    /// moved out of Sent, so reopening the thread from Archive still shows both the received
+    /// messages and the owner's Sent replies (the view-model gathers them across folders), and a
+    /// draft stays where its composer looks for it (`docs/row-actions.md`). Messages already in
     /// Archive are left alone. One optimistic batch (the whole received side leaves the list at
     /// once) + one refresh. A no-op when the account has no Archive folder or nothing qualifies.
     ///
     /// One conversation is a selection of one, so this runs the batch path in `mail_ops::bulk`
-    /// rather than a second copy of the same rules; the Sent protection and the single re-sync
-    /// are defined once for both.
+    /// rather than a second copy of the same rules; what stays put and the single re-sync are
+    /// defined once for both.
     pub(super) async fn archive_thread(&self, thread: ThreadRef) {
         self.act_on_selection(vec![RowRef::Thread(thread)], BulkAction::Archive)
             .await;

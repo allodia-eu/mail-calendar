@@ -83,6 +83,8 @@ fn row() -> FlatRow {
         flagged: false,
         has_attachment: false,
         preview: "the numbers are in".to_owned(),
+        kind: mailcal_viewmodel::MessageKind::Received,
+        folders: Vec::new(),
     }
 }
 

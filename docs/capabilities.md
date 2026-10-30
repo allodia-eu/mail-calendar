@@ -56,6 +56,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Message list: flat + threaded | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Folder and message rows expose a named native action a screen reader can invoke | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Threaded conversation view: the whole conversation (received + your Sent replies, across folders): inline on desktop, a conversation reading screen on Android + archive conversation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A **conversation row's menu** offers what a message's does, each action reaching the messages Outlook's does: Open and Reply the newest, Flag the newest received, read state what was received, a move the whole conversation; a message inside an expanded conversation has its own full menu, and one conversation is expanded at a time, the one holding the selection ([docs](docs/row-actions.md)) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Reading view (sanitised HTML, inline CID images, recipient headers, remote-image gating, retry) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Addresses written as text are links**: web and mail addresses in an HTML or plain-text message, in an event's notes and in an invitation's description open in your browser or mail app; found once in the core, opened only for `http`, `https` and `mailto` ([docs](docs/rendering-security.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A message is laid out against the **reading pane's own width**, so a newsletter's own mobile rules apply on a phone and in a narrow pane ([docs](docs/reading-zoom.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -183,9 +184,11 @@ so killing the app inside that window loses it: the message is neither archived 
 there until the next sync puts it back. The window is seconds long, so this is accepted; it is not
 silent.
 
-**Archiving a conversation never moves a sent copy out of Sent.** It moves every message on the
-thread except those in the Sent folder, so the archived conversation still shows both sides when it
-is reopened.
+**Archiving a conversation never moves a sent copy out of Sent, nor a draft.** It moves every
+message on the thread except those in the Sent folder and its drafts, so the archived conversation
+still shows both sides when it is reopened and no unfinished writing goes with it. Marking a
+conversation read touches the messages received, and flagging it flags the newest one received
+([docs](docs/row-actions.md)).
 
 **Unread mail is bold on the subject and the sender**, and on nothing else (not the preview line,
 the date or the badges), because bolding every line of an unread mailbox distinguishes nothing.

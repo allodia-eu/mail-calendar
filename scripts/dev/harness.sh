@@ -163,6 +163,10 @@ case "$cmd" in
       MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
       cargo test -p mailcal-bindings --test live_shared_mailboxes -- --nocapture
+    STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
+      MAILCAL_EXTRA_CA="$HARNESS_CA" \
+      MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
+      cargo test -p mailcal-bindings --test live_row_menu -- --nocapture
     extract_harness_ca || die "the IMAP sign-in tests need the harness certificates"
     MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \

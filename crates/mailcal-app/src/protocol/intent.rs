@@ -165,10 +165,10 @@ pub enum Intent {
         message: MessageRef,
     },
     /// Archive a whole conversation; move **every** message on the thread to the account's
-    /// Archive folder **except** those filed in the Sent folder, which are never moved out of
-    /// Sent (so reopening the thread from Archive still shows both the received messages and the
-    /// owner's own Sent replies, which the view-model gathers across folders). A no-op when the
-    /// account has no Archive folder or the thread has no archivable message.
+    /// Archive folder **except** those filed in the Sent folder and its drafts, which stay where
+    /// they are (so reopening the thread from Archive still shows both the received messages and
+    /// the owner's own Sent replies, which the view-model gathers across folders). A no-op when
+    /// the account has no Archive folder or the thread has no archivable message.
     ArchiveThread {
         /// The conversation to archive; its account and thread id bound together.
         thread: ThreadRef,
@@ -182,11 +182,11 @@ pub enum Intent {
     /// writes, and syncs each account **once** at the end. A row the provider refuses comes back
     /// on its own, leaving the rest of the batch applied.
     ///
-    /// A conversation row stands for its whole thread. A move (archive, trash, permanent delete)
-    /// leaves a copy filed in Sent where it is, on the same rule
-    /// [`Intent::ArchiveThread`](Self::ArchiveThread) follows; marking read and flagging reach
-    /// every message on the thread, Sent copies included, since neither takes anything out of a
-    /// folder.
+    /// A conversation row reaches the members `docs/row-actions.md` says it does: marking read
+    /// reaches what was received, Flag the newest received message, Unflag every flagged one,
+    /// and a move (archive, trash, permanent delete) the whole thread except its Sent copies and
+    /// drafts, on the rule [`Intent::ArchiveThread`](Self::ArchiveThread) follows. A message row
+    /// reaches itself.
     ActOnSelection {
         /// The selected rows, in list order; they may span accounts.
         rows: Vec<RowRef>,

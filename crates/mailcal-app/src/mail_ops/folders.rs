@@ -6,7 +6,8 @@
 //! across the locales the product ships in, and a table grows; keeping it beside the action
 //! logic would push that file over the cap every time a locale is added.
 
-use engine_api::{Mailbox, MailboxRole};
+use engine_api::{AccountId, Mailbox, MailboxRole};
+use mailcal_viewmodel::AccountPlaces;
 
 /// Resolves the mailbox for a move to `role` (Trash / Archive) or the Sent folder to protect:
 /// the RFC 6154 SPECIAL-USE role, else a conventional folder name, else; **for Archive only**
@@ -104,4 +105,34 @@ pub(super) fn folder_name_matches_role(name: &str, role: &MailboxRole) -> bool {
     candidates
         .iter()
         .any(|candidate| leaf.eq_ignore_ascii_case(candidate))
+}
+
+/// The keys of the account's Sent folders: those with the role, and those carrying a
+/// conventional Sent name. A conversation's move takes nothing out of any of them
+/// (`docs/row-actions.md`).
+pub(crate) fn sent_keys(mailboxes: &[Mailbox]) -> Vec<String> {
+    mailboxes
+        .iter()
+        .filter(|mailbox| {
+            mailbox.role.as_ref() == Some(&MailboxRole::Sent)
+                || folder_name_matches_role(&mailbox.name, &MailboxRole::Sent)
+        })
+        .map(|mailbox| mailbox.id.key().as_str().to_owned())
+        .collect()
+}
+
+/// Where `account`'s moves land, resolved exactly as the writes resolve them, for the row menu
+/// to ask whether a move would take anything.
+pub(crate) fn account_places(account: &AccountId, mailboxes: &[Mailbox]) -> AccountPlaces {
+    let key = |role: MailboxRole| {
+        resolve_move_target(mailboxes, &role).map(|mailbox| mailbox.id.key().as_str().to_owned())
+    };
+    AccountPlaces {
+        account: account.as_str().to_owned(),
+        inbox: key(MailboxRole::Inbox),
+        archive: key(MailboxRole::Archive),
+        trash: key(MailboxRole::Trash),
+        junk: key(MailboxRole::Junk),
+        kept: sent_keys(mailboxes),
+    }
 }

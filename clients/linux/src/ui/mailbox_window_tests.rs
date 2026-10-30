@@ -31,6 +31,7 @@ fn message_row() -> FlatRow {
         date: "2026-07-20".to_owned(),
         unread: false,
         flagged: false,
+        draft: false,
         has_attachment: false,
         preview: String::new(),
     }
@@ -47,6 +48,7 @@ fn conversation() -> ThreadRow {
         latest_date: "2026-07-20".to_owned(),
         message_count: 2,
         unread_count: 0,
+        flagged: false,
         has_attachment: false,
         preview: String::new(),
         messages: Vec::new(),
@@ -62,6 +64,7 @@ fn thread_message() -> ThreadMessage {
         date: "2026-07-20".to_owned(),
         preview: String::new(),
         unread: false,
+        flagged: false,
         outgoing: false,
         draft: false,
         has_attachment: false,

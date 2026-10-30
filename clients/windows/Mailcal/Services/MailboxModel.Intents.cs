@@ -256,7 +256,7 @@ public sealed partial class MailboxModel
     public void Archive(string account, string key) => _app?.Dispatch(new Intent.Archive(account, key));
 
     /// <summary>Archive a whole conversation, the core moves every message on the thread to
-    /// Archive except any in Sent (a sent copy never leaves Sent), then re-syncs.</summary>
+    /// Archive except its Sent copies and drafts, which stay where they are, then re-syncs.</summary>
     public void ArchiveThread(string account, string threadId) =>
         _app?.Dispatch(new Intent.ArchiveThread(account, threadId));
 

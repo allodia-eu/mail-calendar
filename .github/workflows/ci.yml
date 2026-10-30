@@ -451,6 +451,15 @@ jobs:
           MAILCAL_HARNESS_IMAP: localhost:12993
         run: cargo test -p mailcal-bindings --test live_shared_mailboxes -- --nocapture
 
+      # A conversation's row menu over JMAP and IMAP: the three seeded conversations are gathered
+      # from the Inbox, Sent Items and Drafts, and each menu answers its newest message.
+      - name: Run the gated row-menu live test
+        env:
+          STALWART_HTTP_ADDR: 127.0.0.1:28080
+          MAILCAL_EXTRA_CA: ${{ github.workspace }}/docker/stalwart/tls/harness-ca.pem
+          MAILCAL_HARNESS_IMAP: localhost:12993
+        run: cargo test -p mailcal-bindings --test live_row_menu -- --nocapture
+
       - name: Dump Stalwart logs on failure
         if: failure()
         working-directory: docker/stalwart

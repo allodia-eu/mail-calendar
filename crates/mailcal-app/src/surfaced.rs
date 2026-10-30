@@ -74,6 +74,13 @@ impl<T: Clone> Surfaced<T> {
         self.value.lock().expect("surfaced mutex poisoned").clone()
     }
 
+    /// Answers `read` from the current value without copying it, for a question about a
+    /// snapshot that needs a small part of it. `read` runs under the lock, so it must not
+    /// publish or wait.
+    pub(crate) fn read<R>(&self, read: impl FnOnce(&T) -> R) -> R {
+        read(&self.value.lock().expect("surfaced mutex poisoned"))
+    }
+
     /// Announces what is **already** published, without writing.
     ///
     /// For the two cases where the thing that went stale is not this snapshot: a cold offline

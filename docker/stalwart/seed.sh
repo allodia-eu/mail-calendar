@@ -253,6 +253,34 @@ log "appending the dark-mode fixtures to INBOX (reading-view colour scheme; sequ
 imap_append "$MAIL_DIR/14-dark-mode-colours.eml" INBOX
 imap_append "$MAIL_DIR/15-sender-dark-mode.eml" INBOX
 
+# The three conversations a row menu is judged against (docs/row-actions.md): the newest message
+# received, the newest sent, and the newest a draft. Each answers Bob across the Inbox, Sent Items
+# and Drafts, as a real conversation does, so the threaded Inbox gathers its other members from the
+# folders they are filed in. Sent Items and Drafts are cleared first so a re-seed converges.
+#
+# A conversation is ordered by when each message ARRIVED, which for an APPEND is the moment of the
+# append, not the Date header, and curl cannot set an APPEND's internal date. So each message goes
+# in a second after the one before it, in the order they were written: appended in one burst they
+# share a second, and "the newest message" falls to a tiebreak on the server's ids.
+# Sequence-safe for the reason 08-html.eml is; `*` is always the message just appended.
+append_in_turn() { # file  mailbox
+  sleep 1
+  imap_append "$1" "$2"
+}
+log "appending the three row-menu conversations (Inbox, Sent Items, Drafts), a second apart"
+imap_clear "Sent%20Items"
+imap_clear Drafts
+append_in_turn "$MAIL_DIR/17-conversation-received-1.eml" INBOX
+append_in_turn "$MAIL_DIR/17-conversation-received-2.eml" "Sent%20Items"
+append_in_turn "$MAIL_DIR/17-conversation-received-3.eml" INBOX
+append_in_turn "$MAIL_DIR/18-conversation-sent-1.eml" INBOX
+append_in_turn "$MAIL_DIR/18-conversation-sent-2.eml" "Sent%20Items"
+append_in_turn "$MAIL_DIR/19-conversation-draft-1.eml" INBOX
+append_in_turn "$MAIL_DIR/19-conversation-draft-2.eml" "Sent%20Items"
+append_in_turn "$MAIL_DIR/19-conversation-draft-3.eml" INBOX
+append_in_turn "$MAIL_DIR/19-conversation-draft-4.eml" Drafts
+imap_cmd Drafts "STORE * +FLAGS (\\Draft)" >/dev/null
+
 # The shared-mailbox fixture's second half (entrypoint.sh creates the group). Two stores alice
 # can open besides her own, differing on purpose in their rights: as a member of `support` she
 # holds every right on its folders, while bob grants her only lookup and read on his INBOX.

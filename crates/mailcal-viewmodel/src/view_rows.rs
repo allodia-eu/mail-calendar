@@ -17,10 +17,11 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
-use engine_api::{Keyword, MailRow, SystemKeyword, UtcDateTime};
+use engine_api::{MailRow, UtcDateTime};
 
 use crate::{
     avatar::{self, Avatar},
+    row_reach::MessageKind,
     view::{
         AccountMessage, FlatRow, MailboxListSnapshot, SnapshotRow, ThreadMessage, ThreadRow,
         ViewMode,
@@ -107,7 +108,24 @@ pub(crate) fn flat_row(item: &AccountMessage) -> FlatRow {
         flagged: row.flags.flagged(),
         has_attachment: row.has_attachment,
         preview: row.preview.clone().unwrap_or_default(),
+        kind: kind(item),
+        folders: folders(item),
     }
+}
+
+/// What `item` is to its account; the draft keyword first, so an unsent message carrying the
+/// owner's address never reads as sent.
+fn kind(item: &AccountMessage) -> MessageKind {
+    MessageKind::of(&item.row, item.outgoing)
+}
+
+/// The keys of the folders `item` is filed in.
+fn folders(item: &AccountMessage) -> Vec<String> {
+    item.row
+        .mailboxes
+        .iter()
+        .map(|id| id.key().as_str().to_owned())
+        .collect()
 }
 
 /// A flat list of the **in-scope** messages, newest received first. Builds a row only for the
@@ -309,13 +327,17 @@ fn thread_row(account: String, thread_id: String, deduped: &[&AccountMessage]) -
         avatar: avatar_for(row),
         latest_date: instant(row).map_or_else(String::new, format_instant),
         message_count: u32::try_from(deduped.len()).unwrap_or(u32::MAX),
+        // Only received mail counts, as only received mail is what marking the conversation
+        // read reaches (`docs/row-actions.md`): an unread Sent copy another client filed would
+        // otherwise bold a row nothing on it can clear.
         unread_count: u32::try_from(
             deduped
                 .iter()
-                .filter(|m| m.row.mail.flags.is_unread())
+                .filter(|m| m.row.mail.flags.is_unread() && kind(m) == MessageKind::Received)
                 .count(),
         )
         .unwrap_or(u32::MAX),
+        flagged: deduped.iter().any(|m| m.row.mail.flags.flagged()),
         has_attachment: deduped.iter().any(|m| m.row.mail.has_attachment),
         preview: row.preview.clone().unwrap_or_default(),
         messages: deduped.iter().map(|item| thread_message(item)).collect(),
@@ -334,11 +356,9 @@ fn thread_message(item: &AccountMessage) -> ThreadMessage {
         date: instant(row).map_or_else(String::new, format_instant),
         preview: row.preview.clone().unwrap_or_default(),
         unread: row.flags.is_unread(),
-        outgoing: item.outgoing,
-        draft: item
-            .row
-            .keywords
-            .contains(&Keyword::system(SystemKeyword::Draft)),
+        flagged: row.flags.flagged(),
+        kind: kind(item),
         has_attachment: row.has_attachment,
+        folders: folders(item),
     }
 }
