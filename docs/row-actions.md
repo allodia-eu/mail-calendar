@@ -100,14 +100,16 @@ user should never have to expand a conversation to do something to it.
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Row menus drawn from `row_menu` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| A conversation row's menu offers every message action (rule 3) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| A message inside a conversation offers its own full menu (rule 5) | ⬜ | ⬜ | ⬜ | n/a: no in-list expansion | ⬜ |
-| One conversation expanded, folding as the selection leaves it (rule 8) | ⬜ | ⬜ | ⬜ | n/a: a screen of its own | ⬜ |
+| Row menus drawn from `row_menu` | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| A conversation row's menu offers every message action (rule 3) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| A message inside a conversation offers its own full menu (rule 5) | ✅ | ✅ | ⬜ | n/a: no in-list expansion | ⬜ |
+| One conversation expanded, folding as the selection leaves it (rule 8) | ✅ | ✅ | ⬜ | n/a: a screen of its own | ⬜ |
 | A conversation row, and each message in it, draws its flag (rule 3) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The batch reaches what rules 3 and 4 say | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-The last row is the core's, and every client already dispatches into it.
+The last row is the core's, and every client already dispatches into it. On Apple the selection
+bar reads its toggles and what responds from the same answer (`RowMenuPresentation.swift`), and
+`RowMenuTests` in the UI suite long-presses the showcase's conversation and leaves it.
 
 ## Enforcement
 

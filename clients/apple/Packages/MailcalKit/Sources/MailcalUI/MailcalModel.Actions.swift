@@ -361,11 +361,20 @@ extension MailboxModel {
         app?.dispatch(intent: .archive(account: account, key: key))
     }
 
-    /// Archive a whole conversation, move every message on the thread to Archive **except**
-    /// its Sent copies and drafts, which stay where they are, then re-sync. The core decides
-    /// which messages qualify (it knows the folder roles).
-    func archiveThread(_ account: String, _ threadId: String) {
-        app?.dispatch(intent: .archiveThread(account: account, threadId: threadId))
+    /// Report a message as junk, which files it under Junk (`docs/reporting.md`).
+    func markAsSpam(_ account: String, _ key: String) {
+        app?.dispatch(intent: .markAsSpam(account: account, key: key))
+    }
+
+    /// Report a message as not junk, which files it back in the Inbox.
+    func markAsNotSpam(_ account: String, _ key: String) {
+        app?.dispatch(intent: .markAsNotSpam(account: account, key: key))
+    }
+
+    /// The menu over `rows`, as the core decides it (`docs/row-actions.md`). Read from the
+    /// published snapshot without waiting, so it is asked for as the menu opens.
+    func rowMenu(_ rows: [SelectedRow]) -> RowMenu {
+        app?.rowMenu(rows: rows) ?? RowMenu(sections: [])
     }
 
     /// Permanently delete a message, irreversible (by key, on its owning `account`),

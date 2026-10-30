@@ -375,26 +375,26 @@ extension ContentView {
         return model.selected
     }
 
-    /// Move to folder… on a message menu (rule 24), when the rows it acts on are in one account
-    /// and some folder of it is left to offer.
-    @ViewBuilder
-    func moveToFolderItem(_ rows: [SelectionKey]) -> some View {
-        if let account = soleAccount(of: rows),
-           let tree = model.accountFolderRow(for: account),
-           offersMessageMove(in: tree, showing: listFolder(in: account)) {
-            Button {
-                // Named when chosen rather than with the menu, which every row builds on every
-                // redraw.
-                guard let current = model.accountFolderRow(for: account) else { return }
-                folderSheet = .moveMessages(MessageMoveOffer(
-                    account: account,
-                    rows: rows,
-                    targets: messageTargets(in: current, showing: listFolder(in: account))
-                ))
-            } label: {
-                Label(L10n.action_move_to_folder(), systemImage: "folder")
-            }
-        }
+    /// Whether Move to folder… has anywhere to offer `rows` (rule 24): they are in one account,
+    /// and some folder of it is left once the one the list is showing is set aside. The core
+    /// decides whether a move would take anything; the picker's folders are this client's.
+    func canAskMessageMove(_ rows: [SelectionKey]) -> Bool {
+        guard let account = soleAccount(of: rows),
+            let tree = model.accountFolderRow(for: account)
+        else { return false }
+        return offersMessageMove(in: tree, showing: listFolder(in: account))
+    }
+
+    /// Asks where to move `rows`, with the account's folders as they are now.
+    func askMessageMove(_ rows: [SelectionKey]) {
+        guard let account = soleAccount(of: rows),
+            let current = model.accountFolderRow(for: account)
+        else { return }
+        folderSheet = .moveMessages(MessageMoveOffer(
+            account: account,
+            rows: rows,
+            targets: messageTargets(in: current, showing: listFolder(in: account))
+        ))
     }
 
     /// Files the offer's mail in `key`, then tidies up as a move from the bar does: a selection it

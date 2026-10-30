@@ -1,4 +1,5 @@
-// The message list's multi-selection: which rows are picked, and what the bar over them offers.
+// The message list's multi-selection: which rows are picked, and what they become when the batch
+// goes to the core. What the bar over them offers is the core's (`RowMenuPresentation.swift`).
 //
 // Pure value state over the snapshot's rows, so the rules (`docs/list-selection.md`) are
 // testable without a window. The views read it; they keep no second copy.
@@ -93,29 +94,6 @@ struct MailSelection {
             .map(\.selectedRow)
     }
 
-    /// The action the bar's single read button runs: the one that changes something, so any unread
-    /// row makes it "mark read" (`docs/list-selection.md`, rule 5).
-    ///
-    /// An empty selection names the affirmative action rather than the one a `contains` over no
-    /// rows falls out to. The desktop bar is on screen with nothing picked, and a disabled button
-    /// reading "Mark as unread" describes an action nobody asked for.
-    func readAction(in rows: [SnapshotRow], expanded: [ThreadRow] = []) -> BulkAction {
-        if isEmpty { return .markRead }
-        let unread = selected(in: rows).contains(where: isUnread)
-            || selected(in: expanded).contains(where: \.unread)
-        return unread ? .markRead : .markUnread
-    }
-
-    /// The action the bar's single flag button runs, on the same terms. A conversation carries no
-    /// flag of its own, and neither does a message of one as the list shows it, so both count as
-    /// unflagged: flagging is what their rows can be asked for.
-    func flagAction(in rows: [SnapshotRow], expanded: [ThreadRow] = []) -> BulkAction {
-        if isEmpty { return .flag }
-        let unflagged = selected(in: rows).contains(where: isUnflagged)
-            || !selected(in: expanded).isEmpty
-        return unflagged ? .flag : .unflag
-    }
-
     /// What the reading pane says instead of a message while several rows are picked, or `nil`
     /// when it should go on showing what it holds.
     ///
@@ -132,24 +110,8 @@ struct MailSelection {
         return L10n.selection_selected_messages(count: count)
     }
 
-    private func selected(in rows: [SnapshotRow]) -> [SnapshotRow] { rows.filter(contains) }
-
     private func selected(in expanded: [ThreadRow]) -> [ThreadMessage] {
         expanded.flatMap(\.messages).filter { keys.contains(SelectionKey($0)) }
-    }
-
-    private func isUnread(_ row: SnapshotRow) -> Bool {
-        switch row {
-        case .flat(let message): return message.unread
-        case .thread(let thread): return thread.unreadCount > 0
-        }
-    }
-
-    private func isUnflagged(_ row: SnapshotRow) -> Bool {
-        switch row {
-        case .flat(let message): return !message.flagged
-        case .thread: return true
-        }
     }
 }
 

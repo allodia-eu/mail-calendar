@@ -1,11 +1,11 @@
 // The message list's selection rules (`docs/list-selection.md`), without a window: what survives a
-// snapshot rebuild, which of the paired actions the bar offers, and what a conversation row and a
-// message picked inside one become when the batch goes to the core.
+// snapshot rebuild, and what a conversation row and a message picked inside one become when the
+// batch goes to the core. Which of the paired actions the bar offers is the core's, read in
+// `RowMenuPresentationTests`.
 //
 // What a click or a modifier does is the list control's and is not restated here. The rest fail
-// silently in the running app: a button offering the action that changes nothing does nothing when
-// clicked, and a conversation sent as its latest message archives one reply while the rest of the
-// thread stays in the inbox.
+// silently in the running app: a conversation sent as its latest message archives one reply while
+// the rest of the thread stays in the inbox.
 
 import Foundation
 import MailcalBindings
@@ -106,36 +106,6 @@ import Testing
         #expect(selection.isEmpty)
     }
 
-    @Test func theBarOffersMarkReadWhileAnythingSelectedIsUnread() {
-        let unread = [flat("m1", unread: true), flat("m2")]
-        var selection = MailSelection()
-        selection.selectAll(unread)
-        #expect(selection.readAction(in: unread) == .markRead)
-
-        let read = [flat("m1"), flat("m2")]
-        #expect(selection.readAction(in: read) == .markUnread)
-    }
-
-    @Test func theBarOffersFlagWhileAnythingSelectedIsUnflagged() {
-        let mixed = [flat("m1", flagged: true), flat("m2")]
-        var selection = MailSelection()
-        selection.selectAll(mixed)
-        #expect(selection.flagAction(in: mixed) == .flag)
-
-        let flagged = [flat("m1", flagged: true), flat("m2", flagged: true)]
-        #expect(selection.flagAction(in: flagged) == .unflag)
-    }
-
-    /// The desktop bar stands whether or not anything is picked, so these two labels are read
-    /// with an empty selection. "Mark as unread" over nothing is the wrong sentence to leave on
-    /// screen: the affirmative action is the one the bar names until a selection says otherwise.
-    @Test func anEmptySelectionNamesTheAffirmativeActions() {
-        let rows = [flat("m1"), flat("m2", flagged: true)]
-        let selection = MailSelection()
-        #expect(selection.readAction(in: rows) == .markRead)
-        #expect(selection.flagAction(in: rows) == .flag)
-    }
-
     /// A plain click selects a row *and* opens it, so a pane that stated "1 selected" would
     /// replace the message the user just asked to read with a count of it.
     @Test func theReadingPaneStatesTheCountOnlyAboveOneRow() {
@@ -169,11 +139,6 @@ import Testing
         } else {
             Issue.record("a conversation row must travel as a thread")
         }
-        #expect(selection.readAction(in: rows) == .markRead)
-        #expect(
-            selection.flagAction(in: rows) == .flag,
-            "a conversation carries no flag of its own, so flagging is what it can be asked for"
-        )
     }
 
     @Test func aSelectedConversationIsNotTheMessageRowThatSharesItsId() {
@@ -198,15 +163,6 @@ import Testing
 
         selection.keys.insert(SelectionKey(.thread(row: open)))
         #expect(keys(selection, expanded: [open]) == ["t1"])
-    }
-
-    @Test func aMessagePickedInsideAConversationCountsForTheBar() {
-        let open = conversation("t1", messages: [member("t1-a", unread: true)])
-        var selection = MailSelection()
-        selection.keys = [SelectionKey(open.messages[0])]
-
-        #expect(selection.readAction(in: [.thread(row: open)], expanded: [open]) == .markRead)
-        #expect(selection.flagAction(in: [.thread(row: open)], expanded: [open]) == .flag)
     }
 
     /// A threaded list calls its rows conversations, a single-message one drawn as a message row
