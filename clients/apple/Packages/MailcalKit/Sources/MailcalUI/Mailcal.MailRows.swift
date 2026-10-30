@@ -254,6 +254,10 @@ extension ContentView {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            // Flagged while anything on it is, which is when its menu offers Clear flag.
+            if thread.flagged {
+                Image(systemName: "flag.fill").foregroundStyle(.orange)
+            }
             if thread.hasAttachment {
                 Image(systemName: "paperclip").foregroundStyle(.secondary)
             }
@@ -300,6 +304,9 @@ extension ContentView {
                 }
             }
             Spacer()
+            if message.flagged {
+                Image(systemName: "flag.fill").foregroundStyle(.orange)
+            }
             if message.hasAttachment {
                 Image(systemName: "paperclip").foregroundStyle(.secondary)
             }

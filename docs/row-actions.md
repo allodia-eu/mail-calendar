@@ -104,7 +104,7 @@ user should never have to expand a conversation to do something to it.
 | A conversation row's menu offers every message action (rule 3) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
 | A message inside a conversation offers its own full menu (rule 5) | ✅ | ✅ | ⬜ | n/a: no in-list expansion | ⬜ |
 | One conversation expanded, folding as the selection leaves it (rule 8) | ✅ | ✅ | ⬜ | n/a: a screen of its own | ⬜ |
-| A conversation row, and each message in it, draws its flag (rule 3) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| A conversation row, and each message in it, draws its flag (rule 3) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
 | The batch reaches what rules 3 and 4 say | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The last row is the core's, and every client already dispatches into it. On Apple the selection
