@@ -258,3 +258,30 @@ async fn invalidating_the_connections_makes_the_next_call_dial() {
 
     assert_eq!(accepted.load(Ordering::SeqCst), 2);
 }
+
+#[tokio::test]
+async fn a_watch_with_no_connection_to_spare_waits_rather_than_failing() {
+    // Five connections, one kept to sync: the fifth watch has nothing to take. That is the
+    // account at its limit, not a broken watch, so it is told apart and opens no socket.
+    let (port, served, accepted) = imap_server().await;
+    let config = account(port, &served);
+    let connections = ImapConnections::new();
+    let mut watches = Vec::new();
+    for _ in 0..4 {
+        watches.push(
+            connect_imap_watcher(&connections, &config, None, "INBOX", None)
+                .await
+                .expect("a watch inside the budget"),
+        );
+    }
+    let opened = accepted.load(Ordering::SeqCst);
+
+    let refused = connect_imap_watcher(&connections, &config, None, "INBOX", None).await;
+
+    assert!(
+        matches!(refused, Err(mailcal_account::AccountError::NoWatchConnection)),
+        "the fifth watch was not told apart: {:?}",
+        refused.err(),
+    );
+    assert_eq!(accepted.load(Ordering::SeqCst), opened);
+}
