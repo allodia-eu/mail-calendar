@@ -138,17 +138,17 @@ impl AppModel {
         }
     }
 
-    /// Opens a Drafts-folder row back into its composer, and every other row for reading.
+    /// Opens a draft back into its composer, and every other message for reading.
     ///
-    /// Told by the **folder**, not by the row: the core answers per message but the list does not
-    /// carry it, so a draft met in a search result or in another folder's thread opens read-only
-    /// (`docs/drafts.md`, known gaps).
+    /// Told by the **row**, never by the folder, so a draft met in a search result or in a
+    /// conversation shown from another folder resumes as one in Drafts does (`docs/drafts.md`).
     pub(super) fn open_or_resume(
         &mut self,
         message: model::OpenedMessage,
+        draft: bool,
         sender: &relm4::Sender<super::AppInput>,
     ) {
-        if !self.snapshot.showing_drafts {
+        if !draft {
             self.open_message(message);
             return;
         }

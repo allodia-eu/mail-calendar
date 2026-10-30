@@ -58,12 +58,18 @@ ATSPI="$REPO_ROOT/scripts/dev/linux_ui_atspi.py"
 REMOTE_SUBJECT="HTML message with a remote image"
 # Who that fixture is from, and so who a reply to it is addressed to.
 REMOTE_SENDER="news@example.com"
+REMOTE_SENDER_NAME="Newsletter"
 # The fixture a forward is driven from, and the one file it carries. Both from the deterministic
 # seed rather than the bulk one, which --start-harness does not seed.
 ATTACHMENT_SUBJECT="Message with a text attachment"
 ATTACHMENT_FILE="report.csv"
 # Somewhere else to navigate to, for the leg that asks whether abandoning a forward stops the user.
 PLAIN_SUBJECT="Harness baseline message"
+# Two of the seed's conversations (docker/stalwart/README.md), each listed under its newest
+# message's subject: the newest on the first is received, the newest on the second a draft filed
+# in Drafts.
+CONVERSATION_SUBJECT="Re: Venue for the spring meeting"
+DRAFT_CONVERSATION_SUBJECT="Re: Contribution for next year"
 # The three seeded iMIP fixtures (docker/stalwart/seed.sh). Monday's sits in the review/triage
 # overlap; the weekend one is on the day the living week deliberately leaves empty, which is the
 # only fixture that can tell the preview rule from the one it replaced; the published .ics is the
@@ -814,21 +820,26 @@ PY
 
   # Opened by searching the Inboxes alone: each run's reply to this fixture is filed in Sent and
   # shares its thread, so across all mail the match is one conversation named after the newest
-  # reply, and opening it shows that reply rather than the fixture's blocked image. Within the
-  # Inboxes the fixture is the newest match, so the row is named after it and opens it. Until a
-  # run has replied, the row is a message of its own, whose button carries the subject; after,
-  # it is a conversation, whose button is "Open".
+  # reply. Within the Inboxes the fixture is the newest match, so the row is named after it. Until
+  # a run has replied, the row is a message of its own, whose button carries the subject. After,
+  # it is a conversation, whose "Open" expands it onto its newest message, a previous run's reply
+  # (docs/row-actions.md, rule 2), and the fixture is then its own row inside it, named after
+  # its sender.
   "$PYTHON" "$ATSPI" activate --name "Mail" --timeout 20
   "$PYTHON" "$ATSPI" set-text --name "Search mail" --text "$REMOTE_SUBJECT" --timeout 20
   "$PYTHON" "$ATSPI" activate --name "Inboxes" --role "toggle button" --timeout 20
   "$PYTHON" "$ATSPI" wait \
     --name "$REMOTE_SUBJECT" --role "list item" --enabled --showing --timeout 45
-  "$PYTHON" "$ATSPI" activate \
+  if ! "$PYTHON" "$ATSPI" activate \
     --name "$REMOTE_SUBJECT" --role "push button" \
-    --within "$REMOTE_SUBJECT" --within-role "list item" --timeout 2 2>/dev/null ||
+    --within "$REMOTE_SUBJECT" --within-role "list item" --timeout 2 2>/dev/null; then
     "$PYTHON" "$ATSPI" activate \
       --name "Open" --role "push button" \
       --within "$REMOTE_SUBJECT" --within-role "list item" --timeout 20
+    "$PYTHON" "$ATSPI" activate \
+      --name "$REMOTE_SENDER_NAME" --role "push button" \
+      --within "$REMOTE_SENDER_NAME" --within-role "list item" --timeout 20
+  fi
   "$PYTHON" "$ATSPI" wait --name "Reply" --enabled --showing --timeout 30
   "$PYTHON" "$ATSPI" wait \
     --name "Remote images are blocked to protect your privacy." --showing --timeout 30
@@ -903,7 +914,7 @@ PY
   open_mail_message "$PLAIN_SUBJECT"
   "$PYTHON" "$ATSPI" wait --name "Write your message" --absent --timeout 30
   "$PYTHON" "$ATSPI" wait --name "Discard draft?" --absent --timeout 5
-  # Out of the search first: a draft met in search results opens read-only (docs/drafts.md).
+  # Out of the search, into Drafts, where the forward it left behind is listed.
   "$PYTHON" "$ATSPI" set-text --name "Search mail" --text "" --timeout 20
   "$PYTHON" "$ATSPI" activate --name "Drafts" --timeout 20
   "$PYTHON" "$ATSPI" wait \
@@ -1363,6 +1374,48 @@ PY
   "$PYTHON" "$ATSPI" wait --name "Select a message to read." --absent --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Reply" --enabled --showing --timeout 20
   capture mail-actions-archived
+
+  # A conversation's own menu (docs/row-actions.md). The items are the core's, unit-tested there;
+  # what a live run shows is the round trip: Flag reaches the newest message received, the
+  # conversation row draws the flag that write left, and its menu then offers Unflag, which takes
+  # every flag off. Both writes undo each other, so the seed is as the run found it.
+  "$PYTHON" "$ATSPI" set-text --name "Search mail" --text "" --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Inbox" --role "push button" --index 0 --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "$CONVERSATION_SUBJECT" --role "list item" --enabled --timeout 60
+  "$PYTHON" "$ATSPI" activate \
+    --name "More actions" --within "$CONVERSATION_SUBJECT" --within-role "list item" \
+    --timeout 20
+  for item in "Reply" "Forward" "Mark as Spam" "Move to folder…"; do
+    "$PYTHON" "$ATSPI" wait \
+      --name "$item" --within "$CONVERSATION_SUBJECT" --within-role "list item" \
+      --enabled --showing --timeout 20
+  done
+  capture conversation-menu
+  "$PYTHON" "$ATSPI" activate \
+    --name "Flag" --within "$CONVERSATION_SUBJECT" --within-role "list item" --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "Flagged" --within "$CONVERSATION_SUBJECT" --within-role "list item" --timeout 30
+  "$PYTHON" "$ATSPI" activate \
+    --name "More actions" --within "$CONVERSATION_SUBJECT" --within-role "list item" \
+    --timeout 20
+  "$PYTHON" "$ATSPI" activate \
+    --name "Unflag" --within "$CONVERSATION_SUBJECT" --within-role "list item" --timeout 20
+  "$PYTHON" "$ATSPI" wait \
+    --name "Flagged" --within "$CONVERSATION_SUBJECT" --within-role "list item" \
+    --absent --timeout 30
+
+  # A draft resumes wherever it is listed (docs/drafts.md): opening a conversation in the Inbox
+  # whose newest message is a draft opens a composer, not the reading pane. Left untouched, the
+  # navigation away keeps the draft without a question or a write.
+  "$PYTHON" "$ATSPI" activate \
+    --name "Open" --role "push button" \
+    --within "$DRAFT_CONVERSATION_SUBJECT" --within-role "list item" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Write your message" --showing --timeout 30
+  capture draft-resumed-from-inbox
+  open_mail_message "$PLAIN_SUBJECT"
+  "$PYTHON" "$ATSPI" wait --name "Write your message" --absent --timeout 30
+  "$PYTHON" "$ATSPI" wait --name "Discard draft?" --absent --timeout 5
 
   # Signatures: the Settings category, and the CRUD round-trip through the core. What is worth
   # driving here is the half a screenshot cannot check; that each control carries a name an

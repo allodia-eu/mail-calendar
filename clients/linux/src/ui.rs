@@ -99,6 +99,8 @@ mod reading;
 mod reading_windows;
 mod recipients;
 mod row_action;
+mod row_menu;
+mod row_menu_actions;
 mod runtime_timers;
 mod search;
 mod search_actions;

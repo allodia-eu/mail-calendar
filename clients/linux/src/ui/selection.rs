@@ -1,11 +1,11 @@
-//! The message list's multi-selection: which rows are picked, and what the bar above them offers.
+//! The message list's multi-selection: which rows are picked, and how many.
 //!
 //! Pure state over the snapshot's row order, so the rules (`docs/list-selection.md`) are testable
 //! without a display. The widgets read it; they never hold a second copy.
 
 use std::collections::HashSet;
 
-use mailcal_bindings::{BulkAction, SelectedRow, SnapshotRow, ViewMode};
+use mailcal_bindings::{SelectedRow, SnapshotRow, ViewMode};
 
 use crate::l10n;
 
@@ -38,7 +38,7 @@ impl RowKey {
         }
     }
 
-    fn selected_row(&self) -> SelectedRow {
+    pub(crate) fn selected_row(&self) -> SelectedRow {
         if self.thread {
             SelectedRow::Thread {
                 account: self.account.clone(),
@@ -64,43 +64,11 @@ pub(crate) enum SelectMode {
     Range,
 }
 
-/// Which of the paired actions the bar offers, decided by what is selected.
-///
-/// One button per pair, never both: a bar over a mixed selection has to choose, and the useful
-/// choice is the one that changes something. Any unread row makes the button "Mark as read"; any
-/// unflagged row makes it "Flag".
+/// How many rows are picked. Which of the paired actions the bar offers is the core's, read off
+/// its menu over the selection ([`super::row_menu::BarActions`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SelectionSummary {
     pub(crate) count: usize,
-    /// Whether any selected row holds an unread message.
-    pub(crate) any_unread: bool,
-    /// Whether any selected row holds an unflagged message. A conversation has no flag of its
-    /// own, so it counts as unflagged: flagging is what its rows can usefully be asked for.
-    pub(crate) any_unflagged: bool,
-}
-
-impl SelectionSummary {
-    /// The mark-read/mark-unread action the bar's single button runs.
-    ///
-    /// An empty selection names the affirmative action rather than the one the flags fall out to.
-    /// The bar stands with nothing picked, and an insensitive button reading "Mark as unread"
-    /// describes an action nobody asked for.
-    pub(crate) fn read_action(self) -> BulkAction {
-        if self.any_unread || self.count == 0 {
-            BulkAction::MarkRead
-        } else {
-            BulkAction::MarkUnread
-        }
-    }
-
-    /// The flag/unflag action the bar's single button runs, on the same terms.
-    pub(crate) fn flag_action(self) -> BulkAction {
-        if self.any_unflagged || self.count == 0 {
-            BulkAction::Flag
-        } else {
-            BulkAction::Unflag
-        }
-    }
 }
 
 impl SelectionSummary {
@@ -207,40 +175,16 @@ impl Selection {
         self.rows.iter().any(|selected| selected == &key)
     }
 
-    /// Whether the selection holds the **message** row a row menu was opened on, which is what
-    /// decides whether that menu acts on the whole selection (`docs/list-selection.md`, rule 12).
-    /// A menu opened on a row outside the selection is about that row alone.
-    pub(crate) fn covers_message(&self, account: &str, key: &str) -> bool {
-        self.rows
-            .iter()
-            .any(|row| !row.thread && row.account == account && row.id == key)
-    }
-
     /// The selected rows in the shape [`mailcal_bindings::Intent::ActOnSelection`] takes.
     pub(crate) fn selected_rows(&self) -> Vec<SelectedRow> {
         self.rows.iter().map(RowKey::selected_row).collect()
     }
 
-    /// What the bar says and which of the paired actions it offers.
-    pub(crate) fn summary(&self, rows: &[SnapshotRow]) -> SelectionSummary {
-        let mut summary = SelectionSummary {
+    /// How many rows are picked.
+    pub(crate) fn summary(&self) -> SelectionSummary {
+        SelectionSummary {
             count: self.rows.len(),
-            any_unread: false,
-            any_unflagged: false,
-        };
-        for row in rows.iter().filter(|row| self.contains(row)) {
-            match row {
-                SnapshotRow::Flat { row } => {
-                    summary.any_unread |= row.unread;
-                    summary.any_unflagged |= !row.flagged;
-                }
-                SnapshotRow::Thread { row } => {
-                    summary.any_unread |= row.unread_count > 0;
-                    summary.any_unflagged = true;
-                }
-            }
         }
-        summary
     }
 }
 

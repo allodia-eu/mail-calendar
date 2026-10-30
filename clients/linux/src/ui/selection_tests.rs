@@ -1,7 +1,7 @@
 //! The selection rules, without a display: what each modifier means, what survives a snapshot
-//! rebuild, and which of the paired actions the bar offers.
+//! rebuild, and how many rows the reading pane says are picked.
 
-use mailcal_bindings::{BulkAction, FlatRow, SelectedRow, SnapshotRow, ThreadRow, ViewMode};
+use mailcal_bindings::{FlatRow, SelectedRow, SnapshotRow, ThreadRow, ViewMode};
 
 use super::{SelectMode, Selection};
 
@@ -147,48 +147,6 @@ fn a_range_after_its_anchor_left_the_list_picks_the_one_row() {
     assert_eq!(keys(&selection), ["m3"]);
 }
 
-#[test]
-fn the_bar_offers_mark_read_while_anything_selected_is_unread() {
-    let rows = [flat("m1", true, false), flat("m2", false, false)];
-    let mut selection = Selection::default();
-    selection.select_all(&rows);
-
-    let summary = selection.summary(&rows);
-    assert_eq!(summary.count, 2);
-    assert_eq!(summary.read_action(), BulkAction::MarkRead);
-
-    // Every selected row read: the useful button is now the other one.
-    let rows = [flat("m1", false, false), flat("m2", false, false)];
-    assert_eq!(
-        selection.summary(&rows).read_action(),
-        BulkAction::MarkUnread,
-    );
-}
-
-#[test]
-fn the_bar_offers_flag_while_anything_selected_is_unflagged() {
-    let rows = [flat("m1", false, true), flat("m2", false, false)];
-    let mut selection = Selection::default();
-    selection.select_all(&rows);
-    assert_eq!(selection.summary(&rows).flag_action(), BulkAction::Flag);
-
-    let rows = [flat("m1", false, true), flat("m2", false, true)];
-    assert_eq!(selection.summary(&rows).flag_action(), BulkAction::Unflag);
-}
-
-/// The bar stands whether or not anything is picked, so these two labels are read with an empty
-/// selection. "Mark as unread" over nothing is the wrong sentence to leave on screen: the
-/// affirmative action is the one the bar names until a selection says otherwise.
-#[test]
-fn an_empty_selection_names_the_affirmative_actions() {
-    let rows = [flat("m1", false, true), flat("m2", false, true)];
-    let summary = Selection::default().summary(&rows);
-
-    assert_eq!(summary.count, 0);
-    assert_eq!(summary.read_action(), BulkAction::MarkRead);
-    assert_eq!(summary.flag_action(), BulkAction::Flag);
-}
-
 /// A plain click selects a row *and* opens it, so a pane stating "1 selected" would replace the
 /// message the user just asked to read with a count of it.
 #[test]
@@ -196,20 +154,20 @@ fn the_reading_pane_states_the_count_only_above_one_row() {
     let rows = [flat("m1", false, false), flat("m2", false, false)];
     let mut selection = Selection::default();
     assert_eq!(
-        selection.summary(&rows).pane_label(&ViewMode::Flat),
+        selection.summary().pane_label(&ViewMode::Flat),
         None,
         "nothing picked, nothing to say"
     );
 
     selection.click(&rows, 0, SelectMode::Replace);
     assert_eq!(
-        selection.summary(&rows).pane_label(&ViewMode::Flat),
+        selection.summary().pane_label(&ViewMode::Flat),
         None,
         "the one row is what the pane is showing"
     );
 
     selection.select_all(&rows);
-    let summary = selection.summary(&rows);
+    let summary = selection.summary();
     // The words are the catalog's; what this asserts is that the list the rows were picked in
     // decides which noun, since a threaded row stands for a whole conversation.
     assert!(summary.pane_label(&ViewMode::Flat).is_some());
@@ -234,44 +192,4 @@ fn a_conversation_is_selected_as_a_thread_not_as_its_latest_message() {
             thread_id: "t1".to_owned(),
         }],
     );
-    let summary = selection.summary(&rows);
-    assert_eq!(summary.read_action(), BulkAction::MarkRead);
-    assert_eq!(
-        summary.flag_action(),
-        BulkAction::Flag,
-        "a conversation carries no flag of its own, so flagging is what it can be asked for",
-    );
-}
-
-#[test]
-fn a_row_menu_on_a_selected_row_covers_the_whole_selection() {
-    let rows = [flat("m1", false, false), flat("m2", false, false)];
-    let mut selection = Selection::default();
-    selection.select_all(&rows);
-
-    assert!(selection.covers_message("acct-1", "m1"));
-    assert!(selection.covers_message("acct-1", "m2"));
-}
-
-#[test]
-fn a_row_menu_on_an_unselected_row_is_about_that_row_alone() {
-    let rows = [flat("m1", false, false), flat("m2", false, false)];
-    let mut selection = Selection::default();
-    selection.click(&rows, 0, SelectMode::Replace);
-
-    assert!(!selection.covers_message("acct-1", "m2"));
-    // Same key, another account: the unified list holds both, and a provider key is unique only
-    // within its own account.
-    assert!(!selection.covers_message("acct-2", "m1"));
-}
-
-#[test]
-fn a_selected_conversation_is_not_the_message_row_that_shares_its_id() {
-    let rows = [thread("x", 0)];
-    let mut selection = Selection::default();
-    selection.select_all(&rows);
-
-    // The two travel to the core as different shapes, so a message menu may not act on a
-    // selection holding only the conversation whose id happens to match.
-    assert!(!selection.covers_message("acct-1", "x"));
 }

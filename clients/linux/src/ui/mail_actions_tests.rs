@@ -1,18 +1,20 @@
 //! Mail-action regressions. GTK functions run inside the mailbox module's single display test.
 
-use adw::prelude::*;
-use mailcal_bindings::{FolderRole, FolderRow, Intent};
+use std::rc::Rc;
 
-use super::{
-    ActionKind, DeleteTarget, MailActionRequest, MessageTarget, PermanentDeleteDialog, actions_for,
-    in_junk_folder,
+use adw::prelude::*;
+use mailcal_bindings::{
+    BulkAction, Intent, MenuMessage, MessageKind, RowAction, RowMenu, RowMenuItem, RowMenuSection,
+    SelectedRow,
 };
+
+use super::{ActionKind, DeleteTarget, MailActionRequest, MessageTarget, PermanentDeleteDialog};
 use crate::{
     l10n,
     ui::{
         AppInput,
-        mail_actions_menu::{RowMenus, message_menu_button, thread_menu_button},
-        model,
+        mail_actions_menu::{RowMenus, fill},
+        row_menu::RowPick,
     },
 };
 
@@ -21,32 +23,6 @@ fn target() -> MessageTarget {
         account: "account-a".to_owned(),
         key: "message-a".to_owned(),
     }
-}
-
-#[test]
-fn a_message_menu_toggles_state_and_names_the_current_spam_direction() {
-    assert_eq!(
-        actions_for(true, false, false),
-        vec![
-            ActionKind::MarkRead(true),
-            ActionKind::SetFlagged(true),
-            ActionKind::Archive,
-            ActionKind::MoveToTrash,
-            ActionKind::MarkAsSpam,
-            ActionKind::PermanentlyDelete,
-        ]
-    );
-    assert_eq!(
-        actions_for(false, true, true),
-        vec![
-            ActionKind::MarkRead(false),
-            ActionKind::SetFlagged(false),
-            ActionKind::Archive,
-            ActionKind::MoveToTrash,
-            ActionKind::MarkAsNotSpam,
-            ActionKind::PermanentlyDelete,
-        ]
-    );
 }
 
 #[test]
@@ -97,110 +73,187 @@ fn every_message_action_maps_to_the_shared_intent_with_its_owner() {
     }
 }
 
-#[test]
-fn only_the_selected_junk_role_reverses_the_spam_action() {
-    let mut snapshot = model::empty_mailbox();
-    snapshot.selected = Some("folder-a".to_owned());
-    snapshot.folders = vec![FolderRow {
-        key: "folder-a".to_owned(),
-        name: "Anything the server calls it".to_owned(),
-        role: Some(FolderRole::Junk),
-        unread: 0,
-        parent: None,
-        depth: 0,
-        has_children: false,
-        expanded: false,
-        visible: true,
-        pending: false,
-        in_trash: false,
-        editable: false,
-        accepts_folders: false,
-        accepts_messages: false,
-    }];
-    assert!(in_junk_folder(&snapshot));
-
-    snapshot.folders[0].role = None;
-    assert!(!in_junk_folder(&snapshot));
-    snapshot.selected = Some("another-folder".to_owned());
-    snapshot.folders[0].role = Some(FolderRole::Junk);
-    assert!(!in_junk_folder(&snapshot));
+fn item(action: RowAction, enabled: bool, target: Option<MenuMessage>) -> RowMenuItem {
+    RowMenuItem {
+        action,
+        enabled,
+        target,
+    }
 }
 
-pub(crate) fn the_action_menus_dispatch_the_message_and_thread_the_user_chose() {
+/// A menu answering `menu` whatever it is asked about, recording what it was asked.
+fn answering(menu: RowMenu) -> (RowMenus, Rc<std::cell::RefCell<Vec<Vec<SelectedRow>>>>) {
+    let menus = RowMenus::default();
+    let asked = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let record = Rc::clone(&asked);
+    menus.source.answer_with(Rc::new(move |rows| {
+        record.borrow_mut().push(rows);
+        menu.clone()
+    }));
+    (menus, asked)
+}
+
+/// The menu draws what the core answers, in its sections and order, disabled where the core says
+/// so, and an item reaches the one message it names or else the row it was opened on
+/// (`docs/row-actions.md`, rules 1 and 6).
+pub(crate) fn a_row_menu_draws_the_cores_answer_and_runs_what_is_picked() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let row = mailcal_bindings::FlatRow {
-        avatar: crate::ui::model::blank_avatar(),
+    let draft = MenuMessage {
         account: "account-a".to_owned(),
-        key: "message-a".to_owned(),
-        subject: "Action fixture".to_owned(),
-        from: "Sender".to_owned(),
-        date: "2026-08-20".to_owned(),
-        unread: true,
-        flagged: false,
-        draft: false,
-        has_attachment: false,
-        preview: String::new(),
+        key: "draft".to_owned(),
+        kind: MessageKind::Draft,
     };
-    let opened = crate::ui::model::OpenedMessage::from_row(&mailcal_bindings::SnapshotRow::Flat {
-        row: row.clone(),
-    });
-    let anchor = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    let menu = message_menu_button(&anchor, &row, &opened, &RowMenus::default(), &sender);
-    let menu_root = popover_child(&menu);
-    assert!(button(&menu_root, l10n::action_mark_read()).is_some());
-    assert!(button(&menu_root, l10n::action_flag()).is_some());
-    assert!(button(&menu_root, l10n::action_archive()).is_some());
-    assert!(button(&menu_root, l10n::action_move_to_folder()).is_some());
-    assert!(button(&menu_root, l10n::action_move_to_trash()).is_some());
-    assert!(button(&menu_root, l10n::action_mark_as_spam()).is_some());
-    assert!(button(&menu_root, l10n::action_delete_permanently()).is_some());
-    assert!(button(&menu_root, l10n::action_mark_unread()).is_none());
-    assert!(button(&menu_root, l10n::action_unflag()).is_none());
-    assert!(button(&menu_root, l10n::action_mark_as_not_spam()).is_none());
+    let inbound = MenuMessage {
+        key: "inbound".to_owned(),
+        kind: MessageKind::Received,
+        ..draft.clone()
+    };
+    let menu = RowMenu {
+        sections: vec![
+            RowMenuSection {
+                items: vec![
+                    item(RowAction::Open, true, Some(draft.clone())),
+                    item(RowAction::OpenInWindow, true, Some(draft.clone())),
+                ],
+            },
+            RowMenuSection {
+                items: vec![
+                    item(RowAction::Reply, false, Some(draft.clone())),
+                    item(RowAction::ReplyAll, false, Some(draft.clone())),
+                    item(RowAction::Forward, false, Some(draft.clone())),
+                ],
+            },
+            RowMenuSection {
+                items: vec![
+                    item(RowAction::MarkRead, true, None),
+                    item(RowAction::Flag, true, Some(inbound.clone())),
+                ],
+            },
+            RowMenuSection {
+                items: vec![item(RowAction::MarkAsSpam, true, Some(inbound.clone()))],
+            },
+            RowMenuSection {
+                items: vec![
+                    item(RowAction::MoveToFolder, true, None),
+                    item(RowAction::Archive, true, None),
+                    item(RowAction::Delete, false, None),
+                    item(RowAction::PermanentlyDelete, true, None),
+                ],
+            },
+        ],
+    };
+    let (menus, asked) = answering(menu);
+    let conversation = SelectedRow::Thread {
+        account: "account-a".to_owned(),
+        thread_id: "thread-a".to_owned(),
+    };
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    fill(&content, &conversation, &menus, &sender);
+    assert_eq!(*asked.borrow(), vec![vec![conversation.clone()]]);
 
-    button(&menu_root, l10n::action_mark_read())
-        .expect("mark-read action")
-        .emit_clicked();
-    let Some(AppInput::PerformMailAction(request)) = receiver.recv_sync() else {
-        panic!("mark-read button did not request a mail action");
-    };
+    // The sections in order, a separator between each two.
+    let drawn: Vec<String> = children(&content)
+        .iter()
+        .map(|child| match child.downcast_ref::<gtk::Button>() {
+            Some(button) => button.label().map(String::from).unwrap_or_default(),
+            None => "—".to_owned(),
+        })
+        .collect();
     assert_eq!(
-        *request,
-        MailActionRequest::new(target(), ActionKind::MarkRead(true))
+        drawn,
+        [
+            l10n::action_open(),
+            l10n::action_open_in_window(),
+            "—",
+            l10n::action_reply(),
+            l10n::action_reply_all(),
+            l10n::action_forward(),
+            "—",
+            l10n::action_mark_read(),
+            l10n::action_flag(),
+            "—",
+            l10n::action_mark_as_spam(),
+            "—",
+            l10n::action_move_to_folder(),
+            l10n::action_archive(),
+            l10n::action_move_to_trash(),
+            l10n::action_delete_permanently(),
+        ]
+    );
+    let root = content.upcast_ref::<gtk::Widget>();
+    let pressed = |label: &str| {
+        let button = button(root, label).unwrap_or_else(|| panic!("no {label:?} item"));
+        assert!(button.is_sensitive(), "{label:?} responds");
+        button.emit_clicked();
+        match receiver.recv_sync() {
+            Some(AppInput::RowMenuPick(pick)) => *pick,
+            other => panic!("{label:?} sent {other:?}"),
+        }
+    };
+
+    // Disabled, but still there: the menu keeps its shape from one row to the next.
+    for label in [l10n::action_reply(), l10n::action_move_to_trash()] {
+        assert!(
+            !button(root, label).expect("drawn").is_sensitive(),
+            "{label}"
+        );
+    }
+    // Nothing to move to: the menu was opened outside any folder tree.
+    assert!(
+        !button(root, l10n::action_move_to_folder())
+            .expect("drawn")
+            .is_sensitive()
     );
 
-    button(&menu_root, l10n::action_delete_permanently())
-        .expect("permanent-delete action")
-        .emit_clicked();
-    let Some(AppInput::RequestPermanentDelete(request)) = receiver.recv_sync() else {
-        panic!("permanent delete bypassed its confirmation request");
-    };
-    assert_eq!(request, target());
-
-    let in_junk = RowMenus {
-        in_junk_folder: true,
-        ..RowMenus::default()
-    };
-    let junk_menu = message_menu_button(&anchor, &row, &opened, &in_junk, &sender);
-    let junk_root = popover_child(&junk_menu);
-    assert!(button(&junk_root, l10n::action_mark_as_not_spam()).is_some());
-    assert!(button(&junk_root, l10n::action_mark_as_spam()).is_none());
-
-    let thread_menu = thread_menu_button(
-        &anchor,
-        "account-a",
-        "thread-a",
-        &RowMenus::default(),
-        &sender,
+    assert_eq!(pressed(l10n::action_open()), RowPick::Open(draft.clone()));
+    assert_eq!(
+        pressed(l10n::action_open_in_window()),
+        RowPick::OpenInWindow(draft)
     );
-    button(&popover_child(&thread_menu), l10n::thread_archive())
-        .expect("archive-conversation action")
-        .emit_clicked();
-    assert!(matches!(
-        receiver.recv_sync(),
-        Some(AppInput::ArchiveThread { account, thread_id })
-            if account == "account-a" && thread_id == "thread-a"
-    ));
+    assert_eq!(
+        pressed(l10n::action_flag()),
+        RowPick::Message(MailActionRequest::new(
+            MessageTarget {
+                account: "account-a".to_owned(),
+                key: "inbound".to_owned(),
+            },
+            ActionKind::SetFlagged(true),
+        ))
+    );
+    assert_eq!(
+        pressed(l10n::action_mark_read()),
+        RowPick::Rows {
+            rows: vec![conversation.clone()],
+            action: BulkAction::MarkRead,
+        }
+    );
+    assert_eq!(
+        pressed(l10n::action_delete_permanently()),
+        RowPick::Rows {
+            rows: vec![conversation.clone()],
+            action: BulkAction::PermanentlyDelete,
+        }
+    );
+    assert!(
+        button(root, l10n::action_delete_permanently())
+            .expect("drawn")
+            .has_css_class("destructive-action")
+    );
+
+    // Asked again as it opens again, so a row kept across renders never shows a stale menu.
+    fill(&content, &conversation, &menus, &sender);
+    assert_eq!(asked.borrow().len(), 2);
+    assert_eq!(children(&content).len(), drawn.len());
+}
+
+fn children(root: &gtk::Box) -> Vec<gtk::Widget> {
+    let mut found = Vec::new();
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        child = widget.next_sibling();
+        found.push(widget);
+    }
+    found
 }
 
 pub(crate) fn permanent_delete_is_confirmed_before_it_dispatches() {
@@ -228,11 +281,28 @@ pub(crate) fn permanent_delete_is_confirmed_before_it_dispatches() {
         *request,
         MailActionRequest::new(target(), ActionKind::PermanentlyDelete)
     );
-    parent.close();
-}
 
-fn popover_child(menu: &gtk::Box) -> gtk::Widget {
-    popover_content(menu.upcast_ref::<gtk::Widget>()).expect("menu popover")
+    // A conversation's menu, outside the selection: the rows it was opened on, by name.
+    let rows = vec![SelectedRow::Thread {
+        account: "account-a".to_owned(),
+        thread_id: "thread-a".to_owned(),
+    }];
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let mut confirmation = PermanentDeleteDialog::default();
+    confirmation.render(Some(&DeleteTarget::Rows(rows.clone())), &parent, &sender);
+    let window = confirmation.window.as_ref().expect("confirmation window");
+    button(
+        window.upcast_ref::<gtk::Widget>(),
+        l10n::action_delete_permanently(),
+    )
+    .expect("confirmed delete action")
+    .emit_clicked();
+    assert!(matches!(
+        receiver.recv_sync(),
+        Some(AppInput::PerformRowsAction { rows: asked, action: BulkAction::PermanentlyDelete })
+            if asked == rows
+    ));
+    parent.close();
 }
 
 /// What the popover under `root` holds, without popping it up.

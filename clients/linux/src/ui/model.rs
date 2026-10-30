@@ -3,7 +3,8 @@
 use std::collections::HashSet;
 
 use mailcal_bindings::{
-    Avatar, MailboxListSnapshot, ReadingSnapshot, SnapshotRow, Swatch, ThreadRow, ViewMode,
+    Avatar, MailboxListSnapshot, ReadingSnapshot, SelectedRow, SnapshotRow, Swatch, ThreadMessage,
+    ThreadRow, ViewMode,
 };
 
 use super::{avatar::AvatarData, mailbox::ThreadKey};
@@ -100,8 +101,7 @@ impl OpenedMessage {
         }
     }
 
-    /// A conversation opens its representative; the latest **in-scope** message, the one the row
-    /// summarises; so a Sent reply filed in another folder doesn't take the reading pane.
+    /// The message the conversation row summarises: its latest **in-scope** message.
     pub(crate) fn from_thread(row: &ThreadRow) -> Self {
         Self {
             account: row.account.clone(),
@@ -111,6 +111,61 @@ impl OpenedMessage {
             date: row.latest_date.clone(),
             avatar: AvatarData::from(&row.avatar),
         }
+    }
+
+    /// One message of `thread`, under the conversation's subject, as its sub-row shows it: a
+    /// message on a thread carries no subject of its own.
+    pub(crate) fn from_member(thread: &ThreadRow, message: &ThreadMessage) -> Self {
+        Self {
+            account: message.account.clone(),
+            key: message.key.clone(),
+            subject: thread.subject.clone(),
+            from: message.from.clone(),
+            date: message.date.clone(),
+            avatar: AvatarData::from(&message.avatar),
+        }
+    }
+}
+
+/// The message selecting a conversation opens, and whether it is a draft: its newest, whatever
+/// its kind, a Sent reply filed elsewhere or a draft included (`docs/row-actions.md`, rules 2 and
+/// 8). In Drafts it is the newest draft, the one the row summarises (`docs/drafts.md`).
+pub(crate) fn representative(row: &ThreadRow, showing_drafts: bool) -> (OpenedMessage, bool) {
+    let message = if showing_drafts {
+        row.messages
+            .iter()
+            .find(|message| message.key == row.latest_key)
+    } else {
+        row.messages.first()
+    };
+    match message.or(row.messages.first()) {
+        Some(message) => (OpenedMessage::from_member(row, message), message.draft),
+        None => (OpenedMessage::from_thread(row), showing_drafts),
+    }
+}
+
+/// The conversations still expanded once `selected` is the selection, out of `expanded`
+/// (`docs/row-actions.md`, rule 8).
+///
+/// One row picked keeps open only the conversation it is, so leaving a conversation folds it
+/// away, even one opened by its chevron. Several rows picked, or none, change nothing: adding a
+/// conversation to a set expands nothing, and a selection emptied by an archive is not the user
+/// leaving anything.
+pub(crate) fn kept_expanded(
+    expanded: &HashSet<ThreadKey>,
+    selected: &[SelectedRow],
+) -> HashSet<ThreadKey> {
+    match selected {
+        [SelectedRow::Thread { account, thread_id }] => {
+            let holding = ThreadKey::new(account, thread_id);
+            expanded
+                .iter()
+                .filter(|thread| **thread == holding)
+                .cloned()
+                .collect()
+        }
+        [SelectedRow::Message { .. }] => HashSet::new(),
+        _ => expanded.clone(),
     }
 }
 
@@ -127,16 +182,11 @@ pub(crate) fn readable_stops(
             SnapshotRow::Thread { row } if expanded.contains(&ThreadKey::of(row)) => row
                 .messages
                 .iter()
-                .map(|message| OpenedMessage {
-                    account: message.account.clone(),
-                    key: message.key.clone(),
-                    subject: row.subject.clone(),
-                    from: message.from.clone(),
-                    date: message.date.clone(),
-                    avatar: AvatarData::from(&message.avatar),
-                })
+                .map(|message| OpenedMessage::from_member(row, message))
                 .collect(),
-            SnapshotRow::Thread { row } => vec![OpenedMessage::from_thread(row)],
+            SnapshotRow::Thread { row } => {
+                vec![representative(row, snapshot.showing_drafts).0]
+            }
         })
         .collect()
 }
@@ -357,3 +407,7 @@ mod tests {
         assert_eq!(message_after_removing(&stops[0], &stops[..1]), None);
     }
 }
+
+#[cfg(test)]
+#[path = "model_tests.rs"]
+mod conversation_tests;
