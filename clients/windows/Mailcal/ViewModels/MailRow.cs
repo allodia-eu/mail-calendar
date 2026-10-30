@@ -100,8 +100,19 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
 
     private bool _flagged;
 
-    /// <summary>Whether the message is flagged (flat rows only).</summary>
+    /// <summary>
+    /// Whether the message is flagged (flat), or any message in the conversation is (threaded),
+    /// which is when its menu offers Clear flag (docs/row-actions.md, rule 3).
+    /// </summary>
     public bool Flagged { get => _flagged; init => _flagged = value; }
+
+    private bool _draft;
+
+    /// <summary>
+    /// Whether the message is a draft, which opens into a composer wherever it is listed
+    /// (docs/drafts.md). Always false for a conversation row, whose messages each say so.
+    /// </summary>
+    public bool Draft { get => _draft; init => _draft = value; }
 
     private bool _hasAttachment;
 
@@ -143,12 +154,6 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
 
     /// <summary>The count-badge text.</summary>
     public string CountText => MessageCount.ToString();
-
-    /// <summary>The context-menu label for the read/unread toggle.</summary>
-    public string MarkReadText => Unread ? L10n.ActionMarkRead() : L10n.ActionMarkUnread();
-
-    /// <summary>The context-menu label for the flag toggle.</summary>
-    public string FlagToggleText => Flagged ? L10n.ActionClearFlag() : L10n.ActionFlag();
 
     private IReadOnlyList<ThreadMessageItem> _messages = Array.Empty<ThreadMessageItem>();
 
@@ -200,6 +205,7 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
         && a.FullDateText == b.FullDateText
         && a.PreviewText == b.PreviewText
         && a.Unread == b.Unread
+        && a.Flagged == b.Flagged
         && a.Outgoing == b.Outgoing
         && a.Draft == b.Draft
         && a.HasAttachment == b.HasAttachment;
@@ -217,6 +223,7 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
     {
         _latestKey = next.LatestKey;
         _rawSubject = next.RawSubject;
+        _draft = next.Draft;
         _fullDateText = next.FullDateText;
         if (_title != next.Title)
         {
@@ -243,14 +250,13 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
             _unread = next.Unread;
             Changed(
                 nameof(Unread), nameof(TitleWeight), nameof(SubtitleWeight),
-                nameof(UnreadVisibility), nameof(MarkReadText), nameof(AccessibleName));
+                nameof(UnreadVisibility), nameof(AccessibleName));
         }
         if (_flagged != next.Flagged)
         {
             _flagged = next.Flagged;
             Changed(
-                nameof(Flagged), nameof(FlagVisibility), nameof(FlagToggleText),
-                nameof(AccessibleName));
+                nameof(Flagged), nameof(FlagVisibility), nameof(AccessibleName));
         }
         if (_hasAttachment != next.HasAttachment)
         {

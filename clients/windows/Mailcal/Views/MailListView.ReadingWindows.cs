@@ -1,5 +1,6 @@
 // Opening a message in a window of its own, from the list (docs/reading-window.md): the
-// double-click, and the named context-menu item that is the same thing without a pointer.
+// double-click, and the row menu's named item that is the same thing without a pointer
+// (MailListView.RowMenu.cs).
 //
 // THE ORDER THESE ARRIVE IN IS THE WHOLE PROBLEM, and it was measured rather than assumed. A
 // double-click on a row raises, in this order:
@@ -80,16 +81,16 @@ public sealed partial class MailListView
     // thread it just expanded.
     private void OnRowDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
-        var opened = (e.OriginalSource as FrameworkElement)?.DataContext switch
+        var (opened, draft) = (e.OriginalSource as FrameworkElement)?.DataContext switch
         {
-            ThreadMessageItem message => MailboxModel.ThreadMessageHeader(message),
-            MailRow { IsThread: false } row => MailboxModel.RowHeader(row),
-            _ => null,
+            ThreadMessageItem message => (MailboxModel.ThreadMessageHeader(message), message.Draft),
+            MailRow { IsThread: false } row => (MailboxModel.RowHeader(row), row.Draft),
+            _ => ((OpenedMessage?)null, false),
         };
-        // In Drafts the first press has already resumed the draft into the composer, which is where
-        // a draft opens (docs/drafts.md) and which the pane cannot put back. A window as well would
-        // show the same draft a second time, read-only, beside the composer saving over it.
-        if (opened is null || Model?.ShowingDrafts == true)
+        // A draft's first press has already resumed it into the composer, which is where a draft
+        // opens (docs/drafts.md) and which the pane cannot put back. A window as well would show the
+        // same draft a second time, read-only, beside the composer saving over it.
+        if (opened is null || draft)
         {
             return;
         }
@@ -98,25 +99,6 @@ public sealed partial class MailListView
         // dispatcher turn later than it is asked for (MainWindow.ReadingWindows.cs).
         Model?.RestoreReadingPane(_paneBeforeClick);
         OpenInWindow(opened);
-    }
-
-    // The same thing as a named item on the row's context menu. A double-click cannot be reached
-    // from the keyboard or invoked by a screen reader, so the gesture is not the affordance: this
-    // item is, and it is what the capability matrix claims (docs/reading-window.md).
-    private void OnOpenInWindow(object sender, RoutedEventArgs e)
-    {
-        if (RowOf(sender) is { } row)
-        {
-            OpenInWindow(MailboxModel.RowHeader(row));
-        }
-    }
-
-    private void OnThreadMessageOpenInWindow(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.Tag is ThreadMessageItem message)
-        {
-            OpenInWindow(MailboxModel.ThreadMessageHeader(message));
-        }
     }
 
     // Nothing is asked about an unsent draft here, and nothing is closed: a window takes no column

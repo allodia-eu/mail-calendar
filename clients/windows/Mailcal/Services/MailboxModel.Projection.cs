@@ -160,6 +160,9 @@ public sealed partial class MailboxModel
         // to any in-flight request, so the view may ask for the next page once it scrolls again.
         _total = snapshot.Total;
         _loadMorePending = false;
+        // A flag or a read state the selection holds moves without the selection moving, and the
+        // bar names whichever half changes something.
+        RefreshSelectionBar();
 
         // The agenda and the grid reflect CALENDAR data, which a mail refresh never touches. Rebuilding
         // the full event list (a real diary is ~10k events) and reconciling it into the UI-bound
@@ -400,6 +403,7 @@ public sealed partial class MailboxModel
             FullDateText = TimeZones.LocalDateTime(flat.Row.Date, zone),
             Unread = flat.Row.Unread,
             Flagged = flat.Row.Flagged,
+            Draft = flat.Row.Draft,
             HasAttachment = flat.Row.HasAttachment,
             MessageCount = 1,
         },
@@ -419,6 +423,8 @@ public sealed partial class MailboxModel
             // A conversation is unread if anything in it is, the header is a summary, and the
             // unread dot and the bold weight both read off this.
             Unread = thread.Row.UnreadCount > 0,
+            // Flagged while anything on it is, which is when its menu offers Clear flag.
+            Flagged = thread.Row.Flagged,
             HasAttachment = thread.Row.HasAttachment,
             MessageCount = thread.Row.MessageCount,
             // The whole conversation as sub-rows the expanded thread reveals (newest first).
@@ -434,6 +440,7 @@ public sealed partial class MailboxModel
                 FullDateText = TimeZones.LocalDateTime(m.Date, zone),
                 PreviewText = m.Preview,
                 Unread = m.Unread,
+                Flagged = m.Flagged,
                 Outgoing = m.Outgoing,
                 Draft = m.Draft,
                 HasAttachment = m.HasAttachment,
@@ -450,6 +457,7 @@ public sealed partial class MailboxModel
     private static bool SameRow(MailRow a, MailRow b) =>
         a.IsThread == b.IsThread && a.Title == b.Title && a.Subtitle == b.Subtitle
         && a.DateText == b.DateText && a.Unread == b.Unread && a.Flagged == b.Flagged
+        && a.Draft == b.Draft
         && a.HasAttachment == b.HasAttachment
         && a.MessageCount == b.MessageCount
         && a.Avatar == b.Avatar

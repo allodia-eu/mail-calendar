@@ -1,6 +1,6 @@
 // The message list's multi-selection half of MailboxModel (split out to keep each file under the
-// 500-line limit): what is selected, what the bar over the list says, and the one batched intent
-// every one of its buttons dispatches. The selection itself lives in the ListView, which is what
+// 500-line limit): what is selected, what the bar over the list says (the core's row menu over the
+// selection, docs/row-actions.md), and the one batched intent every one of its buttons dispatches. The selection itself lives in the ListView, which is what
 // gives Ctrl/Shift-click, Ctrl+A and the narrator's own selected state (docs/list-selection.md);
 // this holds the projection the bar binds to and the rules the write follows.
 
@@ -45,23 +45,79 @@ public sealed partial class MailboxModel
             ? L10n.SelectionSelectedConversations(SelectionCount)
             : L10n.SelectionSelectedMessages(SelectionCount);
 
+    private SelectionBarActions _bar = SelectionBarActions.None;
+
+    /// <summary>
+    /// The bar's buttons as the core's menu over the selection decides them: which half of each
+    /// toggle is offered and which respond (docs/list-selection.md, rule 5).
+    /// </summary>
+    internal SelectionBarActions SelectionBar => _bar;
+
     /// <summary>
     /// The label on the bar's read button. One button for the pair, never both: the useful one is
-    /// whichever changes something, so any unread row makes it "Mark as read"
-    /// (docs/list-selection.md, rule 5).
+    /// whichever changes something, which the core answers.
     /// </summary>
     public string SelectionReadText =>
-        SelectionReadAction == BulkAction.MarkRead ? L10n.ActionMarkRead() : L10n.ActionMarkUnread();
+        _bar.ReadAction == BulkAction.MarkRead ? L10n.ActionMarkRead() : L10n.ActionMarkUnread();
 
     /// <summary>The label on the bar's flag button, on the same terms as the read one.</summary>
     public string SelectionFlagText =>
-        SelectionFlagAction == BulkAction.Flag ? L10n.ActionFlag() : L10n.ActionUnflag();
+        _bar.FlagAction == BulkAction.Flag ? L10n.ActionFlag() : L10n.ActionUnflag();
 
-    /// <summary>What the bar's read button dispatches, which is what its label says.</summary>
-    internal BulkAction SelectionReadAction => SelectionActions.Read(_selectedRows);
+    /// <summary>Whether the bar's read button responds.</summary>
+    public bool SelectionReadEnabled => _bar.Read.Enabled;
 
-    /// <summary>What the bar's flag button dispatches, which is what its label says.</summary>
-    internal BulkAction SelectionFlagAction => SelectionActions.Flag(_selectedRows);
+    /// <summary>Whether the bar's flag button responds.</summary>
+    public bool SelectionFlagEnabled => _bar.Flag.Enabled;
+
+    /// <summary>Whether the bar's Archive responds: disabled when it would move nothing.</summary>
+    public bool SelectionArchiveEnabled => _bar.Archive.Enabled;
+
+    /// <summary>Whether the bar's Move to Trash responds.</summary>
+    public bool SelectionDeleteEnabled => _bar.Delete.Enabled;
+
+    /// <summary>Whether the bar's Delete permanently responds.</summary>
+    public bool SelectionPermanentlyDeleteEnabled => _bar.PermanentlyDelete.Enabled;
+
+    /// <summary>
+    /// Re-reads the bar from the core. Run when the selection changes and when a snapshot lands,
+    /// since a flag or a read state the selection holds moves without the selection moving.
+    /// </summary>
+    private void RefreshSelectionBar()
+    {
+        var next = _selectedRows.IsEmpty
+            ? SelectionBarActions.None
+            : SelectionBarActions.Of(RowMenu(SelectionActions.Rows(_selectedRows)));
+        if (next == _bar)
+        {
+            return;
+        }
+        _bar = next;
+        Raise(nameof(SelectionReadText));
+        Raise(nameof(SelectionFlagText));
+        Raise(nameof(SelectionReadEnabled));
+        Raise(nameof(SelectionFlagEnabled));
+        Raise(nameof(SelectionArchiveEnabled));
+        Raise(nameof(SelectionDeleteEnabled));
+        Raise(nameof(SelectionPermanentlyDeleteEnabled));
+    }
+
+    /// <summary>
+    /// The menu over <paramref name="rows"/>, as the core decides it (docs/row-actions.md). Read
+    /// from the published snapshot without waiting, so it is asked for as a menu opens.
+    /// </summary>
+    internal RowMenu RowMenu(SelectedRow[] rows)
+    {
+        try
+        {
+            return _app?.RowMenu(rows) ?? new RowMenu([]);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"row menu failed: {ex.GetType().Name}");
+            return new RowMenu([]);
+        }
+    }
 
     /// <summary>
     /// Whether <paramref name="row"/> is one of the selected rows, which is what decides whether a
@@ -86,10 +142,26 @@ public sealed partial class MailboxModel
         Raise(nameof(HasSelection));
         Raise(nameof(SelectionPaneVisibility));
         Raise(nameof(SelectionPaneText));
-        Raise(nameof(SelectionReadText));
-        Raise(nameof(SelectionFlagText));
-        Raise(nameof(SelectionReadAction));
-        Raise(nameof(SelectionFlagAction));
+        RefreshSelectionBar();
+        FoldConversationsLeft();
+    }
+
+    /// <summary>
+    /// Folds every conversation the selection has left: one row picked keeps only that row
+    /// expanded (docs/row-actions.md, rule 8), even a conversation opened by its chevron.
+    /// </summary>
+    private void FoldConversationsLeft()
+    {
+        var kept = ConversationExpansion.Kept(_expandedThreads, _selectedRows.Select(row => row.Id).ToList());
+        if (kept.Count == _expandedThreads.Count)
+        {
+            return;
+        }
+        _expandedThreads.IntersectWith(kept);
+        foreach (var row in Rows.Where(row => row.IsExpanded && !kept.Contains(row.Id)))
+        {
+            row.IsExpanded = false;
+        }
     }
 
     /// <summary>
@@ -101,24 +173,29 @@ public sealed partial class MailboxModel
     /// the way a single-row archive is: the row it would advance to may be leaving in the same
     /// batch. Read/unread and flag take nothing out of a folder, so they leave the pane alone.
     /// </remarks>
-    internal void ActOnSelection(BulkAction action)
+    internal void ActOnSelection(BulkAction action) => ActOnRows(_selectedRows, action);
+
+    /// <summary>
+    /// The same batch over <paramref name="rows"/>, which a row menu opened outside the selection
+    /// is about (docs/list-selection.md, rule 12).
+    /// </summary>
+    internal void ActOnRows(IReadOnlyList<MailRow> rows, BulkAction action)
     {
-        if (_selectedRows.IsEmpty)
+        if (rows.Count == 0)
         {
             return;
         }
-        var rows = SelectionActions.Rows(_selectedRows);
-        var closesReading = SelectionActions.Removes(action) && SelectionHoldsOpenMessage();
-        _app?.Dispatch(new Intent.ActOnSelection(rows, action));
+        var closesReading = SelectionActions.Removes(action) && HoldsOpenMessage(rows);
+        _app?.Dispatch(new Intent.ActOnSelection(SelectionActions.Rows(rows), action));
         if (closesReading)
         {
             CloseReading();
         }
     }
 
-    private bool SelectionHoldsOpenMessage() =>
+    private bool HoldsOpenMessage(IReadOnlyList<MailRow> rows) =>
         OpenedMessage is { } opened
-        && _selectedRows.Any(row => row.IsThread
+        && rows.Any(row => row.IsThread
             ? row.Messages.Any(m => m.Account == opened.Account && m.Key == opened.Key)
             : row.Account == opened.Account && row.Key == opened.Key);
 }

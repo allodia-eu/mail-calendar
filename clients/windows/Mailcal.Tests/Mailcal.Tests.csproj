@@ -181,11 +181,16 @@
     <!-- Which page a message is drawn on (docs/reading-dark-mode.md). WinUI-free so the rule is
          pinned here; the reading view feeds it its own ActualTheme and the core's preference. -->
     <Compile Include="..\Mailcal\Services\MessageSchemes.cs" Link="Services\MessageSchemes.cs" />
-    <!-- What the message list's multi-selection means (docs/list-selection.md): which of the
-         paired actions its bar offers, and what a conversation row becomes when the batch goes to
-         the core. WinUI-free on purpose; both rules fail silently in the running app, a button
-         offering the action that changes nothing, and a conversation archived as one reply. -->
+    <!-- What the message list's multi-selection means (docs/list-selection.md): which rows a
+         menu acts on, and what a conversation row becomes when the batch goes to the core.
+         WinUI-free on purpose; a conversation sent as one reply archives that reply alone, which
+         fails silently in the running app. -->
     <Compile Include="..\Mailcal\Services\SelectionActions.cs" Link="Services\SelectionActions.cs" />
+    <!-- The core's row menu as Windows draws it (docs/row-actions.md): the bar read off the same
+         answer, the batch an item runs, and which conversation stays expanded. WinUI-free for the
+         reason SelectionActions is: a bar naming the wrong half of a toggle, or a conversation left
+         open after the user moved on, fails silently in the running app. -->
+    <Compile Include="..\Mailcal\Services\RowMenuPresentation.cs" Link="Services\RowMenuPresentation.cs" />
     <!-- Which row the list highlights for the message in the reading pane, the other half of the
          auto-advance. Pure BCL for the same reason: the view re-runs this rule on every open and
          every snapshot reconcile, and a hand test cannot see the reconcile case at all. -->

@@ -68,9 +68,9 @@ public sealed partial class MailListView : UserControl
     /// The read or flag toggle, whichever the button currently says, so a click runs the action
     /// the user read on it.
     /// </summary>
-    internal void ToggleSelectionRead() => Model?.ActOnSelection(Model.SelectionReadAction);
+    internal void ToggleSelectionRead() => Model?.ActOnSelection(Model.SelectionBar.ReadAction);
 
-    internal void ToggleSelectionFlag() => Model?.ActOnSelection(Model.SelectionFlagAction);
+    internal void ToggleSelectionFlag() => Model?.ActOnSelection(Model.SelectionBar.FlagAction);
 
     /// <summary>
     /// The one irreversible action on the bar, so it asks first, exactly as the row menu's does,
