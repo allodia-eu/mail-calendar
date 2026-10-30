@@ -29,7 +29,7 @@ extension ContentView {
     /// the way out (Mailcal.ComposeDraft.swift). On iPhone/iPad it just runs the open.
     func open(_ message: FlatRow) {
         openGuardingDraft {
-            resumeOrRead(message.account, message.key) { openNow(message) }
+            resumeOrRead(message.account, message.key, draft: message.draft) { openNow(message) }
         }
     }
 
@@ -37,11 +37,10 @@ extension ContentView {
         openNow(opened(message))
     }
 
-    /// Opens a Drafts-folder row back into its composer, and every other row for reading.
+    /// Opens a draft back into its composer, and every other message for reading.
     ///
-    /// Told by the **folder**, not by the row: the core answers per message but the list does not
-    /// carry it, so a draft met in a search result or in another folder's thread opens read-only
-    /// (`docs/drafts.md`, known gaps).
+    /// Told by the **row**, never by the folder, so a draft met in a search result or in a
+    /// conversation shown from another folder resumes as one in Drafts does (`docs/drafts.md`).
     ///
     /// Resuming is a round trip: a draft is opened from a list row, so the first open of one
     /// fetches it. The composer appears when the answer does. A draft that could not be opened is
@@ -50,9 +49,10 @@ extension ContentView {
     private func resumeOrRead(
         _ account: String,
         _ key: String,
+        draft: Bool,
         otherwise read: @escaping () -> Void
     ) {
-        guard model.showingDrafts else {
+        guard draft else {
             read()
             return
         }
@@ -62,30 +62,35 @@ extension ContentView {
     /// Opens a conversation: expands the thread inline in the list (its messages become rows of
     /// their own) and opens its newest message in the reading pane, whatever its kind: a Sent
     /// reply filed elsewhere or a draft included (`docs/row-actions.md`, rules 2 and 8). In Drafts
-    /// it is the newest draft (`latestKey`, the one the row summarises), which opens back into its
-    /// composer as a flat row's does.
+    /// it is the newest draft (`latestKey`, the one the row summarises). A draft opens back into
+    /// its composer wherever it is, as a flat row's does.
     ///
     /// The whole thing goes through the handover, expansion included, so a thread opened beside a
     /// composer replaces it like any other open.
     func open(_ thread: ThreadRow) {
         openGuardingDraft {
             expandedThreads.insert(threadKey(thread))
-            let summarised = thread.messages.first(where: { $0.key == thread.latestKey })
-            let representative = model.showingDrafts
-                ? summarised ?? thread.messages.first : thread.messages.first
-            if let representative {
-                resumeOrRead(representative.account, representative.key) {
+            if let representative = representative(of: thread) {
+                resumeOrRead(
+                    representative.account, representative.key, draft: representative.draft
+                ) {
                     openThreadMessageNow(thread, representative)
                 }
             }
         }
     }
 
+    /// The message selecting `thread` opens: its newest, or in Drafts the newest draft.
+    func representative(of thread: ThreadRow) -> ThreadMessage? {
+        guard model.showingDrafts else { return thread.messages.first }
+        return thread.messages.first(where: { $0.key == thread.latestKey }) ?? thread.messages.first
+    }
+
     /// Opens one message of a conversation (a sub-row) in the reading pane, or back into its
-    /// composer when the conversation is being shown in Drafts.
+    /// composer when it is a draft.
     func openThreadMessage(_ thread: ThreadRow, _ message: ThreadMessage) {
         openGuardingDraft {
-            resumeOrRead(message.account, message.key) {
+            resumeOrRead(message.account, message.key, draft: message.draft) {
                 openThreadMessageNow(thread, message)
             }
         }

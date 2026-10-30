@@ -110,7 +110,7 @@ extension ContentView {
         .onChange(of: listEntries.map(\.id)) { _, _ in pruneSelection() }
         .onChange(of: openedMessage) { _, opened in followOpenedMessage(opened) }
         .onChange(of: compose == nil) { _, closed in
-            // A Drafts row opens a composer rather than the pane, so nothing else lets go of the
+            // A draft opens a composer rather than the pane, so nothing else lets go of the
             // row when the composer closes, and picking the same row again would change nothing.
             if closed, openedMessage == nil, selection.count == 1 { selection.clear() }
         }
@@ -139,13 +139,14 @@ extension ContentView {
     }
 
     /// Opens what `key` names, unless the pane already shows it, and answers whether the pane took
-    /// it. A Drafts row opens a composer instead, which nothing can put back, so it answers no.
+    /// it. A draft opens a composer instead, which nothing can put back, so it answers no.
     @discardableResult
     private func openEntry(_ key: SelectionKey) -> Bool {
         switch listEntries.first(where: { $0.key == key }) {
         case .row(.flat(let message)):
             guard !isOpenMessage(message.account, message.key) else { return false }
             open(message)
+            return !message.draft
         case .row(.thread(let thread)):
             guard !threadHoldsOpenMessage(thread) else {
                 // Already the one being read, folded by its chevron: picking it opens it again.
@@ -153,13 +154,14 @@ extension ContentView {
                 return false
             }
             open(thread)
+            return representative(of: thread)?.draft == false
         case .member(let thread, let message):
             guard !isOpenMessage(message.account, message.key) else { return false }
             openThreadMessage(thread, message)
+            return !message.draft
         case nil:
             return false
         }
-        return !model.showingDrafts
     }
 
     /// Keeps the selection on the message the pane shows when something other than a click
