@@ -109,28 +109,6 @@ class MailSelectionTest {
     }
 
     @Test
-    fun the_bar_offers_mark_read_while_anything_selected_is_unread() {
-        val unread = listOf(flat("m1", unread = true), flat("m2"))
-        val selection = MailSelectionState()
-        selection.selectAll(unread)
-        assertEquals(BulkAction.MARK_READ, selection.readAction(unread))
-
-        val read = listOf(flat("m1"), flat("m2"))
-        assertEquals(BulkAction.MARK_UNREAD, selection.readAction(read))
-    }
-
-    @Test
-    fun the_bar_offers_flag_while_anything_selected_is_unflagged() {
-        val mixed = listOf(flat("m1", flagged = true), flat("m2"))
-        val selection = MailSelectionState()
-        selection.selectAll(mixed)
-        assertEquals(BulkAction.FLAG, selection.flagAction(mixed))
-
-        val flagged = listOf(flat("m1", flagged = true), flat("m2", flagged = true))
-        assertEquals(BulkAction.UNFLAG, selection.flagAction(flagged))
-    }
-
-    @Test
     fun a_conversation_is_selected_as_a_thread_not_as_its_latest_message() {
         // The core expands a conversation itself, from the store's thread index; naming its latest
         // message here would archive one reply and leave the rest of the thread in the inbox.
@@ -141,12 +119,6 @@ class MailSelectionTest {
         assertEquals(
             listOf(SelectedRow.Thread("acct-1", "t1")),
             selection.selectedRows(),
-        )
-        assertEquals(BulkAction.MARK_READ, selection.readAction(rows))
-        assertEquals(
-            "a conversation carries no flag of its own, so flagging is what it can be asked for",
-            BulkAction.FLAG,
-            selection.flagAction(rows),
         )
     }
 

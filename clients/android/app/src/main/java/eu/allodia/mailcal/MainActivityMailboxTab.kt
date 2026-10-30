@@ -355,39 +355,23 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             // grows the window (guarded) and the core re-projects the next page.
                             onShowMore = { showMore() },
                             // Tapping a message opens its reading view (body fetched + sanitised
-                            // by the core).
-                            onOpen = { opened -> openOrResume(instance, opened) },
-                            // Tapping a conversation opens its latest message; the reading screen
-                            // shows the older messages as a strip that opens each on tap.
+                            // by the core), or a draft's composer.
+                            onOpen = { opened, draft -> openOrResume(instance, opened, draft) },
+                            // Tapping a conversation opens its newest message; the reading screen
+                            // shows the others as a strip that opens each on tap.
                             onOpenThread = { thread -> openOrResumeThread(instance, thread) },
-                            // Per-message mail actions, dispatched as intents through the FFI.
-                            onSetRead = { account, key, read -> instance.dispatch(Intent.MarkRead(account, key, read)) },
+                            // What a swipe runs, dispatched as intents through the FFI.
                             onSetFlagged = { account, key, flagged ->
                                 instance.dispatch(Intent.SetFlagged(account, key, flagged))
                             },
                             onDelete = { account, key -> instance.dispatch(Intent.Delete(account, key)) },
-                            onPermanentlyDelete = { account, key ->
-                                instance.dispatch(Intent.PermanentlyDelete(account, key))
-                            },
-                            // Derive whether the current folder is the Junk/Spam folder, used to
-                            // show "Mark as Not Spam" instead of "Mark as Spam" in the overflow.
-                            inJunkFolder = accountFolders
-                                .firstOrNull { it.accountId == selectedAccount }
-                                ?.folders
-                                ?.firstOrNull { it.key == selectedFolder }
-                                ?.role == uniffi.mailcal_bindings.FolderRole.JUNK,
-                            onMarkAsSpam = { account, key ->
-                                instance.dispatch(Intent.MarkAsSpam(account, key))
-                            },
-                            onMarkAsNotSpam = { account, key ->
-                                instance.dispatch(Intent.MarkAsNotSpam(account, key))
-                            },
                             onActOnSelection = { rows, action ->
                                 instance.dispatch(Intent.ActOnSelection(rows, action))
                             },
-                            // Reply, reply all and forward open the one composer every route
-                            // opens, on the message the row names (MainActivityComposer.kt).
                             onCompose = { origin -> openComposer(instance, origin) },
+                            // A row's menu is the core's, asked as it opens (docs/row-actions.md).
+                            rowMenu = { rows -> instance.rowMenu(rows) },
+                            onRowPick = { pick -> performRowPick(instance, pick) },
                             messageFiling = MessageFiling.of(instance, this@MailboxTabContent),
                             // Swipe actions (per direction) + the archive intent a swipe may run;
                             // both come from the core, which persists the choice.

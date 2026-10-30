@@ -150,7 +150,7 @@ private fun treeTargets(
 // than the app object so a test can hand the row fakes.
 internal class MessageFiling(
     val targets: (account: String) -> List<MoveTarget>,
-    val move: (account: String, key: String, folder: String) -> Unit,
+    val move: (rows: List<SelectedRow>, account: String, folder: String) -> Unit,
 ) {
     companion object {
         // Reads the activity's folders when the menu opens, so the list is the one on screen.
@@ -160,8 +160,7 @@ internal class MessageFiling(
                 val showing = activity.selectedFolder.takeIf { activity.selectedAccount == account }
                 messageTargets(rows.orEmpty(), showing, activity)
             },
-            move = { account, key, folder ->
-                val rows = listOf(SelectedRow.Message(account, key))
+            move = { rows, account, folder ->
                 app.dispatch(Intent.Folders(FolderIntent.MoveMessages(rows, account, folder)))
             },
         )
