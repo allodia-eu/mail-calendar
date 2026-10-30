@@ -30,7 +30,6 @@ class AvatarSurfacesTest {
                     SwipeableFlatMessageRow(
                         message = flatRow(),
                         activeZoneId = "Europe/Amsterdam",
-                        inJunkFolder = false,
                         swipe = SwipeSettings(
                             left = SwipeActionKind.ARCHIVE,
                             right = SwipeActionKind.DELETE,
@@ -39,14 +38,7 @@ class AvatarSurfacesTest {
                         selected = false,
                         selecting = false,
                         onToggleSelect = {},
-                        onOpen = {},
-                        onSetRead = { _, _, _ -> },
-                        onSetFlagged = { _, _, _ -> },
-                        onDelete = { _, _ -> },
-                        onPermanentlyDelete = { _, _ -> },
-                        onMarkAsSpam = { _, _ -> },
-                        onMarkAsNotSpam = { _, _ -> },
-                        onCompose = {},
+                        onOpen = { _, _ -> },
                     )
                 }
             }
@@ -90,7 +82,7 @@ class AvatarSurfacesTest {
                     focusedKey = focused.key,
                     subject = "A conversation",
                     activeZoneId = "Europe/Amsterdam",
-                    onOpen = {},
+                    onOpen = { _, _ -> },
                 )
             }
         }

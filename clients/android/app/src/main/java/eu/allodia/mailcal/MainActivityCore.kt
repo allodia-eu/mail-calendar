@@ -330,25 +330,17 @@ internal fun MainActivity.openMessage(
     app.dispatch(Intent.OpenMessage(opened.account, opened.key))
 }
 
-// Opens a conversation from the list: focuses its latest message (received or sent) in the
-// reading screen and carries the whole thread so the older messages show as a collapsed strip
-// that opens each on tap (Gmail/Outlook-mobile style). Only real multi-message conversations
-// reach here, the core projects a lone message as a flat row, opened via `openMessage`.
-internal fun MainActivity.openThread(app: MailcalApp, thread: ThreadRow) {
-    openMessage(app, threadHead(thread), thread.messages)
-}
-
-// The message a tap on a conversation row opens: its latest, the one the row summarises. Its own
-// function because the Drafts folder opens that message into a composer instead (docs/drafts.md),
-// and two answers to "which message is this row" would drift.
-internal fun MainActivity.threadHead(thread: ThreadRow): OpenedMessage = OpenedMessage(
-    account = thread.account,
-    key = thread.latestKey,
-    subject = thread.subject,
-    from = thread.latestFrom,
-    avatar = thread.avatar,
-    date = localDateTime(thread.latestDate, timeZone?.active, uses24HourClock()),
-)
+// The message a tap on a conversation row opens, `head` ([ListedOpening.head]), under the
+// conversation's subject; the row's own summary when the conversation carries no messages.
+internal fun MainActivity.threadHead(thread: ThreadRow, head: ThreadMessage?): OpenedMessage =
+    OpenedMessage(
+        account = head?.account ?: thread.account,
+        key = head?.key ?: thread.latestKey,
+        subject = thread.subject,
+        from = head?.from ?: thread.latestFrom,
+        avatar = head?.avatar ?: thread.avatar,
+        date = localDateTime(head?.date ?: thread.latestDate, timeZone?.active, uses24HourClock()),
+    )
 
 // Watches the device's default network and forwards each change to the core
 // (ReportNetworkReachable): offline stops it attempting syncs (and raises the banner), online

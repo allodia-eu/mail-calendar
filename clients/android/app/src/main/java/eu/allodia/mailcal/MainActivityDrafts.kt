@@ -131,11 +131,10 @@ internal class DraftUiState {
 }
 
 /**
- * Opens a Drafts-folder row back into its composer, and every other row for reading.
+ * Opens a draft back into its composer, and every other message for reading.
  *
- * Told by the **folder**, not by the row: the core answers per message but the list does not carry
- * it, so a draft met in a search result or inside a thread opens read-only (`docs/drafts.md`,
- * known gaps).
+ * Told by the **row** ([draft]), never by the folder, so a draft met in a search result or inside a
+ * conversation shown from another folder resumes as one in Drafts does (`docs/drafts.md`).
  *
  * A draft that could not be opened is **said**, and the message opens for reading instead: a
  * composer opened without the draft's content would replace it with what was on screen the next
@@ -144,9 +143,10 @@ internal class DraftUiState {
 internal fun MainActivity.openOrResume(
     instance: MailcalApp,
     opened: OpenedMessage,
+    draft: Boolean,
     conversation: List<ThreadMessage>? = null,
 ) {
-    if (!drafts.showingDrafts) {
+    if (!draft) {
         openMessage(instance, opened, conversation)
         return
     }
@@ -157,15 +157,13 @@ internal fun MainActivity.openOrResume(
 }
 
 /**
- * The conversation half of [openOrResume]: a thread row in the Drafts folder opens its latest
- * message back into its composer, exactly as a flat row does.
+ * The conversation half of [openOrResume]: a conversation row opens its newest message, or in
+ * Drafts the newest draft ([ListedOpening.head]), back into its composer when that is a draft,
+ * exactly as a flat row does. The folder decides only which message that is.
  */
 internal fun MainActivity.openOrResumeThread(instance: MailcalApp, thread: ThreadRow) {
-    if (!drafts.showingDrafts) {
-        openThread(instance, thread)
-        return
-    }
-    openOrResume(instance, threadHead(thread), thread.messages)
+    val head = ListedOpening.head(thread, drafts.showingDrafts)
+    openOrResume(instance, threadHead(thread, head), head?.draft == true, thread.messages)
 }
 
 /**

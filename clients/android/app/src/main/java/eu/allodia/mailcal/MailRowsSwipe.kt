@@ -24,7 +24,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.FlatRow
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
@@ -46,22 +45,13 @@ private const val SWIPE_COMMIT_FRACTION = 0.4f
 internal fun SwipeableFlatMessageRow(
     message: FlatRow,
     activeZoneId: String?,
-    inJunkFolder: Boolean,
     swipe: SwipeSettings,
     onSwipe: (account: String, key: String, action: SwipeActionKind) -> Unit,
     selected: Boolean,
     selecting: Boolean,
     onToggleSelect: () -> Unit,
-    onOpen: (OpenedMessage) -> Unit,
-    onSetRead: (account: String, key: String, read: Boolean) -> Unit,
-    onSetFlagged: (account: String, key: String, flagged: Boolean) -> Unit,
-    onDelete: (account: String, key: String) -> Unit,
-    onPermanentlyDelete: (account: String, key: String) -> Unit,
-    onMarkAsSpam: (account: String, key: String) -> Unit,
-    onMarkAsNotSpam: (account: String, key: String) -> Unit,
-    // Opens the composer on a reply, a reply to all or a forward of this row's message.
-    onCompose: (ComposeOrigin) -> Unit,
-    messageFiling: MessageFiling? = null,
+    onOpen: (opened: OpenedMessage, draft: Boolean) -> Unit,
+    menus: RowMenus = RowMenus.NONE,
 ) {
     // `onDismiss` is remembered once (see below), so reading `swipe`/`onSwipe`/`message` directly
     // would pin whatever they were at first composition. Today the Settings screen unmounts this
@@ -124,19 +114,11 @@ internal fun SwipeableFlatMessageRow(
         FlatMessageRow(
             message = message,
             activeZoneId = activeZoneId,
-            inJunkFolder = inJunkFolder,
             selected = selected,
             selecting = selecting,
             onToggleSelect = onToggleSelect,
             onOpen = onOpen,
-            onSetRead = onSetRead,
-            onSetFlagged = onSetFlagged,
-            onDelete = onDelete,
-            onPermanentlyDelete = onPermanentlyDelete,
-            onMarkAsSpam = onMarkAsSpam,
-            onMarkAsNotSpam = onMarkAsNotSpam,
-            onCompose = onCompose,
-            messageFiling = messageFiling,
+            menus = menus,
         )
     }
 }

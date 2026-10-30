@@ -26,13 +26,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import uniffi.mailcal_bindings.SelectedRow
 import uniffi.mailcal_bindings.ThreadRow
 
 // A conversation row: a header (subject, message count, latest sender). Tapping it opens the
-// conversation's latest message (received or sent) in the reading screen, where the older
-// messages sit as a collapsed strip that opens each on tap (Gmail/Outlook-mobile style), rather
-// than expanding inline in the list. Long-press the header to archive the conversation. Only real
-// multi-message conversations reach here: the core projects a lone message as a flat row.
+// conversation's newest message in the reading screen, where the others sit as a collapsed strip
+// that opens each on tap (Gmail/Outlook-mobile style), rather than expanding inline in the list.
+// Its ⋮ menu offers what a message's does (docs/row-actions.md). Only real multi-message
+// conversations reach here: the core projects a lone message as a flat row.
 @OptIn(ExperimentalFoundationApi::class)
 @androidx.compose.runtime.Composable
 internal fun ThreadConversationRow(
@@ -44,6 +45,7 @@ internal fun ThreadConversationRow(
     selecting: Boolean,
     onToggleSelect: () -> Unit,
     onOpenThread: () -> Unit,
+    menus: RowMenus = RowMenus.NONE,
 ) {
     val ctx = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -57,14 +59,12 @@ internal fun ThreadConversationRow(
                         MaterialTheme.colorScheme.surface
                     },
                 )
-                // Long press selects the conversation, as it does on a flat row. It used to open a
-                // one-item "Archive conversation" menu; the selection bar offers that action over
-                // the same rows and five more beside it, so the menu had nothing left of its own.
+                // Long press selects the conversation, as it does on a flat row.
                 .combinedClickable(
                     onClick = { if (selecting) onToggleSelect() else onOpenThread() },
                     onLongClick = onToggleSelect,
                 )
-                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.Top,
         ) {
             // The latest sender is who the row names. The count badge already marks a conversation;
@@ -86,6 +86,16 @@ internal fun ThreadConversationRow(
                     if (thread.messageCount > 1u) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Badge { Text("${thread.messageCount}") }
+                    }
+                    // Flagged while anything on it is, which is when its menu offers Unflag.
+                    if (thread.flagged) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            painter = painterResource(R.drawable.ic_star),
+                            contentDescription = L10n.a11y_flagged(ctx),
+                            tint = FlaggedAmber,
+                            modifier = Modifier.size(15.dp),
+                        )
                     }
                     // A paperclip when any message in the conversation has an attachment (matching
                     // macOS/Windows thread rows).
@@ -118,6 +128,11 @@ internal fun ThreadConversationRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            RowMenuButton(
+                row = SelectedRow.Thread(thread.account, thread.threadId),
+                account = thread.account,
+                menus = menus,
+            )
         }
     }
 }
