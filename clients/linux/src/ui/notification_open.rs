@@ -152,6 +152,7 @@ mod tests {
                 latest_date: "09:15".to_owned(),
                 message_count: u32::try_from(keys.len()).unwrap_or(u32::MAX),
                 unread_count: 1,
+                flagged: false,
                 has_attachment: false,
                 preview: String::new(),
                 messages: keys
@@ -164,6 +165,7 @@ mod tests {
                         date: "09:15".to_owned(),
                         preview: String::new(),
                         unread: true,
+                        flagged: false,
                         outgoing: false,
                         has_attachment: false,
                         draft: false,

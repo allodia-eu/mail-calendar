@@ -428,6 +428,10 @@ pub struct ThreadRow {
     pub message_count: u32,
     /// How many of the messages it received are unread; the owner's own are not counted.
     pub unread_count: u32,
+    /// Whether any message in the conversation is flagged, which is when its row menu offers to
+    /// clear the flag.
+    #[uniffi(default = false)]
+    pub flagged: bool,
     /// Whether any message in the conversation has a non-inline attachment.
     pub has_attachment: bool,
     /// A short preview snippet of the representative message's body (empty if none), for a
@@ -461,6 +465,9 @@ pub struct ThreadMessage {
     pub preview: String,
     /// Whether the message is unread.
     pub unread: bool,
+    /// Whether the message is flagged.
+    #[uniffi(default = false)]
+    pub flagged: bool,
     /// Whether the account owner sent this message (drives the "Sent" badge). Never a draft.
     pub outgoing: bool,
     /// Whether the message is a draft, written but not sent (drives the "Draft" badge).

@@ -337,6 +337,7 @@ fn thread_row(account: String, thread_id: String, deduped: &[&AccountMessage]) -
                 .count(),
         )
         .unwrap_or(u32::MAX),
+        flagged: deduped.iter().any(|m| m.row.mail.flags.flagged()),
         has_attachment: deduped.iter().any(|m| m.row.mail.has_attachment),
         preview: row.preview.clone().unwrap_or_default(),
         messages: deduped.iter().map(|item| thread_message(item)).collect(),

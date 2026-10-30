@@ -243,10 +243,34 @@ fn an_older_flag_makes_the_conversation_offer_unflag_over_the_rows() {
         marked("r1", "inbox", 0, "t", MessageKind::Received, "f"),
         mail("r2", "inbox", 20, "t", MessageKind::Received),
     ];
-    let menu = row_menu(&threaded(&messages), &[thread("t")], false);
+    let snapshot = threaded(&messages);
+    let menu = row_menu(&snapshot, &[thread("t")], false);
     assert!(enabled(&menu, RowAction::Unflag));
     assert_eq!(find(&menu, RowAction::Unflag).target, None);
     assert!(!has(&menu, RowAction::Flag));
+
+    // The row shows the flag the menu offers to clear, though its newest message has none.
+    let SnapshotRow::Thread(row) = &snapshot.rows[0] else {
+        panic!("expected a conversation row");
+    };
+    assert!(row.flagged);
+    assert_eq!(
+        row.messages.iter().map(|m| m.flagged).collect::<Vec<_>>(),
+        [false, true]
+    );
+}
+
+#[test]
+fn an_unflagged_conversation_shows_no_flag_and_offers_flag() {
+    let snapshot = threaded(&latest_received());
+    let SnapshotRow::Thread(row) = &snapshot.rows[0] else {
+        panic!("expected a conversation row");
+    };
+    assert!(!row.flagged);
+    assert!(has(
+        &row_menu(&snapshot, &[thread("t")], false),
+        RowAction::Flag
+    ));
 }
 
 #[test]

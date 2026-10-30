@@ -274,6 +274,7 @@ mod tests {
                 latest_date: "2026-07-19".to_owned(),
                 message_count: 2,
                 unread_count: 0,
+                flagged: false,
                 has_attachment: true,
                 preview: String::new(),
                 messages: Vec::new(),

@@ -304,6 +304,9 @@ pub struct ThreadRow {
     /// How many of the messages it received are unread. The owner's own messages are not
     /// counted: marking the conversation read does not reach them (`docs/row-actions.md`).
     pub unread_count: u32,
+    /// Whether any message in the conversation is flagged, which is when its row menu offers
+    /// to clear the flag (`docs/row-actions.md`).
+    pub flagged: bool,
     /// Whether any message in the conversation has a non-inline attachment.
     pub has_attachment: bool,
     /// A short preview snippet of the representative message's body (empty if none), for a

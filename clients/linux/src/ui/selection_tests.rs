@@ -38,6 +38,7 @@ fn thread(id: &str, unread_count: u32) -> SnapshotRow {
             latest_date: "2026-07-20".to_owned(),
             message_count: 3,
             unread_count,
+            flagged: false,
             has_attachment: false,
             preview: String::new(),
             messages: Vec::new(),

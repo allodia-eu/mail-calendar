@@ -48,7 +48,9 @@ user should never have to expand a conversation to do something to it.
    state anyone asked about, and marking a Sent copy unread would bold a row for mail nobody has to
    read. A conversation's unread count follows the same line, so a Sent copy another client filed
    unread never bolds a row that nothing on it can clear. Unflag reaches every flagged member, so nothing stays flagged behind a collapsed row and
-   the row's label turns back to Flag.
+   the row's label turns back to Flag. A conversation row draws a flag while any message on it is
+   flagged (`ThreadRow.flagged`), which is exactly when its menu offers Unflag, and each message
+   inside it draws its own.
 
 4. **A conversation's move leaves Sent copies and drafts where they are.** A copy filed in Sent
    stays in Sent, so a conversation reopened from wherever it went still shows both sides. A draft
@@ -102,6 +104,7 @@ user should never have to expand a conversation to do something to it.
 | A conversation row's menu offers every message action (rule 3) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | A message inside a conversation offers its own full menu (rule 5) | ⬜ | ⬜ | ⬜ | n/a: no in-list expansion | ⬜ |
 | One conversation expanded, folding as the selection leaves it (rule 8) | ⬜ | ⬜ | ⬜ | n/a: a screen of its own | ⬜ |
+| A conversation row, and each message in it, draws its flag (rule 3) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The batch reaches what rules 3 and 4 say | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The last row is the core's, and every client already dispatches into it.
