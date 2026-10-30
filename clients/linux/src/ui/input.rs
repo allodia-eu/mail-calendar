@@ -4,7 +4,8 @@ use std::path::PathBuf;
 
 use mailcal_bindings::{
     AccountCapability, AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget,
-    DetectedSetup, ImapAuthOffer, Intent, MailtoPrefill, SearchScope, SharePrefill, Surface,
+    DetectedSetup, ImapAuthOffer, Intent, MailtoPrefill, SearchScope, SelectedRow, SharePrefill,
+    Surface,
 };
 
 use super::{
@@ -21,13 +22,14 @@ use super::{
     imap_signin::{ImapOutcome, ImapPrepared},
     invitation::InvitationAnswer,
     jmap::{JmapOutcome, JmapPrepared, JmapReauthOutcome, JmapReauthPrepared},
-    mail_actions::{ActionKind, MailActionRequest, MessageTarget},
+    mail_actions::{ActionKind, MailActionRequest},
     mailbox::ThreadKey,
     microsoft::MicrosoftOutcome,
     model::OpenedMessage,
     notifications::NotificationTarget,
     outbox::{QueuedAction, QueuedTarget},
     reader::{ComposerHost, ReadingSource},
+    row_menu::RowPick,
     selection::SelectMode,
     setup_model::{AccountSubmission, ImapForm, ManualForm},
 };
@@ -100,7 +102,17 @@ pub(crate) enum AppInput {
     SetSearchScope(SearchScope),
     /// The horizon line's route to the setting that decides how far back a search can reach.
     OpenSyncDepthSettings,
-    OpenThreadMessage(Box<OpenedMessage>),
+    /// Open a message from its list row: a draft resumes in a composer, told by the row's own
+    /// `draft` wherever it is listed (`docs/drafts.md`).
+    OpenListedMessage {
+        message: Box<OpenedMessage>,
+        draft: bool,
+    },
+    /// Open a conversation: expand it and open its newest message (`docs/row-actions.md`,
+    /// rule 8).
+    OpenConversation(ThreadKey),
+    /// An item picked on a row's menu.
+    RowMenuPick(Box<RowPick>),
     /// Open one message in a window of its own: a double-click on its row, or the named item on
     /// the row's menu (`docs/reading-window.md`). Opening a row whose window is already up brings
     /// that window forward rather than raising a second one on the same mail.
@@ -132,17 +144,17 @@ pub(crate) enum AppInput {
     /// Run one action the user has already confirmed. Emitted only by the permanent-delete
     /// confirmation, so a pending dialog can never be mistaken for consent.
     PerformSelectionAction(BulkAction),
+    /// The same, over the rows a row's menu was opened on rather than the selection.
+    PerformRowsAction {
+        rows: Vec<SelectedRow>,
+        action: BulkAction,
+    },
     PerformMailAction(Box<MailActionRequest>),
     PerformOpenedMailAction {
         source: ReadingSource,
         action: ActionKind,
     },
-    RequestPermanentDelete(MessageTarget),
     DismissPermanentDelete,
-    ArchiveThread {
-        account: String,
-        thread_id: String,
-    },
     ActivateSidebar(SidebarTarget),
     SetAccountExpanded {
         account: String,

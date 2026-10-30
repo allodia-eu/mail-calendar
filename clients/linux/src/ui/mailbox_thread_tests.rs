@@ -18,7 +18,13 @@ use super::{
 };
 use crate::ui::{AppInput, model::empty_mailbox};
 
-fn message(key: &str, from: &str, preview: &str, unread: bool, outgoing: bool) -> ThreadMessage {
+pub(super) fn message(
+    key: &str,
+    from: &str,
+    preview: &str,
+    unread: bool,
+    outgoing: bool,
+) -> ThreadMessage {
     ThreadMessage {
         avatar: crate::ui::model::blank_avatar(),
         account: "fixture".to_owned(),
@@ -34,7 +40,7 @@ fn message(key: &str, from: &str, preview: &str, unread: bool, outgoing: bool) -
     }
 }
 
-fn thread(subject: &str, messages: Vec<ThreadMessage>) -> ThreadRow {
+pub(super) fn thread(subject: &str, messages: Vec<ThreadMessage>) -> ThreadRow {
     let unread_count = u32::try_from(messages.iter().filter(|message| message.unread).count())
         .expect("a fixture thread is small");
     ThreadRow {
@@ -54,7 +60,7 @@ fn thread(subject: &str, messages: Vec<ThreadMessage>) -> ThreadRow {
     }
 }
 
-fn snapshot(rows: Vec<SnapshotRow>) -> MailboxListSnapshot {
+pub(super) fn snapshot(rows: Vec<SnapshotRow>) -> MailboxListSnapshot {
     MailboxListSnapshot {
         accounts: vec![AccountRow {
             id: "fixture".to_owned(),
@@ -101,7 +107,7 @@ fn weight_of(root: &gtk::Widget, text: &str) -> Weight {
 }
 
 /// A list in a presented window, so GTK resolves each row's style against the real display.
-fn rendered(
+pub(super) fn rendered(
     snapshot: &MailboxListSnapshot,
     expanded: &[ThreadKey],
 ) -> (
@@ -116,7 +122,6 @@ fn rendered(
         &[],
         snapshot,
         &expanded.iter().cloned().collect(),
-        false,
         "UTC",
         &sender,
     );
@@ -129,13 +134,20 @@ fn rendered(
 
 /// Everything the rows have reported, read behind a sentinel so a missing report fails the test
 /// rather than blocking it.
-fn reported(sender: &relm4::Sender<AppInput>, receiver: &relm4::Receiver<AppInput>) -> Vec<String> {
+pub(super) fn reported(
+    sender: &relm4::Sender<AppInput>,
+    receiver: &relm4::Receiver<AppInput>,
+) -> Vec<String> {
     sender.emit(AppInput::KeepEditing);
     let mut reports = Vec::new();
     while let Some(input) = receiver.recv_sync() {
         match input {
             AppInput::KeepEditing => break,
-            AppInput::OpenThreadMessage(message) => reports.push(format!("open {}", message.key)),
+            AppInput::OpenListedMessage { message, draft } => {
+                let draft = if draft { " as a draft" } else { "" };
+                reports.push(format!("open {}{draft}", message.key));
+            }
+            AppInput::OpenConversation(thread) => reports.push(format!("open {thread:?}")),
             AppInput::SetThreadExpanded { expanded, .. } => {
                 reports.push(format!("expanded {expanded}"));
             }
@@ -145,7 +157,7 @@ fn reported(sender: &relm4::Sender<AppInput>, receiver: &relm4::Receiver<AppInpu
     reports
 }
 
-fn expander_at(list: &gtk::ListBox, index: i32) -> adw::ExpanderRow {
+pub(super) fn expander_at(list: &gtk::ListBox, index: i32) -> adw::ExpanderRow {
     list.row_at_index(index)
         .expect("the list has a row there")
         .downcast::<adw::ExpanderRow>()
@@ -350,7 +362,6 @@ fn rerender(
             .collect::<Vec<_>>(),
         after,
         &std::collections::HashSet::new(),
-        false,
         "UTC",
         sender,
     );

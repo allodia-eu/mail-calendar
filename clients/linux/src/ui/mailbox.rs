@@ -14,7 +14,7 @@ pub(super) use super::mailbox_display::display_row;
 use super::{
     AppInput, avatar, mail_actions_menu,
     mailbox_display::{flat_display, message_display, thread_display},
-    model::OpenedMessage,
+    model::{self, OpenedMessage},
     row_action, timestamps,
 };
 pub(super) use super::{mail_actions_menu::RowMenus, mailbox_display::MailboxRendering};
@@ -51,7 +51,6 @@ pub(crate) fn render_messages(
     previous: &[DisplayRow],
     snapshot: &MailboxListSnapshot,
     expanded: &HashSet<ThreadKey>,
-    in_junk_folder: bool,
     zone: &str,
     sender: &relm4::Sender<AppInput>,
 ) {
@@ -61,10 +60,7 @@ pub(crate) fn render_messages(
         .iter()
         .map(|row| display_row(row, zone))
         .collect();
-    let menus = RowMenus {
-        in_junk_folder,
-        ..RowMenus::default()
-    };
+    let menus = RowMenus::default();
     reconcile(list, previous, &next, |index| {
         build_row(&snapshot.rows[index], expanded, &menus, zone, sender)
     });
@@ -86,15 +82,16 @@ pub(super) fn build_row(
     }
 }
 
-/// The message a conversation row opens: its latest in-scope message, which is what the row
-/// summarises. `None` once the conversation has left the list the key was recorded against.
+/// The message selecting a conversation opens, and whether it is a draft
+/// ([`model::representative`]). `None` once the conversation has left the list the key was
+/// recorded against.
 pub(crate) fn thread_representative(
     snapshot: &MailboxListSnapshot,
     thread: &ThreadKey,
-) -> Option<OpenedMessage> {
+) -> Option<(OpenedMessage, bool)> {
     snapshot.rows.iter().find_map(|row| match row {
         SnapshotRow::Thread { row } if &ThreadKey::of(row) == thread => {
-            Some(OpenedMessage::from_thread(row))
+            Some(model::representative(row, snapshot.showing_drafts))
         }
         _ => None,
     })
@@ -204,23 +201,37 @@ fn flat_row(
         date: row.date.clone(),
         avatar: display.avatar,
     };
-    widget.add_suffix(&mail_actions_menu::message_menu_button(
-        &widget, row, &opened, menus, sender,
+    let selected = SelectedRow::Message {
+        account: row.account.clone(),
+        key: row.key.clone(),
+    };
+    widget.add_suffix(&mail_actions_menu::row_menu_button(
+        &widget,
+        selected.clone(),
+        menus,
+        sender,
     ));
     opens_in_window(&widget, &opened, sender);
-    mail_drag(
-        &widget,
-        &row.account,
-        SelectedRow::Message {
-            account: row.account.clone(),
-            key: row.key.clone(),
-        },
-    );
-    let input = sender.clone();
-    row_action::action_row(&widget, move || {
-        input.emit(AppInput::OpenThreadMessage(Box::new(opened.clone())));
-    });
+    mail_drag(&widget, &row.account, selected);
+    opens_listed(&widget, opened, row.draft, sender);
     widget
+}
+
+/// Activating a message row opens it, or resumes it in a composer when the row says it is a
+/// draft, wherever it is listed (`docs/drafts.md`).
+fn opens_listed(
+    widget: &adw::ActionRow,
+    opened: OpenedMessage,
+    draft: bool,
+    sender: &relm4::Sender<AppInput>,
+) {
+    let input = sender.clone();
+    row_action::action_row(widget, move || {
+        input.emit(AppInput::OpenListedMessage {
+            message: Box::new(opened.clone()),
+            draft,
+        });
+    });
 }
 
 /// Lets a list row be dragged onto a folder (`docs/folder-pane.md`, rule 24). A selected row takes
@@ -293,32 +304,31 @@ fn thread_row(
     if display.count > 1 {
         widget.add_suffix(&count_badge(display.count));
     }
+    // Flagged while anything on it is, which is when its menu offers Unflag.
+    if display.flagged {
+        widget.add_suffix(&flag_icon());
+    }
     if display.has_attachment {
         widget.add_suffix(&attachment_icon());
     }
     widget.add_suffix(&meta_label(&timestamps::relative_date(&display.date, zone)));
-    widget.add_suffix(&mail_actions_menu::thread_menu_button(
+    let selected = SelectedRow::Thread {
+        account: row.account.clone(),
+        thread_id: row.thread_id.clone(),
+    };
+    widget.add_suffix(&mail_actions_menu::row_menu_button(
         &widget,
-        &row.account,
-        &row.thread_id,
+        selected.clone(),
         menus,
         sender,
     ));
-    mail_drag(
-        &widget,
-        &row.account,
-        SelectedRow::Thread {
-            account: row.account.clone(),
-            thread_id: row.thread_id.clone(),
-        },
-    );
-    let opened = OpenedMessage::from_thread(row);
-    let input = sender.clone();
+    mail_drag(&widget, &row.account, selected);
+    let (input, thread) = (sender.clone(), ThreadKey::of(row));
     row_action::expander_row(&widget, move || {
-        input.emit(AppInput::OpenThreadMessage(Box::new(opened.clone())));
+        input.emit(AppInput::OpenConversation(thread.clone()));
     });
     for message in &row.messages {
-        widget.add_row(&thread_message_row(row, message, zone, sender));
+        widget.add_row(&thread_message_row(row, message, menus, zone, sender));
     }
     // Restore the disclosure the host recorded **before** listening for it, so rebuilding an open
     // conversation isn't reported back as a fresh toggle; which would re-open its message and
@@ -336,10 +346,12 @@ fn thread_row(
 }
 
 /// One message of an expanded conversation: sender over preview, badged when the account owner
-/// sent it. Activating it opens that message rather than the conversation's representative.
+/// sent it or has not sent it yet. Activating it opens that message rather than the
+/// conversation's newest.
 fn thread_message_row(
     thread: &ThreadRow,
     message: &ThreadMessage,
+    menus: &RowMenus,
     zone: &str,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ActionRow {
@@ -360,28 +372,25 @@ fn thread_message_row(
     if display.draft {
         widget.add_suffix(&badge(l10n::thread_draft()));
     }
+    if display.flagged {
+        widget.add_suffix(&flag_icon());
+    }
     if display.has_attachment {
         widget.add_suffix(&attachment_icon());
     }
     widget.add_suffix(&meta_label(&timestamps::relative_date(&display.date, zone)));
-    // The conversation's subject heads the reading view, and seeds a reply's; a message on a
-    // thread carries no subject of its own here.
-    let opened = OpenedMessage {
+    // The conversation's subject heads the reading view, and seeds a reply's.
+    let opened = OpenedMessage::from_member(thread, message);
+    // Its own menu, about this message alone (`docs/row-actions.md`, rule 5).
+    let selected = SelectedRow::Message {
         account: message.account.clone(),
         key: message.key.clone(),
-        subject: thread.subject.clone(),
-        from: message.from.clone(),
-        date: message.date.clone(),
-        avatar: display.avatar,
     };
-    widget.add_suffix(&mail_actions_menu::message_window_menu_button(
-        &widget, &opened, sender,
+    widget.add_suffix(&mail_actions_menu::row_menu_button(
+        &widget, selected, menus, sender,
     ));
     opens_in_window(&widget, &opened, sender);
-    let input = sender.clone();
-    row_action::action_row(&widget, move || {
-        input.emit(AppInput::OpenThreadMessage(Box::new(opened.clone())));
-    });
+    opens_listed(&widget, opened, message.draft, sender);
     widget
 }
 
@@ -449,6 +458,10 @@ pub(crate) mod test_tree;
 #[cfg(test)]
 #[path = "mailbox_thread_tests.rs"]
 mod thread_tests;
+
+#[cfg(test)]
+#[path = "mailbox_conversation_tests.rs"]
+mod conversation_tests;
 
 #[cfg(test)]
 #[path = "mailbox_window_tests.rs"]
