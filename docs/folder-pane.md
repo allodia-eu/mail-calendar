@@ -151,7 +151,7 @@ Rules 22 to 28, per platform:
 | macOS | `.contextMenu` (`Mailcal.FolderActions.swift`) | `FolderNameSheet` | `MoveSheet`, the pane's symbols and indent | `.alert` | opacity 0.5, `.help`, `accessibilityValue` | banner with Close | ✅ `.draggable` / `.dropDestination` | ✅ the selection, or the row | the flat and conversation rows' `.contextMenu` → `MoveSheet` |
 | iPadOS | the same | the same | the same | the same | the same | the same | ✅ with a reading pane | ✅ with a reading pane | the same |
 | iOS (iPhone) | the same, by long press | the same | the same | the same | the same | the same | — | — | the same, by long press |
-| Android | long press, `DropdownMenu` (`FolderRowMenu.kt`); each item also an accessibility action | `AlertDialog`, live `checkFolderName` | `MoveTargetDialog`, the drawer's icons and indent | worded by `inTrash` | half opacity, state description | `FolderNoticeCard` above the list | — | — | the flat row's ⋮ menu, one message: a long press selects (`MessageFiling`, `MoveTargetDialog`) |
+| Android | long press, `DropdownMenu` (`FolderRowMenu.kt`); each item also an accessibility action | `AlertDialog`, live `checkFolderName` | `MoveTargetDialog`, the drawer's icons and indent | worded by `inTrash` | half opacity, state description | `FolderNoticeCard` above the list | — | — | the flat and conversation rows' ⋮ menu, for the row or the selection it belongs to (`RowMenuButton`, `MessageFiling`, `MoveTargetDialog`) |
 | Linux | right click, long press, Menu or Shift+F10 → `GtkPopover` (`folder_menu.rs`) | modal with live `check_folder_name` (`folder_dialogs.rs`) | modal `boxed-list` tree in the pane's icons and indent (`folder_picker.rs`) | destructive inside Trash | `dim-label`, tooltip, accessible description | `adw::Banner` over the tree | ✅ `DragSource`/`DropTarget`, a process-local boxed payload (`folder_drag.rs`) | ✅ flat and conversation rows | the row popover on flat and conversation rows, from ⋯, right click, long press or Menu/Shift+F10, into the same tree (`message_move.rs`) |
 
 The decisions behind each column (which items a row offers, the two Move to lists, which drops
@@ -235,10 +235,6 @@ gesture needs a real mouse.
 - **A renamed folder forgets whether it was shut, on IMAP.** Expansion is stored per folder key
   (rule 19), and an IMAP rename or move gives the folder, and every folder inside it, a new key,
   so the branch opens again. JMAP, Graph and Gmail keep their keys and are unaffected.
-- **Android files one message at a time.** A long press starts a selection there rather than
-  opening a menu, so Move to folder… is on a flat row's ⋮ menu only, and neither a selection nor
-  a conversation row can be filed in a named folder; the selection bar has no Move to folder…
-  yet ([`list-selection.md`](list-selection.md)).
 - **Dragging onto the pane is not automatable on Windows**: synthetic pointer input does not
   reach WinUI content (the resize drag above is the same trap), so the drop rules are pinned in
   `FolderActionsTests.cs` and the gesture itself needs a real mouse.

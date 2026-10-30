@@ -66,20 +66,12 @@ private fun TestSwipeRow(
     SwipeableFlatMessageRow(
         message = flatRow(),
         activeZoneId = zone,
-        inJunkFolder = false,
         swipe = swipe,
         onSwipe = { _, key, action -> onSwipe(key, action) },
         selected = false,
         selecting = false,
         onToggleSelect = {},
-        onOpen = {},
-        onSetRead = { _, _, _ -> },
-        onSetFlagged = { _, _, _ -> },
-        onDelete = { _, _ -> },
-        onPermanentlyDelete = { _, _ -> },
-        onMarkAsSpam = { _, _ -> },
-        onMarkAsNotSpam = { _, _ -> },
-        onCompose = {},
+        onOpen = { _, _ -> },
     )
 }
 

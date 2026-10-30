@@ -182,12 +182,11 @@ selection itself is the client's, and rule 1 says why.
 | macOS | ⌘-click a row | ⇧-click a range, ⌘A, Edit ▸ Select All | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ✅ | `Mailcal.MessageList.swift`, `Mailcal.Selection.swift` |
 | iPhone / iPadOS | **Select** in the toolbar (the list's edit mode) | tap toggles | over the list, with the mode | on the bar | — | — | ✅ | n/a: pull to refresh | `Mailcal.MessageList.swift`, `Mailcal.Selection.swift` |
 | Windows | Ctrl-click a row | Shift-click, Ctrl+A | standing, over the whole window | reading pane | ✅ | ✅ | ✅ | ✅, and New Mail at the head | `MainWindow.xaml`, `Views/MailListView.Selection.cs` |
-| Android | long-press a row | tap toggles | contextual top bar | on the bar | — | — | — | n/a: pull to refresh | `MailSelectionBar.kt` |
+| Android | long-press a row | tap toggles | contextual top bar | on the bar | — | — | ✅ | n/a: pull to refresh | `MailSelectionBar.kt` |
 | Linux | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ✅ | `ui/selection_bar.rs`, `ui/selection_input.rs` |
 
-**Row menu** is rule 12: a menu opened on a selected row acts on the whole selection. Android is
-the one dash, and has nothing to reconcile: long-press is how a selection *starts* there, so a row
-never carries both a menu and a selection.
+**Row menu** is rule 12: a menu opened on a selected row acts on the whole selection. On Android
+that menu is the row's ⋮, since a long press there is how a selection *starts*.
 
 Mobile has no modifier keys, so both phones enter a selection mode and leave it again (Back on
 Android, **Done** on iPhone/iPad); a plain tap there still opens a message, as it always did.
@@ -210,8 +209,7 @@ batch they all dispatch into is `crates/mailcal-app/src/mail_ops/bulk.rs`.
   a gesture that is easy to trigger by accident; a deliberate select-then-click is not that. The
   actions the bar offers are recoverable in the mailbox instead.
 - **No "Move to folder…" item on the bar.** A row menu has one (rule 12), and the core takes the
-  move (`FolderIntent::MoveMessages` names any folder); what is missing is the item on the bar,
-  which is also what would give Android, whose long press selects, a way to file a selection.
+  move (`FolderIntent::MoveMessages` names any folder); what is missing is the item on the bar.
 - **Spam and not-spam are not bulk actions.** They are reports, not moves
   ([`reporting.md`](reporting.md)), only two clients offer them at all, and which verdicts exist
   is read per account from `Capabilities::mail_report`; a bar button would have to be gated on the

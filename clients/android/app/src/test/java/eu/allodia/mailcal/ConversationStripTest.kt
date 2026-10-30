@@ -1,7 +1,11 @@
 package eu.allodia.mailcal
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,7 +31,7 @@ class ConversationStripTest {
                     focusedKey = focused.key,
                     subject = "A conversation",
                     activeZoneId = "Europe/Amsterdam",
-                    onOpen = {},
+                    onOpen = { _, _ -> },
                 )
             }
         }
@@ -48,7 +52,7 @@ class ConversationStripTest {
                     focusedKey = focused.key,
                     subject = "A conversation",
                     activeZoneId = "Europe/Amsterdam",
-                    onOpen = {},
+                    onOpen = { _, _ -> },
                 )
             }
         }
@@ -58,7 +62,41 @@ class ConversationStripTest {
         compose.onNodeWithText(L10n.thread_sent(ctx), useUnmergedTree = true).assertDoesNotExist()
     }
 
-    private fun message(key: String, from: String, draft: Boolean = false) = ThreadMessage(
+    // Each message on the conversation screen draws its own flag (docs/row-actions.md, rule 3),
+    // and a draft among them resumes in a composer wherever the conversation was opened from
+    // (docs/drafts.md).
+    @Test
+    fun a_flagged_message_draws_its_flag_and_a_draft_opens_as_one() {
+        val draft = message("draft", from = "Ada Lovelace", draft = true)
+        val flagged = message("flagged", from = "Grace Hopper", flagged = true)
+        val focused = message("focused", from = "Ada Lovelace")
+        val opened = mutableListOf<Pair<String, Boolean>>()
+        compose.setContent {
+            AppTheme {
+                ConversationStrip(
+                    conversation = listOf(focused, flagged, draft),
+                    focusedKey = focused.key,
+                    subject = "A conversation",
+                    activeZoneId = "Europe/Amsterdam",
+                    onOpen = { message, isDraft -> opened += message.key to isDraft },
+                )
+            }
+        }
+
+        val ctx = RuntimeEnvironment.getApplication()
+        compose.onAllNodesWithContentDescription(L10n.a11y_flagged(ctx), useUnmergedTree = true)
+            .assertCountEquals(1)
+        compose.onNodeWithText("Grace Hopper", useUnmergedTree = true).performClick()
+        compose.onNodeWithText(L10n.thread_draft(ctx), useUnmergedTree = true).performClick()
+        assertEquals(listOf("flagged" to false, "draft" to true), opened)
+    }
+
+    private fun message(
+        key: String,
+        from: String,
+        draft: Boolean = false,
+        flagged: Boolean = false,
+    ) = ThreadMessage(
         account = "acct-1",
         key = key,
         from = from,
@@ -66,6 +104,7 @@ class ConversationStripTest {
         date = "2026-07-10T11:34:41Z",
         preview = "Numbers and notes",
         unread = false,
+        flagged = flagged,
         outgoing = false,
         draft = draft,
         hasAttachment = false,
