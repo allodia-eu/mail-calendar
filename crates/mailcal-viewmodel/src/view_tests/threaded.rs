@@ -167,11 +167,16 @@ fn threaded_conversation_includes_out_of_folder_members_newest_first() {
         vec!["m2", "m1"],
         "conversation is newest first"
     );
-    assert!(
-        messages[0].outgoing,
+    assert_eq!(
+        messages[0].kind,
+        MessageKind::Sent,
         "the sent reply carries the Sent badge"
     );
-    assert!(!messages[1].outgoing, "the inbound message does not");
+    assert_eq!(
+        messages[1].kind,
+        MessageKind::Received,
+        "the inbound message does not"
+    );
 }
 
 #[test]
@@ -431,10 +436,13 @@ fn a_draft_in_a_conversation_is_badged_as_a_draft() {
     let SnapshotRow::Thread(thread) = &snapshot.rows[0] else {
         panic!("expected a thread row");
     };
-    let drafts: Vec<(&str, bool)> = thread
+    let drafts: Vec<(&str, MessageKind)> = thread
         .messages
         .iter()
-        .map(|m| (m.key.as_str(), m.draft))
+        .map(|m| (m.key.as_str(), m.kind))
         .collect();
-    assert_eq!(drafts, vec![("m2", true), ("m1", false)]);
+    assert_eq!(
+        drafts,
+        vec![("m2", MessageKind::Draft), ("m1", MessageKind::Received)]
+    );
 }

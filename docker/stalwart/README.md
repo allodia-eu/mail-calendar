@@ -320,3 +320,12 @@ curl -sk --user "alice@test.local:harness-alice-pw" \
 
 For UI work needing unread mail, prefer the **showcase** dataset (`MAILCAL_SHOWCASE=en`), whose seed
 contains both read and unread messages by construction and needs no server at all.
+
+## Everything you APPEND in one burst arrives at the same moment
+
+A conversation is ordered by when each message **arrived**, and for an APPEND that is the moment of
+the append, not the `Date` header; curl cannot set an APPEND's internal date. Appended back to back,
+a conversation's messages share a second, and its newest message falls to a tiebreak on the
+server's ids, which reads as a threading bug in whatever you are testing. `seed.sh` appends the
+row-menu conversations a second apart (`append_in_turn`) for this reason; do the same for any
+fixture whose order matters.

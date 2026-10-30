@@ -426,7 +426,7 @@ pub struct ThreadRow {
     pub latest_date: String,
     /// How many messages the thread holds.
     pub message_count: u32,
-    /// How many of them are unread.
+    /// How many of the messages it received are unread; the owner's own are not counted.
     pub unread_count: u32,
     /// Whether any message in the conversation has a non-inline attachment.
     pub has_attachment: bool,

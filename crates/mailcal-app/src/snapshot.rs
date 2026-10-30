@@ -99,6 +99,7 @@ impl<P: Provider> App<P> {
         };
         let rows = snapshot.rows.len();
         let total = snapshot.total;
+        snapshot.places = self.all_account_places(&account_rows).await;
         self.restamp_expansion(&mut snapshot);
         // Fills in the photos already known, and reports the senders nobody has looked up
         // yet. A map read per row: the fetch that answers the rest happens after the

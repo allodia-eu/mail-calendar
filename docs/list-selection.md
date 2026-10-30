@@ -30,14 +30,16 @@ selection itself is the client's, and rule 1 says why.
    message row and travels as one. A message picked inside a conversation that is itself picked
    is left out of the batch, because the core expands the conversation to it already.
 
-3. **A move never takes a Sent copy out of Sent.** Archive, Trash and permanent delete over a
-   conversation row leave the owner's own replies filed in Sent, so reopening the thread still
-   shows both sides. This is the rule `Intent::ArchiveThread` already followed; both now run the
-   same code. Marking read and flagging reach every message on the thread, Sent copies included:
-   neither takes anything out of a folder.
+3. **A conversation row reaches what [`row-actions.md`](row-actions.md) says it reaches**, on the
+   bar exactly as in its menu: marking read touches the received messages, Flag marks the newest
+   one received, Unflag clears every flag on it, and a move (archive, Trash, permanent delete,
+   Move to folder…) takes the conversation but leaves its Sent copies in Sent and its drafts where
+   they are, so reopening the thread still shows both sides and no unfinished writing is thrown
+   away. `Intent::ArchiveThread` runs the same code.
 
-   A **message** row the user picked out by itself always moves, Sent or not. They named that one
-   message; the rule above is about the members a conversation row stands for, which they did not.
+   A **message** row the user picked out by itself always reaches that message, Sent or draft or
+   not. They named that one message; the rule above is about the members a conversation row
+   stands for, which they did not.
 
 4. **The selection is scoped to the list on screen.** Changing folder or account, starting or
    clearing a search, switching between flat and threaded, and leaving mail all clear it. A row
@@ -151,10 +153,12 @@ selection itself is the client's, and rule 1 says why.
     `Intent::ActOnSelection`. A menu opened on a row **outside** the selection is about that row
     alone and changes nothing about what is selected.
 
-    The action is the one the item's label named, not the one rule 5 derives for the bar: the user
-    read "Mark as read" and chose it, so the whole selection is marked read whatever mix it holds.
-    Items with no batch form stay single-row, which is Open, Reply, Reply all and Forward
-    everywhere, plus spam and not-spam for the reason under **Known gaps**.
+    The menu over several rows comes from the core's `row_menu`, as a single row's does
+    ([`row-actions.md`](row-actions.md), rule 9), labelled the way rule 5 labels the bar. The
+    action is the one the item's label named: the user read "Mark as read" and chose it, so the
+    whole selection is marked read whatever mix it holds. Items with no batch form stay
+    single-row, which is Open, Reply, Reply all and Forward everywhere, plus spam and not-spam for
+    the reason under **Known gaps**.
 
     **Move to folder…** follows the same rule through the intent a drop onto a folder dispatches,
     `FolderIntent::MoveMessages`, because a named folder is not a `BulkAction`. What it lists and
@@ -230,8 +234,9 @@ batch they all dispatch into is `crates/mailcal-app/src/mail_ops/bulk.rs`.
 When you change what a selection does:
 
 1. Keep the write in one place. `mail_ops/bulk.rs` owns the batch, and `archive_thread` runs
-   through it rather than keeping a second copy of the Sent rule; `tests_selection.rs` asserts the
-   Sent protection, the per-account routing, the one-sync-per-account cost and the individual
+   through it rather than keeping a second copy of the Sent rule; what a conversation row reaches
+   is the view-model's table, which the row menu reads too ([`row-actions.md`](row-actions.md));
+   `tests_row_actions.rs` asserts that reach, `tests_selection.rs` asserts the Sent protection, the per-account routing, the one-sync-per-account cost and the individual
    restore of a refused row; `tests_mail_actions.rs` asserts that a throttled one stays hidden.
 2. A new action is a `BulkAction` variant **and** a button on all five clients' bars, or it is
    neither. A variant nothing dispatches is a surface that drifts. It needs an icon per platform

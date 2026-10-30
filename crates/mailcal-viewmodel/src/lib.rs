@@ -18,6 +18,8 @@ mod folders;
 pub mod invitation;
 mod outbox;
 pub mod reading;
+mod row_menu;
+mod row_reach;
 pub mod sender;
 pub mod settings;
 pub mod sync_progress;
@@ -41,6 +43,10 @@ pub use folders::{
 pub use invitation::{AttendeeTally, InvitationCard, InvitationKind, ResponseStatus};
 pub use outbox::{QueuedRow, QueuedState, queued_rows};
 pub use reading::{AttachmentRow, ReadingSnapshot};
+pub use row_menu::{MenuMessage, MenuRow, RowMenu, RowMenuItem, row_menu};
+pub use row_reach::{
+    AccountPlaces, Member, MessageKind, RowAction, conversation_reach, flag_target, stays_put,
+};
 pub use sender::{address_label, sender_label};
 pub use settings::{
     AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,

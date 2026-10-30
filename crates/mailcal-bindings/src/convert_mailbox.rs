@@ -108,8 +108,8 @@ impl From<AppThreadMessage> for ThreadMessage {
             date: message.date,
             preview: message.preview,
             unread: message.unread,
-            outgoing: message.outgoing,
-            draft: message.draft,
+            outgoing: message.kind == mailcal_viewmodel::MessageKind::Sent,
+            draft: message.kind == mailcal_viewmodel::MessageKind::Draft,
             has_attachment: message.has_attachment,
         }
     }
