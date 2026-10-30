@@ -280,12 +280,10 @@ pub struct MailboxListSnapshot {
     /// [`Self::rows`] is empty. Not derivable from [`Self::selected_account`] and
     /// [`Self::selected`], which are both `None` here *and* on the unified inbox.
     pub showing_outbox: bool,
-    /// Whether the open folder is the account's **Drafts** folder.
-    ///
-    /// Switch a row's click on it: in Drafts a row opens a composer through
-    /// `MailcalApp::open_composer`, everywhere else the reading view. The folder's **role**
-    /// decides it, never its name, and it is false in the all-mail, unified and search views,
-    /// which list drafts among received mail (`docs/drafts.md`).
+    /// Whether the open folder is the account's **Drafts** folder, where a conversation row
+    /// resumes its newest draft rather than opening its newest message. Whether a row opens in a
+    /// composer is the row's own `draft`, in every folder and search alike. The folder's **role**
+    /// decides this, never its name (`docs/drafts.md`).
     pub showing_drafts: bool,
     /// Every account's unsent messages, oldest first: what the pane's **Outbox** row counts,
     /// and what the list shows when [`Self::showing_outbox`] is set.
@@ -396,6 +394,10 @@ pub struct FlatRow {
     pub unread: bool,
     /// Whether the message is flagged.
     pub flagged: bool,
+    /// Whether the message is a draft, written but not sent: selecting it resumes it in a
+    /// composer, in whichever folder or search it is listed (`docs/drafts.md`).
+    #[uniffi(default = false)]
+    pub draft: bool,
     /// Whether the provider says the message has a non-inline attachment.
     pub has_attachment: bool,
     /// A short body-preview snippet for a two-line list row (empty if none; Microsoft 365 and

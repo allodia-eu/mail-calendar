@@ -35,6 +35,7 @@ fn fixture_from(subject: &str, from: &str) -> FlatRow {
         date: "2026-07-20".to_owned(),
         unread: true,
         flagged: false,
+        draft: false,
         has_attachment: true,
         preview: String::new(),
     }

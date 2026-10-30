@@ -1,7 +1,9 @@
 //! Gated live check of a conversation's row menu against the harness's three conversations
 //! (`docker/stalwart/seed.sh`, `docs/row-actions.md`), over JMAP and over IMAP: each one is
 //! gathered from the Inbox, Sent Items and Drafts into one row, and its menu answers its newest
-//! message, whether that was received, sent or is a draft.
+//! message, whether that was received, sent or is a draft. A draft says it is one on its row,
+//! inside a conversation and on a flat row alike, which is what opens it in a composer
+//! (`docs/drafts.md`).
 //!
 //! Skips unless `STALWART_HTTP_ADDR` is set; the IMAP half also needs `MAILCAL_HARNESS_IMAP` and
 //! `MAILCAL_EXTRA_CA`. `scripts/dev/harness.sh test` sets all three. By hand:
@@ -20,8 +22,8 @@ use std::time::{Duration, Instant};
 
 use live_oauth::{RecordingStore, app};
 use mailcal_bindings::{
-    Intent, JmapSetup, MailcalApp, MessageKind, RowAction, RowMenu, SelectedRow, SnapshotRow,
-    ThreadRow, ViewMode,
+    FolderRole, Intent, JmapSetup, MailcalApp, MessageKind, RowAction, RowMenu, SelectedRow,
+    SnapshotRow, ThreadRow, ViewMode,
 };
 
 /// Each seeded conversation: its subject, how many messages it holds, and its newest one.
@@ -85,6 +87,11 @@ fn every_conversation_answers_its_newest_message(app: &MailcalApp) {
             "{subject}: the newest message"
         );
         assert_eq!(target.kind, newest, "{subject}: its kind");
+        assert_eq!(
+            row.messages[0].draft,
+            newest == MessageKind::Draft,
+            "{subject}: the row says whether its newest message is a draft",
+        );
         let reply = item(&menu, RowAction::Reply).expect("Reply");
         assert_eq!(
             reply.enabled,
@@ -102,6 +109,50 @@ fn every_conversation_answers_its_newest_message(app: &MailcalApp) {
             read.is_some_and(|read| read.enabled),
             "{subject}: read state"
         );
+    }
+    a_flat_draft_says_it_is_one(app);
+}
+
+/// The draft conversation's draft, listed flat in Drafts, says it is a draft, and the received
+/// message it answers, listed flat in the Inbox, says it is not.
+fn a_flat_draft_says_it_is_one(app: &MailcalApp) {
+    let (subject, count, _) = CONVERSATIONS[2];
+    let account = conversation(app, subject, count).account;
+    let folder = |role: fn(&FolderRole) -> bool| {
+        app.mailbox_list()
+            .account_folders
+            .into_iter()
+            .find(|tree| tree.account_id == account)
+            .and_then(|tree| {
+                tree.folders
+                    .into_iter()
+                    .find(|f| f.role.as_ref().is_some_and(role))
+            })
+            .expect("the harness account has the folder")
+            .key
+    };
+    let drafts = folder(|role| matches!(role, FolderRole::Drafts));
+    let inbox = folder(|role| matches!(role, FolderRole::Inbox));
+    app.dispatch(Intent::SetViewMode {
+        mode: ViewMode::Flat,
+    });
+    for (key, draft) in [(drafts, true), (inbox, false)] {
+        app.dispatch(Intent::SelectFolder {
+            account: account.clone(),
+            key: key.clone(),
+        });
+        // The folder asked for, not the one listed before it.
+        let row = eventually("a flat row of the conversation", || {
+            let list = app.mailbox_list();
+            if list.selected.as_ref() != Some(&key) {
+                return None;
+            }
+            list.rows.into_iter().find_map(|row| match row {
+                SnapshotRow::Flat { row } if row.subject.ends_with(subject) => Some(row),
+                _ => None,
+            })
+        });
+        assert_eq!(row.draft, draft, "{subject}: {}", row.key);
     }
 }
 

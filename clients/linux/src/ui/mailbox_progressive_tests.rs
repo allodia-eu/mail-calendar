@@ -24,6 +24,7 @@ fn snapshot(folder: &str) -> MailboxListSnapshot {
                 date: "2026-08-27".to_owned(),
                 unread: false,
                 flagged: false,
+                draft: false,
                 has_attachment: false,
                 preview: String::new(),
             },

@@ -137,6 +137,7 @@ pub(crate) fn the_action_menus_dispatch_the_message_and_thread_the_user_chose() 
         date: "2026-08-20".to_owned(),
         unread: true,
         flagged: false,
+        draft: false,
         has_attachment: false,
         preview: String::new(),
     };

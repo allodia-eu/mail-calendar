@@ -134,6 +134,7 @@ mod tests {
                 date: "09:15".to_owned(),
                 unread: true,
                 flagged: false,
+                draft: false,
                 has_attachment: false,
                 preview: String::new(),
             },

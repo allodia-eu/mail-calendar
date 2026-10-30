@@ -160,9 +160,12 @@ not something any header says, so it reopens as a reply.
 
 ## Picking one back up
 
-A draft in the Drafts folder opens into a composer, not into the reading view, and the composer it
-opens saves **over** that copy rather than beside it. A conversation's own row in Drafts does the
-same with its latest message, which in Drafts is a draft. The core joins the two: the composition
+A draft opens into a composer, not into the reading view, wherever it is listed: in Drafts, in a
+search result, or inside a conversation shown from another folder. The composer it opens saves
+**over** that copy rather than beside it. A conversation's own row in Drafts does the same with its
+latest message, which in Drafts is a draft. The row says whether it is a draft (`FlatRow::draft`,
+`ThreadMessage::draft`), read from the same keyword the first gate below asks, so a client never
+decides it by the folder it is showing. The core joins the two: the composition
 takes the stored draft's key, so its first save supersedes and a discard removes, and the draft's
 own `Message-ID`, so every save of it goes on naming the one message. A draft written elsewhere may
 carry no `Message-ID`, and a new one serves as well: what that header has to be is the same on
@@ -341,6 +344,7 @@ and the removal below runs on whatever key the composition had.
 | Discard removes the server copy | ✅ | ✅ | ✅ | ✅ |
 | Resume from the Drafts folder | ✅ | ✅ | ✅ | ✅ |
 | A conversation's row in Drafts resumes its latest draft | ✅ | ✅ | ✅ | ✅ |
+| A draft resumes wherever it is listed, not only in Drafts | ⬜ | ⬜ | ⬜ | ⬜ |
 | A resumed draft opens formatted, its pictures and quote included | ✅ | ✅ | ✅ | ✅ |
 | Every composer opens through `open_composer` and sends through `submit_composition` | ✅ | ✅ | ✅ | ✅ |
 | A reply or forward saved as a draft keeps its conversation | ✅ | ✅ | ✅ | ✅ |
@@ -393,11 +397,6 @@ second name for leaving.
 - **A draft written from an alias reopens on its account.** This app sends from an account's own
   address only, so a draft another client wrote from an alias goes out from the account if it is
   sent from here.
-- **A client tells a draft by its folder, not by the row.** The core answers per message, but
-  the mailbox list does not carry it, so a draft met in a search result, or in a thread shown
-  from another folder, opens read-only rather than in a composer. Nothing is lost by it; the row
-  simply does not offer what the Drafts folder's does. What the snapshot carries instead is
-  whether the **open folder** is Drafts, decided by the folder's role and never by its name.
 - **A resumed draft takes no signature.** The picker is not offered, because the body already
   carries whatever signature was on it, and the account's would go under it as a second one.
   Changing it means editing the text.

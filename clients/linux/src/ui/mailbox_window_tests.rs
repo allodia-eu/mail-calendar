@@ -31,6 +31,7 @@ fn message_row() -> FlatRow {
         date: "2026-07-20".to_owned(),
         unread: false,
         flagged: false,
+        draft: false,
         has_attachment: false,
         preview: String::new(),
     }

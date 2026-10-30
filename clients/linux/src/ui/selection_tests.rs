@@ -18,6 +18,7 @@ fn flat(key: &str, unread: bool, flagged: bool) -> SnapshotRow {
             date: "2026-07-20".to_owned(),
             unread,
             flagged,
+            draft: false,
             has_attachment: false,
             preview: String::new(),
         },

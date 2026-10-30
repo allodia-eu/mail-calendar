@@ -259,6 +259,7 @@ mod tests {
                 date: "2026-07-20".to_owned(),
                 unread: true,
                 flagged: false,
+                draft: false,
                 has_attachment: false,
                 preview: String::new(),
             },

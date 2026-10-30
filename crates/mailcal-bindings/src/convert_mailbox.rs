@@ -73,6 +73,7 @@ impl From<AppFlatRow> for FlatRow {
             date: row.date,
             unread: row.unread,
             flagged: row.flagged,
+            draft: row.kind == mailcal_viewmodel::MessageKind::Draft,
             has_attachment: row.has_attachment,
             preview: row.preview,
         }

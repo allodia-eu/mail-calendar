@@ -174,15 +174,15 @@ pub struct MailboxListSnapshot {
     pub showing_outbox: bool,
     /// Whether the open folder is the account's **Drafts** folder.
     ///
-    /// What a client switches a row's click on: a draft opens into a composer that saves over
-    /// it, ordinary mail opens into the reading view (`docs/drafts.md`). Answered here rather
-    /// than by each client matching the selected key against a folder role, so the four cannot
-    /// come to disagree about which folder that is.
+    /// What decides which message a conversation row opens: in Drafts its newest draft, the one
+    /// the row summarises, everywhere else its newest message (`docs/row-actions.md`, rule 8).
+    /// Whether that message opens into a composer is the message's own kind, never the folder,
+    /// so a draft met in a search or in another folder's conversation resumes too
+    /// (`docs/drafts.md`). Answered here rather than by each client matching the selected key
+    /// against a folder role, so the four cannot come to disagree about which folder that is.
     ///
-    /// The **role** decides it, never the name: a folder the user called Drafts holds ordinary
-    /// mail, and a composer opened on one of those messages would rewrite it on its first save.
-    /// False in the all-mail and unified views, which list drafts among received mail, and in
-    /// search results, where the same is true.
+    /// The **role** decides it, never the name. False in the all-mail and unified views and in
+    /// search results.
     pub showing_drafts: bool,
     /// Every account's queued sends, oldest first: what the pane's **Outbox** row counts
     /// and what the Outbox list shows.
