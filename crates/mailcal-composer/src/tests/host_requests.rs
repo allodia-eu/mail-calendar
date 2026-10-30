@@ -122,6 +122,8 @@ fn keeps_an_allowed_scheme_and_completes_a_host_or_an_email_address() {
         ("//example.com", "https://example.com"),
         ("someone@example.com", "mailto:someone@example.com"),
         ("mailto:someone@example.com", "mailto:someone@example.com"),
+        ("tel:+15032223333", "tel:+15032223333"),
+        ("TEL:+44-20-7946-0958", "TEL:+44-20-7946-0958"),
         ("HTTP://Example.com", "HTTP://Example.com"),
         ("bücher.example/a", "https://bücher.example/a"),
     ] {
@@ -134,6 +136,24 @@ fn keeps_an_allowed_scheme_and_completes_a_host_or_an_email_address() {
 }
 
 #[test]
+fn refuses_a_telephone_number_typed_without_its_scheme() {
+    // A bare number is not completed for the user: there is no sound way to tell one from a
+    // voucher code or a postcode, and a wrong guess dials a stranger.
+    for typed in [
+        "+15032223333",
+        "503-222-3333",
+        "(503) 222-3333",
+        "tel:",
+        "tel:+1 503 222 3333",
+    ] {
+        assert!(
+            link_address(typed).is_none(),
+            "expected {typed:?} to be refused"
+        );
+    }
+}
+
+#[test]
 fn refuses_what_cannot_be_a_link() {
     for typed in [
         "",
@@ -141,6 +161,8 @@ fn refuses_what_cannot_be_a_link() {
         "javascript:alert(1)",
         "file:///etc/passwd",
         "data:text/html,x",
+        "sms:+15032223333",
+        "callto:+15032223333",
         "hello",
         "exa mple.com",
         ".example.com",

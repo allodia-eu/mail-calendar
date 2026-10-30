@@ -235,7 +235,7 @@
 	"editor_link_remove": "Link entfernen",
 	"editor_link_dialog_insert": "Link einfügen",
 	"editor_link_dialog_edit": "Link bearbeiten",
-	"editor_link_invalid": "Geben Sie eine Webadresse oder eine E-Mail-Adresse ein.",
+	"editor_link_invalid": "Geben Sie eine Webadresse, eine E-Mail-Adresse oder einen Telefonlink ein.",
 	"attachments_title": "Anhänge",
 	"attachment_saved": "Anhang gesichert",
 	"attachment_save_failed": "Dieser Anhang kann nicht gesichert werden.",

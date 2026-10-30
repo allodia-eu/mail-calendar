@@ -473,8 +473,10 @@ fn external_link_policy_crosses_the_ffi() {
     // open, custom app schemes / hostile schemes do not. (Policy lives in mailcal-app.)
     assert!(should_open_external_link("https://example.com".to_owned()));
     assert!(should_open_external_link("mailto:a@b.example".to_owned()));
+    assert!(should_open_external_link("tel:+15032223333".to_owned()));
     assert!(!should_open_external_link("myapp://home".to_owned()));
     assert!(!should_open_external_link("javascript:alert(1)".to_owned()));
+    assert!(!should_open_external_link("sms:+15032223333".to_owned()));
 }
 
 #[test]

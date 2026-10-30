@@ -204,6 +204,13 @@ fn strips_custom_scheme_links_so_they_match_the_launch_policy() {
     assert!(!out.contains("myapp://")); // but the unlaunchable href is gone
 }
 
+#[test]
+fn keeps_a_telephone_link_a_sender_marked_up() {
+    let out = sanitize(r#"<a href="tel:+15032223333">call us</a>"#).html;
+    assert!(out.contains(r#"href="tel:+15032223333""#), "{out}");
+    assert!(out.contains("call us"));
+}
+
 use super::should_open_external_link;
 
 #[test]
@@ -211,8 +218,10 @@ fn opens_only_safe_link_schemes() {
     assert!(should_open_external_link("https://example.com/path?q=1"));
     assert!(should_open_external_link("http://example.com"));
     assert!(should_open_external_link("mailto:a@b.example"));
+    assert!(should_open_external_link("tel:+15032223333"));
     // The scheme is matched case-insensitively.
     assert!(should_open_external_link("HTTPS://Example.COM"));
+    assert!(should_open_external_link("TEL:+15032223333"));
 }
 
 #[test]
@@ -225,7 +234,8 @@ fn does_not_open_unsafe_relative_or_custom_schemes() {
         "javascript:alert(1)",
         "data:text/html,<script>",
         "file:///etc/passwd",
-        "tel:+15551234567",
+        "sms:+15551234567",
+        "callto:+15551234567",
         "//example.com/proto-relative",
         "/relative/path",
         "notaurl",

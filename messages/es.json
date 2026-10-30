@@ -235,7 +235,7 @@
 	"editor_link_remove": "Quitar vínculo",
 	"editor_link_dialog_insert": "Insertar vínculo",
 	"editor_link_dialog_edit": "Editar vínculo",
-	"editor_link_invalid": "Escribe una dirección web o de correo electrónico.",
+	"editor_link_invalid": "Escribe una dirección web, una dirección de correo electrónico o un enlace telefónico.",
 	"attachments_title": "Archivos adjuntos",
 	"attachment_saved": "Archivo adjunto guardado",
 	"attachment_save_failed": "No se ha podido guardar este archivo adjunto.",

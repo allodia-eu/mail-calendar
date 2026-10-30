@@ -235,7 +235,7 @@
 	"editor_link_remove": "Koppeling verwijderen",
 	"editor_link_dialog_insert": "Koppeling invoegen",
 	"editor_link_dialog_edit": "Koppeling bewerken",
-	"editor_link_invalid": "Voer een webadres of een e-mailadres in.",
+	"editor_link_invalid": "Voer een webadres, een e-mailadres of een telefoonlink in.",
 	"attachments_title": "Bijlagen",
 	"attachment_saved": "Bijlage opgeslagen",
 	"attachment_save_failed": "Kan deze bijlage niet opslaan.",

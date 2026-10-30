@@ -7,7 +7,7 @@
 //!
 //! What is removed ([`ammonia`]'s allowlist): scripts and their content, event handlers
 //! (`on*`), `<iframe>`/`<object>`/`<embed>`/`<form>`, `<base>`/`<meta>` (so a message can't
-//! set its own refresh/CSP), and any URL scheme other than http(s)/mailto/data/cid.
+//! set its own refresh/CSP), and any URL scheme other than http(s)/mailto/tel/data/cid.
 //!
 //! What is **kept**: presentational HTML and CSS; inline `style`, `<style>` blocks, and
 //! `class`; because stripping CSS makes real mail illegible (no colours, fonts, or
@@ -43,7 +43,7 @@ pub(crate) struct Sanitized {
 /// sanitiser strips can never be clicked, so the two must agree). The list itself is
 /// [`mailcal_composer::LINK_SCHEMES`], which also bounds what the composer sends, so every
 /// client, every direction and the linkifier ([`links`]) share one allowlist.
-const EXTERNAL_LINK_SCHEMES: [&str; 3] = mailcal_composer::LINK_SCHEMES;
+const EXTERNAL_LINK_SCHEMES: [&str; 4] = mailcal_composer::LINK_SCHEMES;
 
 /// Extra schemes the sanitiser keeps for **inline resources** referenced by `src` (not
 /// links): `data:` for inline images and `cid:` for referenced message parts. These never
@@ -93,7 +93,7 @@ fn sanitizer() -> &'static Builder<'static> {
     static SANITIZER: OnceLock<Builder<'static>> = OnceLock::new();
     SANITIZER.get_or_init(|| {
         // Only safe URL schemes survive, notably no `javascript:`/`vbscript:`. Links use the
-        // launchable allowlist (http(s)/mailto); `data:`/`cid:` are kept for inline `src`
+        // launchable allowlist (http(s)/mailto/tel); `data:`/`cid:` are kept for inline `src`
         // resources (and `data:` *links* are blocked below: an executable document). Remote
         // http(s) image sources are kept but gated by the host's CSP. The link half of this
         // set is shared with the host's launch policy (see `EXTERNAL_LINK_SCHEMES`).
@@ -153,7 +153,7 @@ fn sanitizer() -> &'static Builder<'static> {
             ])
             .attribute_filter(|element, attribute, value| match (element, attribute) {
                 // A `data:` link can carry an executable document (e.g. data:text/html);
-                // links may only point at real http(s)/mailto targets.
+                // links may only point at real http(s)/mailto/tel targets.
                 ("a", "href") if is_data_uri(value) => None,
                 _ => Some(value.into()),
             });

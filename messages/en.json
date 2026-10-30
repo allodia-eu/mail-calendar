@@ -235,7 +235,7 @@
 	"editor_link_remove": "Remove link",
 	"editor_link_dialog_insert": "Insert link",
 	"editor_link_dialog_edit": "Edit link",
-	"editor_link_invalid": "Enter a web address or an email address.",
+	"editor_link_invalid": "Enter a web address, an email address or a telephone link.",
 	"attachments_title": "Attachments",
 	"attachment_saved": "Attachment saved",
 	"attachment_save_failed": "Couldn't save this attachment.",
