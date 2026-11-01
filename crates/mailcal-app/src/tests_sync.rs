@@ -148,9 +148,9 @@ async fn an_empty_background_refresh_says_nothing_at_all() {
 }
 
 /// A depth change takes the folders from a pass still running under the old window instead of
-/// waiting it out: a Gmail backfill can run for hours, and the cursor it wrote afterwards stood
-/// in for the new window, so the mail the wider one includes was never fetched. The old pass
-/// stops at its next commit rather than starting over.
+/// waiting it out: a Gmail backfill can run for hours, and a cursor it wrote afterwards would
+/// stand in for the new window, leaving the mail the wider one includes unfetched. The old
+/// pass stops at its next commit rather than starting over.
 #[tokio::test]
 async fn a_depth_change_takes_the_folders_from_a_pass_under_the_old_window() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));

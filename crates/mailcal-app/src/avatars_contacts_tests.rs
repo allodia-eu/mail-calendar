@@ -116,9 +116,9 @@ async fn opening_a_contact_draws_the_same_face_the_row_did() {
     assert_eq!(detail.avatar.initials, "AL");
 }
 
-/// An account connects one adapter per contact source, and each knows only its own ids. A card
-/// from the second source was asked of the first, which Graph refuses as a malformed id, so a
-/// Microsoft account's directory colleagues stayed monograms and the log warned for each.
+/// An account connects one adapter per contact source, and each knows only its own ids: Graph
+/// refuses another source's card as a malformed id, so a directory colleague's photo is asked
+/// of the directory.
 #[tokio::test]
 async fn a_photo_is_asked_of_the_source_that_holds_the_card() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
