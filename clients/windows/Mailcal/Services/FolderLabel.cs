@@ -27,9 +27,9 @@ internal static class FolderLabel
     /// instead of the server's.
     /// </para>
     /// <para>
-    /// <see cref="SidebarFolderRole.Other"/> deliberately keeps the server name: the core collapses
-    /// flagged, important and all-mail into that one value, so there is no single honest word for
-    /// it, and inventing one would rename three different folders to the same thing.
+    /// <see cref="SidebarFolderRole.Other"/> deliberately keeps the server name: it holds flagged
+    /// and any role the app has no word for, so there is no single honest word for it, and
+    /// inventing one would rename different folders to the same thing.
     /// </para>
     /// </remarks>
     public static string For(SidebarFolderRole role, string serverName) => role switch
@@ -40,6 +40,7 @@ internal static class FolderLabel
         SidebarFolderRole.Archive => L10n.FolderArchive(),
         SidebarFolderRole.Junk => L10n.FolderJunk(),
         SidebarFolderRole.Trash => L10n.FolderTrash(),
+        SidebarFolderRole.Important => L10n.FolderImportant(),
         _ => serverName,
     };
 

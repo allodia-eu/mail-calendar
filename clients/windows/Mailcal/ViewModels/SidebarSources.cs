@@ -41,7 +41,10 @@ public enum SidebarFolderRole
     /// <summary>Trash, recoverable deleted messages.</summary>
     Trash,
 
-    /// <summary>A role-bearing folder we draw no distinct icon for (flagged, all, important).</summary>
+    /// <summary>Mail the provider judged important (Gmail's Important).</summary>
+    Important,
+
+    /// <summary>A role-bearing folder we have no word for (flagged, or a server's own role).</summary>
     Other,
 }
 

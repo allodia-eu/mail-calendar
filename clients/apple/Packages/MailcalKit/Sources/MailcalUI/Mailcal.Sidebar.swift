@@ -20,8 +20,8 @@ import SwiftUI
 /// different view over a different row type (`SyncFolderRow`), and a folder that is called two
 /// things in one app is worse than one called something odd in both.
 ///
-/// `.other` keeps the server name: the core collapses flagged, important and all-mail into that
-/// one value, so no single word is honest for it.
+/// `.other` keeps the server name: it holds flagged and any role the app has no word for, so no
+/// single word is honest for it.
 func folderLabel(role: FolderRole?, name: String) -> String {
     switch role {
     case .inbox: L10n.folder_inbox()
@@ -30,6 +30,7 @@ func folderLabel(role: FolderRole?, name: String) -> String {
     case .archive: L10n.folder_archive()
     case .junk: L10n.folder_junk()
     case .trash: L10n.folder_trash()
+    case .important: L10n.folder_important()
     case .other, nil: name
     }
 }
@@ -66,9 +67,9 @@ func folderIcon(_ role: FolderRole?) -> String {
     case .archive: "archivebox"
     case .junk: "xmark.bin"
     case .trash: "trash"
-    // A role we recognise but draw no distinct icon for (flagged / all / important), and every
-    // ordinary custom folder.
-    case .other, nil: "folder"
+    // A role we recognise but draw no distinct icon for (important, flagged), and every ordinary
+    // custom folder.
+    case .important, .other, nil: "folder"
     }
 }
 

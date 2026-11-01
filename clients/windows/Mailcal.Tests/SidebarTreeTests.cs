@@ -345,16 +345,17 @@ public class SidebarTreeTests
             [
                 Folder("inbox", "Postvak IN", SidebarFolderRole.Inbox),
                 Folder("sent", "Verzonden items", SidebarFolderRole.Sent),
-                // A custom folder, and one whose role we recognise but draw no icon for.
+                // A custom folder, and two whose role we recognise but draw no icon for.
                 Folder("klanten", "Klanten"),
                 Folder("flagged", "Flagged", SidebarFolderRole.Other),
+                Folder("IMPORTANT", "Belangrijk", SidebarFolderRole.Important),
             ]),
         ]);
 
         // Localised names throughout: the icon must come from the role, or every language but
         // English gets the plain folder.
         Assert.Equal(
-            ["inbox-glyph", "sent-glyph", "folder", "folder"],
+            ["inbox-glyph", "sent-glyph", "folder", "folder", "folder"],
             target[1].Children.Select(c => c.Glyph));
     }
 }

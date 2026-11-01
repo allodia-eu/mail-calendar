@@ -139,7 +139,13 @@ pub fn stamp_folder_actions(
             && !row.in_trash
             && !matches!(
                 row.role,
-                Some(FolderRole::Trash | FolderRole::Junk | FolderRole::Drafts | FolderRole::Other)
+                Some(
+                    FolderRole::Trash
+                        | FolderRole::Junk
+                        | FolderRole::Drafts
+                        | FolderRole::Important
+                        | FolderRole::Other
+                )
             );
         // Junk takes mail through a report, never a move (`docs/reporting.md`), and Drafts and
         // the virtual folders are not somewhere mail is filed.
@@ -147,7 +153,7 @@ pub fn stamp_folder_actions(
             && !row.pending
             && !matches!(
                 row.role,
-                Some(FolderRole::Junk | FolderRole::Drafts | FolderRole::Other)
+                Some(FolderRole::Junk | FolderRole::Drafts | FolderRole::Important | FolderRole::Other)
             );
     }
 }

@@ -29,7 +29,9 @@ pub enum FolderRole {
     Junk,
     /// Trash; recoverable deleted messages.
     Trash,
-    /// Other role-bearing special folder (flagged, all, important, …).
+    /// Mail the provider judged important: Gmail's `IMPORTANT`, IMAP `\Important` (RFC 8457).
+    Important,
+    /// Other role-bearing special folder: flagged, or a role this app has no word for.
     Other,
 }
 
@@ -180,10 +182,8 @@ fn mailbox_role_to_folder_role(role: &MailboxRole) -> FolderRole {
         MailboxRole::Archive => FolderRole::Archive,
         MailboxRole::Junk => FolderRole::Junk,
         MailboxRole::Trash => FolderRole::Trash,
-        MailboxRole::Flagged
-        | MailboxRole::Important
-        | MailboxRole::All
-        | MailboxRole::Other(_) => FolderRole::Other,
+        MailboxRole::Important => FolderRole::Important,
+        MailboxRole::Flagged | MailboxRole::All | MailboxRole::Other(_) => FolderRole::Other,
     }
 }
 
@@ -200,12 +200,19 @@ fn mailbox_role_to_folder_role(role: &MailboxRole) -> FolderRole {
 /// Flat rather than nested because a `Vec<FolderRow>` crosses the FFI and three of the four
 /// panes draw a flat list anyway; [`depth`](FolderRow::depth) is what they indent by, and
 /// [`parent`](FolderRow::parent) is what the fourth re-nests from.
+///
+/// A provider's all-mail mailbox (`\All`) gets no row: the account's own whole mailbox is that
+/// destination, so a row for it would be a second All Mail (`docs/folder-pane.md`, rule 30).
 #[must_use]
 pub fn sorted_folder_rows(folders: &[Mailbox]) -> Vec<FolderRow> {
-    let known: BTreeSet<&str> = folders.iter().map(|mailbox| mailbox.id.as_str()).collect();
+    let folders: Vec<&Mailbox> = folders
+        .iter()
+        .filter(|mailbox| mailbox.role != Some(MailboxRole::All))
+        .collect();
+    let known: BTreeSet<&str> = folders.iter().map(|&mailbox| mailbox.id.as_str()).collect();
     let mut children: BTreeMap<&str, Vec<&Mailbox>> = BTreeMap::new();
     let mut top: Vec<&Mailbox> = Vec::new();
-    for mailbox in folders {
+    for &mailbox in &folders {
         match drawn_under(mailbox, &known) {
             Some(parent) => children.entry(parent).or_default().push(mailbox),
             None => top.push(mailbox),
@@ -240,7 +247,7 @@ pub fn sorted_folder_rows(folders: &[Mailbox]) -> Vec<FolderRow> {
     // A folder the walk never reached is one in a cycle, which no server should be able to
     // report. It still gets a row, at the top: a folder missing from the pane is a folder
     // whose mail the user has no way to open.
-    for mailbox in folders {
+    for &mailbox in &folders {
         if seen.insert(mailbox.id.as_str()) {
             rows.push(folder_row(mailbox, None, 0, false));
         }
@@ -290,7 +297,7 @@ pub fn folder_paths(rows: &[FolderRow]) -> Vec<String> {
 ///
 /// Two folders go to the top although their provider nests them:
 ///
-/// - A **role-bearing** folder. Gmail files Sent, Drafts, Trash and All Mail inside a `[Gmail]`
+/// - A **role-bearing** folder. Gmail files Sent, Drafts, Trash and Important inside a `[Gmail]`
 ///   container over IMAP, and Exchange has its own arrangements; burying the folder a person
 ///   reaches for most inside something their provider invented is what no mail client does. We
 ///   already rename these to our own words (`docs/folder-pane.md`, rule 12), so drawing them where
