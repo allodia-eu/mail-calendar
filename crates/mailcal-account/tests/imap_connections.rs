@@ -279,7 +279,10 @@ async fn a_watch_with_no_connection_to_spare_waits_rather_than_failing() {
     let refused = connect_imap_watcher(&connections, &config, None, "INBOX", None).await;
 
     assert!(
-        matches!(refused, Err(mailcal_account::AccountError::NoWatchConnection)),
+        matches!(
+            refused,
+            Err(mailcal_account::AccountError::NoWatchConnection)
+        ),
         "the fifth watch was not told apart: {:?}",
         refused.err(),
     );

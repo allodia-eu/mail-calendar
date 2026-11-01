@@ -8,8 +8,7 @@
 use std::sync::{Arc, Mutex};
 
 use super::test_app::{
-    Directory, FakeContacts, PNG, app, app_with_sources, card_with_photo, image_path,
-    snapshot_from,
+    Directory, FakeContacts, PNG, app, app_with_sources, card_with_photo, image_path, snapshot_from,
 };
 use crate::ContactsIntent;
 

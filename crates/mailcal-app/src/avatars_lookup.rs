@@ -86,7 +86,11 @@ impl<P: Provider> App<P> {
             .iter()
             .find(|candidate| &candidate.id == account)?
             .contact_providers;
-        let provider = match self.engine.contact_source(providers, account, &card.id).await {
+        let provider = match self
+            .engine
+            .contact_source(providers, account, &card.id)
+            .await
+        {
             Ok(provider) => provider?,
             Err(error) => {
                 log::warn!("avatars: card source read failed: {error}");
