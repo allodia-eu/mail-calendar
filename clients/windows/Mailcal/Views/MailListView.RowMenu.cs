@@ -173,21 +173,39 @@ public sealed partial class MailListView
                 model.SetFlagged(account, key, action == RowAction.Flag);
                 break;
             case RowAction.MarkAsSpam:
-                model.MarkAsSpam(account, key);
+                Leaving(message, () => model.MarkAsSpam(account, key));
                 break;
             case RowAction.MarkAsNotSpam:
-                model.MarkAsNotSpam(account, key);
+                Leaving(message, () => model.MarkAsNotSpam(account, key));
                 break;
             case RowAction.Archive or RowAction.Delete:
                 Remove(action, message, subject);
                 break;
             case RowAction.PermanentlyDelete:
-                if (await ConfirmPermanentDeleteAsync(count: 1))
+                if (await ConfirmPermanentDeleteAsync(PermanentDeleteWording.Message, count: 1))
                 {
-                    model.PermanentlyDelete(account, key);
+                    Leaving(message, () => model.PermanentlyDelete(account, key));
                 }
                 break;
         }
+    }
+
+    // A message the menu files elsewhere takes the reading pane on with it when it is the one open,
+    // as the pane's own Archive does (ReadingActions.Settle): where the pane lands is read before
+    // the dispatch, while the row it is relative to is still listed.
+    private void Leaving(MenuMessage message, Action dispatch)
+    {
+        if (Model is not { } model
+            || model.OpenedMessage is not { } opened
+            || opened.Account != message.Account
+            || opened.Key != message.Key)
+        {
+            dispatch();
+            return;
+        }
+        var next = model.StopAfterRemoving(opened);
+        dispatch();
+        model.SettleReadingPane(next);
     }
 
     // A flat row's own message goes through the SAME deferred machine as a swipe: the row hides,
@@ -204,11 +222,11 @@ public sealed partial class MailListView
         }
         else if (kind == SwipeActionKind.Archive)
         {
-            Model?.Archive(message.Account, message.Key);
+            Leaving(message, () => Model?.Archive(message.Account, message.Key));
         }
         else
         {
-            Model?.Delete(message.Account, message.Key);
+            Leaving(message, () => Model?.Delete(message.Account, message.Key));
         }
     }
 
@@ -220,7 +238,7 @@ public sealed partial class MailListView
         {
             return;
         }
-        if (action == BulkAction.PermanentlyDelete && !await ConfirmPermanentDeleteAsync(subject.Listed.Count))
+        if (action == BulkAction.PermanentlyDelete && !await ConfirmPermanentDeleteAsync(subject.Listed))
         {
             return;
         }
@@ -234,15 +252,22 @@ public sealed partial class MailListView
         }
     }
 
-    // The one irreversible item on the menu, so it asks first whichever set it is about; over
-    // several rows it counts them, the way the bar's own button does.
-    private async Task<bool> ConfirmPermanentDeleteAsync(int count)
+    // The one irreversible item on the menu and the bar, so it asks first whichever set it is
+    // about, naming what the rows are and counting them when there are several.
+    private Task<bool> ConfirmPermanentDeleteAsync(IReadOnlyList<MailRow> rows) =>
+        ConfirmPermanentDeleteAsync(SelectionActions.DeleteWording(rows), rows.Count);
+
+    private async Task<bool> ConfirmPermanentDeleteAsync(PermanentDeleteWording wording, int count)
     {
+        var message = wording switch
+        {
+            PermanentDeleteWording.Messages => L10n.DeletePermanentlyMessageMany(count),
+            PermanentDeleteWording.Conversation => L10n.DeletePermanentlyConversation(),
+            PermanentDeleteWording.Conversations => L10n.DeletePermanentlyConversations(count),
+            _ => L10n.DeletePermanentlyMessage(),
+        };
         var result = await DialogHelper.ConfirmAsync(
-            XamlRoot,
-            L10n.DeletePermanentlyTitle(),
-            count > 1 ? L10n.DeletePermanentlyMessageMany(count) : L10n.DeletePermanentlyMessage(),
-            L10n.ActionDelete());
+            XamlRoot, L10n.DeletePermanentlyTitle(), message, L10n.ActionDelete());
         return result == ContentDialogResult.Primary;
     }
 

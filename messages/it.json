@@ -163,6 +163,8 @@
 	"delete_permanently_title": "Eliminare definitivamente?",
 	"delete_permanently_message": "Questo messaggio verrà eliminato definitivamente. L’operazione non può essere annullata.",
 	"delete_permanently_message_many": "{count} messaggi verranno eliminati definitivamente. L’operazione non può essere annullata.",
+	"delete_permanently_conversation": "Questa conversazione verrà eliminata definitivamente, tranne i messaggi inviati e le bozze che contiene. L’operazione non può essere annullata.",
+	"delete_permanently_conversations": "{count} conversazioni verranno eliminate definitivamente, tranne i messaggi inviati e le bozze che contengono. L’operazione non può essere annullata.",
 
 	"compose_title_new": "Nuovo messaggio",
 	"compose_to": "A",

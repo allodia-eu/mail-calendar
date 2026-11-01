@@ -163,6 +163,8 @@
 	"delete_permanently_title": "Supprimer définitivement ?",
 	"delete_permanently_message": "Ce message sera définitivement supprimé. Cette action est irréversible.",
 	"delete_permanently_message_many": "{count} messages seront définitivement supprimés. Cette action est irréversible.",
+	"delete_permanently_conversation": "Cette conversation sera définitivement supprimée, à l’exception des messages envoyés et des brouillons qu’elle contient. Cette action est irréversible.",
+	"delete_permanently_conversations": "{count} conversations seront définitivement supprimées, à l’exception des messages envoyés et des brouillons qu’elles contiennent. Cette action est irréversible.",
 
 	"compose_title_new": "Nouveau message",
 	"compose_to": "À",

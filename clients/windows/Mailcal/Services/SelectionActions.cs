@@ -42,6 +42,24 @@ internal enum SelectionPaneLabel
     Conversations,
 }
 
+/// <summary>What a permanent delete's confirmation calls the rows it is about.</summary>
+/// <remarks>An enum for the reason <see cref="SelectionPaneLabel"/> is one.</remarks>
+internal enum PermanentDeleteWording
+{
+    /// <summary>"This message will be permanently deleted."</summary>
+    Message,
+
+    /// <summary>"N messages will be permanently deleted."</summary>
+    Messages,
+
+    /// <summary>"This conversation will be permanently deleted, apart from your sent messages and
+    /// drafts in it."</summary>
+    Conversation,
+
+    /// <summary>The same, for N conversations.</summary>
+    Conversations,
+}
+
 /// <summary>The selection bar's decisions.</summary>
 /// <remarks>
 /// Internal, not public: it speaks in the generated <c>BulkAction</c> and <c>SelectedRow</c>,
@@ -67,6 +85,23 @@ internal static class SelectionActions
             return SelectionPaneLabel.None;
         }
         return threaded ? SelectionPaneLabel.Conversations : SelectionPaneLabel.Messages;
+    }
+
+    /// <summary>
+    /// What a permanent delete over <paramref name="rows"/> asks about. A conversation row loses its
+    /// received messages and keeps its Sent copies and drafts (docs/row-actions.md, rule 4), which
+    /// the confirmation says. A mix is counted in messages, never as conversations it is not.
+    /// </summary>
+    public static PermanentDeleteWording DeleteWording(IReadOnlyCollection<ISelectableRow> rows)
+    {
+        var conversations = rows.Count > 0 && rows.All(row => row.IsThread);
+        return (rows.Count > 1, conversations) switch
+        {
+            (false, false) => PermanentDeleteWording.Message,
+            (true, false) => PermanentDeleteWording.Messages,
+            (false, true) => PermanentDeleteWording.Conversation,
+            (true, true) => PermanentDeleteWording.Conversations,
+        };
     }
 
     /// <summary>

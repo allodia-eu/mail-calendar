@@ -7,7 +7,6 @@
 // message), and the entry points the bar uses: the bar spans both panes, so it is declared in
 // MainWindow.xaml and reaches the selection through here.
 
-using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
@@ -82,12 +81,7 @@ public sealed partial class MailListView : UserControl
         {
             return;
         }
-        var result = await DialogHelper.ConfirmAsync(
-            this.XamlRoot,
-            L10n.DeletePermanentlyTitle(),
-            L10n.DeletePermanentlyMessageMany(model.SelectionCount),
-            L10n.ActionDelete());
-        if (result == ContentDialogResult.Primary)
+        if (await ConfirmPermanentDeleteAsync(model.SelectedRows))
         {
             model.ActOnSelection(BulkAction.PermanentlyDelete);
         }

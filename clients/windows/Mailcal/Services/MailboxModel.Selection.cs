@@ -24,8 +24,8 @@ public sealed partial class MailboxModel
     public int SelectionCount => _selectedRows.Length;
 
     /// <summary>
-    /// Whether anything is selected, which is what every action on the bar is enabled by. The bar
-    /// itself stands whether or not it is true (docs/list-selection.md, rule 5).
+    /// Whether anything is selected. The bar itself stands whether or not it is true, and which of
+    /// its actions respond is the core's (<see cref="SelectionBar"/>; docs/list-selection.md, rule 5).
     /// </summary>
     public bool HasSelection => _selectedRows.Length > 0;
 
@@ -79,12 +79,29 @@ public sealed partial class MailboxModel
     /// <summary>Whether the bar's Delete permanently responds.</summary>
     public bool SelectionPermanentlyDeleteEnabled => _bar.PermanentlyDelete.Enabled;
 
+    // What the bar was last read over: each selected row with the state the core's answer turns
+    // on. A conversation's sub-rows are immutable and replaced only when one of them changes
+    // (MailRow.CopyFrom), so the list itself stands for them.
+    private ImmutableArray<(MailRow Row, bool Unread, bool Flagged, IReadOnlyList<ThreadMessageItem> Messages)> _barReadOver = [];
+
     /// <summary>
     /// Re-reads the bar from the core. Run when the selection changes and when a snapshot lands,
-    /// since a flag or a read state the selection holds moves without the selection moving.
+    /// since a flag or a read state the selection holds moves without the selection moving; a
+    /// snapshot that changed none of the selected rows asks nothing, because a Ctrl+A selection is
+    /// the whole list and a sync lands many snapshots.
     /// </summary>
     private void RefreshSelectionBar()
     {
+        var over = _selectedRows.Select(row => (row, row.Unread, row.Flagged, row.Messages)).ToImmutableArray();
+        if (over.Length == _barReadOver.Length
+            && over.Zip(_barReadOver).All(pair => ReferenceEquals(pair.First.row, pair.Second.Row)
+                && pair.First.Unread == pair.Second.Unread
+                && pair.First.Flagged == pair.Second.Flagged
+                && ReferenceEquals(pair.First.Messages, pair.Second.Messages)))
+        {
+            return;
+        }
+        _barReadOver = over;
         var next = _selectedRows.IsEmpty
             ? SelectionBarActions.None
             : SelectionBarActions.Of(RowMenu(SelectionActions.Rows(_selectedRows)));
@@ -185,17 +202,23 @@ public sealed partial class MailboxModel
         {
             return;
         }
-        var closesReading = SelectionActions.Removes(action) && HoldsOpenMessage(rows);
-        _app?.Dispatch(new Intent.ActOnSelection(SelectionActions.Rows(rows), action));
+        var selected = SelectionActions.Rows(rows);
+        var removes = SelectionActions.Removes(action);
+        var closesReading = removes && HoldsOpenMessage(selected);
+        _app?.Dispatch(new Intent.ActOnSelection(selected, action));
         if (closesReading)
         {
             CloseReading();
         }
+        if (removes)
+        {
+            // A conversation leaving the folder takes its expansion with it, so it does not come
+            // back open when it is listed again.
+            foreach (var row in rows.Where(row => row.IsThread))
+            {
+                _expandedThreads.Remove(row.Id);
+                row.IsExpanded = false;
+            }
+        }
     }
-
-    private bool HoldsOpenMessage(IReadOnlyList<MailRow> rows) =>
-        OpenedMessage is { } opened
-        && rows.Any(row => row.IsThread
-            ? row.Messages.Any(m => m.Account == opened.Account && m.Key == opened.Key)
-            : row.Account == opened.Account && row.Key == opened.Key);
 }

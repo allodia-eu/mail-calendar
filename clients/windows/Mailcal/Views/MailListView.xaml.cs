@@ -32,9 +32,8 @@ public sealed partial class MailListView : UserControl
         InitSwipe();
         InitReadingWindows();
         // The highlight follows the READING PANE, not the last click: archive/delete advances the
-        // pane to the next message on its own (ReadingAdvance), and nothing clicked that row. The
-        // row set is re-run too, because a snapshot reconcile replaces changed rows outright, the
-        // selected instance is then no longer in the collection and the highlight silently drops.
+        // pane to the next message on its own (ReadingAdvance), and nothing clicked that row. A
+        // reconcile that takes the selected row away re-runs it too, or the highlight silently drops.
         model.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MailboxModel.OpenedMessage))
@@ -42,7 +41,25 @@ public sealed partial class MailListView : UserControl
                 SyncSelectionToOpenedMessage();
             }
         };
-        model.Rows.CollectionChanged += (_, _) => SyncSelectionToOpenedMessage();
+        model.Rows.CollectionChanged += (_, _) => SyncSelectionAfterReconcile();
+        SyncSelectionToOpenedMessage();
+    }
+
+    /// <summary>Puts the highlight back on the reading pane's message, once a composer that stood
+    /// in for the pane has closed.</summary>
+    internal void FollowReadingPane() => SyncSelectionToOpenedMessage();
+
+    // A reconcile keeps every row it did not take away (MailRow.CopyFrom), so a selected row still
+    // listed is still the one the user picked, and the highlight is re-derived only when the
+    // reconcile removed it. Re-deriving it anyway moves it off a draft, whose composer leaves the
+    // pane on the message open before, and folds the draft's conversation under the composer the
+    // moment new mail arrives (docs/row-actions.md, rule 8).
+    private void SyncSelectionAfterReconcile()
+    {
+        if (RowsList.SelectedItem is MailRow selected && Model?.Rows.Contains(selected) == true)
+        {
+            return;
+        }
         SyncSelectionToOpenedMessage();
     }
 

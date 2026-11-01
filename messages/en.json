@@ -163,6 +163,8 @@
 	"delete_permanently_title": "Delete permanently?",
 	"delete_permanently_message": "This message will be permanently deleted. This can't be undone.",
 	"delete_permanently_message_many": "{count} messages will be permanently deleted. This can't be undone.",
+	"delete_permanently_conversation": "This conversation will be permanently deleted, apart from your sent messages and drafts in it. This can't be undone.",
+	"delete_permanently_conversations": "{count} conversations will be permanently deleted, apart from your sent messages and drafts in them. This can't be undone.",
 
 	"compose_title_new": "New Message",
 	"compose_to": "To",

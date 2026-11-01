@@ -163,6 +163,8 @@
 	"delete_permanently_title": "Endgültig löschen?",
 	"delete_permanently_message": "Diese Nachricht wird endgültig gelöscht. Das lässt sich nicht widerrufen.",
 	"delete_permanently_message_many": "{count} Nachrichten werden endgültig gelöscht. Das lässt sich nicht widerrufen.",
+	"delete_permanently_conversation": "Diese Unterhaltung wird endgültig gelöscht, ausgenommen Ihre gesendeten Nachrichten und Entwürfe darin. Das lässt sich nicht widerrufen.",
+	"delete_permanently_conversations": "{count} Unterhaltungen werden endgültig gelöscht, ausgenommen Ihre gesendeten Nachrichten und Entwürfe darin. Das lässt sich nicht widerrufen.",
 
 	"compose_title_new": "Neue Nachricht",
 	"compose_to": "An",

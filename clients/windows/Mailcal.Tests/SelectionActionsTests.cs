@@ -85,6 +85,26 @@ public class SelectionActionsTests
         Assert.False(SelectionActions.Removes(BulkAction.Unflag));
     }
 
+    /// <summary>
+    /// A permanent delete over a conversation takes its received messages and leaves its Sent
+    /// copies and drafts (docs/row-actions.md, rule 4), so asking "this message will be deleted"
+    /// over one understates what goes, and "1 messages" misreads the count.
+    /// </summary>
+    [Fact]
+    public void APermanentDeleteNamesWhatTheRowsAre()
+    {
+        Assert.Equal(PermanentDeleteWording.Message, SelectionActions.DeleteWording([Message()]));
+        Assert.Equal(PermanentDeleteWording.Messages, SelectionActions.DeleteWording([Message("m1"), Message("m2")]));
+        Assert.Equal(PermanentDeleteWording.Conversation, SelectionActions.DeleteWording([Thread()]));
+        Assert.Equal(PermanentDeleteWording.Conversations, SelectionActions.DeleteWording([Thread("t1"), Thread("t2")]));
+    }
+
+    /// <summary>A mix is counted in messages: "2 conversations" over a conversation and a message
+    /// is false, and the confirmation is where an overstatement costs least.</summary>
+    [Fact]
+    public void AMixOfConversationsAndMessagesIsCountedInMessages() =>
+        Assert.Equal(PermanentDeleteWording.Messages, SelectionActions.DeleteWording([Thread(), Message()]));
+
     [Fact]
     public void AConversationTravelsAsAThreadAndAMessageAsAMessage()
     {

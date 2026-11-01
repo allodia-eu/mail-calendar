@@ -180,4 +180,70 @@ public sealed class RowMenuTests(HarnessApp harness)
         Assert.True(app.Agent.WaitGone(Filter.ById("SendButton"), TimeSpan.FromSeconds(15)),
             "the composer did not close when another message was opened");
     });
+
+    /// <summary>
+    /// A draft's composer leaves the reading pane on the message open before it, so a list that
+    /// re-selected that message whenever its rows changed would fold the draft's conversation the
+    /// moment new mail arrived, under the composer the user is writing in (rule 8: one conversation
+    /// is expanded, the one holding the selection, and that is still the draft's).
+    /// </summary>
+    [HarnessFact]
+    public void NewMailArrivingLeavesTheDraftsConversationOpen()
+    {
+        var arrived = $"Arrived while writing {DateTime.Now:HHmmss}";
+        harness.Case(nameof(NewMailArrivingLeavesTheDraftsConversationOpen), app =>
+        {
+            app.OpenFolder(Inbox);
+            app.OpenMessage(Elsewhere);
+            app.ShowMailbox();
+            Input.Click(Header(app, Drafted));
+            if (app.Agent.Wait(Filter.ById("SendButton"), App.Patience) is null)
+            {
+                throw new InvalidOperationException("selecting the draft's conversation opened no composer");
+            }
+            if (!App.Eventually(() => DrawnMessages(app, Drafted) > 1, TimeSpan.FromSeconds(10)))
+            {
+                throw new InvalidOperationException($"selecting '{Drafted}' laid out none of its messages");
+            }
+            Harness.ImportAsync(string.Join("\r\n",
+                $"From: {Harness.Bob}", $"To: {Harness.Alice}", $"Subject: {arrived}",
+                $"Date: {DateTime.UtcNow:r}", $"Message-ID: <{Guid.NewGuid()}@test.local>",
+                "MIME-Version: 1.0", "Content-Type: text/plain; charset=utf-8", "", "New mail.", ""), "inbox")
+                .GetAwaiter().GetResult();
+            app.Agent.Invoke(app.Agent.Find(Filter.ById("SelectionSync", "Button"))!);
+            // Looked for by RowTitled, which scrolls: the list is virtualised, and the new mail is
+            // listed at the top while the case left the list scrolled to its baseline message.
+            bool Listed()
+            {
+                try
+                {
+                    app.RowTitled(arrived);
+                    return true;
+                }
+                catch (InvalidOperationException)
+                {
+                    return false;
+                }
+            }
+            if (!App.Eventually(Listed, TimeSpan.FromSeconds(30)))
+            {
+                throw new InvalidOperationException($"'{arrived}' never reached the list, so nothing changed under the composer");
+            }
+            app.Agent.Settle(floor: TimeSpan.FromSeconds(1));
+            Assert.True(app.Agent.Find(Filter.ById("SendButton")) is not null, "the composer closed when new mail arrived");
+            Assert.True(DrawnMessages(app, Drafted) > 1,
+                "new mail arriving folded the conversation whose draft is open in the composer");
+        },
+        app =>
+        {
+            // Left as the case before this one leaves it: the draft kept, by opening another
+            // message, and the imported mail taken off the server.
+            if (app.Agent.Find(Filter.ById("SendButton")) is not null)
+            {
+                app.Agent.Invoke(app.RowTitled(Elsewhere));
+                app.Agent.WaitGone(Filter.ById("SendButton"), TimeSpan.FromSeconds(15));
+            }
+            Harness.RemoveMail(Harness.Alice, arrived);
+        });
+    }
 }
