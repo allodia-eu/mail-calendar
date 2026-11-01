@@ -328,6 +328,7 @@ public sealed partial class MailboxModel
         FolderRole.Archive => SidebarFolderRole.Archive,
         FolderRole.Junk => SidebarFolderRole.Junk,
         FolderRole.Trash => SidebarFolderRole.Trash,
+        FolderRole.Important => SidebarFolderRole.Important,
         _ => SidebarFolderRole.Other,
     };
 

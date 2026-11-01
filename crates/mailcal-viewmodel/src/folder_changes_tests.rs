@@ -161,6 +161,25 @@ fn role_folders_keep_their_place_and_junk_takes_no_mail_by_drop() {
 }
 
 #[test]
+fn important_is_a_view_of_mail_filed_elsewhere_so_it_takes_nothing() {
+    // On Gmail a move into a label takes the message out of every other one, so a drop on
+    // Important would empty the Inbox of it.
+    let rows = stamped(
+        &[folder(
+            "IMPORTANT",
+            "IMPORTANT",
+            None,
+            Some(MailboxRole::Important),
+        )],
+        &BTreeSet::new(),
+        true,
+    );
+
+    let important = row(&rows, "IMPORTANT");
+    assert!(!important.editable && !important.accepts_folders && !important.accepts_messages);
+}
+
+#[test]
 fn a_folder_in_trash_can_be_restored_but_takes_no_new_subfolders() {
     let rows = stamped(&stored(), &BTreeSet::new(), true);
 

@@ -237,6 +237,7 @@ pub(crate) fn only_an_unreachable_account_gets_the_warning() {
 #[test]
 fn a_role_with_no_icon_of_its_own_takes_the_plain_folder() {
     assert_eq!(role_icon(None), role_icon(Some(&FolderRole::Other)));
+    assert_eq!(role_icon(None), role_icon(Some(&FolderRole::Important)));
     assert_ne!(role_icon(Some(&FolderRole::Inbox)), role_icon(None));
     assert_ne!(
         role_icon(Some(&FolderRole::Junk)),

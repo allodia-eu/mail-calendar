@@ -236,10 +236,11 @@ class FolderDrawerTest {
                 accountFolderRow(
                     "work",
                     listOf(
-                        // What a server really calls them: the one name IMAP mandates, and
-                        // Exchange's word for the Trash.
+                        // What a server really calls them: the one name IMAP mandates, Exchange's
+                        // word for the Trash, and Gmail's label id.
                         folder("w1", "INBOX", FolderRole.INBOX),
                         folder("w2", "Deleted Items", FolderRole.TRASH),
+                        folder("w4", "IMPORTANT", FolderRole.IMPORTANT),
                         folder("w3", "Tenders", role = null),
                     ),
                 ),
@@ -250,6 +251,8 @@ class FolderDrawerTest {
         compose.onNodeWithText(L10n.folder_trash(ctx())).assertIsDisplayed()
         compose.onNodeWithText("INBOX").assertDoesNotExist()
         compose.onNodeWithText("Deleted Items").assertDoesNotExist()
+        compose.onNodeWithText(L10n.folder_important(ctx())).assertIsDisplayed()
+        compose.onNodeWithText("IMPORTANT").assertDoesNotExist()
         // Only a role is renamed, a folder the user made keeps the name they gave it.
         compose.onNodeWithText("Tenders").assertIsDisplayed()
     }

@@ -25,7 +25,9 @@ pub enum FolderRole {
     Junk,
     /// Trash; recoverable deleted messages.
     Trash,
-    /// Other role-bearing special folder (flagged, all, important, …).
+    /// Mail the provider judged important (Gmail's Important).
+    Important,
+    /// Other role-bearing special folder: flagged, or a role this app has no word for.
     Other,
 }
 

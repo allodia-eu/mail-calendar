@@ -18,9 +18,9 @@ use crate::l10n;
 /// one name IMAP mandates), `Deleted Items` from Exchange, `[Gmail]/Sent Mail`. Naming them
 /// ourselves is also what makes the folder list follow the **app's** language.
 ///
-/// [`FolderRole::Other`] keeps the server's name deliberately: the core collapses flagged,
-/// important and all-mail into that one value, so any single word for it would rename three
-/// different folders to the same thing.
+/// [`FolderRole::Other`] keeps the server's name deliberately: it holds flagged and any role the
+/// app has no word for, so any single word for it would rename different folders to the same
+/// thing.
 ///
 /// Public to the UI module because the pane is not the only place a folder is named; the list
 /// header and the sync-settings folder list show one too, and a folder called two things in one
@@ -33,6 +33,7 @@ pub(crate) fn folder_label(role: Option<&FolderRole>, name: &str) -> String {
         Some(FolderRole::Archive) => l10n::folder_archive().to_owned(),
         Some(FolderRole::Junk) => l10n::folder_junk().to_owned(),
         Some(FolderRole::Trash) => l10n::folder_trash().to_owned(),
+        Some(FolderRole::Important) => l10n::folder_important().to_owned(),
         Some(FolderRole::Other) | None => name.to_owned(),
     }
 }

@@ -44,13 +44,15 @@ import Testing
         #expect(folderLabel(role: .junk, name: "Junk Mail") == L10n.folder_junk())
         #expect(folderLabel(role: .drafts, name: "Concepten") == L10n.folder_drafts())
         #expect(folderLabel(role: .archive, name: "Archief 2024") == L10n.folder_archive())
+        // Gmail's label list names it by its id.
+        #expect(folderLabel(role: .important, name: "IMPORTANT") == L10n.folder_important())
     }
 
     @Test func aFolderTheUserMadeKeepsItsName() {
         #expect(folderLabel(role: nil, name: "Tenders") == "Tenders")
-        // `.other` too: the core collapses flagged, important and all-mail into it, so no one word
-        // is honest for all three.
-        #expect(folderLabel(role: .other, name: "[Gmail]/All Mail") == "[Gmail]/All Mail")
+        // `.other` too: it holds flagged and any role the app has no word for, so no one word is
+        // honest for it.
+        #expect(folderLabel(role: .other, name: "Starred") == "Starred")
     }
 
     // MARK: rule 9, the icon comes from the role, never the name
@@ -61,6 +63,7 @@ import Testing
         #expect(Set(glyphs).count == roles.count, "a role that shares its glyph is a role the pane cannot tell apart")
         #expect(folderIcon(nil) == "folder")
         #expect(folderIcon(.other) == "folder")
+        #expect(folderIcon(.important) == "folder")
     }
 
     // MARK: the list header names the row the pane selected

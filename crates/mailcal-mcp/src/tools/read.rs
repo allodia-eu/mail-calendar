@@ -161,6 +161,7 @@ fn folder_out(row: FolderRow) -> FolderOut {
                 FolderRole::Archive => "archive",
                 FolderRole::Junk => "junk",
                 FolderRole::Trash => "trash",
+                FolderRole::Important => "important",
                 FolderRole::Other => "other",
             }
             .to_owned()

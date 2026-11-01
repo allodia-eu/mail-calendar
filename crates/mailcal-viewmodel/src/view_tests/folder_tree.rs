@@ -80,12 +80,12 @@ fn a_role_bearing_folder_is_drawn_at_the_top_however_the_server_files_it() {
     // own place too.
     let mut sent = roled("[Gmail]/Sent Mail", "Sent Mail", MailboxRole::Sent);
     sent.parent = Some(MailboxId::try_from("[Gmail]").unwrap());
-    let mut all = roled("[Gmail]/All Mail", "All Mail", MailboxRole::All);
-    all.parent = Some(MailboxId::try_from("[Gmail]").unwrap());
+    let mut important = roled("[Gmail]/Important", "Important", MailboxRole::Important);
+    important.parent = Some(MailboxId::try_from("[Gmail]").unwrap());
     let rows = sorted_folder_rows(&[
         plain("[Gmail]", "[Gmail]"),
         sent,
-        all,
+        important,
         roled("INBOX", "Inbox", MailboxRole::Inbox),
         nested("[Gmail]/Spam-ish", "Spam-ish", "[Gmail]"),
     ]);
@@ -95,11 +95,36 @@ fn a_role_bearing_folder_is_drawn_at_the_top_however_the_server_files_it() {
         vec![
             ("INBOX", 0, None),
             ("[Gmail]/Sent Mail", 0, None),
-            // `All` ranks after the six named roles but is still a role, so it is hoisted too.
-            ("[Gmail]/All Mail", 0, None),
+            // `Important` ranks after the six named roles but is still a role, so it is hoisted.
+            ("[Gmail]/Important", 0, None),
             // The container stays, holding whatever has no role of its own.
             ("[Gmail]", 0, None),
             ("[Gmail]/Spam-ish", 1, Some("[Gmail]")),
+        ]
+    );
+}
+
+#[test]
+fn a_providers_all_mail_gets_no_row_because_the_accounts_own_all_mail_is_that_place() {
+    // Gmail's label list, as the engine reports it: an `\All` mailbox beside the account's own
+    // All Mail destination would be the same words on two rows (rule 30).
+    let mut all = roled("[Gmail]/All Mail", "All Mail", MailboxRole::All);
+    all.parent = Some(MailboxId::try_from("[Gmail]").unwrap());
+    let rows = sorted_folder_rows(&[
+        roled("INBOX", "INBOX", MailboxRole::Inbox),
+        all,
+        plain("[Gmail]", "[Gmail]"),
+        roled("ALL_MAIL", "All Mail", MailboxRole::All),
+        // A folder filed under it still has a row, at the top, as any orphan does.
+        nested("ALL_MAIL/Kept", "Kept", "ALL_MAIL"),
+    ]);
+
+    assert_eq!(
+        shape(&rows),
+        vec![
+            ("INBOX", 0, None),
+            ("[Gmail]", 0, None),
+            ("ALL_MAIL/Kept", 0, None),
         ]
     );
 }
