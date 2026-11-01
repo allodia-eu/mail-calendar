@@ -32,9 +32,10 @@ nobody has to dig a link out of the notes.
    link" and no Join; one it could not make (`Failed`) says so. Neither offers anything to tap.
 6. **The detail shows `display_notes`, the editor edits `notes`.** `display_notes` leaves out the
    block of text Teams and Google write into an invitation's description, which repeats the
-   meeting. `notes` is the description as the server holds it, block included, so a save from
-   the editor does not take the link from every invitee. A location that is only the meeting's
-   link is not shown as a place; the core leaves it out of `location`.
+   meeting; an event with no meeting shown keeps the block, since it is then the only way in.
+   `notes` is the description as the server holds it, block included, so a save from the editor
+   does not take the link from every invitee. A location that is only a shown meeting's link is
+   not shown as a place; the core leaves it out of `location`.
 7. **The glyph.** A block, bar, chip or agenda row with `has_conference` carries a small video
    camera glyph after its title, from the platform's own set ([`icons.md`](icons.md)), and its
    accessibility label says the event has a video meeting. The glyph is never the only way the

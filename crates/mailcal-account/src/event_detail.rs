@@ -87,8 +87,8 @@ pub struct EventDetail {
     /// every invitee.
     pub notes: Option<String>,
     /// The notes as the detail view shows them: [`Self::notes`] without the meeting blocks
-    /// Teams and Google write, which repeat [`Self::conferences`]. `None` when nothing else
-    /// is left.
+    /// Teams and Google write, which repeat [`Self::conferences`]; with no conference, the
+    /// blocks stay. `None` when nothing else is left.
     pub display_notes: Option<String>,
     /// The meetings the event can be joined at, the calendar server's own first; empty for
     /// most events. See `docs/conferencing.md`.
@@ -157,6 +157,7 @@ pub fn project_event_detail(
 ) -> EventDetail {
     let (timezone, start, end) = wall_clock_bounds(event, occurrence);
     let recurrence = event.recurrence.as_ref().and_then(describe_recurrence);
+    let conferences = event_conferences(event);
     EventDetail {
         account: account.to_owned(),
         key: event.id.key().as_str().to_owned(),
@@ -178,8 +179,14 @@ pub fn project_event_detail(
             .find(|name| !is_join_link(name, event))
             .map(str::to_owned),
         notes: event.description.clone(),
-        display_notes: event.notes().map(String::from),
-        conferences: event_conferences(event),
+        // The block is left out only when the detail offers the meeting instead: with nothing
+        // shown, it is the one way in left.
+        display_notes: if conferences.is_empty() {
+            event.description.clone()
+        } else {
+            event.notes().map(String::from)
+        },
+        conferences,
         reminder_minutes: reminder_minutes(event),
         repeat_summary: match &recurrence {
             Some(EventRecurrence::Simple(rule)) => summarize_repeat(rule, start_date(event)),

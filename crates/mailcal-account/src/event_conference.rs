@@ -78,10 +78,15 @@ fn project(conference: &Conference) -> Option<EventConference> {
         } => ConferenceState::Failed,
         _ => ConferenceState::Ready,
     };
-    let video = conference
-        .entry_points
-        .iter()
-        .find(|entry| entry.kind == EntryKind::Video);
+    let videos = || {
+        conference
+            .entry_points
+            .iter()
+            .filter(|entry| entry.kind == EntryKind::Video)
+    };
+    let video = videos()
+        .find(|entry| entry.uri.scheme() == UriScheme::Https)
+        .or_else(|| videos().next());
     let join_url = video
         .filter(|entry| entry.uri.scheme() == UriScheme::Https)
         .map(|entry| entry.uri.as_str().to_owned());
@@ -150,19 +155,24 @@ fn service_name(service: &ConferenceService) -> Option<&'static str> {
     })
 }
 
-/// Whether `location` says nothing but the join link of one of `conferences`, which the
-/// detail already offers as Join, so showing it as a place would repeat it.
+/// Whether `location` says nothing but a link of one of the event's shown conferences, which
+/// the detail already offers, so showing it as a place would repeat it. A link of a conference
+/// the detail does not show stays a place: it is then the only place it appears.
 #[must_use]
 pub(crate) fn is_join_link(location: &str, event: &Event) -> bool {
     let Ok(uri) = engine_core::calendar::ConferenceUri::parse(location) else {
         return false;
     };
-    event.conferences.iter().any(|conference| {
-        conference
-            .entry_points
-            .iter()
-            .any(|entry| entry.uri.same_meeting(&uri))
-    })
+    event
+        .conferences
+        .iter()
+        .filter(|conference| is_shown(conference))
+        .any(|conference| {
+            conference
+                .entry_points
+                .iter()
+                .any(|entry| entry.uri.same_meeting(&uri))
+        })
 }
 
 #[cfg(test)]

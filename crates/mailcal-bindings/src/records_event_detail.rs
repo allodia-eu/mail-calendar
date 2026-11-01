@@ -36,7 +36,8 @@ pub struct EventDetail {
     /// It keeps the meeting block an invitation writes, so a save does not take the link from
     /// every invitee; show `display_notes` instead.
     pub notes: Option<String>,
-    /// Minutes before the start of the first reminder, or `None`. Display-only in v1.
+    /// Minutes before the start of the first reminder, or `None`. Read-only: no client offers
+    /// to change a reminder yet.
     pub reminder_minutes: Option<i32>,
     /// The repeat rule, or `None` if the event does not repeat. A client localises the
     /// summary itself; [`EventRecurrence::Complex`](crate::EventRecurrence) means it repeats
@@ -73,7 +74,8 @@ pub struct EventDetail {
     /// Everyone on the event, organiser first; empty for an appointment nobody was invited to.
     pub attendees: Vec<EventAttendee>,
     /// The notes the detail view shows: `notes` without the meeting blocks Teams and Google
-    /// write, which repeat `conferences`. `None` when nothing else is left.
+    /// write, which repeat `conferences`; with no conference, the blocks stay. `None` when
+    /// nothing else is left.
     #[uniffi(default = None)]
     pub display_notes: Option<String>,
     /// The meetings the event can be joined at, the calendar server's own first; empty for

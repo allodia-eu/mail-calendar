@@ -170,3 +170,40 @@ fn the_detail_shows_neither_the_join_link_as_a_place_nor_the_block_as_notes() {
     );
     assert_eq!(detail.conferences.len(), 1);
 }
+
+#[test]
+fn join_opens_the_https_link_when_a_plain_http_one_comes_first() {
+    let mut event = event();
+    event.conferences = vec![conference(
+        ConferenceOrigin::Attached,
+        vec![
+            entry("http://meet.example.com/a"),
+            entry("https://meet.example.com/a"),
+        ],
+    )];
+    assert_eq!(
+        event_conferences(&event)[0].join_url.as_deref(),
+        Some("https://meet.example.com/a")
+    );
+}
+
+#[test]
+fn with_no_meeting_shown_the_detail_keeps_the_link_as_a_place_and_the_block_as_notes() {
+    let mut event = event();
+    event.locations = vec![Location::named("http://meet.example.com/a")];
+    let rule = "_".repeat(80);
+    event.description = Some(format!(
+        "Bring the figures.\n\n{rule}\nMicrosoft Teams meeting\nJoin\n{rule}\n"
+    ));
+    event.conferences = vec![conference(
+        ConferenceOrigin::Attached,
+        vec![entry("http://meet.example.com/a")],
+    )];
+    let detail = project_event_detail("acct", &event, true, None, InviteeEditability::ReadOnly);
+    assert_eq!(detail.conferences, []);
+    assert_eq!(
+        detail.location.as_deref(),
+        Some("http://meet.example.com/a")
+    );
+    assert_eq!(detail.display_notes, event.description);
+}
