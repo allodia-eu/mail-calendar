@@ -5,7 +5,7 @@
 # the version in the tag. The CLI is a static binary, so it runs in the server's image as copied.
 FROM ghcr.io/stalwartlabs/cli:1.0.12@sha256:fe199affac1d120a8c200ef39ae629765a2976270e0453575c1caf906ee15b52 AS cli
 
-FROM stalwartlabs/stalwart:v0.16.24@sha256:ec011be228596e37e65f41aab17deed573859614430472f7eeb42178c50d87b7
+FROM stalwartlabs/stalwart:v1.0.1@sha256:b9da4df8b4efc06bc926dd6e990bdeb0ad7b9261a7c3893d74b0461a00bb389b
 
 COPY --from=cli /usr/local/bin/stalwart-cli /usr/local/bin/stalwart-cli
 
