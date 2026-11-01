@@ -1,4 +1,4 @@
-// Opening a draft from the Drafts folder back into its composer (docs/drafts.md).
+// Opening a draft back into its composer, wherever it is listed (docs/drafts.md).
 //
 // Where the composer goes is MainWindow.Compose.cs, which this reuses: a resumed draft is an
 // ordinary composer in the reading pane's column, differing only in what it opens with.
@@ -14,12 +14,11 @@ namespace Allodia.Mailcal;
 public sealed partial class MainWindow
 {
     /// <summary>
-    /// Opens a Drafts-folder row back into its composer, and every other row for reading.
+    /// Opens a draft back into its composer, and every other message for reading.
     /// </summary>
     /// <remarks>
-    /// Told by the <b>folder</b>, not by the row: the core answers per message but the list does
-    /// not carry it, so a draft met in a search result or in another folder's thread opens
-    /// read-only (<c>docs/drafts.md</c>, known gaps).
+    /// Told by the <b>row</b> (<paramref name="draft"/>), never by the folder, so a draft met in a
+    /// search result or in a conversation shown from another folder resumes as one in Drafts does.
     /// <para>Resuming is a round trip and, unlike a forward, cannot count on the message being
     /// cached: a draft is opened from a list row, so the first open of one fetches it. It runs off
     /// the UI thread for that reason, and the composer appears when the answer does. A draft that
@@ -27,9 +26,9 @@ public sealed partial class MainWindow
     /// opened without the draft's content would replace it with what was on screen the next time
     /// it saved.</para>
     /// </remarks>
-    internal async Task OpenOrResumeAsync(string account, string key, Action read)
+    internal async Task OpenOrResumeAsync(string account, string key, bool draft, Action read)
     {
-        if (!Model.ShowingDrafts)
+        if (!draft)
         {
             read();
             return;

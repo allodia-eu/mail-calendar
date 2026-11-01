@@ -93,9 +93,9 @@ public sealed partial class MailboxModel
 
     /// <summary>
     /// Toggles a conversation's inline expansion (revealing its whole thread as sub-rows).
-    /// Expanding also opens its latest message in the reading pane, the desktop 3-pane behaviour,
-    /// like macOS; collapsing leaves the pane as-is. <paramref name="openLatest"/> false leaves the
-    /// opening to the caller, which in Drafts opens that message into its composer instead.
+    /// Expanding also opens its <see cref="Representative"/> in the reading pane, the desktop
+    /// 3-pane behaviour, like macOS; collapsing leaves the pane as-is. <paramref name="openLatest"/>
+    /// false leaves the opening to the caller, which opens a draft into its composer instead.
     /// </summary>
     public void ToggleThread(MailRow row, bool openLatest = true)
     {
@@ -103,7 +103,15 @@ public sealed partial class MailboxModel
         if (row.IsExpanded)
         {
             _expandedThreads.Add(row.Id);
-            if (openLatest)
+            if (!openLatest)
+            {
+                return;
+            }
+            if (Representative(row) is { } message)
+            {
+                OpenThreadMessage(message);
+            }
+            else
             {
                 OpenMessage(row);
             }
@@ -114,28 +122,22 @@ public sealed partial class MailboxModel
         }
     }
 
+    /// <summary>
+    /// The message selecting a conversation opens: its newest, whatever its kind, a reply filed in
+    /// Sent or a draft included (docs/row-actions.md, rule 2), or in Drafts the newest draft, which
+    /// is the one its row summarises (docs/drafts.md).
+    /// </summary>
+    internal ThreadMessageItem? Representative(MailRow row) =>
+        ConversationExpansion.Representative(
+            row.Messages.Select(m => m.Key).ToList(), row.LatestKey, ShowingDrafts) is { } at
+            ? row.Messages[at]
+            : null;
+
     /// <summary>Opens one message of an expanded conversation (a sub-row) in the reading pane.</summary>
     public void OpenThreadMessage(ThreadMessageItem message)
     {
         OpenedMessage = ThreadMessageHeader(message);
         OpenKey(message.Account, message.Key);
-    }
-
-    /// <summary>
-    /// Archives a conversation, the core moves its received side to Archive and leaves any Sent
-    /// copies in Sent, then tidies the UI: collapse it and, if the open message was part of it,
-    /// clear the reading pane (its row is leaving the folder).
-    /// </summary>
-    public void ArchiveConversation(MailRow row)
-    {
-        ArchiveThread(row.Account, row.Key);
-        _expandedThreads.Remove(row.Id);
-        row.IsExpanded = false;
-        if (OpenedMessage is { } opened
-            && row.Messages.Any(m => m.Account == opened.Account && m.Key == opened.Key))
-        {
-            CloseReading();
-        }
     }
 
     /// <summary>

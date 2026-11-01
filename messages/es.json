@@ -164,6 +164,8 @@
 	"delete_permanently_title": "¿Eliminar definitivamente?",
 	"delete_permanently_message": "Este mensaje se eliminará de forma definitiva. La acción no se puede deshacer.",
 	"delete_permanently_message_many": "{count} mensajes se eliminarán de forma definitiva. La acción no se puede deshacer.",
+	"delete_permanently_conversation": "Esta conversación se eliminará de forma definitiva, salvo los mensajes enviados y los borradores que contenga. La acción no se puede deshacer.",
+	"delete_permanently_conversations": "{count} conversaciones se eliminarán de forma definitiva, salvo los mensajes enviados y los borradores que contengan. La acción no se puede deshacer.",
 
 	"compose_title_new": "Mensaje nuevo",
 	"compose_to": "Para",

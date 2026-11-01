@@ -28,13 +28,12 @@ public sealed partial class MailboxModel
     internal void RaiseDraftStatusChanged() => DraftStatusChanged?.Invoke();
 
     /// <summary>
-    /// Whether the list is showing the account's Drafts folder, so a row opens into a composer
-    /// that saves over it rather than into the reading view (<c>docs/drafts.md</c>).
+    /// Whether the list is showing the account's Drafts folder, where a conversation row opens its
+    /// newest draft rather than its newest message (<c>docs/drafts.md</c>). Whether a message opens
+    /// into a composer is its row's own <c>Draft</c>, in every folder and search alike.
     /// </summary>
     /// <remarks>
-    /// The core's own answer, from the folder's <b>role</b> and never its name: a folder the user
-    /// called Drafts holds ordinary mail, and a composer opened on one of those messages would
-    /// rewrite it on its first save.
+    /// The core's own answer, from the folder's <b>role</b> and never its name.
     /// </remarks>
     internal bool ShowingDrafts { get; private set; }
 
