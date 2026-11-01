@@ -220,10 +220,19 @@ pub async fn connect_imap_watcher(
     if imap.watch_headroom() == 0 {
         return Err(AccountError::NoWatchConnection);
     }
+    // Another folder's watch can take the last spare connection between the check above and
+    // this reservation, and the engine refuses that the same way it refuses a server without
+    // `IDLE`; the headroom tells the two apart.
     let watcher = imap
         .watch(mailbox, DEFAULT_IDLE_KEEPALIVE)
         .await
-        .map_err(|err| AccountError::Watch(err.to_string()))?;
+        .map_err(|err| {
+            if imap.watch_headroom() == 0 {
+                AccountError::NoWatchConnection
+            } else {
+                AccountError::Watch(err.to_string())
+            }
+        })?;
     Ok(Box::new(watcher))
 }
 
