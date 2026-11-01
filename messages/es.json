@@ -3,6 +3,8 @@
 
 	"app_title": "{app_name}",
 	"app_unavailable": "No se ha podido abrir la aplicación. Reiníciala.",
+	"sign_in_page_done": "Puedes cerrar esta pestaña y volver a {app_name}.",
+	"sign_in_page_ended": "Este inicio de sesión ya no está en espera. Vuelve a {app_name} e inicia sesión de nuevo.",
 
 	"nav_mail": "Correo",
 	"nav_calendar": "Calendario",

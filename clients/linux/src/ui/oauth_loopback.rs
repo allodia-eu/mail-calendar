@@ -10,7 +10,11 @@ use std::{
 use gtk::gio;
 use url::Url;
 
+use crate::l10n;
+
 pub(super) const CALLBACK_TIMEOUT: Duration = Duration::from_mins(5);
+/// How long a port picked for one sign-in keeps answering once the wait is over.
+const LINGERING: Duration = Duration::from_mins(3);
 const ACCEPT_POLL: Duration = Duration::from_millis(50);
 const MAX_REQUEST_BYTES: usize = 16 * 1024;
 
@@ -24,12 +28,19 @@ pub(super) enum CallbackOutcome {
 pub(super) struct OAuthLoopback {
     listener: TcpListener,
     address: SocketAddrV4,
+    /// Whether the port keeps answering once the wait is over. Only a port picked for this
+    /// sign-in does: a persisted redirect's port must be free for the next re-authentication
+    /// the moment this one ends.
+    lingers: bool,
 }
 
 impl OAuthLoopback {
     pub(super) fn bind() -> std::io::Result<Self> {
         let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))?;
-        Self::from_listener(listener)
+        Ok(Self {
+            lingers: true,
+            ..Self::from_listener(listener)?
+        })
     }
 
     /// Binds the exact loopback redirect persisted with a JMAP OAuth grant. A provider registers
@@ -66,7 +77,11 @@ impl OAuthLoopback {
                 ));
             }
         };
-        Ok(Self { listener, address })
+        Ok(Self {
+            listener,
+            address,
+            lingers: false,
+        })
     }
 
     pub(super) fn redirect_uri(&self) -> String {
@@ -77,6 +92,7 @@ impl OAuthLoopback {
         Ok(Self {
             listener: self.listener.try_clone()?,
             address: self.address,
+            lingers: self.lingers,
         })
     }
 
@@ -113,6 +129,62 @@ impl OAuthLoopback {
 
     fn wait_with_timeout(
         self,
+        cancel: &AtomicBool,
+        timeout: Duration,
+        expected_state: Option<&str>,
+        timeout_message: &str,
+        failure_message: &str,
+    ) -> CallbackOutcome {
+        let outcome = self.wait_until(
+            cancel,
+            timeout,
+            expected_state,
+            timeout_message,
+            failure_message,
+        );
+        if self.lingers {
+            self.linger(match outcome {
+                CallbackOutcome::Received(_) => l10n::sign_in_page_done(),
+                CallbackOutcome::Cancelled | CallbackOutcome::Failed(_) => {
+                    l10n::sign_in_page_ended()
+                }
+            });
+        }
+        outcome
+    }
+
+    /// Answers every request with `message` for [`LINGERING`] once the wait is over, so a browser
+    /// that comes back late (a sign-in cancelled or finished, or a tab reloaded) reads what
+    /// happened rather than a refused connection.
+    fn linger(self, message: &str) {
+        let page = page(message);
+        std::thread::spawn(move || {
+            let until = Instant::now() + LINGERING;
+            while Instant::now() < until {
+                match self.listener.accept() {
+                    Ok((mut stream, peer)) if peer.ip().is_loopback() => {
+                        let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
+                        let mut request = [0_u8; 1024];
+                        let _ = stream.read(&mut request);
+                        let _ = write_response(
+                            &mut stream,
+                            "200 OK",
+                            "text/html; charset=utf-8",
+                            &page,
+                        );
+                    }
+                    Ok(_) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(ACCEPT_POLL);
+                    }
+                    Err(_) => return,
+                }
+            }
+        });
+    }
+
+    fn wait_until(
+        &self,
         cancel: &AtomicBool,
         timeout: Duration,
         expected_state: Option<&str>,
@@ -226,12 +298,7 @@ fn parse_request_target(request: &[u8]) -> Option<&str> {
     {
         return None;
     }
-    let query = target.split_once('?')?.1;
-    let has_state = query.split('&').any(|part| part.starts_with("state="));
-    let has_result = query
-        .split('&')
-        .any(|part| part.starts_with("code=") || part.starts_with("error="));
-    (has_state && has_result).then_some(target)
+    mailcal_bindings::is_oauth_callback(target.to_owned()).then_some(target)
 }
 
 fn callback_state(target: &str) -> Option<&str> {
@@ -243,8 +310,30 @@ fn callback_state(target: &str) -> Option<&str> {
 }
 
 fn write_close_page(stream: &mut TcpStream) -> std::io::Result<()> {
-    const BODY: &str = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Allodia Mail &amp; Calendar</title></head><body><p>You can close this tab and return to Allodia Mail &amp; Calendar.</p></body></html>";
-    write_response(stream, "200 OK", "text/html; charset=utf-8", BODY)
+    write_response(
+        stream,
+        "200 OK",
+        "text/html; charset=utf-8",
+        &page(&l10n::sign_in_page_done()),
+    )
+}
+
+/// A self-contained page saying the catalog's `message`, with no external assets so it renders
+/// offline. The message carries the app's name, so it is escaped as text.
+fn page(message: &str) -> String {
+    format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>{}</title></head>\
+         <body style=\"font-family: system-ui, sans-serif; text-align: center; padding: 3rem;\">\
+         <p>{}</p></body></html>",
+        escaped(&l10n::app_title()),
+        escaped(message)
+    )
+}
+
+fn escaped(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 fn write_bad_request(stream: &mut TcpStream) -> std::io::Result<()> {

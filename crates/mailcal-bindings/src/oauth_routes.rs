@@ -35,6 +35,16 @@ pub fn oauth_routes() -> OAuthRoutes {
     }
 }
 
+/// Whether a request that reached a desktop sign-in's loopback listener is the authorisation
+/// redirect: its target (`/?code=…&state=…`) or full URL carries `state` and a `code` or an
+/// `error`. A listener answers anything else, such as the browser's `/favicon.ico`, and keeps
+/// waiting, because taking the first request fails a sign-in the person completed.
+#[must_use]
+#[uniffi::export]
+pub fn is_oauth_callback(target: String) -> bool {
+    mailcal_oauth::is_callback(&target)
+}
+
 #[cfg(test)]
 mod tests {
     use super::oauth_routes;

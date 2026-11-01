@@ -3,6 +3,8 @@
 
 	"app_title": "{app_name}",
 	"app_unavailable": "Kan de app niet openen. Start de app opnieuw.",
+	"sign_in_page_done": "Je kunt dit tabblad sluiten en teruggaan naar {app_name}.",
+	"sign_in_page_ended": "Deze aanmelding wacht niet meer. Ga terug naar {app_name} en meld je opnieuw aan.",
 
 	"nav_mail": "E-mail",
 	"nav_calendar": "Agenda",

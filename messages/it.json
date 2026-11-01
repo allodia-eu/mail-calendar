@@ -3,6 +3,8 @@
 
 	"app_title": "{app_name}",
 	"app_unavailable": "Non è stato possibile aprire l’app. Riavviala.",
+	"sign_in_page_done": "Puoi chiudere questa scheda e tornare a {app_name}.",
+	"sign_in_page_ended": "Questo accesso non è più in attesa. Torna a {app_name} e accedi di nuovo.",
 
 	"nav_mail": "Posta",
 	"nav_calendar": "Calendario",

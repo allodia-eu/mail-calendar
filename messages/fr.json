@@ -3,6 +3,8 @@
 
 	"app_title": "{app_name}",
 	"app_unavailable": "Impossible d’ouvrir l’application. Veuillez la redémarrer.",
+	"sign_in_page_done": "Vous pouvez fermer cet onglet et revenir à {app_name}.",
+	"sign_in_page_ended": "Cette connexion n’est plus en attente. Revenez à {app_name} et connectez-vous à nouveau.",
 
 	"nav_mail": "Courrier",
 	"nav_calendar": "Calendrier",

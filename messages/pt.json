@@ -3,6 +3,8 @@
 
 	"app_title": "{app_name}",
 	"app_unavailable": "Não foi possível abrir a aplicação. Reinicie-a.",
+	"sign_in_page_done": "Pode fechar este separador e voltar a {app_name}.",
+	"sign_in_page_ended": "Este início de sessão já não está à espera. Volte a {app_name} e inicie sessão novamente.",
 
 	"nav_mail": "Correio",
 	"nav_calendar": "Calendário",

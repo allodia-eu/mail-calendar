@@ -35,6 +35,7 @@ mod mail_providers;
 mod pkce;
 mod provider;
 mod reach;
+mod redirect;
 mod register;
 mod resource_probe;
 mod resources;
@@ -52,6 +53,7 @@ pub use mail_providers::{StaticMailProvider, provider_for_host, static_mail_prov
 pub use pkce::{Pkce, random_state};
 pub use provider::{AuthStyle, GOOGLE_SCOPES, MICROSOFT_GRAPH_SCOPES, OAuthProviderConfig};
 pub use reach::TokenRequestReach;
+pub use redirect::is_callback;
 pub use register::{
     DavUse, MailProtocol, RegisteredClient, grants_dav_access, grants_mail_access, register_client,
     requests_dav_use, select_dav_scopes, select_scopes,

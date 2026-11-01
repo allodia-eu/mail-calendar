@@ -600,7 +600,12 @@ autodetection. It reuses the whole state machine above; the deltas are:
   `TcpListener` on Linux. Google **deprecated** the
   loopback redirect for the *iOS* client type and recommends it for desktop, which is why macOS (a
   desktop app) uses a Desktop client rather than sharing iOS's custom-scheme flow; all three
-  desktop hosts reuse the same Desktop client (loopback is not OS-bound).
+  desktop hosts reuse the same Desktop client (loopback is not OS-bound). **The listener takes only
+  the redirect**, a request whose query carries `state` and a `code` or an `error`
+  (`is_oauth_callback`, one rule for all three), reads its whole request head first, and answers
+  anything else with a 400 while it keeps waiting: a browser can ask the port for `/favicon.ico`
+  before the redirect, and taking that request failed a completed sign-in with "callback missing
+  state".
 - **Client secret: none for iOS/Android, a non-confidential one for the Desktop client (rule 1).**
   The **iOS/Android** clients are true public clients: Google's token endpoint takes the PKCE
   exchange with only the client id. A Google **Desktop** client (the **macOS/Windows/Linux** loopback
