@@ -23,6 +23,7 @@ use mailcal_viewmodel::{
 };
 
 use crate::{
+    event_conference::{EventConference, event_conferences, is_join_link},
     recurrence_shape::{EventRecurrence, describe_recurrence},
     repeat_draft::{RepeatDraft, repeat_draft_of},
     repeat_summary::{RepeatSummary, summarize_repeat},
@@ -78,10 +79,20 @@ pub struct EventDetail {
     pub start: String,
     /// The end, same terms as `start`, for an all-day event the date is **exclusive**.
     pub end: String,
-    /// The location, if any.
+    /// The location, if any. A location that is only a meeting's join link is left out:
+    /// [`Self::conferences`] already offers it as Join.
     pub location: Option<String>,
-    /// The notes/description, if any.
+    /// The description as the server holds it, if any: what the editor edits. It keeps the
+    /// meeting block an invitation writes, because a save without it would take the link from
+    /// every invitee.
     pub notes: Option<String>,
+    /// The notes as the detail view shows them: [`Self::notes`] without the meeting blocks
+    /// Teams and Google write, which repeat [`Self::conferences`]. `None` when nothing else
+    /// is left.
+    pub display_notes: Option<String>,
+    /// The meetings the event can be joined at, the calendar server's own first; empty for
+    /// most events. See `docs/conferencing.md`.
+    pub conferences: Vec<EventConference>,
     /// Minutes before the start of the first "N before start" reminder, or `None` if the event
     /// has none we summarise. Read-only: no client offers to change a reminder yet.
     pub reminder_minutes: Option<i32>,
@@ -163,8 +174,12 @@ pub fn project_event_detail(
         location: event
             .locations
             .iter()
-            .find_map(|location| location.name.clone()),
+            .filter_map(|location| location.name.as_deref())
+            .find(|name| !is_join_link(name, event))
+            .map(str::to_owned),
         notes: event.description.clone(),
+        display_notes: event.notes().map(String::from),
+        conferences: event_conferences(event),
         reminder_minutes: reminder_minutes(event),
         repeat_summary: match &recurrence {
             Some(EventRecurrence::Simple(rule)) => summarize_repeat(rule, start_date(event)),

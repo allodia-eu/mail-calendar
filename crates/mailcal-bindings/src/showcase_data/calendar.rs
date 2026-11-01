@@ -8,7 +8,10 @@
 //! the locale seeds.
 
 use engine_core::{
-    calendar::{Calendar, Event},
+    calendar::{
+        Calendar, Conference, ConferenceKey, ConferenceOrigin, ConferenceService, ConferenceUri,
+        EntryPoint, Event, NativeState,
+    },
     ids::{CalendarId, EventId, Uid},
     membership::Memberships,
     time::{CalendarDate, CalendarDateTime, Duration, LocalDateTime, TimeZoneId},
@@ -168,4 +171,33 @@ fn zoned(now: OffsetDateTime, day_offset: i64, hour: u8, minute: u8) -> Calendar
         local,
         zone: TimeZoneId::iana("Europe/Amsterdam").expect("valid zone"),
     }
+}
+
+/// Gives the Monday design sync, the same meeting in every locale, a Teams meeting with its
+/// meeting ID and a dial-in number, so the detail shows Join and the grid its camera glyph
+/// (`docs/conferencing.md`). Reserved numbers and a made-up meeting: nothing here dials anyone.
+pub(super) fn with_meeting(events: &mut [Event]) {
+    let Some(sync) = events
+        .iter_mut()
+        .find(|event| event.id.key().as_str() == "ev-mon-designsync")
+    else {
+        return;
+    };
+    let join = ConferenceUri::parse("https://teams.microsoft.com/meet/990000000001?p=ShowcasePass")
+        .expect("a valid join link");
+    let mut phone = EntryPoint::at(ConferenceUri::parse("tel:+31205550100").expect("a number"));
+    phone.label = Some("+31 20 555 0100".to_owned());
+    phone.access.access_code = Some("990 000 000#".to_owned());
+    sync.conferences = vec![Conference {
+        key: ConferenceKey::new("onlineMeeting"),
+        service: Some(ConferenceService::Teams),
+        origin: ConferenceOrigin::Native {
+            removable: false,
+            state: NativeState::Ready,
+        },
+        entry_points: vec![EntryPoint::at(join), phone],
+        label: None,
+        meeting_id: Some("990 000 000 001".to_owned()),
+        notes: None,
+    }];
 }

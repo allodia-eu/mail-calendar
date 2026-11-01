@@ -29,6 +29,7 @@ fn agenda_showing(title: &str) -> CalendarModel {
         start: "2026-10-26T08:00:00Z".to_owned(),
         can_write: true,
         participation: ResponseStatus::Accepted,
+        has_conference: false,
     }];
     model
 }
@@ -48,6 +49,7 @@ fn month_showing(title: &str) -> CalendarModel {
             can_write: true,
             occurrence_start: String::new(),
             participation: ResponseStatus::Accepted,
+            has_conference: false,
         }],
     }];
     model

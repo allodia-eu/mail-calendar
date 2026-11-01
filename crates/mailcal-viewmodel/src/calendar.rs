@@ -21,6 +21,7 @@ pub mod agenda;
 pub use crate::color;
 pub mod days;
 pub mod grid;
+pub mod meeting;
 pub mod month;
 pub mod packing;
 

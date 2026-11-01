@@ -62,6 +62,8 @@ pub struct EventRow {
     /// its event set comes from the same filtered occurrence cache the grid uses, so the one
     /// hiding rule covers every surface (`docs/invitations.md`).
     pub participation: crate::invitation::ResponseStatus,
+    /// Whether the event has a meeting to join ([`crate::calendar::meeting::has_conference`]).
+    pub has_conference: bool,
 }
 
 /// Builds the agenda snapshot, soonest first, ordered in the `zone` display zone.
@@ -89,6 +91,7 @@ pub fn build(events: &[AccountEvent], zone: &TimeZoneId) -> CalendarSnapshot {
             start: start_instant(&item.event),
             can_write: item.can_write,
             participation: item.participation,
+            has_conference: crate::calendar::meeting::has_conference(&item.event),
         })
         .collect();
     CalendarSnapshot {
@@ -181,6 +184,22 @@ mod tests {
         );
         event.title = title.to_owned();
         tagged(event)
+    }
+
+    #[test]
+    fn a_row_says_whether_its_event_has_a_meeting() {
+        let mut meeting = event("e1", "u1@h", "Standup", 9);
+        meeting.event.conferences =
+            engine_core::calendar::group_flat(vec![engine_core::calendar::FlatEntry::new(
+                engine_api::ConferenceUri::parse("https://zoom.us/j/1").unwrap(),
+            )]);
+        let snapshot = build(&[meeting, event("e2", "u2@h", "Lunch", 12)], &utc());
+        let flags: Vec<bool> = snapshot
+            .events
+            .iter()
+            .map(|row| row.has_conference)
+            .collect();
+        assert_eq!(flags, [true, false]);
     }
 
     #[test]

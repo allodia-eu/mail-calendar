@@ -128,6 +128,8 @@ impl From<AppEventDetail> for EventDetail {
             end: detail.end,
             location: detail.location,
             notes: detail.notes,
+            display_notes: detail.display_notes,
+            conferences: detail.conferences.into_iter().map(Into::into).collect(),
             reminder_minutes: detail.reminder_minutes,
             recurrence: detail.recurrence.map(Into::into),
             is_recurring: detail.is_recurring,
@@ -198,6 +200,7 @@ impl From<AppTimedSegment> for TimedSegment {
             can_move: segment.can_move,
             occurrence_start: segment.occurrence_start,
             participation: segment.participation.into(),
+            has_conference: segment.has_conference,
         }
     }
 }
@@ -217,6 +220,7 @@ impl From<AppAllDayBand> for AllDayBand {
             can_write: band.can_write,
             occurrence_start: band.occurrence_start,
             participation: band.participation.into(),
+            has_conference: band.has_conference,
         }
     }
 }

@@ -38,6 +38,8 @@ const BANNER_MINUTES: i64 = DAY_MINUTES;
 ///
 /// The app builds these from `Engine::occurrences_in` (the instants) and `Engine::events`
 /// (the title, calendar, and kind): occurrences carry *when*, the master carries *what*.
+// Independent facts kept flat, for the reason given on `TimedSegment`.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Occurrence {
     /// The owning account, so an action on the block routes to it (two accounts can mint
@@ -84,6 +86,9 @@ pub struct Occurrence {
     /// [`ResponseStatus::Declined`] never reaches a grid: the core filters those out upstream
     /// (`docs/invitations.md`).
     pub participation: ResponseStatus,
+    /// Whether the event has a meeting to join ([`crate::calendar::meeting::has_conference`]),
+    /// which a client marks with a camera glyph and says in the block's accessibility label.
+    pub has_conference: bool,
 }
 
 /// One day column: the date it shows.
@@ -146,9 +151,13 @@ pub struct TimedSegment {
     /// the accessibility label must **say** it ("Awaiting your response";
     /// `a11y_invitation_awaiting_response`). `docs/calendar.md` §4, the spoken-grid rule.
     pub participation: ResponseStatus,
+    /// See [`Occurrence::has_conference`].
+    pub has_conference: bool,
 }
 
 /// A bar above the grid: an all-day or multi-day event, spanning whole day columns.
+// Independent facts kept flat, for the reason given on `TimedSegment`.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AllDayBand {
     /// The owning account.
@@ -180,6 +189,8 @@ pub struct AllDayBand {
     /// How this account answered; see [`TimedSegment::participation`], including the
     /// accessibility requirement.
     pub participation: ResponseStatus,
+    /// See [`Occurrence::has_conference`].
+    pub has_conference: bool,
 }
 
 /// The laid-out grid a day/3-day/work-week/week view renders.
@@ -347,6 +358,7 @@ fn segments(occurrence: &Occurrence, extent: &Extent, shown: &[i64]) -> Vec<Time
             can_move: occurrence.can_move,
             occurrence_start: occurrence.occurrence_start.clone(),
             participation: occurrence.participation,
+            has_conference: occurrence.has_conference,
         });
     }
     out
@@ -374,6 +386,7 @@ fn band(occurrence: &Occurrence, extent: &Extent, shown: &[i64]) -> Option<AllDa
         can_write: occurrence.can_write,
         occurrence_start: occurrence.occurrence_start.clone(),
         participation: occurrence.participation,
+        has_conference: occurrence.has_conference,
     })
 }
 

@@ -114,6 +114,7 @@ impl From<AppMonthChip> for MonthChip {
             can_write: chip.can_write,
             occurrence_start: chip.occurrence_start,
             participation: chip.participation.into(),
+            has_conference: chip.has_conference,
         }
     }
 }

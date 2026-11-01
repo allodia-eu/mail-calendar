@@ -335,6 +335,7 @@ impl<P: Provider> App<P> {
                     can_move,
                     occurrence_start,
                     participation,
+                    has_conference: mailcal_viewmodel::calendar::meeting::has_conference(event),
                 });
             }
         }

@@ -294,6 +294,7 @@ impl<P: Provider> App<P> {
                 can_move: false,
                 occurrence_start: String::new(),
                 participation: *response,
+                has_conference: mailcal_viewmodel::calendar::meeting::has_conference(master),
             })
             .collect();
 
@@ -322,6 +323,7 @@ impl<P: Provider> App<P> {
                 can_move: false,
                 occurrence_start: String::new(),
                 participation: mine,
+                has_conference: mailcal_viewmodel::calendar::meeting::has_conference(event),
             });
         }
         (
