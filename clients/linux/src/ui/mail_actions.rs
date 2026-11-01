@@ -3,13 +3,12 @@
 //! The menus a row offers them through are [`super::mail_actions_menu`].
 
 use adw::prelude::*;
-use mailcal_bindings::{BulkAction, Intent, MessageKind, SelectedRow, SnapshotRow};
+use mailcal_bindings::{BulkAction, Intent, MenuMessage, SelectedRow, SnapshotRow};
 
 use super::{
     AppInput, AppModel, mailbox,
     mailbox::ThreadKey,
     model::{self, OpenedMessage},
-    notification_open::find_in_list,
     reader::ReadingSource,
 };
 use crate::l10n;
@@ -293,25 +292,24 @@ impl AppModel {
             action,
         ));
         match source {
-            ReadingSource::Pane => match next {
-                Some((message, draft)) => self.open_or_resume(message, draft, sender),
-                None => self.reading.close(),
-            },
+            ReadingSource::Pane => {
+                if !next.is_some_and(|stop| self.open_as_clicked(&stop, sender)) {
+                    self.reading.close();
+                }
+            }
             ReadingSource::Window(window) => self.close_reading_window(&window.clone()),
         }
     }
 
-    /// The message the pane moves on to once `opened` leaves the list, and whether it is a draft.
-    fn stop_after_removing(&self, opened: &OpenedMessage) -> Option<(OpenedMessage, bool)> {
+    /// The message the pane moves on to once `opened` leaves the list, as the core names it.
+    fn stop_after_removing(&self, opened: &OpenedMessage) -> Option<MenuMessage> {
         let app = self.app.as_ref()?;
         let expanded = self
             .expanded_threads
             .iter()
             .map(ThreadKey::selected_row)
             .collect();
-        let stop = app.stop_after_removing(opened.account.clone(), opened.key.clone(), expanded)?;
-        let found = find_in_list(&self.snapshot, &stop.account, &stop.key)?;
-        Some((found.message, stop.kind == MessageKind::Draft))
+        app.stop_after_removing(opened.account.clone(), opened.key.clone(), expanded)
     }
 
     /// Records a conversation's inline disclosure and, on opening one, opens its newest message

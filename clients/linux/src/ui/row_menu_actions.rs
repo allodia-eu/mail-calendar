@@ -24,7 +24,9 @@ impl AppModel {
 
     pub(super) fn perform_row_pick(&mut self, pick: RowPick, sender: &relm4::Sender<AppInput>) {
         match pick {
-            RowPick::Open(message) => self.open_menu_target(&message, sender),
+            RowPick::Open(message) => {
+                self.open_as_clicked(&message, sender);
+            }
             RowPick::OpenInWindow(message) => {
                 if let Some(found) = find_in_list(&self.snapshot, &message.account, &message.key) {
                     self.open_reading_window(found.message);
@@ -43,17 +45,23 @@ impl AppModel {
         }
     }
 
-    /// Opens the message an item names as selecting its row would: a conversation's message by
-    /// selecting and expanding that conversation onto it, a draft into its composer.
-    fn open_menu_target(&mut self, target: &MenuMessage, sender: &relm4::Sender<AppInput>) {
+    /// Opens a message the core named as selecting its row would: a conversation's message by
+    /// selecting and expanding that conversation onto it, a draft into its composer. Answers
+    /// whether the list still shows it.
+    pub(super) fn open_as_clicked(
+        &mut self,
+        target: &MenuMessage,
+        sender: &relm4::Sender<AppInput>,
+    ) -> bool {
         let Some(found) = find_in_list(&self.snapshot, &target.account, &target.key) else {
-            return;
+            return false;
         };
         self.select_row(found.index, SelectMode::Replace);
         if let Some(thread) = found.thread {
             self.expanded_threads.insert(thread);
         }
         self.open_or_resume(found.message, target.kind == MessageKind::Draft, sender);
+        true
     }
 
     fn answer(&self, kind: ComposeKind, message: MenuMessage, sender: &relm4::Sender<AppInput>) {
