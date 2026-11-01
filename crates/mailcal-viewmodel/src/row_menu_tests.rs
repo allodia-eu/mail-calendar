@@ -13,7 +13,13 @@ use super::*;
 use crate::view::{AccountMessage, ViewMode, build};
 
 /// One message of thread `thread`, filed in `folder`, at minute `minute`, read and unflagged.
-fn mail(key: &str, folder: &str, minute: u8, thread: &str, kind: MessageKind) -> AccountMessage {
+pub(crate) fn mail(
+    key: &str,
+    folder: &str,
+    minute: u8,
+    thread: &str,
+    kind: MessageKind,
+) -> AccountMessage {
     marked(key, folder, minute, thread, kind, "")
 }
 
@@ -77,7 +83,7 @@ fn threaded(messages: &[AccountMessage]) -> MailboxListSnapshot {
 }
 
 /// The threaded list of `folder`: a conversation is listed when one of its messages is there.
-fn threaded_in(folder: &str, messages: &[AccountMessage]) -> MailboxListSnapshot {
+pub(crate) fn threaded_in(folder: &str, messages: &[AccountMessage]) -> MailboxListSnapshot {
     let messages: Vec<AccountMessage> = messages
         .iter()
         .cloned()

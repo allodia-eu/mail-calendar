@@ -372,4 +372,4 @@ fn many_rows(rows: &[Found<'_>]) -> Vec<Vec<RowMenuItem>> {
 
 #[cfg(test)]
 #[path = "row_menu_tests.rs"]
-mod tests;
+pub(crate) mod tests;

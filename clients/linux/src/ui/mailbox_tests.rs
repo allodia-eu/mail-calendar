@@ -1,16 +1,14 @@
 //! Widget-level regressions for the mailbox rows.
 
-use std::collections::HashSet;
-
 use adw::prelude::*;
-use mailcal_bindings::{FlatRow, SnapshotRow, ThreadMessage, ThreadRow};
+use mailcal_bindings::{FlatRow, SnapshotRow};
 
 // The oracle every assertion below reads the screen through, and the one the Settings,
 // calendar, contacts and reading tests share ([`super::test_tree`]).
 pub(crate) use super::test_tree::{
     every_row_belongs_to_a_list, glib_records, labels, rendered_labels,
 };
-use super::{MailboxRendering, ThreadKey, display_row, flat_row};
+use super::{MailboxRendering, display_row, flat_row};
 use crate::ui::{
     AppInput, composer_header::tests as composer_header, connectivity::tests as connectivity,
     contacts::pane::tests as contacts, destinations::tests as destinations,
@@ -92,101 +90,6 @@ fn a_photo_arriving_is_part_of_the_row_rendering_key() {
     row.avatar.image_path = Some("/tmp/content-addressed-photo.png".to_owned());
 
     assert_ne!(before, MailboxRendering::new(&snapshot, "UTC"));
-}
-
-#[test]
-fn reading_stops_expand_a_conversation_in_place_and_collapse_to_its_newest_message() {
-    let mut snapshot = crate::ui::model::empty_mailbox();
-    let first = FlatRow {
-        key: "flat-first".to_owned(),
-        ..fixture("First")
-    };
-    let messages = vec![
-        ThreadMessage {
-            avatar: crate::ui::model::blank_avatar(),
-            account: "fixture".to_owned(),
-            key: "thread-newest".to_owned(),
-            from: "Newest sender".to_owned(),
-            date: "2026-07-21".to_owned(),
-            preview: String::new(),
-            unread: false,
-            flagged: false,
-            outgoing: true,
-            draft: false,
-            has_attachment: false,
-        },
-        ThreadMessage {
-            avatar: crate::ui::model::blank_avatar(),
-            account: "fixture".to_owned(),
-            key: "thread-representative".to_owned(),
-            from: "Representative sender".to_owned(),
-            date: "2026-07-20".to_owned(),
-            preview: String::new(),
-            unread: true,
-            flagged: false,
-            outgoing: false,
-            draft: false,
-            has_attachment: false,
-        },
-    ];
-    let thread = ThreadRow {
-        avatar: crate::ui::model::blank_avatar(),
-        account: "fixture".to_owned(),
-        thread_id: "thread".to_owned(),
-        latest_key: "thread-representative".to_owned(),
-        subject: "Conversation".to_owned(),
-        latest_from: "Representative sender".to_owned(),
-        latest_date: "2026-07-20".to_owned(),
-        message_count: 2,
-        unread_count: 1,
-        flagged: false,
-        has_attachment: false,
-        preview: String::new(),
-        messages,
-    };
-    let last = FlatRow {
-        key: "flat-last".to_owned(),
-        ..fixture("Last")
-    };
-    let expanded_key = ThreadKey::of(&thread);
-    snapshot.rows = vec![
-        SnapshotRow::Flat { row: first },
-        SnapshotRow::Thread { row: thread },
-        SnapshotRow::Flat { row: last },
-    ];
-
-    // Collapsed, the conversation is one stop: its newest message, the owner's own reply
-    // included, which is what selecting it opens (`docs/row-actions.md`, rule 2).
-    let collapsed = crate::ui::model::readable_stops(&snapshot, &HashSet::new());
-    assert_eq!(
-        collapsed
-            .iter()
-            .map(|message| message.key.as_str())
-            .collect::<Vec<_>>(),
-        ["flat-first", "thread-newest", "flat-last"]
-    );
-    // In Drafts it is the draft the row summarises.
-    snapshot.showing_drafts = true;
-    assert_eq!(
-        crate::ui::model::readable_stops(&snapshot, &HashSet::new())[1].key,
-        "thread-representative"
-    );
-    snapshot.showing_drafts = false;
-
-    let expanded = HashSet::from([expanded_key]);
-    let open = crate::ui::model::readable_stops(&snapshot, &expanded);
-    assert_eq!(
-        open.iter()
-            .map(|message| message.key.as_str())
-            .collect::<Vec<_>>(),
-        [
-            "flat-first",
-            "thread-newest",
-            "thread-representative",
-            "flat-last"
-        ]
-    );
-    assert_eq!(open[1].subject, "Conversation");
 }
 
 /// The crate's one GTK test: see [`super::thread_tests`] for why there is exactly one.

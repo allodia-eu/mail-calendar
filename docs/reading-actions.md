@@ -49,6 +49,29 @@ bordered button's height and breaks the row's width measurement
 ([`client-traps.md`](client-traps.md)). What the contract fixes is the result, not the mechanism:
 a reader should not be able to tell the overflow apart from its neighbours except by its glyph.
 
+## Where the pane goes next
+
+Archive and delete from a reading **pane** move it on to the next message down, or to the one
+above when the message was the last, so working through a folder never means going back to the
+list for each message. Only an empty list leaves the pane empty. A reading window closes instead,
+being one message rather than a place in a list ([`reading-window.md`](reading-window.md)); a
+phone, whose reading view is a screen of its own, goes back to the list; and a batch over a
+selection clears the pane, because the row it would move to may be in the same batch
+([`list-selection.md`](list-selection.md), rule 7).
+
+**The pane lands where a click on that row would have taken the reader.** The core decides which
+message that is (`stop_after_removing`), asked before the archive or delete is dispatched while the
+message is still listed, so every client lands on the same one:
+
+- A collapsed conversation is the message clicking it opens: its newest, whatever its kind
+  ([`row-actions.md`](row-actions.md), rule 2), or in Drafts the draft its row summarises. An
+  expanded one offers each of its messages. Which conversations are expanded is the client's to
+  know, so the client names them.
+- The answer says what kind of message it is, and the client opens it exactly as clicking its row
+  does: a draft resumes in a composer ([`drafts.md`](drafts.md)), anything else opens for
+  reading. A pane that moved on into a reader where a click would have resumed the draft shows
+  the draft as something it cannot edit.
+
 ## What may go in the overflow
 
 - **Actions on the message as a document**, rather than on its place in the mailbox: exporting it
@@ -137,6 +160,7 @@ It is not an `Intent`, for the reason exporting is not one.
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Overflow menu at the end of the action row | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Archive/delete moves the pane on to the core's `stop_after_removing`, opened as a click would | ⬜ | ⬜ (iPad) | ⬜ | — | ✅ |
 | Header scrolls, row stays put | ✗ | ✅ | ✗ | ✗ | ✗ |
 | Save as `.eml` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Destination | save panel | share sheet | save picker | share sheet | save dialog |

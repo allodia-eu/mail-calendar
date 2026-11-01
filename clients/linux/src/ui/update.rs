@@ -177,7 +177,7 @@ impl AppModel {
             AppInput::PerformRowsAction { rows, action } => self.perform_rows(rows, action),
             AppInput::PerformMailAction(request) => self.perform_mail_action(*request),
             AppInput::PerformOpenedMailAction { source, action } => {
-                self.perform_opened_mail_action(&source, action);
+                self.perform_opened_mail_action(&source, action, sender.input_sender());
             }
             AppInput::DismissPermanentDelete => self.pending_mail_delete = None,
             AppInput::ActivateSidebar(target) => self.activate_sidebar(&target),

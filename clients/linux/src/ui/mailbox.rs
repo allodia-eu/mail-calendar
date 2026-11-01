@@ -25,11 +25,25 @@ use crate::l10n;
 /// A conversation's identity in the list. Account-scoped, because a provider's thread id is
 /// unique only *within* its account; two accounts in the unified view can carry the same one.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct ThreadKey(String);
+pub(crate) struct ThreadKey {
+    account: String,
+    thread_id: String,
+}
 
 impl ThreadKey {
     pub(super) fn new(account: &str, thread_id: &str) -> Self {
-        Self(format!("{account}/{thread_id}"))
+        Self {
+            account: account.to_owned(),
+            thread_id: thread_id.to_owned(),
+        }
+    }
+
+    /// The conversation's row, as the core names it.
+    pub(super) fn selected_row(&self) -> SelectedRow {
+        SelectedRow::Thread {
+            account: self.account.clone(),
+            thread_id: self.thread_id.clone(),
+        }
     }
 
     pub(super) fn of(row: &ThreadRow) -> Self {
