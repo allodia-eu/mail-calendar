@@ -160,7 +160,7 @@ It is not an `Intent`, for the reason exporting is not one.
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Overflow menu at the end of the action row | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Archive/delete moves the pane on to the core's `stop_after_removing`, opened as a click would | ⬜ | ⬜ (iPad) | ⬜ | — | ✅ |
+| Archive/delete moves the pane on to the core's `stop_after_removing`, opened as a click would | ⬜ | ⬜ (iPad) | ✅ | — | ✅ |
 | Header scrolls, row stays put | ✗ | ✅ | ✗ | ✗ | ✗ |
 | Save as `.eml` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Destination | save panel | share sheet | save picker | share sheet | save dialog |

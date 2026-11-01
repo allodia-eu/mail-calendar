@@ -191,8 +191,8 @@ public sealed partial class MailListView
     }
 
     // A message the menu files elsewhere takes the reading pane on with it when it is the one open,
-    // as the pane's own Archive does (ReadingActions.Settle): where the pane lands is read before
-    // the dispatch, while the row it is relative to is still listed.
+    // as the pane's own Archive does (ReadingActions.MoveOnAsync): where the pane lands is read
+    // before the dispatch, while the row it is relative to is still listed.
     private void Leaving(MenuMessage message, Action dispatch)
     {
         if (Model is not { } model
@@ -203,9 +203,7 @@ public sealed partial class MailListView
             dispatch();
             return;
         }
-        var next = model.StopAfterRemoving(opened);
-        dispatch();
-        model.SettleReadingPane(next);
+        _ = ReadingActions.MoveOnAsync(model, opened, dispatch);
     }
 
     // A flat row's own message goes through the SAME deferred machine as a swipe: the row hides,

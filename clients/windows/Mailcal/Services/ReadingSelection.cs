@@ -1,5 +1,6 @@
-// Which list row is highlighted while the reading pane shows a message, the other half of the
-// auto-advance (ReadingAdvance.cs), and the reason it was reported as broken on Windows.
+// Which list row is highlighted while the reading pane shows a message, the client's half of the
+// pane moving on after an archive (docs/reading-actions.md, "Where the pane goes next"; where it
+// goes is the core's), and the reason it was reported as broken on Windows.
 //
 // The Apple client derives the highlight from the opened message (`isOpenMessage`), so advancing
 // the pane moves the highlight for free. WinUI's ListView instead owns a `SelectedItem`, which
@@ -8,8 +9,8 @@
 // re-runs whenever the open message *or* the row set changes, so the highlight tracks the pane
 // rather than the last click.
 //
-// **Pure BCL on purpose, no WinUI, no view models.** Same reason as ReadingAdvance: Mailcal.Tests
-// links this file and gates the rule on every PR.
+// **Pure BCL on purpose, no WinUI, no view models.** Mailcal.Tests links this file and gates the
+// rule on every PR.
 
 using System.Collections.Generic;
 
@@ -40,7 +41,7 @@ public static class ReadingSelection
         {
             // Both halves must match: a provider key is unique only within its account, so two
             // accounts can mint the same one and matching on the key alone highlights a row in
-            // the wrong mailbox (the same trap ReadingAdvance guards).
+            // the wrong mailbox.
             if (rows[i].Account != account)
             {
                 continue;
