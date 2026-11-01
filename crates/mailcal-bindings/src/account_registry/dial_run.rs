@@ -233,7 +233,7 @@ impl AccountDial {
                         mailcal_account::connect_google_mail_providers(
                             Arc::clone(&tokens),
                             None,
-                            &identity.email,
+                            &identity,
                         )
                         .await
                         .map_err(ConnectFailure::from)

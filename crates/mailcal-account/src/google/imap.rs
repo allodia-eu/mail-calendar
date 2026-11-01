@@ -9,10 +9,18 @@
 //! The API stays the fallback for an account whose IMAP side Gmail refuses: a Workspace domain
 //! can turn IMAP off, which Gmail answers at login, and a user can hide All Mail from it. Any
 //! other failure (the network, a throttle, a TLS failure behind a captive portal) is **not**
-//! that: it fails the call, to be tried again, because falling back would hand an IMAP cursor to
-//! the API pass, which can only start again from the top.
+//! that: it fails the read, to be tried again, because falling back would hand an IMAP cursor to
+//! the API pass, which can only start again from the top. A refused login is both: Gmail also
+//! refuses one for too many simultaneous connections, so only the same refusal
+//! [`REFUSALS_BEFORE_API`] times running moves the account.
+//!
+//! One slot serves every provider of an account ([`GmailImapSlot::shared`]): each holds a pool of
+//! connections, and Gmail counts an account's connections across all of its clients.
 
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::{Arc, LazyLock, Weak},
+};
 
 use engine_core::error::FailureClass;
 use engine_provider::{ProviderError, ProviderResult};
@@ -25,6 +33,13 @@ use crate::{GraphTokenSource, imap_credentials::OAuthCredentialSource};
 
 /// Gmail's IMAP server, for every Gmail and Workspace account alike.
 const GMAIL_IMAP: &str = "imap.gmail.com";
+
+/// How many refused logins in a row move an account to the API.
+const REFUSALS_BEFORE_API: u8 = 3;
+
+/// Every live slot, by account address, so the providers of one account share one.
+static SLOTS: LazyLock<std::sync::Mutex<HashMap<String, Weak<GmailImapSlot>>>> =
+    LazyLock::new(Default::default);
 
 /// The reader a live account hands the Gmail provider.
 pub(crate) type GmailImap = GmailMail<TlsStream<TcpStream>>;
@@ -42,8 +57,9 @@ pub(super) struct GmailImapSlot {
 /// Which side the account's mail is read over.
 #[derive(Debug, Clone)]
 enum Side {
-    /// Not asked yet, or last asked during a failure that may pass.
-    Unknown,
+    /// Not asked yet, or last asked during a failure that may pass, after this many refused
+    /// logins in a row.
+    Unknown(u8),
     /// IMAP, through this reader.
     Imap(GmailImap),
     /// The API: Gmail refused this account IMAP.
@@ -51,17 +67,26 @@ enum Side {
 }
 
 impl GmailImapSlot {
-    pub(super) fn new(
-        address: String,
-        tokens: Arc<GraphTokenSource>,
-        tls: TlsClientConfig,
-    ) -> Self {
-        Self {
-            address,
-            tokens,
-            tls,
-            state: Mutex::new(Side::Unknown),
+    /// The slot of the account at `address`: the one its other providers already hold, or a new
+    /// one when none does.
+    pub(super) fn shared(
+        address: &str,
+        tokens: &Arc<GraphTokenSource>,
+        tls: &TlsClientConfig,
+    ) -> Arc<Self> {
+        let mut slots = SLOTS.lock().expect("gmail slots mutex poisoned");
+        slots.retain(|_, slot| slot.strong_count() > 0);
+        if let Some(slot) = slots.get(address).and_then(Weak::upgrade) {
+            return slot;
         }
+        let slot = Arc::new(Self {
+            address: address.to_owned(),
+            tokens: Arc::clone(tokens),
+            tls: tls.clone(),
+            state: Mutex::new(Side::Unknown(0)),
+        });
+        slots.insert(address.to_owned(), Arc::downgrade(&slot));
+        slot
     }
 
     /// The account's IMAP reader, opening it the first time; `None` when Gmail refuses this
@@ -72,38 +97,42 @@ impl GmailImapSlot {
     /// A failure that may pass: nothing is decided, and the next call tries again.
     pub(super) async fn reader(&self) -> ProviderResult<Option<GmailImap>> {
         let mut state = self.state.lock().await;
-        match &*state {
+        let refused = match &*state {
             Side::Imap(reader) => return Ok(Some(reader.clone())),
             Side::Api => return Ok(None),
-            Side::Unknown => {}
+            Side::Unknown(refused) => *refused,
+        };
+        let result = open(&self.address, &self.tokens, &self.tls).await;
+        let (next, answer) = decide(result, refused);
+        match &next {
+            Side::Imap(_) => log::info!("gmail: reading mail over IMAP"),
+            Side::Api => log::info!("gmail: reading mail over the API, the IMAP side refused it"),
+            Side::Unknown(_) => {}
         }
-        match open(&self.address, &self.tokens, &self.tls).await {
-            Ok(reader) => {
-                log::info!("gmail: reading mail over IMAP");
-                *state = Side::Imap(reader.clone());
-                Ok(Some(reader))
-            }
-            Err(err) if !refuses_imap(&err) => Err(err),
-            Err(err) => {
-                log::info!(
-                    "gmail: reading mail over the API, the IMAP side refused ({:?})",
-                    err.class()
-                );
-                *state = Side::Api;
-                Ok(None)
-            }
-        }
+        *state = next;
+        answer
     }
 }
 
-/// Whether `err` says Gmail will not serve this account over IMAP: the login refused (IMAP
-/// turned off for the domain, after the API took the same token), or the session lacking what
-/// the reader needs (no Gmail extension, All Mail hidden from IMAP).
-fn refuses_imap(err: &ProviderError) -> bool {
-    matches!(
-        err.class(),
-        FailureClass::Authentication | FailureClass::InvalidState
-    )
+/// What an attempt to open the IMAP side leaves the slot at, after `refused` refused logins in a
+/// row, and what the caller is told. The session lacking what the reader needs (no Gmail
+/// extension, All Mail hidden) is final; a refused login is final only once it has repeated
+/// (IMAP turned off for the domain, after the API took the same token); anything else passes.
+fn decide(
+    opened: ProviderResult<GmailImap>,
+    refused: u8,
+) -> (Side, ProviderResult<Option<GmailImap>>) {
+    match opened {
+        Ok(reader) => (Side::Imap(reader.clone()), Ok(Some(reader))),
+        Err(err) => match err.class() {
+            FailureClass::InvalidState => (Side::Api, Ok(None)),
+            FailureClass::Authentication if refused + 1 >= REFUSALS_BEFORE_API => {
+                (Side::Api, Ok(None))
+            }
+            FailureClass::Authentication => (Side::Unknown(refused + 1), Err(err)),
+            _ => (Side::Unknown(refused), Err(err)),
+        },
+    }
 }
 
 /// Logs in, and proves All Mail is shown to IMAP.
@@ -131,28 +160,46 @@ mod tests {
     use engine_core::error::FailureClass;
     use engine_provider::ProviderError;
 
-    use super::refuses_imap;
+    use super::{REFUSALS_BEFORE_API, Side, decide};
+
+    fn failed(class: FailureClass) -> engine_provider::ProviderResult<super::GmailImap> {
+        Err(ProviderError::new(class, "no"))
+    }
 
     #[test]
-    fn only_a_refusal_of_imap_itself_moves_the_account_to_the_api() {
-        for class in [FailureClass::Authentication, FailureClass::InvalidState] {
-            assert!(
-                refuses_imap(&ProviderError::new(class, "refused")),
-                "{class:?}"
-            );
+    fn a_hidden_all_mail_moves_the_account_to_the_api_at_once() {
+        let (side, answer) = decide(failed(FailureClass::InvalidState), 0);
+        assert!(matches!(side, Side::Api));
+        assert!(matches!(answer, Ok(None)));
+    }
+
+    #[test]
+    fn a_refused_login_moves_it_only_once_the_refusal_has_repeated() {
+        let mut refused = 0;
+        for _ in 1..REFUSALS_BEFORE_API {
+            let (side, answer) = decide(failed(FailureClass::Authentication), refused);
+            let Side::Unknown(count) = side else {
+                panic!("one refusal may be a connection limit, not IMAP turned off");
+            };
+            assert_eq!(answer.unwrap_err().class(), FailureClass::Authentication);
+            refused = count;
         }
-        // Each of these may pass, and falling back on one would restart the sync from the top.
+        let (side, answer) = decide(failed(FailureClass::Authentication), refused);
+        assert!(matches!(side, Side::Api));
+        assert!(matches!(answer, Ok(None)));
+    }
+
+    #[test]
+    fn a_failure_that_may_pass_is_tried_again_and_counts_no_refusal() {
         for class in [
             FailureClass::Retryable,
             FailureClass::RateLimited,
             FailureClass::Permanent,
             FailureClass::Conflict,
-            FailureClass::NeedsResync,
         ] {
-            assert!(
-                !refuses_imap(&ProviderError::new(class, "passing")),
-                "{class:?}"
-            );
+            let (side, answer) = decide(failed(class), 1);
+            assert!(matches!(side, Side::Unknown(1)), "{class:?}");
+            assert_eq!(answer.unwrap_err().class(), class);
         }
     }
 }
