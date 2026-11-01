@@ -82,6 +82,30 @@ fn folders_lead_with_special_roles_in_canonical_order_then_custom_by_name() {
 }
 
 #[test]
+fn important_has_a_role_of_its_own_and_flagged_stays_other() {
+    // Gmail's label list names it `IMPORTANT`, so a client needs the role to give it a word of
+    // its own (rule 12); flagged keeps the server's name, as `Other` does.
+    let rows = sorted_folder_rows(&[
+        roled("IMPORTANT", "IMPORTANT", MailboxRole::Important),
+        roled("Flagged", "Starred", MailboxRole::Flagged),
+        roled("INBOX", "Inbox", MailboxRole::Inbox),
+    ]);
+
+    let roles: Vec<(&str, Option<FolderRole>)> = rows
+        .iter()
+        .map(|row| (row.key.as_str(), row.role))
+        .collect();
+    assert_eq!(
+        roles,
+        vec![
+            ("INBOX", Some(FolderRole::Inbox)),
+            ("Flagged", Some(FolderRole::Other)),
+            ("IMPORTANT", Some(FolderRole::Important)),
+        ]
+    );
+}
+
+#[test]
 fn a_folder_carries_the_servers_count_and_an_uncounted_one_shows_nothing() {
     let folders = vec![
         counted("INBOX", "Inbox", MailboxRole::Inbox, 545),

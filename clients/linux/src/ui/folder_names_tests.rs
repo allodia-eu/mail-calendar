@@ -77,11 +77,13 @@ fn a_role_bearing_folder_is_named_by_the_app_and_every_other_keeps_its_name() {
         folder_label(Some(&FolderRole::Archive), "Archief 2024"),
         "Archive"
     );
-    // `Other` collapses flagged, important and all-mail, so there is no one honest word for it.
+    // Gmail's label list names it by its id.
     assert_eq!(
-        folder_label(Some(&FolderRole::Other), "All Mail"),
-        "All Mail"
+        folder_label(Some(&FolderRole::Important), "IMPORTANT"),
+        "Important"
     );
+    // `Other` holds flagged and any role the app has no word for, so there is no one honest word.
+    assert_eq!(folder_label(Some(&FolderRole::Other), "Starred"), "Starred");
     assert_eq!(folder_label(None, "Sales & Marketing"), "Sales & Marketing");
 }
 

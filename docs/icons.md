@@ -66,7 +66,7 @@ noted beside it, and the two without one are this app's own drawings.
 | Archive | `archivebox` | `ic_archive` | `E7B8` Package | `mailcal-archive-symbolic` (own) |
 | Junk | `xmark.bin` | `ic_warning` | `E733` Blocked | `mail-mark-junk-symbolic` |
 | Trash | `trash` | `ic_delete` | `E74D` Delete | `user-trash-symbolic` |
-| Any other folder | `folder` | `ic_folder` | `E8B7` Folder | `folder-symbolic` |
+| Important, and any other folder | `folder` | `ic_folder` | `E8B7` Folder | `folder-symbolic` |
 | All Mail | `tray.full` | — | — | — |
 | An account | `person.crop.circle` | `ic_account_circle` (Top level in Move to…) | `E77B` Contact | `avatar-default-symbolic` |
 | An account whose server is unreachable | `exclamationmark.triangle.fill` | `ic_warning` | `Symbol.Important` | `dialog-warning-symbolic` |

@@ -78,8 +78,8 @@ public sealed partial class MainWindow
         SidebarFolderRole.Archive => "\uE7B8", // Archive (a lidded box)
         SidebarFolderRole.Junk => "\uE733",    // Blocked (a barred circle)
         SidebarFolderRole.Trash => "\uE74D",   // Delete (a waste basket)
-        // A role we recognise but draw no distinct icon for (flagged / all / important), and
-        // every ordinary custom folder, take the plain folder.
+        // A role we recognise but draw no distinct icon for (important, flagged), and every
+        // ordinary custom folder, take the plain folder.
         _ => "\uE8B7",                  // Folder
     };
 

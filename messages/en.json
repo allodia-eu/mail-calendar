@@ -19,6 +19,7 @@
 	"folder_archive": "Archive",
 	"folder_junk": "Junk",
 	"folder_trash": "Trash",
+	"folder_important": "Important",
 	"folder_outbox": "Outbox",
 	"folder_action_new": "New folder",
 	"folder_action_rename": "Rename…",

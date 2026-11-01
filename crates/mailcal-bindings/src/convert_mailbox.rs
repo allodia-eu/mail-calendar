@@ -25,6 +25,7 @@ impl From<AppFolderRole> for FolderRole {
             AppFolderRole::Archive => Self::Archive,
             AppFolderRole::Junk => Self::Junk,
             AppFolderRole::Trash => Self::Trash,
+            AppFolderRole::Important => Self::Important,
             AppFolderRole::Other => Self::Other,
         }
     }

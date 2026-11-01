@@ -432,8 +432,8 @@ private fun AccountHeader(
 // every mail client does, and it is what makes the folder list follow the app's language instead
 // of the server's.
 //
-// OTHER keeps the server name: the core collapses flagged, important and all-mail into that one
-// value, so no single word is honest for it.
+// OTHER keeps the server name: it holds flagged and any role the app has no word for, so no
+// single word is honest for it.
 //
 // Internal (not private) because the sync-settings folder list names the same folders.
 internal fun folderLabel(role: FolderRole?, name: String, ctx: android.content.Context): String =
@@ -444,6 +444,7 @@ internal fun folderLabel(role: FolderRole?, name: String, ctx: android.content.C
         FolderRole.ARCHIVE -> L10n.folder_archive(ctx)
         FolderRole.JUNK -> L10n.folder_junk(ctx)
         FolderRole.TRASH -> L10n.folder_trash(ctx)
+        FolderRole.IMPORTANT -> L10n.folder_important(ctx)
         FolderRole.OTHER, null -> name
     }
 
@@ -464,5 +465,6 @@ internal fun folderIcon(role: FolderRole?): Int =
         FolderRole.ARCHIVE -> R.drawable.ic_archive
         FolderRole.JUNK -> R.drawable.ic_warning
         FolderRole.TRASH -> R.drawable.ic_delete
-        FolderRole.OTHER, null -> R.drawable.ic_folder
+        // Important has no glyph of its own (docs/icons.md), so it takes the plain folder.
+        FolderRole.IMPORTANT, FolderRole.OTHER, null -> R.drawable.ic_folder
     }

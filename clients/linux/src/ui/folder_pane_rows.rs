@@ -30,9 +30,9 @@ pub(super) fn role_icon(role: Option<&FolderRole>) -> &'static str {
         Some(FolderRole::Archive) => icons::ARCHIVE,
         Some(FolderRole::Junk) => icons::JUNK,
         Some(FolderRole::Trash) => icons::TRASH,
-        // A role we recognise but draw no distinct icon for (flagged / all / important), and
-        // every ordinary custom folder, take the plain folder.
-        Some(FolderRole::Other) | None => icons::FOLDER,
+        // A role we recognise but draw no distinct icon for (important, flagged), and every
+        // ordinary custom folder, take the plain folder.
+        Some(FolderRole::Important | FolderRole::Other) | None => icons::FOLDER,
     }
 }
 
