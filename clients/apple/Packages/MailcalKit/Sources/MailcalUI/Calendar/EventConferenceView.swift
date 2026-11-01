@@ -15,10 +15,11 @@ struct EventConferenceSection: View {
 
     var body: some View {
         Section {
+            let join = conferenceJoinURL(conference)
             HStack(spacing: 12) {
                 Label(conferenceTitle(conference), systemImage: "video")
                 Spacer(minLength: 8)
-                if let join = conferenceJoinURL(conference) {
+                if let join {
                     Button(L10n.event_join()) { openURL(join) }
                         .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("event-join")
@@ -27,9 +28,10 @@ struct EventConferenceSection: View {
             if let status = conferenceStatus(conference) {
                 Text(status).foregroundStyle(.secondary)
             }
-            if let link = conference.joinUrl {
+            // The same gate as Join: a link Join will not open is not offered to copy either.
+            if let join {
                 Button(L10n.action_copy_link(), systemImage: "doc.on.doc") {
-                    PlatformPasteboard.copy(link)
+                    PlatformPasteboard.copy(join.absoluteString)
                 }
             }
             if let id = conference.meetingId {
@@ -41,7 +43,8 @@ struct EventConferenceSection: View {
             if !conference.dialIn.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.event_meeting_dial_in()).font(.caption).foregroundStyle(.tint)
-                    ForEach(conference.dialIn, id: \.uri) { number in
+                    // By position: one number can be listed twice, with a different PIN.
+                    ForEach(Array(conference.dialIn.enumerated()), id: \.offset) { _, number in
                         DialInRow(number: number)
                     }
                 }
