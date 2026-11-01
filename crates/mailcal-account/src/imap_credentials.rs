@@ -41,10 +41,10 @@ pub fn imap_credential_source(
 ) -> Result<Arc<dyn CredentialSource>, AccountError> {
     if account.is_oauth() {
         let tokens = tokens.ok_or(AccountError::MissingCredential(NO_TOKEN_SOURCE))?;
-        return Ok(Arc::new(OAuthCredentialSource {
-            username: account.username().to_owned(),
-            tokens: Arc::clone(tokens),
-        }));
+        return Ok(Arc::new(OAuthCredentialSource::new(
+            account.username().to_owned(),
+            Arc::clone(tokens),
+        )));
     }
     let password = account
         .imap_password_credentials()
@@ -62,6 +62,13 @@ pub struct OAuthCredentialSource {
     username: String,
     /// The account's one token source.
     tokens: Arc<GraphTokenSource>,
+}
+
+impl OAuthCredentialSource {
+    /// The credential `username` presents, with tokens from the account's `tokens`.
+    pub(crate) fn new(username: String, tokens: Arc<GraphTokenSource>) -> Self {
+        Self { username, tokens }
+    }
 }
 
 #[async_trait]

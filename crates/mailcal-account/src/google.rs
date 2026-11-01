@@ -32,6 +32,7 @@ use time::Date;
 mod calendar;
 mod config;
 mod contacts;
+mod imap;
 mod mail_provider;
 
 pub use calendar::connect_google_calendar_provider;
@@ -91,6 +92,8 @@ pub(crate) struct RefreshingGmailProvider {
     /// The built delegate, cached by the access token it was built with, so its reqwest
     /// connection pool is reused across requests; rebuilt only when the token refreshes.
     cached: Mutex<Option<(String, Arc<GmailProvider>)>>,
+    /// The account's mail over IMAP, which every delegate reads through (`imap`).
+    imap: imap::GmailImapSlot,
 }
 
 impl RefreshingGmailProvider {
@@ -100,8 +103,10 @@ impl RefreshingGmailProvider {
         tokens: Arc<GraphTokenSource>,
         since: Option<Date>,
         tls: TlsClientConfig,
+        address: String,
     ) -> Self {
         Self {
+            imap: imap::GmailImapSlot::new(address, Arc::clone(&tokens), tls.clone()),
             tokens,
             capabilities: Capabilities::none()
                 .with_mail()
@@ -156,6 +161,9 @@ impl RefreshingGmailProvider {
         )
         .map_err(ProviderError::from)?;
         let mut gmail = GmailProvider::new(client);
+        if let Some(reader) = self.imap.reader().await? {
+            gmail = gmail.with_imap(reader);
+        }
         if let Some(date) = self.since.and_then(calendar_date) {
             gmail = gmail.with_since(date);
         }
@@ -196,12 +204,16 @@ pub(super) fn calendar_date(date: Date) -> Option<CalendarDate> {
 pub async fn connect_google_mail_providers(
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
+    address: &str,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
     let tls = tls_with(&[])?;
     // Cheap credential probe: refresh once so a dead refresh token fails here.
     let _ = tokens.access_token().await?;
     Ok(vec![Box::new(RefreshingGmailProvider::new(
-        tokens, since, tls,
+        tokens,
+        since,
+        tls,
+        address.to_owned(),
     ))])
 }
 
@@ -216,9 +228,15 @@ pub async fn connect_google_mail_providers(
 pub fn connect_google_folder(
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
+    address: &str,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let tls = tls_with(&[])?;
-    Ok(Box::new(RefreshingGmailProvider::new(tokens, since, tls)))
+    Ok(Box::new(RefreshingGmailProvider::new(
+        tokens,
+        since,
+        tls,
+        address.to_owned(),
+    )))
 }
 
 #[cfg(test)]
@@ -256,7 +274,7 @@ mod tests {
         };
 
         let (endpoint, _hits) = dead_grant_token_endpoint();
-        let provider = connect_google_folder(source_at(endpoint, None), None).unwrap();
+        let provider = connect_google_folder(source_at(endpoint, None), None, "alice@example.com").unwrap();
         assert_drafts_reach_the_delegate(provider.as_ref()).await;
     }
 
@@ -274,7 +292,7 @@ mod tests {
     fn connect_google_folder_binds_a_writable_account_global_mail_provider() {
         let source = google_source();
         let account = AccountId::try_from("alice@gmail.com@mail.google.com").unwrap();
-        let provider = connect_google_folder(source, None).unwrap();
+        let provider = connect_google_folder(source, None, "alice@example.com").unwrap();
         // Mail read/sync, and the account-global message scope (no folder binding).
         assert!(provider.connection_info().capabilities.mail());
         assert!(!provider.connection_info().capabilities.calendars());

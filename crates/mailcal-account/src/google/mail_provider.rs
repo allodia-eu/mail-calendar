@@ -16,8 +16,9 @@ use engine_core::{
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, HandOver, MailEdit, MailEditReceipt, MailboxEdit,
     MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderResult, ReportReceipt,
-    ScopeSync, SenderIdentity, SenderIdentityId, SubmissionReceipt,
+    ScopeSync, SenderIdentity, SenderIdentityId, SourceStream, SubmissionReceipt,
 };
+use futures::StreamExt;
 
 use super::{RefreshingGmailProvider, should_reconnect};
 
@@ -104,6 +105,30 @@ impl Provider for RefreshingGmailProvider {
                 Err(err) => return Err(err),
             }
         }
+    }
+
+    /// Forwards the batch read, so a body warm reads as many sources a request as the delegate
+    /// carries (fifty over IMAP) rather than the trait's one at a time.
+    fn fetch_message_sources<'a>(
+        &'a self,
+        account: &'a AccountId,
+        messages: &'a [Message],
+    ) -> SourceStream<'a> {
+        Box::pin(async_stream::stream! {
+            match self.delegate().await {
+                Ok(provider) => {
+                    let mut sources = provider.fetch_message_sources(account, messages);
+                    while let Some(item) = sources.next().await {
+                        yield item;
+                    }
+                }
+                Err(err) => {
+                    for index in 0..messages.len() {
+                        yield (index, Err(engine_provider::ProviderError::new(err.class(), err.detail())));
+                    }
+                }
+            }
+        })
     }
 
     /// Applies a [`MailEdit`] (mark-read/flag, move/archive, permanent delete) by delegating

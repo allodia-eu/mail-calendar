@@ -389,9 +389,9 @@ impl AccountDial {
             }
             // Gmail's provider is account-wide (one scope covers every label), so (like JMAP) the
             // reconnected provider serves any `mailbox_key`; there is no per-folder binding.
-            Self::Google { tokens, .. } => {
-                mailcal_account::connect_google_folder(tokens, None).ok()
-            }
+            Self::Google {
+                tokens, identity, ..
+            } => mailcal_account::connect_google_folder(tokens, None, &identity.email).ok(),
             // JMAP's provider is account-wide for the same reason.
             Self::Jmap { config, tokens, .. } => {
                 mailcal_account::connect_jmap_folder(&config, tokens.as_ref(), shared.as_ref())

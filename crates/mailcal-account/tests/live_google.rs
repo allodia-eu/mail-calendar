@@ -95,7 +95,7 @@ async fn the_product_gmail_wrapper_advertises_and_forwards_writes_and_sends() {
         mailcal_account::CredentialOrigin::FreshSignIn,
     )
     .expect("token source");
-    let providers = connect_google_mail_providers(tokens, None)
+    let providers = connect_google_mail_providers(tokens, None, &config.email)
         .await
         .expect("connect gmail");
     let provider = providers.first().expect("one account-global mail provider");
