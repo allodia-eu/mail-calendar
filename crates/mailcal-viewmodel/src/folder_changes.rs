@@ -153,7 +153,12 @@ pub fn stamp_folder_actions(
             && !row.pending
             && !matches!(
                 row.role,
-                Some(FolderRole::Junk | FolderRole::Drafts | FolderRole::Important | FolderRole::Other)
+                Some(
+                    FolderRole::Junk
+                        | FolderRole::Drafts
+                        | FolderRole::Important
+                        | FolderRole::Other
+                )
             );
     }
 }

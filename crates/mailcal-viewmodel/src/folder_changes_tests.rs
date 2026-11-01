@@ -165,7 +165,12 @@ fn important_is_a_view_of_mail_filed_elsewhere_so_it_takes_nothing() {
     // On Gmail a move into a label takes the message out of every other one, so a drop on
     // Important would empty the Inbox of it.
     let rows = stamped(
-        &[folder("IMPORTANT", "IMPORTANT", None, Some(MailboxRole::Important))],
+        &[folder(
+            "IMPORTANT",
+            "IMPORTANT",
+            None,
+            Some(MailboxRole::Important),
+        )],
         &BTreeSet::new(),
         true,
     );
