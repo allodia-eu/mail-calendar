@@ -5,7 +5,7 @@ use mailcal_bindings::{
     SelectedRow,
 };
 
-use super::{BarActions, RowMenuSource, RowPick, pick};
+use super::{BarActions, BarAnswer, RowMenuSource, RowPick, pick};
 use crate::ui::{
     composer_model::ComposeKind,
     mail_actions::{ActionKind, MailActionRequest, MessageTarget},
@@ -173,4 +173,33 @@ fn a_menu_asked_before_the_core_exists_holds_nothing() {
         answer.clone()
     }));
     assert_eq!(source.menu(conversation()), answered);
+}
+
+/// The view runs on every message, and the bar's question is a walk over the whole selection, so
+/// it is asked again only for a different selection or a newly published list.
+#[test]
+fn the_bar_asks_again_only_when_the_selection_or_the_list_changes() {
+    let archive = RowMenu {
+        sections: vec![RowMenuSection {
+            items: vec![item(RowAction::Archive, true, None)],
+        }],
+    };
+    let asked = std::cell::Cell::new(0);
+    let menu = |_: Vec<SelectedRow>| {
+        asked.set(asked.get() + 1);
+        archive.clone()
+    };
+    let bar = BarAnswer::default();
+    let other = vec![SelectedRow::Message {
+        account: "acct".to_owned(),
+        key: "other".to_owned(),
+    }];
+
+    assert!(bar.answer(1, conversation(), menu).archive);
+    assert!(bar.answer(1, conversation(), menu).archive);
+    assert_eq!(asked.get(), 1, "an unchanged redraw asks nothing");
+    bar.answer(1, other.clone(), menu);
+    assert_eq!(asked.get(), 2, "a different selection asks");
+    bar.answer(2, other, menu);
+    assert_eq!(asked.get(), 3, "a newly published list asks");
 }

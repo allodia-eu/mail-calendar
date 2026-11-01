@@ -182,6 +182,32 @@ impl BarActions {
     }
 }
 
+/// The bar's last answer and what it was asked about: the published list, by its number, and the
+/// rows. A redraw that changed neither asks the core nothing.
+#[derive(Default)]
+pub(crate) struct BarAnswer(RefCell<Option<(u64, Vec<SelectedRow>, BarActions)>>);
+
+impl BarAnswer {
+    /// The bar's actions over `rows` in list `generation`, asking `menu` only when either differs
+    /// from what was last asked.
+    pub(crate) fn answer(
+        &self,
+        generation: u64,
+        rows: Vec<SelectedRow>,
+        menu: impl FnOnce(Vec<SelectedRow>) -> RowMenu,
+    ) -> BarActions {
+        if let Some((asked_in, asked, actions)) = &*self.0.borrow()
+            && *asked_in == generation
+            && *asked == rows
+        {
+            return *actions;
+        }
+        let actions = BarActions::of(&menu(rows.clone()));
+        self.0.replace(Some((generation, rows, actions)));
+        actions
+    }
+}
+
 #[cfg(test)]
 #[path = "row_menu_tests.rs"]
 mod tests;

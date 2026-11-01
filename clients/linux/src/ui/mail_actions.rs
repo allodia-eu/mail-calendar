@@ -22,9 +22,7 @@ pub(crate) struct MessageTarget {
 pub(crate) enum DeleteTarget {
     /// One message, named by a row menu's item.
     Message(MessageTarget),
-    /// Every selected row, and how many there are.
-    Selection(usize),
-    /// The rows a row menu was opened on, outside the selection.
+    /// The rows the bar, the Delete key or a row's menu was acting on, named when it asked.
     Rows(Vec<SelectedRow>),
 }
 
@@ -52,6 +50,15 @@ impl MailActionRequest {
 
     pub(crate) fn into_intent(self) -> Intent {
         intent_for(self.target, self.action)
+    }
+
+    /// Whether this takes `opened` out of the list, as a batch move over its row would.
+    pub(crate) fn takes_away(&self, opened: &model::OpenedMessage) -> bool {
+        matches!(
+            self.action,
+            ActionKind::Archive | ActionKind::MoveToTrash | ActionKind::PermanentlyDelete
+        ) && self.target.account == opened.account
+            && self.target.key == opened.key
     }
 }
 
@@ -116,7 +123,6 @@ fn delete_confirmation(
     content.set_margin_end(24);
     let sentence = match &target {
         DeleteTarget::Message(_) => l10n::delete_permanently_message().to_owned(),
-        DeleteTarget::Selection(count) => many(*count),
         DeleteTarget::Rows(rows) => many(rows.len()),
     };
     let message = gtk::Label::new(Some(&sentence));
@@ -138,11 +144,6 @@ fn delete_confirmation(
             DeleteTarget::Message(message) => input.emit(AppInput::PerformMailAction(Box::new(
                 MailActionRequest::new(message.clone(), ActionKind::PermanentlyDelete),
             ))),
-            DeleteTarget::Selection(_) => {
-                input.emit(AppInput::PerformSelectionAction(
-                    BulkAction::PermanentlyDelete,
-                ));
-            }
             DeleteTarget::Rows(rows) => input.emit(AppInput::PerformRowsAction {
                 rows: rows.clone(),
                 action: BulkAction::PermanentlyDelete,
@@ -167,58 +168,58 @@ fn many(count: usize) -> String {
 
 impl AppModel {
     /// A write on the one message a row menu's item named. A permanent delete arrives here only
-    /// from its confirmation's own button.
+    /// from its confirmation's own button. The reading pane lets go of a message leaving, as
+    /// [`Self::perform_rows`] does for the batch over its row.
     pub(super) fn perform_mail_action(&mut self, request: MailActionRequest) {
         if request.action == ActionKind::PermanentlyDelete {
             self.pending_mail_delete = None;
+        }
+        if self
+            .reading
+            .opened
+            .as_ref()
+            .is_some_and(|opened| request.takes_away(opened))
+        {
+            self.reading.close();
         }
         self.dispatch(request.into_intent());
     }
 
     /// Runs one action over every selected row, as a single batch in the core.
-    ///
-    /// A permanent delete asks first, on the same terms the row menu's does; the other five are
-    /// recoverable and act at once (`docs/list-selection.md`, rule 6). A move empties the
-    /// selection afterwards, because the rows it named are leaving the list; a keyword edit keeps
-    /// it, because the user is usually part-way through a set.
     pub(super) fn act_on_selection(&mut self, action: BulkAction) {
-        if self.selection.is_empty() {
+        self.act_on_rows(self.selection.selected_rows(), action);
+    }
+
+    /// Runs one action over `rows`, the selection or the rows a row's menu was opened on.
+    ///
+    /// A permanent delete asks first, naming the rows as they were when it asked; the other five
+    /// are recoverable and act at once (`docs/list-selection.md`, rule 6).
+    pub(super) fn act_on_rows(&mut self, rows: Vec<SelectedRow>, action: BulkAction) {
+        if rows.is_empty() {
             return;
         }
         if action == BulkAction::PermanentlyDelete {
-            self.pending_mail_delete = Some(DeleteTarget::Selection(
-                self.selection.selected_rows().len(),
-            ));
+            self.pending_mail_delete = Some(DeleteTarget::Rows(rows));
             return;
         }
-        self.perform_selection(action);
+        self.perform_rows(rows, action);
     }
 
-    /// Runs the action the user has already agreed to. The confirmation's own button is the only
-    /// caller for a permanent delete: a *pending* confirmation is not consent, so
-    /// [`Self::act_on_selection`] can never fall through to this one by finding the dialog slot
-    /// occupied by some other row's confirmation.
-    pub(super) fn perform_selection(&mut self, action: BulkAction) {
-        if self.selection.is_empty() {
-            return;
-        }
-        let rows = self.selection.selected_rows();
-        // Decided while the selection still names the rows, since the dispatch below empties it.
-        if self.perform_rows(rows, action) {
-            self.selection.clear();
-        }
-    }
-
-    /// Runs one action the user has already agreed to over `rows`, as a single batch in the core,
-    /// and answers whether it takes them out of the list. A conversation leaving folds away, and
-    /// the reading pane lets go of a message leaving with it.
-    pub(super) fn perform_rows(&mut self, rows: Vec<SelectedRow>, action: BulkAction) -> bool {
+    /// Runs one action the user has already agreed to over `rows`, as a single batch in the core.
+    /// The confirmation's own button is the only caller for a permanent delete: a *pending*
+    /// confirmation is not consent.
+    ///
+    /// A move takes the rows out of the list, so they leave the selection, a conversation leaving
+    /// folds away and the reading pane lets go of a message leaving with it. A keyword edit keeps
+    /// the selection, because the user is usually part-way through a set.
+    pub(super) fn perform_rows(&mut self, rows: Vec<SelectedRow>, action: BulkAction) {
         self.pending_mail_delete = None;
         let removes = matches!(
             action,
             BulkAction::Archive | BulkAction::Delete | BulkAction::PermanentlyDelete
         );
         if removes {
+            self.selection.forget(&rows);
             if self.rows_hold_open_message(&rows) {
                 self.reading.close();
             }
@@ -230,7 +231,6 @@ impl AppModel {
             }
         }
         self.dispatch(Intent::ActOnSelection { rows, action });
-        removes
     }
 
     /// Whether the message in the reading pane is one of the selected rows, a conversation's

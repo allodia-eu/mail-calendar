@@ -1,7 +1,7 @@
 //! What the model does with a row menu's pick (`docs/row-actions.md`), and the one conversation
 //! a selection keeps expanded (rule 8).
 
-use mailcal_bindings::{BulkAction, MenuMessage, MessageKind, RowMenu};
+use mailcal_bindings::{MenuMessage, MessageKind, RowMenu};
 
 use super::{
     AppInput, AppModel,
@@ -35,17 +35,9 @@ impl AppModel {
             RowPick::DeleteMessage(target) => {
                 self.pending_mail_delete = Some(DeleteTarget::Message(target));
             }
-            RowPick::Rows { rows, action } => {
-                // The menu over the selection runs the bar's own path, which asks before a
-                // permanent delete and lets go of the rows a move takes.
-                if rows == self.selection.selected_rows() {
-                    self.act_on_selection(action);
-                } else if action == BulkAction::PermanentlyDelete {
-                    self.pending_mail_delete = Some(DeleteTarget::Rows(rows));
-                } else {
-                    self.perform_rows(rows, action);
-                }
-            }
+            // The rows the menu was opened on, the selection or its own row alone, as they were
+            // when it opened (`docs/list-selection.md`, rule 12).
+            RowPick::Rows { rows, action } => self.act_on_rows(rows, action),
             // Asked for in the menu itself, which owns the folder picker.
             RowPick::Move => {}
         }
@@ -70,12 +62,16 @@ impl AppModel {
     }
 
     /// What the selection bar offers: the core's menu over the selection, or nothing to offer
-    /// while nothing is picked.
+    /// while nothing is picked. Asked again only when the selection or the published list has
+    /// changed, since the view runs on every message and Select all can name the whole window.
     pub(super) fn bar_actions(&self) -> BarActions {
-        let menu = match &self.app {
-            Some(app) if !self.selection.is_empty() => app.row_menu(self.selection.selected_rows()),
-            _ => RowMenu::default(),
-        };
-        BarActions::of(&menu)
+        self.bar_answer.answer(
+            self.snapshot.generation(),
+            self.selection.selected_rows(),
+            |rows| match &self.app {
+                Some(app) if !rows.is_empty() => app.row_menu(rows),
+                _ => RowMenu::default(),
+            },
+        )
     }
 }

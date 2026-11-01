@@ -151,7 +151,9 @@ selection itself is the client's, and rule 1 says why.
     of five selected rows and choosing Archive archives the five, not the one under the pointer:
     the menu is a second way to reach the same batch the bar offers, so it dispatches the same
     `Intent::ActOnSelection`. A menu opened on a row **outside** the selection is about that row
-    alone and changes nothing about what is selected.
+    alone and changes nothing about what is selected. Opening a menu never changes the selection,
+    by whatever route it opened: a secondary click, a ⋯ button on the row, a long press or the
+    keyboard. A press on a control inside a row belongs to that control, not to the row.
 
     The menu over several rows comes from the core's `row_menu`, as a single row's does
     ([`row-actions.md`](row-actions.md), rule 9), labelled the way rule 5 labels the bar. The

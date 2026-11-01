@@ -7,6 +7,13 @@
 use adw::prelude::*;
 use mailcal_bindings::SnapshotRow;
 
+/// Every case here, in the order the runner calls them.
+pub(super) fn run() {
+    a_conversation_draws_its_flag_and_a_draft_resumes_from_inside_it();
+    the_list_folds_a_conversation_the_selection_has_left();
+    a_press_on_a_rows_menu_is_the_menus_and_not_a_click_on_the_row();
+}
+
 use super::{
     ThreadKey,
     tests::labels,
@@ -17,7 +24,7 @@ use super::{
 /// offers Unflag, and each message inside it draws its own (`docs/row-actions.md`, rule 3). A
 /// draft inside it says it is one, so it resumes in a composer from whatever folder it is shown in
 /// (`docs/drafts.md`).
-pub(super) fn a_conversation_draws_its_flag_and_a_draft_resumes_from_inside_it() {
+fn a_conversation_draws_its_flag_and_a_draft_resumes_from_inside_it() {
     let mut flagged = message("flagged", "Anna Bakker", "Flagged reply", false, false);
     flagged.flagged = true;
     let mut draft = message("draft", "Me", "Unfinished answer", false, false);
@@ -73,7 +80,7 @@ pub(super) fn a_conversation_draws_its_flag_and_a_draft_resumes_from_inside_it()
 /// The list draws the model's expansion back onto its rows, so leaving a conversation folds it
 /// away (`docs/row-actions.md`, rule 8); and a row reports the change, which the model ignores
 /// because it already holds it.
-pub(super) fn the_list_folds_a_conversation_the_selection_has_left() {
+fn the_list_folds_a_conversation_the_selection_has_left() {
     let mut second = thread(
         "Second",
         vec![message("second", "Bram", "Second preview", false, false)],
@@ -89,14 +96,73 @@ pub(super) fn the_list_folds_a_conversation_the_selection_has_left() {
         SnapshotRow::Thread { row: second },
     ]);
     let (widgets, sender, receiver) = rendered(&rows, &[one.clone(), two.clone()]);
-    crate::ui::selection_input::sync_expansion(
-        &widgets,
-        &rows.rows,
-        &std::collections::HashSet::from([two]),
-    );
+    let drawn: Vec<_> = (rows.rows.iter())
+        .map(|row| crate::ui::mailbox_display::display_row(row, "UTC"))
+        .collect();
+    let expanded = std::collections::HashSet::from([two]);
+    crate::ui::selection_input::sync_expansion(&widgets, &drawn, &expanded);
     assert!(!expander_at(&widgets, 0).is_expanded());
     assert!(expander_at(&widgets, 1).is_expanded());
     assert_eq!(reported(&sender, &receiver), vec!["expanded false"]);
+}
+
+/// The ⋯ on a row, a conversation's or a message's inside it, takes its own press: the list does
+/// not read it as a click on the row, so opening the menu leaves the selection as it was
+/// (`docs/list-selection.md`, rule 12). A press on the row's text is still the row's.
+fn a_press_on_a_rows_menu_is_the_menus_and_not_a_click_on_the_row() {
+    let rows = snapshot(vec![SnapshotRow::Thread {
+        row: thread(
+            "Venue for the spring meeting",
+            vec![message("only", "Anna", "Preview", false, false)],
+        ),
+    }]);
+    let key = ThreadKey::of(match &rows.rows[0] {
+        SnapshotRow::Thread { row } => row,
+        SnapshotRow::Flat { .. } => unreachable!(),
+    });
+    let (list, _sender, _receiver) = rendered(&rows, &[key]);
+    let menus = more_buttons(list.upcast_ref());
+    assert_eq!(menus.len(), 2, "the conversation's ⋯ and its message's");
+    for menu in &menus {
+        let (x, y) = centre_in(menu, &list);
+        assert!(
+            crate::ui::selection_input::pressed_on_control(&list, x, y),
+            "a press on ⋯ is the button's"
+        );
+    }
+    // The conversation is the list's first row: its leading edge holds no control.
+    assert!(
+        !crate::ui::selection_input::pressed_on_control(&list, 4.0, 12.0),
+        "a press at the row's leading edge is the row's"
+    );
+}
+
+/// Every ⋯ button under `root`.
+fn more_buttons(root: &gtk::Widget) -> Vec<gtk::Button> {
+    let mut found = Vec::new();
+    if let Some(button) = root.downcast_ref::<gtk::Button>()
+        && button.icon_name().as_deref() == Some(crate::ui::icons::MORE)
+    {
+        found.push(button.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        found.extend(more_buttons(&widget));
+        child = widget.next_sibling();
+    }
+    found
+}
+
+/// The centre of `widget`, in `list`'s coordinates.
+fn centre_in(widget: &impl IsA<gtk::Widget>, list: &gtk::ListBox) -> (f64, f64) {
+    let bounds = widget
+        .as_ref()
+        .compute_bounds(list)
+        .expect("the widget is inside the list");
+    (
+        f64::from(bounds.x() + bounds.width() / 2.0),
+        f64::from(bounds.y() + bounds.height() / 2.0),
+    )
 }
 
 /// How many flags `root` draws.

@@ -65,7 +65,6 @@ impl fmt::Debug for AppInput {
             Self::SelectAllRows => "SelectAllRows",
             Self::ClearSelection => "ClearSelection",
             Self::ActOnSelection(_) => "ActOnSelection",
-            Self::PerformSelectionAction(_) => "PerformSelectionAction",
             Self::PerformRowsAction { .. } => "PerformRowsAction",
             Self::PerformMailAction(_) => "PerformMailAction",
             Self::PerformOpenedMailAction { .. } => "PerformOpenedMailAction",

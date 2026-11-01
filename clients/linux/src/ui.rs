@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use mailcal_bindings::{Intent, MailboxListSnapshot, MailcalApp, ReplyPrompt, ViewMode};
+use mailcal_bindings::{Intent, MailcalApp, ReplyPrompt, ViewMode};
 
 use crate::{
     l10n,
@@ -82,6 +82,7 @@ mod mailbox_display;
 mod mailbox_empty;
 mod mailbox_progressive;
 mod mailbox_reconcile;
+mod mailbox_snapshot;
 mod mcp;
 mod message_move;
 mod microsoft;
@@ -205,7 +206,7 @@ pub(crate) struct AppModel {
     _device_timezone_timer: gtk::glib::SourceId,
     device_zone: time_zone::DeviceZoneMonitor,
     primary: PrimaryView,
-    snapshot: MailboxListSnapshot,
+    snapshot: mailbox_snapshot::HeldSnapshot,
     /// The conversations the user has opened inline. Host state, not the core's: it survives a
     /// snapshot refresh, so a background sync doesn't collapse a conversation being read.
     expanded_threads: HashSet<ThreadKey>,
@@ -213,6 +214,8 @@ pub(crate) struct AppModel {
     /// above it: transient, never persisted, and read by nothing outside this list
     /// (`docs/list-selection.md`, rule 1).
     selection: Selection,
+    /// What the selection bar was last told, kept until the selection or the list changes.
+    bar_answer: row_menu::BarAnswer,
     calendar: CalendarModel,
     contacts: ContactsModel,
     /// What the mail-search chrome is showing. Not the results: those arrive in `snapshot` like

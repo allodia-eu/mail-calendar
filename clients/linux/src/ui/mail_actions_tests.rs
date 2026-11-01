@@ -73,6 +73,39 @@ fn every_message_action_maps_to_the_shared_intent_with_its_owner() {
     }
 }
 
+#[test]
+fn a_single_message_move_lets_the_reading_pane_go_of_that_message_only() {
+    let open = crate::ui::model::OpenedMessage {
+        account: "account-a".to_owned(),
+        key: "message-a".to_owned(),
+        subject: String::new(),
+        from: String::new(),
+        date: String::new(),
+        avatar: crate::ui::avatar::AvatarData::from(&crate::ui::model::blank_avatar()),
+    };
+    for action in [
+        ActionKind::Archive,
+        ActionKind::MoveToTrash,
+        ActionKind::PermanentlyDelete,
+    ] {
+        assert!(
+            MailActionRequest::new(target(), action).takes_away(&open),
+            "{action:?}"
+        );
+    }
+    for action in [ActionKind::MarkRead(true), ActionKind::SetFlagged(true)] {
+        assert!(
+            !MailActionRequest::new(target(), action).takes_away(&open),
+            "{action:?}"
+        );
+    }
+    let other = MessageTarget {
+        account: "account-a".to_owned(),
+        key: "message-b".to_owned(),
+    };
+    assert!(!MailActionRequest::new(other, ActionKind::Archive).takes_away(&open));
+}
+
 fn item(action: RowAction, enabled: bool, target: Option<MenuMessage>) -> RowMenuItem {
     RowMenuItem {
         action,

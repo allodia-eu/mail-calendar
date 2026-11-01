@@ -348,7 +348,7 @@ impl AppWidgets {
         }
         // After the rows, always: a plain click has already moved the widget's own selection, and
         // this is what brings it back to what the model says (`selection_gesture`).
-        sync_list(&self.messages, model);
+        sync_list(&self.messages, model, &self.mailbox_renderer);
         self.mailbox_renderer.set_moves(model.move_context());
         self.mailbox_renderer.answer_menus_from(model.app.as_ref());
         let selection = model.selection.summary();

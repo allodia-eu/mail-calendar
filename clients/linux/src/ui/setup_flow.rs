@@ -118,7 +118,7 @@ impl AppModel {
     /// the account is in the list already, so there is nothing to add.
     pub(super) fn existing_account_updated(&mut self, sender: relm4::Sender<AppInput>) {
         if let Some(app) = &self.app {
-            self.snapshot = app.mailbox_list();
+            self.snapshot.replace(app.mailbox_list());
             self.connectivity =
                 super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
         }
@@ -238,7 +238,7 @@ impl AppModel {
             AppInput::SetupUsesChosen(chosen) => self.choose_uses(&chosen, input),
             AppInput::SetupUsesApplied(account, next) => {
                 if let Some(app) = &self.app {
-                    self.snapshot = app.mailbox_list();
+                    self.snapshot.replace(app.mailbox_list());
                 }
                 if self.setup.choosing_uses() {
                     self.onward(&account, &next, input);

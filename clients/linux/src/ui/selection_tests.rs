@@ -134,6 +134,33 @@ fn a_row_that_leaves_the_list_leaves_the_selection_with_it() {
     );
 }
 
+/// A move names its rows as the menu or the bar saw them, in whatever order, and they leave the
+/// selection as the move starts rather than when the list stops showing them
+/// (`docs/list-selection.md`, rule 12).
+#[test]
+fn rows_a_move_takes_leave_the_selection_whatever_order_it_named_them_in() {
+    let rows = [
+        flat("m1", false, false),
+        flat("m2", false, false),
+        flat("m3", false, false),
+    ];
+    let mut selection = Selection::default();
+    selection.select_all(&rows);
+    let named = |key: &str| SelectedRow::Message {
+        account: "acct-1".to_owned(),
+        key: key.to_owned(),
+    };
+
+    selection.forget(&[named("m3"), named("m1")]);
+    assert_eq!(keys(&selection), ["m2"]);
+    // The anchor went with m1, so a Shift-click has nothing to extend from.
+    selection.click(&rows, 2, SelectMode::Range);
+    assert_eq!(keys(&selection), ["m3"]);
+
+    selection.forget(&[named("m3")]);
+    assert!(selection.is_empty());
+}
+
 #[test]
 fn a_range_after_its_anchor_left_the_list_picks_the_one_row() {
     let rows = [flat("m1", false, false), flat("m2", false, false)];

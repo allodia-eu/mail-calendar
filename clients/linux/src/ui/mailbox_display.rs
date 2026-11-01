@@ -4,7 +4,7 @@ use mailcal_bindings::{
     FlatRow, MailboxListSnapshot, QueuedRow, SnapshotRow, ThreadMessage, ThreadRow,
 };
 
-use super::{avatar::AvatarData, mailbox_reconcile::Row};
+use super::{avatar::AvatarData, mailbox::ThreadKey, mailbox_reconcile::Row};
 use crate::l10n;
 
 /// Only the snapshot fields the message rows draw.
@@ -40,6 +40,8 @@ impl MailboxRendering {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct DisplayRow {
     pub(super) key: String,
+    /// The conversation this row stands for, or `None` for a single message.
+    pub(super) thread: Option<ThreadKey>,
     pub(super) avatar: AvatarData,
     pub(super) title: String,
     pub(super) subtitle: String,
@@ -86,6 +88,7 @@ pub(super) fn display_row(snapshot: &SnapshotRow, zone: &str) -> DisplayRow {
 pub(super) fn flat_display(row: &FlatRow, zone: &str) -> DisplayRow {
     DisplayRow {
         key: format!("m/{}/{}", row.account, row.key),
+        thread: None,
         avatar: AvatarData::from(&row.avatar),
         title: subject_or_fallback(&row.subject),
         subtitle: one_line(&row.from),
@@ -102,6 +105,7 @@ pub(super) fn flat_display(row: &FlatRow, zone: &str) -> DisplayRow {
 pub(super) fn thread_display(row: &ThreadRow, zone: &str) -> DisplayRow {
     DisplayRow {
         key: format!("t/{}/{}", row.account, row.thread_id),
+        thread: Some(ThreadKey::of(row)),
         avatar: AvatarData::from(&row.avatar),
         title: subject_or_fallback(&row.subject),
         subtitle: one_line(&row.latest_from),

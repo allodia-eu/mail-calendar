@@ -197,8 +197,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     super::thread_tests::conversation_rows_expand_and_unread_mail_is_bold();
     super::thread_tests::every_mail_row_formats_its_timestamp();
     super::thread_tests::a_conversation_reports_what_the_reader_asked_for();
-    super::conversation_tests::a_conversation_draws_its_flag_and_a_draft_resumes_from_inside_it();
-    super::conversation_tests::the_list_folds_a_conversation_the_selection_has_left();
+    super::conversation_tests::run();
     crate::ui::icons::tests::every_icon_resolves_to_a_real_glyph();
     crate::ui::settings::dark_messages::tests::the_switch_follows_a_press_made_elsewhere();
     super::thread_tests::a_rerender_rebuilds_only_the_row_that_changed();

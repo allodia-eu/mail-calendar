@@ -139,12 +139,10 @@ pub(crate) enum AppInput {
     SelectAllRows,
     ClearSelection,
     /// Run one action over every selected row, as a single batch in the core. A permanent delete
-    /// asks first and arrives back as [`Self::PerformSelectionAction`].
+    /// asks first and arrives back as [`Self::PerformRowsAction`].
     ActOnSelection(BulkAction),
-    /// Run one action the user has already confirmed. Emitted only by the permanent-delete
-    /// confirmation, so a pending dialog can never be mistaken for consent.
-    PerformSelectionAction(BulkAction),
-    /// The same, over the rows a row's menu was opened on rather than the selection.
+    /// Run one action the user has already confirmed over the rows it named. Emitted only by the
+    /// permanent-delete confirmation, so a pending dialog can never be mistaken for consent.
     PerformRowsAction {
         rows: Vec<SelectedRow>,
         action: BulkAction,

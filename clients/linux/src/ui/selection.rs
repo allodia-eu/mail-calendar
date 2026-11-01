@@ -166,6 +166,20 @@ impl Selection {
         }
     }
 
+    /// Drops `rows`, which a move is taking out of the list, now rather than when the snapshot
+    /// that no longer lists them arrives.
+    pub(crate) fn forget(&mut self, rows: &[SelectedRow]) {
+        self.rows.retain(|row| !rows.contains(&row.selected_row()));
+        if self
+            .anchor
+            .as_ref()
+            .is_some_and(|anchor| rows.contains(&anchor.selected_row()))
+        {
+            self.anchor = None;
+        }
+    }
+
+    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }

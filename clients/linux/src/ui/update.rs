@@ -174,10 +174,7 @@ impl AppModel {
             AppInput::SelectAllRows => self.selection.select_all(&self.snapshot.rows),
             AppInput::ClearSelection => self.selection.clear(),
             AppInput::ActOnSelection(action) => self.act_on_selection(action),
-            AppInput::PerformSelectionAction(action) => self.perform_selection(action),
-            AppInput::PerformRowsAction { rows, action } => {
-                self.perform_rows(rows, action);
-            }
+            AppInput::PerformRowsAction { rows, action } => self.perform_rows(rows, action),
             AppInput::PerformMailAction(request) => self.perform_mail_action(*request),
             AppInput::PerformOpenedMailAction { source, action } => {
                 self.perform_opened_mail_action(&source, action);

@@ -11,6 +11,7 @@ use super::{
     mailbox_display::{DisplayRow, display_row},
     mailbox_reconcile::{Row, reconcile},
     message_move::MoveContext,
+    selection_input,
 };
 
 /// Enough rows to fill the default-height list pane, including a small scroll margin.
@@ -27,6 +28,11 @@ pub(super) struct ProgressiveRenderer {
 }
 
 impl ProgressiveRenderer {
+    /// Draws which conversations are expanded onto the rows this renderer has put in `list`.
+    pub(super) fn sync_expansion(&self, list: &gtk::ListBox, expanded: &HashSet<ThreadKey>) {
+        selection_input::sync_expansion(list, &self.rendered.borrow(), expanded);
+    }
+
     pub(super) fn set_moves(&self, context: MoveContext) {
         self.menus.moves.replace(context);
     }
