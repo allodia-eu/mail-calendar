@@ -76,6 +76,12 @@ pub enum AccountError {
     /// advertise `IDLE`: the host falls back to polling).
     #[error("imap watch: {0}")]
     Watch(String),
+    /// No connection is free to watch a folder: syncing needs every one left, because the
+    /// account already watches as many folders as its budget allows or the server is taking
+    /// fewer connections from it for now. A state the host waits out, not a fault: one comes
+    /// free when a watch ends or the server's limit lifts.
+    #[error("no connection is free to watch a folder; syncing needs every one left")]
+    NoWatchConnection,
     /// CalDAV was requested but the config has no `[caldav]` section.
     #[error("no caldav endpoint configured")]
     NoCalDav,

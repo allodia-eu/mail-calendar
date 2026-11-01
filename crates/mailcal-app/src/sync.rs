@@ -295,10 +295,11 @@ impl<P: Provider> App<P> {
         self.warm_added_account(id).await;
     }
 
-    /// Re-snapshots one account after a user changed its sync-depth window. If a poll, watch,
-    /// or boot refresh already owns a folder scope, wait and retry instead of making the user
-    /// pull-to-refresh later. The mail cursors are cleared immediately before every attempt so
-    /// an older in-flight sync cannot leave a stale narrower-window cursor behind.
+    /// Re-snapshots one account after a user changed its sync-depth window. The mail cursors
+    /// are cleared once, which also stops a pass still running under the old window at its
+    /// next commit. A pass that claims a folder after the clear (a poll that began before the
+    /// change) is waited out and retried rather than leaving the user to pull-to-refresh, and
+    /// a cursor it writes under a narrower window is not resumed from by a wider one.
     pub(crate) async fn resync_account_after_depth_change(&self, id: &AccountId) {
         self.refresh_account_with_busy_retry(id, "sync-depth", true)
             .await;
@@ -313,10 +314,10 @@ impl<P: Provider> App<P> {
         label: &'static str,
         clear_cursors: bool,
     ) {
+        if clear_cursors {
+            let _ = self.engine.clear_mail_cursors(id).await;
+        }
         for attempt in 0..ACCOUNT_SYNC_BUSY_RETRY_ATTEMPTS {
-            if clear_cursors {
-                let _ = self.engine.clear_mail_cursors(id).await;
-            }
             let Some(outcome) = self.refresh_account_once(id, label, true).await else {
                 log::info!("{label}: account refresh deferred until connectivity returns");
                 return;
@@ -331,9 +332,6 @@ impl<P: Provider> App<P> {
                 delay.as_millis(),
             );
             tokio::time::sleep(delay).await;
-        }
-        if clear_cursors {
-            let _ = self.engine.clear_mail_cursors(id).await;
         }
         log::warn!(
             "{label}: account refresh still busy after {ACCOUNT_SYNC_BUSY_RETRY_ATTEMPTS} attempts",

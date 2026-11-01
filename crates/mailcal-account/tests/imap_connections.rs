@@ -258,3 +258,76 @@ async fn invalidating_the_connections_makes_the_next_call_dial() {
 
     assert_eq!(accepted.load(Ordering::SeqCst), 2);
 }
+
+#[tokio::test]
+async fn a_watch_with_no_connection_to_spare_waits_rather_than_failing() {
+    // Five connections, one kept to sync: the fifth watch has nothing to take. That is the
+    // account at its limit, not a broken watch, so it is told apart and opens no socket.
+    let (port, served, accepted) = imap_server().await;
+    let config = account(port, &served);
+    let connections = ImapConnections::new();
+    let mut watches = Vec::new();
+    for _ in 0..4 {
+        watches.push(
+            connect_imap_watcher(&connections, &config, None, "INBOX", None)
+                .await
+                .expect("a watch inside the budget"),
+        );
+    }
+    let opened = accepted.load(Ordering::SeqCst);
+
+    let refused = connect_imap_watcher(&connections, &config, None, "INBOX", None).await;
+
+    assert!(
+        matches!(
+            refused,
+            Err(mailcal_account::AccountError::NoWatchConnection)
+        ),
+        "the fifth watch was not told apart: {:?}",
+        refused.err(),
+    );
+    assert_eq!(accepted.load(Ordering::SeqCst), opened);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn watches_racing_for_the_last_spare_connection_all_wait_but_one() {
+    // Every racer can see the spare connection before the first of them reserves it; the ones
+    // the engine then refuses are still waiting for a connection, not broken watches.
+    let (port, served, _) = imap_server().await;
+    let config = Arc::new(account(port, &served));
+    let connections = Arc::new(ImapConnections::new());
+    let mut held = Vec::new();
+    for _ in 0..3 {
+        held.push(
+            connect_imap_watcher(&connections, &config, None, "INBOX", None)
+                .await
+                .expect("a watch inside the budget"),
+        );
+    }
+
+    for round in 0..20 {
+        let start = Arc::new(tokio::sync::Barrier::new(8));
+        let racers: Vec<_> = (0..8)
+            .map(|_| {
+                let (config, connections, start) = (
+                    Arc::clone(&config),
+                    Arc::clone(&connections),
+                    Arc::clone(&start),
+                );
+                tokio::spawn(async move {
+                    start.wait().await;
+                    connect_imap_watcher(&connections, &config, None, "INBOX", None).await
+                })
+            })
+            .collect();
+        let mut won = Vec::new();
+        for racer in racers {
+            match racer.await.expect("racer") {
+                Ok(watch) => won.push(watch),
+                Err(mailcal_account::AccountError::NoWatchConnection) => {}
+                Err(other) => panic!("round {round}: a racer was not told apart: {other:?}"),
+            }
+        }
+        assert_eq!(won.len(), 1, "round {round}");
+    }
+}

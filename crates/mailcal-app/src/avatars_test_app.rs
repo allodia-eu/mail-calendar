@@ -19,11 +19,11 @@ use engine_core::{
     },
     ids::{AddressBookId, ContactId},
     membership::Memberships,
-    sync::{SyncState, SyncUpdate},
+    sync::{SyncScope, SyncState, SyncUpdate},
 };
 use engine_provider::{
     Capabilities, ConnectionInfo, ContactPhoto, ContactSourceSync, ContactsProvider, Provider,
-    ProviderResult, ScopeSync,
+    ProviderError, ProviderResult, ScopeSync,
 };
 use mailcal_viewmodel::{
     avatar,
@@ -117,13 +117,69 @@ impl ContactsProvider for FakeContacts {
     async fn fetch_contact_photo(
         &self,
         _account: &AccountId,
-        _card: &ContactCard,
+        card: &ContactCard,
         _media: &ContactResource,
     ) -> ProviderResult<Option<ContactPhoto>> {
+        // A source knows only its own ids, and Graph refuses another's as malformed.
+        if card.id != self.card.id {
+            return Err(ProviderError::permanent("Id is malformed."));
+        }
         Ok(self
             .photo
             .clone()
             .map(|bytes| ContactPhoto::new(bytes, Some("image/png".into()), "rev-1")))
+    }
+}
+
+/// A second source on the same account, a directory: the same card, in a scope of its own.
+pub(super) struct Directory(pub(super) FakeContacts);
+
+impl Provider for Directory {
+    fn connection_info(&self) -> ConnectionInfo {
+        self.0.connection_info()
+    }
+}
+
+impl engine_api::MailboxWrites for Directory {}
+impl CalendarWrites for Directory {}
+
+#[async_trait]
+impl ContactsProvider for Directory {
+    fn address_book_scope(&self, account: &AccountId) -> SyncScope {
+        SyncScope::GraphContactFolderList {
+            account: account.clone(),
+        }
+    }
+
+    fn contact_scope(&self, account: &AccountId) -> SyncScope {
+        SyncScope::GraphDirectoryUsers {
+            account: account.clone(),
+        }
+    }
+
+    async fn sync_address_books(
+        &self,
+        account: &AccountId,
+        cursor: Option<&SyncState>,
+    ) -> ProviderResult<ContactSourceSync<AddressBook>> {
+        self.0.sync_address_books(account, cursor).await
+    }
+
+    async fn sync_contacts(
+        &self,
+        account: &AccountId,
+        cursor: Option<&SyncState>,
+    ) -> ProviderResult<ContactSourceSync<ContactCard>> {
+        self.0.sync_contacts(account, cursor).await
+    }
+
+    async fn fetch_contact_photo(
+        &self,
+        account: &AccountId,
+        card: &ContactCard,
+        media: &ContactResource,
+    ) -> ProviderResult<Option<ContactPhoto>> {
+        self.0.fetch_contact_photo(account, card, media).await
     }
 }
 
@@ -158,13 +214,21 @@ pub(super) fn card_with_photo(email: &str) -> ContactCard {
 }
 
 pub(super) fn app(contacts: FakeContacts, surfaces: &Arc<Mutex<Vec<Surface>>>) -> App<MailOnly> {
+    app_with_sources(vec![Box::new(contacts)], surfaces)
+}
+
+/// The app over an account whose contacts come from every one of `sources`.
+pub(super) fn app_with_sources(
+    sources: Vec<Box<dyn ContactsProvider>>,
+    surfaces: &Arc<Mutex<Vec<Surface>>>,
+) -> App<MailOnly> {
     App::new(
         Engine::open_in_memory().unwrap(),
         vec![Account {
             id: AccountId::try_from("work").unwrap(),
             providers: vec![MailOnly].into(),
             calendar_provider: None,
-            contact_providers: vec![Box::new(contacts)],
+            contact_providers: sources,
             identity: EmailAddress::new("me@work.local"),
             dialled: true,
             uses_mail: true,
