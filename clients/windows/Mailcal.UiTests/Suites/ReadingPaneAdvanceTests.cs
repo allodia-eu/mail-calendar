@@ -32,10 +32,10 @@ public sealed class ReadingPaneAdvanceTests(HarnessApp harness)
 
     /// <summary>Imports one message into <paramref name="role"/>, a second after the last: a
     /// conversation is ordered by when its messages arrived (docs/stalwart README).</summary>
-    private static void Import(string message, string role)
+    private static void Import(string message, string role, params string[] keywords)
     {
         Thread.Sleep(1100);
-        Harness.ImportAsync(message, role).GetAwaiter().GetResult();
+        Harness.ImportAsync(message, role, keywords).GetAwaiter().GetResult();
     }
 
     [HarnessFact]
@@ -73,6 +73,51 @@ public sealed class ReadingPaneAdvanceTests(HarnessApp harness)
         },
         _ =>
         {
+            Harness.RemoveMail(Harness.Alice, conversation);
+            Harness.RemoveMail(Harness.Alice, archived);
+        });
+    }
+
+    /// <summary>
+    /// The answer is a draft when the conversation below's newest message is one, and the pane
+    /// opens it as a click would: resumed in a composer wherever it is listed (docs/drafts.md), here
+    /// in the Inbox, never read-only in the pane.
+    /// </summary>
+    [HarnessFact]
+    public void ArchivingMovesThePaneOnToADraftItsComposerOpens()
+    {
+        var run = DateTime.Now.ToString("HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        var conversation = $"Pane draft {run}";
+        var archived = $"Pane before draft {run}";
+        harness.Case(nameof(ArchivingMovesThePaneOnToADraftItsComposerOpens), app =>
+        {
+            // Bob writes, Alice starts an answer she has not sent, then the message to archive lands
+            // above both.
+            Import(Message($"Bob Fixture <{Harness.Bob}>", Harness.Alice, conversation, $"pane-dx-{run}"), "inbox");
+            Import(Message($"Alice Fixture <{Harness.Alice}>", Harness.Bob, $"Re: {conversation}", $"pane-dy-{run}", replyTo: $"pane-dx-{run}"), "drafts", "$draft", "$seen");
+            Import(Message($"Bob Fixture <{Harness.Bob}>", Harness.Alice, archived, $"pane-dm-{run}"), "inbox");
+
+            app.OpenFolder(Inbox);
+            app.Agent.Invoke(app.Agent.Find(Filter.ById("SelectionSync", "Button"))!);
+            if (!App.Eventually(() => Listed(app, archived) && Listed(app, conversation), TimeSpan.FromSeconds(30)))
+            {
+                throw new InvalidOperationException("the imported messages never reached the list");
+            }
+
+            app.OpenMessage(archived);
+            app.Agent.Invoke(app.Agent.Wait(Filter.ById("ReadingArchive", "Button"), TimeSpan.FromSeconds(10))
+                ?? throw new InvalidOperationException("the reading pane offers no Archive"));
+
+            Assert.True(app.Agent.Wait(Filter.ById("SendButton"), App.Patience) is not null,
+                "the pane moved on to a draft without resuming it in a composer, as a click on its row would");
+            var subject = app.Agent.Find(Filter.ById("SubjectBox"));
+            Assert.True(subject is not null && app.Agent.Read(subject).Value == $"Re: {conversation}",
+                "the composer the pane opened does not hold the draft it moved on to");
+        },
+        app =>
+        {
+            // Discard takes the fixture's draft off the server with the composer; the rest goes by subject.
+            app.CloseComposer();
             Harness.RemoveMail(Harness.Alice, conversation);
             Harness.RemoveMail(Harness.Alice, archived);
         });
