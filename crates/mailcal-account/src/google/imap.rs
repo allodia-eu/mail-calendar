@@ -51,7 +51,11 @@ enum Side {
 }
 
 impl GmailImapSlot {
-    pub(super) fn new(address: String, tokens: Arc<GraphTokenSource>, tls: TlsClientConfig) -> Self {
+    pub(super) fn new(
+        address: String,
+        tokens: Arc<GraphTokenSource>,
+        tls: TlsClientConfig,
+    ) -> Self {
         Self {
             address,
             tokens,
@@ -108,8 +112,12 @@ async fn open(
     tokens: &Arc<GraphTokenSource>,
     tls: &TlsClientConfig,
 ) -> ProviderResult<GmailImap> {
-    let credentials = Arc::new(OAuthCredentialSource::new(address.to_owned(), Arc::clone(tokens)));
-    let config = ImapConfig::from_credential_source(format!("{GMAIL_IMAP}:993"), GMAIL_IMAP, credentials);
+    let credentials = Arc::new(OAuthCredentialSource::new(
+        address.to_owned(),
+        Arc::clone(tokens),
+    ));
+    let config =
+        ImapConfig::from_credential_source(format!("{GMAIL_IMAP}:993"), GMAIL_IMAP, credentials);
     let account = ImapAccount::connect(&config, tls.connector()).await?;
     let reader = account
         .gmail()
@@ -128,7 +136,10 @@ mod tests {
     #[test]
     fn only_a_refusal_of_imap_itself_moves_the_account_to_the_api() {
         for class in [FailureClass::Authentication, FailureClass::InvalidState] {
-            assert!(refuses_imap(&ProviderError::new(class, "refused")), "{class:?}");
+            assert!(
+                refuses_imap(&ProviderError::new(class, "refused")),
+                "{class:?}"
+            );
         }
         // Each of these may pass, and falling back on one would restart the sync from the top.
         for class in [
@@ -138,7 +149,10 @@ mod tests {
             FailureClass::Conflict,
             FailureClass::NeedsResync,
         ] {
-            assert!(!refuses_imap(&ProviderError::new(class, "passing")), "{class:?}");
+            assert!(
+                !refuses_imap(&ProviderError::new(class, "passing")),
+                "{class:?}"
+            );
         }
     }
 }

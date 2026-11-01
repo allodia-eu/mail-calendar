@@ -124,7 +124,8 @@ impl Provider for RefreshingGmailProvider {
                 }
                 Err(err) => {
                     for index in 0..messages.len() {
-                        yield (index, Err(engine_provider::ProviderError::new(err.class(), err.detail())));
+                        let err = engine_provider::ProviderError::new(err.class(), err.detail());
+                        yield (index, Err(err));
                     }
                 }
             }

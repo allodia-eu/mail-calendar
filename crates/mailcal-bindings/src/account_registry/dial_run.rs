@@ -235,8 +235,8 @@ impl AccountDial {
                             None,
                             &identity.email,
                         )
-                            .await
-                            .map_err(ConnectFailure::from)
+                        .await
+                        .map_err(ConnectFailure::from)
                     }),
                     part(
                         on(Capability::Calendar),

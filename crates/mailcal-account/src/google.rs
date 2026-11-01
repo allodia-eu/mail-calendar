@@ -274,7 +274,8 @@ mod tests {
         };
 
         let (endpoint, _hits) = dead_grant_token_endpoint();
-        let provider = connect_google_folder(source_at(endpoint, None), None, "alice@example.com").unwrap();
+        let provider =
+            connect_google_folder(source_at(endpoint, None), None, "alice@example.com").unwrap();
         assert_drafts_reach_the_delegate(provider.as_ref()).await;
     }
 
