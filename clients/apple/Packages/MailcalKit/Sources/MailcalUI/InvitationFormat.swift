@@ -296,11 +296,14 @@ func calendarEventLabel(
     title: String,
     time: String,
     calendar: String,
-    participation: ResponseStatus
+    participation: ResponseStatus,
+    hasConference: Bool = false
 ) -> String {
-    let base = L10n.calendar_event_a11y(title: title, time: time, calendar: calendar)
-    guard participation == .needsAction else { return base }
-    return "\(base), \(L10n.a11y_invitation_awaiting_response())"
+    var label = L10n.calendar_event_a11y(title: title, time: time, calendar: calendar)
+    if participation == .needsAction { label += ", \(L10n.a11y_invitation_awaiting_response())" }
+    // The camera glyph is hidden from VoiceOver, so the label says what it shows.
+    if hasConference { label += ", \(L10n.event_video_meeting())" }
+    return label
 }
 
 /// Whether a calendar record is an invitation this account has not answered, the one condition

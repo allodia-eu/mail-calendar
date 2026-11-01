@@ -119,7 +119,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar: refreshes periodically while the app remains open, without requiring another visit to the tab | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Calendar: create with a **calendar picker** (grouped by account) · all-day · notes · location | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: tap an event to **view** its detail and **edit** it (title, time, notes, location) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Calendar: an event's **video meeting** (Microsoft Teams, Google Meet, Zoom and others, whether the calendar made it or an invitation only wrote the link into its text) is joined from its detail with one tap, beside its meeting ID, passcode and dial-in numbers, and marked with a camera on the grid, the month and the agenda ([docs](docs/conferencing.md)) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Calendar: an event's **video meeting** (Microsoft Teams, Google Meet, Zoom and others, whether the calendar made it or an invitation only wrote the link into its text) is joined from its detail with one tap, beside its meeting ID, passcode and dial-in numbers, and marked with a camera on the grid, the month and the agenda ([docs](docs/conferencing.md)) | ✅ | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
 | Calendar: an event's **attendee list** (who called it, and who accepted / declined / answered maybe / hasn't replied), on the detail **and** read-only in the editor | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **invite people** to a new event, as required or optional, on a calendar whose server sends the invitations; and **change who is invited** to a meeting you organise ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: an **optional** invitee is marked as such in the attendee list | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

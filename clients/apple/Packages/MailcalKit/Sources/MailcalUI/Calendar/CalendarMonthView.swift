@@ -107,9 +107,8 @@ struct CalendarMonthView: View {
                 let calendarRow = page.calendars.row(account: chip.account, calendar: chip.calendar)
                 let swatch = calendarRow.swatchOrFallback(dark: colorScheme == .dark)
                 let title = chip.title.isEmpty ? L10n.event_no_title() : chip.title
-                Text(title)
+                EventTitleLine(title: title, hasConference: chip.hasConference)
                     .font(.system(size: 9))
-                    .lineLimit(1)
                     .foregroundStyle(parseHexColor(swatch.text))
                     .padding(.horizontal, 2)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -136,7 +135,8 @@ struct CalendarMonthView: View {
                                 ? L10n.calendar_all_day()
                                 : clockTime(Int(chip.startMinutes), use24Hour: use24Hour),
                             calendar: calendarRow?.name ?? "",
-                            participation: chip.participation
+                            participation: chip.participation,
+                            hasConference: chip.hasConference
                         )
                     )
             }
