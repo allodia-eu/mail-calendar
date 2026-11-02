@@ -3,6 +3,8 @@
 
 	"app_title": "{app_name}",
 	"app_unavailable": "Couldn’t open the app. Please restart it.",
+	"sign_in_page_done": "You can close this tab and return to {app_name}.",
+	"sign_in_page_ended": "This sign-in is no longer waiting. Return to {app_name} and sign in again.",
 
 	"nav_mail": "Mail",
 	"nav_calendar": "Calendar",

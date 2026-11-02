@@ -161,8 +161,10 @@ final class GoogleSignIn: NSObject, GoogleBrowserFlow, ASWebAuthenticationPresen
 /// `redirectURI()` binds an `NWListener` to an ephemeral port on **127.0.0.1 only** (never a
 /// routable interface, so the listener is unreachable off-box) and returns
 /// `http://127.0.0.1:<port>/`; `authorize` opens the authorization URL in the user's default
-/// browser (reusing their signed-in Google session) and awaits the single inbound redirect GET,
-/// answering it with a small "you can close this tab" page. Google's Desktop client accepts any
+/// browser (reusing their signed-in Google session) and awaits the redirect GET, answering it with
+/// a small "you can close this tab" page and any other request with a 400. Once the wait is over
+/// the port keeps answering for `lingering`, so a browser that comes back late reads a page
+/// rather than a refused connection. Google's Desktop client accepts any
 /// loopback port, so nothing about the port is registered in the console. A public client, no
 /// secret; PKCE (owned by the core) protects the exchange. Retained by the model for the flow's
 /// duration; an abandoned flow (browser closed without finishing) leaves the listener waiting until
@@ -199,8 +201,7 @@ final class GoogleLoopbackFlow: GoogleBrowserFlow {
     /// Opens the authorization URL in the default browser and awaits the loopback redirect.
     func authorize(authorizationURL: String) async throws -> String {
         guard let url = URL(string: authorizationURL) else { throw GoogleSignInError.badURL }
-        return try await withCheckedThrowingContinuation { continuation in
-            self.callbackContinuation = continuation
+        return try await awaitRedirect {
             // The user's default browser, reuses their existing Google session (the UX win) and is
             // where Google redirects to our loopback address on success.
             logBrowserSignIn("google", "opening the browser")
@@ -208,6 +209,18 @@ final class GoogleLoopbackFlow: GoogleBrowserFlow {
                 logBrowserSignIn("google", "the browser did not open")
                 fail(GoogleSignInError.couldNotStart)
             }
+        }
+    }
+
+    /// Awaits the redirect on the bound port, calling `open` once the wait is in place, so a
+    /// redirect that arrives at once still has somewhere to land.
+    func awaitRedirect(opening open: () -> Void) async throws -> String {
+        // A flow already cancelled or finished resumes nothing again, so a wait begun after it
+        // would never end.
+        guard !didFinish else { throw GoogleSignInError.cancelled }
+        return try await withCheckedThrowingContinuation { continuation in
+            self.callbackContinuation = continuation
+            open()
         }
     }
 
@@ -244,24 +257,45 @@ final class GoogleLoopbackFlow: GoogleBrowserFlow {
 
     private func handle(connection: NWConnection) {
         connection.start(queue: .main)
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { [weak self] data, _, _, error in
-            Task { @MainActor in self?.handle(connection: connection, data: data, error: error) }
+        receive(on: connection, head: Data())
+    }
+
+    /// Reads until the request head ends (a blank line), so a request line the browser wrote in
+    /// pieces is read whole.
+    private func receive(on connection: NWConnection, head: Data) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { [weak self] data, _, isComplete, error in
+            Task { @MainActor in
+                var head = head
+                if let data { head.append(data) }
+                let ended = head.range(of: Data("\r\n\r\n".utf8)) != nil
+                if ended || isComplete || error != nil || head.count >= 16 * 1024 {
+                    self?.handle(connection: connection, head: head)
+                } else {
+                    self?.receive(on: connection, head: head)
+                }
+            }
         }
     }
 
-    private func handle(connection: NWConnection, data: Data?, error: NWError?) {
+    /// Takes the redirect and answers anything else the browser asks this port for, such as
+    /// `/favicon.ico`, with a 400 while it keeps waiting: the first request is not always the
+    /// redirect, and taking it fails a sign-in the person completed.
+    private func handle(connection: NWConnection, head: Data) {
         guard !didFinish else {
             connection.cancel()
             return
         }
-        guard let data, let request = String(data: data, encoding: .utf8),
+        guard let request = String(data: head, encoding: .utf8),
               let target = Self.requestTarget(request)
         else {
-            if let error {
-                logBrowserSignIn("google", "the redirect did not arrive whole (\(error))")
-                fail(error)
-            }
+            // A connection opened ahead of time and closed unused, or one that broke off.
             connection.cancel()
+            return
+        }
+        guard isOauthCallback(target: target) else {
+            let path = target.prefix { $0 != "?" && $0 != "#" }.prefix(64)
+            logBrowserSignIn("google", "answered a request for \(path) that was not the redirect")
+            Self.write(status: "400 Bad Request", page: "Bad request", to: connection)
             return
         }
         logBrowserSignIn("google", "the browser came back with the redirect")
@@ -281,25 +315,55 @@ final class GoogleLoopbackFlow: GoogleBrowserFlow {
         return String(fields[1])
     }
 
-    // The throwaway page the browser tab lands on after the redirect. Neutral, on-brand English;
-    // there is no l10n key for this transient page (the same known gap as the Windows flow).
-    // Self-contained (no external assets), so it renders offline.
     private func writeClosePage(to connection: NWConnection) {
-        let html = """
-        <!doctype html><html lang="en"><head><meta charset="utf-8">\
-        <title>Allodia Mail &amp; Calendar</title></head>\
-        <body style="font-family: system-ui, sans-serif; text-align: center; padding: 3rem;">\
-        <p>You can close this tab and return to Allodia Mail &amp; Calendar.</p>\
-        </body></html>
-        """
-        let response = "HTTP/1.1 200 OK\r\n"
+        Self.write(status: "200 OK", page: Self.page(L10n.sign_in_page_done()), to: connection)
+    }
+
+    /// A self-contained page saying `message`, with no external assets so it renders offline.
+    /// The message is the catalog's and carries the app's name, so it is escaped as text.
+    nonisolated static func page(_ message: String) -> String {
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>\(escaped(L10n.app_title()))</title>"
+            + "</head><body style=\"font-family: system-ui, sans-serif; text-align: center; padding: 3rem;\">"
+            + "<p>\(escaped(message))</p></body></html>"
+    }
+
+    nonisolated private static func escaped(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+    }
+
+    nonisolated private static func write(status: String, page: String, to connection: NWConnection) {
+        let response = "HTTP/1.1 \(status)\r\n"
             + "Content-Type: text/html; charset=utf-8\r\n"
-            + "Content-Length: \(html.utf8.count)\r\n"
+            + "Content-Length: \(page.utf8.count)\r\n"
             + "Connection: close\r\n\r\n"
-            + html
+            + page
         connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in
             connection.cancel()
         })
+    }
+
+    /// How long the port keeps answering once the wait is over.
+    static let lingering: Duration = .seconds(180)
+
+    /// Keeps the port answering with `message` for a while once the wait is over, so a browser
+    /// that comes back late (a sign-in cancelled, superseded or finished, or a tab reloaded) reads
+    /// what happened rather than a refused connection.
+    private func linger(saying message: String) {
+        guard let listener else { return }
+        self.listener = nil
+        let page = Self.page(message)
+        listener.newConnectionHandler = { connection in
+            connection.start(queue: .main)
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { _, _, _, _ in
+                Self.write(status: "200 OK", page: page, to: connection)
+            }
+        }
+        Task {
+            try? await Task.sleep(for: Self.lingering)
+            listener.cancel()
+        }
     }
 
     private func finish(callbackURL: String) {
@@ -307,8 +371,7 @@ final class GoogleLoopbackFlow: GoogleBrowserFlow {
         didFinish = true
         callbackContinuation?.resume(returning: callbackURL)
         callbackContinuation = nil
-        listener?.cancel()
-        listener = nil
+        linger(saying: L10n.sign_in_page_done())
     }
 
     private func fail(_ error: Error) {
@@ -318,8 +381,7 @@ final class GoogleLoopbackFlow: GoogleBrowserFlow {
         readyContinuation = nil
         callbackContinuation?.resume(throwing: error)
         callbackContinuation = nil
-        listener?.cancel()
-        listener = nil
+        linger(saying: L10n.sign_in_page_ended())
     }
 }
 #endif

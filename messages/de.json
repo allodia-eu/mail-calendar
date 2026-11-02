@@ -3,6 +3,8 @@
 
 	"app_title": "{app_name}",
 	"app_unavailable": "Die App konnte nicht geöffnet werden. Bitte starten Sie sie neu.",
+	"sign_in_page_done": "Sie können diesen Tab schließen und zu {app_name} zurückkehren.",
+	"sign_in_page_ended": "Diese Anmeldung wartet nicht mehr. Kehren Sie zu {app_name} zurück und melden Sie sich erneut an.",
 
 	"nav_mail": "E-Mail",
 	"nav_calendar": "Kalender",

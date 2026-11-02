@@ -62,7 +62,7 @@ public sealed partial class MailboxModel
         {
             // Pick the free loopback port BEFORE building the request: begin_google_login must be
             // handed the exact redirect URI the browser will return to.
-            using var loopback = new GoogleLoopback();
+            using var loopback = NewGoogleLoopback();
             var start = MailcalBindingsMethods.BeginGoogleLogin(
                 loopback.RedirectUri,
                 // The address the user is connecting (from autodetection), so Google targets that
@@ -105,10 +105,17 @@ public sealed partial class MailboxModel
         }
     }
 
+    // A loopback listener that takes the redirect by the core's rule and answers in the catalog's
+    // words.
+    private static GoogleLoopback NewGoogleLoopback() =>
+        new(
+            new LoopbackPages(L10n.AppTitle(), L10n.SignInPageDone(), L10n.SignInPageEnded()),
+            MailcalBindingsMethods.IsOauthCallback);
+
     // Awaits the browser's loopback redirect, bounding the otherwise unbounded wait on two outcomes
     // besides success: the user cancels (<paramref name="cancel"/>), or a generous cap elapses. Both
-    // stop the loopback listener; a user cancel re-throws as OperationCanceledException, a lapsed cap
-    // as a TimeoutException. Mirrors ProtocolAuthCallback.Registration.WaitAsync, which does the
+    // end the wait; a user cancel re-throws as OperationCanceledException, a lapsed cap as a
+    // TimeoutException. Mirrors ProtocolAuthCallback.Registration.WaitAsync, which does the
     // same for the custom-scheme flows (Microsoft, JMAP).
     private static async Task<string> WaitForGoogleCallbackAsync(GoogleLoopback loopback, CancellationToken cancel)
     {

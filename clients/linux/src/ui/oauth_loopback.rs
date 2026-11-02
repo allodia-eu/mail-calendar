@@ -10,7 +10,11 @@ use std::{
 use gtk::gio;
 use url::Url;
 
+use crate::l10n;
+
 pub(super) const CALLBACK_TIMEOUT: Duration = Duration::from_mins(5);
+/// How long a port picked for one sign-in keeps answering once the wait is over.
+const LINGERING: Duration = Duration::from_mins(3);
 const ACCEPT_POLL: Duration = Duration::from_millis(50);
 const MAX_REQUEST_BYTES: usize = 16 * 1024;
 
@@ -24,12 +28,20 @@ pub(super) enum CallbackOutcome {
 pub(super) struct OAuthLoopback {
     listener: TcpListener,
     address: SocketAddrV4,
+    /// Whether the port keeps answering once the wait is over. Only a port picked for this
+    /// sign-in does. A persisted redirect's port must be free for the next re-authentication the
+    /// moment this one ends, and a clone shares a socket the next wait accepts on, where a
+    /// lingering answer could take that wait's redirect.
+    lingers: bool,
 }
 
 impl OAuthLoopback {
     pub(super) fn bind() -> std::io::Result<Self> {
         let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))?;
-        Self::from_listener(listener)
+        Ok(Self {
+            lingers: true,
+            ..Self::from_listener(listener)?
+        })
     }
 
     /// Binds the exact loopback redirect persisted with a JMAP OAuth grant. A provider registers
@@ -66,7 +78,11 @@ impl OAuthLoopback {
                 ));
             }
         };
-        Ok(Self { listener, address })
+        Ok(Self {
+            listener,
+            address,
+            lingers: false,
+        })
     }
 
     pub(super) fn redirect_uri(&self) -> String {
@@ -77,6 +93,7 @@ impl OAuthLoopback {
         Ok(Self {
             listener: self.listener.try_clone()?,
             address: self.address,
+            lingers: false,
         })
     }
 
@@ -113,6 +130,62 @@ impl OAuthLoopback {
 
     fn wait_with_timeout(
         self,
+        cancel: &AtomicBool,
+        timeout: Duration,
+        expected_state: Option<&str>,
+        timeout_message: &str,
+        failure_message: &str,
+    ) -> CallbackOutcome {
+        let outcome = self.wait_until(
+            cancel,
+            timeout,
+            expected_state,
+            timeout_message,
+            failure_message,
+        );
+        if self.lingers {
+            self.linger(match outcome {
+                CallbackOutcome::Received(_) => l10n::sign_in_page_done(),
+                CallbackOutcome::Cancelled | CallbackOutcome::Failed(_) => {
+                    l10n::sign_in_page_ended()
+                }
+            });
+        }
+        outcome
+    }
+
+    /// Answers every request with `message` for [`LINGERING`] once the wait is over, so a browser
+    /// that comes back late (a sign-in cancelled or finished, or a tab reloaded) reads what
+    /// happened rather than a refused connection.
+    fn linger(self, message: &str) {
+        let page = page(message);
+        std::thread::spawn(move || {
+            let until = Instant::now() + LINGERING;
+            while Instant::now() < until {
+                match self.listener.accept() {
+                    Ok((mut stream, peer)) if peer.ip().is_loopback() => {
+                        // Closing a socket with the request still unread resets the connection,
+                        // and the browser shows that rather than the page.
+                        let _ = request_head(&mut stream);
+                        let _ = write_response(
+                            &mut stream,
+                            "200 OK",
+                            "text/html; charset=utf-8",
+                            &page,
+                        );
+                    }
+                    Ok(_) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(ACCEPT_POLL);
+                    }
+                    Err(_) => return,
+                }
+            }
+        });
+    }
+
+    fn wait_until(
+        &self,
         cancel: &AtomicBool,
         timeout: Duration,
         expected_state: Option<&str>,
@@ -193,6 +266,12 @@ pub(super) fn launch_browser(authorization_url: &str, on_error: impl FnOnce() + 
 }
 
 fn request_target(stream: &mut TcpStream) -> Option<String> {
+    let request = request_head(stream)?;
+    parse_request_target(&request).map(str::to_owned)
+}
+
+/// Reads up to the blank line that ends the request head, or `None` when it does not arrive.
+fn request_head(stream: &mut TcpStream) -> Option<Vec<u8>> {
     stream.set_read_timeout(Some(Duration::from_secs(5))).ok()?;
     let mut request = Vec::with_capacity(1024);
     let mut chunk = [0_u8; 1024];
@@ -206,10 +285,7 @@ fn request_target(stream: &mut TcpStream) -> Option<String> {
             break;
         }
     }
-    if request.len() >= MAX_REQUEST_BYTES {
-        return None;
-    }
-    parse_request_target(&request).map(str::to_owned)
+    (request.len() < MAX_REQUEST_BYTES).then_some(request)
 }
 
 fn parse_request_target(request: &[u8]) -> Option<&str> {
@@ -226,12 +302,7 @@ fn parse_request_target(request: &[u8]) -> Option<&str> {
     {
         return None;
     }
-    let query = target.split_once('?')?.1;
-    let has_state = query.split('&').any(|part| part.starts_with("state="));
-    let has_result = query
-        .split('&')
-        .any(|part| part.starts_with("code=") || part.starts_with("error="));
-    (has_state && has_result).then_some(target)
+    mailcal_bindings::is_oauth_callback(target.to_owned()).then_some(target)
 }
 
 fn callback_state(target: &str) -> Option<&str> {
@@ -243,8 +314,30 @@ fn callback_state(target: &str) -> Option<&str> {
 }
 
 fn write_close_page(stream: &mut TcpStream) -> std::io::Result<()> {
-    const BODY: &str = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Allodia Mail &amp; Calendar</title></head><body><p>You can close this tab and return to Allodia Mail &amp; Calendar.</p></body></html>";
-    write_response(stream, "200 OK", "text/html; charset=utf-8", BODY)
+    write_response(
+        stream,
+        "200 OK",
+        "text/html; charset=utf-8",
+        &page(l10n::sign_in_page_done()),
+    )
+}
+
+/// A self-contained page saying the catalog's `message`, with no external assets so it renders
+/// offline. The message carries the app's name, so it is escaped as text.
+fn page(message: &str) -> String {
+    format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>{}</title></head>\
+         <body style=\"font-family: system-ui, sans-serif; text-align: center; padding: 3rem;\">\
+         <p>{}</p></body></html>",
+        escaped(l10n::app_title()),
+        escaped(message)
+    )
+}
+
+fn escaped(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 fn write_bad_request(stream: &mut TcpStream) -> std::io::Result<()> {
@@ -271,122 +364,5 @@ fn write_response(
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{
-        io::{Read, Write},
-        net::TcpStream,
-        sync::{Arc, atomic::AtomicBool},
-        time::Duration,
-    };
-
-    use super::{CallbackOutcome, OAuthLoopback, parse_request_target};
-
-    #[test]
-    fn loopback_accepts_exactly_an_oauth_callback_and_answers_locally() {
-        let loopback = OAuthLoopback::bind().expect("bind loopback");
-        let address = loopback.address;
-        let cancel = Arc::new(AtomicBool::new(false));
-        let worker_cancel = Arc::clone(&cancel);
-        let worker = std::thread::spawn(move || {
-            loopback.wait_with_timeout(
-                &worker_cancel,
-                Duration::from_secs(2),
-                None,
-                "timeout",
-                "failed",
-            )
-        });
-
-        let mut browser = TcpStream::connect(address).expect("connect loopback");
-        browser
-            .write_all(b"GET /?code=fixture&state=expected HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
-            .expect("write callback");
-        let mut response = String::new();
-        browser
-            .read_to_string(&mut response)
-            .expect("read response");
-
-        let CallbackOutcome::Received(url) = worker.join().expect("worker") else {
-            panic!("expected callback");
-        };
-        assert_eq!(
-            url,
-            format!("http://{address}/?code=fixture&state=expected")
-        );
-        assert!(response.starts_with("HTTP/1.1 200 OK"));
-        assert!(response.contains("Allodia Mail &amp; Calendar"));
-    }
-
-    #[test]
-    fn a_reauthentication_rebinds_the_exact_persisted_loopback_uri() {
-        let original = OAuthLoopback::bind().expect("bind original loopback");
-        let redirect = original.redirect_uri();
-        drop(original);
-
-        let rebound = OAuthLoopback::bind_redirect_uri(&redirect).expect("rebind persisted port");
-
-        assert_eq!(rebound.redirect_uri(), redirect);
-        assert!(OAuthLoopback::bind_redirect_uri("http://example.com:1234/").is_err());
-        assert!(OAuthLoopback::bind_redirect_uri("http://127.0.0.1:1234/not-root").is_err());
-    }
-
-    #[test]
-    fn loopback_parser_rejects_non_callbacks() {
-        assert!(parse_request_target(b"GET /favicon.ico HTTP/1.1\r\n\r\n").is_none());
-        assert!(parse_request_target(b"POST /?code=x&state=y HTTP/1.1\r\n\r\n").is_none());
-        assert_eq!(
-            parse_request_target(b"GET /?error=access_denied&state=y HTTP/1.1\r\n\r\n"),
-            Some("/?error=access_denied&state=y")
-        );
-    }
-
-    #[test]
-    fn cancelling_stops_the_loopback_wait() {
-        let loopback = OAuthLoopback::bind().expect("bind loopback");
-        let cancel = AtomicBool::new(true);
-        assert!(matches!(
-            loopback.wait_with_timeout(&cancel, Duration::from_secs(2), None, "timeout", "failed",),
-            CallbackOutcome::Cancelled
-        ));
-    }
-
-    #[test]
-    fn state_filtered_wait_ignores_a_late_callback_from_a_cancelled_attempt() {
-        let owner = OAuthLoopback::bind().expect("bind loopback");
-        let address = owner.address;
-        let loopback = owner.try_clone().expect("clone listener");
-        assert_eq!(owner.redirect_uri(), loopback.redirect_uri());
-        let cancel = Arc::new(AtomicBool::new(false));
-        let worker_cancel = Arc::clone(&cancel);
-        let worker = std::thread::spawn(move || {
-            loopback.wait_with_timeout(
-                &worker_cancel,
-                Duration::from_secs(2),
-                Some("current"),
-                "timeout",
-                "failed",
-            )
-        });
-
-        let stale = request(address, "/?code=old&state=cancelled");
-        assert!(stale.starts_with("HTTP/1.1 400 Bad Request"));
-        let current = request(address, "/?code=new&state=current");
-        assert!(current.starts_with("HTTP/1.1 200 OK"));
-
-        let CallbackOutcome::Received(url) = worker.join().expect("worker") else {
-            panic!("expected current callback");
-        };
-        assert_eq!(url, format!("http://{address}/?code=new&state=current"));
-    }
-
-    fn request(address: std::net::SocketAddrV4, target: &str) -> String {
-        let mut browser = TcpStream::connect(address).expect("connect loopback");
-        write!(browser, "GET {target} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
-            .expect("write callback");
-        let mut response = String::new();
-        browser
-            .read_to_string(&mut response)
-            .expect("read response");
-        response
-    }
-}
+#[path = "oauth_loopback_tests.rs"]
+mod tests;
