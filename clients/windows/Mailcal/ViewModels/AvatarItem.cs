@@ -5,9 +5,8 @@
 //
 // A projection of the core's `Avatar` for the reason every view model here is one: the generated
 // UniFFI records are internal and carry Rust field names. **Pure BCL besides**, no WinUI type
-// reaches this file, which is what lets Mailcal.Tests link it and MessageStop
-// (Services/ReadingAdvance.cs) carry one. Turning a hex into a brush and a path into a bitmap is
-// the WinUI half, in Controls/AvatarView.cs.
+// reaches this file, which is what lets Mailcal.Tests link it. Turning a hex into a brush and a
+// path into a bitmap is the WinUI half, in Controls/AvatarView.cs.
 
 using uniffi.mailcal_bindings;
 

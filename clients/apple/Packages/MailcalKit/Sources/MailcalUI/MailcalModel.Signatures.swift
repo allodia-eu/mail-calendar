@@ -15,7 +15,7 @@ import MailcalBindings
 ///
 /// A free function rather than a method on the `@MainActor` model, so the rule can be tested
 /// without an actor hop, it is pure, and it is the one piece of signature logic the client owns
-/// (`SignatureSlotTests`). Same shape as `messageAfterRemoving`.
+/// (`SignatureSlotTests`).
 func signatureSlot(for mode: RichComposeMode) -> SignatureSlotKind {
     mode == .new ? .newMessage : .replyForward
 }

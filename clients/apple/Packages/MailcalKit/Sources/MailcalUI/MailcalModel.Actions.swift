@@ -377,6 +377,13 @@ extension MailboxModel {
         app?.rowMenu(rows: rows) ?? RowMenu(sections: [])
     }
 
+    /// The message the reading pane opens once `account`'s `key` leaves the list, as the core
+    /// decides it (`docs/reading-actions.md`, "Where the pane goes next"). `expanded` names the
+    /// conversations the list shows expanded.
+    func stopAfterRemoving(_ account: String, _ key: String, expanded: [SelectedRow]) -> MenuMessage? {
+        app?.stopAfterRemoving(account: account, key: key, expanded: expanded)
+    }
+
     /// Permanently delete a message, irreversible (by key, on its owning `account`),
     /// then re-sync.
     func permanentlyDelete(_ account: String, _ key: String) {

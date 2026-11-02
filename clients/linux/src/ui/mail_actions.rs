@@ -3,9 +3,14 @@
 //! The menus a row offers them through are [`super::mail_actions_menu`].
 
 use adw::prelude::*;
-use mailcal_bindings::{BulkAction, Intent, SelectedRow, SnapshotRow};
+use mailcal_bindings::{BulkAction, Intent, MenuMessage, SelectedRow, SnapshotRow};
 
-use super::{AppInput, AppModel, mailbox, mailbox::ThreadKey, model, reader::ReadingSource};
+use super::{
+    AppInput, AppModel, mailbox,
+    mailbox::ThreadKey,
+    model::{self, OpenedMessage},
+    reader::ReadingSource,
+};
 use crate::l10n;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -259,16 +264,17 @@ impl AppModel {
             })
     }
 
-    /// Archive or Trash from a reading view's own action row.
-    ///
-    /// What is left behind differs by reader, and deliberately so (`docs/reading-window.md`): the
-    /// pane is a place in a list, so it advances to the next message down; a window is one
+    /// Archive or Trash from a reading view's own action row.  What is left behind differs by
+    /// reader, and deliberately so (`docs/reading-window.md`): the pane is a place in a list, so it
+    /// moves on to the message the core names, opened as clicking its row opens it, a draft into
+    /// its composer (`docs/reading-actions.md`, "Where the pane goes next"); a window is one
     /// message, so once that message has left the folder there is nothing for the window to be
     /// about and it closes.
     pub(super) fn perform_opened_mail_action(
         &mut self,
         source: &ReadingSource,
         action: ActionKind,
+        sender: &relm4::Sender<AppInput>,
     ) {
         if !matches!(action, ActionKind::Archive | ActionKind::MoveToTrash) {
             return;
@@ -276,8 +282,8 @@ impl AppModel {
         let Some(opened) = self.reader_message(source).cloned() else {
             return;
         };
-        let stops = model::readable_stops(&self.snapshot, &self.expanded_threads);
-        let next = model::message_after_removing(&opened, &stops);
+        // Asked before the dispatch, while the message is still listed.
+        let next = self.stop_after_removing(&opened);
         self.dispatch(intent_for(
             MessageTarget {
                 account: opened.account,
@@ -287,14 +293,23 @@ impl AppModel {
         ));
         match source {
             ReadingSource::Pane => {
-                if let Some(next) = next {
-                    self.open_message(next);
-                } else {
+                if !next.is_some_and(|stop| self.open_as_clicked(&stop, sender)) {
                     self.reading.close();
                 }
             }
             ReadingSource::Window(window) => self.close_reading_window(&window.clone()),
         }
+    }
+
+    /// The message the pane moves on to once `opened` leaves the list, as the core names it.
+    fn stop_after_removing(&self, opened: &OpenedMessage) -> Option<MenuMessage> {
+        let app = self.app.as_ref()?;
+        let expanded = self
+            .expanded_threads
+            .iter()
+            .map(ThreadKey::selected_row)
+            .collect();
+        app.stop_after_removing(opened.account.clone(), opened.key.clone(), expanded)
     }
 
     /// Records a conversation's inline disclosure and, on opening one, opens its newest message

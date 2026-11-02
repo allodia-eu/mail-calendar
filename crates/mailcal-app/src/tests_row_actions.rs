@@ -12,7 +12,7 @@ use engine_provider::MailEdit;
 use fakes::{FakeProvider, account, app, msg, thread_ref, threaded};
 use mailcal_viewmodel::{MessageKind, RowAction, RowMenu, ViewMode};
 
-use crate::{App, BulkAction, Intent, RowRef};
+use crate::{App, BulkAction, Intent, MessageRef, RowRef};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -263,4 +263,28 @@ async fn an_account_with_no_archive_offers_archive_disabled() {
     let menu = app.row_menu(&conversation());
     assert!(!item(&menu, RowAction::Archive).0, "nowhere to archive to");
     assert!(!item(&menu, RowAction::Delete).0, "nor a Trash");
+}
+
+/// The message above a conversation leaves, and the pane lands on what clicking the conversation
+/// opens: its newest, an unfinished reply, which says it is a draft so the client resumes it.
+#[tokio::test]
+async fn the_pane_lands_on_the_next_rows_newest_message_and_says_it_is_a_draft() {
+    let mut above = threaded("above", "a", "Another thread", "u");
+    above.received_at = Some("2026-10-30T09:30:00Z".parse().unwrap());
+    above.envelope.from = vec![engine_api::EmailAddress::new("bob@example.test")];
+    let (app, _) = conversation_app(vec![
+        above,
+        mail("r1", "a", 0, MessageKind::Received, ""),
+        mail("d1", "a", 20, MessageKind::Draft, ""),
+    ])
+    .await;
+
+    let removed = MessageRef::from_parts("acct-1", "above".to_owned()).unwrap();
+    let stop = app.stop_after_removing(&removed, &[]).expect("a row below");
+    assert_eq!((stop.key.as_str(), stop.kind), ("d1", MessageKind::Draft));
+
+    // Expanded, the conversation offers each message; the received one follows the draft.
+    let removed = MessageRef::from_parts("acct-1", "d1".to_owned()).unwrap();
+    let stop = app.stop_after_removing(&removed, &[thread_ref("acct-1", "t")]);
+    assert_eq!(stop.map(|stop| stop.key), Some("r1".to_owned()));
 }

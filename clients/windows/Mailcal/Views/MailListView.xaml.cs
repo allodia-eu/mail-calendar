@@ -31,8 +31,8 @@ public sealed partial class MailListView : UserControl
         this.Bindings.Update();
         InitSwipe();
         InitReadingWindows();
-        // The highlight follows the READING PANE, not the last click: archive/delete advances the
-        // pane to the next message on its own (ReadingAdvance), and nothing clicked that row. A
+        // The highlight follows the READING PANE, not the last click: archive/delete moves the
+        // pane on to the next message by itself (ReadingActions), and nothing clicked that row. A
         // reconcile that takes the selected row away re-runs it too, or the highlight silently drops.
         model.PropertyChanged += (_, e) =>
         {

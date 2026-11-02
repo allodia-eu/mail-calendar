@@ -169,28 +169,6 @@ pub(crate) fn kept_expanded(
     }
 }
 
-/// The messages the list currently offers as reading stops, in display order.
-pub(crate) fn readable_stops(
-    snapshot: &MailboxListSnapshot,
-    expanded: &HashSet<ThreadKey>,
-) -> Vec<OpenedMessage> {
-    snapshot
-        .rows
-        .iter()
-        .flat_map(|row| match row {
-            SnapshotRow::Flat { .. } => vec![OpenedMessage::from_row(row)],
-            SnapshotRow::Thread { row } if expanded.contains(&ThreadKey::of(row)) => row
-                .messages
-                .iter()
-                .map(|message| OpenedMessage::from_member(row, message))
-                .collect(),
-            SnapshotRow::Thread { row } => {
-                vec![representative(row, snapshot.showing_drafts).0]
-            }
-        })
-        .collect()
-}
-
 /// Per-message reading state owned by the Linux host.
 pub(crate) struct ReadingState {
     pub(crate) opened: Option<OpenedMessage>,
@@ -242,41 +220,11 @@ impl ReadingState {
     }
 }
 
-/// The message the reading pane opens after an archive or Trash move removes `opened` from the
-/// list: the next one down, or the one above when it was last.
-pub(crate) fn message_after_removing(
-    opened: &OpenedMessage,
-    stops: &[OpenedMessage],
-) -> Option<OpenedMessage> {
-    let index = stops
-        .iter()
-        .position(|candidate| candidate.account == opened.account && candidate.key == opened.key)?;
-    stops
-        .get(index + 1)
-        .or_else(|| {
-            index
-                .checked_sub(1)
-                .and_then(|previous| stops.get(previous))
-        })
-        .cloned()
-}
-
 #[cfg(test)]
 mod tests {
     use mailcal_bindings::{FlatRow, ReadingSnapshot, SnapshotRow, ThreadRow};
 
-    use super::{AvatarData, OpenedMessage, ReadingState, blank_avatar, message_after_removing};
-
-    fn opened(account: &str, key: &str) -> OpenedMessage {
-        OpenedMessage {
-            account: account.to_owned(),
-            key: key.to_owned(),
-            subject: format!("Subject {key}"),
-            from: format!("Sender {key}"),
-            date: format!("Date {key}"),
-            avatar: AvatarData::from(&blank_avatar()),
-        }
-    }
+    use super::{AvatarData, OpenedMessage, ReadingState, blank_avatar};
 
     fn empty_reading(key: &str) -> ReadingSnapshot {
         ReadingSnapshot {
@@ -379,32 +327,6 @@ mod tests {
 
         state.snapshot.plain = Some("Body".to_owned());
         assert!(state.body_arrived());
-    }
-
-    #[test]
-    fn removing_an_open_message_advances_down_then_up_and_matches_the_account() {
-        let stops = vec![
-            opened("account-a", "same-key"),
-            opened("account-b", "same-key"),
-            opened("account-a", "last"),
-        ];
-
-        assert_eq!(
-            message_after_removing(&stops[0], &stops),
-            Some(stops[1].clone()),
-            "the next row down wins"
-        );
-        assert_eq!(
-            message_after_removing(&stops[2], &stops),
-            Some(stops[1].clone()),
-            "the row above wins at the end"
-        );
-        assert_eq!(
-            message_after_removing(&opened("missing", "same-key"), &stops),
-            None,
-            "a provider key from another account is not the open row"
-        );
-        assert_eq!(message_after_removing(&stops[0], &stops[..1]), None);
     }
 }
 
