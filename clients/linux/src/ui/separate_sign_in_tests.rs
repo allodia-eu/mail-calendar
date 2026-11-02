@@ -43,6 +43,7 @@ pub(crate) fn mailbox(problem: Option<UseProblem>, server: Option<SeparateServer
         endpoints: None,
         separate_server: server,
         distinction: None,
+        mail_sync: None,
     }
 }
 

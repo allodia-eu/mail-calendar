@@ -1,7 +1,9 @@
 //! Settings → Accounts: the snapshot every client draws it from, and what removing an account does
 //! to the links other accounts hold to it.
 
-use crate::{AccountsSnapshot, LinkSlot, MailcalApp, MailcalError, accounts_view};
+use crate::{
+    AccountsSnapshot, LinkSlot, MailSyncTechnology, MailcalApp, MailcalError, accounts_view,
+};
 
 impl MailcalApp {
     /// Asks `id`'s calendar server, once per registration and off this thread, which addresses it
@@ -73,13 +75,16 @@ impl MailcalApp {
             .calendar_reauth_accounts
             .into_iter()
             .collect();
-        AccountsSnapshot {
-            accounts: accounts_view::entries(
-                &facts,
-                &calendar_refused,
-                &self.app.every_use_problem(),
-            ),
+        let mut accounts =
+            accounts_view::entries(&facts, &calendar_refused, &self.app.every_use_problem());
+        for (entry, account) in accounts.iter_mut().zip(&facts) {
+            entry.mail_sync = MailSyncTechnology::of(
+                account.kind,
+                account.chosen.contains(mailcal_account::Capability::Mail),
+                mailcal_account::gmail_mail_route(&account.address),
+            );
         }
+        AccountsSnapshot { accounts }
     }
 
     /// Links `account_id` in `slot` to `target`, one of the entry's `link_candidates`, or clears

@@ -248,6 +248,7 @@ The order and names are [`settings.md`](settings.md). Windows draws none (Known 
 | Delete a signature, or remove an account | `trash` | `ic_delete` | — | — |
 | Insert an image into a signature | `photo` | `ic_image` | — | — |
 | Save / cancel the signature editor | — | `ic_check` / `ic_close` | — | — |
+| Explain an account's sync technology | `info.circle` | `ic_info` | `E946` Info | `help-about-symbolic` |
 | Jump to the end of the log | `arrow.down.to.line` | — | — | — |
 | The analytics preview, open / closed | `chevron.down` / `chevron.right` | — | — | — |
 | Setup: the mail account | `envelope` | — | — | — |

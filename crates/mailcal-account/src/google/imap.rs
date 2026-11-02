@@ -27,7 +27,10 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, LazyLock, Weak},
+    sync::{
+        Arc, LazyLock, Weak,
+        atomic::{AtomicU8, Ordering},
+    },
 };
 
 use engine_core::error::FailureClass;
@@ -57,6 +60,43 @@ const ASK_AGAIN_AFTER: std::time::Duration = std::time::Duration::from_secs(2);
 static SLOTS: LazyLock<std::sync::Mutex<HashMap<String, Weak<GmailImapSlot>>>> =
     LazyLock::new(Default::default);
 
+/// What hears that an account's route settled.
+type RouteListener = Arc<dyn Fn() + Send + Sync>;
+
+/// Called whenever an account's route settles, so Settings can draw it again.
+static ROUTE_LISTENER: LazyLock<std::sync::Mutex<Option<RouteListener>>> =
+    LazyLock::new(Default::default);
+
+/// Which way a Google account's mail is read in this launch, as Settings shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GmailMailRoute {
+    /// Not settled: the account has not been read in this launch, or its IMAP side is being tried
+    /// again after a failure that may pass.
+    Undecided,
+    /// Over IMAP.
+    Imap,
+    /// Over the API, because Gmail refused this account IMAP.
+    Api,
+}
+
+/// Which way the Google account at `address` reads its mail in this launch.
+#[must_use]
+pub fn gmail_mail_route(address: &str) -> GmailMailRoute {
+    let slot = SLOTS
+        .lock()
+        .expect("gmail slots mutex poisoned")
+        .get(address)
+        .and_then(Weak::upgrade);
+    slot.map_or(GmailMailRoute::Undecided, |slot| slot.route())
+}
+
+/// Calls `listener` whenever a Google account's route settles, replacing any listener before it.
+pub fn on_gmail_mail_route_change(listener: impl Fn() + Send + Sync + 'static) {
+    *ROUTE_LISTENER
+        .lock()
+        .expect("gmail route listener mutex poisoned") = Some(Arc::new(listener));
+}
+
 /// The reader a live account hands the Gmail provider.
 pub(crate) type GmailImap = GmailMail<TlsStream<TcpStream>>;
 
@@ -68,6 +108,9 @@ pub(super) struct GmailImapSlot {
     tokens: Arc<GraphTokenSource>,
     tls: TlsClientConfig,
     state: Mutex<Side>,
+    /// What [`gmail_mail_route`] answers, kept beside `state` because that lock is held across a
+    /// sign-in and Settings may not wait for one.
+    route: AtomicU8,
 }
 
 /// Which side the account's mail is read over.
@@ -107,6 +150,7 @@ impl GmailImapSlot {
             tokens: Arc::clone(tokens),
             tls: tls.clone(),
             state: Mutex::new(Side::Unknown(0)),
+            route: AtomicU8::new(0),
         });
         slots.insert(address.to_owned(), Arc::downgrade(&slot));
         slot
@@ -143,8 +187,31 @@ impl GmailImapSlot {
             ),
             (Side::Unknown(_), Ok(_)) => {}
         }
+        let settled = match next {
+            Side::Unknown(_) => None,
+            Side::Imap(_) => Some(GmailMailRoute::Imap),
+            Side::Api => Some(GmailMailRoute::Api),
+        };
         *state = next;
+        if let Some(route) = settled {
+            self.route.store(route as u8, Ordering::Release);
+            let listener = ROUTE_LISTENER
+                .lock()
+                .expect("gmail route listener mutex poisoned")
+                .clone();
+            if let Some(listener) = listener {
+                listener();
+            }
+        }
         answer
+    }
+
+    fn route(&self) -> GmailMailRoute {
+        match self.route.load(Ordering::Acquire) {
+            1 => GmailMailRoute::Imap,
+            2 => GmailMailRoute::Api,
+            _ => GmailMailRoute::Undecided,
+        }
     }
 }
 

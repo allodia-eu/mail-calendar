@@ -166,6 +166,10 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(AccountSignInGroup(entry));
         }
+        if (entry.MailSync is { } technology)
+        {
+            panel.Children.Add(SyncTechnologyGroup(technology));
+        }
         if (entry.Endpoints is { } endpoints)
         {
             panel.Children.Add(ServersGroup(entry, endpoints, expired));

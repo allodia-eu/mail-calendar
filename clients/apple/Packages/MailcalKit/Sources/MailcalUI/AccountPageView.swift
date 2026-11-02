@@ -64,6 +64,9 @@ struct AccountPageView: View {
             } else if AccountSignInRules.switchesSignIn(entry.kind) {
                 AccountSignInSection(model: model, entry: entry, alert: $alert)
             }
+            if let technology = entry.mailSync {
+                AccountSyncTechnologySection(technology: technology)
+            }
             if let endpoints = entry.endpoints {
                 AccountServersSection(
                     model: model, entry: entry, endpoints: endpoints,

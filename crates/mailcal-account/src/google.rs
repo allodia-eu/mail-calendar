@@ -39,6 +39,7 @@ mod mail_provider;
 pub use calendar::connect_google_calendar_provider;
 pub use config::{GoogleConfig, fetch_google_primary_address, load_google_str};
 pub use contacts::connect_google_contact_providers;
+pub use imap::{GmailMailRoute, gmail_mail_route, on_gmail_mail_route_change};
 
 use crate::{AccountError, GraphTokenSource, TokenSink, tls::tls_with};
 

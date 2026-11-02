@@ -78,9 +78,10 @@ use engine_provider::Provider;
 pub use error::AccountError;
 pub use event_detail::{DetailOccurrence, EventDetail, InviteeEditability, project_event_detail};
 pub use google::{
-    GoogleConfig, connect_google_calendar_provider, connect_google_contact_providers,
-    connect_google_folder, connect_google_mail_providers, fetch_google_primary_address,
-    google_token_source, load_google_str,
+    GmailMailRoute, GoogleConfig, connect_google_calendar_provider,
+    connect_google_contact_providers, connect_google_folder, connect_google_mail_providers,
+    fetch_google_primary_address, gmail_mail_route, google_token_source, load_google_str,
+    on_gmail_mail_route_change,
 };
 pub use graph::{
     CredentialOrigin, GraphTokenSource, TokenSink, connect_graph_calendar_provider,
