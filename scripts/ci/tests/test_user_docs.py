@@ -81,7 +81,7 @@ DEFAULT_NAV = {
     "sections": [
         {
             "id": "guides",
-            "title": {"en": "Guides", "nl": "Handleidingen"},
+            "title": {"en": "Guides", "nl": "Handleidingen", "de": "Anleitungen"},
             "pages": ["guides/setup"],
         }
     ],

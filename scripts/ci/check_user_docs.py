@@ -46,10 +46,10 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # The locales the documentation ships in. Deliberately a **subset** of the app's catalog; the
-# public website speaks these two; and `docs/user-docs.md` records that divergence rather than
+# public website speaks these three; and `docs/user-docs.md` records that divergence rather than
 # letting it become invisible. The half that stays enforceable is checked below: a docs locale
 # must exist in the catalog, so docs can never offer a language the app itself does not speak.
-DOC_LOCALES = ("en", "nl")
+DOC_LOCALES = ("en", "nl", "de")
 
 # The platform tabs a page may declare. Not read from the showcase scripts on purpose: those name
 # *capture targets* (`android-tablet-7` is a screenshot slot, not a platform a reader chooses), and
