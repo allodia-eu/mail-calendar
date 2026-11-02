@@ -24,7 +24,7 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
 {
     private const int Cycles = 3;
 
-    [GeneratedRegex(@"\[info\] release probe: watching a closed ")]
+    [GeneratedRegex(@"\[info\] release probe: watching a closed (?<kind>.+?) \(#(?<n>\d+)\)")]
     private static partial Regex Watch();
 
     [GeneratedRegex(@"\[info\] release probe: (?<held>\d+) of (?<total>\d+) closed still held(?::(?<which>[ #\d]+))?")]
@@ -47,10 +47,13 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
     {
         Match? answer = null;
         var watches = 0;
+        var kinds = new Dictionary<int, string>();
         App.Eventually(() =>
         {
             var session = AppLog.NewestSession();
             var watched = Watch().Matches(session);
+            kinds = watched.ToDictionary(
+                m => int.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture), m => m.Groups["kind"].Value);
             var answers = Answer().Matches(session);
             watches = watched.Count;
             answer = watches > before && answers.Count > 0 && answers[^1].Index > watched[^1].Index ? answers[^1] : null;
@@ -67,8 +70,13 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
         var held = Numbered().Matches(answer.Groups["which"].Value)
             .Select(m => int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)).Where(n => n > before).ToList();
         Assert.True(held.Count == 0,
-            $"{held.Count} of the {watches - before} object(s) closed when {what} are still in memory: something the app keeps, often a handler on a native object, still refers to them (docs/client-traps.md)");
+            $"{held.Count} of the {watches - before} object(s) closed when {what} are still in memory ({Named(held, kinds)}): something the app keeps, often a handler on a native object, still refers to them (docs/client-traps.md)");
     }
+
+    /// <summary>What each held number was watched as, in the probe's order: "composer window #4, #8".</summary>
+    private static string Named(IEnumerable<int> held, IReadOnlyDictionary<int, string> kinds) => string.Join("; ", held
+        .GroupBy(n => kinds.TryGetValue(n, out var kind) ? kind : "unnamed")
+        .Select(g => $"{g.Key} {string.Join(", ", g.Select(n => $"#{n}"))}"));
 
     private static void Compose(App app)
     {
