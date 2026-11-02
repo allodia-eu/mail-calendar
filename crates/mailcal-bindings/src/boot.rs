@@ -350,9 +350,10 @@ pub(crate) fn build_accounts(
     // Settings names which way each Gmail account syncs, which settles on the account's first read.
     let settled = Arc::downgrade(&mailcal.app);
     mailcal_account::on_gmail_mail_route_change(move || {
-        if let Some(app) = settled.upgrade() {
-            app.accounts_changed();
-        }
+        settled
+            .upgrade()
+            .inspect(|app| app.accounts_changed())
+            .is_some()
     });
     mailcal.refresh_analytics_accounts();
     // Interactive boot: every account is a provider-less placeholder, so dial them all in the
