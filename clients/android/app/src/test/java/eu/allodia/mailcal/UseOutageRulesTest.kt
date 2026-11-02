@@ -29,6 +29,7 @@ class UseOutageRulesTest {
             UseProblem.SIGN_IN_REFUSED to L10n.settings_account_use_refused_calendar(ctx()),
             UseProblem.UNREACHABLE to L10n.settings_account_use_unreachable_calendar(ctx()),
             UseProblem.SERVER_CHANGED to L10n.settings_account_use_server_changed_calendar(ctx()),
+            UseProblem.NONE_ON_SERVER to L10n.settings_account_use_none_on_server_calendar(ctx()),
         )
         assertEquals(UseProblem.entries.toSet(), reasons.keys)
         for ((problem, reason) in reasons) {
@@ -47,6 +48,7 @@ class UseOutageRulesTest {
             UseProblem.SIGN_IN_REFUSED to L10n.settings_account_use_refused_contacts(ctx()),
             UseProblem.UNREACHABLE to L10n.settings_account_use_unreachable_contacts(ctx()),
             UseProblem.SERVER_CHANGED to L10n.settings_account_use_server_changed_contacts(ctx()),
+            UseProblem.NONE_ON_SERVER to L10n.settings_account_use_none_on_server_contacts(ctx()),
         )
         assertEquals(UseProblem.entries.toSet(), reasons.keys)
         for ((problem, reason) in reasons) {
