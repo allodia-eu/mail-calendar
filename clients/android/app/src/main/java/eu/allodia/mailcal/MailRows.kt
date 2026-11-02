@@ -1,5 +1,5 @@
-// The mailbox-list row composables for the Android client: the flat message row, with its
-// read/flag/overflow affordances, and the row furniture both kinds share. The threaded
+// The mailbox-list row composables for the Android client: the flat message row, with its flag and
+// its menu, and the row furniture both kinds share. The threaded
 // conversation row is in MailRowsThread.kt; the swipe-to-act gesture that wraps a flat row is
 // in MailRowsSwipe.kt.
 package eu.allodia.mailcal
@@ -7,7 +7,6 @@ package eu.allodia.mailcal
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,16 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,13 +27,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.FlatRow
+import uniffi.mailcal_bindings.SelectedRow
 
 // Amber for the flagged star, mirroring the macOS client's orange `flag.fill`. Only the filled
 // star is vendored, so flagged state is shown by tint/alpha on the one glyph rather than by
 // swapping to an outline variant (adding `star` at fill 0 would be one more ic_*.xml).
-private val FlaggedAmber = Color(0xFFFFB300)
+internal val FlaggedAmber = Color(0xFFFFB300)
 
 
 // Widened from private: called from MailRowsSwipe.kt's SwipeableFlatMessageRow.
@@ -50,28 +42,18 @@ private val FlaggedAmber = Color(0xFFFFB300)
 internal fun FlatMessageRow(
     message: FlatRow,
     activeZoneId: String?,
-    inJunkFolder: Boolean,
     // The list's selection mode: whether this row is picked, whether the mode is on at all (a tap
     // then toggles rather than opens), and how to toggle it (docs/list-selection.md).
     selected: Boolean,
     selecting: Boolean,
     onToggleSelect: () -> Unit,
-    onOpen: (OpenedMessage) -> Unit,
-    onSetRead: (account: String, key: String, read: Boolean) -> Unit,
-    onSetFlagged: (account: String, key: String, flagged: Boolean) -> Unit,
-    onDelete: (account: String, key: String) -> Unit,
-    onPermanentlyDelete: (account: String, key: String) -> Unit,
-    onMarkAsSpam: (account: String, key: String) -> Unit,
-    onMarkAsNotSpam: (account: String, key: String) -> Unit,
-    // Opens the composer on a reply, a reply to all or a forward of this message. The composer is
-    // the activity's (MainActivityComposer.kt), so it outlives this row scrolling out of the list.
-    onCompose: (ComposeOrigin) -> Unit,
-    // Where the overflow's Move to folder… may file this message, or null to leave it out.
-    messageFiling: MessageFiling? = null,
+    // Opens the message, or resumes it in a composer when the row says it is a draft, wherever it
+    // is listed (docs/drafts.md).
+    onOpen: (opened: OpenedMessage, draft: Boolean) -> Unit,
+    // The row's ⋮ menu, which the core answers (docs/row-actions.md).
+    menus: RowMenus = RowMenus.NONE,
 ) {
     val ctx = LocalContext.current
-    // The Move to folder… list while its dialog is open.
-    var filing by remember { mutableStateOf<List<MoveTarget>?>(null) }
     // Read the ambient clock setting here, in the composable body: the `clickable` lambda below is
     // not a composition scope and cannot read a CompositionLocal.
     val use24Hour = LocalUse24Hour.current
@@ -106,6 +88,7 @@ internal fun FlatMessageRow(
                                 // The reading header keeps the full date; the row shows the short one.
                                 date = localDateTime(message.date, activeZoneId, use24Hour),
                             ),
+                            message.draft,
                         )
                     }
                 },
@@ -166,152 +149,13 @@ internal fun FlatMessageRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        // Overflow only (flag/read/reply/forward/trash/spam/delete) keeps the row width for the
-        // title + preview; the flagged state still shows as the inline amber star above.
-        FlatMessageOverflow(
-            unread = message.unread,
-            flagged = message.flagged,
-            inJunkFolder = inJunkFolder,
-            onToggleRead = { onSetRead(message.account, message.key, message.unread) },
-            onToggleFlag = { onSetFlagged(message.account, message.key, !message.flagged) },
-            onReply = { onCompose(ComposeOrigin.Reply(message.account, message.key, false)) },
-            onReplyAll = { onCompose(ComposeOrigin.Reply(message.account, message.key, true)) },
-            onForward = { onCompose(ComposeOrigin.Forward(message.account, message.key)) },
-            moveTargets = messageFiling?.let { { it.targets(message.account) } },
-            onMoveToFolder = { filing = it },
-            onDelete = { onDelete(message.account, message.key) },
-            onMarkAsSpam = { onMarkAsSpam(message.account, message.key) },
-            onMarkAsNotSpam = { onMarkAsNotSpam(message.account, message.key) },
-            onPermanentlyDelete = { onPermanentlyDelete(message.account, message.key) },
+        // The menu holds the rest, so the row's width goes to the title and preview; the flagged
+        // state still shows as the inline amber star above.
+        RowMenuButton(
+            row = SelectedRow.Message(message.account, message.key),
+            account = message.account,
+            menus = menus,
         )
-    }
-
-    filing?.let { targets ->
-        MoveTargetDialog(
-            title = L10n.message_move_title(ctx),
-            targets = targets,
-            onPick = { target ->
-                target.key?.let { messageFiling?.move(message.account, message.key, it) }
-            },
-            onClose = { filing = null },
-        )
-    }
-}
-
-@androidx.compose.runtime.Composable
-private fun FlatMessageOverflow(
-    unread: Boolean,
-    flagged: Boolean,
-    inJunkFolder: Boolean,
-    onToggleRead: () -> Unit,
-    onToggleFlag: () -> Unit,
-    onReply: () -> Unit,
-    onReplyAll: () -> Unit,
-    onForward: () -> Unit,
-    // Where the message may be filed, read when the menu opens; null leaves the item out.
-    moveTargets: (() -> List<MoveTarget>)?,
-    onMoveToFolder: (List<MoveTarget>) -> Unit,
-    onDelete: () -> Unit,
-    onMarkAsSpam: () -> Unit,
-    onMarkAsNotSpam: () -> Unit,
-    onPermanentlyDelete: () -> Unit,
-) {
-    val ctx = LocalContext.current
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(
-                painter = painterResource(R.drawable.ic_more_vert),
-                contentDescription = L10n.a11y_more_actions(ctx),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        // Reply/Reply all/Forward live here as text items rather than as three more icons on the
-        // row: a menu entry is the cleanest affordance and reuses the overflow already in the row.
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text(if (unread) L10n.action_mark_read(ctx) else L10n.action_mark_unread(ctx)) },
-                onClick = {
-                    expanded = false
-                    onToggleRead()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(if (flagged) L10n.action_unflag(ctx) else L10n.action_flag(ctx)) },
-                onClick = {
-                    expanded = false
-                    onToggleFlag()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(L10n.action_reply(ctx)) },
-                onClick = {
-                    expanded = false
-                    onReply()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(L10n.action_reply_all(ctx)) },
-                onClick = {
-                    expanded = false
-                    onReplyAll()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(L10n.action_forward(ctx)) },
-                onClick = {
-                    expanded = false
-                    onForward()
-                },
-            )
-            // Offered only where some folder can take the message (rule 24).
-            val targets = remember { moveTargets?.invoke().orEmpty() }
-            if (targets.any { it.enabled }) {
-                DropdownMenuItem(
-                    text = { Text(L10n.action_move_to_folder(ctx)) },
-                    onClick = {
-                        expanded = false
-                        onMoveToFolder(targets)
-                    },
-                )
-            }
-            DropdownMenuItem(
-                text = { Text(L10n.action_move_to_trash(ctx)) },
-                onClick = {
-                    expanded = false
-                    onDelete()
-                },
-            )
-            if (inJunkFolder) {
-                DropdownMenuItem(
-                    text = { Text(L10n.action_mark_as_not_spam(ctx)) },
-                    onClick = {
-                        expanded = false
-                        onMarkAsNotSpam()
-                    },
-                )
-            } else {
-                DropdownMenuItem(
-                    text = { Text(L10n.action_mark_as_spam(ctx)) },
-                    onClick = {
-                        expanded = false
-                        onMarkAsSpam()
-                    },
-                )
-            }
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = L10n.action_delete_permanently(ctx),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                },
-                onClick = {
-                    expanded = false
-                    onPermanentlyDelete()
-                },
-            )
-        }
     }
 }
 

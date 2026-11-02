@@ -45,7 +45,9 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                             // Open another message of the same conversation from the strip, keeping
                             // the conversation context so the strip persists (accordion, one body
                             // at a time).
-                            onOpenThreadMessage = { next -> openMessage(instance, next, openedConversation) },
+                            onOpenThreadMessage = { next, draft ->
+                                openOrResume(instance, next, draft, openedConversation)
+                            },
                             // Reply, reply all and forward open the one composer every route
                             // opens, on this message (MainActivityComposer.kt).
                             onCompose = { origin -> openComposer(instance, origin) },
