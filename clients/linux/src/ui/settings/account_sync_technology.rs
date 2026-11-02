@@ -70,10 +70,7 @@ pub(super) fn group(technology: MailSyncTechnology) -> adw::PreferencesGroup {
     text.set_max_width_chars(36);
     text.set_xalign(0.0);
     explanation.append(&text);
-    let url = help_page_url(
-        HelpPage::OptimiseGmailSync,
-        l10n::active_locale().to_owned(),
-    );
+    let url = help_page_url(HelpPage::OptimiseGmailSync);
     let learn_more =
         gtk::LinkButton::with_label(&url, l10n::settings_account_sync_technology_learn_more());
     learn_more.set_halign(gtk::Align::Start);

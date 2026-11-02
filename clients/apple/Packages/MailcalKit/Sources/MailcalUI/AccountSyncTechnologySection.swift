@@ -53,9 +53,7 @@ struct AccountSyncTechnologySection: View {
             Text(AccountSyncTechnologyLabels.detail(technology))
                 .fixedSize(horizontal: false, vertical: true)
             Button(L10n.settings_account_sync_technology_learn_more()) {
-                let link = helpPageUrl(
-                    page: .optimiseGmailSync, locale: L10n.appLocale.identifier)
-                if let url = URL(string: link) { openURL(url) }
+                if let url = URL(string: helpPageUrl(page: .optimiseGmailSync)) { openURL(url) }
                 explaining = false
             }
             .modifier(LinkButtonStyle())

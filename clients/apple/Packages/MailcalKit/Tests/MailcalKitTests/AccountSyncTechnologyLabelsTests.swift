@@ -1,6 +1,5 @@
 // What a Gmail account's page says about which way its mail syncs (docs/settings.md row 9): each
-// technology its own word and explanation, and the help page in the reader's language where the
-// help site has one.
+// technology its own word and explanation, and the help page it links to.
 
 import MailcalBindings
 import Testing
@@ -19,10 +18,9 @@ struct AccountSyncTechnologyLabelsTests {
         #expect(details.allSatisfy { !$0.isEmpty })
     }
 
-    @Test func theHelpPageFollowsTheReaderWhereItIsWritten() {
-        let english = helpPageUrl(page: .optimiseGmailSync, locale: "en")
-        #expect(english == "https://allodia.eu/docs/mail-calendar/optimise-gmail-sync-performance")
-        #expect(helpPageUrl(page: .optimiseGmailSync, locale: "nl").contains("/nl/docs/"))
-        #expect(helpPageUrl(page: .optimiseGmailSync, locale: "de") == english)
+    @Test func theHelpPageHasOneAddressForEveryReader() {
+        #expect(
+            helpPageUrl(page: .optimiseGmailSync)
+                == "https://allodia.eu/docs/mail-calendar/optimise-gmail-sync-performance")
     }
 }

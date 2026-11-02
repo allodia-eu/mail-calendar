@@ -55,9 +55,6 @@ internal object AccountSyncTechnologyLabels {
         MailSyncTechnology.FALLBACK -> L10n.settings_account_sync_technology_fallback_detail(ctx)
     }
 
-    /** The help page in the language the app is shown in, where the help site has it. */
-    fun helpUrl(ctx: Context): String =
-        helpPageUrl(HelpPage.OPTIMISE_GMAIL_SYNC, ctx.resources.configuration.locales[0].language)
 }
 
 @Composable
@@ -104,7 +101,7 @@ internal fun AccountSyncTechnologyCard(technology: MailSyncTechnology) {
                         Text(AccountSyncTechnologyLabels.detail(ctx, technology))
                         TextButton(onClick = {
                             explaining = false
-                            uriHandler.openUri(AccountSyncTechnologyLabels.helpUrl(ctx))
+                            uriHandler.openUri(helpPageUrl(HelpPage.OPTIMISE_GMAIL_SYNC))
                         }) {
                             Text(L10n.settings_account_sync_technology_learn_more(ctx))
                         }

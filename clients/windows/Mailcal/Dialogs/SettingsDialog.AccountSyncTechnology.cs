@@ -2,7 +2,6 @@
 // 9): Optimised, Fallback, or Checking until the first read has settled it. The status never names
 // a protocol; the info button opens a flyout with what it means and a link to the help page.
 
-using System.Globalization;
 using Allodia.Mailcal.Services;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -53,7 +52,7 @@ public sealed partial class SettingsDialog
         // The help page opens in the user's browser: this app's only WebView2 is the locked-down
         // reading island (docs/rendering-security.md), which is not a browser.
         learnMore.Click += async (_, _) => await Windows.System.Launcher.LaunchUriAsync(
-            new System.Uri(SyncTechnologyLabels.HelpUrl()));
+            new System.Uri(MailcalBindingsMethods.HelpPageUrl(HelpPage.OptimiseGmailSync)));
         explanation.Children.Add(learnMore);
 
         var info = new Button
@@ -95,8 +94,4 @@ internal static class SyncTechnologyLabels
         MailSyncTechnology.Fallback => L10n.SettingsAccountSyncTechnologyFallbackDetail(),
         _ => L10n.SettingsAccountSyncTechnologyCheckingDetail(),
     };
-
-    /// <summary>The help page in the language the app is shown in, where the help site has it.</summary>
-    public static string HelpUrl() =>
-        MailcalBindingsMethods.HelpPageUrl(HelpPage.OptimiseGmailSync, CultureInfo.CurrentUICulture.Name);
 }
