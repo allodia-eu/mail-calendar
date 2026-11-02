@@ -1085,6 +1085,8 @@
 	"settings_account_sync_technology_checking_detail": "Es wird ermittelt, wie die E-Mails dieses Kontos synchronisiert werden können.",
 	"settings_account_sync_technology_optimised_detail": "Die E-Mails dieses Kontos werden auf dem schnellen Weg synchronisiert.",
 	"settings_account_sync_technology_fallback_detail": "Die E-Mails dieses Kontos werden vollständig, aber langsamer synchronisiert. Eine Einstellung in Gmail oder Ihre Organisation kann das ändern.",
+	"settings_account_sync_technology_unreachable": "Keine Verbindung",
+	"settings_account_sync_technology_unreachable_detail": "Die E-Mails dieses Kontos sind in diesem Netzwerk nicht erreichbar. Manche Netzwerke blockieren den Weg, auf dem Gmail synchronisiert; in einem anderen Netzwerk kommen sie wieder an.",
 	"settings_account_sync_technology_learn_more": "Weitere Informationen",
 	"settings_account_switch_description": "E-Mails, Einstellungen und verknüpfte Konten bleiben, wie sie sind.",
 	"settings_account_switch_to_provider": "Stattdessen bei Ihrem Anbieter anmelden",

@@ -1085,6 +1085,8 @@
 	"settings_account_sync_technology_checking_detail": "Finding out which way this account’s mail can sync.",
 	"settings_account_sync_technology_optimised_detail": "This account’s mail syncs the fast way.",
 	"settings_account_sync_technology_fallback_detail": "This account’s mail syncs completely, but more slowly. A setting in Gmail, or your organisation, can change that.",
+	"settings_account_sync_technology_unreachable": "Can’t connect",
+	"settings_account_sync_technology_unreachable_detail": "This account’s mail can’t be reached on this network. Some networks block the way Gmail syncs; mail arrives again on another network.",
 	"settings_account_sync_technology_learn_more": "Learn more",
 	"settings_account_switch_description": "Its mail, settings and linked accounts stay as they are.",
 	"settings_account_switch_to_provider": "Sign in with your provider instead",

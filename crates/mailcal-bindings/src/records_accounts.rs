@@ -63,6 +63,10 @@ pub enum MailSyncTechnology {
     Optimised,
     /// Complete but slower: over the Gmail API, because Gmail refused this account IMAP.
     Fallback,
+    /// Not arriving: reads in a row could not reach Gmail's IMAP side, which a network that
+    /// blocks IMAP does while the rest of Google still answers. The account is badged as
+    /// unreachable too (`ConnectivitySnapshot::unreachable_accounts`).
+    Unreachable,
 }
 
 impl MailSyncTechnology {
@@ -78,6 +82,7 @@ impl MailSyncTechnology {
             GmailMailRoute::Undecided => Self::Checking,
             GmailMailRoute::Imap => Self::Optimised,
             GmailMailRoute::Api => Self::Fallback,
+            GmailMailRoute::Unreachable => Self::Unreachable,
         })
     }
 }

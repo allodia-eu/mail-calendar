@@ -1085,6 +1085,8 @@
 	"settings_account_sync_technology_checking_detail": "Verifica del modo in cui può sincronizzarsi la posta di questo account.",
 	"settings_account_sync_technology_optimised_detail": "La posta di questo account si sincronizza nel modo veloce.",
 	"settings_account_sync_technology_fallback_detail": "La posta di questo account si sincronizza completamente, ma più lentamente. Un’impostazione di Gmail, o la tua organizzazione, può cambiarlo.",
+	"settings_account_sync_technology_unreachable": "Impossibile connettersi",
+	"settings_account_sync_technology_unreachable_detail": "La posta di questo account non è raggiungibile su questa rete. Alcune reti bloccano il modo in cui Gmail si sincronizza; la posta torna ad arrivare su un’altra rete.",
 	"settings_account_sync_technology_learn_more": "Ulteriori informazioni",
 	"settings_account_switch_description": "La posta, le impostazioni e gli account collegati restano come sono.",
 	"settings_account_switch_to_provider": "Accedi invece con il tuo provider",

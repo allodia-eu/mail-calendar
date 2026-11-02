@@ -1,5 +1,6 @@
 //! Which way a Gmail account's mail syncs in this launch, on its page (`docs/settings.md` row 9):
-//! Optimised, Fallback, or Checking until the first read has settled it. The status never names a
+//! Optimised, Fallback, Can't connect while its mail cannot be reached, or Checking until the
+//! first read has settled it. The status never names a
 //! protocol; the info button opens a popover with what it means and a link to the help page.
 
 use adw::prelude::*;
@@ -13,6 +14,7 @@ pub(super) fn name(technology: MailSyncTechnology) -> &'static str {
         MailSyncTechnology::Checking => l10n::settings_account_sync_technology_checking(),
         MailSyncTechnology::Optimised => l10n::settings_account_sync_technology_optimised(),
         MailSyncTechnology::Fallback => l10n::settings_account_sync_technology_fallback(),
+        MailSyncTechnology::Unreachable => l10n::settings_account_sync_technology_unreachable(),
     }
 }
 
@@ -22,6 +24,9 @@ pub(super) fn detail(technology: MailSyncTechnology) -> &'static str {
         MailSyncTechnology::Checking => l10n::settings_account_sync_technology_checking_detail(),
         MailSyncTechnology::Optimised => l10n::settings_account_sync_technology_optimised_detail(),
         MailSyncTechnology::Fallback => l10n::settings_account_sync_technology_fallback_detail(),
+        MailSyncTechnology::Unreachable => {
+            l10n::settings_account_sync_technology_unreachable_detail()
+        }
     }
 }
 
@@ -32,6 +37,7 @@ fn style_class(technology: MailSyncTechnology) -> &'static str {
         MailSyncTechnology::Checking => "dim-label",
         MailSyncTechnology::Optimised => "success",
         MailSyncTechnology::Fallback => "warning",
+        MailSyncTechnology::Unreachable => "error",
     }
 }
 
@@ -104,6 +110,7 @@ mod tests {
             MailSyncTechnology::Checking,
             MailSyncTechnology::Optimised,
             MailSyncTechnology::Fallback,
+            MailSyncTechnology::Unreachable,
         ];
         let names: std::collections::BTreeSet<_> = all.into_iter().map(name).collect();
         let details: std::collections::BTreeSet<_> = all.into_iter().map(detail).collect();

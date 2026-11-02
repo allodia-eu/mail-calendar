@@ -291,6 +291,12 @@ impl<P: Provider> App<P> {
         self.flush_outboxes().await;
     }
 
+    /// Signals [`Surface::Connectivity`] for a fact the host reads beside this snapshot (a Gmail
+    /// account whose mail cannot be reached, which its IMAP side, not a pass, notices).
+    pub fn connectivity_changed(&self) {
+        self.observer.surface_changed(Surface::Connectivity);
+    }
+
     /// Records whether `account` reached its server on its last sync, updating the
     /// per-account outage set and signalling [`Surface::Connectivity`] only when membership
     /// actually changes: so a healthy re-sync of an already-healthy account never churns the

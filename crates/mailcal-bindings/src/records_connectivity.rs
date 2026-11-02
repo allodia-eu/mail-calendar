@@ -14,7 +14,9 @@ pub struct ConnectivitySnapshot {
     /// shows a global offline banner; the core suppresses syncs until it clears.
     pub offline: bool,
     /// Ids of accounts whose last sync couldn't reach their server **while online**: a host
-    /// badges these in the switcher. Always empty while `offline` (then it's the device).
+    /// badges these in the switcher. Always empty while `offline` (then it's the device). A Gmail
+    /// account is listed too while its mail cannot be reached, though its API calls succeed
+    /// (`MailSyncTechnology::Unreachable`).
     pub unreachable_accounts: Vec<String>,
     /// Ids of accounts whose calendar is withheld because their OAuth grant lacks the calendar
     /// scope (a Microsoft account connected before calendar support, or with revoked consent).

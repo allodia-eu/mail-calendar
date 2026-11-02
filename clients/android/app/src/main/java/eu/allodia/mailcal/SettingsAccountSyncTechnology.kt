@@ -1,5 +1,6 @@
 // Which way a Gmail account's mail syncs in this launch, on its page (docs/settings.md row 9):
-// Optimised, Fallback, or Checking until the first read has settled it. The status never names a
+// Optimised, Fallback, Can't connect while its mail cannot be reached, or Checking until the first
+// read has settled it. The status never names a
 // protocol; the info button opens what it means and a link to the help page.
 package eu.allodia.mailcal
 
@@ -47,12 +48,15 @@ internal object AccountSyncTechnologyLabels {
         MailSyncTechnology.CHECKING -> L10n.settings_account_sync_technology_checking(ctx)
         MailSyncTechnology.OPTIMISED -> L10n.settings_account_sync_technology_optimised(ctx)
         MailSyncTechnology.FALLBACK -> L10n.settings_account_sync_technology_fallback(ctx)
+        MailSyncTechnology.UNREACHABLE -> L10n.settings_account_sync_technology_unreachable(ctx)
     }
 
     fun detail(ctx: Context, technology: MailSyncTechnology): String = when (technology) {
         MailSyncTechnology.CHECKING -> L10n.settings_account_sync_technology_checking_detail(ctx)
         MailSyncTechnology.OPTIMISED -> L10n.settings_account_sync_technology_optimised_detail(ctx)
         MailSyncTechnology.FALLBACK -> L10n.settings_account_sync_technology_fallback_detail(ctx)
+        MailSyncTechnology.UNREACHABLE ->
+            L10n.settings_account_sync_technology_unreachable_detail(ctx)
     }
 
 }
@@ -66,6 +70,7 @@ internal fun AccountSyncTechnologyCard(technology: MailSyncTechnology) {
         MailSyncTechnology.CHECKING -> MaterialTheme.colorScheme.outline
         MailSyncTechnology.OPTIMISED -> Color(0xFF2E7D32)
         MailSyncTechnology.FALLBACK -> Color(0xFFEF6C00)
+        MailSyncTechnology.UNREACHABLE -> MaterialTheme.colorScheme.error
     }
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(

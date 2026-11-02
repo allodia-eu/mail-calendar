@@ -1,5 +1,6 @@
 // An account's page, which way a Gmail account's mail syncs in this launch (docs/settings.md row
-// 9): Optimised, Fallback, or Checking until the first read has settled it. The status never names
+// 9): Optimised, Fallback, Can't connect while its mail cannot be reached, or Checking until the
+// first read has settled it. The status never names
 // a protocol; the info button opens a flyout with what it means and a link to the help page.
 
 using Allodia.Mailcal.Services;
@@ -73,6 +74,7 @@ public sealed partial class SettingsDialog
     {
         MailSyncTechnology.Optimised => new SolidColorBrush(Colors.ForestGreen),
         MailSyncTechnology.Fallback => new SolidColorBrush(Colors.DarkOrange),
+        MailSyncTechnology.Unreachable => new SolidColorBrush(Colors.Firebrick),
         _ => new SolidColorBrush(Colors.Gray),
     };
 }
@@ -85,6 +87,7 @@ internal static class SyncTechnologyLabels
     {
         MailSyncTechnology.Optimised => L10n.SettingsAccountSyncTechnologyOptimised(),
         MailSyncTechnology.Fallback => L10n.SettingsAccountSyncTechnologyFallback(),
+        MailSyncTechnology.Unreachable => L10n.SettingsAccountSyncTechnologyUnreachable(),
         _ => L10n.SettingsAccountSyncTechnologyChecking(),
     };
 
@@ -92,6 +95,7 @@ internal static class SyncTechnologyLabels
     {
         MailSyncTechnology.Optimised => L10n.SettingsAccountSyncTechnologyOptimisedDetail(),
         MailSyncTechnology.Fallback => L10n.SettingsAccountSyncTechnologyFallbackDetail(),
+        MailSyncTechnology.Unreachable => L10n.SettingsAccountSyncTechnologyUnreachableDetail(),
         _ => L10n.SettingsAccountSyncTechnologyCheckingDetail(),
     };
 }

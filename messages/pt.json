@@ -1085,6 +1085,8 @@
 	"settings_account_sync_technology_checking_detail": "A verificar como o correio desta conta pode sincronizar.",
 	"settings_account_sync_technology_optimised_detail": "O correio desta conta sincroniza pela via rápida.",
 	"settings_account_sync_technology_fallback_detail": "O correio desta conta sincroniza por completo, mas mais devagar. Uma definição no Gmail, ou a sua organização, pode mudar isso.",
+	"settings_account_sync_technology_unreachable": "Não é possível ligar",
+	"settings_account_sync_technology_unreachable_detail": "O correio desta conta não está acessível nesta rede. Algumas redes bloqueiam a forma como o Gmail sincroniza; o correio volta a chegar noutra rede.",
 	"settings_account_sync_technology_learn_more": "Saber mais",
 	"settings_account_switch_description": "O correio, as definições e as contas ligadas mantêm-se.",
 	"settings_account_switch_to_provider": "Iniciar antes sessão com o seu fornecedor",

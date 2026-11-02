@@ -7,7 +7,7 @@ import Testing
 @testable import MailcalUI
 
 struct AccountSyncTechnologyLabelsTests {
-    private let all: [MailSyncTechnology] = [.checking, .optimised, .fallback]
+    private let all: [MailSyncTechnology] = [.checking, .optimised, .fallback, .unreachable]
 
     @Test func eachTechnologyHasAWordAndAnExplanationOfItsOwn() {
         let names = all.map(AccountSyncTechnologyLabels.name)
