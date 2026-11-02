@@ -202,7 +202,7 @@ pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use meeting_editor::{InviteeCheck, check_meeting_invitee, meeting_invitee_patch};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
-pub use oauth_routes::{OAuthRoutes, oauth_routes};
+pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
     BulkAction, EventIntent, FolderIntent, Intent, InvitationResponse, OutboxIntent, SearchScope,
     SelectedRow,
