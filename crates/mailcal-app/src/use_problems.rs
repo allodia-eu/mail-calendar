@@ -26,6 +26,10 @@ pub enum UseProblem {
     SignInRefused,
     /// Its server could not be reached, or did not answer in time.
     Unreachable,
+    /// Its server answered that it has none for this account: the start it was given is gone, it
+    /// names no home, or it does not implement the request at all (a `501`). Asking again on every
+    /// refresh asks for the same answer, so only a new dial of the account does.
+    NoneOnServer,
     /// Its server is gone, and looking again found it on another site, which the person has not
     /// yet allowed ([`ServerChange`]). Nothing is sent to the new server until they do.
     ServerChanged,
@@ -91,7 +95,7 @@ fn held(before: Option<UseProblem>, now: Option<UseProblem>) -> Option<UseProble
     match (before, now) {
         (
             Some(UseProblem::ServerChanged),
-            Some(UseProblem::Unreachable | UseProblem::ServerChanged),
+            Some(UseProblem::Unreachable | UseProblem::NoneOnServer | UseProblem::ServerChanged),
         ) => Some(UseProblem::ServerChanged),
         (_, now) => now,
     }

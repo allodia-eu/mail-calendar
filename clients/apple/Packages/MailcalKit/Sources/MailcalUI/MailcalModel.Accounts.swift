@@ -112,6 +112,10 @@ func useNotConnectedMessage(_ capability: AccountCapability, _ problem: UseProbl
         return contacts
             ? L10n.settings_account_use_server_changed_contacts()
             : L10n.settings_account_use_server_changed_calendar()
+    case .noneOnServer:
+        return contacts
+            ? L10n.settings_account_use_none_on_server_contacts()
+            : L10n.settings_account_use_none_on_server_calendar()
     }
 }
 

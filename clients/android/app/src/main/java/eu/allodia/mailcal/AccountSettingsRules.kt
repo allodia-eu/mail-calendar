@@ -46,6 +46,10 @@ internal enum class UseNote {
     /** Paused: its server was found on another site, and waits for the person to allow it. */
     SERVER_CHANGED_CALENDAR,
     SERVER_CHANGED_CONTACTS,
+
+    /** On, and its server answered that it has none for this account; a refresh does not ask again. */
+    NONE_ON_SERVER_CALENDAR,
+    NONE_ON_SERVER_CONTACTS,
 }
 
 /**
@@ -63,6 +67,8 @@ internal fun problemNote(capability: AccountCapability, problem: UseProblem): Us
             if (calendar) UseNote.OWN_SIGN_IN_CALENDAR else UseNote.OWN_SIGN_IN_CONTACTS
         UseProblem.SERVER_CHANGED ->
             if (calendar) UseNote.SERVER_CHANGED_CALENDAR else UseNote.SERVER_CHANGED_CONTACTS
+        UseProblem.NONE_ON_SERVER ->
+            if (calendar) UseNote.NONE_ON_SERVER_CALENDAR else UseNote.NONE_ON_SERVER_CONTACTS
     }
 }
 

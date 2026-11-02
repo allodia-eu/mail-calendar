@@ -38,6 +38,11 @@ internal enum UseNote
     ServerChangedCalendar,
     /// <summary>As <see cref="ServerChangedCalendar"/>, for the address book.</summary>
     ServerChangedContacts,
+    /// <summary>On, and its server answered that it has none for this account; a refresh does
+    /// not ask again.</summary>
+    NoneOnServerCalendar,
+    /// <summary>As <see cref="NoneOnServerCalendar"/>, for the address book.</summary>
+    NoneOnServerContacts,
 }
 
 /// <summary>How one use's switch is drawn.</summary>
@@ -214,6 +219,7 @@ internal static class AccountSettingsRules
             UseProblem.SignInRefused => calendar ? UseNote.RefusedCalendar : UseNote.RefusedContacts,
             UseProblem.NeedsOwnSignIn => calendar ? UseNote.OwnSignInCalendar : UseNote.OwnSignInContacts,
             UseProblem.ServerChanged => calendar ? UseNote.ServerChangedCalendar : UseNote.ServerChangedContacts,
+            UseProblem.NoneOnServer => calendar ? UseNote.NoneOnServerCalendar : UseNote.NoneOnServerContacts,
             _ => calendar ? UseNote.OwnSignInCalendar : UseNote.OwnSignInContacts,
         };
     }

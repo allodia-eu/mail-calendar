@@ -1058,6 +1058,8 @@
 	"settings_account_use_withheld": "Le fournisseur ne l’a pas autorisé. Activez-le pour le redemander.",
 	"settings_account_use_unreachable_calendar": "Impossible de joindre votre serveur de calendrier. Une nouvelle tentative a lieu lors de l’actualisation.",
 	"settings_account_use_unreachable_contacts": "Impossible de joindre votre serveur de carnet d’adresses. Une nouvelle tentative a lieu lors de l’actualisation.",
+	"settings_account_use_none_on_server_calendar": "Votre serveur de calendrier n’a aucun calendrier pour ce compte.",
+	"settings_account_use_none_on_server_contacts": "Votre serveur de carnet d’adresses n’a aucun carnet d’adresses pour ce compte.",
 	"settings_account_use_refused_calendar": "Votre serveur de calendrier n’a pas accepté la connexion.",
 	"settings_account_use_refused_contacts": "Votre serveur de carnet d’adresses n’a pas accepté la connexion.",
 	"settings_account_use_own_sign_in_calendar": "Votre calendrier se trouve sur un serveur qui demande sa propre connexion.",

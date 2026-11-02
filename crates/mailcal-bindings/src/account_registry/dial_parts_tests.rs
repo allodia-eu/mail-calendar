@@ -157,6 +157,11 @@ fn a_failure_says_what_a_person_can_do_about_it() {
         ConnectFailure::unreachable("timed out".to_owned()).use_problem(),
         UseProblem::Unreachable
     );
+    // A server that answered it has none here, which a retry would only hear again.
+    assert_eq!(
+        ConnectFailure::gone("no address book here".to_owned()).use_problem(),
+        UseProblem::NoneOnServer
+    );
 }
 
 /// Only a server that did not answer is an outage, the one failure a redial may not trade a working

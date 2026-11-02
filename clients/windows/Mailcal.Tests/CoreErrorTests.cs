@@ -22,6 +22,8 @@ public class CoreErrorTests
         "contacts own sign-in",
         "calendar server changed",
         "contacts server changed",
+        "calendar none on server",
+        "contacts none on server",
         error => $"couldn't connect: {error}");
 
     [Fact]

@@ -1058,6 +1058,8 @@
 	"settings_account_use_withheld": "El proveedor no lo ha permitido. Actívalo para volver a pedirlo.",
 	"settings_account_use_unreachable_calendar": "No se ha podido conectar con tu servidor de calendario. Se vuelve a intentar al actualizar.",
 	"settings_account_use_unreachable_contacts": "No se ha podido conectar con tu servidor de contactos. Se vuelve a intentar al actualizar.",
+	"settings_account_use_none_on_server_calendar": "Tu servidor de calendario no tiene ningún calendario para esta cuenta.",
+	"settings_account_use_none_on_server_contacts": "Tu servidor de contactos no tiene ninguna libreta de contactos para esta cuenta.",
 	"settings_account_use_refused_calendar": "Tu servidor de calendario no ha aceptado el inicio de sesión.",
 	"settings_account_use_refused_contacts": "Tu servidor de contactos no ha aceptado el inicio de sesión.",
 	"settings_account_use_own_sign_in_calendar": "Tu calendario está en un servidor que necesita su propio inicio de sesión.",

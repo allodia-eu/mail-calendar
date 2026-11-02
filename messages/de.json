@@ -1058,6 +1058,8 @@
 	"settings_account_use_withheld": "Der Anbieter hat dies nicht erlaubt. Schalten Sie es ein, um erneut zu fragen.",
 	"settings_account_use_unreachable_calendar": "Ihr Kalenderserver war nicht erreichbar. Beim Aktualisieren wird es erneut versucht.",
 	"settings_account_use_unreachable_contacts": "Ihr Adressbuchserver war nicht erreichbar. Beim Aktualisieren wird es erneut versucht.",
+	"settings_account_use_none_on_server_calendar": "Ihr Kalenderserver hat keinen Kalender für dieses Konto.",
+	"settings_account_use_none_on_server_contacts": "Ihr Adressbuchserver hat kein Adressbuch für dieses Konto.",
 	"settings_account_use_refused_calendar": "Ihr Kalenderserver hat die Anmeldung nicht akzeptiert.",
 	"settings_account_use_refused_contacts": "Ihr Adressbuchserver hat die Anmeldung nicht akzeptiert.",
 	"settings_account_use_own_sign_in_calendar": "Ihr Kalender liegt auf einem Server, der eine eigene Anmeldung braucht.",
