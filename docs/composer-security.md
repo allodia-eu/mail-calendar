@@ -369,9 +369,10 @@ port:
       until the panel cannot be used. An address without a scheme becomes `https://`, an email
       address `mailto:`, and any other scheme is refused in the field: the rule is
       `mailcal_composer::link_address`, which each dialog asks as the user types, so Apply is
-      enabled exactly when the link can be made. A `tel:` address is kept as typed, which is the one
-      way a message dials a number, and a bare number is refused rather than completed into one: a
-      guess that is wrong dials a stranger. A host that draws no dialog leaves the bundle's
+      enabled exactly when the link can be made. A `tel:` address is kept as typed less its spaces,
+      which a written number has and a `tel:` URI may not (RFC 3966 §5.1.1); it is the one way a
+      message dials a number, and a bare number is refused rather than completed into one: a guess
+      that is wrong dials a stranger. A host that draws no dialog leaves the bundle's
       own popover to ask, under the same rule. The selection is saved before anything takes focus
       and restored before anything is applied.
     - **An address typed into the body** becomes a link when the word ends with Space or Enter:
@@ -379,8 +380,9 @@ port:
       the prefixes the reading view's linkifier recognises, with the sentence's punctuation left
       outside. A `tel:` address typed this way stays text, for the same reason the dialog never
       completes one.
-    - **Rust holds it on submit.** `LinkUrl` re-checks every target (scheme, no whitespace or
-      control character, 2048 bytes at most) and escapes it into the `href`. A target it refuses is
+    - **Rust holds it on submit.** `LinkUrl` re-checks every target (scheme, a `tel:` number by
+      [`rendering-security.md`](rendering-security.md) gate 4a's rule, no whitespace or control
+      character, 2048 bytes at most) and escapes it into the `href`. A target it refuses is
       dropped and the words are sent as text, the same leniency a colour gets. The plain-text part
       carries a link as `words <address>`, written once when the words are the address.
     - **The composer never opens a link.** Gate 4 is unchanged: a click in the editor places the

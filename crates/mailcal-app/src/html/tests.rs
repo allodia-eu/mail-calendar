@@ -211,6 +211,15 @@ fn keeps_a_telephone_link_a_sender_marked_up() {
     assert!(out.contains("call us"));
 }
 
+#[test]
+fn keeps_a_telephone_link_written_with_spaces_and_strips_a_service_code() {
+    let out = sanitize(r#"<a href="tel:+1 503 222 3333">call us</a>"#).html;
+    assert!(out.contains(r#"href="tel:+1 503 222 3333""#), "{out}");
+    let out = sanitize(r#"<a href="tel:*21*+31612345678%23">claim your prize</a>"#).html;
+    assert!(!out.contains("href"), "{out}");
+    assert!(out.contains("claim your prize"));
+}
+
 use super::should_open_external_link;
 
 #[test]
@@ -222,6 +231,8 @@ fn opens_only_safe_link_schemes() {
     // The scheme is matched case-insensitively.
     assert!(should_open_external_link("HTTPS://Example.COM"));
     assert!(should_open_external_link("TEL:+15032223333"));
+    // A web view hands over a sender's spaces as `%20`.
+    assert!(should_open_external_link("tel:+1%20503%20222%203333"));
 }
 
 #[test]
@@ -235,6 +246,8 @@ fn does_not_open_unsafe_relative_or_custom_schemes() {
         "data:text/html,<script>",
         "file:///etc/passwd",
         "sms:+15551234567",
+        "tel:*21*+31612345678%23",
+        "tel:112",
         "callto:+15551234567",
         "//example.com/proto-relative",
         "/relative/path",

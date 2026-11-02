@@ -15,6 +15,7 @@ import {
   restoreSelection,
   type SavedSelection,
 } from "./dom";
+import { isTelephoneSubscriber, withoutNumberSpaces } from "./tel";
 
 /// `mailcal_composer::LINK_SCHEMES`: the schemes a sent link may carry.
 const SCHEMES = ["http:", "https:", "mailto:", "tel:"];
@@ -39,6 +40,7 @@ export function safeLinkHref(value: string | null | undefined): string | null {
   const lower = href.toLowerCase();
   const scheme = SCHEMES.find((prefix) => lower.startsWith(prefix));
   if (!scheme) return null;
+  if (scheme === "tel:") return isTelephoneSubscriber(href.slice(scheme.length)) ? href : null;
   return href.slice(scheme.length).replace(/^\/+/, "") ? href : null;
 }
 
@@ -46,7 +48,7 @@ export function safeLinkHref(value: string | null | undefined): string | null {
 /// scheme is kept when the scheme is allowed, an email address becomes `mailto:`, and a host
 /// becomes `https://`. `null` when it cannot be a link.
 export function normalizeLinkAddress(typed: string): string | null {
-  const value = typed.trim();
+  const value = withoutNumberSpaces(typed.trim());
   if (!value || /\s/.test(value)) return null;
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(value);
   // `example.com:8080/x` reads as a scheme to that pattern; a dot says it is a host.

@@ -20,6 +20,7 @@ mod render;
 mod render_inline;
 mod share;
 mod signature;
+mod tel;
 mod types;
 mod validate;
 
@@ -31,7 +32,7 @@ pub use host_request::{
     HistorySteps, HostAnswer, HostRequest, HostRequestKind, LinkAnswer, LinkRequest, answer_script,
     link_address, parse_host_request,
 };
-pub use link::{LINK_SCHEMES, LinkUrl, has_link_scheme};
+pub use link::{LINK_SCHEMES, LinkUrl, has_link_scheme, is_link_target};
 pub use list::{List, ListItem, ListKind};
 pub use mailto::{MailtoPrefill, parse_mailto};
 pub use paragraph::{Align, Heading, Paragraph, Rule};
@@ -42,6 +43,7 @@ pub use share::{
     SharedItem, prefill_from_share,
 };
 pub use signature::Signature;
+pub use tel::without_number_spaces;
 pub use types::{
     AttachmentDisposition, AttachmentId, Block, ComposerDocument, ComposerOutput, ContentId,
     DraftAttachment, DraftBlobHandle, InlineContent, InlineImage, OutputAttachment, Table,

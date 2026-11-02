@@ -1,6 +1,6 @@
 # Privacy Policy: Allodia Mail & Calendar
 
-**Version 2.7 · Effective: 2026-10-28**
+**Version 2.8 · Effective: 2026-11-02**
 
 Allodia Mail & Calendar is a mail and calendar app that runs on your device and connects to the
 mail provider **you** choose. This policy explains, in plain language, what that means for your
@@ -228,8 +228,8 @@ the moment you choose, never via Allodia:
   sender's), which see your IP address. That is why the app blocks them by default and asks per
   message.
 - **Tapping a link or opening an attachment** hands it to your system browser or the app your OS
-  associates with the file. Only ordinary web and mail links (`http`, `https`, `mailto`) are ever
-  handed off; attachments are never rendered inside the app.
+  associates with the file. Only ordinary web, mail and telephone links (`http`, `https`,
+  `mailto`, `tel`) are ever handed off; attachments are never rendered inside the app.
 - **Sending mail or invitations** delivers them to your recipients through your provider.
 
 These are your dispatches, not ours: Allodia receives nothing from any of them.

@@ -28,8 +28,9 @@ The engine returns the raw `text/html` part **unsanitized** by design (it is hos
 core sanitises it **once** for every client (never re-implemented per platform):
 
 - **Removed:** `<script>` + contents, event handlers (`on*`), `<iframe>`/`<object>`/`<embed>`/
-  `<form>`, `<base>`/`<meta>` (so a message can't set its own refresh/CSP), and any URL scheme
-  other than `http(s)`/`mailto`/`tel`/`data`/`cid`.
+  `<form>`, `<base>`/`<meta>` (so a message can't set its own refresh/CSP), any URL scheme
+  other than `http(s)`/`mailto`/`tel`/`data`/`cid`, and a `tel:` link gate 4a would not open (its
+  words stay, as text).
 - **Kept:** presentational HTML/CSS: inline `style`, `<style>` blocks, `class` and `id` (stripping
   CSS makes real mail illegible), and remote `<img>` sources (the load is gated downstream, not the
   markup). `id` is a selector hook exactly like `class`: a newsletter's mobile layout commonly
@@ -144,7 +145,14 @@ can't leak data:
      never handed off. The allow-or-ignore decision is **shared Rust**: `should_open_external_link`
      (FFI), the single source of truth, so every client decides identically and **cannot
      drift**; it is the same scheme set the sanitiser keeps on `<a href>` (a link the sanitiser
-     strips can never be clicked, so the two must agree). Only the actual launch is native
+     strips can never be clicked, so the two must agree). A `tel:` link is handed off only when
+     it is a number RFC 3966 can write and holds no `*` or `#`, written out or percent-encoded.
+     The RFC allows both in a local number and leaves their meaning undefined; in practice they
+     are service codes, which can forward the reader's calls elsewhere, and Apple's Phone app
+     refuses to dial them for that reason. The spaces a sender's number often carries, which the
+     RFC forbids, are ignored rather than refused: they are not a code, and the web view hands them
+     over as `%20`. The composer sends only what this gate opens
+     ([`composer-security.md`](composer-security.md) Gate 16). Only the actual launch is native
      (`NSWorkspace` / `Intent.ACTION_VIEW` / `Launcher.LaunchUriAsync`). The handoff is gated on
      **user activation** (`linkActivated` / `hasGesture()` / `IsUserInitiated`) so a redirect or
      programmatic navigation can't auto-launch a URL. This is an OS handoff of a URL the user
@@ -207,7 +215,7 @@ cell is filled.
 | **2a**: no inspector in a release build | `isInspectable` is never set, and it is off by default | `setWebContentsDebuggingEnabled` is never called, so the platform allows it only in a debuggable (debug) build | `AreDevToolsEnabled` is off outside `DEBUG`, and every `WEBVIEW2_*` variable is removed from the process before the first web view (`WebViewInspection`), because the loader appends `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` to the app's own options | `enable_developer_extras` is never set, and `WEBKIT_INSPECTOR_SERVER` exposes no page without it |
 | In-view navigation blocked | `decidePolicyFor` cancels all but the initial in-memory load | `shouldOverrideUrlLoading → true` | `NavigationStarting` cancels all but our `NavigateToString` | `decide-policy` permits only the expected initial `about:blank` load; all later navigation is ignored |
 | New windows blocked | navigation policy cancels; no `WKUIDelegate` opens windows | (navigation cancelled) | `NewWindowRequested.Handled = true` | `create → None`; `NewWindowAction` is ignored |
-| External link handoff (user-activated; scheme decided by shared Rust `should_open_external_link`: `http`/`https`/`mailto`/`tel` only) | `.linkActivated` → `NSWorkspace.shared.open` | `hasGesture()` → `Intent.ACTION_VIEW` | `IsUserInitiated` (nav + `NewWindowRequested`) → `Launcher.LaunchUriAsync` | `is_user_gesture` → shared gate → `GAppInfo` OS handler; WebKit navigation stays cancelled |
+| External link handoff (user-activated; scheme decided by shared Rust `should_open_external_link`: `http`/`https`/`mailto`/`tel` only, a `tel:` number by 4a's rule) | `.linkActivated` → `NSWorkspace.shared.open` | `hasGesture()` → `Intent.ACTION_VIEW` | `IsUserInitiated` (nav + `NewWindowRequested`) → `Launcher.LaunchUriAsync` | `is_user_gesture` → shared gate → `GAppInfo` OS handler; WebKit navigation stays cancelled |
 | No file/content access | n/a (no file URLs; nil base) | `allowFileAccess = false`, `allowContentAccess = false` | (no file access; in-memory doc) | file/universal access from file URLs disabled; no file URL is loaded |
 | Opaque document origin | `loadHTMLString(_, baseURL: nil)` | `loadDataWithBaseURL(null, …)` | `NavigateToString(…)` | `load_html(_, None)` |
 | Remote sub-resources blocked by default | document CSP + nil base origin **(CSP-only; see gaps)** | document CSP + **`shouldInterceptRequest`** hard-block unless opted in | document CSP + **`WebResourceRequested`** 403 hard-block unless opted in | document CSP + native `UserContentFilter` blocks `http(s)` unless opted in |

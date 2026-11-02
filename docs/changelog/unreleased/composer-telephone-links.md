@@ -8,7 +8,10 @@ Bump: minor
 > the one allowlist behind the link dialog, the reading view's sanitiser, the linkifier and
 > `should_open_external_link`, so all four moved together. A bare number is still refused rather than
 > completed into `tel:` in the address field, and a `tel:` written as text is still not linked: a
-> wrong guess dials a stranger. Nothing changes about which other schemes are accepted.
+> wrong guess dials a stranger. A `tel:` number typed with spaces has them dropped, since the URI
+> may not hold any. A `tel:` link must be a number RFC 3966 can write, and one holding `*` or `#`
+> (a service code, such as call forwarding) is neither sent, kept by the sanitiser nor opened.
+> Nothing changes about which other schemes are accepted. Privacy policy 2.8.
 
 **English**
 
