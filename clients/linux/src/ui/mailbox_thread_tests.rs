@@ -455,3 +455,40 @@ pub(super) fn mail_arriving_at_the_top_does_not_rebuild_the_list_below_it() {
     );
     assert_eq!(widgets[1], rebuilt[2], "every one of them");
 }
+
+/// A row that moves and changes in the same render is drawn as it now is. Leaving one folder for
+/// another does this: a conversation listed in the Inbox by the message it received is listed in
+/// Drafts by its draft, at another position, and a move that only reparented its widget kept the
+/// Inbox's subject and sender on it.
+pub(super) fn a_row_that_moved_and_changed_is_drawn_as_it_now_is() {
+    let before = snapshot(vec![
+        flat("One", "a@example.test", true),
+        flat("Two", "b@example.test", true),
+    ]);
+    let (list, sender, _receiver) = rendered(&before, &[]);
+    let widgets = children(&list);
+
+    let after = snapshot(vec![
+        flat("Two", "z@example.test", true),
+        flat("One", "a@example.test", true),
+    ]);
+    let rebuilt = rerender(&list, &before, &after, &sender);
+
+    let shows = |row: &gtk::ListBoxRow, text: &str| {
+        labels(row.upcast_ref::<gtk::Widget>())
+            .iter()
+            .any(|label| label.text() == text)
+    };
+    assert!(
+        shows(&rebuilt[0], "z@example.test"),
+        "the moved row shows its new sender"
+    );
+    assert!(
+        !shows(&rebuilt[0], "b@example.test"),
+        "and not the one it had"
+    );
+    assert_eq!(
+        widgets[0], rebuilt[1],
+        "a row that only moved keeps its widget"
+    );
+}

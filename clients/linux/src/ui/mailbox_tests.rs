@@ -106,6 +106,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     super::thread_tests::a_rerender_rebuilds_only_the_row_that_changed();
     super::thread_tests::a_removed_row_leaves_its_neighbours_widgets_alone();
     super::thread_tests::mail_arriving_at_the_top_does_not_rebuild_the_list_below_it();
+    super::thread_tests::a_row_that_moved_and_changed_is_drawn_as_it_now_is();
     crate::ui::mailbox_progressive::tests::a_new_folder_builds_only_the_visible_rows_synchronously(
     );
     crate::ui::mail_actions::tests::a_row_menu_draws_the_cores_answer_and_runs_what_is_picked();
