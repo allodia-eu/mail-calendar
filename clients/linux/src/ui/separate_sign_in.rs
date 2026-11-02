@@ -317,7 +317,7 @@ impl AppModel {
     /// The mailbox gave uses to an account of its own: the accounts are read again.
     pub(super) fn accounts_changed(&mut self, sender: relm4::Sender<AppInput>) {
         if let Some(app) = &self.app {
-            self.snapshot = app.mailbox_list();
+            self.snapshot.replace(app.mailbox_list());
             self.connectivity =
                 super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
         }
@@ -359,7 +359,7 @@ impl AppModel {
             return;
         };
         if let Some(app) = &self.app {
-            self.snapshot = app.mailbox_list();
+            self.snapshot.replace(app.mailbox_list());
         }
         self.onward(&account, &next, sender);
     }

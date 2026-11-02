@@ -48,6 +48,16 @@ impl MoveContext {
             showing,
         }
     }
+
+    /// The rows a menu opened on `row` acts on: the selection when `row` is one of the selected
+    /// rows, and `row` alone otherwise (`docs/list-selection.md`, rule 12).
+    pub(crate) fn rows_for(&self, row: &SelectedRow) -> Vec<SelectedRow> {
+        if self.selected.contains(row) {
+            self.selected.clone()
+        } else {
+            vec![row.clone()]
+        }
+    }
 }
 
 /// One account's folders as a picker draws them, and which of them take mail.
@@ -97,11 +107,7 @@ pub(crate) struct MessageMove {
 /// accounts, or no folder is left to choose. The destinations are the folders of the rows'
 /// account that take mail, leaving out the one the list is showing.
 pub(crate) fn plan(context: &MoveContext, row: &SelectedRow) -> Option<MessageMove> {
-    let rows = if context.selected.contains(row) {
-        context.selected.as_slice()
-    } else {
-        std::slice::from_ref(row)
-    };
+    let rows = context.rows_for(row);
     let account = account_of(rows.first()?);
     if rows.iter().any(|row| account_of(row) != account) {
         return None;

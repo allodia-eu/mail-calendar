@@ -48,7 +48,7 @@ internal fun ConversationStrip(
     focusedKey: String,
     subject: String,
     activeZoneId: String?,
-    onOpen: (OpenedMessage) -> Unit,
+    onOpen: (opened: OpenedMessage, draft: Boolean) -> Unit,
 ) {
     // `conversation` is newest-first; reverse to oldest-first for the strip.
     val others = conversation.filter { it.key != focusedKey }.reversed()
@@ -93,14 +93,15 @@ private fun ThreadBadge(text: String) {
     )
 }
 
-// One collapsed message in the strip: avatar, sender, "Sent" badge, preview, date. Tapping it
-// opens that message in the reading screen (the same `OpenedMessage` a list row would produce).
+// One collapsed message in the strip: avatar, sender, "Sent" or "Draft" badge, its flag, preview,
+// date. Tapping it opens that message in the reading screen (the same `OpenedMessage` a list row
+// would produce), or a draft in its composer.
 @Composable
 private fun ConversationStripCard(
     message: ThreadMessage,
     subject: String,
     activeZoneId: String?,
-    onOpen: (OpenedMessage) -> Unit,
+    onOpen: (opened: OpenedMessage, draft: Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
     // Read the ambient clock setting here: the `clickable` lambda is not a composition scope.
@@ -118,6 +119,7 @@ private fun ConversationStripCard(
                         avatar = message.avatar,
                         date = localDateTime(message.date, activeZoneId, use24Hour),
                     ),
+                    message.draft,
                 )
             }
             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -144,6 +146,15 @@ private fun ConversationStripCard(
                 }
                 if (message.draft) {
                     ThreadBadge(L10n.thread_draft(ctx))
+                }
+                if (message.flagged) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        painter = painterResource(R.drawable.ic_star),
+                        contentDescription = L10n.a11y_flagged(ctx),
+                        tint = FlaggedAmber,
+                        modifier = Modifier.size(14.dp),
+                    )
                 }
                 if (message.hasAttachment) {
                     Spacer(modifier = Modifier.width(6.dp))

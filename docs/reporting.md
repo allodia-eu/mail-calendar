@@ -59,16 +59,12 @@ leave it there. This is the path the debug fixtures and the showcase engine take
 |---|:---:|:---:|:---:|---|
 | Android | ✅ | ✅ | ⬜ | `clients/android/.../MailRows.kt` |
 | Linux | ✅ | ✅ | ⬜ | `clients/linux/src/ui/mail_actions.rs` |
-| macOS / iOS / iPadOS | ⬜ | ⬜ | ⬜ | n/a |
-| Windows | ⬜ | ⬜ | ⬜ | n/a |
+| macOS / iOS / iPadOS | ✅ | ✅ | ⬜ | `clients/apple/.../Mailcal.RowMenu.swift` |
+| Windows | ✅ | ✅ | ⬜ | `clients/windows/Mailcal/Views/MailListView.RowMenu.cs` |
 | MCP | ✅ (`mark_as_spam`) | n/a | ⬜ | `crates/mailcal-mcp/src/tools` |
 
 ## Known gaps
 
-- **Apple and Windows ship no spam affordance at all.** Both carry the catalog keys
-  (`action_mark_as_spam` / `action_mark_as_not_spam`) and neither calls them, so the action a
-  user has on Android and Linux is simply absent there. The capability matrix claimed otherwise until
-  this contract landed.
 - **No client offers a phishing verdict**, though three of the four transports have one. Adding it
   means a new intent, and each client's menu item gated on
   `ReportControls::verdicts.phishing`, which is why the capability is plumbed before the UI is.

@@ -1,16 +1,14 @@
 //! Widget-level regressions for the mailbox rows.
 
-use std::collections::HashSet;
-
 use adw::prelude::*;
-use mailcal_bindings::{FlatRow, SnapshotRow, ThreadMessage, ThreadRow};
+use mailcal_bindings::{FlatRow, SnapshotRow};
 
 // The oracle every assertion below reads the screen through, and the one the Settings,
 // calendar, contacts and reading tests share ([`super::test_tree`]).
 pub(crate) use super::test_tree::{
     every_row_belongs_to_a_list, glib_records, labels, rendered_labels,
 };
-use super::{MailboxRendering, ThreadKey, display_row, flat_row};
+use super::{MailboxRendering, display_row, flat_row};
 use crate::ui::{
     AppInput, composer_header::tests as composer_header, connectivity::tests as connectivity,
     contacts::pane::tests as contacts, destinations::tests as destinations,
@@ -94,92 +92,6 @@ fn a_photo_arriving_is_part_of_the_row_rendering_key() {
     assert_ne!(before, MailboxRendering::new(&snapshot, "UTC"));
 }
 
-#[test]
-fn reading_stops_expand_a_conversation_in_place_and_collapse_to_its_representative() {
-    let mut snapshot = crate::ui::model::empty_mailbox();
-    let first = FlatRow {
-        key: "flat-first".to_owned(),
-        ..fixture("First")
-    };
-    let messages = vec![
-        ThreadMessage {
-            avatar: crate::ui::model::blank_avatar(),
-            account: "fixture".to_owned(),
-            key: "thread-newest".to_owned(),
-            from: "Newest sender".to_owned(),
-            date: "2026-07-21".to_owned(),
-            preview: String::new(),
-            unread: false,
-            flagged: false,
-            outgoing: true,
-            draft: false,
-            has_attachment: false,
-        },
-        ThreadMessage {
-            avatar: crate::ui::model::blank_avatar(),
-            account: "fixture".to_owned(),
-            key: "thread-representative".to_owned(),
-            from: "Representative sender".to_owned(),
-            date: "2026-07-20".to_owned(),
-            preview: String::new(),
-            unread: true,
-            flagged: false,
-            outgoing: false,
-            draft: false,
-            has_attachment: false,
-        },
-    ];
-    let thread = ThreadRow {
-        avatar: crate::ui::model::blank_avatar(),
-        account: "fixture".to_owned(),
-        thread_id: "thread".to_owned(),
-        latest_key: "thread-representative".to_owned(),
-        subject: "Conversation".to_owned(),
-        latest_from: "Representative sender".to_owned(),
-        latest_date: "2026-07-20".to_owned(),
-        message_count: 2,
-        unread_count: 1,
-        flagged: false,
-        has_attachment: false,
-        preview: String::new(),
-        messages,
-    };
-    let last = FlatRow {
-        key: "flat-last".to_owned(),
-        ..fixture("Last")
-    };
-    let expanded_key = ThreadKey::of(&thread);
-    snapshot.rows = vec![
-        SnapshotRow::Flat { row: first },
-        SnapshotRow::Thread { row: thread },
-        SnapshotRow::Flat { row: last },
-    ];
-
-    let collapsed = crate::ui::model::readable_stops(&snapshot, &HashSet::new());
-    assert_eq!(
-        collapsed
-            .iter()
-            .map(|message| message.key.as_str())
-            .collect::<Vec<_>>(),
-        ["flat-first", "thread-representative", "flat-last"]
-    );
-
-    let expanded = HashSet::from([expanded_key]);
-    let open = crate::ui::model::readable_stops(&snapshot, &expanded);
-    assert_eq!(
-        open.iter()
-            .map(|message| message.key.as_str())
-            .collect::<Vec<_>>(),
-        [
-            "flat-first",
-            "thread-newest",
-            "thread-representative",
-            "flat-last"
-        ]
-    );
-    assert_eq!(open[1].subject, "Conversation");
-}
-
 /// The crate's one GTK test: see [`super::thread_tests`] for why there is exactly one.
 #[test]
 fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
@@ -188,15 +100,16 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     super::thread_tests::conversation_rows_expand_and_unread_mail_is_bold();
     super::thread_tests::every_mail_row_formats_its_timestamp();
     super::thread_tests::a_conversation_reports_what_the_reader_asked_for();
+    super::conversation_tests::run();
     crate::ui::icons::tests::every_icon_resolves_to_a_real_glyph();
     crate::ui::settings::dark_messages::tests::the_switch_follows_a_press_made_elsewhere();
     super::thread_tests::a_rerender_rebuilds_only_the_row_that_changed();
     super::thread_tests::a_removed_row_leaves_its_neighbours_widgets_alone();
     super::thread_tests::mail_arriving_at_the_top_does_not_rebuild_the_list_below_it();
+    super::thread_tests::a_row_that_moved_and_changed_is_drawn_as_it_now_is();
     crate::ui::mailbox_progressive::tests::a_new_folder_builds_only_the_visible_rows_synchronously(
     );
-    crate::ui::mail_actions::tests::the_action_menus_dispatch_the_message_and_thread_the_user_chose(
-    );
+    crate::ui::mail_actions::tests::a_row_menu_draws_the_cores_answer_and_runs_what_is_picked();
     crate::ui::mail_actions::tests::permanent_delete_is_confirmed_before_it_dispatches();
     crate::ui::composer_discard::widget_tests::the_question_discards_only_on_its_discard_button();
     crate::ui::composer_draft::widget_tests::each_navigation_gets_its_own_answer();
@@ -403,7 +316,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         .emit_clicked();
     assert!(matches!(
         action_receiver.recv_sync(),
-        Some(AppInput::OpenThreadMessage(message)) if message.key == "1"
+        Some(AppInput::OpenListedMessage { message, draft: false }) if message.key == "1"
     ));
 
     folder_pane::the_pane_draws_every_account_its_folders_and_its_counts();

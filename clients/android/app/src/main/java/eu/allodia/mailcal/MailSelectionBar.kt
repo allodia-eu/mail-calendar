@@ -31,13 +31,15 @@ import uniffi.mailcal_bindings.SnapshotRow
  *
  * Archive and Trash are the two icons, because they are what a mailbox is worked through with; the
  * rest (read/unread, flag/unflag, select all, delete permanently) live in the overflow the row
- * already has room for. The read and flag entries are single toggles whose wording comes from what
- * is selected, so the offered action is always the one that changes something.
+ * already has room for. The read and flag entries are single toggles naming the half that changes
+ * something, and what responds is what the core's menu over the selection enables
+ * ([SelectionBarActions]).
  */
 @Composable
 internal fun MailSelectionBar(
     selection: MailSelectionState,
     rows: List<SnapshotRow>,
+    actions: SelectionBarActions,
     onAct: (BulkAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -64,14 +66,14 @@ internal fun MailSelectionBar(
                 .weight(1f)
                 .testTag("selection-count"),
         )
-        IconButton(onClick = { onAct(BulkAction.ARCHIVE) }) {
+        IconButton(onClick = { onAct(BulkAction.ARCHIVE) }, enabled = actions.archive) {
             Icon(
                 painter = painterResource(R.drawable.ic_archive),
                 contentDescription = L10n.action_archive(ctx),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        IconButton(onClick = { onAct(BulkAction.DELETE) }) {
+        IconButton(onClick = { onAct(BulkAction.DELETE) }, enabled = actions.delete) {
             Icon(
                 painter = painterResource(R.drawable.ic_delete),
                 contentDescription = L10n.action_move_to_trash(ctx),
@@ -86,8 +88,8 @@ internal fun MailSelectionBar(
             )
         }
         DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
-            val read = selection.readAction(rows)
-            val flag = selection.flagAction(rows)
+            val read = actions.read
+            val flag = actions.flag
             DropdownMenuItem(
                 text = {
                     Text(
@@ -98,6 +100,7 @@ internal fun MailSelectionBar(
                         },
                     )
                 },
+                enabled = actions.readEnabled,
                 onClick = {
                     overflow = false
                     onAct(read)
@@ -109,6 +112,7 @@ internal fun MailSelectionBar(
                         if (flag == BulkAction.FLAG) L10n.action_flag(ctx) else L10n.action_unflag(ctx),
                     )
                 },
+                enabled = actions.flagEnabled,
                 onClick = {
                     overflow = false
                     onAct(flag)
@@ -123,6 +127,7 @@ internal fun MailSelectionBar(
             )
             DropdownMenuItem(
                 text = { Text(L10n.action_delete_permanently(ctx)) },
+                enabled = actions.permanentlyDelete,
                 onClick = {
                     overflow = false
                     onAct(BulkAction.PERMANENTLY_DELETE)

@@ -21,6 +21,7 @@ fn snapshot(addresses: &[&str]) -> AccountsSnapshot {
                 endpoints: None,
                 separate_server: None,
                 distinction: None,
+                mail_sync: None,
             })
             .collect(),
     }

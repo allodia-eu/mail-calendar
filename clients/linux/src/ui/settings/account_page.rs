@@ -46,6 +46,9 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
     } else if let Some(section) = super::sign_in_section::group(ctx, entry) {
         content.append(&section);
     }
+    if let Some(technology) = entry.mail_sync {
+        content.append(&super::account_sync_technology::group(technology));
+    }
     if let Some(endpoints) = &entry.endpoints {
         content.append(&account_servers::server_group(
             ctx,
@@ -400,6 +403,7 @@ mod tests {
             endpoints: None,
             separate_server: None,
             distinction: None,
+            mail_sync: None,
         };
         assert_eq!(
             remove_message(&entry),

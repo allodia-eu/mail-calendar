@@ -255,10 +255,12 @@ public sealed partial class MailboxModel
     /// <summary>Archive a message, move it to the account's Archive folder (by owning account + key), then re-sync.</summary>
     public void Archive(string account, string key) => _app?.Dispatch(new Intent.Archive(account, key));
 
-    /// <summary>Archive a whole conversation, the core moves every message on the thread to
-    /// Archive except its Sent copies and drafts, which stay where they are, then re-syncs.</summary>
-    public void ArchiveThread(string account, string threadId) =>
-        _app?.Dispatch(new Intent.ArchiveThread(account, threadId));
+    /// <summary>Report a message as junk, which files it under Junk; never moved as well
+    /// (docs/reporting.md).</summary>
+    public void MarkAsSpam(string account, string key) => _app?.Dispatch(new Intent.MarkAsSpam(account, key));
+
+    /// <summary>Report a message as not junk, which files it back in the Inbox.</summary>
+    public void MarkAsNotSpam(string account, string key) => _app?.Dispatch(new Intent.MarkAsNotSpam(account, key));
 
     /// <summary>Permanently delete a message, irreversible (by owning account + key), then re-sync.</summary>
     public void PermanentlyDelete(string account, string key) => _app?.Dispatch(new Intent.PermanentlyDelete(account, key));

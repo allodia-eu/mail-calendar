@@ -1,9 +1,9 @@
-// The selection bar's two decisions (docs/list-selection.md): which of the paired actions it
-// offers, and what a conversation row becomes when the batch goes to the core.
+// The selection's own decisions (docs/list-selection.md): which rows a menu acts on, and what a
+// conversation row becomes when the batch goes to the core. Which half of each toggle the bar
+// offers is the core's, read in RowMenuPresentationTests.
 //
-// Both fail silently in the running app. A button labelled "Mark as unread" over a selection that
-// is already unread does nothing when clicked, and a conversation sent as its latest message
-// archives one reply while the rest of the thread stays in the inbox.
+// Both fail silently in the running app: a conversation sent as its latest message archives one
+// reply while the rest of the thread stays in the inbox.
 
 using Allodia.Mailcal.Services;
 using uniffi.mailcal_bindings;
@@ -13,18 +13,11 @@ namespace Allodia.Mailcal.Tests;
 
 public class SelectionActionsTests
 {
-    private sealed record Row(
-        string Account,
-        string Key,
-        bool IsThread,
-        bool Unread,
-        bool Flagged) : ISelectableRow;
+    private sealed record Row(string Account, string Key, bool IsThread) : ISelectableRow;
 
-    private static Row Message(bool unread = false, bool flagged = false, string key = "m1") =>
-        new("acct-1", key, IsThread: false, unread, flagged);
+    private static Row Message(string key = "m1") => new("acct-1", key, IsThread: false);
 
-    private static Row Thread(bool unread = false, string key = "t1") =>
-        new("acct-1", key, IsThread: true, unread, Flagged: false);
+    private static Row Thread(string key = "t1") => new("acct-1", key, IsThread: true);
 
     /// <summary>
     /// A plain click selects a row *and* opens it, so a pane stating "1 selected" would replace
@@ -76,25 +69,8 @@ public class SelectionActionsTests
     public void TheSameKeyInAnotherAccountIsADifferentRow()
     {
         var selected = new[] { Message(key: "m1") };
-        var elsewhere = new Row("acct-2", "m1", IsThread: false, Unread: false, Flagged: false);
+        var elsewhere = new Row("acct-2", "m1", IsThread: false);
         Assert.False(SelectionActions.Covers(selected, elsewhere));
-    }
-
-    [Fact]
-    public void ReadOffersMarkReadWhileAnythingSelectedIsUnread()
-    {
-        Assert.Equal(BulkAction.MarkRead, SelectionActions.Read([Message(unread: true), Message()]));
-        Assert.Equal(BulkAction.MarkUnread, SelectionActions.Read([Message(), Message()]));
-        Assert.Equal(BulkAction.MarkRead, SelectionActions.Read([Thread(unread: true)]));
-    }
-
-    [Fact]
-    public void FlagOffersFlagWhileAnythingSelectedIsUnflagged()
-    {
-        Assert.Equal(BulkAction.Flag, SelectionActions.Flag([Message(flagged: true), Message()]));
-        Assert.Equal(BulkAction.Unflag, SelectionActions.Flag([Message(flagged: true)]));
-        // A conversation has no flag of its own, so flagging is what it can be asked for.
-        Assert.Equal(BulkAction.Flag, SelectionActions.Flag([Thread()]));
     }
 
     [Fact]
@@ -108,6 +84,26 @@ public class SelectionActionsTests
         Assert.False(SelectionActions.Removes(BulkAction.Flag));
         Assert.False(SelectionActions.Removes(BulkAction.Unflag));
     }
+
+    /// <summary>
+    /// A permanent delete over a conversation takes its received messages and leaves its Sent
+    /// copies and drafts (docs/row-actions.md, rule 4), so asking "this message will be deleted"
+    /// over one understates what goes, and "1 messages" misreads the count.
+    /// </summary>
+    [Fact]
+    public void APermanentDeleteNamesWhatTheRowsAre()
+    {
+        Assert.Equal(PermanentDeleteWording.Message, SelectionActions.DeleteWording([Message()]));
+        Assert.Equal(PermanentDeleteWording.Messages, SelectionActions.DeleteWording([Message("m1"), Message("m2")]));
+        Assert.Equal(PermanentDeleteWording.Conversation, SelectionActions.DeleteWording([Thread()]));
+        Assert.Equal(PermanentDeleteWording.Conversations, SelectionActions.DeleteWording([Thread("t1"), Thread("t2")]));
+    }
+
+    /// <summary>A mix is counted in messages: "2 conversations" over a conversation and a message
+    /// is false, and the confirmation is where an overstatement costs least.</summary>
+    [Fact]
+    public void AMixOfConversationsAndMessagesIsCountedInMessages() =>
+        Assert.Equal(PermanentDeleteWording.Messages, SelectionActions.DeleteWording([Thread(), Message()]));
 
     [Fact]
     public void AConversationTravelsAsAThreadAndAMessageAsAMessage()

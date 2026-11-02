@@ -18,6 +18,7 @@ mod folders;
 pub mod invitation;
 mod outbox;
 pub mod reading;
+mod reading_stop;
 mod row_menu;
 mod row_reach;
 pub mod sender;
@@ -43,6 +44,7 @@ pub use folders::{
 pub use invitation::{AttendeeTally, InvitationCard, InvitationKind, ResponseStatus};
 pub use outbox::{QueuedRow, QueuedState, queued_rows};
 pub use reading::{AttachmentRow, ReadingSnapshot};
+pub use reading_stop::{conversation_opens, stop_after_removing};
 pub use row_menu::{MenuMessage, MenuRow, RowMenu, RowMenuItem, row_menu};
 pub use row_reach::{
     AccountPlaces, Member, MessageKind, RowAction, conversation_reach, flag_target, stays_put,

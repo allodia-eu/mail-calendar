@@ -109,6 +109,10 @@ internal fun AccountPage(
         Spacer(modifier = Modifier.height(8.dp))
         AccountSignInGroup(entry, ui)
     }
+    entry.mailSync?.let { technology ->
+        Spacer(modifier = Modifier.height(8.dp))
+        AccountSyncTechnologyCard(technology)
+    }
     entry.endpoints?.let { endpoints ->
         Spacer(modifier = Modifier.height(8.dp))
         ServersGroup(entry, endpoints, expired, ui)

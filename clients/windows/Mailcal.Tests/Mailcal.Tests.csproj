@@ -166,11 +166,6 @@
     <!-- The zone-aware timestamp formatting (the relative list label + absolute reading-header date,
          docs/timestamps.md), pure BCL, no WinUI, no bindings, so the bucketing is pinned here. -->
     <Compile Include="..\Mailcal\Services\TimeZones.cs" Link="Services\TimeZones.cs" />
-    <!-- Where the reading pane lands when archive/delete takes the open message out of the folder:
-         next one down, else the one above. Pure BCL, the row-to-MessageStop projection is the
-         WinUI-facing half and stays in MailboxModel.Reading.cs. The end-of-list fallback is the case
-         a hand test skips, since it only shows up on the last message of a folder. -->
-    <Compile Include="..\Mailcal\Services\ReadingAdvance.cs" Link="Services\ReadingAdvance.cs" />
     <!-- Which window a message belongs in, and whether the click that just arrived was the second
          of a double-click (docs/reading-window.md). WinUI-free on purpose: the list raises its own
          click on the FIRST press of a double-click, so the pane opens the row before anything knows
@@ -181,11 +176,16 @@
     <!-- Which page a message is drawn on (docs/reading-dark-mode.md). WinUI-free so the rule is
          pinned here; the reading view feeds it its own ActualTheme and the core's preference. -->
     <Compile Include="..\Mailcal\Services\MessageSchemes.cs" Link="Services\MessageSchemes.cs" />
-    <!-- What the message list's multi-selection means (docs/list-selection.md): which of the
-         paired actions its bar offers, and what a conversation row becomes when the batch goes to
-         the core. WinUI-free on purpose; both rules fail silently in the running app, a button
-         offering the action that changes nothing, and a conversation archived as one reply. -->
+    <!-- What the message list's multi-selection means (docs/list-selection.md): which rows a
+         menu acts on, and what a conversation row becomes when the batch goes to the core.
+         WinUI-free on purpose; a conversation sent as one reply archives that reply alone, which
+         fails silently in the running app. -->
     <Compile Include="..\Mailcal\Services\SelectionActions.cs" Link="Services\SelectionActions.cs" />
+    <!-- The core's row menu as Windows draws it (docs/row-actions.md): the bar read off the same
+         answer, the batch an item runs, and which conversation stays expanded. WinUI-free for the
+         reason SelectionActions is: a bar naming the wrong half of a toggle, or a conversation left
+         open after the user moved on, fails silently in the running app. -->
+    <Compile Include="..\Mailcal\Services\RowMenuPresentation.cs" Link="Services\RowMenuPresentation.cs" />
     <!-- Which row the list highlights for the message in the reading pane, the other half of the
          auto-advance. Pure BCL for the same reason: the view re-runs this rule on every open and
          every snapshot reconcile, and a hand test cannot see the reconcile case at all. -->
@@ -275,8 +275,8 @@
     <!-- The avatar as the views bind it (docs/avatars.md): which of photo / letters / person glyph
          a circle draws, which theme's colour it sits on, and, the rule the snapshot reconcile
          rides on, that two avatars differing only by a photo are NOT equal. WinUI-free on purpose
-         (the brushes and the bitmap are Controls/AvatarView.cs), which is also what lets
-         ReadingAdvance carry one. It projects the generated Avatar, so it needs the bindings. -->
+         (the brushes and the bitmap are Controls/AvatarView.cs). It projects the generated
+         Avatar, so it needs the bindings. -->
     <Compile Include="..\Mailcal\ViewModels\AvatarItem.cs" Link="ViewModels\AvatarItem.cs" />
     <!-- The contacts list's pure decisions: the A–Z section headers, the "In N accounts" merge
          disclosure, the account-id -> address provenance labels, and which of the two empty states

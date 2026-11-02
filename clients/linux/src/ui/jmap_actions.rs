@@ -233,7 +233,7 @@ impl AppModel {
             if matches!(outcome, JmapOutcome::Added(_))
                 && let Some(app) = self.app.clone()
             {
-                self.snapshot = app.mailbox_list();
+                self.snapshot.replace(app.mailbox_list());
                 self.sync_after_account_change(sender);
             }
             return;
@@ -332,7 +332,7 @@ impl AppModel {
             JmapReauthOutcome::Reauthenticated => {
                 self.notice = None;
                 if let Some(app) = &self.app {
-                    self.snapshot = app.mailbox_list();
+                    self.snapshot.replace(app.mailbox_list());
                     self.connectivity =
                         super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
                 }

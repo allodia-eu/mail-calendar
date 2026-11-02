@@ -161,7 +161,8 @@ internal fun ReadingScreen(
     onRetry: () -> Unit,
     // Opens another message of the same conversation from the strip (accordion, one body shown
     // at a time), keeping the conversation context so the strip persists.
-    onOpenThreadMessage: (OpenedMessage) -> Unit,
+    // Opens another message of the conversation, or resumes it when it is a draft.
+    onOpenThreadMessage: (opened: OpenedMessage, draft: Boolean) -> Unit,
     // Opens the composer on a reply, a reply to all or a forward of this message. The composer is
     // the activity's (MainActivityComposer.kt), and quotes what the core fetches, so it does not
     // wait for this screen's body.
