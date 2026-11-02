@@ -14,8 +14,8 @@
 //! refuses one for too many simultaneous connections, so only the same refusal
 //! [`REFUSALS_BEFORE_API`] times running moves the account.
 //!
-//! One slot serves every provider of an account ([`GmailImapSlot::shared`]): each holds a pool of
-//! connections, and Gmail counts an account's connections across all of its clients.
+//! One slot serves every provider of an account's sign-in ([`GmailImapSlot::shared`]): each holds
+//! a pool of connections, and Gmail counts an account's connections across all of its clients.
 
 use std::{
     collections::HashMap,
@@ -69,8 +69,13 @@ enum Side {
 }
 
 impl GmailImapSlot {
-    /// The slot of the account at `address`: the one its other providers already hold, or a new
-    /// one when none does.
+    /// The slot of the account at `address` signed in with `tokens`: the one its other providers
+    /// already hold, or a new one when none does.
+    ///
+    /// A sign-in made again gets a slot of its own even while the old one is alive. The account's
+    /// old providers are replaced only once the new ones have connected, so they still hold the
+    /// old slot then, and that slot dials every new IMAP connection with the grant it was built
+    /// with: the one the person has just replaced, and usually the one that was refused.
     pub(super) fn shared(
         address: &str,
         tokens: &Arc<GraphTokenSource>,
@@ -78,7 +83,9 @@ impl GmailImapSlot {
     ) -> Arc<Self> {
         let mut slots = SLOTS.lock().expect("gmail slots mutex poisoned");
         slots.retain(|_, slot| slot.strong_count() > 0);
-        if let Some(slot) = slots.get(address).and_then(Weak::upgrade) {
+        if let Some(slot) = slots.get(address).and_then(Weak::upgrade)
+            && Arc::ptr_eq(&slot.tokens, tokens)
+        {
             return slot;
         }
         let slot = Arc::new(Self {
@@ -170,7 +177,7 @@ mod tests {
     use engine_core::error::FailureClass;
     use engine_provider::ProviderError;
 
-    use super::{REFUSALS_BEFORE_API, Side, decide};
+    use super::{GmailImapSlot, REFUSALS_BEFORE_API, Side, decide};
 
     fn failed(class: FailureClass) -> engine_provider::ProviderResult<super::GmailImap> {
         Err(ProviderError::new(class, "no"))
@@ -211,5 +218,50 @@ mod tests {
             assert!(matches!(side, Side::Unknown(1)), "{class:?}");
             assert_eq!(answer.unwrap_err().class(), class);
         }
+    }
+
+    /// A token source of its own, as each sign-in builds: signing in again builds a new one
+    /// beside the old one, which stays alive until the account's old providers are replaced.
+    fn sign_in() -> std::sync::Arc<crate::GraphTokenSource> {
+        use mailcal_oauth::{GOOGLE_SCOPES, OAuthClient, OAuthProviderConfig};
+
+        let provider = OAuthProviderConfig::google(
+            "google-client",
+            None,
+            "com.googleusercontent.apps.google-client:/oauth2redirect",
+            GOOGLE_SCOPES,
+        );
+        crate::GraphTokenSource::from_parts(
+            OAuthClient::new(provider).unwrap(),
+            engine_core::ids::AccountId::try_from("alice@gmail.com@mail.google.com").unwrap(),
+            "refresh".to_owned(),
+            None,
+            "google",
+            crate::CredentialOrigin::FreshSignIn,
+        )
+    }
+
+    /// Signing in again replaces the account's providers only after the new ones have connected,
+    /// so the old ones, and the slot they hold, are still alive when the new ones ask for theirs.
+    /// A slot that kept the old sign-in would dial every new IMAP connection with a grant the
+    /// user just replaced, which is the grant that was refused.
+    #[test]
+    fn signing_in_again_gives_the_account_a_slot_with_the_new_sign_in() {
+        let tls = crate::tls::tls_with(&[]).unwrap();
+        let address = "signed-in-again@gmail.com";
+        let old = sign_in();
+        let replaced = GmailImapSlot::shared(address, &old, &tls);
+
+        let new = sign_in();
+        let slot = GmailImapSlot::shared(address, &new, &tls);
+        assert!(
+            std::sync::Arc::ptr_eq(&slot.tokens, &new),
+            "the slot dials IMAP with the sign-in it was given, not the one it replaced",
+        );
+        assert!(std::sync::Arc::ptr_eq(&replaced.tokens, &old));
+
+        // The account's other providers, built from the same sign-in, share the new slot.
+        let again = GmailImapSlot::shared(address, &new, &tls);
+        assert!(std::sync::Arc::ptr_eq(&slot, &again));
     }
 }
