@@ -9,6 +9,8 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use crate::tel::is_telephone_subscriber;
+
 /// The URL schemes a link may carry. Deliberately strict: never `javascript:`, `data:`, `file:`
 /// or a custom application scheme. `tel` is here because dialling a number is something a message
 /// legitimately asks for: the URI is handed to the OS as written, exactly as a `mailto:` is, and
@@ -25,6 +27,20 @@ pub fn has_link_scheme(url: &str) -> bool {
     scheme_of(url).is_some_and(|scheme| LINK_SCHEMES.contains(&scheme.as_str()))
 }
 
+/// Whether `url` is a link this product sends, keeps and opens: one of [`LINK_SCHEMES`], and for
+/// `tel:` a number RFC 3966 can write with no `*` or `#`.
+#[must_use]
+pub fn is_link_target(url: &str) -> bool {
+    let url = url.trim();
+    match scheme_of(url).as_deref() {
+        Some("tel") => url
+            .split_once(':')
+            .is_some_and(|(_, subscriber)| is_telephone_subscriber(subscriber)),
+        Some(scheme) => LINK_SCHEMES.contains(&scheme),
+        None => false,
+    }
+}
+
 /// The lowercased URL scheme (the part before the first `:`), if `url` starts with a
 /// syntactically valid RFC 3986 scheme; `None` for a relative URL or anything not in `scheme:`
 /// form. Byte-safe on hostile input: `split_once` and char iteration never slice mid-codepoint.
@@ -36,8 +52,8 @@ fn scheme_of(url: &str) -> Option<String> {
     valid.then(|| scheme.to_ascii_lowercase())
 }
 
-/// A validated link target: one of [`LINK_SCHEMES`], something after the scheme, no whitespace or
-/// control characters, and no longer than 2048 bytes.
+/// A validated link target: one [`is_link_target`] accepts, something after the scheme, no
+/// whitespace or control characters, and no longer than 2048 bytes.
 #[derive(Clone, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
 pub struct LinkUrl(String);
@@ -53,7 +69,7 @@ impl LinkUrl {
         let value = value.trim();
         if value.len() > MAX_LINK_LEN
             || value.chars().any(|c| c.is_whitespace() || c.is_control())
-            || !has_link_scheme(value)
+            || !is_link_target(value)
         {
             return None;
         }
@@ -126,6 +142,8 @@ mod tests {
             "mailto:",
             "tel:",
             "tel:+1 503 222 3333",
+            "tel:*21*+31612345678#",
+            "tel:112",
             "https://exa mple.com",
             "https://example.com/\nBcc: x",
             "",

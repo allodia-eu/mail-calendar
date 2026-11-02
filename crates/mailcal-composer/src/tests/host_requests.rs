@@ -124,6 +124,11 @@ fn keeps_an_allowed_scheme_and_completes_a_host_or_an_email_address() {
         ("mailto:someone@example.com", "mailto:someone@example.com"),
         ("tel:+15032223333", "tel:+15032223333"),
         ("TEL:+44-20-7946-0958", "TEL:+44-20-7946-0958"),
+        ("tel:+31 20 123 4567", "tel:+31201234567"),
+        (
+            "tel: +44\u{a0}20\u{202f}7946 0958;ext=12",
+            "tel:+442079460958;ext=12",
+        ),
         ("HTTP://Example.com", "HTTP://Example.com"),
         ("bücher.example/a", "https://bücher.example/a"),
     ] {
@@ -144,7 +149,7 @@ fn refuses_a_telephone_number_typed_without_its_scheme() {
         "503-222-3333",
         "(503) 222-3333",
         "tel:",
-        "tel:+1 503 222 3333",
+        "tel:   ",
     ] {
         assert!(
             link_address(typed).is_none(),

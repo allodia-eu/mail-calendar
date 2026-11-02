@@ -43,7 +43,8 @@ pub(crate) struct Sanitized {
 /// sanitiser strips can never be clicked, so the two must agree). The list itself is
 /// [`mailcal_composer::LINK_SCHEMES`], which also bounds what the composer sends, so every
 /// client, every direction and the linkifier ([`links`]) share one allowlist.
-const EXTERNAL_LINK_SCHEMES: [&str; 4] = mailcal_composer::LINK_SCHEMES;
+const EXTERNAL_LINK_SCHEMES: [&str; mailcal_composer::LINK_SCHEMES.len()] =
+    mailcal_composer::LINK_SCHEMES;
 
 /// Extra schemes the sanitiser keeps for **inline resources** referenced by `src` (not
 /// links): `data:` for inline images and `cid:` for referenced message parts. These never
@@ -153,8 +154,9 @@ fn sanitizer() -> &'static Builder<'static> {
             ])
             .attribute_filter(|element, attribute, value| match (element, attribute) {
                 // A `data:` link can carry an executable document (e.g. data:text/html);
-                // links may only point at real http(s)/mailto/tel targets.
-                ("a", "href") if is_data_uri(value) => None,
+                // links may only point at real http(s)/mailto/tel targets, and a `tel:` one only
+                // at a number the open gate would dial.
+                ("a", "href") if is_data_uri(value) || is_refused_number(value) => None,
                 _ => Some(value.into()),
             });
         builder
@@ -170,7 +172,18 @@ fn sanitizer() -> &'static Builder<'static> {
 /// `docs/rendering-security.md`).
 #[must_use]
 pub fn should_open_external_link(url: &str) -> bool {
-    mailcal_composer::has_link_scheme(url)
+    // A sender's number often carries the spaces a `tel:` URI may not, and the web view hands it
+    // over as `%20`; neither is a service code, and every dialler ignores them.
+    mailcal_composer::is_link_target(&mailcal_composer::without_number_spaces(url))
+}
+
+/// Whether `value` is a `tel:` link [`should_open_external_link`] refuses, such as a service code.
+fn is_refused_number(value: &str) -> bool {
+    value
+        .trim_start()
+        .get(..4)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("tel:"))
+        && !should_open_external_link(value)
 }
 
 /// Whether `value` is an inline `data:` URI (scheme-only check, leading space tolerant).

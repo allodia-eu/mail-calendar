@@ -11,7 +11,7 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::LinkUrl;
+use crate::{LinkUrl, without_number_spaces};
 
 /// The longest request accepted, in bytes. A link request carries the selected words, which can be
 /// the whole message; the dialog shows a field, not a document.
@@ -148,7 +148,8 @@ pub fn answer_script(id: u64, answer: &HostAnswer) -> String {
 /// `None` when it cannot be a link, which is when a dialog keeps its OK button disabled.
 #[must_use]
 pub fn link_address(typed: &str) -> Option<LinkUrl> {
-    let value = typed.trim();
+    let value = without_number_spaces(typed.trim());
+    let value = value.as_ref();
     if value.is_empty() || value.chars().any(char::is_whitespace) {
         return None;
     }

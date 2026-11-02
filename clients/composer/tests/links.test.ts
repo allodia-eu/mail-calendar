@@ -131,6 +131,10 @@ describe("the link editor's address field", () => {
     expect(normalizeLinkAddress("TEL:+44-20-7946-0958")).toBe(
       "TEL:+44-20-7946-0958",
     );
+    expect(normalizeLinkAddress("tel:+31 20 123 4567")).toBe("tel:+31201234567");
+    expect(normalizeLinkAddress("tel: +44\u00a020\u202f7946 0958;ext=12")).toBe(
+      "tel:+442079460958;ext=12",
+    );
   });
 
   test("refuses what cannot be a link", () => {
@@ -144,12 +148,16 @@ describe("the link editor's address field", () => {
       "+15032223333",
       "503-222-3333",
       "tel:",
+      "tel:   ",
+      "tel:*21*+31612345678#",
+      "tel:112",
       "sms:+15032223333",
     ]) {
       expect(normalizeLinkAddress(typed)).toBeNull();
     }
     expect(safeLinkHref("https://")).toBeNull();
     expect(safeLinkHref("tel:")).toBeNull();
+    expect(safeLinkHref("tel:+1503;x=%2A21%23")).toBeNull();
   });
 });
 

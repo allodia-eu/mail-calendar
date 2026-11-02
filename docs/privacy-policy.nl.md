@@ -1,6 +1,6 @@
 # Privacybeleid: Allodia Mail & Calendar
 
-**Versie 2.7 · Van kracht: 2026-10-28**
+**Versie 2.8 · Van kracht: 2026-11-02**
 
 Allodia Mail & Calendar is een e-mail- en agenda-app die op je eigen apparaat draait en verbinding
 maakt met de e-mailprovider die **jij** kiest. Dit beleid legt in gewone taal uit wat dat betekent
@@ -249,9 +249,9 @@ naar partijen die **jij** kiest, op het moment dat jij kiest, nooit via Allodia:
   van de afzender), en die zien je IP-adres. Daarom blokkeert de app ze standaard en vraagt hij
   het per bericht.
 - **Op een link tikken of een bijlage openen** geeft die door aan de browser van je systeem of aan
-  de app die je besturingssysteem aan het bestand koppelt. Alleen gewone web- en e-maillinks
-  (`http`, `https`, `mailto`) worden ooit doorgegeven; bijlagen worden nooit binnen de app zelf
-  weergegeven.
+  de app die je besturingssysteem aan het bestand koppelt. Alleen gewone web-, e-mail- en
+  telefoonlinks (`http`, `https`, `mailto`, `tel`) worden ooit doorgegeven; bijlagen worden nooit
+  binnen de app zelf weergegeven.
 - **E-mail of uitnodigingen versturen** levert ze via je provider af bij je ontvangers.
 
 Dit zijn jouw verzendingen, niet de onze: Allodia ontvangt van geen van alle iets.

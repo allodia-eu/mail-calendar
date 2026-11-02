@@ -1113,6 +1113,49 @@
     return style.spaced ? "p" : "div";
   }
 
+  // src/tel.ts
+  var NUMBER = /^[0-9().-]*[0-9][0-9().-]*$/;
+  var LOCAL_NUMBER = /^[0-9a-f().-]*[0-9a-f][0-9a-f().-]*$/i;
+  var DOMAIN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)*[a-z]([a-z0-9-]*[a-z0-9])?\.?$/i;
+  var PNAME = /^[a-z0-9-]+$/i;
+  var PARAMCHARS = /^(?:[a-z0-9\-_.!~'()[\]/:&+$]|%[0-9a-f]{2})+$/i;
+  var URICS = /^(?:[a-z0-9\-_.!~'()/?:@&=+$,]|%[0-9a-f]{2})+$/i;
+  var ENCODED_SERVICE_CHAR = /%(2a|23)/i;
+  function withoutNumberSpaces(value) {
+    return value.trimStart().slice(0, 4).toLowerCase() === "tel:" ? value.replace(/\s/g, "").replace(/%20/g, "") : value;
+  }
+  function isTelephoneSubscriber(subscriber) {
+    if (/[*#]/.test(subscriber))
+      return false;
+    const [number = "", ...pars] = subscriber.split(";");
+    let contexts = 0;
+    for (const par of pars) {
+      const at = par.indexOf("=");
+      const name = (at < 0 ? par : par.slice(0, at)).toLowerCase();
+      const value = at < 0 ? null : par.slice(at + 1);
+      let valid;
+      if (name === "phone-context") {
+        contexts += 1;
+        valid = value !== null && isDescriptor(value);
+      } else if (name === "ext") {
+        valid = value !== null && NUMBER.test(value);
+      } else if (name === "isub") {
+        valid = value !== null && isEscaped(value, URICS);
+      } else {
+        valid = PNAME.test(name) && (value === null || isEscaped(value, PARAMCHARS));
+      }
+      if (!valid)
+        return false;
+    }
+    return number.startsWith("+") ? contexts === 0 && NUMBER.test(number.slice(1)) : contexts === 1 && LOCAL_NUMBER.test(number);
+  }
+  function isDescriptor(value) {
+    return value.startsWith("+") ? NUMBER.test(value.slice(1)) : DOMAIN.test(value);
+  }
+  function isEscaped(value, chars) {
+    return chars.test(value) && !ENCODED_SERVICE_CHAR.test(value);
+  }
+
   // src/links.ts
   var SCHEMES = ["http:", "https:", "mailto:", "tel:"];
   var PREFIXES = [
@@ -1130,10 +1173,12 @@
     const scheme = SCHEMES.find((prefix) => lower.startsWith(prefix));
     if (!scheme)
       return null;
+    if (scheme === "tel:")
+      return isTelephoneSubscriber(href.slice(scheme.length)) ? href : null;
     return href.slice(scheme.length).replace(/^\/+/, "") ? href : null;
   }
   function normalizeLinkAddress(typed) {
-    const value = typed.trim();
+    const value = withoutNumberSpaces(typed.trim());
     if (!value || /\s/.test(value))
       return null;
     const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(value);
