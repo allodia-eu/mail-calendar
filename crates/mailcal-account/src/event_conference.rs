@@ -25,7 +25,7 @@ pub enum ConferenceState {
 /// A number to dial into a meeting.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DialIn {
-    /// The number as the server wrote it (`+1 425-555-0100`), for showing.
+    /// The number as a person reads it (`+1 425-555-0100`), for showing.
     pub number: String,
     /// The `tel:` URI that dials it.
     pub uri: String,
@@ -90,12 +90,7 @@ fn project(conference: &Conference) -> Option<EventConference> {
     let join_url = video
         .filter(|entry| entry.uri.scheme() == UriScheme::Https)
         .map(|entry| entry.uri.as_str().to_owned());
-    let dial_in: Vec<DialIn> = conference
-        .entry_points
-        .iter()
-        .filter(|entry| entry.uri.scheme() == UriScheme::Tel)
-        .map(dial_in)
-        .collect();
+    let dial_in: Vec<DialIn> = conference.entry_points.iter().filter_map(dial_in).collect();
     Some(EventConference {
         service: conference
             .service
@@ -120,21 +115,18 @@ fn project(conference: &Conference) -> Option<EventConference> {
     })
 }
 
-fn dial_in(entry: &EntryPoint) -> DialIn {
-    let uri = entry.uri.as_str();
-    DialIn {
-        number: entry
-            .label
-            .clone()
-            .unwrap_or_else(|| uri.trim_start_matches("tel:").to_owned()),
-        uri: uri.to_owned(),
+/// A `tel:` way in as a number to dial; `None` for any other, or for one with no number.
+fn dial_in(entry: &EntryPoint) -> Option<DialIn> {
+    Some(DialIn {
+        number: entry.phone_number()?.to_owned(),
+        uri: entry.uri.as_str().to_owned(),
         pin: entry
             .access
             .pin
             .clone()
             .or_else(|| entry.access.access_code.clone())
             .or_else(|| entry.access.passcode.clone()),
-    }
+    })
 }
 
 /// The name a service goes by, or `None` for one this build does not know.
@@ -167,12 +159,7 @@ pub(crate) fn is_join_link(location: &str, event: &Event) -> bool {
         .conferences
         .iter()
         .filter(|conference| is_shown(conference))
-        .any(|conference| {
-            conference
-                .entry_points
-                .iter()
-                .any(|entry| entry.uri.same_meeting(&uri))
-        })
+        .any(|conference| conference.joined_at(&uri))
 }
 
 #[cfg(test)]

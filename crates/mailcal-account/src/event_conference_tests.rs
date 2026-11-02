@@ -10,6 +10,9 @@ use engine_core::{
 use super::*;
 use crate::{InviteeEditability, project_event_detail};
 
+/// The line Google Calendar writes above and below the meeting block of an invitation.
+const GOOGLE_RULE: &str = "-::~:~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~::~:~::-";
+
 fn event() -> Event {
     let mut event = Event::new(
         EventId::try_from("evt-1").unwrap(),
@@ -83,14 +86,15 @@ fn a_teams_meeting_offers_its_join_link_id_and_every_number() {
 }
 
 #[test]
-fn a_meet_conference_carries_its_codes_and_a_number_without_a_label_reads_as_dialled() {
+fn a_meet_conference_carries_its_codes_and_a_number_reads_as_dialled_without_what_follows() {
     let mut video = entry("https://meet.google.com/abc-defg-hij");
     video.access = AccessCodes {
         meeting_code: Some("abc-defg-hij".into()),
         passcode: Some("xyz".into()),
         ..AccessCodes::default()
     };
-    let mut phone = entry("tel:+31201234567");
+    let mut phone = entry("tel:+31201234567,,123456#");
+    phone.label = Some("Dial in".into());
     phone.access.pin = Some("123456".into());
     let mut event = event();
     event.conferences = vec![conference(
@@ -152,9 +156,8 @@ fn the_detail_shows_neither_the_join_link_as_a_place_nor_the_block_as_notes() {
         Location::named("https://zoom.us/j/987"),
         Location::named("Room 4"),
     ];
-    let rule = "_".repeat(80);
     event.description = Some(format!(
-        "Bring the figures.\n\n{rule}\nMicrosoft Teams meeting\nJoin\n{rule}\n"
+        "Bring the figures.\n\n{GOOGLE_RULE}\nJoin Zoom Meeting\nhttps://zoom.us/j/987?pwd=x\n{GOOGLE_RULE}\n"
     ));
     let mut zoom = group_flat(vec![FlatEntry::new(uri("https://zoom.us/j/987?pwd=x"))]).remove(0);
     zoom.origin = ConferenceOrigin::Detected {
@@ -162,13 +165,54 @@ fn the_detail_shows_neither_the_join_link_as_a_place_nor_the_block_as_notes() {
     };
     event.conferences = vec![zoom];
     let detail = project_event_detail("acct", &event, true, None, InviteeEditability::ReadOnly);
-    assert_eq!(detail.location.as_deref(), Some("Room 4"));
+    assert_eq!(detail.display_location.as_deref(), Some("Room 4"));
+    assert_eq!(
+        detail.location.as_deref(),
+        Some("https://zoom.us/j/987"),
+        "the editor edits the server's location"
+    );
     assert_eq!(detail.display_notes.as_deref(), Some("Bring the figures."));
     assert_eq!(
         detail.notes, event.description,
         "the editor edits the server's text"
     );
     assert_eq!(detail.conferences.len(), 1);
+}
+
+#[test]
+fn the_block_of_a_meeting_the_detail_does_not_show_stays_in_the_notes() {
+    let mut event = event();
+    event.locations = vec![Location::named("https://zoom.us/j/987")];
+    let rule = "_".repeat(80);
+    let teams = format!(
+        "{rule}\nMicrosoft Teams meeting\nJoin: http://teams.microsoft.com/meet/123?p=x\n{rule}"
+    );
+    event.description = Some(format!(
+        "{GOOGLE_RULE}\nJoin Zoom Meeting\nhttps://zoom.us/j/987\n{GOOGLE_RULE}\n\n{teams}\n"
+    ));
+    let mut zoom = group_flat(vec![FlatEntry::new(uri("https://zoom.us/j/987"))]).remove(0);
+    zoom.origin = ConferenceOrigin::Detected {
+        place: DetectedIn::Location,
+    };
+    let mut plain = group_flat(vec![FlatEntry::new(uri(
+        "http://teams.microsoft.com/meet/123?p=x",
+    ))])
+    .remove(0);
+    plain.origin = ConferenceOrigin::Detected {
+        place: DetectedIn::Description,
+    };
+    event.conferences = vec![zoom, plain];
+    let detail = project_event_detail("acct", &event, true, None, InviteeEditability::ReadOnly);
+    assert_eq!(
+        detail.conferences.len(),
+        1,
+        "a plain http link is not offered"
+    );
+    assert_eq!(
+        detail.display_notes.as_deref(),
+        Some(teams.as_str()),
+        "the Zoom block repeats the meeting shown; the Teams block is the only way into its own"
+    );
 }
 
 #[test]
@@ -191,9 +235,8 @@ fn join_opens_the_https_link_when_a_plain_http_one_comes_first() {
 fn with_no_meeting_shown_the_detail_keeps_the_link_as_a_place_and_the_block_as_notes() {
     let mut event = event();
     event.locations = vec![Location::named("http://meet.example.com/a")];
-    let rule = "_".repeat(80);
     event.description = Some(format!(
-        "Bring the figures.\n\n{rule}\nMicrosoft Teams meeting\nJoin\n{rule}\n"
+        "Bring the figures.\n\n{GOOGLE_RULE}\nJoin: http://meet.example.com/a\n{GOOGLE_RULE}"
     ));
     event.conferences = vec![conference(
         ConferenceOrigin::Attached,
@@ -202,7 +245,7 @@ fn with_no_meeting_shown_the_detail_keeps_the_link_as_a_place_and_the_block_as_n
     let detail = project_event_detail("acct", &event, true, None, InviteeEditability::ReadOnly);
     assert_eq!(detail.conferences, []);
     assert_eq!(
-        detail.location.as_deref(),
+        detail.display_location.as_deref(),
         Some("http://meet.example.com/a")
     );
     assert_eq!(detail.display_notes, event.description);

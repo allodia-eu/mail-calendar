@@ -129,6 +129,7 @@ impl From<AppEventDetail> for EventDetail {
             location: detail.location,
             notes: detail.notes,
             display_notes: detail.display_notes,
+            display_location: detail.display_location,
             conferences: detail.conferences.into_iter().map(Into::into).collect(),
             reminder_minutes: detail.reminder_minutes,
             recurrence: detail.recurrence.map(Into::into),
