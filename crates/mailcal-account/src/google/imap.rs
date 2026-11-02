@@ -29,7 +29,9 @@ use provider_imap::{GmailFolder, GmailMail, ImapAccount, ImapConfig};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_rustls::client::TlsStream;
 
-use crate::{GraphTokenSource, imap_credentials::OAuthCredentialSource};
+use crate::{
+    GraphTokenSource, connect_log::connect_logger, imap_credentials::OAuthCredentialSource,
+};
 
 /// Gmail's IMAP server, for every Gmail and Workspace account alike.
 const GMAIL_IMAP: &str = "imap.gmail.com";
@@ -104,10 +106,17 @@ impl GmailImapSlot {
         };
         let result = open(&self.address, &self.tokens, &self.tls).await;
         let (next, answer) = decide(result, refused);
-        match &next {
-            Side::Imap(_) => log::info!("gmail: reading mail over IMAP"),
-            Side::Api => log::info!("gmail: reading mail over the API, the IMAP side refused it"),
-            Side::Unknown(_) => {}
+        match (&next, &answer) {
+            (Side::Imap(_), _) => log::info!("gmail: reading mail over IMAP"),
+            (Side::Api, _) => {
+                log::info!("gmail: reading mail over the API, the IMAP side refused it");
+            }
+            (Side::Unknown(refusals), Err(err)) => log::warn!(
+                "gmail: the IMAP side did not open ({:?}, {refusals} of {REFUSALS_BEFORE_API} \
+                 refused sign-ins); the next read tries again",
+                err.class(),
+            ),
+            (Side::Unknown(_), Ok(_)) => {}
         }
         *state = next;
         answer
@@ -146,7 +155,8 @@ async fn open(
         Arc::clone(tokens),
     ));
     let config =
-        ImapConfig::from_credential_source(format!("{GMAIL_IMAP}:993"), GMAIL_IMAP, credentials);
+        ImapConfig::from_credential_source(format!("{GMAIL_IMAP}:993"), GMAIL_IMAP, credentials)
+            .with_connect_observer(connect_logger("imap"));
     let account = ImapAccount::connect(&config, tls.connector()).await?;
     let reader = account
         .gmail()
