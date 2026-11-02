@@ -121,7 +121,25 @@ fn a_browser_that_comes_back_late_reads_what_happened() {
         CallbackOutcome::Cancelled
     ));
 
-    let late = request(address, "/?code=late&state=cancelled");
+    // Nothing is answered before the head is whole: closing with the rest of the request unread
+    // resets the connection, and the browser loses the page.
+    let mut browser = TcpStream::connect(address).expect("connect loopback");
+    browser
+        .write_all(b"GET /?code=late&state=cancelled HTTP/1.1\r\n")
+        .expect("write line");
+    browser
+        .set_read_timeout(Some(Duration::from_millis(300)))
+        .expect("read timeout");
+    assert!(
+        browser.read(&mut [0_u8; 1]).is_err(),
+        "answered a partial head"
+    );
+    browser.set_read_timeout(None).expect("read timeout");
+    browser
+        .write_all(b"Host: 127.0.0.1\r\n\r\n")
+        .expect("write headers");
+    let mut late = String::new();
+    browser.read_to_string(&mut late).expect("read response");
 
     assert!(late.starts_with("HTTP/1.1 200 OK"));
     assert!(late.contains(&escaped(l10n::sign_in_page_ended())));

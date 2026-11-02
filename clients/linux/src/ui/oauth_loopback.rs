@@ -164,9 +164,9 @@ impl OAuthLoopback {
             while Instant::now() < until {
                 match self.listener.accept() {
                     Ok((mut stream, peer)) if peer.ip().is_loopback() => {
-                        let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
-                        let mut request = [0_u8; 1024];
-                        let _ = stream.read(&mut request);
+                        // Closing a socket with the request still unread resets the connection,
+                        // and the browser shows that rather than the page.
+                        let _ = request_head(&mut stream);
                         let _ = write_response(
                             &mut stream,
                             "200 OK",
@@ -266,6 +266,12 @@ pub(super) fn launch_browser(authorization_url: &str, on_error: impl FnOnce() + 
 }
 
 fn request_target(stream: &mut TcpStream) -> Option<String> {
+    let request = request_head(stream)?;
+    parse_request_target(&request).map(str::to_owned)
+}
+
+/// Reads up to the blank line that ends the request head, or `None` when it does not arrive.
+fn request_head(stream: &mut TcpStream) -> Option<Vec<u8>> {
     stream.set_read_timeout(Some(Duration::from_secs(5))).ok()?;
     let mut request = Vec::with_capacity(1024);
     let mut chunk = [0_u8; 1024];
@@ -279,10 +285,7 @@ fn request_target(stream: &mut TcpStream) -> Option<String> {
             break;
         }
     }
-    if request.len() >= MAX_REQUEST_BYTES {
-        return None;
-    }
-    parse_request_target(&request).map(str::to_owned)
+    (request.len() < MAX_REQUEST_BYTES).then_some(request)
 }
 
 fn parse_request_target(request: &[u8]) -> Option<&str> {
