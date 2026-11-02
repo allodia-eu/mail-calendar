@@ -52,7 +52,7 @@ extension ContentView {
     private func perform(_ action: RowAction, on message: MenuMessage) {
         let (account, key) = (message.account, message.key)
         switch action {
-        case .open: openMenuTarget(message)
+        case .open: openAsClicked(message)
         case .openInWindow: openMenuTargetInWindow(message)
         case .reply, .replyAll: beginReply(account, key, all: action == .replyAll)
         case .forward: beginForward(account, key)
@@ -80,9 +80,9 @@ extension ContentView {
         if closesReading { clearOpenedMessage() }
     }
 
-    /// Opens the message an item names: a flat row as itself, a conversation's message by
-    /// expanding its conversation onto it, as selecting the conversation would.
-    private func openMenuTarget(_ target: MenuMessage) {
+    /// Opens a message the core named as clicking its row would: a flat row as itself, a
+    /// conversation's message by expanding its conversation onto it, a draft into its composer.
+    func openAsClicked(_ target: MenuMessage) {
         if let (thread, message) = conversationMessage(target) {
             expandedThreads.insert(threadKey(thread))
             openThreadMessage(thread, message)

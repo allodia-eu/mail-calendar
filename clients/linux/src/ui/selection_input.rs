@@ -5,10 +5,15 @@
 //! beside the bar because none of it is the bar: it is the list's own input, and the one place
 //! that decides what a modified click means.
 
+use std::collections::HashSet;
+
 use adw::prelude::*;
 use mailcal_bindings::BulkAction;
 
-use super::{AppInput, AppModel, selection::SelectMode};
+use super::{
+    AppInput, AppModel, mailbox::ThreadKey, mailbox_display::DisplayRow,
+    mailbox_progressive::ProgressiveRenderer, selection::SelectMode,
+};
 
 /// Reads Ctrl- and Shift-clicks on the message list, which `GtkListBox` cannot give us.
 ///
@@ -17,6 +22,10 @@ use super::{AppInput, AppModel, selection::SelectMode};
 /// *activates*, so it would open the row it was meant to add. Claiming the sequence in the capture
 /// phase stops that handler running at all. A plain click is left to it, having first told the
 /// model to start a fresh selection, so clicking a row still opens it.
+///
+/// A press on a button inside a row is the button's, not a click on the row: opening a row's menu
+/// leaves the selection as it was, so the menu over a selected row reaches the whole selection
+/// (`docs/list-selection.md`, rule 12).
 pub(super) fn selection_gesture(messages: &gtk::ListBox, sender: &relm4::Sender<AppInput>) {
     let click = gtk::GestureClick::new();
     // The primary button only. A `GestureClick` listens to every button by default, so a
@@ -26,7 +35,7 @@ pub(super) fn selection_gesture(messages: &gtk::ListBox, sender: &relm4::Sender<
     click.set_propagation_phase(gtk::PropagationPhase::Capture);
     let input = sender.clone();
     let list = messages.clone();
-    click.connect_pressed(move |gesture, _, _, y| {
+    click.connect_pressed(move |gesture, _, x, y| {
         #[allow(
             clippy::cast_possible_truncation,
             reason = "a widget coordinate fits an i32"
@@ -34,6 +43,9 @@ pub(super) fn selection_gesture(messages: &gtk::ListBox, sender: &relm4::Sender<
         let Some(row) = list.row_at_y(y as i32) else {
             return;
         };
+        if pressed_on_control(&list, x, y) {
+            return;
+        }
         let Ok(index) = usize::try_from(row.index()) else {
             return;
         };
@@ -51,6 +63,21 @@ pub(super) fn selection_gesture(messages: &gtk::ListBox, sender: &relm4::Sender<
         }
     });
     messages.add_controller(click);
+}
+
+/// Whether the press at `x`, `y` in `list` landed on a button inside one of its rows.
+pub(super) fn pressed_on_control(list: &gtk::ListBox, x: f64, y: f64) -> bool {
+    let mut widget = list.pick(x, y, gtk::PickFlags::DEFAULT);
+    while let Some(current) = widget {
+        if current == *list.upcast_ref::<gtk::Widget>() {
+            return false;
+        }
+        if current.is::<gtk::Button>() {
+            return true;
+        }
+        widget = current.parent();
+    }
+    false
 }
 
 /// The message list's keys: Delete (and Backspace) to Trash, Escape to clear, Ctrl+A to select
@@ -88,12 +115,18 @@ pub(super) fn selection_keys(messages: &gtk::ListBox, sender: &relm4::Sender<App
     messages.add_controller(keys);
 }
 
+/// Draws the model's selection, and the conversations it keeps expanded, onto the list.
+pub(super) fn sync_list(messages: &gtk::ListBox, model: &AppModel, drawn: &ProgressiveRenderer) {
+    sync_selection(messages, model);
+    drawn.sync_expansion(messages, &model.expanded_threads);
+}
+
 /// Draws the model's selection onto the list.
 ///
 /// The widget owns no selection: GTK moves its own on every click, and this is the one place that
 /// decides what is selected, so the two cannot drift into disagreeing about which rows an action
 /// would reach.
-pub(super) fn sync_selection(messages: &gtk::ListBox, model: &AppModel) {
+fn sync_selection(messages: &gtk::ListBox, model: &AppModel) {
     let mut index = 0;
     while let Some(widget) = messages.row_at_index(index) {
         let selected = usize::try_from(index)
@@ -106,5 +139,36 @@ pub(super) fn sync_selection(messages: &gtk::ListBox, model: &AppModel) {
             messages.unselect_row(&widget);
         }
         index += 1;
+    }
+}
+
+/// Draws the model's record of which conversations are expanded onto their rows, so leaving a
+/// conversation folds it away (`docs/row-actions.md`, rule 8).
+///
+/// `drawn` is what the list holds, row for row, which is the renderer's record rather than the
+/// snapshot's: while a long list is still being built the two differ, and a row expanded under
+/// another conversation's name would report itself and open that one. A row reports its own
+/// disclosure back, and the model ignores a report of what it already holds, so drawing it here
+/// starts nothing.
+pub(super) fn sync_expansion(
+    messages: &gtk::ListBox,
+    drawn: &[DisplayRow],
+    expanded: &HashSet<ThreadKey>,
+) {
+    for (index, row) in drawn.iter().enumerate() {
+        let Some(thread) = &row.thread else {
+            continue;
+        };
+        let Some(widget) = i32::try_from(index)
+            .ok()
+            .and_then(|index| messages.row_at_index(index))
+            .and_downcast::<adw::ExpanderRow>()
+        else {
+            continue;
+        };
+        let open = expanded.contains(thread);
+        if widget.is_expanded() != open {
+            widget.set_expanded(open);
+        }
     }
 }

@@ -204,7 +204,7 @@ header/session and match an arriving body to it by key alone:
 
 - Android: `ReadingScreen.kt`, `MainActivityCore.kt`, and [`QuoteSeed.kt`](../clients/android/app/src/main/java/eu/allodia/mailcal/QuoteSeed.kt)
 - Apple: `ReadingView.swift`, `MailcalModel.Actions.swift`, and [`QuoteSeed.swift`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/QuoteSeed.swift)
-- Windows: `MailboxModel.Reading.cs`, [`ReadingSelection.cs`](../clients/windows/Mailcal/Services/ReadingSelection.cs), and [`ReadingAdvance.cs`](../clients/windows/Mailcal/Services/ReadingAdvance.cs)
+- Windows: `MailboxModel.Reading.cs` and [`ReadingSelection.cs`](../clients/windows/Mailcal/Services/ReadingSelection.cs)
 - Linux: `ui/model.rs`, `ui.rs`, and [`composer_model.rs`](../clients/linux/src/ui/composer_model.rs)
 
 Opening two accounts whose providers use the same key can leave the key unchanged and accept the

@@ -175,9 +175,14 @@ impl MailcalApp {
     /// switcher), and the calendars and address books that did not connect beside a working
     /// account. Dispatch `Intent::ReportNetworkReachable` to feed the OS reachability signal.
     pub fn connectivity(&self) -> ConnectivitySnapshot {
-        crate::use_outages::with_outages(
+        let snapshot = crate::use_outages::with_outages(
             self.app.connectivity().into(),
             &self.app.every_use_problem(),
+        );
+        crate::gmail_unreachable::with_unreachable_gmail(
+            snapshot,
+            &self.registry.facts(),
+            mailcal_account::gmail_mail_route,
         )
     }
 

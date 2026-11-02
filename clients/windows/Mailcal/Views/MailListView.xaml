@@ -11,14 +11,14 @@
     <UserControl.Resources>
         <local:BoolToVisibilityConverter x:Key="BoolToVisibility" />
 
-        <!-- A single message: full interaction (reply/forward/flag/archive/delete) via the menu, and
-             a configurable swipe action per edge.
+        <!-- A single message: the row menu the core decides (docs/row-actions.md), and a
+             configurable swipe action per edge.
 
              The SwipeControl gesture takes touch, pen, and precision-touchpad input, but NEVER a
              mouse, and plenty of Windows desktops have neither a touch screen nor a precision
              touchpad. So the context menu below is an EQUAL path, not a fallback: Archive and Move
-             to Trash there run through the same deferred dispatch and raise the same undo bar,
-             undo window included. The revealed buttons themselves are built in code from the
+             to Trash on a row's own message there run through the same deferred dispatch and
+             raise the same undo bar, undo window included. The revealed buttons themselves are built in code from the
              persisted setting (MailListView.Swipe.cs), one per edge, the configured action, not a
              fixed pair, so they are attached in OnSwipeControlLoaded rather than declared here. -->
         <DataTemplate x:Key="FlatRowTemplate" x:DataType="vm:MailRow">
@@ -34,34 +34,9 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+                <!-- Drawn as the core answers it, when it opens (MailListView.RowMenu.cs). -->
                 <Grid.ContextFlyout>
-                    <MenuFlyout Opening="OnRowMenuOpening">
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpen(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnOpen" />
-                        <!-- The same thing a double-click does (docs/reading-window.md). It is here
-                             because the gesture is not an affordance for everyone: it cannot be
-                             reached from the keyboard or invoked by a screen reader, so this named
-                             item, not the double-click, is what the capability matrix claims. -->
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpenInWindow(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}"
-                                        Click="OnOpenInWindow" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionReply(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnReply" />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionReplyAll(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnReplyAll" />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionForward(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnForward" />
-                        <MenuFlyoutSeparator />
-                        <MenuFlyoutItem Text="{x:Bind MarkReadText, Mode=OneWay}" Tag="{x:Bind Mode=OneTime}" Click="OnToggleRead" />
-                        <MenuFlyoutItem Text="{x:Bind FlagToggleText, Mode=OneWay}" Tag="{x:Bind Mode=OneTime}" Click="OnToggleFlag" />
-                        <MenuFlyoutSeparator />
-                        <!-- Archive was missing entirely (it existed only on the *thread* menu), so a
-                             mouse-only user could not reach a swipe action bound to it. -->
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnArchive" />
-                        <!-- Shown as the menu opens only when there is somewhere to move to
-                             (MailListView.MoveToFolder.cs, docs/folder-pane.md rule 24). -->
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToFolder(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}"
-                                        AutomationProperties.AutomationId="MoveToFolderItem"
-                                        Click="OnMoveToFolder" />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToTrash(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnDelete" />
-                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionDeletePermanently(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnPermanentlyDelete" />
-                    </MenuFlyout>
+                    <MenuFlyout Opening="OnRowMenuOpening" />
                 </Grid.ContextFlyout>
 
                 <!-- Dot, then the sender's face. The envelope glyph that used to sit here is
@@ -104,19 +79,15 @@
         </DataTemplate>
 
         <!-- A conversation: a header (chevron, subject, count, latest sender) that expands inline
-             into the whole thread as indented sub-rows; its right-click menu holds Move to
-             folder… and Archive conversation. A tap on the header (list ItemClick) toggles it and
-             opens the latest in the reading pane. -->
+             into the whole thread as indented sub-rows. Its right-click menu offers what a
+             message's does, each action reaching the messages docs/row-actions.md says. A tap on
+             the header (list ItemClick) toggles it and opens its newest message in the reading
+             pane. -->
         <DataTemplate x:Key="ThreadRowTemplate" x:DataType="vm:MailRow">
             <StackPanel>
                 <Grid Padding="4,6" ColumnSpacing="10">
                     <Grid.ContextFlyout>
-                        <MenuFlyout Opening="OnRowMenuOpening">
-                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.ThreadArchive(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}" Click="OnArchiveThread" />
-                            <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionMoveToFolder(), Mode=OneTime}" Tag="{x:Bind Mode=OneTime}"
-                                            AutomationProperties.AutomationId="MoveToFolderItem"
-                                            Click="OnMoveToFolder" />
-                        </MenuFlyout>
+                        <MenuFlyout Opening="OnRowMenuOpening" />
                     </Grid.ContextFlyout>
                     <Grid.ColumnDefinitions>
                         <!-- The chevron gutter: same fixed width the flat row reserves, so the glyph
@@ -158,10 +129,16 @@
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    TextTrimming="CharacterEllipsis" MaxLines="1" />
                     </StackPanel>
-                    <!-- Threads carry no flag, so just the paperclip when any message has an attachment. -->
-                    <FontIcon Grid.Column="3" Glyph="&#xE723;" FontSize="14" VerticalAlignment="Center"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              Visibility="{x:Bind AttachmentVisibility, Mode=OneWay}" />
+                    <!-- The flag while any message on it is flagged, which is when its menu offers
+                         Clear flag; then the paperclip when any message has an attachment. -->
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE7C1;" FontSize="14"
+                                  Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                  Visibility="{x:Bind FlagVisibility, Mode=OneWay}" />
+                        <FontIcon Glyph="&#xE723;" FontSize="14"
+                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                  Visibility="{x:Bind AttachmentVisibility, Mode=OneWay}" />
+                    </StackPanel>
                     <TextBlock Grid.Column="4" Text="{x:Bind DateText, Mode=OneWay}" VerticalAlignment="Center"
                                Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -175,14 +152,10 @@
                             <Button Tag="{x:Bind Mode=OneTime}" Click="OnThreadMessageOpen"
                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                     Background="Transparent" BorderThickness="0" Padding="30,4,4,4">
-                                <!-- One message inside a conversation is a message, so it opens in a
-                                     window of its own like any other row (docs/reading-window.md).
-                                     The conversation HEADER is not, and has no such item. -->
+                                <!-- One message inside a conversation is a message, so it has a
+                                     message's own full menu (docs/row-actions.md, rule 5). -->
                                 <Button.ContextFlyout>
-                                    <MenuFlyout>
-                                        <MenuFlyoutItem Text="{x:Bind l10n:L10n.ActionOpenInWindow(), Mode=OneTime}"
-                                                        Tag="{x:Bind Mode=OneTime}" Click="OnThreadMessageOpenInWindow" />
-                                    </MenuFlyout>
+                                    <MenuFlyout Opening="OnRowMenuOpening" />
                                 </Button.ContextFlyout>
                                 <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
@@ -222,9 +195,14 @@
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                    TextTrimming="CharacterEllipsis" MaxLines="1" />
                                     </StackPanel>
-                                    <FontIcon Grid.Column="2" Glyph="&#xE723;" FontSize="12" VerticalAlignment="Center"
-                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                              Visibility="{x:Bind AttachmentVisibility, Mode=OneTime}" />
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <FontIcon Glyph="&#xE7C1;" FontSize="12"
+                                                  Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                  Visibility="{x:Bind FlagVisibility, Mode=OneTime}" />
+                                        <FontIcon Glyph="&#xE723;" FontSize="12"
+                                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                  Visibility="{x:Bind AttachmentVisibility, Mode=OneTime}" />
+                                    </StackPanel>
                                     <TextBlock Grid.Column="3" Text="{x:Bind DateText, Mode=OneTime}" VerticalAlignment="Center"
                                                Style="{StaticResource CaptionTextBlockStyle}"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

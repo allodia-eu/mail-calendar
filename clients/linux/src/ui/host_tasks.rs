@@ -279,7 +279,7 @@ impl AppModel {
         match result {
             Ok(account) => {
                 if let Some(app) = &self.app {
-                    self.snapshot = app.mailbox_list();
+                    self.snapshot.replace(app.mailbox_list());
                 }
                 self.after_account_added(&account, sender.clone());
                 self.try_open_pending_mailto(sender);
@@ -394,7 +394,7 @@ impl AppModel {
             self.credential_repair_failed = None;
             self.notice = None;
             if let Some(app) = &self.app {
-                self.snapshot = app.mailbox_list();
+                self.snapshot.replace(app.mailbox_list());
                 self.connectivity =
                     super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
             }

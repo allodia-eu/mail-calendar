@@ -44,6 +44,7 @@ import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.BulkAction
 import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.EmptyReason
+import uniffi.mailcal_bindings.RowMenu
 import uniffi.mailcal_bindings.SelectedRow
 import uniffi.mailcal_bindings.SendStatus
 import uniffi.mailcal_bindings.SearchHorizon
@@ -81,22 +82,23 @@ internal fun MailboxScreen(
     searchHorizon: SearchHorizon? = null,
     onRefresh: () -> Unit,
     onShowMore: () -> Unit,
-    onOpen: (OpenedMessage) -> Unit,
+    // Opens a message, or resumes it in a composer when its row says it is a draft
+    // (docs/drafts.md).
+    onOpen: (opened: OpenedMessage, draft: Boolean) -> Unit,
     onOpenThread: (ThreadRow) -> Unit,
-    onSetRead: (account: String, key: String, read: Boolean) -> Unit,
+    // What a swipe runs, through its undo window.
     onSetFlagged: (account: String, key: String, flagged: Boolean) -> Unit,
     onDelete: (account: String, key: String) -> Unit,
-    onPermanentlyDelete: (account: String, key: String) -> Unit,
-    inJunkFolder: Boolean,
-    onMarkAsSpam: (account: String, key: String) -> Unit,
-    onMarkAsNotSpam: (account: String, key: String) -> Unit,
     // One action over every selected row, as a single batch in the core: one optimistic hide and
     // one sync per account, rather than one of each per row (docs/list-selection.md, rule 8).
     onActOnSelection: (rows: List<SelectedRow>, action: BulkAction) -> Unit,
-    // Opens the composer on what a row asks for: a reply, a reply to all or a forward of its
-    // message, or, from the compose button, a new message (MainActivityComposer.kt).
+    // Opens the composer from the compose button (MainActivityComposer.kt).
     onCompose: (ComposeOrigin) -> Unit,
-    // Where a row's Move to folder… may file its message, or null to leave the item out.
+    // What a row's menu holds, which the core answers as it opens, and what picking an item runs
+    // (docs/row-actions.md). Defaulted for a test or a screenshot run, whose menus hold nothing.
+    rowMenu: (List<SelectedRow>) -> RowMenu = { RowMenu(emptyList()) },
+    onRowPick: (RowPick) -> Unit = {},
+    // Where a row's Move to folder… may file it, or null to leave the item disabled.
     messageFiling: MessageFiling? = null,
     // The persisted per-direction swipe actions, which live in the Rust core.
     swipe: SwipeSettings,
@@ -143,6 +145,28 @@ internal fun MailboxScreen(
         // because the user is usually part-way through working through the set.
         if (action.removesRows()) selection.clear()
     }
+    // Every row's menu. A batch over the selection runs the bar's own path, which lets go of the
+    // rows a move takes.
+    val menus = RowMenus(
+        menu = rowMenu,
+        rowsFor = { row ->
+            val selected = selection.selectedRows()
+            if (row in selected) selected else listOf(row)
+        },
+        filing = messageFiling?.let { filing ->
+            MessageFiling(filing.targets) { moved, account, folder ->
+                filing.move(moved, account, folder)
+                if (moved == selection.selectedRows()) selection.clear()
+            }
+        },
+        onPick = { pick ->
+            if (pick is RowPick.Rows && pick.rows == selection.selectedRows()) {
+                actOnSelection(pick.action)
+            } else {
+                onRowPick(pick)
+            }
+        },
+    )
 
     SwipeUndoEffect(
         pending = swipeUndo.pending,
@@ -185,6 +209,7 @@ internal fun MailboxScreen(
                 MailSelectionBar(
                     selection = selection,
                     rows = visibleRows,
+                    actions = SelectionBarActions.of(rowMenu(selection.selectedRows())),
                     onAct = actOnSelection,
                 )
             } else {
@@ -279,21 +304,13 @@ internal fun MailboxScreen(
                             is SnapshotRow.Flat -> SwipeableFlatMessageRow(
                                 message = row.row,
                                 activeZoneId = timeZone?.active,
-                                inJunkFolder = inJunkFolder,
                                 swipe = swipe,
                                 onSwipe = onSwipe,
                                 selected = selection.contains(row),
                                 selecting = selection.active,
                                 onToggleSelect = { selection.toggle(row) },
                                 onOpen = onOpen,
-                                onSetRead = onSetRead,
-                                onSetFlagged = onSetFlagged,
-                                onDelete = onDelete,
-                                onPermanentlyDelete = onPermanentlyDelete,
-                                onMarkAsSpam = onMarkAsSpam,
-                                onMarkAsNotSpam = onMarkAsNotSpam,
-                                onCompose = onCompose,
-                                messageFiling = messageFiling,
+                                menus = menus,
                             )
                             is SnapshotRow.Thread -> ThreadConversationRow(
                                 thread = row.row,
@@ -301,9 +318,10 @@ internal fun MailboxScreen(
                                 selected = selection.contains(row),
                                 selecting = selection.active,
                                 onToggleSelect = { selection.toggle(row) },
-                                // Open the conversation's latest message; the reading screen shows
-                                // the older ones as a strip that opens each on tap.
+                                // Open the conversation's newest message; the reading screen shows
+                                // the others as a strip that opens each on tap.
                                 onOpenThread = { onOpenThread(row.row) },
+                                menus = menus,
                             )
                         }
                     }

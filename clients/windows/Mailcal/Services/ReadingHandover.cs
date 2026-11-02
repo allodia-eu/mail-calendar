@@ -9,8 +9,8 @@
 // that outruns the window still falls back to the loading state, so nothing waits behind a message
 // that is no longer the one being read.
 //
-// **Pure BCL on purpose, no WinUI, no view models.** Same reason as ReadingAdvance and
-// ReadingSelection: Mailcal.Tests links this file and gates the rule on every PR.
+// **Pure BCL on purpose, no WinUI, no view models.** Same reason as ReadingSelection: Mailcal.Tests
+// links this file and gates the rule on every PR.
 
 using System;
 

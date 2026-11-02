@@ -2,8 +2,9 @@
 //
 // A phone has no modifier keys, so this is a mode: a long press enters it, a tap then toggles a
 // row instead of opening it, and Back leaves it. The rules live in [MailSelectionState], a plain
-// class rather than a tangle of `remember`s in MailboxScreen, so what a selection survives and
-// which action its bar offers are unit-testable without composing a screen.
+// class rather than a tangle of `remember`s in MailboxScreen, so what a selection survives is
+// unit-testable without composing a screen; what its bar offers is the core's
+// ([SelectionBarActions]).
 package eu.allodia.mailcal
 
 import androidx.compose.runtime.getValue
@@ -38,7 +39,7 @@ internal data class SelectionKey(val account: String, val id: String, val thread
 }
 
 /**
- * The message list's selection mode: which rows are picked, and what the bar over them offers.
+ * The message list's selection mode: which rows are picked.
  *
  * Holds Compose snapshot state so a screen reads [keys] directly, but composes nothing itself.
  */
@@ -87,32 +88,6 @@ internal class MailSelectionState {
 
     /** The selected rows in the shape the core's batched intent takes. */
     fun selectedRows(): List<SelectedRow> = keys.map(SelectionKey::selectedRow)
-
-    /**
-     * The action the bar's single read button runs: the one that changes something, so any unread
-     * row makes it "mark read" (docs/list-selection.md, rule 5).
-     */
-    fun readAction(rows: List<SnapshotRow>): BulkAction =
-        if (selected(rows).any(::isUnread)) BulkAction.MARK_READ else BulkAction.MARK_UNREAD
-
-    /**
-     * The action the bar's single flag button runs, on the same terms. A conversation carries no
-     * flag of its own, so it counts as unflagged: flagging is what its rows can be asked for.
-     */
-    fun flagAction(rows: List<SnapshotRow>): BulkAction =
-        if (selected(rows).any(::isUnflagged)) BulkAction.FLAG else BulkAction.UNFLAG
-
-    private fun selected(rows: List<SnapshotRow>): List<SnapshotRow> = rows.filter(::contains)
-
-    private fun isUnread(row: SnapshotRow): Boolean = when (row) {
-        is SnapshotRow.Flat -> row.row.unread
-        is SnapshotRow.Thread -> row.row.unreadCount > 0u
-    }
-
-    private fun isUnflagged(row: SnapshotRow): Boolean = when (row) {
-        is SnapshotRow.Flat -> !row.row.flagged
-        is SnapshotRow.Thread -> true
-    }
 }
 
 /**

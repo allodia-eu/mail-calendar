@@ -156,7 +156,7 @@ impl AppModel {
             if matches!(outcome, ImapOutcome::Added(_))
                 && let Some(app) = self.app.clone()
             {
-                self.snapshot = app.mailbox_list();
+                self.snapshot.replace(app.mailbox_list());
                 self.sync_after_account_change(sender);
             }
             return;

@@ -1,34 +1,12 @@
-// Where the reading pane lands when the message in it leaves the folder.
-//
-// Archiving or deleting from the reading view used to empty the pane, so working through a mailbox
-// meant going back to the list and clicking the next message every single time. It now opens the
-// next one down, and, when the message was the last in the list, the one above it, so clearing out
-// the bottom of a folder doesn't dump the reader on a placeholder with a full mailbox behind it.
-//
-// The choice is a pure function over the rows the list is showing, deliberately: it is the whole of
-// the behaviour, and a unit test can pin it without composing a view or touching the core.
+// Where the reading pane goes when the message in it leaves the list (`docs/reading-actions.md`,
+// "Where the pane goes next"). Which message that is is the core's (`stop_after_removing`); this
+// file asks it and opens the answer as clicking its row would, so a draft resumes in a composer.
 
 import MailcalBindings
 import SwiftUI
 
-/// The message to open once `removed` is gone: the next one down, else the one above, else nothing.
-///
-/// `stops` is the list **as it is on screen right now**, so this must be called *before* the
-/// archive/delete is dispatched, while `removed` is still in it. A `removed` that isn't in `stops`
-/// (the folder changed under the reader, say) answers `nil`, which empties the pane as before.
-func messageAfterRemoving(_ removed: OpenedMessage, from stops: [OpenedMessage]) -> OpenedMessage? {
-    guard
-        let index = stops.firstIndex(where: {
-            $0.account == removed.account && $0.key == removed.key
-        })
-    else { return nil }
-    if stops.indices.contains(index + 1) { return stops[index + 1] }
-    if stops.indices.contains(index - 1) { return stops[index - 1] }
-    return nil
-}
-
 extension ContentView {
-    /// Whether a reading **pane** is on screen beside the list, which is what makes advancing sensible.
+    /// Whether a reading **pane** is on screen beside the list, which is what makes moving on sensible.
     ///
     /// On the iPhone the reading view is a pushed screen, not a pane: clearing pops back to the list,
     /// which is the whole window and the right place to be. macOS and the iPad's regular width both
@@ -36,7 +14,7 @@ extension ContentView {
     ///
     /// The test is the **size class**, the same one `baseLayout` branches on, not the device idiom.
     /// An iPad in a narrow multitasking split reads as compact and gets the iPhone layout, so it has
-    /// no pane to advance in either. (Also used by the showcase driver, Mailcal.Showcase.swift.)
+    /// no pane to move on in either. (Also used by the showcase driver, Mailcal.Showcase.swift.)
     var hasReadingPane: Bool {
         #if os(macOS)
         return true
@@ -45,39 +23,30 @@ extension ContentView {
         #endif
     }
 
-    /// The messages the list is showing, in the order they appear, a flat row is itself, an expanded
-    /// conversation contributes its own messages in place of its header, and a collapsed one stands
-    /// for the single message its row summarises (the same one tapping it would open).
-    var readableStops: [OpenedMessage] {
-        visibleRows.flatMap { row -> [OpenedMessage] in
-            switch row {
-            case .flat(let message):
-                return [opened(message)]
-            case .thread(let thread):
-                if expandedThreads.contains(threadKey(thread)) {
-                    return thread.messages.map { opened($0, subject: thread.subject) }
-                }
-                let representative = thread.messages.first { $0.key == thread.latestKey }
-                    ?? thread.messages.first
-                return representative.map { [opened($0, subject: thread.subject)] } ?? []
-            }
-        }
-    }
-
-    /// Where the pane should land after `opened` leaves the folder, read **before** dispatching the
-    /// action, so the answer doesn't depend on whether the core has re-projected the list yet.
-    func stopAfterRemoving(_ opened: OpenedMessage) -> OpenedMessage? {
+    /// Where the pane lands after `opened` leaves the list, asked **before** the action is
+    /// dispatched, while `opened` is still listed. `nil` where there is no pane to move on in.
+    func stopAfterRemoving(_ opened: OpenedMessage) -> MenuMessage? {
         guard hasReadingPane else { return nil }
-        return messageAfterRemoving(opened, from: readableStops)
+        let expanded = expandedConversations.map {
+            SelectedRow.thread(account: $0.account, threadId: $0.threadId)
+        }
+        return model.stopAfterRemoving(opened.account, opened.key, expanded: expanded)
     }
 
-    /// Opens what `stopAfterRemoving` chose, or empties the pane when there was nothing left.
-    func settleReadingPane(_ next: OpenedMessage?) {
+    /// Opens what `stopAfterRemoving` answered as clicking its row would, or empties the pane when
+    /// nothing was left.
+    ///
+    /// A click keeps only the conversation it lands in expanded, which `openAsClicked` expands
+    /// again. A draft resumes in a composer and leaves the pane empty behind it: the message the
+    /// pane held has left the list.
+    func settleReadingPane(_ next: MenuMessage?) {
         guard let next else {
             clearOpenedMessage()
             return
         }
-        openNow(next)
+        expandedThreads.removeAll()
+        if next.kind == .draft { clearOpenedMessage() }
+        openAsClicked(next)
     }
 
     func opened(_ message: FlatRow) -> OpenedMessage {
@@ -102,8 +71,7 @@ extension ContentView {
         )
     }
 
-    /// Records the header and asks the core for the body, the unguarded open, shared by the row taps
-    /// and by the auto-advance (which has no draft to guard: the pane it is replacing is a reader).
+    /// Records the header and asks the core for the body: the unguarded open behind the row taps.
     func openNow(_ message: OpenedMessage) {
         setOpenedMessage(message)
         model.openMessage(message.account, message.key)

@@ -24,6 +24,7 @@ pub(super) mod sign_in_section;
 pub(super) use account_rows::{LinkPicker, link_pickers, outage_line, use_name};
 mod account_servers;
 pub(super) mod account_sync_mode;
+mod account_sync_technology;
 pub(super) mod accounts;
 pub(super) mod allodia;
 pub(super) mod allodia_sync;

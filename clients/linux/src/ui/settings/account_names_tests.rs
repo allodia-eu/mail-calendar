@@ -36,6 +36,7 @@ fn mailbox(distinction: Option<AccountDistinction>) -> AccountEntry {
         endpoints: None,
         separate_server: None,
         distinction,
+        mail_sync: None,
     }
 }
 

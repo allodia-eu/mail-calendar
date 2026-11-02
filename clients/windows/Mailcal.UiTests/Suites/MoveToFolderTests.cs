@@ -2,7 +2,7 @@
 // rule 12).
 //
 // WHY HERE. Which folders the picker lists is FolderActions', pinned in Mailcal.Tests, but the
-// item's visibility is set by the flyout's Opening handler and the move by its Click, and neither is
+// item is drawn by the flyout's Opening handler and the move run by its Click, and neither is
 // linked into that assembly: an unwired handler leaves the item missing, or present and inert, with
 // every unit test green. The harness moves the message on a real server and the list shows it.
 //

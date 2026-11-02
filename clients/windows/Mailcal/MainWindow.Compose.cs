@@ -150,7 +150,7 @@ public sealed partial class MainWindow
         TeardownComposer();
 
         var composer = new ComposerView();
-        composer.Init(Model, context, CloseComposer);
+        composer.Init(Model, context, ClosedByComposer);
         _composer = composer;
         ComposerHost.Content = composer;
         ComposerHost.Visibility = Visibility.Visible;
@@ -180,6 +180,15 @@ public sealed partial class MainWindow
         ComposerHost.Visibility = Visibility.Collapsed;
         ReadingPanel.Visibility = Visibility.Visible;
         ReadingPanel.ResumeBody();
+    }
+
+    // The composer closed itself (Send, Discard), so the column is the reading pane's again and the
+    // list's highlight goes back to the message it shows. A draft's composer moved the highlight to
+    // the draft's row without opening anything in the pane (MailListView.SyncSelectionAfterReconcile).
+    private void ClosedByComposer()
+    {
+        CloseComposer();
+        MailView.FollowReadingPane();
     }
 
     private void TeardownComposer()

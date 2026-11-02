@@ -19,6 +19,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use engine_api::EmailAddress;
 use engine_core::{error::FailureClass, ids::AccountId, time::CalendarDate};
 use engine_provider::{
     Capabilities, IdentityControls, Provider, ProviderError, ProviderResult, ReportControls,
@@ -32,11 +33,13 @@ use time::Date;
 mod calendar;
 mod config;
 mod contacts;
+mod imap;
 mod mail_provider;
 
 pub use calendar::connect_google_calendar_provider;
 pub use config::{GoogleConfig, fetch_google_primary_address, load_google_str};
 pub use contacts::connect_google_contact_providers;
+pub use imap::{GmailMailRoute, gmail_mail_route, on_gmail_mail_route_change};
 
 use crate::{AccountError, GraphTokenSource, TokenSink, tls::tls_with};
 
@@ -91,6 +94,12 @@ pub(crate) struct RefreshingGmailProvider {
     /// The built delegate, cached by the access token it was built with, so its reqwest
     /// connection pool is reused across requests; rebuilt only when the token refreshes.
     cached: Mutex<Option<(String, Arc<GmailProvider>)>>,
+    /// The delegate the mail sync and body reads go through: [`cached`](Self::cached)'s, with
+    /// the account's IMAP side attached when it has one. Kept apart so that IMAP being out of
+    /// reach fails only the reads, never a send or a write, which go over the API.
+    cached_reader: Mutex<Option<(String, Arc<GmailProvider>)>>,
+    /// The account's mail over IMAP, shared by every provider of the account (`imap`).
+    imap: Arc<imap::GmailImapSlot>,
 }
 
 impl RefreshingGmailProvider {
@@ -100,8 +109,11 @@ impl RefreshingGmailProvider {
         tokens: Arc<GraphTokenSource>,
         since: Option<Date>,
         tls: TlsClientConfig,
+        address: &EmailAddress,
     ) -> Self {
         Self {
+            imap: imap::GmailImapSlot::shared(&address.email, &tokens, &tls),
+            cached_reader: Mutex::new(None),
             tokens,
             capabilities: Capabilities::none()
                 .with_mail()
@@ -134,15 +146,30 @@ impl RefreshingGmailProvider {
     }
 
     /// Returns the delegate `GmailProvider`, reusing the cached one while the access token is
-    /// unchanged and rebuilding it only when a refresh produced a new token.
+    /// unchanged and rebuilding it only when a refresh produced a new token. It reads over the
+    /// API; [`reading_delegate`](Self::reading_delegate) is the one the mail sync uses.
     async fn delegate(&self) -> ProviderResult<Arc<GmailProvider>> {
+        self.built(&self.cached, false).await
+    }
+
+    /// The delegate the mail sync and body reads go through: over IMAP when the account has
+    /// that side, else over the API. Fails, to be tried again, while IMAP cannot be reached.
+    async fn reading_delegate(&self) -> ProviderResult<Arc<GmailProvider>> {
+        self.built(&self.cached_reader, true).await
+    }
+
+    async fn built(
+        &self,
+        cache: &Mutex<Option<(String, Arc<GmailProvider>)>>,
+        reads: bool,
+    ) -> ProviderResult<Arc<GmailProvider>> {
         let token = self.tokens.access_token().await.map_err(|err| match err {
             AccountError::SigninRejected(detail) => ProviderError::authentication(detail),
             other => ProviderError::retryable(other.to_string()),
         })?;
         {
-            let cache = self.cached.lock().expect("gmail delegate mutex poisoned");
-            if let Some((cached_token, provider)) = cache.as_ref()
+            let cached = cache.lock().expect("gmail delegate mutex poisoned");
+            if let Some((cached_token, provider)) = cached.as_ref()
                 && *cached_token == token
             {
                 return Ok(Arc::clone(provider));
@@ -156,20 +183,27 @@ impl RefreshingGmailProvider {
         )
         .map_err(ProviderError::from)?;
         let mut gmail = GmailProvider::new(client);
+        if reads && let Some(reader) = self.imap.reader().await? {
+            gmail = gmail.with_imap(reader);
+        }
         if let Some(date) = self.since.and_then(calendar_date) {
             gmail = gmail.with_since(date);
         }
         let provider = Arc::new(gmail);
-        *self.cached.lock().expect("gmail delegate mutex poisoned") =
+        *cache.lock().expect("gmail delegate mutex poisoned") =
             Some((token, Arc::clone(&provider)));
         Ok(provider)
     }
 
-    /// Drops the cached delegate so the next [`delegate`](Self::delegate) rebuilds a fresh
-    /// client + connection pool; used after a retryable transport failure whose keep-alive
-    /// socket is presumed dead (the token is unchanged, so this only rebuilds the client).
+    /// Drops the cached delegates so the next call rebuilds a fresh client + connection pool;
+    /// used after a retryable transport failure whose keep-alive socket is presumed dead (the
+    /// token is unchanged, so this only rebuilds the client).
     fn invalidate_delegate(&self) {
         *self.cached.lock().expect("gmail delegate mutex poisoned") = None;
+        *self
+            .cached_reader
+            .lock()
+            .expect("gmail delegate mutex poisoned") = None;
     }
 }
 
@@ -196,12 +230,13 @@ pub(super) fn calendar_date(date: Date) -> Option<CalendarDate> {
 pub async fn connect_google_mail_providers(
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
+    address: &EmailAddress,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
     let tls = tls_with(&[])?;
     // Cheap credential probe: refresh once so a dead refresh token fails here.
     let _ = tokens.access_token().await?;
     Ok(vec![Box::new(RefreshingGmailProvider::new(
-        tokens, since, tls,
+        tokens, since, tls, address,
     ))])
 }
 
@@ -216,9 +251,12 @@ pub async fn connect_google_mail_providers(
 pub fn connect_google_folder(
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
+    address: &EmailAddress,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let tls = tls_with(&[])?;
-    Ok(Box::new(RefreshingGmailProvider::new(tokens, since, tls)))
+    Ok(Box::new(RefreshingGmailProvider::new(
+        tokens, since, tls, address,
+    )))
 }
 
 #[cfg(test)]
@@ -227,6 +265,10 @@ mod tests {
     use mailcal_oauth::{GOOGLE_SCOPES, OAuthClient, OAuthProviderConfig};
 
     use super::*;
+
+    fn alice() -> EmailAddress {
+        EmailAddress::new("alice@example.com")
+    }
 
     /// A Google token source pointed at a dummy provider: no network is performed by the
     /// constructors under test (`connect_google_folder` only builds the wrapper).
@@ -256,7 +298,7 @@ mod tests {
         };
 
         let (endpoint, _hits) = dead_grant_token_endpoint();
-        let provider = connect_google_folder(source_at(endpoint, None), None).unwrap();
+        let provider = connect_google_folder(source_at(endpoint, None), None, &alice()).unwrap();
         assert_drafts_reach_the_delegate(provider.as_ref()).await;
     }
 
@@ -274,7 +316,7 @@ mod tests {
     fn connect_google_folder_binds_a_writable_account_global_mail_provider() {
         let source = google_source();
         let account = AccountId::try_from("alice@gmail.com@mail.google.com").unwrap();
-        let provider = connect_google_folder(source, None).unwrap();
+        let provider = connect_google_folder(source, None, &alice()).unwrap();
         // Mail read/sync, and the account-global message scope (no folder binding).
         assert!(provider.connection_info().capabilities.mail());
         assert!(!provider.connection_info().capabilities.calendars());

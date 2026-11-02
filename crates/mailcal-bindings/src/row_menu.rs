@@ -108,6 +108,31 @@ impl MailcalApp {
         let rows: Vec<RowRef> = rows.into_iter().filter_map(row_ref).collect();
         self.app.row_menu(&rows).into()
     }
+
+    /// The message the reading pane opens once `account`'s `key` leaves the list: the next one
+    /// down, else the one above, else none (`docs/reading-actions.md`, "Where the pane goes next").
+    /// It is the message clicking that row opens, so a client opens it exactly as a click would: a
+    /// `Draft` resumes in a composer. `expanded` names the conversation rows the list shows
+    /// expanded, as `SelectedRow::Thread`; a message row there is ignored. Asked before the archive
+    /// or delete is dispatched, while `key` is still listed.
+    pub fn stop_after_removing(
+        &self,
+        account: String,
+        key: String,
+        expanded: Vec<SelectedRow>,
+    ) -> Option<MenuMessage> {
+        let removed = mailcal_app::MessageRef::from_parts(&account, key)?;
+        let expanded: Vec<mailcal_app::ThreadRef> = expanded
+            .into_iter()
+            .filter_map(|row| match row_ref(row)? {
+                RowRef::Thread(thread) => Some(thread),
+                RowRef::Message(_) => None,
+            })
+            .collect();
+        self.app
+            .stop_after_removing(&removed, &expanded)
+            .map(MenuMessage::from)
+    }
 }
 
 /// A selected row as the core names it; a malformed one is left out of the menu.

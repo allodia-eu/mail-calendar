@@ -176,7 +176,7 @@ impl AppModel {
             account: Some(account),
         });
         if let Some(app) = &self.app {
-            self.snapshot = app.mailbox_list();
+            self.snapshot.replace(app.mailbox_list());
         }
         self.sync_after_account_change(sender);
     }
@@ -210,7 +210,7 @@ impl AppModel {
     /// account is stored, so it travels like any other.
     fn adopt_abandoned(&mut self, added: bool, sender: relm4::Sender<AppInput>) {
         if added && let Some(app) = self.app.clone() {
-            self.snapshot = app.mailbox_list();
+            self.snapshot.replace(app.mailbox_list());
             self.sync_after_account_change(sender);
         }
     }

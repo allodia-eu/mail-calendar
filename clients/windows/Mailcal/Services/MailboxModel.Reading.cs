@@ -93,9 +93,9 @@ public sealed partial class MailboxModel
 
     /// <summary>
     /// Toggles a conversation's inline expansion (revealing its whole thread as sub-rows).
-    /// Expanding also opens its latest message in the reading pane, the desktop 3-pane behaviour,
-    /// like macOS; collapsing leaves the pane as-is. <paramref name="openLatest"/> false leaves the
-    /// opening to the caller, which in Drafts opens that message into its composer instead.
+    /// Expanding also opens its <see cref="Representative"/> in the reading pane, the desktop
+    /// 3-pane behaviour, like macOS; collapsing leaves the pane as-is. <paramref name="openLatest"/>
+    /// false leaves the opening to the caller, which opens a draft into its composer instead.
     /// </summary>
     public void ToggleThread(MailRow row, bool openLatest = true)
     {
@@ -103,7 +103,15 @@ public sealed partial class MailboxModel
         if (row.IsExpanded)
         {
             _expandedThreads.Add(row.Id);
-            if (openLatest)
+            if (!openLatest)
+            {
+                return;
+            }
+            if (Representative(row) is { } message)
+            {
+                OpenThreadMessage(message);
+            }
+            else
             {
                 OpenMessage(row);
             }
@@ -114,28 +122,22 @@ public sealed partial class MailboxModel
         }
     }
 
+    /// <summary>
+    /// The message selecting a conversation opens: its newest, whatever its kind, a reply filed in
+    /// Sent or a draft included (docs/row-actions.md, rule 2), or in Drafts the newest draft, which
+    /// is the one its row summarises (docs/drafts.md).
+    /// </summary>
+    internal ThreadMessageItem? Representative(MailRow row) =>
+        ConversationExpansion.Representative(
+            row.Messages.Select(m => m.Key).ToList(), row.LatestKey, ShowingDrafts) is { } at
+            ? row.Messages[at]
+            : null;
+
     /// <summary>Opens one message of an expanded conversation (a sub-row) in the reading pane.</summary>
     public void OpenThreadMessage(ThreadMessageItem message)
     {
         OpenedMessage = ThreadMessageHeader(message);
         OpenKey(message.Account, message.Key);
-    }
-
-    /// <summary>
-    /// Archives a conversation, the core moves its received side to Archive and leaves any Sent
-    /// copies in Sent, then tidies the UI: collapse it and, if the open message was part of it,
-    /// clear the reading pane (its row is leaving the folder).
-    /// </summary>
-    public void ArchiveConversation(MailRow row)
-    {
-        ArchiveThread(row.Account, row.Key);
-        _expandedThreads.Remove(row.Id);
-        row.IsExpanded = false;
-        if (OpenedMessage is { } opened
-            && row.Messages.Any(m => m.Account == opened.Account && m.Key == opened.Key))
-        {
-            CloseReading();
-        }
     }
 
     /// <summary>
@@ -203,83 +205,54 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>
-    /// The messages the list is showing, in the order they appear, a flat row is itself, an
-    /// expanded conversation contributes its own messages in place of its header, and a collapsed
-    /// one stands for the single message its row summarises (the same one clicking it would open).
+    /// Where the reading pane goes once <paramref name="opened"/> leaves the list: the message the
+    /// core names (<c>stop_after_removing</c>, docs/reading-actions.md, "Where the pane goes next"),
+    /// which is the message clicking that row opens, or <c>null</c> when nothing is left.
     /// </summary>
     /// <remarks>
-    /// The view-facing half of the auto-advance: it reads the row view models, so it lives here
-    /// rather than in <see cref="ReadingAdvance"/>, which Mailcal.Tests links and must keep
-    /// WinUI-free. Mirrors Apple's <c>readableStops</c>.
+    /// Asked <em>before</em> the archive or delete is dispatched, while the message is still listed.
+    /// Which conversations are expanded is this list's to know, so it names them.
     /// </remarks>
-    private List<MessageStop> ReadableStops()
+    internal MenuMessage? StopAfterRemoving(OpenedMessage opened)
     {
-        var stops = new List<MessageStop>();
-        foreach (var row in Rows)
+        var expanded = SelectionActions.Rows(Rows.Where(row => row.IsThread && row.IsExpanded));
+        try
         {
-            if (row.IsThread && row.IsExpanded)
-            {
-                foreach (var message in row.Messages)
-                {
-                    stops.Add(new MessageStop(
-                        message.Account,
-                        message.Key,
-                        message.Subject,
-                        message.FromText,
-                        message.Avatar,
-                        message.FullDateText,
-                        message.RawSubject));
-                }
-                continue;
-            }
-
-            // A conversation row has no key of its own; LatestKey is what a click opens.
-            stops.Add(new MessageStop(
-                row.Account, row.LatestKey, row.Title, row.Subtitle, row.Avatar, row.FullDateText,
-                row.RawSubject));
+            return _app?.StopAfterRemoving(opened.Account, opened.Key, expanded);
         }
-
-        return stops;
+        catch (Exception ex)
+        {
+            Log.Warn($"reading stop failed: {ex.GetType().Name}");
+            return null;
+        }
     }
 
     /// <summary>
-    /// Where the reading pane should land after <paramref name="opened"/> leaves the folder: the
-    /// next message down, or the one above it at the end of the list (<see cref="ReadingAdvance"/>).
+    /// How the pane reads <paramref name="stop"/>, exactly as clicking its row would: a flat row
+    /// opens its message, and a message of a conversation expands that conversation and opens it.
+    /// <c>null</c> when the list no longer shows it.
     /// </summary>
-    /// <remarks>
-    /// Read <em>before</em> the archive/delete is dispatched, so the answer doesn't depend on
-    /// whether the core has re-projected the list yet.
-    /// </remarks>
-    public MessageStop? StopAfterRemoving(OpenedMessage opened) =>
-        ReadingAdvance.Next(
-            new MessageStop(
-                opened.Account, opened.Key, opened.Subject, opened.From, opened.Avatar,
-                opened.DateText, opened.RawSubject),
-            ReadableStops());
-
-    /// <summary>
-    /// Opens what <see cref="StopAfterRemoving"/> chose, or empties the pane when the folder had
-    /// nothing left to read.
-    /// </summary>
-    public void SettleReadingPane(MessageStop? next)
+    internal Action? ReadStop(MenuMessage stop)
     {
-        if (next is not { } stop)
+        foreach (var row in Rows.Where(row => row.Account == stop.Account))
         {
-            CloseReading();
-            return;
+            if (!row.IsThread && row.Key == stop.Key)
+            {
+                return () => OpenMessage(row);
+            }
+            if (row.IsThread && row.Messages.FirstOrDefault(m => m.Key == stop.Key) is { } message)
+            {
+                return () =>
+                {
+                    if (!row.IsExpanded)
+                    {
+                        ToggleThread(row, openLatest: false);
+                    }
+                    OpenThreadMessage(message);
+                };
+            }
         }
-
-        OpenedMessage = new OpenedMessage
-        {
-            Account = stop.Account,
-            Key = stop.Key,
-            Subject = stop.Subject,
-            RawSubject = stop.RawSubject,
-            From = stop.From,
-            Avatar = stop.Avatar,
-            DateText = stop.DateText,
-        };
-        OpenKey(stop.Account, stop.Key);
+        return null;
     }
 
     /// <summary>

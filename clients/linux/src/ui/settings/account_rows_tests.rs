@@ -39,6 +39,7 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
         endpoints: None,
         separate_server: None,
         distinction: None,
+        mail_sync: None,
     }
 }
 

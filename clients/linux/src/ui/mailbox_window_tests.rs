@@ -8,8 +8,13 @@
 //! cannot be fed a synthetic `GdkEvent` from here, and the assertion worth making is not that GTK
 //! counts presses: it is that the second one, and only the second one, asks for a window.
 
+use std::rc::Rc;
+
 use adw::prelude::*;
-use mailcal_bindings::{FlatRow, SnapshotRow, ThreadMessage, ThreadRow};
+use mailcal_bindings::{
+    FlatRow, MenuMessage, MessageKind, RowAction, RowMenu, RowMenuItem, RowMenuSection,
+    SelectedRow, ThreadMessage, ThreadRow,
+};
 
 use super::{RowMenus, flat_row, thread_message_row, thread_row};
 use crate::{
@@ -17,7 +22,7 @@ use crate::{
     ui::{
         AppInput,
         mail_actions::tests::{button, popover_content},
-        model::OpenedMessage,
+        row_menu::RowPick,
     },
 };
 
@@ -127,7 +132,13 @@ pub(crate) fn a_second_click_asks_for_a_window_and_a_first_click_asks_for_nothin
 pub(crate) fn a_conversations_messages_open_in_windows_and_its_header_does_not() {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let thread = conversation();
-    let sub_row = thread_message_row(&thread, &thread_message(), "UTC", &sender);
+    let sub_row = thread_message_row(
+        &thread,
+        &thread_message(),
+        &RowMenus::default(),
+        "UTC",
+        &sender,
+    );
     assert_eq!(
         pressed(sub_row.upcast_ref::<gtk::Widget>(), 2, &sender, &receiver),
         ["window message-b"]
@@ -142,25 +153,51 @@ pub(crate) fn a_conversations_messages_open_in_windows_and_its_header_does_not()
 
 /// The gesture is not reachable from the keyboard and cannot be invoked by a screen reader, so
 /// every message row names the same thing on its menu; that item, not the gesture, is what the
-/// capability matrix claims.
+/// capability matrix claims. The core puts it on a desktop's menu; each message row, a flat one
+/// and one inside a conversation, draws that menu and opens the window it names.
 pub(crate) fn every_message_row_offers_the_window_by_name() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let row = message_row();
-    let opened = OpenedMessage::from_row(&SnapshotRow::Flat { row: row.clone() });
-
-    let anchor = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     let menus = RowMenus::default();
-    for menu in [
-        crate::ui::mail_actions_menu::message_menu_button(&anchor, &row, &opened, &menus, &sender),
-        crate::ui::mail_actions_menu::message_window_menu_button(&anchor, &opened, &sender),
-    ] {
-        let content = popover_content(menu.upcast_ref::<gtk::Widget>()).expect("the row's menu");
-        button(&content, l10n::action_open_in_window())
+    menus.source.answer_with(Rc::new(|rows| {
+        let Some(SelectedRow::Message { account, key }) = rows.into_iter().next() else {
+            return RowMenu::default();
+        };
+        let target = MenuMessage {
+            account,
+            key,
+            kind: MessageKind::Received,
+        };
+        RowMenu {
+            sections: vec![RowMenuSection {
+                items: vec![RowMenuItem {
+                    action: RowAction::OpenInWindow,
+                    enabled: true,
+                    target: Some(target),
+                }],
+            }],
+        }
+    }));
+    let thread = conversation();
+    let rows: [gtk::Widget; 2] = [
+        flat_row(&message_row(), &menus, "UTC", &sender).upcast(),
+        thread_message_row(&thread, &thread_message(), &menus, "UTC", &sender).upcast(),
+    ];
+    for (row, key) in rows.iter().zip(["message-a", "message-b"]) {
+        let content = popover_content(row)
+            .and_downcast::<gtk::Box>()
+            .expect("the row's menu");
+        let row = SelectedRow::Message {
+            account: "account-a".to_owned(),
+            key: key.to_owned(),
+        };
+        crate::ui::mail_actions_menu::fill(&content, &row, &menus, &sender);
+        button(content.upcast_ref(), l10n::action_open_in_window())
             .expect("every message row names the window on its menu")
             .emit_clicked();
         assert!(matches!(
             receiver.recv_sync(),
-            Some(AppInput::OpenMessageInWindow(message)) if message.key == "message-a"
+            Some(AppInput::RowMenuPick(pick))
+                if matches!(&*pick, RowPick::OpenInWindow(message) if message.key == key)
         ));
     }
 }

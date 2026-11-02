@@ -116,6 +116,7 @@ pub(crate) fn entries(
                 problems.get(&account.id).copied().unwrap_or_default(),
             ),
             distinction: told[index].clone(),
+            mail_sync: None,
         })
         .collect()
 }

@@ -127,6 +127,8 @@ icons! {
     SETTINGS_ADVANCED = "mailcal-wrench-symbolic";
     SETTINGS_DIAGNOSTICS = "mailcal-stethoscope-symbolic";
     SETTINGS_ABOUT = "help-about-symbolic";
+    /// The button that explains an account's sync technology.
+    ACCOUNT_SYNC_TECHNOLOGY_ABOUT = SETTINGS_ABOUT;
 }
 
 #[cfg(test)]

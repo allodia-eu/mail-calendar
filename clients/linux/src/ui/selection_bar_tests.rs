@@ -4,10 +4,10 @@
 //! [`crate::ui::mailbox::tests`]).
 
 use adw::prelude::*;
-use mailcal_bindings::ViewMode;
+use mailcal_bindings::{BulkAction, RowMenu, ViewMode};
 
 use super::{SelectionBar, SelectionCountPane, mail_surface};
-use crate::ui::{AppInput, selection::SelectionSummary};
+use crate::ui::{AppInput, row_menu::BarActions, selection::SelectionSummary};
 
 /// The bar stands with nothing selected, and says so by what can be pressed rather than by
 /// appearing (`docs/list-selection.md`, rule 5). Select all is the exception: it is how a
@@ -16,33 +16,53 @@ pub(crate) fn an_empty_selection_disables_only_the_actions_that_need_a_selection
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let bar = SelectionBar::new(&sender);
 
-    bar.render(SelectionSummary {
-        count: 0,
-        any_unread: false,
-        any_unflagged: false,
-    });
+    bar.render(
+        SelectionSummary { count: 0 },
+        BarActions::of(&RowMenu::default()),
+    );
     assert!(
         bar.widget().is_visible(),
         "the bar is chrome, not something that arrives with the first click"
     );
     assert!(
-        bar.needs_selection
+        bar.needs_selection()
             .iter()
             .all(|button| !button.is_sensitive()),
         "an action over no rows must not be pressable"
     );
 
-    bar.render(SelectionSummary {
-        count: 2,
-        any_unread: true,
-        any_unflagged: true,
-    });
-    assert!(
-        bar.needs_selection
-            .iter()
-            .all(gtk::prelude::WidgetExt::is_sensitive),
-        "a selection makes every action live"
+    bar.render(
+        SelectionSummary { count: 2 },
+        BarActions {
+            read: (BulkAction::MarkUnread, true),
+            flag: (BulkAction::Unflag, true),
+            archive: true,
+            delete: true,
+            permanently_delete: true,
+        },
     );
+    assert!(
+        bar.needs_selection()
+            .iter()
+            .all(|button| button.is_sensitive()),
+        "a selection makes every action the core enables live"
+    );
+    assert_eq!(bar.read.action.get(), BulkAction::MarkUnread);
+    assert_eq!(bar.flag.action.get(), BulkAction::Unflag);
+
+    // What the core's menu over the selection draws disabled is disabled on the bar too.
+    bar.render(
+        SelectionSummary { count: 1 },
+        BarActions {
+            read: (BulkAction::MarkRead, true),
+            flag: (BulkAction::Flag, true),
+            archive: false,
+            delete: true,
+            permanently_delete: true,
+        },
+    );
+    assert!(!bar.archive.is_sensitive());
+    assert!(bar.trash.is_sensitive() && bar.clear.is_sensitive());
 }
 
 /// Sync acts on the mailbox rather than the selection, so it stays live and is separated from
@@ -51,11 +71,10 @@ pub(crate) fn sync_is_after_the_selection_actions_and_always_live() {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let bar = SelectionBar::new(&sender);
 
-    bar.render(SelectionSummary {
-        count: 0,
-        any_unread: false,
-        any_unflagged: false,
-    });
+    bar.render(
+        SelectionSummary { count: 0 },
+        BarActions::of(&RowMenu::default()),
+    );
     assert!(bar.sync.is_sensitive());
     bar.sync.emit_clicked();
     assert!(matches!(
@@ -74,11 +93,7 @@ pub(crate) fn sync_is_after_the_selection_actions_and_always_live() {
 /// the pane is showing.
 pub(crate) fn the_pane_states_the_count_only_while_it_covers_something_worth_covering() {
     let pane = SelectionCountPane::new();
-    let summary = |count: usize| SelectionSummary {
-        count,
-        any_unread: false,
-        any_unflagged: false,
-    };
+    let summary = |count: usize| SelectionSummary { count };
 
     pane.render(summary(0), &ViewMode::Threaded);
     assert!(!pane.widget().is_visible());

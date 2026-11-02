@@ -3,7 +3,8 @@
 use std::collections::HashSet;
 
 use mailcal_bindings::{
-    Avatar, MailboxListSnapshot, ReadingSnapshot, SnapshotRow, Swatch, ThreadRow, ViewMode,
+    Avatar, MailboxListSnapshot, ReadingSnapshot, SelectedRow, SnapshotRow, Swatch, ThreadMessage,
+    ThreadRow, ViewMode,
 };
 
 use super::{avatar::AvatarData, mailbox::ThreadKey};
@@ -100,8 +101,7 @@ impl OpenedMessage {
         }
     }
 
-    /// A conversation opens its representative; the latest **in-scope** message, the one the row
-    /// summarises; so a Sent reply filed in another folder doesn't take the reading pane.
+    /// The message the conversation row summarises: its latest **in-scope** message.
     pub(crate) fn from_thread(row: &ThreadRow) -> Self {
         Self {
             account: row.account.clone(),
@@ -112,33 +112,61 @@ impl OpenedMessage {
             avatar: AvatarData::from(&row.avatar),
         }
     }
+
+    /// One message of `thread`, under the conversation's subject, as its sub-row shows it: a
+    /// message on a thread carries no subject of its own.
+    pub(crate) fn from_member(thread: &ThreadRow, message: &ThreadMessage) -> Self {
+        Self {
+            account: message.account.clone(),
+            key: message.key.clone(),
+            subject: thread.subject.clone(),
+            from: message.from.clone(),
+            date: message.date.clone(),
+            avatar: AvatarData::from(&message.avatar),
+        }
+    }
 }
 
-/// The messages the list currently offers as reading stops, in display order.
-pub(crate) fn readable_stops(
-    snapshot: &MailboxListSnapshot,
+/// The message selecting a conversation opens, and whether it is a draft: its newest, whatever
+/// its kind, a Sent reply filed elsewhere or a draft included (`docs/row-actions.md`, rules 2 and
+/// 8). In Drafts it is the newest draft, the one the row summarises (`docs/drafts.md`).
+pub(crate) fn representative(row: &ThreadRow, showing_drafts: bool) -> (OpenedMessage, bool) {
+    let message = if showing_drafts {
+        row.messages
+            .iter()
+            .find(|message| message.key == row.latest_key)
+    } else {
+        row.messages.first()
+    };
+    match message.or(row.messages.first()) {
+        Some(message) => (OpenedMessage::from_member(row, message), message.draft),
+        None => (OpenedMessage::from_thread(row), showing_drafts),
+    }
+}
+
+/// The conversations still expanded once `selected` is the selection, out of `expanded`
+/// (`docs/row-actions.md`, rule 8).
+///
+/// One row picked keeps open only the conversation it is, so leaving a conversation folds it
+/// away, even one opened by its chevron. Several rows picked, or none, change nothing: adding a
+/// conversation to a set expands nothing, and a selection emptied by an archive is not the user
+/// leaving anything.
+pub(crate) fn kept_expanded(
     expanded: &HashSet<ThreadKey>,
-) -> Vec<OpenedMessage> {
-    snapshot
-        .rows
-        .iter()
-        .flat_map(|row| match row {
-            SnapshotRow::Flat { .. } => vec![OpenedMessage::from_row(row)],
-            SnapshotRow::Thread { row } if expanded.contains(&ThreadKey::of(row)) => row
-                .messages
+    selected: &[SelectedRow],
+) -> HashSet<ThreadKey> {
+    match selected {
+        [SelectedRow::Thread { account, thread_id }] => {
+            let holding = ThreadKey::new(account, thread_id);
+            expanded
                 .iter()
-                .map(|message| OpenedMessage {
-                    account: message.account.clone(),
-                    key: message.key.clone(),
-                    subject: row.subject.clone(),
-                    from: message.from.clone(),
-                    date: message.date.clone(),
-                    avatar: AvatarData::from(&message.avatar),
-                })
-                .collect(),
-            SnapshotRow::Thread { row } => vec![OpenedMessage::from_thread(row)],
-        })
-        .collect()
+                .filter(|thread| **thread == holding)
+                .cloned()
+                .collect()
+        }
+        [SelectedRow::Message { .. }] => HashSet::new(),
+        _ => expanded.clone(),
+    }
 }
 
 /// Per-message reading state owned by the Linux host.
@@ -192,41 +220,11 @@ impl ReadingState {
     }
 }
 
-/// The message the reading pane opens after an archive or Trash move removes `opened` from the
-/// list: the next one down, or the one above when it was last.
-pub(crate) fn message_after_removing(
-    opened: &OpenedMessage,
-    stops: &[OpenedMessage],
-) -> Option<OpenedMessage> {
-    let index = stops
-        .iter()
-        .position(|candidate| candidate.account == opened.account && candidate.key == opened.key)?;
-    stops
-        .get(index + 1)
-        .or_else(|| {
-            index
-                .checked_sub(1)
-                .and_then(|previous| stops.get(previous))
-        })
-        .cloned()
-}
-
 #[cfg(test)]
 mod tests {
     use mailcal_bindings::{FlatRow, ReadingSnapshot, SnapshotRow, ThreadRow};
 
-    use super::{AvatarData, OpenedMessage, ReadingState, blank_avatar, message_after_removing};
-
-    fn opened(account: &str, key: &str) -> OpenedMessage {
-        OpenedMessage {
-            account: account.to_owned(),
-            key: key.to_owned(),
-            subject: format!("Subject {key}"),
-            from: format!("Sender {key}"),
-            date: format!("Date {key}"),
-            avatar: AvatarData::from(&blank_avatar()),
-        }
-    }
+    use super::{AvatarData, OpenedMessage, ReadingState, blank_avatar};
 
     fn empty_reading(key: &str) -> ReadingSnapshot {
         ReadingSnapshot {
@@ -330,30 +328,8 @@ mod tests {
         state.snapshot.plain = Some("Body".to_owned());
         assert!(state.body_arrived());
     }
-
-    #[test]
-    fn removing_an_open_message_advances_down_then_up_and_matches_the_account() {
-        let stops = vec![
-            opened("account-a", "same-key"),
-            opened("account-b", "same-key"),
-            opened("account-a", "last"),
-        ];
-
-        assert_eq!(
-            message_after_removing(&stops[0], &stops),
-            Some(stops[1].clone()),
-            "the next row down wins"
-        );
-        assert_eq!(
-            message_after_removing(&stops[2], &stops),
-            Some(stops[1].clone()),
-            "the row above wins at the end"
-        );
-        assert_eq!(
-            message_after_removing(&opened("missing", "same-key"), &stops),
-            None,
-            "a provider key from another account is not the open row"
-        );
-        assert_eq!(message_after_removing(&stops[0], &stops[..1]), None);
-    }
 }
+
+#[cfg(test)]
+#[path = "model_tests.rs"]
+mod conversation_tests;

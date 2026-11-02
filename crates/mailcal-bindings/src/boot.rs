@@ -347,6 +347,18 @@ pub(crate) fn build_accounts(
     // has consented, but it must happen before the first event, or a consented install's very
     // first batch would report zero accounts.
     mailcal.rediscovery.adopt(&mailcal);
+    // Settings names which way each Gmail account syncs, which settles on the account's first
+    // read, and an account whose mail cannot be reached is badged like any unreachable one.
+    let settled = Arc::downgrade(&mailcal.app);
+    mailcal_account::on_gmail_mail_route_change(move || {
+        settled
+            .upgrade()
+            .inspect(|app| {
+                app.accounts_changed();
+                app.connectivity_changed();
+            })
+            .is_some()
+    });
     mailcal.refresh_analytics_accounts();
     // Interactive boot: every account is a provider-less placeholder, so dial them all in the
     // background now. Each successful reconnect registers live providers (the cached mail is
