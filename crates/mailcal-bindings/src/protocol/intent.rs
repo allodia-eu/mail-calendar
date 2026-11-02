@@ -339,7 +339,9 @@ pub enum Intent {
     },
     /// The host's composer now holds the message `Surface::ComposeRequest` offered.
     DismissComposeRequest,
-    /// Report whether the device can reach the network; on launch and on every OS change.
+    /// Report whether the device can reach the network; on launch and on every OS change. Only a
+    /// report that ends an offline spell sets anything going, so a host told "reachable" again
+    /// and again need not filter it.
     ReportNetworkReachable {
         /// Whether the device can currently reach the network.
         reachable: bool,
