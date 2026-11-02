@@ -142,6 +142,9 @@ fn a_dav_connect_that_failed_some_other_way_is_not_a_rejected_signin() {
 #[test]
 fn a_gone_address_book_start_is_gone() {
     assert!(AccountError::CardDav(dav_status(404)).is_gone());
+    // A server that does not implement the request (a CardDAV `PROPFIND` to one with no address
+    // books) answers the same every time, so it is gone too, not an outage to retry.
+    assert!(AccountError::CardDav(dav_status(501)).is_gone());
     assert!(!AccountError::CardDav(dav_status(503)).is_gone());
 }
 
