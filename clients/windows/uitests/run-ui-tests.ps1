@@ -128,7 +128,7 @@ if ($excluded.Count -gt 0) {
 }
 if ($failed.Count -gt 0) {
   foreach ($f in $failed) { Write-Host "  FAILED:  $f" -ForegroundColor Red }
-  Write-Host "  A failing case leaves a screenshot, the element tree and the exception in clients/windows/Mailcal.UiTests/failures." -ForegroundColor Red
+  Write-Host "  A failing case leaves a screenshot, the element tree, the app's log and the exception in clients/windows/Mailcal.UiTests/failures." -ForegroundColor Red
   exit 1
 }
 # A run that measured nothing is a failure: a -Filter matching only excluded suites, or a -Dataset

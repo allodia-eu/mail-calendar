@@ -42,8 +42,11 @@ $output = @(
   '   ---- inner reason',
   '  Stack Trace:',
   '     at Allodia.Mailcal.UiTests.Suites.ImapSignInTests.Watch(App app) in D:\repos\ImapSignInTests.cs:line 113',
+  '[xUnit.net 00:00:01.93]     Allodia.Mailcal.UiTests.Suites.DraftsTests.ASavedDraftComesBack [SKIP]',
+  '[xUnit.net 00:00:01.93]       the harness is not up',
   '  Skipped Allodia.Mailcal.UiTests.Suites.DraftsTests.ASavedDraftComesBack [1 ms]',
-  '  the harness is not up',
+  '  Passed Allodia.Mailcal.UiTests.Suites.SyncHintTests.TheHintSharesTheFooterRowAndNeverOpensOneOfItsOwn [2 s]',
+  '  Skipped Allodia.Mailcal.UiTests.Suites.NotificationLaunchTests.ANotificationActivationDoesNotFailFastOnStartup [3 s]',
   '  Failed Allodia.Mailcal.UiTests.Suites.PrintTests.TheJobPrintsTheMessageItWasOpenedFor [2 s]',
   '  Passed Allodia.Mailcal.UiTests.Suites.PrintTests.PrintIsOfferedBelowTheExportOnceTheBodyHasArrived [1 s]'
 )
@@ -54,10 +57,12 @@ Assert-Equal 'FolderDrop.Tests / DroppedBackOnProjectsItReturnsThere: the messag
   "a failed assertion's reason is its message, though it names no exception and no assert"
 Assert-Equal 'ImapSignIn.Tests / AServerOfferingBothLeadsWithTheSignInAndKeepsThePasswordBehindItsOwnControl: System.InvalidOperationException : the form never reached the sign-in offer within 25 s ---- inner reason' ($result.Failed[1]) `
   'a thrown exception keeps its type and every line of the message, and nothing of the stack'
-Assert-Equal 'Drafts.Tests / ASavedDraftComesBack: the harness is not up' ($result.Skipped[0]) 'a skip carries the line after it'
+Assert-Equal 'Drafts.Tests / ASavedDraftComesBack: the harness is not up' ($result.Skipped[0]) "a skip carries the reason xUnit printed under its [SKIP] line"
+Assert-Equal 'NotificationLaunch.Tests / ANotificationActivationDoesNotFailFastOnStartup: ' ($result.Skipped[1]) `
+  'a skip whose reason was not printed reads no other case as its reason'
 Assert-Equal 'Print.Tests / TheJobPrintsTheMessageItWasOpenedFor: ' ($result.Failed[2]) 'a failure with no message block reads no other case as its reason'
-Assert-Equal 2 ($result.Passed.Count) 'the case after a messageless failure is still read'
-Assert-Equal 'Passed,Failed,Failed,Skipped,Failed,Passed' (($result.Order | ForEach-Object Outcome) -join ',') 'the cases keep the order they ran in'
+Assert-Equal 3 ($result.Passed.Count) 'the case after a messageless failure is still read'
+Assert-Equal 'Passed,Failed,Failed,Skipped,Passed,Skipped,Failed,Passed' (($result.Order | ForEach-Object Outcome) -join ',') 'the cases keep the order they ran in'
 Assert-Equal 0 ((ConvertFrom-AgentTestOutput -Lines @()).Order.Count) 'no output is no cases'
 
 Write-Host "agent-suites: $script:Passed passed$(if ($script:Failed) { ", $script:Failed failed" })"

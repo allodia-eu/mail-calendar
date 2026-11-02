@@ -35,8 +35,8 @@ public abstract class UiApp : IDisposable
 
     /// <summary>
     /// Runs one case against a clean surface, then <paramref name="cleanup"/> whatever happened. A
-    /// failure leaves a screenshot, what the agent saw and the exception in failures/, named after the
-    /// case, because whoever reads it did not write the test. A cleanup that fails after the case failed is not
+    /// failure leaves a screenshot, what the agent saw, the app's log for this launch and the
+    /// exception in failures/, named after the case, because whoever reads it did not write the test. A cleanup that fails after the case failed is not
     /// allowed to replace the case's own failure: that one is the answer. With
     /// <paramref name="reset"/> false the surface is left as the case before it left it, for a case
     /// that goes on from there in a suite whose cases run in the order written.
@@ -84,6 +84,8 @@ public abstract class UiApp : IDisposable
         try
         {
             File.WriteAllText(stem + ".error.txt", failure.ToString());
+            // What the app did, which on a runner nobody can attach to is the only account of it.
+            File.WriteAllText(stem + ".log.txt", AppLog.NewestSession());
             var screen = SystemInformation.VirtualScreen;
             using var shot = new Bitmap(screen.Width, screen.Height);
             using (var graphics = Graphics.FromImage(shot))

@@ -10,7 +10,23 @@ What each case did, read from `dotnet test`'s console logger at normal verbosity
 A failure's reason is the logger's "Error Message:" block, every line up to "Stack Trace:". Its
 first line is the message an assertion was given, which names neither an exception nor an assert
 unless the case threw one.
+
+A skip's reason is not beside the logger's "Skipped" line, which is followed by whatever the run
+printed next. xUnit's own diagnostic lines carry it: "[xUnit.net <time>] <case> [SKIP]", then the
+reason on the next of its lines.
 #>
+function Get-AgentSkipReason {
+  param([string[]] $Lines, [string] $FullName)
+  $prefix = '^\[xUnit\.net [^\]]+\]\s+'
+  $skip = "$prefix$([regex]::Escape($FullName)) \[SKIP\]\s*$"
+  for ($i = 0; $i -lt $Lines.Count - 1; $i++) {
+    if ($Lines[$i] -match $skip -and $Lines[$i + 1] -match $prefix) {
+      return ($Lines[$i + 1] -replace $prefix, '').Trim()
+    }
+  }
+  ''
+}
+
 function ConvertFrom-AgentTestOutput {
   param([AllowEmptyCollection()] [AllowEmptyString()] [string[]] $Lines = @())
   $result = @{ Passed = @(); Failed = @(); Skipped = @(); Order = @() }
@@ -18,11 +34,12 @@ function ConvertFrom-AgentTestOutput {
     if ($Lines[$i] -notmatch '^\s+(Passed|Failed|Skipped) Allodia\.Mailcal\.UiTests\.Suites\.(\w+)Tests\.(\w+)') { continue }
     $outcome = $Matches[1]
     $case = "$($Matches[2]).Tests / $($Matches[3])"
+    $fullName = "Allodia.Mailcal.UiTests.Suites.$($Matches[2])Tests.$($Matches[3])"
     $why = ''
     switch ($outcome) {
       'Passed' { $result.Passed += $case }
       'Skipped' {
-        $why = if ($i + 1 -lt $Lines.Count) { $Lines[$i + 1].Trim() } else { '' }
+        $why = Get-AgentSkipReason -Lines $Lines -FullName $fullName
         $result.Skipped += "${case}: $why"
       }
       'Failed' {

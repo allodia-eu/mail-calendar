@@ -857,7 +857,8 @@ jobs:
       # The suite shoots the desktop at the moment a case throws, which is the only time the app is
       # both up and in the state that failed: it stops the app on the way out, so a screenshot
       # taken by a later step photographs an empty desktop. Nobody can attach a debugger to a
-      # runner, so this picture is the whole of the diagnosis that the failure text does not carry.
+      # runner, so this picture and the app's log beside it are the whole of the diagnosis that the
+      # failure text does not carry.
       - name: Upload what the screen looked like when a case failed
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
