@@ -27,8 +27,6 @@ impl MailcalApp {
         // nothing is disconnected. The core's own refresh (below) heals *live* dropped sockets;
         // this rebuilds accounts that never got providers at all.
         let retry_disconnected = match &intent {
-            // Coming back online: the device is up (the OS just reported it), so always re-dial.
-            Intent::ReportNetworkReachable { reachable: true } => true,
             // A refresh of mail, the calendar or contacts: only re-dial when we believe we're
             // online, so repeatedly pulling to refresh behind the offline banner doesn't storm a
             // dead network each time (the same offline gate `refresh_mail` itself uses). The
@@ -39,18 +37,24 @@ impl MailcalApp {
             }
             _ => false,
         };
-        // Every IMAP socket from before the network came back looks open and is not, so the
-        // resting ones are dropped before anything asks for one.
-        if matches!(intent, Intent::ReportNetworkReachable { reachable: true }) {
-            self.registry.invalidate_imap_connections();
-        }
         if retry_disconnected {
             self.retry_connections();
         }
         // Applied here, on the host's thread, rather than in the task below: tasks run in either
         // order, so reports made in order must take effect before `dispatch` returns.
+        //
+        // Only a report that ends an offline spell sets anything going. A host reports whenever
+        // the OS says anything about the network, and macOS's path monitor says "satisfied"
+        // every few seconds with nothing changed; acting on each dropped every idle IMAP
+        // connection and dialled every unreachable account as often, a storm of sign-ins a
+        // server answers by limiting them. A move from one network to another without an offline
+        // spell between is left to the pool, which proves a rested connection before reusing it.
         if let Intent::ReportNetworkReachable { reachable } = intent {
             if self.app.note_network_reachable(reachable) {
+                // Every IMAP socket from before the network came back looks open and is not, so
+                // the resting ones are dropped before anything asks for one.
+                self.registry.invalidate_imap_connections();
+                self.retry_connections();
                 let app = Arc::clone(&self.app);
                 self.runtime
                     .spawn(async move { app.network_returned().await });

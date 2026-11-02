@@ -11,6 +11,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         mpsc,
     },
+    time::Duration,
 };
 
 use super::signin_refused_tests::{account, boot, wait_for};
@@ -59,6 +60,40 @@ fn a_refresh_of_the_calendar_or_contacts_dials_an_unreachable_account_again() {
             connections.load(Ordering::SeqCst) > before && settled()
         });
     }
+}
+
+/// A host reports the network whenever the OS says anything about it, and macOS's path monitor
+/// says "satisfied" every few seconds with nothing changed. Only a report that ends an offline
+/// spell dials again: re-dialling on each of the others is a storm of sign-ins.
+#[test]
+fn only_a_report_that_ends_an_offline_spell_dials_an_unreachable_account_again() {
+    let (base_url, connections) = silent_server();
+    let (config, id) = account("silent", &base_url);
+    let app = boot!(new_accounts, "network-report-redial", config);
+    let id = id.as_str().to_owned();
+    let settled = || {
+        app.redialling.lock().unwrap().is_empty() && app.disconnected.lock().unwrap().contains(&id)
+    };
+    wait_for("the launch's outage", || {
+        app.connectivity().unreachable_accounts.contains(&id) && settled()
+    });
+
+    let before = connections.load(Ordering::SeqCst);
+    for _ in 0..3 {
+        app.dispatch(Intent::ReportNetworkReachable { reachable: true });
+    }
+    std::thread::sleep(Duration::from_millis(500));
+    assert_eq!(
+        connections.load(Ordering::SeqCst),
+        before,
+        "a report that the network is still there dialled the account again",
+    );
+
+    app.dispatch(Intent::ReportNetworkReachable { reachable: false });
+    app.dispatch(Intent::ReportNetworkReachable { reachable: true });
+    wait_for("coming back online to dial", || {
+        connections.load(Ordering::SeqCst) > before && settled()
+    });
 }
 
 /// A calendar that could not be reached beside a working mailbox is dialled again on its own:
