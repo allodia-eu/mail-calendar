@@ -51,7 +51,7 @@ default-members = [
 # (`cargo xtask check-version-sync`) fails if it ever drifts from `/VERSION`. Bump both together
 # with `scripts/dev/bump-version.sh X.Y.Z`.
 [workspace.package]
-version = "0.14.0"
+version = "0.15.0"
 edition = "2024"
 # Every build compiles with the pin in rust-toolchain.toml, the Flatpak and snap included, so this
 # moves with it; clippy's `incompatible_msrv` keeps an API newer than this out until it does.

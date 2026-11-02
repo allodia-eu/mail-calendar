@@ -267,6 +267,7 @@ proves that `/VERSION` does, and that no note claims a version above it.
 
 | Version | Date | What shipped |
 |---|---|---|
+| [0.15.0](changelog/released/0.15.0.md) | 2026-11-02 | A conversation's menu, its flag and a draft opening anywhere on Android · Shared mailboxes on Android · A conversation's menu on macOS, iPhone and iPad · …24 more |
 | [0.14.0](changelog/released/0.14.0.md) | 2026-10-27 | A calendar or address book server that moves is followed, and one on another site is asked about first · Every calendar of an account syncs, and takes new events · iCloud and Yahoo calendars and address books sync, and Fastmail address books appear · …17 more |
 | [0.13.0](changelog/released/0.13.0.md) | 2026-10-19 | Answer a meeting from the calendar · Selecting messages the way the platform does on Mac, iPhone and iPad · The calendar's controls in the toolbar on Mac, iPhone and iPad · …45 more |
 | [0.12.1](changelog/released/0.12.1.md) | 2026-10-14 | The Linux app is built again |
