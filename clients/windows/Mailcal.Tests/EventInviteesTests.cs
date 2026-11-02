@@ -67,7 +67,7 @@ public class EventInviteesTests
             "acct", "/cal/m.ics", "work", "Planning", false, "Europe/Amsterdam",
             "2026-08-03T10:00:00", "2026-08-03T11:00:00", null, null, null, null, null, null,
             occurrence.Length > 0, true, canEditInvitees, null, occurrence, attendees ?? Roster(), null,
-            System.Array.Empty<EventConference>());
+            null, System.Array.Empty<EventConference>());
 
     private static EventEditorState Creating(bool canInvite)
     {
