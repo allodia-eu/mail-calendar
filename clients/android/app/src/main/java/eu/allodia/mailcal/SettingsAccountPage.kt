@@ -220,6 +220,8 @@ internal fun useNoteText(ctx: android.content.Context, note: UseNote): String? =
     UseNote.OWN_SIGN_IN_CONTACTS -> L10n.settings_account_use_own_sign_in_contacts(ctx)
     UseNote.SERVER_CHANGED_CALENDAR -> L10n.settings_account_use_server_changed_calendar(ctx)
     UseNote.SERVER_CHANGED_CONTACTS -> L10n.settings_account_use_server_changed_contacts(ctx)
+    UseNote.NONE_ON_SERVER_CALENDAR -> L10n.settings_account_use_none_on_server_calendar(ctx)
+    UseNote.NONE_ON_SERVER_CONTACTS -> L10n.settings_account_use_none_on_server_contacts(ctx)
     UseNote.NONE -> null
 }
 

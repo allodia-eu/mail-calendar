@@ -101,6 +101,15 @@ impl ConnectFailure {
         }
     }
 
+    /// A DAV server that answered it has none for the account: a start that is gone.
+    #[cfg(test)]
+    pub(crate) fn gone(detail: String) -> Self {
+        Self {
+            gone: true,
+            ..Self::unreachable(detail)
+        }
+    }
+
     /// Whether the servers are worth finding again (RFC 6764 §6): a DAV server said its start is
     /// gone, or refused the sign-in. An outage is not: it changes nothing.
     pub(crate) const fn worth_rediscovering(&self) -> bool {
@@ -119,6 +128,8 @@ impl ConnectFailure {
             mailcal_app::UseProblem::NeedsOwnSignIn
         } else if self.signin_expired {
             mailcal_app::UseProblem::SignInRefused
+        } else if self.gone {
+            mailcal_app::UseProblem::NoneOnServer
         } else {
             mailcal_app::UseProblem::Unreachable
         }

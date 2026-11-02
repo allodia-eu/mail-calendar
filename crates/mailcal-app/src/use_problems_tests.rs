@@ -79,6 +79,20 @@ fn only_an_unreachable_use_is_one_a_retry_dials_again() {
         ["a"],
         "a server that needs its own sign-in is not reached by trying again"
     );
+
+    // Nor one that answered it has none for the account: a refresh would ask for the same answer.
+    app.note_use_problems(
+        &b,
+        UseProblems {
+            calendar: None,
+            contacts: Some(UseProblem::NoneOnServer),
+        },
+    );
+    let retry: Vec<String> = app
+        .accounts_with_use_problem(UseProblem::Unreachable)
+        .into_keys()
+        .collect();
+    assert_eq!(retry, ["a"]);
 }
 
 #[tokio::test]
@@ -161,6 +175,17 @@ fn a_paused_use_stays_paused_while_it_still_does_not_connect() {
 
     assert_eq!(app.use_problems(&id), PAUSED_CALENDAR);
     assert!(app.server_change(&id).is_some());
+
+    // The old server answering that it has no calendar here is what found the new one; it does not
+    // lift the pause either.
+    app.note_use_problems(
+        &id,
+        UseProblems {
+            calendar: Some(UseProblem::NoneOnServer),
+            contacts: None,
+        },
+    );
+    assert_eq!(app.use_problems(&id), PAUSED_CALENDAR);
 }
 
 #[test]

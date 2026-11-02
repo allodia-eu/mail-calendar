@@ -277,6 +277,10 @@ enum AccountSettingsLabels {
             calendar
                 ? L10n.settings_account_use_server_changed_calendar()
                 : L10n.settings_account_use_server_changed_contacts()
+        case .noneOnServer:
+            calendar
+                ? L10n.settings_account_use_none_on_server_calendar()
+                : L10n.settings_account_use_none_on_server_contacts()
         }
     }
 

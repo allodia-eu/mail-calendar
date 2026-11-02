@@ -147,7 +147,7 @@ public class SeparateServerSignInTests
     private static readonly CoreErrorWords Words = new(
         "refused", "set up", "other", "stale", "calendar unreachable", "contacts unreachable",
         "calendar own sign-in", "contacts own sign-in", "calendar server changed", "contacts server changed",
-        error => error);
+        "calendar none on server", "contacts none on server", error => error);
 
     [Fact]
     public void AFailureSaysTheSignInFailedUnlessTheCoreTypedWhatToDo()

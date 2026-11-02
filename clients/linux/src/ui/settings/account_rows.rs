@@ -106,6 +106,10 @@ fn problem_note(capability: AccountCapability, problem: UseProblem) -> &'static 
             l10n::settings_account_use_server_changed_calendar()
         }
         UseProblem::ServerChanged => l10n::settings_account_use_server_changed_contacts(),
+        UseProblem::NoneOnServer if calendar => {
+            l10n::settings_account_use_none_on_server_calendar()
+        }
+        UseProblem::NoneOnServer => l10n::settings_account_use_none_on_server_contacts(),
     }
 }
 

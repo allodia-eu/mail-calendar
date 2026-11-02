@@ -1058,6 +1058,8 @@
 	"settings_account_use_withheld": "The provider hasn’t allowed this. Switch on to ask again.",
 	"settings_account_use_unreachable_calendar": "Couldn’t reach your calendar server. It’s tried again when you refresh.",
 	"settings_account_use_unreachable_contacts": "Couldn’t reach your address book server. It’s tried again when you refresh.",
+	"settings_account_use_none_on_server_calendar": "Your calendar server has no calendar for this account.",
+	"settings_account_use_none_on_server_contacts": "Your address book server has no address book for this account.",
 	"settings_account_use_refused_calendar": "Your calendar server didn’t accept the sign-in.",
 	"settings_account_use_refused_contacts": "Your address book server didn’t accept the sign-in.",
 	"settings_account_use_own_sign_in_calendar": "Your calendar is on a server that needs a sign-in of its own.",

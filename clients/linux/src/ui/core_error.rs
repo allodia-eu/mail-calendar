@@ -49,6 +49,10 @@ fn use_not_connected(capability: AccountCapability, problem: UseProblem) -> &'st
             l10n::settings_account_use_server_changed_contacts()
         }
         UseProblem::ServerChanged => l10n::settings_account_use_server_changed_calendar(),
+        UseProblem::NoneOnServer if contacts => {
+            l10n::settings_account_use_none_on_server_contacts()
+        }
+        UseProblem::NoneOnServer => l10n::settings_account_use_none_on_server_calendar(),
     }
 }
 

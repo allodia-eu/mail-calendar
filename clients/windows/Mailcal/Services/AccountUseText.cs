@@ -22,6 +22,8 @@ internal static class AccountUseText
         UseNote.OwnSignInContacts => L10n.SettingsAccountUseOwnSignInContacts(),
         UseNote.ServerChangedCalendar => L10n.SettingsAccountUseServerChangedCalendar(),
         UseNote.ServerChangedContacts => L10n.SettingsAccountUseServerChangedContacts(),
+        UseNote.NoneOnServerCalendar => L10n.SettingsAccountUseNoneOnServerCalendar(),
+        UseNote.NoneOnServerContacts => L10n.SettingsAccountUseNoneOnServerContacts(),
         _ => null,
     };
 

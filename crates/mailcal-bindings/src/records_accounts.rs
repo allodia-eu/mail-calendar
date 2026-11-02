@@ -163,6 +163,10 @@ pub enum UseProblem {
     /// ([`MailcalApp::pending_server_change`](crate::MailcalApp::pending_server_change),
     /// `docs/account-autodetect.md` rule 14). Nothing is sent to it before they do.
     ServerChanged,
+    /// Its server answered that it has none for this account: a start that is gone, no home, or
+    /// a request it does not implement. Not dialled again on a refresh, which would only ask for
+    /// the same answer.
+    NoneOnServer,
 }
 
 impl From<mailcal_app::UseProblem> for UseProblem {
@@ -172,6 +176,7 @@ impl From<mailcal_app::UseProblem> for UseProblem {
             mailcal_app::UseProblem::SignInRefused => Self::SignInRefused,
             mailcal_app::UseProblem::Unreachable => Self::Unreachable,
             mailcal_app::UseProblem::ServerChanged => Self::ServerChanged,
+            mailcal_app::UseProblem::NoneOnServer => Self::NoneOnServer,
         }
     }
 }

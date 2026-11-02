@@ -17,6 +17,8 @@ internal static class CoreErrorCopy
         L10n.SettingsAccountUseOwnSignInContacts(),
         L10n.SettingsAccountUseServerChangedCalendar(),
         L10n.SettingsAccountUseServerChangedContacts(),
+        L10n.SettingsAccountUseNoneOnServerCalendar(),
+        L10n.SettingsAccountUseNoneOnServerContacts(),
         L10n.StatusConnectFailed);
 
     /// <summary><see cref="CoreError.Said(Exception, CoreErrorWords)"/> in the catalog's words.</summary>

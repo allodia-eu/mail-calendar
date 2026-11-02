@@ -100,6 +100,7 @@ internal static class CoreError
             uniffi.mailcal_bindings.UseProblem.NeedsOwnSignIn => contacts ? words.OwnSignInContacts : words.OwnSignInCalendar,
             uniffi.mailcal_bindings.UseProblem.ServerChanged => contacts ? words.ServerChangedContacts : words.ServerChangedCalendar,
             uniffi.mailcal_bindings.UseProblem.SignInRefused => words.SignInRefused,
+            uniffi.mailcal_bindings.UseProblem.NoneOnServer => contacts ? words.NoneOnServerContacts : words.NoneOnServerCalendar,
             _ => contacts ? words.UnreachableContacts : words.UnreachableCalendar,
         };
     }
@@ -112,6 +113,7 @@ internal static class CoreError
         uniffi.mailcal_bindings.UseProblem.NeedsOwnSignIn => "its server needs a sign-in of its own",
         uniffi.mailcal_bindings.UseProblem.ServerChanged => "it is paused until a server on another site is allowed",
         uniffi.mailcal_bindings.UseProblem.SignInRefused => "its server refused the sign-in",
+        uniffi.mailcal_bindings.UseProblem.NoneOnServer => "its server has none for this account",
         _ => "its server could not be reached",
     };
 
@@ -161,4 +163,6 @@ internal sealed record CoreErrorWords(
     string OwnSignInContacts,
     string ServerChangedCalendar,
     string ServerChangedContacts,
+    string NoneOnServerCalendar,
+    string NoneOnServerContacts,
     Func<string, string> ConnectFailed);

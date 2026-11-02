@@ -184,6 +184,11 @@ internal fun useNotConnectedSaid(capability: AccountCapability, problem: UseProb
         } else {
             L10n.settings_account_use_server_changed_calendar(ctx)
         }
+        UseProblem.NONE_ON_SERVER -> if (contacts) {
+            L10n.settings_account_use_none_on_server_contacts(ctx)
+        } else {
+            L10n.settings_account_use_none_on_server_calendar(ctx)
+        }
     }
 }
 
@@ -194,6 +199,7 @@ private fun useNotConnectedText(capability: AccountCapability, problem: UseProbl
         UseProblem.NEEDS_OWN_SIGN_IN -> "its server needs a sign-in of its own"
         UseProblem.SIGN_IN_REFUSED -> "its server refused the sign-in"
         UseProblem.SERVER_CHANGED -> "its server was found on another site and waits to be allowed"
+        UseProblem.NONE_ON_SERVER -> "its server has none for this account"
     }
     return "$use did not connect: $why"
 }
