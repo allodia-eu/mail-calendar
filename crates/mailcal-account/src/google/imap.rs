@@ -10,9 +10,17 @@
 //! can turn IMAP off, which Gmail answers at login, and a user can hide All Mail from it. Any
 //! other failure (the network, a throttle, a TLS failure behind a captive portal) is **not**
 //! that: it fails the read, to be tried again, because falling back would hand an IMAP cursor to
-//! the API pass, which can only start again from the top. A refused login is both: Gmail also
-//! refuses one for too many simultaneous connections, so only the same refusal
-//! [`REFUSALS_BEFORE_API`] times running moves the account.
+//! the API pass, which can only start again from the top. Two answers are both:
+//!
+//! - A refused login: Gmail also refuses one for too many simultaneous connections, so only the
+//!   [`REFUSALS_BEFORE_API`]th refused login before the side opens moves the account. A failure of
+//!   another kind in between neither counts nor clears the count.
+//! - A `NO` while opening All Mail: a hidden All Mail and a server that cannot answer for now (RFC
+//!   5530 `[UNAVAILABLE]`) reach this code as the same failure class, so the read asks again
+//!   ([`ASKS_BEFORE_API`] times, a pause apart) and believes only an answer that does not change.
+//!
+//! A server without Gmail's extension is the one answer believed at once: it is a fact about the
+//! session, not a reply that may differ next time.
 //!
 //! One slot serves every provider of an account's sign-in ([`GmailImapSlot::shared`]): each holds
 //! a pool of connections, and Gmail counts an account's connections across all of its clients.
@@ -23,7 +31,7 @@ use std::{
 };
 
 use engine_core::error::FailureClass;
-use engine_provider::{ProviderError, ProviderResult};
+use engine_provider::ProviderResult;
 use engine_tls::TlsClientConfig;
 use provider_imap::{GmailFolder, GmailMail, ImapAccount, ImapConfig};
 use tokio::{net::TcpStream, sync::Mutex};
@@ -36,8 +44,14 @@ use crate::{
 /// Gmail's IMAP server, for every Gmail and Workspace account alike.
 const GMAIL_IMAP: &str = "imap.gmail.com";
 
-/// How many refused logins in a row move an account to the API.
+/// How many refused logins, before the IMAP side has opened, move an account to the API.
 const REFUSALS_BEFORE_API: u8 = 3;
+
+/// How many times one read asks for All Mail before a `NO` moves the account to the API.
+const ASKS_BEFORE_API: u32 = 3;
+
+/// The pause before asking for All Mail again, grown by each ask.
+const ASK_AGAIN_AFTER: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// Every live slot, by account address, so the providers of one account share one.
 static SLOTS: LazyLock<std::sync::Mutex<HashMap<String, Weak<GmailImapSlot>>>> =
@@ -60,7 +74,7 @@ pub(super) struct GmailImapSlot {
 #[derive(Debug, Clone)]
 enum Side {
     /// Not asked yet, or last asked during a failure that may pass, after this many refused
-    /// logins in a row.
+    /// logins.
     Unknown(u8),
     /// IMAP, through this reader.
     Imap(GmailImap),
@@ -111,7 +125,11 @@ impl GmailImapSlot {
             Side::Api => return Ok(None),
             Side::Unknown(refused) => *refused,
         };
-        let result = open(&self.address, &self.tokens, &self.tls).await;
+        let result = settled(
+            || open(&self.address, &self.tokens, &self.tls),
+            ASK_AGAIN_AFTER,
+        )
+        .await;
         let (next, answer) = decide(result, refused);
         match (&next, &answer) {
             (Side::Imap(_), _) => log::info!("gmail: reading mail over IMAP"),
@@ -130,16 +148,17 @@ impl GmailImapSlot {
     }
 }
 
-/// What an attempt to open the IMAP side leaves the slot at, after `refused` refused logins in a
-/// row, and what the caller is told. The session lacking what the reader needs (no Gmail
+/// What an attempt to open the IMAP side leaves the slot at, after `refused` refused logins, and
+/// what the caller is told. The session lacking what the reader needs (no Gmail
 /// extension, All Mail hidden) is final; a refused login is final only once it has repeated
 /// (IMAP turned off for the domain, after the API took the same token); anything else passes.
 fn decide(
-    opened: ProviderResult<GmailImap>,
+    opened: ProviderResult<Opened>,
     refused: u8,
 ) -> (Side, ProviderResult<Option<GmailImap>>) {
     match opened {
-        Ok(reader) => (Side::Imap(reader.clone()), Ok(Some(reader))),
+        Ok(Opened::Reader(reader)) => (Side::Imap(reader.clone()), Ok(Some(reader))),
+        Ok(Opened::NotGmail) => (Side::Api, Ok(None)),
         Err(err) => match err.class() {
             FailureClass::InvalidState => (Side::Api, Ok(None)),
             FailureClass::Authentication if refused + 1 >= REFUSALS_BEFORE_API => {
@@ -151,12 +170,44 @@ fn decide(
     }
 }
 
+/// What opening the IMAP side found.
+enum Opened {
+    /// A reader, with All Mail shown to IMAP.
+    Reader(GmailImap),
+    /// A session without Gmail's extension, which no second ask changes.
+    NotGmail,
+}
+
+/// `open`'s answer, asked again while it is a `NO` (`InvalidState`) that may pass, up to
+/// [`ASKS_BEFORE_API`] times with a pause that grows by `pause` each time. Every other answer is
+/// returned as it came: one that may pass fails this read and is tried on the next.
+async fn settled<T, F, Fut>(mut open: F, pause: std::time::Duration) -> ProviderResult<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = ProviderResult<T>>,
+{
+    let mut asked = 1;
+    loop {
+        match open().await {
+            Err(err) if err.class() == FailureClass::InvalidState && asked < ASKS_BEFORE_API => {
+                log::warn!(
+                    "gmail: the IMAP side did not open All Mail ({asked} of {ASKS_BEFORE_API} \
+                     asks); asking again"
+                );
+                tokio::time::sleep(pause * asked).await;
+                asked += 1;
+            }
+            answer => return answer,
+        }
+    }
+}
+
 /// Logs in, and proves All Mail is shown to IMAP.
 async fn open(
     address: &str,
     tokens: &Arc<GraphTokenSource>,
     tls: &TlsClientConfig,
-) -> ProviderResult<GmailImap> {
+) -> ProviderResult<Opened> {
     let credentials = Arc::new(OAuthCredentialSource::new(
         address.to_owned(),
         Arc::clone(tokens),
@@ -165,29 +216,82 @@ async fn open(
         ImapConfig::from_credential_source(format!("{GMAIL_IMAP}:993"), GMAIL_IMAP, credentials)
             .with_connect_observer(connect_logger("imap"));
     let account = ImapAccount::connect(&config, tls.connector()).await?;
-    let reader = account
-        .gmail()
-        .ok_or_else(|| ProviderError::invalid_state("the server offers no Gmail extension"))?;
+    let Some(reader) = account.gmail() else {
+        return Ok(Opened::NotGmail);
+    };
     reader.open(GmailFolder::All).await?;
-    Ok(reader)
+    Ok(Opened::Reader(reader))
 }
 
 #[cfg(test)]
 mod tests {
+    use std::{cell::Cell, time::Duration};
+
     use engine_core::error::FailureClass;
     use engine_provider::ProviderError;
 
-    use super::{GmailImapSlot, REFUSALS_BEFORE_API, Side, decide};
+    use super::{
+        ASKS_BEFORE_API, GmailImapSlot, Opened, REFUSALS_BEFORE_API, Side, decide, settled,
+    };
 
-    fn failed(class: FailureClass) -> engine_provider::ProviderResult<super::GmailImap> {
+    fn failed(class: FailureClass) -> engine_provider::ProviderResult<Opened> {
         Err(ProviderError::new(class, "no"))
     }
 
     #[test]
-    fn a_hidden_all_mail_moves_the_account_to_the_api_at_once() {
+    fn a_no_that_outlasts_every_ask_moves_the_account_to_the_api() {
         let (side, answer) = decide(failed(FailureClass::InvalidState), 0);
         assert!(matches!(side, Side::Api));
         assert!(matches!(answer, Ok(None)));
+    }
+
+    #[test]
+    fn a_server_without_the_gmail_extension_moves_it_at_once() {
+        let (side, answer) = decide(Ok(Opened::NotGmail), 0);
+        assert!(matches!(side, Side::Api));
+        assert!(matches!(answer, Ok(None)));
+    }
+
+    /// `open`, answering each ask with the next of `answers`, and counting the asks.
+    async fn ask(answers: &[Result<u8, FailureClass>]) -> (Result<u8, FailureClass>, usize) {
+        let asked = Cell::new(0);
+        let answer = settled(
+            || {
+                let next = answers[asked.get()];
+                asked.set(asked.get() + 1);
+                async move { next.map_err(|class| ProviderError::new(class, "no")) }
+            },
+            Duration::ZERO,
+        )
+        .await;
+        (answer.map_err(|err| err.class()), asked.get())
+    }
+
+    #[tokio::test]
+    async fn a_no_that_passes_is_asked_again_and_opens_the_imap_side() {
+        let (answer, asked) = ask(&[Err(FailureClass::InvalidState), Ok(7)]).await;
+        assert_eq!((answer, asked), (Ok(7), 2));
+    }
+
+    #[tokio::test]
+    async fn a_no_that_does_not_change_is_believed_after_every_ask() {
+        let answers = [Err(FailureClass::InvalidState); ASKS_BEFORE_API as usize];
+        let (answer, asked) = ask(&answers).await;
+        assert_eq!(answer, Err(FailureClass::InvalidState));
+        assert_eq!(asked, answers.len());
+    }
+
+    #[tokio::test]
+    async fn any_other_failure_fails_the_read_without_asking_again() {
+        for class in [
+            FailureClass::Authentication,
+            FailureClass::Retryable,
+            FailureClass::RateLimited,
+            FailureClass::Permanent,
+        ] {
+            let (answer, asked) = ask(&[Err(class), Ok(7)]).await;
+            assert_eq!((answer, asked), (Err(class), 1), "{class:?}");
+        }
     }
 
     #[test]
