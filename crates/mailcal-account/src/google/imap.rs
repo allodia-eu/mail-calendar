@@ -13,7 +13,8 @@
 //! the API pass, which can only start again from the top. Two answers are both:
 //!
 //! - A refused login: Gmail also refuses one for too many simultaneous connections, so only the
-//!   same refusal [`REFUSALS_BEFORE_API`] times running moves the account.
+//!   [`REFUSALS_BEFORE_API`]th refused login before the side opens moves the account. A failure of
+//!   another kind in between neither counts nor clears the count.
 //! - A `NO` while opening All Mail: a hidden All Mail and a server that cannot answer for now (RFC
 //!   5530 `[UNAVAILABLE]`) reach this code as the same failure class, so the read asks again
 //!   ([`ASKS_BEFORE_API`] times, a pause apart) and believes only an answer that does not change.
@@ -43,7 +44,7 @@ use crate::{
 /// Gmail's IMAP server, for every Gmail and Workspace account alike.
 const GMAIL_IMAP: &str = "imap.gmail.com";
 
-/// How many refused logins in a row move an account to the API.
+/// How many refused logins, before the IMAP side has opened, move an account to the API.
 const REFUSALS_BEFORE_API: u8 = 3;
 
 /// How many times one read asks for All Mail before a `NO` moves the account to the API.
@@ -73,7 +74,7 @@ pub(super) struct GmailImapSlot {
 #[derive(Debug, Clone)]
 enum Side {
     /// Not asked yet, or last asked during a failure that may pass, after this many refused
-    /// logins in a row.
+    /// logins.
     Unknown(u8),
     /// IMAP, through this reader.
     Imap(GmailImap),
@@ -147,8 +148,8 @@ impl GmailImapSlot {
     }
 }
 
-/// What an attempt to open the IMAP side leaves the slot at, after `refused` refused logins in a
-/// row, and what the caller is told. The session lacking what the reader needs (no Gmail
+/// What an attempt to open the IMAP side leaves the slot at, after `refused` refused logins, and
+/// what the caller is told. The session lacking what the reader needs (no Gmail
 /// extension, All Mail hidden) is final; a refused login is final only once it has repeated
 /// (IMAP turned off for the domain, after the API took the same token); anything else passes.
 fn decide(
