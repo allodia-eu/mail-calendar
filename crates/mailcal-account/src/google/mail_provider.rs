@@ -16,8 +16,9 @@ use engine_core::{
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, HandOver, MailEdit, MailEditReceipt, MailboxEdit,
     MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderResult, ReportReceipt,
-    ScopeSync, SenderIdentity, SenderIdentityId, SubmissionReceipt,
+    ScopeSync, SenderIdentity, SenderIdentityId, SourceStream, SubmissionReceipt,
 };
+use futures::StreamExt;
 
 use super::{RefreshingGmailProvider, should_reconnect};
 
@@ -27,11 +28,15 @@ impl Provider for RefreshingGmailProvider {
         // Capped capabilities, the delegate's transport facts; see `delegate_info`.
         crate::delegate_info::with_delegate_transport(
             ConnectionInfo::new(self.capabilities),
-            self.cached
-                .lock()
-                .expect("gmail delegate mutex poisoned")
-                .as_ref()
-                .map(|(_, provider)| provider.connection_info()),
+            [&self.cached_reader, &self.cached]
+                .into_iter()
+                .find_map(|cache| {
+                    cache
+                        .lock()
+                        .expect("gmail delegate mutex poisoned")
+                        .as_ref()
+                        .map(|(_, provider)| provider.connection_info())
+                }),
         )
     }
 
@@ -76,7 +81,7 @@ impl Provider for RefreshingGmailProvider {
         chunk_size: usize,
     ) -> EmailStream<'a> {
         crate::stream_redial::redialling_stream(
-            || self.delegate(),
+            || self.reading_delegate(),
             || self.invalidate_delegate(),
             account,
             cursor,
@@ -91,19 +96,52 @@ impl Provider for RefreshingGmailProvider {
         account: &AccountId,
         message: &Message,
     ) -> ProviderResult<RawMime> {
-        let mut provider = self.delegate().await?;
+        let mut provider = self.reading_delegate().await?;
         let mut reconnected = false;
         loop {
             match provider.fetch_message_source(account, message).await {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
                     self.invalidate_delegate();
-                    provider = self.delegate().await?;
+                    provider = self.reading_delegate().await?;
                     reconnected = true;
                 }
                 Err(err) => return Err(err),
             }
         }
+    }
+
+    /// Forwards the batch read where the delegate carries several sources a request (fifty over
+    /// IMAP); otherwise reads one at a time through
+    /// [`fetch_message_source`](Self::fetch_message_source), which re-dials a stale socket once
+    /// per message.
+    fn fetch_message_sources<'a>(
+        &'a self,
+        account: &'a AccountId,
+        messages: &'a [Message],
+    ) -> SourceStream<'a> {
+        Box::pin(async_stream::stream! {
+            match self.reading_delegate().await {
+                Ok(provider) if provider.connection_info().sources_per_request > 1 => {
+                    let mut sources = provider.fetch_message_sources(account, messages);
+                    while let Some(item) = sources.next().await {
+                        yield item;
+                    }
+                }
+                Ok(_) => {
+                    let mut sources = engine_provider::one_at_a_time(self, account, messages);
+                    while let Some(item) = sources.next().await {
+                        yield item;
+                    }
+                }
+                Err(err) => {
+                    for index in 0..messages.len() {
+                        let err = engine_provider::ProviderError::new(err.class(), err.detail());
+                        yield (index, Err(err));
+                    }
+                }
+            }
+        })
     }
 
     /// Applies a [`MailEdit`] (mark-read/flag, move/archive, permanent delete) by delegating

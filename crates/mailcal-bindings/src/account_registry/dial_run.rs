@@ -230,9 +230,13 @@ impl AccountDial {
                 // affiliation was recorded is asked beside them.
                 let (mail, calendar, contacts, ()) = tokio::join!(
                     mail_part(on(Capability::Mail), open_mail, async {
-                        mailcal_account::connect_google_mail_providers(Arc::clone(&tokens), None)
-                            .await
-                            .map_err(ConnectFailure::from)
+                        mailcal_account::connect_google_mail_providers(
+                            Arc::clone(&tokens),
+                            None,
+                            &identity,
+                        )
+                        .await
+                        .map_err(ConnectFailure::from)
                     }),
                     part(
                         on(Capability::Calendar),
