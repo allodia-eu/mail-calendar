@@ -62,7 +62,9 @@ struct EventDetailView: View {
                         onAnswer: onAnswer
                     )
                 }
-                if let location = detail.location, !location.isEmpty {
+                // `displayLocation`, not `location`: a location that is only the join link
+                // repeats the section above. The editor still edits `location`, link included.
+                if let location = detail.displayLocation, !location.isEmpty {
                     labeled(L10n.event_location(), location)
                 }
                 // `displayNotes`, not `notes`: the invitation's meeting block repeats the section

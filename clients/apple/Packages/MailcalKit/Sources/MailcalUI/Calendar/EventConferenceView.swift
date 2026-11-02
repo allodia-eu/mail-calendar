@@ -34,10 +34,10 @@ struct EventConferenceSection: View {
                     PlatformPasteboard.copy(join.absoluteString)
                 }
             }
-            if let id = conference.meetingId {
+            if let id = conference.meetingId, !id.isEmpty {
                 labeled(L10n.event_meeting_id(), id)
             }
-            if let passcode = conference.passcode {
+            if let passcode = conference.passcode, !passcode.isEmpty {
                 labeled(L10n.event_meeting_passcode(), passcode)
             }
             if !conference.dialIn.isEmpty {
@@ -77,7 +77,7 @@ private struct DialInRow: View {
             } else {
                 Text(number.number)
             }
-            if let pin = number.pin {
+            if let pin = number.pin, !pin.isEmpty {
                 Text(L10n.event_meeting_pin(pin: pin))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
