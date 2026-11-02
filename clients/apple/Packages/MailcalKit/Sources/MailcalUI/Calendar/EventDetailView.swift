@@ -1,8 +1,9 @@
-// The event detail sheet, what a tap on any event opens. Title, time, calendar, location, notes,
-// and the reminder/recurrence summaries, with Edit + Delete (matching the platform calendar the user
-// knows), and an invitee's answer where the core offers one (EventAnswerView.swift). Edit and
-// Delete are gated on the event's `canWrite`: a read-only calendar's event opens read-only, with no
-// actions (an affordance that can never fire is just a mystery).
+// The event detail sheet, what a tap on any event opens. Title, time, calendar, its video meetings
+// (EventConferenceView.swift), location, notes, and the reminder/recurrence summaries, with Edit +
+// Delete (matching the platform calendar the user knows), and an invitee's answer where the core
+// offers one (EventAnswerView.swift). Edit and Delete are gated on the event's `canWrite`: a
+// read-only calendar's event opens read-only, with no actions (an affordance that can never fire
+// is just a mystery).
 
 import MailcalBindings
 import SwiftUI
@@ -49,6 +50,11 @@ struct EventDetailView: View {
                         Text(row?.name ?? detail.calendar)
                     }
                 }
+                // Join comes before everything else a person reads, the way the platform calendar
+                // puts it: it is what they opened the event to do (docs/conferencing.md).
+                ForEach(Array(detail.conferences.enumerated()), id: \.offset) { _, conference in
+                    EventConferenceSection(conference: conference)
+                }
                 if let answer = EventAnswer(detail: detail, saving: saving) {
                     EventAnswerSection(
                         answer: answer,
@@ -56,10 +62,14 @@ struct EventDetailView: View {
                         onAnswer: onAnswer
                     )
                 }
-                if let location = detail.location, !location.isEmpty {
+                // `displayLocation`, not `location`: a location that is only the join link
+                // repeats the section above. The editor still edits `location`, link included.
+                if let location = detail.displayLocation, !location.isEmpty {
                     labeled(L10n.event_location(), location)
                 }
-                if let notes = detail.notes, !notes.isEmpty {
+                // `displayNotes`, not `notes`: the invitation's meeting block repeats the section
+                // above. The editor still edits `notes`, block included.
+                if let notes = detail.displayNotes, !notes.isEmpty {
                     labeled(L10n.event_notes(), LinkedText.text(linkingIn: notes))
                         .gatedLinkOpening()
                 }
@@ -127,7 +137,8 @@ struct EventDetailView: View {
         // rather than a per-row calculation: a 40-person invitation must not open a sheet taller than
         // the screen, and past a handful of people scrolling is the right answer anyway. An invitee's
         // answer row adds one step more.
-        .frame(minWidth: 360, minHeight: detail.attendees.isEmpty ? 340 : detail.myAnswer == nil ? 480 : 560)
+        // A meeting adds one step more, for the same reason.
+        .frame(minWidth: 360, minHeight: detailSheetHeight(detail))
     }
 
     private var editButton: some View {
@@ -150,6 +161,12 @@ struct EventDetailView: View {
             value.textSelection(.enabled)
         }
     }
+}
+
+/// The macOS sheet's height, in the fixed steps the note on `frame` above explains.
+func detailSheetHeight(_ detail: EventDetail) -> CGFloat {
+    let base: CGFloat = detail.attendees.isEmpty ? 340 : detail.myAnswer == nil ? 480 : 560
+    return detail.conferences.isEmpty ? base : base + 160
 }
 
 /// The event's time as one line, in its own wall clock. All-day shows the inclusive day(s); a timed

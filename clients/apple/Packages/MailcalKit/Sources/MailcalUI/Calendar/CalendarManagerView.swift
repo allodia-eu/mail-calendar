@@ -147,7 +147,10 @@ struct CalendarAgendaList: View {
             HStack(spacing: 8) {
                 Image(systemName: "calendar").foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(event.title.isEmpty ? L10n.event_no_title() : event.title).lineLimit(1)
+                    EventTitleLine(
+                        title: event.title.isEmpty ? L10n.event_no_title() : event.title,
+                        hasConference: event.hasConference
+                    )
                     // A list row has no border to dash and no gutter to hatch, so the hold says
                     // itself in words, which is the disclosure the dashes only stand in for
                     // anyway (docs/calendar.md §4).
@@ -163,6 +166,9 @@ struct CalendarAgendaList: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, 3)
+            // One element, so the camera hidden in the title still reaches VoiceOver as words.
+            .accessibilityElement(children: .combine)
+            .accessibilityValue(event.hasConference ? L10n.event_video_meeting() : "")
             .contentShape(Rectangle())
             // An agenda row is the **event**, not one of its occurrences, the list holds one row
             // per series, so it names none, and a write from here is a series write.

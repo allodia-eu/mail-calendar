@@ -82,10 +82,13 @@ struct CalendarTimedBlock: View {
 
         VStack(alignment: .leading, spacing: 0) {
             if blockShowsLabel(minutes: minutes, hourHeight: hourHeight) {
-                Text(title)
-                    .font(.system(size: blockLabelFontSize(minutes: minutes)))
-                    .lineLimit(withTime || minutes < 30 ? 1 : 2)
-                    .foregroundStyle(parseHexColor(swatch.text))
+                EventTitleLine(
+                    title: title,
+                    hasConference: segment.hasConference,
+                    lineLimit: withTime || minutes < 30 ? 1 : 2
+                )
+                .font(.system(size: blockLabelFontSize(minutes: minutes)))
+                .foregroundStyle(parseHexColor(swatch.text))
                 if withTime {
                     Text(clockTime(start, use24Hour: use24Hour))
                         .font(.system(size: blockLabelFontSize(minutes: minutes)))
@@ -128,7 +131,8 @@ struct CalendarTimedBlock: View {
                 title: title,
                 time: timeRange(start, end, use24Hour: use24Hour),
                 calendar: calendar?.name ?? "",
-                participation: segment.participation
+                participation: segment.participation,
+                hasConference: segment.hasConference
             )
         )
     }
@@ -148,9 +152,8 @@ struct CalendarAllDayChip: View {
         let swatch = calendar.swatchOrFallback(dark: dark)
         let title = band.title.isEmpty ? L10n.event_no_title() : band.title
 
-        Text(title)
+        EventTitleLine(title: title, hasConference: band.hasConference)
             .font(.system(size: 10))
-            .lineLimit(1)
             .foregroundStyle(parseHexColor(swatch.text))
             .padding(.horizontal, 5)
             .frame(
@@ -180,7 +183,8 @@ struct CalendarAllDayChip: View {
                     title: title,
                     time: L10n.calendar_all_day(),
                     calendar: calendar?.name ?? "",
-                    participation: band.participation
+                    participation: band.participation,
+                    hasConference: band.hasConference
                 )
             )
     }

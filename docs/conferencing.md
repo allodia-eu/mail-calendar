@@ -52,12 +52,12 @@ nobody has to dig a link out of the notes.
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| The detail's meetings, Join first (rules 2 to 5) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The detail shows `display_notes` and `display_location` (rule 6) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The camera glyph and its spoken label (rule 7) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The detail's meetings, Join first (rules 2 to 5) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| The detail shows `display_notes` and `display_location` (rule 6) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
 
-The core's half is done: `EventDetail.conferences`, `display_notes`, `display_location` and
-every row's `has_conference` reach each client's bindings today.
+On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins what Join and
+a dial-in row open.
 
 ## Enforcement
 
