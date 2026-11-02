@@ -42,14 +42,28 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
     /// any of them is still held. Judged by the numbers the probe names, not its totals, which run
     /// for the whole launch; and on an answer after the last watch, since an earlier one answered for
     /// less. The probe gives up after about thirty seconds of collections.
+    /// <para>
+    /// The pointer moves between two mailbox rows while it waits. A closed tree is given back only on
+    /// a frame that draws something (docs/client-traps.md), and on a GitHub runner the frames the
+    /// probe asks for draw nothing: the last composer window closed stayed held for all thirty
+    /// seconds, while each earlier one went at the next press on the mailbox. A real leak survives
+    /// the pointer as it survives every frame.
+    /// </para>
     /// </summary>
-    private static void AssertReleasedSince(int before, string what)
+    private static void AssertReleasedSince(App app, int before, string what)
     {
         Match? answer = null;
         var watches = 0;
         var kinds = new Dictionary<int, string>();
+        var nudges = 0;
         App.Eventually(() =>
         {
+            var rows = app.Rows().Where(r => r.Enabled && r.Rendered).Take(2).ToList();
+            if (rows.Count == 0)
+            {
+                throw new InvalidOperationException("no mailbox row is drawn to move the pointer over while the probe collects");
+            }
+            Input.Hover(rows[nudges++ % rows.Count], 100);
             var session = AppLog.NewestSession();
             var watched = Watch().Matches(session);
             kinds = watched.ToDictionary(
@@ -97,7 +111,7 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
             new DraftsFlow(app).OpenNewComposer();
             app.CloseComposer();
         }
-        AssertReleasedSince(before, $"{Cycles} composers were discarded");
+        AssertReleasedSince(app, before, $"{Cycles} composers were discarded");
     });
 
     [OfflineFact]
@@ -110,7 +124,7 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
             Compose(app);
             app.CloseComposer();
         }
-        AssertReleasedSince(before, $"{Cycles} composers were discarded at once");
+        AssertReleasedSince(app, before, $"{Cycles} composers were discarded at once");
     });
 
     [OfflineFact]
@@ -137,7 +151,7 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
             app.Agent.Wait(Filter.ById("Editor") with { Signal = "seeded" }, App.Patience);
             app.CloseExtraWindows();
         }
-        AssertReleasedSince(before, $"{Cycles} reading and composer windows were closed");
+        AssertReleasedSince(app, before, $"{Cycles} reading and composer windows were closed");
     });
 
     [OfflineFact]
@@ -157,6 +171,6 @@ public sealed partial class ReleaseProbeTests(ReleaseProbeApp showcase) : IClass
             app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
         }
         app.CloseDialogs();
-        AssertReleasedSince(before, $"{Cycles} signature editors were cancelled");
+        AssertReleasedSince(app, before, $"{Cycles} signature editors were cancelled");
     }, app => app.CloseDialogs());
 }

@@ -451,8 +451,11 @@ that same file.
   So a collection in an idle window reports held what the next hover would free, about one run in
   four, and it reads exactly like a leak: no managed root, `RefCounted` handles on the composer's
   controls, and freed by whatever draws next: focusing a text box frees it, because its caret
-  draws, and a programmatic focus on a button does not. The release probe draws frames while it
-  collects (`CompositionTarget.Rendering`); a handler on a native object still holds through them.
+  draws, and a programmatic focus on a button does not. The release probe asks for frames while it
+  collects (`CompositionTarget.Rendering`), which is enough on a developer machine and not on a
+  GitHub runner, where a closed composer window stayed held for the probe's thirty seconds and went
+  at the next press on the mailbox. So `ReleaseProbeTests` also moves the pointer between two rows
+  while it waits; a handler on a native object still holds through both.
 - **WinUI's `FocusManager` static *moves* act on whichever element holds focus now, which may be in
   a different window.** `TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = other })`
   reads as "move focus into `other`" and is not: the search root only bounds where the *next*
