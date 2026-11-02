@@ -146,7 +146,7 @@ impl AppModel {
     /// account that is gone.
     pub(super) fn account_removed(&mut self) {
         if let Some(app) = &self.app {
-            self.snapshot = app.mailbox_list();
+            self.snapshot.replace(app.mailbox_list());
         }
         self.settings.account = None;
         if self.has_no_accounts() {

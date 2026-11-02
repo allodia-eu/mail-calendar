@@ -16,16 +16,18 @@ use adw::prelude::*;
 use mailcal_bindings::{Intent, MailboxListSnapshot, SnapshotRow};
 
 use super::{
-    AppModel, PrimaryView, avatar::AvatarData, mailbox::ThreadKey, model::OpenedMessage,
+    AppModel, PrimaryView, mailbox::ThreadKey, model::OpenedMessage,
     notifications::NotificationTarget,
 };
 
 /// Where a named message was found in the list, and the conversation it had to be opened out of.
-struct Found {
-    message: OpenedMessage,
+pub(super) struct Found {
+    pub(super) message: OpenedMessage,
     /// The conversation holding it, which has to be disclosed for the reading pane to be showing
     /// a row the list also shows; `None` when the message is a row in its own right.
-    thread: Option<ThreadKey>,
+    pub(super) thread: Option<ThreadKey>,
+    /// The list row it is, or is inside.
+    pub(super) index: usize,
 }
 
 impl AppModel {
@@ -59,7 +61,7 @@ impl AppModel {
     }
 
     fn open_notified_from_list(&mut self, target: &NotificationTarget) -> bool {
-        let Some(found) = find_in_list(&self.snapshot, target) else {
+        let Some(found) = find_in_list(&self.snapshot, &target.account, &target.key) else {
             return false;
         };
         if let Some(thread) = found.thread {
@@ -72,38 +74,37 @@ impl AppModel {
 
 /// The named message as the list currently holds it, or `None` when this snapshot does not.
 ///
-/// A conversation is searched through rather than opened at its representative: the notification
-/// named one message, and a thread's representative is the newest **in-scope** message, which on
-/// a busy thread is not the one that was announced.
-fn find_in_list(snapshot: &MailboxListSnapshot, target: &NotificationTarget) -> Option<Found> {
-    snapshot.rows.iter().find_map(|listed| match listed {
-        SnapshotRow::Flat { row } if row.account == target.account && row.key == target.key => {
-            Some(Found {
+/// A conversation is searched through rather than opened at its representative: a notification
+/// or a menu item names one message, and a conversation opens its newest, which on a busy thread
+/// is not the one named.
+pub(super) fn find_in_list(
+    snapshot: &MailboxListSnapshot,
+    account: &str,
+    key: &str,
+) -> Option<Found> {
+    snapshot
+        .rows
+        .iter()
+        .enumerate()
+        .find_map(|(index, listed)| match listed {
+            SnapshotRow::Flat { row } if row.account == account && row.key == key => Some(Found {
                 message: OpenedMessage::from_row(listed),
                 thread: None,
-            })
-        }
-        SnapshotRow::Thread { row } => {
-            let message = row
-                .messages
-                .iter()
-                .find(|message| message.account == target.account && message.key == target.key)?;
-            Some(Found {
-                message: OpenedMessage {
-                    account: message.account.clone(),
-                    key: message.key.clone(),
-                    // The conversation's subject, as the expanded sub-row shows it: a message on
-                    // a thread carries no subject of its own.
-                    subject: row.subject.clone(),
-                    from: message.from.clone(),
-                    date: message.date.clone(),
-                    avatar: AvatarData::from(&message.avatar),
-                },
-                thread: Some(ThreadKey::of(row)),
-            })
-        }
-        SnapshotRow::Flat { .. } => None,
-    })
+                index,
+            }),
+            SnapshotRow::Thread { row } => {
+                let message = row
+                    .messages
+                    .iter()
+                    .find(|message| message.account == account && message.key == key)?;
+                Some(Found {
+                    message: OpenedMessage::from_member(row, message),
+                    thread: Some(ThreadKey::of(row)),
+                    index,
+                })
+            }
+            SnapshotRow::Flat { .. } => None,
+        })
 }
 
 /// Brings the mailbox window forward, for a click that reached this app from outside it.
@@ -120,7 +121,7 @@ pub(super) fn present_main_window() {
 mod tests {
     use mailcal_bindings::{FlatRow, SnapshotRow, ThreadMessage, ThreadRow};
 
-    use super::{NotificationTarget, find_in_list};
+    use super::find_in_list;
     use crate::ui::model::{blank_avatar as avatar, empty_mailbox};
 
     fn flat(account: &str, key: &str) -> SnapshotRow {
@@ -176,19 +177,12 @@ mod tests {
         }
     }
 
-    fn target(account: &str, key: &str) -> NotificationTarget {
-        NotificationTarget {
-            account: account.to_owned(),
-            key: key.to_owned(),
-        }
-    }
-
     #[test]
     fn a_message_on_screen_is_found_where_it_is() {
         let mut snapshot = empty_mailbox();
         snapshot.rows = vec![flat("work", "m1"), flat("work", "m2")];
 
-        let found = find_in_list(&snapshot, &target("work", "m2")).expect("the row on screen");
+        let found = find_in_list(&snapshot, "work", "m2").expect("the row on screen");
         assert_eq!(found.message.key, "m2");
         assert!(
             found.thread.is_none(),
@@ -203,7 +197,7 @@ mod tests {
         let mut snapshot = empty_mailbox();
         snapshot.rows = vec![flat("personal", "m1")];
 
-        assert!(find_in_list(&snapshot, &target("work", "m1")).is_none());
+        assert!(find_in_list(&snapshot, "work", "m1").is_none());
     }
 
     #[test]
@@ -213,7 +207,7 @@ mod tests {
         let mut snapshot = empty_mailbox();
         snapshot.rows = vec![thread("work", &["newest", "announced"])];
 
-        let found = find_in_list(&snapshot, &target("work", "announced")).expect("the sub-row");
+        let found = find_in_list(&snapshot, "work", "announced").expect("the sub-row");
         assert_eq!(found.message.key, "announced");
         assert_eq!(
             found.message.subject, "Budget review",
@@ -230,6 +224,6 @@ mod tests {
         let mut snapshot = empty_mailbox();
         snapshot.rows = vec![flat("work", "m1"), thread("work", &["m2", "m3"])];
 
-        assert!(find_in_list(&snapshot, &target("work", "gone")).is_none());
+        assert!(find_in_list(&snapshot, "work", "gone").is_none());
     }
 }

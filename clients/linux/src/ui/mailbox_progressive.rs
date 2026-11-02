@@ -1,16 +1,17 @@
 //! Keeps wholesale mailbox changes responsive by yielding between widget batches.
 
-use std::{cell::RefCell, collections::HashSet, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 
 use adw::prelude::*;
-use mailcal_bindings::{MailboxListSnapshot, SnapshotRow};
+use mailcal_bindings::{MailboxListSnapshot, MailcalApp, SnapshotRow};
 
 use super::{
     AppInput,
     mailbox::{RowMenus, ThreadKey, build_row},
     mailbox_display::{DisplayRow, display_row},
     mailbox_reconcile::{Row, reconcile},
-    message_move::{MoveContext, SharedMoveContext},
+    message_move::MoveContext,
+    selection_input,
 };
 
 /// Enough rows to fill the default-height list pane, including a small scroll margin.
@@ -23,12 +24,29 @@ pub(super) struct ProgressiveRenderer {
     pending: Rc<RefCell<Option<gtk::glib::SourceId>>>,
     /// Read by every row's menu when it opens, so it is replaced on every render, whether or not
     /// a row changed.
-    moves: SharedMoveContext,
+    menus: RowMenus,
 }
 
 impl ProgressiveRenderer {
+    /// Draws which conversations are expanded onto the rows this renderer has put in `list`.
+    pub(super) fn sync_expansion(&self, list: &gtk::ListBox, expanded: &HashSet<ThreadKey>) {
+        selection_input::sync_expansion(list, &self.rendered.borrow(), expanded);
+    }
+
     pub(super) fn set_moves(&self, context: MoveContext) {
-        self.moves.replace(context);
+        self.menus.moves.replace(context);
+    }
+
+    /// Lets every row's menu ask the core what it holds, once there is a core to ask.
+    pub(super) fn answer_menus_from(&self, app: Option<&Arc<MailcalApp>>) {
+        if let Some(app) = app
+            && !self.menus.source.is_answering()
+        {
+            let app = Arc::clone(app);
+            self.menus
+                .source
+                .answer_with(Rc::new(move |rows| app.row_menu(rows)));
+        }
     }
 
     pub(super) fn render(
@@ -36,17 +54,13 @@ impl ProgressiveRenderer {
         list: &gtk::ListBox,
         snapshot: &MailboxListSnapshot,
         expanded: &HashSet<ThreadKey>,
-        in_junk_folder: bool,
         zone: &str,
         sender: &relm4::Sender<AppInput>,
     ) {
         if let Some(source) = self.pending.borrow_mut().take() {
             source.remove();
         }
-        let menus = RowMenus {
-            in_junk_folder,
-            moves: self.moves.clone(),
-        };
+        let menus = self.menus.clone();
         let next: Vec<DisplayRow> = snapshot
             .rows
             .iter()

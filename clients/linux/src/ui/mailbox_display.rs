@@ -4,7 +4,7 @@ use mailcal_bindings::{
     FlatRow, MailboxListSnapshot, QueuedRow, SnapshotRow, ThreadMessage, ThreadRow,
 };
 
-use super::{avatar::AvatarData, mail_actions, mailbox_reconcile::Row};
+use super::{avatar::AvatarData, mailbox::ThreadKey, mailbox_reconcile::Row};
 use crate::l10n;
 
 /// Only the snapshot fields the message rows draw.
@@ -14,7 +14,6 @@ use crate::l10n;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct MailboxRendering {
     rows: Vec<DisplayRow>,
-    in_junk_folder: bool,
     /// The Outbox's rows, and the fact that they are what the list is showing.
     ///
     /// Part of the key rather than a separate one: the two lists share the widget, so a switch
@@ -31,7 +30,6 @@ impl MailboxRendering {
                 .iter()
                 .map(|row| display_row(row, zone))
                 .collect(),
-            in_junk_folder: mail_actions::in_junk_folder(snapshot),
             outbox: snapshot.outbox.clone(),
             showing_outbox: snapshot.showing_outbox,
         }
@@ -42,6 +40,8 @@ impl MailboxRendering {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct DisplayRow {
     pub(super) key: String,
+    /// The conversation this row stands for, or `None` for a single message.
+    pub(super) thread: Option<ThreadKey>,
     pub(super) avatar: AvatarData,
     pub(super) title: String,
     pub(super) subtitle: String,
@@ -66,6 +66,7 @@ pub(super) struct DisplayMessage {
     pub(super) preview: String,
     pub(super) date: String,
     pub(super) unread: bool,
+    pub(super) flagged: bool,
     pub(super) outgoing: bool,
     pub(super) draft: bool,
     pub(super) has_attachment: bool,
@@ -87,6 +88,7 @@ pub(super) fn display_row(snapshot: &SnapshotRow, zone: &str) -> DisplayRow {
 pub(super) fn flat_display(row: &FlatRow, zone: &str) -> DisplayRow {
     DisplayRow {
         key: format!("m/{}/{}", row.account, row.key),
+        thread: None,
         avatar: AvatarData::from(&row.avatar),
         title: subject_or_fallback(&row.subject),
         subtitle: one_line(&row.from),
@@ -103,12 +105,13 @@ pub(super) fn flat_display(row: &FlatRow, zone: &str) -> DisplayRow {
 pub(super) fn thread_display(row: &ThreadRow, zone: &str) -> DisplayRow {
     DisplayRow {
         key: format!("t/{}/{}", row.account, row.thread_id),
+        thread: Some(ThreadKey::of(row)),
         avatar: AvatarData::from(&row.avatar),
         title: subject_or_fallback(&row.subject),
         subtitle: one_line(&row.latest_from),
         date: row.latest_date.clone(),
         unread: row.unread_count > 0,
-        flagged: false,
+        flagged: row.flagged,
         has_attachment: row.has_attachment,
         count: row.message_count,
         messages: row.messages.iter().map(message_display).collect(),
@@ -124,6 +127,7 @@ pub(super) fn message_display(message: &ThreadMessage) -> DisplayMessage {
         preview: one_line(&message.preview),
         date: message.date.clone(),
         unread: message.unread,
+        flagged: message.flagged,
         outgoing: message.outgoing,
         draft: message.draft,
         has_attachment: message.has_attachment,

@@ -385,7 +385,7 @@ impl AppModel {
         if *outcome == Outcome::Switched {
             self.settings.sign_in.forget(&attempt.account);
             if let Some(app) = &self.app {
-                self.snapshot = app.mailbox_list();
+                self.snapshot.replace(app.mailbox_list());
                 self.connectivity =
                     super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
             }
