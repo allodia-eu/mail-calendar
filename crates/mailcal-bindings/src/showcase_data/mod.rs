@@ -315,6 +315,7 @@ pub(crate) fn primary_calendar(
     // roster have to match the mail's iTIP payload exactly (`invitation`). Seven copies of that
     // agreement is seven chances to break it.
     events.push(invitation::hold(&invite_text(locale), now));
+    calendar::with_meeting(&mut events);
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
     densify_for_performance(&mut events);
     let calendars = vec![

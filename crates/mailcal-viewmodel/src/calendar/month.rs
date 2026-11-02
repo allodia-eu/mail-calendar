@@ -51,6 +51,8 @@ pub struct MonthChip {
     /// (`docs/calendar.md` §4). Declined events never reach a month cell; the core filters
     /// them upstream.
     pub participation: crate::invitation::ResponseStatus,
+    /// See [`Occurrence::has_conference`](crate::calendar::grid::Occurrence::has_conference).
+    pub has_conference: bool,
 }
 
 /// One day cell of the month grid.
@@ -148,6 +150,7 @@ fn chips_on(day: i64, occurrences: &[&Occurrence], zone: &TimeZoneId) -> Vec<Mon
                 can_write: occurrence.can_write,
                 occurrence_start: occurrence.occurrence_start.clone(),
                 participation: occurrence.participation,
+                has_conference: occurrence.has_conference,
             })
         })
         .collect();

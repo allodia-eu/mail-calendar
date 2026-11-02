@@ -113,8 +113,10 @@ mod records;
 mod records_accounts;
 mod records_avatar;
 mod records_calendar;
+mod records_conference;
 mod records_connectivity;
 mod records_contacts;
+mod records_event_detail;
 mod records_folders;
 mod records_outbox;
 mod retry;
@@ -230,9 +232,10 @@ pub use records_accounts::{
 pub use records_avatar::Avatar;
 pub use records_calendar::{
     AllDayBand, Appearance, CalendarColor, CalendarLayout, CalendarPage, CalendarRow,
-    CalendarSnapshot, DisplaySettings, EventAttendee, EventDetail, EventEdge, EventRow, GridDay,
-    MonthCell, MonthChip, MonthPage, Swatch, TimeFormat, TimedSegment, WeekStart,
+    CalendarSnapshot, DisplaySettings, EventEdge, EventRow, GridDay, MonthCell, MonthChip,
+    MonthPage, Swatch, TimeFormat, TimedSegment, WeekStart,
 };
+pub use records_conference::{ConferenceDialIn, ConferenceState, EventConference};
 pub use records_connectivity::{
     AccountProvider, ConnectionInfo, ConnectivitySnapshot, HttpVersion, TlsVersion, UseOutage,
 };
@@ -240,6 +243,7 @@ pub use records_contacts::{
     ContactCardRef, ContactDetail, ContactEdit, ContactRow, ContactTarget, ContactValue,
     ContactWriteStatus, ContactsSnapshot, RecipientMatch,
 };
+pub use records_event_detail::{EventAttendee, EventDetail};
 pub use records_folders::{
     AccountFolderRow, FolderAction, FolderNameCheck, FolderNotice, FolderProblem, FolderRole,
     FolderRow,

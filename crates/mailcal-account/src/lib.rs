@@ -29,6 +29,7 @@ mod delegate_info;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 mod dev_tls;
 mod error;
+mod event_conference;
 mod event_detail;
 mod google;
 mod graph;
@@ -76,6 +77,7 @@ pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
 pub use dav_starts::{DavLearned, DavStarts, DavStartsFile, Learned};
 use engine_provider::Provider;
 pub use error::AccountError;
+pub use event_conference::{ConferenceState, DialIn, EventConference, event_conferences};
 pub use event_detail::{DetailOccurrence, EventDetail, InviteeEditability, project_event_detail};
 pub use google::{
     GmailMailRoute, GoogleConfig, connect_google_calendar_provider,
@@ -267,12 +269,12 @@ async fn connect_caldav_at(
         config = config.with_discovery_path(start);
     }
     let config = config
-    // A clone shares the record of what it refused, so a refusal reads back from `tls`.
-    .with_tls(tls.clone())
-    // Ungated, for the reason `connect_carddav_contact_providers` gives: no DAV adapter
-    // states a ceiling yet.
-    .with_retry(throttle::ungated_retry())
-    .with_connect_observer(connect_log::connect_logger("caldav"));
+        // A clone shares the record of what it refused, so a refusal reads back from `tls`.
+        .with_tls(tls.clone())
+        // Ungated, for the reason `connect_carddav_contact_providers` gives: no DAV adapter
+        // states a ceiling yet.
+        .with_retry(throttle::ungated_retry())
+        .with_connect_observer(connect_log::connect_logger("caldav"));
     let provider = CalDavProvider::connect(config)
         .await
         .map_err(|err| AccountError::from_first_dav_connect(err, AccountError::CalDav))

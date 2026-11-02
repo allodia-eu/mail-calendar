@@ -28,6 +28,7 @@ fn timed(title: &str, start: &str, end: &str) -> Occurrence {
         // Most cases here are about layout, so the default is a settled commitment; the
         // unanswered-hold case sets this explicitly.
         participation: crate::invitation::ResponseStatus::Accepted,
+        has_conference: false,
     }
 }
 
@@ -170,4 +171,20 @@ fn a_cell_carries_every_event_rather_than_a_truncated_list() {
         .collect();
     let grid = month("2026-07-15", &occurrences, true);
     assert_eq!(titles(&grid, "2026-07-15").len(), 9);
+}
+
+#[test]
+fn a_chip_carries_whether_its_event_has_a_meeting() {
+    let call = Occurrence {
+        has_conference: true,
+        ..timed("call", "2026-07-08T07:00:00Z", "2026-07-08T07:30:00Z")
+    };
+    let grid = month("2026-07-15", &[call], true);
+    let chip = grid
+        .cells
+        .iter()
+        .flat_map(|cell| &cell.chips)
+        .next()
+        .unwrap();
+    assert!(chip.has_conference);
 }

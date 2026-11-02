@@ -18,11 +18,15 @@ use engine_core::{
 };
 use mailcal_viewmodel::{
     EventAttendee,
-    calendar::days::{date_at, from_civil},
+    calendar::{
+        days::{date_at, from_civil},
+        meeting::is_shown,
+    },
     event_attendees,
 };
 
 use crate::{
+    event_conference::{EventConference, event_conferences, is_join_link},
     recurrence_shape::{EventRecurrence, describe_recurrence},
     repeat_draft::{RepeatDraft, repeat_draft_of},
     repeat_summary::{RepeatSummary, summarize_repeat},
@@ -78,10 +82,25 @@ pub struct EventDetail {
     pub start: String,
     /// The end, same terms as `start`, for an all-day event the date is **exclusive**.
     pub end: String,
-    /// The location, if any.
+    /// The location as the server holds it, if any: what the editor edits. It keeps a meeting's
+    /// join link, because the editor sends this back and a save without it would take the link
+    /// from every invitee.
     pub location: Option<String>,
-    /// The notes/description, if any.
+    /// The location as the detail view shows it: the first one that is not only a link of a
+    /// meeting in [`Self::conferences`], which already offers it as Join.
+    pub display_location: Option<String>,
+    /// The description as the server holds it, if any: what the editor edits. It keeps the
+    /// meeting block an invitation writes, because a save without it would take the link from
+    /// every invitee.
     pub notes: Option<String>,
+    /// The notes as the detail view shows them: [`Self::notes`] without each meeting block
+    /// Teams and Google write whose meeting is in [`Self::conferences`]; the block of a meeting
+    /// the detail does not show stays, as the one way into it. `None` when nothing else is
+    /// left.
+    pub display_notes: Option<String>,
+    /// The meetings the event can be joined at, the calendar server's own first; empty for
+    /// most events. See `docs/conferencing.md`.
+    pub conferences: Vec<EventConference>,
     /// Minutes before the start of the first "N before start" reminder, or `None` if the event
     /// has none we summarise. Read-only: no client offers to change a reminder yet.
     pub reminder_minutes: Option<i32>,
@@ -146,6 +165,7 @@ pub fn project_event_detail(
 ) -> EventDetail {
     let (timezone, start, end) = wall_clock_bounds(event, occurrence);
     let recurrence = event.recurrence.as_ref().and_then(describe_recurrence);
+    let conferences = event_conferences(event);
     EventDetail {
         account: account.to_owned(),
         key: event.id.key().as_str().to_owned(),
@@ -164,7 +184,17 @@ pub fn project_event_detail(
             .locations
             .iter()
             .find_map(|location| location.name.clone()),
+        display_location: event
+            .locations
+            .iter()
+            .filter_map(|location| location.name.as_deref())
+            .find(|name| !is_join_link(name, event))
+            .map(str::to_owned),
         notes: event.description.clone(),
+        // A block is left out only when the detail offers its meeting instead; one whose
+        // meeting is not shown is the one way into it left.
+        display_notes: event.notes(is_shown).map(String::from),
+        conferences,
         reminder_minutes: reminder_minutes(event),
         repeat_summary: match &recurrence {
             Some(EventRecurrence::Simple(rule)) => summarize_repeat(rule, start_date(event)),

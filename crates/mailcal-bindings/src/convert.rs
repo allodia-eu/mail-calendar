@@ -298,6 +298,7 @@ impl From<AppEventRow> for EventRow {
             start: row.start,
             can_write: row.can_write,
             participation: row.participation.into(),
+            has_conference: row.has_conference,
         }
     }
 }

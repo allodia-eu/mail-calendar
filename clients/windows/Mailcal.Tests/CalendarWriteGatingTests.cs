@@ -25,7 +25,7 @@ public class CalendarWriteGatingTests
     // rows are Accepted rather than NeedsAction, which would additionally make them unanswered
     // holds and put a second variable in a single-variable test.
     private static EventRow Event(bool canWrite) =>
-        new("acct-1", "ev-1", "Standup", "2026-07-16 09:00", canWrite, ResponseStatus.Accepted);
+        new("acct-1", "ev-1", "Standup", "2026-07-16 09:00", canWrite, ResponseStatus.Accepted, false);
 
     [Fact]
     public void New_event_needs_at_least_one_writable_calendar()

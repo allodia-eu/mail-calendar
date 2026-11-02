@@ -43,6 +43,7 @@ fn timed(title: &str, start: &str, end: &str) -> Occurrence {
         // Most cases here are about layout, so the default is a settled commitment; the
         // unanswered-hold case sets this explicitly.
         participation: crate::invitation::ResponseStatus::Accepted,
+        has_conference: false,
     }
 }
 
@@ -355,4 +356,19 @@ fn an_unresolvable_zone_drops_the_block_rather_than_misplacing_it() {
         &custom,
     );
     assert_eq!(grid.timed, []);
+}
+
+#[test]
+fn a_block_and_a_bar_carry_whether_their_event_has_a_meeting() {
+    let call = Occurrence {
+        has_conference: true,
+        ..timed("call", "2026-07-08T07:00:00Z", "2026-07-08T07:30:00Z")
+    };
+    let offsite = Occurrence {
+        has_conference: true,
+        ..all_day("offsite", "2026-07-07T00:00:00Z", "2026-07-08T00:00:00Z")
+    };
+    let grid = build(&week(), &[call, offsite], &zone());
+    assert!(grid.timed[0].has_conference);
+    assert!(grid.all_day[0].has_conference);
 }
