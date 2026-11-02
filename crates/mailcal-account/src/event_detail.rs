@@ -18,7 +18,10 @@ use engine_core::{
 };
 use mailcal_viewmodel::{
     EventAttendee,
-    calendar::days::{date_at, from_civil},
+    calendar::{
+        days::{date_at, from_civil},
+        meeting::is_shown,
+    },
     event_attendees,
 };
 
@@ -79,16 +82,21 @@ pub struct EventDetail {
     pub start: String,
     /// The end, same terms as `start`, for an all-day event the date is **exclusive**.
     pub end: String,
-    /// The location, if any. A location that is only a meeting's join link is left out:
-    /// [`Self::conferences`] already offers it as Join.
+    /// The location as the server holds it, if any: what the editor edits. It keeps a meeting's
+    /// join link, because the editor sends this back and a save without it would take the link
+    /// from every invitee.
     pub location: Option<String>,
+    /// The location as the detail view shows it: the first one that is not only a link of a
+    /// meeting in [`Self::conferences`], which already offers it as Join.
+    pub display_location: Option<String>,
     /// The description as the server holds it, if any: what the editor edits. It keeps the
     /// meeting block an invitation writes, because a save without it would take the link from
     /// every invitee.
     pub notes: Option<String>,
-    /// The notes as the detail view shows them: [`Self::notes`] without the meeting blocks
-    /// Teams and Google write, which repeat [`Self::conferences`]; with no conference, the
-    /// blocks stay. `None` when nothing else is left.
+    /// The notes as the detail view shows them: [`Self::notes`] without each meeting block
+    /// Teams and Google write whose meeting is in [`Self::conferences`]; the block of a meeting
+    /// the detail does not show stays, as the one way into it. `None` when nothing else is
+    /// left.
     pub display_notes: Option<String>,
     /// The meetings the event can be joined at, the calendar server's own first; empty for
     /// most events. See `docs/conferencing.md`.
@@ -175,17 +183,17 @@ pub fn project_event_detail(
         location: event
             .locations
             .iter()
+            .find_map(|location| location.name.clone()),
+        display_location: event
+            .locations
+            .iter()
             .filter_map(|location| location.name.as_deref())
             .find(|name| !is_join_link(name, event))
             .map(str::to_owned),
         notes: event.description.clone(),
-        // The block is left out only when the detail offers the meeting instead: with nothing
-        // shown, it is the one way in left.
-        display_notes: if conferences.is_empty() {
-            event.description.clone()
-        } else {
-            event.notes().map(String::from)
-        },
+        // A block is left out only when the detail offers its meeting instead; one whose
+        // meeting is not shown is the one way into it left.
+        display_notes: event.notes(is_shown).map(String::from),
         conferences,
         reminder_minutes: reminder_minutes(event),
         repeat_summary: match &recurrence {

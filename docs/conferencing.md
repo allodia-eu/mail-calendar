@@ -19,8 +19,9 @@ nobody has to dig a link out of the notes.
    A client adds no meeting it found itself and drops none the core sent.
 2. **What the detail shows for a meeting**, in this order: the service's name (`service`) with
    **Join** (`join_url`), then the meeting ID, the passcode, each dial-in number with its PIN,
-   and the meeting's own `notes`. **Copy link** copies `join_url`. A row with no value is left
-   out, never drawn empty. Several meetings are drawn one after the other, in the core's order.
+   and the meeting's own `notes`. A dial-in `number` is the engine's reading of it, never the
+   `tel:` URI's text. **Copy link** copies `join_url`. A row with no value is left out, never
+   drawn empty. Several meetings are drawn one after the other, in the core's order.
 3. **Join and dial-in open through the OS.** `join_url` is always `https`; the OS hands it to the
    service's app where one is installed, else to the browser. A dial-in `uri` is a `tel:` URI
    for the phone app. Nothing opens inside the app, and nothing is opened until the person taps:
@@ -30,12 +31,15 @@ nobody has to dig a link out of the notes.
    shows its own catalog words for a video meeting, never the host name or a guess.
 5. **A meeting the server is still making** (`state: Preparing`) shows "Preparing the meeting
    link" and no Join; one it could not make (`Failed`) says so. Neither offers anything to tap.
-6. **The detail shows `display_notes`, the editor edits `notes`.** `display_notes` leaves out the
-   block of text Teams and Google write into an invitation's description, which repeats the
-   meeting; an event with no meeting shown keeps the block, since it is then the only way in.
+6. **The detail shows `display_notes`, the editor edits `notes`.** `display_notes` leaves out
+   each block of text Teams and Google write into an invitation's description whose meeting the
+   detail shows, since it repeats that meeting; the block of a meeting not shown stays, since
+   it is then the only way in. The engine decides which meeting a block is of
+   (`Event::notes`), given `is_shown`.
    `notes` is the description as the server holds it, block included, so a save from the editor
-   does not take the link from every invitee. A location that is only a shown meeting's link is
-   not shown as a place; the core leaves it out of `location`.
+   does not take the link from every invitee. The same holds for the place: the detail shows
+   `display_location`, which leaves out a location that is only a shown meeting's link, and the
+   editor edits `location`, link included.
 7. **The glyph.** A block, bar, chip or agenda row with `has_conference` carries a small video
    camera glyph after its title, from the platform's own set ([`icons.md`](icons.md)), and its
    accessibility label says the event has a video meeting. The glyph is never the only way the
@@ -49,7 +53,7 @@ nobody has to dig a link out of the notes.
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | The detail's meetings, Join first (rules 2 to 5) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| The detail shows `display_notes` (rule 6) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| The detail shows `display_notes` and `display_location` (rule 6) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
 | The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
 
 On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins what Join and

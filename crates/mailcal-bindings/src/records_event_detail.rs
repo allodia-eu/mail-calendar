@@ -29,8 +29,9 @@ pub struct EventDetail {
     pub start: String,
     /// The end, same terms as `start`; exclusive date if all-day.
     pub end: String,
-    /// The location, if any; one that is only a meeting's join link is left out, because
-    /// `conferences` already offers it.
+    /// The location as the server holds it, if any: what the **editor** prefills from. It
+    /// keeps a meeting's join link, so a save does not take the link from every invitee; show
+    /// `display_location` instead.
     pub location: Option<String>,
     /// The description as the server holds it, if any: what the **editor** prefills from.
     /// It keeps the meeting block an invitation writes, so a save does not take the link from
@@ -73,11 +74,15 @@ pub struct EventDetail {
     pub occurrence_start: String,
     /// Everyone on the event, organiser first; empty for an appointment nobody was invited to.
     pub attendees: Vec<EventAttendee>,
-    /// The notes the detail view shows: `notes` without the meeting blocks Teams and Google
-    /// write, which repeat `conferences`; with no conference, the blocks stay. `None` when
-    /// nothing else is left.
+    /// The notes the detail view shows: `notes` without each meeting block Teams and Google
+    /// write whose meeting is in `conferences`; the block of a meeting not shown stays, as the
+    /// one way into it. `None` when nothing else is left.
     #[uniffi(default = None)]
     pub display_notes: Option<String>,
+    /// The location the detail view shows: the first that is not only a link of a meeting in
+    /// `conferences`, which already offers it as Join.
+    #[uniffi(default = None)]
+    pub display_location: Option<String>,
     /// The meetings the event can be joined at, the calendar server's own first; empty for
     /// most events. The detail shows each with its Join button first (`docs/conferencing.md`).
     #[uniffi(default = [])]
