@@ -27,7 +27,7 @@ pub(super) trait Row {
 /// row (a conversation needs its expansion state and the input sender).
 ///
 /// Rows are matched by [`Row::key`] and compared by `PartialEq`, so a row that moved keeps its
-/// widget; the reorder is a reparent, not a rebuild.
+/// widget, the reorder being a reparent rather than a rebuild, unless its rendering changed too.
 pub(super) fn reconcile<T, F>(list: &gtk::ListBox, previous: &[T], next: &[T], build: F)
 where
     T: Row + PartialEq,
@@ -52,10 +52,12 @@ where
     }
 
     for (position, row) in next.iter().enumerate() {
+        // Matching by key alone would leave a read message showing as unread, or a conversation
+        // showing the face another folder lists it by.
+        let changed = previous.iter().find(|old| old.key() == row.key()) != Some(row);
         if on_screen.get(position) == Some(&row.key()) {
-            // Already here. Rebuild it only if what it renders changed; matching by key alone
-            // would leave a read message showing as unread.
-            if previous.iter().find(|old| old.key() == row.key()) != Some(row) {
+            // Already here. Rebuild it only if what it renders changed.
+            if changed {
                 remove_at(list, position);
                 insert_at(list, position, &build(position));
             }
@@ -65,11 +67,16 @@ where
             .iter()
             .position(|key| *key == row.key());
         if let Some(offset) = found {
-            // A row that moved: reparent the widget it already has rather than building another.
+            // A row that moved: reparent the widget it already has rather than building another,
+            // unless what it renders changed as well.
             let from = position + offset;
             if let Some(child) = list.row_at_index(index_of(from)) {
                 list.remove(&child);
-                list.insert(&child, index_of(position));
+                if changed {
+                    insert_at(list, position, &build(position));
+                } else {
+                    list.insert(&child, index_of(position));
+                }
             }
             let key = on_screen.remove(from);
             on_screen.insert(position, key);
