@@ -1,5 +1,6 @@
 // Which way a Gmail account's mail syncs in this launch, on its page (docs/settings.md row 9):
-// Optimised, Fallback, or Checking until the first read has settled it. The status never names a
+// Optimised, Fallback, Can't connect while its mail cannot be reached, or Checking until the first
+// read has settled it. The status never names a
 // protocol; the info button says what it means and links to the help page.
 
 import MailcalBindings
@@ -71,6 +72,7 @@ enum AccountSyncTechnologyLabels {
         case .checking: L10n.settings_account_sync_technology_checking()
         case .optimised: L10n.settings_account_sync_technology_optimised()
         case .fallback: L10n.settings_account_sync_technology_fallback()
+        case .unreachable: L10n.settings_account_sync_technology_unreachable()
         }
     }
 
@@ -79,6 +81,7 @@ enum AccountSyncTechnologyLabels {
         case .checking: L10n.settings_account_sync_technology_checking_detail()
         case .optimised: L10n.settings_account_sync_technology_optimised_detail()
         case .fallback: L10n.settings_account_sync_technology_fallback_detail()
+        case .unreachable: L10n.settings_account_sync_technology_unreachable_detail()
         }
     }
 
@@ -87,6 +90,7 @@ enum AccountSyncTechnologyLabels {
         case .checking: .secondary
         case .optimised: .green
         case .fallback: .orange
+        case .unreachable: .red
         }
     }
 }

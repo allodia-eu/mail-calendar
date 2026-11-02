@@ -422,6 +422,7 @@ fn only_a_google_account_used_for_mail_names_its_sync_technology() {
     assert_eq!(google(Route::Undecided), Some(Sync::Checking));
     assert_eq!(google(Route::Imap), Some(Sync::Optimised));
     assert_eq!(google(Route::Api), Some(Sync::Fallback));
+    assert_eq!(google(Route::Unreachable), Some(Sync::Unreachable));
     // A Google account used only for its calendar or contacts reads no mail either way.
     assert_eq!(Sync::of(AccountKind::Google, false, Route::Imap), None);
     for kind in [
