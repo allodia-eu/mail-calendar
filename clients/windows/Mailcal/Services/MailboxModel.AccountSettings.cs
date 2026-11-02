@@ -161,7 +161,7 @@ public sealed partial class MailboxModel
             AccountConsentStart start;
             if (app.AccountProvider(accountId) == AccountProvider.Google)
             {
-                using var loopback = new GoogleLoopback();
+                using var loopback = NewGoogleLoopback();
                 start = app.BeginAccountConsent(accountId, loopback.RedirectUri, adding);
                 await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
                 step(SignInStep.Browser);
