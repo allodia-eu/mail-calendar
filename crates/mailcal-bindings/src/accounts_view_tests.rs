@@ -411,3 +411,30 @@ fn a_calendar_that_needs_a_sign_in_of_its_own_names_its_server() {
         "a server that could not be reached is tried again, not signed in to separately"
     );
 }
+
+#[test]
+fn only_a_google_account_used_for_mail_names_its_sync_technology() {
+    use mailcal_account::GmailMailRoute as Route;
+
+    use crate::MailSyncTechnology as Sync;
+
+    let google = |route| Sync::of(AccountKind::Google, true, route);
+    assert_eq!(google(Route::Undecided), Some(Sync::Checking));
+    assert_eq!(google(Route::Imap), Some(Sync::Optimised));
+    assert_eq!(google(Route::Api), Some(Sync::Fallback));
+    // A Google account used only for its calendar or contacts reads no mail either way.
+    assert_eq!(Sync::of(AccountKind::Google, false, Route::Imap), None);
+    for kind in [
+        AccountKind::Imap,
+        AccountKind::Dav,
+        AccountKind::Jmap,
+        AccountKind::Microsoft,
+    ] {
+        assert_eq!(Sync::of(kind, true, Route::Imap), None, "{kind:?}");
+    }
+    // An account no provider has read yet in this launch is still being checked.
+    assert_eq!(
+        mailcal_account::gmail_mail_route("nobody-read-this@example.com"),
+        Route::Undecided
+    );
+}

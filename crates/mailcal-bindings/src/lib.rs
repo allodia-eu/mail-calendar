@@ -90,6 +90,7 @@ mod demo;
 mod drafts;
 mod error;
 mod google;
+mod help;
 mod imap_oauth;
 mod jmap_oauth;
 mod jmap_session;
@@ -195,6 +196,7 @@ pub use dav_oauth::SeparateServerSignInStart;
 pub use drafts::{DraftStatus, draft_autosave_idle_seconds};
 pub use error::MailcalError;
 pub use google::{GoogleLoginStart, begin_google_login};
+pub use help::{HelpPage, help_page_url};
 pub use imap_oauth::{ImapAuthOffer, ImapLoginRequest, ImapLoginStart};
 pub use launch::launch_status_after_ms;
 pub use logging::{LogLevel, Logger};
@@ -222,7 +224,7 @@ pub use records::{
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,
     AccountsSnapshot, CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
-    SeparateServer, SignInMethod, UseProblem,
+    MailSyncTechnology, SeparateServer, SignInMethod, UseProblem,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{

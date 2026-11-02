@@ -27,7 +27,10 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, LazyLock, Weak},
+    sync::{
+        Arc, LazyLock, Weak,
+        atomic::{AtomicU8, Ordering},
+    },
 };
 
 use engine_core::error::FailureClass;
@@ -57,6 +60,53 @@ const ASK_AGAIN_AFTER: std::time::Duration = std::time::Duration::from_secs(2);
 static SLOTS: LazyLock<std::sync::Mutex<HashMap<String, Weak<GmailImapSlot>>>> =
     LazyLock::new(Default::default);
 
+/// What hears that an account's route settled; it answers whether it still wants to hear.
+type RouteListener = Box<dyn Fn() -> bool + Send + Sync>;
+
+/// Called whenever an account's route settles, so Settings can draw it again: one per core in
+/// the process, since each draws its own Settings.
+static ROUTE_LISTENERS: LazyLock<std::sync::Mutex<Vec<RouteListener>>> =
+    LazyLock::new(Default::default);
+
+/// Which way a Google account's mail is read in this launch, as Settings shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GmailMailRoute {
+    /// Not settled: the account has not been read in this launch, or its IMAP side is being tried
+    /// again after a failure that may pass.
+    Undecided,
+    /// Over IMAP.
+    Imap,
+    /// Over the API, because Gmail refused this account IMAP.
+    Api,
+}
+
+/// Which way the Google account at `address` reads its mail in this launch.
+#[must_use]
+pub fn gmail_mail_route(address: &str) -> GmailMailRoute {
+    let slot = SLOTS
+        .lock()
+        .expect("gmail slots mutex poisoned")
+        .get(address)
+        .and_then(Weak::upgrade);
+    slot.map_or(GmailMailRoute::Undecided, |slot| slot.route())
+}
+
+/// Calls `listener` whenever a Google account's route settles, until it answers `false`.
+pub fn on_gmail_mail_route_change(listener: impl Fn() -> bool + Send + Sync + 'static) {
+    ROUTE_LISTENERS
+        .lock()
+        .expect("gmail route listeners mutex poisoned")
+        .push(Box::new(listener));
+}
+
+/// Tells every listener that a route settled, and forgets the ones that no longer want to hear.
+fn route_settled() {
+    ROUTE_LISTENERS
+        .lock()
+        .expect("gmail route listeners mutex poisoned")
+        .retain(|listener| listener());
+}
+
 /// The reader a live account hands the Gmail provider.
 pub(crate) type GmailImap = GmailMail<TlsStream<TcpStream>>;
 
@@ -68,6 +118,9 @@ pub(super) struct GmailImapSlot {
     tokens: Arc<GraphTokenSource>,
     tls: TlsClientConfig,
     state: Mutex<Side>,
+    /// What [`gmail_mail_route`] answers, kept beside `state` because that lock is held across a
+    /// sign-in and Settings may not wait for one.
+    route: AtomicU8,
 }
 
 /// Which side the account's mail is read over.
@@ -107,6 +160,7 @@ impl GmailImapSlot {
             tokens: Arc::clone(tokens),
             tls: tls.clone(),
             state: Mutex::new(Side::Unknown(0)),
+            route: AtomicU8::new(0),
         });
         slots.insert(address.to_owned(), Arc::downgrade(&slot));
         slot
@@ -143,8 +197,25 @@ impl GmailImapSlot {
             ),
             (Side::Unknown(_), Ok(_)) => {}
         }
+        let settled = match next {
+            Side::Unknown(_) => None,
+            Side::Imap(_) => Some(GmailMailRoute::Imap),
+            Side::Api => Some(GmailMailRoute::Api),
+        };
         *state = next;
+        if let Some(route) = settled {
+            self.route.store(route as u8, Ordering::Release);
+            route_settled();
+        }
         answer
+    }
+
+    fn route(&self) -> GmailMailRoute {
+        match self.route.load(Ordering::Acquire) {
+            1 => GmailMailRoute::Imap,
+            2 => GmailMailRoute::Api,
+            _ => GmailMailRoute::Undecided,
+        }
     }
 }
 
@@ -367,5 +438,43 @@ mod tests {
         // The account's other providers, built from the same sign-in, share the new slot.
         let again = GmailImapSlot::shared(address, &new, &tls);
         assert!(std::sync::Arc::ptr_eq(&slot, &again));
+    }
+
+    /// Each core in the process draws its own Settings, so each hears a route settle, and one
+    /// that has gone stops being asked.
+    #[test]
+    fn every_listener_hears_a_route_settle_until_it_is_gone() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, AtomicUsize, Ordering},
+        };
+
+        let first = Arc::new(AtomicUsize::new(0));
+        let second = Arc::new(AtomicUsize::new(0));
+        let gone = Arc::new(AtomicBool::new(false));
+        let (heard, alive) = (Arc::clone(&first), Arc::clone(&gone));
+        super::on_gmail_mail_route_change(move || {
+            heard.fetch_add(1, Ordering::SeqCst);
+            !alive.load(Ordering::SeqCst)
+        });
+        let heard = Arc::clone(&second);
+        super::on_gmail_mail_route_change(move || {
+            heard.fetch_add(1, Ordering::SeqCst);
+            true
+        });
+
+        super::route_settled();
+        assert_eq!(first.load(Ordering::SeqCst), 1);
+        assert_eq!(second.load(Ordering::SeqCst), 1);
+
+        gone.store(true, Ordering::SeqCst);
+        super::route_settled();
+        super::route_settled();
+        assert_eq!(
+            first.load(Ordering::SeqCst),
+            2,
+            "a listener that is gone is asked once more"
+        );
+        assert_eq!(second.load(Ordering::SeqCst), 3);
     }
 }

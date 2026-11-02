@@ -37,6 +37,7 @@ fn snapshot() -> AccountsSnapshot {
             endpoints: None,
             separate_server: None,
             distinction: None,
+            mail_sync: None,
         }],
     }
 }

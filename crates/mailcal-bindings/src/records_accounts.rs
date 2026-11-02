@@ -46,6 +46,40 @@ pub struct AccountEntry {
     /// account has it.
     #[uniffi(default = None)]
     pub distinction: Option<AccountDistinction>,
+    /// Which way its mail syncs in this launch, for a Google account used for mail; `None` for
+    /// every other account.
+    #[uniffi(default = None)]
+    pub mail_sync: Option<MailSyncTechnology>,
+}
+
+/// Which way a Google account's mail syncs in this launch: what Settings calls its sync
+/// technology. A client names the three and never says which protocol is behind them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum MailSyncTechnology {
+    /// Not settled yet: the account has not been read in this launch, or a read that may work
+    /// next time is being tried again.
+    Checking,
+    /// The fast way: over IMAP, which Gmail does not meter per message.
+    Optimised,
+    /// Complete but slower: over the Gmail API, because Gmail refused this account IMAP.
+    Fallback,
+}
+
+impl MailSyncTechnology {
+    /// What Settings shows for an account of `kind` that is `used_for_mail` or not, while its mail
+    /// is read along `route`.
+    pub(crate) fn of(
+        kind: AccountKind,
+        used_for_mail: bool,
+        route: mailcal_account::GmailMailRoute,
+    ) -> Option<Self> {
+        use mailcal_account::GmailMailRoute;
+        (kind == AccountKind::Google && used_for_mail).then_some(match route {
+            GmailMailRoute::Undecided => Self::Checking,
+            GmailMailRoute::Imap => Self::Optimised,
+            GmailMailRoute::Api => Self::Fallback,
+        })
+    }
 }
 
 /// What tells an account apart from another with the same address (`docs/accounts.md` rule 8):

@@ -87,6 +87,7 @@ pub(crate) mod tests {
             endpoints: None,
             separate_server: None,
             distinction: None,
+            mail_sync: None,
         };
         let row = account_row(&entry, &sender);
         adw::prelude::ActionRowExt::activate(&row);
