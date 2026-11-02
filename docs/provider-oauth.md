@@ -605,7 +605,12 @@ autodetection. It reuses the whole state machine above; the deltas are:
   (`is_oauth_callback`, one rule for all three), reads its whole request head first, and answers
   anything else with a 400 while it keeps waiting: a browser can ask the port for `/favicon.ico`
   before the redirect, and taking that request failed a completed sign-in with "callback missing
-  state".
+  state". **Once the wait is over the port keeps answering for three minutes**, so a browser that
+  comes back late reads a page rather than a refused connection: `sign_in_page_done` after the
+  redirect, `sign_in_page_ended` after a cancelled, superseded or failed sign-in. Two Linux
+  listeners do not linger, because the next wait needs the port at once: one bound to a persisted
+  JMAP redirect, which the next re-authentication binds again, and a clone of the process-wide
+  discovered-sign-in listener, whose socket the next wait accepts on.
 - **Client secret: none for iOS/Android, a non-confidential one for the Desktop client (rule 1).**
   The **iOS/Android** clients are true public clients: Google's token endpoint takes the PKCE
   exchange with only the client id. A Google **Desktop** client (the **macOS/Windows/Linux** loopback
