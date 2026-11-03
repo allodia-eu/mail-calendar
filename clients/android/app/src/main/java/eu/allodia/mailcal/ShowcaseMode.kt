@@ -143,10 +143,12 @@ internal object ShowcaseMode {
     // words, not its key, so every language opens the same row.
     fun invitationTarget() = showcaseInvitation()
 
-    // The event the meeting screenshot opens over the calendar, or null on every other run.
+    // The event the meeting screenshot opens over the calendar, or null on every other run and
+    // once it has been opened: leaving the calendar and coming back shows the calendar.
     // Locale-free, as the invitation's is: only the event's title is translated.
     fun openingEvent(activity: MainActivity): EventOpen? {
         if (!isOn(activity) || screen(activity) != ShowcaseScreen.MEETING) return null
+        if (activity.didDriveShowcaseOpen) return null
         val meeting = showcaseMeeting()
         return EventOpen(meeting.account, meeting.eventKey, occurrenceStart = "")
     }

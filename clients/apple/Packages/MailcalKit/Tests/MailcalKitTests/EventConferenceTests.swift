@@ -1,6 +1,6 @@
-// What the detail says about a video meeting, and what its links open, tested without a view
-// (docs/conferencing.md). The links are the part that matters most: Join and a dial-in number are
-// the two places a tap leaves the app, so what each will open is pinned here.
+// What the detail says about a video meeting, and that its links are the core's as sent, tested
+// without a view (docs/conferencing.md). Which links those are is decided and pinned in the core
+// (event_conference_tests.rs).
 
 import Foundation
 import MailcalBindings
@@ -30,10 +30,9 @@ import Testing
         #expect(conferenceTitle(meeting(service: nil)) == L10n.event_video_meeting())
     }
 
-    @Test func joinOpensTheCoresWebLinkAndNothingElse() {
+    @Test func joinOpensTheCoresLinkAsSent() {
         #expect(conferenceJoinURL(meeting())?.absoluteString == "https://teams.microsoft.com/meet/123?p=x")
         #expect(conferenceJoinURL(meeting(joinUrl: nil)) == nil)
-        #expect(conferenceJoinURL(meeting(joinUrl: "javascript:alert(1)")) == nil)
     }
 
     @Test func aMeetingStillBeingMadeSaysSoInsteadOfOfferingJoin() {
@@ -42,11 +41,11 @@ import Testing
         #expect(conferenceStatus(meeting(joinUrl: nil, state: .failed)) == L10n.event_meeting_failed())
     }
 
-    @Test func aDialInRowOpensOnlyATelephoneNumber() {
+    @Test func aDialInRowOpensTheCoresNumberAndARefusedOneIsText() {
         let number = ConferenceDialIn(number: "+31 20 555 0100", uri: "tel:+31205550100", pin: "990#")
         #expect(dialInURL(number)?.absoluteString == "tel:+31205550100")
-        let web = ConferenceDialIn(number: "x", uri: "https://example.com/", pin: nil)
-        #expect(dialInURL(web) == nil)
+        let refused = ConferenceDialIn(number: "*21*0100#", uri: nil, pin: nil)
+        #expect(dialInURL(refused) == nil)
     }
 
     @Test func anEventWithAMeetingSaysSoToVoiceOver() {

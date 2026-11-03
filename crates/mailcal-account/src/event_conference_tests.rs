@@ -76,7 +76,7 @@ fn a_teams_meeting_offers_its_join_link_id_and_every_number() {
             passcode: None,
             dial_in: vec![DialIn {
                 number: "+1 425-555-0100".into(),
-                uri: "tel:+14255550100".into(),
+                uri: Some("tel:+14255550100".into()),
                 pin: Some("177513992#".into()),
             }],
             notes: None,
@@ -110,6 +110,67 @@ fn a_meet_conference_carries_its_codes_and_a_number_reads_as_dialled_without_wha
     assert_eq!(meet.passcode.as_deref(), Some("xyz"));
     assert_eq!(meet.dial_in[0].number, "+31201234567");
     assert_eq!(meet.dial_in[0].pin.as_deref(), Some("123456"));
+    // The server's URI carries the PIN after a `#`, which the link policy refuses, so a tap
+    // dials the number alone and the PIN is typed from the row.
+    assert_eq!(meet.dial_in[0].uri.as_deref(), Some("tel:+31201234567"));
+}
+
+#[test]
+fn a_number_the_link_policy_refuses_is_text_and_a_link_it_refuses_is_no_join() {
+    // A service code dialled from an invitation can forward the reader's calls elsewhere: the
+    // number is still shown, and nothing dials it.
+    let mut code = entry("tel:*21*+31201234567#");
+    code.label = Some("*21*+31201234567#".into());
+    let mut event = event();
+    event.conferences = vec![conference(
+        ConferenceOrigin::Native {
+            removable: false,
+            state: NativeState::Ready,
+        },
+        vec![entry("https://meet.example.com/a"), code],
+    )];
+    let shown = &event_conferences(&event)[0];
+    assert_eq!(
+        shown.join_url.as_deref(),
+        Some("https://meet.example.com/a")
+    );
+    let [number] = shown.dial_in.as_slice() else {
+        panic!("the number is shown as text: {:?}", shown.dial_in);
+    };
+    assert_eq!(number.number, "*21*+31201234567#");
+    assert_eq!(number.uri, None, "a service code was offered to dial");
+}
+
+#[test]
+fn a_refused_number_falls_back_to_what_its_own_uri_dials_never_to_its_label() {
+    // The label is free text from whoever wrote the invitation, and here names another number.
+    let mut phone = entry("tel:+31201234567,,123456#");
+    phone.label = Some("+44 20 7946 0000".into());
+    let mut event = event();
+    event.conferences = vec![conference(
+        ConferenceOrigin::Native {
+            removable: false,
+            state: NativeState::Ready,
+        },
+        vec![entry("https://meet.example.com/a"), phone],
+    )];
+    let number = &event_conferences(&event)[0].dial_in[0];
+    assert_eq!(number.uri.as_deref(), Some("tel:+31201234567"));
+}
+
+#[test]
+fn a_meeting_still_being_made_offers_no_join_even_with_a_link() {
+    let mut event = event();
+    event.conferences = vec![conference(
+        ConferenceOrigin::Native {
+            removable: false,
+            state: NativeState::Pending,
+        },
+        vec![entry("https://teams.microsoft.com/meet/123")],
+    )];
+    let shown = &event_conferences(&event)[0];
+    assert_eq!(shown.state, ConferenceState::Preparing);
+    assert_eq!(shown.join_url, None);
 }
 
 #[test]

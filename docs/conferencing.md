@@ -22,10 +22,14 @@ nobody has to dig a link out of the notes.
    and the meeting's own `notes`. A dial-in `number` is the engine's reading of it, never the
    `tel:` URI's text. **Copy link** copies `join_url`. A row with no value is left out, never
    drawn empty. Several meetings are drawn one after the other, in the core's order.
-3. **Join and dial-in open through the OS.** `join_url` is always `https`; the OS hands it to the
-   service's app where one is installed, else to the browser. A dial-in `uri` is a `tel:` URI
-   for the phone app. Nothing opens inside the app, and nothing is opened until the person taps:
-   reading an event sends nothing anywhere.
+3. **Join and dial-in open through the OS, and the core decides what they open.** Both links
+   pass the link policy a clicked link in a message passes (`is_openable_link`) when the detail
+   is built, so a client opens them as they are and checks nothing itself. `join_url` is set
+   only for a ready meeting and only for an `https` link; the OS hands it to the service's app
+   where one is installed, else to the browser. A dial-in `uri` is a `tel:` URI for the phone
+   app, the number alone when the server's own carries a pause and a PIN, and `None` for a
+   number the policy refuses (a service code), which is then shown as text. Nothing opens inside
+   the app, and nothing is opened until the person taps: reading an event sends nothing anywhere.
 4. **The service's name is the core's.** It is a brand name, the same in every language. When
    `service` is `None` (a link no rule recognises, such as a self-hosted server), the client
    shows its own catalog words for a video meeting, never the host name or a guess.
@@ -56,16 +60,19 @@ nobody has to dig a link out of the notes.
 | The detail shows `display_notes` and `display_location` (rule 6) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins what Join and
-a dial-in row open. On Windows the section is `EventConferenceSection.cs` over the WinUI-free
-`EventMeeting.cs`, which `EventMeetingTests` pins the same way; the grid draws its camera in
-`CalendarTitleDraw.cs`. On Android the section is `EventConferenceSection.kt` over
-`EventMeeting.kt`, which `EventMeetingTest` pins the same way and drives the section through; the
-grid draws its camera in `CalendarTitleDraw.kt`. On Linux the rows are `conference.rs` over
-`meeting.rs`, whose tests pin the same, and the grid paints its camera in `grid/camera.rs`.
+On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins that Join and
+a dial-in row open the core's links as sent. On Windows the section is `EventConferenceSection.cs`
+over the WinUI-free `EventMeeting.cs`, which `EventMeetingTests` pins the same way; the grid draws
+its camera in `CalendarTitleDraw.cs`. On Android the section is `EventConferenceSection.kt` over
+`EventMeeting.kt`, and `EventMeetingTest` drives the section; the grid draws its camera in
+`CalendarTitleDraw.kt`. On Linux the rows are `conference.rs` over `meeting.rs`, and the grid
+paints its camera in `grid/camera.rs`.
 
 ## Enforcement
 
+- [`event_conference_tests.rs`](../crates/mailcal-account/src/event_conference_tests.rs) pins
+  rule 3's links: a service code is never offered to dial, and a meeting still being made offers
+  no Join whatever link it carries.
 - `is_shown` and `has_conference` in
   [`meeting.rs`](../crates/mailcal-viewmodel/src/calendar/meeting.rs) are the one rule; the
   detail's projection ([`event_conference.rs`](../crates/mailcal-account/src/event_conference.rs))

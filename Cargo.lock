@@ -2188,6 +2188,7 @@ dependencies = [
  "futures",
  "log",
  "mailcal-autodetect",
+ "mailcal-composer",
  "mailcal-oauth",
  "mailcal-user-agent",
  "mailcal-viewmodel",

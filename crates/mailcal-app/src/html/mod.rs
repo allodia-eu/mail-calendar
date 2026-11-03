@@ -172,9 +172,7 @@ fn sanitizer() -> &'static Builder<'static> {
 /// `docs/rendering-security.md`).
 #[must_use]
 pub fn should_open_external_link(url: &str) -> bool {
-    // A sender's number often carries the spaces a `tel:` URI may not, and the web view hands it
-    // over as `%20`; neither is a service code, and every dialler ignores them.
-    mailcal_composer::is_link_target(&mailcal_composer::without_number_spaces(url))
+    mailcal_composer::is_openable_link(url)
 }
 
 /// Whether `value` is a `tel:` link [`should_open_external_link`] refuses, such as a service code.

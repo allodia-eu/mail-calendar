@@ -27,8 +27,10 @@ pub enum ConferenceState {
 pub struct DialIn {
     /// The number as a person reads it (`+1 425-555-0100`), for showing.
     pub number: String,
-    /// The `tel:` URI that dials it.
-    pub uri: String,
+    /// The `tel:` URI a tap dials, already through the link policy: the server's own, or the
+    /// number alone when the server's carries what the policy refuses (a pause and a PIN ending in
+    /// `#`). `None` when neither passes, and the number is then text.
+    pub uri: Option<String>,
     /// The PIN or access code to type once connected, if the server gave one.
     pub pin: Option<String>,
 }
@@ -40,9 +42,10 @@ pub struct EventConference {
     /// the link names one; a client then shows its own generic words. A brand name, the same
     /// in every language.
     pub service: Option<String>,
-    /// The `https` link a person joins at, opened through the OS, which hands it to the
-    /// service's own app where one is installed. `None` while the meeting is being prepared,
-    /// when it has only numbers, or when its link is not `https`.
+    /// The `https` link Join opens and Copy link copies, as it is: already through the link
+    /// policy, so a client decides nothing more. The OS hands it to the service's own app where
+    /// one is installed. `None` unless the meeting is ready, when it has only numbers, and when
+    /// its link is not `https` or is one the policy refuses.
     pub join_url: Option<String>,
     /// The ID a person types to join from an app or a phone.
     pub meeting_id: Option<String>,
@@ -87,9 +90,13 @@ fn project(conference: &Conference) -> Option<EventConference> {
     let video = videos()
         .find(|entry| entry.uri.scheme() == UriScheme::Https)
         .or_else(|| videos().next());
+    // Join opens this as it is, so it is the policy's answer: only a meeting that exists, only
+    // `https`, and only a link the policy would let a person open from a message.
     let join_url = video
         .filter(|entry| entry.uri.scheme() == UriScheme::Https)
-        .map(|entry| entry.uri.as_str().to_owned());
+        .map(|entry| entry.uri.as_str())
+        .filter(|link| state == ConferenceState::Ready && mailcal_composer::is_openable_link(link))
+        .map(str::to_owned);
     let dial_in: Vec<DialIn> = conference.entry_points.iter().filter_map(dial_in).collect();
     Some(EventConference {
         service: conference
@@ -117,9 +124,18 @@ fn project(conference: &Conference) -> Option<EventConference> {
 
 /// A `tel:` way in as a number to dial; `None` for any other, or for one with no number.
 fn dial_in(entry: &EntryPoint) -> Option<DialIn> {
+    let number = entry.phone_number()?;
+    // The server's URI, else the number that URI dials before its pause: never the label, which
+    // is free text from whoever wrote the invitation and may name another number entirely.
+    let uri = mailcal_composer::openable_link(entry.uri.as_str()).or_else(|| {
+        entry
+            .uri
+            .phone_number()
+            .and_then(|own| mailcal_composer::openable_link(&format!("tel:{own}")))
+    });
     Some(DialIn {
-        number: entry.phone_number()?.to_owned(),
-        uri: entry.uri.as_str().to_owned(),
+        number: number.to_owned(),
+        uri,
         pin: entry
             .access
             .pin

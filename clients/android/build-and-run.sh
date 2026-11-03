@@ -104,6 +104,18 @@ if [[ -n "${MAILCAL_SHOWCASE:-}" ]]; then
   echo "==> Launching with MAILCAL_SHOWCASE=$MAILCAL_SHOWCASE"
   START_EXTRAS+=(-e MAILCAL_SHOWCASE "$MAILCAL_SHOWCASE")
   [[ -n "${MAILCAL_SHOWCASE_SCREEN:-}" ]] && START_EXTRAS+=(-e MAILCAL_SHOWCASE_SCREEN "$MAILCAL_SHOWCASE_SCREEN")
+  # A flag that names a language pins the chrome to it, as it does on every other client. The app
+  # cannot do that itself: AppCompat applies a locale by recreating the Activity, which it will not
+  # do for one still being created (ShowcaseMode.chromeLanguage). So the per-app locale is set from
+  # here, as showcase.sh does per capture, and it outlives this launch, so say how to take it off.
+  # `cmd locale` is Android 13's; before that the app follows the device.
+  showcase_locale="${MAILCAL_SHOWCASE,,}"
+  device_sdk="$("$ADB" shell getprop ro.build.version.sdk | tr -d '\r')"
+  if [[ -f "$ROOT/messages/$showcase_locale.json" && "${device_sdk:-0}" -ge 33 ]]; then
+    "$ADB" shell cmd locale set-app-locales "$PKG" --locales "$showcase_locale" >/dev/null
+    echo "    App language pinned to $showcase_locale; to follow the device again:"
+    echo "    \"$ADB\" shell cmd locale set-app-locales $PKG --locales ''"
+  fi
 fi
 # Which light/dark appearance to come up in, for a screenshot or a UI check that must not depend on
 # how the device happens to be set. Independent of the two above, so it applies to any launch.

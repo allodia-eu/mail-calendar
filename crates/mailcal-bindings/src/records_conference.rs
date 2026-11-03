@@ -31,8 +31,10 @@ pub enum ConferenceState {
 pub struct ConferenceDialIn {
     /// The number as the server wrote it, for showing.
     pub number: String,
-    /// The `tel:` URI that dials it; open it through the OS.
-    pub uri: String,
+    /// The `tel:` URI a tap dials, through the OS, as it is: already through the link policy, so
+    /// a client checks nothing more. `None` when it would dial something the policy refuses (a
+    /// service code); the number is then shown as text, with nothing to tap.
+    pub uri: Option<String>,
     /// The PIN or access code to type once connected, if the server gave one.
     pub pin: Option<String>,
 }
@@ -47,9 +49,10 @@ pub struct EventConference {
     /// language; `None` when neither the server nor the link names one, and the client shows
     /// its own generic words instead.
     pub service: Option<String>,
-    /// The `https` link the Join button opens through the OS, which hands it to the service's
-    /// app where one is installed. `None` while the meeting is prepared, or when it has only
-    /// numbers.
+    /// The `https` link Join opens and Copy link copies, through the OS, which hands it to the
+    /// service's app where one is installed. Already through the link policy, so a client opens
+    /// it as it is and decides nothing more. `None` unless the meeting is ready, when it has only
+    /// numbers, and when its link is one the policy refuses.
     pub join_url: Option<String>,
     /// The ID a person types to join from an app or a phone.
     pub meeting_id: Option<String>,

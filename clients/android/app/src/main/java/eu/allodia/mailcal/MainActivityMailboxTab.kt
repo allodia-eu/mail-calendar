@@ -272,6 +272,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 onOpenAccount = { id -> openAccountPage(id) },
                                 onReviewServerChange = { id -> reviewServerChange(id) },
                                 initialEvent = ShowcaseMode.openingEvent(this@MailboxTabContent),
+                                onInitialEventShown = { didDriveShowcaseOpen = true },
                             )
                           } else {
                             // The folder navigation drawer wraps the mailbox screen so it can

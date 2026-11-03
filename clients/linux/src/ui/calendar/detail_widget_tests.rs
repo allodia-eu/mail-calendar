@@ -173,7 +173,7 @@ fn conference(service: Option<&str>, state: ConferenceState) -> EventConference 
         passcode: Some(String::new()),
         dial_in: vec![ConferenceDialIn {
             number: "+31 20 555 0100".to_owned(),
-            uri: "tel:+31205550100".to_owned(),
+            uri: Some("tel:+31205550100".to_owned()),
             pin: Some("990#".to_owned()),
         }],
         notes: None,
