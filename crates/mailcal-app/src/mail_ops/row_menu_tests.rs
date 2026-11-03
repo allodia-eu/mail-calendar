@@ -15,7 +15,7 @@ use mailcal_viewmodel::{MessageKind, RowAction, RowMenu, ViewMode};
 use crate::{App, BulkAction, Intent, MessageRef, RowRef};
 
 #[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
+#[path = "../tests_fakes.rs"]
 mod fakes;
 
 /// One message on thread `t`, in `mailbox`, at minute `minute`, of `kind`; `marks` holds `u`

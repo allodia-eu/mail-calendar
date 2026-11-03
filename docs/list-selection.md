@@ -236,7 +236,7 @@ When you change what a selection does:
 1. Keep the write in one place. `mail_ops/bulk.rs` owns the batch, and `archive_thread` runs
    through it rather than keeping a second copy of the Sent rule; what a conversation row reaches
    is the view-model's table, which the row menu reads too ([`row-actions.md`](row-actions.md));
-   `tests_row_actions.rs` asserts that reach, `tests_selection.rs` asserts the Sent protection, the per-account routing, the one-sync-per-account cost and the individual
+   [`row_menu_tests.rs`](../crates/mailcal-app/src/mail_ops/row_menu_tests.rs) asserts that reach, `tests_selection.rs` asserts the Sent protection, the per-account routing, the one-sync-per-account cost and the individual
    restore of a refused row; `tests_mail_actions.rs` asserts that a throttled one stays hidden.
 2. A new action is a `BulkAction` variant **and** a button on all five clients' bars, or it is
    neither. A variant nothing dispatches is a surface that drifts. It needs an icon per platform
