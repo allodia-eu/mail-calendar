@@ -83,6 +83,11 @@ attention, human or agent alike. Write the fact, not the story around it.
 
   History earns a clause only when a reader needs it to act correctly: an external constraint we
   found by hitting it, a trap that will bite again. State it as a present fact.
+- **No tool or dependency version in a comment.** The version lives in the line that declares it,
+  and Renovate moves that line but never the comment, so "verified against AGP 9.3" or "Compose
+  1.9+ calls this during the drag" is wrong by the next bump. Describe the behaviour, not the
+  release that brought it. The one exception is a floor: a version below which the code breaks
+  stays, beside the line that pins it, with what breaks.
 - **Never name a plan's phases.** `Phase <letter>`, `the <name> wave`, a plan's step ids: none
   belong in code, a comment, a contract doc or a PR description. A phase name is a pointer into a
   document the reader does not have, and it goes stale by design, because a phase ships, is renamed

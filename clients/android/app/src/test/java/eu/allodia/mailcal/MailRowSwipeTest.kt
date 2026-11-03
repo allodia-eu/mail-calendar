@@ -1,17 +1,13 @@
 // One swipe on a mail row parks exactly ONE action.
 //
-// This is the regression test for the Compose 1.9+ behaviour change that the 2026.06.01 BOM bump
-// brought in. The row used to dispatch its action from `rememberSwipeToDismissBoxState`'s
-// `confirmValueChange` and return false to veto the state change; Compose now consults that
-// callback repeatedly *during* the drag rather than once at settle, so a single swipe dispatched
-// the configured action eight times, eight Trash intents, eight undo entries. Only the calendar
-// agenda's equivalent test caught it, by luck; the mail row, where the blast radius is real mail,
-// had no swipe test at all.
+// The row dispatches from `SwipeToDismissBox`'s `onDismiss`, which fires once per settle, and not
+// from `rememberSwipeToDismissBoxState`'s `confirmValueChange`, which Compose consults repeatedly
+// *during* the drag: dispatching there turns a single swipe into several Trash intents and several
+// undo entries.
 //
-// The row now dispatches from `SwipeToDismissBox`'s `onDismiss`, which fires once per settle:
-// but only as long as the lambda handed to it is a single remembered instance, because the box
-// keys a `LaunchedEffect` on it. Passing a fresh lambda per recomposition re-arms that effect and
-// re-parks the same swipe. Both halves of that contract are what this test pins.
+// `onDismiss` fires once only as long as the lambda handed to it is a single remembered instance,
+// because the box keys a `LaunchedEffect` on it. Passing a fresh lambda per recomposition re-arms
+// that effect and re-parks the same swipe. Both halves of that contract are what this test pins.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Box
