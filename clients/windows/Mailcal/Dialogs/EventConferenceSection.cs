@@ -29,14 +29,14 @@ internal static class EventConferenceSection
     {
         string Id(string name) => index == 0 ? name : $"{name}-{index}";
         var section = new StackPanel { Spacing = 6, Margin = new Thickness(0, 10, 0, 0) };
-        var join = EventMeeting.JoinUri(conference, MailcalBindingsMethods.ShouldOpenExternalLink);
+        var join = EventMeeting.JoinUri(conference);
 
         section.Children.Add(Heading(conference, join, Id));
         if (EventMeeting.Status(conference, L10n.EventMeetingPreparing(), L10n.EventMeetingFailed()) is { } status)
         {
             section.Children.Add(Secondary(status, brushes));
         }
-        // The same gate as Join: a link Join will not open is not offered to copy either.
+        // The link Join opens, so a meeting with nothing to join offers nothing to copy either.
         // The link as the core sent it, not .NET's re-escaped rebuild of it.
         if (join is not null)
         {
@@ -139,7 +139,8 @@ internal static class EventConferenceSection
         return button;
     }
 
-    // A number opens the phone app only when the core gave it a `tel:` URI; otherwise it is text.
+    // A number opens the phone app only when the core gave it a URI to dial; a number the link
+    // policy refused is text.
     private static StackPanel DialInRow(ConferenceDialIn number, ThemeBrushes brushes)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };

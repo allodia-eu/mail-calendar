@@ -45,15 +45,12 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import uniffi.mailcal_bindings.ConferenceDialIn
 import uniffi.mailcal_bindings.EventConference
-import uniffi.mailcal_bindings.shouldOpenExternalLink
 
 /** Where a meeting's links go. The detail hands the OS's; a test records them. */
 internal class MeetingActions(
     val join: (String) -> Unit,
     val dial: (String) -> Unit,
     val copy: (String) -> Unit,
-    /** The shared link policy Join and Copy link pass; the JVM suite cannot load the core's. */
-    val mayOpen: (String) -> Boolean = ::shouldOpenExternalLink,
 ) {
     companion object {
         fun of(context: Context) = MeetingActions(
@@ -80,7 +77,8 @@ internal fun EventConferenceSection(
 ) {
     val ctx = LocalContext.current
     fun tag(name: String) = if (index == 0) name else "$name-$index"
-    val join = EventMeeting.joinLink(conference, actions.mayOpen)
+    // Already through the link policy, and only for a meeting that is ready: the core's answer.
+    val join = conference.joinUrl
 
     Column(modifier = modifier.fillMaxWidth().padding(top = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -110,7 +108,7 @@ internal fun EventConferenceSection(
         )?.let { Secondary(it, Modifier.padding(start = 36.dp, top = 4.dp)) }
 
         Column(modifier = Modifier.padding(start = 36.dp)) {
-            // The same gate as Join: a link Join will not open is not offered to copy either.
+            // The link Join opens, so a meeting with nothing to join offers nothing to copy either.
             if (join != null) {
                 TextButton(
                     onClick = { actions.copy(join) },
@@ -148,7 +146,8 @@ internal fun EventConferenceSection(
     }
 }
 
-// A number opens the dialler only when the core gave it a `tel:` URI; otherwise it is text.
+// A number opens the dialler only when the core gave it a URI to dial; a number the link policy
+// refused is text.
 @Composable
 private fun DialInRow(number: ConferenceDialIn, actions: MeetingActions) {
     val ctx = LocalContext.current
@@ -156,7 +155,7 @@ private fun DialInRow(number: ConferenceDialIn, actions: MeetingActions) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        val dial = EventMeeting.dialInLink(number)
+        val dial = number.uri
         if (dial != null) {
             TextButton(onClick = { actions.dial(dial) }, modifier = Modifier.alignedText()) {
                 Icon(

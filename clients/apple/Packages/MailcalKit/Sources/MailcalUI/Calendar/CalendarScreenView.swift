@@ -59,7 +59,7 @@ struct CalendarScreenView: View {
     @State var gridHeld = false
     /// The open editor (create or edit), or nil; and the event whose detail is open, or nil.
     @State private var editor: EventEditorState?
-    @State private var openEvent: EventRefID? = ShowcaseMode.openingEvent
+    @State private var openEvent: EventRefID?
     /// A settled drag on a **repeating** event, waiting for the user to say which occurrences it
     /// applies to. Nothing is written until they do, and dismissing writes nothing at all.
     @State private var pendingMove: CalendarDragState?
@@ -144,7 +144,13 @@ struct CalendarScreenView: View {
         #endif
         .calendarToolbar(header, regular: toolbarIsRegular,
                          covered: managing || openEvent != nil || editor != nil || pendingMove != nil)
-        .onAppear { seed(calendar: calendar, today: today) }
+        .onAppear {
+            seed(calendar: calendar, today: today)
+            if let opening = model.showcaseOpeningEvent {
+                model.showcaseOpeningEvent = nil
+                openEvent = opening
+            }
+        }
         .onReceive(tick) { now = ShowcaseMode.now ?? $0 }
         .onChange(of: model.displaySettings.visibleHours) { _, hours in
             zoom.resetHours(Int(hours))

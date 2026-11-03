@@ -30,9 +30,8 @@ pub(super) fn conference_group(
             format!("{base}-{index}")
         }
     };
-    let join = meeting::join_link(conference, |link| {
-        mailcal_bindings::should_open_external_link(link.to_owned())
-    });
+    // Already through the link policy, and only for a meeting that is ready: the core's answer.
+    let join = conference.join_url.as_deref();
     let group = adw::PreferencesGroup::new();
     group.set_margin_start(18);
     group.set_margin_end(18);
@@ -62,7 +61,7 @@ pub(super) fn conference_group(
     }
     group.add(&heading);
 
-    // The same gate as Join: a link Join will not open is not offered to copy either.
+    // The link Join opens, so a meeting with nothing to join offers nothing to copy either.
     if let Some(link) = join {
         let copy = adw::ButtonRow::builder()
             .title(l10n::action_copy_link())
@@ -112,7 +111,7 @@ fn value_row(label: &str, value: &str) -> adw::ActionRow {
 }
 
 // "Join by phone" over the number and its PIN, with a button that dials only when the core gave
-// the number a `tel:` URI; otherwise the number is text.
+// the number a URI to dial; a number the link policy refused is text.
 fn dial_in_row(number: &ConferenceDialIn) -> adw::ActionRow {
     let subtitle = match meeting::shown(number.pin.as_deref()) {
         Some(pin) => format!("{} · {}", number.number, l10n::event_meeting_pin(pin)),
@@ -125,7 +124,7 @@ fn dial_in_row(number: &ConferenceDialIn) -> adw::ActionRow {
         .subtitle_selectable(true)
         .build();
     row.add_css_class("property");
-    if let Some(dial) = meeting::dial_in_link(number) {
+    if let Some(dial) = number.uri.as_deref() {
         let button = gtk::Button::from_icon_name(icons::DIAL_IN);
         button.add_css_class("flat");
         button.set_valign(gtk::Align::Center);

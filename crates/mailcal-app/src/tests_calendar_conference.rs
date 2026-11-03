@@ -41,7 +41,7 @@ async fn a_meeting_reaches_the_detail_and_marks_its_block() {
         zoom.join_url.as_deref(),
         Some("https://zoom.us/j/987?pwd=x")
     );
-    assert_eq!(zoom.dial_in[0].uri, "tel:+31201234567");
+    assert_eq!(zoom.dial_in[0].uri.as_deref(), Some("tel:+31201234567"));
     assert_eq!(detail.display_notes.as_deref(), Some("Agenda first."));
 
     let page = app.calendar_range(app.week_start_date(super::today()), 7);

@@ -4,8 +4,8 @@
 // Dialogs/EventConferenceSection.cs.
 //
 // Which meetings exist, which link Join opens and which numbers are dialled is the core's
-// (`EventDetail.Conferences`). Join and a dial-in number are the two places a tap leaves the app,
-// so what each will open is decided here.
+// (`EventDetail.Conferences`): `JoinUrl` and a dial-in's `Uri` have already passed the link
+// policy, so they are opened as they are.
 using System;
 using uniffi.mailcal_bindings;
 
@@ -31,32 +31,19 @@ internal static class EventMeeting
         string.IsNullOrEmpty(conference.Service) ? videoMeeting : conference.Service;
 
     /// <summary>
-    /// The link Join opens and Copy link copies, or <c>null</c> when there is nothing to join: a
-    /// meeting the server has not made, no link, or one the shared link policy
-    /// (<paramref name="mayOpen"/>, <c>ShouldOpenExternalLink</c>) or the <c>https</c> rule refuses.
+    /// The link Join opens, or <c>null</c> when there is nothing to join. The core's
+    /// <c>JoinUrl</c>, which has already passed the link policy and is set only for a meeting that
+    /// is ready, so nothing more is decided here than whether it parses.
     /// </summary>
-    internal static Uri? JoinUri(EventConference conference, Func<string, bool> mayOpen)
-    {
-        if (conference.State != ConferenceState.Ready
-            || string.IsNullOrEmpty(conference.JoinUrl)
-            || !mayOpen(conference.JoinUrl)
-            || !Uri.TryCreate(conference.JoinUrl, UriKind.Absolute, out var uri)
-            || uri.Scheme != Uri.UriSchemeHttps)
-        {
-            return null;
-        }
-        return uri;
-    }
+    internal static Uri? JoinUri(EventConference conference) =>
+        Uri.TryCreate(conference.JoinUrl, UriKind.Absolute, out var uri) ? uri : null;
 
     /// <summary>
-    /// The <c>tel:</c> URI a dial-in row opens. The core builds it from a validated number, and the
-    /// shared link policy admits web and mail links only, so the scheme is checked here.
+    /// The <c>tel:</c> URI a dial-in row opens: the core's, through the same policy, or
+    /// <c>null</c> for a number it refused, which the row then shows as text.
     /// </summary>
     internal static Uri? DialInUri(ConferenceDialIn number) =>
-        Uri.TryCreate(number.Uri, UriKind.Absolute, out var uri)
-            && string.Equals(uri.Scheme, "tel", StringComparison.OrdinalIgnoreCase)
-            ? uri
-            : null;
+        Uri.TryCreate(number.Uri, UriKind.Absolute, out var uri) ? uri : null;
 
     /// <summary>
     /// What the section says in place of Join while the server is still making the meeting

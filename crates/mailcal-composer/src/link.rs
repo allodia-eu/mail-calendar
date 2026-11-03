@@ -41,6 +41,24 @@ pub fn is_link_target(url: &str) -> bool {
     }
 }
 
+/// Whether `url` is a link a person may be handed to the OS for: [`is_link_target`] once a
+/// `tel:` number's spaces are dropped, since a number is written with them and every dialler
+/// ignores them. The one policy behind a clicked link in a message and a meeting's Join and
+/// dial-in, so the two cannot disagree.
+#[must_use]
+pub fn is_openable_link(url: &str) -> bool {
+    is_link_target(&crate::without_number_spaces(url))
+}
+
+/// `url` in the form to hand the OS, when [`is_openable_link`] admits it: a `tel:` number without
+/// its spaces, since a URI holding one is one some platforms will not parse; anything else as
+/// written.
+#[must_use]
+pub fn openable_link(url: &str) -> Option<String> {
+    let url = crate::without_number_spaces(url);
+    is_link_target(&url).then(|| url.into_owned())
+}
+
 /// The lowercased URL scheme (the part before the first `:`), if `url` starts with a
 /// syntactically valid RFC 3986 scheme; `None` for a relative URL or anything not in `scheme:`
 /// form. Byte-safe on hostile input: `split_once` and char iteration never slice mid-codepoint.

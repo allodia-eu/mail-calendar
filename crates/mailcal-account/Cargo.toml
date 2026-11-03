@@ -42,6 +42,9 @@ mailcal-autodetect = { workspace = true }
 # deciding for itself what an unanswered organiser means. A leaf crate (engine-api only), so
 # depending on it here adds no cycle and no weight.
 mailcal-viewmodel = { workspace = true }
+# The link policy a clicked link in a message passes (`is_openable_link`), applied to a meeting's
+# Join and dial-in links when the detail is built, so no client decides it again. A leaf crate.
+mailcal-composer = { workspace = true }
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 # Names the stream an IMAP account's connections run over (`imap::ImapConnections`); the
 # engine is generic over it and exports no alias.

@@ -283,8 +283,8 @@ class MainActivity : AppCompatActivity() {
     // puts the welcome screen up, it is the first thing a new user sees, ahead of setup. Null
     // until the core answers; the welcome screen is not shown on a guess.
     internal var analyticsConsent by mutableStateOf<AnalyticsConsent?>(null)
-    // One-shot guard for the MAILCAL_SHOWCASE_SCREEN=reply / =invitation driver, which fires on
-    // the first mailbox reload that carries the target row.
+    // One-shot guard for the showcase drivers that open something: the reply and invitation
+    // screens' message, on the first reload that carries it, and the meeting screen's event.
     internal var didDriveShowcaseOpen = false
     // A failed add-account connect, shown on the setup form (distinct from the launch-time
     // `connectError`).

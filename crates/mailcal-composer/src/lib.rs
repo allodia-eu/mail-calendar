@@ -32,7 +32,9 @@ pub use host_request::{
     HistorySteps, HostAnswer, HostRequest, HostRequestKind, LinkAnswer, LinkRequest, answer_script,
     link_address, parse_host_request,
 };
-pub use link::{LINK_SCHEMES, LinkUrl, has_link_scheme, is_link_target};
+pub use link::{
+    LINK_SCHEMES, LinkUrl, has_link_scheme, is_link_target, is_openable_link, openable_link,
+};
 pub use list::{List, ListItem, ListKind};
 pub use mailto::{MailtoPrefill, parse_mailto};
 pub use paragraph::{Align, Heading, Paragraph, Rule};

@@ -2,8 +2,9 @@
 // needs to get in another way, the meeting ID, the passcode and the numbers to dial.
 //
 // Which meetings exist, which link Join opens and which numbers are dialled is the core's
-// (`EventDetail.conferences`). Every string here came from whoever wrote the event, so it is drawn
-// as `Text`, and the links open through the OS, never in a view of the app's own.
+// (`EventDetail.conferences`): `joinUrl` and a dial-in's `uri` have already passed the link
+// policy, so they are opened as they are. Every string here came from whoever wrote the event, so
+// it is drawn as `Text`, and the links open through the OS, never in a view of the app's own.
 
 import MailcalBindings
 import SwiftUI
@@ -28,7 +29,7 @@ struct EventConferenceSection: View {
             if let status = conferenceStatus(conference) {
                 Text(status).foregroundStyle(.secondary)
             }
-            // The same gate as Join: a link Join will not open is not offered to copy either.
+            // The link Join opens, so a meeting with nothing to join offers nothing to copy either.
             if let join {
                 Button(L10n.action_copy_link(), systemImage: "doc.on.doc") {
                     PlatformPasteboard.copy(join.absoluteString)
@@ -102,20 +103,16 @@ func conferenceStatus(_ conference: EventConference) -> String? {
     }
 }
 
-/// The link Join opens, once more through the core's own gate for links a person taps, which is
-/// the one every other link in the app passes.
+/// The link Join opens: the core's, which has already passed the link policy, and is set only for
+/// a meeting that is ready.
 func conferenceJoinURL(_ conference: EventConference) -> URL? {
-    guard let link = conference.joinUrl, shouldOpenExternalLink(url: link) else { return nil }
-    return URL(string: link)
+    conference.joinUrl.flatMap { URL(string: $0) }
 }
 
-/// The `tel:` URI a dial-in row opens. The core builds it from a validated number, and the
-/// external-link gate admits web and mail links only, so this checks the scheme itself.
+/// The `tel:` URI a dial-in row opens: the core's, through the same policy; `nil` for a number it
+/// refused, which the row then shows as text.
 func dialInURL(_ number: ConferenceDialIn) -> URL? {
-    guard number.uri.lowercased().hasPrefix("tel:"), let url = URL(string: number.uri) else {
-        return nil
-    }
-    return url
+    number.uri.flatMap { URL(string: $0) }
 }
 
 /// An event's title on a block, bar or chip, with the camera after it when the event has a video
