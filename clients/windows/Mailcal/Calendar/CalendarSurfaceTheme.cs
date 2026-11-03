@@ -40,6 +40,17 @@ internal sealed class SurfaceTheme : IDisposable
     /// pixel is the difference between showing the title and not.</summary>
     internal const float BlockPadding = 2f;
 
+    /// <summary>The space between a title and the camera after it.</summary>
+    internal const float GlyphGap = 3f;
+
+    /// <summary>
+    /// The icon font the camera is drawn in. DirectWrite takes one family, not XAML's fallback
+    /// list, so it is chosen by the OS: Segoe Fluent Icons, which Windows 11 (build 22000) ships,
+    /// else Windows 10's Segoe MDL2 Assets, which has the same code points.
+    /// </summary>
+    private static readonly string IconFont =
+        OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) ? "Segoe Fluent Icons" : "Segoe MDL2 Assets";
+
     internal SurfaceTheme(bool dark)
     {
         Dark = dark;
@@ -63,6 +74,10 @@ internal sealed class SurfaceTheme : IDisposable
         // slices its title through the middle, geometrically perfect, visibly broken.
         BlockSmall = Format(9f, CanvasHorizontalAlignment.Left);
         BlockLarge = Format(11f, CanvasHorizontalAlignment.Left);
+        GlyphSmall = Format(9f, CanvasHorizontalAlignment.Left);
+        GlyphSmall.FontFamily = IconFont;
+        GlyphLarge = Format(11f, CanvasHorizontalAlignment.Left);
+        GlyphLarge.FontFamily = IconFont;
     }
 
     internal bool Dark { get; }
@@ -92,6 +107,12 @@ internal sealed class SurfaceTheme : IDisposable
     internal CanvasTextFormat BlockSmall { get; }
 
     internal CanvasTextFormat BlockLarge { get; }
+
+    /// <summary>The camera beside a <see cref="BlockSmall"/> title.</summary>
+    internal CanvasTextFormat GlyphSmall { get; }
+
+    /// <summary>The camera beside a <see cref="BlockLarge"/> title.</summary>
+    internal CanvasTextFormat GlyphLarge { get; }
 
     /// <summary>The theme the app is actually showing, read once out of XAML.</summary>
     internal static SurfaceTheme For(ElementTheme theme, bool appIsDark) =>
@@ -136,6 +157,8 @@ internal sealed class SurfaceTheme : IDisposable
         Chrome.Dispose();
         BlockSmall.Dispose();
         BlockLarge.Dispose();
+        GlyphSmall.Dispose();
+        GlyphLarge.Dispose();
     }
 
     private static CanvasTextFormat Format(float size, CanvasHorizontalAlignment align) => new()

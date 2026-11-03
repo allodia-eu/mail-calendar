@@ -52,12 +52,14 @@ nobody has to dig a link out of the notes.
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| The detail's meetings, Join first (rules 2 to 5) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| The detail shows `display_notes` and `display_location` (rule 6) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
-| The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| The detail's meetings, Join first (rules 2 to 5) | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| The detail shows `display_notes` and `display_location` (rule 6) | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ✅ | ⬜ | ⬜ |
 
 On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins what Join and
-a dial-in row open.
+a dial-in row open. On Windows the section is `EventConferenceSection.cs` over the WinUI-free
+`EventMeeting.cs`, which `EventMeetingTests` pins the same way; the grid draws its camera in
+`CalendarTitleDraw.cs`.
 
 ## Enforcement
 

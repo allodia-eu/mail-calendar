@@ -21,6 +21,17 @@ internal static class CalendarEventText
         _ => L10n.EventReminderNone(),
     };
 
+    /// <summary>
+    /// An event's spoken label on the grid and the month: <paramref name="label"/>, then the hold
+    /// when it is an unanswered invitation, then "video meeting" when it has one. The dashed border
+    /// and the camera are invisible to a screen reader, so the label says both in words.
+    /// </summary>
+    internal static string Spoken(string label, ResponseStatus participation, bool hasConference) =>
+        EventMeeting.Spoken(
+            InvitationFormat.SpokenWithHold(label, L10n.A11yInvitationAwaitingResponse(), participation),
+            L10n.EventVideoMeeting(),
+            hasConference);
+
     /// <summary>How one attendee answered. Third person, this is somebody else's answer, unlike
     /// the invitation card's "You accepted".</summary>
     internal static string AttendeeResponse(ResponseStatus response) => response switch

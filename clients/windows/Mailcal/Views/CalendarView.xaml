@@ -254,8 +254,23 @@
                                   VerticalAlignment="Center"
                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="{x:Bind Title, Mode=OneTime}"
-                                       TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            <!-- The camera after the title on an event with a video meeting
+                                 (docs/conferencing.md). Left-aligned, with the title in a star
+                                 column: as wide as its content until the row runs out of room, and
+                                 then the title trims and the camera stays. Hidden from UI
+                                 Automation, because the row's name says "video meeting". -->
+                            <Grid HorizontalAlignment="Left" ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{x:Bind Title, Mode=OneTime}"
+                                           TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                <FontIcon Grid.Column="1" Glyph="&#xE714;" FontSize="12"
+                                          VerticalAlignment="Center"
+                                          Visibility="{x:Bind MeetingVisibility, Mode=OneTime}"
+                                          AutomationProperties.AccessibilityView="Raw" />
+                            </Grid>
                             <!-- A list row has nothing to dash or hatch, so an unanswered invitation
                                  says so in words instead (docs/invitations.md). Collapsed, not blank,
                                  on an ordinary commitment. -->

@@ -59,7 +59,9 @@ internal sealed record BlockPaint(
     /// Resolved <b>here</b>, with the colours and the strings, and never inside a frame: a pinch may
     /// not re-derive what kind of record this is any more than it may re-parse a hex colour (§7).
     /// </remarks>
-    bool Awaiting)
+    bool Awaiting,
+    /// <summary>The event has a video meeting: the camera follows the title (docs/conferencing.md).</summary>
+    bool Meeting)
 {
     internal int Minutes => Span.Minutes;
 }
@@ -81,7 +83,9 @@ internal sealed record BandPaint(
     /// is used only when <see cref="Awaiting"/>.</summary>
     Color Border,
     /// <summary>As <see cref="BlockPaint.Awaiting"/>: an unanswered hold.</summary>
-    bool Awaiting);
+    bool Awaiting,
+    /// <summary>As <see cref="BlockPaint.Meeting"/>.</summary>
+    bool Meeting);
 
 /// <summary>
 /// A whole week, drawable. Built once per (page, theme, clock format, locale) and then held across
@@ -186,14 +190,20 @@ internal static class CalendarPaint
                     (int)seg.EndMinutes),
                 seg.Title,
                 clock,
-                Spoken(seg.Title, clock, CalendarName(calendars, seg.Account, seg.Calendar), seg.Participation),
+                Spoken(
+                    seg.Title,
+                    clock,
+                    CalendarName(calendars, seg.Account, seg.Calendar),
+                    seg.Participation,
+                    seg.HasConference),
                 CalendarHold.Fade(Parse(swatch.Background), awaiting),
                 Parse(swatch.Border),
                 Parse(swatch.Text),
                 seg.Account,
                 seg.Event,
                 seg.OccurrenceStart,
-                awaiting));
+                awaiting,
+                seg.HasConference));
         }
 
         var bands = new List<BandPaint>(page.AllDay.Length);
@@ -211,14 +221,16 @@ internal static class CalendarPaint
                     band.Title,
                     L10n.CalendarAllDay(),
                     CalendarName(calendars, band.Account, band.Calendar),
-                    band.Participation),
+                    band.Participation,
+                    band.HasConference),
                 CalendarHold.Fade(Parse(swatch.Background), awaiting),
                 Parse(swatch.Text),
                 band.Account,
                 band.Event,
                 band.OccurrenceStart,
                 Parse(swatch.Border),
-                awaiting));
+                awaiting,
+                band.HasConference));
         }
 
         var lanes = (int)page.AllDayLanes;
@@ -253,20 +265,17 @@ internal static class CalendarPaint
         ISOWeek.GetWeekOfYear(date.ToDateTime(TimeOnly.MinValue));
 
     /// <summary>
-    /// The event's spoken label: title, time, calendar, and the hold, when there is one. Never
-    /// truncated by the zoom (§4).
+    /// The event's spoken label: title, time, calendar, the hold when there is one, and the video
+    /// meeting when there is one. Never truncated by the zoom (§4).
     /// </summary>
     /// <remarks>
-    /// The dashed border and hatched gutter <see cref="CalendarHold"/> draws are invisible to a
-    /// screen reader, so the label has to carry the same fact in words. Assembled here, once per
+    /// The dashed border and hatched gutter <see cref="CalendarHold"/> draws, and the camera, are
+    /// invisible to a screen reader, so the label has to carry the same facts in words. Assembled here, once per
     /// page, like every other string on a <see cref="BlockPaint"/>.
     /// </remarks>
     private static string Spoken(
-        string title, string time, string calendar, ResponseStatus participation) =>
-        InvitationFormat.SpokenWithHold(
-            L10n.CalendarEventA11y(title, time, calendar),
-            L10n.A11yInvitationAwaitingResponse(),
-            participation);
+        string title, string time, string calendar, ResponseStatus participation, bool meeting) =>
+        Dialogs.CalendarEventText.Spoken(L10n.CalendarEventA11y(title, time, calendar), participation, meeting);
 
     private static string Key(string account, string calendar) => account + " " + calendar;
 
