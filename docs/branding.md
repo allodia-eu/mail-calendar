@@ -80,7 +80,13 @@ repository, the one thing an unbranded build can honestly send anyone to.
 |---|---|---|
 | `MAILCAL_PRIVACY_URL` | The privacy policy link on the welcome screen | The catalog writes `{privacy_url}`, substituted by `mailcal-l10n` like `{app_name}` |
 | `MAILCAL_SUPPORT_URL` | Settings → About | `mailcal-bindings`' build script injects it into `about_info()` |
-| `MAILCAL_WEBSITE_URL` | An MCP client's server list, as the server's `websiteUrl` | `mailcal-mcp`'s build script |
+| `MAILCAL_WEBSITE_URL` | An MCP client's server list, as the server's `websiteUrl`; the Linux software centre's home page link | `mailcal-mcp`'s build script; `flatpak_metadata.py` |
+| `MAILCAL_HELP_URL` · `MAILCAL_CONTACT_URL` | The Linux software centre's help and contact links | `flatpak_metadata.py` |
+
+The Linux software centre also names the publisher, `MAILCAL_PUBLISHER_ID` and
+`MAILCAL_PUBLISHER_NAME` in the AppStream `<developer>` block, and tints the area behind the icon
+with `MAILCAL_PRIMARY_COLOR_LIGHT` and `MAILCAL_PRIMARY_COLOR_DARK`. The bug tracker it links stays
+this repository's in every build: it is where the code is fixed.
 
 The local MCP server introduces itself by the brand too ([`mcp.md`](mcp.md)): its `title` is
 `MAILCAL_APP_NAME`, and its machine name is `MAILCAL_MCP_SERVER_NAME`, which `mailcal-mcp` compiles
@@ -206,10 +212,6 @@ does not declare.
   cannot be injected, but each client installs it under a name its own build config decides
   (`Link=` on Windows, the nested bundle on macOS), so that is where a neutral default belongs.
   Renaming it changes the command users have already configured, so it is not a silent change.
-- **Publisher metadata still names Allodia in an unbranded build**: the AppStream `<developer>`
-  block and the four `allodia.eu` URLs in `clients/linux/flatpak/metainfo.xml.in`, and the
-  Credential Manager's own labels. These come from `docs/store-listing.md`'s family of documents,
-  which travel with the brand rather than with this tree.
 - **Prose is untouched.** Documentation, comments and store copy still name the product. That is
   the split's content pass, not this contract, and a check here that grepped for the word would
   fail on every file that correctly explains what Allodia's build is.

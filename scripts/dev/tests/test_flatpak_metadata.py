@@ -332,6 +332,19 @@ class GeneratedFiles(unittest.TestCase):
     def tearDownClass(cls):
         cls._dir.cleanup()
 
+    def test_the_publisher_is_the_brands(self):
+        root = ElementTree.fromstring(self.metainfo)
+        developer = root.find("developer")
+        self.assertEqual(developer.get("id"), meta.brand.value("MAILCAL_PUBLISHER_ID"))
+        self.assertEqual(developer.findtext("name"), meta.brand.value("MAILCAL_PUBLISHER_NAME"))
+        urls = {url.get("type"): url.text for url in root.findall("url")}
+        self.assertEqual(urls["homepage"], meta.brand.value("MAILCAL_WEBSITE_URL"))
+        self.assertEqual(urls["help"], meta.brand.value("MAILCAL_HELP_URL"))
+        self.assertEqual(urls["contact"], meta.brand.value("MAILCAL_CONTACT_URL"))
+        colours = {c.get("scheme_preference"): c.text for c in root.findall("branding/color")}
+        self.assertEqual(colours["light"], meta.brand.value("MAILCAL_PRIMARY_COLOR_LIGHT"))
+        self.assertEqual(colours["dark"], meta.brand.value("MAILCAL_PRIMARY_COLOR_DARK"))
+
     def test_the_metainfo_is_well_formed_and_carries_the_released_version(self):
         root = ElementTree.fromstring(self.metainfo)
         self.assertEqual(root.findtext("id"), meta.APP_ID)
