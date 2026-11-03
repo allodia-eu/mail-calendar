@@ -15,8 +15,8 @@ use engine_core::{
 };
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, HandOver, MailEdit, MailEditReceipt, MailboxEdit,
-    MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderError, ProviderResult,
-    ReportReceipt, ScopeSync, SenderIdentity, SenderIdentityId, SourceStream, SubmissionReceipt,
+    MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderResult, ReportReceipt,
+    ScopeSync, SenderIdentity, SenderIdentityId, SourceStream, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -92,8 +92,7 @@ impl Provider for RefreshingGmailProvider {
         // How each read ends is what tells a network that blocks IMAP from one that is down: the
         // API answers on the first, so nothing but these reads notices mail has stopped.
         Box::pin(reads.inspect(|read| {
-            self.imap
-                .note_read(read.as_ref().map(|_| ()).map_err(ProviderError::class));
+            self.imap.note_read(read.as_ref().map(|_| ()));
         }))
     }
 
