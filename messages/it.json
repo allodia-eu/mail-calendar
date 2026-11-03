@@ -650,12 +650,12 @@
 
 	"settings_title": "Impostazioni",
 	"settings_default_mail_app_heading": "App di posta predefinita",
-	"settings_default_mail_app_description": "Scegli se i link e-mail su questo dispositivo si aprono in Allodia Mail & Calendar.",
+	"settings_default_mail_app_description": "Scegli se i link e-mail su questo dispositivo si aprono in {app_name}.",
 	"settings_default_mail_app_action": "Imposta come predefinita",
 	"settings_default_mail_app_open_settings": "Apri le impostazioni di sistema",
 	"settings_default_mail_app_declined": "Hai scelto di non impostarla come predefinita.",
 	"default_mail_app_offer_title": "Aprire qui i link e-mail?",
-	"default_mail_app_offer_message": "Imposta Allodia Mail & Calendar come app di posta predefinita e i link agli indirizzi e-mail apriranno un messaggio qui. Puoi cambiarlo in qualsiasi momento nelle impostazioni.",
+	"default_mail_app_offer_message": "Imposta {app_name} come app di posta predefinita e i link agli indirizzi e-mail apriranno un messaggio qui. Puoi cambiarlo in qualsiasi momento nelle impostazioni.",
 	"default_mail_app_offer_accept": "Imposta come predefinita",
 	"default_mail_app_offer_decline": "Non ora",
 
@@ -839,7 +839,7 @@
 	"settings_advanced_reset_description": "Cancella la posta salvata in locale e scarica di nuovo tutto dal server. Gli invii in coda vengono mantenuti.",
 
 	"settings_mcp_heading": "Accesso per gli assistenti IA",
-	"settings_mcp_description": "Consenti a un assistente IA su questo computer di leggere la tua posta e di intervenire su di essa, tramite il Model Context Protocol. È disattivato finché non lo attivi, raggiunge solo gli account che selezioni e non viene inviato nulla ad Allodia.",
+	"settings_mcp_description": "Consenti a un assistente IA su questo computer di leggere la tua posta e di intervenire su di essa, tramite il Model Context Protocol. È disattivato finché non lo attivi, raggiunge solo gli account che selezioni e non ci viene inviato nulla.",
 	"settings_mcp_toggle": "Consenti agli assistenti di usare la mia posta",
 	"settings_mcp_status_running": "In esecuzione · in attesa di un client",
 	"settings_mcp_status_off": "Disattivato",
@@ -987,7 +987,7 @@
 	"welcome_analytics_body": "Facoltativo. Ci dice quali funzioni vengono usate, se la posta si sincronizza e dove si blocca la configurazione di un account. Non include mai i tuoi messaggi, il tuo calendario, i tuoi indirizzi e-mail o i tuoi contatti, e {app_name} funziona esattamente allo stesso modo, che tu lo attivi o no.",
 	"welcome_analytics_preview": "Guarda esattamente cosa inviamo",
 	"welcome_privacy_policy": "Leggi la nostra informativa sulla privacy",
-	"welcome_privacy_url": "https://allodia.eu/privacy/mail-calendar",
+	"welcome_privacy_url": "{privacy_url}",
 	"welcome_get_started": "Inizia",
 	"a11y_welcome_art": "Illustrazione di benvenuto",
 

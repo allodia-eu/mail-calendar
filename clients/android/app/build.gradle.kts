@@ -41,13 +41,13 @@ fun credentialValue(key: String): String? {
 }
 
 // One brand value, the app's name or its application id (docs/branding.md). The environment
-// first, then Allodia's file when the checkout has one, then the neutral default that every
-// checkout has. There is no "absent" case to handle: `branding/default.env` is the floor, so a
-// build always has an identity, and in a checkout without `allodia.env` that identity is the
-// unbranded one.
+// first, then the publisher's file when the checkout has one (`brand.env`, or `allodia.env`, the
+// older name it is still read under), then the neutral default that every checkout has. There is
+// no "absent" case to handle: `branding/default.env` is the floor, so a build always has an
+// identity, and in a checkout without a brand file that identity is the unbranded one.
 fun brandValue(key: String): String {
     System.getenv(key)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
-    for (name in listOf("allodia.env", "default.env")) {
+    for (name in listOf("brand.env", "allodia.env", "default.env")) {
         val file = rootProject.file("../../branding/$name").takeIf { it.exists() } ?: continue
         readEnvFile(file)[key]?.let { return it }
     }

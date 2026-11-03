@@ -2284,6 +2284,7 @@ dependencies = [
  "mailcal-autodetect",
  "mailcal-buildenv",
  "mailcal-composer",
+ "mailcal-l10n",
  "mailcal-mcp",
  "mailcal-oauth",
  "mailcal-telemetry",
@@ -2352,6 +2353,7 @@ dependencies = [
  "base64 0.23.1",
  "log",
  "mailcal-app",
+ "mailcal-l10n",
  "mailcal-viewmodel",
  "schemars",
  "serde",
@@ -2363,6 +2365,7 @@ dependencies = [
 name = "mailcal-mcp-shim"
 version = "0.15.0"
 dependencies = [
+ "mailcal-l10n",
  "serde_json",
  "tokio",
 ]

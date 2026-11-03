@@ -165,7 +165,7 @@ enum McpEndpoint {
     /// UI and end-user contexts" and `name` is "for programmatic or logical use". A client that
     /// shows the config key instead is a client that has not adopted that yet, and the fix
     /// belongs there rather than in a config key that has to work everywhere.
-    static let configurationKey = "allodia-mail-and-calendar"
+    static let configurationKey = Brand.mcpServerName
 
     /// The MCP-client configuration snippet for `endpoint`, ready to paste.
     ///

@@ -3,7 +3,7 @@
 #
 #   scripts/dev/brand-welcome.sh [path/to/source.png]
 #
-# The twin of brand-icons.sh, and the same rule decides the source: `branding/allodia-welcome.png`
+# The twin of brand-icons.sh, and the same rule decides the source: `branding/brand-welcome.png`
 # if the checkout has it, `branding/default-welcome.png` otherwise (docs/branding.md). A separate
 # slot from the icon deliberately; the neutral welcome art is a copy of the neutral icon today, and
 # giving it its own file is what lets art drawn for the screen replace it later without the launcher

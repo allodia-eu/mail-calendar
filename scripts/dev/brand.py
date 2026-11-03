@@ -4,7 +4,8 @@
 The Python half of `brand.sh`, reading the same two files by the same rule (docs/branding.md):
 
     the real environment          what the person or the CI job just set
-    branding/allodia.env          Allodia's identity, when that file is present
+    branding/brand.env            the publisher's identity, when that file is present
+    branding/allodia.env          the same slot under its older name, still read
     branding/default.env          the neutral default, which is always present
 
 Importable::
@@ -20,7 +21,7 @@ the parser::
     python3 scripts/dev/brand.py --icon-source   # the image the launcher icons are cut from
     python3 scripts/dev/brand.py --listing       # the store copy this build describes itself with
 
-The absent case is the design, not a failure: with no `allodia.env`; the state of the public
+The absent case is the design, not a failure: with no brand file; the state of the public
 repository; every build is unbranded, and nothing had to be switched off to get there.
 """
 
@@ -38,7 +39,10 @@ from envfile import parse_env_file  # noqa: E402  (after the path insert, delibe
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BRAND_DIR = REPO_ROOT / "branding"
 DEFAULT_FILE = BRAND_DIR / "default.env"
-OVERRIDE_FILE = BRAND_DIR / "allodia.env"
+# The publisher's slot, by its name and by the older name it is still read under. The first one
+# present answers, for the values and for each file slot alike.
+BRANDS = ("brand", "allodia")
+OVERRIDE_FILES = tuple(BRAND_DIR / f"{brand}.env" for brand in BRANDS)
 
 
 def resolve(environ: Dict[str, str] = None) -> Dict[str, str]:
@@ -47,7 +51,7 @@ def resolve(environ: Dict[str, str] = None) -> Dict[str, str]:
 
     env = os.environ if environ is None else environ
     values = {}  # type: Dict[str, str]
-    for path in (DEFAULT_FILE, OVERRIDE_FILE):
+    for path in (DEFAULT_FILE, *reversed(OVERRIDE_FILES)):
         if path.is_file():
             values.update(parse_env_file(path.read_text(encoding="utf-8")))
     for key in list(values):
@@ -84,8 +88,7 @@ def icon_source() -> Path:
     override = os.environ.get("MAILCAL_ICON_SOURCE", "").strip()
     if override:
         return Path(override)
-    allodia = BRAND_DIR / "allodia-icon.png"
-    return allodia if allodia.is_file() else BRAND_DIR / "default-icon.png"
+    return _slot("icon.png")
 
 
 def listing_source() -> Path:
@@ -100,8 +103,16 @@ def listing_source() -> Path:
     override = os.environ.get("MAILCAL_LISTING_SOURCE", "").strip()
     if override:
         return Path(override)
-    branded = BRAND_DIR / "allodia-listing.md"
-    return branded if branded.is_file() else BRAND_DIR / "default-listing.md"
+    return _slot("listing.md")
+
+
+def _slot(name: str) -> Path:
+    """The publisher's file for one slot when the checkout has it, the neutral default otherwise."""
+    for brand in BRANDS:
+        branded = BRAND_DIR / f"{brand}-{name}"
+        if branded.is_file():
+            return branded
+    return BRAND_DIR / f"default-{name}"
 
 
 def main(argv) -> int:

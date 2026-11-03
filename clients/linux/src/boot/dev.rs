@@ -42,8 +42,8 @@ impl NoSecretStore {
     /// in a file meant to be safe to attach to a support request (`docs/logging.md`).
     fn no_store(operation: &str, _account_id: &str) -> Result<(), CredentialStoreError> {
         log::error!(
-            "this build of Allodia Mail & Calendar for Linux has no secure store open, so it \
-             cannot {operation} an account's saved sign-in",
+            "this build for Linux has no secure store open, so it cannot {operation} an account's \
+             saved sign-in",
         );
         Err(CredentialStoreError::Store(
             "no secure store is open".to_owned(),

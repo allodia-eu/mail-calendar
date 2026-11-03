@@ -37,7 +37,7 @@ That is so `Get-AppxPackage` answers a support question without anyone having to
 | Artifact | `.msixupload` | `.msixbundle` plus an `.appinstaller` |
 | Updates | the Store | App Installer, from the `.appinstaller` URL |
 
-`branding/default.env` holds the neutral values and `branding/allodia.env` overrides them
+`branding/default.env` holds the neutral values and `branding/brand.env` overrides them
 ([`branding.md`](branding.md)). `scripts/dev/msix_manifest.py --channel store|direct` is what puts
 one set or the other into the committed manifest, and `clients/windows/package.ps1 -Channel Direct`
 is what builds the second.

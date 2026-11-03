@@ -49,7 +49,7 @@ use discovery::{Discovered, discover_and_register};
 
 /// The client name shown on the provider's consent screen. The product name, per the brand
 /// rule: this is user-facing copy on someone else's page.
-const CLIENT_NAME: &str = "Allodia Mail & Calendar";
+const CLIENT_NAME: &str = env!("MAILCAL_APP_NAME");
 
 /// The JMAP session resource path (RFC 8620 §2), which is also the protected resource whose
 /// `401` names the authorization server.

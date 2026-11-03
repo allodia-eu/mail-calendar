@@ -56,7 +56,8 @@ struct McpEndpointTests {
 
         // And it is the same identifier the protocol advertises as `serverInfo.name`. Two names
         // for one server is how a support answer stops matching what the user sees.
-        #expect(McpEndpoint.configurationKey == "allodia-mail-and-calendar")
+        // Both come from `MAILCAL_MCP_SERVER_NAME` (docs/branding.md).
+        #expect(McpEndpoint.configurationKey == Brand.mcpServerName)
 
         let snippet = McpEndpoint.configurationSnippet(endpoint: "/tmp/mcp.sock")
         let parsed = try JSONSerialization.jsonObject(with: Data(snippet.utf8)) as? [String: Any]

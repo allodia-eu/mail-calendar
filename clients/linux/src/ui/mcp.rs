@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use super::AppInput;
 
-pub(super) const CONFIGURATION_KEY: &str = "allodia-mail-and-calendar";
+pub(super) const CONFIGURATION_KEY: &str = crate::l10n::MCP_SERVER_NAME;
 const RELAY_FILE_NAME: &str = "allodia-mcp";
 const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
 
@@ -239,8 +239,9 @@ mod tests {
     }
 
     #[test]
-    fn configuration_key_is_protocol_name_and_portable() {
-        assert_eq!(CONFIGURATION_KEY, "allodia-mail-and-calendar");
+    fn configuration_key_is_portable() {
+        // It is the protocol's `serverInfo.name` by construction: both are
+        // `MAILCAL_MCP_SERVER_NAME` (docs/branding.md).
         assert!(CONFIGURATION_KEY.bytes().all(|byte| {
             byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"-_".contains(&byte)
         }));

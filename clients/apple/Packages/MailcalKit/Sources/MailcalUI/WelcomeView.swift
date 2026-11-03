@@ -55,9 +55,12 @@ struct WelcomeView: View {
 
                         consentCard
 
-                        Link(L10n.welcome_privacy_policy(), destination: privacyURL)
-                            .font(.callout)
-                            .padding(.top, 4)
+                        // The publisher's policy, injected into the catalog (docs/branding.md).
+                        if let privacyURL = URL(string: L10n.welcome_privacy_url()) {
+                            Link(L10n.welcome_privacy_policy(), destination: privacyURL)
+                                .font(.callout)
+                                .padding(.top, 4)
+                        }
                     }
                     .frame(maxWidth: 460)
                     .padding(24)
@@ -95,11 +98,5 @@ struct WelcomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(6)
         }
-    }
-
-    /// The catalog carries the URL, so all four clients point at one place and a localised policy
-    /// page can diverge later without touching any client.
-    private var privacyURL: URL {
-        URL(string: L10n.welcome_privacy_url()) ?? URL(string: "https://allodia.eu")!
     }
 }

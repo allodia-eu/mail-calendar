@@ -37,7 +37,7 @@ fn kind_words(kind: PendingOpKind) -> &'static str {
 /// Why an attempt did not go through, in words.
 fn class_words(class: FailureClass) -> &'static str {
     match class {
-        FailureClass::Retryable => "the server could not be reached or did not answer",
+        FailureClass::Retryable => "the server could not be reached or could not answer for now",
         FailureClass::RateLimited => "the server asked to slow down",
         FailureClass::Authentication => "the server refused the sign-in",
         FailureClass::Conflict => "the server's copy had changed",

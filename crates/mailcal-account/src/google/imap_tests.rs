@@ -1,22 +1,31 @@
 //! The Gmail IMAP side's decisions: when it opens, when it gives way to the API, which sign-in
 //! it dials with, and when its mail cannot be reached.
 
-use std::{cell::Cell, time::Duration};
-
 use engine_core::error::FailureClass;
 use engine_provider::ProviderError;
+use provider_imap::ImapError;
 
-use super::{
-    ASKS_BEFORE_API, GmailImapSlot, GmailMailRoute, Opened, REFUSALS_BEFORE_API, Side, decide,
-    settled,
-};
+use super::{GmailImapSlot, GmailMailRoute, Opened, REFUSALS_BEFORE_API, Side, decide};
 
 fn failed(class: FailureClass) -> engine_provider::ProviderResult<Opened> {
     Err(ProviderError::new(class, "no"))
 }
 
+/// A `NO` Gmail calls temporary, as the engine hands it on.
+fn refused_for_now() -> ProviderError {
+    ProviderError::from(ImapError::No("[UNAVAILABLE] Try again later".to_owned()))
+}
+
+/// A connection that died under a read, as the engine hands it on.
+fn lost() -> ProviderError {
+    ProviderError::from(ImapError::Io(std::io::Error::new(
+        std::io::ErrorKind::BrokenPipe,
+        "broken pipe",
+    )))
+}
+
 #[test]
-fn a_no_that_outlasts_every_ask_moves_the_account_to_the_api() {
+fn a_lasting_no_moves_the_account_to_the_api() {
     let (side, answer) = decide(failed(FailureClass::InvalidState), 0);
     assert!(matches!(side, Side::Api));
     assert!(matches!(answer, Ok(None)));
@@ -29,46 +38,13 @@ fn a_server_without_the_gmail_extension_moves_it_at_once() {
     assert!(matches!(answer, Ok(None)));
 }
 
-/// `open`, answering each ask with the next of `answers`, and counting the asks.
-async fn ask(answers: &[Result<u8, FailureClass>]) -> (Result<u8, FailureClass>, usize) {
-    let asked = Cell::new(0);
-    let answer = settled(
-        || {
-            let next = answers[asked.get()];
-            asked.set(asked.get() + 1);
-            async move { next.map_err(|class| ProviderError::new(class, "no")) }
-        },
-        Duration::ZERO,
-    )
-    .await;
-    (answer.map_err(|err| err.class()), asked.get())
-}
-
-#[tokio::test]
-async fn a_no_that_passes_is_asked_again_and_opens_the_imap_side() {
-    let (answer, asked) = ask(&[Err(FailureClass::InvalidState), Ok(7)]).await;
-    assert_eq!((answer, asked), (Ok(7), 2));
-}
-
-#[tokio::test]
-async fn a_no_that_does_not_change_is_believed_after_every_ask() {
-    let answers = [Err(FailureClass::InvalidState); ASKS_BEFORE_API as usize];
-    let (answer, asked) = ask(&answers).await;
-    assert_eq!(answer, Err(FailureClass::InvalidState));
-    assert_eq!(asked, answers.len());
-}
-
-#[tokio::test]
-async fn any_other_failure_fails_the_read_without_asking_again() {
-    for class in [
-        FailureClass::Authentication,
-        FailureClass::Retryable,
-        FailureClass::RateLimited,
-        FailureClass::Permanent,
-    ] {
-        let (answer, asked) = ask(&[Err(class), Ok(7)]).await;
-        assert_eq!((answer, asked), (Err(class), 1), "{class:?}");
-    }
+/// A hidden All Mail is a lasting `NO`; one Gmail calls temporary is a server short of something
+/// for now, and moving the account would hand an IMAP cursor to the API pass.
+#[test]
+fn a_refusal_gmail_calls_temporary_fails_the_read_and_moves_nothing() {
+    let (side, answer) = decide(Err(refused_for_now()), 0);
+    assert!(matches!(side, Side::Unknown(0)));
+    assert_eq!(answer.unwrap_err().class(), FailureClass::Retryable);
 }
 
 #[test]
@@ -192,13 +168,13 @@ fn two_reads_that_cannot_reach_imap_make_its_mail_unreachable_until_one_does() {
     let address = "unreached@gmail.com";
     let slot = GmailImapSlot::shared(address, &sign_in(), &tls);
 
-    slot.note_read(Err(FailureClass::Retryable));
+    slot.note_read(Err(&lost()));
     assert_eq!(
         slot.route(),
         GmailMailRoute::Undecided,
         "one blip is not an outage"
     );
-    slot.note_read(Err(FailureClass::Retryable));
+    slot.note_read(Err(&lost()));
     assert_eq!(slot.route(), GmailMailRoute::Unreachable);
     assert_eq!(
         super::gmail_mail_route(address),
@@ -209,9 +185,26 @@ fn two_reads_that_cannot_reach_imap_make_its_mail_unreachable_until_one_does() {
     assert_eq!(slot.route(), GmailMailRoute::Undecided);
 
     // A server that answered, even with a refusal, ends the run.
-    slot.note_read(Err(FailureClass::Retryable));
-    slot.note_read(Err(FailureClass::Authentication));
-    slot.note_read(Err(FailureClass::Retryable));
+    slot.note_read(Err(&lost()));
+    slot.note_read(Err(&ProviderError::authentication("no")));
+    slot.note_read(Err(&lost()));
+    assert_eq!(slot.route(), GmailMailRoute::Undecided);
+}
+
+/// A refusal Gmail calls temporary is a failure that may pass, like a lost connection, but the
+/// network carried it, so it is no sign that IMAP is blocked.
+#[test]
+fn a_refusal_gmail_calls_temporary_is_no_sign_its_mail_is_unreachable() {
+    let tls = crate::tls::tls_with(&[]).unwrap();
+    let slot = GmailImapSlot::shared("refused-for-now@gmail.com", &sign_in(), &tls);
+
+    slot.note_read(Err(&refused_for_now()));
+    slot.note_read(Err(&refused_for_now()));
+    assert_eq!(slot.route(), GmailMailRoute::Undecided);
+
+    slot.note_read(Err(&lost()));
+    slot.note_read(Err(&refused_for_now()));
+    slot.note_read(Err(&lost()));
     assert_eq!(slot.route(), GmailMailRoute::Undecided);
 }
 
@@ -226,7 +219,7 @@ fn reads_over_the_api_never_make_its_mail_unreachable() {
         std::sync::atomic::Ordering::Release,
     );
     for _ in 0..3 {
-        slot.note_read(Err(FailureClass::Retryable));
+        slot.note_read(Err(&lost()));
     }
     assert_eq!(slot.route(), GmailMailRoute::Api);
 }

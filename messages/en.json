@@ -650,12 +650,12 @@
 
 	"settings_title": "Settings",
 	"settings_default_mail_app_heading": "Default mail app",
-	"settings_default_mail_app_description": "Choose whether mail links on this device open in Allodia Mail & Calendar.",
+	"settings_default_mail_app_description": "Choose whether mail links on this device open in {app_name}.",
 	"settings_default_mail_app_action": "Make default",
 	"settings_default_mail_app_open_settings": "Open system settings",
 	"settings_default_mail_app_declined": "You chose not to make it the default.",
 	"default_mail_app_offer_title": "Open mail links here?",
-	"default_mail_app_offer_message": "Make Allodia Mail & Calendar your default mail app, and links to email addresses will open a message here. You can change this at any time in Settings.",
+	"default_mail_app_offer_message": "Make {app_name} your default mail app, and links to email addresses will open a message here. You can change this at any time in Settings.",
 	"default_mail_app_offer_accept": "Make default",
 	"default_mail_app_offer_decline": "Not now",
 
@@ -839,7 +839,7 @@
 	"settings_advanced_reset_description": "Clear the locally cached mail and download everything again from the server. Queued sends are kept.",
 
 	"settings_mcp_heading": "AI assistant access",
-	"settings_mcp_description": "Let an AI assistant on this computer read and act on your mail, through the Model Context Protocol. It is off unless you turn it on, it reaches only the accounts you tick, and nothing is sent to Allodia.",
+	"settings_mcp_description": "Let an AI assistant on this computer read and act on your mail, through the Model Context Protocol. It is off unless you turn it on, it reaches only the accounts you tick, and nothing is sent to us.",
 	"settings_mcp_toggle": "Allow assistants to use my mail",
 	"settings_mcp_status_running": "Running · waiting for a client to connect",
 	"settings_mcp_status_off": "Off",
@@ -987,7 +987,7 @@
 	"welcome_analytics_body": "Optional. It tells us which features get used, whether mail syncs, and where setting up an account goes wrong. It never includes your messages, your calendar, your email addresses, or your contacts, and {app_name} works exactly the same whether you turn it on or not.",
 	"welcome_analytics_preview": "See exactly what we send",
 	"welcome_privacy_policy": "Read our privacy policy",
-	"welcome_privacy_url": "https://allodia.eu/privacy/mail-calendar",
+	"welcome_privacy_url": "{privacy_url}",
 	"welcome_get_started": "Get started",
 	"a11y_welcome_art": "Welcome illustration",
 

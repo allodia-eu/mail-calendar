@@ -650,12 +650,12 @@
 
 	"settings_title": "Ajustes",
 	"settings_default_mail_app_heading": "Aplicación de correo predeterminada",
-	"settings_default_mail_app_description": "Elige si los enlaces de correo de este dispositivo se abren en Allodia Mail & Calendar.",
+	"settings_default_mail_app_description": "Elige si los enlaces de correo de este dispositivo se abren en {app_name}.",
 	"settings_default_mail_app_action": "Establecer como predeterminada",
 	"settings_default_mail_app_open_settings": "Abrir los ajustes del sistema",
 	"settings_default_mail_app_declined": "Elegiste no establecerla como predeterminada.",
 	"default_mail_app_offer_title": "¿Abrir aquí los enlaces de correo?",
-	"default_mail_app_offer_message": "Establece Allodia Mail & Calendar como tu aplicación de correo predeterminada y los enlaces a direcciones de correo abrirán un mensaje aquí. Puedes cambiarlo cuando quieras en los ajustes.",
+	"default_mail_app_offer_message": "Establece {app_name} como tu aplicación de correo predeterminada y los enlaces a direcciones de correo abrirán un mensaje aquí. Puedes cambiarlo cuando quieras en los ajustes.",
 	"default_mail_app_offer_accept": "Establecer como predeterminada",
 	"default_mail_app_offer_decline": "Ahora no",
 
@@ -839,7 +839,7 @@
 	"settings_advanced_reset_description": "Borra el correo guardado en el dispositivo y descárgalo todo de nuevo del servidor. Los envíos en cola se conservan.",
 
 	"settings_mcp_heading": "Acceso para asistentes de IA",
-	"settings_mcp_description": "Permite que un asistente de IA de este ordenador lea y gestione tu correo mediante el Model Context Protocol. Está desactivado salvo que lo actives, solo llega a las cuentas que marques y no se envía nada a Allodia.",
+	"settings_mcp_description": "Permite que un asistente de IA de este ordenador lea y gestione tu correo mediante el Model Context Protocol. Está desactivado salvo que lo actives, solo llega a las cuentas que marques y no se nos envía nada.",
 	"settings_mcp_toggle": "Permitir que los asistentes usen mi correo",
 	"settings_mcp_status_running": "Activo · esperando a que se conecte un cliente",
 	"settings_mcp_status_off": "Desactivado",
@@ -987,7 +987,7 @@
 	"welcome_analytics_body": "Opcional. Nos dice qué funciones se usan, si el correo se sincroniza y en qué punto falla la configuración de una cuenta. Nunca incluye tus mensajes, tu calendario, tus direcciones de correo ni tus contactos, y {app_name} funciona exactamente igual lo actives o no.",
 	"welcome_analytics_preview": "Mira exactamente qué enviamos",
 	"welcome_privacy_policy": "Lee nuestra política de privacidad",
-	"welcome_privacy_url": "https://allodia.eu/privacy/mail-calendar",
+	"welcome_privacy_url": "{privacy_url}",
 	"welcome_get_started": "Empezar",
 	"a11y_welcome_art": "Ilustración de bienvenida",
 

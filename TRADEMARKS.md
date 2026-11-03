@@ -23,16 +23,15 @@ You do not need permission, and there is no separate agreement to sign.
 ## Ship it under your own name
 
 A build carries an identity (a name, an application id, an icon), and yours must be yours.
-This is one file: `branding/allodia.env` sets the Allodia identity, and **without it a build is
+This is one file: `branding/brand.env` sets a publisher's identity, and **without it a build is
 already neutral**: the name, the application id, everything named after that id (OAuth redirect
 schemes, keychain and app groups, the data directory), the icon and the welcome art. So a fork is
 rebranded by omission rather than by a rename chased through five clients. Point the same
 generators at your own source image and the icons are yours too.
 
 It is not yet complete, and [`docs/branding.md`](docs/branding.md) → **Known gaps** is the list:
-a few places still name Allodia in an unbranded build: the MCP relay's binary name, the Linux
-AppStream publisher block, one catalog string. They are being closed. None of them is a reason you
-cannot ship; if one is in your way, say so and it moves up.
+one place still names Allodia in an unbranded build, the MCP relay's binary name. It is being
+closed. It is not a reason you cannot ship; if it is in your way, say so and it moves up.
 
 So: do not name your build Allodia Mail & Calendar, do not ship the Allodia logo, wordmark or
 mascot, and do not present it in a way that suggests Allodia published it or endorses it.

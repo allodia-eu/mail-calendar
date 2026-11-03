@@ -133,9 +133,10 @@ impl SecretStore {
 
     /// What a person reading their keyring sees, so a debug item is recognisable as one.
     fn label(&self, suffix: &str) -> String {
+        let app = crate::l10n::app_title();
         match &self.namespace {
-            Some(namespace) => format!("Allodia Mail & Calendar ({namespace}): {suffix}"),
-            None => format!("Allodia Mail & Calendar: {suffix}"),
+            Some(namespace) => format!("{app} ({namespace}): {suffix}"),
+            None => format!("{app}: {suffix}"),
         }
     }
 
