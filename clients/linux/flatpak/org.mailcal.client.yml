@@ -24,9 +24,9 @@ app-id: org.mailcal.client
 default-branch: stable
 
 # The GNOME runtime is what decouples the client from the host distribution: whatever a user's
-# distribution ships, the app links GTK 4.22, libadwaita 1.9 and WebKitGTK 2.52 from here. Bumping
-# this is a deliberate change; a runtime carries the WebKit that enforces the reading-view gates.
-# The development baseline (Ubuntu 26.04) tracks the same GNOME generation, which is convenient
+# distribution ships, the app links the GTK, libadwaita and WebKitGTK it carries. Bumping this is a
+# deliberate change; a runtime carries the WebKit that enforces the reading-view gates.
+# The development baseline tracks the same GNOME generation, which is convenient
 # rather than load-bearing: a distribution's build of GTK and the runtime's are still two builds,
 # and they drift on their own schedules.
 runtime: org.gnome.Platform

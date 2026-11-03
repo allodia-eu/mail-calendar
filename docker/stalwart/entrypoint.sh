@@ -1,7 +1,7 @@
 #!/bin/sh
 # Self-bootstrapping entrypoint for the deterministic Stalwart test harness.
 #
-# Stalwart v0.16 has no configuration file: a fresh server boots into "bootstrap mode", is
+# Stalwart has no configuration file: a fresh server boots into "bootstrap mode", is
 # configured through its management API, and restarts to come up as a full server. This wrapper
 # drives that sequence with `stalwart-cli apply` (Stalwart's own CLI, built into the image by
 # ./Dockerfile), then seeds the shared dataset, so `docker compose up` yields an identical, ready

@@ -348,10 +348,10 @@ class ToolkitDriftTests(unittest.TestCase):
     """What the toolkit renamed under us, and what a caller must go on seeing."""
 
     def test_a_role_is_read_from_the_atspi_enum_and_not_from_the_toolkit_string(self) -> None:
-        # GTK 4.22 reports `button` for every node whose AT-SPI role is ROLE_PUSH_BUTTON, where
-        # earlier versions reported `push button`. Every `--role "push button"` in
-        # test-linux-ui.sh matched nothing the day that landed, and the suite reported the
-        # controls as never becoming enabled rather than as renamed.
+        # The toolkit's role string is not stable: GTK reports `button` for every node whose
+        # AT-SPI role is ROLE_PUSH_BUTTON, where older releases reported `push button`. A
+        # `--role` matched against that string finds nothing once it changes, and the suite
+        # reports the controls as never becoming enabled rather than as renamed.
         class DriftingNode(FakeNode):
             def getRole(self):  # noqa: N802 - mirrors pyatspi
                 return 43  # whatever ROLE_PUSH_BUTTON happens to be
