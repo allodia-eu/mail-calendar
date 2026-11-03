@@ -27,6 +27,7 @@ fn grant() -> mailcal_account::OAuthGrant {
         issuer: None,
         authorization_server: None,
         protected_resources: Vec::new(),
+        signed_in_as: None,
     }
 }
 

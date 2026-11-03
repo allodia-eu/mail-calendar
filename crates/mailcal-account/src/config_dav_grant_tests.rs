@@ -203,3 +203,36 @@ async fn a_token_never_travels_without_tls() {
     ));
     assert_eq!(minted, 0);
 }
+
+/// Stalwart's list names its HTTPS origins and its host name bare, for IMAP and SMTP. A calendar
+/// on that host is one the list admits only when an HTTPS entry matches its URL, port included,
+/// and a redirect only to a host an HTTPS entry names.
+#[tokio::test]
+async fn a_listed_host_admits_only_the_servers_the_list_matches() {
+    let listed = r#"protected_resources = ["https://dav.example.net", "imap.example.net"]"#;
+
+    let account = signed_in(FULL, "https://dav.example.net/dav", listed);
+    let (auth, _) = calendar_auth(&account, DavUse::Calendars).await;
+    let hosts = auth
+        .expect("an HTTPS entry covers the calendar")
+        .hosts
+        .unwrap();
+    assert!(hosts.permits("dav.example.net"));
+    assert!(
+        !hosts.permits("imap.example.net"),
+        "a bare entry names the IMAP host, not a DAV hop to it"
+    );
+
+    for elsewhere in [
+        "https://dav.example.net:8443/dav",
+        "https://imap.example.net/dav",
+    ] {
+        let account = signed_in(FULL, elsewhere, listed);
+        let (auth, minted) = calendar_auth(&account, DavUse::Calendars).await;
+        assert!(
+            matches!(auth, Err(AccountError::DavNeedsOwnSignIn("calendar"))),
+            "{elsewhere} is another server than any the list names"
+        );
+        assert_eq!(minted, 0, "refused before a token is minted");
+    }
+}

@@ -112,7 +112,7 @@ fn a_list_replaces_the_domain_rule() {
     assert!(token_may_reach(
         "https://auth.example.com",
         &listed,
-        "dav.example.com"
+        "https://dav.example.com/.well-known/caldav"
     ));
     assert!(token_may_reach(
         "https://auth.example.com",
@@ -123,8 +123,56 @@ fn a_list_replaces_the_domain_rule() {
     assert!(!token_may_reach(
         "https://auth.example.com",
         &listed,
-        "www.example.com"
+        "https://www.example.com/"
     ));
+}
+
+#[test]
+fn a_listed_entry_admits_only_the_requests_it_matches() {
+    // Stalwart's list: its HTTPS origins and its host name bare, for IMAP and SMTP.
+    let listed = [
+        "https://localhost:28081".to_owned(),
+        "https://localhost".to_owned(),
+        "localhost".to_owned(),
+    ];
+    let issuer = "http://localhost:28081";
+    assert!(token_may_reach(issuer, &listed, "localhost"));
+    assert!(token_may_reach(
+        issuer,
+        &listed,
+        "https://localhost/dav/cal/"
+    ));
+    assert!(token_may_reach(
+        issuer,
+        &listed,
+        "https://localhost:28081/jmap/session"
+    ));
+    // The same host on another port or scheme is another server: neither the bare entry, which
+    // names a non-HTTP host, nor an HTTPS origin admits it (§3.4, §3.6).
+    assert!(!token_may_reach(issuer, &listed, "http://localhost:28080/"));
+    assert!(!token_may_reach(
+        issuer,
+        &listed,
+        "https://localhost:28080/"
+    ));
+    assert!(!token_may_reach(issuer, &listed, "https://127.0.0.1/"));
+    assert!(!token_may_reach(issuer, &listed, "imap.localhost"));
+}
+
+#[test]
+fn a_redirect_known_by_its_host_alone_is_admitted_by_an_https_entry_only() {
+    let listed = [
+        "https://dav.example.com".to_owned(),
+        "mail.example.com".to_owned(),
+    ];
+    let issuer = "https://auth.example.com";
+    assert!(token_may_reach_host(issuer, &listed, "DAV.example.com"));
+    // A bare entry is for IMAP and SMTP: a DAV hop to that host is not one the list vouches for.
+    assert!(!token_may_reach_host(issuer, &listed, "mail.example.com"));
+    // Without a list the domain rule decides, as for a full URL.
+    let none: [String; 0] = [];
+    assert!(token_may_reach_host(issuer, &none, "dav.example.com"));
+    assert!(!token_may_reach_host(issuer, &none, "dav.example.org"));
 }
 
 #[test]

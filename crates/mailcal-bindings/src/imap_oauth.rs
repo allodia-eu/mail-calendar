@@ -182,12 +182,17 @@ struct PendingImapLogin {
 }
 
 impl PendingImapLogin {
-    /// The grant this pending login becomes, given the refresh token it was exchanged for.
+    /// The grant this pending login becomes, given the refresh token it was exchanged for and
+    /// the account the token response named.
     ///
     /// Kept beside the struct so the fields carried across the browser hop and the fields
     /// persisted afterwards cannot drift: a `redirect_uri` that stops being replayed, or a
     /// dropped `issuer`, both fail later and somewhere else.
-    fn into_grant(self, refresh_token: String) -> (AccountSetup, OAuthGrant) {
+    fn into_grant(
+        self,
+        refresh_token: String,
+        signed_in_as: Option<String>,
+    ) -> (AccountSetup, OAuthGrant) {
         let grant = OAuthGrant {
             client_id: self.client_id,
             client_secret: self.client_secret.map(Secret::new),
@@ -202,6 +207,7 @@ impl PendingImapLogin {
             issuer: self.issuer,
             authorization_server: self.authorization_server,
             protected_resources: self.protected_resources,
+            signed_in_as,
         };
         let setup = AccountSetup {
             imap_host: self.imap_host,
@@ -373,6 +379,7 @@ fn grant_shell(pending: &PendingImapLogin) -> OAuthGrant {
         issuer: pending.issuer.clone(),
         authorization_server: pending.authorization_server.clone(),
         protected_resources: pending.protected_resources.clone(),
+        signed_in_as: None,
     }
 }
 
@@ -402,7 +409,7 @@ fn start_login(mut pending: PendingImapLogin) -> Result<ImapLoginStart, MailcalE
 /// the account it completes into, so what is said before the browser opens is what its connect
 /// then finds.
 fn unreached(pending: &PendingImapLogin) -> Result<Vec<crate::AccountCapability>, MailcalError> {
-    let (setup, _) = pending.clone().into_grant(String::new());
+    let (setup, _) = pending.clone().into_grant(String::new(), None);
     let config = mailcal_account::build_config_toml(&setup)
         .and_then(|toml| mailcal_account::load_str(&toml))
         .map_err(|err| MailcalError::Config(err.to_string()))?;

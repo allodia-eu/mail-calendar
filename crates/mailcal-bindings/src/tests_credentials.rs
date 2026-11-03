@@ -61,6 +61,7 @@ fn the_constructors_credential_store_is_live_before_the_first_refresh_can_be() {
         issuer: None,
         authorization_server: None,
         protected_resources: Vec::new(),
+        signed_in_as: None,
     };
     let config = mailcal_account::JmapAccountConfig {
         email: "rotating@example.com".to_owned(),
@@ -133,6 +134,7 @@ fn unreachable_oauth_jmap_config() -> (String, mailcal_account::JmapAccountConfi
             issuer: None,
             authorization_server: None,
             protected_resources: Vec::new(),
+            signed_in_as: None,
         }),
         shape: mailcal_account::AccountShape::default(),
     };

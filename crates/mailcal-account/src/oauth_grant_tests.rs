@@ -24,6 +24,7 @@ fn grant() -> OAuthGrant {
         issuer: Some("https://api.example.com".to_owned()),
         authorization_server: None,
         protected_resources: Vec::new(),
+        signed_in_as: None,
     }
 }
 
@@ -102,6 +103,18 @@ fn the_table_round_trips_every_field_the_next_refresh_needs() {
         Some("https://api.example.com/jmap/session")
     );
     assert_eq!(read.issuer.as_deref(), Some("https://api.example.com"));
+    assert_eq!(read.signed_in_as, None, "nothing named, nothing written");
+
+    let named = OAuthGrant {
+        signed_in_as: Some("alice@example.com".to_owned()),
+        ..grant()
+    };
+    let read: OAuthGrant = toml::from_str(&toml::to_string(&named.to_table()).unwrap()).unwrap();
+    assert_eq!(
+        read.signed_in_as.as_deref(),
+        Some("alice@example.com"),
+        "the account a later sign-in is held to"
+    );
 }
 
 #[test]

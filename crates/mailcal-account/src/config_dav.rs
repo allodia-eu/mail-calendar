@@ -151,7 +151,7 @@ pub fn grant_reaches(grant: &crate::OAuthGrant, base_url: &str, dav_use: DavUse)
     });
     over_tls
         && mailcal_oauth::requests_dav_use(&grant.scopes, dav_use)
-        && host.is_some_and(|host| grant.token_may_reach(&host))
+        && url.is_some_and(|url| grant.token_may_reach(url.as_str()))
 }
 
 /// The hosts a grant's tokens are for, as the DAV transport asks about each redirect.
@@ -162,7 +162,7 @@ struct IssuerHosts {
 
 impl CredentialHosts for IssuerHosts {
     fn permits(&self, host: &str) -> bool {
-        mailcal_oauth::token_may_reach(&self.issuer, &self.protected_resources, host)
+        mailcal_oauth::token_may_reach_host(&self.issuer, &self.protected_resources, host)
     }
 }
 

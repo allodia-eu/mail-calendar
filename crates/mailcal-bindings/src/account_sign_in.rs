@@ -169,13 +169,17 @@ impl MailcalApp {
         let replacement = match (pending, self.switchable(&account_id)?) {
             (PendingSignIn::Imap(pending), SignInConfig::Imap(config)) => {
                 let signed_in = self.exchange_imap_login(pending, callback_url)?;
-                named_as(signed_in.username.as_deref(), config.username())?;
+                named_as(
+                    signed_in.username.as_deref(),
+                    config.oauth.as_ref(),
+                    config.username(),
+                )?;
                 let signed = config.with_grant(signed_in.grant);
                 return self.install_signed_in(&account_id, &config, signed, unreached);
             }
             (PendingSignIn::Jmap(pending), SignInConfig::Jmap(config)) => {
                 let (fresh, named) = self.exchange_jmap_login(pending, callback_url)?;
-                named_as(named.as_deref(), &config.email)?;
+                named_as(named.as_deref(), config.oauth.as_ref(), &config.email)?;
                 Replacement::Jmap(JmapAccountConfig {
                     oauth: fresh.oauth,
                     password: None,
@@ -402,15 +406,26 @@ impl MailcalApp {
     }
 }
 
-/// Refuses a sign-in whose server named another account than `address` in its token response
-/// (`username`, draft-ietf-mailmaint-oauth-public §3.5). Nothing to check when it named none.
+/// Refuses a sign-in whose server named another account in its token response (`username`,
+/// draft-ietf-mailmaint-oauth-public §3.5) than the one `stored` was issued for, or, where no
+/// earlier sign-in was named, than `address`. Nothing to check when it named none.
+///
+/// The earlier name decides because the profile makes it the account's identity: a person who
+/// typed an alias of their login name is named by the login name every time.
 ///
 /// # Errors
 ///
-/// Returns [`MailcalError::Config`] when the named account is another one.
-pub(crate) fn named_as(named: Option<&str>, address: &str) -> Result<(), MailcalError> {
+/// Returns [`MailcalError::DifferentAccount`] when the named account is another one.
+pub(crate) fn named_as(
+    named: Option<&str>,
+    stored: Option<&mailcal_account::OAuthGrant>,
+    address: &str,
+) -> Result<(), MailcalError> {
+    let expected = stored
+        .and_then(|grant| grant.signed_in_as.as_deref())
+        .unwrap_or(address);
     match named {
-        Some(named) if !addresses_match(named, address) => {
+        Some(named) if !addresses_match(named, expected) => {
             log::warn!("sign-in: the server issued the grant for another account; discarding it");
             Err(MailcalError::DifferentAccount)
         }

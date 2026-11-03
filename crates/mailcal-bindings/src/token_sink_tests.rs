@@ -51,6 +51,7 @@ fn oauth_jmap_account() -> (AccountId, SharedRegistry) {
             issuer: None,
             authorization_server: None,
             protected_resources: Vec::new(),
+            signed_in_as: None,
         }),
         shape: mailcal_account::AccountShape::default(),
     };

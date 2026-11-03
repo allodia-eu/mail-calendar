@@ -107,7 +107,7 @@ impl MailcalApp {
                      is unchanged and the reconnect prompt stays up"
                 );
             })?;
-        crate::account_sign_in::named_as(named.as_deref(), &stored.email)?;
+        crate::account_sign_in::named_as(named.as_deref(), stored.oauth.as_ref(), &stored.email)?;
         let config = reconnected(&stored, fresh)?;
         let config_toml = config
             .to_toml()
@@ -213,6 +213,7 @@ mod tests {
             issuer: None,
             authorization_server: None,
             protected_resources: Vec::new(),
+            signed_in_as: None,
         }
     }
 

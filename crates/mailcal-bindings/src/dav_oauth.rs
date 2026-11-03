@@ -63,7 +63,7 @@ struct PendingDavLogin {
 }
 
 impl PendingDavLogin {
-    fn grant(&self, refresh_token: String) -> OAuthGrant {
+    fn grant(&self, refresh_token: String, signed_in_as: Option<String>) -> OAuthGrant {
         OAuthGrant {
             client_id: self.client_id.clone(),
             client_secret: self.client_secret.clone().map(Secret::new),
@@ -76,6 +76,7 @@ impl PendingDavLogin {
             issuer: self.issuer.clone(),
             authorization_server: Some(self.authorization_server.clone()),
             protected_resources: self.protected_resources.clone(),
+            signed_in_as,
         }
     }
 
@@ -97,8 +98,8 @@ struct Target {
     uses: Vec<Capability>,
     /// The URL the server is asked who signs it in: the calendar's, else the address book's.
     url: String,
-    /// The host of every server the grant must reach.
-    hosts: Vec<String>,
+    /// The URL of every server the grant must reach.
+    endpoints: Vec<String>,
     login: String,
 }
 
@@ -191,7 +192,7 @@ impl MailcalApp {
             state: String::new(),
             verifier: String::new(),
         };
-        let oauth = OAuthClient::new(pending.grant(String::new()).provider_config())
+        let oauth = OAuthClient::new(pending.grant(String::new(), None).provider_config())
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         let request = oauth.begin(Some(&pending.login));
         pending.state = request.state;
@@ -229,7 +230,7 @@ impl MailcalApp {
                 "that sign-in was started for another account".to_owned(),
             ));
         }
-        let oauth = OAuthClient::new(pending.grant(String::new()).provider_config())
+        let oauth = OAuthClient::new(pending.grant(String::new(), None).provider_config())
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         log::info!("dav oauth: redirect received; exchanging the code");
         let tokens = self
@@ -252,7 +253,7 @@ impl MailcalApp {
                 "the server issued no refresh token (offline_access was requested)".to_owned(),
             )
         })?;
-        named_as(tokens.username.as_deref(), &pending.login)?;
+        named_as(tokens.username.as_deref(), None, &pending.login)?;
         log::info!(
             "dav oauth: sign-in complete; granted scope(s): [{}]",
             tokens.scope
@@ -265,7 +266,7 @@ impl MailcalApp {
         let target = self.dav_target(&account_id, uses)?;
         let calendar = target
             .calendar
-            .with_dav_grant(pending.grant(refresh_token.expose().to_owned()));
+            .with_dav_grant(pending.grant(refresh_token.expose().to_owned(), tokens.username));
         if !calendar.uses_its_grant_does_not_reach().is_empty() {
             return Err(MailcalError::Config(
                 "the sign-in does not reach the calendar or contacts it was for".to_owned(),
@@ -309,10 +310,7 @@ impl MailcalApp {
         .flatten()
         .map(mailcal_account::normalize_caldav_base_url)
         .collect();
-        let hosts = urls
-            .iter()
-            .filter_map(|url| url::Url::parse(url).ok()?.host_str().map(str::to_owned))
-            .collect();
+        let endpoints = urls.clone();
         let login = [
             calendar
                 .caldav
@@ -337,7 +335,7 @@ impl MailcalApp {
             calendar,
             uses,
             url,
-            hosts,
+            endpoints,
             login,
         })
     }
@@ -366,7 +364,7 @@ async fn issuer_for(http: &reqwest::Client, target: &Target) -> Result<Issuer, M
             .as_deref()
             .unwrap_or("(none; sign-in cannot be offered)"),
     );
-    let scopes = usable(&metadata, &target.hosts, &target.dav_uses())
+    let scopes = usable(&metadata, &target.endpoints, &target.dav_uses())
         .map_err(|detail| unavailable(&detail))?;
     let resource = mailcal_oauth::resource_for(http, &metadata, &target.url)
         .await
@@ -380,16 +378,20 @@ async fn issuer_for(http: &reqwest::Client, target: &Target) -> Result<Issuer, M
 }
 
 /// The scopes to ask `metadata`'s issuer for, when its tokens may be sent to every one of
-/// `hosts` (`draft-ietf-mailmaint-oauth-public` §3.6), it registers apps, and it offers every one
-/// of `uses`; otherwise why not, for the log.
+/// `endpoints` (`draft-ietf-mailmaint-oauth-public` §3.6), it registers apps, and it offers every
+/// one of `uses`; otherwise why not, for the log, which names a host and never a DAV path.
 fn usable(
     metadata: &mailcal_oauth::AuthServerMetadata,
-    hosts: &[String],
+    endpoints: &[String],
     uses: &[DavUse],
 ) -> Result<Vec<String>, String> {
-    if let Some(host) = hosts.iter().find(|host| {
-        !mailcal_oauth::token_may_reach(&metadata.issuer, &metadata.protected_resources, host)
+    if let Some(endpoint) = endpoints.iter().find(|endpoint| {
+        !mailcal_oauth::token_may_reach(&metadata.issuer, &metadata.protected_resources, endpoint)
     }) {
+        let host = url::Url::parse(endpoint)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .unwrap_or_default();
         return Err(format!("the issuer's tokens are not for {host}"));
     }
     if metadata.registration_endpoint.is_none() {
