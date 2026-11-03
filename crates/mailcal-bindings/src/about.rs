@@ -6,10 +6,9 @@
 //! notice we have not really given. Only the surrounding labels are localised, in each client's
 //! own catalog.
 
-/// The support address printed in Settings → About on every client.
-///
-/// The Discourse the help pages already send people to, not the marketing page.
-const SUPPORT_URL: &str = "https://support.allodia.eu";
+/// The support address printed in Settings → About on every client: the publisher's, injected
+/// from `branding/` by the build script (docs/branding.md).
+const SUPPORT_URL: &str = env!("MAILCAL_SUPPORT_URL");
 
 /// One piece of third-party work the app is built on, and the licence it is used under.
 #[derive(uniffi::Record)]
@@ -114,7 +113,11 @@ mod tests {
             "a user reads this: {}",
             about.version
         );
-        assert_eq!(about.support_url, "https://support.allodia.eu");
+        assert!(
+            about.support_url.starts_with("https://"),
+            "someone with a problem is sent somewhere they can open: {}",
+            about.support_url
+        );
     }
 
     #[test]

@@ -181,7 +181,7 @@ asks before drawing its account-type picker. In the app, the answer is visible a
 ## The other thing a build is given
 
 The app's **name and application id** are injected the same way, from `branding/`, and are not
-secret: [`docs/branding.md`](docs/branding.md). A checkout with `branding/allodia.env` builds
-Allodia Mail & Calendar; one without it builds the unbranded default, under a different id and in
+secret: [`docs/branding.md`](docs/branding.md). A checkout with a publisher's `branding/brand.env`
+builds that publisher's app; one without it builds the unbranded default, under a different id and in
 a different data directory. Nothing has to be switched off to get there, and nothing needs setting
 up to build either one.

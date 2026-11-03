@@ -12,7 +12,9 @@
 //!   dev loop, where `Package.Current` throws. Android reads `BuildConfig.APPLICATION_ID` and Apple
 //!   reads `Bundle.main`, which are truer answers still; they are what actually got installed.
 //!
-//! Both come from the same two files every other build system reads, by the same rule.
+//! Both come from the same files every other build system reads, by the same rule. So does the
+//! publisher's privacy policy, which the catalog writes as `{privacy_url}` for the same reason it
+//! writes `{app_name}`: it is the publisher's address, one for every language.
 
 use std::{collections::BTreeMap, path::Path};
 
@@ -25,9 +27,16 @@ const APP_NAME_PLACEHOLDER: &str = "{app_name}";
 const APP_NAME_KEY: &str = "MAILCAL_APP_NAME";
 const APP_ID_KEY: &str = "MAILCAL_APP_ID";
 
-/// The brand files, in the order they answer: Allodia's when the checkout has it, then the
-/// neutral default every checkout has.
-const BRAND_FILES: [&str; 2] = ["allodia.env", "default.env"];
+/// Every brand value the catalog writes as a placeholder, and the variable that fills it.
+const PLACEHOLDERS: [(&str, &str); 2] = [
+    (APP_NAME_PLACEHOLDER, APP_NAME_KEY),
+    ("{privacy_url}", "MAILCAL_PRIVACY_URL"),
+];
+
+/// The brand files, in the order they answer: the publisher's when the checkout has it (under its
+/// name, then under the older name it is still read by), then the neutral default every checkout
+/// has.
+const BRAND_FILES: [&str; 3] = ["brand.env", "allodia.env", "default.env"];
 
 /// The identity this build carries.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,8 +47,8 @@ pub(crate) struct Brand {
     pub id: String,
 }
 
-/// Resolves the identity: the environment, then Allodia's brand file when the checkout has one,
-/// then the neutral default that every checkout has.
+/// Resolves the identity: the environment, then the publisher's brand file when the checkout has
+/// one, then the neutral default that every checkout has.
 ///
 /// # Errors
 ///
@@ -70,12 +79,37 @@ pub(crate) fn product_token(name: &str) -> Option<String> {
     (!token.is_empty()).then_some(token)
 }
 
-/// Replaces [`APP_NAME_PLACEHOLDER`] in every message of every locale.
-pub(crate) fn replace_app_name(raw: &mut Raw, name: &str) {
+/// Every placeholder in [`PLACEHOLDERS`] with the value this build gives it.
+///
+/// # Errors
+///
+/// Returns a message when a placeholder's variable resolves nowhere, which `branding/default.env`
+/// rules out in a complete checkout.
+pub(crate) fn placeholders(root: &Path) -> Result<Vec<(&'static str, String)>, String> {
+    PLACEHOLDERS
+        .iter()
+        .map(|&(placeholder, key)| Ok((placeholder, resolve_value(root, key)?)))
+        .collect()
+}
+
+/// One brand value by the rule every reader uses, for a build script that injects it. Prints the
+/// `cargo:rerun-if-*` lines that keep the build from holding on to an older answer.
+///
+/// # Errors
+///
+/// Returns a message when nothing gives the key a value.
+pub(crate) fn resolve_value(root: &Path, key: &str) -> Result<String, String> {
+    value(root, key, std::env::var(key).ok().as_deref())
+}
+
+/// Replaces each placeholder with its value in every message of every locale.
+pub(crate) fn replace_placeholders(raw: &mut Raw, values: &[(&str, String)]) {
     for messages in raw.maps.values_mut() {
         for template in messages.values_mut() {
-            if template.contains(APP_NAME_PLACEHOLDER) {
-                *template = template.replace(APP_NAME_PLACEHOLDER, name);
+            for (placeholder, found) in values {
+                if template.contains(placeholder) {
+                    *template = template.replace(placeholder, found);
+                }
             }
         }
     }
@@ -166,8 +200,8 @@ mod tests {
     };
 
     use super::{
-        APP_ID_KEY, APP_NAME_KEY, APP_NAME_PLACEHOLDER, parse, product_token, replace_app_name,
-        tracking, value,
+        APP_ID_KEY, APP_NAME_KEY, APP_NAME_PLACEHOLDER, PLACEHOLDERS, parse, product_token,
+        replace_placeholders, tracking, value,
     };
     use crate::model::Raw;
 
@@ -218,7 +252,7 @@ mod tests {
         // placeholder would show it to a user.
         let mut raw = raw_with(APP_NAME_PLACEHOLDER);
 
-        replace_app_name(&mut raw, "Neutral");
+        replace_placeholders(&mut raw, &[(APP_NAME_PLACEHOLDER, "Neutral".to_string())]);
 
         for locale in ["en", "nl"] {
             assert_eq!(raw.maps[locale]["app_title"], "Neutral");
@@ -233,9 +267,41 @@ mod tests {
     fn the_placeholder_is_replaced_in_place_not_only_alone() {
         let mut raw = raw_with("Welcome to {app_name}");
 
-        replace_app_name(&mut raw, "Neutral");
+        replace_placeholders(&mut raw, &[(APP_NAME_PLACEHOLDER, "Neutral".to_string())]);
 
         assert_eq!(raw.maps["en"]["app_title"], "Welcome to Neutral");
+    }
+
+    #[test]
+    fn every_placeholder_is_filled_in_one_message() {
+        let mut raw = raw_with("{app_name}: {privacy_url}");
+
+        replace_placeholders(
+            &mut raw,
+            &[
+                (APP_NAME_PLACEHOLDER, "Neutral".to_string()),
+                ("{privacy_url}", "https://example.org/privacy".to_string()),
+            ],
+        );
+
+        assert_eq!(
+            raw.maps["en"]["app_title"],
+            "Neutral: https://example.org/privacy"
+        );
+    }
+
+    #[test]
+    fn the_neutral_default_fills_every_placeholder() {
+        // A placeholder whose variable `default.env` does not name would reach a user verbatim in
+        // every unbranded build.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let defaults = parse(
+            &std::fs::read_to_string(root.join("branding/default.env"))
+                .expect("every checkout has the neutral default"),
+        );
+        for (placeholder, key) in PLACEHOLDERS {
+            assert!(defaults.contains_key(key), "{placeholder} needs {key}");
+        }
     }
 
     #[test]
@@ -252,10 +318,17 @@ mod tests {
             "Neutral"
         );
 
-        write(&dir, "allodia.env", "MAILCAL_APP_NAME=Branded\n");
+        write(&dir, "allodia.env", "MAILCAL_APP_NAME=Older\n");
 
         assert_eq!(
-            value(&dir, APP_NAME_KEY, None).expect("the brand file wins"),
+            value(&dir, APP_NAME_KEY, None).expect("the older name still brands"),
+            "Older"
+        );
+
+        write(&dir, "brand.env", "MAILCAL_APP_NAME=Branded\n");
+
+        assert_eq!(
+            value(&dir, APP_NAME_KEY, None).expect("the brand file wins over the older name"),
             "Branded"
         );
         assert_eq!(
@@ -279,7 +352,7 @@ mod tests {
     fn the_variable_that_answers_first_is_the_one_a_rebuild_watches() {
         // The variable is the one that has to be watched: `scripts/dev/lib.sh` exports the
         // identity before it builds anything, so on a scripted build the environment answers and
-        // no brand file is read. A checkout that gains `branding/allodia.env` would otherwise go
+        // no brand file is read. A checkout that gains `branding/brand.env` would otherwise go
         // on generating the neutral catalog, which `scripts/dev/test-linux-ui.sh` sees as the
         // branded window never appearing.
         let root = Path::new("/checkout");
@@ -291,7 +364,12 @@ mod tests {
         );
         // Joined rather than spelled out: a path separator is the host's, so a literal
         // "/checkout/branding" is a Windows-only failure of a rule that holds on every host.
-        for file in ["branding", "branding/allodia.env", "branding/default.env"] {
+        for file in [
+            "branding",
+            "branding/brand.env",
+            "branding/allodia.env",
+            "branding/default.env",
+        ] {
             let watched = file
                 .split('/')
                 .fold(root.to_path_buf(), |path, part| path.join(part));

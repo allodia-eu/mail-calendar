@@ -95,13 +95,8 @@ mode_squatters() {
   require_cmd busctl
   # A leaked run of a widget test keeps the application id it registered, and every later run then
   # becomes the *remote* instance and blocks talking to it. The name outlives the run by hours.
-  local id
-  id="$(sed -n 's/^MAILCAL_APP_ID=//p' "$REPO_ROOT/branding/allodia.env" 2>/dev/null |
-    tr -d '"' | head -1)"
-  id="${id:-$(sed -n 's/^MAILCAL_APP_ID=//p' "$REPO_ROOT/branding/default.env" |
-    tr -d '"' | head -1)}"
-  info "bus names under '$id'"
-  busctl --user list --no-pager | grep -F "$id" ||
+  info "bus names under '$MAILCAL_APP_ID'"
+  busctl --user list --no-pager | grep -F "$MAILCAL_APP_ID" ||
     info "none: no leaked run is holding an application id"
 }
 

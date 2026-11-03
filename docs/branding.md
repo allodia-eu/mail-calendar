@@ -10,12 +10,16 @@ Two values decide the app's identity, and neither is written in a client:
 They are resolved, in this order:
 
 1. **The real environment**, so a one-off build can be re-branded without editing anything.
-2. **`branding/allodia.env`**, when the checkout has it.
+2. **`branding/brand.env`**, the publisher's identity, when the checkout has it.
 3. **`branding/default.env`**, which every checkout has.
 
 The presence of the second file is the whole switch. Removing it un-brands every build in one
 step: no flag, nothing to turn off, which is how the open repository gets an unbranded default:
 [`pledge.md`](pledge.md), "a fork is rebranded by omission".
+
+`branding/allodia.env` is the same slot under its older name and is still read, after `brand.env`,
+so a release pipeline that copies that name in goes on building branded. Every file slot below
+resolves `allodia-*` after `brand-*` the same way.
 
 There is no absent case to handle. `branding/default.env` is committed and names every key, so a
 build always has an identity; a checkout that has lost it is incomplete, and the readers say so.
@@ -66,9 +70,20 @@ Three notes on the asymmetry, each deliberate:
   scripts**, which restore the committed bytes afterwards. Both are files a store or a desktop
   shell reads directly, and neither format can reference a variable.
 
+## The publisher's addresses
+
+Where the app sends someone, it sends them to the publisher, so each address is a brand value
+beside the name and resolves by the same rule. `branding/default.env` points each at this
+repository, the one thing an unbranded build can honestly send anyone to.
+
+| Variable | Where a person meets it | How it gets there |
+|---|---|---|
+| `MAILCAL_PRIVACY_URL` | The privacy policy link on the welcome screen | The catalog writes `{privacy_url}`, substituted by `mailcal-l10n` like `{app_name}` |
+| `MAILCAL_SUPPORT_URL` | Settings → About | `mailcal-bindings`' build script injects it into `about_info()` |
+
 ## The store copy
 
-A third slot, and the same resolution rule: `branding/allodia-listing.md` when it is present,
+A third slot, and the same resolution rule: `branding/brand-listing.md` when it is present,
 `branding/default-listing.md` when it is not, `MAILCAL_LISTING_SOURCE` over both. It is a whole file
 rather than a set of values because copy is paragraphs, and `brand.listing_source()` is what every
 reader goes through.
@@ -98,8 +113,8 @@ There are two slots, each with its own source file and its own generator:
 
 | Slot | Source | Cut by | Drawn by |
 |---|---|---|---|
-| **Launcher icon** | `branding/{allodia,default}-icon.png`, `MAILCAL_ICON_SOURCE` over both | `scripts/dev/brand-icons.sh` | all four clients |
-| **Welcome illustration** | `branding/{allodia,default}-welcome.png`, `MAILCAL_WELCOME_SOURCE` over both | `scripts/dev/brand-welcome.sh` | Android, Apple, Windows; Linux draws none |
+| **Launcher icon** | `branding/{brand,default}-icon.png`, `MAILCAL_ICON_SOURCE` over both | `scripts/dev/brand-icons.sh` | all four clients |
+| **Welcome illustration** | `branding/{brand,default}-welcome.png`, `MAILCAL_WELCOME_SOURCE` over both | `scripts/dev/brand-welcome.sh` | Android, Apple, Windows; Linux draws none |
 
 They are separate slots on purpose. The neutral welcome art is the neutral icon with a launcher's
 corner radius applied, because a full-bleed alpha-free square is right for a thing every platform
@@ -114,7 +129,7 @@ must not announce a mascot that is not there.
 
 | | What decides it |
 |---|---|
-| The source | `branding/allodia-icon.png` if the checkout has it, `branding/default-icon.png` otherwise. `MAILCAL_ICON_SOURCE` overrides both. Read it with `brand_icon_source` (shell) or `brand.icon_source()` (Python). |
+| The source | `branding/brand-icon.png` if the checkout has it, `branding/default-icon.png` otherwise. `MAILCAL_ICON_SOURCE` overrides both. Read it with `brand_icon_source` (shell) or `brand.icon_source()` (Python). |
 | Re-cutting every client | `scripts/dev/brand-icons.sh`, which runs each client's generator and **exits non-zero naming any it could not run on this host**: a rebrand that quietly skipped a platform ships that platform's old art. |
 | The ones a given host cannot run | Two are host-bound: `clients/windows/Mailcal/Images/generate-assets.ps1` draws with `System.Drawing` (Windows-only) and `clients/apple/Scripts/generate-appicon.sh` cuts with `sips` (macOS-only). Android and Linux run anywhere ImageMagick does. |
 
@@ -149,7 +164,7 @@ does not declare.
    and access group, the app group, the credential-target prefix, the MCP pipe name, the
    background-refresh task id, the notification-portal attribution. A literal is a value that stops
    matching the moment the app is re-branded, and every one of those failures is silent.
-3. **`branding/allodia.env` is the only file that carries Allodia's identity.** It is not secret;
+3. **`branding/brand.env` is the only file that carries a publisher's identity.** It is not secret;
    it is the public identity of a shipped app, so it is committed, and it is the one file a
    publisher swaps to make a build their own.
 4. **⚠️ Its values are reservations held by third parties.** `MAILCAL_APP_ID` is the App ID Apple

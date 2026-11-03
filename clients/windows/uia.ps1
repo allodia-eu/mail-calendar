@@ -259,7 +259,7 @@ function Get-UiaScale {
 
 <#
 .SYNOPSIS
-The name THIS build calls itself: "MailCal" unbranded, whatever `branding/allodia.env` says when
+The name THIS build calls itself: "MailCal" unbranded, whatever `branding/brand.env` says when
 that file is present.
 .DESCRIPTION
 Never write the branded name in a script. The app's name is injected, not written in a client
