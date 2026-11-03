@@ -128,8 +128,10 @@ strip of its other messages.
 - Which folder a move lands in is resolved once per account, by the function the write uses
   (`account_places` in [`folders.rs`](../crates/mailcal-app/src/mail_ops/folders.rs)), so an item
   the menu enables is a write that acts.
-- `row_menu_tests.rs` holds the three conversations the table was written against (the newest
-  received, sent, or a draft); `tests_row_actions.rs` asserts what the batch reaches; and
+- The view-model's [`row_menu_tests.rs`](../crates/mailcal-viewmodel/src/row_menu_tests.rs)
+  holds the three conversations the table was written against (the newest received, sent, or a
+  draft); `mailcal-app`'s [`row_menu_tests.rs`](../crates/mailcal-app/src/mail_ops/row_menu_tests.rs)
+  asserts what the batch reaches; and
   [`live_row_menu.rs`](../crates/mailcal-bindings/tests/live_row_menu.rs) asks the harness's own
   three conversations over JMAP and IMAP, so a fixture that stops threading fails there.
 - A new action is a `RowAction` variant, a row in the table above with its reach, and an item on

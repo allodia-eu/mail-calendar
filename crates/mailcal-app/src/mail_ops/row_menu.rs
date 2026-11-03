@@ -87,5 +87,5 @@ fn menu_row(row: &RowRef) -> MenuRow {
 }
 
 #[cfg(test)]
-#[path = "../tests_row_actions.rs"]
+#[path = "row_menu_tests.rs"]
 mod tests;
