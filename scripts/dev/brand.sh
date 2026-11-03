@@ -7,14 +7,15 @@
 #     brand_load                       # export every brand value
 #     brand_value MAILCAL_APP_ID       # or read one
 #
-# Three places are consulted, first one wins (docs/branding.md):
+# Four places are consulted, first one wins (docs/branding.md):
 #
 #   the real environment          what the person or the CI job just set
-#   branding/allodia.env          Allodia's identity, when that file is present
+#   branding/brand.env            the publisher's identity, when that file is present
+#   branding/allodia.env          the same slot under its older name, still read
 #   branding/default.env          the neutral default, which is always present
 #
 # The environment comes first so a one-off build can be re-branded without editing a file, and the
-# absent case is the point rather than an error: with no `allodia.env` beside it; the state of the
+# absent case is the point rather than an error: with no brand file beside it; the state of the
 # public repository; every build is unbranded, and nothing had to be switched off to get there.
 #
 # Deliberately not `set -a; . branding/*.env`: the product name contains an ampersand, and a shell
@@ -23,7 +24,7 @@
 BRAND_SH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRAND_DIR="$(cd "$BRAND_SH_DIR/../../branding" && pwd)"
 BRAND_DEFAULT_FILE="$BRAND_DIR/default.env"
-BRAND_OVERRIDE_FILE="$BRAND_DIR/allodia.env"
+BRAND_OVERRIDE_FILES=("$BRAND_DIR/brand.env" "$BRAND_DIR/allodia.env")
 
 # `KEY=value` lines with the comments, blanks, `export ` and surrounding space taken off. Not a
 # parser for anything else: no interpolation, no continuation, no command substitution.
@@ -52,8 +53,8 @@ _brand_unquote() { # <raw value>
 # Every name either file gives a value to, so a key added to the files needs no change here.
 brand_keys() {
   {
-    _brand_pairs "$BRAND_DEFAULT_FILE"
-    _brand_pairs "$BRAND_OVERRIDE_FILE"
+    local file
+    for file in "$BRAND_DEFAULT_FILE" "${BRAND_OVERRIDE_FILES[@]}"; do _brand_pairs "$file"; done
   } | sed 's/=.*//' | sort -u
 }
 
@@ -62,11 +63,11 @@ brand_value() { # <key>
   value="${!key-}"
   if [ -n "$value" ]; then printf '%s\n' "$value"; return 0; fi
   local file
-  for file in "$BRAND_OVERRIDE_FILE" "$BRAND_DEFAULT_FILE"; do
+  for file in "${BRAND_OVERRIDE_FILES[@]}" "$BRAND_DEFAULT_FILE"; do
     # `|| true` on every grep here and below: these are sourced into scripts running under
     # `set -e -o pipefail`, where a grep that simply finds nothing is a failed pipeline that kills
     # the caller. Not finding a key is the ordinary case; it is how a checkout without
-    # `allodia.env` resolves every value.
+    # a brand file resolves every value.
     line="$(_brand_pairs "$file" | { grep "^$key=" || true; } | tail -n 1)"
     if [ -n "$line" ]; then _brand_unquote "${line#*=}"; return 0; fi
   done
@@ -95,8 +96,8 @@ brand_assert_expanded() { # <generated file or directory>
   fi
 }
 
-# A source image, resolved the way the values above are: Allodia's if that file is beside it, the
-# neutral one otherwise, and an environment override ahead of both so one-off art can be tried
+# A source image, resolved the way the values above are: the publisher's if that file is beside
+# it, the neutral one otherwise, and an environment override ahead of both so one-off art can be tried
 # without moving files around.
 #
 # Art is not injected the way a name is; no client draws its art at build time, so what ships is
@@ -105,7 +106,10 @@ brand_assert_expanded() { # <generated file or directory>
 _brand_source() { # <slot> <override variable>
   local slot="$1" override="${!2-}"
   if [ -n "$override" ]; then printf '%s\n' "$override"; return 0; fi
-  if [ -f "$BRAND_DIR/allodia-$slot.png" ]; then printf '%s\n' "$BRAND_DIR/allodia-$slot.png"; return 0; fi
+  local brand
+  for brand in brand allodia; do
+    if [ -f "$BRAND_DIR/$brand-$slot.png" ]; then printf '%s\n' "$BRAND_DIR/$brand-$slot.png"; return 0; fi
+  done
   printf '%s\n' "$BRAND_DIR/default-$slot.png"
 }
 

@@ -23,7 +23,7 @@ You do not need permission, and there is no separate agreement to sign.
 ## Ship it under your own name
 
 A build carries an identity (a name, an application id, an icon), and yours must be yours.
-This is one file: `branding/allodia.env` sets the Allodia identity, and **without it a build is
+This is one file: `branding/brand.env` sets a publisher's identity, and **without it a build is
 already neutral**: the name, the application id, everything named after that id (OAuth redirect
 schemes, keychain and app groups, the data directory), the icon and the welcome art. So a fork is
 rebranded by omission rather than by a rename chased through five clients. Point the same

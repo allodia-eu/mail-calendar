@@ -3,10 +3,10 @@
 #
 #   scripts/dev/brand-icons.sh [path/to/source.png]
 #
-# Which source, when none is given, is `brand_icon_source`: Allodia's if `branding/allodia-icon.png`
-# is beside this checkout, the neutral one otherwise. Swapping the art is therefore removing (or
-# adding) that one file and running this; the art half of what `branding/allodia.env` does for the
-# name (docs/branding.md).
+# Which source, when none is given, is `brand_icon_source`: the publisher's if
+# `branding/brand-icon.png` is beside this checkout, the neutral one otherwise. Swapping the art is
+# therefore removing (or adding) that one file and running this; the art half of what
+# `branding/brand.env` does for the name (docs/branding.md).
 #
 # Outputs are committed, so this is run by hand and the diff is reviewed. It runs every generator
 # THIS host can and names the ones it could not, because a rebrand that silently skipped a platform

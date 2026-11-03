@@ -99,7 +99,7 @@ pub fn generate(
     let brand = brand::resolve(root)?;
     // Before validation, so `{app_name}` is never seen as a message parameter: the product's own
     // name is a build-time constant, not something a call site passes (docs/branding.md).
-    brand::replace_app_name(&mut raw, &brand.name);
+    brand::replace_placeholders(&mut raw, &brand::placeholders(root)?);
     validate::check(&raw)?;
     let catalog = Catalog::from_raw(&raw);
     let files = match target {
@@ -126,6 +126,17 @@ pub fn user_agent_product(root: &Path) -> Result<String, String> {
             brand.name
         )
     })
+}
+
+/// One brand value (`docs/branding.md`) resolved by the rule [`generate`] uses, for a build script
+/// that injects it with `cargo:rustc-env`. Prints the lines that rerun that script when the value
+/// changes.
+///
+/// # Errors
+///
+/// Returns a message when nothing gives `key` a value.
+pub fn brand_value(root: &Path, key: &str) -> Result<String, String> {
+    brand::resolve_value(root, key)
 }
 
 /// One file the catalog emits, and whether this run changed it on disk.

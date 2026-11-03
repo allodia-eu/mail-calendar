@@ -62,10 +62,13 @@ scripts/dev/devices.local.sh
 # One machine, one developer: notes that are not a repo fact.
 AGENTS.local.md
 
-# The branded identity: the name, application id and artwork a build takes when it is Allodia's
-# rather than the unbranded default (docs/branding.md). Ignored rather than tracked because a fork
-# building this repository is not Allodia, and because a build carrying it opens the real account
-# store: committing one would hand every checkout the production credential namespace.
+# The branded identity: the name, application id and artwork a build takes when it is a
+# publisher's rather than the unbranded default (docs/branding.md), under the slot's name and the
+# older name it is still read by. Ignored rather than tracked because a fork building this
+# repository is not that publisher, and because a build carrying it opens the real account store:
+# committing one would hand every checkout the production credential namespace.
+branding/brand.env
+branding/brand-*
 branding/allodia*
 
 # The Flathub gallery: image URLs on the publisher's own host, of a branded build. Committed, it

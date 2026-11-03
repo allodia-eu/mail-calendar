@@ -2283,6 +2283,7 @@ dependencies = [
  "mailcal-autodetect",
  "mailcal-buildenv",
  "mailcal-composer",
+ "mailcal-l10n",
  "mailcal-mcp",
  "mailcal-oauth",
  "mailcal-telemetry",

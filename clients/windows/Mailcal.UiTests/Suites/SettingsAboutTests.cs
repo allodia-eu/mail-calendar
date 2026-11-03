@@ -54,7 +54,8 @@ public sealed class SettingsAboutTests(ShowcaseApp showcase)
     public void TheSupportAddressIsOnThePageWithAControlThatOpensIt() => Case(nameof(TheSupportAddressIsOnThePageWithAControlThatOpensIt), (app, settings) =>
     {
         var texts = AboutTexts(app, settings);
-        Assert.True(texts.Contains("https://support.allodia.eu"), $"About exists so someone with a problem can find where to ask. The panel reads: {string.Join(" / ", texts)}");
+        // Any https address, never the brand's literal: the publisher's support address is injected (docs/branding.md).
+        Assert.True(texts.Any(text => text.StartsWith("https://", StringComparison.Ordinal)), $"About exists so someone with a problem can find where to ask. The panel reads: {string.Join(" / ", texts)}");
         // A button, not the text inside it: the way out of the app is what a screen reader reaches for.
         var open = app.Agent.Find(new Filter { Type = "Button", Name = Catalog.English("about_support_action"), Under = settings.OpenCategory("about") });
         Assert.True(open is { Enabled: true }, "the address is selectable text, and the way to it is a button that can be pressed");

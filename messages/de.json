@@ -650,12 +650,12 @@
 
 	"settings_title": "Einstellungen",
 	"settings_default_mail_app_heading": "Standard-E-Mail-App",
-	"settings_default_mail_app_description": "Legen Sie fest, ob E-Mail-Links auf diesem Gerät in Allodia Mail & Calendar geöffnet werden.",
+	"settings_default_mail_app_description": "Legen Sie fest, ob E-Mail-Links auf diesem Gerät in {app_name} geöffnet werden.",
 	"settings_default_mail_app_action": "Als Standard festlegen",
 	"settings_default_mail_app_open_settings": "Systemeinstellungen öffnen",
 	"settings_default_mail_app_declined": "Sie haben sich dagegen entschieden.",
 	"default_mail_app_offer_title": "E-Mail-Links hier öffnen?",
-	"default_mail_app_offer_message": "Legen Sie Allodia Mail & Calendar als Standard-E-Mail-App fest, dann öffnen Links zu E-Mail-Adressen hier eine Nachricht. Sie können das jederzeit in den Einstellungen ändern.",
+	"default_mail_app_offer_message": "Legen Sie {app_name} als Standard-E-Mail-App fest, dann öffnen Links zu E-Mail-Adressen hier eine Nachricht. Sie können das jederzeit in den Einstellungen ändern.",
 	"default_mail_app_offer_accept": "Als Standard festlegen",
 	"default_mail_app_offer_decline": "Jetzt nicht",
 
@@ -987,7 +987,7 @@
 	"welcome_analytics_body": "Optional. Sie zeigen uns, welche Funktionen genutzt werden, ob E-Mails synchronisieren und wo das Einrichten eines Kontos schiefgeht. Sie enthalten nie Ihre Nachrichten, Ihren Kalender, Ihre E-Mail-Adressen oder Ihre Kontakte, und {app_name} funktioniert genau gleich, ob Sie sie einschalten oder nicht.",
 	"welcome_analytics_preview": "Sehen Sie genau, was wir senden",
 	"welcome_privacy_policy": "Unsere Datenschutzerklärung lesen",
-	"welcome_privacy_url": "https://allodia.eu/privacy/mail-calendar",
+	"welcome_privacy_url": "{privacy_url}",
 	"welcome_get_started": "Loslegen",
 	"a11y_welcome_art": "Willkommensillustration",
 

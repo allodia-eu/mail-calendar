@@ -32,7 +32,11 @@ clients/android/local.properties
 # re-asks for every command that was already allowed in the checkout beside it.
 .claude/settings.local.json
 
-# For the Allodia team working with worktrees
+# For a publisher working with worktrees
+branding/brand.env
+branding/brand-icon.png
+branding/brand-listing.md
+branding/brand-welcome.png
 branding/allodia.env
 branding/allodia-icon.png
 branding/allodia-listing.md

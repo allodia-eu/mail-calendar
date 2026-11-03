@@ -2,8 +2,8 @@
 # Regenerate the AppIcon set from the shared brand source, using only native `sips`.
 # The twin of the Windows Images/generate-assets.ps1, same source icon, one command to rebrand.
 #
-# Source: whichever image `brand_icon_source` resolves, Allodia's when `branding/allodia-icon.png`
-# is present, the neutral one otherwise (docs/branding.md). Output:
+# Source: whichever image `brand_icon_source` resolves, the publisher's when
+# `branding/brand-icon.png` is present, the neutral one otherwise (docs/branding.md). Output:
 # App/Assets.xcassets/AppIcon.appiconset/ (committed PNGs + Contents.json), which project.yml wires
 # in via ASSETCATALOG_COMPILER_APPICON_NAME.
 #
