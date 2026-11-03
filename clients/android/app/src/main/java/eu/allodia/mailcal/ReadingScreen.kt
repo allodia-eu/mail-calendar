@@ -69,6 +69,11 @@ internal data class OpenedMessage(
     val from: String,
     /** The row's avatar, shown until the matching reading snapshot arrives. */
     val avatar: Avatar,
+    /**
+     * The received instant as the core gave it. The screen writes it out as it draws, in the zone
+     * and on the clock in force then, so a change to either reaches a message already open
+     * (docs/timestamps.md).
+     */
     val date: String,
 )
 
@@ -85,6 +90,8 @@ internal fun displayedSubject(message: OpenedMessage, reading: ReadingSnapshot?)
 internal fun ReadingIdentityHeader(
     message: OpenedMessage,
     reading: ReadingSnapshot?,
+    // The full date this screen names, the printout's too.
+    date: String,
     onBack: () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -124,7 +131,7 @@ internal fun ReadingIdentityHeader(
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = message.date,
+            text = date,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -214,8 +221,14 @@ internal fun ReadingScreen(
     // This screen renders outside the Scaffold (which would pad its content), so it must clear
     // BOTH system bars itself, otherwise the header draws under the status bar and the end of the
     // message body under the navigation bar (edge-to-edge default).
+    val headerDate = localDateTime(message.date, activeZoneId, LocalUse24Hour.current)
     Column(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
-        ReadingIdentityHeader(message = message, reading = reading, onBack = onBack)
+        ReadingIdentityHeader(
+            message = message,
+            reading = reading,
+            date = headerDate,
+            onBack = onBack,
+        )
         // Message actions as a compact icon toolbar: reply/reply-all/forward on the left,
         // archive/delete on the right. Icons (not text) both save space and, crucially, keep
         // this bar's height/position fixed, it sits directly under the always-present header,
@@ -273,7 +286,7 @@ internal fun ReadingScreen(
                 key = message.key,
                 onExportMessage = onExportMessage,
                 onPrint = reading?.takeIf { it.key == message.key && isPrintable(it) }?.let { body ->
-                    { printOpenMessage(ctx, message, body, loadRemoteImages) }
+                    { printOpenMessage(ctx, message, body, headerDate, loadRemoteImages) }
                 },
             )
         }

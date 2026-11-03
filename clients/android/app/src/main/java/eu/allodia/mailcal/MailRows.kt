@@ -54,9 +54,6 @@ internal fun FlatMessageRow(
     menus: RowMenus = RowMenus.NONE,
 ) {
     val ctx = LocalContext.current
-    // Read the ambient clock setting here, in the composable body: the `clickable` lambda below is
-    // not a composition scope and cannot read a CompositionLocal.
-    val use24Hour = LocalUse24Hour.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -85,8 +82,7 @@ internal fun FlatMessageRow(
                                 subject = message.subject,
                                 from = message.from,
                                 avatar = message.avatar,
-                                // The reading header keeps the full date; the row shows the short one.
-                                date = localDateTime(message.date, activeZoneId, use24Hour),
+                                date = message.date,
                             ),
                             message.draft,
                         )

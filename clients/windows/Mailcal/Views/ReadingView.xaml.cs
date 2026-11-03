@@ -124,8 +124,9 @@ public sealed partial class ReadingView : UserControl
         else if (e.PropertyName == nameof(MailboxModel.DisplaySettingsVersion))
         {
             // The message background may have changed, from this view's button, another
-            // window's, or Settings.
+            // window's, or Settings; and so may the zone or the clock the header's date is in.
             ApplyScheme();
+            ShowDate();
         }
     }
 
@@ -394,6 +395,7 @@ public sealed partial class ReadingView : UserControl
     {
         StopHandoverGrace();
         _handover.Cleared();
+        _headerDate = null;
         NoSelectionPanel.Visibility = Visibility.Visible;
         ContentRoot.Visibility = Visibility.Collapsed;
         RemoteImagesBanner.Visibility = Visibility.Collapsed;
@@ -414,7 +416,19 @@ public sealed partial class ReadingView : UserControl
         // The face the list row already drew, so opening a message never flashes an empty circle,
         // or, worse, replaces a photograph with initials (docs/avatars.md).
         SenderAvatar.Avatar = opened.Avatar;
-        DateText.Text = opened.DateText;
+        _headerDate = opened.Date;
+        ShowDate();
+    }
+
+    // The instant the header on screen names, which during a handover is still the last message's.
+    private string? _headerDate;
+
+    private void ShowDate()
+    {
+        if (_model is { } model && _headerDate is { } date)
+        {
+            DateText.Text = TimeZones.LocalDateTime(date, model.ActiveZone, model.Use24Hour);
+        }
     }
 
     // Arm (or re-arm) the window the rendered message may stand in for a newly opened one. On

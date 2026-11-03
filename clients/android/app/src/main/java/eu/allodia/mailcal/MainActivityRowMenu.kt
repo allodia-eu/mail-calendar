@@ -23,8 +23,6 @@ internal fun MainActivity.performRowPick(instance: MailcalApp, pick: RowPick) {
  * conversation's screen, a draft into its composer.
  */
 private fun MainActivity.openMenuTarget(instance: MailcalApp, target: MenuMessage) {
-    val zone = timeZone?.active
-    val use24Hour = uses24HourClock()
     for (row in rows) {
         when (row) {
             is SnapshotRow.Flat -> if (row.row.account == target.account && row.row.key == target.key) {
@@ -35,7 +33,7 @@ private fun MainActivity.openMenuTarget(instance: MailcalApp, target: MenuMessag
                     subject = flat.subject,
                     from = flat.from,
                     avatar = flat.avatar,
-                    date = localDateTime(flat.date, zone, use24Hour),
+                    date = flat.date,
                 )
                 openOrResume(instance, opened, ListedOpening.resumes(target))
                 return

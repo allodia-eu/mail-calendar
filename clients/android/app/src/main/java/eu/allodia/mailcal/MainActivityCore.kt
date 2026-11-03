@@ -42,11 +42,6 @@ internal data class ExpiredSignIn(
     val provider: AccountProvider?,
 )
 
-// Whether times render on a 24-hour clock, the core's persisted setting, for the plain (non-
-// composable) helpers on the activity. Composables read `LocalUse24Hour` instead.
-internal fun MainActivity.uses24HourClock(): Boolean =
-    displaySettings.timeFormat == uniffi.mailcal_bindings.TimeFormat.TWENTY_FOUR_HOUR
-
 internal fun logUiInfo(message: String) {
     Log.i(TAG, message)
     FileLog.append("INFO", "android-ui", message)
@@ -312,7 +307,7 @@ internal fun MainActivity.openMessageByKey(app: MailcalApp, accountId: String, m
         subject = flatRow?.subject ?: "",
         from = flatRow?.from ?: "",
         avatar = flatRow?.avatar ?: placeholderAvatar(),
-        date = localDateTime(flatRow?.date ?: "", timeZone?.active, uses24HourClock()),
+        date = flatRow?.date ?: "",
     )
     openMessage(app, opened)
 }
@@ -340,7 +335,7 @@ internal fun MainActivity.threadHead(thread: ThreadRow, head: ThreadMessage?): O
         subject = thread.subject,
         from = head?.from ?: thread.latestFrom,
         avatar = head?.avatar ?: thread.avatar,
-        date = localDateTime(head?.date ?: thread.latestDate, timeZone?.active, uses24HourClock()),
+        date = head?.date ?: thread.latestDate,
     )
 
 // Watches the device's default network and forwards each change to the core

@@ -14,10 +14,12 @@ import WebKit
 /// running, or the body could not be fetched.
 ///
 /// The lines are the ones the reading header draws, under the same labels, so a printout says what
-/// the screen said. `loadRemoteImages` is the reader's choice for this message.
+/// the screen said: `date` is the header's own. `loadRemoteImages` is the reader's choice for this
+/// message.
 func messagePrintDocument(
     _ message: OpenedMessage,
     _ snapshot: ReadingSnapshot?,
+    date: String,
     loadRemoteImages: Bool
 ) -> String? {
     guard let snapshot, !snapshot.pending, !snapshot.loadError else { return nil }
@@ -28,7 +30,7 @@ func messagePrintDocument(
             PrintHeaderLine(label: L10n.compose_to(), value: snapshot.to),
             PrintHeaderLine(label: L10n.compose_cc(), value: snapshot.cc),
             PrintHeaderLine(label: L10n.compose_bcc(), value: snapshot.bcc),
-            PrintHeaderLine(label: L10n.quote_sent(), value: message.date),
+            PrintHeaderLine(label: L10n.quote_sent(), value: date),
         ],
         html: snapshot.html,
         plain: snapshot.plain,

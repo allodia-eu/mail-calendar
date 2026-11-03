@@ -82,7 +82,7 @@ extension ReadingView {
 
     /// What Print hands the dialog, or `nil` until this message's body has arrived.
     private var printDocument: String? {
-        messagePrintDocument(message, bodySnapshot, loadRemoteImages: loadRemoteImages)
+        messagePrintDocument(message, bodySnapshot, date: headerDate, loadRemoteImages: loadRemoteImages)
     }
 
     private func printMessage() {

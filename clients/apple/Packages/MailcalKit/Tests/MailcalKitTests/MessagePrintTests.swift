@@ -18,7 +18,7 @@ import Testing
     private var message: OpenedMessage {
         OpenedMessage(
             account: "a1", key: "m1", subject: "Quarterly planning", from: "Bob Tester",
-            avatar: avatar, date: "2026-09-23 13:37"
+            avatar: avatar, date: "2026-09-23T11:37:00Z"
         )
     }
 
@@ -41,13 +41,13 @@ import Testing
     }
 
     @Test func nothingToPrintUntilTheBodyHasArrived() {
-        #expect(messagePrintDocument(message, nil, loadRemoteImages: false) == nil)
-        #expect(messagePrintDocument(message, snapshot(pending: true), loadRemoteImages: false) == nil)
-        #expect(messagePrintDocument(message, snapshot(loadError: true), loadRemoteImages: false) == nil)
+        #expect(messagePrintDocument(message, nil, date: "2026-09-23 13:37", loadRemoteImages: false) == nil)
+        #expect(messagePrintDocument(message, snapshot(pending: true), date: "2026-09-23 13:37", loadRemoteImages: false) == nil)
+        #expect(messagePrintDocument(message, snapshot(loadError: true), date: "2026-09-23 13:37", loadRemoteImages: false) == nil)
     }
 
     @Test func thePageCarriesTheHeaderAboveTheBody() throws {
-        let page = try #require(messagePrintDocument(message, snapshot(), loadRemoteImages: false))
+        let page = try #require(messagePrintDocument(message, snapshot(), date: "2026-09-23 13:37", loadRemoteImages: false))
         let from = try #require(page.range(of: "Bob Tester &lt;bob@test.local&gt;"))
         let sent = try #require(page.range(of: "2026-09-23 13:37"))
         let body = try #require(page.range(of: "<p>Body</p>"))

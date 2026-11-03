@@ -44,12 +44,9 @@ public sealed class ThreadMessageItem
     /// <summary>The message's date as a compact relative label (the sub-row's date).</summary>
     public required string DateText { get; init; }
 
-    /// <summary>
-    /// The message's date as a full absolute timestamp, what the reading header shows when this
-    /// sub-row is opened, as opposed to <see cref="DateText"/>'s relative label. See
-    /// docs/timestamps.md.
-    /// </summary>
-    public required string FullDateText { get; init; }
+    /// <summary>The received instant as the core gave it, which the reading header formats when
+    /// this sub-row is opened; see MailRow.Date.</summary>
+    public required string Date { get; init; }
 
     /// <summary>A short preview snippet (empty if none).</summary>
     public required string PreviewText { get; init; }

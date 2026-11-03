@@ -24,13 +24,12 @@ client's job; the core's contribution is the unambiguous UTC instant.
 | **Reading header** (the opened message's date) | Absolute | The full localised date + time (`2026-07-20 09:05`), in the active display zone. |
 | **Quoted original** (the attribution line and its `Sent:` header) | Absolute | The same shape as the reading header, and for a stronger reason: this one is **sent**, so an unconverted instant lands in the recipient's mailbox. |
 
-⚠️ **Where that absolute date is produced differs by platform, and it decides what a quote must
-do.** Apple, Android and Windows format once, when the opened message is built, and carry the
-string; Linux keeps the engine value on `OpenedMessage.date` and formats at each display site. So
-a quote passes the date through on three platforms and must format it on Linux, and code that
-looks identical is right on one and wrong on the other. Formatting an already-formatted value is
-not a no-op: every `localDateTime` finds no `Z` and no `T` in `2026-08-31 07:01` and falls back to
-the first ten characters, dropping the time.
+⚠️ **The absolute date is formatted where it is drawn, never carried as text.** Every client keeps
+the engine value on `OpenedMessage.date` and writes it out at each display site (the header, a
+printout, a quote's attribution) in the zone and on the clock in force then, so changing either
+redraws a message already open. A quote formats the core's own `quote.date` at the seam. Formatting
+an already-formatted value is not a no-op: every `localDateTime` finds no `Z` and no `T` in
+`2026-08-31 07:01` and falls back to the first ten characters, dropping the time.
 
 **Day 7 is a date, not a weekday**, on purpose: it is the same weekday as today, so `Mon` for it
 would read as *this* Monday. The relative window is deliberately the previous **six** days only.
@@ -71,9 +70,9 @@ copy). See [`calendar.md`](calendar.md).
 
 | Platform | Relative (list) | Absolute (reading header) | Quoted original | Names follow app language | Clock setting | Where |
 |---|---|---|---|:---:|:---:|---|
-| Android | `relativeDate` → `relativeDatePattern` | `localDateTime` | inherited (built formatted) | ✅ | ✅ | `clients/android/.../MailDialogs.kt`, `MainActivityCore.kt` |
-| macOS / iOS / iPadOS | `relativeDate` → `relativeDatePattern` | `localDateTime` | inherited (built formatted) | ✅ | ✅ | `clients/apple/.../TimeZoneViews.swift`, `Mailcal.AutoAdvance.swift` |
-| Windows | `TimeZones.RelativeDate` → `RelativePattern` | `TimeZones.LocalDateTime` | inherited (built formatted) | ✅ | ✅ | `clients/windows/Mailcal/Services/{TimeZones,MailboxModel.Projection}.cs` |
+| Android | `relativeDate` → `relativeDatePattern` | `localDateTime` | `localDateTime` at the seam | ✅ | ✅ | `clients/android/.../MailDialogs.kt`, `MainActivityCore.kt` |
+| macOS / iOS / iPadOS | `relativeDate` → `relativeDatePattern` | `localDateTime` | `localDateTime` at the seam | ✅ | ✅ | `clients/apple/.../TimeZoneViews.swift`, `Mailcal.AutoAdvance.swift` |
+| Windows | `TimeZones.RelativeDate` → `RelativePattern` | `TimeZones.LocalDateTime` | `TimeZones.LocalDateTime` at the seam | ✅ | ✅ | `clients/windows/Mailcal/Services/{TimeZones,MailboxModel.Projection}.cs` |
 | Linux | `relative_date` → `relative_date_pattern` | `local_date_time` | `local_date_time` at the seam | ✅ | ✅ | `clients/linux/src/ui/{timestamps.rs,composer_model.rs}` |
 
 Each client implements the same policy in its own language; the pure bucket-selection
@@ -90,10 +89,9 @@ When you change how a client formats a mail timestamp:
    in the reading header, and that same absolute date in a quoted original. Apply any policy
    change to **every** platform in the same change.
 2. **A date that leaves the app is formatted before it goes, and formatted exactly once.** The
-   quoted original is the one timestamp a *stranger* reads. Check what `OpenedMessage.date` holds
-   on the platform you are changing before you touch a quote: on Linux it is the engine instant
-   and the quote must format it; everywhere else it is already display text and the quote must
-   not.
+   quoted original is the one timestamp a *stranger* reads. `OpenedMessage.date` and a quote's
+   `quote.date` are the engine instant on every platform, so each display site formats its own
+   and nothing formats a value twice.
 3. Take the clock from the setting, never from the host, and draw it as that platform's calendar
    draws a time; each suite asserts the two agree.
 4. Change the bucket policy only in the pure `relativeDatePattern` / `RelativePattern` /

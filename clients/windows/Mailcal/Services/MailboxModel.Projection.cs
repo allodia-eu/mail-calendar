@@ -403,7 +403,7 @@ public sealed partial class MailboxModel
             Subtitle = flat.Row.From,
             Avatar = AvatarItem.From(flat.Row.Avatar),
             DateText = TimeZones.RelativeDate(flat.Row.Date, zone, use24Hour),
-            FullDateText = TimeZones.LocalDateTime(flat.Row.Date, zone, use24Hour),
+            Date = flat.Row.Date,
             Unread = flat.Row.Unread,
             Flagged = flat.Row.Flagged,
             Draft = flat.Row.Draft,
@@ -422,7 +422,7 @@ public sealed partial class MailboxModel
             Subtitle = thread.Row.LatestFrom,
             Avatar = AvatarItem.From(thread.Row.Avatar),
             DateText = TimeZones.RelativeDate(thread.Row.LatestDate, zone, use24Hour),
-            FullDateText = TimeZones.LocalDateTime(thread.Row.LatestDate, zone, use24Hour),
+            Date = thread.Row.LatestDate,
             // A conversation is unread if anything in it is, the header is a summary, and the
             // unread dot and the bold weight both read off this.
             Unread = thread.Row.UnreadCount > 0,
@@ -440,7 +440,7 @@ public sealed partial class MailboxModel
                 FromText = m.From,
                 Avatar = AvatarItem.From(m.Avatar),
                 DateText = TimeZones.RelativeDate(m.Date, zone, use24Hour),
-                FullDateText = TimeZones.LocalDateTime(m.Date, zone, use24Hour),
+                Date = m.Date,
                 PreviewText = m.Preview,
                 Unread = m.Unread,
                 Flagged = m.Flagged,
@@ -456,11 +456,11 @@ public sealed partial class MailboxModel
     // snapshot than the row it belongs to (docs/avatars.md, "Resolution never blocks a row"). Left
     // out, every other field would match, the reconcile would keep the container it already had,
     // and no face would ever appear on a row that has one, with nothing about the result looking
-    // wrong. The full date is compared for a like reason: a clock or zone change can leave the
-    // relative label as it was ("Mon") while the date a row opens with has moved.
+    // wrong. The instant is compared for a like reason: the relative label can stay as it was
+    // ("Mon") while the date a row opens with has moved.
     private static bool SameRow(MailRow a, MailRow b) =>
         a.IsThread == b.IsThread && a.Title == b.Title && a.Subtitle == b.Subtitle
-        && a.DateText == b.DateText && a.FullDateText == b.FullDateText
+        && a.DateText == b.DateText && a.Date == b.Date
         && a.Unread == b.Unread && a.Flagged == b.Flagged && a.Draft == b.Draft
         && a.HasAttachment == b.HasAttachment
         && a.MessageCount == b.MessageCount

@@ -81,14 +81,14 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
     /// <summary>The received date as a compact relative label (the list row's date).</summary>
     public required string DateText { get => _dateText; init => _dateText = value; }
 
-    private string _fullDateText = string.Empty;
+    private string _date = string.Empty;
 
     /// <summary>
-    /// The received date as a full absolute timestamp, the date the reading header shows when this
-    /// row is opened, as opposed to <see cref="DateText"/>'s compact relative label. See
-    /// docs/timestamps.md.
+    /// The received instant as the core gave it. The reading header formats it when this row is
+    /// opened, against the zone and clock it draws with, so a change to either reaches a header
+    /// already on screen (docs/timestamps.md).
     /// </summary>
-    public required string FullDateText { get => _fullDateText; init => _fullDateText = value; }
+    public required string Date { get => _date; init => _date = value; }
 
     private bool _unread;
 
@@ -202,7 +202,7 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
         && a.FromText == b.FromText
         && a.Subject == b.Subject
         && a.DateText == b.DateText
-        && a.FullDateText == b.FullDateText
+        && a.Date == b.Date
         && a.PreviewText == b.PreviewText
         && a.Unread == b.Unread
         && a.Flagged == b.Flagged
@@ -224,7 +224,7 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
         _latestKey = next.LatestKey;
         _rawSubject = next.RawSubject;
         _draft = next.Draft;
-        _fullDateText = next.FullDateText;
+        _date = next.Date;
         if (_title != next.Title)
         {
             _title = next.Title;
