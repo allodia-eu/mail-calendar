@@ -17,6 +17,7 @@ public sealed class EventMeetingTests(ShowcaseApp showcase)
 {
     private const string WithMeeting = "Design sync";
     private const string Plain = "Gym";
+    private const string DialIn = "+31 20 555 0100";
 
     private void Case(string name, Action<App, CalendarFlow> body) =>
         showcase.Case(name, app => body(app, new CalendarFlow(app)), app => app.CloseDialogs());
@@ -48,6 +49,19 @@ public sealed class EventMeetingTests(ShowcaseApp showcase)
         Assert.Equal("990 000 000 001", app.Agent.Find(new Filter { Id = "EventMeetingId", Under = detail })?.Name);
         Assert.True(app.Agent.Find(new Filter { Id = "EventMeetingCopyLink", Type = "Button", Under = detail }) is not null,
             "a meeting Join can open offers its link to copy");
+    });
+
+    // A row is a link only when the core sent it a `Uri`, and is text otherwise, so this is where
+    // the core's optional URI is seen to reach the detail.
+    [OfflineFact]
+    public void TheDetailOffersTheDialInNumberToDialWithItsPin() => Case(nameof(TheDetailOffersTheDialInNumberToDialWithItsPin), (app, flow) =>
+    {
+        var detail = flow.OpenDetail(WithMeeting);
+        Assert.True(app.Agent.Wait(Filter.Named(DialIn, "Hyperlink") with { Under = detail }, TimeSpan.FromSeconds(10)) is not null,
+            $"the detail does not offer {DialIn} to dial");
+        var pin = Catalog.English("event_meeting_pin").Replace("{pin}", "990 000 000#", StringComparison.Ordinal);
+        Assert.True(app.Agent.Find(Filter.Named(pin, "Text") with { Under = detail }) is not null,
+            $"the dial-in row does not show '{pin}'");
     });
 
     [OfflineFact]
