@@ -121,6 +121,7 @@ sed -e "s|@SNAP_NAME@|$MAILCAL_SNAP_NAME|g" \
     -e "s|@URL_CONTACT@|$(metainfo_url contact)|g" \
     -e "s|@URL_BUGTRACKER@|$(metainfo_url bugtracker)|g" \
     -e "s|@APP_ID@|$MAILCAL_APP_ID|g" \
+    -e "s|@MCP_RELAY_NAME@|$MAILCAL_MCP_RELAY_NAME|g" \
     -e "s|@LICENSE@|$LICENSE|g" \
     -e "s|@CARGO_FEATURES@|${FEATURES:+ --features $FEATURES}|g" \
     -e "s|@REQUIRE_INJECTED_CONFIG@|${MAILCAL_REQUIRE_INJECTED_CONFIG:-}|g" \

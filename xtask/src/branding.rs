@@ -30,6 +30,7 @@ pub(crate) fn run(root: &Path) -> Result<bool, String> {
 
     let neutral_id = env_value(&env, "MAILCAL_APP_ID").unwrap_or_default();
     let neutral_name = env_value(&env, "MAILCAL_APP_NAME").unwrap_or_default();
+    let neutral_relay = env_value(&env, "MAILCAL_MCP_RELAY_NAME").unwrap_or_default();
     if neutral_id.is_empty() {
         report.note("branding/default.env names no MAILCAL_APP_ID.");
     }
@@ -49,7 +50,13 @@ pub(crate) fn run(root: &Path) -> Result<bool, String> {
     }
 
     clients_derive(root, &mut report)?;
-    packaged_manifests(root, &neutral_id, &neutral_name, &mut report)?;
+    packaged_manifests(
+        root,
+        &neutral_id,
+        &neutral_name,
+        &neutral_relay,
+        &mut report,
+    )?;
     art_and_copy(root, &mut report)?;
 
     if report.failed() {
@@ -144,6 +151,19 @@ fn clients_derive(root: &Path, report: &mut Report) -> Result<(), String> {
         &format!("{project_path} no longer takes the display name from the environment."),
         report,
     );
+    // The `.app` a person sees in Finder, and the relay their assistant is configured to spawn.
+    require(
+        &project,
+        "PRODUCT_NAME: ${MAILCAL_APPLE_PRODUCT_NAME}",
+        &format!("{project_path} no longer takes the bundle's name from the environment."),
+        report,
+    );
+    require(
+        &project,
+        "MCP_RELAY_NAME: ${MAILCAL_MCP_RELAY_NAME}",
+        &format!("{project_path} no longer takes the MCP relay's name from the environment."),
+        report,
+    );
 
     for ents in [
         "clients/apple/App/AllodiaMail.entitlements",
@@ -165,6 +185,7 @@ fn packaged_manifests(
     root: &Path,
     neutral_id: &str,
     neutral_name: &str,
+    neutral_relay: &str,
     report: &mut Report,
 ) -> Result<(), String> {
     let appx_path = "clients/windows/Mailcal/Package.appxmanifest";
@@ -182,6 +203,15 @@ fn packaged_manifests(
         &appx,
         &format!("<DisplayName>{neutral_name}</DisplayName>"),
         &format!("{appx_path} does not carry the neutral display name '{neutral_name}'."),
+        report,
+    );
+    require(
+        &appx,
+        &format!(r#"<uap5:ExecutionAlias Alias="{neutral_relay}.exe" />"#),
+        &format!(
+            "{appx_path} does not alias the relay as the neutral '{neutral_relay}.exe': \
+             package.ps1 rewrites that one."
+        ),
         report,
     );
 

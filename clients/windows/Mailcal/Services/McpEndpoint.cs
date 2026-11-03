@@ -35,7 +35,12 @@ internal static class McpEndpoint
 
     /// <summary>The relay executable's file name, built from <c>crates/mailcal-mcp-shim</c> and
     /// laid down beside <c>Mailcal.exe</c>.</summary>
-    public const string RelayFileName = "allodia-mcp.exe";
+    public const string RelayFileName = "mailcal-mcp.exe";
+
+    /// <summary>The App Execution Alias a packaged build registers for the relay, which is the
+    /// command a person configures: the brand's <c>MAILCAL_MCP_RELAY_NAME</c>, which
+    /// <c>scripts/dev/msix_manifest.py</c> writes into the package's manifest.</summary>
+    public const string RelayAlias = Brand.McpRelayName + ".exe";
 
     /// <summary>
     /// The pipe the core listens on: <c>\\.\pipe\&lt;scheme&gt;.mcp</c>, where <c>&lt;scheme&gt;</c>
@@ -72,10 +77,10 @@ internal static class McpEndpoint
     {
         if (packaged)
         {
-            return RelayFileName;
+            return RelayAlias;
         }
         var beside = Path.Combine(appDirectory, RelayFileName);
-        return File.Exists(beside) ? beside : RelayFileName;
+        return File.Exists(beside) ? beside : RelayAlias;
     }
 
     /// <summary>

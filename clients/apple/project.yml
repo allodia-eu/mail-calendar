@@ -94,7 +94,7 @@ targets:
     # (ITMS-90296), so the bundle is the only shape that both uploads and runs. The Developer-ID
     # build wears the same layout so there is one relay path, not two.
     postBuildScripts:
-      - name: Copy the allodia-mcp relay (macOS)
+      - name: Copy the MCP relay (macOS)
         # Declared inputs/outputs rather than `basedOnDependencyAnalysis: false`, so Xcode can skip
         # the phase when nothing moved, and, more to the point, so it stops printing a note on
         # every single build. A note that fires unconditionally trains everyone to ignore notes.
@@ -102,12 +102,12 @@ targets:
         # The output is $(MCP_RELAY_OUTPUT), which is per-SDK (see settings below) and points
         # OUTSIDE the product on iOS. That indirection is the fix for a real rejection, not tidiness:
         # Xcode creates the directories of a declared output BEFORE running the phase, so while this
-        # path named `…/$(CONTENTS_FOLDER_PATH)/Library/Helpers/allodia-mcp.app/…` unconditionally,
+        # path named `…/$(CONTENTS_FOLDER_PATH)/Library/Helpers/<relay>.app/…` unconditionally,
         # an iOS build, where the script exits on its first line, still shipped that bundle, made
         # of four empty folders. App Store delivery rejected 0.3.0 twice over it: ITMS-90207 ("does
         # not contain a bundle executable") and ITMS-90036 ("Info.plist … is missing").
         inputFiles:
-          - $(SRCROOT)/Packages/MailcalKit/artifacts/allodia-mcp
+          - $(SRCROOT)/Packages/MailcalKit/artifacts/mailcal-mcp
         outputFiles:
           - $(MCP_RELAY_OUTPUT)
         script: |
@@ -120,39 +120,39 @@ targets:
             mkdir -p "$(dirname "$SCRIPT_OUTPUT_FILE_0")"
             : >"$SCRIPT_OUTPUT_FILE_0"
             STALE="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Library/Helpers"
-            rm -rf "$STALE/allodia-mcp.app"
+            rm -rf "$STALE/$MCP_RELAY_NAME.app"
             rmdir "$STALE" "$(dirname "$STALE")" 2>/dev/null || true
             exit 0
           fi
-          RELAY="${SCRIPT_INPUT_FILE_0:-$SRCROOT/Packages/MailcalKit/artifacts/allodia-mcp}"
+          RELAY="${SCRIPT_INPUT_FILE_0:-$SRCROOT/Packages/MailcalKit/artifacts/mailcal-mcp}"
           if [ ! -f "$RELAY" ]; then
             # A Release build that cannot ship the relay must FAIL, not warn. Without the relay the
             # app still launches, the MCP panel still renders, and the config snippet it offers
-            # falls back to a bare `allodia-mcp` on PATH, which resolves nowhere, so the assistant
+            # falls back to a bare relay name on PATH, which resolves nowhere, so the assistant
             # reports only "Failed to spawn process: No such file or directory". That is a silent
             # ship of a broken feature, and it has happened once already (the phase was lost in a
             # merge and a notarized build went out without it). Debug keeps the warning: a dev
             # who has not run build-core.sh should still get an app to work on.
             if [ "$CONFIGURATION" = "Release" ]; then
-              echo "error: allodia-mcp is missing, run Scripts/build-core.sh before packaging"
+              echo "error: the MCP relay is missing, run Scripts/build-core.sh before packaging"
               exit 1
             fi
-            echo "warning: allodia-mcp is missing, run Scripts/build-core.sh; MCP will be unavailable"
+            echo "warning: the MCP relay is missing, run Scripts/build-core.sh; MCP will be unavailable"
             exit 0
           fi
           # A nested .app, because the sandbox needs a bundle identifier to make a container from
           # (see the phase comment above). CFBundleIdentifier must match the app group's owner
           # prefix and stay in step with App/AllodiaMailMcpHelper.appstore.entitlements.
-          BUNDLE="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Library/Helpers/allodia-mcp.app"
+          BUNDLE="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Library/Helpers/$MCP_RELAY_NAME.app"
           mkdir -p "$BUNDLE/Contents/MacOS"
           cat >"$BUNDLE/Contents/Info.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-              <key>CFBundleExecutable</key><string>allodia-mcp</string>
+              <key>CFBundleExecutable</key><string>$MCP_RELAY_NAME</string>
               <key>CFBundleIdentifier</key><string>${MAILCAL_APP_ID}.mcp</string>
-              <key>CFBundleName</key><string>allodia-mcp</string>
+              <key>CFBundleName</key><string>$MCP_RELAY_NAME</string>
               <key>CFBundlePackageType</key><string>APPL</string>
               <key>CFBundleShortVersionString</key><string>$MARKETING_VERSION</string>
               <key>CFBundleVersion</key><string>$CURRENT_PROJECT_VERSION</string>
@@ -166,7 +166,7 @@ targets:
           sed -i '' 's/^          //' "$BUNDLE/Contents/Info.plist"
           plutil -lint "$BUNDLE/Contents/Info.plist" >/dev/null || {
             echo "error: generated a malformed Info.plist for the relay bundle"; exit 1; }
-          cp -f "$RELAY" "$BUNDLE/Contents/MacOS/allodia-mcp"
+          cp -f "$RELAY" "$BUNDLE/Contents/MacOS/$MCP_RELAY_NAME"
           # Ad-hoc sign it here so a DEBUG build runs; package.sh re-signs the whole tree with the
           # real identity for a release (and has a gate that would catch it if it did not).
           codesign --force --sign - --timestamp=none "$BUNDLE" >/dev/null 2>&1 || true
@@ -184,9 +184,9 @@ targets:
         #
         # Past Apple's 15-character guidance for CFBundleName, deliberately: the guidance is about
         # menu-bar width, and a brand rule that says "never abbreviate the product" outranks a
-        # narrower File menu. The executable and the bundle stay `AllodiaMail`, renaming those
-        # moves every signing path, packaging script and `pkill` pattern in the repo, for a string
-        # no user sees.
+        # narrower File menu. The bundle and the executable take MAILCAL_APPLE_PRODUCT_NAME instead
+        # (PRODUCT_NAME below), a name without spaces, because every signing path, packaging script
+        # and `pkill` pattern names them.
         #
         # Not localised. The product name is the same in all seven languages, so an InfoPlist
         # strings file per locale would be seven copies of one constant, each able to drift.
@@ -261,14 +261,20 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ${MAILCAL_APP_ID}
+        # The `.app` and its executable, which Finder and Activity Monitor show. Not the target's
+        # name, which is a source identifier and does not follow the brand (docs/branding.md).
+        PRODUCT_NAME: ${MAILCAL_APPLE_PRODUCT_NAME}
+        # What the MCP relay is installed as: its nested bundle and its executable, which the
+        # configuration snippet names (McpEndpoint.relayBundlePath).
+        MCP_RELAY_NAME: ${MAILCAL_MCP_RELAY_NAME}
         TARGETED_DEVICE_FAMILY: "1,2"   # iPhone + iPad
         # Where the relay copy phase declares its output, per SDK, because Xcode materializes an
         # output's directories whether or not the phase produces anything. On macOS that is the
         # relay's real destination inside the app; everywhere else it is a stamp in the derived-file
         # directory, so a platform that ships no relay ends up with nothing in its product rather
-        # than an empty `Library/Helpers/allodia-mcp.app` (the ITMS-90207/90036 rejection of 0.3.0).
-        MCP_RELAY_OUTPUT: $(DERIVED_FILE_DIR)/allodia-mcp.not-copied
-        MCP_RELAY_OUTPUT[sdk=macosx*]: $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Library/Helpers/allodia-mcp.app/Contents/MacOS/allodia-mcp
+        # than an empty `Library/Helpers/<relay>.app` (the ITMS-90207/90036 rejection of 0.3.0).
+        MCP_RELAY_OUTPUT: $(DERIVED_FILE_DIR)/$(MCP_RELAY_NAME).not-copied
+        MCP_RELAY_OUTPUT[sdk=macosx*]: $(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Library/Helpers/$(MCP_RELAY_NAME).app/Contents/MacOS/$(MCP_RELAY_NAME)
         SWIFT_VERSION: "6.0"
         ENABLE_DEBUG_DYLIB: NO
         # Apple-silicon only (matches the XCFramework, which has no x86_64 slices).

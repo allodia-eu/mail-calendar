@@ -134,7 +134,7 @@ $featureArgs = Get-CoreCargoFeatures -Root $root
 if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 foreach ($triple in $triples) {
   Assert-StaticCrt (Join-Path $root "target/$triple/release/mailcal_bindings.dll")
-  Assert-StaticCrt (Join-Path $root "target/$triple/release/allodia-mcp.exe")
+  Assert-StaticCrt (Join-Path $root "target/$triple/release/mailcal-mcp.exe")
 }
 Write-Host "==> Both cdylibs and both relays link the CRT statically (no VCRUNTIME140 import)" -ForegroundColor DarkGray
 

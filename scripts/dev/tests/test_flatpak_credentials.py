@@ -81,7 +81,7 @@ modules:
         CARGO_HOME: /run/build/mailcal/cargo
     build-commands:
       - cargo build --release --locked -p mailcal-linux
-      - cargo build --release --locked -p mailcal-mcp-shim --bin allodia-mcp
+      - cargo build --release --locked -p mailcal-mcp-shim --bin mailcal-mcp
 """
 
 
@@ -115,7 +115,8 @@ class FlatpakCredentialHandoff(unittest.TestCase):
         self.branding = self.root / "branding"
         self.branding.mkdir()
         (self.branding / "default.env").write_text(
-            'MAILCAL_APP_NAME="MailCal"\nMAILCAL_APP_ID="%s"\n' % NEUTRAL_APP_ID,
+            'MAILCAL_APP_NAME="MailCal"\nMAILCAL_APP_ID="%s"\n'
+            'MAILCAL_APPLE_PRODUCT_NAME="MailCal"\n' % NEUTRAL_APP_ID,
             encoding="utf-8",
         )
 
@@ -335,8 +336,8 @@ class FlatpakCredentialHandoff(unittest.TestCase):
             built,
         )
         # Only the client's own line: the MCP shim is a separate package with no such feature.
-        self.assertIn("-p mailcal-mcp-shim --bin allodia-mcp\n", built)
-        self.assertNotIn(f"mailcal-mcp-shim --bin allodia-mcp --features", built)
+        self.assertIn("-p mailcal-mcp-shim --bin mailcal-mcp\n", built)
+        self.assertNotIn(f"mailcal-mcp-shim --bin mailcal-mcp --features", built)
         self.assertIn(ALLODIA_FEATURE, output)
         # The registration still has to reach the sandbox, like every other one.
         self.assertIn("allodia-client-id", self.captured_env_file.read_text(encoding="utf-8"))
@@ -359,8 +360,8 @@ class FlatpakCredentialHandoff(unittest.TestCase):
             built,
         )
         # Still only the client's own line.
-        self.assertIn("-p mailcal-mcp-shim --bin allodia-mcp\n", built)
-        self.assertNotIn("mailcal-mcp-shim --bin allodia-mcp --features", built)
+        self.assertIn("-p mailcal-mcp-shim --bin mailcal-mcp\n", built)
+        self.assertNotIn("mailcal-mcp-shim --bin mailcal-mcp --features", built)
         self.assertIn("dev-harness", output)
 
     def test_extra_features_reach_the_cargo_line_without_a_registration(self) -> None:

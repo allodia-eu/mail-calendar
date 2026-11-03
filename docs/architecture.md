@@ -150,8 +150,8 @@ Reading the map:
   from `mailcal-app`) and reaches the app through a port `mailcal-bindings` implements, because
   the one thing it needs that the core cannot give it is the host's composer. Its listener modules
   are `#[cfg]`-gated to the desktops, so mobile compiles no socket code at all
-  ([`mcp.md`](mcp.md)). `crates/mailcal-mcp-shim` builds `allodia-mcp`, the dependency-free stdio
-  relay an MCP client spawns to reach it.
+  ([`mcp.md`](mcp.md)). `crates/mailcal-mcp-shim` builds `mailcal-mcp`, the dependency-free stdio
+  relay an MCP client spawns to reach it, installed under the brand's name.
 - **`allodia-license`** is the one crate outside the GPL and outside the default build. It lives
   under `allodia_license/`, is source-available under its own licence, and reaches the app as an
   **optional, off-by-default** dependency of `mailcal-bindings`, the same argument as the two

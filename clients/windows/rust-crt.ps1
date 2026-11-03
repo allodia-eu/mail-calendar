@@ -78,7 +78,7 @@ still present and that cargo is being run from inside this workspace.
 # container instead and checks the bytes inside it. .msixupload, .msixbundle and .msix are all Zips,
 # and the first two nest the next one down, so walk them.
 #
-# It covers BOTH Rust binaries, and both for the same reason. The MCP relay (allodia-mcp.exe) is
+# It covers BOTH Rust binaries, and both for the same reason. The MCP relay (mailcal-mcp.exe) is
 # spawned by ANOTHER application, so a missing CRT there surfaces as "the server failed to start"
 # inside the user's assistant, even less diagnosable than the app's own launch crash. And its
 # PRESENCE is asserted here too: the csproj's Content copy is conditional, so a build with no relay
@@ -105,7 +105,7 @@ function Assert-StaticCrtInPackage {
       foreach ($entry in $zip.Entries) {
         $isNested = $entry.FullName -match '(?i)\.(msix|msixbundle|appx)$'
         $isCdylib = $entry.FullName -match '(?i)(^|/)mailcal_bindings\.dll$'
-        $isRelay = $entry.FullName -match '(?i)(^|/)allodia-mcp\.exe$'
+        $isRelay = $entry.FullName -match '(?i)(^|/)mailcal-mcp\.exe$'
         if (-not ($isNested -or $isCdylib -or $isRelay)) { continue }
 
         $buf = [System.IO.MemoryStream]::new()
@@ -132,7 +132,7 @@ function Assert-StaticCrtInPackage {
   if ($checkedCdylib -eq 0) { throw "Assert-StaticCrtInPackage: found no mailcal_bindings.dll inside '$Package'" }
   if ($checkedRelay -eq 0) {
     throw @"
-Assert-StaticCrtInPackage: found no allodia-mcp.exe inside '$Package'.
+Assert-StaticCrtInPackage: found no mailcal-mcp.exe inside '$Package'.
 
 The MCP relay is missing from the shipped package. Settings -> Advanced would still offer a
 configuration snippet, and it would name a command the installed app does not carry, so every
@@ -140,7 +140,7 @@ assistant that followed it would report the server as broken. Nothing else catch
 builds, launches and renders the whole panel without it.
 
 Build it before packaging (package.ps1 does, for both arches):
-  cargo build -p mailcal-mcp-shim --bin allodia-mcp --release --target <triple>
+  cargo build -p mailcal-mcp-shim --bin mailcal-mcp --release --target <triple>
 "@
   }
   Write-Host "==> Verified $checkedCdylib packaged cdylib(s) and $checkedRelay relay(s) link the CRT statically" -ForegroundColor DarkGray

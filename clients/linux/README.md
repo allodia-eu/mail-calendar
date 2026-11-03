@@ -347,9 +347,10 @@ which looks exactly like a launch flag being ignored. `flatpak kill <app-id>` be
 running a dev build, and vice versa.
 
 **The local MCP relay ships inside the Flatpak.** Settings → Advanced generates a client snippet
-that runs `flatpak run --command=allodia-mcp`, entering the installed app before connecting to its
-private data-directory socket. Development builds use the relay beside `mailcal-linux`, or
-`allodia-mcp` on `PATH` when the binaries are installed separately.
+that runs `flatpak run --command=<relay>` (the brand's `MAILCAL_MCP_RELAY_NAME`), entering the
+installed app before connecting to its private data-directory socket. Development builds use the
+`mailcal-mcp` cargo built beside `mailcal-linux`, or `<relay>` on `PATH` when the binaries are
+installed separately.
 
 ### Known gaps
 
@@ -396,7 +397,7 @@ What differs from the Flatpak, each verified on an installed snap:
 - **A notification click reaches it only while it runs** (docs/background-sync.md).
 - **It owns the application id on the session bus**, as the Flatpak does, through the `dbus`
   slot. With both installed, whichever starts second hands off to the first and exits.
-- **The MCP snippet runs `/snap/bin/<snap>.allodia-mcp`** (docs/mcp.md).
+- **The MCP snippet runs `/snap/bin/<snap>.<relay>`** (docs/mcp.md).
 
 ## Capture the showcase set
 

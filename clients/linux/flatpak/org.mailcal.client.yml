@@ -83,10 +83,13 @@ modules:
       # Default features, so `dev-harness` and the debug-only account fixture cannot be linked in,
       # the same property the tag-only release build in CI asserts.
       - cargo build --release --locked -p mailcal-linux
-      - cargo build --release --locked -p mailcal-mcp-shim --bin allodia-mcp
+      - cargo build --release --locked -p mailcal-mcp-shim --bin mailcal-mcp
       - install -Dm755 target/release/mailcal-linux /app/bin/mailcal
-      - install -Dm755 target/release/allodia-mcp /app/bin/allodia-mcp
-      - test -x /app/bin/allodia-mcp
+      # Installed as the command the brand names (MAILCAL_MCP_RELAY_NAME), which is what the
+      # configuration snippet runs with `flatpak run --command=`.
+      - install -Dm755 target/release/mailcal-mcp "/app/bin/$(python3 scripts/dev/brand.py
+        MAILCAL_MCP_RELAY_NAME)"
+      - test -x "/app/bin/$(python3 scripts/dev/brand.py MAILCAL_MCP_RELAY_NAME)"
 
       # The desktop entry and the metainfo carry no copy or version of their own; they are emitted
       # here from branding/<brand>-listing.md, /VERSION and docs/changelog/released/.

@@ -203,19 +203,21 @@ enum McpEndpoint {
     /// One layout for BOTH macOS flows. The Developer-ID build does not need the bundle, but two
     /// layouts would mean two relay paths, two signing rules and two things to keep true; the
     /// sandbox forces the shape, so both wear it.
-    static let relayBundlePath = "Library/Helpers/allodia-mcp.app"
+    ///
+    /// Named after the brand's `MAILCAL_MCP_RELAY_NAME`, as project.yml's copy phase installs it.
+    static let relayBundlePath = "Library/Helpers/\(Brand.mcpRelayName).app"
 
     /// The relay executable inside this app bundle, falling back to a bare name on `PATH` when it
     /// is not there (a `swift run` from a checkout, where there is no bundle to look in).
     private static func relayPath() -> String {
         #if canImport(AppKit)
         let nested = Bundle.main.bundleURL
-            .appendingPathComponent("Contents/\(relayBundlePath)/Contents/MacOS/allodia-mcp")
+            .appendingPathComponent("Contents/\(relayBundlePath)/Contents/MacOS/\(Brand.mcpRelayName)")
         if FileManager.default.isExecutableFile(atPath: nested.path) {
             return nested.path
         }
         #endif
-        return "allodia-mcp"
+        return Brand.mcpRelayName
     }
 
     private struct ClientConfig: Encodable {

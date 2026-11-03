@@ -3,7 +3,7 @@
 #   1. cargo-build mailcal-bindings for iOS device, iOS simulator, and Apple-silicon macOS
 #   2. regenerate the UniFFI Swift bindings + localised L10n into Sources/MailcalBindings
 #   3. assemble Mailcal.xcframework (static slices + the C-module headers) into artifacts/
-#   4. build the `allodia-mcp` stdio relay for macOS into artifacts/ (docs/mcp.md)
+#   4. build the `mailcal-mcp` stdio relay for macOS into artifacts/ (docs/mcp.md)
 # Run this once after cloning, and again whenever the Rust FFI changes. The xcframework and
 # the generated bindings are git-ignored (rebuilt from the Rust source of truth).
 #
@@ -266,12 +266,12 @@ echo "==> Done. Slices: $(ls "$XCF" | grep -v Info.plist | grep -v _CodeSignatur
 # when it is missing, so an iOS-only build skipping it costs nothing and a packaging run, which
 # always carries every slice, still gets it.
 if [[ " ${TARGETS[*]} " == *" aarch64-apple-darwin "* ]]; then
-  echo "==> [4/4] Building the allodia-mcp relay (macOS)"
+  echo "==> [4/4] Building the MCP relay (macOS)"
   (
     unset IPHONEOS_DEPLOYMENT_TARGET
     export MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
-    cargo build --manifest-path "$ROOT/Cargo.toml" -p mailcal-mcp-shim --bin allodia-mcp \
+    cargo build --manifest-path "$ROOT/Cargo.toml" -p mailcal-mcp-shim --bin mailcal-mcp \
       --target aarch64-apple-darwin "${CARGO_PROFILE_ARGS[@]}"
   )
-  cp "$ROOT/target/aarch64-apple-darwin/$PROFILE/allodia-mcp" "$ARTIFACTS/allodia-mcp"
+  cp "$ROOT/target/aarch64-apple-darwin/$PROFILE/mailcal-mcp" "$ARTIFACTS/mailcal-mcp"
 fi

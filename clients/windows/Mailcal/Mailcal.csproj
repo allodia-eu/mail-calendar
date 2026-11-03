@@ -110,12 +110,12 @@
     <_RustTriple Condition="'$(Platform)' == 'x64'">x86_64-pc-windows-msvc</_RustTriple>
     <NativeLib Condition="'$(NativeLib)' == '' and '$(_RustTriple)' != ''">$(MSBuildThisFileDirectory)..\..\..\target\$(_RustTriple)\$(Configuration.ToLowerInvariant())\mailcal_bindings.dll</NativeLib>
     <NativeLib Condition="'$(NativeLib)' == ''">$(MSBuildThisFileDirectory)..\..\..\target\debug\mailcal_bindings.dll</NativeLib>
-    <!-- The MCP stdio relay (crates/mailcal-mcp-shim -> allodia-mcp.exe, docs/mcp.md). An MCP client
+    <!-- The MCP stdio relay (crates/mailcal-mcp-shim -> mailcal-mcp.exe, docs/mcp.md). An MCP client
          executes it as a child process, so it ships BESIDE the app's exe (and at the MSIX package
          root, where the App Execution Alias in Package.appxmanifest points). Resolved exactly like
          $(NativeLib) above, per-arch and per-configuration, and overridable the same way. -->
-    <McpRelay Condition="'$(McpRelay)' == '' and '$(_RustTriple)' != ''">$(MSBuildThisFileDirectory)..\..\..\target\$(_RustTriple)\$(Configuration.ToLowerInvariant())\allodia-mcp.exe</McpRelay>
-    <McpRelay Condition="'$(McpRelay)' == ''">$(MSBuildThisFileDirectory)..\..\..\target\debug\allodia-mcp.exe</McpRelay>
+    <McpRelay Condition="'$(McpRelay)' == '' and '$(_RustTriple)' != ''">$(MSBuildThisFileDirectory)..\..\..\target\$(_RustTriple)\$(Configuration.ToLowerInvariant())\mailcal-mcp.exe</McpRelay>
+    <McpRelay Condition="'$(McpRelay)' == ''">$(MSBuildThisFileDirectory)..\..\..\target\debug\mailcal-mcp.exe</McpRelay>
   </PropertyGroup>
 
   <ItemGroup>
@@ -161,9 +161,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <!-- The MCP relay, at the output root (and hence the MSIX package root, which is what the
-         manifest's Executable="allodia-mcp.exe" resolves against). The Link has no directory on
+         manifest's Executable="mailcal-mcp.exe" resolves against). The Link has no directory on
          purpose: put it in a subfolder and the alias silently points at nothing. -->
-    <Content Include="$(McpRelay)" Link="allodia-mcp.exe" Condition="Exists('$(McpRelay)')">
+    <Content Include="$(McpRelay)" Link="mailcal-mcp.exe" Condition="Exists('$(McpRelay)')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <!-- The multi-res brand icon, laid down next to the exe (and packaged under Images\ in the
@@ -218,7 +218,7 @@
        that has not run build-and-run.ps1 yet still gets an app to work on. -->
   <Target Name="CheckMcpRelay" BeforeTargets="Build" Condition="!Exists('$(McpRelay)')">
     <Error Condition="'$(WindowsPackageType)' == 'MSIX'"
-           Text="The MCP relay was not found at '$(McpRelay)'. A packaged build must ship it: the App Execution Alias in Package.appxmanifest points at allodia-mcp.exe, so packaging without it produces an app whose Settings panel offers a configuration snippet naming a command that does not exist. Build it with: cargo build -p mailcal-mcp-shim --bin allodia-mcp --target &lt;triple&gt; (package.ps1 does this), or pass -p:McpRelay=&lt;path&gt;." />
+           Text="The MCP relay was not found at '$(McpRelay)'. A packaged build must ship it: the App Execution Alias in Package.appxmanifest points at mailcal-mcp.exe, so packaging without it produces an app whose Settings panel offers a configuration snippet naming a command that does not exist. Build it with: cargo build -p mailcal-mcp-shim --bin mailcal-mcp --target &lt;triple&gt; (package.ps1 does this), or pass -p:McpRelay=&lt;path&gt;." />
     <Warning Text="The MCP relay was not found at '$(McpRelay)'. Settings -> Advanced will still show the AI assistant access panel, but the configuration snippet names a command this build does not carry. Build it via clients/windows/build-and-run.ps1 (or pass -p:McpRelay=&lt;path&gt;)." />
   </Target>
 

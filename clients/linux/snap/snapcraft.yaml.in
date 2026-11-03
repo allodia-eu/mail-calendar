@@ -5,7 +5,8 @@
 # and is not valid YAML until it has been filled.
 #
 # Every value that names the app comes from the brand (docs/branding.md): the snap name is
-# MAILCAL_SNAP_NAME and the application id MAILCAL_APP_ID.
+# MAILCAL_SNAP_NAME, the application id MAILCAL_APP_ID, and the relay's command
+# MAILCAL_MCP_RELAY_NAME.
 name: @SNAP_NAME@
 base: core26
 grade: stable
@@ -57,8 +58,8 @@ apps:
 
   # The local MCP relay. A command of the same snap, so it is confined to the same data directory
   # as the app and reaches the endpoint the app listens on (docs/mcp.md).
-  allodia-mcp:
-    command: bin/allodia-mcp
+  @MCP_RELAY_NAME@:
+    command: bin/@MCP_RELAY_NAME@
 
 slots:
   # GApplication owns its id on the session bus, which is how a second launch reaches the running
@@ -92,9 +93,9 @@ parts:
       # `--locked` builds the committed Cargo.lock. Default features, plus the Allodia sign-in when
       # the registration is present, so `dev-harness` and the debug-only fixtures cannot be linked.
       cargo build --release --locked -p mailcal-linux@CARGO_FEATURES@
-      cargo build --release --locked -p mailcal-mcp-shim --bin allodia-mcp
+      cargo build --release --locked -p mailcal-mcp-shim --bin mailcal-mcp
       install -Dm755 target/release/mailcal-linux "$CRAFT_PART_INSTALL/bin/mailcal"
-      install -Dm755 target/release/allodia-mcp "$CRAFT_PART_INSTALL/bin/allodia-mcp"
+      install -Dm755 target/release/mailcal-mcp "$CRAFT_PART_INSTALL/bin/@MCP_RELAY_NAME@"
 
       python3 scripts/dev/flatpak_metadata.py --package snap --out-dir metadata
       install -Dm644 metadata/@APP_ID@.desktop \

@@ -62,9 +62,16 @@ fn render_brand_file(namespace: &str, brand: &Brand) -> String {
          \x20   /// <c>serverInfo.name</c>.\n\
          \x20   /// </summary>\n\
          \x20   public const string McpServerName = \"{mcp}\";\n\
+         \n\
+         \x20   /// <summary>\n\
+         \x20   /// The command the MCP relay is installed as: the App Execution Alias a packaged\n\
+         \x20   /// build registers, without its <c>.exe</c>.\n\
+         \x20   /// </summary>\n\
+         \x20   public const string McpRelayName = \"{relay}\";\n\
          }}\n",
         id = brand.id,
-        mcp = brand.mcp_server_name
+        mcp = brand.mcp_server_name,
+        relay = brand.mcp_relay_name
     )
 }
 

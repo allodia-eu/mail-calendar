@@ -109,11 +109,11 @@ elseif ($devAccountOn) {
 # Windows twin of the terminate-before-launch the Apple/Android flows do. (The app is single-
 # instanced, so a stale process would also swallow a fresh MAILCAL_* launch hook, see control.ps1.)
 #
-# The MCP relay is the same trap wearing a different hat, and a worse one: allodia-mcp.exe is
+# The MCP relay is the same trap wearing a different hat, and a worse one: mailcal-mcp.exe is
 # spawned by the *assistant*, not by us, and it lives as long as that client's session, so a
 # developer with Claude Desktop connected has one running right now and did not start it. Without
 # this the build fails at the copy step (MSB3021) naming a process they have never heard of.
-$running = @(Get-Process Mailcal, allodia-mcp -ErrorAction SilentlyContinue)
+$running = @(Get-Process Mailcal, mailcal-mcp -ErrorAction SilentlyContinue)
 if ($running) {
   $names = ($running | Group-Object ProcessName | ForEach-Object { "$($_.Count) $($_.Name)" }) -join ', '
   Write-Host "==> Stopping $names process(es) to free the build output" -ForegroundColor Yellow
@@ -153,7 +153,7 @@ $cargoArgs += Get-CoreCargoFeatures -Root $root
 & cargo @cargoArgs
 if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 Assert-StaticCrt $nativeLib
-$mcpRelay = Join-Path $root "target/$triple/$profileDir/allodia-mcp.exe"
+$mcpRelay = Join-Path $root "target/$triple/$profileDir/mailcal-mcp.exe"
 if (-not (Test-Path -LiteralPath $mcpRelay)) {
   throw "the MCP relay was not produced at $mcpRelay, cargo reported success, so check the mailcal-mcp-shim bin name."
 }

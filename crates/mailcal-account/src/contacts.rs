@@ -131,14 +131,14 @@ async fn connect_carddav_at(
         config = config.with_discovery_path(start);
     }
     let config = config
-    // A clone shares the record of what it refused, so a refusal reads back from `tls`.
-    .with_tls(tls.clone())
-    // Ungated: no CalDAV/CardDAV adapter states a concurrency ceiling, because no RFC gives
-    // one and no server here has been measured (`docs/agent-guidance/http-throttling.md`).
-    // A gate with nothing to narrow it bounds nothing, so wiring one would be ceremony.
-    // When a DAV ceiling is measured, this needs the account id threading through.
-    .with_retry(ungated_retry())
-    .with_connect_observer(crate::connect_log::connect_logger("carddav"));
+        // A clone shares the record of what it refused, so a refusal reads back from `tls`.
+        .with_tls(tls.clone())
+        // Ungated: no CalDAV/CardDAV adapter states a concurrency ceiling, because no RFC gives
+        // one and no server here has been measured (`docs/agent-guidance/http-throttling.md`).
+        // A gate with nothing to narrow it bounds nothing, so wiring one would be ceremony.
+        // When a DAV ceiling is measured, this needs the account id threading through.
+        .with_retry(ungated_retry())
+        .with_connect_observer(crate::connect_log::connect_logger("carddav"));
 
     let discovery = CardDavProvider::connect(config.clone())
         .await

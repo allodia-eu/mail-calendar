@@ -167,25 +167,28 @@ pub(crate) struct ShowcaseCalendarProvider {
 impl ShowcaseCalendarProvider {
     pub(crate) fn new(calendars: Vec<Calendar>, events: Vec<Event>) -> Self {
         Self {
-            caps: Capabilities::none().with_calendars().with_calendar_rsvp(
-                // No note, and no way to keep the organiser out of it: this is a server-scheduled
-                // transport in the shape of CalDAV auto-schedule and JMAP, which is what the
-                // harness and the real accounts look like. The controls the seeded card offers
-                // are therefore the ones a real account offers too.
-                RsvpControls {
-                    comment: false,
-                    suppress_notification: false,
-                    // Nothing else writes to this in-memory diary, so there is no lost update to
-                    // guard against, and claiming `Enforced` would advertise a precondition that
-                    // is never checked.
-                    guard: WriteGuard::Absent,
-                },
-            )
-            // The same shape again: a server-scheduled transport answers the organiser itself,
-            // so the card offers its three buttons without the core needing a mail provider
-            // that can send an iMIP reply. The showcase has none, and a screenshot of an
-            // invitation with no buttons is not the product.
-            .with_calendar_scheduling(),
+            caps: Capabilities::none()
+                .with_calendars()
+                .with_calendar_rsvp(
+                    // No note, and no way to keep the organiser out of it: this is a
+                    // server-scheduled transport in the shape of CalDAV
+                    // auto-schedule and JMAP, which is what the harness and
+                    // the real accounts look like. The controls the seeded card offers
+                    // are therefore the ones a real account offers too.
+                    RsvpControls {
+                        comment: false,
+                        suppress_notification: false,
+                        // Nothing else writes to this in-memory diary, so there is no lost update
+                        // to guard against, and claiming `Enforced` would
+                        // advertise a precondition that is never checked.
+                        guard: WriteGuard::Absent,
+                    },
+                )
+                // The same shape again: a server-scheduled transport answers the organiser itself,
+                // so the card offers its three buttons without the core needing a mail provider
+                // that can send an iMIP reply. The showcase has none, and a screenshot of an
+                // invitation with no buttons is not the product.
+                .with_calendar_scheduling(),
             calendars,
             events: Mutex::new((events, 0)),
         }

@@ -96,6 +96,25 @@ into their own configuration, so like the app id it does not change once shipped
 provider's consent screen shows when the app registers itself for OAuth is `MAILCAL_APP_NAME` as
 well.
 
+The relay that configuration spawns is installed as `MAILCAL_MCP_RELAY_NAME`, which is therefore
+also a name users have typed, and frozen the same way. Cargo cannot take a binary's name from the
+brand, so `crates/mailcal-mcp-shim` always builds `mailcal-mcp` and each client installs it under
+the brand's name:
+
+| | Where the brand's name goes | Set by |
+|---|---|---|
+| **Apple** | The nested `Library/Helpers/<name>.app` and the executable inside it | `MCP_RELAY_NAME` in `project.yml`; code reads `Brand.mcpRelayName` |
+| **Windows** | The App Execution Alias `<name>.exe`; the file it launches stays `mailcal-mcp.exe` | `msix_manifest.py`; code reads `Brand.McpRelayName` |
+| **Linux** | The Flatpak command and the snap app, so `/snap/bin/<snap>.<name>` | the Flatpak manifest's install step; `package-snap.sh`; code reads `l10n::MCP_RELAY_NAME` |
+
+A development build that runs from the build directory reaches the relay as cargo left it, under
+`mailcal-mcp`.
+
+On macOS and iOS, `MAILCAL_APPLE_PRODUCT_NAME` names the `.app` and its executable: what Finder
+lists in Applications, what Activity Monitor shows, and the file names `package.sh` gives what it
+builds. It takes letters and digits only, because every script that signs, launches or stops the
+app names that path. The Xcode target stays `AllodiaMail` (rule 5).
+
 ## The store copy
 
 A third slot, and the same resolution rule: `branding/brand-listing.md` when it is present,
@@ -190,8 +209,10 @@ does not declare.
    `MAILCAL_SNAP_NAME` is the name registered in the Snap Store, which can never be renamed.
    Nothing there is edited without the corresponding console change.
 5. **Source identifiers do not follow the brand.** The Kotlin package `eu.allodia.mailcal`, the C#
-   namespace `Allodia.Mailcal`, the Apple target and executable `AllodiaMail`: no OS and no user
-   ever sees them, and moving them would rewrite every client for a string nothing reads.
+   namespace `Allodia.Mailcal`, the Apple target and scheme `AllodiaMail` and its entitlement
+   files, the cargo binary `mailcal-mcp`: no OS and no user ever sees them, and moving them would
+   rewrite every client for a string nothing reads. A name a person does see, the `.app` in Finder
+   or the command an assistant spawns, is a brand value instead.
 
 ## Known gaps
 
@@ -208,10 +229,6 @@ does not declare.
   it runs: a rebrand is a Mac pass **and** a Windows pass, and the tree is inconsistent between
   them. It exits non-zero naming what it left behind, so the second pass cannot be forgotten
   quietly, but nothing checks that it happened.
-- **The MCP relay is called `allodia-mcp` in every build.** It is a cargo `[[bin]]` name, which
-  cannot be injected, but each client installs it under a name its own build config decides
-  (`Link=` on Windows, the nested bundle on macOS), so that is where a neutral default belongs.
-  Renaming it changes the command users have already configured, so it is not a silent change.
 - **Prose is untouched.** Documentation, comments and store copy still name the product. That is
   the split's content pass, not this contract, and a check here that grepped for the word would
   fail on every file that correctly explains what Allodia's build is.

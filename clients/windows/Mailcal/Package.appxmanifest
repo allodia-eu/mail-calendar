@@ -125,14 +125,16 @@
              in there would look right and fail with an access denial the user cannot act on. An App
              Execution Alias is what this mechanism is for: it installs a launcher into
              %LOCALAPPDATA%\Microsoft\WindowsApps, which is on the user's PATH, so the bare name
-             resolves. The alias MUST equal McpEndpoint.RelayFileName, which is what the generated
-             config snippet emits as `command`; McpEndpointTests asserts that against this file.
+             resolves. Executable is the file the build lays down (McpEndpoint.RelayFileName,
+             which McpEndpointTests asserts against this file); the alias is the command a person
+             configures, the brand's MAILCAL_MCP_RELAY_NAME, which package.ps1 writes in here
+             (scripts/dev/msix_manifest.py) and McpEndpoint.RelayAlias emits as `command`.
              The unpackaged dev build has no manifest and is reached by its absolute path instead.
              EntryPoint is Windows.FullTrustApplication because the relay is a plain Win32 exe, not
              a WinRT app, it needs the user's own token to open the app's named pipe. -->
-        <uap5:Extension Category="windows.appExecutionAlias" Executable="allodia-mcp.exe" EntryPoint="Windows.FullTrustApplication">
+        <uap5:Extension Category="windows.appExecutionAlias" Executable="mailcal-mcp.exe" EntryPoint="Windows.FullTrustApplication">
           <uap5:AppExecutionAlias>
-            <uap5:ExecutionAlias Alias="allodia-mcp.exe" />
+            <uap5:ExecutionAlias Alias="mailcal-mcp.exe" />
           </uap5:AppExecutionAlias>
         </uap5:Extension>
       </Extensions>

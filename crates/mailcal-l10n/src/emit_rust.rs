@@ -97,8 +97,10 @@ fn render_app_id(out: &mut String, brand: &Brand) {
          pub(crate) const APP_ID: &str = {:?};\n\n\
          /// The key an MCP client files the local server under, and the server's own\n\
          /// `serverInfo.name`.\n\
-         pub(crate) const MCP_SERVER_NAME: &str = {:?};\n\n",
-        brand.id, brand.mcp_server_name
+         pub(crate) const MCP_SERVER_NAME: &str = {:?};\n\n\
+         /// The command the MCP relay is installed as, which an MCP client spawns.\n\
+         pub(crate) const MCP_RELAY_NAME: &str = {:?};\n\n",
+        brand.id, brand.mcp_server_name, brand.mcp_relay_name
     );
 }
 

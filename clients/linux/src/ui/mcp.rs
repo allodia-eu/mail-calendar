@@ -8,7 +8,10 @@ use serde::Serialize;
 use super::AppInput;
 
 pub(super) const CONFIGURATION_KEY: &str = crate::l10n::MCP_SERVER_NAME;
-const RELAY_FILE_NAME: &str = "allodia-mcp";
+/// The command a package installs the relay as: the Flatpak command and the snap's app.
+const RELAY_NAME: &str = crate::l10n::MCP_RELAY_NAME;
+/// The relay as cargo builds it, which is what sits beside a development build.
+const BUILT_RELAY_FILE_NAME: &str = "mailcal-mcp";
 const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
 
 /// Installs the host composer and endpoint together, so a listening server can always open drafts.
@@ -51,7 +54,7 @@ fn relay_invocation() -> RelayInvocation {
     let beside = executable.and_then(|executable| {
         executable
             .parent()
-            .map(|parent| parent.join(RELAY_FILE_NAME))
+            .map(|parent| parent.join(BUILT_RELAY_FILE_NAME))
     });
     unpackaged_invocation(beside.as_deref())
 }
@@ -60,7 +63,7 @@ fn relay_invocation() -> RelayInvocation {
 /// `PATH` an MCP client is started with on every desktop, so the path is given in full.
 fn snap_invocation(instance: &str) -> RelayInvocation {
     RelayInvocation {
-        command: format!("/snap/bin/{instance}.{RELAY_FILE_NAME}"),
+        command: format!("/snap/bin/{instance}.{RELAY_NAME}"),
         args: Vec::new(),
     }
 }
@@ -70,7 +73,7 @@ fn unqualified_flatpak_invocation(app_id: &str) -> RelayInvocation {
         command: "flatpak".to_owned(),
         args: vec![
             "run".to_owned(),
-            format!("--command={RELAY_FILE_NAME}"),
+            format!("--command={RELAY_NAME}"),
             app_id.to_owned(),
         ],
     }
@@ -131,10 +134,10 @@ impl FlatpakContext {
         let mut args = vec!["run".to_owned(), installation.to_owned()];
         match self.kind {
             FlatpakKind::Application => {
-                args.push(format!("--command={RELAY_FILE_NAME}"));
+                args.push(format!("--command={RELAY_NAME}"));
             }
             FlatpakKind::DevelopmentRuntime => {
-                let relay = executable?.parent()?.join(RELAY_FILE_NAME);
+                let relay = executable?.parent()?.join(BUILT_RELAY_FILE_NAME);
                 args.extend([
                     "--devel".to_owned(),
                     "--filesystem=host".to_owned(),
@@ -154,7 +157,7 @@ impl FlatpakContext {
 
 fn unpackaged_invocation(beside: Option<&Path>) -> RelayInvocation {
     let command = beside.filter(|path| path.is_file()).map_or_else(
-        || RELAY_FILE_NAME.to_owned(),
+        || RELAY_NAME.to_owned(),
         |path| path.to_string_lossy().into_owned(),
     );
     RelayInvocation {
@@ -224,8 +227,9 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        CONFIGURATION_KEY, FlatpakContext, RELAY_FILE_NAME, configuration_snippet_for,
-        snap_invocation, unpackaged_invocation, unqualified_flatpak_invocation,
+        BUILT_RELAY_FILE_NAME, CONFIGURATION_KEY, FlatpakContext, RELAY_NAME,
+        configuration_snippet_for, snap_invocation, unpackaged_invocation,
+        unqualified_flatpak_invocation,
     };
 
     fn flatpak_invocation(metadata: &str, executable: &str, home: &str) -> super::RelayInvocation {
@@ -266,7 +270,7 @@ mod tests {
             serde_json::json!([
                 "run",
                 "--user",
-                "--command=allodia-mcp",
+                format!("--command={RELAY_NAME}"),
                 "eu.allodia.mailcal/x86_64/stable",
                 "--endpoint",
                 "/home/A Person/.var/app/eu.allodia.mailcal/data/mailcal/mcp.sock"
@@ -296,7 +300,7 @@ mod tests {
                 "--filesystem=host",
                 "--filesystem=/tmp",
                 "--no-a11y-bus",
-                "--command=/home/Developer/project/target/flatpak-sdk/debug/allodia-mcp",
+                "--command=/home/Developer/project/target/flatpak-sdk/debug/mailcal-mcp",
                 "org.gnome.Sdk/x86_64/50",
                 "--endpoint",
                 "/tmp/mailcal/mcp.sock"
@@ -319,7 +323,11 @@ mod tests {
     fn metadata_fallback_keeps_older_flatpak_environments_usable() {
         assert_eq!(
             unqualified_flatpak_invocation("eu.allodia.mailcal").args,
-            ["run", "--command=allodia-mcp", "eu.allodia.mailcal"]
+            [
+                "run".to_owned(),
+                format!("--command={RELAY_NAME}"),
+                "eu.allodia.mailcal".to_owned()
+            ]
         );
     }
 
@@ -333,7 +341,7 @@ mod tests {
         let entry = &value["mcpServers"][CONFIGURATION_KEY];
         assert_eq!(
             entry["command"],
-            "/snap/bin/allodia-mail-calendar.allodia-mcp"
+            format!("/snap/bin/allodia-mail-calendar.{RELAY_NAME}")
         );
         assert_eq!(
             entry["args"],
@@ -349,7 +357,7 @@ mod tests {
         let directory =
             std::env::temp_dir().join(format!("mailcal-mcp-endpoint-{}", std::process::id()));
         fs::create_dir_all(&directory).expect("create temp directory");
-        let relay = directory.join(RELAY_FILE_NAME);
+        let relay = directory.join(BUILT_RELAY_FILE_NAME);
         fs::write(&relay, []).expect("create relay marker");
         assert_eq!(
             unpackaged_invocation(Some(&relay)).command,
@@ -361,8 +369,8 @@ mod tests {
     #[test]
     fn missing_unpackaged_relay_falls_back_to_path() {
         assert_eq!(
-            unpackaged_invocation(Some(Path::new("/not/present/allodia-mcp"))).command,
-            RELAY_FILE_NAME
+            unpackaged_invocation(Some(Path::new("/not/present/mailcal-mcp"))).command,
+            RELAY_NAME
         );
     }
 }

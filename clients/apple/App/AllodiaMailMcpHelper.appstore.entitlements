@@ -3,7 +3,7 @@
 <plist version="1.0">
 <!--
   Mac App Store entitlements for the NESTED MCP relay bundle
-  (Contents/Library/Helpers/allodia-mcp.app, docs/mcp.md), applied by Scripts/package.sh's
+  (Contents/Library/Helpers/<relay>.app, docs/mcp.md), applied by Scripts/package.sh's
   app-store flow. The Developer-ID flow signs the same bundle with NO entitlements: it is not
   sandboxed there and needs none.
 

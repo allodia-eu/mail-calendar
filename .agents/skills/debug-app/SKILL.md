@@ -70,7 +70,8 @@ launch that died on the way up is reported as that, rather than costing the full
 reading as a slow machine. Run `clients/linux/build-and-run.sh` without `--detach` to keep the
 terminal attached, which is what you want when you are watching it rather than driving it.
 
-Check before you build: `pgrep -f "MacOS/AllodiaMail"` says whether a dev build is already up.
+Check before you build: `pgrep -f "MacOS/AllodiaMail"` (the brand's `MAILCAL_APPLE_PRODUCT_NAME`) says
+whether a dev build is already up.
 Screenshot a running app rather than booting it again, and reach for `-- --no-core` when only
 client code changed. Rebooting replaces the instance (the script `pkill`s the same binary first,
 so two processes never share one SQLite store), which costs a full build and loses whatever state

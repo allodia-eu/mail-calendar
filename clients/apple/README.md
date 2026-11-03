@@ -163,7 +163,9 @@ arm64 only** (Apple-silicon Mac, arm64 iPhone + iPad); a universal Mac binary wo
 
 ### Flow A, direct distribution (notarized `.dmg`)
 
-The "install on any Mac, including yours, as a real app" path. `package.sh`:
+The "install on any Mac, including yours, as a real app" path. The file names below are Allodia's:
+the `.app` and everything `package.sh` names after it take the brand's `MAILCAL_APPLE_PRODUCT_NAME`
+([`docs/branding.md`](../../docs/branding.md)). `package.sh`:
 
 1. Archives the Release app (Developer ID signing, Hardened Runtime, the minimal
    `App/AllodiaMail.macOS.entitlements`).

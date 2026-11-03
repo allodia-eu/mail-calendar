@@ -64,17 +64,17 @@ brand_load
 
 PROJECT="$HERE/AllodiaMail.xcodeproj"
 SCHEME="AllodiaMail"
-APP_NAME="AllodiaMail.app"
+APP_NAME="$MAILCAL_APPLE_PRODUCT_NAME.app"
 # The nested MCP relay bundle, relative to the .app. Must match McpEndpoint.relayBundlePath (which
 # builds the config snippet the user pastes) and the postBuildScripts phase in project.yml that
 # creates it, three places, one path, and a drift means the snippet names something that is not
 # there.
-RELAY_BUNDLE_PATH="Contents/Library/Helpers/allodia-mcp.app"
+RELAY_BUNDLE_PATH="Contents/Library/Helpers/$MAILCAL_MCP_RELAY_NAME.app"
 # The mounted disk image's name, so the Finder window a user drags from says the product's
-# own name. Under HFS+'s 27-character volume limit at 23.
-VOLNAME="Allodia Mail & Calendar"
+# own name. HFS+ truncates a volume name past 27 characters.
+VOLNAME="$MAILCAL_APP_NAME"
 BUILD="$HERE/build/package"                    # archive/export/dmg staging (git-ignored)
-DMG="$HERE/build/AllodiaMail.dmg"              # the final direct-distribution artifact
+DMG="$HERE/build/$MAILCAL_APPLE_PRODUCT_NAME.dmg"  # the final direct-distribution artifact
 CONFIG="$HERE/signing.local.sh"
 
 FLOW=developer-id
@@ -214,7 +214,7 @@ assert_store_entitlements() {
 # being *absent*: the xcodegen `postBuildScripts` entry was dropped whole in a merge conflict
 # resolution, every build stayed green (the copy is a script phase, so nothing references it), and
 # a notarized Developer-ID build shipped with no relay at all. The app launched, Settings →
-# Advanced rendered, and the config snippet it offered fell back to a bare `allodia-mcp` on PATH:
+# Advanced rendered, and the config snippet it offered fell back to a bare relay name on PATH:
 # which an MCP client spawns without a shell and cannot resolve, so the only symptom was "Failed
 # to spawn process: No such file or directory" inside the assistant, pointing at nobody.
 #
@@ -222,7 +222,7 @@ assert_store_entitlements() {
 assert_relay_present() {
   local app="$1"
   local bundle="$app/$RELAY_BUNDLE_PATH"
-  local relay="$bundle/Contents/MacOS/allodia-mcp"
+  local relay="$bundle/Contents/MacOS/$MAILCAL_MCP_RELAY_NAME"
   [[ -f "$relay" ]] \
     || fail "the packaged app has no $RELAY_BUNDLE_PATH, the relay copy phase did not run (see clients/apple/project.yml → postBuildScripts). MCP would be dead in this build."
   [[ -x "$relay" ]] || fail "$relay is present but not executable."
@@ -485,7 +485,7 @@ if [[ "$FLOW" == ios-app-store ]]; then
 fi
 
 rm -rf "$BUILD"; mkdir -p "$BUILD"
-ARCHIVE="$BUILD/AllodiaMail.xcarchive"
+ARCHIVE="$BUILD/$MAILCAL_APPLE_PRODUCT_NAME.xcarchive"
 EXPORT="$BUILD/export"
 # Marketing version: the top-level /VERSION file is the single source of truth (docs/versioning.md);
 # --version overrides it for a one-off build. The build number is always a fresh, monotonically
@@ -686,7 +686,7 @@ for d in devices:
   codesign --verify --deep --strict "$APP" || fail "codesign --verify failed on the exported app."
 
   mkdir -p "$KEEP"
-  KEPT="$KEEP/AllodiaMail-$MARKETING_VERSION_VALUE-Device.ipa"
+  KEPT="$KEEP/$MAILCAL_APPLE_PRODUCT_NAME-$MARKETING_VERSION_VALUE-Device.ipa"
   cp "$IPA" "$KEPT"
 
   echo ""
@@ -757,7 +757,7 @@ if [[ "$FLOW" == ios-app-store ]]; then
   # they walk signed code, and 0.3.0's rejection was an EMPTY nested .app, four directories, no
   # code at all, which `codesign --verify --deep --strict` passed straight over. The mirror of
   # Flow B's assert_relay_present: on iOS the relay must be ABSENT, since only macOS hosts a server.
-  "$HERE/Scripts/check-nested-bundles.sh" "$APP" --forbid allodia-mcp
+  "$HERE/Scripts/check-nested-bundles.sh" "$APP" --forbid "$MAILCAL_MCP_RELAY_NAME"
   assert_symbols_kept "$APP"
 
   APP_AUTH="$(first_authority "$APP")"
@@ -776,7 +776,7 @@ if [[ "$FLOW" == ios-app-store ]]; then
   codesign --verify --deep --strict --verbose=2 "$APP" || fail "codesign --verify failed on the exported app."
 
   mkdir -p "$KEEP"
-  KEPT="$KEEP/AllodiaMail-$MARKETING_VERSION_VALUE-AppStore.ipa"
+  KEPT="$KEEP/$MAILCAL_APPLE_PRODUCT_NAME-$MARKETING_VERSION_VALUE-AppStore.ipa"
   cp "$IPA" "$KEPT"
 
   echo ""
@@ -1051,7 +1051,7 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
     # A zip made by `ditto`, which keeps the signature's extended attributes and symlinks intact
     # where a plain `zip` would not.
     mkdir -p "$KEEP"
-    KEPT="$KEEP/AllodiaMail-$MARKETING_VERSION_VALUE-Sandboxed.zip"
+    KEPT="$KEEP/$MAILCAL_APPLE_PRODUCT_NAME-$MARKETING_VERSION_VALUE-Sandboxed.zip"
     rm -f "$KEPT"
     ditto -c -k --keepParent "$APP" "$KEPT"
 
@@ -1073,13 +1073,13 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
 $QUARANTINED"
 
   # Build + sign the Store installer.
-  PKG="$EXPORT/AllodiaMail.pkg"
+  PKG="$EXPORT/$MAILCAL_APPLE_PRODUCT_NAME.pkg"
   echo "==> Building the installer .pkg (productbuild, signed with $MAC_INSTALLER_IDENTITY)"
   productbuild --component "$APP" /Applications --sign "$MAC_INSTALLER_IDENTITY" "$PKG"
   pkgutil --check-signature "$PKG"
 
   mkdir -p "$KEEP"
-  KEPT="$KEEP/AllodiaMail-$MARKETING_VERSION_VALUE-MacAppStore.pkg"
+  KEPT="$KEEP/$MAILCAL_APPLE_PRODUCT_NAME-$MARKETING_VERSION_VALUE-MacAppStore.pkg"
   cp "$PKG" "$KEPT"
 
   echo ""
@@ -1106,7 +1106,7 @@ APP="$EXPORT/$APP_NAME"
 assert_relay_present "$APP"
 
 # Re-sign nested code with the Developer ID cert, then check it. `-exportArchive` handles the app
-# and its frameworks, but a bare Mach-O helper (Contents/MacOS/allodia-mcp) keeps whatever it had
+# and its frameworks, but a bare Mach-O helper (the nested relay) keeps whatever it had
 # an ad-hoc signature from the build phase, and the notary service rejects an ad-hoc-signed
 # executable inside a Developer ID app. Signing the helper FIRST and the app LAST matters: the
 # app's signature seals its own directory, so touching anything inside afterwards invalidates it.
@@ -1191,7 +1191,7 @@ fi
 codesign --verify --deep --strict --verbose=2 "$APP" || fail "codesign --verify failed on the exported app."
 
 if [[ "$NOTARIZE" -eq 1 ]]; then
-  ZIP="$BUILD/AllodiaMail.zip"
+  ZIP="$BUILD/$MAILCAL_APPLE_PRODUCT_NAME.zip"
   echo "==> Submitting to the notary service (notarytool submit --wait; this can take a few minutes)"
   /usr/bin/ditto -c -k --keepParent "$APP" "$ZIP"
   xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_KEYCHAIN_PROFILE" --wait

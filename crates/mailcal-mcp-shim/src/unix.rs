@@ -11,7 +11,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::frame::unavailable_frame;
+use crate::{RELAY_NAME, frame::unavailable_frame};
 
 /// The relay loop: every line from stdin goes to the app, everything the app says goes to stdout.
 pub(crate) fn relay(endpoint: &str) {
@@ -32,7 +32,7 @@ pub(crate) fn relay(endpoint: &str) {
                     connection = Some(stream);
                 }
                 Err(err) => {
-                    eprintln!("allodia-mcp: could not reach the app: {err}");
+                    eprintln!("{RELAY_NAME}: could not reach the app: {err}");
                     write_line(&out, &unavailable_frame(&line));
                     continue;
                 }
@@ -44,7 +44,7 @@ pub(crate) fn relay(endpoint: &str) {
         if writeln!(stream, "{line}").is_err() || stream.flush().is_err() {
             // The app went away mid-session (quit, or restarted). Drop the connection so the
             // next request re-dials, and answer this one rather than dropping it on the floor.
-            eprintln!("allodia-mcp: the app closed the connection");
+            eprintln!("{RELAY_NAME}: the app closed the connection");
             connection = None;
             write_line(&out, &unavailable_frame(&line));
         }
@@ -54,7 +54,7 @@ pub(crate) fn relay(endpoint: &str) {
 /// Spawns the socket-to-stdout pump for one connection.
 fn start_reader(stream: &UnixStream, out: &Arc<Mutex<std::io::Stdout>>) {
     let Ok(reader) = stream.try_clone() else {
-        eprintln!("allodia-mcp: could not split the connection");
+        eprintln!("{RELAY_NAME}: could not split the connection");
         return;
     };
     let out = Arc::clone(out);
