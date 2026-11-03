@@ -21,7 +21,8 @@ param(
   # instead of building against the runtime installed on this machine, which is the default and
   # what the Store build ships. For a machine that has no matching runtime (`Get-AppxPackage
   # Microsoft.WindowsAppRuntime.2`) and cannot register one with
-  # uitests/install-windows-app-runtime.ps1, where the default build refuses to start.
+  # uitests/install-windows-app-runtime.ps1; without one, the default build stops before launching
+  # and says which version it needs.
   [switch] $SelfContained
 )
 $ErrorActionPreference = 'Stop'
@@ -236,7 +237,7 @@ Write-Host "==> Running the agent-suite result tests" -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "agent-suite result tests failed" }
 
 # 5f. Which Windows App Runtime a build resolved and what on this machine serves it, which
-#     package.ps1 and the runtime installer both ask. Here for 5c's reason: the
+#     package.ps1, the runtime installer and step 6b below all ask. Here for 5c's reason: the
 #     states that matter (a runtime older or newer than the one resolved) cannot be staged on a
 #     machine without unregistering what it runs on.
 Write-Host "==> Running the Windows App Runtime lookup tests" -ForegroundColor Cyan
@@ -289,6 +290,24 @@ Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
 Write-Host "==> WinUI app built: $($exe.FullName)" -ForegroundColor Green
 
+# 6b. A framework-dependent build starts only on a machine that has registered the runtime it
+#     resolved. Checked here, where that version is known: fatal when this script is about to
+#     launch the app, and a warning when it is not, because CI builds before it registers the
+#     runtime.
+$launching = -not $NoRun -and $Arch -eq $hostArch
+if (-not $SelfContained) {
+  . (Join-Path $here 'windows-app-runtime.ps1')
+  $runtime = Get-WindowsAppRuntime -ProjectDir (Join-Path $here 'Mailcal')
+  $framework = Get-WindowsAppRuntimeFramework -Runtime $runtime -Arch $Arch
+  if (-not (Get-RegisteredWindowsAppRuntime -Framework $framework)) {
+    $missing = "This build needs $($framework.Name) $($framework.Version) or later for $Arch, and this machine has not registered it, so the app will not start."
+    $remedy = "Register it from the restored package with: $(Join-Path $here 'uitests/install-windows-app-runtime.ps1') -Arch $Arch`n    or rebuild with -SelfContained to bundle the runtime instead."
+    if ($launching) { throw "$missing`n    $remedy" }
+    Write-Host "==> $missing" -ForegroundColor Yellow
+    Write-Host "    $remedy" -ForegroundColor Yellow
+  }
+}
+
 $logPath = Join-Path $env:LOCALAPPDATA 'Allodia\MailCalendar\logs\app.log'
 Write-Host "==> Logs: $logPath (rotates .1-.3, ~4 MB cap)" -ForegroundColor Green
 
@@ -296,7 +315,7 @@ Write-Host "==> Logs: $logPath (rotates .1-.3, ~4 MB cap)" -ForegroundColor Gree
 #    account yet, so nothing private renders; add your account in-app to see real mail.
 #    Name the mailbox on the launch line: the banner above scrolls away behind a minutes-long
 #    build, and this is the last thing left on screen when the window appears.
-if (-not $NoRun -and $Arch -eq $hostArch) {
+if ($launching) {
   Write-Host "==> Launching against $mailbox" -ForegroundColor Cyan
   Start-Process $exe.FullName
 }
