@@ -181,7 +181,7 @@ pub(super) fn date_heading(date: Date) -> String {
 
 pub(in crate::ui) fn clock(minutes: u32, use_24_hour: bool) -> String {
     let full = full_clock(minutes, use_24_hour);
-    if use_24_hour || minutes % 60 != 0 {
+    if use_24_hour || !minutes.is_multiple_of(60) {
         full
     } else {
         full.replacen(":00", "", 1)

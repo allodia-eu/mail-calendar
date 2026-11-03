@@ -62,7 +62,7 @@ impl ComposeContext {
     /// The quote's attribution is worded here, in the user's language and with the original's
     /// date as the reading header shows it: for a fresh reply or forward it seeds the quote, and
     /// for a reopened one it completes the style the stored quote does not carry.
-    pub(crate) fn from_opening(
+    pub(super) fn from_opening(
         opening: ComposeOpening,
         host: ComposerHost,
         style: &QuoteStyleKind,
