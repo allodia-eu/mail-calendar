@@ -33,6 +33,8 @@
 #                                                     #   wherever that point happens to be
 #   scripts/dev/control.sh macos ui-dump              # the live Accessibility tree (assertion oracle)
 #   scripts/dev/control.sh linux activate "Reply"      # semantic AT-SPI action, no pixel coordinates
+#   scripts/dev/control.sh linux activate "Close" --role "push button" --within "Settings" --within-role frame
+#                                                      #   filters after the name narrow the match
 #   scripts/dev/control.sh linux set-text "Title" "Team planning"
 #   scripts/dev/control.sh linux read-text "Title"     # a field's CONTENTS, which the tree does not
 #                                                     #   carry: an entry's accessible name is its
@@ -210,21 +212,23 @@ EOF
     script="$REPO_ROOT/scripts/dev/linux_ui_atspi.py"
     case "$action" in
       ui-dump) exec "$python" "$script" dump ;;
+      # Anything after the name goes to the script as it stands (`--role`, `--within`, ...): a
+      # bare name matches the first control so called anywhere, a window's own Close included.
       find)
-        [[ $# -ge 1 ]] || die "find <accessible name>"
-        exec "$python" "$script" wait --name "$1" ;;
+        [[ $# -ge 1 ]] || die "find <accessible name> [filters]"
+        exec "$python" "$script" wait --name "$1" "${@:2}" ;;
       activate)
-        [[ $# -ge 1 ]] || die "activate <accessible name>"
-        exec "$python" "$script" activate --name "$1" ;;
+        [[ $# -ge 1 ]] || die "activate <accessible name> [filters]"
+        exec "$python" "$script" activate --name "$1" "${@:2}" ;;
       set-text)
-        [[ $# -ge 2 ]] || die "set-text <accessible name> <value>"
-        exec "$python" "$script" set-text --name "$1" --text "$2" ;;
+        [[ $# -ge 2 ]] || die "set-text <accessible name> <value> [filters]"
+        exec "$python" "$script" set-text --name "$1" --text "$2" "${@:3}" ;;
       read-text)
-        [[ $# -ge 1 ]] || die "read-text <accessible name>"
-        exec "$python" "$script" read-text --name "$1" ;;
+        [[ $# -ge 1 ]] || die "read-text <accessible name> [filters]"
+        exec "$python" "$script" read-text --name "$1" "${@:2}" ;;
       locate)
-        [[ $# -ge 1 ]] || die "locate <accessible name>"
-        exec "$python" "$script" locate --name "$1" ;;
+        [[ $# -ge 1 ]] || die "locate <accessible name> [filters]"
+        exec "$python" "$script" locate --name "$1" "${@:2}" ;;
       *) die "unknown linux action '$action' (activate|click|drag|find|key|locate|move|read-text|scroll|set-text|text|ui-dump)" ;;
     esac
     ;;
