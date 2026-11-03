@@ -131,12 +131,12 @@ pub(crate) async fn dav_credentials(
 }
 
 /// Whether `grant`'s token may go to the DAV server at `base_url` for `dav_use`
-/// (`docs/mail-oauth.md` rule 10): its sign-in asked for that use's scope, the server's host is
+/// (`docs/mail-oauth.md` rule 10): its sign-in asked for that use's scope, the server's URL is
 /// one its issuer's tokens are for (§3.6), and the token would travel over TLS, a loopback server
 /// (a local test server) being the one exception.
 ///
-/// The host is read as the transport's own policy check reads it, so an IPv6 literal, an
-/// internationalised name or a userinfo part is judged as the request will go.
+/// The URL is parsed as the transport parses it, so an IPv6 literal, an internationalised name or
+/// a userinfo part is judged as the request will go.
 #[must_use]
 pub fn grant_reaches(grant: &crate::OAuthGrant, base_url: &str, dav_use: DavUse) -> bool {
     let url = reqwest::Url::parse(&crate::setup::normalize_caldav_base_url(base_url)).ok();

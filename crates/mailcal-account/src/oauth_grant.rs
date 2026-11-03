@@ -177,6 +177,16 @@ impl OAuthGrant {
             .unwrap_or_else(|| origin_of(&self.token_endpoint).to_owned())
     }
 
+    /// This grant, replacing `stored` on a sign-in again: a token response that names no account
+    /// leaves the name `stored` recorded, which a later sign-in is still held to.
+    #[must_use]
+    pub fn replacing(mut self, stored: Option<&Self>) -> Self {
+        if self.signed_in_as.is_none() {
+            self.signed_in_as = stored.and_then(|grant| grant.signed_in_as.clone());
+        }
+        self
+    }
+
     /// Whether a token from this grant may be sent to `endpoint`, a request URL or a non-HTTP
     /// endpoint's bare host name (`draft-ietf-mailmaint-oauth-public` §3.6).
     #[must_use]

@@ -167,6 +167,9 @@ fn reconnected(
     same_account(expected.as_str(), &fresh)?;
     Ok(JmapAccountConfig {
         shape: stored.shape.clone(),
+        oauth: fresh
+            .oauth
+            .map(|grant| grant.replacing(stored.oauth.as_ref())),
         ..fresh
     })
 }

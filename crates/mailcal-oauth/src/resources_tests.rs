@@ -157,6 +157,23 @@ fn a_listed_entry_admits_only_the_requests_it_matches() {
     ));
     assert!(!token_may_reach(issuer, &listed, "https://127.0.0.1/"));
     assert!(!token_may_reach(issuer, &listed, "imap.localhost"));
+    assert!(token_may_reach(issuer, &listed, "localhost."));
+}
+
+#[test]
+fn a_urls_trailing_dot_is_its_path_and_is_matched_as_one() {
+    let listed = ["https://dav.example.com/cal".to_owned()];
+    let issuer = "https://auth.example.com";
+    assert!(token_may_reach(
+        issuer,
+        &listed,
+        "https://dav.example.com/cal/home"
+    ));
+    assert!(!token_may_reach(
+        issuer,
+        &listed,
+        "https://dav.example.com/cal."
+    ));
 }
 
 #[test]

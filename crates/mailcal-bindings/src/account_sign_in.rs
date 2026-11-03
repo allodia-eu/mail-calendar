@@ -174,14 +174,17 @@ impl MailcalApp {
                     config.oauth.as_ref(),
                     config.username(),
                 )?;
-                let signed = config.with_grant(signed_in.grant);
+                let grant = signed_in.grant.replacing(config.oauth.as_ref());
+                let signed = config.with_grant(grant);
                 return self.install_signed_in(&account_id, &config, signed, unreached);
             }
             (PendingSignIn::Jmap(pending), SignInConfig::Jmap(config)) => {
                 let (fresh, named) = self.exchange_jmap_login(pending, callback_url)?;
                 named_as(named.as_deref(), config.oauth.as_ref(), &config.email)?;
                 Replacement::Jmap(JmapAccountConfig {
-                    oauth: fresh.oauth,
+                    oauth: fresh
+                        .oauth
+                        .map(|grant| grant.replacing(config.oauth.as_ref())),
                     password: None,
                     token: None,
                     ..*config

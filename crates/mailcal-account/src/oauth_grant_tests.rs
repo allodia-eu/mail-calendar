@@ -132,3 +132,25 @@ fn a_grant_stored_before_the_issuer_field_existed_still_loads() {
     assert!(read.resource.is_none());
     assert!(read.provider_config().expected_issuer.is_none());
 }
+
+#[test]
+fn a_sign_in_again_that_names_no_account_keeps_the_name_already_recorded() {
+    let stored = OAuthGrant {
+        signed_in_as: Some("alice@example.com".to_owned()),
+        ..grant()
+    };
+    assert_eq!(
+        grant().replacing(Some(&stored)).signed_in_as.as_deref(),
+        Some("alice@example.com")
+    );
+    let renamed = OAuthGrant {
+        signed_in_as: Some("alice@example.org".to_owned()),
+        ..grant()
+    };
+    assert_eq!(
+        renamed.replacing(Some(&stored)).signed_in_as.as_deref(),
+        Some("alice@example.org"),
+        "a name in the response is the grant's own"
+    );
+    assert_eq!(grant().replacing(None).signed_in_as, None);
+}

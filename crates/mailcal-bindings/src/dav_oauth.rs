@@ -310,7 +310,6 @@ impl MailcalApp {
         .flatten()
         .map(mailcal_account::normalize_caldav_base_url)
         .collect();
-        let endpoints = urls.clone();
         let login = [
             calendar
                 .caldav
@@ -327,15 +326,15 @@ impl MailcalApp {
         .unwrap_or_default()
         .to_owned();
         let url = urls
-            .into_iter()
-            .next()
+            .first()
+            .cloned()
             .ok_or_else(|| MailcalError::Config("nothing to sign in to".to_owned()))?;
         Ok(Target {
             mailbox,
             calendar,
             uses,
             url,
-            endpoints,
+            endpoints: urls,
             login,
         })
     }

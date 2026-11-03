@@ -54,7 +54,13 @@ pub fn covering_entry(entries: &[String], endpoint: &str) -> Option<String> {
 #[must_use]
 pub fn token_may_reach(issuer: &str, protected_resources: &[String], endpoint: &str) -> bool {
     if !protected_resources.is_empty() {
-        let endpoint = endpoint.trim_end_matches('.');
+        // A bare host's trailing root label is not part of its name; a URL's last character is
+        // its path's, and stays.
+        let endpoint = if http_url(endpoint).is_some() {
+            endpoint
+        } else {
+            endpoint.trim_end_matches('.')
+        };
         return protected_resources
             .iter()
             .any(|entry| resource_covers(entry, endpoint));
