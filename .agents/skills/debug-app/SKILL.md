@@ -95,7 +95,8 @@ scripts/dev/logs.sh <platform> --dump     # print the current log once
 Paths (from `docs/logging.md`): macOS `~/.local/share/mailcal/mailcal.log`; iOS/iPad the simulator
 container's `.../Library/Application Support/mailcal/mailcal.log` (resolved for you); Android the
 Logcat `Mailcal` tag live, or the on-device file with `--dump`; Windows
-`%LOCALAPPDATA%\Allodia\MailCalendar\logs\app.log` (followed for you). The core logs only
+`%LOCALAPPDATA%\<the brand's MAILCAL_WINDOWS_DATA_DIR>\logs\app.log`, `MailCal` unbranded and
+`Allodia\MailCalendar` under Allodia's brand (followed for you). The core logs only
 counts/ids/durations/events, never content/addresses/credentials, so it's safe to read.
 When personal accounts are involved, prefer current-session slices over full historical dumps; older
 logs can predate the privacy-safe path or carry account identifiers from prior debugging.

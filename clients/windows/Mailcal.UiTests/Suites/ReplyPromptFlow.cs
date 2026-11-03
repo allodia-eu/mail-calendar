@@ -10,8 +10,7 @@ internal static class ReplyPromptFlow
 {
     /// <summary>Where the core keeps the preferences of MAILCAL_DEV_ACCOUNT=stalwart-imap
     /// (AppPaths.PrefsDir), a remembered answer among them.</summary>
-    internal static readonly string PrefsFile = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Allodia", "MailCalendar", "dev-imap", "preferences.toml");
+    internal static readonly string PrefsFile = Path.Combine(DataDir.Root, "dev-imap", "preferences.toml");
 
     /// <summary>Whether the account holds a standing answer.</summary>
     internal static bool Remembered() =>

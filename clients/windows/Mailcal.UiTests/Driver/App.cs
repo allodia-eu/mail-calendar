@@ -300,8 +300,7 @@ internal sealed partial class App : IDisposable
             "first-run" => "dev-first-run",
             _ => throw new InvalidOperationException($"no harness store is known for MAILCAL_DEV_ACCOUNT={devAccount}"),
         };
-        var prefs = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Allodia", "MailCalendar", store, "preferences.toml");
+        var prefs = Path.Combine(DataDir.Root, store, "preferences.toml");
         bool Answered() => File.Exists(prefs)
             && File.ReadLines(prefs).Any(line => line.TrimStart().StartsWith("default_mail_app_offer", StringComparison.Ordinal));
         if (Answered())

@@ -9,8 +9,7 @@ namespace Allodia.Mailcal.UiTests.Driver;
 
 internal static partial class AppLog
 {
-    private static readonly string Path = System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Allodia", "MailCalendar", "logs", "app.log");
+    private static readonly string Path = System.IO.Path.Combine(DataDir.Root, "logs", "app.log");
 
     [GeneratedRegex(@"(?m)^(?<at>\S+ \S+ \S+) \[info\] --- session start")]
     private static partial Regex Banner();

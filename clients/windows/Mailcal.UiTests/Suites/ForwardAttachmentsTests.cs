@@ -26,8 +26,7 @@ public sealed class ForwardAttachmentsTests(HarnessApp harness)
     private const string FileName = "report.csv";
 
     // Where the core stages a composer's files, one folder per composer (Services/ComposerStaging.cs).
-    private static readonly string StagingRoot = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Allodia", "MailCalendar", "composer-files");
+    private static readonly string StagingRoot = Path.Combine(DataDir.Root, "composer-files");
 
     private void Case(string name, Action<App> body) => harness.Case(name, body, Discard);
 
