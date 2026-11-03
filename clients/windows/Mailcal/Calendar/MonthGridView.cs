@@ -18,6 +18,7 @@ using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -259,27 +260,18 @@ internal sealed class MonthGridView : UserControl
                 Padding = new Thickness(5, 0, 5, 0),
                 Background = new SolidColorBrush(
                     CalendarHold.Fade(CalendarColors.Parse(swatch.Background), awaiting)),
-                Child = new TextBlock
-                {
-                    Text = title,
-                    FontSize = 11,
-                    MaxLines = 1,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = new SolidColorBrush(CalendarColors.Parse(swatch.Text)),
-                },
+                Child = TitleLine(
+                    title, chip.HasConference, new SolidColorBrush(CalendarColors.Parse(swatch.Text))),
             };
             element = CalendarHold.Compose(bar, edge, corner: 3, awaiting, ChipHeight - 2);
         }
         else
         {
-            // A timed event, a coloured dot, its start time, and its title.
-            var row = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 5,
-                Height = ChipHeight - 2,
-            };
+            // A timed event, a coloured dot, its start time, and its title. A grid rather than a
+            // horizontal stack, which measures the title at infinite width and so never trims it.
+            var row = new Grid { ColumnSpacing = 5, Height = ChipHeight - 2 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.Children.Add(new Border
             {
                 Width = 8,
@@ -290,14 +282,9 @@ internal sealed class MonthGridView : UserControl
                     CalendarHold.Fade(CalendarColors.Parse(swatch.Background), awaiting)),
             });
             var time = CalendarFormat.ClockTime((int)chip.StartMinutes, _use24Hour, _culture);
-            row.Children.Add(new TextBlock
-            {
-                Text = $"{time} {title}",
-                FontSize = 11,
-                MaxLines = 1,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                VerticalAlignment = VerticalAlignment.Center,
-            });
+            var line = TitleLine($"{time} {title}", chip.HasConference, foreground: null);
+            Grid.SetColumn(line, 1);
+            row.Children.Add(line);
             element = CalendarHold.Compose(row, edge, corner: 3, awaiting, ChipHeight - 2);
         }
 
@@ -310,9 +297,50 @@ internal sealed class MonthGridView : UserControl
         };
         AutomationProperties.SetName(
             (DependencyObject)element,
-            InvitationFormat.SpokenWithHold(
-                title, L10n.A11yInvitationAwaitingResponse(), chip.Participation));
+            Dialogs.CalendarEventText.Spoken(title, chip.Participation, chip.HasConference));
         return element;
+    }
+
+    // A chip's text, with the camera after it when the event has a video meeting
+    // (docs/conferencing.md). Left-aligned with the text in a star column, so the grid is as wide
+    // as its content until the chip runs out of room, and then the text trims and the camera stays.
+    // The camera is hidden from UI Automation: the chip's name says "video meeting".
+    private static FrameworkElement TitleLine(string text, bool meeting, Brush? foreground)
+    {
+        var block = new TextBlock
+        {
+            Text = text,
+            FontSize = 11,
+            MaxLines = 1,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        if (foreground is not null)
+        {
+            block.Foreground = foreground;
+        }
+        if (!meeting)
+        {
+            return block;
+        }
+        var line = new Grid { ColumnSpacing = 3, HorizontalAlignment = HorizontalAlignment.Left };
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        line.Children.Add(block);
+        var camera = new FontIcon
+        {
+            Glyph = EventMeeting.CameraGlyph,
+            FontSize = 10,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        if (foreground is not null)
+        {
+            camera.Foreground = foreground;
+        }
+        AutomationProperties.SetAccessibilityView(camera, AccessibilityView.Raw);
+        Grid.SetColumn(camera, 1);
+        line.Children.Add(camera);
+        return line;
     }
 
     private static DateOnly ParseDate(string iso) =>

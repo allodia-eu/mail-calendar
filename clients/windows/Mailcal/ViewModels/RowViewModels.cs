@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using Allodia.Mailcal.Calendar;
 using Microsoft.UI.Xaml;
 
 namespace Allodia.Mailcal.ViewModels;
@@ -138,9 +139,16 @@ public sealed class EventItem
     public Visibility AwaitingVisibility =>
         AwaitingText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
+    /// <summary>Whether the event has a video meeting, the core's <c>has_conference</c>.</summary>
+    public bool HasConference { get; init; }
+
+    /// <summary>Show the camera after the title only on an event with a video meeting
+    /// (docs/conferencing.md).</summary>
+    public Visibility MeetingVisibility => HasConference ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>
     /// What a screen reader announces for this row: title, start, then the awaiting-response line
-    /// when there is one.
+    /// and "video meeting" when each applies.
     /// </summary>
     /// <remarks>
     /// The same <c>ListViewItem</c> fallback <see cref="MailRow.AccessibleName"/> exists for, in
@@ -161,7 +169,8 @@ public sealed class EventItem
             {
                 text += ", " + AwaitingText;
             }
-            return text;
+            // The camera is hidden from UI Automation, so the name says what it shows.
+            return EventMeeting.Spoken(text, L10n.EventVideoMeeting(), HasConference);
         }
     }
 

@@ -184,6 +184,7 @@ public sealed partial class MailboxModel
                 AwaitingText = InvitationFormat.IsAwaitingResponse(item.Participation)
                     ? L10n.A11yInvitationAwaitingResponse()
                     : string.Empty,
+                HasConference = item.HasConference,
             }).ToList();
             Reconcile(Events, events, item => item.Account + ":" + item.Key, SameEvent);
 
@@ -466,5 +467,6 @@ public sealed partial class MailboxModel
 
 
     private static bool SameEvent(EventItem a, EventItem b) =>
-        a.Title == b.Title && a.StartText == b.StartText && a.OffersDelete == b.OffersDelete;
+        a.Title == b.Title && a.StartText == b.StartText && a.OffersDelete == b.OffersDelete
+        && a.AwaitingText == b.AwaitingText && a.HasConference == b.HasConference;
 }

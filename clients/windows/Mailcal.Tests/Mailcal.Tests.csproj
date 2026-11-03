@@ -71,6 +71,11 @@
     <!-- An invitee's answer from the event detail: which button is the answer already given, and
          whether the buttons can be pressed while a write is settling. -->
     <Compile Include="..\Mailcal\Calendar\EventAnswer.cs" Link="Calendar\EventAnswer.cs" />
+    <!-- An event's video meetings (docs/conferencing.md): what Join and a dial-in row will open,
+         the two places a tap leaves the app, and what the section says in place of Join. The
+         link policy and the catalog's words arrive as parameters, so no cdylib or L10n.cs is
+         needed here. -->
+    <Compile Include="..\Mailcal\Calendar\EventMeeting.cs" Link="Calendar\EventMeeting.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarHitTest.cs" Link="Calendar\CalendarHitTest.cs" />
     <!-- What a tap yielded, and so which question a write from it owes the user. WinUI-free and
          L10n-free on purpose: the rule is which occurrence was drawn, and getting it wrong deletes

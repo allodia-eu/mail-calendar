@@ -176,10 +176,16 @@ public sealed partial class EventDetailDialog
     // leaves the scroll and the focus where they were.
     private static string Shown(EventDetail detail) => string.Join(
         '|',
-        detail.Title, detail.Start, detail.End, detail.Timezone, detail.Calendar, detail.Location,
-        detail.Notes, detail.ReminderMinutes, detail.IsRecurring, detail.CanWrite, detail.MyAnswer,
+        detail.Title, detail.Start, detail.End, detail.Timezone, detail.Calendar, detail.DisplayLocation,
+        detail.DisplayNotes, detail.ReminderMinutes, detail.IsRecurring, detail.CanWrite, detail.MyAnswer,
         detail.RepeatSummary?.ToString(),
-        string.Join(';', detail.Attendees.Select(a => $"{a.Name}|{a.Email}|{a.IsOrganizer}|{a.Role}|{a.Response}")));
+        string.Join(';', detail.Attendees.Select(a => $"{a.Name}|{a.Email}|{a.IsOrganizer}|{a.Role}|{a.Response}")),
+        // Joined on control characters, which the core strips from every string an event carries,
+        // so text moving from one field to the next cannot leave the fingerprint unchanged.
+        string.Join('\u001e', detail.Conferences.Select(c => string.Join(
+            '\u001f',
+            c.Service, c.JoinUrl, c.MeetingId, c.Passcode, c.Notes, c.State,
+            string.Join('\u001d', c.DialIn.Select(d => string.Join('\u001c', d.Number, d.Uri, d.Pin)))))));
 
     private Button AnswerButton(EventAnswer answer, InvitationResponse response)
     {

@@ -1,9 +1,10 @@
 // The event detail, what a tap on any event opens, the Windows twin of Android's EventDetailScreen
 // and Apple's EventDetailView. Title, the time range in the event's own wall clock, the calendar with
-// its colour dot, an invitee's answer (EventDetailDialog.Answer.cs), location, notes, the
-// reminder/recurrence summaries and the attendee list. Edit and Delete are the dialog's Primary and
-// Secondary buttons, and are offered only for a writable calendar's event (canWrite): an affordance
-// that can never fire is just a mystery. A read-only event opens with a Close button alone.
+// its colour dot, its video meetings (EventConferenceSection.cs), an invitee's answer
+// (EventDetailDialog.Answer.cs), location, notes, the reminder/recurrence summaries and the
+// attendee list. Edit and Delete are the dialog's Primary and Secondary buttons, and are offered
+// only for a writable calendar's event (canWrite): an affordance that can never fire is just a
+// mystery. A read-only event opens with a Close button alone.
 //
 // The dialog returns which action the user chose via its ContentDialogResult (Primary = edit,
 // Secondary = delete, None = close, or Declining); the caller (CalendarView) opens the editor or
@@ -210,6 +211,13 @@ public sealed partial class EventDetailDialog : ContentDialog
         });
         panel.Children.Add(calendarLine);
 
+        // Join comes before everything else a person reads, the way Outlook puts it: it is what
+        // they opened the event to do (docs/conferencing.md). In the core's order.
+        for (var i = 0; i < _detail.Conferences.Length; i++)
+        {
+            panel.Children.Add(EventConferenceSection.Build(_detail.Conferences[i], i, _brushes));
+        }
+
         _retiredAnswers.UnionWith(_answerButtons.Values);
         _answerButtons.Clear();
         if (AnswerBlock() is { } answer)
@@ -217,13 +225,16 @@ public sealed partial class EventDetailDialog : ContentDialog
             panel.Children.Add(answer);
         }
 
-        if (!string.IsNullOrWhiteSpace(_detail.Location))
+        // The display variants, not `Location` and `Notes`: a location that is only the join link,
+        // and the invitation's meeting block, repeat the meeting above. The editor still edits
+        // `Location` and `Notes`, link and block included, so a save keeps them for every invitee.
+        if (!string.IsNullOrWhiteSpace(_detail.DisplayLocation))
         {
-            panel.Children.Add(DetailRow(L10n.EventLocation(), _detail.Location!));
+            panel.Children.Add(DetailRow(L10n.EventLocation(), _detail.DisplayLocation!));
         }
-        if (!string.IsNullOrWhiteSpace(_detail.Notes))
+        if (!string.IsNullOrWhiteSpace(_detail.DisplayNotes))
         {
-            var notes = DetailRow(L10n.EventNotes(), _detail.Notes!, linked: true);
+            var notes = DetailRow(L10n.EventNotes(), _detail.DisplayNotes!, linked: true);
             _noteLinks = notes.Children.OfType<TextBlock>()
                 .SelectMany(text => text.Inlines.OfType<Hyperlink>()).ToArray();
             panel.Children.Add(notes);
@@ -336,7 +347,7 @@ public sealed partial class EventDetailDialog : ContentDialog
 
     // Static twin, for the rows the editor dialog hosts too: they draw in the theme of whichever
     // dialog is showing them, so the brushes come from the caller rather than from a field here.
-    private static TextBlock SecondaryOf(string text, ThemeBrushes brushes) => new()
+    internal static TextBlock SecondaryOf(string text, ThemeBrushes brushes) => new()
     {
         Text = text,
         Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],

@@ -263,12 +263,9 @@ internal static class CalendarSurfaceDraw
                     continue;
                 }
                 using var titleLayer = ds.CreateLayer(1f, rect);
-                var layout = text.Line(band.Title, theme.BlockLarge, room, formatId: 1);
-                ds.DrawTextLayout(
-                    layout,
-                    (float)rect.X + SurfaceTheme.BlockPadding,
-                    (float)rect.Y + 2f,
-                    band.Text);
+                CalendarTitleDraw.Draw(
+                    ds, text, theme, band.Title, band.Meeting, theme.BlockLarge, formatId: 1, room,
+                    (float)rect.X + SurfaceTheme.BlockPadding, (float)rect.Y + 2f, band.Text);
             }
 
             // The "+N" chips, one per column, because a hidden multi-day bar is hidden on every day it
@@ -428,8 +425,9 @@ internal static class CalendarSurfaceDraw
         var formatId = block.Minutes < 30 ? 0 : 1;
         var y = (float)rect.Y + inset;
 
-        var title = text.Line(block.Title, format, room, formatId);
-        ds.DrawTextLayout(title, (float)rect.X + inset, y, block.Text);
+        CalendarTitleDraw.Draw(
+            ds, text, theme, block.Title, block.Meeting, format, formatId, room,
+            (float)rect.X + inset, y, block.Text);
 
         if (SurfaceTheme.ShowsTime(block.Minutes, m.HourHeight))
         {
