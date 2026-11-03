@@ -49,7 +49,7 @@
 
          The generated App.g.i.cs gates its entry point behind `#if !DISABLE_XAML_GENERATED_MAIN`,
          and the WinAppSDK targets STILL don't turn this MSBuild property into that compile symbol
-         (re-verified against 2.5.1), so the DefineConstants line below is load-bearing, not
+         (re-verified against 2.6.5), so the DefineConstants line below is load-bearing, not
          belt-and-braces. Drop it and the build fails with CS0101 ("namespace 'Allodia.Mailcal'
          already contains a definition for 'Program'"), because the guard RENAMES the generated
          pair rather than eliding it (`Program`/`Main` become
@@ -66,16 +66,14 @@
     <WindowsPackageType Condition="'$(Packaged)' != 'true'">None</WindowsPackageType>
     <!-- Framework-dependent in BOTH shapes, against the installed Windows App Runtime. For the
          Store that is simply how it ships: the runtime is a package dependency, so it stays out
-         of the upload. For the dev loop it is a deliberate choice, because a self-contained build
-         cannot register for notifications at all, the component that hosts them lives in the
-         runtime's own package, and `AppNotificationManager.Register` fails with
-         ERROR_MOD_NOT_FOUND while everything else works. The app carries on without them, so the
-         symptom is a mailbox that quietly never notifies (docs/client-traps.md).
+         of the upload. The dev loop follows it, so a developer runs the shared runtime package
+         the bootstrapper resolves, as a user does, rather than a private copy of it.
 
-         The cost is that a dev machine needs the matching runtime installed, which Visual Studio
-         puts there (`Get-AppxPackage Microsoft.WindowsAppRuntime.2`). Without it the app refuses
-         to start, loudly, which is a better failure than the silent one above.
-         `build-and-run.ps1 -SelfContained` bundles it again for a machine that has none.
+         The cost is that a dev machine needs the runtime at this version or later installed
+         (`Get-AppxPackage Microsoft.WindowsAppRuntime.2`); after a bump,
+         clients/windows/uitests/install-windows-app-runtime.ps1 registers it from the restored
+         package. Without it the app refuses to start. `build-and-run.ps1 -SelfContained` bundles
+         it instead, for a machine that cannot install one.
 
          Deliberately unconditional rather than `Condition="'$(Packaged)' != 'true'"`: both shapes
          want the same answer, and one line that says so cannot drift from the other. -->
@@ -121,7 +119,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.6.4" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
     <!-- SystemEvents.TimeChanged: the live OS time-zone-change signal (WinUI doesn't pull
          in the WindowsDesktop framework, so this comes as its own package). -->
     <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.14" />
