@@ -24,18 +24,19 @@
 @SUMMARIES@
 @DESCRIPTION@
 
-  <developer id="eu.allodia">
-    <name>Allodia</name>
+  <developer id="@PUBLISHER_ID@">
+    <name>@PUBLISHER_NAME@</name>
   </developer>
 
   <launchable type="desktop-id">@APP_ID@.desktop</launchable>
 
-  <url type="homepage">https://allodia.eu</url>
-  <url type="help">https://allodia.eu/docs/mail-calendar/</url>
-  <!-- A real tracker a reader can open, not a support page: `flatpak-builder-lint` fetches every
-       URL here and treats a 404 as fatal, and allodia.eu/support does not exist. -->
+  <!-- The publisher's own pages, from the brand (docs/branding.md). `flatpak-builder-lint`
+       fetches every URL here and treats a 404 as fatal, so each must be a page that exists. The
+       tracker is this project's whatever the brand: it is where the code is fixed. -->
+  <url type="homepage">@WEBSITE_URL@</url>
+  <url type="help">@HELP_URL@</url>
   <url type="bugtracker">https://github.com/allodia-eu/mail-calendar/issues</url>
-  <url type="contact">https://allodia.eu/contact</url>
+  <url type="contact">@CONTACT_URL@</url>
 
   <categories>
     <category>Network</category>
@@ -56,11 +57,11 @@
 
 @SCREENSHOTS@
 
-  <!-- Mist Blue and the deep navy used for dark surfaces.
-       A software centre tints the area behind the icon with these; they are not UI colours. -->
+  <!-- The publisher's colours, from the brand. A software centre tints the area behind the icon
+       with these; they are not UI colours. -->
   <branding>
-    <color type="primary" scheme_preference="light">#a8cad5</color>
-    <color type="primary" scheme_preference="dark">#0b2c46</color>
+    <color type="primary" scheme_preference="light">@PRIMARY_COLOR_LIGHT@</color>
+    <color type="primary" scheme_preference="dark">@PRIMARY_COLOR_DARK@</color>
   </branding>
 
   <!-- The app itself carries no rated content. What a user's own mail contains is not the app's

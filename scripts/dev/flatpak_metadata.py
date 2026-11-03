@@ -72,6 +72,18 @@ from check_store_copy_length import (  # noqa: E402
 # OAuth credentials take, for the same reason: flatpak-builder forwards no host environment.
 APP_ID = brand.value("MAILCAL_APP_ID")
 
+# The publisher's half of the metainfo, each placeholder filled from the brand value beside it
+# (docs/branding.md). Read where it is used rather than here, so a test can re-brand one build.
+PUBLISHER_FIELDS = (
+    ("@PUBLISHER_ID@", "MAILCAL_PUBLISHER_ID"),
+    ("@PUBLISHER_NAME@", "MAILCAL_PUBLISHER_NAME"),
+    ("@WEBSITE_URL@", "MAILCAL_WEBSITE_URL"),
+    ("@HELP_URL@", "MAILCAL_HELP_URL"),
+    ("@CONTACT_URL@", "MAILCAL_CONTACT_URL"),
+    ("@PRIMARY_COLOR_LIGHT@", "MAILCAL_PRIMARY_COLOR_LIGHT"),
+    ("@PRIMARY_COLOR_DARK@", "MAILCAL_PRIMARY_COLOR_DARK"),
+)
+
 # The paragraphs of the shared body this file is allowed to use. See the module docstring: two, and
 # which two is a rule `docs/store-listing.md` already states.
 FRAMING_PARAGRAPHS = 2
@@ -527,6 +539,8 @@ def metainfo(
         .replace("@SCREENSHOTS@", _screenshots_element(gallery))
         .replace("@RELEASES@", _releases_element(history, version, notes, locales))
     )
+    for placeholder, key in PUBLISHER_FIELDS:
+        rendered = rendered.replace(placeholder, escape(brand.value(key)))
     left = re.findall(r"@[A-Z_]+@", rendered)
     if left:
         raise MetadataError(f"the metainfo template has placeholders nothing filled: {sorted(set(left))}")
