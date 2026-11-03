@@ -9,8 +9,9 @@
 pub(crate) fn unavailable_frame(request: &str) -> String {
     format!(
         "{{\"jsonrpc\":\"2.0\",\"id\":{},\"error\":{{\"code\":-32000,\"message\":\
-         \"Allodia Mail & Calendar is not running, or MCP access is off (Settings → Advanced).\"}}}}",
+         \"{} is not running, or MCP access is off (Settings → Advanced).\"}}}}",
         request_id(request).unwrap_or_else(|| "null".to_owned()),
+        env!("MAILCAL_APP_NAME"),
     )
 }
 

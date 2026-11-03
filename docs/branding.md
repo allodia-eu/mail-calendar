@@ -80,6 +80,15 @@ repository, the one thing an unbranded build can honestly send anyone to.
 |---|---|---|
 | `MAILCAL_PRIVACY_URL` | The privacy policy link on the welcome screen | The catalog writes `{privacy_url}`, substituted by `mailcal-l10n` like `{app_name}` |
 | `MAILCAL_SUPPORT_URL` | Settings → About | `mailcal-bindings`' build script injects it into `about_info()` |
+| `MAILCAL_WEBSITE_URL` | An MCP client's server list, as the server's `websiteUrl` | `mailcal-mcp`'s build script |
+
+The local MCP server introduces itself by the brand too ([`mcp.md`](mcp.md)): its `title` is
+`MAILCAL_APP_NAME`, and its machine name is `MAILCAL_MCP_SERVER_NAME`, which `mailcal-mcp` compiles
+in and `mailcal-l10n` emits beside the app id (`Brand.mcpServerName`, `Brand.McpServerName`,
+`l10n::MCP_SERVER_NAME`) for the config key each desktop client writes. A user types that name
+into their own configuration, so like the app id it does not change once shipped. The client name a
+provider's consent screen shows when the app registers itself for OAuth is `MAILCAL_APP_NAME` as
+well.
 
 ## The store copy
 
@@ -201,10 +210,6 @@ does not declare.
   block and the four `allodia.eu` URLs in `clients/linux/flatpak/metainfo.xml.in`, and the
   Credential Manager's own labels. These come from `docs/store-listing.md`'s family of documents,
   which travel with the brand rather than with this tree.
-- **One catalog string still names the company**, so an unbranded build shows it: the MCP
-  description's "nothing is sent to Allodia". It is not the *product's* name, which is what
-  `{app_name}` covers: it is a claim about who runs the service, and it is rewritten with the rest
-  of the prose.
 - **Prose is untouched.** Documentation, comments and store copy still name the product. That is
   the split's content pass, not this contract, and a check here that grepped for the word would
   fail on every file that correctly explains what Allodia's build is.

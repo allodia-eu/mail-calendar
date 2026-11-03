@@ -38,7 +38,7 @@ pub(crate) use discovery::host_only;
 
 /// The client name shown on the provider's consent screen. The product name, per the brand
 /// rule: this is user-facing copy on someone else's page.
-const CLIENT_NAME: &str = "Allodia Mail & Calendar";
+const CLIENT_NAME: &str = env!("MAILCAL_APP_NAME");
 
 /// What setup should ask this account for, once the server has been asked.
 ///

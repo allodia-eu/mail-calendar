@@ -26,6 +26,7 @@ const APP_NAME_PLACEHOLDER: &str = "{app_name}";
 /// The variables that carry the identity, in the environment and in the brand files alike.
 const APP_NAME_KEY: &str = "MAILCAL_APP_NAME";
 const APP_ID_KEY: &str = "MAILCAL_APP_ID";
+const MCP_SERVER_NAME_KEY: &str = "MAILCAL_MCP_SERVER_NAME";
 
 /// Every brand value the catalog writes as a placeholder, and the variable that fills it.
 const PLACEHOLDERS: [(&str, &str); 2] = [
@@ -45,6 +46,9 @@ pub(crate) struct Brand {
     pub name: String,
     /// The reverse-DNS id the OS knows it by, which is also a URI scheme.
     pub id: String,
+    /// The key an MCP client files the local server under, which is also the server's own
+    /// `serverInfo.name`.
+    pub mcp_server_name: String,
 }
 
 /// Resolves the identity: the environment, then the publisher's brand file when the checkout has
@@ -63,6 +67,7 @@ pub(crate) fn resolve(root: &Path) -> Result<Brand, String> {
             std::env::var(APP_NAME_KEY).ok().as_deref(),
         )?,
         id: value(root, APP_ID_KEY, std::env::var(APP_ID_KEY).ok().as_deref())?,
+        mcp_server_name: resolve_value(root, MCP_SERVER_NAME_KEY)?,
     })
 }
 

@@ -83,7 +83,7 @@ fn ordered_locales(catalog: &Catalog) -> Vec<String> {
     ordered
 }
 
-/// Emits the application id this build was branded with (`docs/branding.md`).
+/// Emits the application id and MCP server name this build was branded with (`docs/branding.md`).
 ///
 /// The Linux client needs it at runtime: the GTK application id, the libsecret schema, the
 /// user-data directory a Flatpak gets, and has no bundle to ask, so it is compiled in. It rides
@@ -94,8 +94,11 @@ fn render_app_id(out: &mut String, brand: &Brand) {
         out,
         "/// The reverse-DNS id this build was branded with: the GTK application id, the\n\
          /// libsecret schema, and the `~/.var/app/<id>` a Flatpak keeps its data in.\n\
-         pub(crate) const APP_ID: &str = {:?};\n\n",
-        brand.id
+         pub(crate) const APP_ID: &str = {:?};\n\n\
+         /// The key an MCP client files the local server under, and the server's own\n\
+         /// `serverInfo.name`.\n\
+         pub(crate) const MCP_SERVER_NAME: &str = {:?};\n\n",
+        brand.id, brand.mcp_server_name
     );
 }
 

@@ -42,22 +42,25 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 ///
 /// This is also the key `McpEndpoint.configurationSnippet` files the server under on the client
 /// side; one identifier, not two, so a support answer matches what the user sees in both places.
-pub const SERVER_NAME: &str = "allodia-mail-and-calendar";
+/// Both come from `MAILCAL_MCP_SERVER_NAME` in the brand.
+pub const SERVER_NAME: &str = env!("MAILCAL_MCP_SERVER_NAME");
 
-/// The display name. **The product's full name**, per the brand rule; "Allodia Mail &
-/// Calendar", never "Allodia", which is the company.
-pub const SERVER_TITLE: &str = "Allodia Mail & Calendar";
+/// The display name: the product's full name, `MAILCAL_APP_NAME` in the brand.
+pub const SERVER_TITLE: &str = env!("MAILCAL_APP_NAME");
 
 /// One line of what connecting this gets you, shown by clients that surface a description.
 ///
 /// It names the boundary rather than the feature list: someone reading this is deciding
 /// whether to let a program into their mail, and "the accounts you allow" is the fact that
 /// answers them.
-pub const SERVER_DESCRIPTION: &str = "Read and act on the mail in the accounts you allow, from the Allodia Mail & Calendar app \
-     running on this machine.";
+pub const SERVER_DESCRIPTION: &str = concat!(
+    "Read and act on the mail in the accounts you allow, from the ",
+    env!("MAILCAL_APP_NAME"),
+    " app running on this machine."
+);
 
-/// Where to find out what this is.
-pub const SERVER_WEBSITE: &str = "https://allodia.eu";
+/// Where to find out what this is: the publisher's home page, `MAILCAL_WEBSITE_URL` in the brand.
+pub const SERVER_WEBSITE: &str = env!("MAILCAL_WEBSITE_URL");
 
 /// The app icon, 128×128 PNG. Regenerate with `scripts/dev/mcp-icon.py` after a brand change.
 const ICON_PNG: &[u8] = include_bytes!("../assets/icon-128.png");
@@ -74,7 +77,7 @@ pub fn icon_data_uri() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{ICON_PNG, SERVER_TITLE, icon_data_uri};
+    use super::{ICON_PNG, SERVER_NAME, icon_data_uri};
 
     /// The eight bytes every PNG starts with.
     const PNG_MAGIC: &[u8] = b"\x89PNG\r\n\x1a\n";
@@ -119,8 +122,15 @@ mod tests {
     }
 
     #[test]
-    fn the_display_name_is_the_product_not_the_company() {
-        // The brand rule, as a check: "Allodia Mail & Calendar", never bare "Allodia".
-        assert_eq!(SERVER_TITLE, "Allodia Mail & Calendar");
+    fn the_machine_name_survives_every_client() {
+        // A brand file is free text, and a name outside this set is rewritten or skipped by a
+        // client rather than refused, so the check has to be here.
+        assert!(
+            !SERVER_NAME.is_empty()
+                && SERVER_NAME
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'),
+            "MAILCAL_MCP_SERVER_NAME is {SERVER_NAME:?}: lowercase letters, digits and hyphens only"
+        );
     }
 }

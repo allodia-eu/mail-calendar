@@ -179,9 +179,10 @@ selects only over channels.
 ## How the server introduces itself
 
 `serverInfo` carries the product's identity, not just a machine name
-(`crates/mailcal-mcp/src/branding.rs`): `name` (`allodia-mail-and-calendar`), `title` (**"Allodia
-Mail & Calendar"**, the brand rule's full product name), `description`, `websiteUrl`, and a
-128×128 PNG `icon`. The spec is explicit about the split: `name` is "for programmatic or logical
+(`crates/mailcal-mcp/src/branding.rs`): `name` (`MAILCAL_MCP_SERVER_NAME`,
+`allodia-mail-and-calendar` in Allodia's build), `title` (the product's full name,
+`MAILCAL_APP_NAME`), `description`, `websiteUrl` (`MAILCAL_WEBSITE_URL`), and a 128×128 PNG
+`icon`, all taken from the brand ([`branding.md`](branding.md)). The spec is explicit about the split: `name` is "for programmatic or logical
 use", `title` is "for UI and end-user contexts" and takes precedence for display.
 
 **`name` is `[a-z0-9-]` only, and the generated config snippet uses the same string as its key.**

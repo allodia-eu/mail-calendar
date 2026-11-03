@@ -73,8 +73,9 @@ public class McpEndpointTests
                     || character is '-' or '_',
                 $"{McpEndpoint.ConfigurationKey} is not portable, use [a-z0-9-_] only"));
         // And it is the same string the protocol advertises as `name`
-        // (crates/mailcal-mcp/src/branding.rs), one identifier, not two.
-        Assert.Equal("allodia-mail-and-calendar", McpEndpoint.ConfigurationKey);
+        // (crates/mailcal-mcp/src/branding.rs), one identifier, not two: both are
+        // MAILCAL_MCP_SERVER_NAME (docs/branding.md).
+        Assert.Equal(Brand.McpServerName, McpEndpoint.ConfigurationKey);
 
         using var parsed = JsonDocument.Parse(
             McpEndpoint.ConfigurationSnippet(@"\\.\pipe\x.mcp", "allodia-mcp.exe"));

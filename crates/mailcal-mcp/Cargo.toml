@@ -30,9 +30,14 @@ async-trait = { workspace = true }
 # Diagnostics: counts, ids and durations only; never a query, an address, or a body.
 log = { workspace = true }
 # Encodes the app icon into the `data:` URI the server advertises as its own (`branding.rs`).
-# A data URI rather than a link so a client never reaches out to allodia.eu to render our logo;
+# A data URI rather than a link so a client never reaches out to the publisher to render a logo;
 # see that module for why an unasked-for network callback is the wrong shape for this product.
 base64 = { workspace = true }
+
+[build-dependencies]
+# Resolves how the server introduces itself (its name, title and website) from `branding/`, by
+# the rule every other brand reader uses (docs/branding.md).
+mailcal-l10n = { path = "../mailcal-l10n" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "io-util", "time"] }

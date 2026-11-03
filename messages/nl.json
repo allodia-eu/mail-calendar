@@ -839,7 +839,7 @@
 	"settings_advanced_reset_description": "Wis de lokaal opgeslagen e-mail en download alles opnieuw van de server. Berichten in de wachtrij blijven behouden.",
 
 	"settings_mcp_heading": "Toegang voor AI-assistenten",
-	"settings_mcp_description": "Laat een AI-assistent op deze computer je e-mail lezen en bewerken, via het Model Context Protocol. Het staat uit tenzij je het aanzet, het komt alleen bij de accounts die je aanvinkt, en er gaat niets naar Allodia.",
+	"settings_mcp_description": "Laat een AI-assistent op deze computer je e-mail lezen en bewerken, via het Model Context Protocol. Het staat uit tenzij je het aanzet, het komt alleen bij de accounts die je aanvinkt, en er gaat niets naar ons.",
 	"settings_mcp_toggle": "Assistenten mogen mijn e-mail gebruiken",
 	"settings_mcp_status_running": "Actief · wacht op een client",
 	"settings_mcp_status_off": "Uit",
