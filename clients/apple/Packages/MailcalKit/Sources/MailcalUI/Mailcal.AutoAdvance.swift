@@ -56,7 +56,7 @@ extension ContentView {
             subject: message.subject,
             from: message.from,
             avatar: message.avatar,
-            date: localDateTime(message.date, in: model.activeZone)
+            date: message.date
         )
     }
 
@@ -67,7 +67,7 @@ extension ContentView {
             subject: subject,
             from: message.from,
             avatar: message.avatar,
-            date: localDateTime(message.date, in: model.activeZone)
+            date: message.date
         )
     }
 

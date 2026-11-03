@@ -10,7 +10,7 @@ use serde_json::Value;
 use super::{ComposeContext, attribution_script, body_seed_script};
 use crate::{
     l10n,
-    ui::{composer_quote::quote_style_of, reader::ComposerHost},
+    ui::{composer_quote::quote_style_of, reader::ComposerHost, timestamps::MailClock},
 };
 
 const ZONE: &str = "Europe/Amsterdam";
@@ -54,7 +54,12 @@ fn file(name: &str) -> ComposerFileAttachment {
 }
 
 fn context(opening: ComposeOpening) -> ComposeContext {
-    ComposeContext::from_opening(opening, ComposerHost::Pane, &QuoteStyleKind::Indented, ZONE)
+    ComposeContext::from_opening(
+        opening,
+        ComposerHost::Pane,
+        &QuoteStyleKind::Indented,
+        &MailClock::new(ZONE, true),
+    )
 }
 
 /// The argument of the one editor call `script` makes, as the editor will parse it.

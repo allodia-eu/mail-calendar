@@ -104,8 +104,6 @@ private fun ConversationStripCard(
     onOpen: (opened: OpenedMessage, draft: Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
-    // Read the ambient clock setting here: the `clickable` lambda is not a composition scope.
-    val use24Hour = LocalUse24Hour.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -117,7 +115,7 @@ private fun ConversationStripCard(
                         subject = subject,
                         from = message.from,
                         avatar = message.avatar,
-                        date = localDateTime(message.date, activeZoneId, use24Hour),
+                        date = message.date,
                     ),
                     message.draft,
                 )

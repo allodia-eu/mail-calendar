@@ -69,8 +69,7 @@ public sealed partial class MailboxModel
         RawSubject = row.RawSubject,
         From = row.Subtitle,
         Avatar = row.Avatar,
-        // The reading header shows the full absolute date, not the row's compact relative label.
-        DateText = row.FullDateText,
+        Date = row.Date,
     };
 
     /// <summary>The same, for one message inside an expanded conversation.</summary>
@@ -82,8 +81,7 @@ public sealed partial class MailboxModel
         RawSubject = message.RawSubject,
         From = message.FromText,
         Avatar = message.Avatar,
-        // The reading header shows the full absolute date, not the sub-row's relative label.
-        DateText = message.FullDateText,
+        Date = message.Date,
     };
 
     // The conversation rows expanded inline, by their list id ("t:account:thread"). Kept here so

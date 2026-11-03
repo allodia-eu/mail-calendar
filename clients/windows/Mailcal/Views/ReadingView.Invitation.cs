@@ -12,7 +12,6 @@ using System.Globalization;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml;
-using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Views;
 
@@ -51,8 +50,18 @@ public sealed partial class ReadingView
             };
             InvitationHost.Child = _invitation;
         }
-        _invitation.Apply(card, _model.ActiveZone, Use24Hour(), CultureInfo.CurrentCulture, _model.CalendarWrite);
+        _invitation.Apply(card, _model.ActiveZone, _model.Use24Hour, CultureInfo.CurrentCulture, _model.CalendarWrite);
         InvitationHost.Visibility = Visibility.Visible;
+    }
+
+    // The zone or the clock moved: the card's times follow where it stands, and its respond row, a
+    // half-typed note included, stays as it is.
+    private void OnClockChanged()
+    {
+        if (_model is not null)
+        {
+            _invitation?.FollowClock(_model.ActiveZone, _model.Use24Hour);
+        }
     }
 
     // The calendar write settling right now, reported without rebuilding the card, a rebuild would
@@ -64,11 +73,4 @@ public sealed partial class ReadingView
             _invitation?.SetWriteStatus(_model.CalendarWrite);
         }
     }
-
-    // The app's 12/24-hour setting, not the culture's default: mail and calendar must not disagree
-    // with each other about whether it is 14:05 or 2:05 PM (docs/timestamps.md). Falls back to the
-    // 24-hour clock the rest of the client defaults to when the core has not answered yet.
-    private bool Use24Hour() =>
-        _model?.CalendarDisplaySettings() is not { } display
-        || display.TimeFormat == TimeFormat.TwentyFourHour;
 }

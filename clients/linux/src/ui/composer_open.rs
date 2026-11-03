@@ -16,6 +16,7 @@ use super::{
     composer_model::{ComposeContext, ComposeKind, PickedFile, new_composition},
     model::OpenedMessage,
     reader::{ComposerHost, ReadingSource},
+    timestamps::MailClock,
 };
 use crate::l10n;
 
@@ -156,7 +157,7 @@ impl AppModel {
             opening,
             host,
             &app.quote_settings().style,
-            self.calendar.display_zone(),
+            &MailClock::of(&self.calendar),
         )
     }
 

@@ -59,6 +59,9 @@ pub(crate) struct InvitationCardView {
     answers: RefCell<Vec<gtk::Widget>>,
     /// What happened to the answer; hidden unless there is something to say.
     write_status: gtk::Label,
+    /// The meeting's time, and the zone and clock it was written in, so a change of either is
+    /// restated in place ([`Self::follow_clock`]).
+    when: RefCell<Option<(gtk::Label, String, bool)>>,
 }
 
 impl InvitationCardView {
@@ -81,6 +84,7 @@ impl InvitationCardView {
             preview: PreviewGrid::new(),
             answers: RefCell::new(Vec::new()),
             write_status,
+            when: RefCell::new(None),
         }
     }
 
@@ -92,6 +96,7 @@ impl InvitationCardView {
     pub(crate) fn clear(&self) {
         self.root.set_visible(false);
         self.answers.borrow_mut().clear();
+        self.when.borrow_mut().take();
         while let Some(child) = self.body.first_child() {
             self.body.remove(&child);
         }
@@ -128,7 +133,7 @@ impl InvitationCardView {
 
         self.body
             .append(&detail(l10n::invitation_organizer(), &card.organizer));
-        self.body.append(&detail(
+        let when_row = detail(
             l10n::invitation_when(),
             &when(
                 &card.starts_at,
@@ -137,7 +142,12 @@ impl InvitationCardView {
                 zone,
                 use_24_hour,
             ),
-        ));
+        );
+        *self.when.borrow_mut() = when_row
+            .last_child()
+            .and_downcast::<gtk::Label>()
+            .map(|label| (label, zone.to_owned(), use_24_hour));
+        self.body.append(&when_row);
         if !card.location.is_empty() {
             self.body
                 .append(&detail(l10n::invitation_where(), &card.location));
@@ -244,6 +254,36 @@ impl InvitationCardView {
         group.add(&disclosure);
         group.set_margin_top(4);
         self.body.append(&group);
+    }
+
+    /// Restates the meeting's time and the preview in `zone` and on `use_24_hour`, when either
+    /// moved since the card was drawn. Nothing else is rebuilt, so a half-typed note stays.
+    pub(crate) fn follow_clock(&self, card: &InvitationCard, zone: &str, use_24_hour: bool) {
+        let mut drawn = self.when.borrow_mut();
+        let Some((label, drawn_zone, drawn_24_hour)) = drawn.as_mut() else {
+            return;
+        };
+        if drawn_zone == zone && *drawn_24_hour == use_24_hour {
+            return;
+        }
+        zone.clone_into(drawn_zone);
+        *drawn_24_hour = use_24_hour;
+        label.set_text(&when(
+            &card.starts_at,
+            &card.ends_at,
+            card.all_day,
+            zone,
+            use_24_hour,
+        ));
+        if card.conflicts_known {
+            self.preview.apply(
+                &card.preview,
+                &card.starts_at,
+                &card.ends_at,
+                zone,
+                use_24_hour,
+            );
+        }
     }
 
     /// Reports the write currently settling, without rebuilding the card; a rebuild would take a

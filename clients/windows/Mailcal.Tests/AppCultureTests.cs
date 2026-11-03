@@ -68,8 +68,8 @@ public class AppCultureTests
         var enName = En.DateTimeFormat.AbbreviatedDayNames[(int)DayOfWeek.Monday];
         Assert.NotEqual(nlName, enName); // the premise: Dutch names this day differently
 
-        Assert.Equal(nlName, TimeZones.RelativeDate(Monday, "UTC", Now, Nl));
-        Assert.Equal(enName, TimeZones.RelativeDate(Monday, "UTC", Now, En));
+        Assert.Equal(nlName, TimeZones.RelativeDate(Monday, "UTC", true, Now, Nl));
+        Assert.Equal(enName, TimeZones.RelativeDate(Monday, "UTC", true, Now, En));
     }
 
     // The other two buckets carry a month name, for the same reason.
@@ -82,22 +82,23 @@ public class AppCultureTests
         Assert.NotEqual(nlMonth, enMonth);
 
         // This year, older than six days -> day + month.
-        Assert.Equal($"3 {nlMonth}", TimeZones.RelativeDate("2026-03-03T09:05:00Z", "UTC", Now, Nl));
-        Assert.Equal($"3 {enMonth}", TimeZones.RelativeDate("2026-03-03T09:05:00Z", "UTC", Now, En));
+        Assert.Equal($"3 {nlMonth}", TimeZones.RelativeDate("2026-03-03T09:05:00Z", "UTC", true, Now, Nl));
+        Assert.Equal($"3 {enMonth}", TimeZones.RelativeDate("2026-03-03T09:05:00Z", "UTC", true, Now, En));
 
         // A previous year -> day + month + year.
-        Assert.Equal($"3 {nlMonth} 2024", TimeZones.RelativeDate("2024-03-03T09:05:00Z", "UTC", Now, Nl));
-        Assert.Equal($"3 {enMonth} 2024", TimeZones.RelativeDate("2024-03-03T09:05:00Z", "UTC", Now, En));
+        Assert.Equal($"3 {nlMonth} 2024", TimeZones.RelativeDate("2024-03-03T09:05:00Z", "UTC", true, Now, Nl));
+        Assert.Equal($"3 {enMonth} 2024", TimeZones.RelativeDate("2024-03-03T09:05:00Z", "UTC", true, Now, En));
     }
 
-    // Today's bucket is the 24-hour clock, which is language-independent, it must NOT drift when
-    // the culture changes (a Dutch culture would otherwise be free to re-punctuate it).
+    // On the 24-hour setting today's bucket is language-independent, it must NOT drift when the
+    // culture changes (a Dutch culture would otherwise be free to re-punctuate it). The 12-hour
+    // form follows the culture as the calendar's does (RelativeDateTests).
     [Fact]
     public void TheClockBucketIsIdenticalInBothLanguages()
     {
         const string Today = "2026-07-21T09:05:00Z";
 
-        Assert.Equal("09:05", TimeZones.RelativeDate(Today, "UTC", Now, Nl));
-        Assert.Equal("09:05", TimeZones.RelativeDate(Today, "UTC", Now, En));
+        Assert.Equal("09:05", TimeZones.RelativeDate(Today, "UTC", true, Now, Nl));
+        Assert.Equal("09:05", TimeZones.RelativeDate(Today, "UTC", true, Now, En));
     }
 }

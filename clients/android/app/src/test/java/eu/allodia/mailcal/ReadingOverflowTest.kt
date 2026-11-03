@@ -93,9 +93,9 @@ class ReadingOverflowTest {
             subject = "Quarterly report",
             from = "Ada Lovelace",
             avatar = stubAvatar(),
-            date = "10 July 2026 at 13:34",
+            date = "2026-07-10T11:34:00Z",
         )
-        val lines = messagePrintLines(ctx, message, snapshot())
+        val lines = messagePrintLines(ctx, message, snapshot(), date = "10 July 2026 at 13:34")
         assertEquals(
             listOf(
                 L10n.compose_from(ctx) to "Ada Lovelace <ada@example.test>",

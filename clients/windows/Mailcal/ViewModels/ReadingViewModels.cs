@@ -35,8 +35,12 @@ public sealed class OpenedMessage
     /// </summary>
     public required AvatarItem Avatar { get; init; }
 
-    /// <summary>The received date, already localised to the active display zone.</summary>
-    public required string DateText { get; init; }
+    /// <summary>
+    /// The received instant as the core gave it. The header writes it out as a full date, never
+    /// the row's relative label, in the zone and on the clock it draws with, so a change to either
+    /// redraws a message already open (docs/timestamps.md).
+    /// </summary>
+    public required string Date { get; init; }
 }
 
 /// <summary>

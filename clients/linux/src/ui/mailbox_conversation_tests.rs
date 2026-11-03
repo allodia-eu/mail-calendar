@@ -97,7 +97,12 @@ fn the_list_folds_a_conversation_the_selection_has_left() {
     ]);
     let (widgets, sender, receiver) = rendered(&rows, &[one.clone(), two.clone()]);
     let drawn: Vec<_> = (rows.rows.iter())
-        .map(|row| crate::ui::mailbox_display::display_row(row, "UTC"))
+        .map(|row| {
+            crate::ui::mailbox_display::display_row(
+                row,
+                &crate::ui::timestamps::MailClock::new("UTC", true),
+            )
+        })
         .collect();
     let expanded = std::collections::HashSet::from([two]);
     crate::ui::selection_input::sync_expansion(&widgets, &drawn, &expanded);

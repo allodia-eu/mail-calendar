@@ -20,21 +20,32 @@ private nonisolated(unsafe) let isoParser: ISO8601DateFormatter = {
     return iso
 }()
 
-/// Cached display formatters keyed by IANA zone (the zone rarely changes, so this stays a
-/// tiny map). Main-actor bound, which is where every reader already was (SwiftUI bodies + tap
+/// Cached display formatters keyed by IANA zone and clock (neither changes often, so this stays
+/// a tiny map). Main-actor bound, which is where every reader already was (SwiftUI bodies + tap
 /// handlers); the parser above stays off the actor because `parseUtcInstant` is nonisolated and
 /// calls it, which the header above says is safe once the formatter is configured.
 @MainActor private var zoneFormatters: [String: DateFormatter] = [:]
 
-/// The reused display formatter for `zone`, built once and cached.
-@MainActor private func displayFormatter(for zone: String) -> DateFormatter {
-    if let cached = zoneFormatters[zone] {
+/// The clock half of a timestamp pattern, on the app's 12/24-hour setting. Both formatters write
+/// AM and PM untranslated, as the calendar's `clockTime` does, so mail and the grid agree.
+private func clockPattern(use24Hour: Bool) -> String {
+    use24Hour ? "HH:mm" : "h:mm a"
+}
+
+/// The reused display formatter for `zone` on the given clock, built once and cached.
+///
+/// POSIX because the pattern is fixed: under the host's own locale, its separate 24-hour toggle
+/// rewrites a fixed `HH` or `a`, and the clock is the app's setting, not the host's.
+@MainActor private func displayFormatter(for zone: String, use24Hour: Bool) -> DateFormatter {
+    let key = "\(zone)|\(use24Hour)"
+    if let cached = zoneFormatters[key] {
         return cached
     }
     let output = DateFormatter()
-    output.dateFormat = "yyyy-MM-dd HH:mm"
+    output.locale = Locale(identifier: "en_US_POSIX")
+    output.dateFormat = "yyyy-MM-dd \(clockPattern(use24Hour: use24Hour))"
     output.timeZone = TimeZone(identifier: zone) ?? .current
-    zoneFormatters[zone] = output
+    zoneFormatters[key] = output
     return output
 }
 
@@ -43,14 +54,17 @@ private nonisolated(unsafe) let isoParser: ISO8601DateFormatter = {
 /// wall-clock (a floating event) is shown as-is; a bare date is shown as the date. The
 /// view-model is tzdata-free, so this host-side conversion is where "shown in your chosen
 /// time zone" happens.
-@MainActor func localDateTime(_ raw: String, in zone: String) -> String {
+@MainActor func localDateTime(_ raw: String, in zone: String, use24Hour: Bool) -> String {
     if raw.isEmpty { return "" }
     if raw.hasSuffix("Z"), let date = isoParser.date(from: raw) {
-        return displayFormatter(for: zone).string(from: date)
+        return displayFormatter(for: zone, use24Hour: use24Hour).string(from: date)
     }
-    // A naive wall-clock "YYYY-MM-DDTHH:MM:SS" → "YYYY-MM-DD HH:MM"; else a date.
-    if raw.count >= 16, raw.contains("T") {
-        return String(raw.prefix(16)).replacingOccurrences(of: "T", with: " ")
+    // A naive wall-clock "YYYY-MM-DDTHH:MM:SS" → its date and clock as it stands; else a date.
+    if raw.count >= 16, raw.contains("T"),
+        let hour = Int(raw.dropFirst(11).prefix(2)),
+        let minute = Int(raw.dropFirst(14).prefix(2))
+    {
+        return "\(raw.prefix(10)) \(clockTime(hour * 60 + minute, use24Hour: use24Hour))"
     }
     return String(raw.prefix(10))
 }
@@ -75,6 +89,8 @@ func parseUtcInstant(_ raw: String) -> Date? {
     }
     let output = DateFormatter()
     output.locale = L10n.appLocale
+    output.amSymbol = "AM"
+    output.pmSymbol = "PM"
     output.dateFormat = pattern
     output.timeZone = TimeZone(identifier: zone) ?? .current
     relativeFormatters[key] = output
@@ -86,9 +102,9 @@ func parseUtcInstant(_ raw: String) -> Date? {
 /// this year → day + month, older → with the year. Day 7 falls to the date on purpose, it is the
 /// same weekday as today. Pure (no clock, no tz), so the shared relative-label policy is
 /// unit-testable, see docs/timestamps.md, mirrored on Android and Windows.
-func relativeDatePattern(dayDiff: Int, sameYear: Bool) -> String {
+func relativeDatePattern(dayDiff: Int, sameYear: Bool, use24Hour: Bool) -> String {
     switch dayDiff {
-    case 0: return "HH:mm"
+    case 0: return clockPattern(use24Hour: use24Hour)
     case 1...6: return "EEE"
     default: return sameYear ? "d MMM" : "d MMM yyyy"
     }
@@ -98,11 +114,10 @@ func relativeDatePattern(dayDiff: Int, sameYear: Bool) -> String {
 /// time, the previous six days → short weekday, this year → day + month, older → with the year.
 /// Falls back to `localDateTime` for a naive/unparseable value; the reading view keeps the full
 /// `localDateTime`. Mirrors Android's `relativeDate` and Windows's `RelativeDate`
-/// (docs/timestamps.md). The time-of-day stays 24-hour, as `localDateTime` is, the 12/24h clock
-/// setting reaches the mail list on Android only (a documented gap).
-@MainActor func relativeDate(_ raw: String, in zone: String) -> String {
+/// (docs/timestamps.md).
+@MainActor func relativeDate(_ raw: String, in zone: String, use24Hour: Bool) -> String {
     guard raw.hasSuffix("Z"), let date = isoParser.date(from: raw) else {
-        return localDateTime(raw, in: zone)
+        return localDateTime(raw, in: zone, use24Hour: use24Hour)
     }
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: zone) ?? .current
@@ -113,8 +128,8 @@ func relativeDatePattern(dayDiff: Int, sameYear: Bool) -> String {
         to: calendar.startOfDay(for: now)
     ).day ?? 0
     let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
-    return relativeFormatter(relativeDatePattern(dayDiff: dayDiff, sameYear: sameYear), for: zone)
-        .string(from: date)
+    let pattern = relativeDatePattern(dayDiff: dayDiff, sameYear: sameYear, use24Hour: use24Hour)
+    return relativeFormatter(pattern, for: zone).string(from: date)
 }
 
 /// The engine's authoritative IANA zone list, the bundled tzdb it localises against,

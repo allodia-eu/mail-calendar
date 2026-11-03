@@ -23,6 +23,9 @@ struct OpenedMessage: Identifiable, Hashable {
     /// The sender's avatar as the list row already had it, so the header draws a face
     /// immediately rather than flashing empty until the body snapshot arrives.
     let avatar: Avatar
+    /// The received instant as the core gave it. The header writes it out when it draws, in the
+    /// zone and on the clock the model holds then, so a change to either redraws a message already
+    /// open (docs/timestamps.md).
     let date: String
     var id: String { key }
 }
@@ -185,6 +188,11 @@ struct ReadingView: View {
         #endif
     }
 
+    /// The full date the header and a printout name, never the row's relative label.
+    var headerDate: String {
+        localDateTime(message.date, in: model.activeZone, use24Hour: model.use24Hour)
+    }
+
     /// Who wrote this, what it is called and when it arrived: the one part of the header that is
     /// filled from the row the reader tapped, so it is complete before the body has been fetched.
     ///
@@ -198,7 +206,7 @@ struct ReadingView: View {
                 Text(senderLine).font(.subheadline).foregroundStyle(.secondary)
             }
             Spacer()
-            Text(message.date).font(.caption).foregroundStyle(.secondary)
+            Text(headerDate).font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, readingInset)
         .padding(.top, 12)

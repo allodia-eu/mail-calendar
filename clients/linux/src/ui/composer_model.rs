@@ -9,7 +9,7 @@ use serde_json::json;
 use super::{
     composer_quote::{attribution_completion, quote_seed, quote_words},
     reader::ComposerHost,
-    timestamps,
+    timestamps::{self, MailClock},
 };
 use crate::l10n;
 
@@ -62,16 +62,16 @@ impl ComposeContext {
     /// The quote's attribution is worded here, in the user's language and with the original's
     /// date as the reading header shows it: for a fresh reply or forward it seeds the quote, and
     /// for a reopened one it completes the style the stored quote does not carry.
-    pub(crate) fn from_opening(
+    pub(super) fn from_opening(
         opening: ComposeOpening,
         host: ComposerHost,
         style: &QuoteStyleKind,
-        zone: &str,
+        clock: &MailClock,
     ) -> Self {
         let words = opening.quote.as_ref().map(|quote| {
             quote_words(
                 quote,
-                &timestamps::local_date_time(&quote.date, zone),
+                &timestamps::local_date_time(&quote.date, &clock.zone, clock.use_24_hour),
                 opening.kind == ComposeKind::Forward,
             )
         });

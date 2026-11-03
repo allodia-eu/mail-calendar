@@ -59,7 +59,9 @@ extension MailboxModel {
         let isForward = ComposeOpeningSeed.mode(opening.kind) == .forward
         let words = opening.quote.map { quote in
             ComposerQuote.words(
-                quote, date: localDateTime(quote.date, in: activeZone), isForward: isForward
+                quote,
+                date: localDateTime(quote.date, in: activeZone, use24Hour: use24Hour),
+                isForward: isForward
             )
         }
         return ComposeContext(

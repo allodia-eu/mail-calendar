@@ -22,12 +22,13 @@ internal fun messagePrintLines(
     ctx: Context,
     message: OpenedMessage,
     body: ReadingSnapshot,
+    date: String,
 ): List<PrintHeaderLine> = listOf(
     PrintHeaderLine(L10n.compose_from(ctx), body.from.ifEmpty { message.from }),
     PrintHeaderLine(L10n.compose_to(ctx), body.to),
     PrintHeaderLine(L10n.compose_cc(ctx), body.cc),
     PrintHeaderLine(L10n.compose_bcc(ctx), body.bcc),
-    PrintHeaderLine(L10n.quote_sent(ctx), message.date),
+    PrintHeaderLine(L10n.quote_sent(ctx), date),
 )
 
 /** Whether `body` is something to print: an open that finished and fetched a body. */
@@ -43,12 +44,13 @@ internal fun printOpenMessage(
     ctx: Context,
     message: OpenedMessage,
     body: ReadingSnapshot,
+    date: String,
     loadRemoteImages: Boolean,
 ) {
     val subject = displayedSubject(message, body).ifEmpty { L10n.mail_no_subject(ctx) }
     val document = renderMessagePrintHtml(
         subject,
-        messagePrintLines(ctx, message, body),
+        messagePrintLines(ctx, message, body, date),
         body.html,
         body.plain,
         loadRemoteImages,

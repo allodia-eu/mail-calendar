@@ -4,13 +4,16 @@ use mailcal_bindings::{
     FlatRow, MailboxListSnapshot, QueuedRow, SnapshotRow, ThreadMessage, ThreadRow,
 };
 
-use super::{avatar::AvatarData, mailbox::ThreadKey, mailbox_reconcile::Row};
+use super::{
+    avatar::AvatarData, mailbox::ThreadKey, mailbox_reconcile::Row, timestamps::MailClock,
+};
 use crate::l10n;
 
 /// Only the snapshot fields the message rows draw.
 ///
 /// Conversation expansion is absent because the widget animates its own disclosure. The display
-/// zone is present so changing it rebuilds otherwise unchanged timestamp labels.
+/// zone and the clock setting are present so changing either rebuilds otherwise unchanged
+/// timestamp labels.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct MailboxRendering {
     rows: Vec<DisplayRow>,
@@ -23,12 +26,12 @@ pub(super) struct MailboxRendering {
 }
 
 impl MailboxRendering {
-    pub(super) fn new(snapshot: &MailboxListSnapshot, zone: &str) -> Self {
+    pub(super) fn new(snapshot: &MailboxListSnapshot, clock: &MailClock) -> Self {
         Self {
             rows: snapshot
                 .rows
                 .iter()
-                .map(|row| display_row(row, zone))
+                .map(|row| display_row(row, clock))
                 .collect(),
             outbox: snapshot.outbox.clone(),
             showing_outbox: snapshot.showing_outbox,
@@ -36,7 +39,7 @@ impl MailboxRendering {
     }
 }
 
-/// Everything a message row draws and the zone its timestamp uses.
+/// Everything a message row draws and the clock its timestamp uses.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct DisplayRow {
     pub(super) key: String,
@@ -51,7 +54,7 @@ pub(super) struct DisplayRow {
     pub(super) has_attachment: bool,
     pub(super) count: u32,
     pub(super) messages: Vec<DisplayMessage>,
-    pub(super) zone: String,
+    pub(super) clock: MailClock,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -78,14 +81,14 @@ impl Row for DisplayRow {
     }
 }
 
-pub(super) fn display_row(snapshot: &SnapshotRow, zone: &str) -> DisplayRow {
+pub(super) fn display_row(snapshot: &SnapshotRow, clock: &MailClock) -> DisplayRow {
     match snapshot {
-        SnapshotRow::Flat { row } => flat_display(row, zone),
-        SnapshotRow::Thread { row } => thread_display(row, zone),
+        SnapshotRow::Flat { row } => flat_display(row, clock),
+        SnapshotRow::Thread { row } => thread_display(row, clock),
     }
 }
 
-pub(super) fn flat_display(row: &FlatRow, zone: &str) -> DisplayRow {
+pub(super) fn flat_display(row: &FlatRow, clock: &MailClock) -> DisplayRow {
     DisplayRow {
         key: format!("m/{}/{}", row.account, row.key),
         thread: None,
@@ -98,11 +101,11 @@ pub(super) fn flat_display(row: &FlatRow, zone: &str) -> DisplayRow {
         has_attachment: row.has_attachment,
         count: 1,
         messages: Vec::new(),
-        zone: zone.to_owned(),
+        clock: clock.clone(),
     }
 }
 
-pub(super) fn thread_display(row: &ThreadRow, zone: &str) -> DisplayRow {
+pub(super) fn thread_display(row: &ThreadRow, clock: &MailClock) -> DisplayRow {
     DisplayRow {
         key: format!("t/{}/{}", row.account, row.thread_id),
         thread: Some(ThreadKey::of(row)),
@@ -115,7 +118,7 @@ pub(super) fn thread_display(row: &ThreadRow, zone: &str) -> DisplayRow {
         has_attachment: row.has_attachment,
         count: row.message_count,
         messages: row.messages.iter().map(message_display).collect(),
-        zone: zone.to_owned(),
+        clock: clock.clone(),
     }
 }
 
