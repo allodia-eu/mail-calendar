@@ -190,6 +190,49 @@ pub(crate) fn the_note_and_the_tick_appear_only_where_the_transport_carries_them
     );
 }
 
+/// A change of clock restates the card's times where it stands, as it does the reading header's,
+/// and leaves a half-typed note to the organiser where it was.
+pub(crate) fn a_clock_change_restates_the_times_and_keeps_the_note() {
+    let mut generous = card();
+    generous.can_comment = true;
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let view = InvitationCardView::new();
+    view.apply(
+        &generous,
+        ZONE,
+        true,
+        CalendarWriteStatus::Idle,
+        &ReadingSource::Pane,
+        &sender,
+    );
+    let root = view.widget().clone().upcast::<gtk::Widget>();
+    let note = entries(&root)
+        .pop()
+        .expect("a transport that carries a note offers the field");
+    note.set_text("Running ten minutes late");
+    assert!(
+        rendered_labels(&root)
+            .iter()
+            .any(|text| text.ends_with("10:30 – 11:30")),
+        "the card opens on the 24-hour clock it was drawn with"
+    );
+
+    view.follow_clock(&generous, ZONE, false);
+
+    let shown = rendered_labels(&root);
+    assert!(
+        shown
+            .iter()
+            .any(|text| text.ends_with("10:30 AM – 11:30 AM")),
+        "the meeting's time follows the 12-hour clock: {shown:?}"
+    );
+    assert_eq!(
+        note.text(),
+        "Running ten minutes late",
+        "restating the times must not rebuild the respond row"
+    );
+}
+
 /// A cancellation and a superseded copy show every detail and offer no answer; and the superseded
 /// one **says why**, or it reads as broken rather than out of date.
 pub(crate) fn a_cancelled_or_superseded_card_states_itself_and_offers_no_answer() {

@@ -54,7 +54,7 @@ pub(crate) struct InvitationClock<'a> {
     /// Which reading snapshot this is. Every model change re-renders the pane, and rebuilding the
     /// card on a *write-status* change would take a half-typed note to the organiser away
     /// mid-sentence; so the card is rebuilt only when the core published a new snapshot, and
-    /// every other render moves the respond row alone.
+    /// every other render moves the respond row and restates the times alone.
     pub(crate) generation: u64,
 }
 
@@ -305,9 +305,13 @@ impl ReadingPane {
                     sender,
                 );
             }
-            // The same card, re-rendered for something else entirely; report the write settling
-            // and leave the note alone.
-            Some(_) => self.invitation.set_write_status(clock.write_status),
+            // The same card, re-rendered for something else entirely: restate its times if the
+            // clock or zone moved, report the write settling, and leave the note alone.
+            Some(card) => {
+                self.invitation
+                    .follow_clock(card, clock.zone, clock.use_24_hour);
+                self.invitation.set_write_status(clock.write_status);
+            }
             None => self.clear_invitation(),
         }
         self.from.set_text(sender_line(reading, opened));

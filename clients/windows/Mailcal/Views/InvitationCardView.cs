@@ -61,6 +61,11 @@ internal sealed partial class InvitationCardView : UserControl
 
     private (InvitationCard Card, string Zone, bool Use24Hour, CultureInfo Culture, CalendarWriteStatus Status)? _drawn;
 
+    // The two parts of the card that carry a time of day, so a change of zone or clock restates them
+    // in place (FollowClock) rather than rebuilding the respond row and a half-typed note with it.
+    private TextBlock? _when;
+    private InvitationPreviewGrid? _preview;
+
     /// <summary>
     /// Answer the invitation: the response, a note for the organiser (<c>null</c> where the transport
     /// carries none), and whether to tell them.
@@ -102,6 +107,8 @@ internal sealed partial class InvitationCardView : UserControl
         _dark = this.IsDark();
         _drawn = (card, zone, use24Hour, culture, status);
         _stack.Children.Clear();
+        _when = null;
+        _preview = null;
         ResetRespondRow();
         var tint = TintOf(card.Kind, _dark);
         _frame.Background = new SolidColorBrush(tint) { Opacity = 0.08 };
@@ -123,7 +130,8 @@ internal sealed partial class InvitationCardView : UserControl
         _stack.Children.Add(Detail(L10n.InvitationOrganizer(), card.Organizer));
         _stack.Children.Add(Detail(
             L10n.InvitationWhen(),
-            InvitationFormat.When(card.StartsAt, card.EndsAt, card.AllDay, zone, use24Hour, culture)));
+            InvitationFormat.When(card.StartsAt, card.EndsAt, card.AllDay, zone, use24Hour, culture),
+            out _when));
         if (!string.IsNullOrEmpty(card.Location))
         {
             _stack.Children.Add(Detail(L10n.InvitationWhere(), card.Location));
@@ -182,7 +190,38 @@ internal sealed partial class InvitationCardView : UserControl
         return row;
     }
 
-    private UIElement Detail(string label, string value)
+    /// <summary>
+    /// Restates the meeting's time and the preview in <paramref name="zone"/> and on
+    /// <paramref name="use24Hour"/>, when either moved since the card was drawn. Nothing else is
+    /// rebuilt, so a half-typed note to the organiser stays.
+    /// </summary>
+    internal void FollowClock(string zone, bool use24Hour)
+    {
+        if (_drawn is not { } drawn || (drawn.Zone == zone && drawn.Use24Hour == use24Hour))
+        {
+            return;
+        }
+        _drawn = drawn with { Zone = zone, Use24Hour = use24Hour };
+        var card = drawn.Card;
+        if (_when is { } when)
+        {
+            when.Text = InvitationFormat.When(card.StartsAt, card.EndsAt, card.AllDay, zone, use24Hour, _culture);
+        }
+        _preview?.Apply(card.Preview, MeetingSpan(card, zone), use24Hour, _culture);
+    }
+
+    // The layout zone the core solved the day in; the display zone only when it did not say. Reading
+    // the meeting in a different zone from the blocks beside it would put it in the wrong row of its
+    // own preview.
+    private static MinuteSpan MeetingSpan(InvitationCard card, string zone) =>
+        InvitationFormat.MeetingMinuteSpan(
+            card.StartsAt,
+            card.EndsAt,
+            string.IsNullOrEmpty(card.Preview.Timezone) ? zone : card.Preview.Timezone);
+
+    private UIElement Detail(string label, string value) => Detail(label, value, out _);
+
+    private UIElement Detail(string label, string value, out TextBlock text)
     {
         var row = new Grid { ColumnSpacing = 6 };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LabelWidth) });
@@ -191,7 +230,7 @@ internal sealed partial class InvitationCardView : UserControl
         Grid.SetColumn(name, 0);
         row.Children.Add(name);
         // Selectable: an organiser's address and a meeting room are things people copy out.
-        var text = new TextBlock
+        text = new TextBlock
         {
             Text = value,
             Style = Res("CaptionTextBlockStyle"),
@@ -291,17 +330,8 @@ internal sealed partial class InvitationCardView : UserControl
         // WinUI element may have only one parent, a reused grid would still be owned by the discarded
         // Expander when the new one claimed it.
         var preview = new InvitationPreviewGrid();
-        preview.Apply(
-            card.Preview,
-            InvitationFormat.MeetingMinuteSpan(
-                card.StartsAt,
-                card.EndsAt,
-                // The layout zone the core solved the day in; the display zone only when it did not
-                // say. Reading the meeting in a different zone from the blocks beside it would put it
-                // in the wrong row of its own preview.
-                string.IsNullOrEmpty(card.Preview.Timezone) ? zone : card.Preview.Timezone),
-            use24Hour,
-            _culture);
+        preview.Apply(card.Preview, MeetingSpan(card, zone), use24Hour, _culture);
+        _preview = preview;
         _stack.Children.Add(new Expander
         {
             Header = L10n.InvitationConflictsPreview(),

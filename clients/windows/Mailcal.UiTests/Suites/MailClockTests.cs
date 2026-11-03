@@ -1,7 +1,8 @@
 // Mail's times follow the 12/24-hour setting in Settings → General, as the calendar's do
 // (docs/timestamps.md). Mailcal.Tests proves the formatter draws either clock; what only a drawn
 // window shows is the wiring: a pick reaches a list that is already on screen, whose rows are
-// reconciled rather than rebuilt, a reading header already drawn, and the header a row opens with.
+// reconciled rather than rebuilt, a reading header already drawn, an invitation card already drawn,
+// and the header a row opens with.
 //
 // THE FIXTURE is the en showcase seed: "Welcome to Allodia Mail & Calendar" arrives today, so its
 // row shows a time of day rather than a weekday (crates/mailcal-bindings/src/showcase_data). The
@@ -81,6 +82,36 @@ public sealed partial class MailClockTests(ShowcaseApp showcase)
             "the header is drawn once, when the message opens, so a clock change has to reach it where it stands");
         PickClock(app, "settings_time_format_24");
         Holds(() => HeaderDate(app), EndsTwentyFourHour(), "and picking back has to move it back");
+    }, app => PickClock(app, "settings_time_format_24"));
+
+    // An invitation card's "When" line: a date, then a time range on one clock.
+    [GeneratedRegex(@", \d{2}:\d{2} – \d{2}:\d{2}$")]
+    private static partial Regex RangeTwentyFourHour();
+
+    [GeneratedRegex(@", \d{1,2}:\d{2} (AM|PM) – \d{1,2}:\d{2} (AM|PM)$")]
+    private static partial Regex RangeTwelveHour();
+
+    private static string? InvitationWhen(App app) =>
+        app.Agent.FindAll(new Filter { Type = "Text", Window = app.Mailbox.Hwnd, OnScreen = true })
+            .Select(text => text.Name)
+            .FirstOrDefault(name => RangeTwentyFourHour().IsMatch(name) || RangeTwelveHour().IsMatch(name));
+
+    [OfflineFact]
+    public void AnOpenInvitationsTimeFollowsTheOtherClock() => showcase.Case(nameof(AnOpenInvitationsTimeFollowsTheOtherClock), app =>
+    {
+        // Pressing the row already open would close it.
+        var heading = Filter.ById("ReadingSubject") with { Window = app.Mailbox.Hwnd, NameLike = "Invitation:*" };
+        if (app.Agent.Find(heading) is null)
+        {
+            app.Agent.Invoke(app.RowTitled("Invitation:*"));
+            app.Agent.Wait(heading, App.Patience);
+        }
+        Holds(() => InvitationWhen(app), RangeTwentyFourHour(), "the launch is on 24-hour");
+        PickClock(app, "settings_time_format_12");
+        Holds(() => InvitationWhen(app), RangeTwelveHour(),
+            "the card is rebuilt only for a new snapshot, so a clock change has to reach its times where they stand");
+        PickClock(app, "settings_time_format_24");
+        Holds(() => InvitationWhen(app), RangeTwentyFourHour(), "and picking back has to move it back");
     }, app => PickClock(app, "settings_time_format_24"));
 
     [OfflineFact]

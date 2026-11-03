@@ -401,6 +401,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     invitation::an_address_in_the_description_is_a_link();
     invitation::an_account_that_cannot_answer_says_so_instead_of_greying_the_buttons();
     invitation::the_note_and_the_tick_appear_only_where_the_transport_carries_them();
+    invitation::a_clock_change_restates_the_times_and_keeps_the_note();
     invitation::a_cancelled_or_superseded_card_states_itself_and_offers_no_answer();
     invitation::an_unread_calendar_withholds_both_the_count_and_the_grid();
     invitation::a_settling_write_is_reported_and_a_settled_one_is_not();

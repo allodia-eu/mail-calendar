@@ -54,6 +54,16 @@ public sealed partial class ReadingView
         InvitationHost.Visibility = Visibility.Visible;
     }
 
+    // The zone or the clock moved: the card's times follow where it stands, and its respond row, a
+    // half-typed note included, stays as it is.
+    private void OnClockChanged()
+    {
+        if (_model is not null)
+        {
+            _invitation?.FollowClock(_model.ActiveZone, _model.Use24Hour);
+        }
+    }
+
     // The calendar write settling right now, reported without rebuilding the card, a rebuild would
     // take a half-typed note to the organiser away mid-sentence. Only the respond row moves.
     private void OnCalendarWriteChanged()

@@ -124,9 +124,11 @@ public sealed partial class ReadingView : UserControl
         else if (e.PropertyName == nameof(MailboxModel.DisplaySettingsVersion))
         {
             // The message background may have changed, from this view's button, another
-            // window's, or Settings; and so may the zone or the clock the header's date is in.
+            // window's, or Settings; and so may the zone or the clock the header's date and the
+            // invitation card's times are in.
             ApplyScheme();
             ShowDate();
+            OnClockChanged();
         }
     }
 
