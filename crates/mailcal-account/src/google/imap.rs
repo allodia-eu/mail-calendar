@@ -10,17 +10,14 @@
 //! can turn IMAP off, which Gmail answers at login, and a user can hide All Mail from it. Any
 //! other failure (the network, a throttle, a TLS failure behind a captive portal) is **not**
 //! that: it fails the read, to be tried again, because falling back would hand an IMAP cursor to
-//! the API pass, which can only start again from the top. Two answers are both:
+//! the API pass, which can only start again from the top. A refused login is both: Gmail also
+//! refuses one for too many simultaneous connections, so only the [`REFUSALS_BEFORE_API`]th
+//! refused login before the side opens moves the account. A failure of another kind in between
+//! neither counts nor clears the count.
 //!
-//! - A refused login: Gmail also refuses one for too many simultaneous connections, so only the
-//!   [`REFUSALS_BEFORE_API`]th refused login before the side opens moves the account. A failure of
-//!   another kind in between neither counts nor clears the count.
-//! - A `NO` while opening All Mail: a hidden All Mail and a server that cannot answer for now (RFC
-//!   5530 `[UNAVAILABLE]`) reach this code as the same failure class, so the read asks again
-//!   ([`ASKS_BEFORE_API`] times, a pause apart) and believes only an answer that does not change.
-//!
-//! A server without Gmail's extension is the one answer believed at once: it is a fact about the
-//! session, not a reply that may differ next time.
+//! A lasting `NO` while opening All Mail, and a server without Gmail's extension, are believed at
+//! once: each is a fact about the account, not a reply that may differ next time. A refusal Gmail
+//! calls temporary reaches this code as a failure that may pass, and fails the read.
 //!
 //! One slot serves every provider of an account's sign-in ([`GmailImapSlot::shared`]): each holds
 //! a pool of connections, and Gmail counts an account's connections across all of its clients.
@@ -34,9 +31,9 @@ use std::{
 };
 
 use engine_core::error::FailureClass;
-use engine_provider::ProviderResult;
+use engine_provider::{ProviderError, ProviderResult};
 use engine_tls::TlsClientConfig;
-use provider_imap::{GmailFolder, GmailMail, ImapAccount, ImapConfig};
+use provider_imap::{GmailFolder, GmailMail, ImapAccount, ImapConfig, ImapError};
 use tokio::{net::TcpStream, sync::Mutex};
 use tokio_rustls::client::TlsStream;
 
@@ -49,12 +46,6 @@ const GMAIL_IMAP: &str = "imap.gmail.com";
 
 /// How many refused logins, before the IMAP side has opened, move an account to the API.
 const REFUSALS_BEFORE_API: u8 = 3;
-
-/// How many times one read asks for All Mail before a `NO` moves the account to the API.
-const ASKS_BEFORE_API: u32 = 3;
-
-/// The pause before asking for All Mail again, grown by each ask.
-const ASK_AGAIN_AFTER: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// Every live slot, by account address, so the providers of one account share one.
 static SLOTS: LazyLock<std::sync::Mutex<HashMap<String, Weak<GmailImapSlot>>>> =
@@ -191,11 +182,7 @@ impl GmailImapSlot {
             Side::Api => return Ok(None),
             Side::Unknown(refused) => *refused,
         };
-        let result = settled(
-            || open(&self.address, &self.tokens, &self.tls),
-            ASK_AGAIN_AFTER,
-        )
-        .await;
+        let result = open(&self.address, &self.tokens, &self.tls).await;
         let (next, answer) = decide(result, refused);
         match (&next, &answer) {
             (Side::Imap(_), _) => log::info!("gmail: reading mail over IMAP"),
@@ -225,17 +212,17 @@ impl GmailImapSlot {
         answer
     }
 
-    /// Records how a mail read ended: `Ok`, or the class it failed with. A read that could not
-    /// reach the server ([`FailureClass::Retryable`]) counts towards
-    /// [`GmailMailRoute::Unreachable`]; anything else ends the run, since the server answered.
-    /// Reads over the API count for nothing here: their outage is the account's own.
-    pub(super) fn note_read(&self, ended: Result<(), FailureClass>) {
+    /// Records how a mail read ended. A read that could not reach the server ([`unreached`])
+    /// counts towards [`GmailMailRoute::Unreachable`]; anything else ends the run, since the
+    /// server answered. Reads over the API count for nothing here: their outage is the account's
+    /// own.
+    pub(super) fn note_read(&self, ended: Result<(), &ProviderError>) {
         let before = self.route();
         if before == GmailMailRoute::Api {
             return;
         }
         match ended {
-            Err(FailureClass::Retryable) => {
+            Err(err) if unreached(err) => {
                 let _ = self
                     .unreached
                     .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
@@ -263,6 +250,15 @@ impl GmailImapSlot {
             settled
         }
     }
+}
+
+/// Whether a read that failed with `err` never reached the server: a failure that may pass, with
+/// no IMAP `NO` behind it. A refusal the server calls temporary may pass as well, but the server
+/// answered it.
+fn unreached(err: &ProviderError) -> bool {
+    err.class() == FailureClass::Retryable
+        && !std::iter::successors(std::error::Error::source(err), |cause| cause.source())
+            .any(|cause| matches!(cause.downcast_ref(), Some(ImapError::No(_))))
 }
 
 /// What an attempt to open the IMAP side leaves the slot at, after `refused` refused logins, and
@@ -293,30 +289,6 @@ enum Opened {
     Reader(GmailImap),
     /// A session without Gmail's extension, which no second ask changes.
     NotGmail,
-}
-
-/// `open`'s answer, asked again while it is a `NO` (`InvalidState`) that may pass, up to
-/// [`ASKS_BEFORE_API`] times with a pause that grows by `pause` each time. Every other answer is
-/// returned as it came: one that may pass fails this read and is tried on the next.
-async fn settled<T, F, Fut>(mut open: F, pause: std::time::Duration) -> ProviderResult<T>
-where
-    F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = ProviderResult<T>>,
-{
-    let mut asked = 1;
-    loop {
-        match open().await {
-            Err(err) if err.class() == FailureClass::InvalidState && asked < ASKS_BEFORE_API => {
-                log::warn!(
-                    "gmail: the IMAP side did not open All Mail ({asked} of {ASKS_BEFORE_API} \
-                     asks); asking again"
-                );
-                tokio::time::sleep(pause * asked).await;
-                asked += 1;
-            }
-            answer => return answer,
-        }
-    }
 }
 
 /// Logs in, and proves All Mail is shown to IMAP.
