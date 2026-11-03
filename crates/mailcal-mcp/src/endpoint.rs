@@ -123,7 +123,10 @@ mod tests {
         // whose home directory name is more than a few characters. The real-home path is 44.
         // This asserts the shape the product actually ships is safely inside the limit.
         let home = std::env::var("HOME").expect("a home directory");
-        let path = format!("{home}/.local/share/mailcal/mcp.sock");
+        let path = format!(
+            "{home}/.local/share/{}/mcp.sock",
+            env!("MAILCAL_DATA_DIR_NAME")
+        );
         assert!(
             path.len() < MAX_UNIX_PATH,
             "the shipped socket path is {} bytes, over the {MAX_UNIX_PATH}-byte sun_path limit",

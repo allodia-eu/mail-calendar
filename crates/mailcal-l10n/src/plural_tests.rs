@@ -45,6 +45,8 @@ fn brand() -> Brand {
         id: "org.fixture.client".to_string(),
         mcp_server_name: "fixture-mail".to_string(),
         mcp_relay_name: "fixture-mcp".to_string(),
+        data_dir_name: "fixture".to_string(),
+        windows_data_dir: "Fixture/Mail".to_string(),
     }
 }
 

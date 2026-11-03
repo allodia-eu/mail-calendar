@@ -46,7 +46,7 @@ final class ShareViewController: ShareHostController {
         guard let context = extensionContext else { return }
         let items = (context.inputItems as? [NSExtensionItem]) ?? []
         Task {
-            if let box = ShareBox.shared(appID: Self.appID),
+            if let box = ShareBox.shared(appID: Self.appID, dataDirName: Self.dataDirName),
                 let drop = await ShareIntake.read(items: items, into: box) {
                 try? box.deposit(drop)
             }
@@ -87,4 +87,8 @@ final class ShareViewController: ShareHostController {
     /// memory budget than an app.
     private static let appID: String =
         Bundle.main.object(forInfoDictionaryKey: "MailcalAppID") as? String ?? ""
+
+    /// The app's data directory name, which the drop box is named after; injected the same way.
+    private static let dataDirName: String =
+        Bundle.main.object(forInfoDictionaryKey: "MailcalDataDirName") as? String ?? ""
 }

@@ -29,6 +29,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import brand  # noqa: E402  (after the path insert, deliberately)
+
 # One log record: `2026-08-12 16:00:08.517 INFO [mailcal_app::snapshot] rebuild_snapshot: ...`
 RECORD = re.compile(
     r"^(?P<stamp>\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2}\.\d+ \w+ \[(?P<target>[\w:]+)\] (?P<body>.*)$"
@@ -118,8 +122,10 @@ IGNORED = re.compile(
 # machine without a device are listed; for Android and iOS use `scripts/dev/logs.sh
 # <platform> --dump > app.log` and pass the file.
 DEFAULT_LOGS = [
-    Path.home() / ".local/share/mailcal/mailcal.log",
-    Path(os.environ.get("LOCALAPPDATA", "")) / "Allodia/MailCalendar/logs/app.log",
+    Path.home() / ".local/share" / brand.value("MAILCAL_DATA_DIR_NAME") / "mailcal.log",
+    Path(os.environ.get("LOCALAPPDATA", ""))
+    / brand.value("MAILCAL_WINDOWS_DATA_DIR")
+    / "logs/app.log",
 ]
 
 

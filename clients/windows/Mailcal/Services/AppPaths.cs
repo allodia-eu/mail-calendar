@@ -16,13 +16,19 @@ namespace Allodia.Mailcal.Services;
 internal static class AppPaths
 {
     /// <summary>
-    /// The shared app-data root (<c>%LOCALAPPDATA%\Allodia\MailCalendar</c>), engine store,
-    /// rotating log, and credential index. The log deliberately stays here even under a dev run,
-    /// so one file diagnoses whatever ran last on this machine.
+    /// The shared app-data root (<c>%LOCALAPPDATA%\</c> and the brand's
+    /// <c>MAILCAL_WINDOWS_DATA_DIR</c>), engine store, rotating log, and credential index. A
+    /// packaged build writes here unvirtualized, so two brands on one machine share a store unless
+    /// each states its own. The log deliberately stays here even under a dev run, so one file
+    /// diagnoses whatever ran last on this machine.
     /// </summary>
-    internal static string Root => Path.Combine(
+    internal static string Root => ResolveRoot(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Allodia", "MailCalendar");
+        Brand.WindowsDataDir);
+
+    /// <summary>Pure form of <see cref="Root"/> (testable): the brand's path under the local app-data directory.</summary>
+    internal static string ResolveRoot(string localAppData, string brandPath) =>
+        Path.Combine(localAppData, brandPath.Replace('/', Path.DirectorySeparatorChar));
 
     /// <summary>
     /// Where the one-line preference files live: the root normally, the harness run's dev store

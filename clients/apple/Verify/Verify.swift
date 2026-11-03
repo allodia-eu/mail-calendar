@@ -127,7 +127,7 @@ struct Verifier {
         } else {
             let home = FileManager.default.homeDirectoryForCurrentUser
             let seedPath = home.appendingPathComponent(".config/mailcal/account.toml").path
-            let dataDir = home.appendingPathComponent(".local/share/mailcal").path
+            let dataDir = home.appendingPathComponent(".local/share/\(Brand.dataDirName)").path
             // The headless gate reads the config content from the plaintext file directly
             // (the GUI app uses the Keychain); both pass the TOML content to newAccounts.
             guard let configToml = try? String(contentsOfFile: seedPath, encoding: .utf8) else {

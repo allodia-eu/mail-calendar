@@ -4,8 +4,9 @@
 #   ./clear-dev-namespace.ps1 -Namespace dev-first-run
 #
 # Both halves, because the client keeps them apart. The engine store and the preference files live
-# under %LOCALAPPDATA%\Allodia\MailCalendar\<namespace>, while the account list and every account's
-# config live in Credential Manager under `<app id>:<namespace>:` (CredentialStore.UseDevNamespace).
+# under %LOCALAPPDATA%\<the brand's data directory>\<namespace>, while the account list and every
+# account's config live in Credential Manager under `<app id>:<namespace>:`
+# (CredentialStore.UseDevNamespace).
 # Deleting only the directory leaves the accounts behind, so the next launch reads them back and
 # opens on a mailbox: the first run a test asked for never appears, and the failure names the
 # screen it landed on rather than the credentials that put it there.
@@ -21,14 +22,9 @@ $ErrorActionPreference = 'Stop'
 
 if (-not $IsWindows) { throw 'Credential Manager is a Windows store; there is nothing to clear on this host.' }
 
-# The application id this build was branded with, from the file the build generated, rather than
-# parsed out of branding/*.env a second time: scripts/dev/brand.sh owns that resolution order.
-$brand = Join-Path $PSScriptRoot 'Mailcal/Brand.cs'
-if (-not (Test-Path -LiteralPath $brand)) {
-  throw "no generated $brand, so the credential prefix is unknown; build the client first (build-and-run.ps1 -NoRun)."
-}
-$appId = [regex]::Match((Get-Content -Raw -LiteralPath $brand), 'AppId\s*=\s*"([^"]+)"').Groups[1].Value
-if (-not $appId) { throw "$brand names no AppId" }
+# The application id and the data directory this build was branded with.
+. (Join-Path $PSScriptRoot 'brand.ps1')
+$appId = Get-BrandConstant AppId
 $prefix = "${appId}:${Namespace}:"
 
 if (-not ('MailcalDev.Credentials' -as [type])) {
@@ -110,7 +106,7 @@ namespace MailcalDev
 
 # The store first: a running app holds its sqlite file open, and a delete that half-succeeds is
 # worth a clear refusal rather than a namespace with accounts and no store, or the reverse.
-$store = Join-Path $env:LOCALAPPDATA "Allodia\MailCalendar\$Namespace"
+$store = Join-Path (Join-Path $env:LOCALAPPDATA (Get-BrandConstant WindowsDataDir)) $Namespace
 # Retried for a few seconds: an app stopped a moment ago has exited before Windows lets go of its
 # sqlite files, so the first delete after a launch on this namespace can find them still open.
 $deadline = [Diagnostics.Stopwatch]::StartNew()

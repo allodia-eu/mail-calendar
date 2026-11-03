@@ -7,9 +7,11 @@ use std::{ffi::OsString, path::PathBuf};
 /// In a snap, the XDG data directory is inside the revision's own directory, which snapd copies
 /// whole at every refresh so that a revert finds it as it was. A mail store is far too large to
 /// copy on every update, so a snap keeps it in the directory all of its revisions share instead.
-/// Elsewhere this is GLib's data directory, which Flatpak already points into the app's own.
+/// Elsewhere this is GLib's data directory, which Flatpak already points into the app's own; an
+/// unpackaged build shares it with every other app, so the directory is the brand's
+/// (`MAILCAL_DATA_DIR_NAME`).
 pub(crate) fn data_root() -> PathBuf {
-    root_for(std::env::var_os("SNAP_USER_COMMON")).join("mailcal")
+    root_for(std::env::var_os("SNAP_USER_COMMON")).join(crate::l10n::DATA_DIR_NAME)
 }
 
 fn root_for(snap_user_common: Option<OsString>) -> PathBuf {

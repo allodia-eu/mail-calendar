@@ -115,6 +115,26 @@ lists in Applications, what Activity Monitor shows, and the file names `package.
 builds. It takes letters and digits only, because every script that signs, launches or stops the
 app names that path. The Xcode target stays `AllodiaMail` (rule 5).
 
+## Where the app keeps its data
+
+The mail store, the diagnostic log, the credential index and the MCP endpoint live in a directory
+of the app's own, and on two platforms that directory is not given to the app by the OS:
+
+| | The directory | Brand value |
+|---|---|---|
+| **macOS** (outside the Mac App Store) | `~/.local/share/<name>`, a debug build `<name>-dev-*`, the share box `<name>-share` | `MAILCAL_DATA_DIR_NAME` |
+| **Linux** (unpackaged) | `$XDG_DATA_HOME/<name>` | `MAILCAL_DATA_DIR_NAME` |
+| **Windows** (packaged too: the app writes there unvirtualized) | `%LOCALAPPDATA%\<path>` | `MAILCAL_WINDOWS_DATA_DIR`, `/` between segments |
+
+Two brands with the same value on one machine open one store, and each then finds the other's
+accounts with no credentials to go with them. So a publisher states its own, and like the app id it
+is a reservation of sorts: it is where every installed copy already keeps its mail. Allodia's are
+`mailcal` and `Allodia/MailCalendar`. Everywhere else the directory is the app's already (the Mac
+App Store and iOS containers, Android's `filesDir`, a Flatpak's or a snap's own data directory), and
+the same name is used inside it. `mailcal-l10n` emits both (`Brand.dataDirName`,
+`Brand.WindowsDataDir`, `l10n::DATA_DIR_NAME`); the macOS Share Extension, which links none of that,
+reads it from its Info.plist and its sandbox grant names it through a build setting.
+
 ## The store copy
 
 A third slot, and the same resolution rule: `branding/brand-listing.md` when it is present,
@@ -197,7 +217,9 @@ does not declare.
 2. **Anything named after the id follows the id.** The OAuth redirect schemes, the keychain service
    and access group, the app group, the credential-target prefix, the MCP pipe name, the
    background-refresh task id, the notification-portal attribution. A literal is a value that stops
-   matching the moment the app is re-branded, and every one of those failures is silent.
+   matching the moment the app is re-branded, and every one of those failures is silent. The data
+   directory is the one exception: it is a brand value of its own (above), because Allodia's
+   predates the id it would otherwise follow.
 3. **`branding/brand.env` is the only file that carries a publisher's identity.** It is not secret;
    it is the public identity of a shipped app, so it is committed, and it is the one file a
    publisher swaps to make a build their own.

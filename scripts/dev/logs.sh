@@ -44,7 +44,7 @@ case "$platform" in
     udid="$(booted_sim_udid "$platform")" || die "no booted $platform simulator: boot one first: scripts/dev/boot.sh $platform"
     container="$(sim_app_container "$udid")"
     [[ -n "$container" ]] || die "the app isn't installed on the booted simulator yet: run scripts/dev/boot.sh $platform"
-    log="$container/Library/Application Support/mailcal/mailcal.log"
+    log="$container/Library/Application Support/$MAILCAL_DATA_DIR_NAME/mailcal.log"
     info "simulator ($udid) log: $log"
     if [[ "$DUMP" == 1 ]]; then [[ -f "$log" ]] && cat "$log" || warn "no log yet at $log"; else tail -n +1 -F "$log"; fi
     ;;
@@ -75,7 +75,7 @@ case "$platform" in
     # log directly. Normalise the backslashes in %LOCALAPPDATA% to forward slashes so tail/cat
     # accept the path. --dump prints once; the default follows (tail -F waits if it's not there yet).
     base="${LOCALAPPDATA:-$HOME/AppData/Local}"; base="${base//\\//}"
-    log="$base/Allodia/MailCalendar/logs/app.log"
+    log="$base/$MAILCAL_WINDOWS_DATA_DIR/logs/app.log"
     info "Windows log: $log"
     if [[ "$DUMP" == 1 ]]; then
       [[ -f "$log" ]] && cat "$log" || warn "no log yet at $log (is the app built and launched?)"

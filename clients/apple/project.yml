@@ -391,6 +391,8 @@ targets:
         # box and to build the doorbell URL. Read here rather than from MailcalBindings'
         # generated `Brand`, which would drag the core in behind it.
         MailcalAppID: ${MAILCAL_APP_ID}
+        # The app's data directory name, which the macOS drop box is named after.
+        MailcalDataDirName: ${MAILCAL_DATA_DIR_NAME}
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
@@ -411,6 +413,8 @@ targets:
         # The app's id, for the entitlements file: its own $(PRODUCT_BUNDLE_IDENTIFIER) is the
         # extension's and would name an App Group nobody else is in.
         MAILCAL_HOST_APP_ID: ${MAILCAL_APP_ID}
+        # The app's data directory name, for the drop box the macOS entitlements file grants.
+        MAILCAL_DATA_DIR_NAME: ${MAILCAL_DATA_DIR_NAME}
         # iOS takes the App Group set: a device build provisions automatically and the simulator
         # does not check. macOS outside the Store has no provisioning profile, and a sandboxed
         # process cannot use an App Group a profile did not grant, so it takes a home-relative

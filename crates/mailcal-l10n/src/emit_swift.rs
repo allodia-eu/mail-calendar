@@ -46,8 +46,11 @@ fn render_brand(brand: &Brand) -> String {
          \x20   public static let mcpServerName = {:?}\n\
          \x20   /// The command the MCP relay is installed as: its nested bundle and executable.\n\
          \x20   public static let mcpRelayName = {:?}\n\
+         \x20   /// The directory the store, the log and the MCP endpoint live in: under\n\
+         \x20   /// `~/.local/share` on macOS, under Application Support on iOS.\n\
+         \x20   public static let dataDirName = {:?}\n\
          }}\n",
-        brand.id, brand.mcp_server_name, brand.mcp_relay_name
+        brand.id, brand.mcp_server_name, brand.mcp_relay_name, brand.data_dir_name
     )
 }
 

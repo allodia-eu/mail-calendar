@@ -45,6 +45,8 @@ fn fixture_brand() -> Brand {
         id: "org.fixture.client".to_string(),
         mcp_server_name: "fixture-mail".to_string(),
         mcp_relay_name: "fixture-mcp".to_string(),
+        data_dir_name: "fixture".to_string(),
+        windows_data_dir: "Fixture/Mail".to_string(),
     }
 }
 
@@ -244,6 +246,11 @@ fn swift_emits_typed_accessors_and_tables() {
             .contains("public static let mcpRelayName = \"fixture-mcp\"")
     );
     assert!(
+        brand
+            .1
+            .contains("public static let dataDirName = \"fixture\"")
+    );
+    assert!(
         src.1
             .contains("static func greeting(name: String) -> String")
     );
@@ -338,6 +345,7 @@ fn winui_emits_resw_and_accessor() {
     assert!(brand.contains("public const string AppId = \"org.fixture.client\";"));
     assert!(brand.contains("public const string McpServerName = \"fixture-mail\";"));
     assert!(brand.contains("public const string McpRelayName = \"fixture-mcp\";"));
+    assert!(brand.contains("public const string WindowsDataDir = \"Fixture/Mail\";"));
     assert!(
         !brand.contains("using "),
         "Brand.cs must stay dependency-free:\n{brand}"
@@ -367,6 +375,7 @@ fn rust_emits_typed_accessors_and_runtime_locale_detection() {
     assert!(source.contains("pub(crate) const APP_ID: &str = \"org.fixture.client\";"));
     assert!(source.contains("pub(crate) const MCP_SERVER_NAME: &str = \"fixture-mail\";"));
     assert!(source.contains("pub(crate) const MCP_RELAY_NAME: &str = \"fixture-mcp\";"));
+    assert!(source.contains("pub(crate) const DATA_DIR_NAME: &str = \"fixture\";"));
 }
 
 #[test]

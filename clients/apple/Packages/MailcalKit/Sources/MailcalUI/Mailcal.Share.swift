@@ -41,7 +41,9 @@ enum ShareInbox {
     /// Everything from the manifest on is the core's: the names, the media types, the cap, and
     /// which items it will not take. Nothing here inspects a file.
     @MainActor static func take() -> ShareOpenRequest? {
-        guard let box = ShareBox.shared(appID: Brand.appID), let drop = box.take() else {
+        guard let box = ShareBox.shared(appID: Brand.appID, dataDirName: Brand.dataDirName),
+            let drop = box.take()
+        else {
             return nil
         }
         let prefill = prefillFromShare(

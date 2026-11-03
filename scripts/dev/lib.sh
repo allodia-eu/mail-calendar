@@ -187,9 +187,9 @@ DEV_STORE_MODES=(dev dev-multi dev-imap dev-linked)
 dev_store_dir() {
   local platform="$1" mode="$2"
   case "$platform" in
-    windows) printf '%s/Allodia/MailCalendar/%s' "${LOCALAPPDATA:-$HOME/AppData/Local}" "$mode" ;;
-    macos)   printf '%s/.local/share/mailcal-%s' "$HOME" "$mode" ;;
-    linux)   printf '%s/mailcal/%s' "${XDG_DATA_HOME:-$HOME/.local/share}" "$mode" ;;
+    windows) printf '%s/%s/%s' "${LOCALAPPDATA:-$HOME/AppData/Local}" "$MAILCAL_WINDOWS_DATA_DIR" "$mode" ;;
+    macos)   printf '%s/.local/share/%s-%s' "$HOME" "$MAILCAL_DATA_DIR_NAME" "$mode" ;;
+    linux)   printf '%s/%s/%s' "${XDG_DATA_HOME:-$HOME/.local/share}" "$MAILCAL_DATA_DIR_NAME" "$mode" ;;
     *) return 1 ;;
   esac
 }
@@ -203,9 +203,9 @@ host_desktop_client() {
 }
 
 # The macOS log file the app writes (docs/logging.md). macOS only.
-macos_log_path() { printf '%s/.local/share/mailcal/mailcal.log\n' "$HOME"; }
+macos_log_path() { printf '%s/.local/share/%s/mailcal.log\n' "$HOME" "$MAILCAL_DATA_DIR_NAME"; }
 # The XDG data log written by the native Linux client (docs/logging.md). Linux only.
-linux_log_path() { printf '%s/mailcal/mailcal.log\n' "${XDG_DATA_HOME:-$HOME/.local/share}"; }
+linux_log_path() { printf '%s/%s/mailcal.log\n' "${XDG_DATA_HOME:-$HOME/.local/share}" "$MAILCAL_DATA_DIR_NAME"; }
 
 
 # ---- simulators (Apple) -----------------------------------------------------------------------
@@ -272,7 +272,7 @@ first_iphone_sim() {
 }
 
 # The data-container path of the installed app on simulator <udid> (holds its log under
-# Library/Application Support/mailcal). Empty if the app isn't installed yet.
+# Library/Application Support/<MAILCAL_DATA_DIR_NAME>). Empty if the app isn't installed yet.
 sim_app_container() {
   xcrun simctl get_app_container "$1" "$APPLE_BUNDLE_ID" data 2>/dev/null || true
 }
@@ -585,8 +585,8 @@ wait_for_log_marker() { # <file> <offset> <marker> <timeout-seconds> <pid>
 # container also holds the same log/preferences files a simulator does.
 
 # The on-device app-container-relative paths (docs/logging.md, docs/background-sync.md).
-APP_LOG_REL="Library/Application Support/mailcal/mailcal.log"
-APP_PREFS_REL="Library/Application Support/mailcal/preferences.toml"
+APP_LOG_REL="Library/Application Support/$MAILCAL_DATA_DIR_NAME/mailcal.log"
+APP_PREFS_REL="Library/Application Support/$MAILCAL_DATA_DIR_NAME/preferences.toml"
 
 # Emit "<udid>\t<name> (<os>)" for every CONNECTED physical iOS/iPadOS device.
 #

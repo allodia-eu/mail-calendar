@@ -44,7 +44,8 @@ function Assert-True($actual, [string] $what) {
 $RealLocalAppData = $env:LOCALAPPDATA
 $Sandbox = Join-Path ([IO.Path]::GetTempPath()) "mailcal-applog-tests-$PID"
 $env:LOCALAPPDATA = $Sandbox
-$LogDir = Join-Path $Sandbox 'Allodia\MailCalendar\logs'
+. (Join-Path $PSScriptRoot 'brand.ps1')
+$LogDir = Join-Path (Join-Path $Sandbox (Get-BrandConstant WindowsDataDir)) 'logs'
 . (Join-Path $PSScriptRoot 'applog.ps1')
 
 function Set-Log([string] $name, [string[]] $lines) {

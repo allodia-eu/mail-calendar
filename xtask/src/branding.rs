@@ -164,6 +164,22 @@ fn clients_derive(root: &Path, report: &mut Report) -> Result<(), String> {
         &format!("{project_path} no longer takes the MCP relay's name from the environment."),
         report,
     );
+    // The Mac's share box is outside the generated `Brand`, so the extension and its sandbox grant
+    // are given the data directory's name separately; a literal in either is a box two brands
+    // share.
+    require(
+        &project,
+        "MailcalDataDirName: ${MAILCAL_DATA_DIR_NAME}",
+        &format!("{project_path} no longer gives the Share Extension the data directory's name."),
+        report,
+    );
+    let share_ents = "clients/apple/App/AllodiaMailShare.macOS.entitlements";
+    require(
+        &git::read(root, share_ents)?,
+        "<string>/.local/share/$(MAILCAL_DATA_DIR_NAME)-share/</string>",
+        &format!("{share_ents} grants a share box that does not follow the data directory."),
+        report,
+    );
 
     for ents in [
         "clients/apple/App/AllodiaMail.entitlements",
