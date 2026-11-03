@@ -4,10 +4,10 @@
 #   ./install-windows-app-runtime.ps1              # x64
 #   ./install-windows-app-runtime.ps1 -Arch arm64
 #
-# A developer machine gets this from the Visual Studio installer or the runtime redistributable and
-# needs none of this. A CI runner does: the app is FRAMEWORK-DEPENDENT in both build shapes
-# (Mailcal.csproj), so without the runtime registered it does not start at all, and the UI suite
-# then reports thirty suites failing to find a window.
+# The app is FRAMEWORK-DEPENDENT in both build shapes (Mailcal.csproj), so without the runtime
+# registered at the pinned version or later it does not start at all. A CI runner always needs
+# this, and the UI suite there otherwise reports thirty suites failing to find a window; a developer
+# machine needs it after the pin moves past the runtime Visual Studio installed.
 #
 # The packages come from the RESTORED NUGET PACKAGE rather than a download, which is the whole
 # point of doing it this way: `Microsoft.WindowsAppSDK.Runtime` carries the four MSIX packages the
@@ -41,11 +41,13 @@ if (-not (Test-Path -LiteralPath $msix)) {
 # needs, and "some version of it is there" would then skip the install and leave the app unable to
 # start, which is the symptom this script exists to remove.
 $want = if ($Arch -eq 'x64') { 'X64' } else { 'Arm64' }
+# At this version OR LATER: the app's dependency on the runtime is a minimum, so a newer one
+# already serves it and there is nothing to register.
 $framework = Get-AppxPackage | Where-Object {
-  $_.Name -eq 'Microsoft.WindowsAppRuntime.2' -and $_.Version -eq "$pinned.0" -and "$($_.Architecture)" -eq $want
+  $_.Name -eq 'Microsoft.WindowsAppRuntime.2' -and [version] $_.Version -ge [version] "$pinned.0" -and "$($_.Architecture)" -eq $want
 }
 if ($framework) {
-  Write-Host "==> Windows App Runtime $pinned ($want) is already registered"
+  $framework | ForEach-Object { Write-Host "==> Windows App Runtime $($_.Version) ($want) is already registered, which satisfies $pinned" }
   exit 0
 }
 
@@ -68,7 +70,7 @@ foreach ($name in $order) {
 # to report a partial success, and an unregistered framework is exactly the state whose symptom is
 # an app that will not start.
 $registered = Get-AppxPackage | Where-Object {
-  $_.Name -eq 'Microsoft.WindowsAppRuntime.2' -and "$($_.Architecture)" -eq $want
+  $_.Name -eq 'Microsoft.WindowsAppRuntime.2' -and [version] $_.Version -ge [version] "$pinned.0" -and "$($_.Architecture)" -eq $want
 }
 if (-not $registered) {
   throw "the packages installed but Microsoft.WindowsAppRuntime.2 is not registered, so the app would still not start."
