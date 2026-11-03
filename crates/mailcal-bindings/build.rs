@@ -1,5 +1,6 @@
 //! Supplies the analytics relay endpoint `src/analytics.rs` reads with `option_env!`, and the
-//! publisher's support address `src/about.rs` reads with `env!`.
+//! brand values read with `env!`: the publisher's support address for `src/about.rs`, and the app's
+//! name, which is the client name a provider's consent screen shows (`src/*_oauth.rs`).
 //!
 //! The mechanism is [`mailcal_buildenv`], shared with `mailcal-oauth`; the policy is here.
 //!
@@ -20,14 +21,16 @@ const RELAY_URL_VAR: &str = "ALLODIA_TELEMETRY_URL";
 /// but not this still reports.
 const RELAY_APP_KEY_VAR: &str = "ALLODIA_TELEMETRY_APP_KEY";
 
-/// Where Settings → About sends someone with a problem: the publisher's, from `branding/`.
-const SUPPORT_URL_VAR: &str = "MAILCAL_SUPPORT_URL";
+/// The brand values this crate compiles in, from `branding/` (docs/branding.md).
+const BRAND_VARS: [&str; 2] = ["MAILCAL_APP_NAME", "MAILCAL_SUPPORT_URL"];
 
 fn main() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    match mailcal_l10n::brand_value(&root, SUPPORT_URL_VAR) {
-        Ok(url) => println!("cargo:rustc-env={SUPPORT_URL_VAR}={url}"),
-        Err(error) => panic!("{error}"),
+    for key in BRAND_VARS {
+        match mailcal_l10n::brand_value(&root, key) {
+            Ok(value) => println!("cargo:rustc-env={key}={value}"),
+            Err(error) => panic!("{error}"),
+        }
     }
 
     let injected = Injected::load();

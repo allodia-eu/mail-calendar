@@ -26,6 +26,11 @@ license.workspace = true
 [target.'cfg(windows)'.dependencies]
 tokio = { workspace = true, features = ["rt", "net", "io-util", "sync", "time", "macros"] }
 
+# Build-time only, and therefore not in the shipped binary either: resolves the app's name from
+# `branding/` for the answer the relay gives when the app cannot be reached (docs/branding.md).
+[build-dependencies]
+mailcal-l10n = { path = "../mailcal-l10n" }
+
 # Dev-only, and therefore not in the shipped binary: the end-to-end relay test asserts that
 # every line reaching stdout parses as JSON-RPC, which needs a parser to check with. The shim
 # itself still has no parser, that is the point of the check.

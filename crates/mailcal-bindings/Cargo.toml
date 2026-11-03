@@ -141,8 +141,8 @@ provider-imap = { workspace = true }
 # Resolves the analytics relay endpoint from the environment or the repo's `.env`, and refuses a
 # build we ship that lost it. Shared with `mailcal-oauth`'s build script so the two cannot drift.
 mailcal-buildenv = { workspace = true }
-# Resolves the publisher's support address from `branding/` (docs/branding.md), by the rule every
-# other brand reader uses.
+# Resolves the app's name and the publisher's support address from `branding/` (docs/branding.md),
+# by the rule every other brand reader uses.
 mailcal-l10n = { path = "../mailcal-l10n" }
 
 [lints.rust]

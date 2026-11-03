@@ -131,10 +131,7 @@ async fn turning_it_on_binds_a_socket_that_answers_and_turning_it_off_leaves_not
         }),
     )
     .await;
-    assert_eq!(
-        init["result"]["serverInfo"]["name"],
-        "allodia-mail-and-calendar"
-    );
+    assert_eq!(init["result"]["serverInfo"]["name"], crate::SERVER_NAME);
     assert!(server.is_running());
 
     server.stop();

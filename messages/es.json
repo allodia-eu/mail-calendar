@@ -839,7 +839,7 @@
 	"settings_advanced_reset_description": "Borra el correo guardado en el dispositivo y descárgalo todo de nuevo del servidor. Los envíos en cola se conservan.",
 
 	"settings_mcp_heading": "Acceso para asistentes de IA",
-	"settings_mcp_description": "Permite que un asistente de IA de este ordenador lea y gestione tu correo mediante el Model Context Protocol. Está desactivado salvo que lo actives, solo llega a las cuentas que marques y no se envía nada a Allodia.",
+	"settings_mcp_description": "Permite que un asistente de IA de este ordenador lea y gestione tu correo mediante el Model Context Protocol. Está desactivado salvo que lo actives, solo llega a las cuentas que marques y no se nos envía nada.",
 	"settings_mcp_toggle": "Permitir que los asistentes usen mi correo",
 	"settings_mcp_status_running": "Activo · esperando a que se conecte un cliente",
 	"settings_mcp_status_off": "Desactivado",

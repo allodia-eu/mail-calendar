@@ -839,7 +839,7 @@
 	"settings_advanced_reset_description": "Effacer les messages enregistrés localement et tout retélécharger depuis le serveur. Les envois en attente sont conservés.",
 
 	"settings_mcp_heading": "Accès des assistants IA",
-	"settings_mcp_description": "Autorisez un assistant IA sur cet ordinateur à lire et gérer vos messages, via le Model Context Protocol. C’est désactivé tant que vous ne l’activez pas, cela ne concerne que les comptes que vous cochez, et rien n’est envoyé à Allodia.",
+	"settings_mcp_description": "Autorisez un assistant IA sur cet ordinateur à lire et gérer vos messages, via le Model Context Protocol. C’est désactivé tant que vous ne l’activez pas, cela ne concerne que les comptes que vous cochez, et rien ne nous est envoyé.",
 	"settings_mcp_toggle": "Autoriser les assistants à utiliser mes messages",
 	"settings_mcp_status_running": "Actif · en attente d’un client",
 	"settings_mcp_status_off": "Désactivé",

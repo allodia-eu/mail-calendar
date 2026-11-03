@@ -89,10 +89,7 @@ async fn the_happy_path_is_initialize_then_initialized_then_list_then_call() {
         init["result"]["protocolVersion"],
         LEGACY_PROTOCOL_VERSIONS[0]
     );
-    assert_eq!(
-        init["result"]["serverInfo"]["name"],
-        "allodia-mail-and-calendar"
-    );
+    assert_eq!(init["result"]["serverInfo"]["name"], crate::SERVER_NAME);
 
     // A notification must NOT be answered. Sending it and then immediately sending a real
     // request proves it: if the server replied to the notification, the next read would return

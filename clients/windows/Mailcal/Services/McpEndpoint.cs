@@ -31,7 +31,7 @@ internal static class McpEndpoint
     /// key looks right in one client and quietly breaks the next. The display name is
     /// <c>serverInfo.title</c>'s job.
     /// </remarks>
-    public const string ConfigurationKey = "allodia-mail-and-calendar";
+    public const string ConfigurationKey = Brand.McpServerName;
 
     /// <summary>The relay executable's file name, built from <c>crates/mailcal-mcp-shim</c> and
     /// laid down beside <c>Mailcal.exe</c>.</summary>

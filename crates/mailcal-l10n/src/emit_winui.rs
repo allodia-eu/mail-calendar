@@ -56,8 +56,15 @@ fn render_brand_file(namespace: &str, brand: &Brand) -> String {
          \x20   /// MCP named pipe. Lowercase by rule.\n\
          \x20   /// </summary>\n\
          \x20   public const string AppId = \"{id}\";\n\
+         \n\
+         \x20   /// <summary>\n\
+         \x20   /// The key an MCP client files the local server under, and the server's own\n\
+         \x20   /// <c>serverInfo.name</c>.\n\
+         \x20   /// </summary>\n\
+         \x20   public const string McpServerName = \"{mcp}\";\n\
          }}\n",
-        id = brand.id
+        id = brand.id,
+        mcp = brand.mcp_server_name
     )
 }
 

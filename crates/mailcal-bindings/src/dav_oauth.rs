@@ -27,7 +27,7 @@ use crate::{
 };
 
 /// The client name shown on the provider's consent screen.
-const CLIENT_NAME: &str = "Allodia Mail & Calendar";
+const CLIENT_NAME: &str = env!("MAILCAL_APP_NAME");
 
 /// What [`MailcalApp::begin_separate_server_sign_in`] returns: the URL to open in the platform
 /// auth session, and an opaque handle to pass back to the completion.

@@ -839,7 +839,7 @@
 	"settings_advanced_reset_description": "Apagar o correio guardado localmente e transferir tudo de novo a partir do servidor. Os envios em fila são mantidos.",
 
 	"settings_mcp_heading": "Acesso para assistentes de IA",
-	"settings_mcp_description": "Permita que um assistente de IA neste computador leia o seu correio e atue sobre ele, através do Model Context Protocol. Está desativado a menos que o ative, alcança apenas as contas que assinalar e nada é enviado para a Allodia.",
+	"settings_mcp_description": "Permita que um assistente de IA neste computador leia o seu correio e atue sobre ele, através do Model Context Protocol. Está desativado a menos que o ative, alcança apenas as contas que assinalar e nada nos é enviado.",
 	"settings_mcp_toggle": "Permitir que os assistentes usem o meu correio",
 	"settings_mcp_status_running": "Em execução · à espera que um cliente se ligue",
 	"settings_mcp_status_off": "Desativado",

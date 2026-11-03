@@ -207,13 +207,14 @@ public sealed partial class SettingsDialog
     // Exports the current log file to a user-picked path, the FileSavePicker flow
     // ReadingView.Attachments.cs uses, with the same delete-on-failure so a failed copy never
     // leaves a half-written file at the chosen path. The live file only, exactly what the
-    // Android/Apple share hands over (docs/logging.md); backups stay on the device.
+    // Android/Apple share hands over (docs/logging.md); backups stay on the device. Suggested as
+    // `mailcal.log`, the name the Linux export suggests, whichever brand the build carries.
     private static async Task ExportLogAsync()
     {
         string? path;
         try
         {
-            var picker = new FileSavePicker(PickerOwner.For(null)) { SuggestedFileName = "allodia-mail-diagnostics" };
+            var picker = new FileSavePicker(PickerOwner.For(null)) { SuggestedFileName = "mailcal" };
             picker.FileTypeChoices.Add(L10n.DiagnosticsLogHeading(), new List<string> { ".log" });
             path = (await picker.PickSaveFileAsync())?.Path;
         }

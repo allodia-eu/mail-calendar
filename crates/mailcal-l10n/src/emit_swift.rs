@@ -41,8 +41,11 @@ fn render_brand(brand: &Brand) -> String {
          \x20   /// service, the background-refresh task id, and the URI scheme browser sign-ins\n\
          \x20   /// come back to. Lowercase by rule.\n\
          \x20   public static let appID = {:?}\n\
+         \x20   /// The key an MCP client files the local server under, and the server's own\n\
+         \x20   /// `serverInfo.name`.\n\
+         \x20   public static let mcpServerName = {:?}\n\
          }}\n",
-        brand.id
+        brand.id, brand.mcp_server_name
     )
 }
 

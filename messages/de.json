@@ -839,7 +839,7 @@
 	"settings_advanced_reset_description": "Die lokal gespeicherten E-Mails löschen und alles neu vom Server laden. Nachrichten in der Warteschlange bleiben erhalten.",
 
 	"settings_mcp_heading": "Zugriff für KI-Assistenten",
-	"settings_mcp_description": "Erlauben Sie einem KI-Assistenten auf diesem Computer, Ihre E-Mails über das Model Context Protocol zu lesen und zu bearbeiten. Es ist aus, solange Sie es nicht einschalten, es erreicht nur die Konten, die Sie auswählen, und nichts wird an Allodia gesendet.",
+	"settings_mcp_description": "Erlauben Sie einem KI-Assistenten auf diesem Computer, Ihre E-Mails über das Model Context Protocol zu lesen und zu bearbeiten. Es ist aus, solange Sie es nicht einschalten, es erreicht nur die Konten, die Sie auswählen, und nichts wird an uns gesendet.",
 	"settings_mcp_toggle": "Assistenten dürfen meine E-Mails verwenden",
 	"settings_mcp_status_running": "Aktiv · wartet auf einen Client",
 	"settings_mcp_status_off": "Aus",
