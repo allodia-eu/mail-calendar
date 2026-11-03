@@ -6,9 +6,9 @@
        surface_changed + immutable-snapshot out loop; only the renderer differs.
 
        Unpackaged so `dotnet run` needs no MSIX, and framework-dependent against the installed
-       Windows App Runtime, which is what lets it raise notifications (see below). Dual-arch:
-       build with -r win-arm64 or -r win-x64; build-and-run.ps1 builds the matching Rust cdylib
-       and points NativeLib at it. -->
+       Windows App Runtime, as the Store build is (see below). Dual-arch: build with
+       -r win-arm64 or -r win-x64; build-and-run.ps1 builds the matching Rust cdylib and points
+       NativeLib at it. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <!-- Latest-only: build against the Windows 11 24H2 SDK (10.0.26100), .NET 10, no legacy

@@ -260,9 +260,10 @@ Import-Certificate -FilePath .\Mailcal_<ver>_x64_arm64.cer -CertStoreLocation Ce
 Add-AppxPackage -Path .\Mailcal_<ver>_x64_arm64.msixbundle
 ```
 
-A clean device also needs the **WinApp SDK runtime** (`Microsoft.WindowsAppRuntime`): it's
-preinstalled on dev boxes; on a bare device install it from the Store/`winget` first. **Local
-testing only, never distribute a self-signed build;** real distribution is Store-signed.
+A clean device also needs the **WinApp SDK runtime** (`Microsoft.WindowsAppRuntime`) at the version
+the build pins or later: on a dev box `./uitests/install-windows-app-runtime.ps1` registers it; on a
+bare device install it from the Store/`winget` first. **Local testing only, never distribute a
+self-signed build;** real distribution is Store-signed.
 
 > **Why not `Add-AppDevPackage.ps1`?** The SDK's one-click sideload helper (`Add-AppDevPackage.ps1`
 > + bundled `Dependencies/`) is **not** emitted for the **dual-arch bundle**: the SDK copies it into
