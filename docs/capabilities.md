@@ -120,7 +120,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar: refreshes periodically while the app remains open, without requiring another visit to the tab | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Calendar: create with a **calendar picker** (grouped by account) · all-day · notes · location | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: tap an event to **view** its detail and **edit** it (title, time, notes, location) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Calendar: an event's **video meeting** (Microsoft Teams, Google Meet, Zoom and others, whether the calendar made it or an invitation only wrote the link into its text) is joined from its detail with one tap, beside its meeting ID, passcode and dial-in numbers, and marked with a camera on the grid, the month and the agenda ([docs](docs/conferencing.md)) | ✅ | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| Calendar: an event's **video meeting** (Microsoft Teams, Google Meet, Zoom and others, whether the calendar made it or an invitation only wrote the link into its text) is joined from its detail with one tap, beside its meeting ID, passcode and dial-in numbers, and marked with a camera on the grid, the month and the agenda ([docs](docs/conferencing.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: an event's **attendee list** (who called it, and who accepted / declined / answered maybe / hasn't replied), on the detail **and** read-only in the editor | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **invite people** to a new event, as required or optional, on a calendar whose server sends the invitations; and **change who is invited** to a meeting you organise ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: an **optional** invitee is marked as such in the attendee list | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -170,7 +170,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | In-app **Diagnostics** (Settings): log viewer, share/export with privacy note, size + copy path, persisted DEBUG toggle ([docs](docs/logging.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Consented product analytics: first-boot welcome screen, **opt-in, default off**; install id minted only at consent; payload structurally cannot carry mail content; "see exactly what we send" preview; Settings → Privacy one-click withdrawal + backend erasure ([`docs/analytics.md`](docs/analytics.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Showcase (store-screenshot) mode: `MAILCAL_SHOWCASE` boots a seeded in-memory dataset, no real account ([`docs/debugging.md`](docs/debugging.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Scripted screenshot capture: 6 screens (incl. calendar and the meeting-invitation card) × 7 languages, store-valid sizes; Android covers Play's phone **and** 7-/10-inch tablet slots, booting the tablet AVD itself (`scripts/dev/showcase.sh`) | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Scripted screenshot capture: 7 screens (incl. calendar, the meeting-invitation card and a video meeting's detail) × 7 languages, store-valid sizes; Android covers Play's phone **and** 7-/10-inch tablet slots, booting the tablet AVD itself (`scripts/dev/showcase.sh`) | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ### Notes on the matrix
 

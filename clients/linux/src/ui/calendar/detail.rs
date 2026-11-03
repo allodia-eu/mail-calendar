@@ -18,6 +18,7 @@ use super::{
     super::AppInput,
     answer,
     attendees::attendee_group,
+    conference::conference_group,
     dialogs::{connect_dismiss, detail_row, detail_time, modal, reminder, title},
     editor::EventDetails,
     model::EventIdentity,
@@ -71,7 +72,10 @@ pub(super) fn present_detail(
     let scroll = gtk::ScrolledWindow::new();
     scroll.set_child(Some(&body));
     scroll.set_vexpand(true);
-    window.set_child(Some(&scroll));
+    // Where Copy link says it copied (`conference.rs`).
+    let toasts = adw::ToastOverlay::new();
+    toasts.set_child(Some(&scroll));
+    window.set_child(Some(&toasts));
     let view = DetailView {
         window,
         body,
@@ -100,6 +104,11 @@ impl DetailView {
             self.body.remove(&child);
         }
         self.body.append(&facts(detail));
+        // Join comes before everything else a person reads: it is what they opened the event to
+        // do (`docs/conferencing.md`). In the core's order.
+        for (index, conference) in detail.conferences.iter().enumerate() {
+            self.body.append(&conference_group(conference, index));
+        }
         if let Some(current) = detail.my_answer {
             let answer = answer::answer_group(
                 current,
@@ -111,6 +120,7 @@ impl DetailView {
             answer.set_margin_end(18);
             self.body.append(&answer);
         }
+        self.body.append(&particulars(detail));
         // No group at all for an appointment nobody was invited to: an empty "Attendees" heading
         // would read as "we looked and found none", a different statement from "this is not a
         // meeting".
@@ -158,10 +168,29 @@ fn facts(detail: &EventDetails) -> adw::PreferencesGroup {
     group.add(&detail_row(l10n::event_start(), &detail_time(detail, true)));
     group.add(&detail_row(l10n::event_end(), &detail_time(detail, false)));
     group.add(&detail_row(l10n::event_calendar(), &detail.calendar_name));
-    if let Some(location) = detail.location.as_deref().filter(|value| !value.is_empty()) {
+    group
+}
+
+/// The rest of what the event says, below its meetings and the answer.
+fn particulars(detail: &EventDetails) -> adw::PreferencesGroup {
+    let group = adw::PreferencesGroup::new();
+    group.set_margin_start(18);
+    group.set_margin_end(18);
+    // The display variants, not `location` and `notes`: a location that is only the join link,
+    // and the invitation's meeting block, repeat the meeting above. The editor still edits
+    // `location` and `notes`, so a save keeps them for every invitee.
+    if let Some(location) = detail
+        .display_location
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
         group.add(&detail_row(l10n::event_location(), location));
     }
-    if let Some(notes) = detail.notes.as_deref().filter(|value| !value.is_empty()) {
+    if let Some(notes) = detail
+        .display_notes
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
         group.add(&crate::ui::linked_text::row(l10n::event_notes(), notes));
     }
     group.add(&detail_row(

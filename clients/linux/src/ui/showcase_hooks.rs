@@ -6,7 +6,7 @@
 
 use mailcal_bindings::Surface;
 
-use super::{AppInput, AppModel, ComposeKind, OpenedMessage};
+use super::{AppInput, AppModel, ComposeKind, OpenedMessage, calendar::EventIdentity};
 use crate::showcase::ShowcaseScreen;
 
 impl AppModel {
@@ -57,6 +57,14 @@ impl AppModel {
             // all, which is what this input opens and why it re-derives the card.
             ShowcaseScreen::AddAccount => input.emit(AppInput::RestartAccountSetup),
             ShowcaseScreen::Calendar => self.show_calendar(),
+            // The detail needs the event in the store, which the calendar refresh puts there: so
+            // it is asked for now and again on each calendar surface until it is open
+            // (`continue_showcase_meeting`), rather than after a timer.
+            ShowcaseScreen::Meeting => {
+                self.show_calendar();
+                self.showcase_pending = Some(ShowcaseScreen::Meeting);
+                self.continue_showcase_meeting();
+            }
         }
     }
 
@@ -91,6 +99,7 @@ impl AppModel {
         match surface {
             Surface::Contacts => self.apply_debug_open_contact_hook(input.clone()),
             Surface::Reading => self.continue_showcase(input),
+            Surface::Calendar => self.continue_showcase_meeting(),
             _ => {}
         }
     }
@@ -109,6 +118,21 @@ impl AppModel {
             ComposeKind::Reply,
             input,
         );
+    }
+
+    /// Opens the meeting screenshot's event once the calendar holds it, and stops asking once it
+    /// has. In place rather than through the input queue, so a calendar surface arriving before a
+    /// queued open is handled cannot ask a second time and stack a second detail window.
+    fn continue_showcase_meeting(&mut self) {
+        if self.showcase_pending != Some(ShowcaseScreen::Meeting) {
+            return;
+        }
+        if let Some(app) = &self.app {
+            self.calendar.open_event(app, meeting_event());
+        }
+        if self.calendar.shows_detail() {
+            self.showcase_pending = None;
+        }
     }
 
     pub(super) fn apply_debug_open_hook(&mut self) {
@@ -148,6 +172,17 @@ impl AppModel {
         if let Some(id) = debug_open_contact_id(self.contacts.rows(), &requested) {
             self.open_contact(id, sender);
         }
+    }
+}
+
+/// The meeting screenshot's event, as the calendar names one. It does not recur, so it names no
+/// occurrence.
+fn meeting_event() -> EventIdentity {
+    let target = crate::showcase::meeting_target();
+    EventIdentity {
+        account: target.account,
+        key: target.event_key,
+        occurrence: String::new(),
     }
 }
 

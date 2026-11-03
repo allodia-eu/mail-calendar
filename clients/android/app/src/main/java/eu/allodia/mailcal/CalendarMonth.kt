@@ -6,6 +6,7 @@
 // computed here (the same division of labour as the all-day banner).
 package eu.allodia.mailcal
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,8 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -204,8 +207,8 @@ private fun ColumnScope.MonthChips(
                 // alone is invisible to a screen reader.
                 val awaiting = isAwaitingResponse(chip.participation)
                 val title = chip.title.ifEmpty { L10n.event_no_title(ctx) }
-                Text(
-                    text = title,
+                val textColor = parseHexColor(swatch.text)
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 1.dp)
@@ -214,20 +217,32 @@ private fun ColumnScope.MonthChips(
                         .holdChip(awaiting, parseHexColor(swatch.border), CHIP_CORNER)
                         .clickable { onOpenEvent(EventOpen(chip.account, chip.event, chip.occurrenceStart)) }
                         .padding(horizontal = 2.dp)
-                        .semantics {
-                            contentDescription = if (awaiting) {
-                                "$title, ${L10n.a11y_invitation_awaiting_response(ctx)}"
-                            } else {
-                                title
-                            }
+                        // One node, so TalkBack reads the label rather than the title twice.
+                        .clearAndSetSemantics {
+                            contentDescription = monthChipLabel(ctx, title, awaiting, chip.hasConference)
                         },
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = 9.sp,
-                    lineHeight = 11.sp,
-                    color = parseHexColor(swatch.text),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = title,
+                        // The title truncates first, so the camera stays in sight.
+                        modifier = Modifier.weight(1f, fill = false),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 9.sp,
+                        lineHeight = 11.sp,
+                        color = textColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (chip.hasConference) {
+                        Icon(
+                            painterResource(R.drawable.ic_videocam),
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 2.dp).size(9.dp),
+                            tint = textColor,
+                        )
+                    }
+                }
             }
             if (hidden > 0) {
                 Text(
@@ -244,4 +259,18 @@ private fun ColumnScope.MonthChips(
             }
         }
     }
+}
+
+/**
+ * A month chip's spoken label: its title, then the hold and the meeting where each applies. The
+ * hatching and the camera are invisible to a screen reader, so the label says both in words.
+ */
+internal fun monthChipLabel(
+    ctx: Context,
+    title: String,
+    awaiting: Boolean,
+    hasConference: Boolean,
+): String {
+    val label = if (awaiting) "$title, ${L10n.a11y_invitation_awaiting_response(ctx)}" else title
+    return EventMeeting.spoken(label, L10n.event_video_meeting(ctx), hasConference)
 }

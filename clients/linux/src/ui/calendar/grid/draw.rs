@@ -2,7 +2,10 @@
 
 use gtk::cairo;
 
-use super::scene::{GUTTER, GridScene, HEADING_HEIGHT, LANE_HEIGHT, pixels};
+use super::{
+    camera::{self, Camera},
+    scene::{GUTTER, GridScene, HEADING_HEIGHT, LANE_HEIGHT, pixels},
+};
 use crate::{
     l10n,
     ui::calendar::{
@@ -12,7 +15,7 @@ use crate::{
 };
 
 /// The scrolled hours, midnight at the surface's top.
-pub(super) fn draw_hours(scene: &GridScene, context: &cairo::Context, width: f64) {
+pub(super) fn draw_hours(scene: &GridScene, context: &cairo::Context, width: f64, camera: &Camera) {
     let foreground = theme_color(scene.dark, true);
     set_source(context, theme_color(scene.dark, false));
     let _ = context.paint();
@@ -34,7 +37,7 @@ pub(super) fn draw_hours(scene: &GridScene, context: &cairo::Context, width: f64
     }
     let _ = context.stroke();
     draw_hour_labels(scene, context, foreground);
-    draw_events(scene, context, geometry.day_width);
+    draw_events(scene, context, geometry.day_width, camera);
     draw_now(scene, context, width, geometry.day_width);
     draw_create(scene, context, width, geometry.day_width);
 }
@@ -43,7 +46,12 @@ pub(super) fn draw_hours(scene: &GridScene, context: &cairo::Context, width: f64
 ///
 /// `width` is the hours surface's, not the header's own: a scrollbar that takes room beside the
 /// hours takes none beside the header, and the columns have to line up regardless.
-pub(super) fn draw_header(scene: &GridScene, context: &cairo::Context, width: f64) {
+pub(super) fn draw_header(
+    scene: &GridScene,
+    context: &cairo::Context,
+    width: f64,
+    camera: &Camera,
+) {
     let foreground = theme_color(scene.dark, true);
     set_source(context, theme_color(scene.dark, false));
     let _ = context.paint();
@@ -59,7 +67,7 @@ pub(super) fn draw_header(scene: &GridScene, context: &cairo::Context, width: f6
     context.line_to(width, height - 0.5);
     let _ = context.stroke();
     draw_labels(scene, context, geometry.day_width, foreground);
-    draw_bands(scene, context, geometry.day_width, foreground);
+    draw_bands(scene, context, geometry.day_width, foreground, camera);
 }
 
 fn day_lines(scene: &GridScene, context: &cairo::Context, day_width: f64, height: f64) {
@@ -111,7 +119,13 @@ fn draw_hour_labels(scene: &GridScene, context: &cairo::Context, foreground: Rgb
     }
 }
 
-fn draw_bands(scene: &GridScene, context: &cairo::Context, day_width: f64, foreground: Rgb) {
+fn draw_bands(
+    scene: &GridScene,
+    context: &cairo::Context,
+    day_width: f64,
+    foreground: Rgb,
+    camera: &Camera,
+) {
     for band in &scene.bands {
         let rect = Rect {
             x: GUTTER + pixels(band.day) * day_width + 1.0,
@@ -121,8 +135,8 @@ fn draw_bands(scene: &GridScene, context: &cairo::Context, day_width: f64, foreg
         };
         paint::fill_rect(context, rect, band.background, band.awaiting);
         paint::hatch_and_dash(context, rect, band.background, band.awaiting);
-        set_source(context, band.foreground);
-        clipped_text(context, rect, &band.title, 11.0);
+        let meeting = band.has_conference.then_some(camera);
+        title_line(context, rect, &band.title, 11.0, band.foreground, meeting);
     }
     for (day, hidden) in scene.hidden_per_day.iter().copied().enumerate() {
         if hidden == 0 {
@@ -136,7 +150,7 @@ fn draw_bands(scene: &GridScene, context: &cairo::Context, day_width: f64, foreg
     }
 }
 
-fn draw_events(scene: &GridScene, context: &cairo::Context, day_width: f64) {
+fn draw_events(scene: &GridScene, context: &cairo::Context, day_width: f64, camera: &Camera) {
     for event in &scene.events {
         let lane_width = day_width / f64::from(event.columns);
         let rect = Rect {
@@ -157,13 +171,9 @@ fn draw_events(scene: &GridScene, context: &cairo::Context, day_width: f64) {
         let _ = context.stroke();
         paint::set_dash(context, false);
         if rect.height >= 14.0 {
-            set_source(context, event.foreground);
-            clipped_text(
-                context,
-                rect,
-                &event.title,
-                if rect.height < 28.0 { 9.0 } else { 11.0 },
-            );
+            let size = if rect.height < 28.0 { 9.0 } else { 11.0 };
+            let meeting = event.has_conference.then_some(camera);
+            title_line(context, rect, &event.title, size, event.foreground, meeting);
         }
     }
 }
@@ -283,18 +293,48 @@ fn rounded_rect(context: &cairo::Context, x: f64, y: f64, width: f64, height: f6
     context.close_path();
 }
 
-fn clipped_text(context: &cairo::Context, rect: Rect, text: &str, size: f64) {
+/// Below this much room for the title itself, the camera gives way to the title.
+const MIN_TITLE_ROOM: f64 = 16.0;
+
+/// An event's title inside `rect`, and the camera after it when `camera` is given, which the
+/// caller does only for an event with a video meeting. The title gives up the camera's room first,
+/// so the camera stays in sight; a block too narrow for both draws the title alone, and its spoken
+/// label still says "video meeting".
+fn title_line(
+    context: &cairo::Context,
+    rect: Rect,
+    text: &str,
+    size: f64,
+    color: Rgb,
+    camera: Option<&Camera>,
+) {
+    let room = (rect.width - 6.0).max(0.0);
+    let reserve = size + camera::GAP;
+    let camera = camera.filter(|_| room - reserve >= MIN_TITLE_ROOM);
+    let title_room = if camera.is_some() {
+        room - reserve
+    } else {
+        room
+    };
     let _ = context.save();
-    context.rectangle(
-        rect.x + 3.0,
-        rect.y + 2.0,
-        (rect.width - 6.0).max(0.0),
-        rect.height - 4.0,
-    );
+    context.rectangle(rect.x + 3.0, rect.y + 2.0, room, rect.height - 4.0);
     context.clip();
+    let _ = context.save();
+    context.rectangle(rect.x + 3.0, rect.y + 2.0, title_room, rect.height - 4.0);
+    context.clip();
+    set_source(context, color);
     select_font(context, size, cairo::FontWeight::Bold);
     context.move_to(rect.x + 4.0, rect.y + size + 3.0);
     let _ = context.show_text(text);
+    let advance = context
+        .text_extents(text)
+        .map_or(title_room, |extents| extents.x_advance());
+    let _ = context.restore();
+    if let Some(camera) = camera {
+        // After the text as drawn, which the clip has already cut to its room.
+        let x = rect.x + 4.0 + advance.min(title_room - 1.0) + camera::GAP;
+        camera.draw(context, x, rect.y + 3.5, size, color);
+    }
     let _ = context.restore();
 }
 

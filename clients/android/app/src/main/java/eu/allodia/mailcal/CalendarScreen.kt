@@ -111,6 +111,8 @@ internal fun CalendarScreen(
     onOpenAccount: (accountId: String) -> Unit = {},
     onReviewServerChange: (accountId: String) -> Unit = {},
     clock: () -> LocalDateTime = { LocalDateTime.now() },
+    /** An event whose detail is open when the screen first appears: the meeting screenshot's. */
+    initialEvent: EventOpen? = null,
 ) {
     val ctx = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -143,7 +145,7 @@ internal fun CalendarScreen(
     val pagerState = rememberPagerState(initialPage = CALENDAR_PAGE_ORIGIN) { CALENDAR_PAGE_COUNT }
     // The open editor (create or edit), or null; and the event whose detail is open, or null.
     var editor by remember { mutableStateOf<EventEditorState?>(null) }
-    var openEventRef by remember { mutableStateOf<EventOpen?>(null) }
+    var openEventRef by remember { mutableStateOf(initialEvent) }
     var managing by remember { mutableStateOf(false) }
     // A delete on one **occurrence** of a series, waiting for the same question the drag asks.
     // Nothing is written until it is answered.

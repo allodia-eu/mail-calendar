@@ -27,6 +27,7 @@ use calendar::{
     Cal, CalendarNames, FRI, MON, SAT, SUN, THU, TUE, WED, all_day_event, event, showcase_calendar,
     zoned_wd,
 };
+pub use calendar::{ShowcaseMeeting, showcase_meeting};
 // Same reasoning as the calendar builders above: a private import, so this module's
 // descendants — the per-locale seeds — keep writing `super::ago` wherever it happens to live.
 use clock::ago;

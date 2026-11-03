@@ -83,7 +83,10 @@ extension ContentView {
             let target = showcaseInvitation()
             guard openShowcaseMessage(account: target.account, key: target.messageKey) else { return }
             didShowcaseDrive = true
-        case .calendar:
+        case .calendar, .meeting:
+            // The meeting screenshot is the same drive: the calendar screen opens its event's
+            // detail itself, from `ShowcaseMode.openingEvent`, once the sync has stored it.
+            //
             // The calendar needs no mail rows, it opens on today's week and pulls its own page, so
             // this fires on the first `onAppear` without waiting for the list to load. `showCalendar`
             // sets the scene state and dispatches the calendar sync, exactly as the sidebar's

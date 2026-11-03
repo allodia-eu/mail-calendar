@@ -15,6 +15,7 @@ package eu.allodia.mailcal
 import android.content.Context
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -113,6 +114,8 @@ internal data class BlockPaint(
     val clock: String,
     /** Unconditional: a block too short to show its title still speaks it. */
     val spoken: String,
+    /** Whether the event has a video meeting: a camera after the title (docs/conferencing.md). */
+    val hasConference: Boolean,
     val background: Color,
     val border: Color,
     val titleStyle: TextStyle,
@@ -152,6 +155,8 @@ internal data class BandPaint(
     val span: BandSpan,
     val title: String,
     val spoken: String,
+    /** As [BlockPaint.hasConference]. */
+    val hasConference: Boolean,
     val background: Color,
     val titleStyle: TextStyle,
     /** As [BlockPaint.awaitingResponse]: an unanswered hold, drawn provisionally. */
@@ -256,6 +261,8 @@ internal data class SurfaceTheme(
     /** The floating readout's own colours, Material's tooltip pair, so it reads in either theme. */
     val pillFill: Color,
     val pillLabel: TextStyle,
+    /** The camera after the title of an event with a video meeting (docs/conferencing.md). */
+    val camera: Painter,
 )
 
 /**
@@ -342,12 +349,14 @@ internal fun CalendarPage.toPaint(
             endMinutes = end,
             title = title,
             clock = clockTime(start, use24Hour),
+            hasConference = segment.hasConference,
             spoken = calendarEventLabel(
                 ctx,
                 title,
                 timeRange(start, end, use24Hour),
                 calendar?.name.orEmpty(),
                 segment.participation,
+                segment.hasConference,
             ),
             background = parseHexColor(swatch.background).holdFill(awaiting),
             border = parseHexColor(swatch.border),
@@ -374,12 +383,14 @@ internal fun CalendarPage.toPaint(
                 lane = band.lane.toInt(),
             ),
             title = title,
+            hasConference = band.hasConference,
             spoken = calendarEventLabel(
                 ctx,
                 title,
                 allDayWord,
                 calendar?.name.orEmpty(),
                 band.participation,
+                band.hasConference,
             ),
             background = parseHexColor(swatch.background).holdFill(awaiting),
             titleStyle = theme.allDay.copy(color = parseHexColor(swatch.text)),

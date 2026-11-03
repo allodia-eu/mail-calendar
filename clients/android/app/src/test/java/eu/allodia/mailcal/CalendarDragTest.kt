@@ -48,6 +48,7 @@ private fun block(
     title = "Standup",
     clock = "09:00",
     spoken = "Standup",
+    hasConference = false,
     background = androidx.compose.ui.graphics.Color.Blue,
     border = androidx.compose.ui.graphics.Color.Blue,
     titleStyle = androidx.compose.ui.text.TextStyle.Default,

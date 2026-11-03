@@ -271,6 +271,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 outages = outageLines(OutageUse.CALENDAR, LocalContext.current),
                                 onOpenAccount = { id -> openAccountPage(id) },
                                 onReviewServerChange = { id -> reviewServerChange(id) },
+                                initialEvent = ShowcaseMode.openingEvent(this@MailboxTabContent),
                             )
                           } else {
                             // The folder navigation drawer wraps the mailbox screen so it can

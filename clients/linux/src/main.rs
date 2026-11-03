@@ -80,7 +80,7 @@ fn main() {
     {
         eprintln!(
             "MAILCAL_SHOWCASE_SCREEN={name} is not a screen this client can reach \
-             (list, reply, settings, add-account, calendar, invitation, signatures)"
+             (list, reply, settings, add-account, calendar, invitation, meeting, signatures)"
         );
         std::process::exit(2);
     }

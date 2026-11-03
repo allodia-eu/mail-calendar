@@ -37,7 +37,7 @@ param(
   # The MAILCAL_SHOWCASE_SCREEN spellings, which are a cross-client contract: the same strings
   # reach the Apple, Android and Windows drivers. Kept in step with scripts/dev/showcase.sh's
   # ALL_SCREENS + EXTRA_SCREENS by cargo xtask check-showcase-flag.
-  [Parameter(Mandatory)] [ValidateSet('list', 'reply', 'settings', 'signatures', 'add-account', 'calendar', 'invitation')] [string] $Screen,
+  [Parameter(Mandatory)] [ValidateSet('list', 'reply', 'settings', 'signatures', 'add-account', 'calendar', 'invitation', 'meeting')] [string] $Screen,
   # Which light/dark appearance the capture is pinned to (MAILCAL_APPEARANCE). The same three
   # spellings every client parses, kept in step with scripts/dev/showcase.sh by
   # cargo xtask check-showcase-flag.

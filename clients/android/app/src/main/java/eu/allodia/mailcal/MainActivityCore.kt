@@ -288,7 +288,8 @@ internal fun MainActivity.connectShowcase(locale: ShowcaseLocale) {
             // The calendar screenshot drives to the grid (showingCalendar set pre-setContent); kick
             // its sync here now the core exists, mirroring the real Calendar tap (onShowCalendar) and
             // the Apple/Windows showcase drivers, so the agenda list fills and the grid re-keys.
-            if (ShowcaseMode.screen(activity) == ShowcaseScreen.CALENDAR) {
+            val screen = ShowcaseMode.screen(activity)
+            if (screen == ShowcaseScreen.CALENDAR || screen == ShowcaseScreen.MEETING) {
                 connected.dispatch(Intent.RefreshCalendar)
             }
         }

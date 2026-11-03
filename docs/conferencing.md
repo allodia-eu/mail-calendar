@@ -52,14 +52,17 @@ nobody has to dig a link out of the notes.
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| The detail's meetings, Join first (rules 2 to 5) | ✅ | ✅ | ✅ | ⬜ | ⬜ |
-| The detail shows `display_notes` and `display_location` (rule 6) | ✅ | ✅ | ✅ | ⬜ | ⬜ |
-| The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| The detail's meetings, Join first (rules 2 to 5) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The detail shows `display_notes` and `display_location` (rule 6) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins what Join and
 a dial-in row open. On Windows the section is `EventConferenceSection.cs` over the WinUI-free
 `EventMeeting.cs`, which `EventMeetingTests` pins the same way; the grid draws its camera in
-`CalendarTitleDraw.cs`.
+`CalendarTitleDraw.cs`. On Android the section is `EventConferenceSection.kt` over
+`EventMeeting.kt`, which `EventMeetingTest` pins the same way and drives the section through; the
+grid draws its camera in `CalendarTitleDraw.kt`. On Linux the rows are `conference.rs` over
+`meeting.rs`, whose tests pin the same, and the grid paints its camera in `grid/camera.rs`.
 
 ## Enforcement
 

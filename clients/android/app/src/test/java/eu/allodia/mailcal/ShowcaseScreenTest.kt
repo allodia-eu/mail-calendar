@@ -18,6 +18,7 @@ class ShowcaseScreenTest {
         assertEquals(ShowcaseScreen.ADD_ACCOUNT, ShowcaseScreen.from("add-account"))
         assertEquals(ShowcaseScreen.CALENDAR, ShowcaseScreen.from("calendar"))
         assertEquals(ShowcaseScreen.INVITATION, ShowcaseScreen.from("invitation"))
+        assertEquals(ShowcaseScreen.MEETING, ShowcaseScreen.from("meeting"))
     }
 
     @Test
@@ -46,6 +47,7 @@ class ShowcaseScreenTest {
         assertEquals("add-account", ShowcaseScreen.ADD_ACCOUNT.flag)
         assertEquals("calendar", ShowcaseScreen.CALENDAR.flag)
         assertEquals("invitation", ShowcaseScreen.INVITATION.flag)
+        assertEquals("meeting", ShowcaseScreen.MEETING.flag)
         assertEquals("setup-email", ShowcaseScreen.SETUP_EMAIL.flag)
         assertEquals("setup-detected", ShowcaseScreen.SETUP_DETECTED.flag)
         assertEquals("setup-untrusted", ShowcaseScreen.SETUP_UNTRUSTED.flag)

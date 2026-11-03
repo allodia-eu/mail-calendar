@@ -275,8 +275,8 @@ pub use share::{
     RejectedShare, SharePrefill, ShareRejectionReason, ShareRequest, SharedFile, prefill_from_share,
 };
 pub use showcase_data::{
-    ShowcaseInvitation, ShowcaseLocale, ShowcaseReply, showcase_invitation,
-    showcase_locale_for_language, showcase_now, showcase_reply,
+    ShowcaseInvitation, ShowcaseLocale, ShowcaseMeeting, ShowcaseReply, showcase_invitation,
+    showcase_locale_for_language, showcase_meeting, showcase_now, showcase_reply,
 };
 pub use store_files::mail_store_paths;
 pub use sync_state::{SyncStateError, SyncStateStore};
@@ -428,6 +428,9 @@ mod tests_showcase_accounts;
 
 #[cfg(test)]
 mod tests_showcase_invitation;
+
+#[cfg(test)]
+mod tests_showcase_meeting;
 
 #[cfg(test)]
 mod tests_showcase_sender_name;

@@ -173,13 +173,41 @@ fn zoned(now: OffsetDateTime, day_offset: i64, hour: u8, minute: u8) -> Calendar
     }
 }
 
+/// The Monday design sync's provider key, the same in every locale's seed.
+const MEETING_EVENT_KEY: &str = "ev-mon-designsync";
+
+/// Which showcase event a screenshot run opens to show a video meeting in the event detail: Join
+/// first, then the meeting ID and the number to dial in on (`docs/conferencing.md`).
+///
+/// The twin of [`super::ShowcaseInvitation`], for the same reason: the target is one fact, held in
+/// the core, so every client opens the *same* event and a reworded seed cannot leave one of them
+/// opening nothing.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct ShowcaseMeeting {
+    /// The id of the account whose calendar holds the event (its owner address).
+    pub account: String,
+    /// The event's provider key, as it appears on a grid block and an agenda row.
+    pub event_key: String,
+}
+
+/// The [`ShowcaseMeeting`] a host opens for the meeting screenshot. Takes no locale: only the
+/// event's title is translated, never its key or its account.
+#[uniffi::export]
+#[must_use]
+pub fn showcase_meeting() -> ShowcaseMeeting {
+    ShowcaseMeeting {
+        account: super::REPLY_ACCOUNT.to_owned(),
+        event_key: MEETING_EVENT_KEY.to_owned(),
+    }
+}
+
 /// Gives the Monday design sync, the same meeting in every locale, a Teams meeting with its
 /// meeting ID and a dial-in number, so the detail shows Join and the grid its camera glyph
 /// (`docs/conferencing.md`). Reserved numbers and a made-up meeting: nothing here dials anyone.
 pub(super) fn with_meeting(events: &mut [Event]) {
     let Some(sync) = events
         .iter_mut()
-        .find(|event| event.id.key().as_str() == "ev-mon-designsync")
+        .find(|event| event.id.key().as_str() == MEETING_EVENT_KEY)
     else {
         return;
     };

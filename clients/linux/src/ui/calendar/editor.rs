@@ -1,9 +1,9 @@
 //! Pure calendar editor state and provider-neutral intent construction.
 
 use mailcal_bindings::{
-    EventAttendee, EventDetail, EventIntent, EventRecurrence, Intent, MeetingInvitee,
-    MeetingInviteePatch, RecurrenceChange, RepeatDraft, RepeatSummary, meeting_invitee_patch,
-    repeat_change_of,
+    EventAttendee, EventConference, EventDetail, EventIntent, EventRecurrence, Intent,
+    MeetingInvitee, MeetingInviteePatch, RecurrenceChange, RepeatDraft, RepeatSummary,
+    meeting_invitee_patch, repeat_change_of,
 };
 use time::{Duration, PrimitiveDateTime, Time};
 
@@ -39,8 +39,15 @@ pub(super) struct EventDetails {
     pub(super) timezone: String,
     pub(super) start: String,
     pub(super) end: String,
+    /// The place and the notes as the server holds them, for the editor: a save keeps a meeting's
+    /// link and its invitation block for every invitee.
     pub(super) location: Option<String>,
     pub(super) notes: Option<String>,
+    /// The place and the notes the detail shows, without what repeats a meeting in `conferences`.
+    pub(super) display_location: Option<String>,
+    pub(super) display_notes: Option<String>,
+    /// The meetings the event can be joined at, in the core's order (`docs/conferencing.md`).
+    pub(super) conferences: Vec<EventConference>,
     pub(super) reminder_minutes: Option<i32>,
     pub(super) recurrence: Option<EventRecurrence>,
     /// The rule as the parts a sentence needs, decided by the core: see `repeat::sentence`.
@@ -89,6 +96,9 @@ impl EventDetails {
             end: detail.end,
             location: detail.location,
             notes: detail.notes,
+            display_location: detail.display_location,
+            display_notes: detail.display_notes,
+            conferences: detail.conferences,
             reminder_minutes: detail.reminder_minutes,
             recurrence: detail.recurrence,
             repeat_summary: detail.repeat_summary,

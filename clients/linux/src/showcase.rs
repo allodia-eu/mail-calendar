@@ -15,8 +15,8 @@
 #![cfg(any(debug_assertions, feature = "dev-harness"))]
 
 use mailcal_bindings::{
-    ShowcaseInvitation, ShowcaseLocale, ShowcaseReply, showcase_invitation,
-    showcase_locale_for_language, showcase_reply,
+    ShowcaseInvitation, ShowcaseLocale, ShowcaseMeeting, ShowcaseReply, showcase_invitation,
+    showcase_locale_for_language, showcase_meeting, showcase_reply,
 };
 
 use crate::l10n;
@@ -44,6 +44,9 @@ pub(crate) enum ShowcaseScreen {
     Calendar,
     /// The meeting-invitation card: the seeded inbox's iMIP `REQUEST`, opened and left there.
     Invitation,
+    /// The Monday design sync's detail over the calendar: Join first, then the meeting ID and the
+    /// number to dial in on.
+    Meeting,
 }
 
 /// Reads a screen name, refusing one this client cannot reach.
@@ -66,6 +69,7 @@ pub(crate) fn parse_screen(raw: Option<&str>) -> Result<ShowcaseScreen, String> 
         Some("add-account") => Ok(ShowcaseScreen::AddAccount),
         Some("calendar") => Ok(ShowcaseScreen::Calendar),
         Some("invitation") => Ok(ShowcaseScreen::Invitation),
+        Some("meeting") => Ok(ShowcaseScreen::Meeting),
         Some(other) => Err(other.to_owned()),
     }
 }
@@ -121,6 +125,11 @@ pub(crate) fn invitation_target() -> ShowcaseInvitation {
     showcase_invitation()
 }
 
+/// The event the meeting screenshot opens. Locale-free, as the invitation's is.
+pub(crate) fn meeting_target() -> ShowcaseMeeting {
+    showcase_meeting()
+}
+
 /// The sample reply text for the showcase's designated message, else `None`: every other message,
 /// and every non-showcase run, keeps the normal empty composer. Plain text; see
 /// `docs/composer-security.md` Gate 11.
@@ -166,6 +175,7 @@ mod tests {
             parse_screen(Some("invitation")),
             Ok(ShowcaseScreen::Invitation)
         );
+        assert_eq!(parse_screen(Some("meeting")), Ok(ShowcaseScreen::Meeting));
         // A name no client has a surface for. Refused rather than silently answered with a
         // photograph of the inbox, which every later check in the capture run would pass.
         assert_eq!(parse_screen(Some("agenda")), Err("agenda".to_owned()));

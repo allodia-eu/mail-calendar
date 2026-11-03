@@ -107,6 +107,7 @@ mod tests {
             },
             title: "Planning".to_owned(),
             spoken: "Planning, 10:00–11:00, Work".to_owned(),
+            has_conference: false,
             day: 0,
             start_minutes: 10 * 60,
             end_minutes: 11 * 60,

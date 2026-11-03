@@ -2,6 +2,7 @@
 
 mod answer;
 pub(super) mod attendees;
+mod conference;
 pub(in crate::ui) mod date;
 mod detail;
 mod dialogs;
@@ -11,6 +12,7 @@ mod editor;
 mod grid;
 pub(super) mod invitees_editor;
 mod manager;
+mod meeting;
 mod model;
 pub(in crate::ui) mod paint;
 mod pane;

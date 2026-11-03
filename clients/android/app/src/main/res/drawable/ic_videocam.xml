@@ -1,0 +1,16 @@
+<!-- Material Symbols "videocam" (filled). A video meeting: its heading in the event detail, and the mark on an event that has one.
+     Vendored from google/material-design-icons; the Compose `Icon` supplies the real colour, so
+     the fillColor here is only a placeholder. The upstream SVG draws in a `0 -960 960 960`
+     viewBox, so the group translates it down by its own height and the path data is upstream's,
+     verbatim. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+  <group android:translateY="960">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h480q33 0 56.5 23.5T720-720v180l160-160v440L720-420v180q0 33-23.5 56.5T640-160H160Z"/>
+  </group>
+</vector>

@@ -462,12 +462,14 @@ read in the language of the chrome around them. `MAILCAL_SHOWCASE=1` follows the
 choice. `MAILCAL_SHOWCASE_SCREEN` picks the screen: `list` (default) · `reply` · `settings` ·
 `add-account` · `calendar` (the headline calendar grid, on every platform) · `invitation` (a meeting
 request open in the reading view, with Accept / Maybe / Decline over a preview of the day it would
-land on, [`invitations.md`](invitations.md)) · `signatures` (Settings opened on the Signatures
+land on, [`invitations.md`](invitations.md)) · `meeting` (the showcase's design sync open in the
+event detail: Join, the meeting ID and the dial-in number, [`conferencing.md`](conferencing.md)) ·
+`signatures` (Settings opened on the Signatures
 category). `signatures` has to be **named explicitly**: it is not in `--screen all`, because only
 the Windows and Linux clients can drive to it so far.
 
 ```sh
-scripts/dev/showcase.sh macos                        # 42 PNGs: 6 screens x 7 languages
+scripts/dev/showcase.sh macos                        # 56 PNGs: 8 captures x 7 languages
 scripts/dev/showcase.sh iphone --locale nl
 scripts/dev/showcase.sh android --screen reply --no-build
 scripts/dev/showcase.sh ipad --simulator "iPad Air 13-inch (M4)"
@@ -478,7 +480,7 @@ scripts/dev/showcase.sh windows --screen settings        # on a Windows host
 scripts/dev/showcase.sh linux --locale de                # on a Linux host
 ```
 
-**Linux captures the same six screens as every other client**, plus `signatures` when it is named.
+**Linux captures the same seven screens as every other client**, plus `signatures` when it is named.
 Its client is the one that **refuses** an unreachable screen name (exit 2, before the window exists)
 rather than falling back to the mailbox list the way the others do: a clean, correctly-sized
 photograph of the inbox filed under `invitation` is the failure no later check can see.
