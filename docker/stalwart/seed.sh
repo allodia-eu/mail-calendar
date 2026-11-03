@@ -6,7 +6,7 @@
 # clients will use (steps 4-5): IMAP for mail, CalDAV for calendars. No Rust
 # provider client and no extra binary.
 #
-# Transport (v0.16 defaults): IMAP is implicit-TLS on 993: `-k` accepts the
+# Transport (Stalwart defaults): IMAP is implicit-TLS on 993: `-k` accepts the
 # server's self-signed test certificate (this never touches a host trust store).
 # CalDAV rides the plaintext HTTP listener on 8080.
 #
@@ -284,7 +284,7 @@ imap_cmd Drafts "STORE * +FLAGS (\\Draft)" >/dev/null
 # The shared-mailbox fixture's second half (entrypoint.sh creates the group). Two stores alice
 # can open besides her own, differing on purpose in their rights: as a member of `support` she
 # holds every right on its folders, while bob grants her only lookup and read on his INBOX.
-# Stalwart reports both as writable accounts, so only the per-folder rights tell them apart.
+# Over JMAP, Bob's share also reports `isReadOnly: true` and no `submission`; the group's does not.
 log "granting alice read-only (lr) access to bob's INBOX"
 imap_bob "$IMAPS/INBOX" --request "SETACL \"INBOX\" \"$ALICE\" lr" >/dev/null
 

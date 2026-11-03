@@ -3,9 +3,12 @@
 # Both pinned by multi-arch index digest (linux/amd64 + linux/arm64). Bump deliberately: re-resolve
 # the digest (`docker buildx imagetools inspect <image>:<tag>`, the top-level `Digest:`) and update
 # the version in the tag. The CLI is a static binary, so it runs in the server's image as copied.
-FROM ghcr.io/stalwartlabs/cli:1.0.12@sha256:fe199affac1d120a8c200ef39ae629765a2976270e0453575c1caf906ee15b52 AS cli
+#
+# The two move together (renovate.json): the CLI reads the server's own schema, and one too old to
+# parse it fails before the entrypoint has bootstrapped anything.
+FROM ghcr.io/stalwartlabs/cli:1.0.14@sha256:5b70732cb69cdab3ff0894c501544cf0bfa180fa75bcd0eeba4eebe04c1064e1 AS cli
 
-FROM stalwartlabs/stalwart:v1.0.1@sha256:b9da4df8b4efc06bc926dd6e990bdeb0ad7b9261a7c3893d74b0461a00bb389b
+FROM stalwartlabs/stalwart:v1.0.2@sha256:154e55adecadfcc4a67044b9b94d482a20286e1101c97a2b322224bb596053d5
 
 COPY --from=cli /usr/local/bin/stalwart-cli /usr/local/bin/stalwart-cli
 
