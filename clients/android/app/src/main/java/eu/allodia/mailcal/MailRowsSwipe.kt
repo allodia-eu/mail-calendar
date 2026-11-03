@@ -76,9 +76,9 @@ internal fun SwipeableFlatMessageRow(
     // `LaunchedEffect(state.settledValue, onDismiss)`, so a fresh lambda per recomposition
     // re-keys that effect and parks the SAME swipe again for every recomposition that lands
     // while the box is still settled away, and parking the Trash action N times is not a
-    // cosmetic bug. (This replaces the old `confirmValueChange` veto, which Compose 1.9+
-    // invokes repeatedly during a drag rather than once at settle: that regression dispatched
-    // a single swipe eight times. See MailRowSwipeTest.)
+    // cosmetic bug. (Not from `confirmValueChange`: Compose invokes it repeatedly during a drag
+    // rather than once at settle, so dispatching there turns one swipe into several. See
+    // MailRowSwipeTest.)
     val onDismiss = remember(dismissState, scope) {
         { value: SwipeToDismissBoxValue ->
             val action = when (value) {
