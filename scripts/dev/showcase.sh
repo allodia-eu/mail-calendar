@@ -114,9 +114,9 @@ store_extra_for() { # <platform>: offered only when named explicitly
 #
 # One screen carries the dark set, and it is the mailbox list: it is what a listing opens on, so the
 # pair reads as the same inbox in either theme rather than as two unrelated screens. Adding a second
-# is one entry here; mind Google Play's ceiling of 8 images per slot, which 8 now meets: a second
-# dark screen means dropping a light one from the Android set.
-# The push enforces that ceiling where it lives, which is not this repository.
+# is one entry here; mind Google Play's ceiling of 8 images per slot, which the set already fills,
+# so a second dark screen means dropping a light one from the Android set. The push enforces that
+# ceiling where it lives, which is not this repository.
 DARK_SCREENS=(list)
 
 appearances_for() { # <set> <screen>: the appearances one screen is captured in

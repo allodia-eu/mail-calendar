@@ -199,6 +199,9 @@ pub(super) fn render_month(
                 content.append(&text);
                 content.append(&camera(12));
                 button.set_child(Some(&content));
+                // `set_label` adds this class and `set_child` does not; without it the chip takes
+                // an image button's narrower padding and stops lining up with its neighbours.
+                button.add_css_class("text-button");
                 button.update_property(&[AccessibleProperty::Label(&label)]);
             } else {
                 button.set_label(&label);
