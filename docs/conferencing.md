@@ -28,7 +28,8 @@ nobody has to dig a link out of the notes.
    only for a ready meeting and only for an `https` link; the OS hands it to the service's app
    where one is installed, else to the browser. A dial-in `uri` is a `tel:` URI for the phone
    app, the number alone when the server's own carries a pause and a PIN, and `None` for a
-   number the policy refuses (a service code), which is then shown as text. Nothing opens inside
+   number the policy refuses (a service code), which is then shown as text. A PIN the server
+   wrote only into the URI is the row's `pin`, since the tap no longer dials it. Nothing opens inside
    the app, and nothing is opened until the person taps: reading an event sends nothing anywhere.
 4. **The service's name is the core's.** It is a brand name, the same in every language. When
    `service` is `None` (a link no rule recognises, such as a self-hosted server), the client
@@ -71,8 +72,8 @@ paints its camera in `grid/camera.rs`.
 ## Enforcement
 
 - [`event_conference_tests.rs`](../crates/mailcal-account/src/event_conference_tests.rs) pins
-  rule 3's links: a service code is never offered to dial, and a meeting still being made offers
-  no Join whatever link it carries.
+  rule 3's links: a service code is never offered to dial, a PIN only the URI carries is still
+  shown, and a meeting still being made offers no Join whatever link it carries.
 - `is_shown` and `has_conference` in
   [`meeting.rs`](../crates/mailcal-viewmodel/src/calendar/meeting.rs) are the one rule; the
   detail's projection ([`event_conference.rs`](../crates/mailcal-account/src/event_conference.rs))

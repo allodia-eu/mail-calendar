@@ -141,7 +141,8 @@ fn dial_in(entry: &EntryPoint) -> Option<DialIn> {
             .pin
             .clone()
             .or_else(|| entry.access.access_code.clone())
-            .or_else(|| entry.access.passcode.clone()),
+            .or_else(|| entry.access.passcode.clone())
+            .or_else(|| entry.uri.dialled_after_pause().map(str::to_owned)),
     })
 }
 

@@ -159,6 +159,26 @@ fn a_refused_number_falls_back_to_what_its_own_uri_dials_never_to_its_label() {
 }
 
 #[test]
+fn a_pin_only_its_uri_carries_is_shown_once_the_tap_no_longer_dials_it() {
+    // An iCalendar `CONFERENCE` link has no access codes beside it: the PIN is in the URI, which
+    // a tap no longer dials as a whole, so the row is the only place left to read it.
+    let mut event = event();
+    event.conferences = vec![conference(
+        ConferenceOrigin::Native {
+            removable: false,
+            state: NativeState::Ready,
+        },
+        vec![
+            entry("https://meet.example.com/a"),
+            entry("tel:+31201234567,,123456#"),
+        ],
+    )];
+    let number = &event_conferences(&event)[0].dial_in[0];
+    assert_eq!(number.uri.as_deref(), Some("tel:+31201234567"));
+    assert_eq!(number.pin.as_deref(), Some("123456#"));
+}
+
+#[test]
 fn a_meeting_still_being_made_offers_no_join_even_with_a_link() {
     let mut event = event();
     event.conferences = vec![conference(
