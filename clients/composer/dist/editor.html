@@ -22,14 +22,48 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Composer</title>
   <style>
+    /* Two palettes. The chrome (toolbar, popovers) follows the app's appearance, so in a dark app it
+       reads as part of the window. The page is the message as its recipient will see it, so it stays
+       light in both: a colour picked on it is the colour that is sent.
+
+       Which one the chrome takes is the root's `color-scheme`, and every chrome colour is a
+       `light-dark()` pair that resolves against it. The host names the app's scheme through
+       `setComposerScheme` (`scheme.ts`), because a web view's own `prefers-color-scheme` follows the
+       system on some platforms and misses a Light or Dark chosen in the app. Until a host has named it,
+       the system's is used, so the first frame is already close. */
     :root {
-      color-scheme: light;
+      color-scheme: light dark;
+
+      /* The page. */
       --border: #d8dde3;
       --text: #152330;
       --muted: #5f6b73;
-      --surface: #fbfbf8;
-      --control: #ffffff;
-      --active: #16598d;
+      --page: #ffffff;
+      --page-accent: #16598d;
+
+      /* The chrome: light, dark. */
+      --chrome: light-dark(#fafafa, #252528);
+      --chrome-text: light-dark(#1f1f1f, #e8e8e8);
+      --chrome-muted: light-dark(#6b6b6b, #9b9b9b);
+      --chrome-separator: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.12));
+      --chrome-hover: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08));
+      --chrome-pressed: light-dark(rgba(0, 0, 0, 0.11), rgba(255, 255, 255, 0.15));
+      --field: light-dark(#ffffff, #2a2a2a);
+      --field-border: light-dark(rgba(0, 0, 0, 0.16), rgba(255, 255, 255, 0.16));
+      --popover: light-dark(#ffffff, #2a2a2a);
+      --popover-border: light-dark(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.12));
+      --popover-shade: light-dark(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.5));
+      --swatch-edge: light-dark(rgba(0, 0, 0, 0.18), rgba(255, 255, 255, 0.28));
+      --accent: light-dark(#16598d, #4b93e6);
+      --accent-text: #ffffff;
+    }
+
+    :root[data-scheme="light"] {
+      color-scheme: light;
+    }
+
+    :root[data-scheme="dark"] {
+      color-scheme: dark;
     }
 
     * {
@@ -40,8 +74,8 @@
     body {
       height: 100%;
       margin: 0;
-      background: var(--surface);
-      color: var(--text);
+      background: var(--chrome);
+      color: var(--chrome-text);
       font: 15px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
@@ -64,89 +98,17 @@
       flex-direction: column;
     }
 
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-      padding: 8px;
-      border-bottom: 1px solid var(--border);
-      background: #f6f8fa;
-    }
+    /* The toolbar and its controls are in `toolbar.css`. */
 
-    button,
-    select {
-      min-height: 30px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--control);
-      color: var(--text);
-      font: inherit;
-    }
-
-    button {
-      min-width: 32px;
-      padding: 0 9px;
-    }
-
-    button:active,
-    select:focus,
-    button:focus {
-      outline: 2px solid color-mix(in srgb, var(--active) 35%, transparent);
-      outline-offset: 1px;
-    }
-
-    select {
-      padding: 0 8px;
-      max-width: 9em;
-    }
-
-    /* A hairline between groups of related controls, so eleven buttons read as four groups. */
-    .toolbar .sep {
-      width: 1px;
-      align-self: stretch;
-      margin: 2px 2px;
-      background: var(--border);
-    }
-
-    .toolbar svg {
-      display: block;
-      width: 16px;
-      height: 16px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 1.6;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    /* The colour buttons show the colour they will apply as a bar under the glyph, so the control
-       says what it does without opening it. */
-    .swatch-button {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 2px;
-      padding: 0 8px;
-      line-height: 1;
-    }
-
-    .swatch-button .bar {
-      width: 16px;
-      height: 3px;
-      border-radius: 1px;
-      background: var(--text);
-      /* A pale colour needs an edge or it looks like an empty control on the white button. */
-      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
-    }
-
+    /* The page keeps the light scheme in a dark host, caret, selection and spelling marks included. */
     .editor {
       flex: 1;
       min-height: 180px;
       padding: 14px;
       overflow: auto;
-      background: #ffffff;
+      color-scheme: light;
+      background: var(--page);
+      color: var(--text);
       outline: none;
       word-break: break-word;
     }
@@ -184,7 +146,7 @@
       right: 0;
       bottom: 0;
       z-index: 2;
-      border-top: 1px solid var(--border);
+      border-top: 1px solid var(--chrome-separator);
       border-bottom: none;
       /* One row that scrolls sideways. Wrapped, every control on a phone took three rows above the
          keyboard and left the message two lines. */
@@ -370,7 +332,7 @@
       position: fixed;
       z-index: 1;
       pointer-events: none;
-      outline: 1px solid var(--active);
+      outline: 1px solid var(--page-accent);
     }
 
     .allodia-resize[hidden] {
@@ -382,9 +344,9 @@
       width: 12px;
       height: 12px;
       margin: -6px;
-      border: 1px solid var(--active);
+      border: 1px solid var(--page-accent);
       border-radius: 50%;
-      background: var(--control);
+      background: var(--page);
       box-shadow: 0 1px 3px rgba(21, 35, 48, 0.3);
       pointer-events: auto;
       /* The gesture is the grip's from the first touch: without this a finger on one scrolls the
@@ -413,6 +375,125 @@
       }
     }
 
+    /* --- The formatting toolbar ---
+       Drawn as the platform's own command bars are, and as Outlook's is: flat controls on the window's
+       colour, with no outline of their own. A control shows a fill only while it is pointed at, pressed
+       or holding its panel open, so the row reads as one strip rather than as a set of separate boxes. */
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+      align-items: center;
+      padding: 4px 8px;
+      border-bottom: 1px solid var(--chrome-separator);
+      background: var(--chrome);
+      color: var(--chrome-text);
+    }
+
+    /* Every control a popover holds (a reset, the link editor's actions) is a bordered field, since it
+       sits on the panel rather than on the bar. */
+    button,
+    select {
+      min-height: 28px;
+      border: 1px solid var(--field-border);
+      border-radius: 5px;
+      background: var(--field);
+      color: inherit;
+      font: inherit;
+    }
+
+    button {
+      min-width: 28px;
+      padding: 0 8px;
+    }
+
+    button:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    /* The bar's own controls. */
+    .toolbar > button,
+    .toolbar > .menu > button,
+    .toolbar > select {
+      border-color: transparent;
+      background-color: transparent;
+    }
+
+    .toolbar > button,
+    .toolbar > .menu > button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 6px;
+      line-height: 1;
+    }
+
+    .toolbar > button:hover,
+    .toolbar > .menu > button:hover,
+    .toolbar > select:hover {
+      background-color: var(--chrome-hover);
+    }
+
+    .toolbar > button:active,
+    .toolbar > .menu > button:active,
+    .toolbar > .menu > button[aria-expanded="true"] {
+      background-color: var(--chrome-pressed);
+    }
+
+    /* A picker reads as a value with a chevron after it, which is how a command bar draws one. The
+       chevron is drawn here because the engines' own arrow is the boxed control this replaces; its grey
+       reads on both schemes' bars, since an image cannot follow `color-scheme` as a colour does. */
+    .toolbar > select {
+      appearance: none;
+      /* As wide as the value it shows, where the engine can; elsewhere as wide as its longest option. */
+      field-sizing: content;
+      max-width: 10em;
+      padding: 0 22px 0 8px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a8a' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-size: 9px 6px;
+      text-overflow: ellipsis;
+    }
+
+    /* A hairline between groups of related controls, so eleven buttons read as four groups. */
+    .toolbar .sep {
+      width: 1px;
+      height: 18px;
+      margin: 0 4px;
+      background: var(--chrome-separator);
+    }
+
+    .toolbar svg {
+      display: block;
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* The colour buttons show the colour they will apply as a bar under the glyph, so the control
+       says what it does without opening it. Until one is picked the bar is the glyph's own colour. */
+    .toolbar > .menu > .swatch-button {
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .swatch-button .bar {
+      width: 16px;
+      height: 3px;
+      border-radius: 1px;
+      background: currentColor;
+      /* A colour close to the bar's own needs an edge, or it looks like an empty control. */
+      box-shadow: inset 0 0 0 1px var(--swatch-edge);
+    }
+
     /* --- Popovers (colour palette, table menu) --- */
 
     .menu {
@@ -427,10 +508,11 @@
       left: 0;
       min-width: 168px;
       padding: 8px;
-      border: 1px solid var(--border);
+      border: 1px solid var(--popover-border);
       border-radius: 8px;
-      background: var(--control);
-      box-shadow: 0 6px 18px rgba(21, 35, 48, 0.16);
+      background: var(--popover);
+      color: var(--chrome-text);
+      box-shadow: 0 8px 24px var(--popover-shade);
     }
 
     .popover[hidden] {
@@ -468,7 +550,7 @@
       min-width: 0;
       padding: 0;
       border-radius: 4px;
-      border: 1px solid rgba(0, 0, 0, 0.18);
+      border: 1px solid var(--swatch-edge);
     }
 
     .popover .reset {
@@ -490,19 +572,19 @@
     .grid-picker span {
       width: 16px;
       height: 16px;
-      border: 1px solid var(--border);
+      border: 1px solid var(--field-border);
       border-radius: 2px;
-      background: var(--control);
+      background: var(--field);
     }
 
     .grid-picker span.on {
-      border-color: var(--active);
-      background: color-mix(in srgb, var(--active) 18%, #ffffff);
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 25%, var(--field));
     }
 
     .grid-size {
       margin: 6px 0 0;
-      color: var(--muted);
+      color: var(--chrome-muted);
       font-size: 13px;
     }
 
@@ -522,18 +604,18 @@
     }
 
     .menu-items button:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--active) 10%, transparent);
+      background: var(--chrome-hover);
     }
 
     .menu-items button:disabled {
-      color: var(--muted);
+      color: var(--chrome-muted);
       opacity: 0.6;
     }
 
     .menu-items hr {
       margin: 4px 0;
       border: none;
-      border-top: 1px solid var(--border);
+      border-top: 1px solid var(--popover-border);
     }
 
     /* The link editor: two labelled fields and its actions. */
@@ -547,23 +629,23 @@
       flex-direction: column;
       gap: 3px;
       margin-bottom: 8px;
-      color: var(--muted);
+      color: var(--chrome-muted);
       font-size: 13px;
     }
 
     .link-menu input {
       min-height: 30px;
       padding: 0 8px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--control);
-      color: var(--text);
+      border: 1px solid var(--field-border);
+      border-radius: 5px;
+      background: var(--field);
+      color: var(--chrome-text);
       font: inherit;
       font-size: 1rem;
     }
 
     .link-menu input:focus {
-      outline: 2px solid color-mix(in srgb, var(--active) 35%, transparent);
+      outline: 2px solid var(--accent);
       outline-offset: 1px;
     }
 
@@ -578,9 +660,9 @@
     }
 
     .link-menu .actions .primary {
-      border-color: var(--active);
-      background: var(--active);
-      color: #ffffff;
+      border-color: var(--accent);
+      background: var(--accent);
+      color: var(--accent-text);
     }
 
     .link-menu .actions button:disabled {
@@ -646,8 +728,12 @@
 
     <span class="sep"></span>
 
-    <button type="button" id="bullet-list" title="Bulleted list">&bull;</button>
-    <button type="button" id="ordered-list" title="Numbered list">1.</button>
+    <button type="button" id="bullet-list" title="Bulleted list">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="2.8" cy="4" r="0.8"/><circle cx="2.8" cy="8" r="0.8"/><circle cx="2.8" cy="12" r="0.8"/><path d="M6 4h8M6 8h8M6 12h8"/></svg>
+    </button>
+    <button type="button" id="ordered-list" title="Numbered list">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 2.9l.8-.6v3.4M1.9 7.1a.95.95 0 0 1 1.8.4c0 .7-1.8 1.4-1.8 2.2h1.9M1.9 11.3h1.7l-.9 1.1a.9.9 0 1 1-.9 1.3M6.5 4h7.5M6.5 8h7.5M6.5 12h7.5"/></svg>
+    </button>
     <button type="button" id="outdent" title="Decrease indent">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 3.5h7M7 8h7M7 12.5h7M4.5 6 2 8l2.5 2"/></svg>
     </button>
@@ -3670,6 +3756,15 @@
     return node.ownerDocument.defaultView;
   }
 
+  // src/scheme.ts
+  function setScheme(root, scheme) {
+    if (scheme === "light" || scheme === "dark") {
+      root.dataset.scheme = scheme;
+    } else {
+      delete root.dataset.scheme;
+    }
+  }
+
   // src/blocks_dom.ts
   function setBlocks(editor, blocks, attachments) {
     const doc = documentOf(editor);
@@ -4896,6 +4991,7 @@
     labels = mergeLabels(labels, incoming);
     toolbar.applyLabels(labels);
   };
+  window.setComposerScheme = (scheme) => setScheme(doc.documentElement, scheme);
   window.insertSignatureImage = (image) => {
     const data = (image ? parsed(image) : {}) ?? {};
     const url = String(data.data_url ?? "");

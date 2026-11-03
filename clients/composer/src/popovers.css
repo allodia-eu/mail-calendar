@@ -12,10 +12,11 @@
   left: 0;
   min-width: 168px;
   padding: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--popover-border);
   border-radius: 8px;
-  background: var(--control);
-  box-shadow: 0 6px 18px rgba(21, 35, 48, 0.16);
+  background: var(--popover);
+  color: var(--chrome-text);
+  box-shadow: 0 8px 24px var(--popover-shade);
 }
 
 .popover[hidden] {
@@ -53,7 +54,7 @@ body.native-chrome .popover {
   min-width: 0;
   padding: 0;
   border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--swatch-edge);
 }
 
 .popover .reset {
@@ -75,19 +76,19 @@ body.native-chrome .popover {
 .grid-picker span {
   width: 16px;
   height: 16px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 2px;
-  background: var(--control);
+  background: var(--field);
 }
 
 .grid-picker span.on {
-  border-color: var(--active);
-  background: color-mix(in srgb, var(--active) 18%, #ffffff);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 25%, var(--field));
 }
 
 .grid-size {
   margin: 6px 0 0;
-  color: var(--muted);
+  color: var(--chrome-muted);
   font-size: 13px;
 }
 
@@ -107,18 +108,18 @@ body.native-chrome .popover {
 }
 
 .menu-items button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--active) 10%, transparent);
+  background: var(--chrome-hover);
 }
 
 .menu-items button:disabled {
-  color: var(--muted);
+  color: var(--chrome-muted);
   opacity: 0.6;
 }
 
 .menu-items hr {
   margin: 4px 0;
   border: none;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--popover-border);
 }
 
 /* The link editor: two labelled fields and its actions. */
@@ -132,23 +133,23 @@ body.native-chrome .popover {
   flex-direction: column;
   gap: 3px;
   margin-bottom: 8px;
-  color: var(--muted);
+  color: var(--chrome-muted);
   font-size: 13px;
 }
 
 .link-menu input {
   min-height: 30px;
   padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--text);
+  border: 1px solid var(--field-border);
+  border-radius: 5px;
+  background: var(--field);
+  color: var(--chrome-text);
   font: inherit;
   font-size: 1rem;
 }
 
 .link-menu input:focus {
-  outline: 2px solid color-mix(in srgb, var(--active) 35%, transparent);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -163,9 +164,9 @@ body.native-chrome .popover {
 }
 
 .link-menu .actions .primary {
-  border-color: var(--active);
-  background: var(--active);
-  color: #ffffff;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
 }
 
 .link-menu .actions button:disabled {

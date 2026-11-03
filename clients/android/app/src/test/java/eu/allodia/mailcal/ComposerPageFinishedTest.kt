@@ -50,6 +50,17 @@ class ComposerPageFinishedTest {
     }
 
     @Test
+    fun `the app's light or dark is named on page-finished`() {
+        // The WebView's own `prefers-color-scheme` answers the device, not an appearance chosen in the
+        // app, so the toolbar would be drawn light in a dark app without this.
+        val dark = composerPageFinishedScripts(LABELS, quote = null, topInsetDp = 208f, dark = true)
+        assertTrue(dark.contains("""window.setComposerScheme("dark")"""))
+
+        val light = composerPageFinishedScripts(LABELS, quote = null, topInsetDp = 208f, dark = false)
+        assertTrue(light.contains("""window.setComposerScheme("light")"""))
+    }
+
+    @Test
     fun `an unmeasured header sends no inset rather than a zero one`() {
         // Belt and braces: the header is always measured before the page parses, but a 0 inset would
         // paint the body under the header again. Omit it, the LaunchedEffect still catches up when

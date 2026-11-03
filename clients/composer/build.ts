@@ -56,7 +56,7 @@ async function bundle(): Promise<string> {
 
 /// The stylesheets, in this order, as one sheet. The popovers come last: nothing in the editor's
 /// own sheet reaches inside one, so the order changes no rule.
-const STYLESHEETS = ["editor.css", "popovers.css"];
+const STYLESHEETS = ["editor.css", "toolbar.css", "popovers.css"];
 
 /// The stylesheet, indented back to where it sat when it lived in the shell, so the artifact reads
 /// as one document rather than as two files stapled together.

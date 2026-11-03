@@ -14,6 +14,7 @@
 // Do not relax one of these without updating that doc (rule AND matrix) and every other platform.
 
 using System.Text.Json;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
 using uniffi.mailcal_bindings;
@@ -38,8 +39,15 @@ internal sealed class EditorWebViewHost
     // the editor anywhere.
     private bool _expectingLoad;
 
+    // Set once the bundle has loaded, so its hooks exist.
+    private bool _loaded;
+
     /// <summary>Wraps <paramref name="view"/>; the gates are applied on the first load.</summary>
-    internal EditorWebViewHost(WebView2 view) => _view = view;
+    internal EditorWebViewHost(WebView2 view)
+    {
+        _view = view;
+        _view.ActualThemeChanged += (_, _) => _ = SyncSchemeAsync();
+    }
 
     /// <summary>
     /// Invoked once the bundle has finished loading, at which point its <c>window.*</c> hooks are
@@ -98,6 +106,7 @@ internal sealed class EditorWebViewHost
     /// initialised.</summary>
     internal void Close()
     {
+        _loaded = false;
         try
         {
             _view.Close();
@@ -108,6 +117,28 @@ internal sealed class EditorWebViewHost
             Log.Warn($"editor: teardown ({ex.GetType().Name})");
         }
         ReleaseProbe.Watch(_view, "editor");
+    }
+
+    /// <summary>The script naming the app's light or dark, which the editor's chrome follows
+    /// (<c>clients/composer/src/scheme.ts</c>).</summary>
+    internal static string SchemeScript(bool dark) => $"window.setComposerScheme({Arg(dark ? "dark" : "light")})";
+
+    // Names the scheme from the element's ActualTheme, which carries an appearance chosen in the app.
+    // WebView2's own `prefers-color-scheme` follows the system's instead, so it is not consulted.
+    private async Task SyncSchemeAsync()
+    {
+        if (!_loaded || _view.CoreWebView2 is not { } core)
+        {
+            return;
+        }
+        try
+        {
+            await core.ExecuteScriptAsync(SchemeScript(_view.ActualTheme == ElementTheme.Dark));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"editor: colour scheme ({ex.GetType().Name})");
+        }
     }
 
     /// <summary>Encodes <paramref name="value"/> as a JavaScript string literal, so host-supplied
@@ -249,7 +280,14 @@ internal sealed class EditorWebViewHost
 
     private async void OnNavigationCompleted(CoreWebView2 sender, CoreWebView2NavigationCompletedEventArgs args)
     {
-        if (!args.IsSuccess || PageReady is not { } ready)
+        if (!args.IsSuccess)
+        {
+            return;
+        }
+        _loaded = true;
+        // Before the seeds, so the chrome is in the app's scheme by the time anything is drawn in it.
+        await SyncSchemeAsync();
+        if (PageReady is not { } ready)
         {
             return;
         }

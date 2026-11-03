@@ -1,0 +1,118 @@
+/* --- The formatting toolbar ---
+   Drawn as the platform's own command bars are, and as Outlook's is: flat controls on the window's
+   colour, with no outline of their own. A control shows a fill only while it is pointed at, pressed
+   or holding its panel open, so the row reads as one strip rather than as a set of separate boxes. */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--chrome-separator);
+  background: var(--chrome);
+  color: var(--chrome-text);
+}
+
+/* Every control a popover holds (a reset, the link editor's actions) is a bordered field, since it
+   sits on the panel rather than on the bar. */
+button,
+select {
+  min-height: 28px;
+  border: 1px solid var(--field-border);
+  border-radius: 5px;
+  background: var(--field);
+  color: inherit;
+  font: inherit;
+}
+
+button {
+  min-width: 28px;
+  padding: 0 8px;
+}
+
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* The bar's own controls. */
+.toolbar > button,
+.toolbar > .menu > button,
+.toolbar > select {
+  border-color: transparent;
+  background-color: transparent;
+}
+
+.toolbar > button,
+.toolbar > .menu > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  line-height: 1;
+}
+
+.toolbar > button:hover,
+.toolbar > .menu > button:hover,
+.toolbar > select:hover {
+  background-color: var(--chrome-hover);
+}
+
+.toolbar > button:active,
+.toolbar > .menu > button:active,
+.toolbar > .menu > button[aria-expanded="true"] {
+  background-color: var(--chrome-pressed);
+}
+
+/* A picker reads as a value with a chevron after it, which is how a command bar draws one. The
+   chevron is drawn here because the engines' own arrow is the boxed control this replaces; its grey
+   reads on both schemes' bars, since an image cannot follow `color-scheme` as a colour does. */
+.toolbar > select {
+  appearance: none;
+  /* As wide as the value it shows, where the engine can; elsewhere as wide as its longest option. */
+  field-sizing: content;
+  max-width: 10em;
+  padding: 0 22px 0 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8a8a' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 9px 6px;
+  text-overflow: ellipsis;
+}
+
+/* A hairline between groups of related controls, so eleven buttons read as four groups. */
+.toolbar .sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--chrome-separator);
+}
+
+.toolbar svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The colour buttons show the colour they will apply as a bar under the glyph, so the control
+   says what it does without opening it. Until one is picked the bar is the glyph's own colour. */
+.toolbar > .menu > .swatch-button {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.swatch-button .bar {
+  width: 16px;
+  height: 3px;
+  border-radius: 1px;
+  background: currentColor;
+  /* A colour close to the bar's own needs an edge, or it looks like an empty control. */
+  box-shadow: inset 0 0 0 1px var(--swatch-edge);
+}

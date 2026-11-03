@@ -9,6 +9,7 @@ import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.viewinterop.AndroidView
@@ -119,12 +120,14 @@ internal fun composerPageFinishedScripts(
     body: String = "",
     storedHtml: String = "",
     quoteAttribution: String? = null,
+    dark: Boolean = false,
 ): List<String> = buildList {
     add("window.useNativeComposerChrome()")
     if (topInsetDp > 0f) {
         add("window.setComposerTopInset($topInsetDp)")
     }
     add("window.setComposerLabels($labelsJson)")
+    add(composerSchemeScript(dark))
     if (storedHtml.isNotBlank()) {
         add("window.setComposerBody(${JSONObject.quote(reopenedBodySeed(storedHtml, body))})")
     } else if (quote != null) {
@@ -156,6 +159,8 @@ internal fun WebView.configureComposerWebView(
     // the From account (and so the signature it resolves to) settles during composition, and the
     // factory that builds this WebView runs only once.
     signature: () -> String?,
+    // The app's light or dark, read at page-finished time like the inset.
+    dark: () -> Boolean,
     onScroll: (Int) -> Unit,
     // The document as it stood once the seeds were in, the "nothing written yet" baseline the
     // discard prompt compares against (the macOS/Windows rule). Null if the editor
@@ -175,6 +180,7 @@ internal fun WebView.configureComposerWebView(
         override fun onPageFinished(view: WebView?, url: String?) {
             val scripts = composerPageFinishedScripts(
                 labelsJson, quote, topInsetDp(), signature(), body, storedHtml, quoteAttribution,
+                dark = dark(),
             )
             for (script in scripts) {
                 view?.evaluateJavascript(script, null)
@@ -218,6 +224,8 @@ internal fun ComposerEditorView(
     onSeeded: (String?) -> Unit,
     onReady: (WebView) -> Unit,
 ) {
+    val dark = LocalAppDark.current
+    val currentDark = rememberUpdatedState(dark)
     AndroidView(
         modifier = Modifier
             .fillMaxSize()
@@ -238,6 +246,7 @@ internal fun ComposerEditorView(
                     focusBody = focusBody,
                     topInsetDp = topInsetDp,
                     signature = signature,
+                    dark = { currentDark.value },
                     onScroll = onScroll,
                     onSeeded = onSeeded,
                 )
@@ -245,6 +254,7 @@ internal fun ComposerEditorView(
                 onReady(this)
             }
         },
+        update = { view -> view.evaluateJavascript(composerSchemeScript(dark), null) },
     )
 }
 
