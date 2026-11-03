@@ -883,11 +883,9 @@ prompts and never posts ([`background-sync.md`](background-sync.md)).
 **The same loop shows one on Windows and Linux**, which raise theirs off the same live runtime. A
 real **click** is the shell's, and no suite reaches it; both platforms' suites deliver what the
 shell would instead ([`background-sync.md`](background-sync.md), Enforcement), so a click by hand
-is the check that the shell agrees. Aim a delivery at an account
-the mailbox is **not** showing as well as at one it is, because those are the two halves of the
-rule, opening in place against searching for the message after an account switch. On Windows the
-dev build must be the **framework-dependent** one `build-and-run.ps1` produces, or nothing is
-posted to click ([`client-traps.md`](client-traps.md)). On Linux a click reaches a dev run that is
+is the check that the shell agrees. Aim a delivery at an account the mailbox is **not** showing as
+well as at one it is, because those are the two halves of the rule, opening in place against
+searching for the message after an account switch. On Linux a click reaches a dev run that is
 still running; one that has quit is started only if the session bus has a service file for the app
 id, which the Flatpak installs and a dev run does not (`click_notification_cold` in
 `test-linux-ui.sh` writes one).

@@ -253,7 +253,7 @@ so close it **after** the paste; the script's header has the other traps.
 
 **Don't adopt the rest of the `win-dev-skills` plugin's workflow.** Its `winui-dev-workflow` assumes
 `dotnet new winui-mvvm` and forbids `<WindowsPackageType>None`, which is the opposite of this client
-(unpackaged + self-contained for the dev loop, Rust cdylib built first); its `winui-code-review` MVVM
+(unpackaged and framework-dependent for the dev loop, Rust cdylib built first); its `winui-code-review` MVVM
 section assumes `CommunityToolkit.Mvvm` ViewModels, which this client does not use (it renders
 immutable snapshots from the core), and its theming rule flags `ReadingView.xaml`'s deliberate
 literal white message canvas. Its `winui-packaging` is dev-cert grade, not `.msixupload`.

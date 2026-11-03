@@ -15,7 +15,7 @@ NordSecurity's [`uniffi-bindgen-cs`](https://github.com/NordSecurity/uniffi-bind
 ./build-and-run.ps1                 # build + run for the host arch (Debug), the everyday form
 ./build-and-run.ps1 -Arch x64       # cross-build the x64 client (see the warning below)
 ./build-and-run.ps1 -Configuration Release -NoRun
-./build-and-run.ps1 -SelfContained  # bundle the Windows App SDK; costs notifications
+./build-and-run.ps1 -SelfContained  # bundle the Windows App SDK, for a machine without its runtime
 ./uitests/run-ui-tests.ps1          # UI suites: assertions against the RUNNING app
 ```
 
@@ -132,14 +132,14 @@ versa.
 - **Rust** with the MSVC toolchain (the script adds the second arch's target itself).
 - **.NET 10 SDK** (`dotnet --version` ≥ 10).
 - **Windows App SDK 2.x**, both halves. The build pulls the `Microsoft.WindowsAppSDK` NuGet
-  package (currently `2.4.0`) itself; the matching **Windows App Runtime** has to be *installed*,
-  because the dev loop is framework-dependent, like the Store build. Visual Studio puts it there,
-  so a machine set up for this repo already has it: `Get-AppxPackage Microsoft.WindowsAppRuntime.2`
-  should list your architecture. Without it the app builds and then refuses to start.
-  `./build-and-run.ps1 -SelfContained` bundles the SDK instead, for a machine that has no runtime
-  and cannot get one; it costs **notifications**, which cannot be registered from a self-contained
-  app at all and fail silently ([`docs/client-traps.md`](../../docs/client-traps.md)). No MSIX is
-  needed in either shape.
+  package at the version [`Mailcal.csproj`](Mailcal/Mailcal.csproj) pins; the **Windows App
+  Runtime** at that version or later has to be *installed*, because the dev loop is
+  framework-dependent, like the Store build. `Get-AppxPackage Microsoft.WindowsAppRuntime.2`
+  should list it for your architecture; when it does not, which is usual right after the pin
+  moves, `./uitests/install-windows-app-runtime.ps1 -Arch <arch>` registers it from the restored
+  package. Without it the app builds and then refuses to start. `./build-and-run.ps1
+  -SelfContained` bundles the SDK instead, for a machine that cannot install the runtime. No MSIX
+  is needed in either shape.
 - **Windows 11 SDK `10.0.26100`** (24H2), the build targets it; the OS floor is Windows 10
   2004 (`10.0.19041`). **Visual Studio 2026** (or its Build Tools) provides both.
 - **`uniffi-bindgen-cs`** needs **no install**, it's vendored as the `mailcal-bindgen-cs`
@@ -152,7 +152,7 @@ versa.
 
 Latest-only, no legacy: the app's compile + runtime closure is **.NET 10** exclusively (no
 .NET Framework). Verified on an `aarch64-pc-windows-msvc` host: Windows 11, VS Community
-2026 (18.7), .NET 10.0.302, Windows App SDK 2.4.0, Windows 11 SDK 26100, Rust 1.96.
+2026 (18.11), .NET 10.0.403, Windows App SDK 2.6.5, Windows 11 SDK 26100, Rust 1.99.
 
 ## Packaging for the Microsoft Store
 

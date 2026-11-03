@@ -273,18 +273,6 @@ that same file.
   `FrameworkElement.ActualTheme` and the colour from `ThemePalette`
   ([`Services/ThemePalette.cs`](../clients/windows/Mailcal/Services/ThemePalette.cs)), and redraw on
   `ActualThemeChanged`: a code-built surface holds the colours it was built with.
-- **A self-contained Windows App SDK build cannot raise a notification, and says nothing about
-  it.** `AppNotificationManager.Register()` fails with `ERROR_MOD_NOT_FOUND` (`0x8007007E`) when
-  the app bundles the runtime (`WindowsAppSDKSelfContained`) rather than using the installed one:
-  the component that hosts notifications ships in the runtime's own package, which a self-contained
-  app does not have. The app is otherwise perfectly healthy, the new-mail scan behind the
-  notifications still runs and still advances its marks, so the symptom is a mailbox that quietly
-  never notifies, which reads as a broken feature. This is why **both** shapes are
-  framework-dependent, the dev loop as much as the Store build, and why bundling is an opt-in
-  nobody should reach for while working on notifications (`build-and-run.ps1 -SelfContained`, for
-  a machine with no matching `Microsoft.WindowsAppRuntime.2`). The log line is
-  `notifications: could not register`, and a registration that succeeded reports the system's own
-  answer beside it.
 - **An unregistered notification platform does not fail a click, it kills the process.** A launch
   that *is* a click has to build an `AppNotificationActivatedEventArgs` inside
   `AppInstance.GetCurrent().GetActivatedEventArgs()`, and the runtime cannot do that unless
