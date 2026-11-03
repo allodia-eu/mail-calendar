@@ -308,6 +308,7 @@
 	"event_meeting_pin": "Pincode {pin}",
 	"event_meeting_preparing": "De vergaderlink wordt gemaakt…",
 	"event_meeting_failed": "De vergaderlink kon niet worden gemaakt.",
+	"event_meeting_link_copied": "Link gekopieerd",
 	"event_reminder": "Herinnering",
 	"event_repeat": "Herhalen",
 	"event_pick_calendar": "Agenda selecteren",

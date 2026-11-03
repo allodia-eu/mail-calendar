@@ -308,6 +308,7 @@
 	"event_meeting_pin": "PIN {pin}",
 	"event_meeting_preparing": "Preparing the meeting link…",
 	"event_meeting_failed": "The meeting link could not be made.",
+	"event_meeting_link_copied": "Link copied",
 	"event_reminder": "Reminder",
 	"event_repeat": "Repeat",
 	"event_pick_calendar": "Select calendar",

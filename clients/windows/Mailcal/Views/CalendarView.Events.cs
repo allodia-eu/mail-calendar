@@ -38,6 +38,9 @@ public sealed partial class CalendarView
         }
     }
 
+    /// <summary>Opens an event's detail as a tap on it would: the meeting screenshot's way in.</summary>
+    internal void OpenEvent(EventOpen open) => OnOpenEvent(open);
+
     // A tap on an event (grid block, all-day bar, month chip, or agenda row) opens its detail.
     //
     // A loop for the reason ShowEditor is one: a decline is asked about once the detail has closed,

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -176,12 +177,26 @@ private fun EventRowContent(
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = event.title.ifEmpty { L10n.event_no_title(ctx) },
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = event.title.ifEmpty { L10n.event_no_title(ctx) },
+                    // The title truncates first, so the camera stays in sight.
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // The row reads its children in order, so the camera's own description is what
+                // says "video meeting" after the title (docs/conferencing.md, rule 7).
+                if (event.hasConference) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_videocam),
+                        contentDescription = L10n.event_video_meeting(ctx),
+                        modifier = Modifier.padding(start = 6.dp).size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             // A list row has no border to dash and no gutter to hatch, so the hold says itself in
             // words, which is the disclosure the dashes only stand in for anyway
             // (docs/calendar.md §4).

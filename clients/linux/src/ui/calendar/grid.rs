@@ -11,6 +11,7 @@ use gtk::accessible::Property as AccessibleProperty;
 use super::{super::AppInput, model::CalendarModel};
 use crate::l10n;
 
+mod camera;
 mod create;
 mod draw;
 mod geometry;
@@ -63,14 +64,16 @@ impl GridSurface {
         let scene = Rc::new(RefCell::new(GridScene::empty()));
         let framing = Rc::new(Framing::default());
         let draw_scene = Rc::clone(&scene);
-        drawing.set_draw_func(move |_, context, width, _| {
-            draw::draw_hours(&draw_scene.borrow(), context, f64::from(width));
+        drawing.set_draw_func(move |area, context, width, _| {
+            let camera = camera::Camera::of(area);
+            draw::draw_hours(&draw_scene.borrow(), context, f64::from(width), &camera);
         });
         let header_scene = Rc::clone(&scene);
         let header_width = drawing.clone();
-        header.set_draw_func(move |_, context, _, _| {
+        header.set_draw_func(move |area, context, _, _| {
             let width = f64::from(header_width.width());
-            draw::draw_header(&header_scene.borrow(), context, width);
+            let camera = camera::Camera::of(area);
+            draw::draw_header(&header_scene.borrow(), context, width, &camera);
         });
         install_create_gesture(&hits, &drawing, &scene, &sender);
         install_event_click(&hits, &drawing, &scene, &sender, Surface::Hours);

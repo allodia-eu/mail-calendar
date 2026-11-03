@@ -9,6 +9,7 @@ use mailcal_bindings::{CalendarSnapshot, MonthPage};
 use super::{
     super::AppInput,
     date::{clock, local_date_time, parse_date},
+    meeting,
     model::{CalendarModel, EventIdentity},
     paint,
 };
@@ -77,16 +78,17 @@ pub(super) fn render_agenda(
             .subtitle(&subtitle)
             .use_markup(false)
             .build();
-        if awaiting {
+        if let Some(description) = spoken_description(awaiting, event.has_conference) {
             // `Description`, not `Label`: the row labels itself from its title through a
             // `labelled-by` relation, and a relation beats an explicit label. Reached through the
             // widget because libadwaita's wrapper does not list `gtk::Accessible` among the
             // interfaces `AdwActionRow` implements, so the extension trait is otherwise out of
             // reach.
             row.upcast_ref::<gtk::Widget>()
-                .update_property(&[AccessibleProperty::Description(
-                    l10n::a11y_invitation_awaiting_response(),
-                )]);
+                .update_property(&[AccessibleProperty::Description(&description)]);
+        }
+        if event.has_conference {
+            row.add_suffix(&camera(16));
         }
         let open = gtk::Button::from_icon_name(icons::NEXT);
         open.set_tooltip_text(Some(&title));
@@ -186,7 +188,21 @@ pub(super) fn render_month(
             } else {
                 format!("● {} {title}", clock(chip.start_minutes, model.use_24_hour))
             };
-            let button = gtk::Button::with_label(&label);
+            let button = gtk::Button::new();
+            if chip.has_conference {
+                // The title ellipsises first, so the camera stays in sight.
+                let text = gtk::Label::new(Some(&label));
+                text.set_ellipsize(gtk::pango::EllipsizeMode::End);
+                text.set_xalign(0.0);
+                text.set_hexpand(true);
+                let content = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+                content.append(&text);
+                content.append(&camera(12));
+                button.set_child(Some(&content));
+                button.update_property(&[AccessibleProperty::Label(&label)]);
+            } else {
+                button.set_label(&label);
+            }
             button.add_css_class("flat");
             button.set_halign(gtk::Align::Fill);
             button.set_tooltip_text(Some(&title));
@@ -194,10 +210,8 @@ pub(super) fn render_month(
             // beside it: and the disclosure is spoken whatever the chip shows. `Description`
             // again, for the reason the agenda row gives.
             let awaiting = paint::is_awaiting(chip.participation);
-            if awaiting {
-                button.update_property(&[AccessibleProperty::Description(
-                    l10n::a11y_invitation_awaiting_response(),
-                )]);
+            if let Some(description) = spoken_description(awaiting, chip.has_conference) {
+                button.update_property(&[AccessibleProperty::Description(&description)]);
             }
             apply_month_style(&button, model, &chip.account, &chip.calendar, awaiting);
             let input = sender.clone();
@@ -328,6 +342,28 @@ pub(super) const fn month_visible_count(total: usize, capacity: usize) -> usize 
     } else {
         capacity.saturating_sub(1)
     }
+}
+
+/// What a row or chip says after its name: the hold and the meeting, where each applies. The
+/// hatching and the camera are invisible to a screen reader, so the words carry both.
+fn spoken_description(awaiting: bool, has_conference: bool) -> Option<String> {
+    let hold = awaiting.then(|| l10n::a11y_invitation_awaiting_response().to_owned());
+    match hold {
+        Some(hold) => Some(meeting::spoken(hold, has_conference)),
+        None => has_conference.then(|| l10n::event_video_meeting().to_owned()),
+    }
+}
+
+/// The camera after an event's title, `size` pixels square. Presentation only: the description
+/// beside it says "video meeting".
+fn camera(size: i32) -> gtk::Image {
+    let image = gtk::Image::builder()
+        .icon_name(icons::VIDEO_MEETING)
+        .accessible_role(gtk::AccessibleRole::Presentation)
+        .build();
+    image.set_pixel_size(size);
+    image.set_valign(gtk::Align::Center);
+    image
 }
 
 fn title(value: &str) -> String {

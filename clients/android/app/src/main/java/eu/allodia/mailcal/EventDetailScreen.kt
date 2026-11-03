@@ -1,5 +1,5 @@
-// The event detail screen, what a tap on any event opens. Title, time, calendar, location, notes,
-// and the reminder/recurrence summaries, with an Edit + Delete action bar at the bottom (matching the
+// The event detail screen, what a tap on any event opens. Title, time, calendar, its video meetings
+// (EventConferenceSection.kt), location, notes, and the reminder/recurrence summaries, with an Edit + Delete action bar at the bottom (matching the
 // platform calendar the user knows). An opaque Surface overlay, composed over the grid.
 //
 // Delete and Edit are gated on the event's `canWrite`: a read-only calendar's event opens read-only,
@@ -68,6 +68,8 @@ internal fun EventDetailScreen(
      * carries a way out.
      */
     asksAboutTheSeries: Boolean,
+    /** Where a meeting's Join, dial-in and Copy link go; the OS's unless a test says otherwise. */
+    meetingActions: MeetingActions = MeetingActions.of(LocalContext.current),
 ) {
     val ctx = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -132,10 +134,20 @@ internal fun EventDetailScreen(
                     Text(row?.name ?: detail.calendar, style = MaterialTheme.typography.bodyLarge)
                 }
 
-                detail.location?.takeIf { it.isNotBlank() }?.let {
+                // Join comes before everything else a person reads, the way Google Calendar puts
+                // it: it is what they opened the event to do (docs/conferencing.md). In the
+                // core's order.
+                detail.conferences.forEachIndexed { index, conference ->
+                    EventConferenceSection(conference, index, meetingActions)
+                }
+
+                // The display variants, not `location` and `notes`: a location that is only the
+                // join link, and the invitation's meeting block, repeat the meeting above. The
+                // editor still edits `location` and `notes`, so a save keeps them for every invitee.
+                detail.displayLocation?.takeIf { it.isNotBlank() }?.let {
                     DetailRow(label = L10n.event_location(ctx), value = it)
                 }
-                detail.notes?.takeIf { it.isNotBlank() }?.let {
+                detail.displayNotes?.takeIf { it.isNotBlank() }?.let {
                     DetailRow(label = L10n.event_notes(ctx), value = it, linked = true)
                 }
                 DetailRow(

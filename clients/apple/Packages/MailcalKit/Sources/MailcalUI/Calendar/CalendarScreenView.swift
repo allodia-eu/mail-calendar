@@ -59,7 +59,7 @@ struct CalendarScreenView: View {
     @State var gridHeld = false
     /// The open editor (create or edit), or nil; and the event whose detail is open, or nil.
     @State private var editor: EventEditorState?
-    @State private var openEvent: EventRefID?
+    @State private var openEvent: EventRefID? = ShowcaseMode.openingEvent
     /// A settled drag on a **repeating** event, waiting for the user to say which occurrences it
     /// applies to. Nothing is written until they do, and dismissing writes nothing at all.
     @State private var pendingMove: CalendarDragState?

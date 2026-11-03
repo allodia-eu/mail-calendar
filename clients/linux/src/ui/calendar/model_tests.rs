@@ -74,6 +74,9 @@ fn detail(is_recurring: bool) -> EventDetails {
         end: "2026-07-21T10:00:00".to_owned(),
         location: None,
         notes: None,
+        display_location: None,
+        display_notes: None,
+        conferences: Vec::new(),
         reminder_minutes: None,
         recurrence: Some(EventRecurrence::Simple {
             rule: SimpleRecurrence {

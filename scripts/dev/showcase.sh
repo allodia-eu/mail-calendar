@@ -13,7 +13,7 @@
 #   --locale <code>|all      Language of chrome *and* sample mail: any locale the catalog ships
 #                            (en|nl|de|fr|es|it|pt), or all of them (default: all)
 #   --screen <name>|all      list | reply | settings | signatures | add-account | calendar |
-#                            invitation
+#                            invitation | meeting
 #                            (default: all; which does NOT include `signatures`; see below)
 #   --out <dir>              Where the PNGs land (default: showcase-screenshots/)
 #   --simulator <name>       Apple simulator to use (default: a store-sized one per platform, which
@@ -28,7 +28,7 @@
 #                            `report_capture_target`)
 #
 # Examples:
-#   scripts/dev/showcase.sh macos                       # 49 PNGs: 7 captures x 7 languages
+#   scripts/dev/showcase.sh macos                       # 56 PNGs: 8 captures x 7 languages
 #   scripts/dev/showcase.sh iphone --locale nl
 #   scripts/dev/showcase.sh android --screen reply --no-build
 #   scripts/dev/showcase.sh ipad --simulator "iPad Air 13-inch (M4)"
@@ -37,7 +37,7 @@
 #   scripts/dev/showcase.sh windows --screen settings    # Windows host only
 #   scripts/dev/showcase.sh macos --screen calendar      # the headline calendar grid
 #   scripts/dev/showcase.sh macos --screen list          # BOTH appearances: en-list + en-list-dark
-#   scripts/dev/showcase.sh linux --locale de            # Linux host only; 6 screens (7 captures)
+#   scripts/dev/showcase.sh linux --locale de            # Linux host only; 7 screens (8 captures)
 #
 # The two `android-tablet-*` targets are not separate clients; they are the same APK on a different
 # emulator, because Google Play has a **7-inch and a 10-inch tablet screenshot slot** and each wants
@@ -76,7 +76,7 @@ fi
 # list would make an Apple or Android run ask for a screen that client cannot reach; which fails
 # as a mystifying wrong-screen capture rather than an error. Ask for it explicitly
 # (`--screen signatures`), and move it into this list once every client can drive it.
-ALL_SCREENS=(list reply settings add-account calendar invitation)
+ALL_SCREENS=(list reply settings add-account calendar invitation meeting)
 EXTRA_SCREENS=(signatures)
 
 # The store screens a platform can actually drive to, for the same reason `doc_screens_for` below
@@ -91,7 +91,7 @@ EXTRA_SCREENS=(signatures)
 # partway through a 35-shot run.
 store_screens_for() { # <platform>: what `--screen all` captures
   case "$1" in
-    linux) printf '%s\n' list reply settings add-account calendar invitation ;;
+    linux) printf '%s\n' list reply settings add-account calendar invitation meeting ;;
     *) printf '%s\n' "${ALL_SCREENS[@]}" ;;
   esac
 }
@@ -114,7 +114,8 @@ store_extra_for() { # <platform>: offered only when named explicitly
 #
 # One screen carries the dark set, and it is the mailbox list: it is what a listing opens on, so the
 # pair reads as the same inbox in either theme rather than as two unrelated screens. Adding a second
-# is one entry here; mind Google Play's ceiling of 8 images per slot, which 7 now sits one under.
+# is one entry here; mind Google Play's ceiling of 8 images per slot, which 8 now meets: a second
+# dark screen means dropping a light one from the Android set.
 # The push enforces that ceiling where it lives, which is not this repository.
 DARK_SCREENS=(list)
 
@@ -189,6 +190,8 @@ settle_for() { # <screen>
     # out the meeting-day preview under the card. One step short of `reply`, and a step past
     # every other screen.
     invitation) printf '12\n' ;;
+    # The calendar's sync and first paint, then the event's detail opened over it.
+    meeting) printf '10\n' ;;
     *) printf '7\n' ;;
   esac
 }

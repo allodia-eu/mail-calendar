@@ -17,6 +17,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import uniffi.mailcal_bindings.ShowcaseLocale
 import uniffi.mailcal_bindings.showcaseInvitation
 import uniffi.mailcal_bindings.showcaseLocaleForLanguage
+import uniffi.mailcal_bindings.showcaseMeeting
 import uniffi.mailcal_bindings.showcaseReply
 
 // Which screen a screenshot run drives to once the mailbox has loaded.
@@ -36,6 +37,10 @@ internal enum class ShowcaseScreen(val flag: String) {
     // The showcase's meeting invitation, opened in the reading screen, the mail-and-calendar
     // surface: Accept / Maybe / Decline over a preview of the day the meeting would land on.
     INVITATION("invitation"),
+
+    // The showcase's video meeting, the Monday design sync, opened in the event detail over the
+    // calendar: Join first, then the meeting ID and the number to dial in on.
+    MEETING("meeting"),
 
     // ---- documentation screens (docs/user-docs.md) ----------------------------------------
     //
@@ -137,6 +142,14 @@ internal object ShowcaseMode {
     // The message the invitation screenshot opens. Locale-free: the seed translates the meeting's
     // words, not its key, so every language opens the same row.
     fun invitationTarget() = showcaseInvitation()
+
+    // The event the meeting screenshot opens over the calendar, or null on every other run.
+    // Locale-free, as the invitation's is: only the event's title is translated.
+    fun openingEvent(activity: MainActivity): EventOpen? {
+        if (!isOn(activity) || screen(activity) != ShowcaseScreen.MEETING) return null
+        val meeting = showcaseMeeting()
+        return EventOpen(meeting.account, meeting.eventKey, occurrenceStart = "")
+    }
 
     // The app's effective language: its per-app locale (AppCompat), else the system default.
     //

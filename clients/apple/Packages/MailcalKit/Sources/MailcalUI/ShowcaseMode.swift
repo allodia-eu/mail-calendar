@@ -28,6 +28,9 @@ enum ShowcaseMode {
         /// The showcase's meeting invitation, opened in the reading view, the mail-and-calendar
         /// surface: Accept / Maybe / Decline over a preview of the day the meeting would land on.
         case invitation
+        /// The showcase's video meeting, the Monday design sync, open in the event detail over the
+        /// calendar: Join first, then the meeting ID and the number to dial in on.
+        case meeting
 
         // ---- documentation screens (docs/user-docs.md) ------------------------------------
         //
@@ -93,6 +96,14 @@ enum ShowcaseMode {
         case .setupManual: return SetupSeed(email: "eva.jansen@example.com", runDetection: true)
         default: return nil
         }
+    }
+
+    /// The event the meeting screenshot opens over the calendar, or `nil` on every other run.
+    /// Locale-free, as the invitation's is: only the event's title is translated.
+    static var openingEvent: EventRefID? {
+        guard isOn, screen == .meeting else { return nil }
+        let meeting = showcaseMeeting()
+        return EventRefID(account: meeting.account, key: meeting.eventKey, occurrence: "")
     }
 
     /// The trimmed, lower-cased flag; nil when unset.

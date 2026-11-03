@@ -146,6 +146,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         an_unchanged_month_keeps_its_cells_and_a_changed_one_is_drawn_again();
     crate::ui::calendar::detail_tests::maybe_leaves_the_detail_open_and_it_follows_the_store();
     crate::ui::calendar::detail_tests::decline_asks_before_it_answers_and_then_closes_the_detail();
+    crate::ui::calendar::detail_tests::
+        the_detail_offers_each_meeting_and_shows_the_notes_without_its_block();
     crate::ui::calendar::invitees_editor::tests::
         the_invitee_list_takes_what_is_typed_and_follows_the_calendar();
     crate::ui::reading::attachment_tests::the_reading_header_formats_its_timestamp();

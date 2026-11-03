@@ -401,7 +401,7 @@ What differs from the Flatpak, each verified on an installed snap:
 ## Capture the showcase set
 
 ```sh
-scripts/dev/showcase.sh linux                      # 6 screens x 7 languages
+scripts/dev/showcase.sh linux                      # 7 screens x 7 languages
 scripts/dev/showcase.sh linux --locale de --screen calendar
 ```
 

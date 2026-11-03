@@ -328,13 +328,28 @@ class InvitationFormatTest {
     fun a_hold_says_it_is_awaiting_an_answer_and_a_commitment_does_not() {
         // The dashed border and hatched gutter are invisible to a screen reader, so the label has to
         // carry the whole disclosure (docs/calendar.md §4).
-        val answered =
-            calendarEventLabel(ctx(), "Design review", "09:30 – 10:30", "Work", ResponseStatus.ACCEPTED)
-        val hold =
-            calendarEventLabel(ctx(), "Design review", "09:30 – 10:30", "Work", ResponseStatus.NEEDS_ACTION)
+        val answered = calendarEventLabel(
+            ctx(), "Design review", "09:30 – 10:30", "Work", ResponseStatus.ACCEPTED, false,
+        )
+        val hold = calendarEventLabel(
+            ctx(), "Design review", "09:30 – 10:30", "Work", ResponseStatus.NEEDS_ACTION, false,
+        )
         assertFalse(answered.contains(L10n.a11y_invitation_awaiting_response(ctx())))
         assertTrue(hold.contains(L10n.a11y_invitation_awaiting_response(ctx())))
         assertTrue(hold.startsWith(answered))
+    }
+
+    @Test
+    fun an_event_with_a_meeting_says_so_after_the_hold() {
+        // The camera is drawn on a canvas, so the label is the only way a screen reader hears it
+        // (docs/conferencing.md, rule 7).
+        val hold = calendarEventLabel(
+            ctx(), "Design review", "09:30 – 10:30", "Work", ResponseStatus.NEEDS_ACTION, false,
+        )
+        val meeting = calendarEventLabel(
+            ctx(), "Design review", "09:30 – 10:30", "Work", ResponseStatus.NEEDS_ACTION, true,
+        )
+        assertEquals("$hold, ${L10n.event_video_meeting(ctx())}", meeting)
     }
 
     @Test

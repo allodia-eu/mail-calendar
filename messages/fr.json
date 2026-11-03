@@ -308,6 +308,7 @@
 	"event_meeting_pin": "Code PIN {pin}",
 	"event_meeting_preparing": "Création du lien de la réunion…",
 	"event_meeting_failed": "Le lien de la réunion n’a pas pu être créé.",
+	"event_meeting_link_copied": "Lien copié",
 	"event_reminder": "Rappel",
 	"event_repeat": "Récurrence",
 	"event_pick_calendar": "Choisir un calendrier",

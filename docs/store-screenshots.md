@@ -31,8 +31,8 @@ same guarantee.
 - **Locales:** `en`, `nl`, `de`, `fr`, `es`, `it`, `pt`: exactly the app's localisation catalog
   ([`project.inlang/settings.json`](../../project.inlang/settings.json)); each store listing
   language needs its own screenshots.
-- **Screens (7):** `list`, `list-dark`, `reply`, `settings`, `add-account`, `calendar`,
-  `invitation`. The order they appear in a store gallery is a separate decision, and one that is
+- **Screens (8):** `list`, `list-dark`, `reply`, `settings`, `add-account`, `calendar`,
+  `invitation`, `meeting`. The order they appear in a store gallery is a separate decision, and one that is
   written down: `SCREEN_ORDER` in
   [`scripts/dev/store_payload.py`](../../scripts/dev/store_payload.py), which every publisher
   applies (alphabetical would open every listing on `add-account`).
@@ -41,7 +41,12 @@ same guarantee.
 request open in the reading view, with Accept / Maybe / Decline over a preview of the day it would
 land on ([`docs/invitations.md`](../../docs/invitations.md)).
 
-**`list-dark` is not a seventh screen: it is the sixth one again, in the other appearance.** Every
+**`meeting`** is the calendar's half of that story: the showcase's design sync open in the event
+detail over the week, with Join, the meeting ID and the number to dial in on
+([`docs/conferencing.md`](../../docs/conferencing.md)). Every client opens the event the core
+names (`showcase_meeting`), so no seed can leave one of them photographing an empty detail.
+
+**`list-dark` is not a screen of its own: it is `list` again, in the other appearance.** Every
 store capture is pinned to a light/dark appearance (`MAILCAL_APPEARANCE`, `docs/debugging.md`), and
 the mailbox list is captured twice: `<locale>-list.png` light and `<locale>-list-dark.png` dark. No
 client learns a new `MAILCAL_SHOWCASE_SCREEN` word for it (the theme is a launch environment, not a
@@ -55,8 +60,8 @@ product from the one the other six locales show.
 
 One dark capture, not a dark set, and it is the mailbox list because that is the screen a listing
 opens on: the pair reads as the same inbox in either theme rather than as two unrelated screens.
-Google Play takes at most **8** images per slot, so a second dark capture would put the set one
-under the ceiling for every locale at once. The push enforces that where it lives, which is not
+Google Play takes at most **8** images per slot, and the set is now exactly 8, so a second dark
+capture means dropping a light one from the Android set. The push enforces that where it lives, which is not
 this repository; the number is here because it decides what to capture.
 
 On the three-pane clients the dark capture includes the reading pane, and the message in it is
@@ -122,7 +127,7 @@ shoots each screen, into `showcase-screenshots/<platform>/`. That directory **is
 copy step:
 
 ```sh
-scripts/dev/showcase.sh macos                       # 49 PNGs: 7 captures × 7 locales
+scripts/dev/showcase.sh macos                       # 56 PNGs: 8 captures × 7 locales
 scripts/dev/showcase.sh iphone
 scripts/dev/showcase.sh ipad
 scripts/dev/showcase.sh android --serial <emulator> # emulator only (demo-mode status bar)

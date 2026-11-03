@@ -40,6 +40,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -346,7 +347,8 @@ private const val LIVE_PAGES = 2
 private fun surfaceTheme(createSwatch: Swatch): SurfaceTheme {
     val colors = MaterialTheme.colorScheme
     val type = MaterialTheme.typography
-    return remember(colors, type, createSwatch) {
+    val camera = painterResource(R.drawable.ic_videocam)
+    return remember(colors, type, createSwatch, camera) {
         SurfaceTheme(
             primary = colors.primary,
             outlineVariant = colors.outlineVariant,
@@ -367,6 +369,7 @@ private fun surfaceTheme(createSwatch: Swatch): SurfaceTheme {
             dragBorder = parseHexColor(createSwatch.border),
             pillFill = colors.inverseSurface,
             pillLabel = type.labelMedium.copy(color = colors.inverseOnSurface),
+            camera = camera,
         )
     }
 }

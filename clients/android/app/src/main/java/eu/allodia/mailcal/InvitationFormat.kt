@@ -276,12 +276,13 @@ private const val PREVIEW_HEIGHT_DP = 132f
 private const val PREVIEW_MAX_HEIGHT_DP = 240f
 
 /**
- * The spoken label for a calendar record, with the unanswered-hold disclosure appended.
+ * The spoken label for a calendar record: the unanswered-hold disclosure, then "video meeting",
+ * appended where each applies.
  *
- * The dashed border and hatched gutter that mark an unanswered invitation are **invisible to a
- * screen reader**, so the label has to say it, docs/calendar.md §4, the spoken-grid rule. Shared by
- * the grid block, the all-day bar, the month chip and the agenda row so one rule covers every
- * surface that can show a hold.
+ * The dashed border and hatched gutter that mark an unanswered invitation, and the camera that
+ * marks a meeting, are **invisible to a screen reader**, so the label has to say them,
+ * docs/calendar.md §4 and docs/conferencing.md rule 7. Shared by the grid block and the all-day
+ * bar so one rule covers every drawn surface.
  */
 internal fun calendarEventLabel(
     ctx: Context,
@@ -289,10 +290,11 @@ internal fun calendarEventLabel(
     time: String,
     calendar: String,
     participation: ResponseStatus,
+    hasConference: Boolean,
 ): String {
-    val base = L10n.calendar_event_a11y(ctx, title, time, calendar)
-    if (!isAwaitingResponse(participation)) return base
-    return "$base, ${L10n.a11y_invitation_awaiting_response(ctx)}"
+    var label = L10n.calendar_event_a11y(ctx, title, time, calendar)
+    if (isAwaitingResponse(participation)) label += ", ${L10n.a11y_invitation_awaiting_response(ctx)}"
+    return EventMeeting.spoken(label, L10n.event_video_meeting(ctx), hasConference)
 }
 
 /**

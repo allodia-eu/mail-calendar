@@ -308,6 +308,7 @@
 	"event_meeting_pin": "PIN {pin}",
 	"event_meeting_preparing": "Der Besprechungslink wird erstellt…",
 	"event_meeting_failed": "Der Besprechungslink konnte nicht erstellt werden.",
+	"event_meeting_link_copied": "Link kopiert",
 	"event_reminder": "Erinnerung",
 	"event_repeat": "Wiederholen",
 	"event_pick_calendar": "Kalender auswählen",

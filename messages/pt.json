@@ -308,6 +308,7 @@
 	"event_meeting_pin": "PIN {pin}",
 	"event_meeting_preparing": "A preparar a ligação da reunião…",
 	"event_meeting_failed": "Não foi possível criar a ligação da reunião.",
+	"event_meeting_link_copied": "Ligação copiada",
 	"event_reminder": "Lembrete",
 	"event_repeat": "Repetir",
 	"event_pick_calendar": "Selecionar o calendário",

@@ -141,8 +141,9 @@ internal fun MainActivity.prepareBoot(): MainActivityBootPlan {
                 // The grid opens on today's week and pulls its own page from the seeded core, so the
                 // flag is all it needs here; connectShowcase kicks the calendar sync once connected.
                 // Opening ON the calendar makes it home, so back closes the app from there rather
-                // than detouring through a mailbox the run never showed.
-                ShowcaseScreen.CALENDAR -> {
+                // than detouring through a mailbox the run never showed. The meeting screenshot
+                // opens its event's detail over the same grid (ShowcaseMode.openingEvent).
+                ShowcaseScreen.CALENDAR, ShowcaseScreen.MEETING -> {
                     destination = AppDestination.CALENDAR
                     homeDestination = AppDestination.CALENDAR
                 }

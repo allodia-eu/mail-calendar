@@ -4,6 +4,7 @@ use super::{
     super::{
         date::{clock, date_heading, parse_date, today_in},
         drag::CreateDrag,
+        meeting,
         model::{CalendarModel, EventIdentity},
         paint::{self, Rgb},
     },
@@ -29,6 +30,8 @@ pub(super) struct EventPaint {
     pub(super) identity: EventIdentity,
     pub(super) title: String,
     pub(super) spoken: String,
+    /// Whether the event has a video meeting: a camera after the title (`docs/conferencing.md`).
+    pub(super) has_conference: bool,
     pub(super) day: usize,
     pub(super) start_minutes: u32,
     pub(super) end_minutes: u32,
@@ -46,6 +49,8 @@ pub(super) struct BandPaint {
     pub(super) identity: EventIdentity,
     pub(super) title: String,
     pub(super) spoken: String,
+    /// Whether the event has a video meeting: a camera after the title (`docs/conferencing.md`).
+    pub(super) has_conference: bool,
     pub(super) day: usize,
     pub(super) days: usize,
     pub(super) lane: u32,
@@ -237,10 +242,14 @@ fn timed_events(model: &CalendarModel, dark: bool, first: usize, count: usize) -
                     },
                     // The dashed border and hatched gutter below are invisible to a screen
                     // reader, so the label says it too (`docs/calendar.md` §4).
-                    spoken: paint::spoken_with_hold(
-                        &l10n::calendar_event_a11y(&title, &range, &calendar_name),
-                        event.participation,
+                    spoken: meeting::spoken(
+                        paint::spoken_with_hold(
+                            &l10n::calendar_event_a11y(&title, &range, &calendar_name),
+                            event.participation,
+                        ),
+                        event.has_conference,
                     ),
+                    has_conference: event.has_conference,
                     awaiting: paint::is_awaiting(event.participation),
                     title,
                     day,
@@ -289,10 +298,14 @@ fn all_day_events(
                 key: band.event.clone(),
                 occurrence: band.occurrence_start.clone(),
             },
-            spoken: paint::spoken_with_hold(
-                &l10n::calendar_event_a11y(&title, l10n::calendar_all_day(), &calendar_name),
-                band.participation,
+            spoken: meeting::spoken(
+                paint::spoken_with_hold(
+                    &l10n::calendar_event_a11y(&title, l10n::calendar_all_day(), &calendar_name),
+                    band.participation,
+                ),
+                band.has_conference,
             ),
+            has_conference: band.has_conference,
             awaiting: paint::is_awaiting(band.participation),
             title,
             day: clipped_start - first,
@@ -386,6 +399,7 @@ mod tests {
                 },
                 title: "Fixture".to_owned(),
                 spoken: "Fixture, 10:00–11:00, Work".to_owned(),
+                has_conference: false,
                 day: 1,
                 start_minutes: 600,
                 end_minutes: 660,

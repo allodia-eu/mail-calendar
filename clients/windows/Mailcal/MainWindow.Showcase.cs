@@ -9,6 +9,7 @@
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Allodia.Mailcal.Calendar;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Windowing;
@@ -39,6 +40,7 @@ public sealed partial class MainWindow
     // snapshots (and OpenMessage itself dispatches an intent that triggers another reload).
     private bool _showcaseDriven;
     private bool _showcaseReplied;
+    private bool _showcaseCalendarShown;
 
     // Whether the window's content has loaded, and so has a XamlRoot. A ContentDialog cannot open
     // without one, and the showcase dataset is *fast*, served from memory, it can deliver rows and
@@ -81,6 +83,11 @@ public sealed partial class MainWindow
             if (e.PropertyName == nameof(MailboxModel.Reading))
             {
                 ShowcaseReplyIfNeeded();
+            }
+            // The meeting screenshot waits for the calendar sync to store its event.
+            else if (e.PropertyName == nameof(MailboxModel.CalendarVersion))
+            {
+                ShowcaseDriveIfNeeded();
             }
         };
     }
@@ -257,6 +264,37 @@ public sealed partial class MainWindow
                 {
                     Log.Info("showcase: showing the calendar");
                     ShowCalendarSurface();
+                });
+                break;
+
+            case ShowcaseScreen.Meeting:
+                // The calendar first, as the calendar screen shows it, then the event's detail
+                // over it once the calendar sync has stored the event: re-entered on every
+                // CalendarVersion bump until it has, rather than after a timer.
+                if (!_showcaseContentLoaded)
+                {
+                    return;
+                }
+                if (!_showcaseCalendarShown)
+                {
+                    _showcaseCalendarShown = true;
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        Log.Info("showcase: showing the calendar");
+                        ShowCalendarSurface();
+                    });
+                }
+                var meeting = MailcalBindingsMethods.ShowcaseMeeting();
+                if (Model.EventDetail(meeting.Account, meeting.EventKey, string.Empty) is null)
+                {
+                    return;
+                }
+                _showcaseDriven = true;
+                // Enqueued after the calendar, so the detail opens over the grid it belongs to.
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    Log.Info("showcase: opening the video meeting");
+                    CalendarDetail.OpenEvent(new EventOpen(meeting.Account, meeting.EventKey, string.Empty));
                 });
                 break;
 

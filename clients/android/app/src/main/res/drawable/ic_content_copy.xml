@@ -1,0 +1,16 @@
+<!-- Material Symbols "content_copy" (filled). Copy a meeting's link.
+     Vendored from google/material-design-icons; the Compose `Icon` supplies the real colour, so
+     the fillColor here is only a placeholder. The upstream SVG draws in a `0 -960 960 960`
+     viewBox, so the group translates it down by its own height and the path data is upstream's,
+     verbatim. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+  <group android:translateY="960">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Z"/>
+  </group>
+</vector>

@@ -194,7 +194,7 @@ dashboard, with the gallery images from the same store as Flathub's, below.
 ## Known gaps
 
 - **The Flathub gallery has no published images yet.** `scripts/dev/showcase.sh linux` captures all
-  six screens (seven captures, since the mailbox list is shot light and dark) but an AppStream
+  seven screens (eight captures, since the mailbox list is shot light and dark) but an AppStream
   `<screenshots>` block addresses images by **URL**, and nothing has been uploaded. Until
   `clients/linux/flatpak/screenshots.json` exists, the generator emits a comment in place of the
   gallery rather than an empty element (invalid) or invented URLs (valid, and broken in front of a

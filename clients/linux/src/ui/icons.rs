@@ -75,6 +75,12 @@ icons! {
     LIGHT_BACKGROUND = "mailcal-sun-symbolic";
     DARK_BACKGROUND = "mailcal-moon-symbolic";
 
+    // An event's video meeting (docs/conferencing.md): its heading in the detail and the mark on
+    // an event that has one, Copy link, and a number to dial in on.
+    VIDEO_MEETING = "camera-video-symbolic";
+    COPY = "edit-copy-symbolic";
+    DIAL_IN = "call-start-symbolic";
+
     // General controls.
     ADD = "list-add-symbolic";
     /// Taking one item out of something being edited: an attachment, a contact's field, an event.

@@ -71,6 +71,7 @@ SCREEN_ORDER = (
     "calendar",
     "list-dark",
     "invitation",
+    "meeting",
     "reply",
     "signatures",
     "settings",

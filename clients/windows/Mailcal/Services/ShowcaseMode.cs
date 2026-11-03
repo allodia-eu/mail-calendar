@@ -42,6 +42,12 @@ internal enum ShowcaseScreen
     /// surface: Accept / Maybe / Decline over a preview of the day the meeting would land on.
     /// </summary>
     Invitation,
+
+    /// <summary>
+    /// The showcase's video meeting, the Monday design sync, open in the event detail over the
+    /// calendar: Join first, then the meeting ID and the number to dial in on.
+    /// </summary>
+    Meeting,
 }
 
 /// <summary>Reads <c>MAILCAL_SHOWCASE</c> and resolves the language the showcase renders in.</summary>
@@ -98,6 +104,7 @@ internal static class ShowcaseMode
         "add-account" => ShowcaseScreen.AddAccount,
         "calendar" => ShowcaseScreen.Calendar,
         "invitation" => ShowcaseScreen.Invitation,
+        "meeting" => ShowcaseScreen.Meeting,
         _ => ShowcaseScreen.List,
     };
 

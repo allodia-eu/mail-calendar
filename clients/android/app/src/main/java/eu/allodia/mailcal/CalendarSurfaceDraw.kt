@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -203,6 +204,7 @@ private fun DrawScope.drawBanner(
                 drawChip(
                     rect, shapeWidth * band.span.days, band.background, band.title,
                     band.titleStyle, measurer, band.awaitingResponse, band.border,
+                    camera = theme.camera.takeIf { band.hasConference },
                 )
             }
             if (!expanded) {
@@ -230,6 +232,8 @@ private fun DrawScope.drawChip(
     measurer: TextMeasurer,
     awaiting: Boolean = false,
     edge: Color = Color.Transparent,
+    /** The camera after the text, for a bar whose event has a video meeting. */
+    camera: Painter? = null,
 ) {
     val pad = 1.dp.toPx()
     val inner = 5.dp.toPx()
@@ -249,13 +253,13 @@ private fun DrawScope.drawChip(
     )
     val room = shapeWidth - pad * 2 - inner * 2
     if (room <= 0f) return
-    val line = measurer.line(text, style, room)
+    val line = titleLine(measurer, text, style, room, camera = camera)
     clipRect(rect.left + pad, rect.top + pad, rect.right - pad, rect.bottom - pad) {
-        drawText(
+        drawTitleLine(
             line,
             topLeft = Offset(
                 rect.left + pad + inner,
-                rect.top + (rect.height - line.size.height) / 2f,
+                rect.top + (rect.height - line.layout.size.height) / 2f,
             ),
         )
     }
@@ -388,15 +392,17 @@ private fun DrawScope.drawBlocks(
         clipRect(x + gap, y + gap, x + gap + w, y + gap + h) {
             val textLeft = x + gap + 4.dp.toPx()
             var textTop = y + gap + inset
-            val title = measurer.line(
+            val title = titleLine(
+                measurer,
                 text = block.title,
                 style = block.titleStyle,
-                maxWidth = room,
+                room = room,
                 maxLines = if (showsTime || block.minutes < 30) 1 else 2,
+                camera = theme.camera.takeIf { block.hasConference },
             )
-            drawText(title, topLeft = Offset(textLeft, textTop))
+            drawTitleLine(title, topLeft = Offset(textLeft, textTop))
             if (showsTime) {
-                textTop += title.size.height
+                textTop += title.layout.size.height
                 val clock = measurer.line(block.clock, block.clockStyle, room)
                 drawText(clock, topLeft = Offset(textLeft, textTop))
             }
