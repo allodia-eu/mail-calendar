@@ -1,6 +1,7 @@
 // The event detail screen, what a tap on any event opens. Title, time, calendar, its video meetings
-// (EventConferenceSection.kt), location, notes, and the reminder/recurrence summaries, with an Edit + Delete action bar at the bottom (matching the
-// platform calendar the user knows). An opaque Surface overlay, composed over the grid.
+// (EventConferenceSection.kt), location, notes, and the reminder/recurrence summaries, with an
+// Edit + Delete action bar at the bottom (matching the platform calendar the user knows). An opaque
+// Surface overlay, composed over the grid.
 //
 // Delete and Edit are gated on the event's `canWrite`: a read-only calendar's event opens read-only,
 // with no action bar, an affordance that can never fire is just a mystery.

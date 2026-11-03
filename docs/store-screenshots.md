@@ -32,8 +32,8 @@ same guarantee.
   ([`project.inlang/settings.json`](../../project.inlang/settings.json)); each store listing
   language needs its own screenshots.
 - **Screens (8):** `list`, `list-dark`, `reply`, `settings`, `add-account`, `calendar`,
-  `invitation`, `meeting`. The order they appear in a store gallery is a separate decision, and one that is
-  written down: `SCREEN_ORDER` in
+  `invitation`, `meeting`. The order they appear in a store gallery is a separate decision, and
+  one that is written down: `SCREEN_ORDER` in
   [`scripts/dev/store_payload.py`](../../scripts/dev/store_payload.py), which every publisher
   applies (alphabetical would open every listing on `add-account`).
 
@@ -60,9 +60,9 @@ product from the one the other six locales show.
 
 One dark capture, not a dark set, and it is the mailbox list because that is the screen a listing
 opens on: the pair reads as the same inbox in either theme rather than as two unrelated screens.
-Google Play takes at most **8** images per slot, and the set is now exactly 8, so a second dark
-capture means dropping a light one from the Android set. The push enforces that where it lives, which is not
-this repository; the number is here because it decides what to capture.
+Google Play takes at most **8** images per slot and the set is 8, so a second dark capture means
+dropping a light one from the Android set. The push enforces that where it lives, which is not this
+repository; the number is here because it decides what to capture.
 
 On the three-pane clients the dark capture includes the reading pane, and the message in it is
 drawn dark like the rest of the frame ([`reading-dark-mode.md`](reading-dark-mode.md)). A
