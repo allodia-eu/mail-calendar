@@ -14,8 +14,8 @@ import MailcalBindings
 /// threads, so writes (and the rotation check) hop onto one serial queue to avoid interleaving.
 ///
 /// `@unchecked` because that queue is the synchronisation the compiler cannot see: every stored
-/// property is a `let`, and the only shared object among them, the `DateFormatter`, has been
-/// thread-safe for formatting since macOS 10.9.
+/// property is a `let`, and the only shared object among them, the `DateFormatter`, is thread-safe
+/// for formatting.
 final class FileLog: @unchecked Sendable {
     static let shared = FileLog()
 

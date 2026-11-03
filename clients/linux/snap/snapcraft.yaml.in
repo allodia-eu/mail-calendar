@@ -31,8 +31,8 @@ apps:
   # Named after the snap, so the command it installs is the snap name alone.
   @SNAP_NAME@:
     command: bin/mailcal
-    # GNOME 50's GTK, libadwaita and WebKitGTK come from the shared `gnome-core26` platform snap,
-    # the same generation the Flatpak's runtime and the Ubuntu 26.04 development baseline carry.
+    # GTK, libadwaita and WebKitGTK come from the shared `gnome-core26` platform snap, the same
+    # GNOME generation the Flatpak's runtime and the development baseline carry.
     extensions: [gnome]
     desktop: usr/share/applications/@APP_ID@.desktop
     # Ties the snap to its AppStream id, which App Center reads ratings and metadata by.

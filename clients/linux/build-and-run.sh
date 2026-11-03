@@ -164,7 +164,7 @@ fi
 
 require_cmd pkg-config
 # The crate's feature gates, which are the compile-time floor: what the code may call. They match
-# the baseline (Ubuntu 26.04) and the GNOME 50 runtime, and move with this check and Cargo.toml.
+# the development baseline and the Flatpak's runtime, and move with this check and Cargo.toml.
 pkg-config --atleast-version=4.22 gtk4 ||
   die "GTK 4.22 or newer is required (pkg-config package: gtk4)"
 pkg-config --atleast-version=1.9 libadwaita-1 ||

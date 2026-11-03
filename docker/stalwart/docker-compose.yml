@@ -1,4 +1,4 @@
-# Deterministic Stalwart protocol test harness (Stalwart v0.16).
+# Deterministic Stalwart protocol test harness.
 #
 # `docker compose up -d --wait` brings up a Stalwart server that self-bootstraps
 # through its management API, creates the test accounts, and seeds one shared

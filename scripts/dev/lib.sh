@@ -257,8 +257,8 @@ booted_sim_udid() {
 # The newest plain iPhone simulator ("iPhone 17"), or the newest iPhone of any kind when there is
 # none. By family rather than by name: this has to work on a GitHub runner, whose installed set is
 # whatever that image shipped with, and a hardcoded model is a gate that stops running the day the
-# image moves. Plain first because the newest name is not always a phone-shaped one: Xcode 27.1
-# lists the foldable "iPhone Duo" last, and there an XCUITest tap on a popover's button never
+# image moves. Plain first because the newest name is not always a phone-shaped one: Xcode can
+# list the foldable "iPhone Duo" last, and there an XCUITest tap on a popover's button never
 # reaches it, so the UI suite fails on a device it was not written for.
 first_iphone_sim() {
   local uuid name state plain="" any=""

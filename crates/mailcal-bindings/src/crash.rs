@@ -5,7 +5,7 @@
 //! at the FFI boundary and handed to the host as a message alone: so the file and line it came
 //! from exist nowhere at all. This hook is the only place that information is ever recorded.
 //!
-//! What crosses the FFI, and why that is not enough (UniFFI 0.31, `rust_call_with_out_status`):
+//! What crosses the FFI, and why that is not enough (UniFFI's `rust_call_with_out_status`):
 //! a caught panic's payload is downcast to a string and lowered into the host's error, which
 //! becomes a Kotlin `InternalException`, a Swift `MailcalException`, a C# `UniffiException`. Its
 //! *stack* is the host's, starting at the generated binding: the two runtimes unwind on separate
