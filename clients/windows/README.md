@@ -304,7 +304,7 @@ remove the old package first (MSIX blocks reinstalling the same `1.0.0.0` with c
   decides whether it proves anything.
 - `uitests/`, what runs them: `run-ui-tests.ps1` selects the suites by dataset, and
   `set-desktop-resolution.ps1` and `install-windows-app-runtime.ps1` are the two things a CI runner
-  needs that a developer machine already has.
+  needs that a developer machine usually already has.
 - `build-and-run.ps1`, cdylib → bindings → gate → WinUI app → launch (the dev loop).
 - `package.ps1`, cdylib (both arches) → bindings → MSIX bundle → `.msixupload` (the Store path),
   or `-Channel Direct` → an unsigned `.msixbundle` plus the staged Windows App Runtime, for the
@@ -312,6 +312,8 @@ remove the old package first (MSIX blocks reinstalling the same `1.0.0.0` with c
   `-Sign` instead builds a self-signed, installable sideload set for on-device testing.
 - `rust-crt.ps1`, dot-sourced by both scripts: links the cdylib's C runtime statically and asserts
   the shipped DLL imports none. See "The Rust cdylib links the C runtime statically" above.
+- `windows-app-runtime.ps1`, dot-sourced by `package.ps1` and `install-windows-app-runtime.ps1`:
+  which Windows App Runtime the restore resolved, and what registered on this machine serves it.
 - `Generated/`, `**/bin/`, `**/obj/`, `**/AppPackages/`, build artifacts (gitignored; rebuilt).
 
 Credentials live in the **Windows Credential Manager**, never a plaintext file, the

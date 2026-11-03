@@ -235,6 +235,14 @@ Write-Host "==> Running the agent-suite result tests" -ForegroundColor Cyan
 & (Join-Path $here 'agent-suites.tests.ps1')
 if ($LASTEXITCODE -ne 0) { throw "agent-suite result tests failed" }
 
+# 5f. Which Windows App Runtime a build resolved and what on this machine serves it, which
+#     package.ps1 and the runtime installer both ask. Here for 5c's reason: the
+#     states that matter (a runtime older or newer than the one resolved) cannot be staged on a
+#     machine without unregistering what it runs on.
+Write-Host "==> Running the Windows App Runtime lookup tests" -ForegroundColor Cyan
+& (Join-Path $here 'windows-app-runtime.tests.ps1')
+if ($LASTEXITCODE -ne 0) { throw "Windows App Runtime lookup tests failed" }
+
 # The shared composer editor is Content-included from clients/composer/dist by Mailcal.csproj, and
 # that bundle is a committed build output rather than one generated per build, so rebuild it from
 # its TypeScript sources before MSBuild copies it. Without bun it says so and carries on: the

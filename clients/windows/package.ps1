@@ -320,38 +320,23 @@ Assert-StaticCrtInPackage $shipped.FullName
 #     for unpackaged apps, neither of which this package declares, and the Store build is given
 #     none of them either.
 #
-#     The version is read out of the restored NuGet graph rather than written down, so a
+#     Which runtime that is comes from the restore (windows-app-runtime.ps1), so a
 #     Microsoft.WindowsAppSDK bump cannot leave this staging an older runtime than the one the
 #     package asks for. `appinstaller.py` re-checks the whole set against the built package at
 #     publish time, which is the check that has to hold; this is what gives it something to find.
 $stagedRuntime = @()
 if ($Channel -eq 'Direct') {
-  $assets = Join-Path $projDir 'obj/project.assets.json'
-  # `${}` around the variable because a bare `$assets:` is a scope qualifier to the parser, and the
-  # file does not compile at all rather than failing here.
-  if (-not (Test-Path $assets)) { throw "the restore did not run, so the runtime cannot be resolved: ${assets} is missing." }
-  $graph = Get-Content $assets -Raw | ConvertFrom-Json
-  $entry = $graph.libraries.PSObject.Properties.Name |
-  Where-Object { $_ -like 'Microsoft.WindowsAppSDK.Runtime/*' } | Select-Object -First 1
-  if (-not $entry) { throw "project.assets.json names no Microsoft.WindowsAppSDK.Runtime package." }
-  $runtimeVersion = $entry.Split('/')[1]
-  $folders = $graph.packageFolders.PSObject.Properties.Name
-  $runtimeRoot = $folders |
-  ForEach-Object { Join-Path $_ "microsoft.windowsappsdk.runtime/$runtimeVersion" } |
-  Where-Object { Test-Path $_ } | Select-Object -First 1
-  if (-not $runtimeRoot) { throw "Microsoft.WindowsAppSDK.Runtime $runtimeVersion is not in any package folder." }
-
-  $stageDir = Join-Path $here "build/runtime-$runtimeVersion"
+  . (Join-Path $here 'windows-app-runtime.ps1')
+  $runtime = Get-WindowsAppRuntime -ProjectDir $projDir
+  $stageDir = Join-Path $here "build/runtime-$($runtime.Version)"
   New-Item -ItemType Directory -Force $stageDir | Out-Null
-  foreach ($pair in @(@('x64', 'win10-x64'), @('arm64', 'win10-arm64'))) {
-    $source = Get-ChildItem (Join-Path $runtimeRoot "tools/MSIX/$($pair[1])") -Filter 'Microsoft.WindowsAppRuntime.*.msix' -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -notmatch '\.(DDLM|Main|Singleton)\.' } | Select-Object -First 1
-    if (-not $source) { throw "no Windows App Runtime framework package for $($pair[0]) under $runtimeRoot." }
-    $staged = Join-Path $stageDir ("{0}-{1}.msix" -f $source.BaseName, $pair[0])
+  foreach ($arch in 'x64', 'arm64') {
+    $source = Get-Item (Get-WindowsAppRuntimeFramework -Runtime $runtime -Arch $arch).Path
+    $staged = Join-Path $stageDir ("{0}-{1}.msix" -f $source.BaseName, $arch)
     Copy-Item $source.FullName -Destination $staged -Force
     $stagedRuntime += $staged
   }
-  Write-Host "==> Staged the Windows App Runtime $runtimeVersion for both arches: $stageDir" -ForegroundColor DarkGray
+  Write-Host "==> Staged the Windows App Runtime $($runtime.Version) for both arches: $stageDir" -ForegroundColor DarkGray
 }
 
 # 7. Report the artifact + next step.
