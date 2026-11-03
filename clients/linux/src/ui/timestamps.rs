@@ -29,6 +29,11 @@ impl MailClock {
     pub(super) fn of(calendar: &CalendarModel) -> Self {
         Self::new(calendar.display_zone(), calendar.uses_24_hour())
     }
+
+    /// A list row's label for `raw`, in this zone and on this clock.
+    pub(super) fn relative_date(&self, raw: &str) -> String {
+        relative_date(raw, &self.zone, self.use_24_hour)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

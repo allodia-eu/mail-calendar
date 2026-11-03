@@ -16,7 +16,7 @@ use super::{
     mailbox_display::{flat_display, message_display, thread_display},
     model::{self, OpenedMessage},
     row_action,
-    timestamps::{self, MailClock},
+    timestamps::MailClock,
 };
 pub(super) use super::{mail_actions_menu::RowMenus, mailbox_display::MailboxRendering};
 #[cfg(test)]
@@ -207,11 +207,7 @@ fn flat_row(
     if display.has_attachment {
         widget.add_suffix(&attachment_icon());
     }
-    widget.add_suffix(&meta_label(&timestamps::relative_date(
-        &display.date,
-        &clock.zone,
-        clock.use_24_hour,
-    )));
+    widget.add_suffix(&meta_label(&clock.relative_date(&display.date)));
     let opened = OpenedMessage {
         account: row.account.clone(),
         key: row.key.clone(),
@@ -330,11 +326,7 @@ fn thread_row(
     if display.has_attachment {
         widget.add_suffix(&attachment_icon());
     }
-    widget.add_suffix(&meta_label(&timestamps::relative_date(
-        &display.date,
-        &clock.zone,
-        clock.use_24_hour,
-    )));
+    widget.add_suffix(&meta_label(&clock.relative_date(&display.date)));
     let selected = SelectedRow::Thread {
         account: row.account.clone(),
         thread_id: row.thread_id.clone(),
@@ -401,11 +393,7 @@ fn thread_message_row(
     if display.has_attachment {
         widget.add_suffix(&attachment_icon());
     }
-    widget.add_suffix(&meta_label(&timestamps::relative_date(
-        &display.date,
-        &clock.zone,
-        clock.use_24_hour,
-    )));
+    widget.add_suffix(&meta_label(&clock.relative_date(&display.date)));
     // The conversation's subject heads the reading view, and seeds a reply's.
     let opened = OpenedMessage::from_member(thread, message);
     // Its own menu, about this message alone (`docs/row-actions.md`, rule 5).
