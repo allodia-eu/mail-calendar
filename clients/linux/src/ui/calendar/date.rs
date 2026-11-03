@@ -189,7 +189,7 @@ pub(in crate::ui) fn clock(minutes: u32, use_24_hour: bool) -> String {
 }
 
 /// [`clock`] with the minutes always written, `2:00 PM`: what every client's mail prints, so a
-/// quoted time reads the same whichever client wrote it.
+/// quoted time keeps its minutes whichever client wrote it.
 pub(in crate::ui) fn full_clock(minutes: u32, use_24_hour: bool) -> String {
     let hour = minutes / 60;
     let minute = minutes % 60;
