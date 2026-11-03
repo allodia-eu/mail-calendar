@@ -14,8 +14,6 @@ license.workspace = true
 mailcal-app = { workspace = true }
 # The row/snapshot types a query returns.
 mailcal-viewmodel = { workspace = true }
-# `AccountId`: the typed account identity the core's references are built from.
-engine-api = { workspace = true }
 # The wire format is JSON-RPC 2.0, so every request/response type is (de)serialized.
 serde = { workspace = true }
 serde_json = { workspace = true }
