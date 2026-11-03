@@ -68,10 +68,17 @@ fn render_brand_file(namespace: &str, brand: &Brand) -> String {
          \x20   /// build registers, without its <c>.exe</c>.\n\
          \x20   /// </summary>\n\
          \x20   public const string McpRelayName = \"{relay}\";\n\
+         \n\
+         \x20   /// <summary>\n\
+         \x20   /// Where the store, the log and the credential index live, as a path under\n\
+         \x20   /// <c>%LOCALAPPDATA%</c> with <c>/</c> between its segments.\n\
+         \x20   /// </summary>\n\
+         \x20   public const string WindowsDataDir = \"{data}\";\n\
          }}\n",
         id = brand.id,
         mcp = brand.mcp_server_name,
-        relay = brand.mcp_relay_name
+        relay = brand.mcp_relay_name,
+        data = brand.windows_data_dir
     )
 }
 

@@ -99,8 +99,11 @@ fn render_app_id(out: &mut String, brand: &Brand) {
          /// `serverInfo.name`.\n\
          pub(crate) const MCP_SERVER_NAME: &str = {:?};\n\n\
          /// The command the MCP relay is installed as, which an MCP client spawns.\n\
-         pub(crate) const MCP_RELAY_NAME: &str = {:?};\n\n",
-        brand.id, brand.mcp_server_name, brand.mcp_relay_name
+         pub(crate) const MCP_RELAY_NAME: &str = {:?};\n\n\
+         /// The directory under the user's data directory the store, the log and the MCP\n\
+         /// endpoint live in.\n\
+         pub(crate) const DATA_DIR_NAME: &str = {:?};\n\n",
+        brand.id, brand.mcp_server_name, brand.mcp_relay_name, brand.data_dir_name
     );
 }
 

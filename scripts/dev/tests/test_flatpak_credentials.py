@@ -116,7 +116,8 @@ class FlatpakCredentialHandoff(unittest.TestCase):
         self.branding.mkdir()
         (self.branding / "default.env").write_text(
             'MAILCAL_APP_NAME="MailCal"\nMAILCAL_APP_ID="%s"\n'
-            'MAILCAL_APPLE_PRODUCT_NAME="MailCal"\n' % NEUTRAL_APP_ID,
+            'MAILCAL_APPLE_PRODUCT_NAME="MailCal"\nMAILCAL_DATA_DIR_NAME="mailcal"\n'
+            % NEUTRAL_APP_ID,
             encoding="utf-8",
         )
 

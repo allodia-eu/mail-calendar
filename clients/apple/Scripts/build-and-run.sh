@@ -548,7 +548,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
     launch_log="${TMPDIR:-/tmp}/allodia-mail-launch.log"
     open -n "${open_env[@]}" --stdout "$launch_log" --stderr "$launch_log" "$APP"
     echo "==> Launch output: $launch_log (the app's own log is below)"
-    echo "==> Logs: $HOME/.local/share/mailcal/mailcal.log (rotates .1-.3, ~4 MB cap)"
+    echo "==> Logs: $HOME/.local/share/$MAILCAL_DATA_DIR_NAME/mailcal.log (rotates .1-.3, ~4 MB cap)"
   fi
 elif [[ "$DESTINATION" == "device" ]]; then
   if [[ -z "$DEVICE" ]]; then
@@ -660,7 +660,7 @@ else
       xcrun simctl launch "$SIMULATOR_UDID" "$BUNDLE_ID"
     fi
     if CONTAINER="$(xcrun simctl get_app_container "$SIMULATOR_UDID" "$BUNDLE_ID" data 2>/dev/null)"; then
-      echo "==> Logs: $CONTAINER/Library/Application Support/mailcal/mailcal.log (rotates .1-.3, ~4 MB cap)"
+      echo "==> Logs: $CONTAINER/Library/Application Support/$MAILCAL_DATA_DIR_NAME/mailcal.log (rotates .1-.3, ~4 MB cap)"
     fi
   fi
 fi

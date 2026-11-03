@@ -12,7 +12,7 @@
 // that touches real credentials and real mail, so it is exactly the mode that must be isolated.
 //
 // The rotating diagnostic log deliberately stays shared (`FileLog.swift` keeps
-// `~/.local/share/mailcal`), matching Windows, one file diagnoses whatever ran last.
+// `~/.local/share/<Brand.dataDirName>`), matching Windows, one file diagnoses whatever ran last.
 
 import Foundation
 import MailcalBindings
@@ -25,8 +25,9 @@ import MailcalBindings
 enum DevNamespace {
     /// The shipped app's Keychain service. Only a release build ever names it.
     static let prodKeychainService = Brand.appID
-    /// The shipped app's engine store directory (under `~/.local/share` on macOS).
-    static let prodDataDirName = "mailcal"
+    /// The shipped app's engine store directory (under `~/.local/share` on macOS): the brand's
+    /// `MAILCAL_DATA_DIR_NAME`, so two brands on one Mac never open one store.
+    static let prodDataDirName = Brand.dataDirName
 
     /// The Keychain service a DEBUG build stores accounts under.
     ///
@@ -52,12 +53,12 @@ enum DevNamespace {
     /// build an in-memory core with no store at all.
     static func dataDirName(for devAccount: String?) -> String {
         switch devAccount {
-        case "stalwart": "mailcal-dev"
-        case "stalwart-multi": "mailcal-dev-multi"
-        case "stalwart-imap": "mailcal-dev-imap"
-        case "stalwart-linked": "mailcal-dev-linked"
-        case "first-run": "mailcal-dev-first-run"
-        default: "mailcal-dev-personal"
+        case "stalwart": "\(prodDataDirName)-dev"
+        case "stalwart-multi": "\(prodDataDirName)-dev-multi"
+        case "stalwart-imap": "\(prodDataDirName)-dev-imap"
+        case "stalwart-linked": "\(prodDataDirName)-dev-linked"
+        case "first-run": "\(prodDataDirName)-dev-first-run"
+        default: "\(prodDataDirName)-dev-personal"
         }
     }
 

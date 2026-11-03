@@ -308,7 +308,8 @@ if (-not $SelfContained) {
   }
 }
 
-$logPath = Join-Path $env:LOCALAPPDATA 'Allodia\MailCalendar\logs\app.log'
+. (Join-Path $here 'brand.ps1')
+$logPath = Join-Path (Join-Path $env:LOCALAPPDATA (Get-BrandConstant WindowsDataDir)) 'logs\app.log'
 Write-Host "==> Logs: $logPath (rotates .1-.3, ~4 MB cap)" -ForegroundColor Green
 
 # 6. Launch it (host arch only). It opens the first-run account-setup form, no stored

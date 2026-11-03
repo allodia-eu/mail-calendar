@@ -129,10 +129,10 @@ case "$ACCOUNT" in
     offer_harness_sign_in
     info "booting $platform on an EMPTY namespace: the welcome screen, then the first-account screen"
     if [[ "$platform" == "windows" ]]; then
-      info 'its store: %LOCALAPPDATA%\Allodia\MailCalendar\dev-first-run, its accounts: Credential Manager'
+      info "its store: %LOCALAPPDATA%\\${MAILCAL_WINDOWS_DATA_DIR//\//\\}\\dev-first-run, its accounts: Credential Manager"
       info 'to see the first run again: pwsh clients/windows/clear-dev-namespace.ps1 -Namespace dev-first-run'
     else
-      info "its store: ~/.local/share/mailcal-dev-first-run, its accounts: the keychain service $MAILCAL_APP_ID.dev.first-run (clear both to see the first run again)"
+      info "its store: ~/.local/share/$MAILCAL_DATA_DIR_NAME-dev-first-run, its accounts: the keychain service $MAILCAL_APP_ID.dev.first-run (clear both to see the first run again)"
     fi ;;
 esac
 

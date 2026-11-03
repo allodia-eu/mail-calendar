@@ -65,6 +65,13 @@ def usable_bash() -> str:
 
 NO_BASH = usable_bash()
 
+# What lib.sh's brand_load would export. Allodia's, because its Windows store is the one whose dev
+# stores sit inside the real store's directory, the shape the survival assertions are about.
+ALLODIA_DATA_DIRS = {
+    "MAILCAL_DATA_DIR_NAME": "mailcal",
+    "MAILCAL_WINDOWS_DATA_DIR": "Allodia/MailCalendar",
+}
+
 
 def _extract(pattern: re.Pattern[str], path: Path, what: str) -> str:
     match = pattern.search(path.read_text(encoding="utf-8"))
@@ -98,7 +105,7 @@ def run_clear(root: Path, *, keep_clients: bool = False) -> str:
     # The environment is ADDED to, never replaced: the extracted code shells out to `rm`, and a
     # bare env leaves it with no PATH to find one; which fails as "the wipe did not run" rather
     # than as the missing-PATH it is.
-    env = {**os.environ, "LOCALAPPDATA": str(root), "HOME": str(root)}
+    env = {**os.environ, **ALLODIA_DATA_DIRS, "LOCALAPPDATA": str(root), "HOME": str(root)}
     completed = subprocess.run(
         bash_argv("-c", script),
         check=True,
@@ -210,7 +217,7 @@ class ClearDevStores(unittest.TestCase):
             check=True,
             capture_output=True,
             text=True,
-            env={**os.environ, "LOCALAPPDATA": "/tmp/x", "HOME": "/tmp/x"},
+            env={**os.environ, **ALLODIA_DATA_DIRS, "LOCALAPPDATA": "/tmp/x", "HOME": "/tmp/x"},
         ).stdout
         # An empty mode still resolves (to `<root>/`), which is why clear_dev_stores never builds one
         #; it iterates DEV_STORE_MODES. An unknown *platform* must refuse outright.

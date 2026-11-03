@@ -37,7 +37,7 @@
          rather than a single file. -->
     <key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
     <array>
-        <string>/.local/share/mailcal-share/</string>
+        <string>/.local/share/$(MAILCAL_DATA_DIR_NAME)-share/</string>
     </array>
 </dict>
 </plist>

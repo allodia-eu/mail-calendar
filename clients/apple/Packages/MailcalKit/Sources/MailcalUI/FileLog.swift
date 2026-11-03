@@ -29,11 +29,11 @@ final class FileLog: @unchecked Sendable {
     private init() {
         #if os(macOS)
         let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".local/share/mailcal")
+            .appendingPathComponent(".local/share/\(Brand.dataDirName)")
         #else
         // iOS has no user home; the diagnostic log lives in the app's Application Support.
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("mailcal")
+            .appendingPathComponent(Brand.dataDirName)
         #endif
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         url = dir.appendingPathComponent("mailcal.log")

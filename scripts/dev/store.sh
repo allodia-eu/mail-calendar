@@ -51,10 +51,11 @@ fi
 
 # The engine store dir per client. Each dev mode gets an isolated dir so harness data never mixes
 # with real accounts; the same mapping the clients apply when they choose their data dir.
-#   windows  MailboxModel.Accounts.cs  (LocalAppData/Allodia/MailCalendar[/dev|/dev-imap])
-#   macos    MailcalModel.connect      (~/.local/share/mailcal[-dev|-dev-imap])
-#   linux    boot.rs                   ($XDG_DATA_HOME/mailcal[/dev|/dev-imap])
-#   apple    MailcalModel.connect      (App Support/mailcal[-dev|-dev-imap])
+# where <name> is MAILCAL_DATA_DIR_NAME and <windows> MAILCAL_WINDOWS_DATA_DIR (docs/branding.md):
+#   windows  MailboxModel.Accounts.cs  (LocalAppData/<windows>[/dev|/dev-imap])
+#   macos    MailcalModel.connect      (~/.local/share/<name>[-dev|-dev-imap])
+#   linux    boot.rs                   ($XDG_DATA_HOME/<name>[/dev|/dev-imap])
+#   apple    MailcalModel.connect      (App Support/<name>[-dev|-dev-imap])
 #   android  MainActivity.connect      (files/[dev|dev-imap])
 #
 # Linux is the same path whether the client was built against the distribution's GTK or run
@@ -69,11 +70,11 @@ store_dir() {
     windows|macos|linux)
       if [[ "$STORE" != real ]]; then dev_store_dir "$PLATFORM" "$STORE"; return; fi
       case "$PLATFORM" in
-        windows) printf '%s/Allodia/MailCalendar' "${LOCALAPPDATA:-$HOME/AppData/Local}" ;;
+        windows) printf '%s/%s' "${LOCALAPPDATA:-$HOME/AppData/Local}" "$MAILCAL_WINDOWS_DATA_DIR" ;;
         # The Linux client resolves its data directory through XDG_DATA_HOME; the macOS one lands
         # on the same path but does not read the variable.
-        linux) printf '%s/mailcal' "${XDG_DATA_HOME:-$HOME/.local/share}" ;;
-        macos) printf '%s/.local/share/mailcal' "$HOME" ;;
+        linux) printf '%s/%s' "${XDG_DATA_HOME:-$HOME/.local/share}" "$MAILCAL_DATA_DIR_NAME" ;;
+        macos) printf '%s/.local/share/%s' "$HOME" "$MAILCAL_DATA_DIR_NAME" ;;
       esac ;;
     iphone|ipad)
       local container; container="$(sim_app_container)" || die "no booted simulator with the app installed"
@@ -85,7 +86,11 @@ store_dir() {
 }
 
 apple_dir_name() {
-  case "$STORE" in real) printf 'mailcal' ;; dev) printf 'mailcal-dev' ;; dev-imap) printf 'mailcal-dev-imap' ;; esac
+  case "$STORE" in
+    real) printf '%s' "$MAILCAL_DATA_DIR_NAME" ;;
+    dev) printf '%s-dev' "$MAILCAL_DATA_DIR_NAME" ;;
+    dev-imap) printf '%s-dev-imap' "$MAILCAL_DATA_DIR_NAME" ;;
+  esac
 }
 android_subdir() {
   case "$STORE" in real) printf '' ;; dev) printf '/dev' ;; dev-imap) printf '/dev-imap' ;; esac

@@ -52,18 +52,18 @@ final class DevNamespaceTests: XCTestCase {
     func testPersonalUnsetAndDemoShareTheBaseDevNamespace() {
         for mode in [nil, "personal", "demo"] as [String?] {
             XCTAssertEqual(DevNamespace.keychainService(for: mode), "\(Brand.appID).dev")
-            XCTAssertEqual(DevNamespace.dataDirName(for: mode), "mailcal-dev-personal")
+            XCTAssertEqual(DevNamespace.dataDirName(for: mode), "\(Brand.dataDirName)-dev-personal")
         }
     }
 
     /// The harness store names are documented in `docs/debugging.md` and mirrored by the other
     /// clients, so they are a contract rather than an implementation detail.
     func testHarnessNamesAreUnchanged() {
-        XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart"), "mailcal-dev")
-        XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart-multi"), "mailcal-dev-multi")
-        XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart-imap"), "mailcal-dev-imap")
+        XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart"), "\(Brand.dataDirName)-dev")
+        XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart-multi"), "\(Brand.dataDirName)-dev-multi")
+        XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart-imap"), "\(Brand.dataDirName)-dev-imap")
         // `harness.sh` resets this one by name (`DEV_STORE_MODES` in scripts/dev/lib.sh).
-        XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart-linked"), "mailcal-dev-linked")
+        XCTAssertEqual(DevNamespace.dataDirName(for: "stalwart-linked"), "\(Brand.dataDirName)-dev-linked")
         XCTAssertEqual(
             DevNamespace.keychainService(for: "stalwart"), "\(Brand.appID).dev.stalwart")
         XCTAssertEqual(
@@ -81,7 +81,7 @@ final class DevNamespaceTests: XCTestCase {
     /// would orphan every user's accounts and mailbox on upgrade.
     func testProductionNamesAreUnchanged() {
         XCTAssertEqual(DevNamespace.prodKeychainService, Brand.appID)
-        XCTAssertEqual(DevNamespace.prodDataDirName, "mailcal")
+        XCTAssertEqual(DevNamespace.prodDataDirName, Brand.dataDirName)
     }
 
     /// A DEBUG test bundle must itself resolve to a dev namespace, proof the `#if DEBUG` wiring,

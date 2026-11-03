@@ -66,6 +66,22 @@ public class AppPathsTests
         Assert.Equal(Path.Combine(root, "dev-imap"), AppPaths.ResolvePrefsDir(root, "stalwart-imap"));
     }
 
+    // A packaged build writes to %LOCALAPPDATA% unvirtualized, so this directory is the only thing
+    // keeping two brands' stores apart on one machine. Allodia's brand states Allodia/MailCalendar,
+    // the directory every installed copy already keeps its mail in.
+    [Fact]
+    public void TheRootIsTheBrandsPathUnderLocalAppData()
+    {
+        var local = Path.Combine("C:", "Local");
+        Assert.Equal(
+            Path.Combine(local, "Allodia", "MailCalendar"),
+            AppPaths.ResolveRoot(local, "Allodia/MailCalendar"));
+        Assert.Equal(Path.Combine(local, "MailCal"), AppPaths.ResolveRoot(local, "MailCal"));
+        Assert.Equal(AppPaths.ResolveRoot(
+            System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
+            Brand.WindowsDataDir), AppPaths.Root);
+    }
+
     [Fact]
     public void PrefsStayAtTheRootForANormalLaunch()
     {

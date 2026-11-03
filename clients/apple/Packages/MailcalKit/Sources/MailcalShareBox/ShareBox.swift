@@ -95,7 +95,12 @@ public struct ShareBox: Sendable {
     /// extension should be able to open. It is also deliberately outside the per-dev-account
     /// namespaces (`DevNamespace`), like the diagnostic log, because a share belongs to whichever
     /// build the user is running, not to a store.
-    public static let homeRelativePath = ".local/share/mailcal-share"
+    ///
+    /// Named after the brand's `MAILCAL_DATA_DIR_NAME`, which the extension's home-relative grant
+    /// (App/AllodiaMailShare.macOS.entitlements) names too.
+    public static func homeRelativePath(dataDirName: String) -> String {
+        ".local/share/\(dataDirName)-share"
+    }
 
     /// The box this build shares with its Share Extension, or `nil` where it has neither way in.
     ///
@@ -110,14 +115,16 @@ public struct ShareBox: Sendable {
     ///   every write to it fails with EPERM. So the extension is given a home-relative sandbox
     ///   exception to this one directory instead, and the app, unsandboxed in that build, reads it
     ///   as an ordinary path.
-    public static func shared(appID: String) -> ShareBox? {
+    public static func shared(appID: String, dataDirName: String) -> ShareBox? {
         if let group = entitledGroup(appID: appID),
             let container = FileManager.default.containerURL(
                 forSecurityApplicationGroupIdentifier: group) {
             return ShareBox(container: container)
         }
         #if os(macOS)
-        return ShareBox(container: home().appendingPathComponent(homeRelativePath, isDirectory: true))
+        return ShareBox(
+            container: home().appendingPathComponent(
+                homeRelativePath(dataDirName: dataDirName), isDirectory: true))
         #else
         return nil
         #endif

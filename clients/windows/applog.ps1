@@ -34,7 +34,8 @@
 
 # Mirrors MailboxModel.DataDir + Log.Init. The shared log root, not a per-dev-mode store: app.log
 # diagnoses whatever ran last on this machine, whichever MAILCAL_DEV_ACCOUNT it ran under.
-$AppLogPath = Join-Path $env:LOCALAPPDATA 'Allodia\MailCalendar\logs\app.log'
+. (Join-Path $PSScriptRoot 'brand.ps1')
+$AppLogPath = Join-Path (Join-Path $env:LOCALAPPDATA (Get-BrandConstant WindowsDataDir)) 'logs\app.log'
 
 # `2026-09-15 15:02:48.828 +02:00 [info] --- session start (0.8.2, Arm64, Microsoft Windows ...) ---`
 $AppLogBannerPattern = '(?m)^(?<at>\S+ \S+ \S+) \[info\] --- session start'

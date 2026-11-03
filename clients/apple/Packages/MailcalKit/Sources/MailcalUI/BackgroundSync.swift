@@ -16,11 +16,11 @@ public let backgroundRefreshTaskId = "\(Brand.appID).refresh"
 /// and reports before the OS reclaims it. The core clamps this into a sane band regardless.
 private let backgroundBudgetSeconds: UInt32 = 25
 
-/// The engine store + preferences dir on iOS (app Application Support/mailcal), the same dir the
+/// The engine store + preferences dir on iOS (Application Support/<Brand.dataDirName>), the same dir the
 /// foreground app uses, so a background pass reads the same store and Keychain accounts.
 private func backgroundDataDir() -> String {
     FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("mailcal").path
+        .appendingPathComponent(Brand.dataDirName).path
 }
 
 /// Submits the next app-refresh request (~15 min out). Best-effort, iOS decides the real cadence

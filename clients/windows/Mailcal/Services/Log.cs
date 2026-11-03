@@ -1,5 +1,5 @@
 // A tiny rotating file logger for field debugging, lifecycle, snapshot counts, time-zone
-// reports, and errors land in %LOCALAPPDATA%\Allodia\MailCalendar\logs\app.log so a real
+// reports, and errors land in logs\app.log under AppPaths.Root (the brand's data directory) so a real
 // user's issue (e.g. an empty calendar) can be diagnosed from the file. It is deliberately
 // privacy-safe: log counts, zone ids, and high-level events, never mail/event content,
 // addresses, or the config (which holds the password). Best-effort: logging never throws.
