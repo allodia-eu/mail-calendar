@@ -45,7 +45,7 @@ public class McpEndpointTests
         // THE finding this test encodes: both values are backslash-heavy, and a hand-built JSON
         // string would emit them raw. `\p` is not a valid JSON escape, so the file the user pasted
         // fails to parse, after they have restarted their assistant and are looking at it.
-        var relay = @"C:\Program Files\Some App With Spaces\allodia-mcp.exe";
+        var relay = @"C:\Program Files\Some App With Spaces\mailcal-mcp.exe";
         var endpoint = McpEndpoint.PipeName(packaged: true);
 
         var snippet = McpEndpoint.ConfigurationSnippet(endpoint, relay);
@@ -78,7 +78,7 @@ public class McpEndpointTests
         Assert.Equal(Brand.McpServerName, McpEndpoint.ConfigurationKey);
 
         using var parsed = JsonDocument.Parse(
-            McpEndpoint.ConfigurationSnippet(@"\\.\pipe\x.mcp", "allodia-mcp.exe"));
+            McpEndpoint.ConfigurationSnippet(@"\\.\pipe\x.mcp", McpEndpoint.RelayAlias));
         var servers = parsed.RootElement.GetProperty("mcpServers").EnumerateObject().ToArray();
         Assert.Single(servers);
         Assert.Equal(McpEndpoint.ConfigurationKey, servers[0].Name);
@@ -92,7 +92,7 @@ public class McpEndpointTests
         // fails with an access denial the user cannot act on. The App Execution Alias
         // (Package.appxmanifest) puts a launcher on PATH instead, so the bare name resolves.
         var command = McpEndpoint.RelayCommand(packaged: true, appDirectory: @"C:\anything");
-        Assert.Equal(McpEndpoint.RelayFileName, command);
+        Assert.Equal(McpEndpoint.RelayAlias, command);
         Assert.False(Path.IsPathRooted(command));
     }
 
@@ -111,7 +111,7 @@ public class McpEndpointTests
             // found" beats a full path that does not exist.
             File.Delete(relay);
             Assert.Equal(
-                McpEndpoint.RelayFileName,
+                McpEndpoint.RelayAlias,
                 McpEndpoint.RelayCommand(packaged: false, directory.FullName));
         }
         finally
@@ -121,14 +121,14 @@ public class McpEndpointTests
     }
 
     [Fact]
-    public void The_app_manifest_registers_the_alias_the_packaged_snippet_names()
+    public void The_app_manifest_points_the_alias_at_the_relay_the_build_lays_down()
     {
-        // The coupling that makes the packaged path work at all, and which nothing else checks: the
-        // command in the generated snippet is only resolvable because Package.appxmanifest declares
-        // an App Execution Alias of exactly that name.
+        // The coupling that makes the packaged path work at all: the alias launches the file the
+        // csproj copies to the package root, under exactly that name. The alias itself is the
+        // brand's and is written at packaging time; test_msix_manifest.py pins that rewrite.
         var manifest = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Package.appxmanifest"));
         Assert.Contains(
-            $"<uap5:ExecutionAlias Alias=\"{McpEndpoint.RelayFileName}\" />",
+            $"Executable=\"{McpEndpoint.RelayFileName}\"",
             manifest,
             StringComparison.Ordinal);
     }

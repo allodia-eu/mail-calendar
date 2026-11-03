@@ -2,9 +2,9 @@
 
 use std::ffi::OsString;
 
-/// The `allodia-mcp` binary this `cargo test` just built.
+/// The `mailcal-mcp` binary this `cargo test` just built.
 ///
-/// ⚠️ **`env!("CARGO_BIN_EXE_allodia-mcp")` is not this checkout's copy.** It is resolved when the
+/// ⚠️ **`env!("CARGO_BIN_EXE_mailcal-mcp")` is not this checkout's copy.** It is resolved when the
 /// test is *compiled*, and every checkout shares one build directory
 /// ([`.cargo/config.toml`](../../../../.cargo/config.toml)), while the binaries themselves are
 /// uplifted into each worktree's own `target/`. A test binary compiled by one worktree is reused
@@ -17,22 +17,22 @@ use std::ffi::OsString;
 /// is happening now, so it always names the binary beside this run's. The compile-time value stays
 /// as the fallback, for running the test executable directly rather than through cargo.
 pub(crate) fn relay_binary() -> OsString {
-    from_runtime(std::env::var_os("CARGO_BIN_EXE_allodia-mcp"))
+    from_runtime(std::env::var_os("CARGO_BIN_EXE_mailcal-mcp"))
 }
 
 /// [`relay_binary`] with the environment passed in, so the precedence can be tested without
 /// writing to it: `std::env::set_var` is `unsafe` in this edition and the workspace forbids
 /// `unsafe_code`.
 fn from_runtime(runtime: Option<OsString>) -> OsString {
-    runtime.unwrap_or_else(|| OsString::from(env!("CARGO_BIN_EXE_allodia-mcp")))
+    runtime.unwrap_or_else(|| OsString::from(env!("CARGO_BIN_EXE_mailcal-mcp")))
 }
 
 #[test]
 fn the_running_cargo_decides_which_binary_is_spawned() {
     // The whole fix: what this run says, over what some earlier compile baked in.
     assert_eq!(
-        from_runtime(Some(OsString::from("/from/this/run/allodia-mcp"))),
-        OsString::from("/from/this/run/allodia-mcp")
+        from_runtime(Some(OsString::from("/from/this/run/mailcal-mcp"))),
+        OsString::from("/from/this/run/mailcal-mcp")
     );
 }
 
@@ -41,7 +41,7 @@ fn without_cargo_the_compiled_path_still_answers() {
     // Running the test executable directly, where nothing exports the variable.
     assert_eq!(
         from_runtime(None),
-        OsString::from(env!("CARGO_BIN_EXE_allodia-mcp"))
+        OsString::from(env!("CARGO_BIN_EXE_mailcal-mcp"))
     );
 }
 

@@ -36,7 +36,7 @@ APPLE_DIR="$REPO_ROOT/clients/apple"
 PROJECT="$APPLE_DIR/AllodiaMail.xcodeproj"
 DERIVED_DATA="${DERIVED_DATA:-$APPLE_DIR/build/DerivedData}"
 ARTIFACTS="$APPLE_DIR/Packages/MailcalKit/artifacts"
-APP="$DERIVED_DATA/Build/Products/Debug-iphoneos/AllodiaMail.app"
+APP="$DERIVED_DATA/Build/Products/Debug-iphoneos/$APPLE_PRODUCT_NAME.app"
 BGSYNC_WAIT="${BGSYNC_WAIT:-22}"
 
 DEVICE="$(device_udid)" || die "no physical iOS device found: connect one, or set MAILCAL_DEVICE=<udid>"

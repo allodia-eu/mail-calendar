@@ -437,7 +437,7 @@ fi
 if [[ "$PLATFORM" == "macos" ]]; then
   [[ "$SANDBOXED" -eq 1 ]] || SIGNING_IDENTITY="$(find_codesign_identity)"
 
-  APP="$DERIVED_DATA/Build/Products/$CONFIGURATION/AllodiaMail.app"
+  APP="$DERIVED_DATA/Build/Products/$CONFIGURATION/$APPLE_PRODUCT_NAME.app"
   # The re-sign below rewrites the extension inside the app after Xcode has embedded it. Xcode
   # re-embeds only a copy it judges stale, and a re-signed copy it keeps fails the next build at
   # ValidateEmbeddedBinary: "Embedded binary is not signed with the same certificate as the parent
@@ -481,7 +481,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
   # Deliberately NO application-identifier and no profile of its own, matching package.sh, which
   # carries the measurement. `resign` below then reads this set straight back off the bundle, so
   # the loop needs no special case and the app is re-sealed after it, in the same pass.
-  if [[ "$SANDBOXED" -eq 1 && -d "$APP/Contents/Library/Helpers/allodia-mcp.app" ]]; then
+  if [[ "$SANDBOXED" -eq 1 && -d "$APP/Contents/Library/Helpers/$MAILCAL_MCP_RELAY_NAME.app" ]]; then
     RELAY_ENTS="$DERIVED_DATA/sandboxed.relay.entitlements"
     # codesign does not expand a build setting, so the token has to go before it gets there;
     # Scripts/package.sh resolves the same file the same way, and says more about why.
@@ -491,7 +491,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
     plutil -lint "$RELAY_ENTS" >/dev/null \
       || { echo "error: the resolved relay entitlements are not a valid plist ($RELAY_ENTS)" >&2; exit 1; }
     codesign --force --sign "$SIGNING_IDENTITY" --entitlements "$RELAY_ENTS" --timestamp=none \
-      "$APP/Contents/Library/Helpers/allodia-mcp.app"
+      "$APP/Contents/Library/Helpers/$MAILCAL_MCP_RELAY_NAME.app"
   fi
 
   if [[ -n "$SIGNING_IDENTITY" ]]; then
@@ -513,7 +513,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
   if [[ "$RUN_APP" -eq 1 ]]; then
     # Replace any prior instance of THIS exact binary, so two processes never write one SQLite
     # store. A different-path instance, an installed Allodia Mail, is deliberately left alone.
-    pkill -f "$APP/Contents/MacOS/AllodiaMail" 2>/dev/null || true
+    pkill -f "$APP/Contents/MacOS/$APPLE_PRODUCT_NAME" 2>/dev/null || true
     # Every MAILCAL_* dev var (the account switch, the deterministic launch hooks) has to reach the
     # app, and LaunchServices does not hand the caller's environment on. `open --env` is what
     # carries each one over that gap, one flag per variable.
@@ -537,7 +537,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
     # `-n` is load-bearing. This bundle and an installed Allodia Mail share the identifier
     # `eu.allodia.mailcal`, and a plain `open <path>` asks LaunchServices for that identifier:
     # which can hand back the *installed* app. Observed exactly that: a run of this script left
-    # /Applications/AllodiaMail.app running and the freshly built binary not running at all, so
+    # /Applications/$APPLE_PRODUCT_NAME.app running and the freshly built binary not running at all, so
     # the "dev build" under test was silently the shipped one. `-n` launches a new instance of
     # this bundle.
     #
@@ -588,7 +588,7 @@ Accounts ▸ Manage Certificates), or set DEVELOPMENT_TEAM=<id>"
     ARCHS=arm64 \
     build
 
-  APP="$DERIVED_DATA/Build/Products/$CONFIGURATION-iphoneos/AllodiaMail.app"
+  APP="$DERIVED_DATA/Build/Products/$CONFIGURATION-iphoneos/$APPLE_PRODUCT_NAME.app"
   echo "==> Built: $APP"
 
   if [[ "$RUN_APP" -eq 1 ]]; then
@@ -641,7 +641,7 @@ else
     ARCHS=arm64 \
     build
 
-  APP="$DERIVED_DATA/Build/Products/$CONFIGURATION-iphonesimulator/AllodiaMail.app"
+  APP="$DERIVED_DATA/Build/Products/$CONFIGURATION-iphonesimulator/$APPLE_PRODUCT_NAME.app"
   echo "==> Built: $APP"
 
   if [[ "$RUN_APP" -eq 1 ]]; then

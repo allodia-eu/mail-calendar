@@ -29,9 +29,8 @@ schemes, keychain and app groups, the data directory), the icon and the welcome 
 rebranded by omission rather than by a rename chased through five clients. Point the same
 generators at your own source image and the icons are yours too.
 
-It is not yet complete, and [`docs/branding.md`](docs/branding.md) → **Known gaps** is the list:
-one place still names Allodia in an unbranded build, the MCP relay's binary name. It is being
-closed. It is not a reason you cannot ship; if it is in your way, say so and it moves up.
+[`docs/branding.md`](docs/branding.md) lists every value, and under **Known gaps** what the
+contract does not yet cover. If something there is in your way, say so and it moves up.
 
 So: do not name your build Allodia Mail & Calendar, do not ship the Allodia logo, wordmark or
 mascot, and do not present it in a way that suggests Allodia published it or endorses it.

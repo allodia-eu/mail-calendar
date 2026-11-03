@@ -678,7 +678,7 @@ run_inside_session() {
     --role text --within "Connect your assistant" --within-role grouping \
     --showing --timeout 20 >"$mcp_config"
   "$PYTHON" - "$mcp_config" "$(sdk_runtime_version)" \
-    "$(sdk_target_dir)/debug/allodia-mcp" "$XDG_DATA_HOME/mailcal/mcp.sock" <<'PY'
+    "$(sdk_target_dir)/debug/mailcal-mcp" "$XDG_DATA_HOME/mailcal/mcp.sock" <<'PY'
 import json
 import os
 import sys

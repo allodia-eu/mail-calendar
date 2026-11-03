@@ -1,4 +1,4 @@
-//! End-to-end over the **real** transport: the built `allodia-mcp` binary, a real socket, real
+//! End-to-end over the **real** transport: the built `mailcal-mcp` binary, a real socket, real
 //! stdin and stdout.
 //!
 //! Everything else about this feature is testable in-process. This is not: framing, partial

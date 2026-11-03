@@ -1,4 +1,4 @@
-//! End-to-end over the **real** Windows transport: the built `allodia-mcp` binary, a real named
+//! End-to-end over the **real** Windows transport: the built `mailcal-mcp` binary, a real named
 //! pipe, real stdin and stdout.
 //!
 //! This file exists because its absence shipped a relay that deadlocked on every client. The Unix

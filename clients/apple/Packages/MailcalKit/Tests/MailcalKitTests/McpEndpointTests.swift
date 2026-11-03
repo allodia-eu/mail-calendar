@@ -144,7 +144,7 @@ struct McpEndpointTests {
         // Store requires the entitlement (ITMS-90296), so the bundle is the only shape that both
         // uploads and runs. This pins the path the config snippet hands the user against the
         // layout package.sh signs and project.yml creates.
-        #expect(McpEndpoint.relayBundlePath == "Library/Helpers/allodia-mcp.app")
+        #expect(McpEndpoint.relayBundlePath == "Library/Helpers/\(Brand.mcpRelayName).app")
     }
 
     @Test func theSocketSitsBesideTheStoreSoDevAndReleaseCannotCollide() throws {

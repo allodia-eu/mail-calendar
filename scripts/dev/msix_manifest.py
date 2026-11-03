@@ -141,6 +141,21 @@ def rebrand(
         "our own <uap:Protocol Name>",
     )
 
+    # The command a person configures to reach the MCP relay (McpEndpoint.RelayAlias). The file it
+    # launches keeps the name the build gave it; only the alias is the brand's.
+    relay = wanted.get("MAILCAL_MCP_RELAY_NAME", "").strip()
+    if not re.fullmatch(r"[a-z0-9-]+", relay):
+        raise ManifestError(
+            "MAILCAL_MCP_RELAY_NAME is %r: an alias the relay is run by takes lowercase letters, "
+            "digits and hyphens" % relay
+        )
+    text = _one(
+        r'(<uap5:ExecutionAlias Alias=")[^"]*(")',
+        lambda m: m.group(1) + relay + ".exe" + m.group(2),
+        text,
+        "uap5:ExecutionAlias/@Alias",
+    )
+
     # Both protocol labels name the product ("… sign-in", and the mailto entry). They are copy, so
     # the name is replaced inside them rather than over them.
     def relabel(match: "re.Match[str]") -> str:

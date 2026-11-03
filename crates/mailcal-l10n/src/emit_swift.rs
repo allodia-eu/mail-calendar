@@ -44,8 +44,10 @@ fn render_brand(brand: &Brand) -> String {
          \x20   /// The key an MCP client files the local server under, and the server's own\n\
          \x20   /// `serverInfo.name`.\n\
          \x20   public static let mcpServerName = {:?}\n\
+         \x20   /// The command the MCP relay is installed as: its nested bundle and executable.\n\
+         \x20   public static let mcpRelayName = {:?}\n\
          }}\n",
-        brand.id, brand.mcp_server_name
+        brand.id, brand.mcp_server_name, brand.mcp_relay_name
     )
 }
 

@@ -1,5 +1,5 @@
-//! `allodia-mcp`: the stdio relay an MCP client spawns to reach a running Allodia Mail &
-//! Calendar.
+//! `mailcal-mcp`: the stdio relay an MCP client spawns to reach the running app. Each client
+//! installs it under the brand's `MAILCAL_MCP_RELAY_NAME` (docs/branding.md).
 //!
 //! # Why a relay at all
 //!
@@ -47,6 +47,9 @@ mod frame;
 
 use std::process::ExitCode;
 
+/// The command this relay is installed as, which is how it names itself in what it prints.
+const RELAY_NAME: &str = env!("MAILCAL_MCP_RELAY_NAME");
+
 #[cfg(unix)]
 use crate::unix::relay;
 #[cfg(windows)]
@@ -55,8 +58,9 @@ use crate::windows::relay;
 fn main() -> ExitCode {
     let Some(endpoint) = endpoint_argument() else {
         eprintln!(
-            "allodia-mcp: usage: allodia-mcp --endpoint <socket path or pipe name>\n\
-             Allodia Mail & Calendar generates the exact value in Settings → Advanced."
+            "{RELAY_NAME}: usage: {RELAY_NAME} --endpoint <socket path or pipe name>\n\
+             {} generates the exact value in Settings → Advanced.",
+            env!("MAILCAL_APP_NAME")
         );
         return ExitCode::FAILURE;
     };

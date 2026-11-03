@@ -27,6 +27,7 @@ const APP_NAME_PLACEHOLDER: &str = "{app_name}";
 const APP_NAME_KEY: &str = "MAILCAL_APP_NAME";
 const APP_ID_KEY: &str = "MAILCAL_APP_ID";
 const MCP_SERVER_NAME_KEY: &str = "MAILCAL_MCP_SERVER_NAME";
+const MCP_RELAY_NAME_KEY: &str = "MAILCAL_MCP_RELAY_NAME";
 
 /// Every brand value the catalog writes as a placeholder, and the variable that fills it.
 const PLACEHOLDERS: [(&str, &str); 2] = [
@@ -49,6 +50,8 @@ pub(crate) struct Brand {
     /// The key an MCP client files the local server under, which is also the server's own
     /// `serverInfo.name`.
     pub mcp_server_name: String,
+    /// The command the MCP relay is installed as, which an MCP client spawns.
+    pub mcp_relay_name: String,
 }
 
 /// Resolves the identity: the environment, then the publisher's brand file when the checkout has
@@ -68,6 +71,7 @@ pub(crate) fn resolve(root: &Path) -> Result<Brand, String> {
         )?,
         id: value(root, APP_ID_KEY, std::env::var(APP_ID_KEY).ok().as_deref())?,
         mcp_server_name: resolve_value(root, MCP_SERVER_NAME_KEY)?,
+        mcp_relay_name: resolve_value(root, MCP_RELAY_NAME_KEY)?,
     })
 }
 

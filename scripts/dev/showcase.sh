@@ -505,8 +505,8 @@ mkdir -p "$PLATFORM_OUT_DIR"
 
 # ---- macOS -------------------------------------------------------------------------------------
 
-MACOS_APP="$REPO_ROOT/clients/apple/build/DerivedData/Build/Products/Debug/AllodiaMail.app"
-MACOS_BIN="$MACOS_APP/Contents/MacOS/AllodiaMail"
+MACOS_APP="$REPO_ROOT/clients/apple/build/DerivedData/Build/Products/Debug/$APPLE_PRODUCT_NAME.app"
+MACOS_BIN="$MACOS_APP/Contents/MacOS/$APPLE_PRODUCT_NAME"
 
 # LaunchServices strips the environment from `open`, so the binary is exec'd directly (as
 # clients/apple/Scripts/build-and-run.sh does). `-AppleLanguages` pins the chrome for this launch

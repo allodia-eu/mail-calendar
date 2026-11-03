@@ -45,7 +45,7 @@ its contrast, so it states *why* the query layer exists rather than only that it
   MCP client (Claude Desktop, Claude Code, Cursor, …)
         │ stdio (JSON-RPC 2.0, newline-delimited)
         ▼
-  allodia-mcp                      crates/mailcal-mcp-shim
+  mailcal-mcp                      crates/mailcal-mcp-shim
   a byte relay, zero deps          (two threads, ~200 lines)
         │ Unix socket / named pipe
         ▼
@@ -54,6 +54,10 @@ its contrast, so it states *why* the query layer exists rather than only that it
         ├── writes ──► App::act_*     (the same handlers the UI dispatches)
         └── create_draft ──► AgentHostUi ──► the client's own composer
 ```
+
+Cargo builds the relay as `mailcal-mcp`, and each client installs it under the brand's
+`MAILCAL_MCP_RELAY_NAME`, written `<relay>` below (`allodia-mcp` in Allodia's build;
+[`branding.md`](branding.md)).
 
 **Why two processes.** An MCP client spawns its server as a child and talks stdio. But the running
 app owns `mailcal.sqlite`, the live IMAP `IDLE` connections and the in-memory credentials: a
@@ -271,11 +275,11 @@ for a reason whose log line says nothing about there being two builds. One packa
 a second discriminator drifting away from it.
 
 The Linux Flatpak ships the relay in `/app/bin` and the copied configuration enters the installed
-app with `flatpak run <scope> --command=allodia-mcp <app-id>/<arch>/<branch>`. Scope, architecture,
+app with `flatpak run <scope> --command=<relay> <app-id>/<arch>/<branch>`. Scope, architecture,
 and branch come from `/.flatpak-info`; leaving any of them implicit can prompt when the same ref
 exists in the user and system installations. The relay and app therefore see the same persistent
 data directory and socket. The snap ships the relay as a second command of the same snap,
-`/snap/bin/<snap>.allodia-mcp`, named in full because `/snap/bin` is not on every MCP client's
+`/snap/bin/<snap>.<relay>`, named in full because `/snap/bin` is not on every MCP client's
 `PATH`; being the same snap, it is confined to the same directory as the app.
 `/app/bin` exists only inside the sandbox: Flatpak's content-addressed host deployment paths are not
 an executable interface, so the host-side `flatpak` launcher is the stable entry point.
@@ -283,7 +287,7 @@ an executable interface, so the host-side `flatpak` launcher is the stable entry
 A development build runs as a command of `org.gnome.Sdk`, not as an installed application. Its
 copied configuration therefore selects that SDK's exact scope and branch, exposes the host build
 directory and `/tmp`, and names the relay beside the app. An unpackaged host build names that same
-sibling directly, falling back to `allodia-mcp` on `PATH` when the two binaries are installed apart.
+sibling directly, falling back to `<relay>` on `PATH` when the two binaries are installed apart.
 
 **How an MCP client reaches the relay differs by packaging, and this is not a preference.** A
 packaged build installs under `C:\Program Files\WindowsApps\…`, whose ACLs deny execution to an
@@ -308,7 +312,7 @@ The Store build is sandboxed, and the sandbox changes both halves: where the soc
 what shape the relay has to be. Both were **measured** (2026-08-03), because the plausible answers
 fail in ways that look like success.
 
-**The relay is a nested `.app`** (`Contents/Library/Helpers/allodia-mcp.app`), not the bare Mach-O
+**The relay is a nested `.app`** (`Contents/Library/Helpers/<relay>.app`), not the bare Mach-O
 it was. A Store submission is rejected unless *every* executable carries
 `com.apple.security.app-sandbox` (**ITMS-90296**), but a bare executable has no
 `CFBundleIdentifier`, so the sandbox has no container to attach and the process dies in
@@ -452,7 +456,7 @@ MCP boundary too. Every message-carrying result echoes both back.
 | Listener compiled in | ✅ | ✅ | ✅ | — | — |
 | Settings → Advanced panel | ✅ | ✅ | ✅ | — | — |
 | `AgentHostUi` (composer) | ✅ | ✅ | ✅ | — | — |
-| `allodia-mcp` relay shipped | ✅ nested `.app` in the bundle | ✅ App Execution Alias | ✅ Flatpak and snap command | — | — |
+| Relay shipped | ✅ nested `.app` in the bundle | ✅ App Execution Alias | ✅ Flatpak and snap command | — | — |
 | Config snippet with Copy | ✅ | ✅ | ✅ | — | — |
 | Sandboxed (Mac App Store) build | 🚧 validation passed; runtime round trip owed | — | — | — | — |
 
@@ -572,9 +576,10 @@ Automated:
   path, and the shipped socket path fits in `sun_path`.
 - `clients/windows/Mailcal.Tests/McpEndpointTests.cs`: the pipe name each build shape claims (and
   that the two never collide), the snippet's JSON survives a backslash-heavy path *and* a
-  `\\.\pipe\` name, the config key's character set, and that the packaged snippet's command is the
-  alias `Package.appxmanifest` actually registers.
-- `clients/windows/rust-crt.ps1`: the shipped `.msixupload` really contains `allodia-mcp.exe`, and
+  `\\.\pipe\` name, the config key's character set, and that the alias `Package.appxmanifest`
+  registers launches the file the csproj lays down. `scripts/dev/tests/test_msix_manifest.py` pins
+  that packaging writes the brand's relay name into the alias.
+- `clients/windows/rust-crt.ps1`: the shipped `.msixupload` really contains `mailcal-mcp.exe`, and
   it links the CRT statically. Both halves are the macOS relay episode again: the csproj's copy is
   conditional, so a build with no relay under `target/` packages silently and the only artefact that
   knows is the package, which nobody reads.
@@ -615,12 +620,12 @@ the release Flatpak contains the executable.
 **Step 7 is not belt-and-braces; the dev loop cannot test what it covers.** The two build shapes
 name the relay in *different ways*, and only one of them is the shipped one. An unpackaged build
 puts an absolute path in the snippet, so it exercises nothing but the file being where the csproj
-copied it. The Store build names the bare `allodia-mcp.exe`, which resolves **only** because the App
+copied it. The Store build names the bare `<relay>.exe`, which resolves **only** because the App
 Execution Alias in `Package.appxmanifest` registered a launcher into
 `%LOCALAPPDATA%\Microsoft\WindowsApps` **at install time**. Nothing in the dev loop, the unit tests
 or the packaging gates can observe that registration happening: `McpEndpointTests` proves the
 manifest *declares* the alias and the snippet *names* it, and `Assert-StaticCrtInPackage` proves the
 binary is *in* the package, but "Windows actually put it on PATH, and a client spawning it reached
 the app" is a property of an installed package, and an install is the only thing that has it. If it
-ever fails, `Get-Command allodia-mcp.exe` separates the two halves: no command means the alias did
+ever fails, `Get-Command <relay>.exe` separates the two halves: no command means the alias did
 not register; a command that runs but cannot reach the app means the pipe name is wrong.

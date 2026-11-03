@@ -28,8 +28,10 @@ brand_load
 
 APPLE_BUNDLE_ID="$MAILCAL_APP_ID"
 # The macOS window's owner name, for window-only capture: CFBundleDisplayName, which is the brand
-# name; not the target or the executable name, which stay `AllodiaMail`.
+# name; not the executable's, which is APPLE_PRODUCT_NAME.
 APPLE_APP_NAME="$MAILCAL_APP_NAME"
+# The `.app` bundle and the executable inside it (PRODUCT_NAME in clients/apple/project.yml).
+APPLE_PRODUCT_NAME="$MAILCAL_APPLE_PRODUCT_NAME"
 ANDROID_PKG="$MAILCAL_APP_ID"
 ANDROID_ACTIVITY="$ANDROID_PKG/.MainActivity"
 
@@ -655,11 +657,11 @@ On the device: Settings -> Privacy & Security -> Developer Mode -> On -> restart
 }
 
 # The running app's PID on device <udid>, or empty. Matches the executable path case-insensitively
-# (the bundle is AllodiaMail.app/AllodiaMail, which a lowercase grep would miss). The `|| true`
+# (the bundle is <product>.app/<product>, which a lowercase grep would miss). The `|| true`
 # keeps a no-match (app not running) from tripping `set -o pipefail` in the caller.
 device_app_pid() { # <udid>
   xcrun devicectl device info processes --device "$1" 2>/dev/null |
-    { grep -i "AllodiaMail.app/AllodiaMail" || true; } | awk '{print $1}' | head -1
+    { grep -i "$APPLE_PRODUCT_NAME.app/$APPLE_PRODUCT_NAME" || true; } | awk '{print $1}' | head -1
 }
 
 # Terminate the app on the device if running, so the next launch is a genuine fresh process (fresh

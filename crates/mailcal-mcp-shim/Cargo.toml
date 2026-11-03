@@ -1,6 +1,6 @@
 [package]
 name = "mailcal-mcp-shim"
-description = "allodia-mcp: the tiny stdio<->socket relay an MCP client spawns to reach a running Allodia Mail & Calendar."
+description = "mailcal-mcp: the tiny stdio<->socket relay an MCP client spawns to reach the running app."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -42,8 +42,10 @@ serde_json = { workspace = true }
 [target.'cfg(windows)'.dev-dependencies]
 tokio = { workspace = true, features = ["rt", "net", "io-util", "sync", "time", "macros"] }
 
+# Neutral, because cargo cannot take a bin name from the brand: each client installs it under
+# MAILCAL_MCP_RELAY_NAME instead (docs/branding.md).
 [[bin]]
-name = "allodia-mcp"
+name = "mailcal-mcp"
 path = "src/main.rs"
 
 [lints]

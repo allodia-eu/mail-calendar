@@ -34,7 +34,7 @@ use tokio::{
     sync::mpsc,
 };
 
-use crate::frame::unavailable_frame;
+use crate::{RELAY_NAME, frame::unavailable_frame};
 
 /// How many frames may be queued on either channel before its producer waits. Only ever holds
 /// lines not yet acted on; a bound keeps a wedged consumer from growing memory forever.
@@ -59,7 +59,7 @@ pub(crate) fn relay(endpoint: &str) {
         Ok(runtime) => runtime,
         Err(err) => {
             // stderr, never stdout: a diagnostic on stdout desynchronizes the client's parser.
-            eprintln!("allodia-mcp: could not start the I/O runtime: {err}");
+            eprintln!("{RELAY_NAME}: could not start the I/O runtime: {err}");
             return;
         }
     };
@@ -94,7 +94,7 @@ async fn serve(endpoint: &str) {
                     match connect(endpoint, sender.clone()).await {
                         Ok(writer) => app = Some(writer),
                         Err(err) => {
-                            eprintln!("allodia-mcp: could not reach the app: {err}");
+                            eprintln!("{RELAY_NAME}: could not reach the app: {err}");
                             write_line(&unavailable_frame(&line));
                             continue;
                         }
@@ -107,7 +107,7 @@ async fn serve(endpoint: &str) {
                 {
                     // The app went away mid-session (quit, or restarted). Drop the connection so
                     // the next request re-dials, and answer this one rather than dropping it.
-                    eprintln!("allodia-mcp: the app closed the connection");
+                    eprintln!("{RELAY_NAME}: the app closed the connection");
                     app = None;
                     write_line(&unavailable_frame(&line));
                 }

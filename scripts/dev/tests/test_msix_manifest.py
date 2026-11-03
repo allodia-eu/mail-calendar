@@ -32,6 +32,7 @@ NEUTRAL = {
     "MAILCAL_MSIX_PUBLISHER_DISPLAY_NAME": "MailCal",
     "MAILCAL_MSIX_DIRECT_IDENTITY_NAME": "org.mailcal.client",
     "MAILCAL_MSIX_DIRECT_PUBLISHER": "CN=MailCal",
+    "MAILCAL_MCP_RELAY_NAME": "mailcal-mcp",
 }
 BRANDED = {
     "MAILCAL_APP_ID": "eu.example.mail",
@@ -41,6 +42,7 @@ BRANDED = {
     "MAILCAL_MSIX_PUBLISHER_DISPLAY_NAME": "Example EU",
     "MAILCAL_MSIX_DIRECT_IDENTITY_NAME": "eu.example.mail",
     "MAILCAL_MSIX_DIRECT_PUBLISHER": "CN=Example EU, O=Example EU, L=Amsterdam, C=NL",
+    "MAILCAL_MCP_RELAY_NAME": "example-mcp",
 }
 
 
@@ -96,6 +98,17 @@ class MsixIdentityRewrite(unittest.TestCase):
         rewritten = self.rebranded()
         self.assertIn("<uap:DisplayName>Example Mail &amp; Calendar sign-in</uap:DisplayName>", rewritten)
         self.assertIn("<uap:DisplayName>Example Mail &amp; Calendar</uap:DisplayName>", rewritten)
+
+    def test_the_relay_alias_is_the_brands_and_the_file_it_runs_is_not(self) -> None:
+        """The alias is the command people configure; the file is what the csproj lays down."""
+        rewritten = self.rebranded()
+        self.assertIn('<uap5:ExecutionAlias Alias="example-mcp.exe" />', rewritten)
+        self.assertIn('Executable="mailcal-mcp.exe"', rewritten)
+
+    def test_a_relay_name_that_cannot_be_a_command_is_refused(self) -> None:
+        with self.assertRaises(ManifestError) as raised:
+            rebrand(self.committed, NEUTRAL, {**BRANDED, "MAILCAL_MCP_RELAY_NAME": "Example MCP"})
+        self.assertIn("MAILCAL_MCP_RELAY_NAME", str(raised.exception))
 
     def test_the_load_bearing_comments_survive(self) -> None:
         """A DOM round trip would drop them, and they are why the alias and the dev-only scheme
