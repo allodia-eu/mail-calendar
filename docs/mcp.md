@@ -280,14 +280,18 @@ and branch come from `/.flatpak-info`; leaving any of them implicit can prompt w
 exists in the user and system installations. The relay and app therefore see the same persistent
 data directory and socket. The snap ships the relay as a second command of the same snap,
 `/snap/bin/<snap>.<relay>`, named in full because `/snap/bin` is not on every MCP client's
-`PATH`; being the same snap, it is confined to the same directory as the app.
+`PATH`; being the same snap, it is confined to the same directory as the app. A native install
+(the tarball `package-native.sh` stages) has no sandbox at all: the relay sits beside the app as
+`/usr/bin/<relay>`, and the copied configuration names that path.
 `/app/bin` exists only inside the sandbox: Flatpak's content-addressed host deployment paths are not
 an executable interface, so the host-side `flatpak` launcher is the stable entry point.
 
 A development build runs as a command of `org.gnome.Sdk`, not as an installed application. Its
 copied configuration therefore selects that SDK's exact scope and branch, exposes the host build
 directory and `/tmp`, and names the relay beside the app. An unpackaged host build names that same
-sibling directly, falling back to `<relay>` on `PATH` when the two binaries are installed apart.
+sibling directly, under the brand's `<relay>` name when a package installed it so and as cargo's
+`mailcal-mcp` otherwise, falling back to `<relay>` on `PATH` when the two binaries are installed
+apart.
 
 **How an MCP client reaches the relay differs by packaging, and this is not a preference.** A
 packaged build installs under `C:\Program Files\WindowsApps\…`, whose ACLs deny execution to an
@@ -456,7 +460,7 @@ MCP boundary too. Every message-carrying result echoes both back.
 | Listener compiled in | ✅ | ✅ | ✅ | — | — |
 | Settings → Advanced panel | ✅ | ✅ | ✅ | — | — |
 | `AgentHostUi` (composer) | ✅ | ✅ | ✅ | — | — |
-| Relay shipped | ✅ nested `.app` in the bundle | ✅ App Execution Alias | ✅ Flatpak and snap command | — | — |
+| Relay shipped | ✅ nested `.app` in the bundle | ✅ App Execution Alias | ✅ Flatpak and snap command, `/usr/bin` natively | — | — |
 | Config snippet with Copy | ✅ | ✅ | ✅ | — | — |
 | Sandboxed (Mac App Store) build | 🚧 validation passed; runtime round trip owed | — | — | — | — |
 

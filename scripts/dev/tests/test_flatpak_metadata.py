@@ -568,5 +568,35 @@ class SnapPackage(unittest.TestCase):
         self.assertEqual(sorted(path.suffix for path in written), [".desktop", ".xml"])
 
 
+class NativePackage(unittest.TestCase):
+    """A native package installs the app as the brand's package name, in `/usr/bin`."""
+
+    def test_the_launcher_and_the_service_start_the_installed_command(self):
+        command = meta.brand.value("MAILCAL_LINUX_PACKAGE_NAME")
+        entry = meta.desktop_entry("MailCal", {"en": "Mail"}, ["en"], package="native")
+        self.assertIn(f"Exec={command} %U", entry.splitlines())
+        self.assertIn(
+            f"Exec=/usr/bin/{command} --gapplication-service",
+            meta.dbus_service(package="native").splitlines(),
+        )
+
+    def test_a_flatpak_still_starts_its_own_command(self):
+        self.assertIn("Exec=mailcal %U", meta.desktop_entry("MailCal", {"en": "Mail"}, ["en"]))
+        self.assertIn(
+            "Exec=/app/bin/mailcal --gapplication-service", meta.dbus_service().splitlines()
+        )
+
+    def test_the_basename_still_names_the_window_so_no_class_is_set(self):
+        entry = meta.desktop_entry("MailCal", {"en": "Mail"}, ["en"], package="native")
+        self.assertNotIn("StartupWMClass", entry)
+
+    def test_a_native_package_gets_the_service_file(self):
+        with tempfile.TemporaryDirectory() as out:
+            written = meta.build(Path(out), package="native")
+            service = next(path for path in written if path.suffix == ".service")
+            command = meta.brand.value("MAILCAL_LINUX_PACKAGE_NAME")
+            self.assertIn(f"Exec=/usr/bin/{command} ", service.read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

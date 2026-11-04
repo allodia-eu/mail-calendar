@@ -1241,6 +1241,93 @@ jobs:
           path: target/snap/*.snap
           if-no-files-found: error
 
+  linux-native:
+    # The tarball a native package is made from (clients/linux/package-native.sh): the release
+    # binaries and the files installed beside them, linked against Ubuntu 26.04's own GTK,
+    # libadwaita and WebKitGTK rather than a runtime's. A publisher packs it as a `.deb` and as an
+    # AUR package. Tag-only for the reason in this file's header, on both architectures because
+    # each is its own compile.
+    name: Linux native (${{ matrix.arch }})
+    needs: changes
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-26.04
+          - arch: aarch64
+            runner: ubuntu-26.04-arm
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install GTK4 + libadwaita + WebKitGTK and the metadata validators
+        # The mirror bound the Linux job explains.
+        timeout-minutes: 5
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            pkg-config libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev \
+            desktop-file-utils appstream
+
+      - name: Install the pinned Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
+
+      - name: Build the native tarball
+        env:
+          # As for the Flatpak bundle above: a tag build that lost its registrations fails.
+          MAILCAL_REQUIRE_INJECTED_CONFIG: 1
+        run: clients/linux/package-native.sh
+
+      - name: Keep the tarball
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mailcal-native-${{ matrix.arch }}
+          path: |
+            target/native/*.tar.xz
+            target/native/*.tar.xz.sha256
+          if-no-files-found: error
+
+  linux-native-arch:
+    # The claim the native tarball rests on: built on Ubuntu 26.04, it runs on a distribution whose
+    # libraries are newer. This checks it against today's Arch, in a pinned image brought up to
+    # date, so a soname Arch has moved on from fails here rather than in a user's AUR helper.
+    # x86_64 only, because Arch publishes no arm64 image.
+    name: Linux native on Arch
+    needs: linux-native
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    container: archlinux:base-devel@sha256:767de6eaa40dcfeda5263a48737ea03a782caabdf3a403b6e6a203c7fd333681
+    steps:
+      - name: Install Arch's GTK, libadwaita and WebKitGTK
+        run: pacman -Syu --noconfirm --needed gtk4 libadwaita webkitgtk-6.0
+
+      - name: Take the x86_64 tarball
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mailcal-native-x86_64
+          path: native
+
+      - name: Every library the binaries need resolves
+        run: |
+          set -euo pipefail
+          cd native && sha256sum --check ./*.sha256
+          mkdir root && tar -C root -xJf ./*.tar.xz
+          status=0
+          for binary in root/usr/bin/*; do
+            missing="$(ldd "$binary" | grep 'not found' || true)"
+            if [ -n "$missing" ]; then
+              echo "::error::${binary##*/} needs libraries this Arch does not have: $missing"
+              status=1
+            fi
+          done
+          exit "$status"
+
   unbranded:
     # The build every from-source checkout makes: no OAuth registrations, no Allodia sign-in, no
     # analytics relay. It is a supported build (BUILDING.md) and it has to stay green — but until
@@ -1310,7 +1397,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux, linux-snap]
+    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux, linux-snap, linux-native, linux-native-arch]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
