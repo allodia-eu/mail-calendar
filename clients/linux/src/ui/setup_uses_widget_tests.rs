@@ -128,6 +128,7 @@ pub(super) fn a_calendar_and_contacts_card_asks_only_for_the_password(
                 found(AccountCapability::Calendar),
                 found(AccountCapability::Contacts),
             ],
+            nextcloud_sign_in: false,
         },
         "alice@cloud.example.test".to_owned(),
     ));

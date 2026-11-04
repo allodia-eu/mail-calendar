@@ -89,6 +89,40 @@ pub(crate) async fn probe(
     DetectedDav {
         caldav_url,
         carddav_url,
+        nextcloud: false,
+    }
+}
+
+/// Whether the servers in `dav` are one Nextcloud installation: both endpoints under the same
+/// root, whose `status.php` says so over HTTPS without being redirected elsewhere. Soft like the
+/// probe: any doubt is `false`, and the password route that follows works everywhere.
+pub(crate) async fn is_nextcloud(
+    fetcher: &dyn Fetch,
+    dav: &DetectedDav,
+    config: &DetectConfig,
+) -> bool {
+    let mut roots = [&dav.caldav_url, &dav.carddav_url]
+        .into_iter()
+        .flatten()
+        .map(|url| mailcal_nextcloud::Root::of(url));
+    let Some(Some(root)) = roots.next() else {
+        return false;
+    };
+    if roots.any(|other| other.as_ref() != Some(&root)) {
+        return false;
+    }
+    let Ok(status_url) = url::Url::parse(&root.endpoint(mailcal_nextcloud::STATUS_PATH)) else {
+        return false;
+    };
+    let budget = mailcal_nextcloud::STATUS_TIMEOUT.min(config.http_timeout);
+    match tokio::time::timeout(budget, fetcher.get(&status_url)).await {
+        Ok(FetchOutcome::Response(response)) => {
+            response.trusted
+                && response.is_success()
+                && response.final_url == status_url
+                && mailcal_nextcloud::is_nextcloud_status(&response.body)
+        }
+        Ok(FetchOutcome::Miss | FetchOutcome::NetworkError) | Err(_) => false,
     }
 }
 

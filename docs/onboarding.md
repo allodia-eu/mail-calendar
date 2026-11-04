@@ -113,7 +113,8 @@ a separate server", naming the server, with the address as the login, a password
 and Skip. Where that server signs in at an issuer of its own that may be sent its token
 ([`mail-oauth.md`](mail-oauth.md) rule 13), the step offers that sign-in above the password field,
 asked off the UI thread once the step is drawn; the password field stays for a server that also
-takes one. The step is drawn from the new account's entry (`AccountEntry.separate_server`: the uses, the
+takes one. A Nextcloud server offers its own sign-in there the same way
+([`nextcloud-sign-in.md`](nextcloud-sign-in.md)). The step is drawn from the new account's entry (`AccountEntry.separate_server`: the uses, the
 server's host and the login), which the add's own connect fills. Connect makes them
 an account of their own linked to the mailbox (`add_linked_calendar_account`,
 [`accounts.md`](accounts.md) rule 18), and the link step then offers only what is still unlinked;

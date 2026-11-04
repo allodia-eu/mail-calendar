@@ -86,6 +86,9 @@ pub struct AccountConfig {
     /// grant, and none of them stores a password.
     #[serde(default)]
     pub oauth: Option<OAuthGrant>,
+    /// Where the DAV password came from, when a Nextcloud sign-in issued it.
+    #[serde(default)]
+    pub nextcloud: Option<crate::NextcloudLogin>,
     /// Server certificates this account's owner accepted although they did not verify
     /// (`docs/certificate-exceptions.md`). Empty for every account that never met one,
     /// which is nearly all of them.
@@ -180,6 +183,8 @@ impl AccountConfig {
         if updated.is_oauth() {
             return updated;
         }
+        // A typed password is not one a Nextcloud sign-in issued.
+        updated.nextcloud = None;
         let password = Secret::new(password.to_owned());
         if let Some(imap) = &mut updated.imap {
             imap.password = Some(password.clone());
@@ -269,6 +274,9 @@ impl AccountConfig {
         }
         if let Some(grant) = &self.oauth {
             root.insert("oauth".into(), grant.to_table().into());
+        }
+        if let Some(login) = &self.nextcloud {
+            root.insert("nextcloud".into(), login.to_table().into());
         }
         if !self.certificate_exceptions.is_empty() {
             let exceptions: Vec<toml::Value> = self

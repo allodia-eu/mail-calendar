@@ -329,6 +329,10 @@ impl MailcalApp {
     /// next launch. The observer fires as the snapshot rebuilds. The space the account held is
     /// reclaimed after this returns, not before. A no-op for an unknown id.
     ///
+    /// A calendar and contacts account a Nextcloud sign-in made also has its app password
+    /// withdrawn at the server, so the device leaves the person's Nextcloud with the account. That
+    /// is best effort and never waited for.
+    ///
     /// # Errors
     ///
     /// Returns [`MailcalError::Connect`] if the host's store refused to erase the credential.
@@ -337,17 +341,31 @@ impl MailcalApp {
     /// which comes back as an account at the next launch with nothing to explain it. A host
     /// should surface it; the removal itself has happened.
     pub fn remove_account(&self, id: String) -> Result<(), MailcalError> {
+        // Read first: the password it is withdrawn with leaves with the account.
+        let issued = self.registry.nextcloud_credentials(&id);
+        let removed = self.remove_account_here(&id);
+        if let Some((root, credentials)) = issued {
+            self.revoke_later(root, credentials, "a removed account");
+        }
+        removed
+    }
+}
+
+impl MailcalApp {
+    /// What [`remove_account`](MailcalApp::remove_account) does on this device, and nothing at
+    /// any server: also what a remote wipe does, whose password the server has already withdrawn.
+    pub(crate) fn remove_account_here(&self, id: &str) -> Result<(), MailcalError> {
         // First, and before the config it was derived from goes: the person's other devices have
         // to learn this account went, or it comes back to them as an offer. Best effort; a
         // removal the person has already made is not undone by a service that did not answer.
         #[cfg(feature = "allodia-license")]
-        self.forget_allodia_record(&id);
+        self.forget_allodia_record(id);
         // Its shared mailboxes go with it: they are opened by its sign-in.
-        for (child, _) in self.registry.shared_mailboxes(&id) {
+        for (child, _) in self.registry.shared_mailboxes(id) {
             self.drop_shared_mailbox(&child);
         }
-        self.registry.remove(&id);
-        self.clear_links_to(&id);
+        self.registry.remove(id);
+        self.clear_links_to(id);
         self.refresh_analytics_accounts();
         // Drop it from the reconnect queue too, so a pending retry doesn't try to re-dial an
         // account the user just removed (the in-flight-plan case is caught by the registry
@@ -355,10 +373,10 @@ impl MailcalApp {
         self.disconnected
             .lock()
             .expect("disconnected mutex poisoned")
-            .remove(&id);
+            .remove(id);
         // Abort the account's push watches / poll timer (apply with no row stops it).
-        self.background.apply(&id, None);
-        let account_id = AccountId::try_from(id.as_str()).ok();
+        self.background.apply(id, None);
+        let account_id = AccountId::try_from(id).ok();
         if let Some(account_id) = account_id.clone() {
             let app = Arc::clone(&self.app);
             self.runtime
@@ -373,12 +391,12 @@ impl MailcalApp {
         // doing it here means the only bad outcome left is a stored credential with no account,
         // which the next launch shows as an account that will not connect; visible, and
         // reported below rather than silent.
-        let erased = self.delete_stored_credential(&id).inspect_err(|err| {
+        let erased = self.delete_stored_credential(id).inspect_err(|err| {
             log::error!(
                 "credentials: [{}] the account was removed from the app, but its stored \
                  credential could NOT be erased ({err}); it will come back as an account at the \
                  next launch",
-                mailcal_account::account_log_handle(&id),
+                mailcal_account::account_log_handle(id),
             );
         });
         // Last and not awaited: compacting the store rewrites all of it, seconds on a large one.

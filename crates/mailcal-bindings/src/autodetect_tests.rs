@@ -82,6 +82,7 @@ fn a_discovered_caldav_endpoint_survives_the_ffi_conversion() {
         dav: DetectedDav {
             caldav_url: Some("https://caldav.soverin.net/calendars".to_owned()),
             carddav_url: None,
+            nextcloud: false,
         },
     });
     let SetupRecommendation::Imap { caldav_url, .. } =
@@ -104,6 +105,7 @@ fn a_domain_with_only_dav_reaches_the_clients_as_nothing_found() {
         Ok(Detected::Dav(DetectedDav {
             caldav_url: Some("https://example.com/.well-known/caldav".to_owned()),
             carddav_url: None,
+            nextcloud: false,
         })),
     );
     assert!(matches!(

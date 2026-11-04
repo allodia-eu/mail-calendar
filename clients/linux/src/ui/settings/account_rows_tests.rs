@@ -40,6 +40,7 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
         separate_server: None,
         distinction: None,
         mail_sync: None,
+        nextcloud: false,
     }
 }
 

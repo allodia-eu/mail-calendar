@@ -88,6 +88,7 @@ pub(crate) mod tests {
             separate_server: None,
             distinction: None,
             mail_sync: None,
+            nextcloud: false,
         };
         let row = account_row(&entry, &sender);
         adw::prelude::ActionRowExt::activate(&row);

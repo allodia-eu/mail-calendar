@@ -57,6 +57,7 @@ pub(super) fn showcase_route(email: &str) -> mailcal_account::SetupRecommendatio
             email: email.to_owned(),
             caldav_url: Some(format!("https://dav.{domain}/caldav/")),
             carddav_url: Some(format!("https://dav.{domain}/carddav/")),
+            nextcloud: false,
         };
     }
     let trusted = domain == SHOWCASE_TRUSTED_DOMAIN;

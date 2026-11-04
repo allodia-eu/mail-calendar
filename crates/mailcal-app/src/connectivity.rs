@@ -219,6 +219,7 @@ impl<P: Provider> App<P> {
                  awaiting a fresh sign-in",
             );
             self.observer.surface_changed(Surface::Connectivity);
+            self.observer.signin_refused(account);
         }
     }
 

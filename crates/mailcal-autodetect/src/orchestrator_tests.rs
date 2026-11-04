@@ -204,6 +204,27 @@ async fn a_domain_with_no_mail_but_a_calendar_is_a_dav_result() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_calendar_without_mail_on_nextcloud_says_so() {
+    let fetcher = FakeFetch::new()
+        .default_reply(Reply::Miss)
+        .on(
+            "https://company.example/.well-known/caldav",
+            Reply::unauthorized(true),
+        )
+        .on(
+            "https://company.example/status.php",
+            Reply::json(
+                r#"{"installed":true,"maintenance":false,"productname":"Nextcloud"}"#,
+                true,
+            ),
+        );
+    let Detected::Dav(dav) = run(fetcher, None, DetectConfig::default()).await else {
+        panic!("expected a calendar without mail");
+    };
+    assert!(dav.nextcloud);
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_run_that_reached_the_deadline_is_not_probed_for_dav() {
     let fetcher = FakeFetch::new()
         .default_reply(Reply::Miss)

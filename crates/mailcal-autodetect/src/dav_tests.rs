@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use crate::{
     DetectConfig,
-    dav::{probe, provider_domain},
+    dav::{is_nextcloud, probe, provider_domain},
     mx::MxResolver,
     test_fakes::{FakeFetch, FakeResolver, Reply},
     types::{DetectedDav, Domain},
@@ -121,6 +121,7 @@ async fn an_address_book_is_found_beside_the_calendar() {
         DetectedDav {
             caldav_url: Some(EMAIL_CALDAV.to_owned()),
             carddav_url: Some(EMAIL_CARDDAV.to_owned()),
+            nextcloud: false,
         }
     );
 }
@@ -217,4 +218,76 @@ async fn a_server_that_answers_get_with_an_error_is_found_by_propfind() {
         .on_propfind(EMAIL_CALDAV, Reply::unauthorized(true));
     let dav = found(&fetch, None).await;
     assert_eq!(dav.caldav_url.as_deref(), Some(EMAIL_CALDAV));
+}
+
+/// `status.php` as a Nextcloud server answers it.
+const NEXTCLOUD_STATUS: &str =
+    r#"{"installed":true,"maintenance":false,"version":"35.0.2.2","productname":"Nextcloud"}"#;
+
+fn nextcloud_at(caldav: Option<&str>, carddav: Option<&str>) -> DetectedDav {
+    DetectedDav {
+        caldav_url: caldav.map(str::to_owned),
+        carddav_url: carddav.map(str::to_owned),
+        nextcloud: false,
+    }
+}
+
+#[tokio::test]
+async fn a_dav_server_that_says_it_is_nextcloud_is_nextcloud() {
+    let fetch = FakeFetch::new().on(
+        "https://cloud.example.org/status.php",
+        Reply::json(NEXTCLOUD_STATUS, true),
+    );
+    let dav = nextcloud_at(
+        Some("https://cloud.example.org/remote.php/dav/"),
+        Some("https://cloud.example.org/.well-known/carddav"),
+    );
+    assert!(is_nextcloud(&fetch, &dav, &DetectConfig::default()).await);
+}
+
+#[tokio::test]
+async fn an_installation_in_a_directory_is_asked_in_that_directory() {
+    let fetch = FakeFetch::new().on(
+        "https://example.org/nextcloud/status.php",
+        Reply::json(NEXTCLOUD_STATUS, true),
+    );
+    let dav = nextcloud_at(Some("https://example.org/nextcloud/remote.php/dav/"), None);
+    assert!(is_nextcloud(&fetch, &dav, &DetectConfig::default()).await);
+}
+
+#[tokio::test]
+async fn anything_short_of_a_trusted_nextcloud_answer_is_not_nextcloud() {
+    let both = nextcloud_at(Some("https://cloud.example.org/remote.php/dav/"), None);
+    for reply in [
+        Reply::json(NEXTCLOUD_STATUS, false),
+        Reply::json(r#"{"installed":true,"productname":"ownCloud"}"#, true),
+        Reply::status(401, true),
+        Reply::Landed {
+            final_url: "https://elsewhere.example/status.php".to_owned(),
+            status: 200,
+        },
+        Reply::Net,
+    ] {
+        let fetch = FakeFetch::new().on("https://cloud.example.org/status.php", reply);
+        assert!(!is_nextcloud(&fetch, &both, &DetectConfig::default()).await);
+    }
+}
+
+#[tokio::test]
+async fn endpoints_on_two_servers_are_not_one_nextcloud() {
+    let fetch = FakeFetch::new()
+        .on(
+            "https://cloud.example.org/status.php",
+            Reply::json(NEXTCLOUD_STATUS, true),
+        )
+        .on(
+            "https://contacts.example.org/status.php",
+            Reply::json(NEXTCLOUD_STATUS, true),
+        );
+    let split = nextcloud_at(
+        Some("https://cloud.example.org/remote.php/dav/"),
+        Some("https://contacts.example.org/remote.php/dav/"),
+    );
+    assert!(!is_nextcloud(&fetch, &split, &DetectConfig::default()).await);
+    assert!(!is_nextcloud(&fetch, &nextcloud_at(None, None), &DetectConfig::default()).await);
 }

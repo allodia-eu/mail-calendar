@@ -38,6 +38,13 @@ pub struct DetectedSetup {
     /// The uses the route offers, in the order a client lists them. Empty for a JMAP route,
     /// whose session says what it offers once signed in, and for the manual form.
     pub choices: Vec<SetupChoice>,
+    /// Whether the calendar and address-book servers found are one Nextcloud server's, which
+    /// signs in through the person's browser: the card then offers "Sign in with Nextcloud"
+    /// first and the password behind it (`docs/nextcloud-sign-in.md`). Set for the servers found
+    /// alone and for those found beside a JMAP server, which
+    /// [`dav_setup_beside`](MailcalApp::dav_setup_beside) is handed back.
+    #[uniffi(default = false)]
+    pub nextcloud_sign_in: bool,
 }
 
 #[uniffi::export]
@@ -74,13 +81,17 @@ impl MailcalApp {
     /// servers and no mail server gets, the typed address as its login. Contacts are looked for at
     /// the calendar's server when no address-book server was found. `None` when the session
     /// lacks neither, or no server was found for what it lacks.
+    /// `nextcloud_sign_in` is the detection's own answer for those servers, passed back with
+    /// them.
     #[must_use]
+    #[uniffi::method(default(nextcloud_sign_in = false))]
     pub fn dav_setup_beside(
         &self,
         account_id: String,
         email: String,
         caldav_url: Option<String>,
         carddav_url: Option<String>,
+        nextcloud_sign_in: bool,
     ) -> Option<DetectedSetup> {
         use mailcal_account::Capability;
         let lacks = self
@@ -97,6 +108,7 @@ impl MailcalApp {
             email,
             caldav_url,
             carddav_url,
+            nextcloud: nextcloud_sign_in,
         });
         setup.choices.retain(|choice| match choice.capability {
             AccountCapability::Calendar => calendar,
@@ -184,6 +196,16 @@ fn ffi_choices(choices: Vec<mailcal_account::SetupChoice>) -> Vec<SetupChoice> {
 pub(crate) fn detected_setup(route: mailcal_account::SetupRecommendation) -> DetectedSetup {
     use mailcal_account::SetupRecommendation as R;
     let choices = ffi_choices(route.choices());
+    let nextcloud_sign_in = matches!(
+        route,
+        R::Dav {
+            nextcloud: true,
+            ..
+        } | R::Jmap {
+            nextcloud: true,
+            ..
+        }
+    );
     let (caldav_url, carddav_url) = match &route {
         R::Imap {
             caldav_url,
@@ -208,6 +230,7 @@ pub(crate) fn detected_setup(route: mailcal_account::SetupRecommendation) -> Det
         caldav_url,
         carddav_url,
         choices,
+        nextcloud_sign_in,
     }
 }
 

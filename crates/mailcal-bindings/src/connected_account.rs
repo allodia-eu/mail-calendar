@@ -119,7 +119,9 @@ impl ConnectedAccount {
     /// How the account signs in.
     pub(crate) fn sign_in_method(&self) -> crate::SignInMethod {
         match self {
-            Self::Imap { config, .. } if config.is_oauth() => crate::SignInMethod::Provider,
+            Self::Imap { config, .. } if config.is_oauth() || config.nextcloud.is_some() => {
+                crate::SignInMethod::Provider
+            }
             Self::Jmap { config, .. } if config.is_oauth() => crate::SignInMethod::Provider,
             Self::Imap { .. } | Self::Jmap { .. } => crate::SignInMethod::Password,
             Self::Microsoft { .. } | Self::Google { .. } => crate::SignInMethod::Provider,
@@ -165,9 +167,7 @@ impl ConnectedAccount {
     /// login.
     pub(crate) fn identity(&self) -> engine_api::EmailAddress {
         match self {
-            Self::Imap { config, .. } => {
-                engine_api::EmailAddress::new(config.username().to_owned())
-            }
+            Self::Imap { config, .. } => engine_api::EmailAddress::new(config.address().to_owned()),
             Self::Microsoft { config, .. } => config.identity(),
             Self::Google { config, .. } => config.identity(),
             Self::Jmap { config, .. } => config.identity(),
@@ -249,10 +249,14 @@ impl ConnectedAccount {
             files_invitations,
             links: self.shape().links.clone(),
             calendar_addresses: Vec::new(),
+            // A Nextcloud-issued password works under the login it was issued for and no other.
             endpoints: match self {
-                Self::Imap { config, .. } if !config.is_oauth() => Some(config.endpoints()),
+                Self::Imap { config, .. } if !config.is_oauth() && config.nextcloud.is_none() => {
+                    Some(config.endpoints())
+                }
                 _ => None,
             },
+            nextcloud: matches!(self, Self::Imap { config, .. } if config.nextcloud.is_some()),
             dav_servers: match self {
                 Self::Imap { config, .. } if config.imap.is_some() => dav_servers(config),
                 _ => Vec::new(),

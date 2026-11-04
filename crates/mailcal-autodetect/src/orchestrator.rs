@@ -157,17 +157,22 @@ async fn with_dav(
                 .ok()
                 .and_then(|base| base.host_str().and_then(dav::provider_domain));
             jmap.dav = probe(provider).await;
+            if !jmap.dav.is_empty() {
+                // The link step after the sign-in offers these as an account of their own.
+                jmap.dav.nextcloud = dav::is_nextcloud(fetcher, &jmap.dav, config).await;
+            }
             Detected::Jmap(jmap)
         }
         Detected::Nothing {
             network_error: false,
         } => {
-            let dav = probe(None).await;
+            let mut dav = probe(None).await;
             if dav.is_empty() {
                 Detected::Nothing {
                     network_error: false,
                 }
             } else {
+                dav.nextcloud = dav::is_nextcloud(fetcher, &dav, config).await;
                 Detected::Dav(dav)
             }
         }

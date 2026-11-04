@@ -21,6 +21,7 @@ fn both() -> DetectedDav {
     DetectedDav {
         caldav_url: Some(CALDAV.to_owned()),
         carddav_url: Some(CARDDAV.to_owned()),
+        nextcloud: false,
     }
 }
 
@@ -90,8 +91,24 @@ fn a_domain_with_only_dav_routes_to_a_calendar_and_contacts_account() {
             email: EMAIL.to_owned(),
             caldav_url: Some(CALDAV.to_owned()),
             carddav_url: Some(CARDDAV.to_owned()),
+            nextcloud: false,
         }
     );
+}
+
+#[test]
+fn a_nextcloud_server_found_alone_says_so_on_its_route() {
+    let dav = DetectedDav {
+        nextcloud: true,
+        ..both()
+    };
+    assert!(matches!(
+        recommend(EMAIL, Detected::Dav(dav), ALL_ROUTES),
+        SetupRecommendation::Dav {
+            nextcloud: true,
+            ..
+        }
+    ));
 }
 
 #[test]

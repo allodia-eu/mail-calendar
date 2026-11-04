@@ -173,6 +173,7 @@ pub(crate) fn offer_route(offer: AllodiaAccountOffer) -> Route {
                 source: OFFER_SOURCE.to_owned(),
                 caldav_url: None,
                 carddav_url: None,
+                nextcloud: false,
             },
         ),
         AllodiaAccountKind::Imap => imap_route(offer),

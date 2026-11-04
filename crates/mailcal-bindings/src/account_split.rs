@@ -205,7 +205,7 @@ fn domains(uses: &[Capability]) -> Vec<engine_api::SearchDomain> {
         .collect()
 }
 
-fn nothing_to_move() -> MailcalError {
+pub(crate) fn nothing_to_move() -> MailcalError {
     MailcalError::Config("the account has no calendar or contacts server to move".to_owned())
 }
 

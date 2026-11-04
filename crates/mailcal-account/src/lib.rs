@@ -39,6 +39,7 @@ mod imap_credentials;
 mod jmap;
 mod log_handle;
 mod microsoft;
+mod nextcloud_login;
 mod oauth_grant;
 mod pass_folders;
 mod preferences;
@@ -104,6 +105,7 @@ pub use jmap::{
 };
 pub use log_handle::account_log_handle;
 pub use microsoft::{MicrosoftConfig, fetch_primary_address, load_microsoft_str};
+pub use nextcloud_login::NextcloudLogin;
 pub use oauth_grant::{OAuthGrant, oauth_token_source};
 pub use pass_folders::pass_syncs;
 pub use preferences::{

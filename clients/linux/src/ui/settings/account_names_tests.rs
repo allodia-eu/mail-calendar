@@ -37,6 +37,7 @@ fn mailbox(distinction: Option<AccountDistinction>) -> AccountEntry {
         separate_server: None,
         distinction,
         mail_sync: None,
+        nextcloud: false,
     }
 }
 

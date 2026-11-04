@@ -404,6 +404,7 @@ mod tests {
             separate_server: None,
             distinction: None,
             mail_sync: None,
+            nextcloud: false,
         };
         assert_eq!(
             remove_message(&entry),

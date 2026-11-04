@@ -20,6 +20,28 @@ pub enum SetupCredential {
     Password(String),
     /// An OAuth grant, from a completed browser sign-in.
     Grant(Box<OAuthGrant>),
+    /// An app password a Nextcloud sign-in issued, for a calendar and contacts account, with
+    /// where it came from (`docs/nextcloud-sign-in.md`).
+    Nextcloud {
+        /// The app password.
+        app_password: String,
+        /// The server that issued it, and who it signs in as.
+        login: crate::NextcloudLogin,
+    },
+}
+
+impl SetupCredential {
+    /// The password the DAV endpoints present, when the credential is one.
+    fn dav_password(&self) -> Option<&str> {
+        match self {
+            Self::Password(password)
+            | Self::Nextcloud {
+                app_password: password,
+                ..
+            } => Some(password),
+            Self::Grant(_) => None,
+        }
+    }
 }
 
 /// The fields a host collects in its account-setup UI, so it can build a config
@@ -153,6 +175,11 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
             .is_none_or(|uses| uses.contains(capability))
     };
     let mail = chosen(Capability::Mail);
+    if mail && matches!(setup.credential, SetupCredential::Nextcloud { .. }) {
+        return Err(ConfigError::Refused(
+            "a Nextcloud sign-in holds a calendar and contacts, never mail",
+        ));
+    }
     if mail && setup.imap_host.trim().is_empty() {
         return Err(ConfigError::Incomplete("mail server"));
     }
@@ -162,7 +189,7 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
     if setup.username.trim().is_empty() {
         return Err(ConfigError::Incomplete("username"));
     }
-    if matches!(&setup.credential, SetupCredential::Password(password) if password.is_empty()) {
+    if setup.credential.dav_password().is_some_and(str::is_empty) {
         return Err(ConfigError::Incomplete("password"));
     }
 
@@ -260,8 +287,8 @@ fn finish(
         let mut dav = toml::Table::new();
         dav.insert("base_url".into(), normalize_caldav_base_url(url).into());
         dav.insert("username".into(), username.into());
-        if let SetupCredential::Password(password) = &setup.credential {
-            dav.insert("password".into(), password.clone().into());
+        if let Some(password) = setup.credential.dav_password() {
+            dav.insert("password".into(), password.into());
         }
         root.insert(section.into(), dav.into());
     }
@@ -271,8 +298,14 @@ fn finish(
             vec![toml::Value::from(accepted.to_table())].into(),
         );
     }
-    if let SetupCredential::Grant(grant) = &setup.credential {
-        root.insert("oauth".into(), grant.to_table().into());
+    match &setup.credential {
+        SetupCredential::Grant(grant) => {
+            root.insert("oauth".into(), grant.to_table().into());
+        }
+        SetupCredential::Nextcloud { login, .. } => {
+            root.insert("nextcloud".into(), login.to_table().into());
+        }
+        SetupCredential::Password(_) => {}
     }
     Ok(toml::to_string(&root)?)
 }

@@ -32,6 +32,7 @@ pub(crate) fn mailbox(links: AccountLinks) -> AccountFacts {
         dav_servers: Vec::new(),
         calendar_addresses: Vec::new(),
         server: Some("imap.example.org".to_owned()),
+        nextcloud: false,
     }
 }
 
@@ -51,6 +52,7 @@ pub(crate) fn cloud(links: AccountLinks) -> AccountFacts {
         dav_servers: Vec::new(),
         calendar_addresses: Vec::new(),
         server: Some("cloud.example".to_owned()),
+        nextcloud: false,
     }
 }
 

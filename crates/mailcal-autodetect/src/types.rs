@@ -209,6 +209,11 @@ pub struct DetectedDav {
     pub caldav_url: Option<String>,
     /// The CardDAV endpoint, or `None` when none was found.
     pub carddav_url: Option<String>,
+    /// Whether every endpoint found is one Nextcloud server's, which signs in through the
+    /// person's browser. Asked only where it decides a screen: when calendar and contacts are
+    /// all the address has, and beside a JMAP server, whose link step offers them as an account
+    /// of their own.
+    pub nextcloud: bool,
 }
 
 impl DetectedDav {

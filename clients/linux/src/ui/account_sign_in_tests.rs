@@ -8,6 +8,7 @@ const fn both() -> AccountSignInOptions {
         sign_in: true,
         provider_label: None,
         password: true,
+        nextcloud: false,
     }
 }
 

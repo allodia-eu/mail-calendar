@@ -39,6 +39,7 @@ fn jmap(calendar: CapabilityState, candidates: Vec<LinkedAccount>) -> AccountsSn
             separate_server: None,
             distinction: None,
             mail_sync: None,
+            nextcloud: false,
         }],
     }
 }

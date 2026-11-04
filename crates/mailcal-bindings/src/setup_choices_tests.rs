@@ -14,8 +14,10 @@ fn a_domain_with_only_dav_is_a_calendar_and_contacts_setup() {
         email: "alice@cloud.example".to_owned(),
         caldav_url: Some(CALDAV.to_owned()),
         carddav_url: Some(CARDDAV.to_owned()),
+        nextcloud: false,
     });
     assert!(setup.calendar_and_contacts);
+    assert!(!setup.nextcloud_sign_in);
     // A client that does not read the flag sees the manual form it always did.
     assert_eq!(
         setup.recommendation,
@@ -51,8 +53,13 @@ fn a_jmap_route_carries_what_was_found_beside_it_and_no_choices() {
         source: String::new(),
         caldav_url: None,
         carddav_url: Some(CARDDAV.to_owned()),
+        nextcloud: true,
     });
     assert!(!setup.calendar_and_contacts);
+    assert!(
+        setup.nextcloud_sign_in,
+        "the servers found beside a JMAP server are offered later, as one Nextcloud's"
+    );
     assert!(matches!(
         setup.recommendation,
         SetupRecommendation::Jmap { .. }
@@ -124,4 +131,16 @@ fn setup_offers_links_for_a_standards_or_jmap_account_only() {
     for kind in [AccountKind::Microsoft, AccountKind::Google] {
         assert!(!super::offers_setup_links(kind), "{kind:?}");
     }
+}
+
+#[test]
+fn a_nextcloud_server_found_alone_offers_its_own_sign_in() {
+    let setup = detected_setup(Route::Dav {
+        email: "alice@cloud.example".to_owned(),
+        caldav_url: Some(CALDAV.to_owned()),
+        carddav_url: None,
+        nextcloud: true,
+    });
+    assert!(setup.calendar_and_contacts);
+    assert!(setup.nextcloud_sign_in);
 }

@@ -26,6 +26,7 @@ const fn options(sign_in: bool, password: bool) -> AccountSignInOptions {
         sign_in,
         provider_label: None,
         password,
+        nextcloud: false,
     }
 }
 
