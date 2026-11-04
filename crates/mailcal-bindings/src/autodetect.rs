@@ -10,10 +10,13 @@ use std::sync::Arc;
 
 #[path = "autodetect_showcase.rs"]
 mod showcase;
+#[path = "autodetect_watched.rs"]
+mod watched;
 
 #[cfg(test)]
 use showcase::showcase_recommendation;
 use showcase::showcase_route;
+pub(crate) use watched::WatchedResolver;
 
 use crate::{MailcalApp, setup::ConnectionSecurity};
 
