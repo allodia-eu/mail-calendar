@@ -35,10 +35,14 @@ sdk_runtime_version() {
 # Not optional: with the SDK present in both; which is what a machine that has ever installed it
 # twice looks like; an unqualified ref makes flatpak *prompt*, and a prompt in a script is a hang
 # or an "error: No ref chosen to resolve matches".
+#
+# Asked with the real data directory, as `flatpak run` is below: flatpak finds the user
+# installation through `XDG_DATA_HOME`, and a test session redirects it.
 sdk_installation() {
   local version="${1:-$(sdk_runtime_version)}" scope
   for scope in --user --system; do
-    if flatpak info "$scope" "org.gnome.Sdk//$version" >/dev/null 2>&1; then
+    if env XDG_DATA_HOME="$HOME/.local/share" \
+      flatpak info "$scope" "org.gnome.Sdk//$version" >/dev/null 2>&1; then
       printf '%s\n' "$scope"
       return 0
     fi
@@ -51,9 +55,12 @@ sdk_available() {
 }
 
 # What to tell someone who has not installed it. The runtime is a ~2 GB one-time download, which is
-# why nothing here performs it silently.
+# why nothing here performs it silently. The remote is added for the user too: a distribution's
+# flatpak package may configure Flathub system-wide only, and `install --user` cannot see that.
 sdk_install_hint() {
   local version="${1:-$(sdk_runtime_version)}"
+  printf 'flatpak remote-add --user --if-not-exists flathub %s && ' \
+    https://flathub.org/repo/flathub.flatpakrepo
   printf 'flatpak install --user flathub org.gnome.Platform//%s org.gnome.Sdk//%s\n' \
     "$version" "$version"
 }

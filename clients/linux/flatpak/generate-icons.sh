@@ -24,7 +24,7 @@ OUT="$HERE/icons"
 
 IM="$(imagemagick_bin || true)"
 if [[ -z "$IM" ]]; then
-  echo "generate-icons: need ImageMagick (sudo apt install imagemagick)" >&2
+  echo "generate-icons: need ImageMagick (see the prerequisites in clients/linux/README.md)" >&2
   exit 1
 fi
 im() { "$IM" "$@"; }
