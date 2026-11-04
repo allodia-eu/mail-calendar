@@ -60,17 +60,17 @@ if (-not $IsWindows) {
   exit 0
 }
 
-# Each suite is a `<Name>Tests` class in Mailcal.UiTests/Suites, matched by -Filter as `<Name>.Tests`,
-# and declares its dataset as a trait. One that declares none would run under no -Dataset at all.
-$suites = @(Get-ChildItem -Path (Join-Path $project 'Suites') -Filter '*Tests.cs' | ForEach-Object {
-    $declared = Select-String -LiteralPath $_.FullName -Pattern '\[Trait\("Dataset", "([a-z-]+)"\)\]' | Select-Object -First 1
-    if (-not $declared) { throw "$($_.Name) declares no [Trait(""Dataset"", …)], so no -Dataset would run it" }
-    [pscustomobject]@{
-      Name    = ($_.BaseName -replace 'Tests$', '') + '.Tests'
-      Class   = $_.BaseName
-      Dataset = $declared.Matches[0].Groups[1].Value
-    }
-  } | Where-Object { $_.Name -like $Filter } | Sort-Object Name)
+# Each suite is a `<Name>Tests` class, matched by -Filter as `<Name>.Tests`, and declares its
+# dataset as a trait. Both are read from the suites' own listing of what they compiled rather than
+# from their source, and a suite that declares none is refused rather than never run.
+$build = & dotnet build $project --nologo -v q 2>&1
+if ($LASTEXITCODE -ne 0) {
+  $build | ForEach-Object { Write-Host $_ }
+  throw "the UI suites did not build"
+}
+$listing = & dotnet run --project $project --no-build -- -list full/json 2>&1
+if ($LASTEXITCODE -ne 0) { throw "the UI suites could not list their cases: $($listing -join ' ')" }
+$suites = @(ConvertFrom-AgentTestList -Listing ($listing -join "`n") | Where-Object { $_.Name -like $Filter } | Sort-Object Name)
 if (-not $suites) { throw "no suite in $project matched -Filter '$Filter'" }
 
 $excluded = @($suites | Where-Object { $Dataset -notcontains $_.Dataset })
@@ -96,7 +96,7 @@ if ($chosen) {
   Remove-Item (Join-Path $project 'failures') -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item $report -ErrorAction SilentlyContinue
   try {
-    & dotnet run --project $project -v q -- @arguments 2>&1 | ForEach-Object { "$_" } | Tee-Object -Variable output | ForEach-Object { Write-Host $_ }
+    & dotnet run --project $project --no-build -- @arguments 2>&1 | ForEach-Object { "$_" } | Tee-Object -Variable output | ForEach-Object { Write-Host $_ }
     $exit = $LASTEXITCODE
   }
   finally {
@@ -115,7 +115,7 @@ if ($chosen) {
     }
     Remove-Item $report -ErrorAction SilentlyContinue
   }
-  # A build that failed, or a run that wrote no report, is a failure that names no case.
+  # A run that wrote no report is a failure that names no case.
   if ($exit -ne 0 -and $failed.Count -eq 0) {
     $failed += "the suites exited $exit without a failing case; their output ends: $((@($output) | Select-Object -Last 5) -join ' | ')"
   }
