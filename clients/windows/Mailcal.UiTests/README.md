@@ -8,8 +8,11 @@ often as a rule needs.
 ```powershell
 scripts/dev/harness.sh up                         # the seeded Stalwart harness
 clients/windows/build-and-run.ps1 -NoRun          # a Debug build: the agent is not in a release one
-dotnet test clients/windows/Mailcal.UiTests       # launches the app itself, and stops it after
+dotnet run --project clients/windows/Mailcal.UiTests   # launches the app itself, and stops it after
 ```
+
+The project is an xUnit v3 program, so what follows `--` goes to its runner: `-class`, `-method`
+and `-trait "Dataset=showcase"` select cases, and `-?` lists the rest. `dotnet test` runs it too.
 
 [`run-ui-tests.ps1`](../uitests/run-ui-tests.ps1) runs them by the dataset each suite declares
 (`[Trait("Dataset", …)]`), with `-Filter` (`Drafts*` selects `DraftsTests`), `-Dataset` and
@@ -43,6 +46,11 @@ dataset, and a suite declares it as a trait, which is what `run-ui-tests.ps1 -Da
 A suite that sets an account up through the form gets a launch of its own on an emptied first-run
 store, because what a first run asks is asked once a store; so does one whose case quits the app,
 as a notification click with the app closed does.
+
+The suites run in one order on every machine: collections and the suites in each by name, a
+suite's cases as written ([`Suites/RunOrder.cs`](Suites/RunOrder.cs)). xUnit's own order differs
+between machines, so without it a green run here says nothing about the order CI runs. A suite
+still starts from whatever the one before it left, so it opens what it reads.
 
 ## The agent
 

@@ -29,19 +29,27 @@ internal sealed partial class App
         {
             return shown;
         }
-        // Through All Accounts' Inbox, which every store with an account draws; the calendar leaves
-        // its tree closed. On the first-run form there is none, and no list to go back to.
-        if (Agent.Find(Filter.Named(Catalog.English("sidebar_all_accounts"), "ListItem") with { Window = Mailbox.Hwnd }) is { } all)
+        // Through All Accounts' Inbox, which every store with an account draws. On the first-run form
+        // there is none, and no list to go back to.
+        if (UnifiedInboxRow() is { } inbox)
         {
-            Agent.Expand(all);
-            if (Agent.Wait(Filter.Named(Catalog.English("folder_inbox"), "ListItem") with { Under = all }, TimeSpan.FromSeconds(10)) is { } inbox)
-            {
-                Agent.Invoke(inbox);
-                Agent.Wait(list, Patience);
-                Agent.Settle();
-            }
+            Agent.Invoke(inbox);
+            Agent.Wait(list, Patience);
+            Agent.Settle();
         }
         return Agent.Find(list) ?? throw new InvalidOperationException("the message list (#RowsList) is not on screen");
+    }
+
+    /// <summary>All Accounts' Inbox row, its group opened first because the calendar leaves the
+    /// group's tree closed; null where the pane draws no such row.</summary>
+    internal Element? UnifiedInboxRow()
+    {
+        if (Agent.Find(Filter.Named(Catalog.English("sidebar_all_accounts"), "ListItem") with { Window = Mailbox.Hwnd }) is not { } all)
+        {
+            return null;
+        }
+        Agent.Expand(all);
+        return Agent.Wait(Filter.Named(Catalog.English("folder_inbox"), "ListItem") with { Under = all }, TimeSpan.FromSeconds(10));
     }
 
     /// <summary>What a folder-pane row says about its own unread mail, in any catalog language: ""
@@ -274,10 +282,8 @@ internal sealed partial class App
             return false;
         }
         Agent.Invoke(discard);
-        // The question's primary button is Discard (ComposerView.Drafts.cs). It is raised after the
-        // press returns, so the floor is what gives it time to arrive.
-        Agent.Settle(floor: TimeSpan.FromMilliseconds(300), cap: TimeSpan.FromMilliseconds(800));
-        var confirm = Agent.Find(Filter.ById("PrimaryButton", "Button"));
+        // The question's primary button is Discard (ComposerView.Drafts.cs).
+        var confirm = DiscardQuestion();
         if (confirm is not null)
         {
             Agent.Invoke(confirm);
@@ -287,6 +293,20 @@ internal sealed partial class App
             throw new InvalidOperationException("the composer is still open 15 s after its Discard was pressed");
         }
         return confirm is not null;
+    }
+
+    /// <summary>
+    /// The primary button of "Discard draft?" once it is up, or null once the composer has gone
+    /// without asking. The question is raised after the press that leads to it returns, and only
+    /// when there is something to lose, so the wait is for whichever comes first. A fixed wait misses
+    /// a question that arrives late, as it does on an app launched a moment ago.
+    /// </summary>
+    internal Element? DiscardQuestion()
+    {
+        Element? question = null;
+        Eventually(() => (question = Agent.Find(Filter.ById("PrimaryButton", "Button"))) is not null
+            || Agent.Find(Filter.ById("SendButton")) is null, TimeSpan.FromSeconds(15));
+        return question;
     }
 
     /// <summary>Puts away what the last case left: its windows, its composer, a dialog over the list.</summary>

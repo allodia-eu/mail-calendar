@@ -42,19 +42,18 @@ public sealed class NotificationLaunchTests(ColdStartShowcaseApp showcase) : ICl
     // Past both endings, measured rather than guessed.
     private static readonly TimeSpan EndsWithin = TimeSpan.FromSeconds(30);
 
-    [SkippableFact]
+    [OfflineFact]
     public void ANotificationActivationDoesNotFailFastOnStartup()
     {
         // A host that cannot show notifications, a CI runner among them, fails any notification
         // launch fast whatever the order in Main; nothing is ever posted there, so no click can
         // reach that launch. Asked of the suite's own launch, before the launch under test, which
         // dies before it can log.
-        Skip.IfNot(App.HasBuild(), "no Debug build to launch (clients/windows/build-and-run.ps1 -NoRun)");
         _ = showcase.App;
         var registration = AppLog.NewestSession().Split('\n')
             .LastOrDefault(line => line.Contains("notifications: registered", StringComparison.Ordinal)
                 || line.Contains("notifications: could not register", StringComparison.Ordinal))?.Trim();
-        Skip.If(registration?.Contains("system setting Unsupported", StringComparison.Ordinal) == true,
+        Assert.SkipWhen(registration?.Contains("system setting Unsupported", StringComparison.Ordinal) == true,
             $"this host cannot show notifications (the app logged: {registration}); check-notification-registration still pins the order");
         showcase.Case(nameof(ANotificationActivationDoesNotFailFastOnStartup), app => Launch(app, registration));
     }

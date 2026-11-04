@@ -16,7 +16,6 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(TwoAccountHarnessCollection.Name)]
-[TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
 [Trait("Dataset", "harness")]
 public sealed class EventAnswerTests(TwoAccountHarnessApp harness)
 {
@@ -78,6 +77,12 @@ public sealed class EventAnswerTests(TwoAccountHarnessApp harness)
         Harness.WaitSchedulingMail(Harness.Alice, "Tentative:", Title);
     });
 
+    /// <summary>A button of the decline question, waited for: the dialog is found before its
+    /// buttons are built.</summary>
+    private static Element ConfirmButton(App app, Element confirm, string id) =>
+        app.Agent.Wait(new Filter { Id = id, Type = "Button", Under = confirm }, TimeSpan.FromSeconds(10))
+        ?? throw new InvalidOperationException($"the decline question draws no #{id}");
+
     [HarnessFact]
     public void DeclineAsksFirstAndBackingOutSendsNothing() => Case(nameof(DeclineAsksFirstAndBackingOutSendsNothing), (app, flow) =>
     {
@@ -85,7 +90,7 @@ public sealed class EventAnswerTests(TwoAccountHarnessApp harness)
         app.Agent.Invoke(AnswerButton(app, "EventAnswerDecline"));
         var confirm = app.Agent.Wait(Filter.ById("EventDeclineConfirm"), TimeSpan.FromSeconds(10))
             ?? throw new InvalidOperationException("Decline sent at once, without asking");
-        app.Agent.Invoke(app.Agent.Find(new Filter { Id = "CloseButton", Type = "Button", Under = confirm })!);
+        app.Agent.Invoke(ConfirmButton(app, confirm, "CloseButton"));
         // Backing out reopens the detail rather than leaving the user on the calendar.
         WaitAnswerLine(app, "invitation_response_tentative", timeoutSec: 10);
         // An absence needs time to be one: the server would have sent within this.
@@ -100,7 +105,7 @@ public sealed class EventAnswerTests(TwoAccountHarnessApp harness)
         app.Agent.Invoke(AnswerButton(app, "EventAnswerDecline"));
         var confirm = app.Agent.Wait(Filter.ById("EventDeclineConfirm"), TimeSpan.FromSeconds(10))
             ?? throw new InvalidOperationException("Decline sent at once, without asking");
-        app.Agent.Invoke(app.Agent.Find(new Filter { Id = "PrimaryButton", Type = "Button", Under = confirm })!);
+        app.Agent.Invoke(ConfirmButton(app, confirm, "PrimaryButton"));
         Assert.True(app.Agent.WaitGone(Filter.ById("CloseButton", "Button"), TimeSpan.FromSeconds(10)), "the detail closes with the meeting");
         Harness.WaitSchedulingMail(Harness.Alice, "Declined:", Title);
         var agenda = flow.ShowAgenda();
