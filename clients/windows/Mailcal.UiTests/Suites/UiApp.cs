@@ -7,7 +7,7 @@ using System.Windows.Forms;
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
 
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]
 
 namespace Allodia.Mailcal.UiTests.Suites;
 

@@ -275,9 +275,12 @@ internal sealed partial class App
         }
         Agent.Invoke(discard);
         // The question's primary button is Discard (ComposerView.Drafts.cs). It is raised after the
-        // press returns, so the floor is what gives it time to arrive.
-        Agent.Settle(floor: TimeSpan.FromMilliseconds(300), cap: TimeSpan.FromMilliseconds(800));
-        var confirm = Agent.Find(Filter.ById("PrimaryButton", "Button"));
+        // press returns, and only when there is something to lose, so the wait is for whichever
+        // comes first: the question or the composer gone. A fixed wait misses a question that
+        // arrives late, as it does on an app launched a moment ago.
+        Element? confirm = null;
+        Eventually(() => (confirm = Agent.Find(Filter.ById("PrimaryButton", "Button"))) is not null
+            || Agent.Find(Filter.ById("SendButton")) is null, TimeSpan.FromSeconds(15));
         if (confirm is not null)
         {
             Agent.Invoke(confirm);

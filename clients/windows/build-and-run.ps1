@@ -196,7 +196,9 @@ if ($LASTEXITCODE -ne 0) { throw "l10n resource generation failed" }
 #    reproduces the swallowed swipe. Synthetic touch (touch.ps1) cannot do that, it politely waits
 #    for the grid to settle, which is testing the case that already worked (docs/calendar.md §9).
 Write-Host "==> Running the calendar unit tests" -ForegroundColor Cyan
-& dotnet test (Join-Path $here 'Mailcal.Tests') -c $Configuration --nologo
+# Run as the program it is (xUnit v3) rather than through `dotnet test`, which finds its runner in
+# /global.json only when started from inside the repository.
+& dotnet run --project (Join-Path $here 'Mailcal.Tests') -c $Configuration -v q -- -noLogo
 if ($LASTEXITCODE -ne 0) { throw "calendar unit tests failed" }
 
 # 5a. The UI suites that reach the app through its test agent (Mailcal.UiTests) need a running app

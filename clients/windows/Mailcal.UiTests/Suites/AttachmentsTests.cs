@@ -19,6 +19,9 @@ public sealed class AttachmentsTests(HarnessApp harness)
 {
     private const string ManyAttachments = "Message with many attachments";
 
+    // Where the fixture is, whatever folder the case before this one left open.
+    private static readonly string Inbox = Catalog.English("folder_inbox");
+
     // Both in the units XAML is written in; the agent reports physical pixels, so each is scaled at
     // assert time. The cap is ReadingView.xaml's plus a little for the ScrollViewer's own chrome:
     // the assertion is "bounded", not "exactly this".
@@ -30,6 +33,7 @@ public sealed class AttachmentsTests(HarnessApp harness)
     [HarnessFact]
     public void TwentyAttachmentsStopAtTheCapInsteadOfTakingThePane() => harness.Case(nameof(TwentyAttachmentsStopAtTheCapInsteadOfTakingThePane), app =>
     {
+        app.OpenFolder(Inbox);
         app.OpenMessage(ManyAttachments);
         var scroll = app.Agent.Wait(Filter.ById("AttachmentScroll") with { OnScreen = true }, App.Patience)
             ?? throw new InvalidOperationException("no AttachmentScroll: either the body never arrived, or the attachment panel is not the ScrollViewer this rule depends on");
@@ -44,6 +48,7 @@ public sealed class AttachmentsTests(HarnessApp harness)
         // A fix that merely clipped the list would satisfy the case above and leave the body as
         // starved, so the consequence is asserted rather than the mechanism. PlainScroller, because
         // this fixture's body is text/plain and that is the control that draws it.
+        app.OpenFolder(Inbox);
         app.OpenMessage(ManyAttachments);
         var body = app.Steady(app.Agent.Wait(Filter.ById("PlainScroller") with { OnScreen = true }, App.Patience)
             ?? throw new InvalidOperationException("no PlainScroller: the reading pane never drew this message's body"));

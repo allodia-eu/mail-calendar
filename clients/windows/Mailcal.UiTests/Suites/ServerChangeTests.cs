@@ -25,7 +25,7 @@ using Xunit;
 
 namespace Allodia.Mailcal.UiTests.Suites;
 
-[TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
+[TestMethodOrderer<DeclarationOrderer>]
 [Trait("Dataset", "harness")]
 public sealed class ServerChangeTests(ServerChangeHarnessApp harness) : IClassFixture<ServerChangeHarnessApp>
 {

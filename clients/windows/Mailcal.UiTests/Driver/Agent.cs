@@ -153,8 +153,31 @@ internal sealed class Agent : IDisposable
 
     internal void ScrollIntoView(Element element) => Call(Handle("scrollIntoView", element));
 
-    /// <summary>Opens a combo box or a drop-down.</summary>
-    internal void Expand(Element element) => Call(Handle("expand", element));
+    /// <summary>Opens a combo box, a drop-down or a tree row. A tree row has nothing to open until it
+    /// has rows under it, and an account's arrive from its server after the account's own, so a
+    /// row that does not expand yet is waited for, as <see cref="Invoke"/> waits for a disabled
+    /// control.</summary>
+    internal void Expand(Element element)
+    {
+        InvalidOperationException? refused = null;
+        bool Opened()
+        {
+            try
+            {
+                Call(Handle("expand", element));
+                return true;
+            }
+            catch (InvalidOperationException e) when (e.Message.EndsWith("does not expand", StringComparison.Ordinal))
+            {
+                refused = e;
+                return false;
+            }
+        }
+        if (!App.Eventually(Opened, TimeSpan.FromSeconds(30)))
+        {
+            throw refused!;
+        }
+    }
 
     /// <summary>Closes what <see cref="Expand"/> opened.</summary>
     internal void Collapse(Element element) => Call(Handle("collapse", element));

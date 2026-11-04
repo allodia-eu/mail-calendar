@@ -8,8 +8,11 @@ often as a rule needs.
 ```powershell
 scripts/dev/harness.sh up                         # the seeded Stalwart harness
 clients/windows/build-and-run.ps1 -NoRun          # a Debug build: the agent is not in a release one
-dotnet test clients/windows/Mailcal.UiTests       # launches the app itself, and stops it after
+dotnet run --project clients/windows/Mailcal.UiTests   # launches the app itself, and stops it after
 ```
+
+The project is an xUnit v3 program, so what follows `--` goes to its runner: `-class`, `-method`
+and `-trait "Dataset=showcase"` select cases, and `-?` lists the rest. `dotnet test` runs it too.
 
 [`run-ui-tests.ps1`](../uitests/run-ui-tests.ps1) runs them by the dataset each suite declares
 (`[Trait("Dataset", …)]`), with `-Filter` (`Drafts*` selects `DraftsTests`), `-Dataset` and

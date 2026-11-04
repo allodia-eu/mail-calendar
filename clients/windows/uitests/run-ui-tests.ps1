@@ -82,35 +82,36 @@ $wall = [Diagnostics.Stopwatch]::StartNew()
 
 if ($chosen) {
   Write-Host "==> $(($chosen.Name) -join ', ')" -ForegroundColor Cyan
-  $filterExpression = ($chosen | ForEach-Object { "FullyQualifiedName~.Suites.$($_.Class)." }) -join '|'
+  # The suites are a program of their own (xUnit v3), run directly rather than through a test host.
+  # The verbose reporter prints each case as it starts and as it ends, so a run cut short, by a hang
+  # or a job's time limit, shows the case it was in; the summary below is read from the report.
+  $report = Join-Path ([IO.Path]::GetTempPath()) "mailcal-uitests-$PID.xml"
+  $arguments = @('-noLogo', '-reporter', 'verbose', '-result-xml', $report) +
+    @($chosen | ForEach-Object { '-class', "Allodia.Mailcal.UiTests.Suites.$($_.Class)" })
   # MAILCAL_UITESTS_REQUIRE_HARNESS turns a missing harness from a skip into a failure, as
   # -RequireHarness promises.
   if ($RequireHarness) { $env:MAILCAL_UITESTS_REQUIRE_HARNESS = '1' }
   # What a failing case leaves is named after the case, so one left by an earlier run would read as
-  # this run's.
+  # this run's; so would an earlier run's report.
   Remove-Item (Join-Path $project 'failures') -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item $report -ErrorAction SilentlyContinue
   try {
-    $output = & dotnet test $project --nologo --filter $filterExpression --logger 'console;verbosity=normal' 2>&1 |
-      ForEach-Object { "$_" }
+    & dotnet run --project $project -v q -- @arguments 2>&1 | ForEach-Object { "$_" } | Tee-Object -Variable output | ForEach-Object { Write-Host $_ }
     $exit = $LASTEXITCODE
   }
   finally {
     Remove-Item env:MAILCAL_UITESTS_REQUIRE_HARNESS -ErrorAction SilentlyContinue
   }
-  $result = ConvertFrom-AgentTestOutput -Lines $output
-  $passed = $result.Passed
-  $failed = $result.Failed
-  $skipped = $result.Skipped
-  foreach ($line in $result.Order) {
-    switch ($line.Outcome) {
-      'Passed' { Write-Host "  PASS  $($line.Case)" -ForegroundColor Green }
-      'Skipped' { Write-Host "  SKIP  $($line.Case)" -ForegroundColor Yellow }
-      'Failed' { Write-Host "  FAIL  $($line.Case)" -ForegroundColor Red; Write-Host "        $($line.Why)" -ForegroundColor Red }
-    }
+  if (Test-Path $report) {
+    $result = ConvertFrom-AgentTestReport -Report ([xml] (Get-Content -Raw $report))
+    Remove-Item $report
+    $passed = $result.Passed
+    $failed = $result.Failed
+    $skipped = $result.Skipped
   }
-  # A build that failed, or a run that reported nothing, is a failure that names no case.
+  # A build that failed, or a run that wrote no report, is a failure that names no case.
   if ($exit -ne 0 -and $failed.Count -eq 0) {
-    $failed += "dotnet test exited $exit without a failing case; its output ends: $(($output | Select-Object -Last 5) -join ' | ')"
+    $failed += "the suites exited $exit without a failing case; their output ends: $((@($output) | Select-Object -Last 5) -join ' | ')"
   }
 }
 

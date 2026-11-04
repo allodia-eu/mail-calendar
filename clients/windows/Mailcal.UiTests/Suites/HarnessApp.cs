@@ -1,6 +1,7 @@
 // The launches on the local Stalwart harness, one per set of switches, each shared by the suites of
 // its collection, and the attribute that skips a case when the harness or a Debug build is missing.
 
+using System.Runtime.CompilerServices;
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
 
@@ -161,7 +162,8 @@ public sealed class DarkHarnessCollection : ICollectionFixture<DarkHarnessApp>
 /// </summary>
 public sealed class HarnessFactAttribute : FactAttribute
 {
-    public HarnessFactAttribute()
+    public HarnessFactAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (Environment.GetEnvironmentVariable("MAILCAL_UITESTS_REQUIRE_HARNESS") == "1")
         {

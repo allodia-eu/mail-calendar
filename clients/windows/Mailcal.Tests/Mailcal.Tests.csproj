@@ -23,6 +23,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+    <!-- An xUnit v3 test project is a program of its own, which runs its cases in-process.
+         `dotnet test` reaches it through Microsoft.Testing.Platform, which /global.json selects. -->
+    <OutputType>Exe</OutputType>
     <!-- The generated UniFFI bindings contain unsafe blocks (they marshal RustBuffer by pointer).
          They are never *called* here, no cdylib is loaded, but they must still compile. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -31,9 +34,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
-    <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" />
+    <PackageReference Include="xunit.v3" Version="4.0.2" />
   </ItemGroup>
 
   <ItemGroup>

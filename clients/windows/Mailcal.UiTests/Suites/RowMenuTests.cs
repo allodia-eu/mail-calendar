@@ -18,7 +18,7 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(HarnessCollection.Name)]
-[TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
+[TestMethodOrderer<DeclarationOrderer>]
 [Trait("Dataset", "harness")]
 public sealed class RowMenuTests(HarnessApp harness)
 {

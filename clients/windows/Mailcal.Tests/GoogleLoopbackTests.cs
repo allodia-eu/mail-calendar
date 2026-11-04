@@ -29,7 +29,9 @@ public class GoogleLoopbackTests
     };
 
     // A listener that stops answering hangs a test rather than failing it, so every wait is bounded.
-    private static Task<T> Bounded<T>(Task<T> task) => task.WaitAsync(TimeSpan.FromSeconds(10));
+    private static Task<T> Bounded<T>(Task<T> task) => task.WaitAsync(TimeSpan.FromSeconds(10), Token);
+
+    private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     private static string Page(string message) =>
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>Mail &amp; Calendar</title></head>"
@@ -43,13 +45,13 @@ public class GoogleLoopbackTests
         using var browser = NewBrowser();
         var wait = loopback.WaitForCallbackAsync(CancellationToken.None);
 
-        var favicon = await Bounded(browser.GetAsync(loopback.RedirectUri + "favicon.ico"));
+        var favicon = await Bounded(browser.GetAsync(loopback.RedirectUri + "favicon.ico", Token));
         Assert.Equal(HttpStatusCode.BadRequest, favicon.StatusCode);
         Assert.False(wait.IsCompleted);
 
-        var redirect = await Bounded(browser.GetAsync(loopback.RedirectUri + "?state=s&code=c"));
+        var redirect = await Bounded(browser.GetAsync(loopback.RedirectUri + "?state=s&code=c", Token));
         Assert.Equal(HttpStatusCode.OK, redirect.StatusCode);
-        Assert.Equal(Page("Done &lt;here&gt;"), await redirect.Content.ReadAsStringAsync());
+        Assert.Equal(Page("Done &lt;here&gt;"), await redirect.Content.ReadAsStringAsync(Token));
         Assert.Equal(loopback.RedirectUri + "?state=s&code=c", await Bounded(wait));
     }
 
@@ -62,7 +64,7 @@ public class GoogleLoopbackTests
 
         // Uri.ToString() would hand over `scope=email openid`, a URL with a space in it.
         const string query = "?state=s&code=4%2F0A%2Bb&scope=email%20openid";
-        await Bounded(browser.GetAsync(loopback.RedirectUri + query));
+        await Bounded(browser.GetAsync(loopback.RedirectUri + query, Token));
         Assert.Equal(loopback.RedirectUri + query, await Bounded(wait));
     }
 
@@ -80,9 +82,9 @@ public class GoogleLoopbackTests
             await Assert.ThrowsAsync<OperationCanceledException>(() => Bounded(wait));
         }
 
-        var late = await Bounded(browser.GetAsync(redirectUri + "?state=s&code=c"));
+        var late = await Bounded(browser.GetAsync(redirectUri + "?state=s&code=c", Token));
         Assert.Equal(HttpStatusCode.OK, late.StatusCode);
-        Assert.Equal(Page("Ended"), await late.Content.ReadAsStringAsync());
+        Assert.Equal(Page("Ended"), await late.Content.ReadAsStringAsync(Token));
     }
 
     [Fact]
@@ -94,12 +96,12 @@ public class GoogleLoopbackTests
         {
             redirectUri = loopback.RedirectUri;
             var wait = loopback.WaitForCallbackAsync(CancellationToken.None);
-            await Bounded(browser.GetAsync(redirectUri + "?state=s&code=c"));
+            await Bounded(browser.GetAsync(redirectUri + "?state=s&code=c", Token));
             await Bounded(wait);
         }
 
-        var again = await Bounded(browser.GetAsync(redirectUri + "?state=s&code=c"));
-        Assert.Equal(Page("Done &lt;here&gt;"), await again.Content.ReadAsStringAsync());
+        var again = await Bounded(browser.GetAsync(redirectUri + "?state=s&code=c", Token));
+        Assert.Equal(Page("Done &lt;here&gt;"), await again.Content.ReadAsStringAsync(Token));
     }
 
     [Fact]
@@ -112,7 +114,7 @@ public class GoogleLoopbackTests
             redirectUri = loopback.RedirectUri;
         }
 
-        await Task.Delay(TimeSpan.FromSeconds(1));
-        await Assert.ThrowsAnyAsync<HttpRequestException>(() => Bounded(browser.GetAsync(redirectUri)));
+        await Task.Delay(TimeSpan.FromSeconds(1), Token);
+        await Assert.ThrowsAnyAsync<HttpRequestException>(() => Bounded(browser.GetAsync(redirectUri, Token)));
     }
 }

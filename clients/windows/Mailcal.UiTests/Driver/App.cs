@@ -77,7 +77,7 @@ internal sealed partial class App : IDisposable
         }
         var (environment, pipe) = LaunchEnvironment(env, dataset);
         // Through the shell, so the app inherits none of this process's handles: a child holding the
-        // test host's output open keeps `dotnet test` waiting after the last case.
+        // suites' output open keeps whatever reads it waiting after the last case.
         var launchedAt = DateTimeOffset.Now;
         Process? process = null;
         WithEnvironment(environment, () => process = Process.Start(new ProcessStartInfo(Exe()) { UseShellExecute = true }));
