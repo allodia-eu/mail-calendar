@@ -382,6 +382,15 @@ pub(super) fn reminder(minutes: Option<i32>) -> String {
     }
 }
 
+// Only the showcase hooks ask, so only their builds have it.
+#[cfg(any(debug_assertions, feature = "dev-harness"))]
+impl super::model::CalendarModel {
+    /// Whether an event's detail is open.
+    pub(crate) const fn shows_detail(&self) -> bool {
+        matches!(self.dialog, Some(CalendarDialog::Detail(_)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::reminder;

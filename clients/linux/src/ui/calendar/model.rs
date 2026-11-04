@@ -356,11 +356,6 @@ impl CalendarModel {
         )));
     }
 
-    /// Whether an event's detail is open.
-    pub(crate) const fn shows_detail(&self) -> bool {
-        matches!(self.dialog, Some(CalendarDialog::Detail(_)))
-    }
-
     pub(crate) fn open_event(&mut self, app: &MailcalApp, event: EventIdentity) {
         // The token travels into the read, so the times are the occurrence's rather than the
         // series'; a series' own start is its *first* occurrence's. What comes back names what

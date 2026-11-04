@@ -1123,6 +1123,12 @@ jobs:
       - name: Clippy (warnings as errors)
         run: cargo clippy -p mailcal-linux --all-targets --all-features -- -D warnings
 
+      - name: Check what ships (release, default features)
+        # Clippy above compiles the dev fixtures and the showcase hooks; this is the code the
+        # Flatpak and snap compile, where anything only those hooks use is dead code, and dead code
+        # under the workspace's `-D warnings` is a failed release.
+        run: cargo check -p mailcal-linux --release
+
       - name: Build the unit tests
         # Before the compositor starts, so it has to stay up for the seconds the tests run rather
         # than for the minute the build takes as well.
