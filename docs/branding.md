@@ -55,7 +55,7 @@ build time, so it follows the name with nothing else to keep in step.
 | **Android** | `android:label` from a manifest placeholder; catalog elsewhere | `applicationId` from `brandValue`; code reads `BuildConfig.APPLICATION_ID` | n/a |
 | **Apple** | `CFBundleDisplayName` / `CFBundleName` from `${MAILCAL_APP_NAME}` in `project.yml` | `PRODUCT_BUNDLE_IDENTIFIER` from `${MAILCAL_APP_ID}`; entitlements derive the keychain group and app group from it; code reads the generated `Brand.appID` | n/a |
 | **Windows** | `Package.appxmanifest`, rewritten by `package.ps1` | code reads the generated `Brand.AppId` | `MAILCAL_MSIX_IDENTITY_NAME` / `_PUBLISHER` / `_PUBLISHER_DISPLAY_NAME`: a Partner Center reservation, which does **not** follow the app id. The download we host ourselves is a second package with its own `MAILCAL_MSIX_DIRECT_IDENTITY_NAME` / `_DIRECT_PUBLISHER` ([`windows-channels.md`](windows-channels.md)) |
-| **Linux** | catalog only | the generated `l10n::APP_ID`: the GTK application id, the libsecret schema, `~/.var/app/<id>` | Flatpak manifest, rewritten by `package.sh`; the snap recipe, filled by `package-snap.sh`, under `MAILCAL_SNAP_NAME`: a Snap Store reservation, which does **not** follow the app id |
+| **Linux** | catalog only | the generated `l10n::APP_ID`: the GTK application id, the libsecret schema, `~/.var/app/<id>` | Flatpak manifest, rewritten by `package.sh`; the snap recipe, filled by `package-snap.sh`, under `MAILCAL_SNAP_NAME`: a Snap Store reservation, which does **not** follow the app id; the AUR recipe, filled by `package-aur.sh`, under `MAILCAL_AUR_NAME`, which is also the command it installs in `/usr/bin` |
 
 Three notes on the asymmetry, each deliberate:
 
@@ -105,10 +105,11 @@ the brand's name:
 |---|---|---|
 | **Apple** | The nested `Library/Helpers/<name>.app` and the executable inside it | `MCP_RELAY_NAME` in `project.yml`; code reads `Brand.mcpRelayName` |
 | **Windows** | The App Execution Alias `<name>.exe`; the file it launches stays `mailcal-mcp.exe` | `msix_manifest.py`; code reads `Brand.McpRelayName` |
-| **Linux** | The Flatpak command and the snap app, so `/snap/bin/<snap>.<name>` | the Flatpak manifest's install step; `package-snap.sh`; code reads `l10n::MCP_RELAY_NAME` |
+| **Linux** | The Flatpak command, the snap app, so `/snap/bin/<snap>.<name>`, and `/usr/bin/<name>` in the AUR package | the Flatpak manifest's install step; `package-snap.sh`; `package-aur.sh`; code reads `l10n::MCP_RELAY_NAME` |
 
 A development build that runs from the build directory reaches the relay as cargo left it, under
-`mailcal-mcp`.
+`mailcal-mcp`. Outside a sandbox the app looks beside itself for the brand's name first, which is
+how the AUR package's `/usr/bin/<name>` is found.
 
 On macOS and iOS, `MAILCAL_APPLE_PRODUCT_NAME` names the `.app` and its executable: what Finder
 lists in Applications, what Activity Monitor shows, and the file names `package.sh` gives what it
@@ -228,7 +229,9 @@ does not declare.
    existing installation keeps its mail in; the MSIX trio is what Partner Center matches an upload
    against, and `MAILCAL_MSIX_DIRECT_PUBLISHER` is the subject of the certificate that signs a
    package we host, which Windows compares character for character before it will install one.
-   `MAILCAL_SNAP_NAME` is the name registered in the Snap Store, which can never be renamed.
+   `MAILCAL_SNAP_NAME` is the name registered in the Snap Store, which can never be renamed, and
+   `MAILCAL_AUR_NAME` is the package on the AUR, which only the AUR's own maintainers can merge
+   into another name.
    Nothing there is edited without the corresponding console change.
 5. **Source identifiers do not follow the brand.** The Kotlin package `eu.allodia.mailcal`, the C#
    namespace `Allodia.Mailcal`, the Apple target and scheme `AllodiaMail` and its entitlement

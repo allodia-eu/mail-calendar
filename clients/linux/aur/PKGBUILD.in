@@ -1,0 +1,87 @@
+# The recipe the Arch User Repository builds the Linux client from. clients/linux/package-aur.sh
+# fills every field between at signs from the brand and /VERSION (scripts/dev/aur_pkgbuild.py
+# says how) and writes the PKGBUILD and .SRCINFO a publisher pushes to the AUR, so this file is a
+# template and is not a valid PKGBUILD until it has been filled. This first comment block is left
+# out of what it writes.
+
+# Maintainer: @PUBLISHER_NAME@
+# Written by clients/linux/package-aur.sh in @REPO_URL@, from clients/linux/aur/PKGBUILD.in.
+#
+# Built from source against Arch's own GTK, libadwaita and WebKitGTK, with default features: no
+# OAuth registration reaches a build made on the user's machine, so it offers no Google, Microsoft
+# or Allodia sign-in, like every build from a checkout.
+
+pkgname=@PKGNAME@
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc=@'PKGDESC'@
+arch=('x86_64' 'aarch64')
+url=@'URL'@
+license=(@'LICENSE'@)
+# What the binaries link, and the portal, which namcap cannot see because it is reached over D-Bus:
+# notifications, opening a link and the network monitor all go through it.
+depends=('cairo' 'gdk-pixbuf2' 'glib2' 'glibc' 'graphene' 'gtk4' 'hicolor-icon-theme' 'libadwaita'
+         'libgcc' 'webkitgtk-6.0' 'xdg-desktop-portal')
+# `cargo` is provided by both `rust` and `rustup`. Under rustup the build follows
+# rust-toolchain.toml and uses the compiler this repository pins; under `rust` it uses Arch's, which
+# the workspace's `rust-version` keeps from being older than the pin.
+makedepends=('cargo' 'python')
+checkdepends=('desktop-file-utils' 'appstream')
+# Outside a sandbox the client keeps every password and sign-in in the Secret Service and has no
+# plaintext fallback, so an account cannot be added without one. Optional, because the provider is
+# the desktop's choice and every desktop that ships one has already installed it.
+optdepends=('org.freedesktop.secrets: a Secret Service such as gnome-keyring, which adding an account needs')
+# makepkg's `lto` compiles the C inside crates such as ring to GCC's LTO bytecode, which the Rust
+# linker cannot read, so the link fails on every symbol those objects define.
+options=('!lto')
+source=(@SOURCES@)
+sha256sums=(@SHA256SUMS@)
+
+_srcdir=@SOURCE_DIR@
+
+prepare() {
+  cd "$_srcdir"
+  # The brand's own files are not in the source archive (docs/branding.md), so a branded package
+  # carries them beside it; without them the build is the unbranded default.
+  local file
+  for file in @BRAND_FILES@; do
+    cp "$srcdir/$file" branding/
+  done
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/^host: //p')"
+}
+
+build() {
+  cd "$_srcdir"
+  # .cargo/config.toml sends intermediates to a directory every checkout on the machine shares,
+  # which is right for development and wrong for a package: it is kept inside $srcdir instead.
+  export CARGO_TARGET_DIR="$PWD/target"
+  export CARGO_BUILD_BUILD_DIR="$PWD/target"
+  # The workspace denies every warning, which is a gate on our own changes. A compiler newer than
+  # the pin can add a lint, and that must not stop a user's build.
+  export RUSTFLAGS="${RUSTFLAGS:-} --cap-lints warn"
+  cargo build --frozen --release -p mailcal-linux
+  cargo build --frozen --release -p mailcal-mcp-shim --bin mailcal-mcp
+  python scripts/dev/flatpak_metadata.py --package aur --out-dir metadata
+}
+
+check() {
+  cd "$_srcdir"
+  # The client's own tests need a display and a session bus, and run in CI; what is checked here is
+  # what this recipe generated.
+  desktop-file-validate "metadata/@APP_ID@.desktop"
+  appstreamcli validate --no-net --explain "metadata/@APP_ID@.metainfo.xml"
+}
+
+package() {
+  cd "$_srcdir"
+  install -Dm755 target/release/mailcal-linux "$pkgdir/usr/bin/@PKGNAME@"
+  install -Dm755 target/release/mailcal-mcp "$pkgdir/usr/bin/@MCP_RELAY_NAME@"
+  install -Dm644 "metadata/@APP_ID@.desktop" -t "$pkgdir/usr/share/applications"
+  install -Dm644 "metadata/@APP_ID@.metainfo.xml" -t "$pkgdir/usr/share/metainfo"
+  install -Dm644 "metadata/@APP_ID@.service" -t "$pkgdir/usr/share/dbus-1/services"
+  local size
+  for size in 128 256 512; do
+    install -Dm644 "clients/linux/flatpak/icons/$size.png" \
+      "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/@APP_ID@.png"
+  done
+}

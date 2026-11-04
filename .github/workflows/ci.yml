@@ -1241,6 +1241,52 @@ jobs:
           path: target/snap/*.snap
           if-no-files-found: error
 
+  linux-aur:
+    # The AUR recipe, built the way a user's makepkg builds it: in a clean Arch container, from the
+    # tag's own source archive, with only the dependencies the PKGBUILD names, so one it forgot
+    # fails here. Tag-only for the reason in this file's header. x86_64 only, because Arch publishes
+    # no arm64 image. No registration and no MAILCAL_REQUIRE_INJECTED_CONFIG: an AUR build is made
+    # on the user's machine, where neither exists (BUILDING.md).
+    name: Linux AUR package
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    container: archlinux:base-devel@sha256:767de6eaa40dcfeda5263a48737ea03a782caabdf3a403b6e6a203c7fd333681
+    steps:
+      - name: Install what the checkout and the script need
+        # git before the checkout, or actions/checkout downloads an archive with no repository in
+        # it, and package-aur.sh reads both the file list and `origin` from git.
+        run: pacman -Syu --noconfirm --needed git python namcap sudo
+
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Add a user to build as
+        # makepkg refuses to run as root, and --syncdeps installs through sudo.
+        run: |
+          useradd --create-home builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          chown -R builder .
+
+      - name: Build the AUR package
+        # From the tag's archive at a tag; a manual run on a branch builds the branch with the same
+        # recipe, since its VERSION names the last release rather than this tree.
+        run: |
+          args=()
+          [[ "$GITHUB_REF" == refs/tags/v* ]] || args=(--local)
+          sudo -u builder clients/linux/package-aur.sh "${args[@]}" --build -- --syncdeps --noconfirm
+
+      - name: Keep the recipe and the package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mailcal-aur
+          path: |
+            target/aur/*/PKGBUILD
+            target/aur/*/.SRCINFO
+            target/aur/*/*.pkg.tar.zst
+          if-no-files-found: error
+          include-hidden-files: true
+
   unbranded:
     # The build every from-source checkout makes: no OAuth registrations, no Allodia sign-in, no
     # analytics relay. It is a supported build (BUILDING.md) and it has to stay green — but until
@@ -1310,7 +1356,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux, linux-snap]
+    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux, linux-snap, linux-aur]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
