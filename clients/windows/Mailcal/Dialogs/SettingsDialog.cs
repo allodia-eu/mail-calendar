@@ -134,6 +134,7 @@ public sealed partial class SettingsDialog : ContentDialog
         {
             "allodia" => BuildAllodiaAccount()!,
             "calendar" => BuildCalendar(),
+            "videoconferencing" => BuildVideoconferencing(),
             "reading" => BuildReading(),
             "composing" => BuildComposing(),
             "signatures" => BuildSignatures(),
