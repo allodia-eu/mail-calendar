@@ -164,7 +164,8 @@ pub fn normalize_caldav_base_url(input: &str) -> String {
 ///
 /// Returns [`ConfigError::Incomplete`] if a required field (username, password, the server of
 /// a chosen use) is empty or nothing is chosen, [`ConfigError::Refused`] for colleagues, which
-/// only a provider's directory offers, or [`ConfigError::Serialize`] on a serialization error.
+/// only a provider's directory offers, and for mail under a Nextcloud sign-in, or
+/// [`ConfigError::Serialize`] on a serialization error.
 pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
     let caldav_url = given(setup.caldav_base_url.as_ref());
     let carddav_url = given(setup.carddav_base_url.as_ref());

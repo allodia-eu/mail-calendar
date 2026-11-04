@@ -54,9 +54,11 @@ impl AccountConfig {
     }
 
     /// Clones this account with a new app password from a Nextcloud sign-in: on every DAV
-    /// endpoint, under the login name the server returned, and with `login` describing where it
-    /// came from. A sign-in may return another spelling of the same person's name than the last
-    /// one did, which is why the login changes with the password.
+    /// endpoint, under the login name the server returned, at `dav_url` (the server's own DAV
+    /// endpoint), and with `login` describing where it came from. A sign-in may return another
+    /// spelling of the same person's name than the last one did, which is why the login changes
+    /// with the password. The endpoint replaces whatever address discovery started from, which may
+    /// be a `.well-known` its web server redirects off TLS.
     ///
     /// The account's id is the caller's to keep: it is derived from the login until it is
     /// pinned.
@@ -65,16 +67,19 @@ impl AccountConfig {
         &self,
         login_name: &str,
         app_password: &str,
+        dav_url: &str,
         login: NextcloudLogin,
     ) -> Self {
         let mut updated = self.clone();
         updated.oauth = None;
         let password = Secret::new(app_password.to_owned());
         if let Some(caldav) = &mut updated.caldav {
+            dav_url.clone_into(&mut caldav.base_url);
             login_name.clone_into(&mut caldav.username);
             caldav.password = Some(password.clone());
         }
         if let Some(carddav) = &mut updated.carddav {
+            dav_url.clone_into(&mut carddav.base_url);
             login_name.clone_into(&mut carddav.username);
             carddav.password = Some(password);
         }

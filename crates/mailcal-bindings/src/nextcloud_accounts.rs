@@ -100,7 +100,7 @@ impl MailcalApp {
             }
         };
         let uses: Vec<Capability> = uses.into_iter().map(Capability::from).collect();
-        let mut calendar = config
+        let calendar = config
             .calendar_account_for(&uses)
             .ok_or_else(nothing_to_move)?;
         if server_of(&calendar).as_ref() != Some(&grant.root) {
@@ -108,21 +108,24 @@ impl MailcalApp {
                 "that sign-in was for another server".to_owned(),
             ));
         }
-        // The endpoint the server's own sign-in names, rather than the address discovery started
-        // from, which may be a `.well-known` its web server redirects off TLS.
-        let dav = grant.root.dav_url();
-        if let Some(caldav) = &mut calendar.caldav {
-            caldav.base_url.clone_from(&dav);
-        }
-        if let Some(carddav) = &mut calendar.carddav {
-            carddav.base_url = dav;
-        }
         let calendar = calendar.with_nextcloud_password(
             &grant.credentials.login_name,
             grant.credentials.app_password.expose(),
+            &grant.root.dav_url(),
             grant.login(),
         );
-        self.split_out(&account_id, calendar, *config, &uses)
+        let moved_to = self.split_out(&account_id, calendar, *config, &uses)?;
+        // Linked to an account already set up, which keeps the password it has: this one becomes
+        // no account, so it leaves the server's list of devices now.
+        let stored = self.registry.nextcloud_credentials(&moved_to);
+        if stored.is_none_or(|(_, stored)| stored.app_password != grant.credentials.app_password) {
+            self.revoke_later(
+                grant.root,
+                grant.credentials,
+                "a sign-in for an account already set up",
+            );
+        }
+        Ok(moved_to)
     }
 
     /// Puts the app password a Nextcloud sign-in granted on `account_id`, a calendar and contacts
@@ -175,6 +178,7 @@ impl MailcalApp {
         let mut signed = config.with_nextcloud_password(
             &grant.credentials.login_name,
             grant.credentials.app_password.expose(),
+            &grant.root.dav_url(),
             grant.login(),
         );
         // The id is derived from the login, which a sign-in may spell differently from the last.

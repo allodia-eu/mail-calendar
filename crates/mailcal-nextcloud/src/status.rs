@@ -52,8 +52,7 @@ pub async fn is_nextcloud(client: &reqwest::Client, root: &Root) -> bool {
         );
         return false;
     }
-    response
-        .bytes()
+    crate::read_body(response)
         .await
         .is_ok_and(|body| is_nextcloud_status(&body))
 }

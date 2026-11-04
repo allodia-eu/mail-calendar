@@ -130,6 +130,7 @@ fn signing_in_again_replaces_the_login_and_the_password_together() {
     let again = config.with_nextcloud_password(
         "alice@uni.example",
         "new-password",
+        "https://cloud.example.org/remote.php/dav/",
         NextcloudLogin {
             address: Some("alice@uni.example".to_owned()),
             ..login()
@@ -153,4 +154,25 @@ fn a_typed_password_is_not_a_nextcloud_one() {
     let typed = config.with_password("typed");
     assert_eq!(typed.nextcloud, None);
     assert_eq!(typed.address(), "f3a9c1");
+}
+
+#[test]
+fn signing_in_moves_both_uses_to_the_server_s_own_dav_endpoint() {
+    let mut typed = setup(&[Capability::Calendar, Capability::Contacts]);
+    typed.credential = SetupCredential::Password("typed".to_owned());
+    typed.caldav_base_url = Some("https://cloud.example.org/.well-known/caldav".to_owned());
+    typed.carddav_base_url = Some("https://cloud.example.org/.well-known/carddav".to_owned());
+    let config = load_str(&build_config_toml(&typed).unwrap()).unwrap();
+    let signed = config.with_nextcloud_password(
+        "f3a9c1",
+        "app-password",
+        "https://cloud.example.org/remote.php/dav/",
+        login(),
+    );
+    for base_url in [
+        &signed.caldav.as_ref().unwrap().base_url,
+        &signed.carddav.as_ref().unwrap().base_url,
+    ] {
+        assert_eq!(base_url, "https://cloud.example.org/remote.php/dav/");
+    }
 }

@@ -71,7 +71,8 @@ the bindings for the surfaces) owns every decision; a client owns what it draws 
    is withdrawn (`abandon_nextcloud_sign_in`).
 
 7. **The account is a calendar and contacts account, named by its profile address.** Both uses
-   connect at `{root}/remote.php/dav/`, with the login name the server returned as their username,
+   connect at `{root}/remote.php/dav/`, an account switched over from a typed password included,
+   with the login name the server returned as their username,
    verbatim, because the server accepts the app password under that name and no other spelling.
    The account stores where the password came from in `[nextcloud]` (`server`, the Nextcloud
    `user` id and the profile `address`, from `cloud/user`), and is read by that address, falling
