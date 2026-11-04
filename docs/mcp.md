@@ -280,9 +280,9 @@ and branch come from `/.flatpak-info`; leaving any of them implicit can prompt w
 exists in the user and system installations. The relay and app therefore see the same persistent
 data directory and socket. The snap ships the relay as a second command of the same snap,
 `/snap/bin/<snap>.<relay>`, named in full because `/snap/bin` is not on every MCP client's
-`PATH`; being the same snap, it is confined to the same directory as the app. The AUR package
-installs no sandbox at all: the relay sits beside the app as `/usr/bin/<relay>`, and the copied
-configuration names that path.
+`PATH`; being the same snap, it is confined to the same directory as the app. A native install
+(the tarball `package-native.sh` stages) has no sandbox at all: the relay sits beside the app as
+`/usr/bin/<relay>`, and the copied configuration names that path.
 `/app/bin` exists only inside the sandbox: Flatpak's content-addressed host deployment paths are not
 an executable interface, so the host-side `flatpak` launcher is the stable entry point.
 
@@ -460,7 +460,7 @@ MCP boundary too. Every message-carrying result echoes both back.
 | Listener compiled in | ✅ | ✅ | ✅ | — | — |
 | Settings → Advanced panel | ✅ | ✅ | ✅ | — | — |
 | `AgentHostUi` (composer) | ✅ | ✅ | ✅ | — | — |
-| Relay shipped | ✅ nested `.app` in the bundle | ✅ App Execution Alias | ✅ Flatpak and snap command, `/usr/bin` in the AUR package | — | — |
+| Relay shipped | ✅ nested `.app` in the bundle | ✅ App Execution Alias | ✅ Flatpak and snap command, `/usr/bin` natively | — | — |
 | Config snippet with Copy | ✅ | ✅ | ✅ | — | — |
 | Sandboxed (Mac App Store) build | 🚧 validation passed; runtime round trip owed | — | — | — | — |
 

@@ -1241,51 +1241,92 @@ jobs:
           path: target/snap/*.snap
           if-no-files-found: error
 
-  linux-aur:
-    # The AUR recipe, built the way a user's makepkg builds it: in a clean Arch container, from the
-    # tag's own source archive, with only the dependencies the PKGBUILD names, so one it forgot
-    # fails here. Tag-only for the reason in this file's header. x86_64 only, because Arch publishes
-    # no arm64 image. No registration and no MAILCAL_REQUIRE_INJECTED_CONFIG: an AUR build is made
-    # on the user's machine, where neither exists (BUILDING.md).
-    name: Linux AUR package
+  linux-native:
+    # The tarball a native package is made from (clients/linux/package-native.sh): the release
+    # binaries and the files installed beside them, linked against Ubuntu 26.04's own GTK,
+    # libadwaita and WebKitGTK rather than a runtime's. A publisher packs it as a `.deb` and as an
+    # AUR package. Tag-only for the reason in this file's header, on both architectures because
+    # each is its own compile.
+    name: Linux native (${{ matrix.arch }})
+    needs: changes
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-26.04
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
-    container: archlinux:base-devel@sha256:767de6eaa40dcfeda5263a48737ea03a782caabdf3a403b6e6a203c7fd333681
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-26.04
+          - arch: aarch64
+            runner: ubuntu-26.04-arm
     steps:
-      - name: Install what the checkout and the script need
-        # git before the checkout, or actions/checkout downloads an archive with no repository in
-        # it, and package-aur.sh reads both the file list and `origin` from git.
-        run: pacman -Syu --noconfirm --needed git python namcap sudo
-
       - name: Check out the product core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Add a user to build as
-        # makepkg refuses to run as root, and --syncdeps installs through sudo.
+      - name: Install GTK4 + libadwaita + WebKitGTK and the metadata validators
+        # The mirror bound the Linux job explains.
+        timeout-minutes: 5
         run: |
-          useradd --create-home builder
-          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
-          chown -R builder .
+          sudo apt-get update
+          sudo apt-get install --yes \
+            pkg-config libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev \
+            desktop-file-utils appstream
 
-      - name: Build the AUR package
-        # From the tag's archive at a tag; a manual run on a branch builds the branch with the same
-        # recipe, since its VERSION names the last release rather than this tree.
-        run: |
-          args=()
-          [[ "$GITHUB_REF" == refs/tags/v* ]] || args=(--local)
-          sudo -u builder clients/linux/package-aur.sh "${args[@]}" --build -- --syncdeps --noconfirm
+      - name: Install the pinned Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
 
-      - name: Keep the recipe and the package
+      - name: Build the native tarball
+        env:
+          # As for the Flatpak bundle above: a tag build that lost its registrations fails.
+          MAILCAL_REQUIRE_INJECTED_CONFIG: 1
+        run: clients/linux/package-native.sh
+
+      - name: Keep the tarball
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: mailcal-aur
+          name: mailcal-native-${{ matrix.arch }}
           path: |
-            target/aur/*/PKGBUILD
-            target/aur/*/.SRCINFO
-            target/aur/*/*.pkg.tar.zst
+            target/native/*.tar.xz
+            target/native/*.tar.xz.sha256
           if-no-files-found: error
-          include-hidden-files: true
+
+  linux-native-arch:
+    # The claim the native tarball rests on: built on Ubuntu 26.04, it runs on a distribution whose
+    # libraries are newer. This checks it against today's Arch, in a pinned image brought up to
+    # date, so a soname Arch has moved on from fails here rather than in a user's AUR helper.
+    # x86_64 only, because Arch publishes no arm64 image.
+    name: Linux native on Arch
+    needs: linux-native
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    container: archlinux:base-devel@sha256:767de6eaa40dcfeda5263a48737ea03a782caabdf3a403b6e6a203c7fd333681
+    steps:
+      - name: Install Arch's GTK, libadwaita and WebKitGTK
+        run: pacman -Syu --noconfirm --needed gtk4 libadwaita webkitgtk-6.0
+
+      - name: Take the x86_64 tarball
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mailcal-native-x86_64
+          path: native
+
+      - name: Every library the binaries need resolves
+        run: |
+          set -euo pipefail
+          cd native && sha256sum --check ./*.sha256
+          mkdir root && tar -C root -xJf ./*.tar.xz
+          status=0
+          for binary in root/usr/bin/*; do
+            missing="$(ldd "$binary" | grep 'not found' || true)"
+            if [ -n "$missing" ]; then
+              echo "::error::${binary##*/} needs libraries this Arch does not have: $missing"
+              status=1
+            fi
+          done
+          exit "$status"
 
   unbranded:
     # The build every from-source checkout makes: no OAuth registrations, no Allodia sign-in, no
@@ -1356,7 +1397,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux, linux-snap, linux-aur]
+    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux, linux-snap, linux-native, linux-native-arch]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

@@ -413,38 +413,37 @@ What differs from the Flatpak, each verified on an installed snap:
   slot. With both installed, whichever starts second hands off to the first and exits.
 - **The MCP snippet runs `/snap/bin/<snap>.<relay>`** (docs/mcp.md).
 
-## Package for the AUR
+## Build for a native install
 
-The recipe the Arch User Repository builds from. [`package-aur.sh`](package-aur.sh) fills
-[`aur/PKGBUILD.in`](aur/PKGBUILD.in) from the brand and writes `target/aur/<name>/PKGBUILD` and
-`.SRCINFO` for the tag `VERSION` names, downloading that tag's source archive once to record its
-checksum:
+The tarball a `.deb` or an AUR package is made from: the release binaries and every file installed
+beside them, as a `/usr` tree.
 
 ```sh
-clients/linux/package-aur.sh                                       # the recipe for v<VERSION>
-clients/linux/package-aur.sh --local --build -- --syncdeps          # build this tree with it
-clients/linux/package-aur.sh --local --build -- --syncdeps --install
+clients/linux/package-native.sh    # target/native/<name>-<version>-<arch>.tar.xz and its .sha256
 ```
 
-`--local` packs the tree git does not ignore under the archive's own name, so it builds what a tag
-of this tree would; everything after `--` goes to `makepkg`. The package is named
-`MAILCAL_AUR_NAME` (docs/branding.md), which is also the command it installs in `/usr/bin`.
-A branded recipe also carries the brand's identity file and listing beside the archive, which
-leaves them out, and nothing else: the Linux build reads no other brand file, and the AUR refuses
-a file over 256,000 bytes. Publishing is a push of everything in `target/aur/<name>/` except the
-archive and the built packages to `ssh://aur@aur.archlinux.org/<name>.git`, which makes those
-brand files public and belongs to the publisher like every store push.
+It needs the build packages above, plus `desktop-file-utils` and `appstream` to validate the
+desktop entry and metainfo it generates. It builds in a directory of its own under
+`target/native/build`, so the first run is a cold release compile. The binaries are named
+`MAILCAL_LINUX_PACKAGE_NAME` and `MAILCAL_MCP_RELAY_NAME` (docs/branding.md), and the licence
+files follow the build: GPL-3.0-only, and `LicenseRef-Allodia-1.0` beside it when the Allodia
+sign-in is compiled in.
+
+**Build it on the oldest distribution it should run on.** It links against the host's GTK,
+libadwaita and WebKitGTK, and a binary needs at least the glibc it was linked against, so one
+built on Ubuntu 26.04 runs there and on newer distributions such as Arch, and not the other way
+round. CI builds it there on both architectures at a tag, and checks the x86_64 tarball's
+libraries against current Arch. Packing it as a `.deb` or for the AUR, and publishing either,
+belong to the publisher.
 
 What differs from the Flatpak:
 
-- **It is built from source on the user's machine, against Arch's GTK, libadwaita and WebKitGTK**,
-  not the GNOME runtime this client is verified against; Arch is a rolling release, so those run
-  ahead of the runtime. The compile-time floor holds either way.
-- **It offers no Google, Microsoft or Allodia sign-in**, because no OAuth registration reaches a
-  build made there (BUILDING.md). JMAP sign-in and every password account work as in the Flatpak.
-- **Its data is under `~/.local/share/mailcal/`**, outside any sandbox, so a Flatpak and the AUR
-  package on one machine keep two mailboxes. Both own the application id on the session bus, and
-  whichever starts second hands off to the first and exits.
+- **It runs against the distribution's GTK, libadwaita and WebKitGTK**, not the GNOME runtime
+  this client is verified against. The compile-time floor holds on any distribution as new as
+  Ubuntu 26.04.
+- **Its data is under `~/.local/share/<data dir>/`**, outside any sandbox, so a Flatpak and a
+  native install on one machine keep two mailboxes. Both own the application id on the session
+  bus, and whichever starts second hands off to the first and exits.
 - **It needs a Secret Service**, such as GNOME Keyring: with no sandbox there is no Secret portal,
   and the client has no plaintext fallback.
 - **The MCP snippet runs `/usr/bin/<relay>`** (docs/mcp.md).

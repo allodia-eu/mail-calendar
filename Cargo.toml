@@ -53,10 +53,8 @@ default-members = [
 [workspace.package]
 version = "0.15.0"
 edition = "2024"
-# Every build we make compiles with the pin in rust-toolchain.toml, the Flatpak and snap included,
-# so this moves with it; clippy's `incompatible_msrv` keeps an API newer than this out until it
-# does. The AUR package compiles on the user's machine with whichever cargo provides it, and this
-# is what stops that one being older than the pin.
+# Every build compiles with the pin in rust-toolchain.toml, the Flatpak and snap included, so this
+# moves with it; clippy's `incompatible_msrv` keeps an API newer than this out until it does.
 rust-version = "1.99"
 publish = false
 # The application is GPL-3.0-only (docs/pledge.md, LICENSE). Stated here so `cargo metadata`

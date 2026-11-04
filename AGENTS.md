@@ -428,8 +428,9 @@ either way: it needs no GTK, and it runs on the nightly the gate selects.
 `clients/linux/package.sh` is the packaging gate: it builds `--release` in the GNOME SDK, generates
 the desktop entry and AppStream metainfo from the resolved listing and [`VERSION`](VERSION), and
 validates both against the installed tree. CI runs it on **both** architectures at a tag, never on
-a push, and does the same with its sibling for the snap, `clients/linux/package-snap.sh`. On
-x86_64 it also builds the AUR recipe with `clients/linux/package-aur.sh`, in an Arch container.
+a push, and does the same with its siblings for the snap, `clients/linux/package-snap.sh`, and
+for a native install, `clients/linux/package-native.sh`, whose x86_64 tarball it then checks
+against current Arch's libraries.
 
 ### Gates that stay green over a broken build
 

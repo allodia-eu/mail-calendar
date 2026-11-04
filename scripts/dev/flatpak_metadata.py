@@ -340,7 +340,8 @@ def desktop_entry(
     entry as `<snap>_<app>.desktop`, so the basename no longer names the app id and the shell
     needs `StartupWMClass` to find the launcher instead. snapcraft rewrites `Exec` and `Icon` to
     the snap's own command and file, so those two lines are the same for both. A native package
-    (the AUR's) keeps the basename too, and installs the command under the brand's AUR name.
+    (the tarball `package-native.sh` writes) keeps the basename too, and installs the command
+    under the brand's package name.
 
     `%U` passes the raw URIs through GApplication's command-line signal: `%u` (one) would have
     done for a `mailto:` link, but an "Open With" on several files is one launch carrying all of
@@ -408,8 +409,9 @@ def desktop_entry(
 
 
 def installed_command(package: str = "flatpak") -> str:
-    """The command a package installs the app as: `mailcal` in a Flatpak, the AUR name natively."""
-    return brand.value("MAILCAL_AUR_NAME") if package == "aur" else "mailcal"
+    """The command a package installs the app as: `mailcal` in a sandbox, the brand's package name
+    in a native install, where `/usr/bin` is shared with everything else on the machine."""
+    return brand.value("MAILCAL_LINUX_PACKAGE_NAME") if package == "native" else "mailcal"
 
 
 def dbus_service(*, package: str = "flatpak") -> str:
@@ -426,7 +428,7 @@ def dbus_service(*, package: str = "flatpak") -> str:
         [
             "[D-BUS Service]",
             f"Name={APP_ID}",
-            f"Exec={'/usr' if package == 'aur' else '/app'}/bin/{installed_command(package)}"
+            f"Exec={'/usr' if package == 'native' else '/app'}/bin/{installed_command(package)}"
             " --gapplication-service",
             "",
         ]
@@ -661,7 +663,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--package",
-        choices=("flatpak", "snap", "aur"),
+        choices=("flatpak", "snap", "native"),
         default="flatpak",
         help="the package format the files are installed into",
     )

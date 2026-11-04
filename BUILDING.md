@@ -153,10 +153,6 @@ Every shipping path sets it, and nothing else does:
 It is deliberately **not** workflow-level in CI, and deliberately off by default: an ordinary push,
 a from-source build and every fork must keep building without secrets.
 
-The AUR package is one of those from-source builds, not a shipping path: it compiles on the user's
-machine, where no registration exists, so `clients/linux/package-aur.sh` reads no `.env` and never
-sets the flag.
-
 ### The Flatpak is the one that needs help
 
 `flatpak-builder` runs `cargo build` inside `flatpak build`, which forwards **no** host environment:
