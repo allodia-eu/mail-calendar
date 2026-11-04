@@ -174,6 +174,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             args.location,
                                             args.recurrence,
                                             args.invitees,
+                                            args.meeting?.change(meetingWords(this@MailboxTabContent)),
                                         )),
                                     )
                                 },
@@ -191,6 +192,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             args.recurrence,
                                             args.timesFromOccurrence,
                                             args.invitees,
+                                            args.meeting?.change(meetingWords(this@MailboxTabContent)),
                                         )),
                                     )
                                 },

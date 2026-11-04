@@ -16,7 +16,10 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextInput
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -62,6 +65,9 @@ class SettingsHubTest {
     private var resets = 0
     private var diagnosticsOpened = 0
 
+    /** The Jitsi server the screen reads, kept the way the core keeps it. */
+    private var jitsiServer: String? = null
+
     /** The signature snapshot the screen renders; overridden by the tests that need one. */
     private var signatures: SignaturesSnapshot? = null
 
@@ -90,6 +96,12 @@ class SettingsHubTest {
                 onSetVisibleHours = {},
             calendars = emptyList(),
             onSetDefaultCalendar = { _, _ -> },
+                jitsiServer = { jitsiServer },
+                onSetJitsiServer = { typed ->
+                    val kept = typed.trim().takeIf { it.startsWith("https://") && '?' !in it && '#' !in it }
+                    if (typed.isBlank() || kept != null) jitsiServer = kept?.trimEnd('/')
+                    typed.isBlank() || kept != null
+                },
                 mode = ViewMode.THREADED,
                 onSetMode = {},
                 onSetDarkMessages = {},
@@ -160,6 +172,7 @@ class SettingsHubTest {
                 SettingsCategory.ALLODIA,
                 SettingsCategory.GENERAL,
                 SettingsCategory.CALENDAR,
+                SettingsCategory.VIDEOCONFERENCING,
                 SettingsCategory.READING,
                 SettingsCategory.COMPOSING,
                 SettingsCategory.SIGNATURES,
@@ -172,6 +185,26 @@ class SettingsHubTest {
             ),
             SettingsCategory.entries.toList(),
         )
+    }
+
+    /**
+     * Videoconferencing holds the Jitsi server, empty until the person fills it. An address the
+     * core refuses is said under the field and nothing is kept (docs/conferencing.md, rule 13).
+     */
+    @Test
+    fun videoconferencing_keeps_the_jitsi_server_the_core_accepts_and_says_when_it_refuses() {
+        show(initialCategory = SettingsCategory.VIDEOCONFERENCING)
+        val field = compose.onNodeWithText(L10n.settings_jitsi_server(ctx()))
+        field.performTextInput("http://meet.example.org")
+        field.performImeAction()
+        compose.onNodeWithText(L10n.settings_jitsi_server_invalid(ctx())).assertIsDisplayed()
+        assertEquals(null, jitsiServer)
+
+        field.performTextClearance()
+        field.performTextInput("https://meet.example.org/")
+        field.performImeAction()
+        assertEquals("https://meet.example.org", jitsiServer)
+        compose.onNodeWithText(L10n.settings_jitsi_server_invalid(ctx())).assertDoesNotExist()
     }
 
     /**

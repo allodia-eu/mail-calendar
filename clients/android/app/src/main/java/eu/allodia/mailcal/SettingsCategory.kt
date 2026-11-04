@@ -13,6 +13,7 @@ internal enum class SettingsCategory {
     ALLODIA,
     GENERAL,
     CALENDAR,
+    VIDEOCONFERENCING,
     READING,
     COMPOSING,
     SIGNATURES,
@@ -30,6 +31,7 @@ internal enum class SettingsCategory {
         ALLODIA -> L10n.settings_allodia_heading(ctx)
         GENERAL -> L10n.settings_category_general(ctx)
         CALENDAR -> L10n.settings_category_calendar(ctx)
+        VIDEOCONFERENCING -> L10n.settings_category_videoconferencing(ctx)
         READING -> L10n.settings_category_reading(ctx)
         COMPOSING -> L10n.settings_category_composing(ctx)
         SIGNATURES -> L10n.settings_category_signatures(ctx)
@@ -47,6 +49,7 @@ internal enum class SettingsCategory {
         ALLODIA -> L10n.settings_category_allodia_summary(ctx)
         GENERAL -> L10n.settings_category_general_summary(ctx)
         CALENDAR -> L10n.settings_category_calendar_summary(ctx)
+        VIDEOCONFERENCING -> L10n.settings_category_videoconferencing_summary(ctx)
         READING -> L10n.settings_category_reading_summary(ctx)
         COMPOSING -> L10n.settings_category_composing_summary(ctx)
         SIGNATURES -> L10n.settings_category_signatures_summary(ctx)
@@ -69,6 +72,7 @@ internal enum class SettingsCategory {
             ALLODIA -> R.drawable.ic_account_circle
             GENERAL -> R.drawable.ic_settings
             CALENDAR -> R.drawable.ic_calendar_month
+            VIDEOCONFERENCING -> R.drawable.ic_videocam
             READING -> R.drawable.ic_mail
             COMPOSING -> R.drawable.ic_edit
             SIGNATURES -> R.drawable.ic_signature

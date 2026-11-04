@@ -42,6 +42,10 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onSetDefaultCalendar = { account, calendar ->
                                 instance.setDefaultCalendar(account, calendar)
                             },
+                            // Videoconferencing; once a server is stored, the calendar signal
+                            // redraws the editor's choices.
+                            jitsiServer = { instance.jitsiServer() },
+                            onSetJitsiServer = { instance.setJitsiServer(it) },
                             // Reading, conversation grouping.
                             mode = mode,
                             onSetMode = { instance.dispatch(Intent.SetViewMode(it)) },

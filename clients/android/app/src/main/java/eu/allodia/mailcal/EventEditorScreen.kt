@@ -197,6 +197,14 @@ internal fun EventEditorScreen(
                 )
                 HorizontalDivider()
 
+                // Video meeting: what the chosen calendar offers, decided by the core
+                // (docs/conferencing.md, rules 9 to 11). Drawn only while there is something to
+                // choose or a meeting to take off.
+                if (editor.showsMeetingRow) {
+                    MeetingField(editor)
+                    HorizontalDivider()
+                }
+
                 // Location: settable on create and edit alike, the engine's create draft carries it.
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
@@ -267,6 +275,8 @@ internal fun EventEditorScreen(
             selected = editor.calendar,
             onPick = { choice ->
                 editor.calendar = choice
+                // A meeting the new calendar does not offer goes back to None (rule 9).
+                editor.meeting = editor.effectiveMeeting
                 picking = false
             },
             onDismiss = { picking = false },

@@ -171,9 +171,12 @@ struct CalendarScreenView: View {
                     detail: detail,
                     calendars: currentCalendars(pager: pager, anchor: anchor),
                     onEdit: {
-                        let name = currentCalendars(pager: pager, anchor: anchor)
-                            .row(account: detail.account, calendar: detail.calendar)?.name ?? ""
-                        editor = EventEditorState.edit(detail, calendarName: name)
+                        let row = currentCalendars(pager: pager, anchor: anchor)
+                            .row(account: detail.account, calendar: detail.calendar)
+                        editor = EventEditorState.edit(
+                            detail, calendarName: row?.name ?? "",
+                            meetingChoices: row?.meetingChoices ?? []
+                        )
                         openEvent = nil
                     },
                     onDelete: {

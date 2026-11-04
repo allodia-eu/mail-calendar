@@ -80,6 +80,10 @@ internal fun SettingsScreen(
     // resolved by the core against what exists, so there is no fallback rule on this side.
     calendars: List<CalendarRow>,
     onSetDefaultCalendar: (account: String?, calendar: String?) -> Unit,
+    // Videoconferencing, the person's Jitsi server: read when the row opens, and stored by the
+    // core, which answers `false` for an address it will not keep.
+    jitsiServer: () -> String?,
+    onSetJitsiServer: (String) -> Boolean,
     // Reading
     mode: ViewMode,
     onSetMode: (ViewMode) -> Unit,
@@ -228,6 +232,8 @@ internal fun SettingsScreen(
                     onSetVisibleHours = onSetVisibleHours,
                     calendars = calendars,
                     onSetDefaultCalendar = onSetDefaultCalendar,
+                    jitsiServer = jitsiServer,
+                    onSetJitsiServer = onSetJitsiServer,
                     mode = mode,
                     onSetMode = onSetMode,
                     onSetDarkMessages = onSetDarkMessages,

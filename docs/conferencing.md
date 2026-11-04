@@ -69,9 +69,10 @@ nobody has to dig a link out of the notes.
     (`is_shown`) as its current value. Choosing None takes that meeting off, with the block of text
     and the location it left; choosing another service replaces it; leaving the row alone leaves
     the meeting alone. A meeting no choice makes (a Zoom link from an invitation) is shown by its
-    name as the current value, and can be taken off but not chosen again. The row is drawn only
-    where the person may change the event, and not when the edit is of one occurrence, since a
-    meeting belongs to the series.
+    name as the current value, and can be taken off but not chosen again. A meeting belongs to the
+    series, so in an editor opened on one occurrence a changed meeting makes the save the
+    series', as a changed repeat or roster does, rather than asking which occurrences were meant;
+    the core refuses a meeting change sent with one occurrence.
 12. **A meeting the calendar's server makes is asked of that server**; one made elsewhere is put
     on the event with a block of text in its notes, so invitees whose calendar reads no meeting
     field still have the link. The block's words are the client's, from the catalog, sent with

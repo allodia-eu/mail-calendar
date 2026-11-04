@@ -27,6 +27,10 @@ struct SettingsCategoryDetail: View {
         switch category {
         case .general: generalDetail
         case .calendar: calendarDetail
+        case .videoconferencing:
+            settingsGroup(L10n.settings_jitsi_server(), L10n.settings_jitsi_server_hint()) {
+                JitsiServerField(model: model)
+            }
         case .reading: readingDetail
         case .composing: composingDetail
         case .signatures: signaturesDetail

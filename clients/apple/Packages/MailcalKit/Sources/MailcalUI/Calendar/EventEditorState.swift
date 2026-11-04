@@ -21,12 +21,17 @@ struct CalendarChoice: Equatable {
     let name: String
     var address = ""
     var canInvite = false
+    /// The video meetings the core says the editor may put on an event here.
+    var meetingChoices: [MeetingOption] = []
 }
 
 extension CalendarRow {
     /// The choice this calendar row offers.
     var choice: CalendarChoice {
-        CalendarChoice(account: account, id: id, name: name, address: accountAddress, canInvite: canInvite)
+        CalendarChoice(
+            account: account, id: id, name: name, address: accountAddress, canInvite: canInvite,
+            meetingChoices: meetingChoices
+        )
     }
 }
 
@@ -51,6 +56,8 @@ struct EditTarget {
     let attendees: [EventAttendee]
     /// Whether this account organises the meeting and may change who is invited.
     let canEditInvitees: Bool
+    /// The video meeting the event has, as the core says the editor opens on it.
+    var meeting: EditorMeeting? = nil
 }
 
 /// The arguments a create dispatches.
@@ -68,6 +75,8 @@ struct CreateArgs: Equatable {
     let recurrence: SimpleRecurrence?
     /// The people to invite, or `nil` for an appointment. Never an empty list.
     let invitees: [MeetingInvitee]?
+    /// The video meeting to put on it, or `nil` for none.
+    var meeting: MeetingChange? = nil
 }
 
 /// The arguments an edit dispatches.
@@ -91,6 +100,8 @@ struct UpdateArgs: Equatable {
     let timesFromOccurrence: String?
     /// What changed about who is invited, or `nil` to leave the roster alone. Series only.
     let invitees: MeetingInviteePatch?
+    /// What happens to the video meeting, or `nil` to leave it alone. Series only.
+    var meeting: MeetingChange? = nil
 }
 
 struct EventEditorState: Identifiable {
@@ -114,6 +125,8 @@ struct EventEditorState: Identifiable {
     var repeatDraft: RepeatDraft?
     /// Who is invited, as the controls hold it.
     var roster: InviteeRoster
+    /// What the Video meeting row holds; see `EventEditorMeeting.swift`.
+    var meeting: MeetingSelection = .none
 
     var isEditing: Bool { editing != nil }
 
@@ -172,11 +185,12 @@ struct EventEditorState: Identifiable {
     /// was opened on one occurrence of a series. Mirrors `CalendarDragState.asksAboutTheSeries`,
     /// because it is the same question about the same thing.
     ///
-    /// **A changed repeat or a changed roster settles the question**, so it is not put: both
-    /// belong to the series, and one occurrence is an instance of a rule rather than a holder of
+    /// **A changed repeat, roster or video meeting settles the question**, so it is not put: each
+    /// belongs to the series, and one occurrence is an instance of a rule rather than a holder of
     /// one. The controls say so before the user touches them.
     var asksAboutTheSeries: Bool {
         !(editing?.occurrence.isEmpty ?? true) && repeatChange == nil && inviteeChange == nil
+            && meetingChange() == nil
     }
 
     /// Title present, and the interval non-empty (all-day: end day ≥ start day).
@@ -203,7 +217,8 @@ struct EventEditorState: Identifiable {
                 notes: notes.isEmpty ? nil : notes,
                 location: location.isEmpty ? nil : location,
                 recurrence: newRule(),
-                invitees: newInvitees()
+                invitees: newInvitees(),
+                meeting: meetingChange()
             )
         }
         return CreateArgs(
@@ -218,7 +233,8 @@ struct EventEditorState: Identifiable {
             notes: notes.isEmpty ? nil : notes,
             location: location.isEmpty ? nil : location,
             recurrence: newRule(),
-            invitees: newInvitees()
+            invitees: newInvitees(),
+            meeting: meetingChange()
         )
     }
 
@@ -262,8 +278,9 @@ struct EventEditorState: Identifiable {
             // not offer that combination, and this is the second place it cannot happen.
             recurrence: thisOccurrenceOnly ? nil : repeatChange,
             timesFromOccurrence: thisOccurrenceOnly ? nil : target.occurrence.isEmpty ? nil : target.occurrence,
-            // A roster belongs to the series, as a rule does.
-            invitees: thisOccurrenceOnly ? nil : inviteeChange
+            // A roster belongs to the series, as a rule does, and so does a meeting.
+            invitees: thisOccurrenceOnly ? nil : inviteeChange,
+            meeting: thisOccurrenceOnly ? nil : meetingChange()
         )
     }
 
@@ -305,7 +322,9 @@ struct EventEditorState: Identifiable {
     }
 
     /// An editor prefilled from a stored event's detail.
-    static func edit(_ detail: EventDetail, calendarName: String) -> EventEditorState {
+    static func edit(
+        _ detail: EventDetail, calendarName: String, meetingChoices: [MeetingOption] = []
+    ) -> EventEditorState {
         let start = Self.parseWall(detail.start)
         // The detail's all-day end is exclusive; show the inclusive last day.
         let end = detail.allDay ? Self.previousDay(Self.parseWall(detail.end)) : Self.parseWall(detail.end)
@@ -320,7 +339,8 @@ struct EventEditorState: Identifiable {
             seededRepeat: detail.repeatDraft,
             occurrence: detail.occurrenceStart,
             attendees: detail.attendees,
-            canEditInvitees: detail.canEditInvitees
+            canEditInvitees: detail.canEditInvitees,
+            meeting: detail.editorMeeting
         )
         return EventEditorState(
             editing: target,
@@ -331,9 +351,13 @@ struct EventEditorState: Identifiable {
             end: end,
             location: detail.location ?? "",
             notes: detail.notes ?? "",
-            calendar: CalendarChoice(account: detail.account, id: detail.calendar, name: calendarName),
+            calendar: CalendarChoice(
+                account: detail.account, id: detail.calendar, name: calendarName,
+                meetingChoices: meetingChoices
+            ),
             repeatDraft: detail.repeatDraft,
-            roster: InviteeRoster(editing: target)
+            roster: InviteeRoster(editing: target),
+            meeting: meetingSelection(detail.editorMeeting)
         )
     }
 
