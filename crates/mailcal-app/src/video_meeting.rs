@@ -64,7 +64,7 @@ impl<P: Provider> App<P> {
     ///
     /// # Errors
     ///
-    /// [`JitsiServerRefused`] for anything but an `https` address without a query or fragment,
+    /// `JitsiServerRefused` for anything but an `https` address without a query or fragment,
     /// which then changes nothing.
     pub fn set_jitsi_server(&self, server: Option<&str>) -> Result<(), JitsiServerRefused> {
         let server = match server.map(str::trim).filter(|server| !server.is_empty()) {
