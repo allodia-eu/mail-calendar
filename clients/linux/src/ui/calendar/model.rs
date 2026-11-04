@@ -356,7 +356,8 @@ impl CalendarModel {
         )));
     }
 
-    /// Whether an event's detail is open.
+    /// Whether an event's detail is open. Only the showcase hooks ask, so only their builds have it.
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
     pub(crate) const fn shows_detail(&self) -> bool {
         matches!(self.dialog, Some(CalendarDialog::Detail(_)))
     }
