@@ -61,8 +61,10 @@ impl Rediscovery {
 #[uniffi::export]
 impl MailcalApp {
     /// Hands the core the host's DNS, the resolver setup's detection takes, so it can look again
-    /// for a calendar or address-book server when the stored one stops answering. Call it right
-    /// after the app is built; until it is called the core does not look again.
+    /// for a calendar or address-book server when the stored one stops answering, and find an
+    /// account's sign-in issuer as setup found it. Call it right after the app is built; until it
+    /// is called the core does not look again, and an issuer found without it, or while a lookup
+    /// through it failed, is not kept.
     pub fn set_dns_resolver(&self, resolver: Box<dyn MxResolver>) {
         *self
             .rediscovery
