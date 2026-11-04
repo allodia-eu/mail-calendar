@@ -8,6 +8,9 @@ A placeholder is `@FIELD@` and takes the value as it stands, for the fields the 
 written as PKGBUILD syntax (the source and checksum arrays). `@'FIELD'@` takes it quoted for the
 shell, for free text such as the summary. The template's first comment block describes the
 template rather than the recipe, and is left out.
+
+`--brand-sources` prints, one per line, the publisher's files the recipe carries beside the source
+archive, which leaves them out because git ignores them.
 """
 
 from __future__ import annotations
@@ -19,12 +22,33 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import brand  # noqa: E402  (after the path insert, deliberately)
+
 PLACEHOLDER = re.compile(r"@(')?([A-Z0-9_]+)(')?@")
 PREFIX = "AUR_"
 
 
 class RenderError(Exception):
-    """A placeholder had no value, or was half quoted."""
+    """A placeholder had no value, or was half quoted, or a brand file cannot travel."""
+
+
+def brand_sources() -> list[Path]:
+    """The publisher's files an AUR build reads: its identity, which the Rust build compiles in,
+    and its listing, which the desktop entry and metainfo are written from.
+
+    Never its images: the Linux build installs the committed icons and draws no welcome art, and
+    the AUR refuses any file over 256,000 bytes. The neutral `default-` files are tracked, so they
+    are in the archive already.
+    """
+    listing = brand.listing_source()
+    if listing.resolve().parent != brand.BRAND_DIR.resolve():
+        raise RenderError(
+            f"MAILCAL_LISTING_SOURCE names {listing}, which an AUR build cannot see: "
+            "put the listing in branding/"
+        )
+    candidates = (*brand.OVERRIDE_FILES, listing)
+    return [path for path in candidates if path.is_file() and not path.name.startswith("default")]
 
 
 def render(template: str, fields: Mapping[str, str]) -> str:
@@ -50,8 +74,15 @@ def render(template: str, fields: Mapping[str, str]) -> str:
 
 
 def main(argv: list[str]) -> int:
+    if argv == ["--brand-sources"]:
+        try:
+            print("".join(f"{path}\n" for path in brand_sources()), end="")
+        except RenderError as error:
+            print(f"aur-pkgbuild: {error}", file=sys.stderr)
+            return 1
+        return 0
     if len(argv) != 2:
-        print("usage: aur_pkgbuild.py <template> <out>", file=sys.stderr)
+        print("usage: aur_pkgbuild.py <template> <out> | --brand-sources", file=sys.stderr)
         return 2
     fields = {k[len(PREFIX):]: v for k, v in os.environ.items() if k.startswith(PREFIX)}
     try:

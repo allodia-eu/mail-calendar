@@ -3,13 +3,17 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import aur_pkgbuild  # noqa: E402
+import brand  # noqa: E402
 from bashtools import bash_argv, bash_problem  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -49,6 +53,45 @@ class Render(unittest.TestCase):
     def test_a_half_quoted_placeholder_is_refused(self) -> None:
         with self.assertRaisesRegex(aur_pkgbuild.RenderError, "one side"):
             aur_pkgbuild.render("head\n\n@'V@\n", {"V": "x"})
+
+
+class BrandSources(unittest.TestCase):
+    """Only what the build reads travels with the recipe: the AUR refuses a file over 250 KB."""
+
+    def sources(self, *names: str, listing_override: str = "") -> list[str]:
+        with tempfile.TemporaryDirectory() as scratch:
+            branding = Path(scratch)
+            for name in names:
+                (branding / name).write_text("x", encoding="utf-8")
+            overrides = tuple(branding / f"{name}.env" for name in brand.BRANDS)
+            environ = {"MAILCAL_LISTING_SOURCE": listing_override} if listing_override else {}
+            with mock.patch.object(brand, "BRAND_DIR", branding), mock.patch.object(
+                brand, "OVERRIDE_FILES", overrides
+            ), mock.patch.dict(os.environ, environ):
+                return [path.name for path in aur_pkgbuild.brand_sources()]
+
+    def test_the_identity_and_the_listing_travel_and_nothing_else(self) -> None:
+        self.assertEqual(
+            self.sources(
+                "default.env", "default-listing.md", "default-icon.png",
+                "brand.env", "brand-listing.md", "brand-icon.png", "brand-welcome.png",
+                "brand-subscriptions.md",
+            ),
+            ["brand.env", "brand-listing.md"],
+        )
+
+    def test_the_older_name_travels_too(self) -> None:
+        self.assertEqual(
+            self.sources("default.env", "default-listing.md", "allodia.env", "allodia-listing.md"),
+            ["allodia.env", "allodia-listing.md"],
+        )
+
+    def test_the_neutral_files_stay_in_the_source_archive(self) -> None:
+        self.assertEqual(self.sources("default.env", "default-listing.md"), [])
+
+    def test_a_listing_from_outside_the_checkout_is_refused(self) -> None:
+        with self.assertRaisesRegex(aur_pkgbuild.RenderError, "MAILCAL_LISTING_SOURCE"):
+            self.sources("default.env", listing_override="/elsewhere/listing.md")
 
 
 @unittest.skipIf(bash_problem() != "", bash_problem())
