@@ -364,7 +364,9 @@ impl MailcalApp {
     /// The issuer the provider's own autoconfig names for `email`, when detection finds the
     /// account's mail server there: what setup would have started a sign-in from. Looked for
     /// once per registration of `account_id`, by whichever of the options and the sign-in asks
-    /// first.
+    /// first, through the host's DNS as setup's detection is: a domain whose provider is found
+    /// through its MX record names another issuer, or none, without it. An answer given before
+    /// the host handed its DNS over is not kept.
     fn autoconfig_issuer(
         &self,
         account_id: &str,
@@ -374,7 +376,9 @@ impl MailcalApp {
         if let Some(issuer) = self.registry.sign_in_issuer(account_id) {
             return issuer;
         }
-        let issuer = match self.detect_route(email, None) {
+        let resolver = self.dns_resolver();
+        let keep = resolver.is_some();
+        let issuer = match self.detect_route_with(email, resolver) {
             SetupRecommendation::Imap {
                 imap_host,
                 oauth_issuer,
@@ -384,8 +388,10 @@ impl MailcalApp {
             }
             _ => None,
         };
-        self.registry
-            .remember_sign_in_issuer(account_id, issuer.clone());
+        if keep {
+            self.registry
+                .remember_sign_in_issuer(account_id, issuer.clone());
+        }
         issuer
     }
 
