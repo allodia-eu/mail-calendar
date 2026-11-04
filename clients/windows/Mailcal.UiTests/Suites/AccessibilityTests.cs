@@ -17,7 +17,6 @@ namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(ShowcaseCollection.Name)]
 [Trait("Dataset", "showcase")]
-[TestMethodOrderer<DeclarationOrderer>]
 public sealed partial class AccessibilityTests(ShowcaseApp showcase)
 {
     // A .NET type rather than a phrase: two or more dotted segments and no spaces. A shape rather than

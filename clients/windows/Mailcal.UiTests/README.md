@@ -47,6 +47,11 @@ A suite that sets an account up through the form gets a launch of its own on an 
 store, because what a first run asks is asked once a store; so does one whose case quits the app,
 as a notification click with the app closed does.
 
+The suites run in one order on every machine: collections and the suites in each by name, a
+suite's cases as written ([`Suites/RunOrder.cs`](Suites/RunOrder.cs)). xUnit's own order differs
+between machines, so without it a green run here says nothing about the order CI runs. A suite
+still starts from whatever the one before it left, so it opens what it reads.
+
 ## The agent
 
 [`Mailcal/Services/TestAgent*.cs`](../Mailcal/Services) listens on the named pipe

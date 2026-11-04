@@ -17,7 +17,6 @@ using Xunit;
 
 namespace Allodia.Mailcal.UiTests.Suites;
 
-[TestMethodOrderer<DeclarationOrderer>]
 [Trait("Dataset", "harness")]
 public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFixture<SetupHarnessApp>
 {

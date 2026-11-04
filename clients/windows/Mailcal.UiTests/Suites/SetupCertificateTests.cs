@@ -20,7 +20,6 @@ using Xunit;
 
 namespace Allodia.Mailcal.UiTests.Suites;
 
-[TestMethodOrderer<DeclarationOrderer>]
 [Trait("Dataset", "harness")]
 public sealed class SetupCertificateTests(SetupHarnessApp harness) : IClassFixture<SetupHarnessApp>
 {

@@ -20,7 +20,6 @@ public sealed class CalendarShowcaseApp : ShowcaseApp
 }
 
 [Trait("Dataset", "showcase")]
-[TestMethodOrderer<DeclarationOrderer>]
 public sealed class CalendarSurfacesTests(CalendarShowcaseApp showcase) : IClassFixture<CalendarShowcaseApp>
 {
     // The grid is the whole detail pane when it is drawn at all; the floor only separates drawn from

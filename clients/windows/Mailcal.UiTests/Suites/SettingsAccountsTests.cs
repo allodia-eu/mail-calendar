@@ -20,7 +20,6 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(LinkedHarnessCollection.Name)]
-[TestMethodOrderer<DeclarationOrderer>]
 [Trait("Dataset", "harness")]
 public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
 {

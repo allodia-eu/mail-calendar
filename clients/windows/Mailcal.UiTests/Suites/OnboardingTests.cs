@@ -18,7 +18,6 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Trait("Dataset", "first-run")]
-[TestMethodOrderer<DeclarationOrderer>]
 public sealed class OnboardingTests(FirstRunApp firstRun) : IClassFixture<FirstRunApp>
 {
     private static readonly bool Registered = App.AllodiaRegistered();

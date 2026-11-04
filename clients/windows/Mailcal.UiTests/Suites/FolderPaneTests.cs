@@ -16,7 +16,6 @@ namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(ShowcaseCollection.Name)]
 [Trait("Dataset", "showcase")]
-[TestMethodOrderer<DeclarationOrderer>]
 public sealed class FolderPaneTests(ShowcaseApp showcase)
 {
     private const string First = "eva.jansen@example.com"; // Inbox (4 unread), Drafts, Sent, Archive

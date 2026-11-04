@@ -13,7 +13,6 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(FakeReplyHarnessCollection.Name)]
-[TestMethodOrderer<DeclarationOrderer>]
 [Trait("Dataset", "harness")]
 public sealed class EventAnswerReplyPromptTests(FakeReplyHarnessApp harness)
 {

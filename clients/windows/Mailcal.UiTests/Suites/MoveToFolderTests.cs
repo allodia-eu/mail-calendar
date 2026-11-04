@@ -15,7 +15,6 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(ImapHarnessCollection.Name)]
-[TestMethodOrderer<DeclarationOrderer>]
 [Trait("Dataset", "harness")]
 public sealed class MoveToFolderTests(ImapHarnessApp harness)
 {
