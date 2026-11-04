@@ -189,6 +189,19 @@ snapcraft's `parse-info` takes the store listing from it, so there is still one 
 The store's category, screenshots and banner have no field in a snap and are set in the publisher's
 dashboard, with the gallery images from the same store as Flathub's, below.
 
+### The AUR reads it too
+
+The AUR package installs the same generated metainfo and desktop entry
+(`flatpak_metadata.py --package aur`), and `package-aur.sh` takes the PKGBUILD's fields from the
+same sources, so the AUR adds no copy of its own:
+
+| PKGBUILD field | Taken from |
+|---|---|
+| `pkgdesc` | the English summary: pacman has no per-locale description |
+| `url` | `MAILCAL_WEBSITE_URL`, the metainfo's homepage |
+| `license` | `project_license()` for a build without the licensed core, which every AUR build is |
+| `pkgver` | `/VERSION` |
+
 ---
 
 ## Known gaps

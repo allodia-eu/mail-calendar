@@ -413,6 +413,39 @@ What differs from the Flatpak, each verified on an installed snap:
   slot. With both installed, whichever starts second hands off to the first and exits.
 - **The MCP snippet runs `/snap/bin/<snap>.<relay>`** (docs/mcp.md).
 
+## Package for the AUR
+
+The recipe the Arch User Repository builds from. [`package-aur.sh`](package-aur.sh) fills
+[`aur/PKGBUILD.in`](aur/PKGBUILD.in) from the brand and writes `target/aur/<name>/PKGBUILD` and
+`.SRCINFO` for the tag `VERSION` names, downloading that tag's source archive once to record its
+checksum:
+
+```sh
+clients/linux/package-aur.sh                                       # the recipe for v<VERSION>
+clients/linux/package-aur.sh --local --build -- --syncdeps          # build this tree with it
+clients/linux/package-aur.sh --local --build -- --syncdeps --install
+```
+
+`--local` packs the tree git does not ignore under the archive's own name, so it builds what a tag
+of this tree would; everything after `--` goes to `makepkg`. The package is named
+`MAILCAL_AUR_NAME` (docs/branding.md), which is also the command it installs in `/usr/bin`.
+Publishing is a push of those two files to `ssh://aur@aur.archlinux.org/<name>.git`, which belongs
+to the publisher like every store push.
+
+What differs from the Flatpak:
+
+- **It is built from source on the user's machine, against Arch's GTK, libadwaita and WebKitGTK**,
+  not the GNOME runtime this client is verified against; Arch is a rolling release, so those run
+  ahead of the runtime. The compile-time floor holds either way.
+- **It offers no Google, Microsoft or Allodia sign-in**, because no OAuth registration reaches a
+  build made there (BUILDING.md). JMAP sign-in and every password account work as in the Flatpak.
+- **Its data is under `~/.local/share/mailcal/`**, outside any sandbox, so a Flatpak and the AUR
+  package on one machine keep two mailboxes. Both own the application id on the session bus, and
+  whichever starts second hands off to the first and exits.
+- **It needs a Secret Service**, such as GNOME Keyring: with no sandbox there is no Secret portal,
+  and the client has no plaintext fallback.
+- **The MCP snippet runs `/usr/bin/<relay>`** (docs/mcp.md).
+
 ## Capture the showcase set
 
 ```sh
