@@ -389,7 +389,7 @@ forward_mailto() { # <uri>
   mapfile -t existing_instances < <(
     flatpak ps 2>/dev/null | awk '$NF == "org.gnome.Sdk" { print $1 }'
   )
-  local log="$XDG_DATA_HOME/mailcal/mailcal.log" before launcher_pid received=0
+  local log="$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" before launcher_pid received=0
   before="$(grep -c 'mail link received' "$log" 2>/dev/null || true)"
   sdk_exec \
     --no-a11y-bus \
@@ -448,7 +448,8 @@ run_inside_session() {
   [[ ${#bus[@]} == 2 ]] || die "private AT-SPI bus did not report its address and PID"
   export AT_SPI_BUS_ADDRESS="${bus[0]}"
   ATSPI_BUS_PID="${bus[1]}"
-  /usr/libexec/at-spi2-registryd --dbus-name=org.a11y.atspi.Registry \
+  registryd="$(atspi_registryd_bin)" || die "at-spi2-registryd is required"
+  "$registryd" --dbus-name=org.a11y.atspi.Registry \
     >"$ARTIFACT_DIR/atspi-registry.log" 2>&1 &
   ATSPI_REGISTRY_PID=$!
   registry_ready=0
@@ -516,7 +517,7 @@ run_inside_session() {
   }
   trap cleanup EXIT INT TERM
 
-  "$PYTHON" "$ATSPI" wait --name "Welcome to Allodia Mail & Calendar" --showing --timeout 60
+  "$PYTHON" "$ATSPI" wait --name "Welcome to $MAILCAL_APP_NAME" --showing --timeout 60
   "$PYTHON" "$ATSPI" activate \
     --name "Share usage statistics" --role switch --timeout 20
   "$PYTHON" "$ATSPI" activate --name "See exactly what we send" --timeout 20
@@ -525,9 +526,9 @@ run_inside_session() {
   "$PYTHON" "$ATSPI" activate \
     --name "Close" --within "See exactly what we send" --within-role frame --timeout 20
   "$PYTHON" "$ATSPI" activate --name "Get started" --timeout 20
-  "$PYTHON" "$ATSPI" wait --name "Welcome to Allodia Mail & Calendar" --absent --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Welcome to $MAILCAL_APP_NAME" --absent --timeout 20
 
-  local core_preferences="$XDG_DATA_HOME/mailcal/dev/preferences.toml"
+  local core_preferences="$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/dev/preferences.toml"
   for _ in {1..100}; do
     [[ -f "$core_preferences" ]] && grep -q '^analytics_consent = true$' "$core_preferences" && break
     sleep 0.05
@@ -599,7 +600,7 @@ run_inside_session() {
 
   local calendar_refreshes=0
   for _ in {1..100}; do
-    calendar_refreshes="$(grep -c 'refresh_calendar:' "$XDG_DATA_HOME/mailcal/mailcal.log" 2>/dev/null || true)"
+    calendar_refreshes="$(grep -c 'refresh_calendar:' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" 2>/dev/null || true)"
     (( calendar_refreshes >= 2 )) && break
     sleep 0.1
   done
@@ -678,14 +679,14 @@ run_inside_session() {
     --role text --within "Connect your assistant" --within-role grouping \
     --showing --timeout 20 >"$mcp_config"
   "$PYTHON" - "$mcp_config" "$(sdk_runtime_version)" \
-    "$(sdk_target_dir)/debug/mailcal-mcp" "$XDG_DATA_HOME/mailcal/mcp.sock" <<'PY'
+    "$(sdk_target_dir)/debug/mailcal-mcp" "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mcp.sock" <<'PY'
 import json
 import os
 import sys
 
 config_path, version, relay, endpoint = sys.argv[1:]
 with open(config_path, encoding="utf-8") as source:
-    entry = json.load(source)["mcpServers"]["allodia-mail-and-calendar"]
+    entry = json.load(source)["mcpServers"][os.environ["MAILCAL_MCP_SERVER_NAME"]]
 assert entry["command"] == "flatpak"
 args = entry["args"]
 assert args[1] in ("--user", "--system")
@@ -705,7 +706,7 @@ PY
   "$PYTHON" "$ATSPI" activate \
     --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
 
-  local mcp_endpoint="$XDG_DATA_HOME/mailcal/mcp.sock"
+  local mcp_endpoint="$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mcp.sock"
   for _ in {1..100}; do
     [[ -S "$mcp_endpoint" ]] && break
     sleep 0.05
@@ -718,7 +719,7 @@ import os
 import sys
 
 with open(sys.argv[1], encoding="utf-8") as source:
-    entry = json.load(source)["mcpServers"]["allodia-mail-and-calendar"]
+    entry = json.load(source)["mcpServers"][os.environ["MAILCAL_MCP_SERVER_NAME"]]
 os.execvp(entry["command"], [entry["command"], *entry["args"]])
 ' "$mcp_config" \
       2>"$ARTIFACT_DIR/mcp-relay.stderr.log"
@@ -742,11 +743,12 @@ os.execvp(entry["command"], [entry["command"], *entry["args"]])
     >"$ARTIFACT_DIR/mcp-session.jsonl"
   "$PYTHON" - "$ARTIFACT_DIR/mcp-session.jsonl" <<'PY'
 import json
+import os
 import sys
 
 responses = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
 assert [response["id"] for response in responses] == [1, 2, 3, 4]
-assert responses[0]["result"]["serverInfo"]["name"] == "allodia-mail-and-calendar"
+assert responses[0]["result"]["serverInfo"]["name"] == os.environ["MAILCAL_MCP_SERVER_NAME"]
 tools = [tool["name"] for tool in responses[1]["result"]["tools"]]
 assert "list_accounts" in tools
 assert "create_draft" in tools
@@ -1227,13 +1229,13 @@ PY
   # cannot check; that the core's narrowing reaches the screen, and that two people who merely
   # share a name stay two rows. The fixtures exist for exactly that (docker/stalwart/seed/contacts).
   local contacts_refreshes_before
-  contacts_refreshes_before="$(grep -c 'refresh_contacts:' "$XDG_DATA_HOME/mailcal/mailcal.log" || true)"
+  contacts_refreshes_before="$(grep -c 'refresh_contacts:' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" || true)"
   "$PYTHON" "$ATSPI" activate --name "Contacts" --timeout 20
   "$PYTHON" "$ATSPI" wait \
     --name "Ahmed El Amrani" --role "list item" --enabled --showing --timeout 45
   local contacts_refreshes
   for _ in {1..200}; do
-    contacts_refreshes="$(grep -c 'refresh_contacts:' "$XDG_DATA_HOME/mailcal/mailcal.log" || true)"
+    contacts_refreshes="$(grep -c 'refresh_contacts:' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" || true)"
     (( contacts_refreshes > contacts_refreshes_before )) && break
     sleep 0.05
   done
@@ -1252,7 +1254,7 @@ PY
   for _ in {1..3}; do
     "$PYTHON" "$ATSPI" set-text --name "Search contacts" --text "Vermeulen" --timeout 20
     for _ in {1..40}; do
-      if grep -q 'rebuild_contacts: .*query_chars=9' "$XDG_DATA_HOME/mailcal/mailcal.log"; then
+      if grep -q 'rebuild_contacts: .*query_chars=9' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log"; then
         contact_search_set=1
         break 2
       fi
@@ -1477,7 +1479,7 @@ PY
     --name "copy@example.test: Remove recipient" --role "push button" --showing --timeout 20
   "$PYTHON" "$ATSPI" wait \
     --name "audit@example.test: Remove recipient" --role "push button" --showing --timeout 20
-  grep -Fq "$mailto_uri" "$XDG_DATA_HOME/mailcal/mailcal.log" 2>/dev/null &&
+  grep -Fq "$mailto_uri" "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" 2>/dev/null &&
     die "mail link content reached the diagnostic log"
   capture mailto-composer
   "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
@@ -1593,8 +1595,8 @@ PY
     --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
   "$PYTHON" "$ATSPI" wait --name-substring "$paused" --showing --timeout 20
 
-  if grep -Eq 'critical from |unhandled error from ' "$XDG_DATA_HOME/mailcal/mailcal.log"; then
-    grep -E 'critical from |unhandled error from ' "$XDG_DATA_HOME/mailcal/mailcal.log" \
+  if grep -Eq 'critical from |unhandled error from ' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log"; then
+    grep -E 'critical from |unhandled error from ' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" \
       >"$ARTIFACT_DIR/toolkit-errors.log"
     die "GTK reported a critical or fatal error; see toolkit-errors.log"
   fi
@@ -1627,7 +1629,8 @@ require_cmd sway
 require_cmd grim
 require_cmd pdftotext
 [[ -x "$PYTHON" ]] || die "the distro /usr/bin/python3 is required"
-[[ -x /usr/libexec/at-spi2-registryd ]] || die "at-spi2-registryd is required"
+atspi_registryd_bin >/dev/null ||
+  die "at-spi2-registryd is required: no org.a11y.atspi.Registry.service names one that exists"
 "$PYTHON" -c 'import pyatspi' 2>/dev/null ||
   die "python3-pyatspi is required (install the clients/linux/README.md prerequisites)"
 

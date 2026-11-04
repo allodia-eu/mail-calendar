@@ -61,11 +61,25 @@ sudo apt install --yes \
   at-spi2-core accerciser python3-pyatspi
 ```
 
+Arch Linux builds and runs the gate too. Its packages carry their upstream names, and it also
+packages `bun` and `reuse`, which the workspace gate needs on every host:
+
+```sh
+sudo pacman -S --needed \
+  git curl ca-certificates base-devel pkgconf \
+  gtk4 libadwaita webkitgtk-6.0 \
+  sway grim wtype wayland-utils imagemagick poppler \
+  at-spi2-core accerciser python-atspi \
+  bun reuse
+```
+
+Arch is a rolling release, so its GTK runs ahead of the runtime below rather than beside it.
+
 Then install the GNOME runtime the Flatpak ships on, once; a ~2 GB download, deliberately not
 performed by any script:
 
 ```sh
-sudo apt install --yes flatpak flatpak-builder
+sudo apt install --yes flatpak flatpak-builder    # Arch: sudo pacman -S --needed flatpak flatpak-builder
 flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 flatpak install --user flathub org.gnome.Platform//50 org.gnome.Sdk//50
 ```

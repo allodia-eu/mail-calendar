@@ -154,6 +154,21 @@ imagemagick_bin() {
   return 1
 }
 
+# The AT-SPI registry daemon. Each distribution installs it into its own libexec (`/usr/libexec` on
+# Ubuntu, `/usr/lib` on Arch), and the one place every one of them names it is the D-Bus service
+# file at-spi2-core ships to start it, so that is what is read.
+atspi_registryd_bin() {
+  local dir file daemon
+  local IFS=:
+  for dir in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
+    file="$dir/dbus-1/accessibility-services/org.a11y.atspi.Registry.service"
+    [[ -r "$file" ]] || continue
+    daemon="$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$file" | head -n 1)"
+    if [[ -n "$daemon" && -x "$daemon" ]]; then printf '%s\n' "$daemon"; return 0; fi
+  done
+  return 1
+}
+
 # ---- host detection ---------------------------------------------------------------------------
 
 host_os() { uname -s; }
