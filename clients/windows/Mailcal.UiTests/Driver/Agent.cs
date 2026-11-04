@@ -59,7 +59,7 @@ internal sealed class Agent : IDisposable
         var answer = JsonNode.Parse(line)!.AsObject();
         if (answer["error"] is JsonNode error)
         {
-            throw new InvalidOperationException($"the test agent refused '{request["op"]}': {error}");
+            throw new AgentRefusal($"the test agent refused '{request["op"]}': {error}", (string?)answer["code"]);
         }
         return answer;
     }
@@ -155,11 +155,16 @@ internal sealed class Agent : IDisposable
 
     /// <summary>Opens a combo box, a drop-down or a tree row. A tree row has nothing to open until it
     /// has rows under it, and an account's arrive from its server after the account's own, so a
-    /// row that does not expand yet is waited for, as <see cref="Invoke"/> waits for a disabled
-    /// control.</summary>
+    /// row the agent refuses as not expandable is waited for, as <see cref="Invoke"/> waits for a
+    /// disabled control. Anything else that does not expand is refused at once.</summary>
     internal void Expand(Element element)
     {
-        InvalidOperationException? refused = null;
+        if (element.Type is not ("ListItem" or "TreeItem"))
+        {
+            Call(Handle("expand", element));
+            return;
+        }
+        AgentRefusal? refused = null;
         bool Opened()
         {
             try
@@ -167,7 +172,7 @@ internal sealed class Agent : IDisposable
                 Call(Handle("expand", element));
                 return true;
             }
-            catch (InvalidOperationException e) when (e.Message.EndsWith("does not expand", StringComparison.Ordinal))
+            catch (AgentRefusal e) when (e.Code == "not-expandable")
             {
                 refused = e;
                 return false;
@@ -231,4 +236,11 @@ internal sealed class Agent : IDisposable
         _reader.Dispose();
         _pipe.Dispose();
     }
+}
+
+/// <summary>A request the test agent refused. <see cref="Code"/> names a refusal a suite acts on
+/// (Mailcal/Services/TestAgent.cs), so a suite never matches on the words.</summary>
+internal sealed class AgentRefusal(string message, string? code) : InvalidOperationException(message)
+{
+    internal string? Code { get; } = code;
 }

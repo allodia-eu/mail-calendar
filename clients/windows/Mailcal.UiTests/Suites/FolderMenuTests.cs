@@ -127,12 +127,8 @@ public sealed class FolderMenuTests(HarnessApp harness)
     [HarnessFact]
     public void TheUnifiedInboxRaisesNoMenu() => Case(nameof(TheUnifiedInboxRaisesNoMenu), app =>
     {
-        var group = app.Agent.Find(Filter.Named(Catalog.English("sidebar_all_accounts"), "ListItem") with { Window = app.Mailbox.Hwnd })
-            ?? throw new InvalidOperationException("the pane has no All Accounts group");
-        // The calendar leaves the group's tree closed.
-        app.Agent.Expand(group);
-        var unified = app.Agent.Wait(Filter.Named(Catalog.English("folder_inbox"), "ListItem") with { Under = group }, TimeSpan.FromSeconds(10))
-            ?? throw new InvalidOperationException("the All Accounts group shows no Inbox row");
+        var unified = app.UnifiedInboxRow()
+            ?? throw new InvalidOperationException("the pane shows no All Accounts › Inbox row");
         Assert.Empty(MenuOf(app, unified));
     });
 

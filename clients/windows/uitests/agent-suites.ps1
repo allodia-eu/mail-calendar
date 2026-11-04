@@ -15,7 +15,12 @@ named after what raised it, because a run that leaves one is not a clean one.
 function ConvertFrom-AgentTestReport {
   param([Parameter(Mandatory)] [xml] $Report)
   $result = @{ Passed = @(); Failed = @(); Skipped = @(); Order = @() }
-  $tests = @($Report.SelectNodes('//test') | Sort-Object { [DateTimeOffset]::Parse($_.GetAttribute('start-rtf')) })
+  # A case with no start time, if the runner ever writes one, goes last rather than ending the read.
+  $tests = @($Report.SelectNodes('//test') | Sort-Object {
+      $start = [DateTimeOffset]::MaxValue
+      [void] [DateTimeOffset]::TryParse($_.GetAttribute('start-rtf'), [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref] $start)
+      $start
+    })
   foreach ($test in $tests) {
     $suite = $test.GetAttribute('type') -replace '^.*\.', '' -replace 'Tests$', ''
     $case = "$suite.Tests / $($test.GetAttribute('method'))"

@@ -86,12 +86,8 @@ internal sealed class DraftsFlow(App app)
     }
 
     /// <summary>Whether "Discard draft?" is up: the only dialog these cases raise, so its primary
-    /// button is it. It arrives after the press returns, hence the floor.</summary>
-    internal bool DiscardQuestionUp()
-    {
-        Agent.Settle(floor: TimeSpan.FromMilliseconds(300), cap: TimeSpan.FromMilliseconds(800));
-        return Agent.Find(Filter.ById("PrimaryButton", "Button")) is not null;
-    }
+    /// button is it. Waited for until it is up or the composer has gone.</summary>
+    internal bool DiscardQuestionUp() => app.DiscardQuestion() is not null;
 
     /// <summary>Leaves the open composer the way a person does, by opening a message from the Inbox.
     /// Leaving keeps the draft and asks nothing (docs/drafts.md), so a question here is a failure.</summary>

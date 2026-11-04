@@ -135,7 +135,7 @@ internal static partial class TestAgent
     {
         var peer = PeerOf(HandleIn(request));
         var expand = peer.GetPattern(PatternInterface.ExpandCollapse) as IExpandCollapseProvider
-            ?? throw new AgentException($"'{peer.GetName()}' does not expand");
+            ?? throw new AgentException($"'{peer.GetName()}' does not expand", "not-expandable");
         if (open)
         {
             expand.Expand();

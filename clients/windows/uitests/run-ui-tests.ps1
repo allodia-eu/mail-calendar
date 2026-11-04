@@ -103,11 +103,17 @@ if ($chosen) {
     Remove-Item env:MAILCAL_UITESTS_REQUIRE_HARNESS -ErrorAction SilentlyContinue
   }
   if (Test-Path $report) {
-    $result = ConvertFrom-AgentTestReport -Report ([xml] (Get-Content -Raw $report))
-    Remove-Item $report
-    $passed = $result.Passed
-    $failed = $result.Failed
-    $skipped = $result.Skipped
+    # A report cut short is a failure to name, not a reason to skip the summary and leave the app up.
+    try {
+      $result = ConvertFrom-AgentTestReport -Report ([xml] (Get-Content -Raw $report))
+      $passed = $result.Passed
+      $failed = $result.Failed
+      $skipped = $result.Skipped
+    }
+    catch {
+      $failed += "the suites' report could not be read: $($_.Exception.Message)"
+    }
+    Remove-Item $report -ErrorAction SilentlyContinue
   }
   # A build that failed, or a run that wrote no report, is a failure that names no case.
   if ($exit -ne 0 -and $failed.Count -eq 0) {
