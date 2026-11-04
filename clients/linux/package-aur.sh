@@ -73,12 +73,17 @@ LICENSE="$(metadata 'm.project_license(False)')"
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
-# The brand's own files: whatever git ignores under branding/ (docs/branding.md).
+# The publisher's files the build reads, which git keeps out of the source archive.
+brand_sources="$(python3 "$ROOT/scripts/dev/aur_pkgbuild.py" --brand-sources)" ||
+  die "the brand's files cannot travel with the recipe"
 BRAND_FILES=()
-while IFS= read -r -d '' file; do
-  cp "$ROOT/$file" "$OUT/"
-  BRAND_FILES+=("${file##*/}")
-done < <(git -C "$ROOT" ls-files -z --others --ignored --exclude-standard -- branding/)
+if [[ -n "$brand_sources" ]]; then
+  mapfile -t brand_paths <<<"$brand_sources"
+  for file in "${brand_paths[@]}"; do
+    cp "$file" "$OUT/"
+    BRAND_FILES+=("${file##*/}")
+  done
+fi
 
 if [[ "$LOCAL" == 1 ]]; then
   info "packing this working tree as $ARCHIVE"

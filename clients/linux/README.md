@@ -429,8 +429,11 @@ clients/linux/package-aur.sh --local --build -- --syncdeps --install
 `--local` packs the tree git does not ignore under the archive's own name, so it builds what a tag
 of this tree would; everything after `--` goes to `makepkg`. The package is named
 `MAILCAL_AUR_NAME` (docs/branding.md), which is also the command it installs in `/usr/bin`.
-Publishing is a push of those two files to `ssh://aur@aur.archlinux.org/<name>.git`, which belongs
-to the publisher like every store push.
+A branded recipe also carries the brand's identity file and listing beside the archive, which
+leaves them out, and nothing else: the Linux build reads no other brand file, and the AUR refuses
+a file over 256,000 bytes. Publishing is a push of everything in `target/aur/<name>/` except the
+archive and the built packages to `ssh://aur@aur.archlinux.org/<name>.git`, which makes those
+brand files public and belongs to the publisher like every store push.
 
 What differs from the Flatpak:
 
