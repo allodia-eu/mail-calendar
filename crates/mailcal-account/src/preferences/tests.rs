@@ -45,6 +45,7 @@ fn save_then_load_round_trips_the_preferences() {
             account: "me@imap.example.com".to_owned(),
             calendar: "work".to_owned(),
         }),
+        jitsi_server: Some("https://meet.example.org".to_owned()),
         accounts: BTreeMap::from([(
             "me@imap.example.com".to_owned(),
             AccountSyncSettings {
@@ -104,6 +105,14 @@ fn an_older_preferences_file_has_chosen_no_default_calendar() {
     // back to the first writable calendar: not as a choice naming nothing.
     let prefs: Preferences = toml::from_str("display_timezone = \"Europe/Amsterdam\"").unwrap();
     assert!(prefs.default_calendar.is_none());
+}
+
+#[test]
+fn an_older_preferences_file_has_no_jitsi_server() {
+    // No server is a default: a file written before the setting existed offers no Jitsi.
+    let prefs: Preferences = toml::from_str("display_timezone = \"Europe/Amsterdam\"").unwrap();
+    assert!(prefs.jitsi_server.is_none());
+    assert!(Preferences::default().jitsi_server.is_none());
 }
 
 #[test]

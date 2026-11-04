@@ -85,6 +85,7 @@ async fn a_create_that_repeats_reaches_the_provider_with_its_rule() {
         location: None,
         recurrence: Some(every_weeks(2)),
         invitees: None,
+        meeting: None,
     }))
     .await;
 
@@ -122,6 +123,7 @@ async fn a_create_without_a_rule_still_makes_a_single_event() {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
 
@@ -487,6 +489,7 @@ async fn a_create_of_a_rule_we_could_not_draw_is_refused() {
             ..monthly_fourth_monday()
         }),
         invitees: None,
+        meeting: None,
     }))
     .await;
 

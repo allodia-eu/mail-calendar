@@ -73,6 +73,11 @@ pub(crate) struct CachedCalendar {
     pub(crate) can_write: bool,
     /// Whether a meeting may be organised here (`App::account_can_invite`).
     pub(crate) can_invite: bool,
+    /// Whether a video meeting can be put on its events: the calendar may be written, and its
+    /// account's provider writes meetings.
+    pub(crate) writes_meetings: bool,
+    /// The services whose video meetings this calendar's server makes itself.
+    pub(crate) server_meetings: Vec<engine_api::ConferenceService>,
 }
 
 /// The occurrences and calendars a grid renders from, and the window they cover.
@@ -212,6 +217,7 @@ impl<P: Provider> App<P> {
                 && self.use_problems(&account.id).calendar != Some(crate::UseProblem::Unreachable);
             let can_write = Self::account_can_write(&account);
             let can_invite = Self::account_can_invite(&account);
+            let writes_meetings = Self::account_writes_meetings(&account);
             let mut listed = self.engine.calendars(&account.id).await.unwrap_or_default();
             // The server's default first, so the first writable row `mark_default` falls back to
             // is the calendar `calendar_for_new_events` picks.
@@ -226,6 +232,8 @@ impl<P: Provider> App<P> {
                     server_color: calendar.color,
                     can_write: can_write && calendar.access.may_write,
                     can_invite,
+                    writes_meetings: writes_meetings && calendar.access.may_write,
+                    server_meetings: calendar.native_conferences,
                 });
             }
             // The account's own addresses; primary plus configured aliases. The *persisted* set

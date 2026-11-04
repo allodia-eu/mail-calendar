@@ -101,6 +101,9 @@ pub struct EventDetail {
     /// The meetings the event can be joined at, the calendar server's own first; empty for
     /// most events. See `docs/conferencing.md`.
     pub conferences: Vec<EventConference>,
+    /// The meeting the editor opens showing: the first of [`conferences`](Self::conferences),
+    /// with the choice that made it when one did (`docs/conferencing.md`, rule 11).
+    pub editor_meeting: Option<crate::EditorMeeting>,
     /// Minutes before the start of the first "N before start" reminder, or `None` if the event
     /// has none we summarise. Read-only: no client offers to change a reminder yet.
     pub reminder_minutes: Option<i32>,
@@ -195,6 +198,7 @@ pub fn project_event_detail(
         // meeting is not shown is the one way into it left.
         display_notes: event.notes(is_shown).map(String::from),
         conferences,
+        editor_meeting: crate::editor_meeting(event),
         reminder_minutes: reminder_minutes(event),
         repeat_summary: match &recurrence {
             Some(EventRecurrence::Simple(rule)) => summarize_repeat(rule, start_date(event)),

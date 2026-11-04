@@ -142,6 +142,10 @@ impl<P: Provider> App<P> {
                     color,
                     can_write: calendar.can_write,
                     can_invite: calendar.can_invite,
+                    meeting_choices: crate::calendar_ops::video_meeting::meeting_choices(
+                        calendar,
+                        prefs.jitsi_server().is_some(),
+                    ),
                     is_default: false,
                 }
             })
@@ -194,6 +198,7 @@ mod default_calendar_tests {
             visible: true,
             can_write,
             can_invite: false,
+            meeting_choices: Vec::new(),
             is_default: false,
         }
     }

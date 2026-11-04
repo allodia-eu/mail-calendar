@@ -104,6 +104,7 @@ async fn a_write_reconciles_the_event_scope_without_a_full_refresh() {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
     let after = syncs.load(Ordering::Relaxed);
@@ -191,6 +192,7 @@ async fn a_create_reports_saved_and_signals_the_calendar_status() {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
 
@@ -224,6 +226,7 @@ async fn a_write_whose_reconcile_fails_reports_unconfirmed_not_saved() {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
 
@@ -254,6 +257,7 @@ async fn a_background_refresh_preserves_failure_until_an_explicit_retry() {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
     assert_eq!(
@@ -304,6 +308,7 @@ async fn a_create_routes_to_a_writable_account_not_the_first_calendar_account() 
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
 
@@ -342,6 +347,7 @@ async fn a_create_when_no_account_can_write_sends_nothing_and_says_so() {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
 
@@ -379,6 +385,7 @@ async fn a_create_routes_to_the_chosen_calendar_not_the_first() {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
 
@@ -424,6 +431,7 @@ async fn a_create_with_an_unknown_calendar_still_lands_rather_than_dropping() {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
 
@@ -463,6 +471,7 @@ async fn a_create_routes_to_the_chosen_account() {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
 

@@ -21,6 +21,7 @@ fn kickoff() -> Intent {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     })
 }
 

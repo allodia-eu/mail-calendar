@@ -34,6 +34,7 @@ fn create_meeting() -> Intent {
         location: None,
         recurrence: None,
         invitees: Some(vec![guest()]),
+        meeting: None,
     })
 }
 
@@ -179,6 +180,7 @@ async fn an_appointment_needs_no_scheduling_server() {
         location,
         recurrence,
         invitees: None,
+        meeting: None,
     }))
     .await;
 

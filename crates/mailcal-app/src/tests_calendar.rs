@@ -17,6 +17,8 @@ mod colors;
 
 #[path = "tests_calendar_conference.rs"]
 mod conference;
+#[path = "tests_calendar_video_meeting.rs"]
+mod video_meeting;
 
 /// Today's date, in UTC: the anchor the fixtures are built around.
 fn today() -> engine_api::CalendarDate {

@@ -31,6 +31,7 @@ mod dev_tls;
 mod error;
 mod event_conference;
 mod event_detail;
+mod event_meeting;
 mod google;
 mod graph;
 mod imap;
@@ -79,6 +80,9 @@ use engine_provider::Provider;
 pub use error::AccountError;
 pub use event_conference::{ConferenceState, DialIn, EventConference, event_conferences};
 pub use event_detail::{DetailOccurrence, EventDetail, InviteeEditability, project_event_detail};
+pub use event_meeting::{
+    EditorMeeting, MeetingChange, MeetingChoice, current_meeting, editor_meeting,
+};
 pub use google::{
     GmailMailRoute, GoogleConfig, connect_google_calendar_provider,
     connect_google_contact_providers, connect_google_folder, connect_google_mail_providers,

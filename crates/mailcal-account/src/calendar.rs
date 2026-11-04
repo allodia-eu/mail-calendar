@@ -237,6 +237,10 @@ pub struct EventEdit {
     /// lands on the occurrence its clocks already describe. Setting it requires **both** edges:
     /// a shift is not a shift with one end of it missing.
     pub times_from_occurrence: Option<LocalDateTime>,
+    /// What happens to the event's video meeting: `None` leaves it alone. A meeting belongs
+    /// to the series, so an edit of one [`occurrence`](Self::occurrence) may not carry one
+    /// (`docs/conferencing.md`, rule 11).
+    pub meeting: Option<crate::MeetingChange>,
 }
 
 /// Builds a calendar event **patch** from `edit` against the stored `event`.
