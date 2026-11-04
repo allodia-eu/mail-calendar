@@ -1148,5 +1148,12 @@
 	"settings_account_distinguished": "{address} ({detail})",
 	"remove_account_unlinks": "Também deixa de estar associada a {accounts}.",
 	"settings_account_link_suggested": "Sugestão: {address}",
-	"action_link": "Associar"
+	"action_link": "Associar",
+	"event_meeting_none": "Nenhuma",
+	"event_meeting_conference_id": "ID da conferência",
+	"settings_category_videoconferencing": "Videoconferência",
+	"settings_category_videoconferencing_summary": "O seu servidor Jitsi para reuniões de vídeo",
+	"settings_jitsi_server": "Servidor Jitsi",
+	"settings_jitsi_server_hint": "Uma reunião Jitsi que adicione a um evento é uma sala neste servidor. Se o deixar vazio, nenhum calendário oferece o Jitsi.",
+	"settings_jitsi_server_invalid": "Introduza um endereço que comece por https:// e não contenha ? nem #."
 }

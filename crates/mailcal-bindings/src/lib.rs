@@ -119,6 +119,7 @@ mod records_contacts;
 mod records_event_detail;
 mod records_folders;
 mod records_outbox;
+mod records_video_meeting;
 mod retry;
 pub mod sync_state;
 // The meeting-invitation card: its own file, since `records.rs` is at the 500-line limit.
@@ -258,6 +259,7 @@ pub use records_recurrence::{
     RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SeriesEditWarning, SimpleRecurrence,
 };
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
+pub use records_video_meeting::{EditorMeeting, MeetingChange, MeetingOption, MeetingWords};
 pub use rendering::{
     LinkedText, MessageCanvas, MessageScheme, PrintHeaderLine, linked_text, message_canvas,
     render_message_html, render_message_print_html, should_open_external_link,

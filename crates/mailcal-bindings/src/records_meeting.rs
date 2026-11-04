@@ -109,6 +109,7 @@ mod tests {
                 location: None,
                 recurrence: None,
                 invitees: Some(invitees),
+                meeting: None,
             },
         }
     }
@@ -163,6 +164,7 @@ mod tests {
                     }],
                     remove: vec!["old@example.com".to_owned()],
                 }),
+                meeting: None,
             },
         })
         .expect("a valid roster patch converts");
