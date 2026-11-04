@@ -152,7 +152,7 @@ pub(super) fn detected_fields(
 /// Keeps the password field and its Connect hidden until "Use a password instead" is pressed,
 /// which draws both, makes Connect the form's action and leaves the sign-in as an ordinary
 /// button.
-fn password_behind(
+pub(super) fn password_behind(
     window: &gtk::Window,
     instead: &gtk::Button,
     sign_in: &gtk::Button,

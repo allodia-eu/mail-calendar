@@ -63,6 +63,9 @@ impl AppModel {
                 self.start_imap_login(&form, sender.input_sender().clone());
             }
             AppInput::CancelImapLogin => self.cancel_imap_login(),
+            AppInput::SetupNextcloud(input) => {
+                self.setup_nextcloud_input(input, sender.input_sender().clone());
+            }
             AppInput::ImapPrepared(attempt, prepared) => {
                 self.imap_prepared(attempt, prepared, sender.input_sender().clone());
             }

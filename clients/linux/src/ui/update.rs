@@ -324,6 +324,7 @@ impl AppModel {
                 self.refresh_onboarding_card();
             }
             AppInput::AccountSetupBack => {
+                self.abandon_setup_nextcloud_grant();
                 self.setup.back_to_address(self.has_no_accounts());
                 self.refresh_onboarding_card();
             }
@@ -394,6 +395,7 @@ impl AppModel {
             | AppInput::ImapAuthAnswered { .. }
             | AppInput::StartImapLogin(_)
             | AppInput::CancelImapLogin
+            | AppInput::SetupNextcloud(_)
             | AppInput::ImapPrepared(..)
             | AppInput::ImapCallbackReceived(_)
             | AppInput::ImapFinished(..)

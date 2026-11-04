@@ -1,7 +1,8 @@
 //! The Sign-in section of an IMAP or JMAP account's page: how it signs in now and, once its
 //! server has answered, the switch to the other way in where the server takes both, or signing
 //! in again where it signs in through its provider (`docs/accounts.md` rule 17). Microsoft and
-//! Google keep their own section; an account for a calendar and contacts alone has none.
+//! Google keep their own section; an account for a calendar and contacts alone has one only at a
+//! Nextcloud server (`docs/nextcloud-sign-in.md` rule 7).
 
 use adw::prelude::*;
 use mailcal_bindings::{AccountEntry, AccountKind, AccountSignInOptions, SignInMethod};
@@ -25,6 +26,9 @@ pub(super) enum SignInControl {
     ToPassword,
     /// Switch to signing in through the provider, named when the build knows its name.
     ToProvider(Option<String>),
+    /// Switch a calendar and contacts account from its typed password to signing in with
+    /// Nextcloud.
+    ToNextcloud,
 }
 
 /// What the section shows.
@@ -39,9 +43,12 @@ pub(super) struct SignInSection {
 impl SignInSection {
     /// Whether a switch is offered, which is when the line saying what it keeps belongs.
     pub(super) fn switches(&self) -> bool {
-        self.controls
-            .iter()
-            .any(|control| *control != SignInControl::SignInAgain)
+        self.controls.iter().any(|control| {
+            !matches!(
+                control,
+                SignInControl::SignInAgain | SignInControl::ToNextcloud
+            )
+        })
     }
 }
 
@@ -79,6 +86,31 @@ pub(super) fn section(
     Some(SignInSection { status, controls })
 }
 
+/// The section of a calendar and contacts account, which has one only at a Nextcloud server:
+/// signing in again for one a Nextcloud sign-in made (`nextcloud`), and the switch from a typed
+/// password for one whose server has answered that it is Nextcloud. It never switches to a typed
+/// password: its login is the one the server issued the password under.
+pub(super) fn calendar_section(
+    nextcloud: bool,
+    options: Option<&AccountSignInOptions>,
+) -> Option<SignInSection> {
+    let offered = options.is_some_and(|options| options.nextcloud);
+    if !nextcloud && !offered {
+        return None;
+    }
+    let status = if nextcloud {
+        l10n::settings_account_signs_in_nextcloud()
+    } else {
+        l10n::settings_account_signs_in_password()
+    };
+    let controls = match (offered, nextcloud) {
+        (false, _) => Vec::new(),
+        (true, true) => vec![SignInControl::SignInAgain],
+        (true, false) => vec![SignInControl::ToNextcloud],
+    };
+    Some(SignInSection { status, controls })
+}
+
 /// The words on a control's button.
 pub(super) fn label(control: &SignInControl) -> String {
     match control {
@@ -88,12 +120,17 @@ pub(super) fn label(control: &SignInControl) -> String {
             l10n::settings_account_switch_to_provider_named(provider)
         }
         SignInControl::ToProvider(None) => l10n::settings_account_switch_to_provider().to_owned(),
+        SignInControl::ToNextcloud => l10n::settings_account_switch_to_provider_named("Nextcloud"),
     }
 }
 
 /// The section for `entry`, when its kind has one.
 pub(super) fn group(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::PreferencesGroup> {
-    let section = section(entry.kind, entry.sign_in, ctx.sign_in.options(&entry.id))?;
+    let options = ctx.sign_in.options(&entry.id);
+    let section = match entry.kind {
+        AccountKind::Dav => calendar_section(entry.nextcloud, options),
+        kind => section(kind, entry.sign_in, options),
+    }?;
     Some(draw(
         &section,
         &entry.id,
@@ -128,7 +165,7 @@ pub(super) fn draw(
                 continue;
             }
             SignInControl::SignInAgain => Switch::Again,
-            SignInControl::ToProvider(_) => Switch::ToProvider,
+            SignInControl::ToProvider(_) | SignInControl::ToNextcloud => Switch::ToProvider,
         };
         let (input, account) = (sender.clone(), account.to_owned());
         row.connect_activated(move |_| {

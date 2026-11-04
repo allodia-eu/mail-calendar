@@ -35,7 +35,7 @@ fn the_refusal_keeps_the_account_it_named_and_the_config_it_was_given() {
     );
     let existing = failure.existing.expect("the account already set up");
     assert_eq!(existing.account_id, EXISTING);
-    assert_eq!(existing.config_toml, CONFIG);
+    assert!(matches!(&existing.credential, super::Offered::Config(config) if config == CONFIG));
     assert!(
         !format!("{existing:?}").contains("hunter2"),
         "the config carries the credential and is never printed"

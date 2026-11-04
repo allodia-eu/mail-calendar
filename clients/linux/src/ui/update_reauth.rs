@@ -15,7 +15,7 @@ impl AppModel {
             Some(ExpiredResolution::JmapOauth(account)) => {
                 self.start_jmap_reauth(account, sender);
             }
-            Some(ExpiredResolution::ImapOauth(account)) => {
+            Some(ExpiredResolution::ImapOauth(account) | ExpiredResolution::Nextcloud(account)) => {
                 self.start_account_sign_in(
                     account,
                     super::account_sign_in::Switch::Again,

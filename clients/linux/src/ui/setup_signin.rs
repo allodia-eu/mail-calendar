@@ -10,9 +10,60 @@
 //! rebuild the pane under them, taking a half-typed secret with it.
 
 use super::{Phase, SetupState};
-use crate::ui::setup_model::{AccountKind, DetectedForm, ImapSignIn, JmapSignIn, SetupForm};
+use crate::ui::setup_model::{
+    AccountKind, DetectedForm, ImapSignIn, JmapSignIn, ManualForm, SetupForm,
+};
 
 impl SetupState {
+    /// Records what the manual JMAP pane holds now and answers whether that address still needs
+    /// a pre-flight. Deliberately does **not** rebuild: nothing on screen changes when a probe
+    /// starts, and a rebuild would take the secret the user may already be typing.
+    pub(in crate::ui) fn adopt_manual_jmap(&mut self, typed: ManualForm) -> Option<ManualForm> {
+        if self.phase != Phase::Form {
+            return None;
+        }
+        let Some(SetupForm::Manual(current)) = self.form.as_ref() else {
+            return None;
+        };
+        // Same address, nothing to ask: either the pre-flight is still in flight for it or it
+        // has already answered. Leaving the field a second time must not spend another round
+        // trip, and a re-probe of an in-flight address would answer twice.
+        if current.email == typed.email && current.jmap_server == typed.jmap_server {
+            return None;
+        }
+        let form = ManualForm {
+            sign_in: JmapSignIn::Checking,
+            ..typed
+        };
+        let probe = form.probes_jmap_sign_in().then(|| form.clone());
+        self.form = Some(SetupForm::Manual(form));
+        probe
+    }
+
+    /// Records what the manual IMAP pane holds now and answers whether that server still
+    /// needs a pre-flight. Deliberately does **not** rebuild: nothing on screen changes when a
+    /// probe starts, and a rebuild would take the password the user may already be typing.
+    pub(in crate::ui) fn adopt_manual_imap(&mut self, typed: ManualForm) -> Option<ManualForm> {
+        if self.phase != Phase::Form {
+            return None;
+        }
+        let Some(SetupForm::Manual(current)) = self.form.as_ref() else {
+            return None;
+        };
+        // Same account, nothing to ask: either the pre-flight is in flight for it or it has
+        // already answered. Leaving a field a second time must not spend another dial.
+        if current.email == typed.email && current.imap_host == typed.imap_host {
+            return None;
+        }
+        let form = ManualForm {
+            imap_sign_in: ImapSignIn::Checking,
+            ..typed
+        };
+        let probe = form.probes_imap_sign_in().then(|| form.clone());
+        self.form = Some(SetupForm::Manual(form));
+        probe
+    }
+
     /// The pre-flight's answer, applied to whichever pane asked for it; the detected card or
     /// the manual form. Returns whether it belonged to what is on screen.
     ///

@@ -4,6 +4,7 @@
 use mailcal_bindings::{AccountCapability, AccountSignInOptions, AccountSignInStart};
 
 use super::Attempt;
+use crate::ui::nextcloud_flight::Grant;
 
 /// Where a running change is, which decides what its page offers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,6 +30,9 @@ pub(crate) struct SignInSwitchState {
     /// A switch waiting on what becomes of the calendar and contacts it would not reach, asked
     /// before the browser opens (`docs/accounts.md` rule 18).
     pub(super) question: Option<(Attempt, Box<AccountSignInStart>)>,
+    /// A Nextcloud grant the core could not put on its account yet, kept for the next try
+    /// because the server hands it out once (`docs/nextcloud-sign-in.md` rule 6).
+    grant: Option<(String, Grant)>,
 }
 
 impl SignInSwitchState {
@@ -109,6 +113,35 @@ impl SignInSwitchState {
         if self.running(account).is_some() {
             self.running = None;
         }
+    }
+
+    /// The grant kept for `account`, when there is one.
+    pub(super) fn held_grant(&self, account: &str) -> Option<Grant> {
+        self.grant
+            .as_ref()
+            .filter(|(id, _)| id == account)
+            .map(|(_, grant)| grant.clone())
+    }
+
+    pub(super) fn hold_grant(&mut self, account: String, grant: Grant) {
+        self.grant = Some((account, grant));
+    }
+
+    /// Forgets `account`'s grant: the core used it, or withdrew it.
+    pub(super) fn take_grant(&mut self, account: &str) {
+        if self.held_grant(account).is_some() {
+            self.grant = None;
+        }
+    }
+
+    /// Takes whichever grant is kept, to withdraw it; never one the core is putting on its
+    /// account now.
+    pub(super) fn take_any_grant(&mut self) -> Option<Grant> {
+        let (account, _) = self.grant.as_ref()?;
+        if self.running(account) == Some(Stage::Core) {
+            return None;
+        }
+        self.grant.take().map(|(_, grant)| grant)
     }
 
     fn restage(&mut self, account: &str, stage: Stage) {
