@@ -63,6 +63,7 @@ fn rotating_account(who: &str, endpoint: String) -> (String, engine_api::Account
             issuer: None,
             authorization_server: None,
             protected_resources: Vec::new(),
+            signed_in_as: None,
         }),
         shape: mailcal_account::AccountShape::default(),
     };

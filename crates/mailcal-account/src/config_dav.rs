@@ -131,12 +131,12 @@ pub(crate) async fn dav_credentials(
 }
 
 /// Whether `grant`'s token may go to the DAV server at `base_url` for `dav_use`
-/// (`docs/mail-oauth.md` rule 10): its sign-in asked for that use's scope, the server's host is
+/// (`docs/mail-oauth.md` rule 10): its sign-in asked for that use's scope, the server's URL is
 /// one its issuer's tokens are for (§3.6), and the token would travel over TLS, a loopback server
 /// (a local test server) being the one exception.
 ///
-/// The host is read as the transport's own policy check reads it, so an IPv6 literal, an
-/// internationalised name or a userinfo part is judged as the request will go.
+/// The URL is parsed as the transport parses it, so an IPv6 literal, an internationalised name or
+/// a userinfo part is judged as the request will go.
 #[must_use]
 pub fn grant_reaches(grant: &crate::OAuthGrant, base_url: &str, dav_use: DavUse) -> bool {
     let url = reqwest::Url::parse(&crate::setup::normalize_caldav_base_url(base_url)).ok();
@@ -151,7 +151,7 @@ pub fn grant_reaches(grant: &crate::OAuthGrant, base_url: &str, dav_use: DavUse)
     });
     over_tls
         && mailcal_oauth::requests_dav_use(&grant.scopes, dav_use)
-        && host.is_some_and(|host| grant.token_may_reach(&host))
+        && url.is_some_and(|url| grant.token_may_reach(url.as_str()))
 }
 
 /// The hosts a grant's tokens are for, as the DAV transport asks about each redirect.
@@ -162,7 +162,7 @@ struct IssuerHosts {
 
 impl CredentialHosts for IssuerHosts {
     fn permits(&self, host: &str) -> bool {
-        mailcal_oauth::token_may_reach(&self.issuer, &self.protected_resources, host)
+        mailcal_oauth::token_may_reach_host(&self.issuer, &self.protected_resources, host)
     }
 }
 

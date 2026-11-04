@@ -77,8 +77,21 @@ log "starting Stalwart"
 start_server
 wait_http
 
-# Only a server in bootstrap mode has the Bootstrap object.
-if cli get Bootstrap singleton >/dev/null 2>&1; then
+# Only a server in bootstrap mode has the Bootstrap object; a full server answers that it is not
+# found. Any other answer (a refused login, a schema this CLI cannot read) stops here, because
+# reading it as "already bootstrapped" skips setup and fails later on a missing account.
+in_bootstrap_mode() {
+  if out=$(cli get Bootstrap singleton 2>&1); then
+    return 0
+  fi
+  case "$out" in
+    *"Bootstrap singleton not found"*) return 1 ;;
+  esac
+  log "FAILED to read the Bootstrap object: $out"
+  exit 1
+}
+
+if in_bootstrap_mode; then
   log "completing first-run bootstrap"
   # The mail domain is stated rather than derived: Stalwart derives it from the hostname, and the
   # sign-in server's hostname is `localhost`, which derives to `example.org`.
@@ -113,7 +126,7 @@ if [ "${HARNESS_SEED:-1}" != 0 ]; then
 {"@type":"upsert","object":"Account","matchOn":["name"],"value":{"dave":{"@type":"User","name":"dave","domainId":"#domain","description":"Dave Tester","credentials":{"0":{"@type":"Password","secret":"harness-dave-pw"}},"roles":{"@type":"User"}}}}
 {"@type":"upsert","object":"Account","matchOn":["name"],"value":{"support":{"@type":"Group","name":"support","domainId":"#domain","description":"Support Team"}}}
 {"@type":"upsert","object":"Account","matchOn":["name"],"value":{"alice":{"@type":"User","name":"alice","domainId":"#domain","description":"Alice Tester","credentials":{"0":{"@type":"Password","secret":"harness-alice-pw"}},"roles":{"@type":"User"},"memberGroupIds":{"#support":true}}}}
-{"@type":"upsert","object":"NetworkListener","matchOn":["name"],"value":{"imap":{"name":"imap","bind":{"[::]:143":true},"protocol":"imap","useTls":true,"tlsImplicit":false},"submission":{"name":"submission","bind":{"[::]:587":true},"protocol":"smtp","useTls":true,"tlsImplicit":false}}}
+{"@type":"upsert","object":"NetworkListener","matchOn":["name"],"value":{"imap":{"name":"imap","bind":{"[::]:143":true},"protocol":"imap","useTls":true,"implicitTls":false},"submission":{"name":"submission","bind":{"[::]:587":true},"protocol":"smtp","useTls":true,"implicitTls":false}}}
 EOF
 fi
 

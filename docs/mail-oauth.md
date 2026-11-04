@@ -127,14 +127,17 @@ is recorded here.
       `…:contacts`, or the earlier drafts' `caldav`/`carddav`). The requested set, because a
       server may grant in its own vocabulary (Fastmail answers with JMAP capability names and
       `https://www.fastmail.com/dev/protocol-*`), and because a server is not relied on to refuse
-      a token without the scope (Stalwart opens CalDAV for a mail-only one). A sign-in that named
+      a token without the scope. A sign-in that named
       no scope beyond `offline_access`, because its issuer advertised none, is not refused here:
       the server applies its own default grant, as rule 12 reads the same case for mail;
-    - the server's host is one the issuer's tokens are for (§3.6): one its
-      `protected_resources` names, or, when it lists none, one with the issuer host's
-      registrable domain by the public suffix list. Checked again on every redirect discovery
-      follows, through the engine's `CredentialHosts` policy, so a `.well-known` or SRV hop
-      cannot carry the token off the issuer's hosts. The token travels over TLS only; a loopback
+    - the server is one the issuer's tokens are for (§3.6): its URL matches an entry of the
+      issuer's `protected_resources` by §3.4's rules (scheme, host, port and path; a bare host
+      name names an IMAP or SMTP host and never a calendar), or, when it lists none, its host has
+      the issuer host's registrable domain by the public suffix list
+      (`mailcal_oauth::token_may_reach`). Checked again on every redirect discovery follows,
+      through the engine's `CredentialHosts` policy, so a `.well-known` or SRV hop cannot carry
+      the token off the issuer's hosts. That policy is handed the host alone, so there an HTTPS
+      entry must name it (`mailcal_oauth::token_may_reach_host`). The token travels over TLS only; a loopback
       server is the one exception, for a local test server.
 
     Otherwise nothing is sent and the use needs a sign-in of its own
@@ -185,30 +188,37 @@ is recorded here.
   `openid-configuration` URL included, in the challenge it returns when it *rejects* a token,
   so a client could discover the authorization server by presenting a deliberately invalid one.
   That would leave a failed authentication on the person's account before they had signed in
-  once, on the screen they are most likely to abandon, and the field is optional anyway:
-  Stalwart answers a bad token with a bare `NO [AUTHENTICATIONFAILED]` and no challenge at all.
+  once, on the screen they are most likely to abandon, and the field is optional anyway, so a
+  server that sends one (Stalwart does, naming its `openid-configuration`) cannot be the only
+  way a sign-in is found.
 
 - **The sign-in names fewer resources than §3.4 asks** (RFC 8707). The profile names every
   endpoint the account will use: IMAP and SMTP by bare host name, DAV by URL. Deployed servers
-  refuse that, so an endpoint is named only when something from the issuer's side vouches for
+  refuse that, or accept it only for the names they list, so an endpoint is named only when
+  something from the issuer's side vouches for
   it (`mailcal_oauth::resource_for`): the issuer's `protected_resources`, or the endpoint's own
   RFC 9728 metadata naming this issuer with a `resource` covering it, sent as that value. IMAP and
   SMTP are named only when the issuer lists them. The exchange and every refresh name none, which
   §3.5 defines as a token for everything authorised; a JMAP account still sends the one `resource`
-  its session's metadata published, on refresh too. Measured 2026-10-16:
+  its session's metadata published, on refresh too. Measured at Fastmail on 2026-10-16 and at
+  Stalwart 1.0.2 on 2026-11-03:
 
-  | Resource sent | Stalwart 0.16.24 | Fastmail |
+  | Resource sent | Stalwart 1.0.2 | Fastmail |
   |---|---|---|
   | none | accepted | `invalid_target` |
-  | bare IMAP/SMTP host name (§3.4's form) | refused | `invalid_target` |
-  | DAV URL | accepted | `invalid_target` |
-  | its JMAP session URL, or its origin | accepted | accepted (the session URL only) |
+  | bare IMAP/SMTP host name (§3.4's form) | accepted for its own host name, which it lists; `invalid_target` for another | `invalid_target` |
+  | DAV URL | accepted under `https` | `invalid_target` |
+  | its JMAP session URL, or its origin | accepted under `https` | accepted (the session URL only) |
 
-  Neither binds a token to what was named: one Fastmail token issued for its JMAP session opens
-  IMAP, SMTP, CalDAV and CardDAV, and a Stalwart token opens all of its endpoints. Neither sends
-  the token response's `username` (§3.5), so the address the person typed stays the account's
-  identity. Where a server does send one, signing an existing account in refuses a grant issued
-  for another account ([`accounts.md`](accounts.md) rule 17).
+  Stalwart publishes `protected_resources` (its HTTPS origins and its host name bare) and every
+  resource under `https`, whatever scheme it was reached over. Neither binds a token to what was
+  named: one Fastmail token issued for its JMAP session opens IMAP, SMTP, CalDAV and CardDAV, and
+  a Stalwart token opens every endpoint its granted scopes cover, a mail-only one being refused
+  by CalDAV. Stalwart sends the token response's `username` (§3.5): the login name, which may be
+  another spelling of the address the person typed, such as an alias. The typed address stays
+  the account's, and the grant records the name (`signed_in_as`); signing the account in again
+  refuses a grant issued for another account than that name, or than the address where none was
+  recorded ([`accounts.md`](accounts.md) rule 17). Fastmail sends none.
 
 - **No mechanism knob.** Which SASL mechanism carries the token is negotiated by the engine
   from what the server advertises, and a caller able to pin one would be encoding which
@@ -268,7 +278,8 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 - **The harness's sign-in is reached through a rewritten document.** The sign-in server
   publishes `http://localhost:28081`, which neither issuer channel may name, so its HTTPS front
   republishes the metadata under `https://127.0.0.1` and withdraws the RFC 9207 flag with the
-  issuer (`docker/stalwart/front/nginx.conf`). Rule 11 is therefore proven offline only. The
+  issuer, and serves the server's calendars at `https://localhost`, which it lists
+  (`docker/stalwart/front/nginx.conf`). Rule 11 is therefore proven offline only. The
   seeded server keeps publishing `https://mail.test.local`, which resolves nowhere, and answers
   "only pre-registered apps".
 - **A rotated refresh token needs the host's credential store.** Every client already has one

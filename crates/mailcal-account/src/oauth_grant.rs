@@ -83,6 +83,13 @@ pub struct OAuthGrant {
     /// registrable domain as the hosts a token may reach. Empty when it listed none.
     #[serde(default)]
     pub protected_resources: Vec<String>,
+    /// The account the issuer said this grant is for (`username` in its token response,
+    /// `draft-ietf-mailmaint-oauth-public` §3.5), which may differ from the address the person
+    /// typed: an alias of the login name, say. A later sign-in must name the same account. `None`
+    /// where the issuer named none, and for a grant stored before this field existed; the
+    /// account's address stands in for it then.
+    #[serde(default)]
+    pub signed_in_as: Option<String>,
 }
 
 impl OAuthGrant {
@@ -141,6 +148,9 @@ impl OAuthGrant {
         if let Some(server) = &self.authorization_server {
             table.insert("authorization_server".into(), server.clone().into());
         }
+        if let Some(account) = &self.signed_in_as {
+            table.insert("signed_in_as".into(), account.clone().into());
+        }
         if !self.protected_resources.is_empty() {
             table.insert(
                 "protected_resources".into(),
@@ -167,11 +177,25 @@ impl OAuthGrant {
             .unwrap_or_else(|| origin_of(&self.token_endpoint).to_owned())
     }
 
-    /// Whether a token from this grant may be sent to `host`
-    /// (`draft-ietf-mailmaint-oauth-public` §3.6).
+    /// This grant, replacing `stored` on a sign-in again: a token response that names no account
+    /// leaves the name `stored` recorded, which a later sign-in is still held to.
     #[must_use]
-    pub fn token_may_reach(&self, host: &str) -> bool {
-        mailcal_oauth::token_may_reach(&self.issuer_identifier(), &self.protected_resources, host)
+    pub fn replacing(mut self, stored: Option<&Self>) -> Self {
+        if self.signed_in_as.is_none() {
+            self.signed_in_as = stored.and_then(|grant| grant.signed_in_as.clone());
+        }
+        self
+    }
+
+    /// Whether a token from this grant may be sent to `endpoint`, a request URL or a non-HTTP
+    /// endpoint's bare host name (`draft-ietf-mailmaint-oauth-public` §3.6).
+    #[must_use]
+    pub fn token_may_reach(&self, endpoint: &str) -> bool {
+        mailcal_oauth::token_may_reach(
+            &self.issuer_identifier(),
+            &self.protected_resources,
+            endpoint,
+        )
     }
 }
 

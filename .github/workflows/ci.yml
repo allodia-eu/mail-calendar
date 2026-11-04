@@ -410,55 +410,13 @@ jobs:
       - name: Build + test the Allodia sign-in feature
         run: cargo test -p mailcal-bindings --features allodia-license
 
-      - name: Run the gated JMAP live integration test
-        env:
-          STALWART_HTTP_ADDR: 127.0.0.1:28080
-          STALWART_ACCOUNT: alice@test.local
-          STALWART_PASSWORD: harness-alice-pw
-        run: cargo test -p mailcal-account --test live_jmap -- --nocapture
-
-      # "Sign in with your provider" for a JMAP account, against the harness's sign-in server:
-      # discovery, registration, the code exchange and a connect on the grant. The seeded server
-      # is asserted to offer no sign-in, which is what the clients' setup-form tests rely on.
-      - name: Run the gated JMAP sign-in live test
-        env:
-          STALWART_OAUTH_HTTP_ADDR: localhost:28081
-          STALWART_HTTP_ADDR: 127.0.0.1:28080
-        run: cargo test -p mailcal-bindings --test live_jmap_oauth -- --nocapture
-
-      # The same for an IMAP account, whose authorization server is learnt over HTTPS only: the
-      # provider's own autoconfig naming an issuer, the capability probe, registration, the code
-      # exchange and a connect over OAUTHBEARER, against the sign-in server as its HTTPS front
-      # presents it. The seeded server is asserted to stay on "only pre-registered apps".
-      # MAILCAL_EXTRA_CA is the harness's own certificates, which a debug build trusts.
-      - name: Run the gated IMAP sign-in live tests
-        env:
-          MAILCAL_EXTRA_CA: ${{ github.workspace }}/docker/stalwart/tls/harness-ca.pem
-          MAILCAL_HARNESS_IMAP: localhost:12993
-          MAILCAL_HARNESS_OAUTH_IMAP: localhost:12995
-        run: |
-          scripts/dev/harness.sh certs
-          cargo test -p mailcal-account --test live_imap_auth -- --nocapture
-          cargo test -p mailcal-bindings --test live_imap_oauth -- --nocapture
-
-      # Shared mailboxes over JMAP and IMAP: alice's sign-in lists the `support` group mailbox,
-      # and choosing it syncs the group's mail, sends as its address and files the copy in its
-      # own Sent.
-      - name: Run the gated shared-mailbox live test
-        env:
-          STALWART_HTTP_ADDR: 127.0.0.1:28080
-          MAILCAL_EXTRA_CA: ${{ github.workspace }}/docker/stalwart/tls/harness-ca.pem
-          MAILCAL_HARNESS_IMAP: localhost:12993
-        run: cargo test -p mailcal-bindings --test live_shared_mailboxes -- --nocapture
-
-      # A conversation's row menu over JMAP and IMAP: the three seeded conversations are gathered
-      # from the Inbox, Sent Items and Drafts, and each menu answers its newest message.
-      - name: Run the gated row-menu live test
-        env:
-          STALWART_HTTP_ADDR: 127.0.0.1:28080
-          MAILCAL_EXTRA_CA: ${{ github.workspace }}/docker/stalwart/tls/harness-ca.pem
-          MAILCAL_HARNESS_IMAP: localhost:12993
-        run: cargo test -p mailcal-bindings --test live_row_menu -- --nocapture
+      # Every gated live suite against the harness, from the one list `harness.sh test` keeps, so a
+      # suite added there runs here too: JMAP and IMAP accounts, their sign-ins through the
+      # harness's sign-in server and its HTTPS front, shared mailboxes, row menus, link suggestions
+      # and calendars that sign in or split off. The script reads the harness's certificates first,
+      # which a debug build trusts through MAILCAL_EXTRA_CA.
+      - name: Run the gated live suites
+        run: scripts/dev/harness.sh test
 
       - name: Dump Stalwart logs on failure
         if: failure()

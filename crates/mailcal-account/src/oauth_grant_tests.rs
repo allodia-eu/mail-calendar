@@ -24,6 +24,7 @@ fn grant() -> OAuthGrant {
         issuer: Some("https://api.example.com".to_owned()),
         authorization_server: None,
         protected_resources: Vec::new(),
+        signed_in_as: None,
     }
 }
 
@@ -102,6 +103,18 @@ fn the_table_round_trips_every_field_the_next_refresh_needs() {
         Some("https://api.example.com/jmap/session")
     );
     assert_eq!(read.issuer.as_deref(), Some("https://api.example.com"));
+    assert_eq!(read.signed_in_as, None, "nothing named, nothing written");
+
+    let named = OAuthGrant {
+        signed_in_as: Some("alice@example.com".to_owned()),
+        ..grant()
+    };
+    let read: OAuthGrant = toml::from_str(&toml::to_string(&named.to_table()).unwrap()).unwrap();
+    assert_eq!(
+        read.signed_in_as.as_deref(),
+        Some("alice@example.com"),
+        "the account a later sign-in is held to"
+    );
 }
 
 #[test]
@@ -118,4 +131,26 @@ fn a_grant_stored_before_the_issuer_field_existed_still_loads() {
     assert!(read.issuer.is_none());
     assert!(read.resource.is_none());
     assert!(read.provider_config().expected_issuer.is_none());
+}
+
+#[test]
+fn a_sign_in_again_that_names_no_account_keeps_the_name_already_recorded() {
+    let stored = OAuthGrant {
+        signed_in_as: Some("alice@example.com".to_owned()),
+        ..grant()
+    };
+    assert_eq!(
+        grant().replacing(Some(&stored)).signed_in_as.as_deref(),
+        Some("alice@example.com")
+    );
+    let renamed = OAuthGrant {
+        signed_in_as: Some("alice@example.org".to_owned()),
+        ..grant()
+    };
+    assert_eq!(
+        renamed.replacing(Some(&stored)).signed_in_as.as_deref(),
+        Some("alice@example.org"),
+        "a name in the response is the grant's own"
+    );
+    assert_eq!(grant().replacing(None).signed_in_as, None);
 }

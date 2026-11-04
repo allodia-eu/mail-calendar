@@ -68,7 +68,7 @@ scripts/dev/harness.sh up            # start + seed; blocks until healthy
 scripts/dev/harness.sh up --bulk     # also seed dozens of extra varied messages (fuller mailbox)
 scripts/dev/harness.sh status        # health + host ports + accounts
 scripts/dev/harness.sh reset         # wipe and re-bootstrap from empty, clients included
-scripts/dev/harness.sh test          # gated JMAP live test: a fast smoke check
+scripts/dev/harness.sh test          # every gated live suite, as CI runs them
 scripts/dev/harness.sh deliver       # SMTP-inject a fresh message (bob->alice): new inbound mail
 scripts/dev/harness.sh down          # stop
 ```

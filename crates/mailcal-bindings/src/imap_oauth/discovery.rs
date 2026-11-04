@@ -243,16 +243,11 @@ async fn resources_to_name(
             continue;
         };
         let reachable = mailcal_oauth::requests_dav_use(scopes, dav_use)
-            && url::Url::parse(&url)
-                .ok()
-                .and_then(|parsed| parsed.host_str().map(str::to_owned))
-                .is_some_and(|host| {
-                    mailcal_oauth::token_may_reach(
-                        &metadata.issuer,
-                        &metadata.protected_resources,
-                        &host,
-                    )
-                });
+            && mailcal_oauth::token_may_reach(
+                &metadata.issuer,
+                &metadata.protected_resources,
+                &url,
+            );
         if !reachable {
             log::info!("imap oauth: the {label} server is not one this sign-in reaches; not named");
             continue;

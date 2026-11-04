@@ -86,81 +86,102 @@ pub fn app(name: &str, store: RecordingStore) -> Arc<MailcalApp> {
 
 /// The single value of query parameter `name`, failing the test when it is absent or repeated.
 pub fn param(url: &url::Url, name: &str) -> String {
-    optional_param(url, name)
-        .unwrap_or_else(|| panic!("the authorization URL carries no `{name}`: {url}"))
-}
-
-/// The single value of query parameter `name`, or `None` when it is absent. Fails the test when
-/// it is repeated.
-pub fn optional_param(url: &url::Url, name: &str) -> Option<String> {
     let mut values = url
         .query_pairs()
         .filter(|(key, _)| key == name)
         .map(|(_, value)| value);
-    let value = values.next()?;
+    let value = values
+        .next()
+        .unwrap_or_else(|| panic!("the URL carries no `{name}`: {url}"));
     assert!(values.next().is_none(), "`{name}` appears twice: {url}");
-    Some(value.into_owned())
+    value.into_owned()
 }
 
 /// Signs in on the login page as the user would, and returns the redirect the browser would then
 /// follow back to the app at `redirect_uri`.
 ///
-/// Stalwart's `/login` page is a web app that posts the account's credentials, together with the
-/// authorization request it was opened with, to `/api/auth`, and redirects to `redirect_uri` with
-/// the code it gets back. This makes that same post. Everything in it is read from the
-/// authorization URL the core built, so a parameter the core dropped or mangled fails here. That
-/// call is Stalwart's web UI API, not a standard; if a Stalwart bump breaks it, the failure names
-/// this step.
+/// Stalwart's `/login` page is a script that hands the authorization request it was opened with,
+/// verbatim, to `/api/auth`: it asks who the client is, posts the account's credentials, and, the
+/// first time a client asks for an account, posts the person's consent. The last answer carries
+/// the redirect, code, state and issuer included, built by the server. This takes the same steps
+/// with the query string the core built, so a parameter the core dropped or mangled fails here.
+/// Those calls are Stalwart's web UI API, not a standard; if a Stalwart bump breaks them, the
+/// failure names this step.
 pub fn sign_in_as_the_user(authorization_url: &url::Url, redirect_uri: &str) -> String {
     let origin = authorization_url.origin().ascii_serialization();
-    let mut body = serde_json::json!({
-        "type": "authCode",
-        "accountName": LOGIN,
-        "accountSecret": PASSWORD,
-        "clientId": param(authorization_url, "client_id"),
-        "redirectUri": param(authorization_url, "redirect_uri"),
-        "scope": param(authorization_url, "scope"),
-        "codeChallenge": param(authorization_url, "code_challenge"),
-        "codeChallengeMethod": param(authorization_url, "code_challenge_method"),
-        "state": param(authorization_url, "state"),
-    });
-    // A JMAP request names the resource it wants a token for (RFC 8707); an IMAP one has no URI
-    // to name, and sends none.
-    if let Some(resource) = optional_param(authorization_url, "resource") {
-        body["resource"] = serde_json::json!([resource]);
-    }
-    let runtime = tokio::runtime::Runtime::new().expect("a runtime for the login post");
-    let answer: serde_json::Value = runtime.block_on(async {
+    let query = authorization_url
+        .query()
+        .expect("the authorization URL carries its request")
+        .to_owned();
+    let runtime = tokio::runtime::Runtime::new().expect("a runtime for the login posts");
+    let location = runtime.block_on(async {
         let http = mailcal_oauth::discovery_client().expect("the shared HTTP client");
-        let response = http
-            .post(format!("{origin}/api/auth"))
-            .header("Content-Type", "application/json")
-            .body(body.to_string())
-            .send()
-            .await
-            .expect("the login page's API answers");
-        let status = response.status();
-        let text = response.text().await.expect("a readable login answer");
+        let client = login_api(http.get(format!("{origin}/api/auth/client?{query}"))).await;
         assert!(
-            status.is_success(),
-            "the login post was refused ({status}): {text}"
+            client.get("error").is_none(),
+            "the login page refused the authorization request: {client}"
         );
-        serde_json::from_str(&text).expect("the login answer is JSON")
+        let post = |body: serde_json::Value| {
+            login_api(
+                http.post(format!("{origin}/api/auth"))
+                    .header("Content-Type", "application/json")
+                    .body(body.to_string()),
+            )
+        };
+        let mut answer = post(serde_json::json!({
+            "type": "authCode",
+            "accountName": LOGIN,
+            "accountSecret": PASSWORD,
+            "query": query,
+        }))
+        .await;
+        if answer["type"] == "consentRequired" {
+            let token = answer["token"]
+                .as_str()
+                .expect("a consent token")
+                .to_owned();
+            answer = post(serde_json::json!({
+                "type": "authConsent",
+                "token": token,
+                "query": query,
+                "consent": true,
+            }))
+            .await;
+        }
+        assert!(
+            answer["type"] == "authenticated" || answer["type"] == "redirect",
+            "Stalwart did not sign alice in: {answer}"
+        );
+        answer["location"]
+            .as_str()
+            .expect("the redirect back to the app")
+            .to_owned()
     });
-    assert_eq!(
-        answer["type"], "authenticated",
-        "Stalwart did not sign alice in: {answer}"
+    assert!(
+        location.starts_with(redirect_uri),
+        "the sign-in redirects to the app's own URI ({redirect_uri}): {location}"
     );
-    let code = answer["client_code"]
-        .as_str()
-        .expect("an authorization code");
-    let issuer = answer["iss"].as_str().expect("the issuer (RFC 9207)");
+    let callback = url::Url::parse(&location).expect("the redirect parses");
+    assert_eq!(
+        param(&callback, "state"),
+        param(authorization_url, "state"),
+        "the redirect carries the request's own state"
+    );
+    location
+}
 
-    let mut callback = url::Url::parse(redirect_uri).expect("the redirect URI parses");
-    callback
-        .query_pairs_mut()
-        .append_pair("code", code)
-        .append_pair("state", &param(authorization_url, "state"))
-        .append_pair("iss", issuer);
-    callback.into()
+/// Sends one of the login page's requests and reads its JSON answer, failing on any other status.
+async fn login_api(request: reqwest::RequestBuilder) -> serde_json::Value {
+    let response = request
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .expect("the login page's API answers");
+    let status = response.status();
+    let text = response.text().await.expect("a readable login answer");
+    assert!(
+        status.is_success(),
+        "the login page's API refused ({status}): {text}"
+    );
+    serde_json::from_str(&text).expect("the login answer is JSON")
 }

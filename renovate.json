@@ -118,6 +118,13 @@
       "matchFileNames": ["docker/**"],
       "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest", "bump"],
       "groupName": "mail harness image"
+    },
+    {
+      "description": "Stalwart and its CLI move together, majors included. The harness configures the server through the CLI, which reads the server's own schema, so a server bump the CLI cannot parse stops the harness before it bootstraps.",
+      "matchFileNames": ["docker/**"],
+      "matchPackageNames": ["stalwartlabs/stalwart", "ghcr.io/stalwartlabs/cli"],
+      "groupName": "Stalwart",
+      "separateMajorMinor": false
     }
   ]
 }

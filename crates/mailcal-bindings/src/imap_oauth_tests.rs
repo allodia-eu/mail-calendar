@@ -58,7 +58,7 @@ fn the_pending_handle_round_trips_through_the_host() {
 
 #[test]
 fn the_completed_account_stores_the_grant_and_no_secret_anywhere() {
-    let (setup, _grant) = pending().into_grant("rt-value".to_owned());
+    let (setup, _grant) = pending().into_grant("rt-value".to_owned(), None);
     let toml = mailcal_account::build_config_toml(&setup).expect("serializable");
     let config = mailcal_account::load_str(&toml).expect("round-trips");
 
@@ -80,7 +80,7 @@ fn the_detected_transports_survive_into_the_stored_account() {
     // A STARTTLS account signed in over the browser must still dial 143/587. The security
     // travels as a flag across the hop and is the kind of thing a refactor drops silently:
     // the account then connects to a port the provider may not even have open.
-    let (setup, _grant) = pending().into_grant("rt".to_owned());
+    let (setup, _grant) = pending().into_grant("rt".to_owned(), None);
     let config = mailcal_account::load_str(&mailcal_account::build_config_toml(&setup).unwrap())
         .expect("round-trips");
     assert_eq!(config.imap.as_ref().unwrap().addr, "imap.example.com:143");
@@ -111,7 +111,7 @@ fn the_uses_chosen_on_the_found_card_survive_the_hop() {
     };
     let encoded = serde_json::to_string(&login).unwrap();
     let decoded: PendingImapLogin = serde_json::from_str(&encoded).unwrap();
-    let (setup, _grant) = decoded.into_grant("rt".to_owned());
+    let (setup, _grant) = decoded.into_grant("rt".to_owned(), None);
     let config = mailcal_account::load_str(&mailcal_account::build_config_toml(&setup).unwrap())
         .expect("round-trips");
 
@@ -128,7 +128,7 @@ fn an_imap_grant_names_no_rfc_8707_resource() {
     // There is no URI form for an IMAP endpoint in the profile, and a server that scopes
     // tokens by resource applies its default without one. Inventing `imap://…` would risk
     // `invalid_target` on the exchange and on every refresh after it.
-    let (_setup, grant) = pending().into_grant("rt".to_owned());
+    let (_setup, grant) = pending().into_grant("rt".to_owned(), None);
     assert!(grant.resource.is_none());
     assert!(grant.provider_config().resource.is_none());
 }
@@ -198,7 +198,7 @@ fn the_three_offers_survive_the_ffi_boundary_distinctly() {
 fn the_stored_grant_keeps_what_decides_where_its_tokens_may_go() {
     // A connect applies the profile's host rule from these two fields, without asking the
     // issuer again; losing either at the TOML round trip would widen or empty it silently.
-    let (setup, _grant) = pending().into_grant("rt-value".to_owned());
+    let (setup, _grant) = pending().into_grant("rt-value".to_owned(), None);
     let toml = mailcal_account::build_config_toml(&setup).expect("serializable");
     let grant = mailcal_account::load_str(&toml)
         .expect("round-trips")
@@ -212,9 +212,9 @@ fn the_stored_grant_keeps_what_decides_where_its_tokens_may_go() {
         grant.protected_resources,
         ["https://dav.example.com", "imap.example.com"]
     );
-    assert!(grant.token_may_reach("dav.example.com"));
+    assert!(grant.token_may_reach("https://dav.example.com/"));
     assert!(
-        !grant.token_may_reach("www.example.com"),
+        !grant.token_may_reach("https://www.example.com/"),
         "the list replaces the domain"
     );
 }

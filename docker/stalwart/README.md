@@ -14,8 +14,8 @@ throwaway credentials and never holds real data.
 ## Run it
 
 One self-bootstrapping service, plus the unseeded [sign-in server](#the-sign-in-server). It
-completes Stalwart v0.16's first-run setup with Stalwart's CLI, creates the accounts, and
-seeds the dataset inside its entrypoint, then reports healthy once seeding is done:
+completes Stalwart's first-run setup with Stalwart's CLI, creates the accounts, and seeds the
+dataset inside its entrypoint, then reports healthy once seeding is done:
 
 ```sh
 cd docker/stalwart
@@ -115,7 +115,7 @@ Windows, and the Android emulator (see [`../../docs/debugging.md`](../../docs/de
 | HTTP: JMAP + OAuth (`stalwart-oauth`) | 8080 | `28081` | plaintext, reached as `localhost` |
 | IMAP (`stalwart-oauth`)       | 993       | `12995` | implicit TLS (self-signed) |
 | SMTP submission (`stalwart-oauth`) | 465  | `12467` | implicit TLS (self-signed) |
-| HTTPS front (`stalwart-oauth-front`) | 443 | `443` | TLS (self-signed), reached as `localhost` and `127.0.0.1` |
+| HTTPS front (`stalwart-oauth-front`) | 443 | `443` | TLS (self-signed): autoconfig and the sign-in server's DAV as `localhost`, its metadata as `127.0.0.1` |
 | CalDAV + CardDAV (`stalwart-oauth-front`) | 8443 | `12443` | TLS under a certificate no debug build trusts, so setting a calendar up against it asks to accept it |
 
 ### Why these are not the engine's numbers
@@ -153,8 +153,9 @@ client's setup form shows it the password flow its tests are written against. He
 `localhost` too, because Stalwart accepts a resource indicator only for its own hostname. Change
 the host port and the public URL together.
 
-The test signs in on the login page by posting that page's own form to `/api/auth`. It is
-Stalwart's web UI API rather than a standard, so a bump that moves it fails at that step, by name.
+The test signs in on the login page by sending that page's own requests to `/api/auth`: the
+credentials, then the consent a first sign-in asks for. They are Stalwart's web UI API rather
+than a standard, so a bump that moves them fails at that step, by name.
 
 ### Signing in to an IMAP account
 
@@ -164,8 +165,10 @@ neither. `stalwart-oauth-front` presents the sign-in server the way a provider o
 would, and [`front/nginx.conf`](front/nginx.conf) says why it has two names and what its rewrite
 costs:
 
-- `https://localhost` serves an autoconfig for `alice@localhost`: IMAP on `12995`, submission on
-  `12467`, and `127.0.0.1` as the issuer. Nothing else, because the seeded server is dialled as
+- `https://localhost` serves an autoconfig for `alice@localhost` (IMAP on `12995`, submission on
+  `12467`, and `127.0.0.1` as the issuer) and the sign-in server's CalDAV and CardDAV. It is the
+  server's own host name, so the issuer's `protected_resources` lists it and its tokens may go
+  there. Never authorization-server metadata, because the seeded server is dialled as
   `localhost` too, and metadata here would offer it a sign-in its token check refuses.
 - `https://127.0.0.1` serves the sign-in server's metadata, republished under that issuer. Every
   endpoint in it stays `http://localhost:28081`, so the **browser** needs no certificate trusted.
@@ -186,8 +189,10 @@ so `adb reverse` has to carry `443`, `12995` and `28081` first; that route has n
 ## Seeded accounts
 
 Created at startup by the `stalwart-cli apply` plans in [`entrypoint.sh`](entrypoint.sh): Stalwart
-v0.16 has no configuration file, and each plan is an `upsert`, so a warm volume converges rather
-than duplicating. Add an account or a setting there, as another line of the plan.
+has no configuration file, and each plan is an `upsert`, so a warm volume converges rather than
+duplicating. Add an account or a setting there, as another line of the plan. A field's name is
+the server's registry schema, which `stalwart-cli describe <Object>` prints, and an unknown name
+is refused when the plan is applied.
 
 | Account            | Password           | Role                          |
 | ------------------ | ------------------ | ----------------------------- |
@@ -200,7 +205,10 @@ than duplicating. Add an account or a setting there, as another line of the plan
 member, so her JMAP session lists it as a second account and her IMAP login reaches it under
 `Shared Folders/support@test.local`, with one message in its Inbox. Bob also grants alice lookup
 and read on his own Inbox (`Shared Folders/bob@test.local`). The two differ on purpose: alice may
-write to the first and only read the second, and nothing above the folder rights says so.
+write to the first and only read the second. Over JMAP the account says so too: Bob's share reports
+`isReadOnly: true` and lists no `submission`, while the group's reports `false` and lists it. The
+folder rights stay the authority, since a share mixing writable and read-only folders reports
+`false`.
 
 ## Layout
 

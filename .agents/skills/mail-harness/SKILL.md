@@ -20,7 +20,7 @@ because a specific real message/provider behaviour triggers the bug. It's the sa
 | `scripts/dev/harness.sh status` | Health + the host-port table + seeded accounts. |
 | `scripts/dev/harness.sh logs [-f]` | The server's own logs (seeding, requests). |
 | `scripts/dev/harness.sh reset [--bulk]` | Wipe volumes and re-bootstrap from empty (clean slate), **and clear this host's client dev stores with it**, because the new server reuses the old ids (`--keep-clients` opts out; see below). |
-| `scripts/dev/harness.sh test` | Run the gated JMAP live test against it (a fast smoke check). |
+| `scripts/dev/harness.sh test` | Run every gated live suite against it, as CI does. |
 | `scripts/dev/harness.sh down` | Stop and remove the container. |
 
 ## What you get

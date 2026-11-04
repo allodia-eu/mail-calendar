@@ -89,10 +89,15 @@ struct PendingJmapLogin {
 }
 
 impl PendingJmapLogin {
-    /// Rebuilds the grant this pending login will become, given the tokens it was exchanged
-    /// for. Kept next to the struct so the fields carried across the browser hop and the
-    /// fields persisted afterwards cannot drift apart.
-    fn into_grant(self, refresh_token: String) -> (String, String, OAuthGrant) {
+    /// Rebuilds the grant this pending login will become, given the refresh token it was
+    /// exchanged for and the account the token response named. Kept next to the struct so the
+    /// fields carried across the browser hop and the fields persisted afterwards cannot drift
+    /// apart.
+    fn into_grant(
+        self,
+        refresh_token: String,
+        signed_in_as: Option<String>,
+    ) -> (String, String, OAuthGrant) {
         let grant = OAuthGrant {
             client_id: self.client_id,
             client_secret: self.client_secret.map(Secret::new),
@@ -105,6 +110,7 @@ impl PendingJmapLogin {
             issuer: self.issuer,
             authorization_server: None,
             protected_resources: Vec::new(),
+            signed_in_as,
         };
         (self.email, self.base_url, grant)
     }
@@ -246,6 +252,7 @@ impl MailcalApp {
                 .then(|| metadata.issuer.clone()),
             authorization_server: None,
             protected_resources: Vec::new(),
+            signed_in_as: None,
         };
         log::info!("jmap oauth: opening the authorization page; awaiting the redirect");
         start_login(email, base_url, &grant)
@@ -307,6 +314,7 @@ impl MailcalApp {
             issuer: pending.issuer.clone(),
             authorization_server: None,
             protected_resources: Vec::new(),
+            signed_in_as: None,
         };
         let oauth = OAuthClient::new(grant_shell.provider_config())
             .map_err(|err| MailcalError::Config(err.to_string()))?;
@@ -350,7 +358,8 @@ impl MailcalApp {
             tokens.expires_at,
             tokens.scope,
         );
-        let (email, base_url, grant) = pending.into_grant(refresh_token.expose().to_owned());
+        let (email, base_url, grant) =
+            pending.into_grant(refresh_token.expose().to_owned(), tokens.username.clone());
         let config = JmapAccountConfig {
             email,
             base_url,
@@ -401,7 +410,7 @@ mod tests {
         // The whole point of persisting these: a later launch refreshes without repeating
         // discovery, and never re-registers a client (the brief's "persist the DCR client id
         // per install").
-        let (email, base_url, grant) = pending().into_grant("rt-value".to_owned());
+        let (email, base_url, grant) = pending().into_grant("rt-value".to_owned(), None);
         assert_eq!(email, "alice@example.com");
         assert_eq!(base_url, "https://api.example.com");
         assert_eq!(grant.client_id, "client-abc");
@@ -420,7 +429,7 @@ mod tests {
 
     #[test]
     fn the_config_toml_carries_the_grant_and_no_stored_secret() {
-        let (email, base_url, grant) = pending().into_grant("rt-value".to_owned());
+        let (email, base_url, grant) = pending().into_grant("rt-value".to_owned(), None);
         let toml = mailcal_account::JmapAccountConfig {
             email,
             base_url,
@@ -453,7 +462,7 @@ mod tests {
     /// user's account, and a dropped resource fails the exchange with `invalid_target`.
     #[test]
     fn an_authorization_is_built_from_the_grant_it_is_given() {
-        let (email, base_url, grant) = pending().into_grant("rt-value".to_owned());
+        let (email, base_url, grant) = pending().into_grant("rt-value".to_owned(), None);
 
         let start = start_login(email, base_url, &grant).unwrap();
 
@@ -477,7 +486,7 @@ mod tests {
 
     #[test]
     fn the_toml_never_shows_a_secret_in_a_debug_dump() {
-        let (email, base_url, grant) = pending().into_grant("rt-value".to_owned());
+        let (email, base_url, grant) = pending().into_grant("rt-value".to_owned(), None);
         let config = mailcal_account::JmapAccountConfig {
             email,
             base_url,
