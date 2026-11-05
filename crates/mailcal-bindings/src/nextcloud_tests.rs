@@ -2,7 +2,7 @@
 //! password is named, and what a grant carries. A sign-in that connects an account is the live
 //! suite's (`tests/live_nextcloud_sign_in.rs`).
 
-use super::{NextcloudGrant, client_name, test_grant};
+use super::{NextcloudGrant, client_name, password_name, test_grant};
 use crate::{
     NextcloudSignInPoll, Platform,
     nextcloud_mock::{boot, mock_nextcloud},
@@ -26,9 +26,18 @@ pub(crate) fn has_header(request: &str, header: &str) -> bool {
 #[test]
 fn the_app_password_is_named_after_the_app_and_the_platform() {
     let name = client_name(Some(Platform::Ipados));
-    assert_eq!(name, format!("{} (iPadOS)", env!("MAILCAL_APP_NAME")));
+    assert_eq!(name, password_name(env!("MAILCAL_APP_NAME"), "iPadOS"));
     assert!(client_name(Some(Platform::Windows)).ends_with(" (Windows)"));
     assert!(client_name(None).ends_with(')'));
+}
+
+#[test]
+fn the_name_leaves_out_an_ampersand_the_grant_page_would_escape_twice() {
+    assert_eq!(
+        password_name("Allodia Mail & Calendar", "iOS"),
+        "Allodia Mail Calendar (iOS)"
+    );
+    assert_eq!(password_name("Mail&Cal", "Linux"), "Mail Cal (Linux)");
 }
 
 #[test]
@@ -94,7 +103,10 @@ fn a_sign_in_waits_for_the_grant_and_learns_who_signed_in() {
     assert!(
         has_header(
             &begun,
-            &format!("user-agent: {} (macOS)", env!("MAILCAL_APP_NAME"))
+            &format!(
+                "user-agent: {}",
+                password_name(env!("MAILCAL_APP_NAME"), "macOS")
+            )
         ),
         "{begun}"
     );

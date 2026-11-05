@@ -238,11 +238,15 @@ pub(crate) fn setup_client() -> Result<reqwest::Client, MailcalError> {
 
 /// The name a sign-in gives the app password: this app, and the platform it runs on.
 pub(crate) fn client_name(platform: Option<Platform>) -> String {
-    format!(
-        "{} ({})",
-        env!("MAILCAL_APP_NAME"),
-        platform_label(platform)
-    )
+    password_name(env!("MAILCAL_APP_NAME"), platform_label(platform))
+}
+
+/// `app` and `platform` as the app password's name, without an "&": Nextcloud's grant page
+/// escapes the name twice, so one would read "&amp;" there.
+pub(crate) fn password_name(app: &str, platform: &str) -> String {
+    let app = app.replace('&', " ");
+    let app = app.split_whitespace().collect::<Vec<_>>().join(" ");
+    format!("{app} ({platform})")
 }
 
 /// The platform as a person names it.

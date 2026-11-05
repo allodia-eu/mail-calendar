@@ -62,8 +62,9 @@ the bindings for the surfaces) owns every decision; a client owns what it draws 
    because the server names the app password after it: the person reads it on the page that asks
    them to grant access, and again in Nextcloud's list of devices. The platform is the one the
    host reported at construction. Every other request carries the product token as always.
-   Nextcloud's grant page escapes the name twice, so its "&" reads "&amp;" there; the list of
-   devices shows it as sent.
+   An "&" in the app name is left out of it, because Nextcloud's grant page escapes the name
+   twice and would show it as "&amp;"; an administrator's `core.login_flow_v2.allowed_user_agents`
+   pattern therefore matches the name without it.
 
 4. **Every URL the server returns is on the server's own host.** The login page and the poll
    endpoint must name the root's host and port. An `http` URL there is answered as the `https`
