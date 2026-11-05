@@ -357,7 +357,7 @@ impl AccountDial {
                 shared: Some(shared),
                 ..
             } => shared.identity.email.clone(),
-            Self::Imap { config, .. } => config.username().to_owned(),
+            Self::Imap { config, .. } => config.address().to_owned(),
             Self::Microsoft { identity, .. } | Self::Google { identity, .. } => {
                 identity.email.clone()
             }
