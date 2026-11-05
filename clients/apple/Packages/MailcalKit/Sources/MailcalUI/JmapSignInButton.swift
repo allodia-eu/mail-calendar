@@ -68,7 +68,9 @@ struct JmapSignInButton: View {
     /// Runs the browser sign-in and, on success, adds + stores the account.
     let signIn: (String, String) async -> JmapSignInOutcome
 
-    @State private var signingIn = false
+    @State private var attempts = SignInAttempts()
+    /// The running sign-in, held so it can be retired.
+    @State private var task: Task<Void, Never>?
     @State private var failed = false
 
     var body: some View {
@@ -76,11 +78,8 @@ struct JmapSignInButton: View {
             Text(L10n.setup_jmap_signin_note())
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if signingIn {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text(L10n.status_connecting()).foregroundStyle(.secondary)
-                }
+            if attempts.signingIn {
+                SignInBusyRow(escapable: attempts.escapable, escape: escape)
             } else {
                 Button(L10n.setup_jmap_signin_button()) { start() }
             }
@@ -93,16 +92,27 @@ struct JmapSignInButton: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .signInEscapeClock($attempts)
     }
 
+    /// Starts a sign-in, superseding any still out (docs/provider-oauth.md rule 13).
     private func start() {
-        Task {
-            failed = false
-            signingIn = true
+        task?.cancel()
+        failed = false
+        let attempt = attempts.begin()
+        task = Task {
             let outcome = await signIn(email, serverURL)
-            signingIn = false
+            // An attempt superseded or escaped from: the screen has moved on without it.
+            guard attempts.finish(attempt) else { return }
             // A dismissed browser is not a failure, say nothing and leave the button as it was.
             if case .failed = outcome { failed = true }
         }
+    }
+
+    /// The way back from a sign-in that did not come back, saying nothing.
+    private func escape() {
+        task?.cancel()
+        task = nil
+        attempts.escape()
     }
 }
