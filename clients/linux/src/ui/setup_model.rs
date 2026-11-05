@@ -185,6 +185,8 @@ pub(crate) struct DavForm {
     /// The server is Nextcloud, whose own sign-in the card leads with
     /// (`docs/nextcloud-sign-in.md` rule 2).
     pub(super) nextcloud: bool,
+    /// The link step opened it, for what a JMAP account beside these servers lacks.
+    pub(super) beside: bool,
 }
 
 /// A provider whose whole setup is one browser sign-in; Microsoft or Google. There is nothing
@@ -334,6 +336,7 @@ pub(super) fn detected_form(setup: DetectedSetup, fallback_email: String) -> Set
             email: fallback_email,
             offer,
             nextcloud: setup.nextcloud_sign_in,
+            beside: setup.beside_account,
         }));
     }
     match setup.recommendation {

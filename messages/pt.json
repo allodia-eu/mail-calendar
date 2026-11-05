@@ -649,6 +649,7 @@
 	"setup_detect_contacts_add": "Esta conta também tem um livro de endereços",
 	"setup_hint_carddav": "carddav.example.com",
 	"setup_detect_dav_note": "Encontrámos um servidor de calendário e de livro de endereços para este endereço, mas nenhum servidor de correio. Pode adicioná-la para o calendário e os contactos.",
+	"setup_detect_dav_beside_note": "Este servidor guarda o que a sua conta de correio não guarda por si. Adicione-o como uma conta própria e associe as duas no passo seguinte.",
 	"setup_imap_signin_unsupported": "Este fornecedor só admite aplicações que tenha registado com antecedência e não aceita palavras-passe, por isso esta conta ainda não pode ser adicionada aqui.",
 
 	"settings_title": "Definições",

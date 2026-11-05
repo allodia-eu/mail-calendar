@@ -30,7 +30,11 @@ pub(super) fn detected_fields(
     required: bool,
     sender: &relm4::Sender<AppInput>,
 ) -> ConnectPane {
-    content.append(&body(l10n::setup_detect_dav_note()));
+    content.append(&body(if form.beside {
+        l10n::setup_detect_dav_beside_note()
+    } else {
+        l10n::setup_detect_dav_note()
+    }));
     let uses = Rc::new(setup_uses::append(content, &form.offer, &[]));
     let sign_in = form.nextcloud.then(|| {
         content.append(&body(l10n::nextcloud_sign_in_note()));
@@ -53,6 +57,7 @@ pub(super) fn detected_fields(
         (button, instead)
     });
     let area = gtk::Box::new(gtk::Orientation::Vertical, 14);
+    area.append(&caption(l10n::setup_detect_app_password_hint()));
     area.append(&caption(l10n::setup_credentials_note()));
     let password = entry(l10n::setup_field_password(), "", true);
     area.append(&password);

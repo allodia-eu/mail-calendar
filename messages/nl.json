@@ -649,6 +649,7 @@
 	"setup_detect_contacts_add": "Dit account heeft ook een adresboek",
 	"setup_hint_carddav": "carddav.example.com",
 	"setup_detect_dav_note": "We hebben voor dit adres een agenda- en adresboekserver gevonden, maar geen mailserver. Je kunt het toevoegen voor je agenda en contacten.",
+	"setup_detect_dav_beside_note": "Deze server bewaart wat je mailaccount zelf niet bijhoudt. Voeg hem toe als eigen account en koppel de twee bij de volgende stap.",
 	"setup_imap_signin_unsupported": "Deze provider laat alleen apps toe die vooraf zijn geregistreerd en accepteert geen wachtwoord, dus dit account kan hier nog niet worden toegevoegd.",
 
 	"settings_title": "Instellingen",

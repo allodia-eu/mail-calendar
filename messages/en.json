@@ -649,6 +649,7 @@
 	"setup_detect_contacts_add": "This account also has an address book",
 	"setup_hint_carddav": "carddav.example.com",
 	"setup_detect_dav_note": "We found a calendar and address book server for this address, but no mail server. You can add it for your calendar and contacts.",
+	"setup_detect_dav_beside_note": "This server holds what your mail account doesn't keep itself. Add it as an account of its own, and link the two on the next step.",
 	"setup_imap_signin_unsupported": "This provider only allows apps it has registered in advance and doesn't accept a password, so this account can't be added here yet.",
 
 	"settings_title": "Settings",

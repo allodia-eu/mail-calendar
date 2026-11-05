@@ -214,6 +214,10 @@ fn the_setup_beside_offers_only_what_the_session_lacks() {
     assert_eq!(offered(&setup), [AccountCapability::Calendar]);
     assert_eq!(setup.caldav_url.as_deref(), Some(CALDAV));
     assert_eq!(setup.carddav_url, None, "the session's own contacts stay");
+    assert!(
+        setup.beside_account,
+        "the card says it adds to the mail account, not that there is no mail server"
+    );
 
     session(&app, Offered::none().with_mail().with_calendars());
     let setup = beside(&id, None).expect("contacts are missing");

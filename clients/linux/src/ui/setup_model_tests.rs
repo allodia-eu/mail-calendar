@@ -270,6 +270,7 @@ fn a_calendar_and_contacts_detection_sets_up_an_account_without_mail() {
                 choice(mailcal_bindings::AccountCapability::Contacts),
             ],
             nextcloud_sign_in: false,
+            beside_account: false,
         },
         "alice@cloud.example.test".to_owned(),
     );
@@ -309,6 +310,7 @@ fn a_calendar_and_contacts_card_is_edited_as_its_own_account_type() {
             carddav_url: Some("https://cloud.example.test/carddav".to_owned()),
             choices: Vec::new(),
             nextcloud_sign_in: false,
+            beside_account: false,
         },
         "alice@cloud.example.test".to_owned(),
     ) else {

@@ -76,6 +76,27 @@ class NextcloudSetupScreenTest {
     }
 
     @Test
+    fun theCardBesideAJmapAccountSaysWhatItAdds() {
+        compose.setContent {
+            DavFoundCard(
+                email = "alice@example.org",
+                offer = offer,
+                beside = true,
+                connecting = false,
+                externalError = null,
+                externalFailure = null,
+                onConnect = { null },
+                onManual = {},
+            )
+        }
+        compose.onNodeWithText(
+            "This server holds what your mail account doesn't keep itself. Add it as an account of its own, and link the two on the next step.",
+        ).assertExists()
+        assertEquals(0, matching("We found a calendar and address book server for this address, but no mail server. You can add it for your calendar and contacts."))
+        compose.onNodeWithText("Some providers require an app-specific password instead of your normal one.").assertExists()
+    }
+
+    @Test
     fun aCardForAnotherServerAsksForThePasswordAsAlways() {
         compose.setContent {
             DavFoundCard(
@@ -89,7 +110,7 @@ class NextcloudSetupScreenTest {
             )
         }
         assertEquals(0, matching(SIGN_IN))
-        compose.onNodeWithText(PASSWORD).assertIsDisplayed()
+        compose.onNodeWithText(PASSWORD).performScrollTo().assertIsDisplayed()
     }
 
     @Test

@@ -288,6 +288,7 @@ internal fun AccountSetupFlow(
             email = current.email,
             offer = current.offer,
             nextcloud = nextcloud.takeIf { current.nextcloud },
+            beside = current.beside,
             connecting = connecting,
             externalError = externalError,
             externalFailure = externalFailure,

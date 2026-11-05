@@ -138,7 +138,10 @@ address-book server beside the JMAP server, the step offers to set that up as an
 own for what the session lacks, and only that, saying which (`MailcalApp::dav_setup_beside`), so a
 session with contacts of its own is offered a calendar and never a second copy of its contacts,
 whether the account was added from the detected card or by hand from
-it, which is how an API token goes in where the card offers a sign-in instead. A suggested account starts picked and is linked only when the person
+it, which is how an API token goes in where the card offers a sign-in instead. The card that
+offer opens says it adds to the mail account (`DetectedSetup.beside_account`), never that the
+address has no mail server, and says some providers want an app password there. A suggested
+account starts picked and is linked only when the person
 continues; a suggestion the core finds after the step is drawn reaches it unless the person has
 already changed a pick. **Add another account** runs setup again from the address and comes back
 to the step, cancelled or done, with the account just added picked where it fits. The name each
