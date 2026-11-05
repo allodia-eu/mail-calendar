@@ -64,6 +64,7 @@ fn account(calendar: Option<CalendarServer>) -> Account<CalendarServer> {
         id: AccountId::try_from("alice@dav:cloud.example").unwrap(),
         providers: Vec::new().into(),
         calendar_provider: calendar,
+        meetings: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("alice@cloud.example"),
         dialled: true,

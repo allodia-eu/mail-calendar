@@ -16,6 +16,7 @@ const fn group(provider: &ProviderScopes, capability: Capability) -> Option<&Sco
         Capability::Contacts => Some(&provider.contacts),
         Capability::Colleagues => Some(&provider.colleagues),
         Capability::SharedMailboxes => provider.shared_mailboxes.as_ref(),
+        Capability::Meetings => provider.meetings.as_ref(),
     }
 }
 

@@ -1,35 +1,71 @@
 //! The video meeting the editor puts on an event or takes off (`docs/conferencing.md`, rules 9
-//! to 13): which meetings a calendar offers, the Jitsi server they depend on, and a choice
-//! turned into the engine's write.
+//! to 16): which meetings a calendar offers, the Jitsi server and the accounts they depend on,
+//! and a choice turned into the engine's write.
+
+use std::sync::Arc;
 
 use engine_api::{
-    AccountId, Calendar, CalendarDateTime, ConferenceEdit, ConferenceService, Event, EventDraft,
-    JitsiMeetings, MeetingKey, MeetingRequest, MeetingService, NewConference, Provider,
-    UtcDateTime, resolve_instant_in,
+    AccountId, Calendar, CalendarDateTime, Conference, ConferenceEdit, ConferenceOrigin,
+    ConferenceService, Event, EventDraft, JitsiMeetings, MeetingKey, MeetingRequest,
+    MeetingService, NewConference, Provider, UtcDateTime, resolve_instant_in,
 };
-use mailcal_account::{MeetingChange, MeetingChoice, current_meeting};
+use mailcal_account::{EventDetail, MeetingChange, MeetingChoice, current_meeting};
 use mailcal_viewmodel::calendar::MeetingOption;
 use ring::rand::{SecureRandom, SystemRandom};
 
 use crate::{Account, App, calendar_cache::CachedCalendar};
 
-/// The meetings `calendar`'s editor offers, in order: its own server's, then Jitsi while a Jitsi
-/// server is set (rule 9). None where its account cannot write a meeting.
+/// An account used for video meetings, as a calendar row offers it (rule 14).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AccountMeetings {
+    /// The account.
+    pub(crate) account: AccountId,
+    /// What a person reads it by.
+    pub(crate) address: String,
+    /// The service it makes meetings on.
+    pub(crate) service: ConferenceService,
+}
+
+/// A meeting just made at a service for a write, deleted there again if the write fails
+/// (rule 15).
+pub(crate) struct MadeMeeting {
+    service: Arc<dyn MeetingService>,
+    conference: Conference,
+}
+
+/// The meetings `calendar`'s editor offers, in order: its own server's, then each account's whose
+/// service its server does not make, then Jitsi while a Jitsi server is set (rules 9 and 14).
+/// None where its account cannot write a meeting.
 pub(crate) fn meeting_choices(calendar: &CachedCalendar, jitsi: bool) -> Vec<MeetingOption> {
     if !calendar.writes_meetings {
         return Vec::new();
     }
-    calendar
+    let server = calendar
         .server_meetings
         .iter()
         .cloned()
         .map(MeetingChoice::Server)
         // A service this build has no name for is no choice a person could read.
         .filter(|choice| MeetingChoice::from_id(&choice.id()).is_some())
-        .chain(jitsi.then_some(MeetingChoice::Jitsi))
-        .map(|choice| MeetingOption {
+        .map(|choice| (choice, None));
+    let accounts = calendar
+        .account_meetings
+        .iter()
+        .filter(|through| !calendar.server_meetings.contains(&through.service))
+        .map(|through| {
+            let choice = MeetingChoice::Account {
+                service: through.service.clone(),
+                account: through.account.clone(),
+            };
+            (choice, Some(through.address.clone()))
+        });
+    server
+        .chain(accounts)
+        .chain(jitsi.then_some((MeetingChoice::Jitsi, None)))
+        .map(|(choice, through)| MeetingOption {
             id: choice.id(),
             name: choice.name(),
+            through,
         })
         .collect()
 }
@@ -85,13 +121,15 @@ impl<P: Provider> App<P> {
     }
 
     /// The meeting `change` puts on an event in a calendar whose server makes `calendar`'s
-    /// meetings, from `start` to `end`, titled `title`; `None` when it takes one off. A server-made
-    /// one is asked of the server; a Jitsi one is made here, sending nothing (rule 12).
+    /// meetings, from `start` to `end`, titled `title`, with the meeting it made at a service
+    /// through an account; `None` when it takes one off. A server-made one is asked of the
+    /// server; a Jitsi one is made here, sending nothing (rule 12); an account's is made at its
+    /// service before anything is written (rule 15).
     ///
     /// # Errors
     ///
-    /// The calendar does not offer `choice`, the Jitsi server is unset, or the times cannot be
-    /// placed.
+    /// The calendar does not offer `choice`, the Jitsi server is unset, the account makes no such
+    /// meeting, the service refused, or the times cannot be placed.
     pub(crate) async fn new_conference(
         &self,
         calendar: &[ConferenceService],
@@ -99,34 +137,79 @@ impl<P: Provider> App<P> {
         title: &str,
         start: UtcDateTime,
         end: UtcDateTime,
-    ) -> Result<Option<NewConference>, String> {
+    ) -> Result<Option<(NewConference, Option<MadeMeeting>)>, String> {
         let MeetingChange::Set { choice, words } = change else {
             return Ok(None);
+        };
+        let request = || -> Result<MeetingRequest, String> {
+            Ok(MeetingRequest {
+                key: mint_key()?,
+                title: title.to_owned(),
+                start,
+                end,
+            })
         };
         match choice {
             MeetingChoice::Server(service) => {
                 if !calendar.contains(service) {
                     return Err("this calendar's server makes no such meeting".to_owned());
                 }
-                Ok(Some(NewConference::Native(service.clone())))
+                Ok(Some((NewConference::Native(service.clone()), None)))
             }
             MeetingChoice::Jitsi => {
                 let server = self
                     .jitsi_server()
                     .ok_or_else(|| "no Jitsi server is set".to_owned())?;
                 let jitsi = JitsiMeetings::new(&server).map_err(|err| err.to_string())?;
-                let request = MeetingRequest {
-                    key: mint_key()?,
-                    title: title.to_owned(),
-                    start,
-                    end,
-                };
-                let conference = jitsi
-                    .create_meeting(&request)
-                    .await
-                    .map_err(|err| err.to_string())?;
-                Ok(Some(NewConference::attach(conference, (**words).clone())))
+                let conference = Self::make_meeting(&jitsi, &request()?).await?;
+                Ok(Some((
+                    NewConference::attach(conference, (**words).clone()),
+                    None,
+                )))
             }
+            MeetingChoice::Account { service, account } => {
+                if calendar.contains(service) {
+                    return Err("this calendar's server makes that meeting itself".to_owned());
+                }
+                let maker = self
+                    .account_handle(account)
+                    .await
+                    .and_then(|account| account.meetings.clone())
+                    .filter(|maker| maker.service() == *service)
+                    .ok_or_else(|| "that account makes no such meeting".to_owned())?;
+                let conference = Self::make_meeting(maker.as_ref(), &request()?).await?;
+                let new = NewConference::attach(conference.clone(), (**words).clone());
+                Ok(Some((
+                    new,
+                    Some(MadeMeeting {
+                        service: maker,
+                        conference,
+                    }),
+                )))
+            }
+        }
+    }
+
+    /// Makes a meeting at `service`. Every meeting service is called from here or from
+    /// [`Self::delete_meeting`], which is where the jurisdiction check will sit (rule 16).
+    async fn make_meeting(
+        service: &dyn MeetingService,
+        request: &MeetingRequest,
+    ) -> Result<Conference, String> {
+        service
+            .create_meeting(request)
+            .await
+            .map_err(|err| err.to_string())
+    }
+
+    /// Deletes `made` at its service, after the write it was made for failed (rule 15). A delete
+    /// that fails is logged: the write has already failed, and the person is told that.
+    pub(crate) async fn delete_meeting(made: Option<MadeMeeting>) {
+        let Some(made) = made else {
+            return;
+        };
+        if let Err(err) = made.service.delete_meeting(&made.conference).await {
+            log::warn!("the video meeting made for an unsaved event was not deleted: {err}");
         }
     }
 
@@ -142,7 +225,7 @@ impl<P: Provider> App<P> {
         stored: &Event,
         calendar: &[ConferenceService],
         change: &MeetingChange,
-    ) -> Result<ConferenceEdit, String> {
+    ) -> Result<(ConferenceEdit, Option<MadeMeeting>), String> {
         let current = current_meeting(stored).map(|conference| conference.key.clone());
         let start = self.instant(&stored.start)?;
         let span = core::time::Duration::from_secs(
@@ -155,26 +238,30 @@ impl<P: Provider> App<P> {
             .new_conference(calendar, change, &stored.title, start, end)
             .await?
         {
-            Some(new) => Ok(ConferenceEdit::Set {
-                replacing: current,
-                new,
-            }),
+            Some((new, made)) => Ok((
+                ConferenceEdit::Set {
+                    replacing: current,
+                    new,
+                },
+                made,
+            )),
             None => current
-                .map(ConferenceEdit::Remove)
+                .map(|key| (ConferenceEdit::Remove(key), None))
                 .ok_or_else(|| "the event has no meeting to take off".to_owned()),
         }
     }
 
-    /// `draft` with the meeting `change` puts on it, or `None`, logged, when `calendar` cannot
-    /// have that meeting or it could not be made: the event is then not saved, since saving it
-    /// without the meeting the person chose would say it had one.
+    /// `draft` with the meeting `change` puts on it, and the meeting made at a service for it, or
+    /// `None`, logged, when `calendar` cannot have that meeting or it could not be made: the event
+    /// is then not saved, since saving it without the meeting the person chose would say it had
+    /// one.
     pub(crate) async fn with_meeting(
         &self,
         account: &AccountId,
         calendar: &Calendar,
         draft: EventDraft,
         change: &MeetingChange,
-    ) -> Option<EventDraft> {
+    ) -> Option<(EventDraft, Option<MadeMeeting>)> {
         let made = async {
             self.writes_meetings_in(account, calendar).await?;
             let start = self.instant(&draft.start)?;
@@ -190,8 +277,8 @@ impl<P: Provider> App<P> {
         }
         .await;
         match made {
-            Ok(Some(new)) => Some(draft.conference(new)),
-            Ok(None) => Some(draft),
+            Ok(Some((new, made))) => Some((draft.conference(new), made)),
+            Ok(None) => Some((draft, None)),
             Err(err) => {
                 log::warn!("the new event's video meeting was not made: {err}");
                 None
@@ -209,7 +296,7 @@ impl<P: Provider> App<P> {
         account: &AccountId,
         stored: &Event,
         change: &MeetingChange,
-    ) -> Result<ConferenceEdit, String> {
+    ) -> Result<(ConferenceEdit, Option<MadeMeeting>), String> {
         let calendars = self.engine.calendars(account).await.unwrap_or_default();
         let calendar = stored
             .calendars
@@ -257,6 +344,43 @@ impl<P: Provider> App<P> {
             }
         }
         event
+    }
+
+    /// `detail`'s editor opened on the account choice that would have made `stored`'s Teams or
+    /// Talk meeting, when its server did not make it and exactly one account makes that service:
+    /// which account made a meeting is nowhere in the event (rule 14).
+    pub(crate) async fn recognise_account_meeting(&self, detail: &mut EventDetail, stored: &Event) {
+        let Some(meeting) = detail
+            .editor_meeting
+            .as_mut()
+            .filter(|meeting| meeting.choice.is_none())
+        else {
+            return;
+        };
+        let Some(service) = current_meeting(stored)
+            .filter(|conference| !matches!(conference.origin, ConferenceOrigin::Native { .. }))
+            .and_then(|conference| conference.service.clone())
+        else {
+            return;
+        };
+        let makers: Vec<AccountId> = self
+            .account_handles()
+            .await
+            .iter()
+            .filter(|account| {
+                account
+                    .meetings
+                    .as_ref()
+                    .is_some_and(|maker| maker.service() == service)
+            })
+            .map(|account| account.id.clone())
+            .collect();
+        if let [account] = makers.as_slice() {
+            meeting.choice = Some(MeetingChoice::Account {
+                service,
+                account: account.clone(),
+            });
+        }
     }
 
     /// `value` as an instant, a zoneless one placed in the app's zone.

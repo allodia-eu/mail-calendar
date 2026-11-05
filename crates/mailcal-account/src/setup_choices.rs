@@ -77,13 +77,16 @@ pub fn google_choices(email: &str) -> Vec<SetupChoice> {
 }
 
 /// Every use, all on; colleagues and shared mailboxes left out for a personal account, which has
-/// no organisation to have either (`docs/accounts.md` rule 3).
+/// no organisation to have either (`docs/accounts.md` rule 3). Video meetings are never a setup
+/// choice: they are switched on from the account's page, where switching them on asks for their
+/// permission (rule 19).
 fn provider_choices(personal: bool, shared_mailboxes: bool) -> Vec<SetupChoice> {
     Capability::ALL
         .into_iter()
         .filter(|capability| match capability {
             Capability::Colleagues => !personal,
             Capability::SharedMailboxes => shared_mailboxes && !personal,
+            Capability::Meetings => false,
             _ => true,
         })
         .map(|capability| found(capability, true))

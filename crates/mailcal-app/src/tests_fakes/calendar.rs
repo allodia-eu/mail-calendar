@@ -125,6 +125,8 @@ pub(crate) struct CalendarFake {
     /// When set, every patch fails with what it makes. The write path has no outbox behind it,
     /// so a failed edit is simply a lost edit: a test has to be able to prove the app says so.
     pub(super) patch_failure: Option<fn() -> ProviderError>,
+    /// When set, every create fails with what it makes, after it was recorded.
+    pub(super) create_failure: Option<fn() -> ProviderError>,
     /// When set, every read fails before it reaches anything: the account is there, the network
     /// is not. The store therefore stays as empty as it was, which is the shape a first launch
     /// with no connection has and the one case where claiming a materialized window is a lie.
@@ -178,6 +180,7 @@ impl CalendarFake {
             patches: Arc::new(Mutex::new(Vec::new())),
             reply_delivery: ReplyDelivery::NotReported,
             patch_failure: None,
+            create_failure: None,
             unreachable: false,
             reject_event_delta: false,
             syncs: Arc::new(AtomicUsize::new(0)),
@@ -392,6 +395,9 @@ impl CalendarWrites for CalendarFake {
             .lock()
             .unwrap()
             .push(draft.conference.clone());
+        if let Some(failure) = self.create_failure {
+            return Err(failure());
+        }
         let href = format!("/cal/{}.ics", draft.uid.as_str());
         let event = EventId::try_from(href.as_str())
             .unwrap_or_else(|_| EventId::try_from("/cal/event.ics").unwrap());

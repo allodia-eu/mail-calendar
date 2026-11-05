@@ -41,6 +41,8 @@ pub(crate) enum ConnectedAccount {
         /// mints access tokens from; `None` for a password account, which has nothing to
         /// refresh.
         tokens: Option<Arc<GraphTokenSource>>,
+        /// Whether its Nextcloud server offered Talk at the last connect.
+        talk: crate::talk_offer::TalkOffer,
     },
     /// A Microsoft 365 (Graph/OAuth) account and its shared token source.
     Microsoft {
@@ -282,12 +284,15 @@ impl ConnectedAccount {
         }
     }
 
-    /// The uses of mail, calendar and contacts the account's server offers none of: what a JMAP
-    /// session left out at the last dial. Empty for every other kind, whose servers are the
-    /// ones configured.
+    /// The uses the account's server offers none of: what a JMAP session left out at the last
+    /// dial, and video meetings on a Nextcloud server that had no Talk for the account at its
+    /// last connect. Empty for every other kind, whose servers are the ones configured.
     pub(crate) fn lacks(&self) -> mailcal_account::Capabilities {
         match self {
             Self::Jmap { session, .. } => session.lacks(),
+            Self::Imap { talk, .. } if talk.lacking() => [mailcal_account::Capability::Meetings]
+                .into_iter()
+                .collect(),
             Self::Imap { .. } | Self::Microsoft { .. } | Self::Google { .. } => {
                 mailcal_account::Capabilities::default()
             }
@@ -305,17 +310,18 @@ impl ConnectedAccount {
     }
 
     /// What the account can be used for: colleagues on a Microsoft or Google account that is not
-    /// a personal one, beside the mail, calendar and contacts every kind offers.
+    /// a personal one, and video meetings on a Microsoft work account or an account a Nextcloud
+    /// sign-in made, beside the mail, calendar and contacts every kind offers.
     pub(crate) fn offered(&self) -> mailcal_account::Capabilities {
         use mailcal_account::Capability;
+        let standard = [Capability::Mail, Capability::Calendar, Capability::Contacts];
         match self {
             Self::Microsoft { config, .. } => config.offered(),
             Self::Google { config, .. } => config.offered(),
-            Self::Imap { .. } | Self::Jmap { .. } => {
-                [Capability::Mail, Capability::Calendar, Capability::Contacts]
-                    .into_iter()
-                    .collect()
+            Self::Imap { config, .. } if config.nextcloud.is_some() => {
+                standard.into_iter().chain([Capability::Meetings]).collect()
             }
+            Self::Imap { .. } | Self::Jmap { .. } => standard.into_iter().collect(),
         }
     }
 
@@ -343,6 +349,7 @@ impl ConnectedAccount {
             config,
             connections: ImapConnections::new(),
             tokens,
+            talk: crate::talk_offer::TalkOffer::default(),
         }
     }
 
@@ -358,6 +365,7 @@ impl ConnectedAccount {
                 config,
                 connections,
                 tokens,
+                ..
             } if config
                 .capabilities()
                 .contains(mailcal_account::Capability::Mail) =>

@@ -8,6 +8,7 @@
 //! so it stays out of logs (see [`Secret`]) and out of version control: a real host
 //! uses the OS keychain; the `probe` binary reads a gitignored file outside the repo.
 
+mod account_meetings;
 mod account_shape;
 mod affiliation;
 mod autodetect;
@@ -57,6 +58,7 @@ mod stream_redial;
 mod throttle;
 mod tls;
 
+pub use account_meetings::{TalkAtConnect, talk_at_connect, teams_meetings};
 pub use account_shape::{AccountLinks, AccountShape, Capabilities, Capability};
 pub use autodetect::{MissReason, OauthRoutes, ServerSummary, SetupRecommendation, recommend};
 pub use calendar::{

@@ -78,12 +78,14 @@ impl MailcalApp {
         } else {
             Ok(())
         };
-        if !on && capability != Capability::SharedMailboxes {
+        if !on
+            && capability != Capability::SharedMailboxes
+            && let Some(domain) = domain_of(capability)
+        {
             let app = Arc::clone(&self.app);
             let forgotten = id.clone();
             self.runtime.block_on(|| async move {
-                app.forget_account_domain(&forgotten, domain_of(capability))
-                    .await;
+                app.forget_account_domain(&forgotten, domain).await;
             });
         }
         if redial {
@@ -113,18 +115,24 @@ impl MailcalApp {
     }
 }
 
-/// What the store forgets when an account stops being used for `capability`. Colleagues are
-/// stored as cards beside the account's own with no line between them, so both go, and the
-/// account's own come back with its next contacts sync. Shared mailboxes are accounts of their
-/// own and are forgotten as such (`MailcalApp::drop_shared_mailboxes`).
-pub(crate) const fn domain_of(capability: Capability) -> SearchDomain {
+/// What the store forgets when an account stops being used for `capability`, `None` for video
+/// meetings, of which the device holds nothing. Colleagues are stored as cards beside the
+/// account's own with no line between them, so both go, and the account's own come back with
+/// its next contacts sync. Shared mailboxes are accounts of their own and are forgotten as such
+/// (`MailcalApp::drop_shared_mailboxes`).
+pub(crate) const fn domain_of(capability: Capability) -> Option<SearchDomain> {
     match capability {
-        Capability::Mail | Capability::SharedMailboxes => SearchDomain::Mail,
-        Capability::Calendar => SearchDomain::Calendar,
-        Capability::Contacts | Capability::Colleagues => SearchDomain::Contacts,
+        Capability::Mail | Capability::SharedMailboxes => Some(SearchDomain::Mail),
+        Capability::Calendar => Some(SearchDomain::Calendar),
+        Capability::Contacts | Capability::Colleagues => Some(SearchDomain::Contacts),
+        Capability::Meetings => None,
     }
 }
 
 #[cfg(test)]
 #[path = "app_accounts_uses_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "app_accounts_meetings_tests.rs"]
+mod meetings_tests;

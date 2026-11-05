@@ -114,6 +114,14 @@ impl CalendarFake {
         fake
     }
 
+    /// The same, but every write is refused: the server said no.
+    pub(crate) fn refusing(mut self) -> Self {
+        self.patch_failure = Some(|| ProviderError::invalid_state("the server rejected the patch"));
+        self.create_failure =
+            Some(|| ProviderError::invalid_state("the server rejected the event"));
+        self
+    }
+
     /// A writable account listing these calendars, each `(id, the colour its server sends)`.
     pub(crate) fn with_server_colors(calendars: &[(&str, Option<&str>)]) -> Self {
         let ids: Vec<&str> = calendars.iter().map(|(id, _)| *id).collect();

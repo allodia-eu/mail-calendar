@@ -128,6 +128,7 @@ mod records_outbox;
 mod records_video_meeting;
 mod retry;
 pub mod sync_state;
+mod talk_offer;
 // The meeting-invitation card: its own file, since `records.rs` is at the 500-line limit.
 mod meeting_editor;
 mod records_invitation;

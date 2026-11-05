@@ -312,6 +312,7 @@ fn account(id: &str, provider: WindowProvider) -> Account<WindowProvider> {
         id: AccountId::try_from(id).unwrap(),
         providers: vec![provider].into(),
         calendar_provider: None,
+        meetings: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new(format!("me@{id}.local")),
         dialled: true,

@@ -76,4 +76,7 @@ pub struct MeetingOption {
     pub id: String,
     /// The service's name, a brand name the same in every language.
     pub name: String,
+    /// The address of the account that makes it, for a meeting made through an account the
+    /// person connected; `None` for the calendar's own server's and for Jitsi.
+    pub through: Option<String>,
 }

@@ -32,7 +32,7 @@ mod affiliation;
 mod calendar;
 mod contacts;
 mod mail_provider;
-mod token_source;
+pub(crate) mod token_source;
 
 pub use affiliation::{google_affiliation, graph_affiliation};
 pub use calendar::connect_graph_calendar_provider;

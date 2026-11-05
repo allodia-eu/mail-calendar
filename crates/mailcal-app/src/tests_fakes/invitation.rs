@@ -447,6 +447,7 @@ pub(crate) fn invitation_app_with_prefs(
         }]
         .into(),
         calendar_provider: provider.has_calendar.then_some(provider),
+        meetings: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("me@test.local"),
         dialled: true,

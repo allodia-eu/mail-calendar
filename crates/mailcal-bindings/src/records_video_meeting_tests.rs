@@ -97,3 +97,29 @@ fn the_editor_opens_on_the_choice_that_made_the_meeting() {
     .into();
     assert_eq!(pasted.choice, None);
 }
+
+#[test]
+fn a_meeting_made_through_an_account_names_the_account() {
+    let change = meeting_change(Some(MeetingChange::Set {
+        choice: "account:teams:alice@work.example@graph.microsoft.com".into(),
+        words: words(),
+    }))
+    .unwrap();
+    let Some(AppMeetingChange::Set { choice, .. }) = change else {
+        panic!("a choice is a Set: {change:?}");
+    };
+    assert_eq!(
+        choice,
+        MeetingChoice::Account {
+            service: ConferenceService::Teams,
+            account: "alice@work.example@graph.microsoft.com".try_into().unwrap(),
+        }
+    );
+    let option: MeetingOption = AppMeetingOption {
+        id: choice.id(),
+        name: choice.name(),
+        through: Some("alice@work.example".into()),
+    }
+    .into();
+    assert_eq!(option.through.as_deref(), Some("alice@work.example"));
+}

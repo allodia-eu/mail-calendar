@@ -1,4 +1,4 @@
-// The editor's Video meeting row (docs/conferencing.md, rules 9 to 12): which meetings it offers,
+// The editor's Video meeting row (docs/conferencing.md, rules 9 to 14): which meetings it offers,
 // what it opens showing, and what a save sends. The core decides what a calendar offers
 // (`CalendarRow.meetingChoices`) and which meeting the editor opens on (`EventDetail.editorMeeting`);
 // this only holds the person's pick and compares it with what the editor opened with.
@@ -33,7 +33,7 @@ extension EventEditorState {
     var openedMeeting: MeetingSelection { Self.meetingSelection(editing?.meeting) }
 
     /// The row's entries: None first, the event's own meeting when no choice makes it, then the
-    /// calendar's choices by the core's names.
+    /// calendar's choices by the core's names, one made through an account with its address.
     var meetingOptions: [MeetingRowOption] {
         var options = [MeetingRowOption(selection: .none, label: L10n.event_meeting_none())]
         let choices = calendar?.meetingChoices ?? []
@@ -46,8 +46,14 @@ extension EventEditorState {
                 MeetingRowOption(selection: openedMeeting, label: meeting.name ?? L10n.event_video_meeting())
             )
         }
-        options += choices.map { MeetingRowOption(selection: .choice($0.id), label: $0.name) }
+        options += choices.map { MeetingRowOption(selection: .choice($0.id), label: Self.label($0)) }
         return options
+    }
+
+    /// A choice as the row names it: the service, and the account that makes it for one made
+    /// through an account, so two work accounts are two entries a person can tell apart.
+    static func label(_ option: MeetingOption) -> String {
+        option.through.map { L10n.event_meeting_through(service: option.name, account: $0) } ?? option.name
     }
 
     /// Whether the row is drawn: the calendar offers a meeting, or the event has one to take off.

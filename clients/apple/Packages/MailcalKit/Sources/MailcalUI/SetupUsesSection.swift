@@ -23,6 +23,8 @@ struct SetupUsesSection<MailRows: View>: View {
             case .contacts: davCard(.contacts)
             // Drawn inside the mail and contacts cards, beneath the toggle each depends on.
             case .colleagues, .sharedMailboxes: EmptyView()
+            // Never a setup choice: switched on from the account's page.
+            case .meetings: EmptyView()
             }
         }
         .onChange(of: flagged) { _, missing in

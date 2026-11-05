@@ -91,18 +91,19 @@ nobody has to dig a link out of the notes.
     the account's address (`through`); a client draws it as the service's name with that address
     (`event_meeting_through`), so two work accounts are two choices a person can tell apart. A
     service the calendar's own server makes is offered as the server's only: a Microsoft calendar
-    lists its own Teams, not Teams through its account as well.
+    lists its own Teams, not Teams through its account as well. An event's Teams or Talk meeting
+    that its server did not make opens the editor on the choice through an account when exactly
+    one account offers that service, and is otherwise a meeting no choice makes (rule 11).
 15. **A meeting made through an account is made before the event is written**, from the event's
     title and times and nothing else: no invitees, no notes, no location. The event is then
     written with it attached, as one made elsewhere (rule 12). If the meeting cannot be made,
     nothing is saved and the editor says so; if the event cannot be written, the meeting just
-    made is deleted at its service, so no meeting is left that no event names.
-16. **A meeting this app made through an account is deleted at its service when the event no
-    longer carries it**: after a save that took it off or replaced it, and after the event is
-    deleted. It is found by its join link through the account that made it. A meeting that came
-    with an invitation, or that the person pasted into the event, is only ever taken off the
-    event, never deleted at a service.
-17. **Every meeting service is called through one place in the core** (`App::make_meeting` and
+    made is deleted at its service, so no meeting is left that no event names. That is the only
+    delete: taking a meeting off an event, replacing it, or deleting the event leaves the meeting
+    at its service, because nothing in an event can say this app made it (on a Microsoft calendar
+    such a meeting is only our block in the body), and deleting one the person pasted in would
+    delete their meeting.
+16. **Every meeting service is called through one place in the core** (`App::make_meeting` and
     `App::delete_meeting`), which is where the jurisdiction check will sit
     ([`provider-oauth.md`](provider-oauth.md) "Sovereignty scope"). A Jitsi meeting passes
     through it too, though making one sends nothing.
@@ -116,7 +117,7 @@ nobody has to dig a link out of the notes.
 | The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The editor's Video meeting row (rules 9 to 12) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Jitsi server in Settings (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Teams and Talk through an account, in the editor (rules 14 to 16) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Teams and Talk through an account, in the editor (rules 14 and 15) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins that Join and
 a dial-in row open the core's links as sent. On Windows the section is `EventConferenceSection.cs`

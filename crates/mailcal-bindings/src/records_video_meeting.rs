@@ -1,4 +1,4 @@
-//! The FFI half of the editor's video meeting (`docs/conferencing.md`, rules 9 to 13): what a
+//! The FFI half of the editor's video meeting (`docs/conferencing.md`, rules 9 to 15): what a
 //! calendar offers, what the editor opens showing, what a write asks for, and the Jitsi server
 //! Settings → Videoconferencing holds.
 
@@ -17,6 +17,11 @@ pub struct MeetingOption {
     pub id: String,
     /// The service's name, a brand name the same in every language.
     pub name: String,
+    /// The address of the account that makes it, for a meeting made through an account the
+    /// person connected, which a client shows beside the name (`event_meeting_through`); `None`
+    /// for the calendar's own server's and for Jitsi.
+    #[uniffi(default = None)]
+    pub through: Option<String>,
 }
 
 impl From<AppMeetingOption> for MeetingOption {
@@ -24,6 +29,7 @@ impl From<AppMeetingOption> for MeetingOption {
         Self {
             id: option.id,
             name: option.name,
+            through: option.through,
         }
     }
 }

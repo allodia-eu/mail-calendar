@@ -203,7 +203,7 @@ impl MailcalApp {
 
 fn domains(uses: &[Capability]) -> Vec<engine_api::SearchDomain> {
     uses.iter()
-        .map(|&capability| domain_of(capability))
+        .filter_map(|&capability| domain_of(capability))
         .collect()
 }
 

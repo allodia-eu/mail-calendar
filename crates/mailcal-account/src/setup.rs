@@ -238,7 +238,8 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
     finish(root, setup, username, caldav_url, carddav_url)
 }
 
-/// Refuses a choice of nothing, of colleagues, or of a use whose server is missing.
+/// Refuses a choice of nothing, of colleagues or video meetings, or of a use whose server is
+/// missing.
 fn check_uses(uses: &Capabilities, caldav: bool, carddav: bool) -> Result<(), ConfigError> {
     if uses.contains(Capability::Colleagues) {
         return Err(ConfigError::Refused(
@@ -248,6 +249,11 @@ fn check_uses(uses: &Capabilities, caldav: bool, carddav: bool) -> Result<(), Co
     if uses.contains(Capability::SharedMailboxes) {
         return Err(ConfigError::Refused(
             "a standards account lists its shared mailboxes without being asked for them",
+        ));
+    }
+    if uses.contains(Capability::Meetings) {
+        return Err(ConfigError::Refused(
+            "video meetings are switched on from the account's page",
         ));
     }
     if uses.iter().next().is_none() {

@@ -304,10 +304,11 @@ capturing the redirect), because that is inherently platform-specific.
     | `User.ReadBasic.All` | `GET /users` (at the tenant, not under `/me`), `/users/{id}/photo` | colleagues from a work or school directory, and their photos | colleagues, beside contacts; never on a personal account, which has no directory |
     | `Mail.ReadWrite.Shared` | the `Mail.ReadWrite` calls under `/users/{address}` rather than `/me`, and `GET /users/{address}/mailFolders/inbox` to check an address the person typed | a mailbox the person was given access to, read and written like their own ([`shared-mailboxes.md`](shared-mailboxes.md)) | shared mailboxes, beside mail; never on a personal account |
     | `Mail.Send.Shared` | `POST /users/{address}/sendMail` | sending from that mailbox's address; `Mail.ReadWrite.Shared` does not grant it | shared mailboxes, beside mail |
+    | `OnlineMeetings.ReadWrite` | `POST /onlineMeetings/createOrGet`, `GET /onlineMeetings?$filter=JoinWebUrl eq '…'`, `DELETE /onlineMeetings/{id}` | a Teams meeting for an event on a calendar that is not Microsoft's, and deleting it again when the event could not be saved ([`conferencing.md`](conferencing.md) rules 14 to 16) | video meetings; never on a personal account, for which Microsoft makes no online meeting |
 
     **A use the grant withholds is not opened.** Each use has one scope it cannot open without
     (`Mail.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `User.ReadBasic.All`,
-    `Mail.ReadWrite.Shared`), and a
+    `Mail.ReadWrite.Shared`, `OnlineMeetings.ReadWrite`), and a
     stored `granted_scopes` without it leaves that use closed, compared as Microsoft spells the
     scope back (`Mail.ReadWrite`, any case, for `https://graph.microsoft.com/Mail.ReadWrite`). Mail
     is no exception: an account whose grant withholds it opens as an account without mail
@@ -791,8 +792,8 @@ the doctrine's "provider sync" language for *account connection* specifically.)
 **A video meeting made through a connected account is part of that account**, and is not gated
 either: a Teams meeting asked of the Microsoft account's own Graph, under its own grant, and a
 Talk meeting asked of the Nextcloud account's own server, with its own app password
-([`conferencing.md`](conferencing.md) rules 14 to 17). What leaves is the event's title and times,
-to the provider the person already sends that event to. The carve-out ends where a meeting would
+([`conferencing.md`](conferencing.md) rules 14 to 16). What leaves is the event's title and times,
+to a provider the person signed in to. The carve-out ends where a meeting would
 be made anywhere else: through a relay, at a service the person has no account with, or under a
 credential that is not the account's. Such a service goes through the jurisdiction check, which
 sits in `App::make_meeting`, the one place every meeting service is called from.
