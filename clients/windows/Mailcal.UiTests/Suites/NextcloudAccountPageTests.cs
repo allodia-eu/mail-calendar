@@ -14,12 +14,12 @@
 // there; close the tabs it leaves. The cases run in the order written, and the last removes the
 // account.
 
+using System.Runtime.CompilerServices;
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
 
 namespace Allodia.Mailcal.UiTests.Suites;
 
-[TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
 [Trait("Dataset", "harness")]
 public sealed class NextcloudAccountPageTests(SetupHarnessApp harness) : IClassFixture<SetupHarnessApp>
 {
@@ -170,7 +170,8 @@ public sealed class NextcloudAccountPageTests(SetupHarnessApp harness) : IClassF
 /// </summary>
 public sealed class NextcloudFixtureFactAttribute : FactAttribute
 {
-    public NextcloudFixtureFactAttribute()
+    public NextcloudFixtureFactAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (!App.HasBuild())
         {

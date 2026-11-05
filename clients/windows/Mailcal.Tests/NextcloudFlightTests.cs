@@ -79,7 +79,7 @@ public class NextcloudFlightTests
         await WaitUntil(() => server.Polls == 1);
         Assert.False(flight.IsCompleted);
         wake.Returned();
-        Assert.IsType<NextcloudFlightEnd.Granted>(await flight.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.IsType<NextcloudFlightEnd.Granted>(await flight.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
         Assert.Equal(2, server.Polls);
     }
 
@@ -118,7 +118,7 @@ public class NextcloudFlightTests
         var flight = Fly(server, new NextcloudWake(), cancel.Token);
         await WaitUntil(() => server.Polls == 1);
         cancel.Cancel();
-        Assert.IsType<NextcloudFlightEnd.Cancelled>(await flight.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.IsType<NextcloudFlightEnd.Cancelled>(await flight.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
 
         var late = new Server();
         using var retired = new CancellationTokenSource();

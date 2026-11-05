@@ -14,12 +14,12 @@
 // The found card needs a domain whose detection finds a Nextcloud server, which no loopback server
 // stands in for: verify it by hand against a real one.
 
+using System.Runtime.CompilerServices;
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
 
 namespace Allodia.Mailcal.UiTests.Suites;
 
-[TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
 [Trait("Dataset", "first-run")]
 public sealed class NextcloudSignInTests(FirstRunApp firstRun) : IClassFixture<FirstRunApp>
 {
@@ -167,7 +167,8 @@ public sealed class NextcloudSignInTests(FirstRunApp firstRun) : IClassFixture<F
 /// </summary>
 public sealed class BrowserFactAttribute : FactAttribute
 {
-    public BrowserFactAttribute()
+    public BrowserFactAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (!App.HasBuild())
         {
