@@ -118,5 +118,6 @@ internal sealed class SetupFlow
     private static string Shape(SetupLinkStep step) => string.Join(
         ';',
         step.Pickers.Select((picker, index) =>
-            $"{picker.Slot}:{string.Join(',', picker.Options.Select(option => option.Id))}:{step.Picked[index]}"));
+            $"{picker.Slot}:{string.Join(',', picker.Options.Select(option => option.Id))}:{step.Picked[index]}")
+            .Append($"beside:{step.Beside?.Fills}"));
 }

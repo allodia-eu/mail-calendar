@@ -11,10 +11,11 @@ namespace Allodia.Mailcal.Services;
 /// <summary>The step for one account: its pickers, and what the person picked in each.</summary>
 internal sealed class SetupLinkStep
 {
-    private SetupLinkStep(string account, IReadOnlyList<LinkPicker> pickers)
+    private SetupLinkStep(string account, IReadOnlyList<LinkPicker> pickers, BesideStep? beside)
     {
         Account = account;
         Pickers = pickers;
+        Beside = beside;
         // A suggestion starts picked, and the person confirms it by continuing.
         Picked = pickers.Select(picker => picker.Suggested).ToArray();
     }
@@ -23,6 +24,10 @@ internal sealed class SetupLinkStep
     public string Account { get; }
 
     public IReadOnlyList<LinkPicker> Pickers { get; }
+
+    /// <summary>The servers found beside the account's JMAP server, offered as an account of their
+    /// own for what its session lacks; null when there are none, or they fill nothing.</summary>
+    public BesideStep? Beside { get; }
 
     /// <summary>Per picker, the index into its options that is picked; null for none.</summary>
     public int?[] Picked { get; private set; }
@@ -33,11 +38,14 @@ internal sealed class SetupLinkStep
 
     /// <summary>
     /// The step for <paramref name="account"/>, or null when no other account can fill anything
-    /// it lacks, or its kind is not offered linking at setup (<paramref name="offersLinks"/>, the
-    /// core's <c>offers_setup_links</c>: a Microsoft or Google account holds everything itself,
-    /// and linking one is for Settings).
+    /// it lacks and its server offers its calendar and contacts, or its kind is not offered linking
+    /// at setup (<paramref name="offersLinks"/>, the core's <c>offers_setup_links</c>: a Microsoft
+    /// or Google account holds everything itself, and linking one is for Settings). A server
+    /// without one gets the step anyway, for "Add another account" and for
+    /// <paramref name="beside"/>, which is offered only then.
     /// </summary>
-    public static SetupLinkStep? For(AccountsSnapshot snapshot, string account, Func<AccountKind, bool> offersLinks)
+    public static SetupLinkStep? For(
+        AccountsSnapshot snapshot, string account, Func<AccountKind, bool> offersLinks, BesideOffer? beside = null)
     {
         var entry = snapshot.Accounts.FirstOrDefault(candidate => candidate.Id == account);
         if (entry is null || !offersLinks(entry.Kind))
@@ -45,7 +53,13 @@ internal sealed class SetupLinkStep
             return null;
         }
         var pickers = AccountSettingsRules.LinkPickers(entry).Where(picker => picker.Selected is null).ToList();
-        return pickers.Count == 0 ? null : new SetupLinkStep(account, pickers);
+        bool Lacks(AccountCapability capability) =>
+            entry.Uses.Any(use => use.Capability == capability && use.State == CapabilityState.NotOffered);
+        var (calendar, contacts) = (Lacks(AccountCapability.Calendar), Lacks(AccountCapability.Contacts));
+        var offered = beside is not null && BesideStep.Of(beside.Found, calendar, contacts) is { } fills
+            ? new BesideStep(beside, fills)
+            : null;
+        return pickers.Count == 0 && !calendar && !contacts ? null : new SetupLinkStep(account, pickers, offered);
     }
 
     /// <summary>

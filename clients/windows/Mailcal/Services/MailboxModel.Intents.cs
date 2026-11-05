@@ -157,6 +157,7 @@ public sealed partial class MailboxModel
         // The record behind that address, when the flow was opened from an offer: the setup form
         // takes the route the other device wrote down rather than re-deriving one.
         SetupStartOffer = startOffer;
+        SetupStartDetected = null;
         AddingAccount = true;
     }
 
@@ -185,6 +186,7 @@ public sealed partial class MailboxModel
         AddingAccount = false;
         SetupStartEmail = string.Empty;
         SetupStartOffer = null;
+        SetupStartDetected = null;
         ClearSetupAttempt();
     }
 

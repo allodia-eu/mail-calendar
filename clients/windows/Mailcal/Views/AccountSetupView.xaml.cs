@@ -118,6 +118,7 @@ public sealed partial class AccountSetupView : UserControl
         try
         {
             var setup = await Model.DetectAsync(DetectEmail.Text);
+            Model.SetupDetected(setup);
             ApplyRoute(AccountDetectForm.Route(setup, DetectEmail.Text));
         }
         finally
@@ -418,7 +419,14 @@ public sealed partial class AccountSetupView : UserControl
         // one pressed on this screen.
         if (Model?.SetupStartOffer is { } offer)
         {
-            ApplyRoute(AccountDetectForm.Route(MailcalBindingsMethods.OfferedSetup(offer), offer.Email));
+            var offered = MailcalBindingsMethods.OfferedSetup(offer);
+            Model.SetupDetected(offered);
+            ApplyRoute(AccountDetectForm.Route(offered, offer.Email));
+        }
+        // The servers a link step found beside a JMAP server open on their own card.
+        else if (Model?.TakeSetupStartDetected() is { } beside)
+        {
+            ApplyRoute(AccountDetectForm.Route(beside, Model.SetupStartEmail));
         }
     }
 

@@ -89,6 +89,25 @@ public sealed partial class AccountSetupView
                     L10n.SettingsAccountLinkSuggested(AccountNameText.Of(picker.Options[suggested])), "CaptionTextBlockStyle"));
             }
         }
+        // The servers found beside the account's JMAP server, for only what its session lacks.
+        Button? beside = null;
+        if (step.Beside is { } found)
+        {
+            var host = found.Offer.Host;
+            var (note, action) = found.Fills switch
+            {
+                BesideFills.Calendar => (L10n.SetupLinksBesideCalendarNote(host), L10n.SetupLinksBesideCalendar(host)),
+                BesideFills.Contacts => (L10n.SetupLinksBesideContactsNote(host), L10n.SetupLinksBesideContacts(host)),
+                _ => (L10n.SetupLinksBesideNote(host), L10n.SetupLinksBeside(host)),
+            };
+            var said = Secondary(note, "BodyTextBlockStyle");
+            AutomationProperties.SetAutomationId(said, "SetupLinksBesideNote");
+            LinksPanel.Children.Add(said);
+            beside = new Button { Content = action };
+            AutomationProperties.SetAutomationId(beside, "SetupLinksBeside");
+            beside.Click += (_, _) => Model?.SetupBesideAccount();
+            LinksPanel.Children.Add(beside);
+        }
         LinksPanel.Children.Add(Secondary(L10n.SetupLinksNote(), "CaptionTextBlockStyle"));
         var another = new Button { Content = L10n.SetupLinksAdd() };
         AutomationProperties.SetAutomationId(another, "SetupLinksAdd");
@@ -112,6 +131,10 @@ public sealed partial class AccountSetupView
         void Done(bool linking)
         {
             skip.IsEnabled = link.IsEnabled = another.IsEnabled = false;
+            if (beside is not null)
+            {
+                beside.IsEnabled = false;
+            }
             _ = Model?.SetupLinksDoneAsync(linking);
         }
         skip.Click += (_, _) => Done(false);
