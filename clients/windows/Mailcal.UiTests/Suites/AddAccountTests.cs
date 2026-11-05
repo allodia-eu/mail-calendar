@@ -132,5 +132,14 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
         Assert.True(Shown(app, "ImapHost") is null, "the card draws no mail server");
         Assert.True(Shown(app, "DavLogin") is null, "the typed address is the login, so the card does not ask for one");
         Assert.True(Shown(app, "DavPassword") is not null, "it asks for the password alone");
+        Assert.Equal(Catalog.English("setup_detect_dav_note"), Shown(app, "DavNote")?.Name);
+        Assert.True(Shown(app, "DavAppPasswordHint") is not null,
+            "as on the mail card, the found card says a provider may need an app password");
+
+        // The manual form says what the account type is for, and asks nothing of a provider.
+        app.Agent.Invoke(Shown(app, "SetupManualButton") ?? throw new InvalidOperationException("the found card offers no way to set up manually"));
+        Assert.True(App.Eventually(() => Shown(app, "DavNote")?.Name == Catalog.English("setup_dav_note"), TimeSpan.FromSeconds(5)),
+            "\"Set up manually\" from the card opens the manual form's line");
+        Assert.True(Shown(app, "DavAppPasswordHint") is null, "the app-password line belongs to the found card");
     });
 }

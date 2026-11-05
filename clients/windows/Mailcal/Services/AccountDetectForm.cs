@@ -52,7 +52,21 @@ internal sealed record DetectRoute(
     IReadOnlyList<DetectedServerRow>? Servers = null,
     // The calendar and contacts card's server is Nextcloud, whose own sign-in the card leads with
     // (docs/nextcloud-sign-in.md rule 2).
-    bool NextcloudSignIn = false);
+    bool NextcloudSignIn = false,
+    // The calendar and contacts card is for servers found beside a JMAP account just added, whose
+    // mail server is that account (`dav_setup_beside`).
+    bool BesideAccount = false);
+
+/// <summary>The line a calendar and contacts card opens with.</summary>
+internal enum DavCardNote
+{
+    /// <summary>The manual form: what the account type is for.</summary>
+    Manual,
+    /// <summary>Detection found a calendar and contacts server and no mail server.</summary>
+    Found,
+    /// <summary>The servers found beside a JMAP account: what they add to it.</summary>
+    Beside,
+}
 
 /// <summary>Pure routing + connect-gating for the detection flow (no WinUI types, so it's testable).</summary>
 internal static class AccountDetectForm
@@ -70,10 +84,15 @@ internal static class AccountDetectForm
                 IsManual: false, Tab: DetectTab.Dav, Email: email.Trim(),
                 ImapHost: string.Empty, SmtpHost: string.Empty, JmapServer: string.Empty,
                 CaldavUrl: setup.CaldavUrl ?? string.Empty, NeedsApproval: false, Reason: null,
-                Uses: UseOffer.Of(setup), NextcloudSignIn: setup.NextcloudSignIn);
+                Uses: UseOffer.Of(setup), NextcloudSignIn: setup.NextcloudSignIn, BesideAccount: setup.BesideAccount);
         }
         return Route(setup.Recommendation) with { Uses = UseOffer.Of(setup) };
     }
+
+    /// <summary>The line the calendar and contacts section opens with: the found card's, said as
+    /// what it adds when it is for the servers beside a JMAP account, or the manual form's.</summary>
+    internal static DavCardNote DavNote(bool detected, bool besideAccount) =>
+        !detected ? DavCardNote.Manual : besideAccount ? DavCardNote.Beside : DavCardNote.Found;
 
     /// <summary>Maps a detection result onto a routed, prefilled form.</summary>
     internal static DetectRoute Route(SetupRecommendation recommendation) => recommendation switch
