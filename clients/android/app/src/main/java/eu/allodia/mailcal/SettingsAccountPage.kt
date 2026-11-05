@@ -153,7 +153,8 @@ private fun UseRow(entry: AccountEntry, capability: AccountCapability, ui: Accou
                 role = Role.Switch,
                 onValueChange = { on ->
                     when {
-                        !on -> confirmingOff = true
+                        !on && AccountSettingsRules.confirmsOff(capability) -> confirmingOff = true
+                        !on -> ui.onSetUse(entry.id, capability, false)
                         // Chosen, and waiting on the provider: switching it on asks again.
                         rule.asks -> ui.onSignInAgain(entry.id, listOf(capability))
                         else -> ui.onSetUse(entry.id, capability, true)

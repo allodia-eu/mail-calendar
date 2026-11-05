@@ -18,6 +18,14 @@ private val NOW = LocalDateTime.of(2026, 8, 1, 9, 15, 0)
 private val TEAMS = MeetingOption("server:teams", "Microsoft Teams")
 private val JITSI = MeetingOption("jitsi", "Jitsi Meet")
 
+private val TALK = MeetingOption(
+    "account:nextcloud-talk:alice@dav:cloud.example.org",
+    "Nextcloud Talk",
+    "alice@cloud.example.org",
+)
+
+private fun throughLabel(service: String, account: String) = "$service via $account"
+
 private fun calendar(choices: List<MeetingOption>, id: String = "work") =
     CalendarChoice("acct", id, id, meetingChoices = choices)
 
@@ -101,7 +109,7 @@ class EventEditorMeetingTest {
         assertEquals(MeetingSelection.Current, editor.meeting)
         assertEquals(
             listOf("None", "Zoom", "Jitsi Meet"),
-            editor.meetingOptions.map { meetingOptionLabel(it, "None", "Video meeting") },
+            editor.meetingOptions.map { meetingOptionLabel(it, "None", "Video meeting", ::throughLabel) },
         )
         assertNull(editor.updateArgs(thisOccurrenceOnly = false).meeting)
 
@@ -110,12 +118,21 @@ class EventEditorMeetingTest {
     }
 
     @Test
+    fun a_meeting_made_through_an_account_is_named_with_the_account() {
+        val editor = EventEditorState.create(calendar(listOf(TEAMS, TALK, JITSI)), "UTC", NOW)
+        assertEquals(
+            listOf("None", "Microsoft Teams", "Nextcloud Talk via alice@cloud.example.org", "Jitsi Meet"),
+            editor.meetingOptions.map { meetingOptionLabel(it, "None", "Video meeting", ::throughLabel) },
+        )
+    }
+
+    @Test
     fun a_meeting_on_a_calendar_that_offers_none_can_still_be_taken_off() {
         val editor = editing(EditorMeeting(null, "jitsi"), emptyList())
         assertTrue(editor.showsMeetingRow)
         assertEquals(
             listOf("None", "Video meeting"),
-            editor.meetingOptions.map { meetingOptionLabel(it, "None", "Video meeting") },
+            editor.meetingOptions.map { meetingOptionLabel(it, "None", "Video meeting", ::throughLabel) },
         )
         assertEquals(MeetingSelection.Choice("jitsi"), editor.effectiveMeeting)
     }

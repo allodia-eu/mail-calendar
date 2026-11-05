@@ -27,9 +27,20 @@ import androidx.compose.ui.unit.dp
 // pick, laid out like the calendar row above it, opening a menu of what the calendar offers. The
 // decisions are EventEditorMeeting.kt's; this only draws them.
 
-/** The words an option is shown by: the service's brand name, else the catalog's. */
-internal fun meetingOptionLabel(option: MeetingRowOption, none: String, generic: String): String =
-    if (option.selection == MeetingSelection.None) none else option.name ?: generic
+/**
+ * The words an option is shown by: the service's brand name, with the account that makes it for a
+ * choice made through an account ([through] puts the two together), else the catalog's.
+ */
+internal fun meetingOptionLabel(
+    option: MeetingRowOption,
+    none: String,
+    generic: String,
+    through: (service: String, account: String) -> String,
+): String {
+    if (option.selection == MeetingSelection.None) return none
+    val name = option.name ?: return generic
+    return option.through?.let { through(name, it) } ?: name
+}
 
 @Composable
 internal fun MeetingField(editor: EventEditorState) {
@@ -38,6 +49,7 @@ internal fun MeetingField(editor: EventEditorState) {
     val options = editor.meetingOptions
     val none = L10n.event_meeting_none(ctx)
     val generic = L10n.event_video_meeting(ctx)
+    val through = { service: String, account: String -> L10n.event_meeting_through(ctx, service, account) }
     val current = options.firstOrNull { it.selection == editor.effectiveMeeting } ?: options.first()
     Box {
         Row(
@@ -50,7 +62,7 @@ internal fun MeetingField(editor: EventEditorState) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(L10n.event_video_meeting(ctx), style = MaterialTheme.typography.labelSmall)
                 Text(
-                    text = meetingOptionLabel(current, none, generic),
+                    text = meetingOptionLabel(current, none, generic, through),
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -61,7 +73,7 @@ internal fun MeetingField(editor: EventEditorState) {
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(meetingOptionLabel(option, none, generic)) },
+                    text = { Text(meetingOptionLabel(option, none, generic, through)) },
                     onClick = {
                         editor.meeting = option.selection
                         open = false

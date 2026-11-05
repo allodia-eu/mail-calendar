@@ -5,7 +5,7 @@ import uniffi.mailcal_bindings.EditorMeeting
 import uniffi.mailcal_bindings.MeetingChange
 import uniffi.mailcal_bindings.MeetingWords
 
-// The editor's Video meeting row (docs/conferencing.md, rules 9 to 12): which meetings it offers,
+// The editor's Video meeting row (docs/conferencing.md, rules 9 to 14): which meetings it offers,
 // what it opens showing, and what a save sends. The core decides what a calendar offers
 // (`CalendarRow.meetingChoices`) and which meeting the editor opens on (`EventDetail.editorMeeting`);
 // this only holds the person's pick and compares it with what the editor opened with. Kept apart
@@ -34,9 +34,14 @@ internal sealed interface MeetingPick {
 
 /**
  * One entry the row offers. [name] is the service's brand name, or `null` for the screen's own
- * words: "None" for [MeetingSelection.None], "Video meeting" for a meeting nothing names.
+ * words: "None" for [MeetingSelection.None], "Video meeting" for a meeting nothing names. [through]
+ * is the address of the account a choice is made through, for one made through an account.
  */
-internal data class MeetingRowOption(val selection: MeetingSelection, val name: String?)
+internal data class MeetingRowOption(
+    val selection: MeetingSelection,
+    val name: String?,
+    val through: String? = null,
+)
 
 /** What an editor opens with for [meeting], the event's current meeting. */
 internal fun meetingSelectionOf(meeting: EditorMeeting?): MeetingSelection {
@@ -51,7 +56,7 @@ internal val EventEditorState.openedMeeting: MeetingSelection
 /**
  * The row's entries: None first, the event's own meeting where the calendar does not offer it
  * (one no choice makes, or a Jitsi meeting after the server was cleared), then the calendar's
- * choices by the core's names.
+ * choices by the core's names, one made through an account with its address.
  */
 internal val EventEditorState.meetingOptions: List<MeetingRowOption>
     get() {
@@ -61,7 +66,7 @@ internal val EventEditorState.meetingOptions: List<MeetingRowOption>
             ?.let { MeetingRowOption(openedMeeting, it.name) }
         return listOf(MeetingRowOption(MeetingSelection.None, null)) +
             listOfNotNull(current) +
-            choices.map { MeetingRowOption(MeetingSelection.Choice(it.id), it.name) }
+            choices.map { MeetingRowOption(MeetingSelection.Choice(it.id), it.name, it.through) }
     }
 
 /** Whether the row is drawn: the calendar offers a meeting, or the event has one to take off. */

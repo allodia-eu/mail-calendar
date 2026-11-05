@@ -163,6 +163,8 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
                     "SHARED_MAILBOXES",
                 ) { toggles.sharedMailboxes = it }
             }
+            // Never a setup choice: switched on from the account's page (docs/accounts.md rule 19).
+            AccountCapability.MEETINGS -> Unit
         }
     }
 }
