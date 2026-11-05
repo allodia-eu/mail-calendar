@@ -1,6 +1,6 @@
 # Privacy Policy: Allodia Mail & Calendar
 
-**Version 2.8 · Effective: 2026-11-02**
+**Version 2.9 · Effective: 2026-11-05**
 
 Allodia Mail & Calendar is a mail and calendar app that runs on your device and connects to the
 mail provider **you** choose. This policy explains, in plain language, what that means for your
@@ -231,6 +231,10 @@ the moment you choose, never via Allodia:
   associates with the file. Only ordinary web, mail and telephone links (`http`, `https`,
   `mailto`, `tel`) are ever handed off; attachments are never rendered inside the app.
 - **Sending mail or invitations** delivers them to your recipients through your provider.
+- **Adding a video meeting to an event** asks for one where you choose: the calendar's own server;
+  a Microsoft or Nextcloud account you switched video meetings on for, which receives the event's
+  title and times to make the meeting; or your own Jitsi server, which receives nothing until
+  someone opens the link.
 
 These are your dispatches, not ours: Allodia receives nothing from any of them.
 

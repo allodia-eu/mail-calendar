@@ -788,6 +788,15 @@ dispatch (which models may run), **not** which mail accounts a user may connect:
 connect any provider wherever it is hosted. (This is the product decision of record; it narrows
 the doctrine's "provider sync" language for *account connection* specifically.)
 
+**A video meeting made through a connected account is part of that account**, and is not gated
+either: a Teams meeting asked of the Microsoft account's own Graph, under its own grant, and a
+Talk meeting asked of the Nextcloud account's own server, with its own app password
+([`conferencing.md`](conferencing.md) rules 14 to 17). What leaves is the event's title and times,
+to the provider the person already sends that event to. The carve-out ends where a meeting would
+be made anywhere else: through a relay, at a service the person has no account with, or under a
+credential that is not the account's. Such a service goes through the jurisdiction check, which
+sits in `App::make_meeting`, the one place every meeting service is called from.
+
 ## Known gaps
 
 - **Graph mail: read/sync + mail actions + sending.** The engine's Graph adapter does mail folders
