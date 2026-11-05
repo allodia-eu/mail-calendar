@@ -274,6 +274,9 @@ final class MailboxModel {
     var setupExistingAccount: ExistingAccountUpdate?
     /// `true` while that offer is being taken.
     var updatingExistingAccount = false
+    /// Setup's sign-in with Nextcloud, and the account pages' and banner's (MailcalModel.Nextcloud).
+    let setupNextcloud = NextcloudSignIn()
+    let accountNextcloud = NextcloudSignIn()
     /// `true` while a Microsoft sign-in is in flight (browser + token exchange + first
     /// sync), so the form shows progress instead of looking dead.
     var microsoftSigningIn = false

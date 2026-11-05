@@ -26,6 +26,8 @@ enum SignInRemedy: Equatable {
     case jmapReauth
     /// An IMAP account signed in through its provider signs in again from its stored grant.
     case accountSignIn
+    /// A calendar and contacts account a Nextcloud sign-in made signs in with Nextcloud again.
+    case nextcloud
     /// A password or a pasted secret is entered again on the account's page.
     case settings
 }
@@ -39,13 +41,21 @@ struct ExistingAccountUpdate: Equatable {
     /// The calendar and contacts the sign-in that produced the config does not reach, which the
     /// update asks about first (docs/accounts.md rule 18).
     let unreached: [AccountCapability]
+    /// The credential is the grant setup's sign-in with Nextcloud keeps, not `configToml`.
+    let nextcloud: Bool
+
+    init(accountId: String, configToml: String, unreached: [AccountCapability], nextcloud: Bool) {
+        self.accountId = accountId
+        self.configToml = configToml
+        self.unreached = unreached
+        self.nextcloud = nextcloud
+    }
 
     /// The offer a failed add makes; `nil` for every failure but an account already set up.
     init?(refusal error: Error, configToml: String, unreached: [AccountCapability] = []) {
         guard case let MailcalError.AlreadySetUp(accountId) = error else { return nil }
-        self.accountId = accountId
-        self.configToml = configToml
-        self.unreached = unreached
+        self.init(
+            accountId: accountId, configToml: configToml, unreached: unreached, nextcloud: false)
     }
 }
 
@@ -85,10 +95,12 @@ enum AccountSignInRules {
         }
     }
 
-    /// The banner's remedy for an expired sign-in. An account whose family the core does not
-    /// know is sent to Settings.
-    static func remedy(_ provider: AccountProvider?) -> SignInRemedy {
-        switch provider {
+    /// The banner's remedy for an expired sign-in. An account a Nextcloud sign-in made is asked
+    /// first, because it reports the provider family of the password it holds. An account whose
+    /// family the core does not know is sent to Settings.
+    static func remedy(_ provider: AccountProvider?, nextcloud: Bool = false) -> SignInRemedy {
+        if nextcloud { return .nextcloud }
+        return switch provider {
         case .microsoft, .google: .consent
         case .jmapOauth: .jmapReauth
         case .imapOauth: .accountSignIn

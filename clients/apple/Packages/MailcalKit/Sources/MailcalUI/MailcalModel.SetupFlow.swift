@@ -101,6 +101,7 @@ extension MailboxModel {
     /// flow that added an account, which ends as a skipped link step does, or out of setup.
     func cancelSetup() {
         clearSetupAttempt()
+        leaveSetupNextcloud()
         if setupFlow.cancelled(stepFor: setupLinkStep) { return }
         if setupFlow.active {
             finishSetup()
@@ -122,6 +123,7 @@ extension MailboxModel {
 
     /// Closes setup and asks each added account's name, one after another.
     func finishSetup() {
+        leaveSetupNextcloud()
         senderNamesWaiting += setupFlow.finish()
         needsSetup = false
         addingAccount = false
