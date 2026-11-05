@@ -246,7 +246,10 @@ mod tests {
             HashSet::from(["asked".to_owned()]),
             "only the id asked for again is queued, so a working account is not dialled twice"
         );
-        assert!(!claim.release(), "a released claim gives nothing back twice");
+        assert!(
+            !claim.release(),
+            "a released claim gives nothing back twice"
+        );
     }
 
     #[test]

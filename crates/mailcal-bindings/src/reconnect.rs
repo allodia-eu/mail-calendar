@@ -252,3 +252,7 @@ mod signin_refused_tests;
 #[cfg(test)]
 #[path = "reconnect/refresh_redial_tests.rs"]
 mod refresh_redial_tests;
+
+#[cfg(test)]
+#[path = "reconnect/asked_again_tests.rs"]
+mod asked_again_tests;
