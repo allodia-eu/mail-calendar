@@ -87,6 +87,9 @@ struct AccountSetupView: View {
     /// Focus moves to the calendar server when Connect found neither server filled, which is what
     /// a screen reader announces of the marking.
     @FocusState var calendarServerFocused: Bool
+    @FocusState var contactsServerFocused: Bool
+    /// Whether the calendar and contacts server typed is Nextcloud, asked once it is left.
+    @State var nextcloudAsk = NextcloudManualAsk()
     /// The mandatory Early Access confirmation for Google; the "Sign in with Google" button stays
     /// disabled until it is on (Gmail is allow-listed while Google verifies the app).
     @State var googleEarlyAccessConfirmed = false
@@ -210,7 +213,7 @@ struct AccountSetupView: View {
     /// A connect or a sign-in is running, and its answer belongs to the step on screen.
     var busy: Bool {
         model.isConnecting || model.updatingExistingAccount || model.microsoftSigningIn
-            || model.googleSigningIn || imapSigningIn
+            || model.googleSigningIn || imapSigningIn || model.setupNextcloud.busy
     }
 
     /// What a Microsoft or Google sign-in for the typed address is offered; nothing for any other
@@ -256,7 +259,7 @@ struct AccountSetupView: View {
                 Button(L10n.action_connect(), action: submitDav)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!canConnectDav || !certificateOK)
+                    .disabled(!canConnectDav || !certificateOK || model.setupNextcloud.busy)
             }
         case .microsoft:
             if model.microsoftSigningIn {

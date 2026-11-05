@@ -172,7 +172,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 | Set up takes the record's own route | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
 | The link step after the connect, with "Add another account" | ✅ | ✅ | ✅ | ✅ | ✅ |
 | What a JMAP account is used for, asked after its sign-in | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
-| The link step for a JMAP server without a calendar, with the server found beside it | ⬜ | ⬜ | ⬜ | 🚧 | ✅ |
+| The link step for a JMAP server without a calendar, with the server found beside it | 🚧 | 🚧 | ⬜ | 🚧 | ✅ |
 
 ## What signing in here does
 
@@ -228,11 +228,11 @@ Fill it at boot, from `allodia_sign_in_available()`, and let whichever window op
 
 ## Known gaps
 
-- **Apple and Windows do not ask what a JMAP account is used for after its sign-in, nor offer
-  the server found beside it.** Both offer a JMAP account the link step when another account can
-  fill what it lacks (`offers_setup_links`) and skip it when none can, so a JMAP server without a
-  calendar, and no other account to lend one, ends setup without the offer. The calendar server
-  can still be set up as an account of its own and linked in Settings.
+- **Apple and Windows do not ask what a JMAP account is used for after its sign-in, and Windows
+  does not offer the server found beside it.** Windows offers a JMAP account the link step when
+  another account can fill what it lacks (`offers_setup_links`) and skips it when none can, so a
+  JMAP server without a calendar, and no other account to lend one, ends setup there without the
+  offer. The calendar server can still be set up as an account of its own and linked in Settings.
 - **What Apple has on screen, it has by hand.** The way out and the absent-registration case are
   both there and both were seen: the second on a build with the registration removed, macOS by eye
   and iOS against its accessibility tree. An Apple UI suite exists now

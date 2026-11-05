@@ -102,6 +102,11 @@ struct AccountSetupDetectView: View {
             // An offer opened from elsewhere, the Settings list, lands on its own route, the
             // same as one pressed on this screen.
             if phase.isEmailStep, let offer = model.setupStartOffer { takeOffer(offer) }
+            // The servers a link step found beside a JMAP server open on their own card.
+            if phase.isEmailStep, let detected = model.setupStartDetected {
+                model.setupStartDetected = nil
+                show(detected)
+            }
         }
         .task { await driveShowcaseIfNeeded() }
         // A different certificate is a different decision, so an acceptance never carries
@@ -238,6 +243,7 @@ struct AccountSetupDetectView: View {
     /// Moves on to what detection found: its card, with the uses as the core said they start, or
     /// the manual form with the reason it ended up there.
     func show(_ setup: DetectedSetup) {
+        model.setupBeside.detected(setup)
         uses = UseChoices(UseOffer(setup))
         flagged = .none
         if !setup.calendarAndContacts, case let .manual(reason) = setup.recommendation {

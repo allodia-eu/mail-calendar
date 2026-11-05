@@ -186,3 +186,32 @@ private let ask = SeparateServerAsk(
                 == L10n.settings_account_use_own_sign_in_calendar())
     }
 }
+
+@Suite struct SeparateServerNextcloudOfferTests {
+    @Test func aNextcloudServerLeadsWithItsSignInAndPutsThePasswordBehindIt() {
+        var form = SeparateServerSignIn()
+        form.answered(SeparateServerOffer(ask, offers: false, nextcloud: true), started: false)
+        #expect(form.offersNextcloud(ask))
+        #expect(!form.offersSignIn(ask))
+        #expect(form.signInLeads(ask))
+        #expect(!form.showsPasswordFields(ask))
+
+        form.choosePassword()
+        #expect(form.offersNextcloud(ask))
+        #expect(form.showsPasswordFields(ask))
+    }
+
+    @Test func theProvidersSignInIsOfferedRatherThanNextcloudsWhenBothAnswer() {
+        var form = SeparateServerSignIn()
+        form.answered(SeparateServerOffer(ask, offers: true, nextcloud: true), started: false)
+        #expect(form.offersSignIn(ask))
+        #expect(!form.offersNextcloud(ask))
+    }
+
+    @Test func aPasswordRouteBegunKeepsItsFields() {
+        var form = SeparateServerSignIn()
+        form.answered(SeparateServerOffer(ask, offers: false, nextcloud: true), started: true)
+        #expect(form.offersNextcloud(ask))
+        #expect(form.showsPasswordFields(ask))
+    }
+}

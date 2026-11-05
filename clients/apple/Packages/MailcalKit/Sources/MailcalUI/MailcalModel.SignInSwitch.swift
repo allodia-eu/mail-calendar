@@ -139,6 +139,10 @@ extension MailboxModel {
     /// through `ask` first; Cancel leaves the refusal on screen.
     func updateExistingAccount(ask: UnreachedAsker? = nil) {
         guard let app, let offer = setupExistingAccount, !updatingExistingAccount else { return }
+        if offer.nextcloud {
+            Task { await updateExistingNextcloudAccount(offer) }
+            return
+        }
         Task { @MainActor in
             // Asked before the offer turns to "Connecting", so the button stays behind the alert.
             let unreached: UnreachedUses?

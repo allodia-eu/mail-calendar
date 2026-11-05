@@ -37,6 +37,7 @@ extension MailboxModel {
         }
         let entry = accountEntry(account.id)
         if let entry {
+            setupBeside.added(account.id, kind: entry.kind, addresses: [account.email, entry.address])
             let withheld = AccountSettingsRules.withheld(entry)
             if !withheld.isEmpty {
                 withheldWaiting = AccountPageNotice(
@@ -65,7 +66,30 @@ extension MailboxModel {
     }
 
     func setupLinkStep(_ account: String) -> SetupLinkStep? {
-        SetupLinkStep.step(accountsSnapshot, account: account)
+        SetupLinkStep.step(accountsSnapshot, account: account, beside: setupBeside.offer(for: account))
+    }
+
+    /// The link step's offer of the servers found beside its JMAP server: setup again on their
+    /// card, for only what the session lacks, coming back to the step as "Add another account"
+    /// does. The offer is used up.
+    func setupBesideAccount() {
+        guard !savingSetupLinks, let app, let step = setupFlow.links,
+              let offer = setupBeside.take(for: step.account)
+        else { return }
+        let found = offer.found
+        guard let setup = app.davSetupBeside(
+            accountId: offer.account, email: found.email, caldavUrl: found.caldavURL,
+            carddavUrl: found.carddavURL, nextcloudSignIn: found.nextcloud)
+        else {
+            // The session has what the servers would fill by now: the step loses the offer.
+            setupFlow.refresh(setupLinkStep(step.account))
+            return
+        }
+        setupFlow.addLinked()
+        setupStartEmail = found.email
+        setupStartOffer = nil
+        setupStartDetected = setup
+        clearSetupAttempt()
     }
 
     /// The link step answered: the picks are linked when `link`, and setup closes either way.
@@ -90,6 +114,7 @@ extension MailboxModel {
         setupFlow.addLinked()
         setupStartEmail = ""
         setupStartOffer = nil
+        setupStartDetected = nil
         clearSetupAttempt()
     }
 
@@ -101,6 +126,7 @@ extension MailboxModel {
     /// flow that added an account, which ends as a skipped link step does, or out of setup.
     func cancelSetup() {
         clearSetupAttempt()
+        leaveSetupNextcloud()
         if setupFlow.cancelled(stepFor: setupLinkStep) { return }
         if setupFlow.active {
             finishSetup()
@@ -109,6 +135,7 @@ extension MailboxModel {
         addingAccount = false
         setupStartEmail = ""
         setupStartOffer = nil
+        setupStartDetected = nil
     }
 
     /// What the last attempt on the setup form left behind: the error, the account it was
@@ -122,11 +149,14 @@ extension MailboxModel {
 
     /// Closes setup and asks each added account's name, one after another.
     func finishSetup() {
+        leaveSetupNextcloud()
         senderNamesWaiting += setupFlow.finish()
+        setupBeside.reset()
         needsSetup = false
         addingAccount = false
         setupStartEmail = ""
         setupStartOffer = nil
+        setupStartDetected = nil
         if !askingSenderName { askNextSenderName() }
     }
 

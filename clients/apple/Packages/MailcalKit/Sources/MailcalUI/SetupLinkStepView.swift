@@ -16,19 +16,28 @@ struct SetupLinkStepView: View {
                 Text(L10n.settings_account_links_description())
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                SetupCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(Array(step.pickers.enumerated()), id: \.element.slot) { index, picker in
-                            // A suggestion starts picked, so it is named without a button: the
-                            // person confirms it by continuing.
-                            LinkPickerRow(
-                                picker: picker, selected: step.picked[index], suggestButton: false
-                            ) { target in
-                                model.setupFlow.pick(
-                                    index, target.flatMap { id in picker.options.firstIndex { $0.id == id } })
+                if !step.pickers.isEmpty {
+                    SetupCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(step.pickers.enumerated()), id: \.element.slot) { index, picker in
+                                // A suggestion starts picked, so it is named without a button: the
+                                // person confirms it by continuing.
+                                LinkPickerRow(
+                                    picker: picker, selected: step.picked[index], suggestButton: false
+                                ) { target in
+                                    model.setupFlow.pick(
+                                        index, target.flatMap { id in picker.options.firstIndex { $0.id == id } })
+                                }
                             }
                         }
                     }
+                }
+                if let beside = step.beside {
+                    Text(beside.fills.note(beside.offer.host))
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(beside.fills.action(beside.offer.host)) { model.setupBesideAccount() }
+                        .disabled(model.savingSetupLinks)
                 }
                 Text(L10n.setup_links_note())
                     .font(.caption).foregroundStyle(.secondary)

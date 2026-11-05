@@ -19,13 +19,17 @@ const SHOWCASE_UNTRUSTED_DOMAIN: &str = "oldschool.example";
 /// harness domain produces.
 const SHOWCASE_DAV_DOMAIN: &str = "cloud.example";
 
+/// The same card for a server that answers as Nextcloud, which offers Nextcloud's own sign-in
+/// first and the password behind it (`docs/nextcloud-sign-in.md` rule 2).
+const SHOWCASE_NEXTCLOUD_DOMAIN: &str = "nextcloud.example";
+
 /// Detection's answer in a showcase (screenshot) build: scripted, instant, and offline.
 ///
-/// Four outcomes: the settings were found and are trustworthy, they were found over an insecure
-/// hop and need approval, only a calendar and an address book were found, and nothing was found
-/// so the manual form takes over. Every other address falls to
-/// the last one, which is what makes the personal-domain example in the guide land on the manual
-/// route without a special case.
+/// Five outcomes: the settings were found and are trustworthy, they were found over an insecure
+/// hop and need approval, only a calendar and an address book were found, at a server that may
+/// or may not be Nextcloud, and nothing was found so the manual form takes over. Every other
+/// address falls to the last one, which is what makes the personal-domain example in the guide land
+/// on the manual route without a special case.
 ///
 /// Both domains are `.example` (RFC 2606), so even if this were ever reached outside a showcase
 /// build it could not name a host that resolves. Adding the Microsoft or Google route here is a
@@ -58,6 +62,15 @@ pub(super) fn showcase_route(email: &str) -> mailcal_account::SetupRecommendatio
             caldav_url: Some(format!("https://dav.{domain}/caldav/")),
             carddav_url: Some(format!("https://dav.{domain}/carddav/")),
             nextcloud: false,
+        };
+    }
+    if domain == SHOWCASE_NEXTCLOUD_DOMAIN {
+        let dav = format!("https://{domain}/remote.php/dav/");
+        return SetupRecommendation::Dav {
+            email: email.to_owned(),
+            caldav_url: Some(dav.clone()),
+            carddav_url: Some(dav),
+            nextcloud: true,
         };
     }
     let trusted = domain == SHOWCASE_TRUSTED_DOMAIN;

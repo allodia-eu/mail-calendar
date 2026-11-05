@@ -13,30 +13,45 @@ struct SetupLinkStep: Equatable {
     /// The account the step links.
     let account: String
     let pickers: [LinkPicker]
+    /// The servers found beside the account's JMAP server, offered as an account of their own
+    /// for what its session lacks.
+    let beside: BesideStep?
     /// Per picker, the index into its options that is picked; `nil` for none. A suggestion starts
     /// picked, and the person confirms it by continuing.
     private(set) var picked: [Int?]
     /// Whether the person has changed a pick, after which a late suggestion leaves the step alone.
     private(set) var touched = false
 
-    private init(account: String, pickers: [LinkPicker]) {
+    private init(account: String, pickers: [LinkPicker], beside: BesideStep?) {
         self.account = account
         self.pickers = pickers
+        self.beside = beside
         picked = pickers.map(\.suggested)
     }
 
-    /// The step for `account`, or `nil` when no other account can fill anything it lacks, or its
-    /// kind is not offered linking at setup (`offersLinks`, the core's `offers_setup_links`: a
-    /// Microsoft or Google account holds everything itself, and linking one is for Settings).
+    /// The step for `account`, or `nil` when no other account can fill anything it lacks and its
+    /// server offers its calendar and contacts, or its kind is not offered linking at setup
+    /// (`offersLinks`, the core's `offers_setup_links`: a Microsoft or Google account holds
+    /// everything itself, and linking one is for Settings). A server without one gets the step
+    /// anyway, for "Add another account" and for `beside`, which is offered only then.
     static func step(
-        _ snapshot: AccountsSnapshot, account: String,
+        _ snapshot: AccountsSnapshot, account: String, beside: BesideOffer? = nil,
         offersLinks: (AccountKind) -> Bool = { offersSetupLinks(kind: $0) }
     ) -> SetupLinkStep? {
         guard let entry = snapshot.accounts.first(where: { $0.id == account }),
               offersLinks(entry.kind)
         else { return nil }
         let pickers = AccountSettingsRules.linkPickers(entry).filter { $0.selected == nil }
-        return pickers.isEmpty ? nil : SetupLinkStep(account: account, pickers: pickers)
+        func lacks(_ capability: AccountCapability) -> Bool {
+            entry.uses.contains { $0.capability == capability && $0.state == .notOffered }
+        }
+        let (calendar, contacts) = (lacks(.calendar), lacks(.contacts))
+        let offered = beside.flatMap { offer in
+            BesideFills(offer.found, lacksCalendar: calendar, lacksContacts: contacts)
+                .map { BesideStep(offer: offer, fills: $0) }
+        }
+        guard !pickers.isEmpty || calendar || contacts else { return nil }
+        return SetupLinkStep(account: account, pickers: pickers, beside: offered)
     }
 
     /// The same step read again, for a suggestion that arrived after it was drawn. A step the

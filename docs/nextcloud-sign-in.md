@@ -124,12 +124,12 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | The server is asked, never the realm | ✅ | n/a | n/a | n/a | n/a |
-| Found card and link step: sign-in first, password behind | ✅ | ⬜ | ⬜ | 🚧 | 🚧 |
-| Manual form asks once a URL is entered | ✅ | ⬜ | ⬜ | ✅ | ✅ |
-| Separate-server step offers it above the password | ✅ | ⬜ | ⬜ | 🚧 | 🚧 |
-| Account page and sign-in-again prompt | ✅ | ⬜ | ⬜ | ✅ | ✅ |
-| Browser opened, polled, and polled again on return | n/a | ⬜ | ⬜ | ✅ | ✅ |
-| A held grant retried, or withdrawn when abandoned | ✅ | ⬜ | ⬜ | 🚧 | 🚧 |
+| Found card and link step: sign-in first, password behind | ✅ | 🚧 | ⬜ | 🚧 | 🚧 |
+| Manual form asks once a URL is entered | ✅ | ✅ | ⬜ | ✅ | ✅ |
+| Separate-server step offers it above the password | ✅ | 🚧 | ⬜ | 🚧 | 🚧 |
+| Account page and sign-in-again prompt | ✅ | ✅ | ⬜ | ✅ | ✅ |
+| Browser opened, polled, and polled again on return | n/a | 🚧 | ⬜ | ✅ | ✅ |
+| A held grant retried, or withdrawn when abandoned | ✅ | 🚧 | ⬜ | 🚧 | 🚧 |
 | Remote wipe answered | ✅ | n/a | n/a | n/a | n/a |
 | Password withdrawn on removal and on a new sign-in | ✅ | n/a | n/a | n/a | n/a |
 
@@ -163,4 +163,9 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   removal. The found card and the separate-server step need a domain and a mailbox the fixture
   cannot stand in for, so they are runtime unverified there. Android asserts the same in its JVM
   suite (`NextcloudFlightTest`, `NextcloudSetupTest`, `NextcloudSetupScreenTest`,
-  `NextcloudAccountSignInTest`) and was driven on an emulator through the same three flows.
+  `NextcloudAccountSignInTest`) and was driven on an emulator through the same three flows. Apple
+  asserts the flight and each surface's state in MailcalKit and the found card's drawing in
+  `NextcloudSignInTests`, against the showcase's `nextcloud.example`; the macOS app was driven
+  through the manual form and signing in again. iOS was exercised by the simulator suite alone,
+  and the poll on return has unit tests only. Apple draws no link step for servers found beside a
+  JMAP server, so it has no such card to offer the sign-in on.

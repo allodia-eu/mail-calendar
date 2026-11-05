@@ -12,11 +12,15 @@ struct SeparateServerOffer: Equatable {
     let account: String
     let uses: [AccountCapability]
     let offers: Bool
+    /// The server is Nextcloud, whose own sign-in is offered where its provider's is not
+    /// (docs/nextcloud-sign-in.md rule 2).
+    let nextcloud: Bool
 
-    init(_ ask: SeparateServerAsk, offers: Bool) {
+    init(_ ask: SeparateServerAsk, offers: Bool, nextcloud: Bool = false) {
         account = ask.account
         uses = ask.uses
         self.offers = offers
+        self.nextcloud = nextcloud && !offers
     }
 
     /// Whether this is the answer for `ask`: the same mailbox and the same uses.
@@ -95,16 +99,22 @@ struct SeparateServerSignIn: Equatable {
         return offer.offers && offer.answers(ask)
     }
 
+    /// The sign-in with Nextcloud, offered on the same terms where the provider's is not.
+    func offersNextcloud(_ ask: SeparateServerAsk) -> Bool {
+        guard let offer else { return false }
+        return offer.nextcloud && offer.answers(ask)
+    }
+
     /// The login and password: always without a sign-in; beside one, once the password route is
     /// chosen.
     func showsPasswordFields(_ ask: SeparateServerAsk) -> Bool {
-        !offersSignIn(ask) || passwordChosen
+        !(offersSignIn(ask) || offersNextcloud(ask)) || passwordChosen
     }
 
     /// Whether the sign-in is the form's primary action, with the password route behind "Use a
     /// password instead".
     func signInLeads(_ ask: SeparateServerAsk) -> Bool {
-        offersSignIn(ask) && !passwordChosen
+        (offersSignIn(ask) || offersNextcloud(ask)) && !passwordChosen
     }
 
     var signingIn: Bool { attempts.signingIn }
