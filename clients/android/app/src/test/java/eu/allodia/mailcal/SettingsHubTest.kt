@@ -194,7 +194,7 @@ class SettingsHubTest {
     @Test
     fun videoconferencing_keeps_the_jitsi_server_the_core_accepts_and_says_when_it_refuses() {
         show(initialCategory = SettingsCategory.VIDEOCONFERENCING)
-        val field = compose.onNodeWithText(L10n.settings_jitsi_server(ctx()))
+        val field = compose.onNodeWithTag(JITSI_SERVER_FIELD)
         field.performTextInput("http://meet.example.org")
         field.performImeAction()
         compose.onNodeWithText(L10n.settings_jitsi_server_invalid(ctx())).assertIsDisplayed()

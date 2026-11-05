@@ -14,12 +14,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 
 // Settings → Videoconferencing's one field: the person's Jitsi server (docs/conferencing.md,
 // rule 13). Empty until they fill it, and checked by the core before it is stored, so an address it
 // refuses is said here and nothing changes.
+
+/** The field's test tag: its label is also the heading of the card it sits in. */
+internal const val JITSI_SERVER_FIELD = "jitsi_server"
 
 @Composable
 internal fun JitsiServerRow(jitsiServer: () -> String?, onSetJitsiServer: (String) -> Boolean) {
@@ -45,6 +49,7 @@ internal fun JitsiServerRow(jitsiServer: () -> String?, onSetJitsiServer: (Strin
             },
             modifier = Modifier
                 .fillMaxWidth()
+                .testTag(JITSI_SERVER_FIELD)
                 .onFocusChanged { state ->
                     if (focused && !state.isFocused) store()
                     focused = state.isFocused
