@@ -27,7 +27,11 @@ internal fun MainActivity.askSeparateSignIn(state: SeparateSignIn) {
         // Never an error from the core: a server that cannot be asked offers the password.
         val offers = runCatching { instance.separateServerOffersSignIn(form.accountId, form.uses) }
             .getOrDefault(false)
-        mainHandler.post { state.answered(form, offers) }
+        // Nextcloud offers no provider sign-in, so it is asked only when there is none.
+        val nextcloud = !offers &&
+            runCatching { instance.separateServerOffersNextcloudSignIn(form.accountId, form.uses) }
+                .getOrDefault(false)
+        mainHandler.post { state.answered(form, offers, nextcloud) }
     }
 }
 
@@ -36,6 +40,7 @@ internal fun MainActivity.askSeparateSignIn(state: SeparateSignIn) {
  * the attempt was superseded or the form left meanwhile.
  */
 internal fun MainActivity.signInSeparate(state: SeparateSignIn) {
+    if (state.offersNextcloud) return signInSeparateNextcloud(state)
     val instance = app ?: return
     val form = state.form ?: return
     val attempt = state.beginSignIn() ?: return
@@ -83,7 +88,7 @@ private fun MainActivity.separateForms(): List<SeparateSignIn> = listOf(setupFlo
 
 /** The form whose sign-in the next IMAP redirect completes, or null when none waits for one. */
 internal fun MainActivity.awaitingSeparateSignIn(): SeparateSignIn? =
-    separateForms().firstOrNull { it.browser.pending != null }
+    separateForms().firstOrNull { it.browser.pending != null && !it.offersNextcloud }
 
 /** Completes [state]'s sign-in from the redirect, and goes on as Connect's success does. */
 internal fun MainActivity.completeSeparateSignIn(state: SeparateSignIn, callbackUrl: String) {

@@ -23,12 +23,14 @@ extension MailboxModel {
     /// core doesn't know, which the banner treats as "update it in Settings". The id rides along
     /// because a JMAP re-authentication is addressed to the *account*, not to an address: it
     /// re-authorises that account's own persisted grant.
-    var signInExpiredAccounts: [(id: String, name: String, provider: AccountProvider?)] {
+    /// `nextcloud` marks an account a Nextcloud sign-in made, whose remedy is that sign-in.
+    var signInExpiredAccounts: [(id: String, name: String, provider: AccountProvider?, nextcloud: Bool)] {
         (connectivity?.signinExpiredAccounts ?? []).map { id in
             (
                 id: id,
                 name: signInName(id),
-                provider: app?.accountProvider(accountId: id)
+                provider: app?.accountProvider(accountId: id),
+                nextcloud: accountEntry(id)?.nextcloud == true
             )
         }
     }

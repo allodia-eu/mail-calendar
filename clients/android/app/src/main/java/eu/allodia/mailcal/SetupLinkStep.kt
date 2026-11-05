@@ -17,6 +17,8 @@ internal data class Beside(
     val email: String,
     val caldavUrl: String?,
     val carddavUrl: String?,
+    /** They are Nextcloud, which signs in through the browser. */
+    val nextcloud: Boolean = false,
 ) {
     /** The host a person recognises the servers by. */
     val host: String get() = (caldavUrl ?: carddavUrl)?.let(::urlHost).orEmpty()

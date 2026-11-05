@@ -39,6 +39,7 @@ default-members = [
   "crates/mailcal-composer",
   "crates/mailcal-viewmodel",
   "crates/mailcal-oauth",
+  "crates/mailcal-nextcloud",
   "crates/mailcal-telemetry",
   "crates/mailcal-user-agent",
   "crates/mailcal-mcp",
@@ -259,6 +260,7 @@ mailcal-autodetect = { path = "crates/mailcal-autodetect" }
 # IMAP/SMTP XOAUTH2 reuse it later). Token acquisition/refresh is the host's job — the engine
 # stays OAuth-agnostic (north-star.md) — so this lives in the product core.
 mailcal-oauth = { path = "crates/mailcal-oauth" }
+mailcal-nextcloud = { path = "crates/mailcal-nextcloud" }
 # The local Model Context Protocol server — the agent adapter over the core's query/action layer.
 # Kept out of `mailcal-app` for the same reason `mailcal-telemetry` is: a build without this crate
 # structurally CANNOT listen on a socket, so the demo, the showcase, and every test are not merely

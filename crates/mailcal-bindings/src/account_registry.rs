@@ -61,6 +61,7 @@ mod dial_parts;
 mod dial_run;
 mod endpoints;
 mod links;
+mod nextcloud;
 mod registered;
 mod set_up;
 mod shared;
@@ -68,6 +69,7 @@ mod sign_in;
 mod uses;
 
 pub(crate) use dial::{AccountDial, ConnectFailure, MAX_CONCURRENT_DIALS, dial_all};
+pub(crate) use nextcloud::issued as nextcloud_issued;
 pub(crate) use registered::Registered;
 pub(crate) use sign_in::SignInConfig;
 pub(crate) use uses::UseChange;

@@ -180,7 +180,8 @@ is recorded here.
     `offline_access` and those uses' scopes, never mail (`mailcal_oauth::select_dav_scopes`). The
     account it makes is the one a password makes ([`accounts.md`](accounts.md) rule 18), holding
     the grant instead, and a sign-in naming another account is refused as rule 10's mailbox
-    sign-in is. Anything short of that offers the password form alone.
+    sign-in is. Anything short of that offers the password form alone. A Nextcloud server, which registers
+    no app this way, offers its own sign-in instead ([`nextcloud-sign-in.md`](nextcloud-sign-in.md)).
 
 ## What is deliberately not done
 

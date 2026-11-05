@@ -264,6 +264,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::accounts::tests::an_account_row_opens_its_page();
     crate::ui::settings::sign_in_section::tests::the_section_draws_the_switch_its_server_takes();
     crate::ui::settings::sign_in_section::tests::
+        a_calendar_account_switches_to_signing_in_with_nextcloud();
+    crate::ui::settings::sign_in_section::tests::
         a_password_is_typed_into_an_empty_field_and_cleared_once_sent();
     crate::ui::settings::sign_in_section::tests::a_running_change_holds_every_control();
     crate::ui::settings::sign_in_section::tests::

@@ -22,6 +22,7 @@ fn snapshot(addresses: &[&str]) -> AccountsSnapshot {
                 separate_server: None,
                 distinction: None,
                 mail_sync: None,
+                nextcloud: false,
             })
             .collect(),
     }

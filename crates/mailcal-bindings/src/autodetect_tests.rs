@@ -82,6 +82,7 @@ fn a_discovered_caldav_endpoint_survives_the_ffi_conversion() {
         dav: DetectedDav {
             caldav_url: Some("https://caldav.soverin.net/calendars".to_owned()),
             carddav_url: None,
+            nextcloud: false,
         },
     });
     let SetupRecommendation::Imap { caldav_url, .. } =
@@ -104,6 +105,7 @@ fn a_domain_with_only_dav_reaches_the_clients_as_nothing_found() {
         Ok(Detected::Dav(DetectedDav {
             caldav_url: Some("https://example.com/.well-known/caldav".to_owned()),
             carddav_url: None,
+            nextcloud: false,
         })),
     );
     assert!(matches!(
@@ -253,6 +255,31 @@ fn the_showcase_untrusted_domain_reports_itself_untrusted() {
     assert!(!is_trusted);
     assert!(caldav_url.is_none());
     assert!(source.starts_with("autoconfig (http://"));
+}
+
+#[test]
+fn the_showcase_nextcloud_domain_offers_nextcloud_sign_in() {
+    use mailcal_account::SetupRecommendation as Route;
+    let Route::Dav {
+        caldav_url,
+        nextcloud,
+        ..
+    } = super::showcase_route("eva@nextcloud.example")
+    else {
+        panic!("expected the calendar and contacts route");
+    };
+    assert!(nextcloud);
+    assert_eq!(
+        caldav_url.as_deref(),
+        Some("https://nextcloud.example/remote.php/dav/")
+    );
+    assert!(matches!(
+        super::showcase_route("eva@cloud.example"),
+        Route::Dav {
+            nextcloud: false,
+            ..
+        }
+    ));
 }
 
 #[test]

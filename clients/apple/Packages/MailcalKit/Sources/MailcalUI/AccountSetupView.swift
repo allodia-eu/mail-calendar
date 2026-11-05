@@ -87,6 +87,9 @@ struct AccountSetupView: View {
     /// Focus moves to the calendar server when Connect found neither server filled, which is what
     /// a screen reader announces of the marking.
     @FocusState var calendarServerFocused: Bool
+    @FocusState var contactsServerFocused: Bool
+    /// Whether the calendar and contacts server typed is Nextcloud, asked once it is left.
+    @State var nextcloudAsk = NextcloudManualAsk()
     /// The mandatory Early Access confirmation for Google; the "Sign in with Google" button stays
     /// disabled until it is on (Gmail is allow-listed while Google verifies the app).
     @State var googleEarlyAccessConfirmed = false
@@ -142,6 +145,17 @@ struct AccountSetupView: View {
         certificateAccepted ? refusedCertificate : nil
     }
 
+    private var kindPicker: some View {
+        Picker(L10n.setup_account_type(), selection: $kind) {
+            ForEach(SetupAccountKind.offered, id: \.self) { offered in
+                Text(offered.label).tag(offered)
+            }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+        .fixedSize()
+    }
+
     var body: some View {
         SetupScaffold {
             Text(L10n.setup_title()).font(.title2).bold()
@@ -152,18 +166,19 @@ struct AccountSetupView: View {
             }
 
             // A menu rather than segments: five kinds, one of them named at length, do not fit
-            // a phone's width side by side.
-            HStack {
-                Text(L10n.setup_account_type())
-                Spacer()
-                Picker(L10n.setup_account_type(), selection: $kind) {
-                    ForEach(SetupAccountKind.offered, id: \.self) { offered in
-                        Text(offered.label).tag(offered)
-                    }
+            // a phone's width side by side. Beside its label while both fit, beneath it once the
+            // longest kind is chosen on a phone: squeezed, the label wraps into a tall column of
+            // single letters and opens a gap above the form.
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    Text(L10n.setup_account_type()).fixedSize()
+                    Spacer()
+                    kindPicker
                 }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .fixedSize()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.setup_account_type())
+                    kindPicker
+                }
             }
 
             switch kind {
@@ -210,7 +225,7 @@ struct AccountSetupView: View {
     /// A connect or a sign-in is running, and its answer belongs to the step on screen.
     var busy: Bool {
         model.isConnecting || model.updatingExistingAccount || model.microsoftSigningIn
-            || model.googleSigningIn || imapSigningIn
+            || model.googleSigningIn || imapSigningIn || model.setupNextcloud.busy
     }
 
     /// What a Microsoft or Google sign-in for the typed address is offered; nothing for any other
@@ -256,7 +271,7 @@ struct AccountSetupView: View {
                 Button(L10n.action_connect(), action: submitDav)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!canConnectDav || !certificateOK)
+                    .disabled(!canConnectDav || !certificateOK || model.setupNextcloud.busy)
             }
         case .microsoft:
             if model.microsoftSigningIn {

@@ -104,6 +104,12 @@ mod native_fault;
 mod native_fault_record;
 #[cfg(windows)]
 mod native_fault_windows;
+mod nextcloud;
+mod nextcloud_account_sign_in;
+mod nextcloud_accounts;
+#[cfg(test)]
+mod nextcloud_mock;
+mod nextcloud_wipe;
 mod oauth_routes;
 mod observer;
 mod protocol;
@@ -208,6 +214,7 @@ pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use meeting_editor::{InviteeCheck, check_meeting_invitee, meeting_invitee_patch};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
+pub use nextcloud::{NextcloudSignInPoll, NextcloudSignInStart, nextcloud_poll_interval_ms};
 pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
     BulkAction, EventIntent, FolderIntent, Intent, InvitationResponse, OutboxIntent, SearchScope,
@@ -383,6 +390,9 @@ pub struct MailcalApp {
     /// user's *chosen* display zone re-projects the agenda in the view-model, this only anchors
     /// the Graph read (one display zone per provider, per the engine's documented limitation).
     device_zone: engine_api::TimeZoneId,
+    /// The platform the host reported at construction, which names the app password a Nextcloud
+    /// sign-in obtains. `None` for a build that reported none: the in-memory and showcase boots.
+    platform: Option<Platform>,
     /// What looking again for a calendar or address-book server that stopped answering needs.
     rediscovery: dav_rediscovery::Rediscovery,
     /// Whether this app was built by [`MailcalApp::new_showcase`]: the seeded, offline

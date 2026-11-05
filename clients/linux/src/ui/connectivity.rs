@@ -44,14 +44,18 @@ impl ConnectivityState {
                 .find(|entry| entry.id == id)
                 .cloned()
         };
-        Self::from_snapshot(
+        let mut state = Self::from_snapshot(
             app.connectivity(),
             accounts,
             |id| entry(id).map(|entry| entry.address),
             |id| entry(id).map(|entry| entry_name(&entry)),
             |id| app.account_provider(id.to_owned()),
             |id| app.pending_server_change(id.to_owned()),
-        )
+        );
+        for expired in &mut state.expired_signins {
+            expired.nextcloud = entry(&expired.id).is_some_and(|entry| entry.nextcloud);
+        }
+        state
     }
 
     fn from_snapshot(
@@ -69,6 +73,7 @@ impl ConnectivityState {
             .map(|id| ExpiredSignIn {
                 email: named_by(&id),
                 provider: provider(&id),
+                nextcloud: false,
                 id,
             })
             .collect();
@@ -150,10 +155,15 @@ pub(super) struct ExpiredSignIn {
     pub(super) id: String,
     pub(super) email: String,
     provider: Option<AccountProvider>,
+    /// A Nextcloud sign-in made it, so signing in again is that sign-in.
+    nextcloud: bool,
 }
 
 impl ExpiredSignIn {
     fn resolution(&self) -> ExpiredResolution {
+        if self.nextcloud {
+            return ExpiredResolution::Nextcloud(self.id.clone());
+        }
         match self.provider.as_ref() {
             Some(AccountProvider::Microsoft | AccountProvider::Google) => {
                 ExpiredResolution::SignInAgain(self.id.clone())
@@ -174,6 +184,9 @@ pub(super) enum ExpiredResolution {
     /// An IMAP account that signs in through its provider, signed in again in place from its
     /// stored grant. It has no password to ask for.
     ImapOauth(String),
+    /// A calendar and contacts account a Nextcloud sign-in made, signed in with Nextcloud again
+    /// (`docs/nextcloud-sign-in.md` rule 8).
+    Nextcloud(String),
     Settings,
 }
 
@@ -285,6 +298,7 @@ impl ConnectivityBanners {
                 ExpiredResolution::SignInAgain(_)
                     | ExpiredResolution::JmapOauth(_)
                     | ExpiredResolution::ImapOauth(_)
+                    | ExpiredResolution::Nextcloud(_)
             )
         );
         let title = if browser_flow {

@@ -16,8 +16,10 @@ import androidx.compose.runtime.setValue
 internal data class SeparateControls(
     /** Connect's spinner: a connect or a skip runs. */
     val connecting: Boolean = false,
-    /** Whether the sign-in at the server's own provider is drawn. */
+    /** Whether the sign-in at the server's own provider, or Nextcloud's, is drawn. */
     val offersSignIn: Boolean = false,
+    /** The sign-in drawn is Nextcloud's (docs/nextcloud-sign-in.md). */
+    val nextcloud: Boolean = false,
     /** The sign-in button's spinner. */
     val signingIn: Boolean = false,
     /** The fields, Connect and the sign-in button. */
@@ -26,11 +28,17 @@ internal data class SeparateControls(
     val leavable: Boolean = true,
 ) {
     companion object {
-        fun of(busy: Boolean, offersSignIn: Boolean, step: SeparateSignInStep?): SeparateControls {
+        fun of(
+            busy: Boolean,
+            offersSignIn: Boolean,
+            step: SeparateSignInStep?,
+            nextcloud: Boolean = false,
+        ): SeparateControls {
             val completing = step == SeparateSignInStep.COMPLETING
             return SeparateControls(
                 connecting = busy,
-                offersSignIn = offersSignIn,
+                offersSignIn = offersSignIn || nextcloud,
+                nextcloud = nextcloud,
                 signingIn = step != null,
                 editable = !busy && step != SeparateSignInStep.STARTING && !completing,
                 leavable = !busy && !completing,
@@ -56,12 +64,25 @@ internal class SeparateSignIn {
     var offersSignIn by mutableStateOf(false)
         private set
 
+    /** Whether the core said the form's server is Nextcloud, whose own sign-in it offers. */
+    var offersNextcloud by mutableStateOf(false)
+        private set
+
+    /**
+     * A Nextcloud grant no account was made of yet, kept so the next press tries it again without
+     * the browser: the server hands it out once.
+     */
+    var grant: String? = null
+
+    /** The Nextcloud sign-in in the air, stopped when the form moves on from it. */
+    var flight: NextcloudFlight? = null
+
     /** The browser sign-in, while one runs or its redirect is awaited. */
     val browser = SeparateServerSignInSlot()
 
     private var asked: SeparateServerForm? = null
 
-    val controls: SeparateControls get() = SeparateControls.of(busy, offersSignIn, browser.step)
+    val controls: SeparateControls get() = SeparateControls.of(busy, offersSignIn, browser.step, offersNextcloud)
 
     fun open(form: SeparateServerForm) {
         close()
@@ -75,9 +96,14 @@ internal class SeparateSignIn {
         return true
     }
 
-    /** The core answered for [form]; an answer for a form no longer on screen is dropped. */
-    fun answered(form: SeparateServerForm, offers: Boolean) {
-        if (this.form == form) offersSignIn = offers
+    /**
+     * The core answered for [form]: whether it signs in at its own provider, or else with
+     * Nextcloud. An answer for a form no longer on screen is dropped.
+     */
+    fun answered(form: SeparateServerForm, offers: Boolean, nextcloud: Boolean = false) {
+        if (this.form != form) return
+        offersSignIn = offers
+        offersNextcloud = nextcloud && !offers
     }
 
     /**
@@ -86,7 +112,7 @@ internal class SeparateSignIn {
      */
     fun start(): Boolean {
         if (form == null || busy || browser.step == SeparateSignInStep.COMPLETING) return false
-        browser.retire()
+        retire()
         busy = true
         error = null
         return true
@@ -94,7 +120,7 @@ internal class SeparateSignIn {
 
     /** Starts the browser sign-in, superseding one still out: the attempt, or null when it may not. */
     fun beginSignIn(): Long? {
-        if (form == null || !offersSignIn || !controls.editable) return null
+        if (form == null || !controls.offersSignIn || !controls.editable) return null
         error = null
         return browser.begin()
     }
@@ -110,7 +136,7 @@ internal class SeparateSignIn {
      * its account is already being added.
      */
     fun left() {
-        if (browser.step != SeparateSignInStep.COMPLETING) browser.retire()
+        if (browser.step != SeparateSignInStep.COMPLETING) retire()
     }
 
     /** The form goes, and with it any sign-in still running for it. */
@@ -119,7 +145,23 @@ internal class SeparateSignIn {
         busy = false
         error = null
         offersSignIn = false
+        offersNextcloud = false
         asked = null
+        retire()
+    }
+
+    /**
+     * Retires the sign-in in the air, stopping a Nextcloud flight and withdrawing a kept grant;
+     * never one the core is making an account of now.
+     */
+    fun retire() {
+        val completing = browser.step == SeparateSignInStep.COMPLETING
         browser.retire()
+        flight?.stop()
+        flight = null
+        if (!completing) {
+            NextcloudFlights.withdraw(grant)
+            grant = null
+        }
     }
 }

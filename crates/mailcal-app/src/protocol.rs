@@ -86,6 +86,11 @@ pub enum Surface {
 pub trait AppObserver: Send + Sync {
     /// Signals that `surface`'s snapshot changed.
     fn surface_changed(&self, surface: Surface);
+
+    /// Signals that `account`'s server has just refused its stored sign-in, once per refusal: the
+    /// moment a host can ask a question the refusal raises, such as whether a Nextcloud server
+    /// asked this device to wipe the account. Nothing by default.
+    fn signin_refused(&self, _account: &engine_api::AccountId) {}
 }
 
 /// Host-resolved bytes for one composer blob handle.

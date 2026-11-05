@@ -413,6 +413,41 @@ What differs from the Flatpak, each verified on an installed snap:
   slot. With both installed, whichever starts second hands off to the first and exits.
 - **The MCP snippet runs `/snap/bin/<snap>.<relay>`** (docs/mcp.md).
 
+## Build for a native install
+
+The tarball a `.deb` or an AUR package is made from: the release binaries and every file installed
+beside them, as a `/usr` tree.
+
+```sh
+clients/linux/package-native.sh    # target/native/<name>-<version>-<arch>.tar.xz and its .sha256
+```
+
+It needs the build packages above, plus `desktop-file-utils` and `appstream` to validate the
+desktop entry and metainfo it generates. It builds in a directory of its own under
+`target/native/build`, so the first run is a cold release compile. The binaries are named
+`MAILCAL_LINUX_PACKAGE_NAME` and `MAILCAL_MCP_RELAY_NAME` (docs/branding.md), and the licence
+files follow the build: GPL-3.0-only, and `LicenseRef-Allodia-1.0` beside it when the Allodia
+sign-in is compiled in.
+
+**Build it on the oldest distribution it should run on.** It links against the host's GTK,
+libadwaita and WebKitGTK, and a binary needs at least the glibc it was linked against, so one
+built on Ubuntu 26.04 runs there and on newer distributions such as Arch, and not the other way
+round. CI builds it there on both architectures at a tag, and checks the x86_64 tarball's
+libraries against current Arch. Packing it as a `.deb` or for the AUR, and publishing either,
+belong to the publisher.
+
+What differs from the Flatpak:
+
+- **It runs against the distribution's GTK, libadwaita and WebKitGTK**, not the GNOME runtime
+  this client is verified against. The compile-time floor holds on any distribution as new as
+  Ubuntu 26.04.
+- **Its data is under `~/.local/share/<data dir>/`**, outside any sandbox, so a Flatpak and a
+  native install on one machine keep two mailboxes. Both own the application id on the session
+  bus, and whichever starts second hands off to the first and exits.
+- **It needs a Secret Service**, such as GNOME Keyring: with no sandbox there is no Secret portal,
+  and the client has no plaintext fallback.
+- **The MCP snippet runs `/usr/bin/<relay>`** (docs/mcp.md).
+
 ## Capture the showcase set
 
 ```sh

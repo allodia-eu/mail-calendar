@@ -64,6 +64,44 @@ public class AccountDetectFormTests
         Assert.Equal("alice@example.com", route.Email);
         Assert.Equal("https://dav.example.com/caldav", route.Uses?.CaldavUrl);
         Assert.Single(route.Uses!.Choices);
+        Assert.False(route.NextcloudSignIn);
+    }
+
+    [Fact]
+    public void A_calendar_and_contacts_card_at_Nextcloud_leads_with_its_sign_in()
+    {
+        var setup = new DetectedSetup(
+            new SetupRecommendation.Manual(MissReason.NothingFound),
+            CalendarAndContacts: true,
+            CaldavUrl: "https://cloud.example.com/remote.php/dav/",
+            CarddavUrl: "https://cloud.example.com/remote.php/dav/",
+            Choices: [new SetupChoice(AccountCapability.Calendar, true, true)],
+            NextcloudSignIn: true);
+        Assert.True(AccountDetectForm.Route(setup, "alice@example.com").NextcloudSignIn);
+    }
+
+    [Fact]
+    public void TheCardBesideAJmapAccountSaysWhatItAddsAndNoOtherCardDoes()
+    {
+        var found = new DetectedSetup(
+            new SetupRecommendation.Manual(MissReason.NothingFound),
+            CalendarAndContacts: true,
+            CaldavUrl: "https://dav.example.com/caldav",
+            CarddavUrl: null,
+            Choices: [new SetupChoice(AccountCapability.Calendar, true, true)]);
+        var route = AccountDetectForm.Route(found, "alice@example.com");
+        Assert.False(route.BesideAccount);
+        Assert.Equal(DavCardNote.Found, AccountDetectForm.DavNote(detected: true, route.BesideAccount));
+
+        // dav_setup_beside's card: its mail server is the JMAP account just added, so "no mail
+        // server" would be untrue there.
+        route = AccountDetectForm.Route(found with { BesideAccount = true }, "alice@example.com");
+        Assert.True(route.BesideAccount);
+        Assert.Equal(DavCardNote.Beside, AccountDetectForm.DavNote(detected: true, route.BesideAccount));
+
+        // The manual form says what the account type is for, whichever card it was opened from.
+        Assert.Equal(DavCardNote.Manual, AccountDetectForm.DavNote(detected: false, besideAccount: true));
+        Assert.Equal(DavCardNote.Manual, AccountDetectForm.DavNote(detected: false, besideAccount: false));
     }
 
     [Fact]

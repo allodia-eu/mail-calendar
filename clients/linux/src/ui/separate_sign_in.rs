@@ -69,6 +69,12 @@ pub(crate) struct SeparateForm {
     pub(super) busy: bool,
     /// The server answered that it signs in at its own provider.
     pub(super) offers_sign_in: bool,
+    /// The server answered that it is Nextcloud, whose own sign-in is offered instead
+    /// (`docs/nextcloud-sign-in.md`).
+    pub(super) nextcloud: bool,
+    /// A Nextcloud grant no account was made from yet, kept so the next press tries it again
+    /// without the browser; the server hands it out once.
+    pub(super) grant: Option<super::nextcloud_flight::Grant>,
     /// Where that sign-in stands.
     pub(super) stage: SignInStage,
     /// Why the last connect failed, said under the fields.
@@ -86,6 +92,8 @@ impl SeparateForm {
             server,
             busy: false,
             offers_sign_in: false,
+            nextcloud: false,
+            grant: None,
             stage: SignInStage::Idle,
             error: None,
             next,

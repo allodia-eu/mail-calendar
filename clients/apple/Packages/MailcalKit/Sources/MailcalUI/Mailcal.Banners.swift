@@ -73,7 +73,7 @@ extension ContentView {
         let accounts = model.signInExpiredAccounts
         if let first = accounts.first {
             let emails = accounts.map(\.name).joined(separator: ", ")
-            let remedy = AccountSignInRules.remedy(first.provider)
+            let remedy = AccountSignInRules.remedy(first.provider, nextcloud: first.nextcloud)
             let browserFlow = remedy != .settings
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -106,6 +106,14 @@ extension ContentView {
                     }
                     .buttonStyle(.borderless)
                     .disabled(model.signInSwitchBusy == first.id)
+                case .nextcloud:
+                    // Runs the sign-in itself; pressing again while the browser is out starts a
+                    // fresh one.
+                    Button(L10n.signin_expired_action()) {
+                        model.signInWithNextcloudFromBanner(first.id)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(model.accountNextcloud.completing)
                 case .settings:
                     Button(L10n.settings_title()) { model.openAccountPage(first.id) }
                         .buttonStyle(.borderless)

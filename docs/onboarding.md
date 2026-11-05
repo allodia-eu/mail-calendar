@@ -113,7 +113,8 @@ a separate server", naming the server, with the address as the login, a password
 and Skip. Where that server signs in at an issuer of its own that may be sent its token
 ([`mail-oauth.md`](mail-oauth.md) rule 13), the step offers that sign-in above the password field,
 asked off the UI thread once the step is drawn; the password field stays for a server that also
-takes one. The step is drawn from the new account's entry (`AccountEntry.separate_server`: the uses, the
+takes one. A Nextcloud server offers its own sign-in there the same way
+([`nextcloud-sign-in.md`](nextcloud-sign-in.md)). The step is drawn from the new account's entry (`AccountEntry.separate_server`: the uses, the
 server's host and the login), which the add's own connect fills. Connect makes them
 an account of their own linked to the mailbox (`add_linked_calendar_account`,
 [`accounts.md`](accounts.md) rule 18), and the link step then offers only what is still unlinked;
@@ -137,7 +138,10 @@ address-book server beside the JMAP server, the step offers to set that up as an
 own for what the session lacks, and only that, saying which (`MailcalApp::dav_setup_beside`), so a
 session with contacts of its own is offered a calendar and never a second copy of its contacts,
 whether the account was added from the detected card or by hand from
-it, which is how an API token goes in where the card offers a sign-in instead. A suggested account starts picked and is linked only when the person
+it, which is how an API token goes in where the card offers a sign-in instead. The card that
+offer opens says it adds to the mail account (`DetectedSetup.beside_account`), never that the
+address has no mail server, and says some providers want an app password there. A suggested
+account starts picked and is linked only when the person
 continues; a suggestion the core finds after the step is drawn reaches it unless the person has
 already changed a pick. **Add another account** runs setup again from the address and comes back
 to the step, cancelled or done, with the account just added picked where it fits. The name each
@@ -170,8 +174,8 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 | Offers on a later add, not just the first | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
 | Set up takes the record's own route | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
 | The link step after the connect, with "Add another account" | ✅ | ✅ | ✅ | ✅ | ✅ |
-| What a JMAP account is used for, asked after its sign-in | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
-| The link step for a JMAP server without a calendar, with the server found beside it | ⬜ | ⬜ | ⬜ | 🚧 | ✅ |
+| What a JMAP account is used for, asked after its sign-in | ✅ | ✅ | ⬜ | ✅ | ✅ |
+| The link step for a JMAP server without a calendar, with the server found beside it | 🚧 | 🚧 | 🚧 | 🚧 | ✅ |
 
 ## What signing in here does
 
@@ -227,11 +231,7 @@ Fill it at boot, from `allodia_sign_in_available()`, and let whichever window op
 
 ## Known gaps
 
-- **Apple and Windows do not ask what a JMAP account is used for after its sign-in, nor offer
-  the server found beside it.** Both offer a JMAP account the link step when another account can
-  fill what it lacks (`offers_setup_links`) and skip it when none can, so a JMAP server without a
-  calendar, and no other account to lend one, ends setup without the offer. The calendar server
-  can still be set up as an account of its own and linked in Settings.
+- **Windows does not ask what a JMAP account is used for after its sign-in.**
 - **What Apple has on screen, it has by hand.** The way out and the absent-registration case are
   both there and both were seen: the second on a build with the registration removed, macOS by eye
   and iOS against its accessibility tree. An Apple UI suite exists now

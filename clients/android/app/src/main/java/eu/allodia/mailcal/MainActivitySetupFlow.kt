@@ -94,8 +94,13 @@ internal fun MainActivity.setUpBeside() {
     val instance = app ?: return
     val account = setupFlow.links?.account ?: return
     val beside = setupFlow.besideFor(account) ?: return
-    val setup = instance.davSetupBeside(beside.account, beside.email, beside.caldavUrl, beside.carddavUrl)
-        ?: return
+    val setup = instance.davSetupBeside(
+        beside.account,
+        beside.email,
+        beside.caldavUrl,
+        beside.carddavUrl,
+        beside.nextcloud,
+    ) ?: return
     clearSetupForm()
     setupStartEmail = ""
     setupStartOffer = null
@@ -126,6 +131,7 @@ internal fun MainActivity.cancelSetup() {
  * offer to update an account already set up.
  */
 private fun MainActivity.clearSetupForm() {
+    leaveSetupNextcloud()
     addError = null
     addFailure = null
     setupAcceptedCertificate = null

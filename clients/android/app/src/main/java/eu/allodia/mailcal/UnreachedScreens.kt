@@ -102,12 +102,18 @@ private fun SeparateSignInOffer(controls: SeparateControls, onSignIn: () -> Unit
     ) {
         if (controls.signingIn) {
             CircularProgressIndicator(modifier = Modifier.size(18.dp))
+        } else if (controls.nextcloud) {
+            Text(L10n.nextcloud_sign_in_button(ctx))
         } else {
             Text(L10n.setup_imap_signin_button(ctx))
         }
     }
     Text(
-        L10n.setup_imap_signin_note(ctx),
+        when {
+            !controls.nextcloud -> L10n.setup_imap_signin_note(ctx)
+            controls.signingIn -> L10n.nextcloud_sign_in_waiting(ctx)
+            else -> L10n.nextcloud_sign_in_note(ctx)
+        },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

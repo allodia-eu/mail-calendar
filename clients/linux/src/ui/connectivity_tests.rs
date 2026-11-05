@@ -281,6 +281,27 @@ fn every_provider_routes_to_the_remedy_linux_currently_has() {
 }
 
 #[test]
+fn an_account_a_nextcloud_sign_in_made_signs_in_with_nextcloud_again() {
+    let mut state = ConnectivityState::from_snapshot(
+        snapshot(),
+        &[account("expired", "expired@example.test")],
+        address,
+        no_address,
+        |_| Some(AccountProvider::Password),
+        no_change,
+    );
+    assert!(matches!(
+        state.expired_signins[0].resolution(),
+        ExpiredResolution::Settings
+    ));
+    state.expired_signins[0].nextcloud = true;
+    assert!(matches!(
+        state.expired_signins[0].resolution(),
+        ExpiredResolution::Nextcloud(account) if account == "expired"
+    ));
+}
+
+#[test]
 fn a_banner_asking_for_a_sign_in_names_the_account_apart_from_its_namesake() {
     let distinguished = |id: &str| {
         matches!(id, "expired" | "mail" | "calendar")

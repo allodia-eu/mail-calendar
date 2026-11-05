@@ -46,6 +46,9 @@ pub enum SetupRecommendation {
         /// A CardDAV endpoint found beside the JMAP server, for an account whose session
         /// turns out to offer no contacts.
         carddav_url: Option<String>,
+        /// Whether the calendar and address-book servers found beside it are one Nextcloud
+        /// server's, which signs in through the person's browser (`docs/nextcloud-sign-in.md`).
+        nextcloud: bool,
     },
     /// IMAP/SMTP settings were found; route to the password form.
     Imap {
@@ -107,6 +110,9 @@ pub enum SetupRecommendation {
         caldav_url: Option<String>,
         /// The CardDAV endpoint found, or `None`.
         carddav_url: Option<String>,
+        /// Whether those servers are one Nextcloud server's, which signs in through the
+        /// person's browser (`docs/nextcloud-sign-in.md`).
+        nextcloud: bool,
     },
     /// Nothing usable; fall back to manual setup with a reason.
     Manual {
@@ -204,6 +210,7 @@ pub fn recommend(email: &str, detected: Detected, routes: OauthRoutes) -> SetupR
             source: jmap.source.url,
             caldav_url: jmap.dav.caldav_url,
             carddav_url: jmap.dav.carddav_url,
+            nextcloud: jmap.dav.nextcloud,
         },
         Detected::Microsoft365(_) => microsoft(email, routes),
         Detected::Mail(settings) => recommend_mail(email, &settings, routes),
@@ -211,6 +218,7 @@ pub fn recommend(email: &str, detected: Detected, routes: OauthRoutes) -> SetupR
             email: email.to_owned(),
             caldav_url: dav.caldav_url,
             carddav_url: dav.carddav_url,
+            nextcloud: dav.nextcloud,
         },
         Detected::Nothing { network_error } => SetupRecommendation::Manual {
             reason: if network_error {

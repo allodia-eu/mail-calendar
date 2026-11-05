@@ -55,5 +55,7 @@ fn detected(recommendation: SetupRecommendation) -> DetectedSetup {
         caldav_url,
         carddav_url: None,
         choices,
+        nextcloud_sign_in: false,
+        beside_account: false,
     }
 }

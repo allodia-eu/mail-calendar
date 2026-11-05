@@ -9,9 +9,10 @@
 import SwiftUI
 import MailcalBindings
 
-/// The setup screen: once an account has been added, the password of a calendar or contacts
-/// server its sign-in did not reach, then the link step when another account can fill something
-/// it lacks (docs/onboarding.md, "After the connect"); the email-first flow otherwise.
+/// The setup screen: once an account has been added, what a JMAP account is used for, when its
+/// session offers a choice (docs/onboarding.md, "After the sign-in"), the password of a calendar
+/// or contacts server its sign-in did not reach, then the link step when another account can fill
+/// something it lacks (docs/onboarding.md, "After the connect"); the email-first flow otherwise.
 /// One view for the first run and a later add, so the two cannot drift.
 struct AccountSetupScreen: View {
     var model: MailboxModel
@@ -19,7 +20,9 @@ struct AccountSetupScreen: View {
     var firstRun: Bool
 
     var body: some View {
-        if let ask = model.setupFlow.separateServer {
+        if model.setupFlow.uses != nil {
+            SetupUsesStepView(model: model)
+        } else if let ask = model.setupFlow.separateServer {
             SeparateServerStepView(model: model, ask: ask)
         } else if model.setupFlow.links != nil {
             SetupLinkStepView(model: model)
@@ -102,6 +105,11 @@ struct AccountSetupDetectView: View {
             // An offer opened from elsewhere, the Settings list, lands on its own route, the
             // same as one pressed on this screen.
             if phase.isEmailStep, let offer = model.setupStartOffer { takeOffer(offer) }
+            // The servers a link step found beside a JMAP server open on their own card.
+            if phase.isEmailStep, let detected = model.setupStartDetected {
+                model.setupStartDetected = nil
+                show(detected)
+            }
         }
         .task { await driveShowcaseIfNeeded() }
         // A different certificate is a different decision, so an acceptance never carries
@@ -238,6 +246,7 @@ struct AccountSetupDetectView: View {
     /// Moves on to what detection found: its card, with the uses as the core said they start, or
     /// the manual form with the reason it ended up there.
     func show(_ setup: DetectedSetup) {
+        model.setupBeside.detected(setup)
         uses = UseChoices(UseOffer(setup))
         flagged = .none
         if !setup.calendarAndContacts, case let .manual(reason) = setup.recommendation {

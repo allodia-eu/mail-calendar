@@ -37,8 +37,14 @@ internal data class UsesStep(val account: String, val next: String, val offer: U
 }
 
 /** The calendar and address-book servers a detection found beside a JMAP server, for [email]. */
-internal data class FoundBeside(val email: String, val caldavUrl: String?, val carddavUrl: String?) {
-    fun offerFor(account: String) = Beside(account, email, caldavUrl, carddavUrl)
+internal data class FoundBeside(
+    val email: String,
+    val caldavUrl: String?,
+    val carddavUrl: String?,
+    /** They are Nextcloud, which signs in through the browser. */
+    val nextcloud: Boolean = false,
+) {
+    fun offerFor(account: String) = Beside(account, email, caldavUrl, carddavUrl, nextcloud)
 
     companion object {
         /** What a JMAP route's detection found beside its server, if anything. */
@@ -46,11 +52,14 @@ internal data class FoundBeside(val email: String, val caldavUrl: String?, val c
             setup.takeIf {
                 it.recommendation is uniffi.mailcal_bindings.SetupRecommendation.Jmap &&
                     (it.caldavUrl != null || it.carddavUrl != null)
-            }?.let { FoundBeside(email, it.caldavUrl, it.carddavUrl) }
+            }?.let { FoundBeside(email, it.caldavUrl, it.carddavUrl, it.nextcloudSignIn) }
     }
 }
 
 internal class SetupFlow {
+    /** A sign-in with Nextcloud from the found card or the manual form (NextcloudSetup.kt). */
+    val nextcloud = SetupNextcloud()
+
     /** The link step, kept while "Add another account" runs so what was picked comes back. */
     var links by mutableStateOf<SetupLinkStep?>(null)
         private set

@@ -34,6 +34,7 @@ impl SimpleComponent for AppWindow {
         root.set_title(Some(l10n::app_title()));
         root.set_default_width(1280);
         root.set_default_height(800);
+        super::nextcloud_flight::wake_on_return(&root);
         root
     }
 

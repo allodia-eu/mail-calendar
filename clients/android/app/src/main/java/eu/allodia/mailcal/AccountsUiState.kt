@@ -41,8 +41,18 @@ internal class AccountsUiState {
     /** Whether the last snapshot listed an account: the last one going returns to setup. */
     var hadAccounts = false
 
-    /** The account whose page is open in Settings → Accounts, or null for the list. */
-    var page by mutableStateOf<String?>(null)
+    private var pageState by mutableStateOf<String?>(null)
+
+    /**
+     * The account whose page is open in Settings → Accounts, or null for the list. Leaving a page
+     * withdraws a Nextcloud grant kept there for another try.
+     */
+    var page: String?
+        get() = pageState
+        set(value) {
+            if (value != pageState) signIn.leaveNextcloud(keeping = value)
+            pageState = value
+        }
 
     /** What the last change said, until it is dismissed or the page closes. */
     var notice by mutableStateOf<AccountNotice?>(null)

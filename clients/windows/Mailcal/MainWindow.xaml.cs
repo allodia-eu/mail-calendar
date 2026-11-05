@@ -31,6 +31,16 @@ public sealed partial class MainWindow : Window
         // Window.Title is still what the taskbar, Alt-Tab and UI Automation read; the TitleBar
         // control only draws the strip. Both come from the same catalog key, so they can't disagree.
         this.Title = L10n.AppTitle();
+        // Somebody back from the browser may have granted a Nextcloud sign-in just now: a flight
+        // waiting on it asks at once rather than at its next interval (docs/nextcloud-sign-in.md
+        // rule 5).
+        Activated += (_, e) =>
+        {
+            if (e.WindowActivationState != WindowActivationState.Deactivated)
+            {
+                MailboxModel.NextcloudWake.Returned();
+            }
+        };
         // Before the caption is wired, so its buttons are themed from the appearance the app is
         // actually coming up in rather than from the desktop's (MainWindow.Theme.cs).
         ApplyAppearance(AppearanceChoice.AtLaunch);

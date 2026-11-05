@@ -7,6 +7,7 @@ use mailcal_bindings::{AccountCapability, MailcalError, UnreachedUses};
 
 use super::{
     AppInput, AppModel,
+    nextcloud_flight::Grant,
     setup_model::{AccountSubmission, ConnectFailure},
     setup_pane::{FEEDBACK, named},
     setup_state::{Phase, SetupState},
@@ -14,18 +15,38 @@ use super::{
 };
 use crate::l10n;
 
-/// The account an add would have duplicated, and the config that add was given, whose
-/// credential can go on that account instead.
+/// The account an add would have duplicated, and the credential that add was given, which can
+/// go on that account instead.
 #[derive(Clone)]
 pub(crate) struct ExistingAccount {
     pub(super) account_id: String,
-    config_toml: String,
+    credential: Offered,
     /// The calendar and contacts uses the sign-in that gave the config will not reach, which
     /// putting it on the account asks about first.
     pub(super) unreached: Vec<AccountCapability>,
 }
 
-/// Never the config: it carries the password or the grant just given.
+/// What an add the core refused was given.
+#[derive(Clone)]
+enum Offered {
+    /// The config, carrying the password or the grant just given.
+    Config(String),
+    /// A Nextcloud sign-in's grant (`docs/nextcloud-sign-in.md` rule 7).
+    Nextcloud(Grant),
+}
+
+impl ExistingAccount {
+    /// The account a Nextcloud sign-in signed in to already, which `grant` can sign in again.
+    pub(super) const fn nextcloud(account_id: String, grant: Grant) -> Self {
+        Self {
+            account_id,
+            credential: Offered::Nextcloud(grant),
+            unreached: Vec::new(),
+        }
+    }
+}
+
+/// Never the credential: it carries the password or the grant just given.
 impl std::fmt::Debug for ExistingAccount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ExistingAccount")
@@ -84,7 +105,7 @@ pub(super) fn refusal(
                 (MailcalError::AlreadySetUp { account_id }, Some(config_toml)) => {
                     Some(ExistingAccount {
                         account_id,
-                        config_toml,
+                        credential: Offered::Config(config_toml),
                         unreached: Vec::new(),
                     })
                 }
@@ -182,12 +203,32 @@ impl AppModel {
         let (Some(app), Some(existing)) = (self.app.clone(), self.setup.existing.clone()) else {
             return;
         };
+        // The core has the grant from here: it puts it on the account, or withdraws it.
+        if matches!(existing.credential, Offered::Nextcloud(_)) {
+            self.setup.nextcloud.take();
+        }
         self.setup.connecting();
         std::thread::spawn(move || {
             let account = existing.account_id.clone();
-            let result = app
-                .use_credential_from(existing.account_id, existing.config_toml, unreached)
-                .map_err(|error| super::core_error::said(&error));
+            let result = match existing.credential {
+                Offered::Config(config) => {
+                    app.use_credential_from(existing.account_id, config, unreached)
+                }
+                Offered::Nextcloud(grant) => {
+                    let result = app
+                        .complete_account_nextcloud_sign_in(existing.account_id, grant.0.clone());
+                    // Withdrawn unless it signs the account in: nothing else will use it. One for
+                    // somebody else the core has withdrawn already.
+                    let unused = result
+                        .as_ref()
+                        .is_err_and(|error| !matches!(error, MailcalError::DifferentAccount));
+                    if unused {
+                        app.abandon_nextcloud_sign_in(grant.0);
+                    }
+                    result
+                }
+            }
+            .map_err(|error| super::core_error::said(&error));
             sender.emit(AppInput::AlreadySetUp(ExistingInput::Updated {
                 account,
                 result,

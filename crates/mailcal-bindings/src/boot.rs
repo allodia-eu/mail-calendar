@@ -111,6 +111,7 @@ pub(crate) fn build_accounts(
         timezone: device_timezone,
         info: device_info,
     } = device;
+    let platform = Some(device_info.platform);
     // Resolve the device's display zone once: it seeds the app's active zone, is the `Prefer:
     // outlook.timezone` a Graph calendar provider reads with, and is carried on `MailcalApp` so a
     // later reconnect rebinds Graph calendars with the same zone.
@@ -236,6 +237,8 @@ pub(crate) fn build_accounts(
     // Analytics. Consent is recorded in the same preferences file; the sink spawns its delivery
     // worker, so build it inside the runtime. A build with no relay baked in (every local build;
     // see `analytics::relay_config`) gets a telemetry that records consent and sends nothing.
+    // A Nextcloud server's refusal may be a remote wipe, which is asked once the app exists.
+    let (refusals, refused) = std::sync::mpsc::channel();
     let telemetry = {
         let _guard = runtime.enter();
         analytics::build_telemetry(prefs_path.clone(), device_info)
@@ -248,7 +251,12 @@ pub(crate) fn build_accounts(
             prefs_path: Some(prefs_path),
         },
         Some(Box::new(connector)),
-        std::sync::Arc::new(DebouncedObserver::new(ObserverBridge { foreign: observer })),
+        std::sync::Arc::new(crate::nextcloud_wipe::RefusalRelay {
+            inner: std::sync::Arc::new(DebouncedObserver::new(ObserverBridge {
+                foreign: observer,
+            })),
+            refused: refusals,
+        }),
         telemetry,
     );
     // Render the persisted store's mail before returning, so the host paints cached rows
@@ -339,10 +347,12 @@ pub(crate) fn build_accounts(
         disconnected,
         redialling: Arc::default(),
         device_zone: device_tz,
+        platform,
         // The real account path: detection reaches the network, as it must.
         showcase: false,
         rediscovery: crate::dav_rediscovery::Rediscovery::default(),
     });
+    crate::nextcloud_wipe::answer_refusals(Arc::downgrade(&mailcal), refused);
     // Seed the analytics account mix from the registry we just populated. A no-op unless the user
     // has consented, but it must happen before the first event, or a consented install's very
     // first batch would report zero accounts.

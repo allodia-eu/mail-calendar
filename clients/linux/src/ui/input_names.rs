@@ -145,6 +145,7 @@ impl fmt::Debug for AppInput {
             Self::ImapAuthAnswered { .. } => "ImapAuthAnswered",
             Self::StartImapLogin(_) => "StartImapLogin",
             Self::CancelImapLogin => "CancelImapLogin",
+            Self::SetupNextcloud(_) => "SetupNextcloud",
             Self::ImapPrepared(..) => "ImapPrepared",
             Self::ImapCallbackReceived(_) => "ImapCallbackReceived",
             Self::ImapFinished(..) => "ImapFinished",

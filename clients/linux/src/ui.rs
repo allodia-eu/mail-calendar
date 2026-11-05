@@ -88,6 +88,7 @@ mod message_move;
 mod microsoft;
 mod modal;
 mod model;
+mod nextcloud_flight;
 mod notification_click;
 mod notification_open;
 mod notifications;
@@ -128,6 +129,7 @@ mod setup_manual;
 mod setup_manual_tests;
 mod setup_microsoft;
 mod setup_model;
+mod setup_nextcloud;
 mod setup_onboarding;
 #[cfg(test)]
 mod setup_onboarding_tests;

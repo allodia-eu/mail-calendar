@@ -63,10 +63,15 @@ public sealed partial class MailboxModel
     {
         SetupError = null;
         var snapshot = AccountsSnapshot();
-        if (snapshot.Accounts.FirstOrDefault(entry => entry.Id == accountId) is { } entry
-            && AccountSettingsRules.Withheld(entry) is { Count: > 0 } withheld)
+        if (snapshot.Accounts.FirstOrDefault(entry => entry.Id == accountId) is { } entry)
         {
-            _withheldWaiting = new WithheldUses(accountId, withheld);
+            // A JMAP account set up from a card that found servers beside its own keeps them for
+            // its link step.
+            _setupBeside.Added(accountId, entry.Kind, [entry.Address]);
+            if (AccountSettingsRules.Withheld(entry) is { Count: > 0 } withheld)
+            {
+                _withheldWaiting = new WithheldUses(accountId, withheld);
+            }
         }
         var separate = UnreachedUsesRules.SetupStep(snapshot, accountId);
         var stepping = _setupFlow.AccountAdded(accountId, LinkStepFor, separate);
@@ -89,7 +94,7 @@ public sealed partial class MailboxModel
     }
 
     private SetupLinkStep? LinkStepFor(string accountId) =>
-        SetupLinkStep.For(AccountsSnapshot(), accountId, MailcalBindingsMethods.OffersSetupLinks);
+        SetupLinkStep.For(AccountsSnapshot(), accountId, MailcalBindingsMethods.OffersSetupLinks, _setupBeside.OfferFor(accountId));
 
     /// <summary>The link step answered: the picks are linked when <paramref name="link"/>, and the
     /// form closes either way.</summary>
@@ -132,6 +137,7 @@ public sealed partial class MailboxModel
         SetupError = null;
         SetupStartEmail = string.Empty;
         SetupStartOffer = null;
+        SetupStartDetected = null;
         ClearSetupAttempt();
         RaiseSetupFlow();
     }
@@ -157,11 +163,15 @@ public sealed partial class MailboxModel
     /// <summary>Closes the form and asks each added account's name, one after another.</summary>
     private void FinishSetup()
     {
+        // A Nextcloud grant still held became no account: a password connected instead.
+        ReleaseSetupNextcloudGrant();
         foreach (var account in _setupFlow.Finish())
         {
             _senderNamesWaiting.Enqueue(account);
         }
         RaiseSetupFlow();
+        _setupBeside.Reset();
+        SetupStartDetected = null;
         NeedsSetup = false;
         AddingAccount = false;
         SetupStartEmail = string.Empty;

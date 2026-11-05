@@ -332,6 +332,8 @@ pub(crate) enum AppInput {
     },
     StartImapLogin(Box<ImapForm>),
     CancelImapLogin,
+    /// A sign-in with Nextcloud from setup (`super::setup_nextcloud`).
+    SetupNextcloud(super::setup_nextcloud::SetupNextcloudInput),
     ImapPrepared(u64, Result<Box<ImapPrepared>, String>),
     ImapCallbackReceived(u64),
     ImapFinished(u64, ImapOutcome),

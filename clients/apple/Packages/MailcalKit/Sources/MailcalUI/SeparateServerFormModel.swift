@@ -3,6 +3,7 @@
 // and what each answer does. The decisions are `SeparateServerRules` and `SeparateServerSignIn`.
 
 import Foundation
+import MailcalBindings
 import Observation
 
 @MainActor
@@ -14,6 +15,8 @@ final class SeparateServerFormModel {
     /// A Connect or a Skip is running in the core.
     var busy = false
     var signIn = SeparateServerSignIn()
+    /// The sign-in with Nextcloud, where the server is Nextcloud.
+    let nextcloud = NextcloudSignIn()
     /// The sign-in in flight, held so it can be retired.
     @ObservationIgnored private var task: Task<Void, Never>?
 
@@ -22,7 +25,7 @@ final class SeparateServerFormModel {
     }
 
     /// Whether a core call that nothing interrupts is running, so the form holds its controls.
-    var holding: Bool { busy || signIn.completing }
+    var holding: Bool { busy || signIn.completing || nextcloud.completing }
 
     var canConnect: Bool {
         SeparateServerRules.canConnect(username, password, busy: holding)
@@ -35,9 +38,11 @@ final class SeparateServerFormModel {
     /// when the form has moved on (the task was cancelled) and kept only for the form it was for.
     func askOffer(_ model: MailboxModel, _ ask: SeparateServerAsk) async {
         let offers = await model.separateServerOffersSignIn(ask)
+        // Asked only where the provider's sign-in is not offered.
+        let nextcloud = offers ? false : await model.separateServerOffersNextcloudSignIn(ask)
         guard !Task.isCancelled else { return }
         signIn.answered(
-            SeparateServerOffer(ask, offers: offers),
+            SeparateServerOffer(ask, offers: offers, nextcloud: nextcloud),
             started: SeparateServerRules.passwordStarted(
                 ask, username: username, password: password))
     }
@@ -78,9 +83,41 @@ final class SeparateServerFormModel {
         }
     }
 
+    /// Signs the server in with Nextcloud, moving the uses to the account the grant signs in to.
+    /// A grant whose move failed is kept for the next press.
+    func startNextcloud(
+        _ model: MailboxModel, _ ask: SeparateServerAsk, done: @escaping () -> Void
+    ) {
+        guard !busy, !signIn.completing else { return }
+        retireProviderSignIn()
+        failure = nil
+        nextcloud.start(
+            model.app, key: "\(ask.account)|\(ask.uses)",
+            begin: { try $0.beginSeparateServerNextcloudSignIn(accountId: ask.account, uses: ask.uses) },
+            complete: { grant in
+                if let refused = await model.addLinkedNextcloudAccount(ask, grant) {
+                    return .failed(said: refused)
+                }
+                done()
+                return .done
+            })
+    }
+
     /// A way back from a sign-in still out: the attempt is retired and the form returns to its
     /// offer, saying nothing.
     func retire() {
+        retireProviderSignIn()
+        nextcloud.cancel()
+    }
+
+    /// The form is gone: a sign-in still out retires, and a grant kept for another try is
+    /// withdrawn.
+    func leave(_ model: MailboxModel) {
+        retireProviderSignIn()
+        nextcloud.leave(model.app)
+    }
+
+    private func retireProviderSignIn() {
         task?.cancel()
         task = nil
         signIn.retire()

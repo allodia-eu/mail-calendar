@@ -34,6 +34,7 @@ fn rotating_imap_account(who: &str, endpoint: String) -> (String, engine_api::Ac
         certificate_exceptions: Vec::new(),
         shape: mailcal_account::AccountShape::default(),
         dav_starts: mailcal_account::DavStarts::default(),
+        nextcloud: None,
     };
     let id = config.account_id().expect("a valid account id");
     (config.to_toml().expect("serializable config"), id)

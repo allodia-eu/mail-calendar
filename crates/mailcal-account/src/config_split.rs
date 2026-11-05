@@ -84,6 +84,7 @@ impl AccountConfig {
             shape,
             // An account of its own learns its principals on its first connect.
             dav_starts: crate::DavStarts::default(),
+            nextcloud: None,
         })
     }
 

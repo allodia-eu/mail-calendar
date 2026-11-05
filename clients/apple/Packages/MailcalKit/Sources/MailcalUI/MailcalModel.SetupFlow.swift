@@ -17,8 +17,9 @@ extension MailboxModel {
     /// Every route that adds an account ends here: the manual form, the Microsoft and Google
     /// sign-ins, and the JMAP and IMAP ones (whose routes converge before this).
     ///
-    /// Setup moves on to a password for the calendar or contacts server when the account's
-    /// sign-in did not reach it, then to the link step when another account can fill something
+    /// Setup moves on to what the account is used for when its JMAP session offers a choice, to a
+    /// password for the calendar or contacts server when the account's sign-in did not reach it,
+    /// then to the link step when another account can fill something
     /// this one lacks, back to the step an "Add another account" left, or closes. The pass to the
     /// person's other devices belongs to every route rather than to the form: an account added
     /// without one stays on this device until the next launch, and its page draws no sharing
@@ -37,6 +38,7 @@ extension MailboxModel {
         }
         let entry = accountEntry(account.id)
         if let entry {
+            setupBeside.added(account.id, kind: entry.kind, addresses: [account.email, entry.address])
             let withheld = AccountSettingsRules.withheld(entry)
             if !withheld.isEmpty {
                 withheldWaiting = AccountPageNotice(
@@ -49,9 +51,32 @@ extension MailboxModel {
         // The add's own dial has said whether the calendar or contacts need a sign-in of their
         // own, so the step before the link step is read from the same snapshot.
         let separateServer = entry.flatMap(SeparateServerRules.ask)
+        // Empty unless a JMAP session offers more than one use, which only it could say.
+        let choices = app?.signedInSetupChoices(accountId: account.id) ?? []
         if !setupFlow.accountAdded(
-            account.id, separateServer: separateServer, stepFor: setupLinkStep)
+            account.id, choices: choices, separateServer: separateServer, stepFor: setupLinkStep)
         {
+            finishSetup()
+        }
+    }
+
+    /// The uses step answered: what was chosen is switched on, then what was not is switched off,
+    /// and setup goes on to the separate-server step the new uses need, if any, then the link step.
+    func setupUsesDone() async {
+        guard !savingSetupUses, let step = setupFlow.uses else { return }
+        savingSetupUses = true
+        for change in step.changes {
+            switch await setAccountUse(step.account, change.capability, on: change.on) {
+            // A failure is logged where it happens.
+            case .applied, .failed: break
+            case .askProvider, .needsEndpoint:
+                logAppleLifecycle("setup: a use chosen at setup was not switched on")
+            }
+        }
+        savingSetupUses = false
+        refreshAccountsSnapshot()
+        let separateServer = accountEntry(step.account).flatMap(SeparateServerRules.ask)
+        if !setupFlow.usesDone(separateServer: separateServer, stepFor: setupLinkStep) {
             finishSetup()
         }
     }
@@ -65,7 +90,30 @@ extension MailboxModel {
     }
 
     func setupLinkStep(_ account: String) -> SetupLinkStep? {
-        SetupLinkStep.step(accountsSnapshot, account: account)
+        SetupLinkStep.step(accountsSnapshot, account: account, beside: setupBeside.offer(for: account))
+    }
+
+    /// The link step's offer of the servers found beside its JMAP server: setup again on their
+    /// card, for only what the session lacks, coming back to the step as "Add another account"
+    /// does. The offer is used up.
+    func setupBesideAccount() {
+        guard !savingSetupLinks, let app, let step = setupFlow.links,
+              let offer = setupBeside.take(for: step.account)
+        else { return }
+        let found = offer.found
+        guard let setup = app.davSetupBeside(
+            accountId: offer.account, email: found.email, caldavUrl: found.caldavURL,
+            carddavUrl: found.carddavURL, nextcloudSignIn: found.nextcloud)
+        else {
+            // The session has what the servers would fill by now: the step loses the offer.
+            setupFlow.refresh(setupLinkStep(step.account))
+            return
+        }
+        setupFlow.addLinked()
+        setupStartEmail = found.email
+        setupStartOffer = nil
+        setupStartDetected = setup
+        clearSetupAttempt()
     }
 
     /// The link step answered: the picks are linked when `link`, and setup closes either way.
@@ -90,6 +138,7 @@ extension MailboxModel {
         setupFlow.addLinked()
         setupStartEmail = ""
         setupStartOffer = nil
+        setupStartDetected = nil
         clearSetupAttempt()
     }
 
@@ -101,6 +150,7 @@ extension MailboxModel {
     /// flow that added an account, which ends as a skipped link step does, or out of setup.
     func cancelSetup() {
         clearSetupAttempt()
+        leaveSetupNextcloud()
         if setupFlow.cancelled(stepFor: setupLinkStep) { return }
         if setupFlow.active {
             finishSetup()
@@ -109,6 +159,7 @@ extension MailboxModel {
         addingAccount = false
         setupStartEmail = ""
         setupStartOffer = nil
+        setupStartDetected = nil
     }
 
     /// What the last attempt on the setup form left behind: the error, the account it was
@@ -122,11 +173,14 @@ extension MailboxModel {
 
     /// Closes setup and asks each added account's name, one after another.
     func finishSetup() {
+        leaveSetupNextcloud()
         senderNamesWaiting += setupFlow.finish()
+        setupBeside.reset()
         needsSetup = false
         addingAccount = false
         setupStartEmail = ""
         setupStartOffer = nil
+        setupStartDetected = nil
         if !askingSenderName { askNextSenderName() }
     }
 

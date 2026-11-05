@@ -24,6 +24,12 @@ pub struct AccountSignInOptions {
     pub provider_label: Option<String>,
     /// Whether the account can sign in with a password: kept, or switched to from signing in.
     pub password: bool,
+    /// Whether the account can sign in with Nextcloud: a calendar and contacts account a
+    /// Nextcloud sign-in made, signed in again that way, or one with a typed password whose server
+    /// answers as Nextcloud, switched over (`docs/nextcloud-sign-in.md`). Started with
+    /// [`MailcalApp::begin_account_nextcloud_sign_in`].
+    #[uniffi(default = false)]
+    pub nextcloud: bool,
 }
 
 /// The browser half of signing an existing account in: the URL to open in the platform auth
@@ -69,6 +75,9 @@ impl MailcalApp {
     /// question offers nothing.
     pub fn account_sign_in_options(&self, account_id: String) -> AccountSignInOptions {
         match self.registry.sign_in_config(&account_id) {
+            Some(SignInConfig::Imap(config)) if config.imap.is_none() => {
+                self.calendar_sign_in_options(&config)
+            }
             Some(SignInConfig::Imap(config)) => self.imap_sign_in_options(&account_id, &config),
             Some(SignInConfig::Jmap(config)) => AccountSignInOptions {
                 sign_in: config.is_oauth()
@@ -76,6 +85,7 @@ impl MailcalApp {
                         .jmap_oauth_available(config.email.clone(), Some(config.base_url.clone())),
                 provider_label: None,
                 password: true,
+                nextcloud: false,
             },
             None => no_options(),
         }
@@ -331,6 +341,7 @@ impl MailcalApp {
                 sign_in: true,
                 provider_label,
                 password,
+                nextcloud: false,
             };
         }
         query.autoconfig_issuer =
@@ -346,6 +357,7 @@ impl MailcalApp {
             sign_in,
             provider_label,
             password: true,
+            nextcloud: false,
         }
     }
 
@@ -449,11 +461,12 @@ fn same_mailbox<E: std::fmt::Display>(
     }
 }
 
-const fn no_options() -> AccountSignInOptions {
+pub(crate) const fn no_options() -> AccountSignInOptions {
     AccountSignInOptions {
         sign_in: false,
         provider_label: None,
         password: false,
+        nextcloud: false,
     }
 }
 

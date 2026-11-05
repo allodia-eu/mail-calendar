@@ -272,7 +272,7 @@ internal fun SignInExpiredBanner(
     onOpenSettings: (account: ExpiredSignIn) -> Unit = {},
 ) {
     val first = accounts.firstOrNull() ?: return
-    val canRelaunch = AccountSignInRules.expiredRemedy(first.provider) != ExpiredRemedy.SETTINGS
+    val canRelaunch = AccountSignInRules.expiredRemedy(first.provider, first.nextcloud) != ExpiredRemedy.SETTINGS
     Row(
         modifier = Modifier
             .fillMaxWidth()

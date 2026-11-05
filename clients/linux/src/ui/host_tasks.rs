@@ -61,6 +61,8 @@ pub(super) struct HostTasks {
     /// Signing a separate calendar server in at its own provider
     /// (`super::separate_server_sign_in`).
     pub(super) separate: AttemptSlot,
+    /// Signing in with Nextcloud from setup (`super::setup_nextcloud`).
+    pub(super) nextcloud: AttemptSlot,
     jmap_loopback: Option<OAuthLoopback>,
 }
 
@@ -149,6 +151,7 @@ impl HostTasks {
             consent: AttemptSlot::empty(),
             account_sign_in: AttemptSlot::empty(),
             separate: AttemptSlot::empty(),
+            nextcloud: AttemptSlot::empty(),
             jmap_loopback: None,
         }
     }

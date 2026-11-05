@@ -27,8 +27,15 @@ internal sealed interface DetectPhase {
     ) : DetectPhase
 
     // A domain with a calendar or address-book server and no mail server: an account used for
-    // those alone, the typed address as its login.
-    data class Dav(val email: String, val offer: UseOffer) : DetectPhase
+    // those alone, the typed address as its login. `nextcloud` when the server is Nextcloud, whose
+    // own sign-in the card leads with.
+    // `beside` when the link step opened it, for what a JMAP account beside these servers lacks.
+    data class Dav(
+        val email: String,
+        val offer: UseOffer,
+        val nextcloud: Boolean = false,
+        val beside: Boolean = false,
+    ) : DetectPhase
 
     // `dav` is the calendar-and-contacts card's servers when that card sent the person here.
     data class Manual(
@@ -48,7 +55,8 @@ internal fun route(
 ): DetectPhase {
     val recommendation = setup.recommendation
     return when {
-        setup.calendarAndContacts -> DetectPhase.Dav(email.trim(), UseOffer.of(setup))
+        setup.calendarAndContacts ->
+            DetectPhase.Dav(email.trim(), UseOffer.of(setup), setup.nextcloudSignIn, setup.besideAccount)
         recommendation is SetupRecommendation.Manual ->
             DetectPhase.Manual(reason = recommendation.reason, edit = null)
         else -> DetectPhase.Found(recommendation, signInOffered, imapAuth, UseOffer.of(setup))

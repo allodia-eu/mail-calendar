@@ -404,7 +404,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             signInExpired = signInExpired,
                             onOpenAccountPage = { id -> openAccountPage(id) },
                             onSignInExpired = { account ->
-                                when (AccountSignInRules.expiredRemedy(account.provider)) {
+                                when (AccountSignInRules.expiredRemedy(account.provider, account.nextcloud)) {
                                     // In place: the account keeps its id, settings and mail, where
                                     // a first sign-in would add it again (provider-oauth.md rule 11).
                                     ExpiredRemedy.PROVIDER_CONSENT ->

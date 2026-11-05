@@ -173,6 +173,8 @@ pub(crate) struct JmapForm {
     /// when the session has neither of its own.
     pub(super) caldav_url: Option<String>,
     pub(super) carddav_url: Option<String>,
+    /// Those servers are Nextcloud, which signs in through the browser.
+    pub(super) nextcloud_sign_in: bool,
 }
 
 /// A domain with a calendar or address-book server and no mail server. The address is the login.
@@ -180,6 +182,11 @@ pub(crate) struct JmapForm {
 pub(crate) struct DavForm {
     pub(super) email: String,
     pub(super) offer: UseOffer,
+    /// The server is Nextcloud, whose own sign-in the card leads with
+    /// (`docs/nextcloud-sign-in.md` rule 2).
+    pub(super) nextcloud: bool,
+    /// The link step opened it, for what a JMAP account beside these servers lacks.
+    pub(super) beside: bool,
 }
 
 /// A provider whose whole setup is one browser sign-in; Microsoft or Google. There is nothing
@@ -238,26 +245,9 @@ pub(crate) struct ManualForm {
     pub(super) imap_sign_in: ImapSignIn,
     /// Why detection sent the user here, when it did.
     pub(super) note: Option<String>,
-}
-
-impl ManualForm {
-    /// Whether a JMAP sign-in pre-flight is worth running for what is typed now.
-    pub(super) fn probes_jmap_sign_in(&self) -> bool {
-        self.kind == AccountKind::Jmap
-            && self.sign_in == JmapSignIn::Checking
-            && !self.email.trim().is_empty()
-    }
-
-    /// Whether an IMAP auth pre-flight is worth running for what is typed now.
-    ///
-    /// A server is required as well as an address: the question is what *that server*
-    /// accepts, and there is nothing to dial without one.
-    pub(super) fn probes_imap_sign_in(&self) -> bool {
-        self.kind == AccountKind::Imap
-            && self.imap_sign_in == ImapSignIn::Checking
-            && !self.email.trim().is_empty()
-            && !self.imap_host.trim().is_empty()
-    }
+    /// The calendar or address-book server typed that answered as Nextcloud, whose sign-in the
+    /// calendar and contacts pane offers above its fields.
+    pub(super) nextcloud: Option<String>,
 }
 
 /// What a pane hands the core to connect. Built by whichever pane collected the fields, so the
@@ -345,6 +335,8 @@ pub(super) fn detected_form(setup: DetectedSetup, fallback_email: String) -> Set
         return SetupForm::Detected(DetectedForm::Dav(DavForm {
             email: fallback_email,
             offer,
+            nextcloud: setup.nextcloud_sign_in,
+            beside: setup.beside_account,
         }));
     }
     match setup.recommendation {
@@ -360,6 +352,7 @@ pub(super) fn detected_form(setup: DetectedSetup, fallback_email: String) -> Set
             sign_in: JmapSignIn::Checking,
             caldav_url: (!offer.caldav_url.is_empty()).then(|| offer.caldav_url.clone()),
             carddav_url: (!offer.carddav_url.is_empty()).then(|| offer.carddav_url.clone()),
+            nextcloud_sign_in: setup.nextcloud_sign_in,
         })),
         SetupRecommendation::Imap {
             email,
@@ -460,6 +453,8 @@ pub(super) fn edit_manually(form: &DetectedForm) -> SetupForm {
             email: form.email.clone(),
             caldav_url: form.offer.caldav_url.clone(),
             carddav_url: form.offer.carddav_url.clone(),
+            // Detection asked already, so the pane offers the sign-in without asking again.
+            nextcloud: form.nextcloud.then(|| form.offer.server().to_owned()),
             ..ManualForm::default()
         },
     };

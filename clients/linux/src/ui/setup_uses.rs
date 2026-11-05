@@ -17,6 +17,17 @@ pub(crate) struct UseOffer {
     pub(super) carddav_url: String,
 }
 
+impl UseOffer {
+    /// The calendar's server, else the address book's; empty when detection found neither.
+    pub(super) fn server(&self) -> &str {
+        if self.caldav_url.is_empty() {
+            &self.carddav_url
+        } else {
+            &self.caldav_url
+        }
+    }
+}
+
 /// What the person chose, as the account is set up with it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ChosenUses {

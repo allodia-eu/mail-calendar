@@ -258,6 +258,15 @@ impl SettingsWindow {
                     returning.emit(AppInput::AllodiaSubscription(SubscriptionInput::Returned));
                 }
             });
+            let closing = sender.clone();
+            window.connect_close_request(move |_| {
+                closing.emit(AppInput::Accounts(
+                    crate::ui::account_settings::AccountsInput::SignIn(
+                        crate::ui::account_sign_in::SignInInput::Closed,
+                    ),
+                ));
+                gtk::glib::Propagation::Proceed
+            });
             window
         };
         let navigation = gtk::Stack::new();

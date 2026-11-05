@@ -20,7 +20,7 @@ extension AccountSetupDetectView {
             Text(L10n.setup_detect_found_title()).font(.title2).bold()
 
             if setup.calendarAndContacts {
-                calendarAndContactsCard(form)
+                calendarAndContactsCard(form, setup)
             } else {
                 switch setup.recommendation {
                 case let .microsoft(microsoftEmail):
@@ -202,28 +202,56 @@ extension AccountSetupDetectView {
     }
 
     /// No mail server was found for the address, but a calendar or address book was: the account
-    /// is set up for those alone, the typed address as its login.
-    private func calendarAndContactsCard(_ form: DetectedConnectForm) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(L10n.setup_detect_dav_note()).font(.callout).foregroundStyle(.secondary)
+    /// is set up for those alone, the typed address as its login. At a Nextcloud server its own
+    /// sign-in leads and the password waits behind it (docs/nextcloud-sign-in.md rule 2).
+    private func calendarAndContactsCard(_ form: DetectedConnectForm, _ setup: DetectedSetup)
+        -> some View
+    {
+        let nextcloud = setup.nextcloudSignIn
+        let showsPassword = !nextcloud || passwordChosen
+        return VStack(alignment: .leading, spacing: 14) {
+            Text(DavCardCopy.note(setup)).font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             SetupUsesSection(choices: $uses, flagged: $flagged) { EmptyView() }
             SetupCard(title: L10n.setup_section_account(), systemImage: "key") {
-                Text(L10n.setup_credentials_note())
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                SecureField(L10n.setup_field_password(), text: $password)
-                    .setupField(.password)
-                    .onTouchKeyboardSubmit {
-                        guard form.canConnect, !model.isConnecting else { return }
-                        connectStandards(form, request: nil)
+                if nextcloud {
+                    NextcloudSignInControl(
+                        signIn: model.setupNextcloud, leads: !passwordChosen,
+                        passwordInstead: passwordChosen ? nil : { passwordChosen = true }
+                    ) {
+                        guard flaggedNothing() else { return }
+                        model.signInWithNextcloud(
+                            server: setup.caldavUrl ?? setup.carddavUrl ?? "",
+                            uses: uses.chosen.uses
+                                ?? SetupUses.davUses(setup.caldavUrl ?? "", setup.carddavUrl ?? "")
+                                ?? [.calendar, .contacts])
                     }
-                certificateControls(form)
+                    .disabled(model.isConnecting || model.updatingExistingAccount)
+                }
+                if showsPassword {
+                    // A calendar server often refuses the mail password, or the API token a JMAP
+                    // account signed in with, and takes an app password instead.
+                    Text(L10n.setup_detect_app_password_hint())
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(L10n.setup_credentials_note())
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    SecureField(L10n.setup_field_password(), text: $password)
+                        .setupField(.password)
+                        .onTouchKeyboardSubmit {
+                            guard form.canConnect, !busy else { return }
+                            connectStandards(form, request: nil)
+                        }
+                    certificateControls(form)
+                }
             }
             inlineError(suppressed: form.refusedCertificate != nil)
             footer {
-                connectButton(enabled: form.canConnect) {
-                    connectStandards(form, request: nil)
+                if showsPassword {
+                    connectButton(enabled: form.canConnect && !model.setupNextcloud.busy) {
+                        connectStandards(form, request: nil)
+                    }
                 }
             }
         }
@@ -350,8 +378,17 @@ extension AccountSetupDetectView {
     /// A connect or a sign-in is running, and its answer belongs to the step on screen.
     private var busy: Bool {
         model.isConnecting || model.updatingExistingAccount || model.microsoftSigningIn
-            || model.googleSigningIn || imapSigningIn
+            || model.googleSigningIn || imapSigningIn || model.setupNextcloud.busy
     }
 }
 
 private func nonEmpty(_ text: String) -> String? { text.isEmpty ? nil : text }
+
+/// What the calendar-only card says above its choices.
+enum DavCardCopy {
+    /// The servers found beside a JMAP account add to that account; anywhere else the address
+    /// has no mail server.
+    static func note(_ setup: DetectedSetup) -> String {
+        setup.besideAccount ? L10n.setup_detect_dav_beside_note() : L10n.setup_detect_dav_note()
+    }
+}
