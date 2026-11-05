@@ -27,9 +27,9 @@ const SHOWCASE_NEXTCLOUD_DOMAIN: &str = "nextcloud.example";
 ///
 /// Five outcomes: the settings were found and are trustworthy, they were found over an insecure
 /// hop and need approval, only a calendar and an address book were found, at a server that may
-/// or may not be Nextcloud, and nothing was found so the manual form takes over. Every other address falls to
-/// the last one, which is what makes the personal-domain example in the guide land on the manual
-/// route without a special case.
+/// or may not be Nextcloud, and nothing was found so the manual form takes over. Every other
+/// address falls to the last one, which is what makes the personal-domain example in the guide land
+/// on the manual route without a special case.
 ///
 /// Both domains are `.example` (RFC 2606), so even if this were ever reached outside a showcase
 /// build it could not name a host that resolves. Adding the Microsoft or Google route here is a
