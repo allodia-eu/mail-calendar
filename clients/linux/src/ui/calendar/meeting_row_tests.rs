@@ -25,6 +25,7 @@ fn option(id: &str, name: &str) -> MeetingOption {
     MeetingOption {
         id: id.to_owned(),
         name: name.to_owned(),
+        through: None,
     }
 }
 

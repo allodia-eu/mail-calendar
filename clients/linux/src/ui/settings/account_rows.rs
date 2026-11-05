@@ -28,7 +28,14 @@ pub(in crate::ui) fn use_name(capability: AccountCapability) -> &'static str {
         AccountCapability::Contacts => l10n::nav_contacts(),
         AccountCapability::Colleagues => l10n::account_use_colleagues(),
         AccountCapability::SharedMailboxes => l10n::account_use_shared_mailboxes(),
+        AccountCapability::Meetings => l10n::account_use_meetings(),
     }
+}
+
+/// Whether switching `capability` off asks first. Video meetings are not asked about: the device
+/// holds nothing of them to remove (`docs/accounts.md` rule 19).
+pub(super) fn confirms_off(capability: AccountCapability) -> bool {
+    capability != AccountCapability::Meetings
 }
 
 /// The list row's subtitle: the kind, what the account is used for, what it is linked to, and

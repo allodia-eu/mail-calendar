@@ -16,6 +16,7 @@ fn teams() -> MeetingOption {
     MeetingOption {
         id: "server:teams".to_owned(),
         name: "Microsoft Teams".to_owned(),
+        through: None,
     }
 }
 
@@ -23,6 +24,7 @@ fn jitsi() -> MeetingOption {
     MeetingOption {
         id: "jitsi".to_owned(),
         name: "Jitsi Meet".to_owned(),
+        through: None,
     }
 }
 
@@ -122,6 +124,28 @@ fn a_new_event_starts_with_no_meeting_and_offers_the_calendars_choices() {
             false
         )),
         "jitsi"
+    );
+}
+
+#[test]
+fn a_meeting_made_through_an_account_is_named_with_the_account() {
+    let talk = MeetingOption {
+        id: "account:nextcloud-talk:alice@dav:cloud.example.org".to_owned(),
+        name: "Nextcloud Talk".to_owned(),
+        through: Some("alice@cloud.example.org".to_owned()),
+    };
+    let editor = EventEditor::create(
+        vec![calendar("calendar-a", vec![teams(), talk, jitsi()])],
+        String::new(),
+    );
+    assert_eq!(
+        labels(&editor.meeting_options(0)),
+        [
+            l10n::event_meeting_none().to_owned(),
+            "Microsoft Teams".to_owned(),
+            l10n::event_meeting_through("Nextcloud Talk", "alice@cloud.example.org"),
+            "Jitsi Meet".to_owned(),
+        ]
     );
 }
 

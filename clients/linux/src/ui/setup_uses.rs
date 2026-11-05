@@ -230,6 +230,8 @@ pub(super) fn append(
                     toggles.contacts.as_ref().map(|contacts| &contacts.enabled),
                 ));
             }
+            // Never a setup choice: switched on from the account's page.
+            AccountCapability::Meetings => {}
         }
     }
     keep_one_on(&toggles);

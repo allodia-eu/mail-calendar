@@ -106,7 +106,7 @@ fn uses_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup 
                     account: account.clone(),
                     adding: vec![capability],
                 }));
-            } else if on {
+            } else if on || !account_rows::confirms_off(capability) {
                 sender.emit(AppInput::Accounts(AccountsInput::SetUse {
                     account: account.clone(),
                     capability,

@@ -1,4 +1,4 @@
-//! The editor's Video meeting row (`docs/conferencing.md`, rules 9 to 12): which meetings it
+//! The editor's Video meeting row (`docs/conferencing.md`, rules 9 to 14): which meetings it
 //! offers, what it opens showing, and what a save sends.
 //!
 //! The core decides what a calendar offers (`CalendarRow::meeting_choices`) and which meeting an
@@ -22,8 +22,9 @@ pub(crate) enum MeetingSelection {
     Current,
 }
 
-/// One entry the row offers. `name` is the service's brand name, or `None` for the screen's own
-/// words: "None" for [`MeetingSelection::None`], "Video meeting" for a meeting nothing names.
+/// One entry the row offers. `name` is the service's brand name, with the account that makes it
+/// for a choice made through an account, or `None` for the screen's own words: "None" for
+/// [`MeetingSelection::None`], "Video meeting" for a meeting nothing names.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct MeetingRowOption {
     pub(super) selection: MeetingSelection,
@@ -39,6 +40,15 @@ impl MeetingRowOption {
             (_, None) => l10n::event_video_meeting().to_owned(),
         }
     }
+}
+
+/// A choice as the row names it: the service, and the account that makes it for one made through
+/// an account, so two work accounts are two entries a person can tell apart.
+pub(super) fn choice_label(choice: &MeetingOption) -> String {
+    choice.through.as_ref().map_or_else(
+        || choice.name.clone(),
+        |account| l10n::event_meeting_through(&choice.name, account),
+    )
 }
 
 impl EventEditor {
@@ -83,7 +93,7 @@ impl EventEditor {
 
     /// The row's entries: None first, the event's own meeting where the calendar does not offer
     /// it (one no choice makes, or a Jitsi meeting after the server was cleared), then the
-    /// calendar's choices by the core's names.
+    /// calendar's choices by the core's names, one made through an account with its address.
     pub(super) fn meeting_options(&self, index: u32) -> Vec<MeetingRowOption> {
         let choices = self.meeting_choices(index);
         let current = self
@@ -106,7 +116,7 @@ impl EventEditor {
         .chain(current)
         .chain(choices.iter().map(|choice| MeetingRowOption {
             selection: MeetingSelection::Choice(choice.id.clone()),
-            name: Some(choice.name.clone()),
+            name: Some(choice_label(choice)),
         }))
         .collect()
     }
