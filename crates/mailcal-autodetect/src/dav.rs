@@ -89,6 +89,52 @@ pub(crate) async fn probe(
     DetectedDav {
         caldav_url,
         carddav_url,
+        nextcloud: false,
+    }
+}
+
+/// Whether the servers in `dav` are one Nextcloud installation: both endpoints under the same
+/// root, one of them a PHP script, and that root's `status.php` saying so over HTTPS without being
+/// redirected elsewhere. A server whose endpoints show no PHP is never asked a `.php` path, which
+/// some servers answer by banning the address that asked (`docs/nextcloud-sign-in.md` rule 1).
+/// Soft like the probe: any doubt is `false`, and the password route that follows works
+/// everywhere.
+pub(crate) async fn is_nextcloud(
+    fetcher: &dyn Fetch,
+    dav: &DetectedDav,
+    config: &DetectConfig,
+) -> bool {
+    let endpoints: Vec<&String> = [&dav.caldav_url, &dav.carddav_url]
+        .into_iter()
+        .flatten()
+        .collect();
+    let php = endpoints
+        .iter()
+        .any(|url| url::Url::parse(url).is_ok_and(|url| mailcal_nextcloud::serves_php(&url)));
+    if !php {
+        return false;
+    }
+    let mut roots = endpoints
+        .into_iter()
+        .map(|url| mailcal_nextcloud::Root::of(url));
+    let Some(Some(root)) = roots.next() else {
+        return false;
+    };
+    if roots.any(|other| other.as_ref() != Some(&root)) {
+        return false;
+    }
+    let Ok(status_url) = url::Url::parse(&root.endpoint(mailcal_nextcloud::STATUS_PATH)) else {
+        return false;
+    };
+    let budget = mailcal_nextcloud::STATUS_TIMEOUT.min(config.http_timeout);
+    match tokio::time::timeout(budget, fetcher.get(&status_url)).await {
+        Ok(FetchOutcome::Response(response)) => {
+            response.trusted
+                && response.is_success()
+                && response.final_url == status_url
+                && mailcal_nextcloud::is_nextcloud_status(&response.body)
+        }
+        Ok(FetchOutcome::Miss | FetchOutcome::NetworkError) | Err(_) => false,
     }
 }
 

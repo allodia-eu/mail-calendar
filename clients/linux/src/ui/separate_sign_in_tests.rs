@@ -44,6 +44,7 @@ pub(crate) fn mailbox(problem: Option<UseProblem>, server: Option<SeparateServer
         separate_server: server,
         distinction: None,
         mail_sync: None,
+        nextcloud: false,
     }
 }
 

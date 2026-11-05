@@ -205,6 +205,7 @@ fn the_setup_beside_offers_only_what_the_session_lacks() {
             "alice@example.org".to_owned(),
             Some(CALDAV.to_owned()),
             carddav.map(str::to_owned),
+            false,
         )
     };
 

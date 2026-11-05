@@ -9,6 +9,9 @@ license.workspace = true
 
 [dependencies]
 mailcal-user-agent = { path = "../mailcal-user-agent" }
+# What a Nextcloud server's `status.php` says and where its installation is, so the DAV probe
+# asks the question the way the sign-in that follows it does.
+mailcal-nextcloud = { workspace = true }
 # Object-safe async trait for the fetcher, so the strategies take `Arc<dyn Fetch>` and
 # tests can inject a virtual-time fake in place of real HTTP.
 async-trait = { workspace = true }

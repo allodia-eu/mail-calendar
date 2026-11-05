@@ -108,6 +108,7 @@ impl AppModel {
             beside.email.clone(),
             beside.caldav_url,
             beside.carddav_url,
+            false,
         ) {
             self.account_detected(beside.email, setup, sender);
         }

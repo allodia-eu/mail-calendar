@@ -38,6 +38,7 @@ fn snapshot() -> AccountsSnapshot {
             separate_server: None,
             distinction: None,
             mail_sync: None,
+            nextcloud: false,
         }],
     }
 }

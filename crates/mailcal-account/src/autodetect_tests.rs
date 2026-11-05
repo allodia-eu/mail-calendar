@@ -56,6 +56,7 @@ fn mail_with_caldav(
         dav: DetectedDav {
             caldav_url,
             carddav_url: None,
+            nextcloud: false,
         },
         oauth_issuer: None,
     })

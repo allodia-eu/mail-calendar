@@ -34,6 +34,8 @@ pub(crate) struct AccountFacts {
     pub(crate) links: AccountLinks,
     /// Its servers and login, when Settings can edit them.
     pub(crate) endpoints: Option<mailcal_account::EndpointEdit>,
+    /// Whether a Nextcloud sign-in made it.
+    pub(crate) nextcloud: bool,
     /// A mailbox's calendar and contacts servers, each with the login it holds there.
     pub(crate) dav_servers: Vec<DavServer>,
     /// The addresses its calendar server treats as its user, once asked; empty when it has no
@@ -117,6 +119,7 @@ pub(crate) fn entries(
             ),
             distinction: told[index].clone(),
             mail_sync: None,
+            nextcloud: account.nextcloud,
         })
         .collect()
 }

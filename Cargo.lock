@@ -2254,6 +2254,7 @@ dependencies = [
  "async-trait",
  "engine-tls",
  "log",
+ "mailcal-nextcloud",
  "mailcal-user-agent",
  "mapi-autodiscover",
  "psl",
@@ -2285,6 +2286,7 @@ version = "0.15.0"
 dependencies = [
  "allodia-license",
  "async-trait",
+ "base64 0.23.1",
  "engine-api",
  "engine-core",
  "engine-provider",
@@ -2299,6 +2301,7 @@ dependencies = [
  "mailcal-composer",
  "mailcal-l10n",
  "mailcal-mcp",
+ "mailcal-nextcloud",
  "mailcal-oauth",
  "mailcal-telemetry",
  "mailcal-viewmodel",
@@ -2381,6 +2384,21 @@ dependencies = [
  "mailcal-l10n",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "mailcal-nextcloud"
+version = "0.15.0"
+dependencies = [
+ "engine-tls",
+ "log",
+ "mailcal-user-agent",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "url",
 ]
 
 [[package]]

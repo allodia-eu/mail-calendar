@@ -56,6 +56,11 @@ said.
 The mailboxes the account's sign-in opens besides its own that it is used for are a
 `[[shared_mailbox]]` table each ([`shared-mailboxes.md`](shared-mailboxes.md) §2).
 
+A calendar and contacts account a Nextcloud sign-in made also has a `[nextcloud]` table: the
+`server` that issued its password, the Nextcloud `user` id it signs in as and the profile
+`address` that names it where its login is an opaque id ([`nextcloud-sign-in.md`](nextcloud-sign-in.md)
+rule 7). Its password is an ordinary DAV password under the login name the server returned.
+
 The core owns the shape (`mailcal_account::AccountShape`); no client reads or writes these keys.
 
 ## 3. Per-platform matrix

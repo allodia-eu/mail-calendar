@@ -44,6 +44,7 @@ fn dav(caldav: Option<&str>, carddav: Option<&str>) -> SetupRecommendation {
         email: EMAIL.to_owned(),
         caldav_url: caldav.map(str::to_owned),
         carddav_url: carddav.map(str::to_owned),
+        nextcloud: false,
     }
 }
 
@@ -171,6 +172,7 @@ fn jmap_and_manual_routes_have_no_choices_before_sign_in() {
         source: String::new(),
         caldav_url: Some(CALDAV.to_owned()),
         carddav_url: None,
+        nextcloud: false,
     };
     assert_eq!(jmap.choices(), []);
     let manual = SetupRecommendation::Manual {

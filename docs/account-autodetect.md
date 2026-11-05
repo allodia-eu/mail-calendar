@@ -122,6 +122,10 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
    wrong guess degrades to "no calendar", surfaced non-blocking, never a broken account).
    Microsoft and Google carry calendar and contacts over their own session, so what the probe
    found is dropped on those routes.
+   Where calendar and contacts are all the address has, and beside a JMAP server, the core also
+   asks the server found whether it is Nextcloud, whose card then offers its own sign-in, but only
+   when an endpoint found is a PHP script: asking `status.php` of any other server can get the
+   person's address banned ([`nextcloud-sign-in.md`](nextcloud-sign-in.md) rule 1).
 
 9. **SRV autodiscovery covers providers that publish services in DNS, not on the apex.** Two
    strategies use the host resolver's SRV lookup (rule 6). The **JMAP probe**, on an apex
