@@ -129,7 +129,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Manual form asks once a URL is entered | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Separate-server step offers it above the password | ✅ | 🚧 | ✅ | 🚧 | 🚧 |
 | Account page and sign-in-again prompt | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Browser opened, polled, and polled again on return | n/a | 🚧 | ✅ | ✅ | ✅ |
+| Browser opened, polled, and polled again on return | n/a | ✅ | ✅ | ✅ | ✅ |
 | A held grant retried, or withdrawn when abandoned | ✅ | 🚧 | ✅ | 🚧 | 🚧 |
 | Remote wipe answered | ✅ | n/a | n/a | n/a | n/a |
 | Password withdrawn on removal and on a new sign-in | ✅ | n/a | n/a | n/a | n/a |
@@ -167,8 +167,9 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   `NextcloudAccountSignInTest`) and was driven on an emulator through the same three flows. Apple
   asserts the flight and each surface's state in MailcalKit and the found card's drawing in
   `NextcloudSignInTests`, against the showcase's `nextcloud.example`; the macOS app was driven
-  through the manual form and signing in again. iOS was exercised by the simulator suite alone,
-  and the poll on return has unit tests only. Windows asserts the flight and each surface's state
+  through the manual form and signing in again, and the iOS app on a simulator through the manual
+  form, the account's page, signing in again, removal and the poll on return: a grant made while the
+  app was in the background was taken 52 ms after it came back. Windows asserts the flight and each surface's state
   in `Mailcal.Tests`, and its UI suites (`NextcloudSignInTests`, `NextcloudAccountPageTests`,
   `NextcloudSeparateServerTests`) drive the manual form, the wait and its Cancel, a kept grant's
   retry and withdrawal, the account page, and a mailbox's separate-server step against the
