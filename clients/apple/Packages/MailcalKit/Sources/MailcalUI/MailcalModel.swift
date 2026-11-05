@@ -245,6 +245,9 @@ final class MailboxModel {
     /// The record behind that address, so the sheet takes the route the other device wrote down
     /// rather than re-deriving one. `nil` for every other way in.
     var setupStartOffer: AllodiaAccountOffer?
+    /// A card to open on, for the servers a link step found beside a JMAP server (SetupBeside).
+    var setupStartDetected: DetectedSetup?
+    @ObservationIgnored var setupBeside = SetupBeside()
     /// An offer was pressed *inside* Settings, which is itself a modal here, a sheet on macOS and
     /// `taskPresentation` on iOS, and one modal cannot present another. So the press closes
     /// Settings and this carries the intent across the dismissal, where `ContentView` spends it.
