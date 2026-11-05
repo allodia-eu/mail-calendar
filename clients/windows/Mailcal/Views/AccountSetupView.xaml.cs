@@ -70,6 +70,7 @@ public sealed partial class AccountSetupView : UserControl
             {
                 UpdateCanConnect();
                 UpdateGoogleSignInEnabled();
+                UpdateNextcloud();
             }
             // A connect refused for a certificate is answered on this form, so the panel is
             // drawn when one arrives and taken away when the next attempt clears it
@@ -117,6 +118,7 @@ public sealed partial class AccountSetupView : UserControl
         try
         {
             var setup = await Model.DetectAsync(DetectEmail.Text);
+            Model.SetupDetected(setup);
             ApplyRoute(AccountDetectForm.Route(setup, DetectEmail.Text));
         }
         finally
@@ -140,6 +142,7 @@ public sealed partial class AccountSetupView : UserControl
         _detectedTab = route.IsManual ? null : route.Tab;
         _detectedUses = route.Uses ?? UseOffer.None;
         _detectedServers = route.Servers ?? [];
+        AdoptNextcloud(route);
         _imap.AdoptDetected(route.ImapHost, route.ImapSecurity);
         _smtp.AdoptDetected(route.SmtpHost, route.SmtpSecurity);
         ShowServerSettings();
@@ -230,6 +233,7 @@ public sealed partial class AccountSetupView : UserControl
         _detectedTab = null;
         CaldavUrl.Text = DavCaldavUrl.Text = _detectedUses.CaldavUrl;
         CarddavUrl.Text = DavCarddavUrl.Text = _detectedUses.CarddavUrl;
+        NextcloudManualFromFound();
         OnAccountTypeChanged(this, new RoutedEventArgs());
         // This IS the manual path, the one "Set up manually" exists to reach, so the secret and
         // server come back even where a sign-in is on offer.
@@ -357,6 +361,7 @@ public sealed partial class AccountSetupView : UserControl
         // Each sign-in gate narrows the Connect just made visible, at once rather than when its
         // server answers: until then the card shows nothing to act on (docs/mail-oauth.md rule 8).
         UpdateImapSignIn();
+        UpdateNextcloud();
         // The JMAP sign-in button is its own gate (does this server even offer sign-in?), so
         // arriving on the tab, by detection or by picking it, is what starts that lookup.
         UpdateJmapSignIn();
@@ -414,7 +419,14 @@ public sealed partial class AccountSetupView : UserControl
         // one pressed on this screen.
         if (Model?.SetupStartOffer is { } offer)
         {
-            ApplyRoute(AccountDetectForm.Route(MailcalBindingsMethods.OfferedSetup(offer), offer.Email));
+            var offered = MailcalBindingsMethods.OfferedSetup(offer);
+            Model.SetupDetected(offered);
+            ApplyRoute(AccountDetectForm.Route(offered, offer.Email));
+        }
+        // The servers a link step found beside a JMAP server open on their own card.
+        else if (Model?.TakeSetupStartDetected() is { } beside)
+        {
+            ApplyRoute(AccountDetectForm.Route(beside, Model.SetupStartEmail));
         }
     }
 
@@ -441,6 +453,7 @@ public sealed partial class AccountSetupView : UserControl
         JmapServer.Text = string.Empty;
         ResetJmapSignIn();
         ResetImapSignIn();
+        ResetNextcloud();
         GoogleEarlyAccessCheck.IsChecked = false;
         ConnectButton.IsEnabled = false;
     }

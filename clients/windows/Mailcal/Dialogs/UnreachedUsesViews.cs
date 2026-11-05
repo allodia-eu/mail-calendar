@@ -39,8 +39,16 @@ internal sealed record SeparateServerForm(
     /// account's page does not, its form's Cancel being that way back.</summary>
     internal void Draw(SeparateServerSignIn signIn, bool cancelOwn)
     {
-        var offered = signIn.Offers(Step);
+        var offer = signIn.Offer(Step);
+        var offered = offer != SeparateSignInOffer.None;
         SignIn.Panel.Visibility = offered ? Visibility.Visible : Visibility.Collapsed;
+        // Nextcloud's sign-in is named as itself, and says where the person is while the browser
+        // holds it (docs/nextcloud-sign-in.md rule 5).
+        var nextcloud = offer == SeparateSignInOffer.Nextcloud;
+        SignIn.Button.Content = nextcloud ? L10n.NextcloudSignInButton() : L10n.SetupImapSigninButton();
+        SignIn.Note.Text = !nextcloud ? L10n.SetupImapSigninNote()
+            : signIn.Phase == SeparateSignInPhase.Waiting ? L10n.NextcloudSignInWaiting()
+            : L10n.NextcloudSignInNote();
         // One primary action: the sign-in where it is offered, Connect otherwise.
         var style = (Style)Application.Current.Resources[offered ? "DefaultButtonStyle" : "AccentButtonStyle"];
         if (!ReferenceEquals(Connect.Style, style))
@@ -74,9 +82,10 @@ internal sealed record SeparateServerForm(
 /// answers it as Cancel.</summary>
 internal sealed record UnreachedPrompt(Task<UnreachedAnswer> Answer, Action Dismiss);
 
-/// <summary>The sign-in at the server's own provider, above the login: the button, its Cancel
-/// and ring while an attempt is out, and the note beneath. Collapsed until the core offers it.</summary>
-internal sealed record SeparateServerSignInRow(StackPanel Panel, Button Button, Button Cancel, ProgressRing Ring);
+/// <summary>The sign-in at the server's own provider, or Nextcloud's, above the login: the button,
+/// its Cancel and ring while an attempt is out, and the note beneath. Collapsed until the core
+/// offers it.</summary>
+internal sealed record SeparateServerSignInRow(StackPanel Panel, Button Button, Button Cancel, ProgressRing Ring, TextBlock Note);
 
 internal static class UnreachedUsesViews
 {
@@ -257,12 +266,14 @@ internal static class UnreachedUsesViews
         buttons.Children.Add(cancel);
         buttons.Children.Add(ring);
         panel.Children.Add(buttons);
-        panel.Children.Add(new TextBlock
+        var note = new TextBlock
         {
             Text = L10n.SetupImapSigninNote(),
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             TextWrapping = TextWrapping.Wrap,
-        });
-        return new SeparateServerSignInRow(panel, button, cancel, ring);
+        };
+        AutomationProperties.SetAutomationId(note, "SeparateServerSignInNote");
+        panel.Children.Add(note);
+        return new SeparateServerSignInRow(panel, button, cancel, ring, note);
     }
 }

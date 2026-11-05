@@ -269,15 +269,47 @@
                                Style="{StaticResource BodyTextBlockStyle}"
                                TextWrapping="Wrap"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <!-- Nextcloud's own sign-in, where the server said it is Nextcloud
+                         (docs/nextcloud-sign-in.md rule 2): on the found card it leads and the
+                         password waits behind "Use a password instead"; on the manual form it is
+                         drawn above the fields, which keep what was typed. What is on screen is
+                         decided in AccountSetupView.Nextcloud.cs. -->
+                    <StackPanel x:Name="NextcloudPanel" Spacing="8" Visibility="Collapsed">
+                        <TextBlock x:Name="NextcloudNote"
+                                   Text="{x:Bind l10n:L10n.NextcloudSignInNote(), Mode=OneTime}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button x:Name="NextcloudSignInButton" Content="{x:Bind l10n:L10n.NextcloudSignInButton(), Mode=OneTime}"
+                                HorizontalAlignment="Left" Click="OnSignInNextcloud" />
+                        <!-- While the browser holds the sign-in; the footer's Cancel retires it. -->
+                        <StackPanel x:Name="NextcloudWaitingPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                            <ProgressRing x:Name="NextcloudWaitingRing" Width="16" Height="16" IsActive="False" />
+                            <TextBlock x:Name="NextcloudWaitingText"
+                                       Text="{x:Bind l10n:L10n.NextcloudSignInWaiting(), Mode=OneTime}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <HyperlinkButton x:Name="DavUsePasswordButton"
+                                         Content="{x:Bind l10n:L10n.SetupImapSigninPasswordInstead(), Mode=OneTime}"
+                                         Padding="0" Visibility="Collapsed" Click="OnUseDavPassword" />
+                    </StackPanel>
                     <TextBox x:Name="DavLogin" Header="{x:Bind l10n:L10n.SetupFieldUsername(), Mode=OneTime}" TextChanged="OnDavFieldChanged" />
-                    <PasswordBox x:Name="DavPassword" Header="{x:Bind l10n:L10n.SetupFieldPassword(), Mode=OneTime}" PasswordChanged="OnPasswordChanged" />
-                    <TextBlock
-                        Text="{x:Bind l10n:L10n.SetupCredentialsNote(), Mode=OneTime}"
-                        Style="{StaticResource CaptionTextBlockStyle}"
-                        TextWrapping="Wrap"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBox x:Name="DavCaldavUrl" Header="{x:Bind l10n:L10n.SetupFieldCaldavOptional(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCaldav(), Mode=OneTime}" />
-                    <TextBox x:Name="DavCarddavUrl" Header="{x:Bind l10n:L10n.SetupFieldCarddavOptional(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCarddav(), Mode=OneTime}" />
+                    <!-- The password and the line about it go and come back together. -->
+                    <StackPanel x:Name="DavPasswordPanel" Spacing="12">
+                        <PasswordBox x:Name="DavPassword" Header="{x:Bind l10n:L10n.SetupFieldPassword(), Mode=OneTime}" PasswordChanged="OnPasswordChanged" />
+                        <TextBlock
+                            Text="{x:Bind l10n:L10n.SetupCredentialsNote(), Mode=OneTime}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <TextBox x:Name="DavCaldavUrl" Header="{x:Bind l10n:L10n.SetupFieldCaldavOptional(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCaldav(), Mode=OneTime}"
+                             TextChanged="OnDavServerChanged" LostFocus="OnDavServerLeft" />
+                    <TextBox x:Name="DavCarddavUrl" Header="{x:Bind l10n:L10n.SetupFieldCarddavOptional(), Mode=OneTime}" PlaceholderText="{x:Bind l10n:L10n.SetupHintCarddav(), Mode=OneTime}"
+                             TextChanged="OnDavServerChanged" LostFocus="OnDavServerLeft" />
                 </StackPanel>
 
                 <!-- Microsoft 365 branch: a note; the sign-in button lives in the shared footer.

@@ -78,11 +78,16 @@ internal enum UseChangeOutcome
 /// <param name="SwitchToProvider">Signing in through the provider in place of its password.</param>
 /// <param name="ProviderLabel">The provider's name for that button, when the core has one.</param>
 /// <param name="SwitchToPassword">A password in place of its grant.</param>
+/// <param name="Nextcloud">Whether its sign-in is Nextcloud's own, a calendar and contacts
+/// account's (docs/nextcloud-sign-in.md rule 7): then <paramref name="ThroughProvider"/> is an
+/// account a Nextcloud sign-in made.</param>
 internal sealed record SignInSection(
-    bool ThroughProvider, bool SignInAgain, bool SwitchToProvider, string? ProviderLabel, bool SwitchToPassword)
+    bool ThroughProvider, bool SignInAgain, bool SwitchToProvider, string? ProviderLabel, bool SwitchToPassword,
+    bool Nextcloud = false)
 {
-    /// <summary>Whether a switch is offered, which the line saying what it keeps goes with.</summary>
-    internal bool OffersSwitch => SwitchToProvider || SwitchToPassword;
+    /// <summary>Whether a switch is offered, which the line saying what it keeps goes with. A
+    /// calendar and contacts account switching to Nextcloud has no mail or links that line names.</summary>
+    internal bool OffersSwitch => (SwitchToProvider && !Nextcloud) || SwitchToPassword;
 }
 
 /// <summary>What an expired sign-in's banner button runs.</summary>
@@ -96,13 +101,23 @@ internal enum SignInRemedy
     JmapReauth,
     /// <summary>A standards account's stored grant, through the account sign-in.</summary>
     AccountSignIn,
+    /// <summary>A calendar and contacts account a Nextcloud sign-in made, signed in with
+    /// Nextcloud again (docs/nextcloud-sign-in.md rule 8).</summary>
+    Nextcloud,
 }
 
 /// <summary>The account an add was refused for, and the config the add was given, which the
 /// refusal offers to put on it (docs/accounts.md rule 17).</summary>
 /// <param name="Unreached">The calendar and contacts the sign-in that gave the config said it would
 /// not reach, which taking the offer asks about first (rule 18).</param>
-internal sealed record ExistingAccountOffer(string AccountId, string ConfigToml, IReadOnlyList<AccountCapability> Unreached);
+/// <param name="NextcloudGrant">In place of a config, the grant of a Nextcloud sign-in as the
+/// person that account is (docs/nextcloud-sign-in.md rule 7).</param>
+internal sealed record ExistingAccountOffer(
+    string AccountId, string ConfigToml, IReadOnlyList<AccountCapability> Unreached, string? NextcloudGrant = null)
+{
+    /// <summary>Never the config or the grant: each carries a credential.</summary>
+    public override string ToString() => $"ExistingAccountOffer({AccountId})";
+}
 
 internal static class AccountSettingsRules
 {
@@ -159,14 +174,32 @@ internal static class AccountSettingsRules
     /// account.</summary>
     internal static bool SwitchesSignIn(AccountKind kind) => kind is AccountKind.Imap or AccountKind.Jmap;
 
+    /// <summary>Whether <paramref name="entry"/>'s page may have a Sign-in section: a standards or
+    /// JMAP account's, or a calendar and contacts account's, which has one only at a Nextcloud
+    /// server.</summary>
+    internal static bool MayHaveSignInSection(AccountEntry entry) =>
+        entry.Nextcloud || SwitchesSignIn(entry.Kind) || entry.Kind == AccountKind.Dav;
+
+    /// <summary>Whether the section is drawn before its server answers: every one but that of a
+    /// calendar and contacts account with a typed password, which has a section only once its
+    /// server has said it is Nextcloud.</summary>
+    internal static bool SignInDrawnBeforeAnswer(AccountEntry entry) =>
+        entry.Nextcloud || SwitchesSignIn(entry.Kind);
+
     /// <summary>
     /// The Sign-in section for <paramref name="entry"/>, given what its server accepts
     /// (<paramref name="options"/>, null until <c>account_sign_in_options</c> answers). Null for a
     /// Microsoft or Google account, which signs in again through its own consent, and for a
-    /// calendar or address book used for no mail.
+    /// calendar or address book used for no mail, except at a Nextcloud server.
     /// </summary>
     internal static SignInSection? SignIn(AccountEntry entry, AccountSignInOptions? options)
     {
+        // Ahead of the sign-in method: an account a Nextcloud sign-in made reports Provider, and
+        // has no endpoints to switch a password onto.
+        if (entry.Nextcloud || entry.Kind == AccountKind.Dav)
+        {
+            return NextcloudSignIn(entry.Nextcloud, options);
+        }
         if (!SwitchesSignIn(entry.Kind))
         {
             return null;
@@ -186,16 +219,40 @@ internal static class AccountSettingsRules
             SwitchToPassword: throughProvider && password);
     }
 
-    /// <summary>What the expired-sign-in banner runs for an account of <paramref name="provider"/>.
-    /// Null, a provider the core could not name, has nothing to run.</summary>
-    internal static SignInRemedy Remedy(AccountProvider? provider) => provider switch
+    /// <summary>
+    /// The section of a calendar and contacts account, which has one only at a Nextcloud server:
+    /// signing in again for one a Nextcloud sign-in made (<paramref name="nextcloud"/>), and the
+    /// switch from a typed password for one whose server answered that it is Nextcloud. It never
+    /// switches to a typed password: its login is the one the server issued the password under.
+    /// </summary>
+    private static SignInSection? NextcloudSignIn(bool nextcloud, AccountSignInOptions? options)
     {
-        AccountProvider.Microsoft or AccountProvider.Google => SignInRemedy.ProviderConsent,
-        AccountProvider.JmapOauth => SignInRemedy.JmapReauth,
-        AccountProvider.ImapOauth => SignInRemedy.AccountSignIn,
-        AccountProvider.Password or AccountProvider.Jmap => SignInRemedy.Settings,
-        _ => SignInRemedy.Settings,
-    };
+        var offered = options?.Nextcloud ?? false;
+        if (!nextcloud && !offered)
+        {
+            return null;
+        }
+        return new SignInSection(
+            ThroughProvider: nextcloud,
+            SignInAgain: nextcloud && offered,
+            SwitchToProvider: !nextcloud && offered,
+            ProviderLabel: !nextcloud && offered ? "Nextcloud" : null,
+            SwitchToPassword: false,
+            Nextcloud: true);
+    }
+
+    /// <summary>What the expired-sign-in banner runs for an account of <paramref name="provider"/>,
+    /// or for one a Nextcloud sign-in made (<paramref name="nextcloud"/>), which reports a provider
+    /// as well. Null, a provider the core could not name, has nothing to run.</summary>
+    internal static SignInRemedy Remedy(AccountProvider? provider, bool nextcloud = false) =>
+        nextcloud ? SignInRemedy.Nextcloud : provider switch
+        {
+            AccountProvider.Microsoft or AccountProvider.Google => SignInRemedy.ProviderConsent,
+            AccountProvider.JmapOauth => SignInRemedy.JmapReauth,
+            AccountProvider.ImapOauth => SignInRemedy.AccountSignIn,
+            AccountProvider.Password or AccountProvider.Jmap => SignInRemedy.Settings,
+            _ => SignInRemedy.Settings,
+        };
 
     /// <summary>What a refused add offers: putting <paramref name="configToml"/> on the account
     /// already there, when the refusal is that it is set up already.</summary>
@@ -335,6 +392,7 @@ internal static class AccountSettingsRules
             parts.Add(entry.Address);
             parts.Add(entry.Kind.ToString());
             parts.Add(entry.SignIn.ToString());
+            parts.Add(entry.Nextcloud ? "nextcloud" : "-");
             parts.AddRange(entry.Uses.Select(use => $"{use.Capability}={use.State}/{use.Problem}"));
             parts.Add(Linked(entry.Links.Calendar));
             parts.Add(Linked(entry.Links.Contacts));

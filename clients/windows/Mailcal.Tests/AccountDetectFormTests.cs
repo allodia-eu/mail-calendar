@@ -64,6 +64,20 @@ public class AccountDetectFormTests
         Assert.Equal("alice@example.com", route.Email);
         Assert.Equal("https://dav.example.com/caldav", route.Uses?.CaldavUrl);
         Assert.Single(route.Uses!.Choices);
+        Assert.False(route.NextcloudSignIn);
+    }
+
+    [Fact]
+    public void A_calendar_and_contacts_card_at_Nextcloud_leads_with_its_sign_in()
+    {
+        var setup = new DetectedSetup(
+            new SetupRecommendation.Manual(MissReason.NothingFound),
+            CalendarAndContacts: true,
+            CaldavUrl: "https://cloud.example.com/remote.php/dav/",
+            CarddavUrl: "https://cloud.example.com/remote.php/dav/",
+            Choices: [new SetupChoice(AccountCapability.Calendar, true, true)],
+            NextcloudSignIn: true);
+        Assert.True(AccountDetectForm.Route(setup, "alice@example.com").NextcloudSignIn);
     }
 
     [Fact]
