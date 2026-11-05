@@ -44,6 +44,20 @@ final class AccountSetupUsesTests: XCTestCase {
             app.switches["Use this account for mail"].exists,
             "a domain with no mail server was offered mail"
         )
+        // Detection found it, so the card says there is no mail server, and, as on the mail card,
+        // that the server may want an app password.
+        XCTAssertTrue(
+            app.staticTexts.matching(
+                NSPredicate(format: "label BEGINSWITH 'We found a calendar and address book server'")
+            ).firstMatch.exists,
+            "the card does not say what detection found"
+        )
+        XCTAssertTrue(
+            app.staticTexts.matching(
+                NSPredicate(format: "label BEGINSWITH 'Some providers require an app-specific password'")
+            ).firstMatch.exists,
+            "the card does not mention app passwords"
+        )
     }
 
     /// A SwiftUI switch on iOS takes the tap on its control, at the trailing edge of the row.

@@ -210,7 +210,7 @@ extension AccountSetupDetectView {
         let nextcloud = setup.nextcloudSignIn
         let showsPassword = !nextcloud || passwordChosen
         return VStack(alignment: .leading, spacing: 14) {
-            Text(L10n.setup_detect_dav_note()).font(.callout).foregroundStyle(.secondary)
+            Text(DavCardCopy.note(setup)).font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             SetupUsesSection(choices: $uses, flagged: $flagged) { EmptyView() }
             SetupCard(title: L10n.setup_section_account(), systemImage: "key") {
@@ -229,6 +229,11 @@ extension AccountSetupDetectView {
                     .disabled(model.isConnecting || model.updatingExistingAccount)
                 }
                 if showsPassword {
+                    // A calendar server often refuses the mail password, or the API token a JMAP
+                    // account signed in with, and takes an app password instead.
+                    Text(L10n.setup_detect_app_password_hint())
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(L10n.setup_credentials_note())
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -378,3 +383,12 @@ extension AccountSetupDetectView {
 }
 
 private func nonEmpty(_ text: String) -> String? { text.isEmpty ? nil : text }
+
+/// What the calendar-only card says above its choices.
+enum DavCardCopy {
+    /// The servers found beside a JMAP account add to that account; anywhere else the address
+    /// has no mail server.
+    static func note(_ setup: DetectedSetup) -> String {
+        setup.besideAccount ? L10n.setup_detect_dav_beside_note() : L10n.setup_detect_dav_note()
+    }
+}
