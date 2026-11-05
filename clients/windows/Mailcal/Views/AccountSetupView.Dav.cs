@@ -14,7 +14,13 @@ namespace Allodia.Mailcal.Views;
 
 public sealed partial class AccountSetupView
 {
+    // The card is for the servers found beside a JMAP account just added.
+    private bool _davBeside;
+
     private void OnDavFieldChanged(object sender, TextChangedEventArgs e) => UpdateCanConnect();
+
+    /// <summary>Takes what detection said the calendar and contacts card is for.</summary>
+    private void AdoptDavCard(DetectRoute route) => _davBeside = route.BesideAccount;
 
     /// <summary>
     /// Lays the section out for the found card or the manual form. On the card the uses panel
@@ -23,7 +29,13 @@ public sealed partial class AccountSetupView
     /// </summary>
     private void ShowDavSection(bool detected)
     {
-        DavNote.Text = detected ? L10n.SetupDetectDavNote() : L10n.SetupDavNote();
+        DavNote.Text = AccountDetectForm.DavNote(detected, _davBeside) switch
+        {
+            DavCardNote.Beside => L10n.SetupDetectDavBesideNote(),
+            DavCardNote.Found => L10n.SetupDetectDavNote(),
+            _ => L10n.SetupDavNote(),
+        };
+        DavAppPasswordHint.Visibility = detected ? Visibility.Visible : Visibility.Collapsed;
         var manual = detected ? Visibility.Collapsed : Visibility.Visible;
         DavLogin.Visibility = manual;
         DavCaldavUrl.Visibility = manual;

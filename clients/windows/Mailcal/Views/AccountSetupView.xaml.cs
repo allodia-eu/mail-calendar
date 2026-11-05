@@ -143,6 +143,7 @@ public sealed partial class AccountSetupView : UserControl
         _detectedUses = route.Uses ?? UseOffer.None;
         _detectedServers = route.Servers ?? [];
         AdoptNextcloud(route);
+        AdoptDavCard(route);
         _imap.AdoptDetected(route.ImapHost, route.ImapSecurity);
         _smtp.AdoptDetected(route.SmtpHost, route.SmtpSecurity);
         ShowServerSettings();

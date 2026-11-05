@@ -299,6 +299,14 @@
                     <TextBox x:Name="DavLogin" Header="{x:Bind l10n:L10n.SetupFieldUsername(), Mode=OneTime}" TextChanged="OnDavFieldChanged" />
                     <!-- The password and the line about it go and come back together. -->
                     <StackPanel x:Name="DavPasswordPanel" Spacing="12">
+                        <!-- On the found card only, as on the mail card: a provider's calendar
+                             server may take an app password and not the account's own. -->
+                        <TextBlock x:Name="DavAppPasswordHint"
+                                   Text="{x:Bind l10n:L10n.SetupDetectAppPasswordHint(), Mode=OneTime}"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   TextWrapping="Wrap"
+                                   Visibility="Collapsed"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <PasswordBox x:Name="DavPassword" Header="{x:Bind l10n:L10n.SetupFieldPassword(), Mode=OneTime}" PasswordChanged="OnPasswordChanged" />
                         <TextBlock
                             Text="{x:Bind l10n:L10n.SetupCredentialsNote(), Mode=OneTime}"
