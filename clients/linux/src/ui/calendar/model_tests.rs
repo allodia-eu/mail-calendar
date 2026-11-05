@@ -96,5 +96,6 @@ fn detail(is_recurring: bool) -> EventDetails {
         my_answer: None,
         occurrence: String::new(),
         attendees: Vec::new(),
+        editor_meeting: None,
     }
 }

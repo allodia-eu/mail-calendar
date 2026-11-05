@@ -90,8 +90,8 @@ nobody has to dig a link out of the notes.
 | The detail's meetings, Join first (rules 2 to 5) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The detail shows `display_notes` and `display_location` (rule 6) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| The editor's Video meeting row (rules 9 to 12) | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
-| The Jitsi server in Settings (rule 13) | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
+| The editor's Video meeting row (rules 9 to 12) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The Jitsi server in Settings (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins that Join and
 a dial-in row open the core's links as sent. On Windows the section is `EventConferenceSection.cs`
@@ -101,7 +101,9 @@ its camera in `CalendarTitleDraw.cs`. The editor's Video meeting row is drawn by
 drives, and the Jitsi server is `SettingsDialog.Videoconferencing.cs`. On Android the section is `EventConferenceSection.kt` over
 `EventMeeting.kt`, and `EventMeetingTest` drives the section; the grid draws its camera in
 `CalendarTitleDraw.kt`. On Linux the rows are `conference.rs` over `meeting.rs`, and the grid
-paints its camera in `grid/camera.rs`.
+paints its camera in `grid/camera.rs`. The editor's Video meeting row is `meeting_row.rs` over the
+GTK-free `editor_meeting.rs`, which its unit tests drive, and the Jitsi server is
+`settings/videoconferencing.rs`.
 
 ## Enforcement
 

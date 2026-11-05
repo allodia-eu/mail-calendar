@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Run the Linux reading/composer + search + calendar (incl. organising a meeting) + invitations +
-# contacts (incl. the editor's refusal) + mail actions + printing + signatures + MCP + cross-account
-# merge + server-change question acceptance path on a private Wayland + D-Bus session. Controls are
-# selected through GTK's AT-SPI tree, never by screen coordinates. The mailbox is the local Stalwart
-# fixture, then the showcase for the one state no fixture can stage; every screenshot/tree/log is
-# kept under target/ui-test-artifacts for inspection.
+# Run the Linux reading/composer + search + calendar (incl. organising a meeting, the Jitsi server)
+# + invitations + contacts (incl. the editor's refusal) + mail actions + printing + signatures + MCP
+# + cross-account merge + server-change question acceptance path on a private Wayland + D-Bus
+# session. Controls are selected through GTK's AT-SPI tree, never by screen coordinates. The mailbox
+# is the local Stalwart fixture, then the showcase for the one state no fixture can stage; every
+# screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
 #
 # It expects the deterministic seed, the one `harness.sh up` lays down. Each run leaves its own mail
 # in Alice's Inbox (about ten messages: notifications, invitations, a bounce), so the list grows
@@ -354,6 +354,20 @@ bob_withdraws() {
 
 answer_uid() {
   printf '%s@test.local' "$(printf '%s' "$ANSWER_TITLE" | tr -c 'A-Za-z0-9' '-')"
+}
+
+# Clicks a control inside the toplevel titled <window>. `locate` answers in the node's own
+# window, so the window's place on the output is added to it; a dialog clicked at the bare
+# answer is clicked through to the main window behind it.
+click_in_window() { # <window> <locate arguments...>
+  local window="$1" geometry point
+  shift
+  geometry="$(linux_session_windows | awk -F'\t' -v title="$window" '$2 == title { print $3 }')"
+  [[ "$geometry" =~ \+([0-9]+)\+([0-9]+)$ ]] || die "no window titled '$window' on the compositor"
+  local left="${BASH_REMATCH[1]}" top="${BASH_REMATCH[2]}"
+  point="$("$PYTHON" "$ATSPI" locate "$@")"
+  [[ "$point" =~ ^([0-9]+)\ ([0-9]+)$ ]] || die "'$*' reported no position to click"
+  linux_session_pointer click "$((left + BASH_REMATCH[1]))" "$((top + BASH_REMATCH[2]))"
 }
 
 open_calendar_event() { # <title>
@@ -1075,10 +1089,44 @@ PY
     --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
   capture calendar-management
 
+  # Settings → Videoconferencing (docs/conferencing.md, rule 13). The field commits on Return and
+  # on losing focus, never per keystroke: an address the core refuses is said and stored nowhere,
+  # and a stored one is shown as the core keeps it, which is what makes the editor offer Jitsi
+  # below. AT-SPI can type into the row but not commit it: its accessible activate does not
+  # reach the row, and the row offers its apply button only once it has keyboard focus. So the
+  # row is clicked for that focus and Return is a real keystroke.
+  "$PYTHON" "$ATSPI" activate --name "Settings" --timeout 20
+  "$PYTHON" "$ATSPI" activate \
+    --name "Videoconferencing" --role "toggle button" \
+    --within "Settings" --within-role frame --timeout 20
+  click_in_window "Settings" --name "Jitsi server" --role text --timeout 20
+  "$PYTHON" "$ATSPI" set-text --name "Jitsi server" --text "meet.example.org" --timeout 20
+  linux_session_type -k Return
+  "$PYTHON" "$ATSPI" wait \
+    --name-substring "starts with https://" --role label --showing --timeout 20
+  grep -q '^jitsi_server' "$core_preferences" && die "a refused Jitsi server was stored"
+  "$PYTHON" "$ATSPI" set-text \
+    --name "Jitsi server" --text "https://meet.example.org/" --timeout 20
+  linux_session_type -k Return
+  for _ in {1..100}; do
+    grep -q '^jitsi_server = "https://meet.example.org"$' "$core_preferences" && break
+    sleep 0.05
+  done
+  grep -q '^jitsi_server = "https://meet.example.org"$' "$core_preferences" ||
+    die "the Jitsi server was not stored"
+  [[ "$("$PYTHON" "$ATSPI" read-text --name "Jitsi server" --timeout 20)" == \
+    "https://meet.example.org" ]] || die "the Jitsi field does not show the stored address"
+  capture settings-videoconferencing
+  "$PYTHON" "$ATSPI" activate \
+    --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
+
   "$PYTHON" "$ATSPI" activate --name "New Event" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Title" --enabled --showing --timeout 20
   "$PYTHON" "$ATSPI" set-text \
     --name "Title" --text "$CALENDAR_CRUD_TITLE" --timeout 20
+  # The server stored above is what makes the calendar offer a meeting; a new event has none.
+  "$PYTHON" "$ATSPI" wait --name "None" --role "combo box" \
+    --after "Video meeting" --showing --timeout 20
   "$PYTHON" "$ATSPI" activate --name "Save" --timeout 20
   "$PYTHON" "$ATSPI" wait \
     --name "$CALENDAR_CRUD_TITLE" --role "push button" --enabled --showing --timeout 45

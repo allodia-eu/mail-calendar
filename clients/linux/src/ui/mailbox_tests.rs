@@ -166,6 +166,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         the_detail_offers_each_meeting_and_shows_the_notes_without_its_block();
     crate::ui::calendar::invitees_editor::tests::
         the_invitee_list_takes_what_is_typed_and_follows_the_calendar();
+    crate::ui::calendar::meeting_row::tests::
+        the_meeting_row_follows_the_calendar_and_holds_the_pick();
     crate::ui::reading::attachment_tests::the_reading_header_formats_its_timestamp();
     crate::ui::reading::attachment_tests::an_attachment_name_is_never_parsed_as_markup();
     crate::ui::reading::attachment_tests::an_attachment_button_still_reads_as_its_verb();
@@ -236,6 +238,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::sender_name::tests::
         the_field_shows_the_stored_name_and_return_asks_for_the_typed_one();
     crate::ui::settings::sender_name::tests::re_asserting_the_stored_name_asks_for_nothing();
+    crate::ui::settings::videoconferencing::tests::
+        the_jitsi_server_field_stores_what_the_core_accepts_and_says_when_it_refuses();
     crate::ui::settings::sender_name::tests::clearing_the_field_asks_to_send_as_the_address_alone();
     crate::ui::settings::sender_name::tests::a_provider_held_name_is_shown_without_a_field();
     crate::ui::settings::sender_name::tests::a_provider_held_account_with_no_name_shows_its_address(

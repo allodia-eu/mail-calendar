@@ -12,7 +12,7 @@ use super::{
     detail::{DetailView, present_detail},
     dialogs_series,
     editor::{EventDetails, EventEditor, EventForm},
-    invitees_editor,
+    invitees_editor, meeting_row,
     model::{CalendarDialog, DeleteRequest},
     repeat_editor,
 };
@@ -119,6 +119,7 @@ fn present_editor(
     calendar.update_property(&[AccessibleProperty::Label(l10n::event_pick_calendar())]);
     form.append(&field_label(l10n::event_calendar()));
     form.append(&calendar);
+    let meeting = meeting_row::append_meeting_row(&form, editor, &calendar);
     let location = entry(l10n::event_location(), &editor.location);
     form.append(&location);
     let notes_label = field_label(l10n::event_notes());
@@ -185,6 +186,7 @@ fn present_editor(
             calendar_index: calendar.selected(),
             repeat: repeat_draft.borrow().clone(),
             invitees: invitees.borrow().clone(),
+            meeting: meeting.borrow().clone(),
         };
         if editor.intent(&form, false).is_err() {
             error.set_visible(true);

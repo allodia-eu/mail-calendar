@@ -122,6 +122,7 @@ icons! {
     SETTINGS_ALLODIA = ACCOUNT;
     SETTINGS_GENERAL = "mailcal-cogged-wheel-symbolic";
     SETTINGS_CALENDAR = CALENDAR;
+    SETTINGS_VIDEOCONFERENCING = VIDEO_MEETING;
     /// Not Adwaita's `mail-read`, which is drawn at half opacity to mean *already read*, and in a
     /// sidebar reads as a disabled row.
     SETTINGS_READING = "mailcal-mail-read-symbolic";

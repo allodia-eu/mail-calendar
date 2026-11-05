@@ -9,9 +9,9 @@ use mailcal_bindings::{
 };
 use time::{Date, Month, PrimitiveDateTime, Time};
 
-use super::{CalendarChoice, EventDetails, EventEditor, EventForm};
+use super::{CalendarChoice, EventDetails, EventEditor, EventForm, MeetingSelection};
 
-pub(super) fn choice() -> CalendarChoice {
+pub(in crate::ui::calendar) fn choice() -> CalendarChoice {
     CalendarChoice {
         account: "account-a".to_owned(),
         id: "calendar-a".to_owned(),
@@ -19,10 +19,11 @@ pub(super) fn choice() -> CalendarChoice {
         is_default: true,
         address: "me@example.org".to_owned(),
         can_invite: false,
+        meeting_choices: Vec::new(),
     }
 }
 
-pub(super) fn form(all_day: bool) -> EventForm {
+pub(in crate::ui::calendar) fn form(all_day: bool) -> EventForm {
     EventForm {
         title: " Planning ".to_owned(),
         start: if all_day {
@@ -41,6 +42,7 @@ pub(super) fn form(all_day: bool) -> EventForm {
         calendar_index: 0,
         repeat: None,
         invitees: Vec::new(),
+        meeting: MeetingSelection::None,
     }
 }
 
@@ -157,6 +159,7 @@ fn edit_keeps_wall_clocks_and_blank_optional_fields_clear_properties() {
         my_answer: None,
         occurrence: String::new(),
         attendees: Vec::new(),
+        editor_meeting: None,
     };
     let editor = EventEditor::edit(detail, vec![choice()]);
     match editor.intent(&form(false), false).unwrap() {
@@ -219,7 +222,10 @@ fn form_with(repeat: Option<RepeatDraft>) -> EventForm {
     }
 }
 
-pub(super) fn editing_with(occurrence: &str, repeat_draft: Option<RepeatDraft>) -> EventEditor {
+pub(in crate::ui::calendar) fn editing_with(
+    occurrence: &str,
+    repeat_draft: Option<RepeatDraft>,
+) -> EventEditor {
     EventEditor::edit(
         EventDetails {
             account: "account-a".to_owned(),
@@ -248,6 +254,7 @@ pub(super) fn editing_with(occurrence: &str, repeat_draft: Option<RepeatDraft>) 
             my_answer: None,
             occurrence: occurrence.to_owned(),
             attendees: Vec::new(),
+            editor_meeting: None,
         },
         vec![choice()],
     )
