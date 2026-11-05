@@ -1,7 +1,10 @@
 use mailcal_bindings::AccountSignInOptions;
 
 use super::{Outcome, Password, SignInSwitchState, Stage, Switch, settings_notice};
-use crate::{l10n, ui::settings::notice::Notice};
+use crate::{
+    l10n,
+    ui::{nextcloud_flight::Grant, settings::notice::Notice},
+};
 
 const fn both() -> AccountSignInOptions {
     AccountSignInOptions {
@@ -119,4 +122,32 @@ fn a_change_waiting_on_the_browser_is_cancelled_or_replaced() {
     state.in_browser("a");
     assert_eq!(state.running("a"), None);
     assert_eq!(state.running("b"), Some(Stage::Core));
+}
+
+#[test]
+fn a_kept_nextcloud_grant_is_its_accounts_and_never_taken_from_under_the_core() {
+    let mut state = SignInSwitchState::default();
+    state.hold_grant("a".to_owned(), Grant("granted".to_owned()));
+    assert_eq!(
+        state.held_grant("b"),
+        None,
+        "a grant is for its own account"
+    );
+    assert_eq!(state.held_grant("a"), Some(Grant("granted".to_owned())));
+
+    // While the core puts it on the account, leaving the page withdraws nothing.
+    state.begin("a");
+    assert_eq!(state.take_any_grant(), None);
+    state.end("a");
+    assert_eq!(state.take_any_grant(), Some(Grant("granted".to_owned())));
+    assert_eq!(state.held_grant("a"), None);
+
+    state.hold_grant("a".to_owned(), Grant("granted".to_owned()));
+    state.take_grant("b");
+    assert!(
+        state.held_grant("a").is_some(),
+        "another account's use takes nothing"
+    );
+    state.take_grant("a");
+    assert_eq!(state.held_grant("a"), None);
 }

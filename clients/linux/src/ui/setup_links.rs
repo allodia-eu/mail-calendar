@@ -21,6 +21,8 @@ pub(crate) struct Beside {
     pub(super) email: String,
     pub(super) caldav_url: Option<String>,
     pub(super) carddav_url: Option<String>,
+    /// They are Nextcloud, which signs in through the browser.
+    pub(super) nextcloud: bool,
 }
 
 /// The servers detection found beside a JMAP server, for the address it was found for.
@@ -29,6 +31,7 @@ pub(crate) struct Found {
     pub(super) email: String,
     caldav_url: Option<String>,
     carddav_url: Option<String>,
+    nextcloud: bool,
 }
 
 impl Found {
@@ -41,6 +44,7 @@ impl Found {
             email: form.email.clone(),
             caldav_url: form.caldav_url.clone(),
             carddav_url: form.carddav_url.clone(),
+            nextcloud: form.nextcloud_sign_in,
         })
     }
 
@@ -51,6 +55,7 @@ impl Found {
             email: self.email.clone(),
             caldav_url: self.caldav_url.clone(),
             carddav_url: self.carddav_url.clone(),
+            nextcloud: self.nextcloud,
         }
     }
 }

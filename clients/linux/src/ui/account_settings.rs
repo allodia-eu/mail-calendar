@@ -161,6 +161,10 @@ impl AppModel {
     pub(super) fn accounts_input(&mut self, input: AccountsInput, sender: relm4::Sender<AppInput>) {
         match input {
             AccountsInput::Show(account) => {
+                // A grant kept for another try is for the page being left.
+                if account != self.settings.account {
+                    self.abandon_held_nextcloud_grant();
+                }
                 if let Some(account) = &account {
                     self.ask_sign_in_options(account, sender.clone());
                     self.ask_shared_mailboxes(account, sender);

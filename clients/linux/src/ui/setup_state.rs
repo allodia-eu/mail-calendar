@@ -25,6 +25,8 @@ pub(super) enum Phase {
     MicrosoftSigningIn,
     JmapSigningIn,
     ImapSigningIn,
+    /// The browser holds a sign-in with Nextcloud.
+    NextcloudSigningIn,
     Connecting,
     /// The account is added; which of the uses its server offers it is used for is asked.
     Uses,
@@ -77,6 +79,8 @@ pub(super) struct SetupState {
     pub(super) beside: Vec<super::setup_links::Beside>,
     /// The servers detection found beside the JMAP server on screen, kept past "Set up manually".
     found: Option<super::setup_links::Found>,
+    /// What a sign-in with Nextcloud has asked and kept ([`nextcloud`]).
+    pub(super) nextcloud: nextcloud::SetupNextcloud,
 }
 
 impl SetupState {
@@ -106,6 +110,7 @@ impl SetupState {
             added: Vec::new(),
             beside: Vec::new(),
             found: None,
+            nextcloud: nextcloud::SetupNextcloud::new(),
         }
     }
 
@@ -347,55 +352,6 @@ impl SetupState {
         probe
     }
 
-    /// Records what the manual JMAP pane holds now and answers whether that address still needs
-    /// a pre-flight. Deliberately does **not** rebuild: nothing on screen changes when a probe
-    /// starts, and a rebuild would take the secret the user may already be typing.
-    pub(super) fn adopt_manual_jmap(&mut self, typed: ManualForm) -> Option<ManualForm> {
-        if self.phase != Phase::Form {
-            return None;
-        }
-        let Some(SetupForm::Manual(current)) = self.form.as_ref() else {
-            return None;
-        };
-        // Same address, nothing to ask: either the pre-flight is still in flight for it or it
-        // has already answered. Leaving the field a second time must not spend another round
-        // trip, and a re-probe of an in-flight address would answer twice.
-        if current.email == typed.email && current.jmap_server == typed.jmap_server {
-            return None;
-        }
-        let form = ManualForm {
-            sign_in: JmapSignIn::Checking,
-            ..typed
-        };
-        let probe = form.probes_jmap_sign_in().then(|| form.clone());
-        self.form = Some(SetupForm::Manual(form));
-        probe
-    }
-
-    /// Records what the manual IMAP pane holds now and answers whether that server still
-    /// needs a pre-flight. Deliberately does **not** rebuild: nothing on screen changes when a
-    /// probe starts, and a rebuild would take the password the user may already be typing.
-    pub(super) fn adopt_manual_imap(&mut self, typed: ManualForm) -> Option<ManualForm> {
-        if self.phase != Phase::Form {
-            return None;
-        }
-        let Some(SetupForm::Manual(current)) = self.form.as_ref() else {
-            return None;
-        };
-        // Same account, nothing to ask: either the pre-flight is in flight for it or it has
-        // already answered. Leaving a field a second time must not spend another dial.
-        if current.email == typed.email && current.imap_host == typed.imap_host {
-            return None;
-        }
-        let form = ManualForm {
-            imap_sign_in: ImapSignIn::Checking,
-            ..typed
-        };
-        let probe = form.probes_imap_sign_in().then(|| form.clone());
-        self.form = Some(SetupForm::Manual(form));
-        probe
-    }
-
     pub(super) fn connecting(&mut self) {
         self.phase = Phase::Connecting;
         self.clear_feedback();
@@ -494,6 +450,8 @@ impl SetupState {
     }
 }
 
+#[path = "setup_nextcloud_state.rs"]
+pub(super) mod nextcloud;
 /// The pre-flights' answers and what they change on screen. A child module, so it reaches
 /// `Phase` and the state's own fields.
 #[path = "setup_signin.rs"]

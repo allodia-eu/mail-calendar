@@ -6,7 +6,7 @@
 
 use mailcal_bindings::{ConnectionSecurity, ImapAuthOffer};
 
-use super::{DetectedServer, ImapForm, ManualForm};
+use super::{AccountKind, DetectedServer, ImapForm, JmapSignIn, ManualForm};
 
 /// What an IMAP server said it accepts, as answered by the core's fail-soft pre-flight.
 ///
@@ -152,5 +152,25 @@ impl From<ImapAuthOffer> for ImapSignIn {
             },
             ImapAuthOffer::Password => Self::Password,
         }
+    }
+}
+
+impl ManualForm {
+    /// Whether a JMAP sign-in pre-flight is worth running for what is typed now.
+    pub(in crate::ui) fn probes_jmap_sign_in(&self) -> bool {
+        self.kind == AccountKind::Jmap
+            && self.sign_in == JmapSignIn::Checking
+            && !self.email.trim().is_empty()
+    }
+
+    /// Whether an IMAP auth pre-flight is worth running for what is typed now.
+    ///
+    /// A server is required as well as an address: the question is what *that server*
+    /// accepts, and there is nothing to dial without one.
+    pub(in crate::ui) fn probes_imap_sign_in(&self) -> bool {
+        self.kind == AccountKind::Imap
+            && self.imap_sign_in == ImapSignIn::Checking
+            && !self.email.trim().is_empty()
+            && !self.imap_host.trim().is_empty()
     }
 }

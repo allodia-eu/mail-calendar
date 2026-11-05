@@ -108,7 +108,7 @@ impl AppModel {
             beside.email.clone(),
             beside.caldav_url,
             beside.carddav_url,
-            false,
+            beside.nextcloud,
         ) {
             self.account_detected(beside.email, setup, sender);
         }
@@ -176,6 +176,7 @@ impl AppModel {
     /// the end of the flow. A flow that already added an account ends as a skipped link step
     /// does, so each account added is still asked its name.
     pub(super) fn cancel_account_setup(&mut self, sender: relm4::Sender<AppInput>) {
+        self.abandon_setup_nextcloud_grant();
         // The account is added already: closing its uses step keeps what it offers and goes on,
         // and one being stored goes on when it is.
         if self.setup.choosing_uses() {

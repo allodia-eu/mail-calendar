@@ -122,12 +122,12 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | The server is asked, never the realm | ✅ | n/a | n/a | n/a | n/a |
-| Found card and link step: sign-in first, password behind | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Manual form asks once a URL is entered | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Separate-server step offers it above the password | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Account page and sign-in-again prompt | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Browser opened, polled, and polled again on return | n/a | ⬜ | ⬜ | ⬜ | ⬜ |
-| A held grant retried, or withdrawn when abandoned | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Found card and link step: sign-in first, password behind | ✅ | ⬜ | ⬜ | ⬜ | 🚧 |
+| Manual form asks once a URL is entered | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Separate-server step offers it above the password | ✅ | ⬜ | ⬜ | ⬜ | 🚧 |
+| Account page and sign-in-again prompt | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Browser opened, polled, and polled again on return | n/a | ⬜ | ⬜ | ⬜ | ✅ |
+| A held grant retried, or withdrawn when abandoned | ✅ | ⬜ | ⬜ | ⬜ | 🚧 |
 | Remote wipe answered | ✅ | n/a | n/a | n/a | n/a |
 | Password withdrawn on removal and on a new sign-in | ✅ | n/a | n/a | n/a | n/a |
 
@@ -155,4 +155,8 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   asserting each withdrawal at the server. It is not in CI: this repository's harness is
   Stalwart, and the fixture is the engine's.
 - **Clients**: each client's PR adds the assertions its platform can make about the four
-  surfaces.
+  surfaces. Linux asserts the poll and its wake (`nextcloud_flight_tests.rs`), the found card,
+  the manual pane and the separate-server step drawn, the account page's section, and the banner's
+  route; against the engine's fixture it was driven through the manual pane, signing in again and
+  removal. The found card and the separate-server step need a domain and a mailbox the fixture
+  cannot stand in for, so they are runtime unverified there.
