@@ -414,6 +414,7 @@ internal fun MainActivity.cancelAbandonedSignIns() {
     // below: its page stops waiting, and the redirect is still taken if it arrives.
     accountSettings.signIn.resumed()
     resumeSeparateSignIns()
+    resumeNextcloudSignIns()
     // A JMAP sign-in is handled differently on purpose. Its browser runs in its own task
     // (see openJmapSignIn), so resuming MainActivity does NOT mean the browser is gone, the
     // user may simply have stepped out to a password manager and come back. So the spinner is

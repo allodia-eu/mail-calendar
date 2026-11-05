@@ -26,6 +26,10 @@ internal data class SignInSection(
     val toProvider: Boolean,
     /** The provider's name for [toProvider]'s button, when the build knows one. */
     val providerLabel: String?,
+    /** A Nextcloud sign-in made it: it signs in again through that sign-in, never a password. */
+    val nextcloud: Boolean = false,
+    /** A calendar and contacts account with a typed password, at a server that is Nextcloud. */
+    val toNextcloud: Boolean = false,
 ) {
     /** Whether the section offers another way in, which the explanatory line goes under. */
     val offersSwitch: Boolean get() = toPassword || toProvider
@@ -39,7 +43,7 @@ internal enum class ExpiredRemedy {
     /** A JMAP account that signed in: its own grant authorised again. */
     JMAP_REAUTH,
 
-    /** An IMAP account that signed in: signed in again through the account sign-in. */
+    /** An IMAP account that signed in, or one a Nextcloud sign-in made: the account sign-in. */
     ACCOUNT_SIGN_IN,
 
     /** A password or a pasted secret, or an unknown family: replaced on the account's page. */
@@ -51,8 +55,30 @@ internal object AccountSignInRules {
     fun switchable(kind: CoreAccountKind?): Boolean =
         kind == CoreAccountKind.IMAP || kind == CoreAccountKind.JMAP
 
+    /**
+     * Whether [entry]'s page draws a Sign-in section: an IMAP or JMAP account, and a calendar and
+     * contacts account at a Nextcloud server (docs/nextcloud-sign-in.md rule 7).
+     */
+    fun hasSection(entry: AccountEntry, options: AccountSignInOptions?): Boolean =
+        switchable(entry.kind) || entry.nextcloud || options?.nextcloud == true
+
+    /** Whether to ask [kind]'s server which ways in it takes when its page opens. */
+    fun asksOptions(kind: CoreAccountKind?): Boolean = switchable(kind) || kind == CoreAccountKind.DAV
+
     /** The section for [entry], given what its server answered ([options], null until then). */
     fun section(entry: AccountEntry, options: AccountSignInOptions?): SignInSection {
+        if (entry.kind == CoreAccountKind.DAV) {
+            val offered = options?.nextcloud == true
+            return SignInSection(
+                method = if (entry.nextcloud) SignInMethod.PROVIDER else SignInMethod.PASSWORD,
+                signInAgain = entry.nextcloud && offered,
+                toPassword = false,
+                toProvider = false,
+                providerLabel = null,
+                nextcloud = entry.nextcloud,
+                toNextcloud = !entry.nextcloud && offered,
+            )
+        }
         val provider = entry.signIn == SignInMethod.PROVIDER
         return SignInSection(
             method = entry.signIn,
@@ -74,8 +100,16 @@ internal object AccountSignInRules {
         else -> null
     }
 
-    /** The banner's remedy for an account whose sign-in [provider] expired. */
-    fun expiredRemedy(provider: AccountProvider?): ExpiredRemedy = when (provider) {
+    /**
+     * The banner's remedy for an account whose sign-in [provider] expired; [nextcloud] for one a
+     * Nextcloud sign-in made, whatever its provider says.
+     */
+    fun expiredRemedy(provider: AccountProvider?, nextcloud: Boolean = false): ExpiredRemedy = when {
+        nextcloud -> ExpiredRemedy.ACCOUNT_SIGN_IN
+        else -> expiredRemedyFor(provider)
+    }
+
+    private fun expiredRemedyFor(provider: AccountProvider?): ExpiredRemedy = when (provider) {
         AccountProvider.MICROSOFT, AccountProvider.GOOGLE -> ExpiredRemedy.PROVIDER_CONSENT
         AccountProvider.JMAP_OAUTH -> ExpiredRemedy.JMAP_REAUTH
         AccountProvider.IMAP_OAUTH -> ExpiredRemedy.ACCOUNT_SIGN_IN
@@ -106,4 +140,6 @@ internal data class ExistingAccount(
     val accountId: String,
     val configToml: String,
     val unreached: List<AccountCapability> = emptyList(),
+    /** A Nextcloud sign-in's grant, given in place of a config (docs/nextcloud-sign-in.md). */
+    val nextcloudGrant: String? = null,
 )

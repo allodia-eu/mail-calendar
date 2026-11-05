@@ -79,6 +79,8 @@ internal fun AccountSetupFlow(
     signingInImap: Boolean = false,
     onSignInJmap: (String, String) -> Unit = { _, _ -> },
     signingInJmap: Boolean = false,
+    // The sign-in with Nextcloud the calendar and contacts card and form offer; threaded through.
+    nextcloud: NextcloudSetupUi = NextcloudSetupUi(),
     // The core's standard port for a server kind and security, threaded through to the manual
     // form. Null suggests no port, which is what a preview and a JVM test get.
     standardPort: ((MailServerKind, ConnectionSecurity) -> Int)? = null,
@@ -285,6 +287,7 @@ internal fun AccountSetupFlow(
         is DetectPhase.Dav -> DavFoundCard(
             email = current.email,
             offer = current.offer,
+            nextcloud = nextcloud.takeIf { current.nextcloud },
             connecting = connecting,
             externalError = externalError,
             externalFailure = externalFailure,
@@ -312,6 +315,7 @@ internal fun AccountSetupFlow(
                 onCheckImapAuth = onCheckImapAuth,
                 onSignInImap = onSignInImap,
                 signingInImap = signingInImap,
+                nextcloud = nextcloud,
                 initialKind = prefill.kind,
                 offeredKinds = offeredKinds,
                 prefillEmail = email.ifBlank { prefill.email },

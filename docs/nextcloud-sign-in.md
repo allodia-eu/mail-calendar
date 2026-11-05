@@ -62,6 +62,8 @@ the bindings for the surfaces) owns every decision; a client owns what it draws 
    because the server names the app password after it: the person reads it on the page that asks
    them to grant access, and again in Nextcloud's list of devices. The platform is the one the
    host reported at construction. Every other request carries the product token as always.
+   Nextcloud's grant page escapes the name twice, so its "&" reads "&amp;" there; the list of
+   devices shows it as sent.
 
 4. **Every URL the server returns is on the server's own host.** The login page and the poll
    endpoint must name the root's host and port. An `http` URL there is answered as the `https`
@@ -122,12 +124,12 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | The server is asked, never the realm | ✅ | n/a | n/a | n/a | n/a |
-| Found card and link step: sign-in first, password behind | ✅ | ⬜ | ⬜ | ⬜ | 🚧 |
-| Manual form asks once a URL is entered | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
-| Separate-server step offers it above the password | ✅ | ⬜ | ⬜ | ⬜ | 🚧 |
-| Account page and sign-in-again prompt | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
-| Browser opened, polled, and polled again on return | n/a | ⬜ | ⬜ | ⬜ | ✅ |
-| A held grant retried, or withdrawn when abandoned | ✅ | ⬜ | ⬜ | ⬜ | 🚧 |
+| Found card and link step: sign-in first, password behind | ✅ | ⬜ | ⬜ | 🚧 | 🚧 |
+| Manual form asks once a URL is entered | ✅ | ⬜ | ⬜ | ✅ | ✅ |
+| Separate-server step offers it above the password | ✅ | ⬜ | ⬜ | 🚧 | 🚧 |
+| Account page and sign-in-again prompt | ✅ | ⬜ | ⬜ | ✅ | ✅ |
+| Browser opened, polled, and polled again on return | n/a | ⬜ | ⬜ | ✅ | ✅ |
+| A held grant retried, or withdrawn when abandoned | ✅ | ⬜ | ⬜ | 🚧 | 🚧 |
 | Remote wipe answered | ✅ | n/a | n/a | n/a | n/a |
 | Password withdrawn on removal and on a new sign-in | ✅ | n/a | n/a | n/a | n/a |
 
@@ -159,4 +161,6 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   the manual pane and the separate-server step drawn, the account page's section, and the banner's
   route; against the engine's fixture it was driven through the manual pane, signing in again and
   removal. The found card and the separate-server step need a domain and a mailbox the fixture
-  cannot stand in for, so they are runtime unverified there.
+  cannot stand in for, so they are runtime unverified there. Android asserts the same in its JVM
+  suite (`NextcloudFlightTest`, `NextcloudSetupTest`, `NextcloudSetupScreenTest`,
+  `NextcloudAccountSignInTest`) and was driven on an emulator through the same three flows.

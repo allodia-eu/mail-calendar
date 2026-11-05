@@ -29,6 +29,7 @@ internal fun accountEntry(
     endpoints: AccountEndpoints? = null,
     signIn: SignInMethod = SignInMethod.PASSWORD,
     distinction: AccountDistinction? = null,
+    nextcloud: Boolean = false,
 ) = AccountEntry(
     id = id,
     address = address,
@@ -40,6 +41,7 @@ internal fun accountEntry(
     linkCandidates = candidates,
     endpoints = endpoints,
     distinction = distinction,
+    nextcloud = nextcloud,
 )
 
 internal fun mailboxOnly(

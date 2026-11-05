@@ -40,6 +40,8 @@ internal data class ExpiredSignIn(
     val id: String,
     val name: String,
     val provider: AccountProvider?,
+    /** A Nextcloud sign-in made it, so signing in again is that sign-in. */
+    val nextcloud: Boolean = false,
 )
 
 internal fun logUiInfo(message: String) {
@@ -420,6 +422,7 @@ internal fun MainActivity.refreshConnectivity() {
             id = id,
             name = name(id),
             provider = instance.accountProvider(id),
+            nextcloud = instance.accountsSnapshot().accounts.any { it.id == id && it.nextcloud },
         )
     }
 }

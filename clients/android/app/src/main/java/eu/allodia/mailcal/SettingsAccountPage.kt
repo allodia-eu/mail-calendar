@@ -27,6 +27,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -108,6 +109,14 @@ internal fun AccountPage(
     if (AccountSignInRules.switchable(entry.kind)) {
         Spacer(modifier = Modifier.height(8.dp))
         AccountSignInGroup(entry, ui)
+    } else if (AccountSignInRules.asksOptions(entry.kind)) {
+        // A calendar and contacts account has one only at a Nextcloud server, which its server is
+        // asked about as the page opens (docs/nextcloud-sign-in.md rule 7).
+        LaunchedEffect(entry.id) { ui.onAskSignInOptions(entry.id) }
+        if (AccountSignInRules.hasSection(entry, ui.state.signIn.options[entry.id])) {
+            Spacer(modifier = Modifier.height(8.dp))
+            AccountSignInGroup(entry, ui)
+        }
     }
     entry.mailSync?.let { technology ->
         Spacer(modifier = Modifier.height(8.dp))
