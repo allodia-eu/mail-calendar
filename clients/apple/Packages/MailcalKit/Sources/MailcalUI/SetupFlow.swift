@@ -1,4 +1,5 @@
-// What follows a connect on the setup form (docs/onboarding.md, "After the connect"): the link step,
+// What follows a connect on the setup form (docs/onboarding.md, "After the sign-in" and "After the
+// connect"): what a JMAP account is used for, the link step,
 // the accounts an "Add another account" adds on the way, and which of them are asked their name
 // once the flow ends. Renderer-free, so the flow is tested without a view; the model holds one and
 // the setup screen draws what it says.
@@ -86,7 +87,39 @@ struct SetupLinkStep: Equatable {
     }
 }
 
+/// The step a sign-in ends on when only the server could say what the account offers: a JMAP
+/// session offering more than one of mail, calendar and contacts (docs/onboarding.md, "After the
+/// sign-in"). The choices are the core's (`signed_in_setup_choices`), drawn with the found card's
+/// toggles, so the last use is held on there too.
+struct SetupUsesStep: Equatable {
+    let account: String
+    var choices: UseChoices
+
+    /// The step for `account`, or `nil` when the core offers nothing to choose.
+    init?(account: String, choices: [SetupChoice]) {
+        guard !choices.isEmpty else { return nil }
+        self.account = account
+        self.choices = UseChoices(UseOffer(choices: choices))
+    }
+
+    /// What the toggles switch, as (use, on): each use chosen that is off now, then each use on
+    /// now and not chosen. On first, so the account never passes through being used for nothing.
+    var changes: [(capability: AccountCapability, on: Bool)] {
+        let offered = choices.offer.choices
+        let on = offered.filter { !$0.on && choices.isOn($0.capability) }
+            .map { (capability: $0.capability, on: true) }
+        let off = offered.filter { $0.on && !choices.isOn($0.capability) }
+            .map { (capability: $0.capability, on: false) }
+        return on + off
+    }
+}
+
 struct SetupFlow: Equatable {
+    /// The first step after a sign-in, on screen: which of the uses its server offers the account
+    /// is used for.
+    private(set) var uses: SetupUsesStep?
+    /// The account whose link step follows the uses step.
+    private var linksAfterUses: String?
     /// The link step on screen; `nil` while the form is on the address or a route.
     private(set) var links: SetupLinkStep?
     /// The step before the link step, on screen: the account's sign-in did not reach the calendar
@@ -103,19 +136,50 @@ struct SetupFlow: Equatable {
     /// Whether a flow is under way: an account added, or a link step to come back to.
     var active: Bool {
         !added.isEmpty || links != nil || returningTo != nil || separateServer != nil
+            || uses != nil
     }
 
-    /// An account was added: first to the separate-server step when `separateServer` names one,
-    /// then back to the link step it was added from, on to its own link step when another account
-    /// can fill something it lacks, or the end of the flow. Answers whether a step is to be shown;
-    /// otherwise the flow ends.
+    /// An account was added: first to the uses step when the core offers `choices`, then to the
+    /// separate-server step when `separateServer` names one, then back to the link step it was
+    /// added from, on to its own link step when another account can fill something it lacks, or
+    /// the end of the flow. Answers whether a step is to be shown; otherwise the flow ends.
     mutating func accountAdded(
-        _ account: String, separateServer: SeparateServerAsk? = nil,
+        _ account: String, choices: [SetupChoice] = [], separateServer: SeparateServerAsk? = nil,
         stepFor: (String) -> SetupLinkStep?
     ) -> Bool {
         added.append(account)
         let target = returningTo ?? links?.account ?? account
         returningTo = nil
+        if let step = SetupUsesStep(account: account, choices: choices) {
+            uses = step
+            linksAfterUses = target
+            links = nil
+            return true
+        }
+        return onward(target, separateServer: separateServer, stepFor: stepFor)
+    }
+
+    /// The person changed a toggle on the uses step.
+    mutating func choose(_ choices: UseChoices) {
+        uses?.choices = choices
+    }
+
+    /// The uses step answered and stored: on to the separate-server step when `separateServer`,
+    /// read after the uses changed, names one, then to the link step it held back. Answers whether
+    /// a step is to be shown; otherwise the flow ends.
+    mutating func usesDone(
+        separateServer: SeparateServerAsk? = nil, stepFor: (String) -> SetupLinkStep?
+    ) -> Bool {
+        guard let step = uses else { return links != nil }
+        let target = linksAfterUses ?? step.account
+        uses = nil
+        linksAfterUses = nil
+        return onward(target, separateServer: separateServer, stepFor: stepFor)
+    }
+
+    private mutating func onward(
+        _ target: String, separateServer: SeparateServerAsk?, stepFor: (String) -> SetupLinkStep?
+    ) -> Bool {
         if let separateServer {
             self.separateServer = separateServer
             linksAfterSeparateServer = target

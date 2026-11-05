@@ -17,8 +17,9 @@ extension MailboxModel {
     /// Every route that adds an account ends here: the manual form, the Microsoft and Google
     /// sign-ins, and the JMAP and IMAP ones (whose routes converge before this).
     ///
-    /// Setup moves on to a password for the calendar or contacts server when the account's
-    /// sign-in did not reach it, then to the link step when another account can fill something
+    /// Setup moves on to what the account is used for when its JMAP session offers a choice, to a
+    /// password for the calendar or contacts server when the account's sign-in did not reach it,
+    /// then to the link step when another account can fill something
     /// this one lacks, back to the step an "Add another account" left, or closes. The pass to the
     /// person's other devices belongs to every route rather than to the form: an account added
     /// without one stays on this device until the next launch, and its page draws no sharing
@@ -50,9 +51,32 @@ extension MailboxModel {
         // The add's own dial has said whether the calendar or contacts need a sign-in of their
         // own, so the step before the link step is read from the same snapshot.
         let separateServer = entry.flatMap(SeparateServerRules.ask)
+        // Empty unless a JMAP session offers more than one use, which only it could say.
+        let choices = app?.signedInSetupChoices(accountId: account.id) ?? []
         if !setupFlow.accountAdded(
-            account.id, separateServer: separateServer, stepFor: setupLinkStep)
+            account.id, choices: choices, separateServer: separateServer, stepFor: setupLinkStep)
         {
+            finishSetup()
+        }
+    }
+
+    /// The uses step answered: what was chosen is switched on, then what was not is switched off,
+    /// and setup goes on to the separate-server step the new uses need, if any, then the link step.
+    func setupUsesDone() async {
+        guard !savingSetupUses, let step = setupFlow.uses else { return }
+        savingSetupUses = true
+        for change in step.changes {
+            switch await setAccountUse(step.account, change.capability, on: change.on) {
+            // A failure is logged where it happens.
+            case .applied, .failed: break
+            case .askProvider, .needsEndpoint:
+                logAppleLifecycle("setup: a use chosen at setup was not switched on")
+            }
+        }
+        savingSetupUses = false
+        refreshAccountsSnapshot()
+        let separateServer = accountEntry(step.account).flatMap(SeparateServerRules.ask)
+        if !setupFlow.usesDone(separateServer: separateServer, stepFor: setupLinkStep) {
             finishSetup()
         }
     }
