@@ -35,6 +35,26 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
         return box;
     }
 
+    /// <summary>What the row shows, read off a freshly found box: the form lays itself out again
+    /// as the editor finishes opening, and a peer read mid-layout is refused.</summary>
+    private static string Selection(App app, Element editor)
+    {
+        string? selection = null;
+        App.Eventually(() =>
+        {
+            try
+            {
+                selection = MeetingBox(app, editor) is { } box ? app.Agent.Read(box).Selection : null;
+                return selection is not null;
+            }
+            catch (AgentRefusal)
+            {
+                return false;
+            }
+        }, TimeSpan.FromSeconds(5));
+        return selection ?? throw new InvalidOperationException("the Video meeting row shows no choice");
+    }
+
     /// <summary>The entries the row offers, read off the open list.</summary>
     private static List<string> Entries(App app, Element box)
     {
@@ -49,8 +69,9 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
     /// <summary>Chooses <paramref name="label"/> in the row. Neither the combo's own items nor the
     /// open list's take a selection through their peer, so the choice is a click, as a person
     /// makes it.</summary>
-    private static void Choose(App app, Element box, string label)
+    private static void Choose(App app, Element editor, string label)
     {
+        var box = MeetingBox(app, editor) ?? throw new InvalidOperationException("the editor draws no Video meeting row");
         app.Agent.Expand(box);
         var named = Filter.Named(label, "ListItem");
         Element? item = null;
@@ -65,7 +86,7 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
         Input.Click(app.Steady(item!));
         App.Eventually(() => app.Agent.FindAll(named).Count <= app.Agent.FindAll(named with { Under = box }).Count, TimeSpan.FromSeconds(3));
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(200));
-        Assert.Equal(label, app.Agent.Read(box).Selection);
+        Assert.Equal(label, Selection(app, editor));
     }
 
     /// <summary>Sets the Jitsi server in Settings → Videoconferencing, committing it by moving the
@@ -88,6 +109,25 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
     private static bool OffersJoin(App app, Element detail) =>
         app.Agent.Wait(new Filter { Id = "EventJoin", Type = "Button", Under = detail }, TimeSpan.FromSeconds(5)) is not null;
 
+    /// <summary>Waits until the event's detail offers Join, or no longer does, as
+    /// <paramref name="join"/> says. The agenda redraws as a write settles, so a row found a moment
+    /// before can be gone by the press; that is a look to take again, not an answer.</summary>
+    private static bool DetailComesToOffer(App app, CalendarFlow flow, bool join) =>
+        App.Eventually(() =>
+        {
+            try
+            {
+                var offers = OffersJoin(app, flow.OpenDetail(Title));
+                app.CloseDialogs();
+                return offers == join;
+            }
+            catch (AgentRefusal)
+            {
+                app.CloseDialogs();
+                return false;
+            }
+        }, TimeSpan.FromSeconds(30));
+
     [HarnessFact]
     public void WithNoJitsiServerTheHarnessCalendarOffersNoMeeting() => Case(nameof(WithNoJitsiServerTheHarnessCalendarOffersNoMeeting), (app, flow) =>
     {
@@ -106,34 +146,29 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
         var box = MeetingBox(app, editor)
             ?? throw new InvalidOperationException("with a Jitsi server set, the harness calendar offers a Video meeting row (rule 9)");
         var none = Catalog.English("event_meeting_none");
-        Assert.Equal(none, app.Agent.Read(box).Selection);
+        Assert.Equal(none, Selection(app, editor));
         Assert.Equal(new[] { none, Jitsi }, Entries(app, box));
-        Choose(app, box, Jitsi);
+        Choose(app, editor, Jitsi);
         app.Agent.Invoke(app.Agent.Find(new Filter { Id = "PrimaryButton", Under = editor })!);
         Assert.True(app.Agent.WaitGone(Filter.ById("EventTitleBox"), TimeSpan.FromSeconds(10)), "Save closes the editor");
 
-        Assert.True(App.Eventually(() => OffersJoin(app, flow.OpenDetail(Title)), TimeSpan.FromSeconds(30)),
+        Assert.True(DetailComesToOffer(app, flow, join: true),
             "the saved event's detail offers Join on the Jitsi meeting the editor chose");
+        Assert.Equal(Jitsi, app.Agent.Find(new Filter { Id = "EventMeetingService", Under = flow.OpenDetail(Title) })?.Name);
     });
 
     [HarnessFact]
     public void TheEditorOpensOnTheMeetingAndNoneTakesItOff() => Case(nameof(TheEditorOpensOnTheMeetingAndNoneTakesItOff), (app, flow) =>
     {
         var editor = flow.OpenEditor(Title);
-        var box = MeetingBox(app, editor) ?? throw new InvalidOperationException("an event with a meeting draws the Video meeting row");
-        // Rule 11: the row opens on the meeting the event has, whatever the core names it.
-        var none = Catalog.English("event_meeting_none");
-        Assert.NotEqual(none, app.Agent.Read(box).Selection);
-        Choose(app, box, none);
+        Assert.True(MeetingBox(app, editor) is not null, "an event with a meeting draws the Video meeting row");
+        // Rule 11: the row opens on the meeting the event has, as the choice that made it.
+        Assert.Equal(Jitsi, Selection(app, editor));
+        Choose(app, editor, Catalog.English("event_meeting_none"));
         app.Agent.Invoke(app.Agent.Find(new Filter { Id = "PrimaryButton", Under = editor })!);
         Assert.True(app.Agent.WaitGone(Filter.ById("EventTitleBox"), TimeSpan.FromSeconds(10)), "Save closes the editor");
 
-        Assert.True(App.Eventually(() =>
-            {
-                var gone = !OffersJoin(app, flow.OpenDetail(Title));
-                app.CloseDialogs();
-                return gone;
-            }, TimeSpan.FromSeconds(30)),
+        Assert.True(DetailComesToOffer(app, flow, join: false),
             "choosing None takes the meeting off, so the detail offers no Join (rule 11)");
     });
 
