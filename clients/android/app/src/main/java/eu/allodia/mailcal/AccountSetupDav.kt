@@ -130,6 +130,7 @@ internal fun DavFoundCard(
     email: String,
     offer: UseOffer,
     nextcloud: NextcloudSetupUi? = null,
+    beside: Boolean = false,
     connecting: Boolean,
     externalError: String?,
     externalFailure: ConnectFailure?,
@@ -149,7 +150,10 @@ internal fun DavFoundCard(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(L10n.setup_detect_found_title(ctx), style = MaterialTheme.typography.headlineSmall)
-        Text(L10n.setup_detect_dav_note(ctx), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            if (beside) L10n.setup_detect_dav_beside_note(ctx) else L10n.setup_detect_dav_note(ctx),
+            style = MaterialTheme.typography.bodyMedium,
+        )
         UsesChoices(toggles)
         nextcloud?.let { ui ->
             NextcloudOffer(ui.signingIn, enabled = !connecting) {
@@ -165,7 +169,14 @@ internal fun DavFoundCard(
                 }
             }
         }
-        if (passwordShown) PasswordField(password, { password = it }, L10n.setup_field_password(ctx))
+        if (passwordShown) {
+            Text(
+                L10n.setup_detect_app_password_hint(ctx),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            PasswordField(password, { password = it }, L10n.setup_field_password(ctx))
+        }
         (failure?.takeIf { it.certificate == null }?.message ?: externalError)?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }

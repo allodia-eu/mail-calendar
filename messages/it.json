@@ -649,6 +649,7 @@
 	"setup_detect_contacts_add": "Questo account ha anche una rubrica",
 	"setup_hint_carddav": "carddav.example.com",
 	"setup_detect_dav_note": "Per questo indirizzo abbiamo trovato un server di calendario e rubrica, ma nessun server di posta. Puoi aggiungerlo per il calendario e i contatti.",
+	"setup_detect_dav_beside_note": "Questo server contiene ciò che il tuo account di posta non conserva da sé. Aggiungilo come account a sé e collega i due al passaggio successivo.",
 	"setup_imap_signin_unsupported": "Questo provider ammette solo le app che ha registrato in anticipo e non accetta password, quindi questo account non può ancora essere aggiunto qui.",
 
 	"settings_title": "Impostazioni",

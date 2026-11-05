@@ -649,6 +649,7 @@
 	"setup_detect_contacts_add": "Esta cuenta también tiene libreta de direcciones",
 	"setup_hint_carddav": "carddav.example.com",
 	"setup_detect_dav_note": "Hemos encontrado un servidor de calendario y libreta de direcciones para esta dirección, pero ningún servidor de correo. Puedes añadirla para tu calendario y tus contactos.",
+	"setup_detect_dav_beside_note": "Este servidor guarda lo que tu cuenta de correo no guarda por sí misma. Añádelo como una cuenta propia y vincula las dos en el siguiente paso.",
 	"setup_imap_signin_unsupported": "Este proveedor solo admite aplicaciones que haya registrado de antemano y no acepta contraseñas, así que esta cuenta aún no se puede añadir aquí.",
 
 	"settings_title": "Ajustes",

@@ -649,6 +649,7 @@
 	"setup_detect_contacts_add": "Dieses Konto hat auch ein Adressbuch",
 	"setup_hint_carddav": "carddav.example.com",
 	"setup_detect_dav_note": "Für diese Adresse haben wir einen Kalender- und Adressbuchserver gefunden, aber keinen Mailserver. Sie können sie für Ihren Kalender und Ihre Kontakte hinzufügen.",
+	"setup_detect_dav_beside_note": "Dieser Server enthält, was Ihr E-Mail-Konto selbst nicht führt. Fügen Sie ihn als eigenes Konto hinzu und verknüpfen Sie beide im nächsten Schritt.",
 	"setup_imap_signin_unsupported": "Dieser Anbieter lässt nur Apps zu, die er vorab registriert hat, und akzeptiert kein Passwort. Dieses Konto kann hier daher noch nicht hinzugefügt werden.",
 
 	"settings_title": "Einstellungen",

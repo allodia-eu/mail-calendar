@@ -64,7 +64,9 @@ class NextcloudSetupTest {
         val setup = detected(SetupRecommendation.Manual(uniffi.mailcal_bindings.MissReason.NOTHING_FOUND))
             .copy(calendarAndContacts = true, caldavUrl = CLOUD, nextcloudSignIn = true)
         val phase = route(setup, "alice@cloud.example.org", signInOffered = false)
-        assertTrue(phase is DetectPhase.Dav && phase.nextcloud)
+        assertTrue(phase is DetectPhase.Dav && phase.nextcloud && !phase.beside)
+        val besidePhase = route(setup.copy(besideAccount = true), "alice@example.org", signInOffered = false)
+        assertTrue(besidePhase is DetectPhase.Dav && besidePhase.beside)
 
         val jmap = SetupRecommendation.Jmap("alice@example.org", "https://jmap.example.org", true, "https://example.org")
         val found = FoundBeside.of("alice@example.org", detected(jmap).copy(caldavUrl = CLOUD, nextcloudSignIn = true))

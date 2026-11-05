@@ -649,6 +649,7 @@
 	"setup_detect_contacts_add": "Ce compte a aussi un carnet d’adresses",
 	"setup_hint_carddav": "carddav.example.com",
 	"setup_detect_dav_note": "Nous avons trouvé un serveur de calendrier et de carnet d’adresses pour cette adresse, mais aucun serveur de messagerie. Vous pouvez l’ajouter pour votre calendrier et vos contacts.",
+	"setup_detect_dav_beside_note": "Ce serveur contient ce que votre compte de messagerie ne conserve pas lui-même. Ajoutez-le comme compte à part entière, puis associez les deux à l’étape suivante.",
 	"setup_imap_signin_unsupported": "Ce fournisseur n’autorise que les applications qu’il a enregistrées à l’avance et n’accepte pas de mot de passe : ce compte ne peut donc pas encore être ajouté ici.",
 
 	"settings_title": "Réglages",

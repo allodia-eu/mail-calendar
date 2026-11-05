@@ -45,6 +45,11 @@ pub struct DetectedSetup {
     /// [`dav_setup_beside`](MailcalApp::dav_setup_beside) is handed back.
     #[uniffi(default = false)]
     pub nextcloud_sign_in: bool,
+    /// These are the servers found beside a JMAP account, set up for what its session lacks
+    /// ([`dav_setup_beside`](MailcalApp::dav_setup_beside)): the card says they add to that
+    /// account, not that the address has no mail server.
+    #[uniffi(default = false)]
+    pub beside_account: bool,
 }
 
 #[uniffi::export]
@@ -110,6 +115,7 @@ impl MailcalApp {
             carddav_url,
             nextcloud: nextcloud_sign_in,
         });
+        setup.beside_account = true;
         setup.choices.retain(|choice| match choice.capability {
             AccountCapability::Calendar => calendar,
             AccountCapability::Contacts => contacts,
@@ -231,6 +237,7 @@ pub(crate) fn detected_setup(route: mailcal_account::SetupRecommendation) -> Det
         carddav_url,
         choices,
         nextcloud_sign_in,
+        beside_account: false,
     }
 }
 

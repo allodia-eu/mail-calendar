@@ -44,6 +44,7 @@ fn calendar_and_contacts(nextcloud_sign_in: bool) -> DetectedSetup {
             found(AccountCapability::Contacts),
         ],
         nextcloud_sign_in,
+        beside_account: false,
     }
 }
 
@@ -259,5 +260,42 @@ pub(crate) fn the_manual_pane_offers_nextcloud_above_its_fields(window: &adw::Ap
             CLOUD.to_owned(),
             vec![AccountCapability::Calendar, AccountCapability::Contacts]
         )
+    );
+}
+
+/// The card the link step opens for servers beside a JMAP account says it adds to that account,
+/// not that the address has no mail server, and says some servers want an app password.
+pub(crate) fn the_card_beside_a_jmap_account_says_what_it_adds(window: &adw::ApplicationWindow) {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    state.show_form(detected_form(
+        DetectedSetup {
+            beside_account: true,
+            ..calendar_and_contacts(false)
+        },
+        "alice@example.test".to_owned(),
+    ));
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("calendar-and-contacts content");
+    let labels = rendered_labels(&child);
+    assert!(
+        labels
+            .iter()
+            .any(|text| text == l10n::setup_detect_dav_beside_note())
+    );
+    assert!(
+        !labels
+            .iter()
+            .any(|text| text == l10n::setup_detect_dav_note())
+    );
+    assert!(
+        labels
+            .iter()
+            .any(|text| text == l10n::setup_detect_app_password_hint())
     );
 }

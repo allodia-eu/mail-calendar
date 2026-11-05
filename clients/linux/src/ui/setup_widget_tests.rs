@@ -42,6 +42,7 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     super::setup_uses_widget_tests::the_manual_form_sets_up_calendar_and_contacts_alone(&window);
     super::setup_nextcloud::tests::a_nextcloud_card_leads_with_its_sign_in(&window);
     super::setup_nextcloud::tests::the_manual_pane_offers_nextcloud_above_its_fields(&window);
+    super::setup_nextcloud::tests::the_card_beside_a_jmap_account_says_what_it_adds(&window);
     super::setup_uses_widget_tests::the_manual_mail_form_takes_an_address_book(&window);
     super::setup_uses_widget_tests::a_provider_card_asks_only_for_what_is_chosen(&window);
     super::setup_links::tests::the_link_step_offers_the_accounts_it_can_use(&window);
