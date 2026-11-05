@@ -149,16 +149,33 @@ class SettingsAccountSignInTest {
     }
 
     @Test
-    fun an_account_without_mail_has_no_sign_in_to_switch() {
+    fun an_account_without_mail_has_a_sign_in_only_at_a_nextcloud_server() {
         val entry = accountEntry(
             CoreAccountKind.DAV,
             AccountCapability.MAIL to CapabilityState.OFF,
             AccountCapability.CALENDAR to CapabilityState.ON,
             id = "alice@dav:cloud.example",
         )
-        show(entry)
+        show(entry, AccountSignInOptions(signIn = false, providerLabel = null, password = false))
 
         compose.onNodeWithText("Sign-in").assertDoesNotExist()
-        assertEquals(emptyList<String>(), asked)
+        // Asked whether its server is Nextcloud, which is the one way in it can switch to.
+        assertEquals(listOf(entry.id), asked)
+    }
+
+    @Test
+    fun an_account_a_nextcloud_sign_in_made_signs_in_again_with_nextcloud() {
+        val entry = accountEntry(
+            CoreAccountKind.DAV,
+            AccountCapability.CALENDAR to CapabilityState.ON,
+            id = "alice@dav:cloud.example",
+            signIn = SignInMethod.PROVIDER,
+            nextcloud = true,
+        )
+        show(entry, AccountSignInOptions(signIn = false, providerLabel = null, password = false, nextcloud = true))
+
+        compose.onNodeWithText("Signs in with Nextcloud.").assertExists()
+        compose.onNodeWithTag("account-sign-in-provider-again").assertExists()
+        compose.onNodeWithTag("account-switch-to-password").assertDoesNotExist()
     }
 }

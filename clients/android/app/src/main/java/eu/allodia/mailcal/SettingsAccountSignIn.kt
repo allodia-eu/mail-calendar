@@ -34,9 +34,10 @@ internal fun AccountSignInGroup(entry: AccountEntry, ui: AccountsSettingsUi) {
     // Blocking and up to seconds long, so asked off the main thread as the page opens.
     LaunchedEffect(entry.id) { ui.onAskSignInOptions(entry.id) }
     val section = AccountSignInRules.section(entry, signIn.options[entry.id])
-    val status = when (section.method) {
-        SignInMethod.PASSWORD -> L10n.settings_account_signs_in_password(ctx)
-        SignInMethod.PROVIDER -> L10n.settings_account_signs_in_provider(ctx)
+    val status = when {
+        section.nextcloud -> L10n.settings_account_signs_in_nextcloud(ctx)
+        section.method == SignInMethod.PASSWORD -> L10n.settings_account_signs_in_password(ctx)
+        else -> L10n.settings_account_signs_in_provider(ctx)
     }
     val run = signIn.running?.takeIf { it.accountId == entry.id }
     val idle = signIn.idle
@@ -60,6 +61,14 @@ internal fun AccountSignInGroup(entry: AccountEntry, ui: AccountsSettingsUi) {
                     busy = run?.switching == true,
                     enabled = idle,
                     tag = "account-switch-to-provider",
+                ) { ui.onAccountSignIn(entry.id, true) }
+            }
+            if (section.toNextcloud) {
+                BrowserButton(
+                    L10n.settings_account_switch_to_provider_named(ctx, "Nextcloud"),
+                    busy = run?.switching == true,
+                    enabled = idle,
+                    tag = "account-switch-to-nextcloud",
                 ) { ui.onAccountSignIn(entry.id, true) }
             }
             if (section.toPassword) PasswordSwitch(entry, ui, run, idle)

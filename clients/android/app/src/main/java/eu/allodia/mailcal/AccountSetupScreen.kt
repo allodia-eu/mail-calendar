@@ -91,6 +91,8 @@ internal fun AccountSetupScreen(
     onCheckImapAuth: (suspend (uniffi.mailcal_bindings.ImapLoginRequest) -> uniffi.mailcal_bindings.ImapAuthOffer)? = null,
     onSignInImap: ((uniffi.mailcal_bindings.ImapLoginRequest) -> Unit)? = null,
     signingInImap: Boolean = false,
+    // The sign-in with Nextcloud the calendar and contacts type offers once its server answers.
+    nextcloud: NextcloudSetupUi = NextcloudSetupUi(),
     initialKind: AccountKind = AccountKind.PASSWORD,
     // Which account types the picker shows, [AccountKind.offered] for what this build carries.
     // Passed in rather than read here so the form stays renderable without the core: every kind
@@ -268,6 +270,8 @@ internal fun AccountSetupScreen(
                 password = password,
                 onPassword = { password = it },
                 caldavMissing = davMissing,
+                nextcloud = nextcloud,
+                connecting = connecting,
             )
             AccountKind.JMAP -> {
                 Text(

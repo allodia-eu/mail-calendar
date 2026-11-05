@@ -150,6 +150,7 @@ private fun MainActivity.SetupForm(instance: MailcalApp, ctx: Context) {
                             },
                             onSignInImap = { request -> signInWithImap(request) },
                             signingInImap = signingInImap,
+                            nextcloud = nextcloudSetupUi(),
                             onConnect = { setup ->
                                 try {
                                     // Accepted once, carried for the rest of this setup: a retry
