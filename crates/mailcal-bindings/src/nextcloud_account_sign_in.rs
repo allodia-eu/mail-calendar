@@ -10,7 +10,9 @@ use mailcal_nextcloud::Root;
 
 use crate::{
     AccountCapability, MailcalApp, MailcalError, NextcloudSignInStart,
-    account_registry::SignInConfig, account_split::nothing_to_move, nextcloud_accounts::server_of,
+    account_registry::SignInConfig,
+    account_split::nothing_to_move,
+    nextcloud_accounts::{dav_url_of, server_of},
 };
 
 #[uniffi::export]
@@ -25,8 +27,10 @@ impl MailcalApp {
         account_id: String,
         uses: Vec<AccountCapability>,
     ) -> bool {
-        self.separate_root(&account_id, uses)
-            .is_ok_and(|root| self.offers_at(&root))
+        self.separate_calendar(&account_id, uses)
+            .ok()
+            .and_then(|calendar| dav_url_of(&calendar))
+            .is_some_and(|url| self.offers_for(&url))
     }
 
     /// Starts a Nextcloud sign-in at the server holding `uses` of the mailbox `account_id`,
@@ -81,6 +85,16 @@ impl MailcalApp {
         account_id: &str,
         uses: Vec<AccountCapability>,
     ) -> Result<Root, MailcalError> {
+        server_of(&self.separate_calendar(account_id, uses)?)
+            .ok_or_else(|| MailcalError::Config("not a Nextcloud server address".to_owned()))
+    }
+
+    /// The calendar and contacts account `uses` of the mailbox `account_id` would become.
+    fn separate_calendar(
+        &self,
+        account_id: &str,
+        uses: Vec<AccountCapability>,
+    ) -> Result<AccountConfig, MailcalError> {
         let config = match self.switchable(account_id)? {
             SignInConfig::Imap(config) if config.imap.is_some() => config,
             _ => {
@@ -90,11 +104,9 @@ impl MailcalApp {
             }
         };
         let uses: Vec<Capability> = uses.into_iter().map(Capability::from).collect();
-        let calendar = config
+        config
             .calendar_account_for(&uses)
-            .ok_or_else(nothing_to_move)?;
-        server_of(&calendar)
-            .ok_or_else(|| MailcalError::Config("not a Nextcloud server address".to_owned()))
+            .ok_or_else(nothing_to_move)
     }
 
     /// The switch a calendar and contacts account's Settings page offers: signing in with
@@ -108,7 +120,7 @@ impl MailcalApp {
         let nextcloud = if config.nextcloud.is_some() {
             true
         } else {
-            !config.is_oauth() && server_of(config).is_some_and(|root| self.offers_at(&root))
+            !config.is_oauth() && dav_url_of(config).is_some_and(|url| self.offers_for(&url))
         };
         crate::AccountSignInOptions {
             nextcloud,

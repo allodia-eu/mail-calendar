@@ -44,6 +44,8 @@ fn a_nextcloud_sign_in_connects_signs_in_again_and_leaves_with_the_account() {
     let store = RecordingStore::default();
     let app = live_oauth::app("nextcloud-sign-in", store.clone());
     assert!(app.offers_nextcloud_sign_in(format!("{base}/remote.php/dav/")));
+    // A bare host is asked once its own `.well-known` lands on `/remote.php/dav/`.
+    assert!(app.offers_nextcloud_sign_in(base.clone()));
 
     let grant = signed_in(
         &app,

@@ -194,8 +194,8 @@ impl MailcalApp {
     }
 }
 
-/// The Nextcloud server `config`'s calendar, or its address book, is at.
-pub(crate) fn server_of(config: &AccountConfig) -> Option<Root> {
+/// The address `config`'s calendar, or its address book, is at, as the account stores it.
+pub(crate) fn dav_url_of(config: &AccountConfig) -> Option<String> {
     let base_url = config
         .caldav
         .as_ref()
@@ -206,7 +206,12 @@ pub(crate) fn server_of(config: &AccountConfig) -> Option<Root> {
                 .as_ref()
                 .map(|carddav| carddav.base_url.as_str())
         })?;
-    Root::of(&mailcal_account::normalize_caldav_base_url(base_url))
+    Some(mailcal_account::normalize_caldav_base_url(base_url))
+}
+
+/// The Nextcloud server `config`'s calendar, or its address book, is at.
+pub(crate) fn server_of(config: &AccountConfig) -> Option<Root> {
+    Root::of(&dav_url_of(config)?)
 }
 
 /// Whether `grant` signs in as the person `config` is: the same Nextcloud user when both name

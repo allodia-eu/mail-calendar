@@ -43,6 +43,37 @@ fn a_server_that_says_it_is_nextcloud_offers_the_sign_in() {
 }
 
 #[test]
+fn a_server_that_shows_no_php_is_never_asked_a_php_path() {
+    // Stalwart's shape: its `.well-known` answers as DAV where it is, and a request for a `.php`
+    // path bans the address that sent it.
+    let stalwart = mock_nextcloud(vec![
+        ("GET /status.php ", 200, STATUS),
+        ("PROPFIND /.well-known/caldav ", 401, ""),
+    ]);
+    let (app, _) = boot("nextcloud-no-php", Vec::new());
+
+    assert!(!app.offers_nextcloud_sign_in(format!("{}/dav/cal/", stalwart.base)));
+    assert!(!app.offers_nextcloud_sign_in(stalwart.base.clone()));
+    assert_eq!(
+        stalwart.requests_to("PROPFIND /.well-known/caldav").len(),
+        1
+    );
+    assert!(stalwart.requests_to("GET /status.php").is_empty());
+}
+
+#[test]
+fn a_redirect_that_names_no_endpoint_is_no_sign() {
+    let server = mock_nextcloud(vec![
+        ("PROPFIND /.well-known/caldav ", 301, ""),
+        ("GET /status.php ", 200, STATUS),
+    ]);
+    let (app, _) = boot("nextcloud-bare-host", Vec::new());
+    // A redirect without a Location sends the client nowhere, so the server shows no sign.
+    assert!(!app.offers_nextcloud_sign_in(server.base.clone()));
+    assert!(server.requests_to("GET /status.php").is_empty());
+}
+
+#[test]
 fn a_sign_in_waits_for_the_grant_and_learns_who_signed_in() {
     let server = mock_nextcloud(vec![
         ("POST /index.php/login/v2 ", 200, STARTED),

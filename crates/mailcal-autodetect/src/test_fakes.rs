@@ -32,6 +32,14 @@ pub(crate) enum Reply {
         /// The status there.
         status: u16,
     },
+    /// A response reached after following redirects to `final_url`, all over HTTPS: the shape of
+    /// a `.well-known` that sends a client to the server's DAV endpoint.
+    Redirected {
+        /// Where the redirects ended.
+        final_url: String,
+        /// The status there.
+        status: u16,
+    },
     /// An unusable response chain.
     Miss,
     /// A transport failure.
@@ -88,6 +96,8 @@ pub(crate) struct FakeFetch {
     /// What a `PROPFIND` gets where it differs from a `GET`.
     propfind: HashMap<String, Reply>,
     default: Reply,
+    /// Every URL asked for, in order.
+    asked: std::sync::Mutex<Vec<String>>,
 }
 
 impl FakeFetch {
@@ -97,7 +107,13 @@ impl FakeFetch {
             entries: HashMap::new(),
             propfind: HashMap::new(),
             default: Reply::Miss,
+            asked: std::sync::Mutex::default(),
         }
+    }
+
+    /// Every URL asked for so far, `GET` and `PROPFIND` alike.
+    pub(crate) fn asked(&self) -> Vec<String> {
+        self.asked.lock().unwrap().clone()
     }
 
     /// Serves `reply` for `url`.
@@ -129,6 +145,7 @@ impl FakeFetch {
 #[async_trait::async_trait]
 impl Fetch for FakeFetch {
     async fn get(&self, url: &Url) -> FetchOutcome {
+        self.asked.lock().unwrap().push(url.to_string());
         let (reply, delay) = self
             .entries
             .get(url.as_str())
@@ -142,7 +159,10 @@ impl Fetch for FakeFetch {
 
     async fn propfind(&self, url: &Url) -> FetchOutcome {
         match self.propfind.get(url.as_str()) {
-            Some(reply) => outcome(reply.clone(), url),
+            Some(reply) => {
+                self.asked.lock().unwrap().push(url.to_string());
+                outcome(reply.clone(), url)
+            }
             None => self.get(url).await,
         }
     }
@@ -168,6 +188,13 @@ fn outcome(reply: Reply, url: &Url) -> FetchOutcome {
             www_authenticate: false,
             body: Vec::new(),
             trusted: false,
+            final_url: Url::parse(&final_url).expect("a scripted landing URL parses"),
+        }),
+        Reply::Redirected { final_url, status } => FetchOutcome::Response(FetchResponse {
+            status,
+            www_authenticate: status == 401,
+            body: Vec::new(),
+            trusted: true,
             final_url: Url::parse(&final_url).expect("a scripted landing URL parses"),
         }),
         Reply::Miss => FetchOutcome::Miss,

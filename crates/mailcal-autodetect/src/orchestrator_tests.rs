@@ -205,11 +205,16 @@ async fn a_domain_with_no_mail_but_a_calendar_is_a_dav_result() {
 
 #[tokio::test(start_paused = true)]
 async fn a_calendar_without_mail_on_nextcloud_says_so() {
+    // Nextcloud's own `.well-known` sends a client to `/remote.php/dav/`, a PHP script, which is
+    // what permits asking its `status.php`.
     let fetcher = FakeFetch::new()
         .default_reply(Reply::Miss)
         .on(
             "https://company.example/.well-known/caldav",
-            Reply::unauthorized(true),
+            Reply::Redirected {
+                final_url: "https://company.example/remote.php/dav/".to_owned(),
+                status: 401,
+            },
         )
         .on(
             "https://company.example/status.php",
@@ -222,6 +227,36 @@ async fn a_calendar_without_mail_on_nextcloud_says_so() {
         panic!("expected a calendar without mail");
     };
     assert!(dav.nextcloud);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_calendar_on_a_server_that_shows_no_php_is_not_asked_whether_it_is_nextcloud() {
+    let fetcher = Arc::new(
+        FakeFetch::new()
+            .default_reply(Reply::Miss)
+            .on(
+                "https://company.example/.well-known/caldav",
+                Reply::unauthorized(true),
+            )
+            .on(
+                "https://company.example/status.php",
+                Reply::json(
+                    r#"{"installed":true,"maintenance":false,"productname":"Nextcloud"}"#,
+                    true,
+                ),
+            ),
+    );
+    let shared: Arc<dyn Fetch> = Arc::clone(&fetcher) as Arc<dyn Fetch>;
+    let Detected::Dav(dav) = orchestrate(shared, email(), None, DetectConfig::default()).await
+    else {
+        panic!("expected a calendar without mail");
+    };
+    assert!(!dav.nextcloud);
+    assert!(
+        !fetcher.asked().iter().any(|url| url.contains(".php")),
+        "{:?}",
+        fetcher.asked()
+    );
 }
 
 #[tokio::test(start_paused = true)]

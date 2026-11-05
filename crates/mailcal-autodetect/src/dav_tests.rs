@@ -274,6 +274,19 @@ async fn anything_short_of_a_trusted_nextcloud_answer_is_not_nextcloud() {
 }
 
 #[tokio::test]
+async fn a_server_whose_endpoints_are_no_php_script_is_never_asked_a_php_path() {
+    // Stalwart's shape: its `.well-known` lands on `/dav/cal`, and a request for `status.php`
+    // there bans the address that sent it.
+    let fetch = FakeFetch::new().default_reply(Reply::json(NEXTCLOUD_STATUS, true));
+    let dav = nextcloud_at(
+        Some("https://mail.example.org/dav/cal"),
+        Some("https://mail.example.org/dav/card"),
+    );
+    assert!(!is_nextcloud(&fetch, &dav, &DetectConfig::default()).await);
+    assert_eq!(fetch.asked(), Vec::<String>::new());
+}
+
+#[tokio::test]
 async fn endpoints_on_two_servers_are_not_one_nextcloud() {
     let fetch = FakeFetch::new()
         .on(

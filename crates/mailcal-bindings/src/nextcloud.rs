@@ -89,8 +89,7 @@ impl MailcalApp {
     /// **Blocking** (one request, at most three seconds); call it off the UI thread. Never an
     /// error: a server that cannot be asked offers the password, which works everywhere.
     pub fn offers_nextcloud_sign_in(&self, server_url: String) -> bool {
-        Root::of(&mailcal_account::normalize_caldav_base_url(&server_url))
-            .is_some_and(|root| self.offers_at(&root))
+        self.offers_for(&mailcal_account::normalize_caldav_base_url(&server_url))
     }
 
     /// Starts a Nextcloud sign-in at the server `server_url` names: any URL on it will do, a
@@ -182,13 +181,14 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
-    /// Whether `root` answers as Nextcloud; never an error.
-    pub(crate) fn offers_at(&self, root: &Root) -> bool {
+    /// Whether the DAV server at `url` answers as Nextcloud, asked only when it shows a sign of
+    /// being one (`mailcal_nextcloud::answers_as_nextcloud`); never an error.
+    pub(crate) fn offers_for(&self, url: &str) -> bool {
         let Ok(client) = setup_client() else {
             return false;
         };
         self.runtime
-            .block_on(|| async { mailcal_nextcloud::is_nextcloud(&client, root).await })
+            .block_on(|| async { mailcal_nextcloud::answers_as_nextcloud(&client, url).await })
     }
 
     /// Starts a sign-in at `root`, naming the app password after this app and platform.

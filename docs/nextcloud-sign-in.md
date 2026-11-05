@@ -24,11 +24,21 @@ the bindings for the surfaces) owns every decision; a client owns what it draws 
    never read, and neither is a cookie. ownCloud and ownCloud Infinite Scale answer the same
    document with their own names and get the password form.
 
+   **It is asked only of a server whose DAV endpoint is a PHP script**, a path segment ending in
+   `.php`, as Nextcloud's `/remote.php/dav/` and SabreDAV's `/dav.php/` are. A server that runs
+   no PHP can read a request for `status.php` as a probe for exploitable scripts and ban the
+   address that sent it: Stalwart's default port-scanning rule does, with no expiry, and so do
+   fail2ban-style rules. The endpoint is the address as typed or stored, or where detection's
+   `.well-known` hop landed. An address that names no endpoint, a bare host or its `.well-known`,
+   costs one unauthenticated `PROPFIND` of the server's own `.well-known/caldav`, the request a
+   connect makes first anyway; Nextcloud answers it with `/remote.php/dav/`. Nothing else is read
+   for the sign, no DAV body among it.
+
    The root is the URL cut where Nextcloud's own paths start (`/remote.php/`, `/.well-known/`,
    `/index.php`, `/status.php`, `/ocs/`), so a DAV endpoint, a `.well-known` hop and a bare host
-   all name the same server, and an installation in a directory keeps its directory. The question
-   is bounded at three seconds and is never an error: a server that does not answer is offered
-   the password, which works everywhere. Neither is a server whose certificate needs an
+   all name the same server, and an installation in a directory keeps its directory. Each request
+   is bounded at three seconds and the question is never an error: a server that does not answer
+   is offered the password, which works everywhere. Neither is a server whose certificate needs an
    exception ([`certificate-exceptions.md`](certificate-exceptions.md)): the browser half would
    meet the same certificate.
 
@@ -121,20 +131,22 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 
 ## Testing
 
-- **Protocol** (`mailcal-nextcloud`, loopback servers): the root of every URL shape, the status
+- **Protocol** (`mailcal-nextcloud`, loopback servers): the root of every URL shape, the PHP sign
+  and the `.well-known` hop with no `.php` request to a server that shows none, the status
   document against Nextcloud, ownCloud, Infinite Scale, maintenance and a refusal, a flow naming
   another host refused and an `http` one upgraded, the poll's waiting, grant, outage and expiry,
   the User-Agent sent, and the OCS and wipe calls with the credential they present.
 - **Detection** (`mailcal-autodetect`): a calendar-only domain on Nextcloud flagged, an
-  installation in a directory asked there, and any doubt (an untrusted hop, a redirect elsewhere,
-  two servers) not.
+  installation in a directory asked there, a server whose endpoints are no PHP script never asked,
+  and any doubt (an untrusted hop, a redirect elsewhere, two servers) not.
 - **Account** (`mailcal-account`): the stored shape round-trips, an account no Nextcloud sign-in
   made has no table, the address names the account, and a sign-in again replaces login and
   password together.
 - **Bindings**, against a stand-in server (`nextcloud_mock.rs`): the flow through the FFI, a
   second sign-in as the same user refused, another person's grant refused and withdrawn, removal
-  withdrawing, and a refusal at launch answered by a wipe, by no wipe, and not asked about for a
-  typed password.
+  withdrawing, a refusal at launch answered by a wipe, by no wipe, and not asked about for a
+  typed password, and no `status.php` request from the manual form or an account's page to a
+  server that shows no PHP.
 - **Live**, gated on `NEXTCLOUD_HTTP_ADDR`, against the engine's Nextcloud fixture:
   `mailcal-bindings/tests/live_nextcloud_sign_in.rs` signs in through the server's own pages,
   connects CalDAV and CardDAV with the app password, signs in again and removes the account,

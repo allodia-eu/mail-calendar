@@ -65,6 +65,20 @@ fn a_typed_password_at_a_nextcloud_server_can_switch_to_signing_in() {
 }
 
 #[test]
+fn a_typed_password_at_a_server_that_shows_no_php_is_never_asked_a_php_path() {
+    let stalwart = mock_nextcloud(vec![("GET /status.php ", 200, STATUS)]);
+    let config = format!(
+        "[caldav]\nbase_url = \"{}/dav/cal/\"\nusername = \"alice\"\npassword = \"typed\"\n",
+        stalwart.base
+    );
+    let (app, _) = boot("nextcloud-no-php-account", vec![config]);
+
+    let entry = app.accounts_snapshot().accounts.remove(0);
+    assert!(!app.account_sign_in_options(entry.id).nextcloud);
+    assert!(stalwart.requests_to("GET /status.php").is_empty());
+}
+
+#[test]
 fn removing_a_nextcloud_account_withdraws_its_password() {
     let server = mock_nextcloud(vec![("DELETE /ocs/v2.php/core/apppassword ", 200, "")]);
     let (app, store) = boot("nextcloud-remove", vec![nextcloud_account(&server.base)]);

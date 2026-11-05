@@ -94,16 +94,28 @@ pub(crate) async fn probe(
 }
 
 /// Whether the servers in `dav` are one Nextcloud installation: both endpoints under the same
-/// root, whose `status.php` says so over HTTPS without being redirected elsewhere. Soft like the
-/// probe: any doubt is `false`, and the password route that follows works everywhere.
+/// root, one of them a PHP script, and that root's `status.php` saying so over HTTPS without being
+/// redirected elsewhere. A server whose endpoints show no PHP is never asked a `.php` path, which
+/// some servers answer by banning the address that asked (`docs/nextcloud-sign-in.md` rule 1).
+/// Soft like the probe: any doubt is `false`, and the password route that follows works
+/// everywhere.
 pub(crate) async fn is_nextcloud(
     fetcher: &dyn Fetch,
     dav: &DetectedDav,
     config: &DetectConfig,
 ) -> bool {
-    let mut roots = [&dav.caldav_url, &dav.carddav_url]
+    let endpoints: Vec<&String> = [&dav.caldav_url, &dav.carddav_url]
         .into_iter()
         .flatten()
+        .collect();
+    let php = endpoints
+        .iter()
+        .any(|url| url::Url::parse(url).is_ok_and(|url| mailcal_nextcloud::serves_php(&url)));
+    if !php {
+        return false;
+    }
+    let mut roots = endpoints
+        .into_iter()
         .map(|url| mailcal_nextcloud::Root::of(url));
     let Some(Some(root)) = roots.next() else {
         return false;
