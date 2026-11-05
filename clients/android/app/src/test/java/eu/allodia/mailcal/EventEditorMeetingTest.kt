@@ -46,7 +46,7 @@ private fun editing(meeting: EditorMeeting?, choices: List<MeetingOption>) = Eve
         editorMeeting = meeting,
     ),
     "Work",
-    choices,
+    meetingChoices = choices,
 )
 
 class EventEditorMeetingTest {

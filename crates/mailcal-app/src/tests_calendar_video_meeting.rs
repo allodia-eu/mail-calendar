@@ -254,3 +254,39 @@ async fn an_edit_of_one_occurrence_may_not_change_the_meeting() {
     assert!(patches.lock().unwrap().is_empty());
     assert_eq!(app.calendar_write_status(), CalendarWriteStatus::NotSaved);
 }
+
+#[tokio::test]
+async fn a_meeting_on_the_persons_jitsi_server_reads_back_as_jitsi() {
+    // The engine names only the public Jitsi hosts, and the person's server is their own: a room
+    // this app made would otherwise read back unnamed, and the editor would not open on Jitsi.
+    let room = "https://video.example.org/k5x2q7m4n9b3v8c1z6l0p2w4r7";
+    let mut event = event_from_today("call", 1, 9, 30);
+    event.conferences = vec![engine_api::Conference {
+        key: ConferenceKey::new("meeting-1"),
+        service: None,
+        origin: ConferenceOrigin::Attached,
+        entry_points: vec![EntryPoint::at(ConferenceUri::parse(room).unwrap())],
+        label: None,
+        meeting_id: None,
+        notes: None,
+    }];
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let fake = CalendarFake::writing_meetings(vec![event], &[]);
+    let app = calendar_app(vec![calendar_account("acct", fake)], &surfaces);
+    app.dispatch(Intent::RefreshCalendar).await;
+
+    let unset = app.event_detail(&evt("acct", "call"), None).await.unwrap();
+    assert_eq!(
+        unset.editor_meeting.and_then(|meeting| meeting.choice),
+        None
+    );
+
+    app.set_jitsi_server(Some("https://video.example.org"))
+        .unwrap();
+    let detail = app.event_detail(&evt("acct", "call"), None).await.unwrap();
+    assert_eq!(
+        detail.editor_meeting.and_then(|meeting| meeting.choice),
+        Some(MeetingChoice::Jitsi)
+    );
+    assert_eq!(detail.conferences[0].service.as_deref(), Some("Jitsi Meet"));
+}

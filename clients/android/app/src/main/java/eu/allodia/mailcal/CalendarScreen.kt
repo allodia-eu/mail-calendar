@@ -441,7 +441,7 @@ internal fun CalendarScreen(
             onEdit = {
                 val row = calendars.firstOrNull { it.account == detail.account && it.id == detail.calendar }
                 editor = EventEditorState.edit(
-                    detail, row?.name.orEmpty(), row?.meetingChoices.orEmpty(),
+                    detail, row?.name.orEmpty(), meetingChoices = row?.meetingChoices.orEmpty(),
                 )
                 openEventRef = null
             },

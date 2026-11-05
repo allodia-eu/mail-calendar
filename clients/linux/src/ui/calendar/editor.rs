@@ -383,6 +383,7 @@ impl EventEditor {
                     invitees: (!this_occurrence_only)
                         .then(|| self.invitee_change(form))
                         .flatten(),
+                    meeting: None,
                 },
             });
         }
@@ -406,6 +407,7 @@ impl EventEditor {
                 },
                 invitees: (self.can_invite(form.calendar_index) && !form.invitees.is_empty())
                     .then(|| form.invitees.clone()),
+                meeting: None,
             },
         })
     }

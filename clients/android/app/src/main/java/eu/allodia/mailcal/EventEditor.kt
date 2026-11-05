@@ -400,10 +400,11 @@ internal class EventEditorState private constructor(
         fun edit(
             detail: EventDetail,
             calendarName: String,
-            meetingChoices: List<MeetingOption> = emptyList(),
             repeatChangeOf: RepeatChangeOf = coreRepeatChangeOf,
             inviteePatchOf: InviteePatchOf = coreInviteePatchOf,
             inviteeCheckOf: InviteeCheckOf = coreInviteeCheckOf,
+            // Last, so a caller passing the core's seams by position is not shifted by it.
+            meetingChoices: List<MeetingOption> = emptyList(),
         ): EventEditorState {
             val start = parseWall(detail.start)
             // The detail's all-day end is exclusive; show the inclusive last day.

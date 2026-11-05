@@ -239,6 +239,26 @@ impl<P: Provider> App<P> {
         }
     }
 
+    /// `event` with each meeting on the person's own Jitsi server named as Jitsi. The engine
+    /// recognises only the public Jitsi hosts, and a meeting this app made is on the person's
+    /// server, so without this it reads back as an unnamed one and the editor does not open on
+    /// its choice (rule 11).
+    pub(crate) fn recognise_jitsi(&self, mut event: Event) -> Event {
+        let Some(server) = self.jitsi_server() else {
+            return event;
+        };
+        let room = format!("{server}/");
+        for conference in &mut event.conferences {
+            let on_server = conference
+                .join()
+                .is_some_and(|join| join.as_str().starts_with(&room));
+            if conference.service.is_none() && on_server {
+                conference.service = Some(ConferenceService::Jitsi);
+            }
+        }
+        event
+    }
+
     /// `value` as an instant, a zoneless one placed in the app's zone.
     pub(crate) fn instant(&self, value: &CalendarDateTime) -> Result<UtcDateTime, String> {
         resolve_instant_in(value, &self.active_zone()).map_err(|err| err.to_string())
