@@ -141,7 +141,9 @@ fn windows(run: &Runner<'_>) -> Vec<Step> {
         run.external(
             "windows (Mailcal.Tests)",
             "dotnet",
-            &["test", "clients/windows/Mailcal.Tests", "--nologo"],
+            // `--project`, not a bare directory: under the Microsoft.Testing.Platform runner
+            // `global.json` selects, `dotnet test` refuses a positional path.
+            &["test", "--project", "clients/windows/Mailcal.Tests"],
         ),
         // MailcalVerify is the only thing off Windows that compiles `Verify.cs` against the
         // freshly generated bindings. It is a plain net10.0 console app, so the build
