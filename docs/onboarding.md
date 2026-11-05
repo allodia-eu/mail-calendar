@@ -171,7 +171,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 | Offers on a later add, not just the first | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
 | Set up takes the record's own route | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
 | The link step after the connect, with "Add another account" | ✅ | ✅ | ✅ | ✅ | ✅ |
-| What a JMAP account is used for, asked after its sign-in | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
+| What a JMAP account is used for, asked after its sign-in | ✅ | ✅ | ⬜ | ✅ | ✅ |
 | The link step for a JMAP server without a calendar, with the server found beside it | 🚧 | 🚧 | 🚧 | 🚧 | ✅ |
 
 ## What signing in here does
@@ -228,7 +228,7 @@ Fill it at boot, from `allodia_sign_in_available()`, and let whichever window op
 
 ## Known gaps
 
-- **Apple and Windows do not ask what a JMAP account is used for after its sign-in.**
+- **Windows does not ask what a JMAP account is used for after its sign-in.**
 - **What Apple has on screen, it has by hand.** The way out and the absent-registration case are
   both there and both were seen: the second on a build with the registration removed, macOS by eye
   and iOS against its accessibility tree. An Apple UI suite exists now

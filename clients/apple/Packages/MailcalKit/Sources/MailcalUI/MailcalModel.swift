@@ -228,6 +228,8 @@ final class MailboxModel {
     /// The link step's picks are being stored; each stored link signals the core, which must not
     /// redraw the step under the person meanwhile.
     var savingSetupLinks = false
+    /// The uses step's choice is being stored; switching a use off deletes what the device holds.
+    var savingSetupUses = false
     /// The accounts still to be asked their name, one after another, once setup closes.
     @ObservationIgnored var senderNamesWaiting: [String] = []
     /// A name prompt is under way, from the moment it is decided on until it is answered.
