@@ -77,10 +77,7 @@ internal fun MainActivity.signInSeparate(state: SeparateSignIn) {
  */
 private fun MainActivity.claimImapRedirect(state: SeparateSignIn) {
     yieldAccountSignIn()
-    if (pendingImapLogin != null) {
-        pendingImapLogin = null
-        signingInImap = false
-    }
+    if (imapSignIn.pending != null) imapSignIn.retire()
     separateForms().filter { it !== state && it.browser.pending != null }.forEach { it.browser.retire() }
 }
 

@@ -121,7 +121,7 @@ private fun MainActivity.SetupForm(instance: MailcalApp, ctx: Context) {
                             // Busy while the browser is open OR while the returned code is
                             // being exchanged, the user should never see an idle button during
                             // either.
-                            signingInJmap = signingInJmap || completingJmap,
+                            signingInJmap = jmapSignIn.signingIn,
                             connecting = isConnecting,
                             // The email-first lookup, run off-main against the shared core.
                             detect = { email -> detectAccount(email) },
@@ -149,7 +149,8 @@ private fun MainActivity.SetupForm(instance: MailcalApp, ctx: Context) {
                                 withContext(Dispatchers.IO) { imapAuthOptions(request) }
                             },
                             onSignInImap = { request -> signInWithImap(request) },
-                            signingInImap = signingInImap,
+                            signingInImap = imapSignIn.signingIn,
+                            onLeaveSignIn = { leaveSetupSignIn() },
                             nextcloud = nextcloudSetupUi(),
                             onConnect = { setup ->
                                 try {

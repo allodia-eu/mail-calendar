@@ -281,27 +281,23 @@ internal fun MainActivity.completeOAuthRedirect(data: Uri) {
         // An existing IMAP or JMAP account signing in from its page or the banner waits on
         // either host, because a sign-in again comes back to its grant's own redirect; one waits
         // only when it started after every setup sign-in, which yield it the redirect
-        // (MainActivityAccountSignIn.kt).
-        // A separate server signed in to at its own provider rides this host as well, and waits
-        // only while no IMAP sign-in does: its browser opening took the redirect from both.
+        // (MainActivityAccountSignIn.kt). A separate server signed in to at its own provider rides
+        // the IMAP host as well, and waits only while no IMAP sign-in does: its browser opening
+        // took the redirect from both.
         OAuthRedirect.IMAP -> {
             val separate = awaitingSeparateSignIn()
             when {
                 awaitsAccountSignIn() -> completeAccountSignIn(data.toString())
-                pendingImapLogin == null && separate != null -> completeSeparateSignIn(separate, data.toString())
+                imapSignIn.pending == null && separate != null -> completeSeparateSignIn(separate, data.toString())
                 else -> completeImapSignIn(data.toString())
             }
         }
-        // One host, three flows: a first sign-in from the setup form, a re-authentication from
-        // the expired-sign-in banner, and an account's sign-in above. `pendingJmapReauthAccount`
-        // tells the first two apart.
-        OAuthRedirect.JMAP -> {
-            val reauth = pendingJmapReauthAccount
-            when {
-                awaitsAccountSignIn() -> completeAccountSignIn(data.toString())
-                reauth == null -> completeJmapSignIn(data.toString())
-                else -> completeJmapReauth(reauth, data.toString())
-            }
+        // One host, three flows: a first sign-in from the setup form and a re-authentication from
+        // the expired-sign-in banner, which the slot tells apart, and an account's sign-in above.
+        OAuthRedirect.JMAP -> if (awaitsAccountSignIn()) {
+            completeAccountSignIn(data.toString())
+        } else {
+            completeJmapRedirect(data.toString())
         }
         null -> Unit
     }
