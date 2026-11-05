@@ -3,6 +3,11 @@
 //! the outbox. Split out of `lib.rs` to keep it under the 500-line limit; an `impl App`
 //! block here reuses the runtime's fields and the active-zone accessor.
 
+// A child of this module rather than of `lib.rs`, which is at its line limit: it is the editor's
+// half of the event writes here.
+#[path = "video_meeting.rs"]
+pub(crate) mod video_meeting;
+
 use std::collections::{HashMap, HashSet};
 
 use engine_api::{AccountId, Event, Provider, ProviderKey};
@@ -174,6 +179,7 @@ impl<P: Provider> App<P> {
         location: Option<String>,
         recurrence: Option<mailcal_account::SimpleRecurrence>,
         invitees: Option<Vec<engine_api::Invitee>>,
+        meeting: Option<mailcal_account::MeetingChange>,
     ) {
         let chosen = account.clone();
         let Some(account) = self.create_account(account).await else {
@@ -221,6 +227,14 @@ impl<P: Provider> App<P> {
                 return;
             };
             draft = meeting;
+        }
+        if let Some(change) = meeting {
+            let Some(with_meeting) = self.with_meeting(&account, calendar, draft, &change).await
+            else {
+                self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
+                return;
+            };
+            draft = with_meeting;
         }
         // Clone the account handle, then write with the read guard released.
         let mut status = None;
@@ -297,7 +311,7 @@ impl<P: Provider> App<P> {
             return Err("this account may not change the meeting's invitees".to_owned());
         }
 
-        let (target, patch) = mailcal_account::build_event_patch(&stored, edit, now_utc()?)
+        let (target, mut patch) = mailcal_account::build_event_patch(&stored, edit, now_utc()?)
             .map_err(|err| {
                 // Refused before anything was sent: a repeat rule this app could not describe
                 // in full, or a wall clock the stored event's form cannot hold. Nothing
@@ -306,6 +320,17 @@ impl<P: Provider> App<P> {
                 self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
                 err.to_string()
             })?;
+        if let Some(change) = &edit.meeting {
+            // A meeting belongs to the series (`docs/conferencing.md`, rule 11).
+            let meeting = if edit.occurrence.is_some() {
+                Err("a video meeting belongs to the series, not one occurrence".to_owned())
+            } else {
+                self.meeting_edit(&event.account, &stored, change).await
+            };
+            patch = patch.conference(meeting.inspect_err(|_| {
+                self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
+            })?);
+        }
 
         // Clone the account handle, then write with the read guard released.
         let Some(acct) = self.account_handle(&event.account).await else {

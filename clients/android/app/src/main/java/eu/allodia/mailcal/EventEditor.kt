@@ -18,12 +18,14 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import uniffi.mailcal_bindings.CalendarRow
+import uniffi.mailcal_bindings.EditorMeeting
 import uniffi.mailcal_bindings.EventAttendee
 import uniffi.mailcal_bindings.EventDetail
 import uniffi.mailcal_bindings.EventRecurrence
 import uniffi.mailcal_bindings.InviteeCheck
 import uniffi.mailcal_bindings.MeetingInvitee
 import uniffi.mailcal_bindings.MeetingInviteePatch
+import uniffi.mailcal_bindings.MeetingOption
 import uniffi.mailcal_bindings.RecurrenceChange
 import uniffi.mailcal_bindings.RepeatDraft
 import uniffi.mailcal_bindings.RepeatSummary
@@ -69,11 +71,13 @@ internal data class CalendarChoice(
     val name: String,
     val address: String = "",
     val canInvite: Boolean = false,
+    /** The video meetings the core says the editor may put on an event here. */
+    val meetingChoices: List<MeetingOption> = emptyList(),
 )
 
 /** The choice a calendar row offers. */
 internal fun CalendarRow.choice(): CalendarChoice =
-    CalendarChoice(account, id, name, accountAddress, canInvite)
+    CalendarChoice(account, id, name, accountAddress, canInvite, meetingChoices)
 
 /** The event an editor is editing (absent when creating). */
 internal data class EditTarget(
@@ -100,6 +104,8 @@ internal data class EditTarget(
     val attendees: List<EventAttendee>,
     /** Whether this account organises the meeting and may change who is invited. */
     val canEditInvitees: Boolean = false,
+    /** The video meeting the event has, as the core says the editor opens on it. */
+    val meeting: EditorMeeting? = null,
 )
 
 /** The arguments a create dispatches (`EventIntent.Create`). */
@@ -117,6 +123,8 @@ internal data class CreateArgs(
     val recurrence: SimpleRecurrence?,
     /** The people to invite, or `null` for an appointment. Never an empty list. */
     val invitees: List<MeetingInvitee>? = null,
+    /** The video meeting to put on it, or `null` for none. */
+    val meeting: MeetingPick? = null,
 )
 
 /** The arguments an edit dispatches (`EventIntent.Update`). */
@@ -146,6 +154,8 @@ internal data class UpdateArgs(
     val timesFromOccurrence: String?,
     /** What changed about who is invited, or `null` to leave the roster alone. Series only. */
     val invitees: MeetingInviteePatch? = null,
+    /** What happens to the video meeting, or `null` to leave it alone. Series only. */
+    val meeting: MeetingPick? = null,
 )
 
 /**
@@ -186,6 +196,9 @@ internal class EventEditorState private constructor(
      * that did not, and what keeps the parts no control here models.
      */
     var repeatDraft by mutableStateOf(initialRepeat)
+
+    /** What the Video meeting row holds; see EventEditorMeeting.kt. */
+    var meeting by mutableStateOf(meetingSelectionOf(editing?.meeting))
 
     val isEditing: Boolean get() = editing != null
 
@@ -233,13 +246,13 @@ internal class EventEditorState private constructor(
      * was opened on one occurrence of a series. The same question [asksAboutTheSeries] puts for a
      * drag, about the same thing.
      *
-     * **A changed repeat or a changed roster settles the question**, so it is not put: both belong
-     * to the series, and one occurrence is an instance of a rule rather than a holder of one. The
-     * controls say so before the user touches them.
+     * **A changed repeat, roster or video meeting settles the question**, so it is not put: each
+     * belongs to the series, and one occurrence is an instance of a rule rather than a holder of
+     * one. The controls say so before the user touches them.
      */
     val asksAboutTheSeries: Boolean
         get() = editing?.occurrence?.isNotEmpty() == true && repeatChange == null &&
-            inviteeChange == null
+            inviteeChange == null && meetingPick == null
 
     // All-day and the calendar are set at create and are display-only on edit: the engine's patcher
     // refuses a form change (all-day↔timed) or a calendar move. So the toggle and the picker are
@@ -271,6 +284,7 @@ internal class EventEditorState private constructor(
                 location = location.ifBlank { null },
                 recurrence = newRule(),
                 invitees = newInvitees(),
+                meeting = meetingPick,
             )
         } else {
             CreateArgs(
@@ -286,6 +300,7 @@ internal class EventEditorState private constructor(
                 location = location.ifBlank { null },
                 recurrence = newRule(),
                 invitees = newInvitees(),
+                meeting = meetingPick,
             )
         }
 
@@ -333,8 +348,9 @@ internal class EventEditorState private constructor(
             // The clocks above are this occurrence's, so a save meant for the series says where
             // they came from and the core shifts the series by that much instead of moving it.
             timesFromOccurrence = target.occurrence.takeIf { !thisOccurrenceOnly && it.isNotEmpty() },
-            // A roster belongs to the series, as a rule does.
+            // A roster belongs to the series, as a rule does, and so does a meeting.
             invitees = if (thisOccurrenceOnly) null else inviteeChange,
+            meeting = if (thisOccurrenceOnly) null else meetingPick,
         )
     }
 
@@ -387,6 +403,8 @@ internal class EventEditorState private constructor(
             repeatChangeOf: RepeatChangeOf = coreRepeatChangeOf,
             inviteePatchOf: InviteePatchOf = coreInviteePatchOf,
             inviteeCheckOf: InviteeCheckOf = coreInviteeCheckOf,
+            // Last, so a caller passing the core's seams by position is not shifted by it.
+            meetingChoices: List<MeetingOption> = emptyList(),
         ): EventEditorState {
             val start = parseWall(detail.start)
             // The detail's all-day end is exclusive; show the inclusive last day.
@@ -404,6 +422,7 @@ internal class EventEditorState private constructor(
                     occurrence = detail.occurrenceStart,
                     attendees = detail.attendees,
                     canEditInvitees = detail.canEditInvitees,
+                    meeting = detail.editorMeeting,
                 ),
                 zone = detail.timezone,
                 initialTitle = detail.title,
@@ -412,7 +431,9 @@ internal class EventEditorState private constructor(
                 initialEnd = end,
                 initialLocation = detail.location ?: "",
                 initialNotes = detail.notes ?: "",
-                initialCalendar = CalendarChoice(detail.account, detail.calendar, calendarName),
+                initialCalendar = CalendarChoice(
+                    detail.account, detail.calendar, calendarName, meetingChoices = meetingChoices,
+                ),
                 initialRepeat = detail.repeatDraft,
                 repeatChangeOf = repeatChangeOf,
                 inviteePatchOf = inviteePatchOf,

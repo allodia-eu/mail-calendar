@@ -53,6 +53,10 @@ internal fun CategoryDetail(
     // resolved by the core against what exists, so there is no fallback rule on this side.
     calendars: List<CalendarRow>,
     onSetDefaultCalendar: (account: String?, calendar: String?) -> Unit,
+    // Videoconferencing, the person's Jitsi server: read when the row opens, and stored by the
+    // core, which answers `false` for an address it will not keep.
+    jitsiServer: () -> String?,
+    onSetJitsiServer: (String) -> Boolean,
     mode: ViewMode,
     onSetMode: (ViewMode) -> Unit,
     onSetDarkMessages: (Boolean) -> Unit,
@@ -156,6 +160,16 @@ internal fun CategoryDetail(
                     calendars = calendars,
                     onSetDefaultCalendar = onSetDefaultCalendar,
                 )
+            }
+        }
+
+        // Videoconferencing, the person's Jitsi server (docs/conferencing.md, rule 13).
+        SettingsCategory.VIDEOCONFERENCING -> {
+            SettingsGroupCard(
+                L10n.settings_jitsi_server(ctx),
+                L10n.settings_jitsi_server_hint(ctx),
+            ) {
+                JitsiServerRow(jitsiServer = jitsiServer, onSetJitsiServer = onSetJitsiServer)
             }
         }
 

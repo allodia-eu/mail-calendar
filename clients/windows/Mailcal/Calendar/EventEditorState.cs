@@ -25,12 +25,18 @@ namespace Allodia.Mailcal.Calendar;
 /// owning account's, the organiser of a meeting created here, and <c>CanInvite</c> is the core's
 /// <c>CalendarRow.CanInvite</c>: whether a meeting may be organised here at all.
 /// </summary>
+/// <c>MeetingChoices</c> are the video meetings the core says the editor may put on an event here.
 internal sealed record CalendarChoice(
-    string Account, string Id, string Name, string Address = "", bool CanInvite = false)
+    string Account,
+    string Id,
+    string Name,
+    string Address = "",
+    bool CanInvite = false,
+    IReadOnlyList<MeetingOption>? MeetingChoices = null)
 {
     /// <summary>The choice a calendar row offers.</summary>
     internal static CalendarChoice Of(CalendarRow row) =>
-        new(row.Account, row.Id, row.Name, row.AccountAddress, row.CanInvite);
+        new(row.Account, row.Id, row.Name, row.AccountAddress, row.CanInvite, row.MeetingChoices);
 }
 
 /// <summary>The event an editor is editing (absent when creating).</summary>
@@ -54,7 +60,9 @@ internal sealed record EditTarget(
     /// <summary>Everyone on the event, organiser first.</summary>
     IReadOnlyList<EventAttendee> Attendees,
     /// <summary>Whether this account organises the meeting and may change who is invited.</summary>
-    bool CanEditInvitees = false);
+    bool CanEditInvitees = false,
+    /// <summary>The video meeting the event has, as the core says the editor opens on it.</summary>
+    EditorMeeting? Meeting = null);
 
 /// <summary>The arguments a create dispatches (<c>EventIntent.Create</c>).</summary>
 internal sealed record CreateArgs(
@@ -70,7 +78,9 @@ internal sealed record CreateArgs(
     /// <summary>The rule a new event starts with, or null for a one-off.</summary>
     SimpleRecurrence? Recurrence,
     /// <summary>The people to invite, or null for an appointment. Never an empty list.</summary>
-    IReadOnlyList<MeetingInvitee>? Invitees = null);
+    IReadOnlyList<MeetingInvitee>? Invitees = null,
+    /// <summary>The video meeting to put on it, or null for none.</summary>
+    MeetingPick? Meeting = null);
 
 /// <summary>The arguments an edit dispatches (<c>EventIntent.Update</c>).</summary>
 internal sealed record UpdateArgs(
@@ -95,7 +105,9 @@ internal sealed record UpdateArgs(
     string? TimesFromOccurrence = null,
     /// <summary>What changed about who is invited, or null to leave the roster alone. Series
     /// only.</summary>
-    MeetingInviteePatch? Invitees = null);
+    MeetingInviteePatch? Invitees = null,
+    /// <summary>What happens to the video meeting, or null to leave it alone. Series only.</summary>
+    MeetingPick? Meeting = null);
 
 /// <summary>
 /// What a save should send for the repeat rule, decided by the core: see
@@ -118,7 +130,7 @@ internal delegate RecurrenceChange? RepeatChangeOf(RepeatDraft? draft, bool wasR
 /// clock as a <see cref="DateTime"/> with <see cref="DateTimeKind.Unspecified"/>: plain numbers, in
 /// the zone named by <see cref="Zone"/>, never converted.
 /// </remarks>
-internal sealed class EventEditorState
+internal sealed partial class EventEditorState
 {
     private EventEditorState(
         EditTarget? editing,
@@ -231,7 +243,8 @@ internal sealed class EventEditorState
                 Notes: string.IsNullOrEmpty(Notes) ? null : Notes,
                 Location: string.IsNullOrEmpty(Location) ? null : Location,
                 Recurrence: NewRule(),
-                Invitees: NewInvitees());
+                Invitees: NewInvitees(),
+                Meeting: MeetingPick);
         }
         return new CreateArgs(
             Title.Trim(),
@@ -245,7 +258,8 @@ internal sealed class EventEditorState
             Notes: string.IsNullOrEmpty(Notes) ? null : Notes,
             Location: string.IsNullOrEmpty(Location) ? null : Location,
             Recurrence: NewRule(),
-            Invitees: NewInvitees());
+            Invitees: NewInvitees(),
+            Meeting: MeetingPick);
     }
 
     /// <summary>
@@ -253,12 +267,13 @@ internal sealed class EventEditorState
     /// editor was opened on one occurrence of a series.
     /// </summary>
     /// <remarks>
-    /// A changed repeat settles the question, so it is not put: a rule belongs to the series, and
-    /// one occurrence is an instance of a rule rather than a holder of one. The controls say so
-    /// before the user touches them.
+    /// A changed repeat, roster or video meeting settles the question, so it is not put: each
+    /// belongs to the series, and one occurrence is an instance of a rule rather than a holder of
+    /// one. The controls say so before the user touches them.
     /// </remarks>
     internal bool AsksAboutTheSeries =>
-        !string.IsNullOrEmpty(Editing?.Occurrence) && RepeatChange is null && InviteeChange is null;
+        !string.IsNullOrEmpty(Editing?.Occurrence) && RepeatChange is null && InviteeChange is null
+        && MeetingPick is null;
 
     /// <summary>
     /// Whether the invitee controls are offered: on a create, where the chosen calendar's server
@@ -359,8 +374,9 @@ internal sealed class EventEditorState
             TimesFromOccurrence: !thisOccurrenceOnly && !string.IsNullOrEmpty(target.Occurrence)
                 ? target.Occurrence
                 : null,
-            // A roster belongs to the series, as a rule does.
-            Invitees: thisOccurrenceOnly ? null : InviteeChange);
+            // A roster belongs to the series, as a rule does, and so does a meeting.
+            Invitees: thisOccurrenceOnly ? null : InviteeChange,
+            Meeting: thisOccurrenceOnly ? null : MeetingPick);
     }
 
     /// <summary>The core's own answer. The default everywhere but a test.</summary>
@@ -410,6 +426,7 @@ internal sealed class EventEditorState
     internal static EventEditorState Edit(
         EventDetail detail,
         string calendarName,
+        IReadOnlyList<MeetingOption>? meetingChoices = null,
         RepeatChangeOf? repeatChangeOf = null,
         InviteePatchOf? inviteePatchOf = null,
         InviteeCheckOf? inviteeCheckOf = null)
@@ -429,7 +446,8 @@ internal sealed class EventEditorState
                 detail.RepeatDraft,
                 detail.OccurrenceStart,
                 detail.Attendees,
-                detail.CanEditInvitees),
+                detail.CanEditInvitees,
+                detail.EditorMeeting),
             zone: detail.Timezone,
             title: detail.Title,
             allDay: detail.AllDay,
@@ -437,11 +455,15 @@ internal sealed class EventEditorState
             end: end,
             location: detail.Location ?? string.Empty,
             notes: detail.Notes ?? string.Empty,
-            calendar: new CalendarChoice(detail.Account, detail.Calendar, calendarName),
+            calendar: new CalendarChoice(
+                detail.Account, detail.Calendar, calendarName, MeetingChoices: meetingChoices),
             repeat: detail.RepeatDraft,
             repeatChangeOf: repeatChangeOf ?? CoreRepeatChangeOf,
             inviteePatchOf,
-            inviteeCheckOf);
+            inviteeCheckOf)
+        {
+            Meeting = MeetingSelection.Of(detail.EditorMeeting),
+        };
     }
 
     private static string WallClock(DateTime dt) =>

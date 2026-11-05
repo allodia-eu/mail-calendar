@@ -1,4 +1,4 @@
-// Settings → Advanced ▸ AI assistant access (docs/mcp.md, docs/settings.md slot 9). The Windows leg
+// Settings → Advanced ▸ AI assistant access (docs/mcp.md, docs/settings.md slot 11). The Windows leg
 // of the cross-platform contract; split into its own partial to keep SettingsDialog.cs under the
 // 500-line limit.
 //

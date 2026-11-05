@@ -25,11 +25,12 @@ public sealed partial class SettingsDialog
     {
         ("general", L10n.SettingsCategoryGeneral()),
         ("calendar", L10n.SettingsCategoryCalendar()),
+        ("videoconferencing", L10n.SettingsCategoryVideoconferencing()),
         ("reading", L10n.SettingsCategoryReading()),
         ("composing", L10n.SettingsCategoryComposing()),
         // Its own category, not a sub-screen of Composing: a signature is a standalone entity reused
         // across accounts, and "Settings → Signatures" is the path people already look for
-        // (docs/settings.md slot 6).
+        // (docs/settings.md slot 7).
         ("signatures", L10n.SettingsCategorySignatures()),
         ("notifications", L10n.SettingsCategoryNotifications()),
         ("privacy", L10n.SettingsCategoryPrivacy()),

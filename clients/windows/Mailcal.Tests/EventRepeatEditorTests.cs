@@ -64,7 +64,7 @@ public class EventRepeatEditorTests
                 repeatDraft ?? WeeklyDraft,
                 occurrence),
             "Work",
-            StubChangeOf);
+            repeatChangeOf: StubChangeOf);
 
     [Fact]
     public void A_save_that_never_touched_the_repeat_says_nothing_about_it() =>
@@ -121,7 +121,7 @@ public class EventRepeatEditorTests
     public void A_rule_too_rich_to_state_offers_no_controls()
     {
         var editor = EventEditorState.Edit(
-            Detail(true, new EventRecurrence.Complex(), null), "Work", StubChangeOf);
+            Detail(true, new EventRecurrence.Complex(), null), "Work", repeatChangeOf: StubChangeOf);
         Assert.False(editor.CanEditRepeat);
         Assert.Null(editor.UpdateArgs(thisOccurrenceOnly: false).Recurrence);
     }
@@ -129,7 +129,7 @@ public class EventRepeatEditorTests
     [Fact]
     public void An_event_that_does_not_repeat_can_be_given_a_rule()
     {
-        var editor = EventEditorState.Edit(Detail(false, null, null), "Work", StubChangeOf);
+        var editor = EventEditorState.Edit(Detail(false, null, null), "Work", repeatChangeOf: StubChangeOf);
         Assert.True(editor.CanEditRepeat);
         Assert.Null(editor.UpdateArgs(thisOccurrenceOnly: false).Recurrence);
 

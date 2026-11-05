@@ -1153,5 +1153,12 @@
 	"settings_account_distinguished": "{address} ({detail})",
 	"remove_account_unlinks": "It is also unlinked from {accounts}.",
 	"settings_account_link_suggested": "Suggested: {address}",
-	"action_link": "Link"
+	"action_link": "Link",
+	"event_meeting_none": "None",
+	"event_meeting_conference_id": "Conference ID",
+	"settings_category_videoconferencing": "Videoconferencing",
+	"settings_category_videoconferencing_summary": "Your Jitsi server for video meetings",
+	"settings_jitsi_server": "Jitsi server",
+	"settings_jitsi_server_hint": "A Jitsi meeting you add to an event is a room on this server. Leave it empty and no calendar offers Jitsi.",
+	"settings_jitsi_server_invalid": "Enter an address that starts with https:// and has no ? or #."
 }

@@ -28,6 +28,7 @@ pub(crate) fn event_intent(intent: EventIntent) -> Result<AppEventIntent, String
             location,
             recurrence,
             invitees,
+            meeting,
         } => AppEventIntent::Create {
             title,
             start,
@@ -40,6 +41,8 @@ pub(crate) fn event_intent(intent: EventIntent) -> Result<AppEventIntent, String
             location,
             recurrence: recurrence.map(Into::into),
             invitees: crate::records_meeting::invitees(invitees)?,
+            meeting: crate::records_video_meeting::meeting_change(meeting)?
+                .filter(|change| *change != mailcal_account::MeetingChange::Remove),
         },
         EventIntent::Update {
             account,
@@ -53,6 +56,7 @@ pub(crate) fn event_intent(intent: EventIntent) -> Result<AppEventIntent, String
             recurrence,
             times_from_occurrence,
             invitees,
+            meeting,
         } => AppEventIntent::Update {
             event: event(account, key)?,
             edit: EventEdit {
@@ -65,6 +69,7 @@ pub(crate) fn event_intent(intent: EventIntent) -> Result<AppEventIntent, String
                 invitees: crate::records_meeting::invitee_patch(invitees)?,
                 occurrence: parse_local(occurrence)?,
                 times_from_occurrence: parse_local(times_from_occurrence)?,
+                meeting: crate::records_video_meeting::meeting_change(meeting)?,
             },
         },
         EventIntent::Move {

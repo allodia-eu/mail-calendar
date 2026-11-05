@@ -123,6 +123,14 @@ public sealed partial class MailboxModel
     /// <summary>The persisted display settings: week start, 12/24h, horizon, shape.</summary>
     internal DisplaySettings? CalendarDisplaySettings() => _app?.DisplaySettings();
 
+    /// <summary>The person's Jitsi server, or null while none is set (docs/conferencing.md,
+    /// rule 13).</summary>
+    internal string? JitsiServer() => _app?.JitsiServer();
+
+    /// <summary>Stores the Jitsi server, or forgets it for blank text; false, changing nothing, for
+    /// an address the core refuses or when no core is open.</summary>
+    internal bool SetJitsiServer(string server) => _app?.SetJitsiServer(server) ?? false;
+
     /// <summary>
     /// Persists the first day of the week.
     /// </summary>

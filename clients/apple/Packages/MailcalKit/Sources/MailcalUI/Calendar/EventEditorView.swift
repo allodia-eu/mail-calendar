@@ -87,6 +87,17 @@ struct EventEditorView: View {
                         .disabled(!editor.canEditForm)
                         .buttonStyle(.plain)
 
+                    // Video meeting: what the chosen calendar offers, decided by the core
+                    // (docs/conferencing.md, rules 9 to 11). Drawn only while there is something to
+                    // choose or a meeting to take off.
+                    if editor.showsMeetingRow {
+                        Picker(L10n.event_video_meeting(), selection: $editor.meeting) {
+                            ForEach(editor.meetingOptions, id: \.selection) { option in
+                                Text(option.label).tag(option.selection)
+                            }
+                        }
+                    }
+
                     // Location: settable on create and edit alike, the engine's create draft carries it.
                     TextField(
                         L10n.event_location(),
@@ -183,6 +194,8 @@ struct EventEditorView: View {
             .sheet(isPresented: $picking) {
                 CalendarPickerView(calendars: calendars, selected: editor.calendar) { choice in
                     editor.calendar = choice
+                    // A meeting the new calendar does not offer goes back to None (rule 9).
+                    editor.meeting = editor.effectiveMeeting
                     picking = false
                 }
             }

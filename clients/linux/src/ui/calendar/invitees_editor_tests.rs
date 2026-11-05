@@ -74,6 +74,7 @@ fn choice(id: &str, can_invite: bool) -> CalendarChoice {
         is_default: id == "work",
         address: "me@example.org".to_owned(),
         can_invite,
+        meeting_choices: Vec::new(),
     }
 }
 

@@ -3,8 +3,8 @@
 //! mirrors the core's own `EventIntent`.
 
 use crate::{
-    EventEdge, InvitationResponse, MeetingInvitee, MeetingInviteePatch, RecurrenceChange,
-    SimpleRecurrence,
+    EventEdge, InvitationResponse, MeetingChange, MeetingInvitee, MeetingInviteePatch,
+    RecurrenceChange, SimpleRecurrence,
 };
 
 /// A write to a stored calendar event, or a new one.
@@ -47,6 +47,10 @@ pub enum EventIntent {
         /// The core derives the organiser from the chosen account.
         #[uniffi(default = None)]
         invitees: Option<Vec<MeetingInvitee>>,
+        /// The video meeting to put on it, one of the chosen calendar's `meeting_choices`, or
+        /// `None` for none. A `Remove` here is meaningless and ignored.
+        #[uniffi(default = None)]
+        meeting: Option<MeetingChange>,
     },
     /// Edit a stored calendar event, then refresh the agenda.
     ///
@@ -105,6 +109,11 @@ pub enum EventIntent {
         /// the roster alone. An appointment cannot acquire invitees through an update.
         #[uniffi(default = None)]
         invitees: Option<MeetingInviteePatch>,
+        /// What happens to the event's video meeting: `None` leaves it, `Remove` takes it off,
+        /// `Set` replaces it with one of its calendar's `meeting_choices`. Refused with
+        /// `occurrence`: a meeting belongs to the series.
+        #[uniffi(default = None)]
+        meeting: Option<MeetingChange>,
     },
     /// Move or resize a stored calendar event by **dragging** it on the grid, then refresh the
     /// agenda.

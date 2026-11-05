@@ -90,6 +90,9 @@ public sealed partial class SettingsDialog : ContentDialog
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Grid.SetColumn(_categories, 0);
         var scroller = new ScrollViewer { Content = _detail };
+        // Named for the UI suite: the category list scrolls too once it outgrows the dialog, and a
+        // scroll aimed at the dialog reaches whichever scroller comes first.
+        AutomationProperties.SetAutomationId(scroller, "SettingsDetail");
         Grid.SetColumn(scroller, 1);
         root.Children.Add(_categories);
         root.Children.Add(scroller);
@@ -134,6 +137,7 @@ public sealed partial class SettingsDialog : ContentDialog
         {
             "allodia" => BuildAllodiaAccount()!,
             "calendar" => BuildCalendar(),
+            "videoconferencing" => BuildVideoconferencing(),
             "reading" => BuildReading(),
             "composing" => BuildComposing(),
             "signatures" => BuildSignatures(),

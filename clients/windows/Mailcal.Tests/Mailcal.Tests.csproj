@@ -67,6 +67,7 @@
          live in the dialog, the paint records in the surface), so the create/edit payload shapes and
          the §7 hit geometry are pinned here without a UI. -->
     <Compile Include="..\Mailcal\Calendar\EventEditorState.cs" Link="Calendar\EventEditorState.cs" />
+    <Compile Include="..\Mailcal\Calendar\EventEditorMeeting.cs" Link="Calendar\EventEditorMeeting.cs" />
     <Compile Include="..\Mailcal\Calendar\ReminderBucket.cs" Link="Calendar\ReminderBucket.cs" />
     <Compile Include="..\Mailcal\Calendar\InviteeRoster.cs" Link="Calendar\InviteeRoster.cs" />
     <!-- An invitee's answer from the event detail: which button is the answer already given, and

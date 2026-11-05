@@ -46,6 +46,7 @@ fn invited(answer: ResponseStatus) -> EventDetails {
         my_answer: Some(answer),
         occurrence: String::new(),
         attendees: Vec::new(),
+        editor_meeting: None,
     }
 }
 

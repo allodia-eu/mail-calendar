@@ -1153,5 +1153,12 @@
 	"settings_account_distinguished": "{address} ({detail})",
 	"remove_account_unlinks": "Het wordt ook losgekoppeld van {accounts}.",
 	"settings_account_link_suggested": "Suggestie: {address}",
-	"action_link": "Koppelen"
+	"action_link": "Koppelen",
+	"event_meeting_none": "Geen",
+	"event_meeting_conference_id": "Conferentie-ID",
+	"settings_category_videoconferencing": "Videovergaderen",
+	"settings_category_videoconferencing_summary": "Je Jitsi-server voor videovergaderingen",
+	"settings_jitsi_server": "Jitsi-server",
+	"settings_jitsi_server_hint": "Een Jitsi-vergadering die je aan een afspraak toevoegt, is een ruimte op deze server. Laat je het leeg, dan biedt geen enkele agenda Jitsi aan.",
+	"settings_jitsi_server_invalid": "Voer een adres in dat met https:// begint en geen ? of # bevat."
 }

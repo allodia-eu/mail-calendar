@@ -123,6 +123,10 @@ pub struct Preferences {
     /// writable. Resolved in one place, [`crate::preferences::DefaultCalendar`] says why.
     #[serde(default)]
     pub default_calendar: Option<DefaultCalendar>,
+    /// The person's Jitsi server, which the editor's Video meeting row offers once it is set.
+    /// Empty until they set it: no server is a default (`docs/conferencing.md`, rule 13).
+    #[serde(default)]
+    pub jitsi_server: Option<String>,
     /// Per-account synchronisation behaviour (push vs. poll), keyed by account id. An
     /// account absent here has not been customised and uses the [`effective`] default.
     /// A [`BTreeMap`] so the serialized TOML order is stable across writes.
@@ -296,6 +300,7 @@ impl Default for Preferences {
             calendar_layout: CalendarLayout::default(),
             calendars: BTreeMap::new(),
             default_calendar: None,
+            jitsi_server: None,
             accounts: BTreeMap::new(),
             notify_marks: BTreeMap::new(),
             analytics_consent: None,

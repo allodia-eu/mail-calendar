@@ -1153,5 +1153,12 @@
 	"settings_account_distinguished": "{address} ({detail})",
 	"remove_account_unlinks": "Viene scollegato anche da {accounts}.",
 	"settings_account_link_suggested": "Suggerimento: {address}",
-	"action_link": "Collega"
+	"action_link": "Collega",
+	"event_meeting_none": "Nessuna",
+	"event_meeting_conference_id": "ID conferenza",
+	"settings_category_videoconferencing": "Videoconferenze",
+	"settings_category_videoconferencing_summary": "Il tuo server Jitsi per le riunioni video",
+	"settings_jitsi_server": "Server Jitsi",
+	"settings_jitsi_server_hint": "Una riunione Jitsi che aggiungi a un evento è una stanza su questo server. Se lo lasci vuoto, nessun calendario offrirà Jitsi.",
+	"settings_jitsi_server_invalid": "Inserisci un indirizzo che inizi con https:// e non contenga ? né #."
 }

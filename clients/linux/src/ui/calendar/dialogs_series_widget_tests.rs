@@ -128,6 +128,7 @@ fn recurring_detail(occurrence: &str) -> EventDetails {
         my_answer: None,
         occurrence: occurrence.to_owned(),
         attendees: Vec::new(),
+        editor_meeting: None,
     }
 }
 

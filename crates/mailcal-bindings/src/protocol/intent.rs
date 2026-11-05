@@ -15,6 +15,11 @@ use crate::Surface;
 use crate::{ContactEdit, ViewMode};
 
 /// A host intent: the single inbound channel of the unidirectional loop.
+///
+/// Unboxed although `Events` is the widest variant by far (an event write carries its video
+/// meeting's words): UniFFI cannot box a field, and an intent lives only from the client's call
+/// to its conversion into the core's, which boxes them.
+#[allow(clippy::large_enum_variant)]
 #[derive(uniffi::Enum)]
 pub enum Intent {
     /// Sync the account's mail (every folder), refresh the snapshot.

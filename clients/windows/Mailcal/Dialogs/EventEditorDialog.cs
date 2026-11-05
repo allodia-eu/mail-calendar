@@ -1,6 +1,7 @@
 // The event editor, one dialog for both create and edit, the Windows twin of Android's
 // EventEditorScreen and Apple's EventEditorView. Title, an all-day toggle, start/end date+time
-// pickers, a calendar row (a writable-calendar picker on create, display-only on edit), notes, a
+// pickers, a calendar row (a writable-calendar picker on create, display-only on edit), the video
+// meeting the calendar offers (Calendar/EventEditorMeeting.cs), notes, a
 // location field (settable on create and edit alike), a reminder row shown but not editable, the
 // repeat rule, and who is invited (EventInviteeSection.cs).
 //
@@ -44,6 +45,7 @@ public sealed class EventEditorDialog : ContentDialog
     private readonly DatePicker _endDate = new();
     private readonly Button _calendarButton = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly EventInviteeSection _invitees;
+    private readonly StackPanel _meetingRow = new();
 
     /// <summary>The editor state, mutated in place, the caller reads its args after a Primary result.</summary>
     internal EventEditorState State => _state;
@@ -173,6 +175,11 @@ public sealed class EventEditorDialog : ContentDialog
                 _calendarButton,
             },
         });
+
+        // Video meeting: what the chosen calendar offers, decided by the core (docs/conferencing.md,
+        // rules 9 to 11). Drawn only while there is something to choose or a meeting to take off.
+        RebuildMeetingRow();
+        panel.Children.Add(_meetingRow);
 
         // Location: settable on create and edit alike, the engine's create draft carries it.
         var location = new TextBox { Header = L10n.EventLocation(), Text = _state.Location };
@@ -360,11 +367,50 @@ public sealed class EventEditorDialog : ContentDialog
         {
             _state.Calendar = CalendarChoice.Of(row);
             RefreshCalendarButton();
-            // Whether people can be invited, and who organises, follow the calendar.
+            // Whether people can be invited, and who organises, follow the calendar, and so do
+            // the meetings on offer: one the new calendar does not offer goes back to None.
             _invitees.Rebuild();
+            _state.Meeting = _state.EffectiveMeeting;
+            RebuildMeetingRow();
             flyout.Hide();
         };
         return button;
+    }
+
+    // The Video meeting row over the chosen calendar's choices, redrawn when the calendar changes.
+    private void RebuildMeetingRow()
+    {
+        _meetingRow.Children.Clear();
+        _meetingRow.Visibility = _state.ShowsMeetingRow ? Visibility.Visible : Visibility.Collapsed;
+        if (!_state.ShowsMeetingRow)
+        {
+            return;
+        }
+        var options = _state.MeetingOptions;
+        var box = new ComboBox
+        {
+            Header = L10n.EventVideoMeeting(),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        // Named for the UI suite, which cannot match a localised header.
+        AutomationProperties.SetAutomationId(box, "EventMeetingBox");
+        foreach (var option in options)
+        {
+            box.Items.Add(new ComboBoxItem
+            {
+                Content = option.Label(L10n.EventMeetingNone(), L10n.EventVideoMeeting()),
+            });
+        }
+        var current = _state.EffectiveMeeting;
+        box.SelectedIndex = Math.Max(0, options.ToList().FindIndex(option => option.Selection == current));
+        box.SelectionChanged += (_, _) =>
+        {
+            if (box.SelectedIndex >= 0)
+            {
+                _state.Meeting = options[box.SelectedIndex].Selection;
+            }
+        };
+        _meetingRow.Children.Add(box);
     }
 
     private static Style Caption() => (Style)Application.Current.Resources["CaptionTextBlockStyle"];

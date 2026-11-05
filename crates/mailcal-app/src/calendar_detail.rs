@@ -33,7 +33,7 @@ impl<P: Provider> App<P> {
         occurrence: Option<&str>,
     ) -> Option<EventDetail> {
         let started = Instant::now();
-        let stored = self.stored_event(event).await?;
+        let stored = self.recognise_jitsi(self.stored_event(event).await?);
         let account = self.account_handle(&event.account).await;
         let read_only = crate::calendar_ops::read_only_calendars(
             &self

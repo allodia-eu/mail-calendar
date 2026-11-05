@@ -4,7 +4,7 @@
 //! together crossed the 500-line limit.
 
 use engine_api::CalendarUserAddresses;
-use engine_core::calendar::Event;
+use engine_core::calendar::{ConferenceService, Event};
 use engine_provider::{Capabilities, OverrideSurvival, ProviderError, ReplyDelivery, WriteGuard};
 
 use super::calendar::{CalendarFake, SERVER_SCHEDULED_RSVP};
@@ -101,6 +101,17 @@ impl CalendarFake {
             caps: fake.caps.with_calendar_scheduling(),
             ..fake
         }
+    }
+
+    /// A writable calendar whose provider writes video meetings and whose server makes these
+    /// services' meetings itself.
+    pub(crate) fn writing_meetings(events: Vec<Event>, server_makes: &[ConferenceService]) -> Self {
+        let mut fake = Self::with_events(events);
+        fake.caps = fake.caps.with_conference_writes();
+        for calendar in &mut fake.calendars {
+            calendar.native_conferences = server_makes.to_vec();
+        }
+        fake
     }
 
     /// A writable account listing these calendars, each `(id, the colour its server sends)`.

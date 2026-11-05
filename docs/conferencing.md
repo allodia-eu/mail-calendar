@@ -1,8 +1,10 @@
 # Video meetings: cross-platform contract
 
-**Scope.** The meetings an event can be joined at: what the event detail offers for each, and how
-the grid, the month and the agenda mark an event that has one. Making a meeting, attaching one
-and taking one off an event are not built, and this contract says nothing about them yet.
+**Scope.** The meetings an event can be joined at: what the event detail offers for each, how
+the grid, the month and the agenda mark an event that has one, and how the editor puts one on an
+event or takes it off. Making a meeting at a service that needs an account of its own (Teams on a
+calendar that is not Microsoft's, Nextcloud Talk) is not built yet, and this contract says nothing
+about it.
 
 **Principle.** A meeting is something to join, not a link to read. The detail puts **Join** first
 and the codes and numbers a person needs beside it, the way Outlook and Google Calendar do, so
@@ -53,6 +55,34 @@ nobody has to dig a link out of the notes.
    included. A client renders it as text, never markup, and never logs a link, a meeting ID or
    a passcode: a Zoom link carries its passcode in the URL ([`logging.md`](logging.md)).
 
+9. **The core says which meetings a calendar can have, a client draws them.** Each
+   `CalendarRow` carries `meeting_choices`, in order: the services the calendar's own server
+   makes (Teams on a Microsoft calendar, Meet on a Google one), where its account's provider can
+   write a meeting, then **Jitsi Meet** once a Jitsi server is set (rule 13). A calendar that
+   cannot be written has none. The editor draws a **Video meeting** row only while the chosen
+   calendar has a choice: **None** first, then each choice by the core's `name`. Changing the
+   calendar redraws the row from the new calendar's choices, and a choice the new one lacks goes
+   back to None.
+10. **A new event starts with no meeting.** The person adds one by choosing it; nothing is added
+    on their behalf.
+11. **Editing an event shows the meeting it has.** The row shows the event's first shown meeting
+    (`is_shown`) as its current value. Choosing None takes that meeting off, with the block of text
+    and the location it left; choosing another service replaces it; leaving the row alone leaves
+    the meeting alone. A meeting no choice makes (a Zoom link from an invitation) is shown by its
+    name as the current value, and can be taken off but not chosen again. A meeting belongs to the
+    series, so in an editor opened on one occurrence a changed meeting makes the save the
+    series', as a changed repeat or roster does, rather than asking which occurrences were meant;
+    the core refuses a meeting change sent with one occurrence.
+12. **A meeting the calendar's server makes is asked of that server**; one made elsewhere is put
+    on the event with a block of text in its notes, so invitees whose calendar reads no meeting
+    field still have the link. The block's words are the client's, from the catalog, sent with
+    the write, because the core has no locale. A Jitsi meeting sends nothing anywhere: its link is
+    the server's address and a room name the core draws from the OS's secure random source, and
+    the room exists only once someone opens it.
+13. **The Jitsi server is the person's, never a default.** Settings → Videoconferencing holds one
+    field, empty until the person fills it: an `https` address without a query or fragment, which
+    the core checks before it stores it. While it is empty, no calendar offers Jitsi.
+
 ## Per-platform
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
@@ -60,14 +90,20 @@ nobody has to dig a link out of the notes.
 | The detail's meetings, Join first (rules 2 to 5) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The detail shows `display_notes` and `display_location` (rule 6) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The editor's Video meeting row (rules 9 to 12) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The Jitsi server in Settings (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins that Join and
 a dial-in row open the core's links as sent. On Windows the section is `EventConferenceSection.cs`
 over the WinUI-free `EventMeeting.cs`, which `EventMeetingTests` pins the same way; the grid draws
-its camera in `CalendarTitleDraw.cs`. On Android the section is `EventConferenceSection.kt` over
+its camera in `CalendarTitleDraw.cs`. The editor's Video meeting row is drawn by
+`EventEditorDialog.cs` over the WinUI-free `EventEditorMeeting.cs`, which `EventEditorMeetingTests`
+drives, and the Jitsi server is `SettingsDialog.Videoconferencing.cs`. On Android the section is `EventConferenceSection.kt` over
 `EventMeeting.kt`, and `EventMeetingTest` drives the section; the grid draws its camera in
 `CalendarTitleDraw.kt`. On Linux the rows are `conference.rs` over `meeting.rs`, and the grid
-paints its camera in `grid/camera.rs`.
+paints its camera in `grid/camera.rs`. The editor's Video meeting row is `meeting_row.rs` over the
+GTK-free `editor_meeting.rs`, which its unit tests drive, and the Jitsi server is
+`settings/videoconferencing.rs`.
 
 ## Enforcement
 

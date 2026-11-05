@@ -47,6 +47,17 @@ impl CalendarPrefsState {
         self.prefs.default_calendar.as_ref()
     }
 
+    /// The person's Jitsi server, or `None` until they set one.
+    pub(crate) fn jitsi_server(&self) -> Option<&str> {
+        self.prefs.jitsi_server.as_deref()
+    }
+
+    /// Records the Jitsi server (already checked), and persists it.
+    pub(crate) fn set_jitsi_server(&mut self, server: Option<String>) {
+        self.prefs.jitsi_server = server;
+        self.persist();
+    }
+
     /// Records which calendar new events go to, and persists it.
     fn set_default_calendar(&mut self, choice: Option<DefaultCalendar>) {
         self.prefs.default_calendar = choice;
@@ -89,6 +100,7 @@ impl CalendarPrefsState {
             on_disk
                 .default_calendar
                 .clone_from(&self.prefs.default_calendar);
+            on_disk.jitsi_server.clone_from(&self.prefs.jitsi_server);
             let _ = save_preferences(path, &on_disk);
         }
     }

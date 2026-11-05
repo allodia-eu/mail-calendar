@@ -230,6 +230,7 @@ The order and names are [`settings.md`](settings.md). Windows draws none (Known 
 | Allodia account | `person.crop.circle` | `ic_account_circle` | — | `avatar-default-symbolic` |
 | General | `gearshape` | `ic_settings` | — | `mailcal-cogged-wheel-symbolic` (`cogged-wheel`) |
 | Calendar | `calendar` | `ic_calendar_month` | — | `x-office-calendar-symbolic` |
+| Videoconferencing | `video` | `ic_videocam` | — | `camera-video-symbolic` |
 | Reading | `envelope.open` | `ic_mail` | — | `mailcal-mail-read-symbolic` (`mail-read`) |
 | Composing | `square.and.pencil` | `ic_edit` | — | `document-edit-symbolic` |
 | Signatures | `signature` | `ic_signature` | — | `mailcal-signature-symbolic` (`signature`) |

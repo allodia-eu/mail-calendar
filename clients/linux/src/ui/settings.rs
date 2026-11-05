@@ -45,6 +45,7 @@ mod shared_mailboxes;
 mod signature_editor;
 pub(super) mod signatures;
 mod state;
+pub(super) mod videoconferencing;
 
 pub(super) use give_way::PaneComposer;
 use state::Redraw;
@@ -58,6 +59,7 @@ pub(crate) enum Category {
     Allodia,
     General,
     Calendar,
+    Videoconferencing,
     Reading,
     Composing,
     Signatures,
@@ -93,10 +95,11 @@ pub(super) struct RenderState<'a> {
 }
 
 /// Every category, in order. What a given build **shows** is [`visible_categories`].
-const CATEGORIES: [Category; 12] = [
+const CATEGORIES: [Category; 13] = [
     Category::Allodia,
     Category::General,
     Category::Calendar,
+    Category::Videoconferencing,
     Category::Reading,
     Category::Composing,
     Category::Signatures,
@@ -461,6 +464,7 @@ fn page(category: Category, ctx: &PageContext) -> gtk::ScrolledWindow {
         Category::Allodia => allodia::page(ctx),
         Category::General => general::general(ctx),
         Category::Calendar => pages::calendar(ctx),
+        Category::Videoconferencing => videoconferencing::page(ctx),
         Category::Reading => pages::reading(ctx),
         Category::Composing => pages::composing(ctx),
         Category::Signatures => signatures::signatures(ctx),

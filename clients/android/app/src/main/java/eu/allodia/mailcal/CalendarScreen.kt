@@ -439,11 +439,10 @@ internal fun CalendarScreen(
             },
             saving = writeStatus == CalendarWriteStatus.SAVING,
             onEdit = {
-                val name = calendars
-                    .firstOrNull { it.account == detail.account && it.id == detail.calendar }
-                    ?.name
-                    .orEmpty()
-                editor = EventEditorState.edit(detail, name)
+                val row = calendars.firstOrNull { it.account == detail.account && it.id == detail.calendar }
+                editor = EventEditorState.edit(
+                    detail, row?.name.orEmpty(), meetingChoices = row?.meetingChoices.orEmpty(),
+                )
                 openEventRef = null
             },
             onDelete = {

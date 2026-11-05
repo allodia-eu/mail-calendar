@@ -11,8 +11,8 @@ import SwiftUI
 /// function (mirroring Outlook) so there is room to grow: Composing gains auto-replies, Accounts
 /// gains per-account identity, etc. Declaration order is the display order everywhere.
 enum SettingsCategory: String, CaseIterable, Identifiable {
-    case allodia, general, calendar, reading, composing, signatures, notifications, privacy,
-         accounts, advanced, diagnostics, about
+    case allodia, general, calendar, videoconferencing, reading, composing, signatures,
+         notifications, privacy, accounts, advanced, diagnostics, about
 
     var id: String { rawValue }
 
@@ -36,6 +36,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .allodia: return L10n.settings_allodia_heading()
         case .general: return L10n.settings_category_general()
         case .calendar: return L10n.settings_category_calendar()
+        case .videoconferencing: return L10n.settings_category_videoconferencing()
         case .reading: return L10n.settings_category_reading()
         case .composing: return L10n.settings_category_composing()
         case .signatures: return L10n.settings_category_signatures()
@@ -56,6 +57,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .allodia: return L10n.settings_category_allodia_summary()
         case .general: return L10n.settings_category_general_summary()
         case .calendar: return L10n.settings_category_calendar_summary()
+        case .videoconferencing: return L10n.settings_category_videoconferencing_summary()
         case .reading: return L10n.settings_category_reading_summary()
         case .composing: return L10n.settings_category_composing_summary()
         case .signatures: return L10n.settings_category_signatures_summary()
@@ -78,6 +80,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .allodia: return "person.crop.circle"
         case .general: return "gearshape"
         case .calendar: return "calendar"
+        case .videoconferencing: return "video"
         case .reading: return "envelope.open"
         case .composing: return "square.and.pencil"
         case .signatures: return "signature"
