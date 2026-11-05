@@ -213,6 +213,15 @@ impl MailcalApp {
         if self.registry.shared_parent(account_id).is_some() {
             return false;
         }
+        // A mailbox is shared with a mailbox, so an account not used for mail opens none: a
+        // calendar and contacts account would otherwise wait forever for a mailbox to connect.
+        if self
+            .registry
+            .dial(account_id)
+            .is_some_and(|dial| !dial.capabilities().contains(Capability::Mail))
+        {
+            return false;
+        }
         match self.registry.account_type(account_id) {
             "imap" | "jmap" => true,
             "graph" => self
