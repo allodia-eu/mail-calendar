@@ -162,21 +162,26 @@ public sealed partial class MailboxModel
             if (app.AccountProvider(accountId) == AccountProvider.Google)
             {
                 using var loopback = NewGoogleLoopback();
-                start = app.BeginAccountConsent(accountId, loopback.RedirectUri, adding);
-                await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
-                step(SignInStep.Browser);
-                callbackUrl = await WaitForGoogleCallbackAsync(loopback, cancel);
+                (start, callbackUrl) = await BrowserHop.RunAsync(
+                    () => Task.FromResult(app.BeginAccountConsent(accountId, loopback.RedirectUri, adding)),
+                    begun => OpenConsentAsync(begun, step),
+                    token => WaitForGoogleCallbackAsync(loopback, token),
+                    () => IsSigningIn = false,
+                    cancel);
             }
             else
             {
                 using var callback = ProtocolAuthCallback.Expect(MicrosoftOAuthConfig.CallbackHost);
-                start = app.BeginAccountConsent(accountId, MicrosoftOAuthConfig.RedirectUri, adding);
-                await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
-                step(SignInStep.Browser);
-                callbackUrl = await callback.WaitAsync(cancel);
+                (start, callbackUrl) = await BrowserHop.RunAsync(
+                    () => Task.FromResult(app.BeginAccountConsent(accountId, MicrosoftOAuthConfig.RedirectUri, adding)),
+                    begun => OpenConsentAsync(begun, step),
+                    callback.WaitAsync,
+                    () => IsSigningIn = false,
+                    cancel);
             }
             step(SignInStep.Calling);
-            // The exchange, the connect and the catch-up all block.
+            // The exchange, the connect and the catch-up all block, and the core stores the grant
+            // as part of them, so nothing after this point can retire it.
             await Task.Run(() => app.CompleteAccountConsent(start.Pending, callbackUrl));
             Log.Info("an account was signed in again in place");
             return new ConsentEnded(true, null);
@@ -195,5 +200,11 @@ public sealed partial class MailboxModel
         {
             IsSigningIn = false;
         }
+    }
+
+    private static async Task OpenConsentAsync(AccountConsentStart start, Action<SignInStep> step)
+    {
+        await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
+        step(SignInStep.Browser);
     }
 }
