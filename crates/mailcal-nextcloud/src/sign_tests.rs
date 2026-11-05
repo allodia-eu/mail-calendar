@@ -1,6 +1,6 @@
 use url::Url;
 
-use super::{answers_as_nextcloud, serves_php};
+use super::{answers_as_nextcloud, nextcloud_root, serves_php};
 use crate::test_server;
 
 const NEXTCLOUD: &str = r#"{"installed":true,"maintenance":false,"productname":"Nextcloud"}"#;
@@ -95,6 +95,30 @@ async fn a_bare_host_is_asked_once_its_well_known_lands_on_nextcloud() {
             "PROPFIND /remote.php/dav/ HTTP/1.1",
             "GET /status.php HTTP/1.1",
         ]
+    );
+}
+
+#[tokio::test]
+async fn a_bare_host_names_the_root_its_well_known_lands_on() {
+    let server = test_server::serve_with(|base| {
+        vec![
+            test_server::response(
+                "301 Moved Permanently",
+                &[("Location", &format!("{base}/nextcloud/remote.php/dav/"))],
+                "",
+            ),
+            test_server::response("401 Unauthorized", &[], ""),
+            test_server::json(200, NEXTCLOUD),
+        ]
+    });
+    let root = nextcloud_root(&test_server::client(), &server.base).await;
+    assert_eq!(
+        root.map(|root| root.as_str().to_owned()),
+        Some(format!("{}/nextcloud", server.base))
+    );
+    assert_eq!(
+        asked(&server.requests()).last().map(String::as_str),
+        Some("GET /nextcloud/status.php HTTP/1.1")
     );
 }
 

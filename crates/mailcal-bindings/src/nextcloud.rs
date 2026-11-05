@@ -10,7 +10,7 @@
 
 use std::time::SystemTime;
 
-use mailcal_nextcloud::{AppCredentials, PendingFlow, Poll, Root};
+use mailcal_nextcloud::{AppCredentials, NextcloudError, PendingFlow, Poll, Root};
 use serde::{Deserialize, Serialize};
 
 use crate::{MailcalApp, MailcalError, Platform};
@@ -86,8 +86,8 @@ impl MailcalApp {
     /// signs in through the person's browser. Decides whether a form offers "Sign in with
     /// Nextcloud" beside its password field.
     ///
-    /// **Blocking** (one request, at most three seconds); call it off the UI thread. Never an
-    /// error: a server that cannot be asked offers the password, which works everywhere.
+    /// **Blocking** (a few requests of at most three seconds each); call it off the UI thread.
+    /// Never an error: a server that cannot be asked offers the password, which works everywhere.
     pub fn offers_nextcloud_sign_in(&self, server_url: String) -> bool {
         self.offers_for(&mailcal_account::normalize_caldav_base_url(&server_url))
     }
@@ -97,7 +97,7 @@ impl MailcalApp {
     /// device's platform, which is how the person recognises it in the browser and later in
     /// Nextcloud's list of devices.
     ///
-    /// **Blocking** (one request); call it off the UI thread.
+    /// **Blocking** (the server is located, then asked to start one); call it off the UI thread.
     ///
     /// # Errors
     ///
@@ -107,7 +107,8 @@ impl MailcalApp {
         &self,
         server_url: String,
     ) -> Result<NextcloudSignInStart, MailcalError> {
-        let root = Root::of(&mailcal_account::normalize_caldav_base_url(&server_url))
+        let root = self
+            .root_for(&mailcal_account::normalize_caldav_base_url(&server_url))
             .ok_or_else(|| MailcalError::Config("not a Nextcloud server address".to_owned()))?;
         self.begin_at(&root)
     }
@@ -128,11 +129,14 @@ impl MailcalApp {
         let pending: PendingFlow = serde_json::from_str(&pending)
             .map_err(|_| MailcalError::Config("that is not a Nextcloud sign-in".to_owned()))?;
         let client = setup_client()?;
-        let granted = self.runtime.block_on(|| async {
+        let polled = self.runtime.block_on(|| async {
             let credentials =
                 match mailcal_nextcloud::poll(&client, &pending, SystemTime::now()).await? {
-                    Poll::Waiting => return Ok(None),
-                    Poll::Expired => return Ok(Some(None)),
+                    Poll::Waiting => return Ok(NextcloudSignInPoll::Waiting),
+                    Poll::Expired => {
+                        log::info!("nextcloud: the sign-in was not finished in time");
+                        return Ok(NextcloudSignInPoll::Expired);
+                    }
                     Poll::Granted(credentials) => credentials,
                 };
             let user = mailcal_nextcloud::current_user(&client, &pending.root, &credentials)
@@ -141,33 +145,21 @@ impl MailcalApp {
                     log::info!("nextcloud: the server did not say who signed in ({err})");
                 })
                 .ok();
-            Ok::<_, mailcal_nextcloud::NextcloudError>(Some(Some(NextcloudGrant {
+            log::info!("nextcloud: access granted");
+            let grant = NextcloudGrant {
                 root: pending.root.clone(),
                 credentials,
                 user: user.as_ref().map(|user| user.id.clone()),
                 email: user.and_then(|user| user.email),
-            })))
+            };
+            Ok::<_, NextcloudError>(NextcloudSignInPoll::Granted {
+                grant: serde_json::to_string(&grant).map_err(|_| NextcloudError::Malformed)?,
+            })
         });
-        match granted {
-            Ok(None) => Ok(NextcloudSignInPoll::Waiting),
-            Ok(Some(None)) => {
-                log::info!("nextcloud: the sign-in was not finished in time");
-                Ok(NextcloudSignInPoll::Expired)
-            }
-            Ok(Some(Some(grant))) => {
-                log::info!("nextcloud: access granted");
-                Ok(NextcloudSignInPoll::Granted {
-                    grant: serde_json::to_string(&grant)
-                        .map_err(|err| MailcalError::Config(err.to_string()))?,
-                })
-            }
-            Err(err) => {
-                log::warn!("nextcloud: the grant could not be read ({err})");
-                Err(MailcalError::Connect(format!(
-                    "the server's answer could not be read: {err}"
-                )))
-            }
-        }
+        polled.map_err(|err| {
+            log::warn!("nextcloud: the grant could not be read ({err})");
+            MailcalError::Connect(format!("the server's answer could not be read: {err}"))
+        })
     }
 
     /// Withdraws the app password of a granted sign-in that became no account: the person left
@@ -189,6 +181,18 @@ impl MailcalApp {
         };
         self.runtime
             .block_on(|| async { mailcal_nextcloud::answers_as_nextcloud(&client, url).await })
+    }
+
+    /// The Nextcloud server the DAV address `url` reaches: where its `.well-known` hop lands when
+    /// that server answers as Nextcloud, which for a bare host may be another host or a directory
+    /// below it, else the server `url` names itself. `None` for a URL no Nextcloud server can be
+    /// at.
+    pub(crate) fn root_for(&self, url: &str) -> Option<Root> {
+        let located = setup_client().ok().and_then(|client| {
+            self.runtime
+                .block_on(|| async { mailcal_nextcloud::nextcloud_root(&client, url).await })
+        });
+        located.or_else(|| Root::of(url))
     }
 
     /// Starts a sign-in at `root`, naming the app password after this app and platform.

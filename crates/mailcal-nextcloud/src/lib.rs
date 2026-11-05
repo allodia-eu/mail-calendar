@@ -39,7 +39,7 @@ pub use flow::{
 pub use ocs::{User, current_user, revoke};
 pub use root::Root;
 pub use secret::Secret;
-pub use sign::{WELL_KNOWN_PATH, answers_as_nextcloud, serves_php};
+pub use sign::{WELL_KNOWN_PATH, answers_as_nextcloud, nextcloud_root, serves_php};
 pub use status::{STATUS_PATH, STATUS_TIMEOUT, is_nextcloud, is_nextcloud_status};
 pub use wipe::{wipe_finished, wipe_requested};
 

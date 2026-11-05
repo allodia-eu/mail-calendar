@@ -10,9 +10,7 @@ use mailcal_nextcloud::Root;
 
 use crate::{
     AccountCapability, MailcalApp, MailcalError, NextcloudSignInStart,
-    account_registry::SignInConfig,
-    account_split::nothing_to_move,
-    nextcloud_accounts::{dav_url_of, server_of},
+    account_registry::SignInConfig, account_split::nothing_to_move, nextcloud_accounts::dav_url_of,
 };
 
 #[uniffi::export]
@@ -20,8 +18,8 @@ impl MailcalApp {
     /// Whether the server holding `uses` of the mailbox `account_id` is a Nextcloud server, so
     /// its separate-server step offers "Sign in with Nextcloud" above the password field.
     ///
-    /// **Blocking** (one request, at most three seconds); call it off the UI thread. Never an
-    /// error.
+    /// **Blocking** (a few requests of at most three seconds each); call it off the UI thread.
+    /// Never an error.
     pub fn separate_server_offers_nextcloud_sign_in(
         &self,
         account_id: String,
@@ -37,7 +35,7 @@ impl MailcalApp {
     /// completed with
     /// [`add_linked_nextcloud_account`](MailcalApp::add_linked_nextcloud_account).
     ///
-    /// **Blocking** (one request); call it off the UI thread.
+    /// **Blocking** (the server is located, then asked to start one); call it off the UI thread.
     ///
     /// # Errors
     ///
@@ -56,7 +54,7 @@ impl MailcalApp {
     /// server: signing it in again, or switching it from a typed password. Completed with
     /// [`complete_account_nextcloud_sign_in`](MailcalApp::complete_account_nextcloud_sign_in).
     ///
-    /// **Blocking** (one request); call it off the UI thread.
+    /// **Blocking** (the server is located, then asked to start one); call it off the UI thread.
     ///
     /// # Errors
     ///
@@ -68,7 +66,8 @@ impl MailcalApp {
     ) -> Result<NextcloudSignInStart, MailcalError> {
         let root = self
             .calendar_account(&account_id)
-            .and_then(|config| server_of(&config))
+            .and_then(|config| dav_url_of(&config))
+            .and_then(|url| self.root_for(&url))
             .ok_or_else(|| {
                 MailcalError::Config(
                     "only a calendar and contacts account signs in with Nextcloud".to_owned(),
@@ -85,7 +84,8 @@ impl MailcalApp {
         account_id: &str,
         uses: Vec<AccountCapability>,
     ) -> Result<Root, MailcalError> {
-        server_of(&self.separate_calendar(account_id, uses)?)
+        dav_url_of(&self.separate_calendar(account_id, uses)?)
+            .and_then(|url| self.root_for(&url))
             .ok_or_else(|| MailcalError::Config("not a Nextcloud server address".to_owned()))
     }
 
@@ -95,6 +95,17 @@ impl MailcalApp {
         account_id: &str,
         uses: Vec<AccountCapability>,
     ) -> Result<AccountConfig, MailcalError> {
+        let uses: Vec<Capability> = uses.into_iter().map(Capability::from).collect();
+        self.split_parts(account_id, &uses)
+            .map(|(_, calendar)| calendar)
+    }
+
+    /// The mailbox `account_id`, and the calendar and contacts account `uses` of it would become.
+    pub(crate) fn split_parts(
+        &self,
+        account_id: &str,
+        uses: &[Capability],
+    ) -> Result<(AccountConfig, AccountConfig), MailcalError> {
         let config = match self.switchable(account_id)? {
             SignInConfig::Imap(config) if config.imap.is_some() => config,
             _ => {
@@ -103,10 +114,10 @@ impl MailcalApp {
                 ));
             }
         };
-        let uses: Vec<Capability> = uses.into_iter().map(Capability::from).collect();
-        config
-            .calendar_account_for(&uses)
-            .ok_or_else(nothing_to_move)
+        let calendar = config
+            .calendar_account_for(uses)
+            .ok_or_else(nothing_to_move)?;
+        Ok((*config, calendar))
     }
 
     /// The switch a calendar and contacts account's Settings page offers: signing in with

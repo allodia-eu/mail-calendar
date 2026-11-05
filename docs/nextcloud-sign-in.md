@@ -35,10 +35,12 @@ the bindings for the surfaces) owns every decision; a client owns what it draws 
    for the sign, no DAV body among it.
 
    The root is the URL cut where Nextcloud's own paths start (`/remote.php/`, `/.well-known/`,
-   `/index.php`, `/status.php`, `/ocs/`), so a DAV endpoint, a `.well-known` hop and a bare host
-   all name the same server, and an installation in a directory keeps its directory. Each request
-   is bounded at three seconds and the question is never an error: a server that does not answer
-   is offered the password, which works everywhere. Neither is a server whose certificate needs an
+   `/index.php`, `/status.php`, `/ocs/`), so a DAV endpoint and a `.well-known` hop name the same
+   server, and an installation in a directory keeps its directory. A bare host names the server
+   its `.well-known` hop lands on, which may be another host or a directory, and the sign-in starts
+   there, not at the host as typed or stored. Each request is bounded at three seconds and the
+   question is never an error: a server that does not answer is offered the password, which works
+   everywhere. Neither is a server whose certificate needs an
    exception ([`certificate-exceptions.md`](certificate-exceptions.md)): the browser half would
    meet the same certificate.
 

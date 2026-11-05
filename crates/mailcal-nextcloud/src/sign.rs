@@ -30,19 +30,23 @@ pub fn serves_php(url: &Url) -> bool {
 }
 
 /// Whether the server at `url`, a DAV address as a person typed it or an account stores it,
-/// answers as Nextcloud. Its `status.php` is asked only when its DAV endpoint is a PHP script:
-/// `url` itself, or, for an address that names no endpoint (a bare host, or its `.well-known`),
-/// where the server's own `.well-known/caldav` sends a client. That hop is asked without
-/// credentials and is the request a connect makes first anyway. Never an error.
+/// answers as Nextcloud: [`nextcloud_root`] found one. Never an error.
 pub async fn answers_as_nextcloud(client: &reqwest::Client, url: &str) -> bool {
-    let Ok(url) = Url::parse(url.trim()) else {
-        return false;
-    };
+    nextcloud_root(client, url).await.is_some()
+}
+
+/// The Nextcloud server the DAV address `url` reaches, when it answers as one. Its `status.php`
+/// is asked only when its DAV endpoint is a PHP script: `url` itself, or, for an address that
+/// names no endpoint (a bare host, or its `.well-known`), where the server's own
+/// `.well-known/caldav` sends a client. That hop is asked without credentials and is the request
+/// a connect makes first anyway. The root is the endpoint's, which for a bare host may be another
+/// host's or a directory below it, so a sign-in runs where the question was answered. `None` for
+/// any doubt.
+pub async fn nextcloud_root(client: &reqwest::Client, url: &str) -> Option<Root> {
+    let url = Url::parse(url.trim()).ok()?;
     // Nothing goes to an address no sign-in could run at: plain HTTP off this machine, or one
     // carrying credentials.
-    if Root::of(url.as_str()).is_none() {
-        return false;
-    }
+    Root::of(url.as_str())?;
     let endpoint = if serves_php(&url) {
         Some(url)
     } else {
@@ -50,9 +54,9 @@ pub async fn answers_as_nextcloud(client: &reqwest::Client, url: &str) -> bool {
     };
     let Some(root) = endpoint.and_then(|endpoint| Root::of(endpoint.as_str())) else {
         log::debug!("nextcloud: the server shows no sign of being Nextcloud, so it is not asked");
-        return false;
+        return None;
     };
-    is_nextcloud(client, &root).await
+    is_nextcloud(client, &root).await.then_some(root)
 }
 
 /// Where `url` serves DAV, when it names no endpoint of its own: where its `.well-known/caldav`
@@ -63,10 +67,11 @@ async fn dav_endpoint(client: &reqwest::Client, url: &Url) -> Option<Url> {
     if !(path.is_empty() || path == "/" || path.starts_with("/.well-known/")) {
         return None;
     }
-    let mut at = url.join(WELL_KNOWN_PATH).ok()?;
-    if path.starts_with("/.well-known/") {
-        at = url.clone();
-    }
+    let mut at = if path.starts_with("/.well-known/") {
+        url.clone()
+    } else {
+        url.join(WELL_KNOWN_PATH).ok()?
+    };
     let propfind = Method::from_bytes(b"PROPFIND").ok()?;
     for _ in 0..=MAX_HOPS {
         let response = client

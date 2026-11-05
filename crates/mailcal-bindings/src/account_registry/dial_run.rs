@@ -96,7 +96,7 @@ impl AccountDial {
             } => {
                 let username = config.username().to_owned();
                 let identity = shared_dial.as_ref().map_or_else(
-                    || EmailAddress::new(username.clone()),
+                    || EmailAddress::new(config.address().to_owned()),
                     |shared| shared.identity.clone(),
                 );
                 let learned_calendar = std::sync::Mutex::new(mailcal_account::Learned::Nothing);

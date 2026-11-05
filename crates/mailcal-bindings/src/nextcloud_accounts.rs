@@ -17,7 +17,6 @@ use crate::{
     AccountCapability, AccountRow, MailcalApp, MailcalError,
     account_registry::{SignInConfig, nextcloud_issued},
     account_sign_in::Replacement,
-    account_split::nothing_to_move,
     nextcloud::NextcloudGrant,
 };
 
@@ -91,19 +90,9 @@ impl MailcalApp {
         grant: String,
     ) -> Result<String, MailcalError> {
         let grant = NextcloudGrant::parse(&grant)?;
-        let config = match self.switchable(&account_id)? {
-            SignInConfig::Imap(config) if config.imap.is_some() => config,
-            _ => {
-                return Err(MailcalError::Config(
-                    "only a standards mailbox keeps its calendar on a server of its own".to_owned(),
-                ));
-            }
-        };
         let uses: Vec<Capability> = uses.into_iter().map(Capability::from).collect();
-        let calendar = config
-            .calendar_account_for(&uses)
-            .ok_or_else(nothing_to_move)?;
-        if server_of(&calendar).as_ref() != Some(&grant.root) {
+        let (config, calendar) = self.split_parts(&account_id, &uses)?;
+        if !self.is_server_of(&calendar, &grant.root) {
             return Err(MailcalError::Config(
                 "that sign-in was for another server".to_owned(),
             ));
@@ -114,7 +103,7 @@ impl MailcalApp {
             &grant.root.dav_url(),
             grant.login(),
         );
-        let moved_to = self.split_out(&account_id, calendar, *config, &uses)?;
+        let moved_to = self.split_out(&account_id, calendar, config, &uses)?;
         // Linked to an account already set up, which keeps the password it has: this one becomes
         // no account, so it leaves the server's list of devices now.
         let stored = self.registry.nextcloud_credentials(&moved_to);
@@ -156,7 +145,7 @@ impl MailcalApp {
                 ));
             }
         };
-        if server_of(&config).as_ref() != Some(&grant.root) {
+        if !self.is_server_of(&config, &grant.root) {
             return Err(MailcalError::Config(
                 "that sign-in was for another server".to_owned(),
             ));
@@ -194,6 +183,18 @@ impl MailcalApp {
     }
 }
 
+impl MailcalApp {
+    /// Whether `root`, where a sign-in ran, is the server `config`'s calendar or address book is
+    /// at: the one its stored address names, or where that address's `.well-known` lands.
+    fn is_server_of(&self, config: &AccountConfig, root: &Root) -> bool {
+        server_of(config).as_ref() == Some(root)
+            || dav_url_of(config)
+                .and_then(|url| self.root_for(&url))
+                .as_ref()
+                == Some(root)
+    }
+}
+
 /// The address `config`'s calendar, or its address book, is at, as the account stores it.
 pub(crate) fn dav_url_of(config: &AccountConfig) -> Option<String> {
     let base_url = config
@@ -210,7 +211,7 @@ pub(crate) fn dav_url_of(config: &AccountConfig) -> Option<String> {
 }
 
 /// The Nextcloud server `config`'s calendar, or its address book, is at.
-pub(crate) fn server_of(config: &AccountConfig) -> Option<Root> {
+fn server_of(config: &AccountConfig) -> Option<Root> {
     Root::of(&dav_url_of(config)?)
 }
 
