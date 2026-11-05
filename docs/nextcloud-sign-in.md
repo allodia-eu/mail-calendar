@@ -124,11 +124,12 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | The server is asked, never the realm | ✅ | n/a | n/a | n/a | n/a |
-| Found card and link step: sign-in first, password behind | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
+| Found card: sign-in first, password behind | ✅ | 🚧 | 🚧 | ✅ | ✅ |
+| The link step's card for servers found beside a JMAP server | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
 | Manual form asks once a URL is entered | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Separate-server step offers it above the password | ✅ | 🚧 | ✅ | 🚧 | 🚧 |
 | Account page and sign-in-again prompt | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Browser opened, polled, and polled again on return | n/a | 🚧 | ✅ | ✅ | ✅ |
+| Browser opened, polled, and polled again on return | n/a | ✅ | ✅ | ✅ | ✅ |
 | A held grant retried, or withdrawn when abandoned | ✅ | 🚧 | ✅ | 🚧 | 🚧 |
 | Remote wipe answered | ✅ | n/a | n/a | n/a | n/a |
 | Password withdrawn on removal and on a new sign-in | ✅ | n/a | n/a | n/a | n/a |
@@ -166,10 +167,16 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   `NextcloudAccountSignInTest`) and was driven on an emulator through the same three flows. Apple
   asserts the flight and each surface's state in MailcalKit and the found card's drawing in
   `NextcloudSignInTests`, against the showcase's `nextcloud.example`; the macOS app was driven
-  through the manual form and signing in again. iOS was exercised by the simulator suite alone,
-  and the poll on return has unit tests only. Windows asserts the flight and each surface's state
+  through the manual form and signing in again, and the iOS app on a simulator through the manual
+  form, the account's page, signing in again, removal and the poll on return: a grant made while the
+  app was in the background was taken 52 ms after it came back. Windows asserts the flight and each surface's state
   in `Mailcal.Tests`, and its UI suites (`NextcloudSignInTests`, `NextcloudAccountPageTests`,
   `NextcloudSeparateServerTests`) drive the manual form, the wait and its Cancel, a kept grant's
   retry and withdrawal, the account page, and a mailbox's separate-server step against the
-  fixture. On every client the poll on return is unit-tested only, and the found card and the
-  link step's card need a domain that detects as Nextcloud, which the fixture cannot stand in for.
+  fixture. Linux and Android were also driven against a live Nextcloud server through an address
+  whose domain has no mail server and redirects its `.well-known` to Nextcloud: the found card
+  led with the sign-in, the grant arrived, a sign-in waiting in the browser asked again the moment
+  the app was in front (`a window is active again; asking now` on Linux, `the app is in front
+  again; asking now` on Android), and removal withdrew the password. The link step's card needs a
+  domain whose detection finds a JMAP server with a calendar server beside it, and stays
+  unit-tested on every client.

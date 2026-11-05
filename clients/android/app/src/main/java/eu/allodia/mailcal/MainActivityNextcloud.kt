@@ -40,7 +40,11 @@ internal object NextcloudFlights {
         flying -= flight
     }
 
-    fun wakeAll() = flying.toList().forEach { it.wake() }
+    /** Wakes every flight; whether there was one to wake. */
+    fun wakeAll(): Boolean {
+        flying.toList().forEach { it.wake() }
+        return flying.isNotEmpty()
+    }
 }
 
 /** What a sign-in that ended without a grant says; null for a cancelled one, which says nothing. */
@@ -115,6 +119,6 @@ internal fun MainActivity.abandonNextcloud(grant: String?) {
  * provider sign-in's do; a grant still to come is taken when it comes.
  */
 internal fun MainActivity.resumeNextcloudSignIns() {
-    NextcloudFlights.wakeAll()
+    if (NextcloudFlights.wakeAll()) logUiInfo("nextcloud: the app is in front again; asking now")
     setupFlow.nextcloud.resumed()
 }
