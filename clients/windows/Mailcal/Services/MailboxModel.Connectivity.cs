@@ -46,7 +46,9 @@ public sealed partial class MailboxModel
     /// re-runs its browser sign-in, anything else is updated in Settings. The id is what a JMAP or
     /// standards re-authentication is addressed to: it re-authorises that account's own persisted
     /// grant rather than starting a discovery from an address.</summary>
-    private sealed record ExpiredSignIn(string Id, string Name, AccountProvider? Provider);
+    /// <param name="Nextcloud">A Nextcloud sign-in made it, so signing in again is that sign-in
+    /// whatever provider it reports.</param>
+    private sealed record ExpiredSignIn(string Id, string Name, AccountProvider? Provider, bool Nextcloud);
 
     // What the banner says after a re-authentication launched from it failed, so the click does
     // not look like it did nothing. Cleared on the next attempt; a success clears the whole
@@ -84,7 +86,8 @@ public sealed partial class MailboxModel
         _mailReauthNames = connectivity.MailReauthAccounts.Select(AskedName).ToList();
         // A dead sign-in, carrying its provider so the button can launch the right flow.
         _signInExpired = connectivity.SigninExpiredAccounts
-            .Select(id => new ExpiredSignIn(id, AskedName(id), _app?.AccountProvider(id)))
+            .Select(id => new ExpiredSignIn(
+                id, AskedName(id), _app?.AccountProvider(id), listed.Any(entry => entry.Id == id && entry.Nextcloud)))
             .ToList();
         UpdateUseOutages(connectivity);
         Raise(nameof(IsOffline));
@@ -171,7 +174,7 @@ public sealed partial class MailboxModel
     /// Settings, so the button is hidden.</summary>
     public bool CanRelaunchSignIn =>
         _signInExpired.FirstOrDefault() is { } account
-            && AccountSettingsRules.Remedy(account.Provider) != SignInRemedy.Settings;
+            && AccountSettingsRules.Remedy(account.Provider, account.Nextcloud) != SignInRemedy.Settings;
 
     /// <summary>The banner button's visibility, bound directly, as WinUI has no built-in
     /// bool-to-Visibility conversion for <c>x:Bind</c>.</summary>
@@ -191,8 +194,12 @@ public sealed partial class MailboxModel
             return;
         }
         SetSignInReauthFailure(null);
-        switch (AccountSettingsRules.Remedy(account.Provider))
+        switch (AccountSettingsRules.Remedy(account.Provider, account.Nextcloud))
         {
+            case SignInRemedy.Nextcloud:
+                // Nothing to refresh: a new app password, through the browser (rule 8).
+                _ = AccountNextcloudFromBannerAsync(account.Id);
+                break;
             case SignInRemedy.ProviderConsent:
                 _ = SignInAgainFromBannerAsync(account.Id);
                 break;

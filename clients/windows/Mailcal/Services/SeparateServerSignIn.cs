@@ -46,30 +46,57 @@ internal sealed record SeparateServerNext(string? Error)
     internal static SeparateServerNext AfterConnect(string? error) => new(error);
 }
 
+/// <summary>Which sign-in the server offers above the password field.</summary>
+internal enum SeparateSignInOffer
+{
+    /// <summary>None: the password alone.</summary>
+    None,
+    /// <summary>Its own provider's (docs/mail-oauth.md rule 13).</summary>
+    Provider,
+    /// <summary>Nextcloud's own, where the provider's is not offered (docs/nextcloud-sign-in.md
+    /// rule 2).</summary>
+    Nextcloud,
+}
+
 internal sealed class SeparateServerSignIn
 {
     // Each form's answer, by the account and the uses it moves: null while it is still out.
-    private readonly Dictionary<string, bool?> _offers = new();
+    private readonly Dictionary<string, SeparateSignInOffer?> _offers = new();
 
     private int _attempt;
 
     /// <summary>Where the current attempt stands.</summary>
     internal SeparateSignInPhase Phase { get; private set; }
 
-    private static string Key(SeparateServerStep step) =>
+    /// <summary>A Nextcloud grant the form could not make an account of yet, held for the next
+    /// press; the way back withdraws it (<see cref="NextcloudGrantHold.Release"/>).</summary>
+    internal NextcloudGrantHold Grant { get; } = new();
+
+    /// <summary>What names a form: the account and the uses it moves.</summary>
+    internal static string Key(SeparateServerStep step) =>
         $"{step.AccountId}\n{string.Join(',', UnreachedUsesRules.Dav(step.Uses))}";
 
     /// <summary>Whether drawing the form for <paramref name="step"/> asks the core; once per
     /// account and uses, so a redraw does not ask again.</summary>
     internal bool Asks(SeparateServerStep step) => _offers.TryAdd(Key(step), null);
 
-    /// <summary>The core's answer for <paramref name="step"/>.</summary>
-    internal void Answered(SeparateServerStep step, bool offers) => _offers[Key(step)] = offers;
+    /// <summary>The core's answer for <paramref name="step"/>: whether the server signs in at its
+    /// own provider.</summary>
+    internal void Answered(SeparateServerStep step, bool offers) =>
+        Answered(step, offers ? SeparateSignInOffer.Provider : SeparateSignInOffer.None);
 
-    /// <summary>Whether the form for <paramref name="step"/> offers the sign-in: only once the
-    /// core has answered yes for exactly those uses.</summary>
-    internal bool Offers(SeparateServerStep? step) =>
-        step is not null && _offers.TryGetValue(Key(step), out var offers) && offers == true;
+    /// <summary>The core's answer for <paramref name="step"/>.</summary>
+    internal void Answered(SeparateServerStep step, SeparateSignInOffer offer) => _offers[Key(step)] = offer;
+
+    /// <summary>Which sign-in the form for <paramref name="step"/> offers: none until the core has
+    /// answered for exactly those uses.</summary>
+    internal SeparateSignInOffer Offer(SeparateServerStep? step) =>
+        step is not null && _offers.TryGetValue(Key(step), out var offer) && offer is { } answered
+            ? answered
+            : SeparateSignInOffer.None;
+
+    /// <summary>Whether the form for <paramref name="step"/> offers a sign-in at all.</summary>
+    internal bool Offers(SeparateServerStep? step) => Offer(step) != SeparateSignInOffer.None;
 
     /// <summary>A press of the button: a new attempt, which supersedes any still out.</summary>
     /// <returns>The attempt's number, which its progress and its end name.</returns>

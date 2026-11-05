@@ -41,6 +41,31 @@ public class SeparateServerSignInTests
     }
 
     [Fact]
+    public void AServerThatIsNextcloudOffersItsOwnSignInAboveThePassword()
+    {
+        var signIn = new SeparateServerSignIn();
+        var both = Step(AccountCapability.Calendar, AccountCapability.Contacts);
+        Assert.Equal(SeparateSignInOffer.None, signIn.Offer(both));
+        signIn.Asks(both);
+        signIn.Answered(both, SeparateSignInOffer.Nextcloud);
+        Assert.Equal(SeparateSignInOffer.Nextcloud, signIn.Offer(both));
+        Assert.True(signIn.Offers(both));
+        // The provider's answer keeps its own meaning.
+        signIn.Answered(both, true);
+        Assert.Equal(SeparateSignInOffer.Provider, signIn.Offer(both));
+    }
+
+    [Fact]
+    public void AFormHoldsItsNextcloudGrantUnderItsOwnAccountAndUses()
+    {
+        var both = Step(AccountCapability.Calendar, AccountCapability.Contacts);
+        Assert.Equal(
+            SeparateServerSignIn.Key(both),
+            SeparateServerSignIn.Key(Step(AccountCapability.Contacts, AccountCapability.Calendar)));
+        Assert.NotEqual(SeparateServerSignIn.Key(both), SeparateServerSignIn.Key(both with { AccountId = "bob@imap" }));
+    }
+
+    [Fact]
     public void TheFormIsDisabledOnlyDuringTheBlockingCoreCalls()
     {
         var signIn = new SeparateServerSignIn();

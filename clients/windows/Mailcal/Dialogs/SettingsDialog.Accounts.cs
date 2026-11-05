@@ -162,7 +162,7 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(SignInGroup(entry, expired));
         }
-        else if (AccountSettingsRules.SwitchesSignIn(entry.Kind))
+        else if (AccountSettingsRules.MayHaveSignInSection(entry))
         {
             panel.Children.Add(AccountSignInGroup(entry));
         }

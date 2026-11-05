@@ -106,20 +106,22 @@ public sealed partial class AccountSetupView
             form.Draw(_separateSignIn, cancelOwn: true);
             return;
         }
-        _separateSignIn.Answered(step, await model.SeparateServerOffersSignInAsync(step));
+        _separateSignIn.Answered(step, await model.SeparateServerSignInOfferAsync(step));
         if (ReferenceEquals(_separateDrawn, step))
         {
             form.Draw(_separateSignIn, cancelOwn: true);
         }
     }
 
-    // The way back from the step's sign-in: the attempt out opens no browser and adds no account.
+    // The way back from the step's sign-in: the attempt out opens no browser and adds no account,
+    // and a Nextcloud grant the step held for another try is withdrawn.
     private void RetireSeparateSignIn()
     {
         if (_separateSignIn.Retire())
         {
             Model?.CancelSeparateServerSignIn();
         }
+        Model?.ReleaseSeparateNextcloudGrant(_separateSignIn);
     }
 
     /// <summary>Asks, over the form, what becomes of <paramref name="unreached"/> before the

@@ -242,6 +242,13 @@
          the core's yes for the form's uses, an answer from a superseded or retired attempt does
          nothing, and success goes where Connect's success goes. -->
     <Compile Include="..\Mailcal\Services\SeparateServerSignIn.cs" Link="Services\SeparateServerSignIn.cs" />
+    <!-- Signing in with Nextcloud (docs/nextcloud-sign-in.md rules 2, 5 and 6): the flight's poll
+         and its wake, a grant answered after the way back withdrawn, a held grant kept for a retry
+         and never withdrawn while the core completes it, and which server and uses a setup press
+         signs in at. Silent when wrong: a grant dropped rather than withdrawn stays in the
+         person's Nextcloud device list, and a poll that never wakes leaves them waiting. -->
+    <Compile Include="..\Mailcal\Services\NextcloudFlight.cs" Link="Services\NextcloudFlight.cs" />
+    <Compile Include="..\Mailcal\Services\SetupNextcloud.cs" Link="Services\SetupNextcloud.cs" />
     <!-- The line the calendar and contacts screens draw over a use that did not connect
          (docs/accounts.md rule 16): the title, the reason the account's page gives and the
          last-synced sentence, one per account. L10n-free, the words arrive as parameters. -->

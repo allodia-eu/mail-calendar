@@ -49,7 +49,10 @@ internal sealed record DetectRoute(
     UseOffer? Uses = null,
     // The servers detection found, as the core words them for the found card, which names them
     // rather than offering them to edit. Empty on every route but IMAP.
-    IReadOnlyList<DetectedServerRow>? Servers = null);
+    IReadOnlyList<DetectedServerRow>? Servers = null,
+    // The calendar and contacts card's server is Nextcloud, whose own sign-in the card leads with
+    // (docs/nextcloud-sign-in.md rule 2).
+    bool NextcloudSignIn = false);
 
 /// <summary>Pure routing + connect-gating for the detection flow (no WinUI types, so it's testable).</summary>
 internal static class AccountDetectForm
@@ -67,7 +70,7 @@ internal static class AccountDetectForm
                 IsManual: false, Tab: DetectTab.Dav, Email: email.Trim(),
                 ImapHost: string.Empty, SmtpHost: string.Empty, JmapServer: string.Empty,
                 CaldavUrl: setup.CaldavUrl ?? string.Empty, NeedsApproval: false, Reason: null,
-                Uses: UseOffer.Of(setup));
+                Uses: UseOffer.Of(setup), NextcloudSignIn: setup.NextcloudSignIn);
         }
         return Route(setup.Recommendation) with { Uses = UseOffer.Of(setup) };
     }

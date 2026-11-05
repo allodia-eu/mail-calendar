@@ -30,8 +30,24 @@ public sealed partial class MailboxModel
         }
     }
 
+    /// <summary>Which sign-in <paramref name="step"/>'s server offers: its own provider's, else
+    /// Nextcloud's when it is a Nextcloud server, else none. Off the UI thread; never throws.</summary>
+    internal async Task<SeparateSignInOffer> SeparateServerSignInOfferAsync(SeparateServerStep step)
+    {
+        if (await SeparateServerOffersSignInAsync(step))
+        {
+            return SeparateSignInOffer.Provider;
+        }
+        return await SeparateServerOffersNextcloudSignInAsync(step) ? SeparateSignInOffer.Nextcloud : SeparateSignInOffer.None;
+    }
+
+    /// <summary>Withdraws the Nextcloud grant <paramref name="signIn"/>'s form held for another
+    /// try: the form was left, or a password chosen instead. Never one the core is completing.</summary>
+    internal void ReleaseSeparateNextcloudGrant(SeparateServerSignIn signIn) => AbandonNextcloudGrant(signIn.Grant.Release());
+
     /// <summary>
-    /// Signs <paramref name="step"/>'s uses in at their server's own provider, as a new attempt of
+    /// Signs <paramref name="step"/>'s uses in at their server's own provider, or with Nextcloud
+    /// where that is what the form offers, as a new attempt of
     /// <paramref name="signIn"/> that supersedes any still out: the core finds the issuer and
     /// registers, the browser opens, and the redirect completes the move. <paramref name="progress"/>
     /// hears each phase of the current attempt, on the UI thread, so the form disables itself only
@@ -43,8 +59,11 @@ public sealed partial class MailboxModel
     {
         var attempt = signIn.Start();
         progress(SeparateSignInPhase.Starting);
+        var nextcloud = signIn.Offer(step) == SeparateSignInOffer.Nextcloud;
         var end = _app is { } app
-            ? await _signIn.RunAsync(cancel => SeparateServerSignInFlowAsync(app, step, Advance, cancel))
+            ? await _signIn.RunAsync(cancel => nextcloud
+                ? SeparateServerNextcloudFlowAsync(app, step, signIn.Grant, Advance, cancel)
+                : SeparateServerSignInFlowAsync(app, step, Advance, cancel))
             : SeparateSignInEnd.Failed(L10n.SetupImapSigninFailed());
         var next = signIn.Ended(attempt, end);
         progress(signIn.Phase);

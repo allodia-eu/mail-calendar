@@ -157,6 +157,8 @@ public sealed partial class MailboxModel
     /// <summary>Closes the form and asks each added account's name, one after another.</summary>
     private void FinishSetup()
     {
+        // A Nextcloud grant still held became no account: a password connected instead.
+        ReleaseSetupNextcloudGrant();
         foreach (var account in _setupFlow.Finish())
         {
             _senderNamesWaiting.Enqueue(account);

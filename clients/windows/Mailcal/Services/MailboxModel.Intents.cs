@@ -166,6 +166,8 @@ public sealed partial class MailboxModel
     /// </summary>
     public void ClearSetupAttempt()
     {
+        // A Nextcloud grant held for another try at that server becomes no account.
+        ReleaseSetupNextcloudGrant();
         SetupError = null;
         SetupRejectedCertificate = null;
         SetupAcceptedCertificate = null;

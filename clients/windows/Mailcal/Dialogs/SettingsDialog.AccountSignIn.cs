@@ -24,9 +24,11 @@ public sealed partial class SettingsDialog
     // What each account's server takes, by account and current way of signing in.
     private readonly Dictionary<string, AccountSignInOptions> _signInOptions = new();
 
-    // The section waiting on each question still out: the latest drawing of it, which the answer
-    // fills, so a redraw in the meantime neither asks twice nor loses the answer.
-    private readonly Dictionary<string, (StackPanel Controls, AccountEntry Entry)> _signInWaiting = new();
+    // The section waiting on each question still out: what fills the latest drawing of it, so a
+    // redraw in the meantime neither asks twice nor loses the answer.
+    private readonly Dictionary<string, Action<AccountSignInOptions>> _signInWaiting = new();
+
+    private bool _nextcloudClosedWired;
 
     // Where the page's sign-in is, which every drawing of the section reads.
     private readonly AccountSignInProgress _signInProgress = new();
@@ -39,30 +41,54 @@ public sealed partial class SettingsDialog
 
     private static readonly AccountSignInOptions NothingOffered = new(false, null, false);
 
-    /// <summary>The Sign-in section of a standards or JMAP account's page.</summary>
+    /// <summary>
+    /// The Sign-in section of a standards or JMAP account's page, or of a calendar and contacts
+    /// account's at a Nextcloud server (docs/nextcloud-sign-in.md rule 7). One with a typed
+    /// password learns that from its server, so its section is drawn only once the server has
+    /// said so.
+    /// </summary>
     private UIElement AccountSignInGroup(AccountEntry entry)
     {
-        var status = entry.SignIn switch
-        {
-            SignInMethod.Provider => L10n.SettingsAccountSignsInProvider(),
-            _ => L10n.SettingsAccountSignsInPassword(),
-        };
+        WireNextcloudRelease();
+        var slot = new StackPanel();
         var controls = new StackPanel { Spacing = 8 };
+        void Draw(AccountSignInOptions? options)
+        {
+            if (slot.Children.Count > 0
+                || (options is null && !AccountSettingsRules.SignInDrawnBeforeAnswer(entry))
+                || AccountSettingsRules.SignIn(entry, options) is not { } section)
+            {
+                return;
+            }
+            var status = section switch
+            {
+                { Nextcloud: true, ThroughProvider: true } => L10n.SettingsAccountSignsInNextcloud(),
+                { ThroughProvider: true } => L10n.SettingsAccountSignsInProvider(),
+                _ => L10n.SettingsAccountSignsInPassword(),
+            };
+            slot.Children.Add(Group(L10n.SettingsAccountSigninHeading(), status, controls));
+        }
         var key = $"{entry.Id}\n{entry.SignIn}";
         if (_signInOptions.TryGetValue(key, out var options))
         {
+            Draw(options);
             FillSignIn(controls, entry, options);
         }
         else
         {
+            Draw(null);
             var asking = _signInWaiting.ContainsKey(key);
-            _signInWaiting[key] = (controls, entry);
+            _signInWaiting[key] = answer =>
+            {
+                Draw(answer);
+                FillSignIn(controls, entry, answer);
+            };
             if (!asking)
             {
                 _ = AskSignInOptionsAsync(entry.Id, key);
             }
         }
-        return Group(L10n.SettingsAccountSigninHeading(), status, controls);
+        return slot;
     }
 
     private async Task AskSignInOptionsAsync(string accountId, string key)
@@ -70,9 +96,19 @@ public sealed partial class SettingsDialog
         var options = await _model.AccountSignInOptionsAsync(accountId) ?? NothingOffered;
         _signInOptions[key] = options;
         // Filling a section a redraw has since replaced is harmless: it is no longer on screen.
-        if (_signInWaiting.Remove(key, out var waiting))
+        if (_signInWaiting.Remove(key, out var fill))
         {
-            FillSignIn(waiting.Controls, waiting.Entry, options);
+            fill(options);
+        }
+    }
+
+    // A Nextcloud grant the page held for another try becomes no account once Settings closes.
+    private void WireNextcloudRelease()
+    {
+        if (!_nextcloudClosedWired)
+        {
+            _nextcloudClosedWired = true;
+            Closed += (_, _) => _model.ReleaseAccountNextcloudGrant();
         }
     }
 
@@ -90,7 +126,7 @@ public sealed partial class SettingsDialog
         {
             var again = new Button { Content = L10n.SigninExpiredAction() };
             AutomationProperties.SetAutomationId(again, "AccountSignInAgain");
-            again.Click += (_, _) => _ = BrowserSignInAsync(entry, switching: false);
+            again.Click += (_, _) => _ = BrowserSignInAsync(entry, switching: false, section.Nextcloud);
             buttons.Children.Add(again);
             all.Add(again);
         }
@@ -101,7 +137,7 @@ public sealed partial class SettingsDialog
                 : L10n.SettingsAccountSwitchToProvider();
             var toProvider = new Button { Content = label };
             AutomationProperties.SetAutomationId(toProvider, "AccountSwitchToProvider");
-            toProvider.Click += (_, _) => _ = BrowserSignInAsync(entry, switching: true);
+            toProvider.Click += (_, _) => _ = BrowserSignInAsync(entry, switching: true, section.Nextcloud);
             buttons.Children.Add(toProvider);
             all.Add(toProvider);
         }
@@ -184,9 +220,10 @@ public sealed partial class SettingsDialog
     }
 
     /// <summary>Signs the account in through its provider in the browser, again or in place of
-    /// its password, and says how it ended. A switch that would cost the calendar or contacts asks
-    /// first (docs/accounts.md rule 18). A cancelled sign-in says nothing.</summary>
-    private async Task BrowserSignInAsync(AccountEntry entry, bool switching)
+    /// its password, and says how it ended; with Nextcloud for a calendar and contacts account at
+    /// a Nextcloud server (<paramref name="nextcloud"/>). A switch that would cost the calendar or
+    /// contacts asks first (docs/accounts.md rule 18). A cancelled sign-in says nothing.</summary>
+    private async Task BrowserSignInAsync(AccountEntry entry, bool switching, bool nextcloud = false)
     {
         // A press while an earlier sign-in is out supersedes it, and answers its question, if it
         // asked one, as Cancel.
@@ -194,15 +231,15 @@ public sealed partial class SettingsDialog
         var attempt = _signInProgress.Start(entry.Id);
         ShowSignInProgress(entry.Id);
         SayOnAccounts(null);
-        var ended = await _model.AccountSignInAsync(
-            entry.Id,
-            AskUnreachedAsync,
-            step =>
-            {
-                _signInProgress.Step(attempt, step);
-                ShowSignInProgress(entry.Id);
-                SaySignInStep(entry, step);
-            });
+        void Step(SignInStep step)
+        {
+            _signInProgress.Step(attempt, step);
+            ShowSignInProgress(entry.Id);
+            SaySignInStep(entry, step);
+        }
+        var ended = nextcloud
+            ? await _model.AccountNextcloudSignInAsync(entry.Id, Step)
+            : await _model.AccountSignInAsync(entry.Id, AskUnreachedAsync, Step);
         if (!_signInProgress.End(attempt))
         {
             // Superseded: the newer attempt says how it ends.
