@@ -124,7 +124,8 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Gate | Shared core | macOS / iOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | The server is asked, never the realm | ✅ | n/a | n/a | n/a | n/a |
-| Found card and link step: sign-in first, password behind | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
+| Found card: sign-in first, password behind | ✅ | 🚧 | 🚧 | ✅ | ✅ |
+| The link step's card for servers found beside a JMAP server | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
 | Manual form asks once a URL is entered | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Separate-server step offers it above the password | ✅ | 🚧 | ✅ | 🚧 | 🚧 |
 | Account page and sign-in-again prompt | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -171,5 +172,10 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   in `Mailcal.Tests`, and its UI suites (`NextcloudSignInTests`, `NextcloudAccountPageTests`,
   `NextcloudSeparateServerTests`) drive the manual form, the wait and its Cancel, a kept grant's
   retry and withdrawal, the account page, and a mailbox's separate-server step against the
-  fixture. On every client the poll on return is unit-tested only, and the found card and the
-  link step's card need a domain that detects as Nextcloud, which the fixture cannot stand in for.
+  fixture. Linux and Android were also driven against a live Nextcloud server through an address
+  whose domain has no mail server and redirects its `.well-known` to Nextcloud: the found card
+  led with the sign-in, the grant arrived, a sign-in waiting in the browser asked again the moment
+  the app was in front (`a window is active again; asking now` on Linux, `the app is in front
+  again; asking now` on Android), and removal withdrew the password. The link step's card needs a
+  domain whose detection finds a JMAP server with a calendar server beside it, and stays
+  unit-tested on every client.

@@ -73,7 +73,12 @@ thread_local! {
 /// One of this app's windows is active again, which is when somebody who just granted access in
 /// the browser is back: every flight asks now rather than at its next interval.
 pub(super) fn returned() {
-    WAITING.with_borrow_mut(|waiting| waiting.retain(|wake| wake.send(()).is_ok()));
+    WAITING.with_borrow_mut(|waiting| {
+        waiting.retain(|wake| wake.send(()).is_ok());
+        if !waiting.is_empty() {
+            log::info!("nextcloud: a window is active again; asking now");
+        }
+    });
 }
 
 /// Connects `window` to [`returned`], for each window a person comes back to.
