@@ -41,6 +41,40 @@ public class AccountSettingsRulesTests
     }
 
     [Fact]
+    public void VideoMeetingsAreNeverTheLastUse()
+    {
+        // Meetings on beside the one primary use: the primary use is still the last one, and
+        // meetings can be switched off.
+        var entry = Entry(
+            AccountKind.Microsoft,
+            (AccountCapability.Mail, CapabilityState.On),
+            (AccountCapability.Calendar, CapabilityState.Off),
+            (AccountCapability.Contacts, CapabilityState.Off),
+            (AccountCapability.Meetings, CapabilityState.On));
+        Assert.Equal(
+            new UseSwitch(Active: true, Asks: false, Enabled: false, Note: UseNote.Last),
+            AccountSettingsRules.Switch(entry, AccountCapability.Mail));
+        Assert.Equal(
+            new UseSwitch(Active: true, Asks: false, Enabled: true, Note: UseNote.None),
+            AccountSettingsRules.Switch(entry, AccountCapability.Meetings));
+    }
+
+    [Fact]
+    public void VideoMeetingsSwitchOffWithoutAsking()
+    {
+        // The device holds nothing of meetings, so there is nothing for the confirmation to warn of.
+        Assert.False(AccountSettingsRules.ConfirmsOff(AccountCapability.Meetings));
+        foreach (var held in new[]
+        {
+            AccountCapability.Mail, AccountCapability.SharedMailboxes, AccountCapability.Calendar,
+            AccountCapability.Contacts, AccountCapability.Colleagues,
+        })
+        {
+            Assert.True(AccountSettingsRules.ConfirmsOff(held));
+        }
+    }
+
+    [Fact]
     public void ColleaguesWaitForContacts()
     {
         var entry = Entry(

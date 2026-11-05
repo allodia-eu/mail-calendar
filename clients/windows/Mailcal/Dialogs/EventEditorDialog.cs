@@ -398,7 +398,7 @@ public sealed class EventEditorDialog : ContentDialog
         {
             box.Items.Add(new ComboBoxItem
             {
-                Content = option.Label(L10n.EventMeetingNone(), L10n.EventVideoMeeting()),
+                Content = option.Label(L10n.EventMeetingNone(), L10n.EventVideoMeeting(), L10n.EventMeetingThrough),
             });
         }
         var current = _state.EffectiveMeeting;

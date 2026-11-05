@@ -29,7 +29,7 @@ public class EventEditorMeetingTests
             choices);
 
     private static string[] Labels(EventEditorState editor) =>
-        [.. editor.MeetingOptions.Select(option => option.Label("None", "Video meeting"))];
+        [.. editor.MeetingOptions.Select(option => option.Label("None", "Video meeting", (service, account) => $"{service} ({account})"))];
 
     [Fact]
     public void A_new_event_starts_with_no_meeting_and_offers_the_calendars_choices()
@@ -117,6 +117,17 @@ public class EventEditorMeetingTests
         editor.Meeting = new MeetingSelection.Choice("jitsi");
         Assert.False(editor.AsksAboutTheSeries);
         Assert.Equal(new MeetingPick.Set("jitsi"), editor.UpdateArgs(thisOccurrenceOnly: false).Meeting);
+    }
+
+    [Fact]
+    public void A_meeting_made_through_an_account_names_the_account()
+    {
+        var work = new MeetingOption("account:teams:work", "Microsoft Teams", "alice@work.example");
+        var other = new MeetingOption("account:teams:other", "Microsoft Teams", "alice@other.example");
+        var editor = EventEditorState.Create(Calendar([work, other, Jitsi]), "UTC", Now);
+        Assert.Equal(
+            ["None", "Microsoft Teams (alice@work.example)", "Microsoft Teams (alice@other.example)", "Jitsi Meet"],
+            Labels(editor));
     }
 
     [Fact]

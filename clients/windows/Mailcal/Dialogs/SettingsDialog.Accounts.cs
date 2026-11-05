@@ -128,6 +128,7 @@ public sealed partial class SettingsDialog
         AccountCapability.Contacts => L10n.NavContacts(),
         AccountCapability.Colleagues => L10n.AccountUseColleagues(),
         AccountCapability.SharedMailboxes => L10n.AccountUseSharedMailboxes(),
+        AccountCapability.Meetings => L10n.AccountUseMeetings(),
         _ => L10n.NavMail(),
     };
 

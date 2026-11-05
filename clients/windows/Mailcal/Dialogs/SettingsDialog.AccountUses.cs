@@ -47,8 +47,8 @@ public sealed partial class SettingsDialog
             row.Children.Add(review);
         }
 
-        // Switching off deletes what the device holds of the use, so it is asked first; cancelling
-        // puts the switch back.
+        // Switching off deletes what the device holds of the use, so it is asked first, where the
+        // device holds anything of it; cancelling puts the switch back.
         var confirm = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
         confirm.Children.Add(Heading(L10n.AccountUseOffTitle(UseName(capability))));
         confirm.Children.Add(new TextBlock { Text = L10n.AccountUseOffMessage(), TextWrapping = TextWrapping.Wrap });
@@ -72,9 +72,9 @@ public sealed partial class SettingsDialog
                 // Chosen, and waiting on the provider: switching it on asks again.
                 _ = SignInAgainFromPageAsync(entry, [capability]);
             }
-            else if (toggle.IsOn)
+            else if (toggle.IsOn || !AccountSettingsRules.ConfirmsOff(capability))
             {
-                _ = SetUseAsync(entry, capability, true);
+                _ = SetUseAsync(entry, capability, toggle.IsOn);
             }
             else
             {
