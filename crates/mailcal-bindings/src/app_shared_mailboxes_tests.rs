@@ -64,3 +64,17 @@ fn a_server_that_did_not_answer_still_shows_what_the_account_is_used_for() {
     assert_eq!(view.support, SharedMailboxSupport::Unreachable);
     assert_eq!(handles(&view), [("b", true, true)]);
 }
+
+#[test]
+fn an_account_not_used_for_mail_opens_no_shared_mailbox() {
+    let server = crate::nextcloud_mock::mock_nextcloud(Vec::new());
+    let calendar = format!(
+        "[caldav]\nbase_url = \"{}/dav/cal/\"\nusername = \"alice\"\npassword = \"typed\"\n",
+        server.base
+    );
+    let (app, _) = crate::nextcloud_mock::boot("shared-calendar-only", vec![calendar]);
+    let entry = app.accounts_snapshot().accounts.remove(0);
+    let view = app.shared_mailboxes(entry.id).unwrap();
+    assert_eq!(view.support, SharedMailboxSupport::Unsupported);
+    assert!(view.mailboxes.is_empty());
+}
