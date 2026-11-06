@@ -74,6 +74,16 @@ internal val EventEditorState.showsMeetingRow: Boolean
     get() = calendar?.meetingChoices.orEmpty().isNotEmpty() || editing?.meeting != null
 
 /**
+ * Whether the row says the link is added at the save: it holds a choice the event does not have
+ * yet, which is made only when the event is saved (rule 10).
+ */
+internal val EventEditorState.announcesMeeting: Boolean
+    get() {
+        val effective = effectiveMeeting
+        return effective is MeetingSelection.Choice && effective != openedMeeting
+    }
+
+/**
  * The pick a save reads: one the chosen calendar does not offer goes back to None when the
  * calendar changes (rule 9), unless it is what the editor opened with.
  */

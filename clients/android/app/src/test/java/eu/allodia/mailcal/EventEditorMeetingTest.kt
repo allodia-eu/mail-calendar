@@ -89,6 +89,24 @@ class EventEditorMeetingTest {
     }
 
     @Test
+    fun a_choice_the_event_does_not_have_yet_says_the_link_comes_at_the_save() {
+        val editor = EventEditorState.create(calendar(listOf(TEAMS, JITSI)), "UTC", NOW)
+        assertFalse(editor.announcesMeeting)
+        editor.meeting = MeetingSelection.Choice("server:teams")
+        assertTrue(editor.announcesMeeting)
+        editor.meeting = MeetingSelection.None
+        assertFalse(editor.announcesMeeting)
+
+        val opened = editing(EditorMeeting("Microsoft Teams", "server:teams"), listOf(TEAMS, JITSI))
+        assertFalse("the event already has this meeting", opened.announcesMeeting)
+        opened.meeting = MeetingSelection.Choice("jitsi")
+        assertTrue(opened.announcesMeeting)
+
+        val elsewhere = editing(EditorMeeting("Zoom", null), listOf(JITSI))
+        assertFalse(elsewhere.announcesMeeting)
+    }
+
+    @Test
     fun an_edit_opens_on_the_meeting_and_leaves_it_alone_until_the_row_changes() {
         val editor = editing(EditorMeeting("Microsoft Teams", "server:teams"), listOf(TEAMS, JITSI))
         assertEquals(MeetingSelection.Choice("server:teams"), editor.meeting)
