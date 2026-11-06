@@ -74,7 +74,45 @@ pub(crate) fn meeting_choices(calendar: &CachedCalendar, jitsi: bool) -> Vec<Mee
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct JitsiServerRefused;
 
+/// The accounts in `accounts` used for video meetings, as every calendar row offers them.
+pub(crate) fn account_meetings<P: Provider>(accounts: &[Arc<Account<P>>]) -> Vec<AccountMeetings> {
+    accounts
+        .iter()
+        .filter_map(|account| {
+            let maker = account.meetings.as_ref()?;
+            Some(AccountMeetings {
+                account: account.id.clone(),
+                address: account.identity.email.clone(),
+                service: maker.service(),
+            })
+        })
+        .collect()
+}
+
 impl<P: Provider> App<P> {
+    /// Gives every cached calendar the accounts used for video meetings now, signalling the
+    /// calendar where that changed. An account's meeting service comes and goes with its
+    /// connection, while the cache is otherwise rebuilt after a calendar sync, which follows a
+    /// dial by as long as the slowest server takes; this reads no store, so it runs on every
+    /// change to the account list.
+    pub(crate) async fn refresh_account_meetings(&self) {
+        let now = account_meetings(&self.account_handles().await);
+        let changed = {
+            let mut cache = self.calendar_cache.lock().expect("calendar cache poisoned");
+            let mut changed = false;
+            for calendar in &mut cache.calendars {
+                if calendar.account_meetings != now {
+                    calendar.account_meetings.clone_from(&now);
+                    changed = true;
+                }
+            }
+            changed
+        };
+        if changed {
+            self.calendar.resignal();
+        }
+    }
+
     /// Whether `account` can put a video meeting on an event: its calendar is written, and its
     /// provider writes meetings.
     pub(crate) fn account_writes_meetings(account: &Account<P>) -> bool {

@@ -258,3 +258,61 @@ async fn taking_a_meeting_off_leaves_it_at_its_service() {
     ));
     assert!(talk.deleted.lock().unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn an_accounts_meetings_come_and_go_with_its_connection_without_a_calendar_sync() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let talk = Arc::new(Talk::default());
+    let cloud = calendar_account("cloud", CalendarFake::writing_meetings(vec![], &[]));
+    let work = calendar_account("work", CalendarFake::writing_meetings(vec![], &[]));
+    let app = calendar_app(vec![cloud, work], &surfaces);
+    app.dispatch(Intent::RefreshCalendar).await;
+    assert_eq!(choices(&app, "work"), Vec::new());
+
+    let connected = |surfaces: &Mutex<Vec<crate::Surface>>| {
+        std::mem::take(&mut *surfaces.lock().unwrap()).contains(&crate::Surface::Calendar)
+    };
+    connected(&surfaces);
+    let fake = CalendarFake::writing_meetings(vec![], &[]);
+    app.add_account_deferred(meeting_account("cloud", fake, &talk))
+        .await;
+    assert_eq!(
+        choices(&app, "work"),
+        [(
+            "account:nextcloud-talk:cloud".to_owned(),
+            Some("me@cloud.local".to_owned())
+        )],
+        "offered as soon as the account connects, not after the next calendar sync"
+    );
+    assert!(
+        connected(&surfaces),
+        "and the calendar is told to pull its rows again"
+    );
+
+    let fake = CalendarFake::writing_meetings(vec![], &[]);
+    app.add_account_deferred(calendar_account("cloud", fake))
+        .await;
+    assert!(
+        choices(&app, "work").is_empty(),
+        "a connection without meetings takes them off"
+    );
+    assert!(connected(&surfaces));
+
+    let fake = CalendarFake::writing_meetings(vec![], &[]);
+    app.add_account_deferred(meeting_account("cloud", fake, &talk))
+        .await;
+    app.remove_account(&"cloud".try_into().unwrap()).await;
+    assert!(
+        choices(&app, "work").is_empty(),
+        "a removed account makes no meeting"
+    );
+
+    connected(&surfaces);
+    let fake = CalendarFake::writing_meetings(vec![], &[]);
+    app.add_account_deferred(calendar_account("work", fake))
+        .await;
+    assert!(
+        !connected(&surfaces),
+        "a connection that changes no choice redraws nothing"
+    );
+}

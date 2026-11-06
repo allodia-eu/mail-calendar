@@ -96,7 +96,10 @@ nobody has to dig a link out of the notes.
     service the calendar's own server makes is offered as the server's only: a Microsoft calendar
     lists its own Teams, not Teams through its account as well. An event's Teams or Talk meeting
     that its server did not make opens the editor on the choice through an account when exactly
-    one account offers that service, and is otherwise a meeting no choice makes (rule 11).
+    one account offers that service, and is otherwise a meeting no choice makes (rule 11). The
+    choice follows the account's connection, not the calendar's sync: it is offered once the
+    account connects with its meeting service, and goes once it connects without one or is
+    removed.
 15. **A meeting made through an account is made before the event is written**, from the event's
     title and times and nothing else: no invitees, no notes, no location. The event is then
     written with it attached, as one made elsewhere (rule 12). If the meeting cannot be made,

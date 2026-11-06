@@ -99,6 +99,7 @@ impl<P: Provider> App<P> {
     pub async fn add_account(&self, account: Account<P>) {
         let id = account.id.clone();
         let replaced = self.install_account(account).await;
+        self.refresh_account_meetings().await;
         if !replaced {
             self.set_account_sync_depth(id.as_str(), new_account_sync_depth_months())
                 .await;
@@ -123,6 +124,7 @@ impl<P: Provider> App<P> {
     /// creation isn't blocked on downloading everything.
     pub async fn add_account_deferred(&self, account: Account<P>) {
         self.install_account(account).await;
+        self.refresh_account_meetings().await;
         self.rebuild_snapshot().await;
         self.observer.surface_changed(Surface::Settings);
     }
@@ -185,6 +187,7 @@ impl<P: Provider> App<P> {
             ..account
         });
         drop(accounts);
+        self.refresh_account_meetings().await;
         self.observer.surface_changed(Surface::Settings);
         UsesReplaced::Replaced
     }
@@ -214,6 +217,7 @@ impl<P: Provider> App<P> {
             let mut accounts = self.accounts.write().await;
             accounts.retain(|existing| existing.id != *id);
         }
+        self.refresh_account_meetings().await;
         {
             let mut scope = self.scope.lock().expect("scope mutex poisoned");
             if scope.names(id) {
