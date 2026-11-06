@@ -27,8 +27,7 @@ import androidx.compose.ui.unit.dp
 // The editor's Video meeting row (docs/conferencing.md, rules 9 to 11): the label and the current
 // pick, laid out like the calendar row above it, opening a menu of what the calendar offers, and
 // beneath it, while it holds a choice the event does not have yet, that the link comes at the save
-// (rule 10). The
-// decisions are EventEditorMeeting.kt's; this only draws them.
+// (rule 10). The decisions are EventEditorMeeting.kt's; this only draws them.
 
 /**
  * The words an option is shown by: the service's brand name, with the account that makes it for a
