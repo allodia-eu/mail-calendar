@@ -29,9 +29,10 @@ public sealed partial class MailboxModel
     /// </summary>
     /// <remarks>
     /// The read is a network round trip and the core call blocks on it, so it goes off the UI
-    /// thread exactly as the sign-in and sync passes do. A failure is classified from
-    /// <see cref="AllodiaGrantHealth"/> rather than from its own text, because a sign-in older
-    /// than the permission this needs is an offer with a remedy and an outage is not.
+    /// thread exactly as the sign-in and sync passes do. A failure is classified by
+    /// <see cref="AllodiaSubscriptionCard.ReadFailure"/> from the core's typed error rather than
+    /// from its text, because a sign-in older than the permission this needs and a grant the
+    /// service refused are each remedied by signing in, and only an outage by waiting.
     /// </remarks>
     internal async Task<AllodiaSubscriptionCardState> ReadAllodiaSubscriptionAsync()
     {
@@ -49,8 +50,7 @@ public sealed partial class MailboxModel
             // Never who, and never what they pay: a log line describes the user's mail and names
             // no address (docs/logging.md), and this file is what a support request arrives with.
             Log.Info($"allodia: the subscription read did not come back ({CoreError.Describe(ex)})");
-            return new AllodiaSubscriptionCardState(
-                AllodiaSubscriptionCard.ReadFailure(AllodiaGrantHealth));
+            return new AllodiaSubscriptionCardState(AllodiaSubscriptionCard.ReadFailure(ex));
         }
     }
 

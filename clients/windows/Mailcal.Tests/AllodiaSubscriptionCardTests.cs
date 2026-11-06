@@ -6,6 +6,7 @@
 // says somebody is being charged twice by it, which is the warning this contract reserves for
 // when it is true. None of it is reachable from a screenshot or from UI Automation.
 
+using System;
 using System.Linq;
 using Allodia.Mailcal.Services;
 using uniffi.mailcal_bindings;
@@ -22,13 +23,34 @@ public class AllodiaSubscriptionCardTests
         // did not come back may not decide the sentence on its own.
         Assert.Equal(
             AllodiaSubscriptionStatus.NeedsReauth,
-            AllodiaSubscriptionCard.ReadFailure(AllodiaGrantHealth.NeedsReauth));
+            AllodiaSubscriptionCard.ReadFailure(new AllodiaPurchaseException.NeedsReauth()));
         Assert.Equal(
             AllodiaSubscriptionStatus.Unavailable,
-            AllodiaSubscriptionCard.ReadFailure(AllodiaGrantHealth.Ok));
+            AllodiaSubscriptionCard.ReadFailure(new AllodiaPurchaseException.Unreachable()));
+    }
+
+    [Fact]
+    public void AGrantTheServiceRefusedIsASignInThatEndedAndNotAnOutage()
+    {
+        // The outage sentence tells somebody to wait, and waiting never brings a refused grant
+        // back; the account card says the sign-in has ended and offers it again.
+        Assert.Equal(
+            AllodiaSubscriptionStatus.SignedOut,
+            AllodiaSubscriptionCard.ReadFailure(new AllodiaPurchaseException.SignedOut()));
+    }
+
+    [Fact]
+    public void AnythingElseThatDidNotComeBackIsTheQuietOutage()
+    {
         Assert.Equal(
             AllodiaSubscriptionStatus.Unavailable,
-            AllodiaSubscriptionCard.ReadFailure(AllodiaGrantHealth.SignedOut));
+            AllodiaSubscriptionCard.ReadFailure(new AllodiaPurchaseException.Unavailable()));
+        Assert.Equal(
+            AllodiaSubscriptionStatus.Unavailable,
+            AllodiaSubscriptionCard.ReadFailure(new AllodiaPurchaseException.NotSignedIn()));
+        Assert.Equal(
+            AllodiaSubscriptionStatus.Unavailable,
+            AllodiaSubscriptionCard.ReadFailure(new InvalidOperationException("not the core's")));
     }
 
     [Fact]

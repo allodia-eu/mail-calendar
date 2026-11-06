@@ -148,3 +148,161 @@ fn resubscribing_crosses_as_either_restarted_or_a_page() {
         Some("https://pay.example.com/abc")
     );
 }
+
+/// A grant the service refused outright, signed in on this device and alive nowhere else.
+#[cfg(feature = "allodia-license")]
+fn signed_in(app: &MailcalApp) {
+    *app.allodia.lock().unwrap() = Some(crate::allodia::StoredAccount {
+        id: None,
+        email: "person@example.test".to_owned(),
+        name: None,
+        refresh_token: "RT".to_owned(),
+        granted_scopes: None,
+        end_session_endpoint: None,
+    });
+}
+
+/// A token the service would not mint because it refused the grant is a sign-in to make again,
+/// and the account screen says so; it is never the outage sentence, which tells somebody to wait
+/// for something that waiting cannot bring back.
+#[cfg(feature = "allodia-license")]
+#[test]
+fn a_refused_grant_is_signed_out_and_not_an_outage() {
+    use crate::AllodiaGrantHealth;
+
+    let app = app();
+    signed_in(&app);
+    app.note_allodia_health(AllodiaGrantHealth::SignedOut);
+
+    assert!(matches!(
+        app.allodia_mint_failure(),
+        AllodiaPurchaseError::SignedOut
+    ));
+}
+
+/// A refresh refused for a scope the grant never had (`invalid_scope`) is the offer to sign in
+/// again, never the outage: a client switches on this error alone, so an `Unreachable` here would
+/// tell somebody to wait for a permission that waiting cannot bring.
+#[cfg(feature = "allodia-license")]
+#[test]
+fn a_narrowed_grant_that_could_not_refresh_offers_a_fresh_sign_in() {
+    use crate::AllodiaGrantHealth;
+
+    let app = app();
+    signed_in(&app);
+    app.note_allodia_health(AllodiaGrantHealth::NeedsReauth);
+
+    assert!(matches!(
+        app.allodia_mint_failure(),
+        AllodiaPurchaseError::NeedsReauth
+    ));
+}
+
+/// A mint that failed with nothing learned about the grant is the outage it looks like.
+#[cfg(feature = "allodia-license")]
+#[test]
+fn a_mint_that_learned_nothing_is_an_outage() {
+    let app = app();
+    signed_in(&app);
+
+    assert!(matches!(
+        app.allodia_mint_failure(),
+        AllodiaPurchaseError::Unreachable
+    ));
+}
+
+/// A token the service took and then refused at the API is the same answer as one it would not
+/// mint: the grant is gone.
+#[cfg(feature = "allodia-license")]
+#[test]
+fn a_token_the_api_refused_is_signed_out() {
+    use crate::AllodiaGrantHealth;
+
+    let app = app();
+    signed_in(&app);
+
+    let drawn = app.classify_allodia_failure(&allodia_license::Error::Unauthorized);
+
+    assert!(matches!(drawn, AllodiaPurchaseError::SignedOut));
+    assert_eq!(app.allodia_grant_health(), AllodiaGrantHealth::SignedOut);
+}
+
+/// Signing out leaves no grant to have an opinion about, so the next sign-in starts from nothing
+/// known to be wrong rather than inheriting the refusal of the grant it replaces.
+#[cfg(feature = "allodia-license")]
+#[test]
+fn signing_out_forgets_what_was_known_about_the_grant() {
+    use crate::AllodiaGrantHealth;
+
+    let app = app();
+    signed_in(&app);
+    app.note_allodia_health(AllodiaGrantHealth::SignedOut);
+
+    // The demo store refuses the erase; the account is forgotten in memory either way.
+    let _ = app.sign_out_of_allodia();
+
+    assert_eq!(app.allodia_grant_health(), AllodiaGrantHealth::Ok);
+}
+
+/// Whether a connectivity signal reaches the host within a moment, draining everything sent.
+#[cfg(feature = "allodia-license")]
+fn connectivity_signalled(rx: &mpsc::Receiver<crate::Surface>) -> bool {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    let mut seen = false;
+    while let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) {
+        match rx.recv_timeout(left) {
+            Ok(crate::Surface::Connectivity) => seen = true,
+            Ok(_) => {}
+            Err(_) => break,
+        }
+        if seen {
+            break;
+        }
+    }
+    seen
+}
+
+/// A refused sign-in is said where the person already looks, beside the mail accounts' own sign-in
+/// prompts, and not only on a Settings page nobody opens unprompted. Signing out takes it down,
+/// because there is then no sign-in to have ended.
+#[cfg(feature = "allodia-license")]
+#[test]
+fn a_refused_sign_in_raises_the_banner_and_signing_out_takes_it_down() {
+    use crate::AllodiaGrantHealth;
+
+    let (tx, rx) = mpsc::channel();
+    let app = MailcalApp::new_demo(
+        Box::new(ChannelObserver { tx }),
+        Box::new(NullLogger),
+        LogLevel::Info,
+        "Etc/UTC".to_owned(),
+    );
+    signed_in(&app);
+    assert_eq!(app.connectivity().allodia_sign_in_ended, None);
+    while rx.try_recv().is_ok() {}
+
+    app.note_allodia_health(AllodiaGrantHealth::SignedOut);
+    assert_eq!(
+        app.connectivity().allodia_sign_in_ended.as_deref(),
+        Some("person@example.test"),
+    );
+    assert!(connectivity_signalled(&rx), "the host is told to redraw");
+
+    let _ = app.sign_out_of_allodia();
+    assert_eq!(app.connectivity().allodia_sign_in_ended, None);
+    assert!(connectivity_signalled(&rx), "and told again when it clears");
+}
+
+/// A grant that is alive but narrower than this build wants is an offer on the account screen,
+/// never a standing banner.
+#[cfg(feature = "allodia-license")]
+#[test]
+fn a_narrowed_grant_raises_no_banner() {
+    use crate::AllodiaGrantHealth;
+
+    let app = app();
+    signed_in(&app);
+    app.note_allodia_health(AllodiaGrantHealth::NeedsReauth);
+
+    assert_eq!(app.connectivity().allodia_sign_in_ended, None);
+}

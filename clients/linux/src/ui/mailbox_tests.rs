@@ -211,6 +211,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::allodia::tests::each_state_offers_exactly_one_action();
     crate::ui::settings::allodia::tests::signed_out_offers_creating_as_well_as_signing_in();
     crate::ui::settings::allodia::tests::a_signed_in_account_can_be_managed_deleted_and_left();
+    crate::ui::settings::allodia::tests::a_refused_sign_in_says_it_ended_and_offers_both_ways();
     crate::ui::settings::allodia::tests::neither_the_address_nor_the_failure_is_parsed_as_markup();
     crate::ui::settings::allodia::tests::every_card_row_is_reachable_from_the_keyboard();
     crate::ui::settings::subscription::tests::a_paid_account_names_its_biller_and_says_when();
@@ -278,6 +279,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     );
     crate::ui::separate_sign_in_view::tests::the_page_form_offers_the_sign_in_in_place();
     connectivity::the_banners_render_the_snapshot_and_keep_the_remedy_actionable();
+    crate::ui::connectivity::allodia_tests::the_allodia_banner_names_the_address_and_signs_in();
     crate::ui::unfiled_copy::tests::
         the_unfiled_copy_question_offers_both_answers_and_blocks_double_answers();
     // The ampersand has to sit in **both** halves. A property builder applies `use-markup` in

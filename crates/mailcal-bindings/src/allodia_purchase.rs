@@ -207,6 +207,11 @@ pub enum AllodiaPurchaseError {
         "this device's Allodia sign-in does not yet include permission to change a subscription"
     )]
     NeedsReauth,
+    /// The service refused the stored sign-in outright: revoked, expired, or the account removed
+    /// on another device. A client says the sign-in has ended and offers signing in again, never
+    /// the outage sentence, because waiting does not bring a refused grant back.
+    #[error("the account service refused this device's Allodia sign-in")]
+    SignedOut,
     /// The account service could not be reached. Nothing was learned and nothing was finished.
     #[error("the account service could not be reached")]
     Unreachable,

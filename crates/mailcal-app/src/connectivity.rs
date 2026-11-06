@@ -92,6 +92,12 @@ impl<P: Provider> App<P> {
         }
     }
 
+    /// Tells the host to read the connectivity snapshot again, for a layer above this crate that
+    /// adds a prompt of its own to the one it reads.
+    pub fn signal_connectivity(&self) {
+        self.observer.surface_changed(Surface::Connectivity);
+    }
+
     /// Marks `account` as needing calendar re-authentication (its OAuth grant lacks the calendar
     /// scope), signalling [`Surface::Connectivity`] only when the set actually changes. Mail is
     /// unaffected: a host shows a "reconnect to enable calendar" prompt, not an outage badge.

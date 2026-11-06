@@ -9,12 +9,28 @@ extension ContentView {
     /// stack does not move that stack's bar down, so a banner there covers the bar and its
     /// buttons.
     func bannered(_ content: some View) -> some View {
+        #if os(macOS)
+        // Stacked above the split view rather than inset into it: a safe-area inset around a
+        // split view reaches the sidebar but not the detail column, so a banner covered the
+        // mailbox's actions bar.
+        VStack(spacing: 0) {
+            folderNoticeBanner
+            accountNoticeBanner
+            allodiaSignInEndedBanner
+            signInExpiredBanner
+            mailReauthBanner
+            offlineBanner
+            content
+        }
+        #else
         content
             .safeAreaInset(edge: .top) { offlineBanner }
             .safeAreaInset(edge: .top) { mailReauthBanner }
             .safeAreaInset(edge: .top) { signInExpiredBanner }
+            .safeAreaInset(edge: .top) { allodiaSignInEndedBanner }
             .safeAreaInset(edge: .top) { accountNoticeBanner }
             .safeAreaInset(edge: .top) { folderNoticeBanner }
+        #endif
     }
 
     /// A persistent banner shown while the device has no network, so the user knows the mail on
@@ -123,6 +139,13 @@ extension ContentView {
             .padding(.vertical, 9)
             .bannerBackground()
             .overlay(alignment: .bottom) { Divider() }
+        }
+    }
+
+    /// Shown while the Allodia account service refuses the stored sign-in (`entitlement.md`).
+    @ViewBuilder var allodiaSignInEndedBanner: some View {
+        if let email = model.connectivity?.allodiaSignInEnded {
+            AllodiaSignInEndedBanner(model: model, email: email)
         }
     }
 

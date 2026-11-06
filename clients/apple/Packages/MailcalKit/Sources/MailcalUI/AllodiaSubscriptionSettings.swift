@@ -41,21 +41,28 @@ struct AllodiaSubscriptionSettings: View {
     @State private var writing = false
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(L10n.settings_subscription_heading()).font(.headline)
-                content
-                if let note {
-                    Text(note)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+        Group {
+            // A refused sign-in is the account card's to say. The read can answer before the
+            // connectivity signal reaches the card, so the section hides itself rather than
+            // drawing its heading over nothing in between.
+            if state != .signedOut {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(L10n.settings_subscription_heading()).font(.headline)
+                        content
+                        if let note {
+                            Text(note)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(6)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(6)
         }
-        .task { state = await model.allodiaSubscriptionState() }
+        .task { await reload() }
         .onDisappear {
             // **Letting go of the wait is not abandoning the purchase.** Whatever the store does
             // with it arrives on `Transaction.updates`, which starts a redemption pass of its own,
@@ -83,6 +90,9 @@ struct AllodiaSubscriptionSettings: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        case .signedOut:
+            // Never drawn: the section hides itself in this state (see `body`).
+            EmptyView()
         case .needsReauth:
             // An offer rather than an error: they are signed in and this one read is asleep, and
             // the ordinary sign-in asks for the full current scope set.
@@ -278,9 +288,15 @@ struct AllodiaSubscriptionSettings: View {
     private func signInAgain() {
         Task {
             if case .signedIn = await model.signInToAllodia() {
-                state = await model.allodiaSubscriptionState()
+                await reload()
             }
         }
+    }
+
+    /// Reads the section again. A refused sign-in raises the connectivity snapshot's field, which
+    /// the account card around this reads and takes this section away for.
+    private func reload() async {
+        state = await model.allodiaSubscriptionState()
     }
 
     /// One write: its answer into the note, then a re-read.
@@ -298,7 +314,7 @@ struct AllodiaSubscriptionSettings: View {
             let result = await write()
             writing = false
             note = allodiaWriteNote(result, currency: currency)
-            state = await model.allodiaSubscriptionState()
+            await reload()
         }
     }
 
@@ -316,7 +332,7 @@ struct AllodiaSubscriptionSettings: View {
             case .bought:
                 // Re-read rather than assume: what was bought is granted only once the account
                 // service has attached it, and this read is what says whether it has.
-                state = await model.allodiaSubscriptionState()
+                await reload()
             case .awaitingApproval:
                 note = L10n.settings_subscription_pending()
             // A dismissed sheet is not a failure. Say nothing and leave the button as it was.

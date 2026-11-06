@@ -353,6 +353,25 @@
                             Click="OnSignInExpired" />
                 </InfoBar.Content>
             </InfoBar>
+
+            <!-- The Allodia account's own sign-in, refused by the account service: the same news
+                 about the account that keeps the mail accounts in step across devices. Its button
+                 runs the ordinary Allodia sign-in; a grant merely narrower than this build wants
+                 never raises it. -->
+            <InfoBar Margin="16,8,16,0"
+                     IsOpen="{x:Bind Model.HasAllodiaSignInEnded, Mode=OneWay}"
+                     Visibility="{x:Bind Model.HasAllodiaSignInEnded, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                     IsClosable="False"
+                     Severity="Warning"
+                     AutomationProperties.AutomationId="AllodiaSignInEndedBanner"
+                     Message="{x:Bind Model.AllodiaSignInEndedText, Mode=OneWay}">
+                <InfoBar.Content>
+                    <Button Content="{x:Bind l10n:L10n.SigninExpiredAction(), Mode=OneTime}"
+                            Margin="0,8,0,12"
+                            AutomationProperties.AutomationId="AllodiaSignInEndedAction"
+                            Click="OnAllodiaSignInEnded" />
+                </InfoBar.Content>
+            </InfoBar>
         </StackPanel>
 
         <!-- Tap a row to open it in the reading pane (a flat row opens its message, a

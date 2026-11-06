@@ -104,8 +104,9 @@ impl MailcalApp {
     /// [`AllodiaPurchaseError::Unavailable`] in a build with no Allodia registration;
     /// [`AllodiaPurchaseError::NotSignedIn`] when there is no account to attach a purchase to;
     /// [`AllodiaPurchaseError::NeedsReauth`] when the stored sign-in predates the permission this
-    /// needs; [`AllodiaPurchaseError::Unreachable`] when no token could be minted. Nothing is
-    /// finished in any of those cases, which is what leaves the purchase recoverable.
+    /// needs; [`AllodiaPurchaseError::SignedOut`] when the service refused the stored sign-in;
+    /// [`AllodiaPurchaseError::Unreachable`] when no token could be minted for any other reason.
+    /// Nothing is finished in any of those cases, which is what leaves the purchase recoverable.
     pub fn link_allodia_purchases(
         &self,
         purchases: Vec<AllodiaStorePurchase>,
@@ -136,13 +137,9 @@ mod pass {
             &self,
             purchases: &[AllodiaStorePurchase],
         ) -> Result<AllodiaPurchaseReport, AllodiaPurchaseError> {
-            let token = self.allodia_access_token("a purchase").map_err(|_| {
-                if self.allodia.lock().expect("allodia account lock").is_none() {
-                    AllodiaPurchaseError::NotSignedIn
-                } else {
-                    AllodiaPurchaseError::Unreachable
-                }
-            })?;
+            let token = self
+                .allodia_access_token("a purchase")
+                .map_err(|_| self.allodia_mint_failure())?;
             // Asked after the token, because minting one is what learns the grant's scopes on an
             // install that never recorded them, and before the first request, because that request
             // cannot succeed and its refusal would read as the service being down.

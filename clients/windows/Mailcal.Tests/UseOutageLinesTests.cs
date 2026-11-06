@@ -127,5 +127,5 @@ public class UseOutageLinesTests
     }
 
     private static ConnectivitySnapshot Connectivity(UseOutage[] calendar, UseOutage[] contacts) =>
-        new(false, [], [], [], [], calendar, contacts);
+        new(false, [], [], [], [], calendar, contacts, AllodiaSignInEnded: null);
 }

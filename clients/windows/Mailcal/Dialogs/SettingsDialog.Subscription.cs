@@ -58,12 +58,22 @@ public sealed partial class SettingsDialog
 
     /// <summary>
     /// The subscription card, or <c>null</c> when nobody is signed in: a subscription belongs to
-    /// an account, and there is nothing to say about one that does not exist.
+    /// an account, and there is nothing to say about one that does not exist. Also <c>null</c> once
+    /// the service has refused the sign-in, which the account card says instead.
     /// </summary>
     private UIElement? BuildAllodiaSubscription()
     {
         if (_model.SignedInAllodiaAccount() is not { } account)
         {
+            return null;
+        }
+        // The read's own SignedOut answer hides it too: it can arrive a moment before the
+        // Connectivity signal that turns the account card above into the ended one.
+        if (AllodiaSessionEnded() || _subscription.Status == AllodiaSubscriptionStatus.SignedOut)
+        {
+            // Nothing to ask again: a read on a refused grant answers the same, so a return to the
+            // window is not a reason to make one.
+            _subscriptionAskedFor = null;
             return null;
         }
         // The read runs when the card first appears rather than when the app connects: it is a
@@ -160,6 +170,9 @@ public sealed partial class SettingsDialog
         // An offer rather than an error: they are signed in and this one read is asleep, and the
         // ordinary sign-in asks for the full current scope set.
         AllodiaSubscriptionStatus.NeedsReauth => Reauth(),
+        // Never reached: BuildAllodiaSubscription builds no card on this answer, and the account
+        // card says the sign-in ended.
+        AllodiaSubscriptionStatus.SignedOut => new StackPanel(),
         _ => Answered(_subscription.Subscription!),
     };
 

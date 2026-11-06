@@ -372,7 +372,7 @@ internal fun MainActivity.completeJmapReauth(accountId: String, callbackUrl: Str
 // What a failed re-authentication says on the mailbox screen: plain words, because the cause is an
 // OAuth protocol string that belongs in the log, not in front of anyone. The banner is still up
 // (the core leaves the prompt raised on every failure), so the retry is one tap away.
-private fun MainActivity.toastSignInFailed(said: String) {
+internal fun MainActivity.toastSignInFailed(said: String) {
     android.widget.Toast
         .makeText(this, said, android.widget.Toast.LENGTH_LONG)
         .show()

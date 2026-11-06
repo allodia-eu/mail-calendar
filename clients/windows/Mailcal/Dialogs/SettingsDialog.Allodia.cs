@@ -27,6 +27,9 @@ public sealed partial class SettingsDialog
     private bool _allodiaSigningIn;
     // What the last sign-in or sign-out failure says, or null.
     private string? _allodiaFailure;
+    // Whether the panel on screen was drawn with the sign-in ended, so a Connectivity signal
+    // redraws it only when that moved.
+    private bool _allodiaEndedDrawn;
 
     // The card, or null in a build that carries no Allodia registration, which is the ordinary
     // answer for a build from source, and draws nothing at all rather than a dead button.
@@ -36,6 +39,7 @@ public sealed partial class SettingsDialog
         {
             return null;
         }
+        _allodiaEndedDrawn = AllodiaSessionEnded();
         var panel = new StackPanel { Spacing = 6 };
         panel.Children.Add(Heading(L10n.SettingsAllodiaHeading()));
         panel.Children.Add(Description(L10n.SettingsAllodiaDescription()));
@@ -57,7 +61,8 @@ public sealed partial class SettingsDialog
         return panel;
     }
 
-    // Signing in → progress and Cancel; signed in → who, and a way out; otherwise → Sign in.
+    // Signing in → progress and Cancel; signed in on a grant the service refused → that the
+    // sign-in ended, and the two ways on; signed in → who, and a way out; otherwise → Sign in.
     private UIElement AllodiaState()
     {
         if (_allodiaSigningIn)
@@ -73,6 +78,10 @@ public sealed partial class SettingsDialog
         var panel = new StackPanel { Spacing = 6 };
         if (_model.SignedInAllodiaAccount() is { } account)
         {
+            if (AllodiaSessionEnded())
+            {
+                return AllodiaEnded(account.Email);
+            }
             // The name is what the person recognises, but the address is what identifies the
             // account, so the address is always shown, and the name only when the service holds
             // one.
@@ -91,12 +100,7 @@ public sealed partial class SettingsDialog
             var delete = new Button { Content = L10n.SettingsAllodiaDelete() };
             delete.Click += (_, _) => _model.OpenAllodiaAccountPage();
             panel.Children.Add(delete);
-            var signOut = new Button { Content = L10n.SettingsAllodiaSignOut() };
-            // The account is forgotten in memory whatever the store does, so the rebuild re-reads
-            // rather than assuming: a delete that failed leaves the app signed out and says why.
-            signOut.Click += (_, _) => Apply(() =>
-                _allodiaFailure = _model.SignOutOfAllodia() is { } failed ? L10n.SettingsAllodiaFailed(failed) : null);
-            panel.Children.Add(signOut);
+            panel.Children.Add(AllodiaSignOutButton());
             return panel;
         }
         // Both routes. Someone who has no account and someone returning to one need different
@@ -111,6 +115,56 @@ public sealed partial class SettingsDialog
         buttons.Children.Add(create);
         panel.Children.Add(buttons);
         return panel;
+    }
+
+    // Whether the service refused this device's stored grant: the same answer the mail list's
+    // banner draws, from the connectivity snapshot.
+    private bool AllodiaSessionEnded() => _model.HasAllodiaSignInEnded;
+
+    // The core raises Connectivity when a refusal is learned or cleared, usually by the
+    // subscription read this panel made, so the open panel is drawn again when that moved.
+    private void OnAllodiaSignInMoved()
+    {
+        if (_rebuilding || CurrentCategory() != "allodia" || AllodiaSessionEnded() == _allodiaEndedDrawn)
+        {
+            return;
+        }
+        // Cleared: the refused read it remembers no longer says anything, so the card asks again.
+        if (_allodiaEndedDrawn)
+        {
+            ForgetAllodiaSubscriptionRead();
+        }
+        ShowCategory("allodia");
+    }
+
+    // In place of the signed-in card, and without Manage account: the page would ask for a sign-in
+    // too. The stored grant is kept until the person acts, which is what still names the address.
+    private UIElement AllodiaEnded(string email)
+    {
+        var panel = new StackPanel { Spacing = 6 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = L10n.SettingsAllodiaSessionEnded(email),
+            TextWrapping = TextWrapping.Wrap,
+        });
+        panel.Children.Add(Description(L10n.SettingsAllodiaSessionEndedHint()));
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var again = new Button { Content = L10n.SettingsAllodiaReauthAction() };
+        again.Click += (_, _) => StartAllodiaSignIn(create: false);
+        buttons.Children.Add(again);
+        buttons.Children.Add(AllodiaSignOutButton());
+        panel.Children.Add(buttons);
+        return panel;
+    }
+
+    private Button AllodiaSignOutButton()
+    {
+        var signOut = new Button { Content = L10n.SettingsAllodiaSignOut() };
+        // The account is forgotten in memory whatever the store does, so the rebuild re-reads
+        // rather than assuming: a delete that failed leaves the app signed out and says why.
+        signOut.Click += (_, _) => Apply(() =>
+            _allodiaFailure = _model.SignOutOfAllodia() is { } failed ? L10n.SettingsAllodiaFailed(failed) : null);
+        return signOut;
     }
 
     private void StartAllodiaSignIn(bool create)

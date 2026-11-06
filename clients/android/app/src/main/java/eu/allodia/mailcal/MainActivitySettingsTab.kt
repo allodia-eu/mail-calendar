@@ -114,6 +114,7 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                                 account = allodiaAccount,
                                 signingIn = signingInAllodia,
                                 failure = allodiaFailure,
+                                signInEnded = connectivity?.allodiaSignInEnded != null,
                             ),
                             onAllodiaSignIn = { signInToAllodia() },
                             onAllodiaCreate = { registerAllodiaAccount() },

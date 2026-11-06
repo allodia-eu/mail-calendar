@@ -20,6 +20,7 @@ impl fmt::Debug for AppInput {
             Self::AcceptDeviceTimeZone => "AcceptDeviceTimeZone",
             Self::DismissDeviceTimeZone => "DismissDeviceTimeZone",
             Self::ResolveExpiredSignIn => "ResolveExpiredSignIn",
+            Self::ResolveAllodiaSignInEnded => "ResolveAllodiaSignInEnded",
             Self::ResolveMailReauth => "ResolveMailReauth",
             Self::ResolveCalendarReauth => "ResolveCalendarReauth",
             Self::ShowMail => "ShowMail",

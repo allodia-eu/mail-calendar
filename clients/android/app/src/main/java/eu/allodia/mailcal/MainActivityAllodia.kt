@@ -80,7 +80,7 @@ private fun MainActivity.beginAllodia(create: Boolean) {
                 if (activity.allodiaAttempt != attempt) return@post
                 activity.signingInAllodia = false
                 activity.allodiaSignInSlow = false
-                activity.allodiaFailure = allodiaFailureSaid(e, activity)
+                activity.allodiaSignInFailed(e)
             }
         }
     }
@@ -121,6 +121,12 @@ internal fun MainActivity.completeAllodiaSignIn(callbackUrl: String) {
             logUiInfo("allodia: signed in")
             activity.mainHandler.post {
                 activity.allodiaAccount = account
+                // The read that found a refused grant left nothing to draw, and the card is
+                // about to appear again under an account that has one.
+                if (activity.allodiaSubscription.state == AllodiaSubscriptionState.SignedOut) {
+                    activity.allodiaSubscription =
+                        activity.allodiaSubscription.copy(state = AllodiaSubscriptionState.Checking)
+                }
                 activity.allodiaFailure = null
                 activity.signingInAllodia = false
                 activity.allodiaSignInSlow = false
@@ -138,9 +144,19 @@ internal fun MainActivity.completeAllodiaSignIn(callbackUrl: String) {
             activity.mainHandler.post {
                 activity.signingInAllodia = false
                 activity.allodiaSignInSlow = false
-                activity.allodiaFailure = allodiaFailureSaid(e, activity)
+                activity.allodiaSignInFailed(e)
             }
         }
+    }
+}
+
+// Where a sign-in that did not complete is reported. Settings' card draws [allodiaFailure]; away
+// from Settings it was the refused-sign-in banner that started it, and that reports the way the
+// mail accounts' banner does. A dismissed browser never reaches here.
+private fun MainActivity.allodiaSignInFailed(e: Exception) {
+    allodiaFailure = allodiaFailureSaid(e, this)
+    if (!showingSettings && connectivity?.allodiaSignInEnded != null) {
+        toastSignInFailed(L10n.signin_expired_failed(this))
     }
 }
 

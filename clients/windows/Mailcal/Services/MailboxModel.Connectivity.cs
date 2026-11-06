@@ -90,6 +90,7 @@ public sealed partial class MailboxModel
                 id, AskedName(id), _app?.AccountProvider(id), listed.Any(entry => entry.Id == id && entry.Nextcloud)))
             .ToList();
         UpdateUseOutages(connectivity);
+        UpdateAllodiaSignInEnded(connectivity);
         Raise(nameof(IsOffline));
         Raise(nameof(HasConnectionIssues));
         Raise(nameof(ConnectionIssuesText));

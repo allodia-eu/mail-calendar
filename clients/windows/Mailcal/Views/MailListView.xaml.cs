@@ -297,4 +297,6 @@ public sealed partial class MailListView : UserControl
     // account's provider; the button is hidden for a password/JMAP account (there is no browser
     // flow to run), whose message points at Settings instead.
     private void OnSignInExpired(object sender, RoutedEventArgs e) => Model?.ReconnectExpiredSignIn();
+
+    private void OnAllodiaSignInEnded(object sender, RoutedEventArgs e) => Model?.SignInToAllodiaFromBanner();
 }

@@ -46,6 +46,9 @@ pub(in crate::ui) struct SettingsState {
     /// it: the Settings card offers its way out from the first frame.
     pub(in crate::ui) allodia_sign_in_slow: bool,
     pub(in crate::ui) allodia_failure: Option<String>,
+    /// The outstanding hop was started from the connectivity banner, which then says a failure
+    /// itself: Settings, where `allodia_failure` is drawn, may not be open.
+    pub(in crate::ui) allodia_sign_in_from_banner: bool,
     /// What the person's other devices have to say about their mail accounts. Here for the same
     /// reason as the two above: a pass outlives several window rebuilds.
     pub(in crate::ui) allodia_sync: crate::ui::allodia_sync::AllodiaSyncState,
@@ -80,6 +83,7 @@ impl Default for SettingsState {
             allodia_signing_in: false,
             allodia_sign_in_slow: false,
             allodia_failure: None,
+            allodia_sign_in_from_banner: false,
             allodia_sync: crate::ui::allodia_sync::AllodiaSyncState::default(),
             allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
             account: None,

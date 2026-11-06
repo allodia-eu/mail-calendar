@@ -17,7 +17,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import uniffi.mailcal_bindings.AllodiaGrantHealth
 import uniffi.mailcal_bindings.AllodiaPlan
 import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.MailcalApp
@@ -62,25 +61,20 @@ internal fun MainActivity.refreshAllodiaSubscription() {
         // thread exactly as the sign-in and sync passes do.
         val answer =
             runCatching { withContext(Dispatchers.IO) { instance.allodiaSubscription() } }
-                .getOrNull()
-        if (answer == null) {
-            // ⚠️ **The core's typed answer decides what a failed read may say, never the
-            // failure's text.** A sign-in that predates the permission this read needs is an
-            // offer with a remedy, and drawing it as an outage tells somebody to wait for
-            // something that will never arrive.
-            val health = instance.allodiaGrantHealth()
-            logUiWarn("allodia: the subscription could not be read (grant is $health)")
-            allodiaSubscription = allodiaSubscription.copy(
-                state =
-                    if (health == AllodiaGrantHealth.NEEDS_REAUTH) {
-                        AllodiaSubscriptionState.NeedsReauth
-                    } else {
-                        AllodiaSubscriptionState.Unavailable
-                    },
-                accountId = instance.allodiaAccount()?.id,
-            )
-            return@launch
-        }
+                .getOrElse { error ->
+                    // ⚠️ **The core's typed answer decides what a failed read may say, never the
+                    // failure's text.** A sign-in that predates the permission this read needs is
+                    // an offer with a remedy, a grant the service refused is a sign-in that has
+                    // ended, and drawing either as an outage tells somebody to wait for something
+                    // that will never arrive.
+                    val state = allodiaSubscriptionReadFailed(error)
+                    logUiWarn("allodia: the subscription could not be read ($state)")
+                    allodiaSubscription = allodiaSubscription.copy(
+                        state = state,
+                        accountId = instance.allodiaAccount()?.id,
+                    )
+                    return@launch
+                }
         // Offers cost a round trip to the shop, so they are fetched only when they can be drawn.
         val offers = if (answer.entitled) emptyList() else purchases.offers()
         allodiaSubscription = allodiaSubscription.copy(

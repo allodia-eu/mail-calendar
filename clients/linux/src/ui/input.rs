@@ -53,6 +53,8 @@ pub(crate) enum AppInput {
     AcceptDeviceTimeZone,
     DismissDeviceTimeZone,
     ResolveExpiredSignIn,
+    /// The connectivity banner's Sign in again for a refused Allodia sign-in.
+    ResolveAllodiaSignInEnded,
     ResolveMailReauth,
     ResolveCalendarReauth,
     ShowMail,

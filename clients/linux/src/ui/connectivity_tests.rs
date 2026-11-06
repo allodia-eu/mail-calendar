@@ -36,6 +36,7 @@ fn snapshot() -> ConnectivitySnapshot {
             outage("mail", UseProblem::Unreachable),
         ],
         contacts_outages: vec![outage("mail", UseProblem::SignInRefused)],
+        allodia_sign_in_ended: None,
     }
 }
 
@@ -245,13 +246,8 @@ fn every_provider_routes_to_the_remedy_linux_currently_has() {
         account("i", "i@example.test"),
     ];
     let snapshot = ConnectivitySnapshot {
-        offline: false,
-        unreachable_accounts: Vec::new(),
-        calendar_reauth_accounts: Vec::new(),
-        mail_reauth_accounts: Vec::new(),
         signin_expired_accounts: vec!["m".to_owned(), "j".to_owned(), "i".to_owned()],
-        calendar_outages: Vec::new(),
-        contacts_outages: Vec::new(),
+        ..super::allodia_tests::quiet()
     };
     let provider = |id: &str| {
         Some(match id {

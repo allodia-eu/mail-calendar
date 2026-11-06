@@ -347,6 +347,9 @@
     <Compile Include="..\Mailcal\Services\AllodiaSubscriptionCard.cs" Link="Services\AllodiaSubscriptionCard.cs" />
     <Compile Include="..\Mailcal\Services\AllodiaSubscriptionFormat.cs" Link="Services\AllodiaSubscriptionFormat.cs" />
     <Compile Include="..\Mailcal\Services\AllodiaWriteResult.cs" Link="Services\AllodiaWriteResult.cs" />
+    <!-- What the banner a refused Allodia sign-in raises says (`entitlement.md`, the contract beside
+         the Allodia Licence). WinUI-free and L10n-free: the words arrive as parameters. -->
+    <Compile Include="..\Mailcal\Services\AllodiaSignInEndedBanner.cs" Link="Services\AllodiaSignInEndedBanner.cs" />
     <!-- What a new-mail pass puts on the desktop (docs/background-sync.md). WinUI-free and
          L10n-free on purpose, the words arrive as parameters and the toast itself is
          NewMailNotifier, because the contract's load-bearing rule, one notification per MESSAGE

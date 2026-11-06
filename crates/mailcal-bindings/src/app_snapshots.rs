@@ -183,11 +183,13 @@ impl MailcalApp {
             self.app.connectivity().into(),
             &self.app.every_use_problem(),
         );
-        crate::gmail_unreachable::with_unreachable_gmail(
+        let mut snapshot = crate::gmail_unreachable::with_unreachable_gmail(
             snapshot,
             &self.registry.facts(),
             mailcal_account::gmail_mail_route,
-        )
+        );
+        snapshot.allodia_sign_in_ended = self.allodia_sign_in_ended();
+        snapshot
     }
 
     /// The non-fatal account-connect diagnostics (account-prefixed, newline-joined), or
@@ -298,5 +300,19 @@ impl MailcalApp {
         self.runtime.spawn(async move {
             app.reset().await;
         });
+    }
+}
+
+impl MailcalApp {
+    /// The banner's address: see `ConnectivitySnapshot::allodia_sign_in_ended`.
+    fn allodia_sign_in_ended(&self) -> Option<String> {
+        #[cfg(not(feature = "allodia-license"))]
+        {
+            None
+        }
+        #[cfg(feature = "allodia-license")]
+        {
+            self.allodia_refused_address()
+        }
     }
 }

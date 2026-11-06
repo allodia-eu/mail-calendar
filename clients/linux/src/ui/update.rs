@@ -63,6 +63,9 @@ impl AppModel {
             AppInput::ResolveExpiredSignIn => {
                 self.resolve_expired_signin(sender.input_sender().clone());
             }
+            AppInput::ResolveAllodiaSignInEnded => {
+                self.resolve_allodia_sign_in_ended(sender.input_sender().clone());
+            }
             AppInput::ResolveMailReauth => {
                 self.resolve_permission_reauth(false, sender.input_sender().clone());
             }
