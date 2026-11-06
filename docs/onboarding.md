@@ -120,7 +120,10 @@ an account of their own linked to the mailbox (`add_linked_calendar_account`,
 [`accounts.md`](accounts.md) rule 18), and the link step then offers only what is still unlinked;
 a refused password is said under the field and keeps the step. Skip switches those uses off on the
 new account, so it does not open on a calendar that cannot connect; the account's page offers the
-same step later.
+same step later. **While Connect or Skip runs, a spinner turns beside the buttons** and the
+controls hold still. A connect can take half a minute, because the mailbox's calendar and contacts
+move to the new account and the mailbox is dialled again, and a form that only greys its controls
+for that long reads as one that hangs. The account page's form does the same.
 
 ## After the connect: linking another account
 
@@ -173,6 +176,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 | An empty answer says so, in words | 🚧 | ✅ | 🚧 | ✅ | ✅ |
 | Offers on a later add, not just the first | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
 | Set up takes the record's own route | 🚧 | 🚧 | 🚧 | ✅ | ✅ |
+| A spinner while the separate server's Connect or Skip runs | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The link step after the connect, with "Add another account" | ✅ | ✅ | ✅ | ✅ | ✅ |
 | What a JMAP account is used for, asked after its sign-in | ✅ | ✅ | ⬜ | ✅ | ✅ |
 | The link step for a JMAP server without a calendar, with the server found beside it | 🚧 | 🚧 | 🚧 | 🚧 | ✅ |
