@@ -90,27 +90,45 @@ pub(crate) fn account_meetings<P: Provider>(accounts: &[Arc<Account<P>>]) -> Vec
 }
 
 impl<P: Provider> App<P> {
-    /// Gives every cached calendar the accounts used for video meetings now, signalling the
-    /// calendar where that changed. An account's meeting service comes and goes with its
-    /// connection, while the cache is otherwise rebuilt after a calendar sync, which follows a
-    /// dial by as long as the slowest server takes; this reads no store, so it runs on every
-    /// change to the account list.
-    pub(crate) async fn refresh_account_meetings(&self) {
-        let now = account_meetings(&self.account_handles().await);
+    /// Gives every cached calendar what its account's connection allows now, signalling the
+    /// calendar where that changed. A connection comes and goes with a dial, while the cache is
+    /// otherwise rebuilt after a calendar sync, which follows the dial by as long as the slowest
+    /// server takes; this reads no store, so it runs on every change to the account list.
+    ///
+    /// The account list is read under its lock while the cache is written, as the rebuild does,
+    /// so a rebuild or a refresh that read the list before a change cannot store it after one.
+    pub(crate) async fn refresh_calendar_accounts(&self) {
+        let accounts = self.accounts.read().await;
         let changed = {
             let mut cache = self.calendar_cache.lock().expect("calendar cache poisoned");
-            let mut changed = false;
-            for calendar in &mut cache.calendars {
-                if calendar.account_meetings != now {
-                    calendar.account_meetings.clone_from(&now);
-                    changed = true;
-                }
-            }
-            changed
+            let before = cache.calendars.clone();
+            Self::apply_accounts(&mut cache.calendars, &accounts);
+            cache.calendars != before
         };
+        drop(accounts);
         if changed {
             self.calendar.resignal();
         }
+    }
+
+    /// Gives each of `calendars` what its account in `accounts` allows: whether it may be
+    /// written, organise a meeting and carry a video meeting, and the accounts that make video
+    /// meetings for it. A calendar whose account is gone is dropped.
+    pub(crate) fn apply_accounts(
+        calendars: &mut Vec<CachedCalendar>,
+        accounts: &[Arc<Account<P>>],
+    ) {
+        let meetings = account_meetings(accounts);
+        calendars.retain_mut(|calendar| {
+            let Some(account) = accounts.iter().find(|a| a.id.as_str() == calendar.account) else {
+                return false;
+            };
+            calendar.can_write = Self::account_can_write(account) && calendar.may_write;
+            calendar.can_invite = Self::account_can_invite(account);
+            calendar.writes_meetings = Self::account_writes_meetings(account) && calendar.may_write;
+            calendar.account_meetings.clone_from(&meetings);
+            true
+        });
     }
 
     /// Whether `account` can put a video meeting on an event: its calendar is written, and its
