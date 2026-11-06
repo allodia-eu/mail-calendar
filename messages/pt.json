@@ -1161,7 +1161,7 @@
 	"event_meeting_through": "{service} ({account})",
 	"event_meeting_added_on_save": "A ligação da reunião é adicionada quando guardar.",
 	"settings_category_videoconferencing": "Videoconferência",
-	"settings_category_videoconferencing_summary": "O seu servidor Jitsi para reuniões de vídeo",
+	"settings_category_videoconferencing_summary": "Reuniões através das suas contas e o seu servidor Jitsi",
 	"settings_jitsi_server": "Servidor Jitsi",
 	"settings_jitsi_server_hint": "Uma reunião Jitsi que adicione a um evento é uma sala neste servidor. Se o deixar vazio, nenhum calendário oferece o Jitsi.",
 	"settings_jitsi_server_invalid": "Introduza um endereço que comece por https:// e não contenha ? nem #.",

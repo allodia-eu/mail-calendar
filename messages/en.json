@@ -1161,7 +1161,7 @@
 	"event_meeting_through": "{service} ({account})",
 	"event_meeting_added_on_save": "The meeting link is added when you save.",
 	"settings_category_videoconferencing": "Videoconferencing",
-	"settings_category_videoconferencing_summary": "Your Jitsi server for video meetings",
+	"settings_category_videoconferencing_summary": "Meetings through your accounts and your Jitsi server",
 	"settings_jitsi_server": "Jitsi server",
 	"settings_jitsi_server_hint": "A Jitsi meeting you add to an event is a room on this server. Leave it empty and no calendar offers Jitsi.",
 	"settings_jitsi_server_invalid": "Enter an address that starts with https:// and has no ? or #.",

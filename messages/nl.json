@@ -1161,7 +1161,7 @@
 	"event_meeting_through": "{service} ({account})",
 	"event_meeting_added_on_save": "De vergaderlink wordt toegevoegd wanneer je opslaat.",
 	"settings_category_videoconferencing": "Videovergaderen",
-	"settings_category_videoconferencing_summary": "Je Jitsi-server voor videovergaderingen",
+	"settings_category_videoconferencing_summary": "Vergaderingen via je accounts en je Jitsi-server",
 	"settings_jitsi_server": "Jitsi-server",
 	"settings_jitsi_server_hint": "Een Jitsi-vergadering die je aan een afspraak toevoegt, is een ruimte op deze server. Laat je het leeg, dan biedt geen enkele agenda Jitsi aan.",
 	"settings_jitsi_server_invalid": "Voer een adres in dat met https:// begint en geen ? of # bevat.",
