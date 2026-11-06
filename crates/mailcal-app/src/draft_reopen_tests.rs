@@ -69,7 +69,9 @@ fn reply_document() -> ComposerDocument {
 
 /// The reopened draft, staged under `staging`: a directory of the calling test's own, since each
 /// test empties its directory first and the tests run in parallel.
-async fn resumed(staging: &str) -> (
+async fn resumed(
+    staging: &str,
+) -> (
     std::sync::Arc<crate::App<ThreadProvider>>,
     super::mail_fake::ProviderLogs,
 ) {
