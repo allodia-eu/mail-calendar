@@ -16,7 +16,8 @@ pub(super) type MeetingPick = Rc<RefCell<MeetingSelection>>;
 
 /// Appends the row beneath the calendar picker it follows. It is drawn only while that calendar
 /// offers a meeting or the event has one to take off, and is redrawn from the new calendar's
-/// choices when the picker changes, a pick the new calendar lacks going back to None.
+/// choices when the picker changes, a pick the new calendar lacks going back to None. Beneath it,
+/// while it holds a choice the event does not have yet, a line says the link comes at the save.
 pub(super) fn append_meeting_row(
     form: &gtk::Box,
     editor: &EventEditor,
@@ -31,6 +32,12 @@ pub(super) fn append_meeting_row(
     let choices = gtk::DropDown::from_strings(&[]);
     choices.update_property(&[AccessibleProperty::Label(l10n::event_video_meeting())]);
     section.append(&choices);
+    let on_save = gtk::Label::new(Some(l10n::event_meeting_added_on_save()));
+    on_save.set_xalign(0.0);
+    on_save.set_wrap(true);
+    on_save.add_css_class("dim-label");
+    on_save.add_css_class("caption");
+    section.append(&on_save);
     form.append(&section);
 
     let options: Rc<RefCell<Vec<MeetingRowOption>>> = Rc::default();
@@ -40,6 +47,7 @@ pub(super) fn append_meeting_row(
         let options = Rc::clone(&options);
         let choices = choices.clone();
         let section = section.clone();
+        let on_save = on_save.clone();
         move |index: u32| {
             section.set_visible(editor.shows_meeting_row(index));
             let offered = editor.meeting_options(index);
@@ -58,17 +66,22 @@ pub(super) fn append_meeting_row(
             *options.borrow_mut() = offered;
             choices.set_model(Some(&gtk::StringList::new(&labels)));
             choices.set_selected(u32::try_from(selected).unwrap_or(0));
+            on_save.set_visible(editor.announces_meeting(index, &kept));
             *pick.borrow_mut() = kept;
         }
     };
     {
+        let editor = editor.clone();
         let pick = Rc::clone(&pick);
         let options = Rc::clone(&options);
+        let calendar = calendar.clone();
         choices.connect_selected_notify(move |choices| {
             let chosen = usize::try_from(choices.selected())
                 .ok()
                 .and_then(|index| options.borrow().get(index).cloned());
             if let Some(option) = chosen {
+                on_save
+                    .set_visible(editor.announces_meeting(calendar.selected(), &option.selection));
                 *pick.borrow_mut() = option.selection;
             }
         });

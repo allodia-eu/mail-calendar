@@ -150,6 +150,42 @@ fn a_meeting_made_through_an_account_is_named_with_the_account() {
 }
 
 #[test]
+fn a_choice_the_event_does_not_have_yet_says_the_link_comes_at_the_save() {
+    let editor = EventEditor::create(
+        vec![calendar("calendar-a", vec![teams(), jitsi()])],
+        String::new(),
+    );
+    let teams_pick = MeetingSelection::Choice("server:teams".to_owned());
+    assert!(!editor.announces_meeting(0, &MeetingSelection::None));
+    assert!(editor.announces_meeting(0, &teams_pick));
+
+    let opened = editing(
+        Some(EditorMeeting {
+            name: Some("Microsoft Teams".to_owned()),
+            choice: Some("server:teams".to_owned()),
+        }),
+        vec![teams(), jitsi()],
+        "",
+    );
+    assert!(
+        !opened.announces_meeting(0, &teams_pick),
+        "the event already has this meeting"
+    );
+    assert!(opened.announces_meeting(0, &MeetingSelection::Choice("jitsi".to_owned())));
+    assert!(!opened.announces_meeting(0, &MeetingSelection::None));
+
+    let elsewhere = editing(
+        Some(EditorMeeting {
+            name: Some("Zoom".to_owned()),
+            choice: None,
+        }),
+        vec![jitsi()],
+        "",
+    );
+    assert!(!elsewhere.announces_meeting(0, &MeetingSelection::Current));
+}
+
+#[test]
 fn a_calendar_with_no_choices_draws_no_row() {
     let editor = EventEditor::create(vec![calendar("calendar-a", Vec::new())], String::new());
     assert!(!editor.shows_meeting_row(0));

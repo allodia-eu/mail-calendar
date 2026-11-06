@@ -142,6 +142,13 @@ impl EventEditor {
         MeetingSelection::None
     }
 
+    /// Whether the row says the link is added at the save: it holds a choice the event does not
+    /// have yet, which is made only when the event is saved (rule 10).
+    pub(super) fn announces_meeting(&self, index: u32, pick: &MeetingSelection) -> bool {
+        let effective = self.effective_meeting(index, pick);
+        matches!(effective, MeetingSelection::Choice(_)) && effective != self.opened_meeting()
+    }
+
     /// What a save of `form` does to the meeting, or `None` to leave it alone: None takes the
     /// event's meeting off, a choice replaces it, and leaving the row as it opened changes nothing.
     pub(super) fn meeting_change(&self, form: &EventForm) -> Option<MeetingChange> {
