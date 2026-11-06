@@ -253,10 +253,10 @@ naar partijen die **jij** kiest, op het moment dat jij kiest, nooit via Allodia:
   telefoonlinks (`http`, `https`, `mailto`, `tel`) worden ooit doorgegeven; bijlagen worden nooit
   binnen de app zelf weergegeven.
 - **E-mail of uitnodigingen versturen** levert ze via je provider af bij je ontvangers.
-- **Een videovergadering aan een afspraak toevoegen** vraagt die aan waar jij kiest: bij de eigen
-  server van de agenda; bij een Microsoft- of Nextcloud-account dat voor videovergaderingen wordt
-  gebruikt, dat de titel en tijden van de afspraak krijgt om de vergadering te maken; of bij
-  je eigen Jitsi-server, die niets krijgt tot iemand de link opent.
+- **Een videovergadering aan een afspraak toevoegen** laat die maken waar jij kiest: door de eigen
+  server van je agenda, een account dat je hebt gekoppeld of een vergaderserver die je hebt
+  ingesteld. Een andere dienst dan de eigen server van de agenda krijgt niet meer dan de titel en
+  tijden van de afspraak.
 
 Dit zijn jouw verzendingen, niet de onze: Allodia ontvangt van geen van alle iets.
 

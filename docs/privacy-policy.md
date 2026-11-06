@@ -231,10 +231,9 @@ the moment you choose, never via Allodia:
   associates with the file. Only ordinary web, mail and telephone links (`http`, `https`,
   `mailto`, `tel`) are ever handed off; attachments are never rendered inside the app.
 - **Sending mail or invitations** delivers them to your recipients through your provider.
-- **Adding a video meeting to an event** asks for one where you choose: the calendar's own server;
-  a Microsoft or Nextcloud account used for video meetings, which receives the event's title and
-  times to make the meeting; or your own Jitsi server, which receives nothing until
-  someone opens the link.
+- **Adding a video meeting to an event** has it made where you choose: your calendar's own
+  server, an account you connected, or a meeting server you set up. Any service other than the
+  calendar's own is sent no more than the event's title and times.
 
 These are your dispatches, not ours: Allodia receives nothing from any of them.
 
