@@ -312,6 +312,43 @@ internal fun SignInExpiredBanner(
     }
 }
 
+/// The Allodia account's sign-in, refused by the service, beside the mail accounts' expired ones
+/// (entitlement.md): nobody opens Settings to find out a sign-in ended. [email] is
+/// the core's `allodiaSignInEnded`, and the banner goes when it does. A sign-in that does not
+/// complete is reported by a toast, as the mail banner's is.
+@androidx.compose.runtime.Composable
+internal fun AllodiaSignInEndedBanner(
+    email: String?,
+    onSignIn: () -> Unit,
+    ctx: Context,
+) {
+    if (email == null) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.tertiaryContainer)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_warning),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            L10n.allodia_signin_ended_prompt(ctx, email),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        TextButton(onClick = onSignIn) {
+            Text(L10n.signin_expired_action(ctx))
+        }
+    }
+}
+
 @androidx.compose.runtime.Composable
 internal fun OfflineBanner(offline: Boolean, ctx: Context) {
     if (!offline) return

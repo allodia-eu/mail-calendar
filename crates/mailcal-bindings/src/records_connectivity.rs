@@ -56,6 +56,14 @@ pub struct ConnectivitySnapshot {
     /// The same as `calendar_outages`, for the **address book**, said on the contacts screen.
     #[uniffi(default = [])]
     pub contacts_outages: Vec<UseOutage>,
+    /// The address of the Allodia account whose sign-in the account service refused, or `None`.
+    ///
+    /// A host draws it beside the `signin_expired_accounts` prompts, as "your sign-in as … has
+    /// ended" with **Sign in again**, until the person signs in again or signs out
+    /// (`entitlement.md`). Raised only by a refusal, never by an outage, and not
+    /// for a grant that is merely narrower than this build wants; not suppressed while offline.
+    #[uniffi(default = None)]
+    pub allodia_sign_in_ended: Option<String>,
 }
 
 /// A calendar or address book that did not connect, on an account that did.

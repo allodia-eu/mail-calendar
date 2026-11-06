@@ -345,4 +345,28 @@ class AllodiaSubscriptionModelTest {
             allodiaWriteFailure(AllodiaPurchaseException.Unreachable()),
         )
     }
+
+    /**
+     * Only a read that could not be made is an outage. A refused grant drawn as "could not be
+     * checked right now" asks somebody to wait for something that will never arrive.
+     */
+    @Test
+    fun a_failed_read_is_an_outage_only_when_nothing_was_learned() {
+        assertEquals(
+            AllodiaSubscriptionState.SignedOut,
+            allodiaSubscriptionReadFailed(AllodiaPurchaseException.SignedOut()),
+        )
+        assertEquals(
+            AllodiaSubscriptionState.NeedsReauth,
+            allodiaSubscriptionReadFailed(AllodiaPurchaseException.NeedsReauth()),
+        )
+        assertEquals(
+            AllodiaSubscriptionState.Unavailable,
+            allodiaSubscriptionReadFailed(AllodiaPurchaseException.Unreachable()),
+        )
+        assertEquals(
+            AllodiaSubscriptionState.Unavailable,
+            allodiaSubscriptionReadFailed(IllegalStateException("not a core error")),
+        )
+    }
 }

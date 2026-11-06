@@ -118,6 +118,10 @@ internal fun MailboxScreen(
     onSignInExpired: (account: ExpiredSignIn) -> Unit = {},
     // Opens an account's page in Settings, for a sign-in only a new password or token mends.
     onOpenAccountPage: (accountId: String) -> Unit = {},
+    // The Allodia account whose sign-in the service refused, and the ordinary Allodia sign-in that
+    // mends it.
+    allodiaSignInEnded: String? = null,
+    onAllodiaSignIn: () -> Unit = {},
     // What an account's removal names in its confirmation.
     removalOf: (accountId: String) -> AccountRemoval? = { null },
     onOpenSettings: () -> Unit,
@@ -250,6 +254,7 @@ internal fun MailboxScreen(
             // OAuth grant, a refused password). Not an outage, the server answered, so "Try
             // again" would never help; only a fresh sign-in does.
             SignInExpiredBanner(signInExpired, onSignInExpired, ctx) { onOpenAccountPage(it.id) }
+            AllodiaSignInEndedBanner(allodiaSignInEnded, onAllodiaSignIn, ctx)
             val listState = position.listState
             // Infinite scroll: when the last loaded row nears view, ask the core for the next page.
             // `onShowMore` is guarded in the host (it no-ops once every row is shown); keying the

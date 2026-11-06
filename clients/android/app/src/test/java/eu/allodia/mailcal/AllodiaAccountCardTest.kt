@@ -1,6 +1,7 @@
-// Settings → Accounts, the Allodia-account card. Three states and nothing else: signed out offers
-// a sign-in, a sign-in in flight offers neither button, and a signed-in account names the address
-// (never only the display name, the address is what identifies the account).
+// Settings → Accounts, the Allodia-account card. Four states and nothing else: signed out offers
+// a sign-in, a sign-in in flight offers neither button, a signed-in account names the address
+// (never only the display name, the address is what identifies the account), and a sign-in the
+// service ended says so in place of the signed-in state.
 //
 // Worth pinning because two of the three are silent when wrong: a card that keeps its button while
 // a sign-in is running invites a second browser hop that discards the first flow's verifier, and a
@@ -16,6 +17,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -136,6 +139,41 @@ class AllodiaAccountCardTest {
         )
 
         compose.onNodeWithText("Signed in as alice@allodia.eu").assertIsDisplayed()
+    }
+
+    /**
+     * A grant the service refused is not a signed-in account. "Signed in as" with Manage account
+     * over it tells somebody everything is fine while nothing the account holds can be reached.
+     */
+    @Test
+    fun a_sign_in_the_service_ended_says_so_and_offers_to_sign_in_again() {
+        card(
+            AllodiaSettings(
+                available = true,
+                account = AllodiaAccount(id = null, email = "alice@allodia.eu", name = "Alice Ackermann"),
+                signInEnded = true,
+            ),
+        )
+
+        compose.onNodeWithText("Your sign-in as alice@allodia.eu has ended").assertIsDisplayed()
+        compose.onAllNodesWithText("Signed in as alice@allodia.eu").assertCountEquals(0)
+        compose.onAllNodesWithText(MANAGE).assertCountEquals(0)
+        compose.onAllNodesWithText(DELETE).assertCountEquals(0)
+        compose.onNodeWithText("Sign in again").performClick()
+        compose.onNodeWithText(SIGN_OUT).performClick()
+
+        assertEquals("the ordinary sign-in", 1, signIns)
+        assertEquals(1, signOuts)
+    }
+
+    // What Settings → Allodia account reads to leave the subscription section out. A refusal with
+    // nobody signed in on this device has no account to end.
+    @Test
+    fun only_a_refusal_on_a_signed_in_account_ends_the_sign_in() {
+        val account = AllodiaAccount(id = null, email = "alice@allodia.eu", name = null)
+        assertTrue(AllodiaSettings(account = account, signInEnded = true).sessionEnded)
+        assertFalse(AllodiaSettings(account = account).sessionEnded)
+        assertFalse(AllodiaSettings(signInEnded = true).sessionEnded)
     }
 
     @Test

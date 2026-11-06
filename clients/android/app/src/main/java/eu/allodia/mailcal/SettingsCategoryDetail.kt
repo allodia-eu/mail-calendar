@@ -274,8 +274,8 @@ internal fun CategoryDetail(
                 onAllodiaSignOut,
             )
             // The subscription belongs to the account above it, so it is drawn under that card
-            // and only once there is one to draw it for.
-            if (allodia.account != null) {
+            // and only once there is one to draw it for. A sign-in that has ended has none.
+            if (allodia.account != null && !allodia.sessionEnded) {
                 Spacer(modifier = Modifier.height(8.dp))
                 AllodiaSubscriptionCard(
                     ui = allodiaSubscription,

@@ -251,6 +251,12 @@ fn each_refusal_is_its_own_answer_and_everything_else_is_unexplained() {
         write_failure(&AllodiaPurchaseError::Unreachable),
         WriteFailure::Unexplained
     );
+    // A refused sign-in says only that nothing changed: the re-read after every write answers
+    // the same refusal, and the account card is what says the sign-in ended.
+    assert_eq!(
+        write_failure(&AllodiaPurchaseError::SignedOut),
+        WriteFailure::Unexplained
+    );
 }
 
 /// Minor units and an ISO code, formatted by this side because the core carries no locale data.

@@ -402,6 +402,10 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             mailReauth = mailReauth,
                             onReconnectMail = { id -> signInAgain(id, emptyList()) },
                             signInExpired = signInExpired,
+                            // The Allodia sign-in, run from where it is: the same entry point as
+                            // Settings' Sign in again.
+                            allodiaSignInEnded = connectivity?.allodiaSignInEnded,
+                            onAllodiaSignIn = { signInToAllodia() },
                             onOpenAccountPage = { id -> openAccountPage(id) },
                             onSignInExpired = { account ->
                                 when (AccountSignInRules.expiredRemedy(account.provider, account.nextcloud)) {

@@ -635,12 +635,6 @@ it is why the four writes are no longer the least proven half of this page.
   identically, and the ending that costs somebody an explanation was invisible in a support log.
   It now says how many settled, how many belonged to another account and how many are coming round
   again. Ids stay out: a purchase id is the store's and names the person's transaction.
-- ⚠️ **A refused token reads as an unreachable service on the account screen.**
-  `Error::Unauthorized` reaches a client as `Unreachable`, which is the collapse
-  [`entitlement.md`](entitlement.md) forbids for grant health: a revoked grant and an outage are
-  different answers. `allodia_grant_health` carries the truth, so a client reading both is not
-  misled, and one reading only the screen's own error is. Whether the fix is a new variant or the
-  health channel staying the single place that says it is a contract decision.
 - **On Play, a settled purchase is attached again on every pass.** `Ledger::apply` drops a linked
   purchase, and `queryPurchasesAsync` reports an acknowledged subscription for its whole life, so
   the next `sync` takes it up again as new. It is idempotent at the service and costs one request,

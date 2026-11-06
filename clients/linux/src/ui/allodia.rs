@@ -78,9 +78,35 @@ fn complete(app: &Arc<MailcalApp>, pending: String, callback_url: String) -> All
     }
 }
 
+/// What the connectivity banner adds when a sign-in it started ends: the mail banner's sentence
+/// for one that did not complete, and nothing for a dismissed browser or a sign-in that worked,
+/// whose banner simply goes away.
+pub(super) fn banner_notice(outcome: &AllodiaOutcome) -> Option<&'static str> {
+    match outcome {
+        AllodiaOutcome::Failed(_) => Some(l10n::signin_expired_failed()),
+        AllodiaOutcome::SignedIn | AllodiaOutcome::Cancelled => None,
+    }
+}
+
 impl AppModel {
     pub(super) fn start_allodia_sign_in(&mut self, sender: relm4::Sender<AppInput>) {
         self.start_allodia(sender, false);
+    }
+
+    /// The connectivity banner's Sign in again: the ordinary sign-in, started from where the
+    /// person is. A hop already outstanding answers for it.
+    pub(super) fn resolve_allodia_sign_in_ended(&mut self, sender: relm4::Sender<AppInput>) {
+        if self.settings.allodia_signing_in {
+            return;
+        }
+        self.settings.allodia_failure = None;
+        self.start_allodia(sender, false);
+        if self.settings.allodia_signing_in {
+            self.settings.allodia_sign_in_from_banner = true;
+        } else if self.settings.allodia_failure.is_some() {
+            // The hop could not begin, which is a sign-in that did not complete.
+            self.notice = Some(l10n::signin_expired_failed().to_owned());
+        }
     }
 
     /// Both entry points. `create` asks the service for its sign-up page instead of its sign-in
@@ -155,9 +181,17 @@ impl AppModel {
         }
         self.settings.allodia_signing_in = false;
         self.settings.allodia_sign_in_slow = false;
+        if std::mem::take(&mut self.settings.allodia_sign_in_from_banner)
+            && let Some(notice) = banner_notice(&outcome)
+        {
+            self.notice = Some(notice.to_owned());
+        }
         match outcome {
             AllodiaOutcome::SignedIn => {
                 self.settings.allodia_failure = None;
+                // What the last read said was about the grant this one replaces, which may have
+                // been refused or may belong to another account, so the section asks again.
+                self.forget_allodia_subscription();
                 // The first thing a new sign-in is for: this device's accounts go up, and whatever
                 // the person's other devices hold comes back.
                 self.sync_allodia_accounts(sender);
@@ -173,6 +207,7 @@ impl AppModel {
         if self.host_tasks.allodia.cancel() {
             self.settings.allodia_signing_in = false;
             self.settings.allodia_sign_in_slow = false;
+            self.settings.allodia_sign_in_from_banner = false;
             self.refresh_account_settings();
         }
     }

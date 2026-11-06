@@ -5,7 +5,9 @@
 //! figures quotes a price the subscriber will not be charged, and a checkout that only opened a
 //! browser has nothing to report yet and must not claim otherwise.
 
-use super::{SubscriptionAnswer, SubscriptionState, WriteOutcome, note_for};
+use mailcal_bindings::AllodiaPurchaseError;
+
+use super::{SubscriptionAnswer, SubscriptionState, WriteOutcome, answer_for, note_for};
 use crate::ui::allodia_subscription_facts::WriteFailure;
 
 /// ⚠️ The date is the whole of it: somebody cancelling wants to know they are not losing what they
@@ -106,4 +108,28 @@ fn a_return_asks_again_only_where_an_answer_is_already_drawn() {
     // other's answers onto the same card.
     state.checking = true;
     assert!(!state.worth_rereading());
+
+    // A refused sign-in draws no section, and only signing in again changes the answer.
+    state.checking = false;
+    state.answer = Some(SubscriptionAnswer::SignedOut);
+    assert!(!state.worth_rereading());
+}
+
+/// ⚠️ **A refused sign-in is not an outage.** Drawn as one, it tells somebody to wait for a grant
+/// that waiting never brings back. Each of the three answers has its own remedy, so none may fall
+/// into another's arm.
+#[test]
+fn a_refused_sign_in_is_its_own_answer_and_never_the_outage() {
+    assert!(matches!(
+        answer_for(Err(AllodiaPurchaseError::SignedOut)),
+        SubscriptionAnswer::SignedOut
+    ));
+    assert!(matches!(
+        answer_for(Err(AllodiaPurchaseError::NeedsReauth)),
+        SubscriptionAnswer::NeedsReauth
+    ));
+    assert!(matches!(
+        answer_for(Err(AllodiaPurchaseError::Unreachable)),
+        SubscriptionAnswer::Unavailable
+    ));
 }

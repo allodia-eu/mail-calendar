@@ -64,6 +64,8 @@ public sealed partial class SettingsDialog : ContentDialog
         _hadAccounts = model.AccountsSnapshot().Accounts.Length > 0;
         model.AccountsChanged += OnAccountsChanged;
         Closed += (_, _) => model.AccountsChanged -= OnAccountsChanged;
+        model.AccountsChanged += OnAllodiaSignInMoved;
+        Closed += (_, _) => model.AccountsChanged -= OnAllodiaSignInMoved;
         _brushes = new ThemeBrushes(this);
         Title = L10n.SettingsTitle();
         CloseButtonText = L10n.ActionDone();

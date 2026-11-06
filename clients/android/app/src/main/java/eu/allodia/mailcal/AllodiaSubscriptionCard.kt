@@ -109,6 +109,9 @@ internal fun AllodiaSubscriptionCard(
                         Text(L10n.settings_allodia_reauth_action(ctx))
                     }
                 }
+                // Never reached: the card is not mounted while the grant is refused, and the
+                // account card above says so in place of the signed-in state.
+                AllodiaSubscriptionState.SignedOut -> Unit
                 is AllodiaSubscriptionState.Loaded ->
                     Loaded(
                         state.view,

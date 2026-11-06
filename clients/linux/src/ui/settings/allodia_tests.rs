@@ -1,4 +1,4 @@
-//! What the Allodia-account card draws in each of its three states, and what it must never draw.
+//! What the Allodia-account card draws in each of its states, and what it must never draw.
 //!
 //! Rendering is asserted on the **rendered** labels rather than on `ActionRow::title()`, which
 //! reads back the string it was handed whatever became of the label; see
@@ -6,7 +6,9 @@
 
 use adw::prelude::*;
 
-use super::{create_button, failure_row, sign_in_button, signed_in_row, signing_in_row};
+use super::{
+    create_button, failure_row, session_ended_row, sign_in_button, signed_in_row, signing_in_row,
+};
 use crate::{
     l10n,
     ui::{
@@ -151,6 +153,57 @@ pub(crate) fn a_signed_in_account_can_be_managed_deleted_and_left() {
     ));
 }
 
+/// A sign-in the service refused names the account and says it ended, and offers the two ways on:
+/// signing in again and signing out. Nothing in it may claim the person is still signed in, and
+/// the account page is not offered.
+pub(crate) fn a_refused_sign_in_says_it_ended_and_offers_both_ways() {
+    let (sender, receiver) = relm4::channel();
+    let row = session_ended_row(&sender, &account("someone@allodia.test", Some("A Person")));
+
+    let labels = shown(&row);
+    let ended = l10n::settings_allodia_session_ended("someone@allodia.test");
+    assert!(
+        labels.contains(&ended),
+        "the row names the address whose sign-in ended: {labels:?}"
+    );
+    assert!(
+        labels
+            .iter()
+            .any(|label| label == l10n::settings_allodia_session_ended_hint()),
+        "and says what signing in again is for: {labels:?}"
+    );
+    let signed_in = l10n::settings_allodia_signed_in("someone@allodia.test");
+    assert!(
+        !labels.contains(&signed_in),
+        "a refused grant is not a signed-in account: {labels:?}"
+    );
+
+    let buttons: Vec<String> =
+        crate::ui::setup_widget_tests::descendants::<gtk::Button>(row.upcast_ref())
+            .iter()
+            .filter_map(|button| button.label().map(String::from))
+            .collect();
+    assert_eq!(
+        buttons,
+        [
+            l10n::settings_allodia_reauth_action(),
+            l10n::settings_allodia_sign_out()
+        ],
+        "exactly the two ways on, and no Manage account"
+    );
+
+    descendant_button(&row, l10n::settings_allodia_reauth_action()).emit_clicked();
+    assert!(matches!(
+        receiver.recv_sync(),
+        Some(AppInput::StartAllodiaSignIn)
+    ));
+    descendant_button(&row, l10n::settings_allodia_sign_out()).emit_clicked();
+    assert!(matches!(
+        receiver.recv_sync(),
+        Some(AppInput::SignOutOfAllodia)
+    ));
+}
+
 /// The address comes from the account service and the failure text from the core, so both are
 /// strings this client did not write. A bare ampersand renders the row **blank** when it is parsed
 /// as markup, and a markup-shaped one is *applied* rather than shown.
@@ -161,6 +214,7 @@ pub(crate) fn neither_the_address_nor_the_failure_is_parsed_as_markup() {
     let (rows, records) = glib_records(|| {
         [
             signed_in_row(&sender, &account(hostile, Some("Bell & Co"))),
+            session_ended_row(&sender, &account(hostile, None)),
             failure_row("Signing in didn't work: bad & wrong"),
         ]
     });

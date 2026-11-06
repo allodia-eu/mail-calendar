@@ -35,15 +35,22 @@ const RESPONSE_GO_AHEAD: &str = "go-ahead";
 
 /// The section, or `None` while nobody is signed in: a subscription belongs to an account, and
 /// there is nothing to say about one that does not exist.
+///
+/// `None` too when the service refused the sign-in: the account card says so and carries the
+/// remedy, and nothing this section could say is true until the person signs in again.
 pub(super) fn subscription(ctx: &PageContext) -> Option<adw::PreferencesGroup> {
     // A subscription belongs to an account, so nobody signed in is nothing to draw.
     ctx.app.allodia_account()?;
+    if ctx.app.connectivity().allodia_sign_in_ended.is_some() {
+        return None;
+    }
     let state = &ctx.allodia_subscription;
     let section = group_titled(l10n::settings_subscription_heading());
     match &state.answer {
         // Nobody has asked yet, so this build asks now. A network round trip, which is why it
-        // waits for somebody to open the page that draws it rather than running at connect.
-        None => {
+        // waits for somebody to open the page that draws it rather than running at connect. A
+        // refusal the core no longer reports is a stale answer, and is asked again too.
+        None | Some(SubscriptionAnswer::SignedOut) => {
             if !state.checking {
                 ctx.sender
                     .emit(AppInput::AllodiaSubscription(SubscriptionInput::Read));

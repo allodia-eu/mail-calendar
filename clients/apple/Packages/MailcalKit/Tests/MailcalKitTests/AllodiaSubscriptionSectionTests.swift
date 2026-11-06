@@ -220,16 +220,16 @@ struct AllodiaSubscriptionSectionTests {
         #expect(allodiaBillers(of: subscription(own: own(status: .pendingFirstPayment, next: nil))).isEmpty)
     }
 
-    /// ⚠️ A sign-in too old to carry the permission this read needs is an offer, not an outage.
+    /// ⚠️ A sign-in too old to carry the permission this read needs is an offer, not an outage,
+    /// and one the service refused is a sign-in that has ended, not an outage either.
     ///
-    /// The two are indistinguishable from the failure alone, and their remedies are opposites:
-    /// waiting fixes an outage and never fixes this. Observed on an Android device whose grant
-    /// predated the permission and which was told its subscription could not be checked "right
-    /// now"; this screen had the same gap.
-    @Test func aSignInTooOldToReadTheSubscriptionOffersAFreshOne() {
-        #expect(allodiaReadFailure(.needsReauth) == .needsReauth)
-        #expect(allodiaReadFailure(.ok) == .unavailable)
-        #expect(allodiaReadFailure(.signedOut) == .unavailable)
+    /// Waiting fixes an outage and never fixes either of these, so drawing them as "could not be
+    /// checked right now" tells somebody to wait for something that will not arrive.
+    @Test func aReadTheSignInCannotMakeIsNeverDrawnAsAnOutage() {
+        #expect(allodiaReadFailure(AllodiaPurchaseError.NeedsReauth) == .needsReauth)
+        #expect(allodiaReadFailure(AllodiaPurchaseError.SignedOut) == .signedOut)
+        #expect(allodiaReadFailure(AllodiaPurchaseError.Unreachable) == .unavailable)
+        #expect(allodiaReadFailure(CancellationError()) == .unavailable)
     }
 
     private func store(

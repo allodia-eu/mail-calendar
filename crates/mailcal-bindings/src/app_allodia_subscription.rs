@@ -34,7 +34,8 @@ impl MailcalApp {
     ///
     /// [`AllodiaPurchaseError::Unavailable`] in a build with no Allodia registration,
     /// [`AllodiaPurchaseError::NotSignedIn`] when nobody is signed in,
-    /// [`AllodiaPurchaseError::NeedsReauth`] when the stored sign-in predates the permission, and
+    /// [`AllodiaPurchaseError::NeedsReauth`] when the stored sign-in predates the permission,
+    /// [`AllodiaPurchaseError::SignedOut`] when the service refused the stored sign-in, and
     /// [`AllodiaPurchaseError::Unreachable`] when the service could not be asked.
     pub fn allodia_subscription(&self) -> Result<AllodiaSubscription, AllodiaPurchaseError> {
         #[cfg(not(feature = "allodia-license"))]
@@ -174,13 +175,9 @@ mod calls {
         /// scope check before the first request, because that request cannot succeed and its
         /// refusal would read as the service being down.
         fn ready(&self, feature: Feature) -> Result<Ready, AllodiaPurchaseError> {
-            let token = self.allodia_access_token("the subscription").map_err(|_| {
-                if self.allodia.lock().expect("allodia account lock").is_none() {
-                    AllodiaPurchaseError::NotSignedIn
-                } else {
-                    AllodiaPurchaseError::Unreachable
-                }
-            })?;
+            let token = self
+                .allodia_access_token("the subscription")
+                .map_err(|_| self.allodia_mint_failure())?;
             if !self.allodia_grant_permits(feature) {
                 self.note_allodia_health(AllodiaGrantHealth::NeedsReauth);
                 return Err(AllodiaPurchaseError::NeedsReauth);
@@ -201,7 +198,7 @@ mod calls {
             let subscription = ready
                 .service
                 .subscription(&ready.transport, &ready.token)
-                .map_err(|error| self.classify(&error))?;
+                .map_err(|error| self.classify_allodia_failure(&error))?;
             self.note_allodia_health(AllodiaGrantHealth::Ok);
             Ok(subscription.into())
         }
@@ -215,7 +212,7 @@ mod calls {
                 .service
                 .start_checkout(&ready.transport, &ready.token, plan.into())
                 .map(Into::into)
-                .map_err(|error| self.classify(&error))
+                .map_err(|error| self.classify_allodia_failure(&error))
         }
 
         pub(super) fn run_allodia_cancel(
@@ -226,7 +223,7 @@ mod calls {
                 .service
                 .cancel_subscription(&ready.transport, &ready.token)
                 .map(Into::into)
-                .map_err(|error| self.classify(&error))
+                .map_err(|error| self.classify_allodia_failure(&error))
         }
 
         pub(super) fn run_allodia_switch(
@@ -238,7 +235,7 @@ mod calls {
                 .service
                 .switch_interval(&ready.transport, &ready.token, plan.into())
                 .map(Into::into)
-                .map_err(|error| self.classify(&error))
+                .map_err(|error| self.classify_allodia_failure(&error))
         }
 
         pub(super) fn run_allodia_resubscribe(
@@ -249,7 +246,22 @@ mod calls {
                 .service
                 .resubscribe(&ready.transport, &ready.token)
                 .map(Into::into)
-                .map_err(|error| self.classify(&error))
+                .map_err(|error| self.classify_allodia_failure(&error))
+        }
+
+        /// What a token that could not be minted means to a client.
+        ///
+        /// Read after the mint, which has already recorded what the token endpoint's answer said
+        /// about the grant: a refusal there is a sign-in to make again, and anything else taught
+        /// nothing and is the outage it looks like.
+        pub(crate) fn allodia_mint_failure(&self) -> AllodiaPurchaseError {
+            if self.allodia.lock().expect("allodia account lock").is_none() {
+                AllodiaPurchaseError::NotSignedIn
+            } else if self.allodia_health() == AllodiaGrantHealth::SignedOut {
+                AllodiaPurchaseError::SignedOut
+            } else {
+                AllodiaPurchaseError::Unreachable
+            }
         }
 
         /// Turn one failure into what a client draws, and record what it says about the grant.
@@ -258,11 +270,11 @@ mod calls {
         /// contract is built on. A service that declined to act told us something about the
         /// subscription; a service that could not be reached told us nothing, and in particular
         /// nothing about the grant.
-        fn classify(&self, error: &Error) -> AllodiaPurchaseError {
+        pub(super) fn classify_allodia_failure(&self, error: &Error) -> AllodiaPurchaseError {
             match error {
                 Error::Unauthorized => {
                     self.note_allodia_health(AllodiaGrantHealth::SignedOut);
-                    AllodiaPurchaseError::Unreachable
+                    AllodiaPurchaseError::SignedOut
                 }
                 Error::Refused(refusal) => {
                     self.note_allodia_health(AllodiaGrantHealth::Ok);

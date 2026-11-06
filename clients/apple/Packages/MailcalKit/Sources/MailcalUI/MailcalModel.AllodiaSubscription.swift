@@ -24,6 +24,9 @@ enum AllodiaSubscriptionState: Equatable {
     /// ordinary sign-in asks for the full current scope set. Kept apart from `unavailable` because
     /// the remedies differ: waiting fixes an outage and never fixes this.
     case needsReauth
+    /// The service refused the sign-in outright. The account card above says so and offers signing
+    /// in again, so this section draws nothing of its own.
+    case signedOut
     /// The service answered.
     case loaded(AllodiaSubscriptionView)
 }
@@ -62,13 +65,16 @@ enum AllodiaBuyOutcome {
 /// What a read that did not come back is allowed to put on screen.
 ///
 /// ⚠️ **The core's typed answer decides, never the failure's text.** A sign-in that predates the
-/// permission this read needs is an offer with a remedy, and drawing it as an outage tells somebody
-/// to wait for something that will never arrive. The sync card next door reads the same answer for
-/// the same reason, and everything else says nothing about the sign-in at all.
+/// permission this read needs, and one the service refused, each have a remedy, and drawing either
+/// as an outage tells somebody to wait for something that will never arrive.
 ///
 /// Pure, so the choice is unit-testable: the pane around it is not, needing a live `MailcalApp`.
-func allodiaReadFailure(_ health: AllodiaGrantHealth) -> AllodiaSubscriptionState {
-    health == .needsReauth ? .needsReauth : .unavailable
+func allodiaReadFailure(_ error: Error) -> AllodiaSubscriptionState {
+    switch error as? AllodiaPurchaseError {
+    case .NeedsReauth: .needsReauth
+    case .SignedOut: .signedOut
+    default: .unavailable
+    }
 }
 
 extension MailboxModel {
@@ -93,10 +99,14 @@ extension MailboxModel {
         let pass = await runAllodiaRedemption()
         // The read is a network round trip and the core call blocks on it, so it goes off the main
         // thread exactly as the sign-in and sync passes do.
-        let answer = await Task.detached(priority: .userInitiated) {
-            try? app.allodiaSubscription()
+        let read = await Task.detached(priority: .userInitiated) {
+            Result { try app.allodiaSubscription() }
         }.value
-        guard let answer else { return allodiaReadFailure(app.allodiaGrantHealth()) }
+        let answer: AllodiaSubscription
+        switch read {
+        case let .success(subscription): answer = subscription
+        case let .failure(error): return allodiaReadFailure(error)
+        }
         // Offers cost a StoreKit round trip, so they are fetched only when they can be drawn.
         let offers = answer.entitled ? [] : await allodiaPurchases?.offers() ?? []
         return .loaded(

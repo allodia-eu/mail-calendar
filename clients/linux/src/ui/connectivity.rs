@@ -28,6 +28,8 @@ pub(super) struct ConnectivityState {
     pub(super) expired_signins: Vec<ExpiredSignIn>,
     pub(super) calendar_outages: Vec<OutageLine>,
     pub(super) contacts_outages: Vec<OutageLine>,
+    /// The address whose Allodia sign-in the account service refused.
+    pub(super) allodia_sign_in_ended: Option<String>,
 }
 
 impl ConnectivityState {
@@ -112,6 +114,7 @@ impl ConnectivityState {
             calendar_reauth: named(snapshot.calendar_reauth_accounts),
             mail_reauth: named(snapshot.mail_reauth_accounts),
             expired_signins,
+            allodia_sign_in_ended: snapshot.allodia_sign_in_ended,
         }
     }
 
@@ -217,6 +220,7 @@ pub(super) struct ConnectivityBanners {
     root: gtk::Box,
     pub(super) offline: adw::Banner,
     pub(super) expired: adw::Banner,
+    pub(super) allodia_ended: adw::Banner,
     pub(super) mail_reauth: adw::Banner,
     pub(super) calendar_reauth: adw::Banner,
     pub(super) calendar_outages: OutageBanners,
@@ -251,10 +255,20 @@ impl ConnectivityBanners {
         let input = sender.clone();
         expired.connect_button_clicked(move |_| input.emit(AppInput::ResolveExpiredSignIn));
         root.append(&expired);
+        // Beside the mail accounts' expired sign-ins (`entitlement.md`, "A refused sign-in is
+        // also a banner"), and on every view, as they are.
+        let allodia_ended = adw::Banner::new("");
+        allodia_ended.set_use_markup(false);
+        allodia_ended.set_button_label(Some(l10n::signin_expired_action()));
+        let input = sender.clone();
+        allodia_ended
+            .connect_button_clicked(move |_| input.emit(AppInput::ResolveAllodiaSignInEnded));
+        root.append(&allodia_ended);
         Self {
             root,
             offline,
             expired,
+            allodia_ended,
             mail_reauth,
             calendar_reauth,
             calendar_outages,
@@ -313,6 +327,15 @@ impl ConnectivityBanners {
             l10n::settings_title()
         }));
         self.expired.set_revealed(!state.expired_signins.is_empty());
+
+        // The title is left as it was when the field clears, so the banner does not go blank
+        // while it slides away.
+        if let Some(email) = &state.allodia_sign_in_ended {
+            self.allodia_ended
+                .set_title(&l10n::allodia_signin_ended_prompt(email));
+        }
+        self.allodia_ended
+            .set_revealed(state.allodia_sign_in_ended.is_some());
     }
 }
 
@@ -382,3 +405,7 @@ fn report_reachability(sender: &relm4::Sender<AppInput>, reachable: bool) {
 #[cfg(test)]
 #[path = "connectivity_tests.rs"]
 pub(super) mod tests;
+
+#[cfg(test)]
+#[path = "connectivity_allodia_tests.rs"]
+pub(super) mod allodia_tests;
