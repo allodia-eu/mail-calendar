@@ -9,8 +9,9 @@ use std::sync::Arc;
 use mailcal_account::Capability;
 
 use crate::{
-    AccountCapability, AccountChangeNotice, AccountPage, AccountPageIntent, CapabilityChange,
-    LinkSlot, MailcalApp, MailcalError, account_page, account_work::PageWork,
+    AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, AccountPage,
+    AccountPageIntent, CapabilityChange, LinkSlot, MailcalApp, MailcalError, account_page,
+    account_work::PageWork,
 };
 
 #[uniffi::export]
@@ -25,17 +26,24 @@ impl MailcalApp {
             .accounts
             .into_iter()
             .find(|entry| entry.id == account_id)?;
-        let (running, notice) = self.account_work.of(&account_id);
-        Some(account_page::page(&entry, running, notice, |capability| {
+        let (hold, notice) = self.account_work.of(&account_id);
+        Some(account_page::page(&entry, hold, notice, |capability| {
             self.registry
                 .switch_on(&account_id, Capability::from(capability))
         }))
     }
+
+    /// What the last removal came to, when it needs saying: on the accounts list, since the
+    /// account's page is gone with it. Its `id` grows with each, so a client says each once.
+    #[must_use]
+    pub fn accounts_notice(&self) -> Option<AccountChangeNoticeRaised> {
+        self.account_work.list_notice()
+    }
 }
 
 impl MailcalApp {
-    /// Starts `intent`'s change, unless the page already has one running; its control is held
-    /// from now until the change ends.
+    /// Starts `intent`'s change, unless another change is running; every page's controls are held
+    /// from now until it ends.
     pub(crate) fn dispatch_account(&self, intent: AccountPageIntent) {
         let (account, work) = match &intent {
             AccountPageIntent::SetUse {
@@ -57,9 +65,17 @@ impl MailcalApp {
         self.app.accounts_changed();
         // A thread rather than the runtime: each change blocks on the runtime itself.
         std::thread::spawn(move || {
-            let notice = app.run_account_change(intent);
-            app.account_work.finish(&account, notice);
+            // Freed even when the change panics, or every page would stay held until a restart;
+            // the panic still goes on to the crash hook.
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                app.run_account_change(intent)
+            }));
+            app.account_work
+                .finish(&account, outcome.as_ref().ok().cloned().flatten());
             app.app.accounts_changed();
+            if let Err(panic) = outcome {
+                std::panic::resume_unwind(panic);
+            }
         });
     }
 
@@ -83,12 +99,10 @@ impl MailcalApp {
                 slot,
                 target,
             } => link_failed(slot, self.set_account_link(account, slot, target)),
+            // The account is gone whatever this answers: an error says its stored credential
+            // could not be erased, which the accounts list says.
             AccountPageIntent::Remove { account } => {
-                let removed = self.remove_account(account.clone());
-                if removed.is_ok() {
-                    self.account_work.forget(&account);
-                }
-                removed
+                self.remove_account(account)
                     .err()
                     .map(|error| AccountChangeNotice::RemoveFailed {
                         detail: error.to_string(),

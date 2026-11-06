@@ -14,8 +14,9 @@ before the work does.
 1. **A press that starts work the person waits for shows that it is working, from the press until
    the work ends,** on or beside the control that started it, as the platform's own spinner.
    Greying the control alone is not that: it reads as broken.
-2. **A running control cannot start the same work again,** and while one change runs on a page,
-   every control on that page is held, so two changes to one account never race. The exception is
+2. **A running control cannot start the same work again,** and while one account change runs,
+   every account page holds its controls, so two changes never race: one account's change can
+   write another's (a link is stored on both ends). The exception is
    a browser sign-in, where a fresh press supersedes the attempt still out
    ([`provider-oauth.md`](provider-oauth.md) rule 13).
 3. **When the surface the control sat on closes, the progress goes on where the person lands.** A
@@ -38,8 +39,10 @@ Every control a person can act on carries a `ControlState`: `enabled`, and `runn
 started is under way. A running control is never enabled. A Settings page is a record the core
 produces (`MailcalApp::account_page` for an account's page), read again on every
 `Surface::Settings` signal; its changes are dispatched (`Intent::AccountPage`) and return at once, and
-the signal is raised when one starts and when it ends. The page's `notice` carries an id that grows
-with each one, so a client says each notice once.
+the signal is raised when one starts and when it ends. Only the page that started a change marks its
+control running; every other page holds its controls without a spinner. The page's `notice` carries
+an id that grows with each one, so a client says each notice once. A removal's notice is the
+accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
 Each client draws `ControlState` through one set of components of its own (a switch row, a button,
 a picker, a confirmation), in its platform's idiom, so a control drawn anywhere waits the same way.

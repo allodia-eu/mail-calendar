@@ -81,7 +81,7 @@ pub(crate) fn build_demo(
         )),
         runtime.handle().clone(),
     ));
-    Arc::new(MailcalApp {
+    let mailcal = Arc::new(MailcalApp {
         runtime,
         app,
         account_connect_errors: Mutex::new(Vec::new()),
@@ -112,7 +112,10 @@ pub(crate) fn build_demo(
         // real app, detection included.
         showcase: false,
         rediscovery: crate::dav_rediscovery::Rediscovery::default(),
-    })
+    });
+    // An account page's change runs on a thread of its own, which holds the app by this.
+    mailcal.rediscovery.adopt(&mailcal);
+    mailcal
 }
 
 /// Builds an in-memory **showcase** app: the body of [`MailcalApp::new_showcase`]. Two fictional
@@ -323,7 +326,7 @@ fn finish_showcase(
         )),
         runtime.handle().clone(),
     ));
-    Arc::new(MailcalApp {
+    let mailcal = Arc::new(MailcalApp {
         runtime,
         app,
         account_connect_errors: Mutex::new(Vec::new()),
@@ -354,7 +357,10 @@ fn finish_showcase(
         // see `MailcalApp::detect_account_settings`.
         showcase: true,
         rediscovery: crate::dav_rediscovery::Rediscovery::default(),
-    })
+    });
+    // An account page's change runs on a thread of its own, which holds the app by this.
+    mailcal.rediscovery.adopt(&mailcal);
+    mailcal
 }
 
 /// Builds an in-memory **showcase** app holding **no account**: the body of

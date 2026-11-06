@@ -5,7 +5,7 @@
 use crate::{
     AccountCapability, AccountChangeNoticeRaised, AccountEntry, AccountLinkPicker, AccountPage,
     AccountUseNote, AccountUseSwitch, CapabilityState, ControlState, LinkSlot, UseProblem,
-    account_work::PageWork,
+    account_work::{Hold, PageWork},
 };
 
 /// What switching an unused use on needs, as the account's registry answers it.
@@ -34,17 +34,17 @@ const fn works(state: CapabilityState) -> bool {
     )
 }
 
-/// `entry`'s page, with `running` holding its controls and `switch_on` answering what turning an
+/// `entry`'s page, with `hold` holding its controls and `switch_on` answering what turning an
 /// unused use on needs.
 pub(crate) fn page(
     entry: &AccountEntry,
-    running: Option<PageWork>,
+    hold: Hold,
     notice: Option<AccountChangeNoticeRaised>,
     switch_on: impl Fn(AccountCapability) -> SwitchOn,
 ) -> AccountPage {
     let control = |work: PageWork| ControlState {
-        enabled: running.is_none(),
-        running: running == Some(work),
+        enabled: !hold.busy,
+        running: hold.own == Some(work),
     };
     let review = review_after(entry);
     let uses = entry
@@ -52,8 +52,8 @@ pub(crate) fn page(
         .iter()
         .map(|use_| {
             let mut switch = use_switch(entry, use_.capability, &switch_on);
-            switch.control.enabled &= running.is_none();
-            switch.control.running = running == Some(PageWork::Use(use_.capability));
+            switch.control.enabled &= !hold.busy;
+            switch.control.running = hold.own == Some(PageWork::Use(use_.capability));
             switch.reviews_server_change = review == Some(use_.capability);
             switch
         })
@@ -165,7 +165,8 @@ fn review_after(entry: &AccountEntry) -> Option<AccountCapability> {
 }
 
 /// The pickers the page offers: one per slot it can hold, which is a slot with candidates or one
-/// already linked. The linked account is listed even when it is no longer a candidate.
+/// already linked. The linked account is listed even when it is no longer a candidate. Matched by
+/// id, so a linked account whose address or distinction has since changed is not listed twice.
 fn link_pickers(entry: &AccountEntry) -> Vec<AccountLinkPicker> {
     [
         (
@@ -189,7 +190,7 @@ fn link_pickers(entry: &AccountEntry) -> Vec<AccountLinkPicker> {
     .map(|(slot, candidates, current)| {
         let mut options = candidates.clone();
         if let Some(current) = current
-            && !options.contains(current)
+            && !options.iter().any(|option| option.id == current.id)
         {
             options.insert(0, current.clone());
         }
@@ -197,7 +198,7 @@ fn link_pickers(entry: &AccountEntry) -> Vec<AccountLinkPicker> {
         let selected = index(
             current
                 .as_ref()
-                .and_then(|current| options.iter().position(|option| option == current)),
+                .and_then(|current| options.iter().position(|option| option.id == current.id)),
         );
         let suggested = selected
             .is_none()

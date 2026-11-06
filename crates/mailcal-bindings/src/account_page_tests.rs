@@ -8,7 +8,8 @@ use super::{SwitchOn, page};
 use crate::{
     AccountCapability, AccountEntry, AccountKind, AccountLinksView, AccountPage, AccountUse,
     AccountUseNote, AccountUseSwitch, CapabilityState, ControlState, LinkCandidates, LinkSlot,
-    LinkedAccount, SignInMethod, UseProblem, account_work::PageWork,
+    LinkedAccount, SignInMethod, UseProblem,
+    account_work::{Hold, PageWork},
 };
 
 const IDLE: ControlState = ControlState {
@@ -61,8 +62,16 @@ fn mailbox_only() -> AccountEntry {
 }
 
 /// The page with nothing running, switching any use on applying at once.
+/// The hold of a page whose own change is `work`.
+const fn own(work: PageWork) -> Hold {
+    Hold {
+        busy: true,
+        own: Some(work),
+    }
+}
+
 fn idle(entry: &AccountEntry) -> AccountPage {
-    page(entry, None, None, |_| SwitchOn::Applies)
+    page(entry, Hold::default(), None, |_| SwitchOn::Applies)
 }
 
 fn switch(page: &AccountPage, capability: AccountCapability) -> &AccountUseSwitch {
@@ -161,11 +170,16 @@ fn a_use_waiting_on_permission_is_drawn_off_and_switching_it_on_asks() {
 #[test]
 fn what_switching_on_needs_is_said_before_the_switch_is_pressed() {
     let account = mailbox_only();
-    let page = page(&account, None, None, |capability| match capability {
-        Calendar => SwitchOn::AsksProvider,
-        Contacts => SwitchOn::NeedsServer,
-        _ => SwitchOn::Applies,
-    });
+    let page = page(
+        &account,
+        Hold::default(),
+        None,
+        |capability| match capability {
+            Calendar => SwitchOn::AsksProvider,
+            Contacts => SwitchOn::NeedsServer,
+            _ => SwitchOn::Applies,
+        },
+    );
     let calendar = switch(&page, Calendar);
     assert!(
         calendar.asks_provider,
@@ -268,6 +282,19 @@ fn a_linked_account_missing_from_the_candidates_is_still_shown() {
 }
 
 #[test]
+fn a_linked_account_is_matched_by_id_not_by_how_it_reads() {
+    let mut account = mailbox_only();
+    account.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
+    account.links.calendar = Some(LinkedAccount {
+        address: "b-renamed@cloud.example".to_owned(),
+        ..linked("b@cloud.example")
+    });
+    let links = idle(&account).links;
+    assert_eq!(links[0].options.len(), 2, "listed once");
+    assert_eq!(links[0].selected, Some(1));
+}
+
+#[test]
 fn a_suggestion_is_offered_only_where_nothing_is_linked() {
     let mut account = mailbox_only();
     account.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
@@ -290,7 +317,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
     );
     account.link_candidates.calendar = vec![linked("cal@cloud.example")];
 
-    let switching = page(&account, Some(PageWork::Use(Calendar)), None, |_| {
+    let switching = page(&account, own(PageWork::Use(Calendar)), None, |_| {
         SwitchOn::Applies
     });
     assert_eq!(
@@ -306,7 +333,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
 
     let linking = page(
         &account,
-        Some(PageWork::Link(LinkSlot::Calendar)),
+        own(PageWork::Link(LinkSlot::Calendar)),
         None,
         |_| SwitchOn::Applies,
     );
@@ -318,10 +345,22 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
             .all(|switch| !switch.control.enabled && !switch.control.running)
     );
 
-    let removing = page(&account, Some(PageWork::Remove), None, |_| {
-        SwitchOn::Applies
-    });
+    let removing = page(&account, own(PageWork::Remove), None, |_| SwitchOn::Applies);
     assert!(removing.remove.running && !removing.remove.enabled);
+
+    // A change running on another account holds this page too, and marks nothing here running:
+    // a link is stored on both ends, so two changes at once could race on one account.
+    let elsewhere = page(
+        &account,
+        Hold {
+            busy: true,
+            own: None,
+        },
+        None,
+        |_| SwitchOn::Applies,
+    );
+    assert!(elsewhere.uses.iter().all(|switch| switch.control == HELD));
+    assert_eq!((elsewhere.links[0].control, elsewhere.remove), (HELD, HELD));
 
     assert_eq!(idle(&account).remove, IDLE);
 }

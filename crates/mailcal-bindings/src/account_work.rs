@@ -1,10 +1,17 @@
-//! What an account's page has running, and what its last change came to (`docs/waiting.md`).
+//! What the account pages have running, and what each change came to (`docs/waiting.md`).
 //!
-//! One piece of work per account at a time: while one runs every control on its page is held, so
-//! two changes to one account never race. Kept here rather than by any client, so a page drawn on
-//! any platform says the same thing about the same work.
+//! One change at a time across every account: a change to one account can write another's config
+//! (a link is stored on both ends), so while one runs every account page holds its controls, and
+//! only the page that started it marks its control running. Kept here rather than by any client,
+//! so a page drawn on any platform says the same thing about the same work.
 
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::{
+        Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+};
 
 use crate::{AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, LinkSlot};
 
@@ -16,63 +23,95 @@ pub(crate) enum PageWork {
     Remove,
 }
 
-#[derive(Debug, Default)]
-struct PageState {
-    running: Option<PageWork>,
-    notice: Option<AccountChangeNoticeRaised>,
+/// How a page's controls stand against the change running, if any.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct Hold {
+    /// A change runs somewhere, so every control is held.
+    pub(crate) busy: bool,
+    /// The change this page started, whose control is drawn running.
+    pub(crate) own: Option<PageWork>,
 }
 
-/// Every account's page state.
+/// Every account page's state.
 #[derive(Debug, Default)]
 pub(crate) struct AccountWork {
-    pages: Mutex<HashMap<String, PageState>>,
-    notices: Mutex<u64>,
+    running: Mutex<Option<(String, PageWork)>>,
+    notices: Mutex<HashMap<String, AccountChangeNoticeRaised>>,
+    /// What a removal came to: said on the accounts list, since the page is gone with the account.
+    list_notice: Mutex<Option<AccountChangeNoticeRaised>>,
+    raised: AtomicU64,
 }
 
 impl AccountWork {
-    /// Marks `work` running on `account`'s page, and takes away the notice the last change left.
-    /// `false` while other work runs there, and then nothing starts.
+    /// Marks `work` running for `account`, and takes away the notice the last change on its page
+    /// left. `false` while another change runs, and then nothing starts.
     pub(crate) fn start(&self, account: &str, work: PageWork) -> bool {
-        let mut pages = self.pages.lock().expect("account work mutex poisoned");
-        let page = pages.entry(account.to_owned()).or_default();
-        if page.running.is_some() {
+        let mut running = self.running.lock().expect("account work mutex poisoned");
+        if running.is_some() {
             return false;
         }
-        page.running = Some(work);
-        page.notice = None;
+        *running = Some((account.to_owned(), work));
+        self.notices
+            .lock()
+            .expect("account notice mutex poisoned")
+            .remove(account);
         true
     }
 
-    /// The work on `account`'s page ended, saying `notice` when it needs saying.
+    /// The change for `account` ended, saying `notice` when it needs saying: on the account's
+    /// page, or on the accounts list when the change removed it.
     pub(crate) fn finish(&self, account: &str, notice: Option<AccountChangeNotice>) {
-        let raised = notice.map(|notice| {
-            let mut id = self.notices.lock().expect("account notice mutex poisoned");
-            *id += 1;
-            AccountChangeNoticeRaised { id: *id, notice }
+        let removed = matches!(
+            *self.running.lock().expect("account work mutex poisoned"),
+            Some((_, PageWork::Remove))
+        );
+        let raised = notice.map(|notice| AccountChangeNoticeRaised {
+            id: self.raised.fetch_add(1, Ordering::Relaxed) + 1,
+            notice,
         });
-        let mut pages = self.pages.lock().expect("account work mutex poisoned");
-        let page = pages.entry(account.to_owned()).or_default();
-        page.running = None;
-        page.notice = raised;
+        if removed {
+            self.notices
+                .lock()
+                .expect("account notice mutex poisoned")
+                .remove(account);
+            *self
+                .list_notice
+                .lock()
+                .expect("account notice mutex poisoned") = raised;
+        } else if let Some(raised) = raised {
+            self.notices
+                .lock()
+                .expect("account notice mutex poisoned")
+                .insert(account.to_owned(), raised);
+        }
+        *self.running.lock().expect("account work mutex poisoned") = None;
     }
 
-    /// Forgets a removed account's page.
-    pub(crate) fn forget(&self, account: &str) {
-        self.pages
+    /// How `account`'s page stands, and the notice it shows.
+    pub(crate) fn of(&self, account: &str) -> (Hold, Option<AccountChangeNoticeRaised>) {
+        let running = self.running.lock().expect("account work mutex poisoned");
+        let hold = Hold {
+            busy: running.is_some(),
+            own: running
+                .as_ref()
+                .filter(|(id, _)| id == account)
+                .map(|(_, work)| *work),
+        };
+        drop(running);
+        let notice = self
+            .notices
             .lock()
-            .expect("account work mutex poisoned")
-            .remove(account);
-    }
-
-    /// What runs on `account`'s page, and the notice it shows.
-    pub(crate) fn of(
-        &self,
-        account: &str,
-    ) -> (Option<PageWork>, Option<AccountChangeNoticeRaised>) {
-        self.pages
-            .lock()
-            .expect("account work mutex poisoned")
+            .expect("account notice mutex poisoned")
             .get(account)
-            .map_or((None, None), |page| (page.running, page.notice.clone()))
+            .cloned();
+        (hold, notice)
+    }
+
+    /// What the last removal came to, when it needs saying.
+    pub(crate) fn list_notice(&self) -> Option<AccountChangeNoticeRaised> {
+        self.list_notice
+            .lock()
+            .expect("account notice mutex poisoned")
+            .clone()
     }
 }
