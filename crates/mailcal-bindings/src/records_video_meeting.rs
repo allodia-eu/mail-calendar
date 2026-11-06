@@ -34,6 +34,19 @@ impl From<AppMeetingOption> for MeetingOption {
     }
 }
 
+/// An account that can make video meetings, as Settings → Videoconferencing lists it: which
+/// service, through which account, and whether the account is used for them. Changing that is
+/// the account page's switch, which the row opens.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct MeetingAccount {
+    /// The account, as a link names one.
+    pub account: crate::LinkedAccount,
+    /// The service's name, a brand name the same in every language.
+    pub service: String,
+    /// The account's Video meetings use, as its page shows it.
+    pub state: crate::CapabilityState,
+}
+
 /// The meeting an editor opens showing: the event's first shown one.
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct EditorMeeting {

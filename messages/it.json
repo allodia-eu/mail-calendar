@@ -527,6 +527,7 @@
 	"setup_microsoft_choice_note": "Accedi con il tuo account Microsoft nel browser: qui non viene conservato nulla, tranne un token sicuro. A Microsoft viene chiesto solo ciò che scegli.",
 	"setup_google_choice_note": "Accedi con il tuo account Google nel browser: qui non viene conservato nulla, tranne un token sicuro. A Google viene chiesto solo ciò che scegli.",
 	"setup_detect_colleagues_enable": "Anche i colleghi dalla rubrica della tua organizzazione",
+	"setup_detect_teams_enable": "Aggiungi anche riunioni Microsoft Teams ai tuoi eventi",
 	"setup_withheld_title": "Non tutto ciò che hai scelto è stato consentito",
 	"setup_withheld_detail": "Il tuo provider non ha consentito: {uses}. L’account funziona senza, e attivarlo qui lo richiede di nuovo.",
 	"setup_links_title": "Usa un altro account con questo",
@@ -1163,5 +1164,9 @@
 	"settings_category_videoconferencing_summary": "Il tuo server Jitsi per le riunioni video",
 	"settings_jitsi_server": "Server Jitsi",
 	"settings_jitsi_server_hint": "Una riunione Jitsi che aggiungi a un evento è una stanza su questo server. Se lo lasci vuoto, nessun calendario offrirà Jitsi.",
-	"settings_jitsi_server_invalid": "Inserisci un indirizzo che inizi con https:// e non contenga ? né #."
+	"settings_jitsi_server_invalid": "Inserisci un indirizzo che inizi con https:// e non contenga ? né #.",
+	"settings_meeting_accounts": "Tramite i tuoi account",
+	"settings_meeting_accounts_hint": "Le riunioni Microsoft Teams e Nextcloud Talk che i tuoi account creano per gli eventi di qualsiasi calendario. Attivale o disattivale nella pagina dell’account.",
+	"settings_meeting_account_needs_permission": "Serve l’autorizzazione",
+	"settings_meeting_account_not_offered": "Non offerto"
 }

@@ -176,3 +176,20 @@ fn signing_in_moves_both_uses_to_the_server_s_own_dav_endpoint() {
         assert_eq!(base_url, "https://cloud.example.org/remote.php/dav/");
     }
 }
+
+#[test]
+fn a_nextcloud_sign_in_makes_talk_meetings_unless_they_are_switched_off() {
+    // Stored with what the endpoints mean: nothing written, and Talk meetings on.
+    let toml = build_config_toml(&setup(&[Capability::Calendar, Capability::Contacts])).unwrap();
+    assert!(!toml.contains("capabilities"), "{toml}");
+    assert!(
+        load_str(&toml)
+            .unwrap()
+            .capabilities()
+            .contains(Capability::Meetings)
+    );
+    // A choice of less still keeps them: setup offers no switch for them.
+    let calendar = load_str(&build_config_toml(&setup(&[Capability::Calendar])).unwrap()).unwrap();
+    assert!(calendar.capabilities().contains(Capability::Meetings));
+    assert!(!calendar.capabilities().contains(Capability::Contacts));
+}

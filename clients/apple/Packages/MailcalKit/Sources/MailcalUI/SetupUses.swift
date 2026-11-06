@@ -78,6 +78,9 @@ struct UseChoices: Equatable {
     var contacts: PickedUse?
     var colleagues: Bool?
     var sharedMailboxes: Bool?
+    /// Teams meetings, which only a Microsoft work account's setup offers (docs/accounts.md
+    /// rule 19).
+    var meetings: Bool?
 
     /// Each use as the core said it starts.
     init(_ offer: UseOffer) {
@@ -87,6 +90,7 @@ struct UseChoices: Equatable {
         contacts = offer.choice(.contacts).map { PickedUse(on: $0.on) }
         colleagues = offer.choice(.colleagues)?.on
         sharedMailboxes = offer.choice(.sharedMailboxes)?.on
+        meetings = offer.choice(.meetings)?.on
     }
 
     func isOn(_ capability: AccountCapability) -> Bool {
@@ -96,16 +100,17 @@ struct UseChoices: Equatable {
         case .contacts: contacts?.on ?? false
         case .colleagues: colleagues ?? false
         case .sharedMailboxes: sharedMailboxes ?? false
-        // Never a setup choice: switched on from the account's page (docs/accounts.md rule 19).
-        case .meetings: false
+        case .meetings: meetings ?? false
         }
     }
 
     /// Whether the person may flip `capability` now. The last use switched on cannot be switched
     /// off, since an account used for nothing is not one; colleagues come from the organisation's
     /// directory beside the person's own contacts, so they wait for contacts, and a shared mailbox
-    /// is opened beside the account's own mail, so it waits for mail.
+    /// is opened beside the account's own mail, so it waits for mail. Meetings are never the last
+    /// use, so they flip either way.
     func canFlip(_ capability: AccountCapability) -> Bool {
+        if capability == .meetings { return true }
         if capability == .colleagues { return isOn(.contacts) }
         if capability == .sharedMailboxes { return isOn(.mail) }
         guard isOn(capability) else { return true }
@@ -124,7 +129,7 @@ struct UseChoices: Equatable {
             if !on, colleagues != nil { colleagues = false }
         case .colleagues: colleagues = on
         case .sharedMailboxes: sharedMailboxes = on
-        case .meetings: break
+        case .meetings: meetings = on
         }
     }
 
@@ -147,7 +152,7 @@ struct UseChoices: Equatable {
     var chosen: ChosenUses {
         SetupUses.chosen(
             offer, mail: mail, calendar: calendar, contacts: contacts, colleagues: colleagues,
-            sharedMailboxes: sharedMailboxes)
+            sharedMailboxes: sharedMailboxes, meetings: meetings)
     }
 
     var missing: MissingServer { SetupUses.missing(offer, calendar: calendar, contacts: contacts) }
@@ -159,10 +164,10 @@ enum SetupUses {
     /// or the one typed. Contacts found only through the calendar's server keep that server even
     /// with the calendar off, because that is where they are looked for, and the stored uses keep
     /// the calendar closed. Colleagues count only beside contacts, and shared mailboxes only beside
-    /// mail.
+    /// mail. Meetings count whatever else is on.
     static func chosen(
         _ offer: UseOffer, mail: Bool?, calendar: PickedUse?, contacts: PickedUse?,
-        colleagues: Bool?, sharedMailboxes: Bool? = nil
+        colleagues: Bool?, sharedMailboxes: Bool? = nil, meetings: Bool? = nil
     ) -> ChosenUses {
         let calendarOn = calendar?.on ?? false
         let contactsOn = contacts?.on ?? false
@@ -185,6 +190,7 @@ enum SetupUses {
                 chosen.append(.contacts)
                 if colleagues == true { chosen.append(.colleagues) }
             }
+            if meetings == true { chosen.append(.meetings) }
             uses = chosen
         }
         return ChosenUses(uses: uses, caldavURL: caldav, carddavURL: carddav)

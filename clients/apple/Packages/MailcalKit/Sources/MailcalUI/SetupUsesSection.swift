@@ -23,7 +23,7 @@ struct SetupUsesSection<MailRows: View>: View {
             case .contacts: davCard(.contacts)
             // Drawn inside the mail and contacts cards, beneath the toggle each depends on.
             case .colleagues, .sharedMailboxes: EmptyView()
-            // Never a setup choice: switched on from the account's page.
+            // Drawn inside the calendar card, beneath what the calendar itself offers.
             case .meetings: EmptyView()
             }
         }
@@ -74,6 +74,11 @@ struct SetupUsesSection<MailRows: View>: View {
                     Text(urlHost(choices.offer.found(capability)))
                         .font(.caption).foregroundStyle(.secondary)
                 }
+            }
+            if calendar, choices.offer.choice(.meetings) != nil {
+                // Teams meetings are made for an event on any calendar, so they do not wait for
+                // this one.
+                toggle(.meetings, L10n.setup_detect_teams_enable())
             }
             if !calendar, choices.offer.choice(.colleagues) != nil {
                 // Colleagues come from the organisation's directory beside the person's own

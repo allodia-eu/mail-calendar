@@ -254,8 +254,8 @@ naar partijen die **jij** kiest, op het moment dat jij kiest, nooit via Allodia:
   binnen de app zelf weergegeven.
 - **E-mail of uitnodigingen versturen** levert ze via je provider af bij je ontvangers.
 - **Een videovergadering aan een afspraak toevoegen** vraagt die aan waar jij kiest: bij de eigen
-  server van de agenda; bij een Microsoft- of Nextcloud-account waarvoor je videovergaderingen
-  hebt aangezet, dat de titel en tijden van de afspraak krijgt om de vergadering te maken; of bij
+  server van de agenda; bij een Microsoft- of Nextcloud-account dat voor videovergaderingen wordt
+  gebruikt, dat de titel en tijden van de afspraak krijgt om de vergadering te maken; of bij
   je eigen Jitsi-server, die niets krijgt tot iemand de link opent.
 
 Dit zijn jouw verzendingen, niet de onze: Allodia ontvangt van geen van alle iets.

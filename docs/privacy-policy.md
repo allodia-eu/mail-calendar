@@ -232,8 +232,8 @@ the moment you choose, never via Allodia:
   `mailto`, `tel`) are ever handed off; attachments are never rendered inside the app.
 - **Sending mail or invitations** delivers them to your recipients through your provider.
 - **Adding a video meeting to an event** asks for one where you choose: the calendar's own server;
-  a Microsoft or Nextcloud account you switched video meetings on for, which receives the event's
-  title and times to make the meeting; or your own Jitsi server, which receives nothing until
+  a Microsoft or Nextcloud account used for video meetings, which receives the event's title and
+  times to make the meeting; or your own Jitsi server, which receives nothing until
   someone opens the link.
 
 These are your dispatches, not ours: Allodia receives nothing from any of them.

@@ -121,6 +121,8 @@ nobody has to dig a link out of the notes.
 | The editor's Video meeting row (rules 9 to 12) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Jitsi server in Settings (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Teams and Talk through an account, in the editor (rules 14 and 15) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Teams offered on at a work account's setup ([`accounts.md`](accounts.md) rule 19) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| The accounts that make meetings, in Settings → Videoconferencing ([`settings.md`](settings.md) category 4) | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
 
 On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins that Join and
 a dial-in row open the core's links as sent. On Windows the section is `EventConferenceSection.cs`

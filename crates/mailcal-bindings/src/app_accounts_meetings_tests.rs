@@ -125,8 +125,12 @@ fn a_personal_microsoft_account_has_no_teams_meetings_to_switch_on() {
 }
 
 #[test]
-fn a_nextcloud_account_switches_talk_on_with_its_own_password_and_never_loses_its_last_use() {
+fn a_nextcloud_account_makes_talk_meetings_until_switched_off_and_never_loses_its_last_use() {
     let registry = dav(true);
+    // On without being asked: Talk uses the account's own app password.
+    assert_eq!(meetings(&registry), Some(CapabilityState::On));
+    let off = registry.set_use(DAV_ID, Capability::Meetings, false);
+    assert!(matches!(off, Ok(UseChange::Changed { .. })));
     assert_eq!(meetings(&registry), Some(CapabilityState::Off));
     let on = registry.set_use(DAV_ID, Capability::Meetings, true);
     assert!(matches!(on, Ok(UseChange::Changed { .. })));
@@ -152,7 +156,7 @@ fn a_nextcloud_server_without_talk_reads_as_not_offered_until_a_connect_finds_it
             .is_err()
     );
     talk.record(true);
-    assert_eq!(meetings(&registry), Some(CapabilityState::Off));
+    assert_eq!(meetings(&registry), Some(CapabilityState::On));
 }
 
 #[test]
@@ -161,4 +165,38 @@ fn an_account_no_nextcloud_sign_in_made_offers_no_meetings() {
     assert_eq!(meetings(&registry), None);
     let refused = registry.set_use(DAV_ID, Capability::Meetings, true);
     assert!(matches!(refused, Err(MailcalError::Config(_))));
+}
+
+/// What Settings → Videoconferencing lists for `registry`'s accounts.
+fn overview(registry: &AccountRegistry) -> Vec<(String, String, CapabilityState)> {
+    let entries =
+        crate::accounts_view::entries(&registry.facts(), &BTreeSet::new(), &BTreeMap::new());
+    crate::accounts_view::meeting_accounts(&entries)
+        .into_iter()
+        .map(|row| (row.service, row.account.address, row.state))
+        .collect()
+}
+
+#[test]
+fn videoconferencing_lists_each_account_that_makes_meetings_in_its_state() {
+    let work = microsoft(&["Calendars.ReadWrite"], None, CALENDAR);
+    assert_eq!(
+        overview(&work),
+        [(
+            "Microsoft Teams".to_owned(),
+            "alice@work.example".to_owned(),
+            CapabilityState::Off
+        )]
+    );
+    let cloud = dav(true);
+    let row = overview(&cloud).remove(0);
+    assert_eq!(
+        (row.0.as_str(), row.2),
+        ("Nextcloud Talk", CapabilityState::On)
+    );
+    cloud.talk_offer(DAV_ID).unwrap().record(false);
+    assert_eq!(overview(&cloud)[0].2, CapabilityState::NotOffered);
+    assert!(overview(&dav(false)).is_empty());
+    let personal = microsoft(&[], Some(engine_api::Affiliation::Personal), CALENDAR);
+    assert!(overview(&personal).is_empty());
 }

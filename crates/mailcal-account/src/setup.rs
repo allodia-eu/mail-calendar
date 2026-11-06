@@ -185,7 +185,7 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
         return Err(ConfigError::Incomplete("mail server"));
     }
     if let Some(uses) = &setup.uses {
-        check_uses(uses, caldav_url.is_some(), carddav_url.is_some())?;
+        crate::setup_choices::check_uses(uses, caldav_url.is_some(), carddav_url.is_some())?;
     }
     if setup.username.trim().is_empty() {
         return Err(ConfigError::Incomplete("username"));
@@ -230,42 +230,17 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
         .flatten()
         .collect();
         if *uses != meant {
-            let names: Vec<toml::Value> = uses.iter().map(|use_| use_.as_str().into()).collect();
+            // A Nextcloud sign-in's account makes Talk meetings unless switched off (rule 19).
+            let talk = matches!(setup.credential, SetupCredential::Nextcloud { .. });
+            let names: Vec<toml::Value> = (uses.iter())
+                .chain(talk.then_some(Capability::Meetings))
+                .map(|use_| use_.as_str().into())
+                .collect();
             root.insert("capabilities".into(), names.into());
         }
     }
 
     finish(root, setup, username, caldav_url, carddav_url)
-}
-
-/// Refuses a choice of nothing, of colleagues or video meetings, or of a use whose server is
-/// missing.
-fn check_uses(uses: &Capabilities, caldav: bool, carddav: bool) -> Result<(), ConfigError> {
-    if uses.contains(Capability::Colleagues) {
-        return Err(ConfigError::Refused(
-            "colleagues come from a Microsoft or Google directory",
-        ));
-    }
-    if uses.contains(Capability::SharedMailboxes) {
-        return Err(ConfigError::Refused(
-            "a standards account lists its shared mailboxes without being asked for them",
-        ));
-    }
-    if uses.contains(Capability::Meetings) {
-        return Err(ConfigError::Refused(
-            "video meetings are switched on from the account's page",
-        ));
-    }
-    if uses.iter().next().is_none() {
-        return Err(ConfigError::Incomplete("what the account is used for"));
-    }
-    if uses.contains(Capability::Calendar) && !caldav {
-        return Err(ConfigError::Incomplete("calendar server"));
-    }
-    if uses.contains(Capability::Contacts) && !caldav && !carddav {
-        return Err(ConfigError::Incomplete("address book server"));
-    }
-    Ok(())
 }
 
 /// A form field's value, trimmed, when it holds one.

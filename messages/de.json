@@ -527,6 +527,7 @@
 	"setup_microsoft_choice_note": "Melden Sie sich in Ihrem Browser mit Ihrem Microsoft-Konto an: hier wird nichts gespeichert außer einem sicheren Token. Microsoft wird nur um das gebeten, was Sie auswählen.",
 	"setup_google_choice_note": "Melden Sie sich in Ihrem Browser mit Ihrem Google-Konto an: hier wird nichts gespeichert außer einem sicheren Token. Google wird nur um das gebeten, was Sie auswählen.",
 	"setup_detect_colleagues_enable": "Auch Kolleginnen und Kollegen aus dem Verzeichnis Ihrer Organisation",
+	"setup_detect_teams_enable": "Auch Microsoft Teams-Besprechungen zu Ihren Terminen hinzufügen",
 	"setup_withheld_title": "Nicht alles, was Sie gewählt haben, wurde erlaubt",
 	"setup_withheld_detail": "Ihr Anbieter hat Folgendes nicht erlaubt: {uses}. Das Konto funktioniert ohne, und wenn Sie es hier einschalten, wird erneut gefragt.",
 	"setup_links_title": "Ein anderes Konto mit diesem verwenden",
@@ -1163,5 +1164,9 @@
 	"settings_category_videoconferencing_summary": "Ihr Jitsi-Server für Videobesprechungen",
 	"settings_jitsi_server": "Jitsi-Server",
 	"settings_jitsi_server_hint": "Eine Jitsi-Besprechung, die Sie einem Termin hinzufügen, ist ein Raum auf diesem Server. Lassen Sie das Feld leer, bietet kein Kalender Jitsi an.",
-	"settings_jitsi_server_invalid": "Geben Sie eine Adresse ein, die mit https:// beginnt und kein ? oder # enthält."
+	"settings_jitsi_server_invalid": "Geben Sie eine Adresse ein, die mit https:// beginnt und kein ? oder # enthält.",
+	"settings_meeting_accounts": "Über Ihre Konten",
+	"settings_meeting_accounts_hint": "Microsoft Teams- und Nextcloud Talk-Besprechungen, die Ihre Konten für Termine in jedem Kalender erstellen. Schalten Sie sie auf der Seite des jeweiligen Kontos ein oder aus.",
+	"settings_meeting_account_needs_permission": "Berechtigung erforderlich",
+	"settings_meeting_account_not_offered": "Nicht angeboten"
 }
