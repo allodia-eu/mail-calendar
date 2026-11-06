@@ -108,10 +108,20 @@ class Bullets(unittest.TestCase):
         out = subject.build("1.0.0", "2027-01-01", [fragment("a", EVERYWHERE)])
         self.assertIn("Released 1 January 2027.", out)
 
-    def test_the_lead_paragraph_says_it_must_be_replaced(self) -> None:
+    def test_the_lead_says_it_must_be_replaced(self) -> None:
         # It is a draft, and a placeholder that does not admit it is one gets posted.
         out = subject.build("1.0.0", "2027-01-01", [fragment("a", EVERYWHERE)])
-        self.assertIn("REPLACE THIS PARAGRAPH", out)
+        self.assertIn("REPLACE THIS LEAD", out)
+
+    def test_the_lead_ends_on_the_download_link_and_the_store_status(self) -> None:
+        with mock.patch.object(
+            subject.brand, "value", lambda key: {"MAILCAL_DOWNLOAD_URL": "https://example.org/get"}
+            .get(key, "App")
+        ):
+            out = subject.build("1.0.0", "2027-01-01", [fragment("a", EVERYWHERE)])
+        self.assertIn("[https://example.org/get](https://example.org/get)", out)
+        self.assertIn("**Store availability**: ⏳", out)
+        self.assertLess(out.index("**Store availability**"), out.index("## 🌟 Every app"))
 
 
 if __name__ == "__main__":

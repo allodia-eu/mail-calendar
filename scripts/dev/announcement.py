@@ -12,9 +12,9 @@ distributed between the per-platform sections, already merged into an authored s
 store's cap could not hold the list. So `release.py` calls this before it deletes the fragments,
 and the result is committed beside the release.
 
-**What comes out is a draft**, the same rule as the assembled note. The lead paragraph in
-particular is a placeholder: which two or three changes a release is *about* is an editorial
-judgement no generator can make from a fragment list.
+**What comes out is a draft**, the same rule as the assembled note. The lead in particular is a
+placeholder: which changes a release is *about* is an editorial judgement no generator can make
+from a fragment list. Its shape is fixed in `docs/changelog.md` → "The announcement".
 """
 
 from __future__ import annotations
@@ -110,20 +110,28 @@ def build(version, date, fragments):
 
     shipped_names = [PLATFORM_NAMES[p] for p in PLATFORM_ORDER if p in shipping]
     joined = ", ".join(shipped_names[:-1]) + f" and {shipped_names[-1]}"
+    download = brand.value("MAILCAL_DOWNLOAD_URL")
 
     lines = [
         f"# {brand.value('MAILCAL_APP_NAME')} {version}",
         "",
         f"Released {reading_date(date)}.",
         "",
-        f"This release carries {len(fragments)} "
-        f"{'change' if len(fragments) == 1 else 'changes'}. "
-        "REPLACE THIS PARAGRAPH: name the two or three changes the release is actually about, "
-        "in a reader's terms.",
+        f"REPLACE THIS LEAD ({len(fragments)} "
+        f"{'change' if len(fragments) == 1 else 'changes'} below): one line that opens the "
+        "release, then a bullet for each change it is about.",
         "",
-        "Changes are grouped by where they landed. The first section reached **every app**. The "
-        "sections after it cover changes that did not reach all of them, so a change that landed "
-        "on two apps is listed under both.",
+        "- **REPLACE: what the reader gains**: what changed, where to find it, and on which apps.",
+        "",
+        f"**The latest version is available through our website: "
+        f"[{download}]({download})**",
+        "",
+        "**Store availability**: ⏳ this version is in review in the stores; this line changes to "
+        "✅ once it is live on all supported platforms.",
+        "",
+        "The changes below are grouped by where they landed. The first section reached **every "
+        "app**. The sections after it cover changes that did not reach all of them, so a change "
+        "that landed on two apps is listed under both.",
         "",
         "---",
         "",

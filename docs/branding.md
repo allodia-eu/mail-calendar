@@ -82,6 +82,7 @@ repository, the one thing an unbranded build can honestly send anyone to.
 | `MAILCAL_SUPPORT_URL` | Settings → About | `mailcal-bindings`' build script injects it into `about_info()` |
 | `MAILCAL_WEBSITE_URL` | An MCP client's server list, as the server's `websiteUrl`; the Linux software centre's home page link | `mailcal-mcp`'s build script; `flatpak_metadata.py` |
 | `MAILCAL_HELP_URL` · `MAILCAL_CONTACT_URL` | The Linux software centre's help and contact links | `flatpak_metadata.py` |
+| `MAILCAL_DOWNLOAD_URL` | A release announcement's download link | `announcement.py` |
 
 The Linux software centre also names the publisher, `MAILCAL_PUBLISHER_ID` and
 `MAILCAL_PUBLISHER_NAME` in the AppStream `<developer>` block, and tints the area behind the icon

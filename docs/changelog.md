@@ -142,9 +142,21 @@ What it decides, so nobody re-decides it per release:
   it announces the absence of the other kind.
 - **English only.** It is one forum post, not a per-locale store field.
 
-**It is a draft, and its lead paragraph says so in capitals.** Which two or three changes a release
-is *about* is an editorial judgement no generator makes from a fragment list, and a placeholder
-that does not admit it is one gets posted.
+**It is a draft, and its lead says so in capitals.** Which changes a release is *about* is an
+editorial judgement no generator makes from a fragment list, and a placeholder that does not admit
+it is one gets posted. The lead is also the GitHub release's text, and it has this shape:
+
+1. **One opening line** that invites reading ("This release has some exciting and important
+   improvements! 🚀"). The lead is the one place written to draw a reader in, so it may be warmer
+   than the rest of the page; every claim in it still holds to rule 4.
+2. **A bullet per change the release is about**, usually three to five: `**What the reader gains**:`
+   then what changed, where to find it (Settings → Accounts), and which apps have it, naming a
+   platform still to follow only as "coming", never with a date.
+3. **Thanks to an outside contributor**, by GitHub handle, beside what they added, when the release
+   carries one.
+4. **The download link** (`MAILCAL_DOWNLOAD_URL`) and **the store availability line**, which the
+   generator writes as ⏳ and the person releasing changes to ✅ once every store has approved the
+   build.
 
 ---
 
@@ -267,6 +279,7 @@ proves that `/VERSION` does, and that no note claims a version above it.
 
 | Version | Date | What shipped |
 |---|---|---|
+| [0.16.0](changelog/released/0.16.0.md) | 2026-11-06 | Add a Teams or Talk meeting through a connected account · Add a video meeting to an event · Video meetings on Android and Linux · …23 more |
 | [0.15.0](changelog/released/0.15.0.md) | 2026-11-02 | A conversation's menu, its flag and a draft opening anywhere on Android · Shared mailboxes on Android · A conversation's menu on macOS, iPhone and iPad · …24 more |
 | [0.14.0](changelog/released/0.14.0.md) | 2026-10-27 | A calendar or address book server that moves is followed, and one on another site is asked about first · Every calendar of an account syncs, and takes new events · iCloud and Yahoo calendars and address books sync, and Fastmail address books appear · …17 more |
 | [0.13.0](changelog/released/0.13.0.md) | 2026-10-19 | Answer a meeting from the calendar · Selecting messages the way the platform does on Mac, iPhone and iPad · The calendar's controls in the toolbar on Mac, iPhone and iPad · …45 more |
