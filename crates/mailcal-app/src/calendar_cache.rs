@@ -209,17 +209,7 @@ impl<P: Provider> App<P> {
         let mut expects_calendars = false;
         let mut every_account_connected = true;
         let accounts = self.account_handles().await;
-        let account_meetings: Vec<_> = accounts
-            .iter()
-            .filter_map(|account| {
-                let maker = account.meetings.as_ref()?;
-                Some(crate::calendar_ops::video_meeting::AccountMeetings {
-                    account: account.id.clone(),
-                    address: account.identity.email.clone(),
-                    service: maker.service(),
-                })
-            })
-            .collect();
+        let account_meetings = crate::calendar_ops::video_meeting::account_meetings(&accounts);
         for account in accounts {
             let account_id = account.id.as_str().to_owned();
             expects_calendars |= account.calendar_provider.is_some();
