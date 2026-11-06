@@ -1161,7 +1161,7 @@
 	"event_meeting_through": "{service} ({account})",
 	"event_meeting_added_on_save": "Il link della riunione viene aggiunto al salvataggio.",
 	"settings_category_videoconferencing": "Videoconferenze",
-	"settings_category_videoconferencing_summary": "Riunioni tramite i tuoi account e il tuo server Jitsi",
+	"settings_category_videoconferencing_summary": "Riunioni video tramite i tuoi account e altri servizi",
 	"settings_jitsi_server": "Server Jitsi",
 	"settings_jitsi_server_hint": "Una riunione Jitsi che aggiungi a un evento è una stanza su questo server. Se lo lasci vuoto, nessun calendario offrirà Jitsi.",
 	"settings_jitsi_server_invalid": "Inserisci un indirizzo che inizi con https:// e non contenga ? né #.",

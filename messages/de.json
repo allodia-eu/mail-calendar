@@ -1161,7 +1161,7 @@
 	"event_meeting_through": "{service} ({account})",
 	"event_meeting_added_on_save": "Der Besprechungslink wird beim Speichern hinzugefügt.",
 	"settings_category_videoconferencing": "Videokonferenzen",
-	"settings_category_videoconferencing_summary": "Besprechungen über Ihre Konten und Ihr Jitsi-Server",
+	"settings_category_videoconferencing_summary": "Videobesprechungen über Ihre Konten und andere Dienste",
 	"settings_jitsi_server": "Jitsi-Server",
 	"settings_jitsi_server_hint": "Eine Jitsi-Besprechung, die Sie einem Termin hinzufügen, ist ein Raum auf diesem Server. Lassen Sie das Feld leer, bietet kein Kalender Jitsi an.",
 	"settings_jitsi_server_invalid": "Geben Sie eine Adresse ein, die mit https:// beginnt und kein ? oder # enthält.",
