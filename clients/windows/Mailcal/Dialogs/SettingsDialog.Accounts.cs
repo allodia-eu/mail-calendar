@@ -262,7 +262,13 @@ public sealed partial class SettingsDialog
     {
         // Every other category reconciles itself, and the core is asked nothing on their behalf:
         // this runs on every settings and connectivity signal. An account is removed from the
-        // Accounts category, so that is where the last one goes.
+        // Accounts category, so that is where the last one goes. Videoconferencing lists the
+        // accounts that make meetings, from the same snapshot.
+        if (!_rebuilding && CurrentCategory() == "videoconferencing")
+        {
+            RefreshMeetingAccounts();
+            return;
+        }
         if (_rebuilding || CurrentCategory() != "accounts")
         {
             return;
