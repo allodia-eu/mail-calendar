@@ -2,7 +2,7 @@
 // the pending handle the redirect completes, and which attempt is the current one. A press
 // supersedes the sign-in before it (docs/provider-oauth.md rule 13), and leaving the form retires
 // it, so nothing still running can open a browser or add an account for it (docs/onboarding.md,
-// "Nobody may be stranded on it"). The setup IMAP sign-in's slot has the same shape. Compose-free
+// "Nobody may be stranded on it"). SignInSlot, the setup sign-ins', has the same shape. Compose-free
 // apart from the step's state, so the JVM suite reaches it.
 package eu.allodia.mailcal
 

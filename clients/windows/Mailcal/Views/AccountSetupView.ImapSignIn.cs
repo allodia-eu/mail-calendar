@@ -119,10 +119,12 @@ public sealed partial class AccountSetupView
         {
             return;
         }
-        _imapSignIn.SignInStarted();
+        // A press while an earlier sign-in waits on the browser supersedes it, and that one's end
+        // is then not this one's.
+        var attempt = _imapSignIn.SignInStarted();
         UpdateImapSignIn();
         var outcome = await model.SignInWithImapAsync(ImapRequest());
-        _imapSignIn.SignInFinished(outcome);
+        _imapSignIn.SignInFinished(attempt, outcome);
         UpdateImapSignIn();
         UpdateCanConnect();
     }
@@ -140,7 +142,7 @@ public sealed partial class AccountSetupView
         ImapCheckingPanel.Visibility = checking ? Visibility.Visible : Visibility.Collapsed;
         ImapCheckingRing.IsActive = checking;
         ImapSignInPanel.Visibility = _imapSignIn.ShowButton ? Visibility.Visible : Visibility.Collapsed;
-        ImapSignInButton.IsEnabled = _imapSignIn.ButtonEnabled;
+        ImapSignInButton.IsEnabled = _imapSignIn.ShowButton && Model is { SignInButtonsEnabled: true };
         // Primary until a password is on screen beside it; then Connect leads (rule 2). Assigned
         // only on a change, because a new style re-templates the button under a focused pointer.
         var style = (Style) Application.Current.Resources[

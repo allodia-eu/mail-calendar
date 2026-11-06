@@ -189,14 +189,15 @@ struct ImapSignInButton: View {
     /// route back and say why.
     let failed: () -> Void
 
+    @State private var attempts = SignInAttempts()
+    /// The running sign-in, held so it can be retired.
+    @State private var task: Task<Void, Never>?
+
     var body: some View {
         VStack(spacing: 10) {
             if signingIn {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text(L10n.status_connecting()).foregroundStyle(.secondary)
-                }
-                .frame(minHeight: 32)
+                SignInBusyRow(escapable: attempts.escapable, escape: escape)
+                    .frame(minHeight: 32)
             } else {
                 button
             }
@@ -208,6 +209,7 @@ struct ImapSignInButton: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
+        .signInEscapeClock($attempts)
     }
 
     @ViewBuilder private var button: some View {
@@ -223,14 +225,28 @@ struct ImapSignInButton: View {
         }
     }
 
+    /// Starts a sign-in, superseding any still out (docs/provider-oauth.md rule 13).
     private func start() {
-        Task {
-            signingIn = true
+        task?.cancel()
+        let attempt = attempts.begin()
+        signingIn = true
+        task = Task {
             let outcome = await signIn(request)
+            // An attempt superseded or escaped from: the screen has moved on without it.
+            guard attempts.finish(attempt) else { return }
             signingIn = false
             // A dismissed browser is not a failure: say nothing and leave the button as it was.
             if case .failed = outcome { failed() }
         }
+    }
+
+    /// The way back from a sign-in that did not come back: the attempt is retired and the card
+    /// returns to its offer, saying nothing.
+    private func escape() {
+        task?.cancel()
+        task = nil
+        attempts.escape()
+        signingIn = false
     }
 }
 

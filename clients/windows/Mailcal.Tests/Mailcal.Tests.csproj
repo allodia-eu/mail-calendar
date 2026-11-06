@@ -115,6 +115,9 @@
     <!-- The Google loopback listener: which request ends the wait and what a late browser reads.
          The catalog's pages and the core's redirect rule arrive as parameters, so it is pure BCL. -->
     <Compile Include="..\Mailcal\Services\GoogleOAuth.cs" Link="Services\GoogleOAuth.cs" />
+    <!-- Begin, open, wait: an attempt retired while its begin dialled opens no browser
+         (docs/onboarding.md, "Nobody may be stranded on it"). -->
+    <Compile Include="..\Mailcal\Services\BrowserHop.cs" Link="Services\BrowserHop.cs" />
     <!-- The Diagnostics settings panel's pure half (log snapshot math, tail read, export
          concatenation, byte formatting, boot level resolution), WinUI-free on purpose, so it's
          testable here (the dialog's WinUI half stays in Dialogs/). It returns the bindings'

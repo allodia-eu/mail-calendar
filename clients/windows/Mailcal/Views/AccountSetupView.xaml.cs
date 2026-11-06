@@ -69,8 +69,13 @@ public sealed partial class AccountSetupView : UserControl
             if (e.PropertyName == nameof(MailboxModel.IsSubmitting))
             {
                 UpdateCanConnect();
+            }
+            if (e.PropertyName == nameof(MailboxModel.SignInButtonsEnabled))
+            {
                 UpdateGoogleSignInEnabled();
                 UpdateNextcloud();
+                UpdateImapSignIn();
+                UpdateJmapSignIn();
             }
             // A connect refused for a certificate is answered on this form, so the panel is
             // drawn when one arrives and taken away when the next attempt clears it
