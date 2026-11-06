@@ -41,6 +41,9 @@ pub(super) struct Fields {
     username: gtk::Entry,
     password: gtk::Entry,
     error: gtk::Label,
+    /// Beside the buttons while a connect or a skip runs. A connect can take a while: the
+    /// mailbox's calendar and contacts move to the new account and the mailbox is dialled again.
+    busy: gtk::Spinner,
     connect: gtk::Button,
     other: gtk::Button,
 }
@@ -74,6 +77,8 @@ impl Fields {
         content.append(&error);
         let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         actions.set_halign(gtk::Align::End);
+        let busy = gtk::Spinner::new();
+        actions.append(&busy);
         let other = gtk::Button::with_label(other);
         actions.append(&other);
         let connect = primary(l10n::action_connect(), window);
@@ -89,6 +94,7 @@ impl Fields {
             username,
             password,
             error,
+            busy,
             connect,
             other,
         };
@@ -141,6 +147,8 @@ impl Fields {
         self.error
             .set_text(form.error.as_deref().unwrap_or_default());
         self.error.set_visible(form.error.is_some());
+        self.busy.set_visible(form.busy);
+        self.busy.set_spinning(form.busy);
     }
 
     /// Connect sends what was typed, once there is a password to send; the sign-in and its

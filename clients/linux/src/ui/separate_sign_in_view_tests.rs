@@ -149,11 +149,22 @@ pub(crate) fn the_page_form_opens_over_settings_and_updates_in_place() {
         "redrawn in place"
     );
     assert!(!password.is_sensitive(), "held while the connect runs");
+    let busy = crate::ui::setup_widget_tests::descendants::<gtk::Spinner>(
+        child.upcast_ref::<gtk::Widget>(),
+    )
+    .into_iter()
+    .find(gtk::Spinner::is_spinning)
+    .expect("a spinner turns while the connect runs");
+    assert!(self::shown(&busy), "and is on screen");
 
     shown.busy = false;
     shown.error = Some(l10n::signin_refused().to_owned());
     prompts.sync(None, Some(&shown), &parent, &sender);
     assert!(password.is_sensitive());
+    assert!(
+        !self::shown(&busy) && !busy.is_spinning(),
+        "and is gone once it has answered"
+    );
     assert_eq!(password.text(), "typed", "what was typed stands");
     assert!(
         rendered_labels(&child)
