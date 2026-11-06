@@ -377,6 +377,7 @@ fn a_dismissed_event_stays_closed_until_its_fact_goes_and_comes_back() {
     let id = only(&notices).id.clone();
 
     assert_eq!(book.dismiss(&id), Some(Dismissal::Remembered));
+    assert_eq!(book.dismiss(&id), None, "closing it again changes nothing");
     assert!(pull_with(&mut book, &quiet(), 1, None).is_empty());
     assert!(
         pull_with(&mut book, &quiet(), 1, None).is_empty(),
@@ -409,7 +410,10 @@ fn a_refused_folder_change_is_dismissed_where_the_pane_holds_it() {
     let mut book = NoticeBook::default();
     let notices = pull_with(&mut book, &quiet(), 0, Some(folder_refused("a")));
     let id = only(&notices).id.clone();
-    assert_eq!(book.dismiss(&id), Some(Dismissal::FolderNotice));
+    assert_eq!(
+        book.dismiss(&id),
+        Some(Dismissal::FolderNotice(folder_refused("a")))
+    );
     // The book hides nothing of its own: a refusal still standing in the pane is still shown.
     assert_eq!(
         pull_with(&mut book, &quiet(), 0, Some(folder_refused("a"))).len(),
@@ -455,4 +459,39 @@ fn a_notice_with_no_action_has_no_remedy_to_fail() {
     assert!(!book.note_remedy_failed(&only(&notices).id));
     assert!(!book.note_remedy_failed("signin_expired:nobody"));
     assert!(!only(&pull(&mut book, &offline)).remedy_failed);
+}
+
+#[test]
+fn a_dismiss_aimed_at_a_replaced_folder_refusal_closes_nothing() {
+    let mut book = NoticeBook::default();
+    let first = pull_with(&mut book, &quiet(), 0, Some(folder_refused("a")));
+    let first = only(&first).id.clone();
+    let mut later = folder_refused("a");
+    later.action = FolderAction::Delete;
+    let second = pull_with(&mut book, &quiet(), 0, Some(later));
+    assert_ne!(only(&second).id, first, "a later refusal is a new notice");
+    assert_eq!(book.dismiss(&first), None);
+}
+
+#[test]
+fn a_failed_remedy_is_forgotten_when_the_notice_offers_another() {
+    let mut book = NoticeBook::default();
+    let outage = |problem| ConnectivitySnapshot {
+        calendar_outages: vec![UseOutage {
+            account_id: "a".to_owned(),
+            problem,
+        }],
+        ..quiet()
+    };
+    let notices = pull(&mut book, &outage(UseProblem::Unreachable));
+    assert!(book.note_remedy_failed(&only(&notices).id));
+    assert!(
+        !book.note_remedy_failed(&only(&notices).id),
+        "reported once"
+    );
+    let refused = pull(&mut book, &outage(UseProblem::SignInRefused));
+    let refused = only(&refused);
+    assert_eq!(refused.action, Some(NoticeAction::OpenAccountSettings));
+    assert!(!refused.remedy_failed, "nobody has tried the new remedy");
+    assert!(!only(&pull(&mut book, &outage(UseProblem::Unreachable))).remedy_failed);
 }

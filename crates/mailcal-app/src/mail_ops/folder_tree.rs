@@ -330,6 +330,23 @@ impl<P: Provider> App<P> {
         }
     }
 
+    /// Clears the refusal the pane holds if `shown` says it is the one the person closed, and
+    /// leaves a later refusal that replaced it standing.
+    pub async fn dismiss_folder_notice_if(&self, shown: impl Fn(&FolderNotice) -> bool) {
+        let cleared = {
+            let mut pane = self.folder_pane.lock().expect("folder-pane mutex poisoned");
+            let cleared = pane.notice().is_some_and(|held| shown(&held));
+            if cleared {
+                pane.set_notice(None);
+            }
+            cleared
+        };
+        if cleared {
+            self.observer.surface_changed(Surface::Notices);
+            self.rebuild_snapshot().await;
+        }
+    }
+
     /// The folder change the server refused, standing until the user dismisses it or makes
     /// another change; the same notice the mailbox snapshot carries, read without building one.
     #[must_use]

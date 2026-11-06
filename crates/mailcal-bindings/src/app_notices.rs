@@ -3,10 +3,8 @@
 
 use std::sync::Arc;
 
-use mailcal_app::{FolderIntent as AppFolderIntent, Intent as AppIntent};
-
 use crate::{
-    MailcalApp, NoticeIntent, NoticesSnapshot,
+    FolderNotice, MailcalApp, NoticeIntent, NoticesSnapshot,
     notices::{Dismissal, NoticeFacts, raise},
 };
 
@@ -48,13 +46,17 @@ impl MailcalApp {
                     drop(book);
                     self.app.signal_notices();
                 }
-                // The pane holds it, and clearing it there signals the notices.
-                Some(Dismissal::FolderNotice) => {
+                // The pane holds it, and clearing it there signals the notices. Only while it is
+                // still this refusal: a later one may have replaced it since.
+                Some(Dismissal::FolderNotice(shown)) => {
                     drop(book);
                     let app = Arc::clone(&self.app);
-                    let intent = AppIntent::Folders(AppFolderIntent::DismissNotice);
-                    self.runtime
-                        .spawn(async move { app.dispatch(intent).await });
+                    self.runtime.spawn(async move {
+                        app.dismiss_folder_notice_if(|held| {
+                            FolderNotice::from(held.clone()) == shown
+                        })
+                        .await;
+                    });
                 }
                 None => {}
             },

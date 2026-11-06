@@ -39,12 +39,13 @@ impl NoticeId {
 }
 
 /// How a dismissible notice is closed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Dismissal {
     /// The book remembers it, for as long as its fact holds.
     Remembered,
-    /// The folder pane holds the fact, and dismissing clears it there.
-    FolderNotice,
+    /// The folder pane holds this refusal, and dismissing clears it there, only while it is
+    /// still the one the pane holds.
+    FolderNotice(FolderNotice),
 }
 
 /// A notice as the facts raise it, before the book ranks it.
@@ -210,10 +211,13 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
             problem: notice.problem,
         };
         let account = Some(notice.account.as_str());
-        raised.push(
-            Raised::new("folder_change_refused", account, kind, Degraded, Mail, None)
-                .dismissed_by(Dismissal::FolderNotice),
-        );
+        let mut refused = Raised::new("folder_change_refused", account, kind, Degraded, Mail, None)
+            .dismissed_by(Dismissal::FolderNotice(notice.clone()));
+        // A later refusal on the same account replaces this one in the pane; its own id keeps a
+        // dismiss aimed at this one from closing that one.
+        let scope = format!("{}:{:?}:{}", notice.account, notice.action, notice.folder);
+        refused.id = NoticeId::new("folder_change_refused", Some(&scope));
+        raised.push(refused);
     }
     raised
 }
@@ -263,7 +267,7 @@ fn sorted_outages(outages: &[UseOutage]) -> Vec<&UseOutage> {
 /// What the book knows of a notice in force.
 struct InForce {
     dismissal: Option<Dismissal>,
-    has_action: bool,
+    action: Option<NoticeAction>,
 }
 
 /// The notices' state across snapshots: age, dismissal and failed remedies.
@@ -275,7 +279,9 @@ pub(crate) struct NoticeBook {
     /// The notices in force at the last snapshot.
     in_force: HashMap<NoticeId, InForce>,
     dismissed: HashSet<NoticeId>,
-    remedy_failed: HashSet<NoticeId>,
+    /// The remedy each notice was offering when it was reported as failed. A notice whose action
+    /// has changed since offers something nobody has tried, so its entry is dropped.
+    remedy_failed: HashMap<NoticeId, NoticeAction>,
 }
 
 impl NoticeBook {
@@ -284,7 +290,7 @@ impl NoticeBook {
         let live: HashSet<NoticeId> = raised.iter().map(|notice| notice.id.clone()).collect();
         self.first_raised.retain(|id, _| live.contains(id));
         self.dismissed.retain(|id| live.contains(id));
-        self.remedy_failed.retain(|id| live.contains(id));
+        self.remedy_failed.retain(|id, _| live.contains(id));
         self.in_force.clear();
         let mut ranked = Vec::with_capacity(raised.len());
         for notice in raised {
@@ -298,14 +304,17 @@ impl NoticeBook {
             self.in_force.insert(
                 notice.id.clone(),
                 InForce {
-                    dismissal: notice.dismissal,
-                    has_action: notice.action.is_some(),
+                    dismissal: notice.dismissal.clone(),
+                    action: notice.action,
                 },
             );
+            if self.remedy_failed.get(&notice.id).copied() != notice.action {
+                self.remedy_failed.remove(&notice.id);
+            }
             if self.dismissed.contains(&notice.id) {
                 continue;
             }
-            let remedy_failed = self.remedy_failed.contains(&notice.id);
+            let remedy_failed = self.remedy_failed.contains_key(&notice.id);
             let key = (notice.severity, notice.account.is_some(), age);
             ranked.push((key, notice, remedy_failed));
         }
@@ -326,14 +335,14 @@ impl NoticeBook {
         NoticesSnapshot { notices }
     }
 
-    /// Closes `id` if it is in force and dismissible, answering how. A notice the book
-    /// remembers is hidden from the next snapshot on; one whose fact lives elsewhere is left for
-    /// the caller to clear there.
+    /// Closes `id` if it is in force, dismissible and not already closed, answering how. A notice
+    /// the book remembers is hidden from the next snapshot on; one whose fact lives elsewhere is
+    /// left for the caller to clear there.
     pub(crate) fn dismiss(&mut self, id: &str) -> Option<Dismissal> {
         let id = NoticeId(id.to_owned());
-        let dismissal = self.in_force.get(&id)?.dismissal?;
-        if dismissal == Dismissal::Remembered {
-            self.dismissed.insert(id);
+        let dismissal = self.in_force.get(&id)?.dismissal.clone()?;
+        if dismissal == Dismissal::Remembered && !self.dismissed.insert(id) {
+            return None;
         }
         Some(dismissal)
     }
@@ -341,14 +350,10 @@ impl NoticeBook {
     /// Marks `id`'s remedy as failed if it is in force and has one, answering whether it did.
     pub(crate) fn note_remedy_failed(&mut self, id: &str) -> bool {
         let id = NoticeId(id.to_owned());
-        if !self
-            .in_force
-            .get(&id)
-            .is_some_and(|notice| notice.has_action)
-        {
+        let Some(action) = self.in_force.get(&id).and_then(|notice| notice.action) else {
             return false;
-        }
-        self.remedy_failed.insert(id)
+        };
+        self.remedy_failed.insert(id, action) != Some(action)
     }
 }
 

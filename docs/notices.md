@@ -47,8 +47,12 @@ where its platform puts it. Two platforms showing the same moment show the same 
   app's and has no page to open. An account that was read and then failed to connect is an
   `Unreachable` or `SignInExpired` notice instead.
 - **A refused folder change is closed where it is held.** Dismissing it clears the pane's notice,
-  the same as `FolderIntent::DismissNotice`, so the mailbox snapshot's `folder_notice` and this
-  list never disagree.
+  as `FolderIntent::DismissNotice` does, so the mailbox snapshot's `folder_notice` and this list
+  never disagree; but only while the pane still holds that refusal. A later refusal on the same
+  account is a notice with an id of its own, which a dismiss aimed at the earlier one leaves
+  standing.
+- **A failed remedy belongs to the action that failed.** When a notice comes to offer another
+  action (an outage that was unreachable is now refused), it has not failed yet.
 - **The Allodia notice is Degraded**: mail, calendar and contacts all work without the account.
   It becomes Blocked while a stored entitlement answer grants a paid capability whose grace ends
   within seven days ([`entitlement.md`](../allodia_license/entitlement.md)), because then signing
