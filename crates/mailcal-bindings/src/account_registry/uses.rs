@@ -3,7 +3,7 @@
 use mailcal_account::{AccountShape, Capabilities, Capability};
 
 use super::AccountRegistry;
-use crate::{BoxedAccount, ConnectedAccount, MailcalError};
+use crate::{BoxedAccount, ConnectedAccount, MailcalError, account_page::SwitchOn};
 
 /// What [`AccountRegistry::set_use`] did.
 pub(crate) enum UseChange {
@@ -24,6 +24,30 @@ pub(crate) enum UseChange {
 }
 
 impl AccountRegistry {
+    /// What switching `capability` on for `id` would need, asked of the same check
+    /// [`Self::set_use`] makes and changing nothing: the account's page says it before the switch
+    /// is pressed. An unknown account, or a use its server does not offer, answers `Applies`, and
+    /// switching it on is then refused as it always was.
+    pub(crate) fn switch_on(&self, id: &str, capability: Capability) -> SwitchOn {
+        let entries = self
+            .entries
+            .lock()
+            .expect("account registry mutex poisoned");
+        let Some(entry) = entries.get(id) else {
+            return SwitchOn::Applies;
+        };
+        let next: Capabilities = entry
+            .capabilities()
+            .iter()
+            .chain(std::iter::once(capability))
+            .collect();
+        match opens(entry, &next, capability) {
+            Opens::Yes | Opens::NotOffered => SwitchOn::Applies,
+            Opens::NeedsConsent => SwitchOn::AsksProvider,
+            Opens::NeedsEndpoint => SwitchOn::NeedsServer,
+        }
+    }
+
     /// Switches `capability` on or off for `id`. Switching contacts off switches colleagues off
     /// with it, since they are only read beside contacts, and switching mail off switches shared
     /// mailboxes off with it.

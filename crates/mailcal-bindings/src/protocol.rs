@@ -8,12 +8,14 @@
 // `mailcal-app` splits its own protocol module; `lib.rs` re-exports both halves, so a host
 // sees no split at all.
 mod intent;
+mod intent_account_page;
 mod intent_events;
 mod intent_folders;
 mod intent_notices;
 mod intent_outbox;
 
 pub use intent::Intent;
+pub use intent_account_page::AccountPageIntent;
 pub use intent_events::EventIntent;
 pub use intent_folders::FolderIntent;
 pub use intent_notices::NoticeIntent;

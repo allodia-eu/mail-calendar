@@ -21,10 +21,12 @@ use mailcal_app::{Account, App};
 
 mod about;
 mod account_capability;
+mod account_page;
 mod account_registry;
 mod account_repair;
 mod account_sign_in;
 mod account_split;
+mod account_work;
 mod accounts_distinction;
 mod accounts_view;
 mod agent_ui;
@@ -40,6 +42,7 @@ mod allodia_tokens;
 #[cfg(feature = "allodia-license")]
 mod allodia_transport;
 mod analytics;
+mod app_account_page;
 mod app_accounts;
 mod app_accounts_consent;
 mod app_accounts_endpoints;
@@ -119,6 +122,7 @@ mod protocol;
 mod protocol_surface;
 mod reconnect;
 mod records;
+mod records_account_page;
 mod records_accounts;
 mod records_avatar;
 mod records_calendar;
@@ -222,8 +226,8 @@ pub use native_fault::watch_for_native_faults;
 pub use nextcloud::{NextcloudSignInPoll, NextcloudSignInStart, nextcloud_poll_interval_ms};
 pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
-    BulkAction, EventIntent, FolderIntent, Intent, InvitationResponse, NoticeIntent, OutboxIntent,
-    SearchScope, SelectedRow,
+    AccountPageIntent, BulkAction, EventIntent, FolderIntent, Intent, InvitationResponse,
+    NoticeIntent, OutboxIntent, SearchScope, SelectedRow,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -236,6 +240,10 @@ pub use records::{
         SignatureSlotKind, SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings,
         SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
+};
+pub use records_account_page::{
+    AccountChangeNotice, AccountChangeNoticeRaised, AccountLinkPicker, AccountPage, AccountUseNote,
+    AccountUseSwitch, ControlState,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,
@@ -398,6 +406,8 @@ pub struct MailcalApp {
     /// is still under way does not start another dial of the same account; each carries whether
     /// a dial was asked for it meanwhile ([`MailcalApp::retry_connections`]).
     redialling: retry::Redialling,
+    /// What each account's page has running, and what its last change came to.
+    account_work: Arc<account_work::AccountWork>,
     /// The device's display zone (resolved at construction), used as the `Prefer:
     /// outlook.timezone` a reconnecting Microsoft account rebinds its Graph calendar provider
     /// with: so a recurring series expands DST-correctly. Fixed for the app's lifetime; the

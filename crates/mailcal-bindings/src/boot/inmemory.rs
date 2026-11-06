@@ -105,6 +105,7 @@ pub(crate) fn build_demo(
         // The demo connects no real accounts, so nothing is ever disconnected.
         disconnected: Arc::new(Mutex::new(HashSet::new())),
         redialling: Arc::default(),
+        account_work: Arc::default(),
         device_zone: device_tz,
         platform: None,
         // The demo fixture is what the CI verify gates assert on; it must keep behaving like a
@@ -346,6 +347,7 @@ fn finish_showcase(
         // The showcase connects no real accounts, so nothing is ever disconnected.
         disconnected: Arc::new(Mutex::new(HashSet::new())),
         redialling: Arc::default(),
+        account_work: Arc::default(),
         device_zone: device_tz,
         platform: None,
         // The one build where account detection answers from a script instead of the network;

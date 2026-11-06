@@ -347,6 +347,7 @@ pub(crate) fn build_accounts(
         credential_store,
         disconnected,
         redialling: Arc::default(),
+        account_work: Arc::default(),
         device_zone: device_tz,
         platform,
         // The real account path: detection reaches the network, as it must.
