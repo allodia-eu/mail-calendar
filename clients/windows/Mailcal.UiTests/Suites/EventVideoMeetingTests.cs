@@ -106,6 +106,8 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
         app.CloseDialogs();
     }
 
+    private static Filter AddedOnSave(Element editor) => new() { Id = "EventMeetingAddedOnSave", Under = editor };
+
     private static bool OffersJoin(App app, Element detail) =>
         app.Agent.Wait(new Filter { Id = "EventJoin", Type = "Button", Under = detail }, TimeSpan.FromSeconds(5)) is not null;
 
@@ -148,7 +150,10 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
         var none = Catalog.English("event_meeting_none");
         Assert.Equal(none, Selection(app, editor));
         Assert.Equal(new[] { none, Jitsi }, Entries(app, box));
+        Assert.True(app.Agent.Find(AddedOnSave(editor)) is null, "with no meeting chosen, nothing is said about a link (rule 10)");
         Choose(app, editor, Jitsi);
+        Assert.True(app.Agent.Wait(AddedOnSave(editor), TimeSpan.FromSeconds(5)) is not null,
+            "a chosen meeting says its link is added at the save (rule 10)");
         app.Agent.Invoke(app.Agent.Find(new Filter { Id = "PrimaryButton", Under = editor })!);
         Assert.True(app.Agent.WaitGone(Filter.ById("EventTitleBox"), TimeSpan.FromSeconds(10)), "Save closes the editor");
 
@@ -164,6 +169,7 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
         Assert.True(MeetingBox(app, editor) is not null, "an event with a meeting draws the Video meeting row");
         // Rule 11: the row opens on the meeting the event has, as the choice that made it.
         Assert.Equal(Jitsi, Selection(app, editor));
+        Assert.True(app.Agent.Find(AddedOnSave(editor)) is null, "the meeting the event has is not announced as one still to come (rule 10)");
         Choose(app, editor, Catalog.English("event_meeting_none"));
         app.Agent.Invoke(app.Agent.Find(new Filter { Id = "PrimaryButton", Under = editor })!);
         Assert.True(app.Agent.WaitGone(Filter.ById("EventTitleBox"), TimeSpan.FromSeconds(10)), "Save closes the editor");

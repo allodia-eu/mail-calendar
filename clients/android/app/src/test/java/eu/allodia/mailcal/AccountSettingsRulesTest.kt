@@ -36,6 +36,23 @@ class AccountSettingsRulesTest {
     }
 
     @Test
+    fun video_meetings_are_never_the_last_use_and_switch_off_without_asking() {
+        val entry = accountEntry(
+            CoreAccountKind.DAV,
+            AccountCapability.CALENDAR to CapabilityState.ON,
+            AccountCapability.CONTACTS to CapabilityState.OFF,
+            AccountCapability.MEETINGS to CapabilityState.ON,
+        )
+        assertEquals(UseNote.LAST, AccountSettingsRules.switch(entry, AccountCapability.CALENDAR).note)
+        assertEquals(
+            UseSwitch(active = true, asks = false, enabled = true, note = UseNote.NONE),
+            AccountSettingsRules.switch(entry, AccountCapability.MEETINGS),
+        )
+        assertFalse(AccountSettingsRules.confirmsOff(AccountCapability.MEETINGS))
+        assertTrue(AccountSettingsRules.confirmsOff(AccountCapability.CALENDAR))
+    }
+
+    @Test
     fun colleagues_wait_for_contacts() {
         fun microsoft(contacts: CapabilityState) = accountEntry(
             CoreAccountKind.MICROSOFT,

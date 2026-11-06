@@ -91,6 +91,7 @@ impl AccountDial {
                 config,
                 connections,
                 tokens,
+                talk,
                 shared: ref shared_dial,
                 ..
             } => {
@@ -102,8 +103,9 @@ impl AccountDial {
                 let learned_calendar = std::sync::Mutex::new(mailcal_account::Learned::Nothing);
                 let learned_contacts = std::sync::Mutex::new(mailcal_account::Learned::Nothing);
                 // Calendar and contacts both talk to the same CalDAV host, so they run
-                // concurrently with mail rather than making the mailbox wait for either.
-                let (mail, calendar, contacts) = tokio::join!(
+                // concurrently with mail rather than making the mailbox wait for either, and a
+                // Nextcloud server is asked about Talk beside them.
+                let (mail, calendar, contacts, meetings) = tokio::join!(
                     mail_part(on(Capability::Mail), open_mail, async {
                         mailcal_account::connect_mail_providers(
                             &connections,
@@ -134,6 +136,13 @@ impl AccountDial {
                             &learned_contacts,
                         ),
                     ),
+                    async {
+                        // A shared mailbox is mail alone, under the account's sign-in.
+                        if shared.is_some() {
+                            return None;
+                        }
+                        talk_meetings(&config, &talk, on(Capability::Meetings)).await
+                    },
                 );
                 let assembled = assemble(mail, calendar, contacts)?;
                 let calendar_error = assembled
@@ -156,7 +165,8 @@ impl AccountDial {
                     calendar_error,
                     false,
                     learned,
-                ))
+                )
+                .with_meetings(meetings))
             }
             Self::Microsoft {
                 tokens,
@@ -208,6 +218,13 @@ impl AccountDial {
                     },
                 );
                 let assembled = assemble(mail, calendar, contacts)?;
+                // Opened only where the grant holds its permission, which `on` already says.
+                let meetings = (on(Capability::Meetings) && shared.is_none())
+                    .then(|| mailcal_account::teams_meetings(Arc::clone(&tokens)))
+                    .and_then(|made| {
+                        made.inspect_err(|err| log::warn!("graph: no Teams meetings: {err}"))
+                            .ok()
+                    });
                 Ok(outcome(
                     id,
                     on(Capability::Mail),
@@ -216,7 +233,8 @@ impl AccountDial {
                     None,
                     calendar_reauth_required,
                     mailcal_account::DavLearned::default(),
-                ))
+                )
+                .with_meetings(meetings))
             }
             Self::Google {
                 tokens,
@@ -323,6 +341,28 @@ impl AccountDial {
     }
 }
 
+/// The Talk meetings a Nextcloud account makes while `used` for them, asking its server whether
+/// it offers Talk at every connect and recording the answer in `talk`. An account no Nextcloud
+/// sign-in made asks nothing.
+async fn talk_meetings(
+    config: &mailcal_account::AccountConfig,
+    talk: &crate::talk_offer::TalkOffer,
+    used: bool,
+) -> Option<Arc<dyn engine_api::MeetingService>> {
+    config.nextcloud.as_ref()?;
+    match mailcal_account::talk_at_connect(config).await {
+        mailcal_account::TalkAtConnect::Offered(service) => {
+            talk.record(true);
+            used.then_some(service)
+        }
+        mailcal_account::TalkAtConnect::NotOffered => {
+            talk.record(false);
+            None
+        }
+        mailcal_account::TalkAtConnect::Unknown => None,
+    }
+}
+
 /// The dial's result, from what [`assemble`] kept.
 fn outcome(
     id: &AccountId,
@@ -370,6 +410,7 @@ fn outcome(
             id: id.clone(),
             providers: assembled.mail.into(),
             calendar_provider: assembled.calendar.into_iter().next(),
+            meetings: None,
             contact_providers: assembled.contacts,
             identity,
             dialled: true,

@@ -19,6 +19,7 @@ fn jmap(calendar: CapabilityState, candidates: Vec<LinkedAccount>) -> AccountsSn
         problem: None,
     };
     AccountsSnapshot {
+        meeting_accounts: Vec::new(),
         accounts: vec![AccountEntry {
             id: JMAP.to_owned(),
             address: "alice@example.org".to_owned(),

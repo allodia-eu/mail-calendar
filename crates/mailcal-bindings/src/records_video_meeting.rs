@@ -1,4 +1,4 @@
-//! The FFI half of the editor's video meeting (`docs/conferencing.md`, rules 9 to 13): what a
+//! The FFI half of the editor's video meeting (`docs/conferencing.md`, rules 9 to 15): what a
 //! calendar offers, what the editor opens showing, what a write asks for, and the Jitsi server
 //! Settings → Videoconferencing holds.
 
@@ -17,6 +17,11 @@ pub struct MeetingOption {
     pub id: String,
     /// The service's name, a brand name the same in every language.
     pub name: String,
+    /// The address of the account that makes it, for a meeting made through an account the
+    /// person connected, which a client shows beside the name (`event_meeting_through`); `None`
+    /// for the calendar's own server's and for Jitsi.
+    #[uniffi(default = None)]
+    pub through: Option<String>,
 }
 
 impl From<AppMeetingOption> for MeetingOption {
@@ -24,8 +29,22 @@ impl From<AppMeetingOption> for MeetingOption {
         Self {
             id: option.id,
             name: option.name,
+            through: option.through,
         }
     }
+}
+
+/// An account that can make video meetings, as Settings → Videoconferencing lists it: which
+/// service, through which account, and whether the account is used for them. Changing that is
+/// the account page's switch, which the row opens.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct MeetingAccount {
+    /// The account, as a link names one.
+    pub account: crate::LinkedAccount,
+    /// The service's name, a brand name the same in every language.
+    pub service: String,
+    /// The account's Video meetings use, as its page shows it.
+    pub state: crate::CapabilityState,
 }
 
 /// The meeting an editor opens showing: the event's first shown one.

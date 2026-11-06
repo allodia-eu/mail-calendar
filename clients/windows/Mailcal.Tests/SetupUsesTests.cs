@@ -126,6 +126,40 @@ public class SetupUsesTests
     }
 
     [Fact]
+    public void TeamsMeetingsStartOnCountWhateverElseIsOnAndGoWithTheirOwnSwitch()
+    {
+        var offer = new UseOffer(
+            new[] { AccountCapability.Mail, AccountCapability.Calendar, AccountCapability.Meetings }
+                .Select(capability => new SetupChoice(capability, true, true)).ToList(),
+            string.Empty,
+            string.Empty);
+        Assert.True(offer.For(AccountCapability.Meetings)?.On);
+        var meetings = new Subchoices(SharedMailboxes: null, Colleagues: null, Meetings: true);
+        Assert.Equal(
+            [AccountCapability.Mail, AccountCapability.Calendar, AccountCapability.Meetings],
+            SetupUses.Chosen(offer, true, On, null, meetings).Uses);
+        // Made for an event on any calendar, so the calendar switched off keeps them.
+        Assert.Equal(
+            [AccountCapability.Mail, AccountCapability.Meetings],
+            SetupUses.Chosen(offer, true, Off, null, meetings).Uses);
+        Assert.Equal(
+            [AccountCapability.Mail],
+            SetupUses.Chosen(offer, true, Off, null, meetings with { Meetings = false }).Uses);
+    }
+
+    [Fact]
+    public void TeamsMeetingsAreNeverTheLastUse()
+    {
+        // Mail and meetings on: mail is still the last use, and meetings still switch off.
+        AccountCapability[] on = [AccountCapability.Mail, AccountCapability.Meetings];
+        Assert.False(SetupUses.CanSwitchOff(AccountCapability.Mail, on));
+        Assert.True(SetupUses.CanSwitchOff(AccountCapability.Meetings, on));
+        Assert.True(SetupUses.CanSwitchOff(AccountCapability.Meetings, [AccountCapability.Meetings]));
+        Assert.True(SetupUses.CanSwitchOff(
+            AccountCapability.Mail, [AccountCapability.Mail, AccountCapability.Calendar, AccountCapability.Meetings]));
+    }
+
+    [Fact]
     public void AUseSwitchedOnWithNoServerAsksForOne()
     {
         var nothingFound = Offer(string.Empty, string.Empty);

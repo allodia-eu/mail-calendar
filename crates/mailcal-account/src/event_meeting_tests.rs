@@ -49,9 +49,22 @@ fn a_choice_round_trips_through_its_id() {
         MeetingChoice::Server(ConferenceService::Teams),
         MeetingChoice::Server(ConferenceService::GoogleMeet),
         MeetingChoice::Jitsi,
+        MeetingChoice::Account {
+            service: ConferenceService::NextcloudTalk,
+            account: AccountId::try_from("f3a9c1@dav:cloud.example.org").unwrap(),
+        },
     ] {
         assert_eq!(MeetingChoice::from_id(&choice.id()), Some(choice.clone()));
     }
+    let through_work = MeetingChoice::Account {
+        service: ConferenceService::Teams,
+        account: AccountId::try_from("alice@work.example@graph.microsoft.com").unwrap(),
+    };
+    assert_eq!(
+        through_work.id(),
+        "account:teams:alice@work.example@graph.microsoft.com"
+    );
+    assert_eq!(through_work.name(), "Microsoft Teams");
     assert_eq!(
         MeetingChoice::Server(ConferenceService::Teams).id(),
         "server:teams"
@@ -68,6 +81,9 @@ fn an_id_no_row_offers_names_no_choice() {
         "server:not-a-service",
         "jitsi:x",
         "Jitsi",
+        "account:teams",
+        "account:teams:",
+        "account:not-a-service:alice@example.org",
     ] {
         assert_eq!(MeetingChoice::from_id(id), None, "{id}");
     }

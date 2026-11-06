@@ -67,7 +67,11 @@ fn reply_document() -> ComposerDocument {
     }
 }
 
-async fn resumed() -> (
+/// The reopened draft, staged under `staging`: a directory of the calling test's own, since each
+/// test empties its directory first and the tests run in parallel.
+async fn resumed(
+    staging: &str,
+) -> (
     std::sync::Arc<crate::App<ThreadProvider>>,
     super::mail_fake::ProviderLogs,
 ) {
@@ -80,7 +84,7 @@ async fn resumed() -> (
                 message: draft_ref(),
             },
             None,
-            &staging_dir("resumed"),
+            &staging_dir(staging),
         )
         .await
         .expect("the draft resumes");
@@ -172,7 +176,7 @@ async fn a_resumed_draft_opens_formatted_with_its_pictures_inline() {
 /// reply into a new message.
 #[tokio::test]
 async fn a_save_of_a_resumed_reply_keeps_its_conversation_and_its_quoted_picture() {
-    let (app, logs) = resumed().await;
+    let (app, logs) = resumed("resumed-save").await;
 
     app.dispatch(Intent::Drafts(DraftsIntent::Save {
         composition: composition(),
@@ -196,7 +200,7 @@ async fn a_save_of_a_resumed_reply_keeps_its_conversation_and_its_quoted_picture
 /// The send carries the same two things the saves do.
 #[tokio::test(start_paused = true)]
 async fn the_send_of_a_resumed_reply_keeps_its_conversation_and_its_quoted_picture() {
-    let (app, logs) = resumed().await;
+    let (app, logs) = resumed("resumed-send").await;
 
     let intent = Intent::SubmitRichMail {
         from: None,

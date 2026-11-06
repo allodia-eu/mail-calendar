@@ -96,6 +96,12 @@ struct EventEditorView: View {
                                 Text(option.label).tag(option.selection)
                             }
                         }
+                        if editor.announcesMeeting {
+                            Text(L10n.event_meeting_added_on_save())
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
 
                     // Location: settable on create and edit alike, the engine's create draft carries it.

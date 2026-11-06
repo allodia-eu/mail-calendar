@@ -1,6 +1,7 @@
 // What the account is used for, chosen on the setup form: mail, calendar and contacts on the IMAP
 // and calendar-and-contacts cards, colleagues too before a Microsoft or Google sign-in, and shared
-// mailboxes before a Microsoft one (docs/account-autodetect.md rule 8, docs/accounts.md rule 10,
+// mailboxes and, for a work address, Teams meetings before a Microsoft one
+// (docs/account-autodetect.md rule 8, docs/accounts.md rules 10 and 19,
 // docs/shared-mailboxes.md rule 2). Which uses are offered and how
 // each starts is the core's; what the toggles make of the account is SetupUses, which the unit
 // suite drives. This partial draws the toggles and reads them back.
@@ -29,6 +30,7 @@ public sealed partial class AccountSetupView
     private CheckBox? _calendarUse;
     private CheckBox? _contactsUse;
     private CheckBox? _colleaguesUse;
+    private CheckBox? _meetingsUse;
     private TextBox? _calendarTyped;
     private TextBox? _contactsTyped;
 
@@ -60,7 +62,7 @@ public sealed partial class AccountSetupView
     private void DrawUses(UseOffer offer)
     {
         _uses = offer;
-        _mailUse = _sharedMailboxesUse = _calendarUse = _contactsUse = _colleaguesUse = null;
+        _mailUse = _sharedMailboxesUse = _calendarUse = _contactsUse = _colleaguesUse = _meetingsUse = null;
         _calendarTyped = _contactsTyped = null;
         UsesPanel.Children.Clear();
         UsesPanel.Visibility = offer.Choices.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -91,6 +93,12 @@ public sealed partial class AccountSetupView
                     (_calendarUse, _calendarTyped) = DavUse(
                         choice, offer.CaldavUrl, L10n.SetupDetectCalendarEnable(), L10n.SetupDetectCalendarAdd(),
                         L10n.SetupHintCaldav(), "SetupUseCalendar");
+                    // Teams meetings are made for an event on any calendar, so they sit with the
+                    // calendar without waiting for it.
+                    if (offer.For(AccountCapability.Meetings) is { } meetings)
+                    {
+                        _meetingsUse = MeetingsUse(meetings);
+                    }
                     break;
                 case AccountCapability.Contacts:
                     UsesPanel.Children.Add(Section(L10n.SetupDetectSectionContacts()));
@@ -102,6 +110,10 @@ public sealed partial class AccountSetupView
                 case AccountCapability.Colleagues:
                     _colleaguesUse = Subchoice(
                         L10n.SetupDetectColleaguesEnable(), choice.On, "SetupUseColleagues", _contactsUse);
+                    break;
+                // Drawn with the calendar, and here only when no calendar is offered beside it.
+                case AccountCapability.Meetings when _meetingsUse is null:
+                    _meetingsUse = MeetingsUse(choice);
                     break;
             }
         }
@@ -221,21 +233,37 @@ public sealed partial class AccountSetupView
         return box;
     }
 
+    /// <summary>Teams meetings, not indented: they depend on no other use, and are never the use
+    /// <see cref="KeepOneOn"/> holds on.</summary>
+    private CheckBox MeetingsUse(SetupChoice choice)
+    {
+        var box = UseBox(L10n.SetupDetectTeamsEnable(), choice.On, "SetupUseMeetings");
+        UsesPanel.Children.Add(box);
+        return box;
+    }
+
     /// <summary>The last use switched on cannot be switched off: an account used for nothing is
     /// not one.</summary>
     private void KeepOneOn()
     {
-        var all = new[] { _mailUse, _calendarUse, _contactsUse }.OfType<CheckBox>().ToList();
+        var all = new (AccountCapability Use, CheckBox? Box)[]
+            {
+                (AccountCapability.Mail, _mailUse), (AccountCapability.Calendar, _calendarUse),
+                (AccountCapability.Contacts, _contactsUse),
+            }
+            .Where(pair => pair.Box is not null)
+            .Select(pair => (pair.Use, Box: pair.Box!))
+            .ToList();
         void Settle()
         {
-            var on = all.Count(box => box.IsChecked == true);
-            foreach (var box in all)
+            var on = all.Where(pair => pair.Box.IsChecked == true).Select(pair => pair.Use).ToList();
+            foreach (var (use, box) in all)
             {
-                box.IsEnabled = on > 1 || box.IsChecked != true;
+                box.IsEnabled = box.IsChecked != true || SetupUses.CanSwitchOff(use, on);
             }
         }
         Settle();
-        foreach (var box in all)
+        foreach (var (_, box) in all)
         {
             box.Checked += (_, _) => Settle();
             box.Unchecked += (_, _) => Settle();
@@ -265,7 +293,7 @@ public sealed partial class AccountSetupView
         _mailUse?.IsChecked,
         Picked(_calendarUse, _calendarTyped),
         Picked(_contactsUse, _contactsTyped),
-        new Subchoices(_sharedMailboxesUse?.IsChecked, _colleaguesUse?.IsChecked));
+        new Subchoices(_sharedMailboxesUse?.IsChecked, _colleaguesUse?.IsChecked, _meetingsUse?.IsChecked));
 
     /// <summary>Points at a server still to be typed for a use switched on, and says whether there
     /// was one; nothing can be set up until it is filled in.</summary>

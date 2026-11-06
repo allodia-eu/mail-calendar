@@ -108,6 +108,8 @@ internal fun CategoryDetail(
     onSetSenderName: (account: String, name: String) -> Unit,
     onRequestReset: () -> Unit,
     accountsUi: AccountsSettingsUi,
+    // Videoconferencing's account rows open that account's page under Accounts.
+    onOpenAccount: (String) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     when (category) {
@@ -163,8 +165,10 @@ internal fun CategoryDetail(
             }
         }
 
-        // Videoconferencing, the person's Jitsi server (docs/conferencing.md, rule 13).
+        // Videoconferencing: the accounts that make meetings, while one does (docs/settings.md
+        // category 4), then the person's Jitsi server (docs/conferencing.md, rule 13).
         SettingsCategory.VIDEOCONFERENCING -> {
+            MeetingAccountsCard(accountsUi.state.snapshot.meetingAccounts, onOpenAccount)
             SettingsGroupCard(
                 L10n.settings_jitsi_server(ctx),
                 L10n.settings_jitsi_server_hint(ctx),

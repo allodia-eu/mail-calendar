@@ -527,6 +527,7 @@
 	"setup_microsoft_choice_note": "Connectez-vous à votre compte Microsoft dans votre navigateur : rien n’est conservé ici, hormis un jeton sécurisé. Seul ce que vous choisissez est demandé à Microsoft.",
 	"setup_google_choice_note": "Connectez-vous à votre compte Google dans votre navigateur : rien n’est conservé ici, hormis un jeton sécurisé. Seul ce que vous choisissez est demandé à Google.",
 	"setup_detect_colleagues_enable": "Aussi les collègues de l’annuaire de votre organisation",
+	"setup_detect_teams_enable": "Ajouter aussi des réunions Microsoft Teams à vos événements",
 	"setup_withheld_title": "Tout ce que vous avez choisi n’a pas été autorisé",
 	"setup_withheld_detail": "Votre fournisseur n’a pas autorisé : {uses}. Le compte fonctionne sans, et l’activer ici le redemande.",
 	"setup_links_title": "Utiliser un autre compte avec celui-ci",
@@ -1059,6 +1060,7 @@
 	"a11y_invitation_card": "Invitation à une réunion de {organizer}",
 	"account_kind_dav": "CalDAV/CardDAV",
 	"account_use_colleagues": "Collègues",
+	"account_use_meetings": "Réunions vidéo",
 	"settings_account_uses_heading": "Utilisé pour",
 	"settings_account_uses_description": "Ce pour quoi cette app utilise le compte.",
 	"settings_account_needs_permission": "Autorisation requise : reconnectez-vous pour l’accorder.",
@@ -1156,9 +1158,15 @@
 	"action_link": "Lier",
 	"event_meeting_none": "Aucune",
 	"event_meeting_conference_id": "ID de conférence",
+	"event_meeting_through": "{service} ({account})",
+	"event_meeting_added_on_save": "Le lien de la réunion est ajouté à l’enregistrement.",
 	"settings_category_videoconferencing": "Visioconférence",
-	"settings_category_videoconferencing_summary": "Votre serveur Jitsi pour les réunions vidéo",
+	"settings_category_videoconferencing_summary": "Réunions vidéo via vos comptes et d’autres services",
 	"settings_jitsi_server": "Serveur Jitsi",
 	"settings_jitsi_server_hint": "Une réunion Jitsi que vous ajoutez à un événement est une salle sur ce serveur. Laissez ce champ vide et aucun calendrier ne proposera Jitsi.",
-	"settings_jitsi_server_invalid": "Saisissez une adresse qui commence par https:// et ne contient ni ? ni #."
+	"settings_jitsi_server_invalid": "Saisissez une adresse qui commence par https:// et ne contient ni ? ni #.",
+	"settings_meeting_accounts": "Via vos comptes",
+	"settings_meeting_accounts_hint": "Les réunions Microsoft Teams et Nextcloud Talk que vos comptes créent pour les événements de n’importe quel calendrier. Activez-les ou désactivez-les sur la page du compte.",
+	"settings_meeting_account_needs_permission": "Autorisation requise",
+	"settings_meeting_account_not_offered": "Non proposé"
 }

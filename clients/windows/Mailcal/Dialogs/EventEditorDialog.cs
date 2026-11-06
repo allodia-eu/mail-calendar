@@ -398,19 +398,31 @@ public sealed class EventEditorDialog : ContentDialog
         {
             box.Items.Add(new ComboBoxItem
             {
-                Content = option.Label(L10n.EventMeetingNone(), L10n.EventVideoMeeting()),
+                Content = option.Label(L10n.EventMeetingNone(), L10n.EventVideoMeeting(), L10n.EventMeetingThrough),
             });
         }
         var current = _state.EffectiveMeeting;
         box.SelectedIndex = Math.Max(0, options.ToList().FindIndex(option => option.Selection == current));
+        // The meeting is made at the save, so a choice the event does not have yet says so.
+        var addedOnSave = new TextBlock
+        {
+            Text = L10n.EventMeetingAddedOnSave(),
+            Style = Caption(),
+            Foreground = _brushes.Of(ThemePalette.SecondaryText),
+            TextWrapping = TextWrapping.Wrap,
+            Visibility = _state.AnnouncesMeeting ? Visibility.Visible : Visibility.Collapsed,
+        };
+        AutomationProperties.SetAutomationId(addedOnSave, "EventMeetingAddedOnSave");
         box.SelectionChanged += (_, _) =>
         {
             if (box.SelectedIndex >= 0)
             {
                 _state.Meeting = options[box.SelectedIndex].Selection;
             }
+            addedOnSave.Visibility = _state.AnnouncesMeeting ? Visibility.Visible : Visibility.Collapsed;
         };
         _meetingRow.Children.Add(box);
+        _meetingRow.Children.Add(addedOnSave);
     }
 
     private static Style Caption() => (Style)Application.Current.Resources["CaptionTextBlockStyle"];

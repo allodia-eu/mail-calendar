@@ -527,6 +527,7 @@
 	"setup_microsoft_choice_note": "Meld je aan met je Microsoft-account in je browser: hier wordt niets bewaard behalve een beveiligd token. Microsoft wordt alleen gevraagd om toe te staan wat je kiest.",
 	"setup_google_choice_note": "Meld je aan met je Google-account in je browser: hier wordt niets bewaard behalve een beveiligd token. Google wordt alleen gevraagd om toe te staan wat je kiest.",
 	"setup_detect_colleagues_enable": "Ook collega’s uit de adreslijst van je organisatie",
+	"setup_detect_teams_enable": "Voeg ook Microsoft Teams-vergaderingen toe aan je afspraken",
 	"setup_withheld_title": "Niet alles wat je koos is toegestaan",
 	"setup_withheld_detail": "Je provider stond dit niet toe: {uses}. Het account werkt zonder, en als je er hier een aanzet, wordt het opnieuw gevraagd.",
 	"setup_links_title": "Gebruik een ander account met dit account",
@@ -1059,6 +1060,7 @@
 	"a11y_invitation_card": "Uitnodiging van {organizer}",
 	"account_kind_dav": "CalDAV/CardDAV",
 	"account_use_colleagues": "Collega’s",
+	"account_use_meetings": "Videovergaderingen",
 	"settings_account_uses_heading": "Gebruikt voor",
 	"settings_account_uses_description": "Waarvoor deze app het account gebruikt.",
 	"settings_account_needs_permission": "Toestemming nodig: meld je opnieuw aan om die te geven.",
@@ -1156,9 +1158,15 @@
 	"action_link": "Koppelen",
 	"event_meeting_none": "Geen",
 	"event_meeting_conference_id": "Conferentie-ID",
+	"event_meeting_through": "{service} ({account})",
+	"event_meeting_added_on_save": "De vergaderlink wordt toegevoegd wanneer je opslaat.",
 	"settings_category_videoconferencing": "Videovergaderen",
-	"settings_category_videoconferencing_summary": "Je Jitsi-server voor videovergaderingen",
+	"settings_category_videoconferencing_summary": "Videovergaderingen via je accounts en andere diensten",
 	"settings_jitsi_server": "Jitsi-server",
 	"settings_jitsi_server_hint": "Een Jitsi-vergadering die je aan een afspraak toevoegt, is een ruimte op deze server. Laat je het leeg, dan biedt geen enkele agenda Jitsi aan.",
-	"settings_jitsi_server_invalid": "Voer een adres in dat met https:// begint en geen ? of # bevat."
+	"settings_jitsi_server_invalid": "Voer een adres in dat met https:// begint en geen ? of # bevat.",
+	"settings_meeting_accounts": "Via je accounts",
+	"settings_meeting_accounts_hint": "Microsoft Teams- en Nextcloud Talk-vergaderingen die je accounts maken voor afspraken in elke agenda. Zet ze aan of uit op de pagina van het account.",
+	"settings_meeting_account_needs_permission": "Toestemming nodig",
+	"settings_meeting_account_not_offered": "Niet aangeboden"
 }

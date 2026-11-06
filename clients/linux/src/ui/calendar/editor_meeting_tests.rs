@@ -16,6 +16,7 @@ fn teams() -> MeetingOption {
     MeetingOption {
         id: "server:teams".to_owned(),
         name: "Microsoft Teams".to_owned(),
+        through: None,
     }
 }
 
@@ -23,6 +24,7 @@ fn jitsi() -> MeetingOption {
     MeetingOption {
         id: "jitsi".to_owned(),
         name: "Jitsi Meet".to_owned(),
+        through: None,
     }
 }
 
@@ -123,6 +125,64 @@ fn a_new_event_starts_with_no_meeting_and_offers_the_calendars_choices() {
         )),
         "jitsi"
     );
+}
+
+#[test]
+fn a_meeting_made_through_an_account_is_named_with_the_account() {
+    let talk = MeetingOption {
+        id: "account:nextcloud-talk:alice@dav:cloud.example.org".to_owned(),
+        name: "Nextcloud Talk".to_owned(),
+        through: Some("alice@cloud.example.org".to_owned()),
+    };
+    let editor = EventEditor::create(
+        vec![calendar("calendar-a", vec![teams(), talk, jitsi()])],
+        String::new(),
+    );
+    assert_eq!(
+        labels(&editor.meeting_options(0)),
+        [
+            l10n::event_meeting_none().to_owned(),
+            "Microsoft Teams".to_owned(),
+            l10n::event_meeting_through("Nextcloud Talk", "alice@cloud.example.org"),
+            "Jitsi Meet".to_owned(),
+        ]
+    );
+}
+
+#[test]
+fn a_choice_the_event_does_not_have_yet_says_the_link_comes_at_the_save() {
+    let editor = EventEditor::create(
+        vec![calendar("calendar-a", vec![teams(), jitsi()])],
+        String::new(),
+    );
+    let teams_pick = MeetingSelection::Choice("server:teams".to_owned());
+    assert!(!editor.announces_meeting(0, &MeetingSelection::None));
+    assert!(editor.announces_meeting(0, &teams_pick));
+
+    let opened = editing(
+        Some(EditorMeeting {
+            name: Some("Microsoft Teams".to_owned()),
+            choice: Some("server:teams".to_owned()),
+        }),
+        vec![teams(), jitsi()],
+        "",
+    );
+    assert!(
+        !opened.announces_meeting(0, &teams_pick),
+        "the event already has this meeting"
+    );
+    assert!(opened.announces_meeting(0, &MeetingSelection::Choice("jitsi".to_owned())));
+    assert!(!opened.announces_meeting(0, &MeetingSelection::None));
+
+    let elsewhere = editing(
+        Some(EditorMeeting {
+            name: Some("Zoom".to_owned()),
+            choice: None,
+        }),
+        vec![jitsi()],
+        "",
+    );
+    assert!(!elsewhere.announces_meeting(0, &MeetingSelection::Current));
 }
 
 #[test]

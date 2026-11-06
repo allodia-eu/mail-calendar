@@ -283,6 +283,10 @@ internal fun SettingsScreen(
                     onSetSenderName = onSetSenderName,
                     onRequestReset = { confirmingReset = true },
                     accountsUi = accountsUi,
+                    onOpenAccount = { id ->
+                        accountsUi.onOpenPage(id)
+                        open = SettingsCategory.ACCOUNTS
+                    },
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }

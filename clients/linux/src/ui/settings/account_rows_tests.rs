@@ -6,8 +6,8 @@ use mailcal_bindings::{
 };
 
 use super::{
-    UseSwitch, link_pickers, needs_permission, outage_line, review_after, signin_description,
-    signs_in_at_provider, summary, use_switch,
+    UseSwitch, confirms_off, link_pickers, needs_permission, outage_line, review_after,
+    signin_description, signs_in_at_provider, summary, use_name, use_switch,
 };
 use crate::l10n;
 
@@ -75,6 +75,31 @@ fn the_last_use_cannot_be_switched_off() {
             sensitive: true,
             note: None,
         }
+    );
+}
+
+#[test]
+fn video_meetings_are_never_the_last_use_and_switch_off_without_asking() {
+    let account = entry(
+        AccountKind::Dav,
+        &[
+            (AccountCapability::Calendar, CapabilityState::On),
+            (AccountCapability::Contacts, CapabilityState::Off),
+            (AccountCapability::Meetings, CapabilityState::On),
+        ],
+    );
+    assert_eq!(
+        use_switch(&account, AccountCapability::Calendar).note,
+        Some(l10n::settings_account_use_last())
+    );
+    let meetings = use_switch(&account, AccountCapability::Meetings);
+    assert!(meetings.sensitive);
+    assert_eq!(meetings.note, None);
+    assert!(!confirms_off(AccountCapability::Meetings));
+    assert!(confirms_off(AccountCapability::Calendar));
+    assert_eq!(
+        use_name(AccountCapability::Meetings),
+        l10n::account_use_meetings()
     );
 }
 

@@ -284,4 +284,5 @@ extension MailboxModel {
         accountPage = id
         settingsRequest = .accounts
     }
+
 }

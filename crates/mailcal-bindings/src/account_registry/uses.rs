@@ -166,9 +166,16 @@ fn opens(entry: &ConnectedAccount, next: &Capabilities, capability: Capability) 
             next,
             config.granted_scopes.as_deref(),
         )),
+        // Talk meetings use the account's own app password, so a Nextcloud account needs no
+        // more than its server's Talk, which the account's lacks have already answered.
+        ConnectedAccount::Imap { config, .. }
+            if capability == Capability::Meetings && config.nextcloud.is_some() =>
+        {
+            Opens::Yes
+        }
         _ if matches!(
             capability,
-            Capability::Colleagues | Capability::SharedMailboxes
+            Capability::Colleagues | Capability::SharedMailboxes | Capability::Meetings
         ) =>
         {
             Opens::NotOffered
@@ -178,7 +185,9 @@ fn opens(entry: &ConnectedAccount, next: &Capabilities, capability: Capability) 
                 Capability::Mail => config.imap.is_some(),
                 Capability::Calendar => config.caldav.is_some(),
                 Capability::Contacts => config.carddav.is_some() || config.caldav.is_some(),
-                Capability::Colleagues | Capability::SharedMailboxes => false,
+                Capability::Colleagues | Capability::SharedMailboxes | Capability::Meetings => {
+                    false
+                }
             };
             if has_server {
                 Opens::Yes
@@ -193,6 +202,19 @@ fn opens(entry: &ConnectedAccount, next: &Capabilities, capability: Capability) 
 
 #[cfg(test)]
 impl AccountRegistry {
+    /// Where `id`'s dials record whether its Nextcloud server offers Talk.
+    pub(crate) fn talk_offer(&self, id: &str) -> Option<crate::talk_offer::TalkOffer> {
+        match self
+            .entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+        {
+            Some(ConnectedAccount::Imap { talk, .. }) => Some(talk.clone()),
+            _ => None,
+        }
+    }
+
     /// Where `id`'s dials record its JMAP session, for a test that has no server to read one from.
     pub(crate) fn jmap_session(&self, id: &str) -> Option<crate::jmap_session::JmapSession> {
         match self

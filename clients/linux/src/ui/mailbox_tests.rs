@@ -240,6 +240,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::sender_name::tests::re_asserting_the_stored_name_asks_for_nothing();
     crate::ui::settings::videoconferencing::tests::
         the_jitsi_server_field_stores_what_the_core_accepts_and_says_when_it_refuses();
+    crate::ui::settings::videoconferencing::tests::
+        a_meeting_account_row_names_the_service_and_account_and_opens_its_page();
     crate::ui::settings::sender_name::tests::clearing_the_field_asks_to_send_as_the_address_alone();
     crate::ui::settings::sender_name::tests::a_provider_held_name_is_shown_without_a_field();
     crate::ui::settings::sender_name::tests::a_provider_held_account_with_no_name_shows_its_address(

@@ -84,6 +84,15 @@ private func mailboxOnly() -> AccountEntry {
                 == UseSwitch(active: false, asks: false, enabled: true, note: .none))
     }
 
+    @Test func videoMeetingsAreNeverTheLastUseAndSwitchOffWithoutAsking() {
+        let account = entry(.dav, [(.calendar, .on), (.contacts, .off), (.meetings, .on)])
+        #expect(AccountSettingsRules.useSwitch(account, .calendar).note == .last)
+        #expect(AccountSettingsRules.useSwitch(account, .meetings).enabled)
+        #expect(!AccountSettingsRules.confirmsOff(.meetings))
+        #expect(AccountSettingsRules.confirmsOff(.calendar))
+        #expect(AccountSettingsLabels.use(.meetings) == L10n.account_use_meetings())
+    }
+
     @Test func colleaguesWaitForContacts() {
         var account = entry(
             .microsoft, [(.mail, .on), (.calendar, .on), (.contacts, .off), (.colleagues, .off)])

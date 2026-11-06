@@ -1,4 +1,7 @@
-use mailcal_bindings::{EventRecurrence, RecurrenceEnd, RecurrenceFrequency, SimpleRecurrence};
+use mailcal_bindings::{
+    CalendarColor, CalendarRow, EventRecurrence, RecurrenceEnd, RecurrenceFrequency,
+    SimpleRecurrence, Swatch,
+};
 use time::{Date, Month};
 
 use super::{CalendarDialog, CalendarMode, CalendarModel};
@@ -36,6 +39,46 @@ fn period_title_names_every_visible_month_and_year() {
     model.week_anchor = first;
     model.focus = first;
     assert!(model.period_title().contains(&period_title(first, last)));
+}
+
+#[test]
+fn a_calendar_is_named_by_its_accounts_address_even_when_the_account_has_no_mail() {
+    let swatch = Swatch {
+        background: "#000000".to_owned(),
+        text: "#ffffff".to_owned(),
+        border: "#000000".to_owned(),
+    };
+    let today = Date::from_calendar_date(2026, Month::July, 20).unwrap();
+    let mut model = CalendarModel::empty(today);
+    // An account used only for its calendar is in no mail list: its id is not a name.
+    model.page.calendars = vec![CalendarRow {
+        account: "dennis@dav:nextcloud.example.org".to_owned(),
+        account_address: "info@example.org".to_owned(),
+        id: "personal".to_owned(),
+        name: "Personal".to_owned(),
+        color: CalendarColor {
+            hex: "#000000".to_owned(),
+            light: swatch.clone(),
+            dark: swatch,
+        },
+        visible: true,
+        can_write: true,
+        can_invite: true,
+        meeting_choices: Vec::new(),
+        is_default: true,
+    }];
+    model.begin_create();
+    let Some(CalendarDialog::Editor(editor)) = model.dialog else {
+        panic!("expected the editor");
+    };
+    assert_eq!(
+        editor
+            .choices
+            .iter()
+            .map(|choice| choice.label.as_str())
+            .collect::<Vec<_>>(),
+        ["info@example.org · Personal"]
+    );
 }
 
 #[test]

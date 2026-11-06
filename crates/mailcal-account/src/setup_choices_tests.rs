@@ -136,7 +136,7 @@ fn a_personal_address_is_offered_no_colleagues_and_no_shared_mailboxes() {
         let organisation = SetupRecommendation::Microsoft {
             email: email.to_owned(),
         };
-        assert_eq!(organisation.choices().len(), 5, "{email}");
+        assert_eq!(organisation.choices().len(), 6, "{email}");
     }
 }
 
@@ -148,16 +148,19 @@ fn a_provider_sign_in_offers_everything_switched_on() {
         choice(Capability::Calendar, true, true),
         choice(Capability::Contacts, true, true),
         choice(Capability::Colleagues, true, true),
+        // Teams meetings, on for a new work account (`docs/accounts.md` rule 19).
+        choice(Capability::Meetings, true, true),
     ];
     let microsoft = SetupRecommendation::Microsoft {
         email: EMAIL.to_owned(),
     };
     assert_eq!(microsoft.choices(), everything);
-    // A Gmail sign-in cannot open another mailbox.
+    // A Gmail sign-in cannot open another mailbox, and makes no meeting through the account.
     let google = SetupRecommendation::Google {
         email: EMAIL.to_owned(),
     };
     let mut without_shared = everything.to_vec();
+    without_shared.remove(5);
     without_shared.remove(1);
     assert_eq!(google.choices(), without_shared);
 }

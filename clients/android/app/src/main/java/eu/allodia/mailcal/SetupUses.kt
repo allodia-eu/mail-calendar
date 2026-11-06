@@ -51,6 +51,7 @@ internal object SetupUses {
      * one typed. Contacts found only through the calendar's server keep that server even with the
      * calendar off, because that is where they are looked for, and the stored uses keep the
      * calendar closed. Colleagues count only beside contacts, and shared mailboxes only beside mail.
+     * Teams meetings count whatever else is on.
      */
     fun chosen(
         offer: UseOffer,
@@ -59,6 +60,7 @@ internal object SetupUses {
         contacts: PickedUse?,
         colleagues: Boolean?,
         sharedMailboxes: Boolean? = null,
+        meetings: Boolean? = null,
     ): ChosenUses {
         val calendarOn = calendar?.on == true
         val contactsOn = contacts?.on == true
@@ -84,6 +86,7 @@ internal object SetupUses {
                     add(AccountCapability.CONTACTS)
                     if (colleagues == true) add(AccountCapability.COLLEAGUES)
                 }
+                if (meetings == true) add(AccountCapability.MEETINGS)
             }
         }
         return ChosenUses(uses, caldav, carddav)

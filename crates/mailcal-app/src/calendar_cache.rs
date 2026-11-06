@@ -78,6 +78,8 @@ pub(crate) struct CachedCalendar {
     pub(crate) writes_meetings: bool,
     /// The services whose video meetings this calendar's server makes itself.
     pub(crate) server_meetings: Vec<engine_api::ConferenceService>,
+    /// The accounts used for video meetings, which make one for an event on any calendar.
+    pub(crate) account_meetings: Vec<crate::calendar_ops::video_meeting::AccountMeetings>,
 }
 
 /// The occurrences and calendars a grid renders from, and the window they cover.
@@ -206,7 +208,19 @@ impl<P: Provider> App<P> {
         // a calendar from one nobody has connected to, so the account says which it is.
         let mut expects_calendars = false;
         let mut every_account_connected = true;
-        for account in self.account_handles().await {
+        let accounts = self.account_handles().await;
+        let account_meetings: Vec<_> = accounts
+            .iter()
+            .filter_map(|account| {
+                let maker = account.meetings.as_ref()?;
+                Some(crate::calendar_ops::video_meeting::AccountMeetings {
+                    account: account.id.clone(),
+                    address: account.identity.email.clone(),
+                    service: maker.service(),
+                })
+            })
+            .collect();
+        for account in accounts {
             let account_id = account.id.as_str().to_owned();
             expects_calendars |= account.calendar_provider.is_some();
             // A calendar that could not be reached beside a working mailbox has not reported "no
@@ -234,6 +248,7 @@ impl<P: Provider> App<P> {
                     can_invite,
                     writes_meetings: writes_meetings && calendar.access.may_write,
                     server_meetings: calendar.native_conferences,
+                    account_meetings: account_meetings.clone(),
                 });
             }
             // The account's own addresses; primary plus configured aliases. The *persisted* set

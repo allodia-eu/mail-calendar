@@ -367,6 +367,11 @@ internal static class AccountSettingsRules
             ? null
             : string.Join(", ", entry.LinkedFrom.Select(linked => AccountNames.Of(linked, words)));
 
+    /// <summary>Whether switching <paramref name="capability"/> off is asked first, because it
+    /// deletes what the device holds of it. The device holds nothing of video meetings: switching
+    /// them off only stops the editor offering the account's service.</summary>
+    internal static bool ConfirmsOff(AccountCapability capability) => capability != AccountCapability.Meetings;
+
     /// <summary>What switching a use on or off answered.</summary>
     internal static UseChangeOutcome Outcome(CapabilityChange change) => change switch
     {

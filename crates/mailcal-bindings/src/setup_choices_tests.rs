@@ -108,6 +108,7 @@ fn a_manual_provider_sign_in_offers_what_a_detected_one_does() {
             AccountCapability::Calendar,
             AccountCapability::Contacts,
             AccountCapability::Colleagues,
+            AccountCapability::Meetings,
         ]
     );
     assert!(

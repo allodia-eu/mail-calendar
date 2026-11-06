@@ -8,7 +8,7 @@
 
 use std::{sync::Arc, time::Instant};
 
-use engine_api::{AccountId, ContactsProvider, EmailAddress, Provider};
+use engine_api::{AccountId, ContactsProvider, EmailAddress, MeetingService, Provider};
 use mailcal_viewmodel::AccountRow;
 
 use crate::{App, Surface, form_factor::FormFactor, scope::Scope};
@@ -46,6 +46,9 @@ pub struct Account<P> {
     /// that would ripple through every call site for no gain, nothing here needs the
     /// contacts adapter to be the same concrete type as the mail one.
     pub contact_providers: Vec<Box<dyn ContactsProvider>>,
+    /// The service the account makes video meetings through for an event on any calendar, while
+    /// it is used for them and its provider makes them (`docs/conferencing.md` rule 14).
+    pub meetings: Option<Arc<dyn MeetingService>>,
     /// The from-address this account sends as.
     pub identity: EmailAddress,
     /// Whether the account is used for mail. An account used for its calendar or contacts alone

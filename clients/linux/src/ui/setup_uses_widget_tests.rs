@@ -286,7 +286,12 @@ pub(super) fn a_provider_card_asks_only_for_what_is_chosen(window: &adw::Applica
     let colleagues = toggle(l10n::setup_detect_colleagues_enable());
     let mail = toggle(l10n::setup_detect_mail_enable());
     let shared = toggle(l10n::setup_detect_shared_mailboxes_enable());
+    let teams = toggle(l10n::setup_detect_teams_enable());
     assert!(mail.is_active() && shared.is_active() && shared.is_sensitive());
+    assert!(
+        teams.is_active() && teams.is_sensitive(),
+        "Teams meetings start on"
+    );
     assert!(calendar.is_active() && contacts.is_active() && colleagues.is_active());
     assert!(visible_entries(&child).is_empty(), "nothing to type");
 
@@ -302,8 +307,29 @@ pub(super) fn a_provider_card_asks_only_for_what_is_chosen(window: &adw::Applica
         uses,
         Some(vec![
             AccountCapability::Mail,
+            AccountCapability::SharedMailboxes,
+            AccountCapability::Meetings,
+        ]),
+        "Teams meetings do not wait for the calendar"
+    );
+    // Teams meetings never hold the last use on: mail alone is left, and it is the one held.
+    assert!(!mail.is_sensitive() && teams.is_sensitive());
+    teams.set_active(false);
+    assert!(
+        !mail.is_sensitive(),
+        "switching Teams off changes nothing for mail"
+    );
+    descendant_button(&child, l10n::setup_microsoft_signin()).emit_clicked();
+    let Some(AppInput::StartMicrosoftLogin(_, uses)) = receiver.recv_sync() else {
+        panic!("the sign-in starts again");
+    };
+    assert_eq!(
+        uses,
+        Some(vec![
+            AccountCapability::Mail,
             AccountCapability::SharedMailboxes
-        ])
+        ]),
+        "switched off, they are not asked for"
     );
     // Mail can now be switched off, the last use standing being contacts again.
     contacts.set_active(true);

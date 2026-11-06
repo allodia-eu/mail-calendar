@@ -25,6 +25,7 @@ fn option(id: &str, name: &str) -> MeetingOption {
     MeetingOption {
         id: id.to_owned(),
         name: name.to_owned(),
+        through: None,
     }
 }
 
@@ -59,10 +60,14 @@ pub(crate) fn the_meeting_row_follows_the_calendar_and_holds_the_pick() {
     picker.set_selected(0);
     let pick = append_meeting_row(&form, &editor, &picker);
     let section = form.last_child().expect("the row is appended");
-    let dropdown = section
+    let on_save = section
         .last_child()
+        .and_downcast::<gtk::Label>()
+        .expect("the row ends in the line about the save");
+    let dropdown = on_save
+        .prev_sibling()
         .and_downcast::<gtk::DropDown>()
-        .expect("the row ends in its picker");
+        .expect("the picker is above that line");
 
     assert!(section.is_visible());
     assert_eq!(
@@ -71,12 +76,17 @@ pub(crate) fn the_meeting_row_follows_the_calendar_and_holds_the_pick() {
     );
     assert_eq!(dropdown.selected(), 0, "a new event starts with no meeting");
     assert_eq!(*pick.borrow(), MeetingSelection::None);
+    assert!(
+        !on_save.is_visible(),
+        "no meeting, nothing to add at the save"
+    );
 
     dropdown.set_selected(1);
     assert_eq!(
         *pick.borrow(),
         MeetingSelection::Choice("server:teams".to_owned())
     );
+    assert!(on_save.is_visible(), "a chosen meeting is made at the save");
 
     picker.set_selected(1);
     assert_eq!(entries(&dropdown), ["None", "Jitsi Meet"]);
@@ -84,6 +94,10 @@ pub(crate) fn the_meeting_row_follows_the_calendar_and_holds_the_pick() {
         *pick.borrow(),
         MeetingSelection::None,
         "a choice the new calendar lacks goes back to None"
+    );
+    assert!(
+        !on_save.is_visible(),
+        "a choice the new calendar lacks is no longer announced"
     );
 
     dropdown.set_selected(1);

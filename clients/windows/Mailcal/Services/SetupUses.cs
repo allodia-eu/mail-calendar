@@ -27,9 +27,10 @@ internal sealed record UseOffer(IReadOnlyList<SetupChoice> Choices, string Calda
 /// when detection found none.</summary>
 internal readonly record struct PickedUse(bool On, string Typed);
 
-/// <summary>The choices within a use: shared mailboxes within mail, colleagues within contacts;
-/// null for one the card did not offer.</summary>
-internal readonly record struct Subchoices(bool? SharedMailboxes, bool? Colleagues);
+/// <summary>The choices beside the three uses: shared mailboxes within mail, colleagues within
+/// contacts, and Teams meetings, which a Microsoft work account's card offers within no use; null
+/// for one the card did not offer.</summary>
+internal readonly record struct Subchoices(bool? SharedMailboxes, bool? Colleagues, bool? Meetings = null);
 
 /// <summary>What the person chose, as the account is set up with it.</summary>
 /// <param name="Uses">Null when the card offered no choice, so the servers given decide.</param>
@@ -51,7 +52,8 @@ internal static class SetupUses
     /// or the one typed. Contacts found only through the calendar's server keep that server even
     /// with the calendar off, because that is where they are looked for, and the stored uses keep
     /// the calendar closed. Colleagues count only beside contacts, and shared mailboxes only
-    /// beside mail.
+    /// beside mail. Meetings count whatever else is on: they are made for an event on any
+    /// calendar (docs/accounts.md rule 19).
     /// </summary>
     internal static ChosenUses Chosen(
         UseOffer offer, bool? mail, PickedUse? calendar, PickedUse? contacts, Subchoices subs)
@@ -89,9 +91,24 @@ internal static class SetupUses
                     chosen.Add(AccountCapability.Colleagues);
                 }
             }
+            if (subs.Meetings == true)
+            {
+                chosen.Add(AccountCapability.Meetings);
+            }
             uses = [.. chosen];
         }
         return new ChosenUses(uses, caldav, carddav);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="capability"/>, switched on, may be switched off while
+    /// <paramref name="on"/> are: not when it is the last of mail, calendar and contacts, since an
+    /// account used for nothing is not one. Meetings are never that use, so they always may.
+    /// </summary>
+    internal static bool CanSwitchOff(AccountCapability capability, IReadOnlyCollection<AccountCapability> on)
+    {
+        AccountCapability[] primary = [AccountCapability.Mail, AccountCapability.Calendar, AccountCapability.Contacts];
+        return !primary.Contains(capability) || on.Count(primary.Contains) > 1;
     }
 
     /// <summary>

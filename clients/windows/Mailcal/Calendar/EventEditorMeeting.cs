@@ -3,6 +3,7 @@
 // (CalendarRow.MeetingChoices) and which meeting the editor opens on (EventDetail.EditorMeeting);
 // this only holds the person's pick and compares it with what the editor opened with. Free of
 // WinUI and of the catalog, so Mailcal.Tests drives it as it drives the rest of the editor.
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using uniffi.mailcal_bindings;
@@ -61,14 +62,18 @@ internal abstract record MeetingPick
 /// <summary>
 /// One entry the row offers. <paramref name="Name"/> is the service's brand name, or null for the
 /// dialog's own words: "None" for <see cref="MeetingSelection.None"/>, "Video meeting" for a
-/// meeting nothing names.
+/// meeting nothing names. <paramref name="Through"/> is the address of the account that makes it,
+/// for a meeting made through an account (docs/conferencing.md rule 14).
 /// </summary>
-internal sealed record MeetingRowOption(MeetingSelection Selection, string? Name)
+internal sealed record MeetingRowOption(MeetingSelection Selection, string? Name, string? Through = null)
 {
-    /// <summary>The words this option is shown by: the service's brand name, else the
+    /// <summary>The words this option is shown by: the service's brand name, with the account
+    /// that makes it through <paramref name="through"/> (<c>event_meeting_through</c>), else the
     /// catalog's.</summary>
-    internal string Label(string none, string generic) =>
-        Selection is MeetingSelection.None ? none : Name ?? generic;
+    internal string Label(string none, string generic, Func<string, string, string> through) =>
+        Selection is MeetingSelection.None ? none
+            : Name is { } name && Through is { } account ? through(name, account)
+            : Name ?? generic;
 }
 
 internal sealed partial class EventEditorState
@@ -96,7 +101,7 @@ internal sealed partial class EventEditorState
                 options.Add(new MeetingRowOption(OpenedMeeting, meeting.Name));
             }
             options.AddRange(MeetingChoices.Select(
-                choice => new MeetingRowOption(new MeetingSelection.Choice(choice.Id), choice.Name)));
+                choice => new MeetingRowOption(new MeetingSelection.Choice(choice.Id), choice.Name, choice.Through)));
             return options;
         }
     }
@@ -120,6 +125,14 @@ internal sealed partial class EventEditorState
             return MeetingChoices.Any(choice => choice.Id == pick.Id) ? pick : new MeetingSelection.None();
         }
     }
+
+    /// <summary>
+    /// Whether the line beneath the row says the link is added at the save (rule 10): the row
+    /// holds a choice the event does not have yet. A meeting is made when the event is saved, never
+    /// when it is chosen.
+    /// </summary>
+    internal bool AnnouncesMeeting =>
+        EffectiveMeeting is MeetingSelection.Choice pick && pick != OpenedMeeting;
 
     /// <summary>
     /// What a save does to the meeting, or null to leave it alone: None takes the event's meeting

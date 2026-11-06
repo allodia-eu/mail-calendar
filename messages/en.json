@@ -527,6 +527,7 @@
 	"setup_microsoft_choice_note": "Sign in with your Microsoft account in your browser: nothing is stored here but a secure token. Microsoft is asked to allow only what you choose.",
 	"setup_google_choice_note": "Sign in with your Google account in your browser: nothing is stored here but a secure token. Google is asked to allow only what you choose.",
 	"setup_detect_colleagues_enable": "Also colleagues from your organisation's directory",
+	"setup_detect_teams_enable": "Also add Microsoft Teams meetings to your events",
 	"setup_withheld_title": "Not everything you chose was allowed",
 	"setup_withheld_detail": "Your provider didn't allow: {uses}. The account works without them, and switching one on here asks for it again.",
 	"setup_links_title": "Use another account with this one",
@@ -1059,6 +1060,7 @@
 	"a11y_invitation_card": "Meeting invitation from {organizer}",
 	"account_kind_dav": "CalDAV/CardDAV",
 	"account_use_colleagues": "Colleagues",
+	"account_use_meetings": "Video meetings",
 	"settings_account_uses_heading": "Used for",
 	"settings_account_uses_description": "What this app uses the account for.",
 	"settings_account_needs_permission": "Needs permission: sign in again to allow it.",
@@ -1156,9 +1158,15 @@
 	"action_link": "Link",
 	"event_meeting_none": "None",
 	"event_meeting_conference_id": "Conference ID",
+	"event_meeting_through": "{service} ({account})",
+	"event_meeting_added_on_save": "The meeting link is added when you save.",
 	"settings_category_videoconferencing": "Videoconferencing",
-	"settings_category_videoconferencing_summary": "Your Jitsi server for video meetings",
+	"settings_category_videoconferencing_summary": "Video meetings through your accounts and other services",
 	"settings_jitsi_server": "Jitsi server",
 	"settings_jitsi_server_hint": "A Jitsi meeting you add to an event is a room on this server. Leave it empty and no calendar offers Jitsi.",
-	"settings_jitsi_server_invalid": "Enter an address that starts with https:// and has no ? or #."
+	"settings_jitsi_server_invalid": "Enter an address that starts with https:// and has no ? or #.",
+	"settings_meeting_accounts": "Through your accounts",
+	"settings_meeting_accounts_hint": "Microsoft Teams and Nextcloud Talk meetings that your accounts make for events on any calendar. Switch each on or off on its account’s page.",
+	"settings_meeting_account_needs_permission": "Needs permission",
+	"settings_meeting_account_not_offered": "Not offered"
 }

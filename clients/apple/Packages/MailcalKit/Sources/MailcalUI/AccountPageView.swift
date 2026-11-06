@@ -292,8 +292,8 @@ struct AccountUsesSection: View {
         if on, asks {
             // Already chosen, and waiting on the provider: switching it on asks again.
             signIn([capability])
-        } else if on {
-            change(capability, on: true)
+        } else if on || !AccountSettingsRules.confirmsOff(capability) {
+            change(capability, on: on)
         } else {
             confirmingOff = capability
         }

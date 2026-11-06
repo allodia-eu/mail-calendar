@@ -142,6 +142,12 @@ internal object AccountSettingsRules {
     fun withheld(entry: AccountEntry): List<AccountCapability> =
         entry.uses.filter { it.state == CapabilityState.NEEDS_PERMISSION }.map { it.capability }
 
+    /**
+     * Whether switching [capability] off asks first. Video meetings are not asked about: the
+     * device holds nothing of them to remove (docs/accounts.md rule 19).
+     */
+    fun confirmsOff(capability: AccountCapability): Boolean = capability != AccountCapability.MEETINGS
+
     /** Whether the account signs in at its provider's own page, which "Sign in again" opens. */
     fun signsInAtProvider(kind: CoreAccountKind): Boolean =
         kind == CoreAccountKind.MICROSOFT || kind == CoreAccountKind.GOOGLE

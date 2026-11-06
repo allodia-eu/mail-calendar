@@ -122,11 +122,11 @@ impl AppModel {
                     self.calendar.open_event(app, event);
                 }
             }
-            AppInput::BeginNewEvent => self.calendar.begin_create(&self.snapshot),
+            AppInput::BeginNewEvent => self.calendar.begin_create(),
             AppInput::BeginNewEventAt(slot) => {
-                self.calendar.begin_create_at(&self.snapshot, slot);
+                self.calendar.begin_create_at(slot);
             }
-            AppInput::BeginEditEvent => self.calendar.begin_edit(&self.snapshot),
+            AppInput::BeginEditEvent => self.calendar.begin_edit(),
             AppInput::SubmitEventForm(form, this_occurrence_only) => {
                 self.submit_event(&form, this_occurrence_only);
             }

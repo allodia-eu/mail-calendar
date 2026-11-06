@@ -5,10 +5,12 @@ use super::{ChosenUses, Picked, Subchoices, UseOffer, allowed, chosen, url_host}
 const NO_SUB: Subchoices = Subchoices {
     shared_mailboxes: None,
     colleagues: None,
+    meetings: None,
 };
 const COLLEAGUES: Subchoices = Subchoices {
     shared_mailboxes: None,
     colleagues: Some(true),
+    meetings: None,
 };
 
 const CALDAV: &str = "https://dav.example.org/caldav";
@@ -230,6 +232,7 @@ fn shared_mailboxes_count_only_beside_mail() {
     let shared = Subchoices {
         shared_mailboxes: Some(true),
         colleagues: None,
+        meetings: None,
     };
     assert_eq!(
         chosen(&provider, Some(true), None, OFF, shared).uses,
@@ -241,5 +244,50 @@ fn shared_mailboxes_count_only_beside_mail() {
     assert_eq!(
         chosen(&provider, Some(false), None, ON, shared).uses,
         Some(vec![AccountCapability::Contacts])
+    );
+}
+
+#[test]
+fn teams_meetings_count_whatever_else_is_on_and_only_while_on() {
+    use mailcal_bindings::{AccountKind, provider_setup_choices};
+
+    let work = UseOffer {
+        choices: provider_setup_choices(AccountKind::Microsoft, "alice@contoso.example".to_owned()),
+        ..UseOffer::default()
+    };
+    let teams = work
+        .choices
+        .iter()
+        .find(|choice| choice.capability == AccountCapability::Meetings)
+        .expect("a work address is offered Teams meetings");
+    assert!(teams.on, "Teams meetings start on");
+    let meetings = |on| Subchoices {
+        shared_mailboxes: None,
+        colleagues: None,
+        meetings: Some(on),
+    };
+    assert_eq!(
+        chosen(&work, Some(false), OFF, ON, meetings(true)).uses,
+        Some(vec![
+            AccountCapability::Contacts,
+            AccountCapability::Meetings
+        ]),
+        "they do not wait for the calendar"
+    );
+    assert_eq!(
+        chosen(&work, Some(false), OFF, ON, meetings(false)).uses,
+        Some(vec![AccountCapability::Contacts])
+    );
+    assert!(
+        provider_setup_choices(AccountKind::Microsoft, "someone@outlook.com".to_owned())
+            .iter()
+            .all(|choice| choice.capability != AccountCapability::Meetings),
+        "a personal address is never offered them"
+    );
+    assert!(
+        provider_setup_choices(AccountKind::Google, "alice@example.org".to_owned())
+            .iter()
+            .all(|choice| choice.capability != AccountCapability::Meetings),
+        "nor is a Google one"
     );
 }

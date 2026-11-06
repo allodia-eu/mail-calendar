@@ -122,7 +122,7 @@ attention, human or agent alike. Write the fact, not the story around it.
   code**, so the rule binds design rather than a call site: nothing new may ship a dispatch that
   would have to route around it. Five carve-outs exist, each stated with the condition that ends it
   in the doc
-  that owns it: connecting a mail account
+  that owns it: connecting a mail account, and the video meetings that account's provider makes
   ([`docs/provider-oauth.md`](docs/provider-oauth.md)), consented analytics
   ([`docs/analytics.md`](docs/analytics.md)), signing in to an Allodia account
   ([`allodia_license/entitlement.md`](allodia_license/entitlement.md)), the local MCP server

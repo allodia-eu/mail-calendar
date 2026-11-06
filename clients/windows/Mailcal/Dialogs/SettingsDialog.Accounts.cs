@@ -128,6 +128,7 @@ public sealed partial class SettingsDialog
         AccountCapability.Contacts => L10n.NavContacts(),
         AccountCapability.Colleagues => L10n.AccountUseColleagues(),
         AccountCapability.SharedMailboxes => L10n.AccountUseSharedMailboxes(),
+        AccountCapability.Meetings => L10n.AccountUseMeetings(),
         _ => L10n.NavMail(),
     };
 
@@ -261,7 +262,13 @@ public sealed partial class SettingsDialog
     {
         // Every other category reconciles itself, and the core is asked nothing on their behalf:
         // this runs on every settings and connectivity signal. An account is removed from the
-        // Accounts category, so that is where the last one goes.
+        // Accounts category, so that is where the last one goes. Videoconferencing lists the
+        // accounts that make meetings, from the same snapshot.
+        if (!_rebuilding && CurrentCategory() == "videoconferencing")
+        {
+            RefreshMeetingAccounts();
+            return;
+        }
         if (_rebuilding || CurrentCategory() != "accounts")
         {
             return;

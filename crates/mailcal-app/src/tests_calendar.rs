@@ -15,6 +15,8 @@ mod fakes;
 #[path = "tests_calendar_colors.rs"]
 mod colors;
 
+#[path = "tests_calendar_account_meeting.rs"]
+mod account_meeting;
 #[path = "tests_calendar_conference.rs"]
 mod conference;
 #[path = "tests_calendar_video_meeting.rs"]

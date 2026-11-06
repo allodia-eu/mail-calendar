@@ -2,9 +2,9 @@
 
 **Scope.** The meetings an event can be joined at: what the event detail offers for each, how
 the grid, the month and the agenda mark an event that has one, and how the editor puts one on an
-event or takes it off. Making a meeting at a service that needs an account of its own (Teams on a
-calendar that is not Microsoft's, Nextcloud Talk) is not built yet, and this contract says nothing
-about it.
+event or takes it off, at the calendar's own server, at the person's Jitsi server, or through an
+account the person connected (Teams through a Microsoft work account, Talk through a Nextcloud
+one).
 
 **Principle.** A meeting is something to join, not a link to read. The detail puts **Join** first
 and the codes and numbers a person needs beside it, the way Outlook and Google Calendar do, so
@@ -64,7 +64,10 @@ nobody has to dig a link out of the notes.
    calendar redraws the row from the new calendar's choices, and a choice the new one lacks goes
    back to None.
 10. **A new event starts with no meeting.** The person adds one by choosing it; nothing is added
-    on their behalf.
+    on their behalf. A chosen meeting is made when the event is saved, never when it is chosen,
+    so nothing is filled into the location or notes before the save: while the row holds a
+    choice the event does not have yet, a line beneath it says the link is added when the
+    person saves (`event_meeting_added_on_save`).
 11. **Editing an event shows the meeting it has.** The row shows the event's first shown meeting
     (`is_shown`) as its current value. Choosing None takes that meeting off, with the block of text
     and the location it left; choosing another service replaces it; leaving the row alone leaves
@@ -83,6 +86,31 @@ nobody has to dig a link out of the notes.
     field, empty until the person fills it: an `https` address without a query or fragment, which
     the core checks before it stores it. While it is empty, no calendar offers Jitsi.
 
+14. **An account used for video meetings makes them for an event on any calendar.** A Microsoft
+    account an organisation administers makes Teams meetings, and an account a Nextcloud sign-in
+    made makes Talk meetings on its server, each only while the account is used for `meetings`
+    ([`accounts.md`](accounts.md) rule 19). Each such account adds a choice to every writable
+    calendar's `meeting_choices`, after the calendar's own services and before Jitsi, carrying
+    the account's address (`through`); a client draws it as the service's name with that address
+    (`event_meeting_through`), so two work accounts are two choices a person can tell apart. A
+    service the calendar's own server makes is offered as the server's only: a Microsoft calendar
+    lists its own Teams, not Teams through its account as well. An event's Teams or Talk meeting
+    that its server did not make opens the editor on the choice through an account when exactly
+    one account offers that service, and is otherwise a meeting no choice makes (rule 11).
+15. **A meeting made through an account is made before the event is written**, from the event's
+    title and times and nothing else: no invitees, no notes, no location. The event is then
+    written with it attached, as one made elsewhere (rule 12). If the meeting cannot be made,
+    nothing is saved and the editor says so; if the event cannot be written, the meeting just
+    made is deleted at its service, so no meeting is left that no event names. That is the only
+    delete: taking a meeting off an event, replacing it, or deleting the event leaves the meeting
+    at its service, because nothing in an event can say this app made it (on a Microsoft calendar
+    such a meeting is only our block in the body), and deleting one the person pasted in would
+    delete their meeting.
+16. **Every meeting service is called through one place in the core** (`App::make_meeting` and
+    `App::delete_meeting`), which is where the jurisdiction check will sit
+    ([`provider-oauth.md`](provider-oauth.md) "Sovereignty scope"). A Jitsi meeting passes
+    through it too, though making one sends nothing.
+
 ## Per-platform
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
@@ -92,6 +120,9 @@ nobody has to dig a link out of the notes.
 | The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The editor's Video meeting row (rules 9 to 12) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Jitsi server in Settings (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Teams and Talk through an account, in the editor (rules 14 and 15) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Teams offered on at a work account's setup ([`accounts.md`](accounts.md) rule 19) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The accounts that make meetings, in Settings → Videoconferencing ([`settings.md`](settings.md) category 4) | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins that Join and
 a dial-in row open the core's links as sent. On Windows the section is `EventConferenceSection.cs`

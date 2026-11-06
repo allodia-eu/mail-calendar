@@ -63,6 +63,7 @@ impl<P: Provider> App<P> {
             invitee_editability,
         );
         detail.my_answer = self.answer_from_calendar(&event.account, &stored).await;
+        self.recognise_account_meeting(&mut detail, &stored).await;
         log::info!(
             "event_detail: resolved in {}ms",
             started.elapsed().as_millis()

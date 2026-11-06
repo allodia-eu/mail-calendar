@@ -133,6 +133,21 @@ private func provider() -> UseOffer {
         #expect(!choices.canFlip(.calendar))
     }
 
+    @Test func teamsMeetingsStartOnCountWhateverElseIsOnAndNeverHoldTheLastUse() {
+        var choices = UseChoices(UseOffer(choices: [AccountCapability.mail, .calendar, .meetings].map {
+            SetupChoice(capability: $0, on: true, serverFound: true)
+        }))
+        #expect(choices.isOn(.meetings))
+        #expect(choices.chosen.uses == [.mail, .calendar, .meetings])
+        choices.set(.calendar, false)
+        #expect(choices.chosen.uses == [.mail, .meetings])
+        // Not a use of its own: mail stays held on, and meetings still switch off.
+        #expect(!choices.canFlip(.mail))
+        #expect(choices.canFlip(.meetings))
+        choices.set(.meetings, false)
+        #expect(choices.chosen.uses == [.mail])
+    }
+
     @Test func aUseSwitchedOnWithNoServerAsksForOne() {
         let nothingFound = offer("", "")
         #expect(SetupUses.missing(nothingFound, calendar: on, contacts: on) == .calendar)

@@ -1,7 +1,7 @@
 //! Which of mail, calendar and contacts a setup route offers, and how each starts: decided once
 //! here, so four clients drawing the found card do not decide it four ways.
 
-use crate::{Capability, SetupRecommendation};
+use crate::{Capabilities, Capability, ConfigError, SetupRecommendation};
 
 /// One use a setup route offers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,28 +62,34 @@ pub fn standards_choices(mail: bool, caldav: bool, carddav: bool) -> Vec<SetupCh
         .collect()
 }
 
-/// The uses a Microsoft sign-in for `email` offers: every one, all on, and colleagues and shared
-/// mailboxes only when the address is not a personal one.
+/// The uses a Microsoft sign-in for `email` offers: every one, all on, and colleagues, shared
+/// mailboxes and Teams meetings only when the address is not a personal one.
 #[must_use]
 pub fn microsoft_choices(email: &str) -> Vec<SetupChoice> {
-    provider_choices(is_microsoft_consumer_domain(email), true)
+    provider_choices(is_microsoft_consumer_domain(email), true, true)
 }
 
 /// The uses a Google sign-in for `email` offers, as [`microsoft_choices`] does for Microsoft, less
-/// shared mailboxes, which a Gmail sign-in cannot open.
+/// shared mailboxes, which a Gmail sign-in cannot open, and video meetings, which this app makes
+/// through no Google account.
 #[must_use]
 pub fn google_choices(email: &str) -> Vec<SetupChoice> {
-    provider_choices(crate::autodetect::is_google_consumer_domain(email), false)
+    provider_choices(
+        crate::autodetect::is_google_consumer_domain(email),
+        false,
+        false,
+    )
 }
 
-/// Every use, all on; colleagues and shared mailboxes left out for a personal account, which has
-/// no organisation to have either (`docs/accounts.md` rule 3).
-fn provider_choices(personal: bool, shared_mailboxes: bool) -> Vec<SetupChoice> {
+/// Every use, all on; colleagues, shared mailboxes and video meetings left out for a personal
+/// account, which has no organisation to have any of them (`docs/accounts.md` rules 3 and 19).
+fn provider_choices(personal: bool, shared_mailboxes: bool, meetings: bool) -> Vec<SetupChoice> {
     Capability::ALL
         .into_iter()
         .filter(|capability| match capability {
             Capability::Colleagues => !personal,
             Capability::SharedMailboxes => shared_mailboxes && !personal,
+            Capability::Meetings => meetings && !personal,
             _ => true,
         })
         .map(|capability| found(capability, true))
@@ -109,6 +115,40 @@ fn is_microsoft_consumer_domain(email: &str) -> bool {
     MICROSOFT_CONSUMER_BRANDS.contains(&brand)
         && (1..=2).contains(&suffix.len())
         && (suffix.len() == 1 || matches!(suffix[0], "co" | "com") && suffix[1].len() == 2)
+}
+
+/// Refuses a choice of nothing, of colleagues or video meetings, or of a use whose server is
+/// missing.
+pub(crate) fn check_uses(
+    uses: &Capabilities,
+    caldav: bool,
+    carddav: bool,
+) -> Result<(), ConfigError> {
+    if uses.contains(Capability::Colleagues) {
+        return Err(ConfigError::Refused(
+            "colleagues come from a Microsoft or Google directory",
+        ));
+    }
+    if uses.contains(Capability::SharedMailboxes) {
+        return Err(ConfigError::Refused(
+            "a standards account lists its shared mailboxes without being asked for them",
+        ));
+    }
+    if uses.contains(Capability::Meetings) {
+        return Err(ConfigError::Refused(
+            "video meetings are switched on from the account's page",
+        ));
+    }
+    if uses.iter().next().is_none() {
+        return Err(ConfigError::Incomplete("what the account is used for"));
+    }
+    if uses.contains(Capability::Calendar) && !caldav {
+        return Err(ConfigError::Incomplete("calendar server"));
+    }
+    if uses.contains(Capability::Contacts) && !caldav && !carddav {
+        return Err(ConfigError::Incomplete("address book server"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

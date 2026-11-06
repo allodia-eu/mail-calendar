@@ -82,6 +82,12 @@ enum AccountSettingsRules {
         entry.uses.filter { $0.state == .needsPermission }.map(\.capability)
     }
 
+    /// Whether switching `capability` off asks first. Video meetings are not asked about: the
+    /// device holds nothing of them to remove (docs/accounts.md rule 19).
+    static func confirmsOff(_ capability: AccountCapability) -> Bool {
+        capability != .meetings
+    }
+
     /// Whether the account signs in at its provider's own page, which "Sign in again" opens.
     static func signsInAtProvider(_ kind: AccountKind) -> Bool {
         kind == .microsoft || kind == .google
@@ -227,6 +233,7 @@ enum AccountSettingsLabels {
         case .contacts: L10n.nav_contacts()
         case .colleagues: L10n.account_use_colleagues()
         case .sharedMailboxes: L10n.account_use_shared_mailboxes()
+        case .meetings: L10n.account_use_meetings()
         }
     }
 

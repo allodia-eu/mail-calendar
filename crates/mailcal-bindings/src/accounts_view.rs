@@ -325,6 +325,35 @@ pub(crate) fn valid_links(facts: &[AccountFacts]) -> Vec<AccountLinks> {
         .collect()
 }
 
+/// The accounts in `entries` that offer video meetings, each with its service and its use's
+/// state. Teams on a Microsoft account, Talk on any other: only those two kinds offer the use.
+pub(crate) fn meeting_accounts(entries: &[AccountEntry]) -> Vec<crate::MeetingAccount> {
+    entries
+        .iter()
+        .filter_map(|entry| {
+            let state = entry
+                .uses
+                .iter()
+                .find(|row| row.capability == crate::AccountCapability::Meetings)?
+                .state;
+            let service = if entry.kind == AccountKind::Microsoft {
+                engine_api::ConferenceService::Teams
+            } else {
+                engine_api::ConferenceService::NextcloudTalk
+            };
+            Some(crate::MeetingAccount {
+                account: LinkedAccount {
+                    id: entry.id.clone(),
+                    address: entry.address.clone(),
+                    distinction: entry.distinction.clone(),
+                },
+                service: mailcal_account::MeetingChoice::Server(service).name(),
+                state,
+            })
+        })
+        .collect()
+}
+
 /// The uses `account` offers, each in its state.
 fn uses(
     account: &AccountFacts,

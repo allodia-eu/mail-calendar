@@ -76,11 +76,11 @@ impl MicrosoftConfig {
         )
     }
 
-    /// What this account can be used for: no colleagues and no shared mailboxes on a personal
-    /// account, which has no organisation to have either.
+    /// What this account can be used for: no colleagues, shared mailboxes or Teams meetings on a
+    /// personal account, which has no organisation to have any of them.
     #[must_use]
     pub fn offered(&self) -> crate::Capabilities {
-        crate::affiliation::offered(self.affiliation.as_ref(), true)
+        crate::affiliation::offered(self.affiliation.as_ref(), true, true)
     }
 
     /// The uses this account is chosen for that its grant does not allow.
@@ -301,6 +301,34 @@ mod tests {
             engine_api::OrganizationId::try_from("00000000-0000-4000-8000-00000000feed").unwrap(),
         ));
         assert!(account.capabilities().contains(Capability::Colleagues));
+    }
+
+    #[test]
+    fn teams_meetings_are_offered_to_a_work_account_and_off_until_chosen() {
+        use crate::Capability;
+        let mut account = config();
+        // Unknown affiliation is offered everything, but an account storing no choice is not
+        // used for a permission no earlier sign-in asked for.
+        assert!(account.offered().contains(Capability::Meetings));
+        assert!(!account.capabilities().contains(Capability::Meetings));
+        account.shape.capabilities = Some(
+            [Capability::Calendar, Capability::Meetings]
+                .into_iter()
+                .collect(),
+        );
+        assert!(account.capabilities().contains(Capability::Meetings));
+        account.granted_scopes = Some(vec![
+            "https://graph.microsoft.com/Calendars.ReadWrite".to_owned(),
+        ]);
+        assert!(
+            account
+                .withheld_capabilities()
+                .contains(Capability::Meetings),
+            "an administrator who withholds the permission leaves the use needing it"
+        );
+        account.affiliation = Some(Affiliation::Personal);
+        assert!(!account.offered().contains(Capability::Meetings));
+        assert!(!account.capabilities().contains(Capability::Meetings));
     }
 
     #[test]

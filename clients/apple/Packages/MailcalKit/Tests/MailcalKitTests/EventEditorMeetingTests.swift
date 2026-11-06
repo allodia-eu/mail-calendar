@@ -57,6 +57,37 @@ import Testing
         #expect(editor.createArgs().meeting == .set(choice: "jitsi", words: .catalog))
     }
 
+    @Test func aMeetingMadeThroughAnAccountIsNamedWithTheAccount() {
+        let talk = MeetingOption(
+            id: "account:nextcloud-talk:alice@dav:cloud.example.org",
+            name: "Nextcloud Talk",
+            through: "alice@cloud.example.org"
+        )
+        let editor = EventEditorState.create(default: calendar([teams, talk, jitsi]), zone: "UTC", now: now)
+        #expect(
+            editor.meetingOptions.map(\.label) == [
+                L10n.event_meeting_none(),
+                "Microsoft Teams",
+                L10n.event_meeting_through(service: "Nextcloud Talk", account: "alice@cloud.example.org"),
+                "Jitsi Meet",
+            ])
+    }
+
+    @Test func aChoiceTheEventDoesNotHaveYetSaysTheLinkComesAtTheSave() {
+        var editor = EventEditorState.create(default: calendar([teams, jitsi]), zone: "UTC", now: now)
+        #expect(!editor.announcesMeeting)
+        editor.meeting = .choice("server:teams")
+        #expect(editor.announcesMeeting)
+        editor.meeting = .none
+        #expect(!editor.announcesMeeting)
+
+        let opened = editing(EditorMeeting(name: "Microsoft Teams", choice: "server:teams"), choices: [teams, jitsi])
+        #expect(!opened.announcesMeeting, "the event already has this meeting")
+        var replaced = opened
+        replaced.meeting = .choice("jitsi")
+        #expect(replaced.announcesMeeting)
+    }
+
     @Test func aCalendarWithNoChoicesDrawsNoRow() {
         let editor = EventEditorState.create(default: calendar([]), zone: "UTC", now: now)
         #expect(!editor.showsMeetingRow)

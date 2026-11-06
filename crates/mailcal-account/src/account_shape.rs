@@ -18,7 +18,9 @@ use crate::ConfigError;
 /// `Colleagues` is a sub-choice of `Contacts` on a Microsoft or Google account: the people in
 /// the person's work or school directory, which a provider grants as a separate permission.
 /// `SharedMailboxes` is the same for `Mail` on a Microsoft account: the mailboxes the person was
-/// given access to (`docs/shared-mailboxes.md`).
+/// given access to (`docs/shared-mailboxes.md`). `Meetings` is a use of its own, beside them: the
+/// video meetings the account's provider makes for an event on any calendar
+/// (`docs/accounts.md` rule 19).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Capability {
     /// Reading and sending mail.
@@ -31,20 +33,24 @@ pub enum Capability {
     Contacts,
     /// The organisation's directory, beside the account's own contacts.
     Colleagues,
+    /// Video meetings the account's provider makes.
+    Meetings,
 }
 
 impl Capability {
     /// Every capability, in the order they are listed.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Mail,
         Self::SharedMailboxes,
         Self::Calendar,
         Self::Contacts,
         Self::Colleagues,
+        Self::Meetings,
     ];
     /// What a Microsoft or Google account that stores no choice is used for: every use there
-    /// was before the choice existed. Shared mailboxes came later, and asking an account stored
-    /// before them for a permission its grant never held would put a prompt on every one.
+    /// was before the choice existed. Shared mailboxes and meetings came later, and asking an
+    /// account stored before them for a permission its grant never held would put a prompt on
+    /// every one.
     pub const LEGACY: [Self; 4] = [Self::Mail, Self::Calendar, Self::Contacts, Self::Colleagues];
 
     /// The name the stored config spells it with.
@@ -56,6 +62,7 @@ impl Capability {
             Self::Contacts => "contacts",
             Self::Colleagues => "colleagues",
             Self::SharedMailboxes => "shared_mailboxes",
+            Self::Meetings => "meetings",
         }
     }
 

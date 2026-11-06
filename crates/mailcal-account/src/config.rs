@@ -365,7 +365,8 @@ impl AccountConfig {
     }
 
     /// What this account is used for: its stored choice, or what its endpoints have always
-    /// meant (its mailbox, plus its calendar and the address book beside it when it has them).
+    /// meant (its mailbox, plus its calendar and the address book beside it when it has them),
+    /// with Talk meetings for an account a Nextcloud sign-in made.
     #[must_use]
     pub fn capabilities(&self) -> crate::Capabilities {
         let with_calendar = self.caldav.is_some();
@@ -375,6 +376,8 @@ impl AccountConfig {
                 self.imap.is_some().then_some(crate::Capability::Mail),
                 with_calendar.then_some(crate::Capability::Calendar),
                 with_contacts.then_some(crate::Capability::Contacts),
+                // A Nextcloud sign-in's account makes Talk meetings unless switched off.
+                self.nextcloud.as_ref().map(|_| crate::Capability::Meetings),
             ]
             .into_iter()
             .flatten(),
