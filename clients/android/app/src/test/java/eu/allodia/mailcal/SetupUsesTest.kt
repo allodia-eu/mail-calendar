@@ -11,6 +11,7 @@ import uniffi.mailcal_bindings.AccountCapability.CALENDAR
 import uniffi.mailcal_bindings.AccountCapability.COLLEAGUES
 import uniffi.mailcal_bindings.AccountCapability.CONTACTS
 import uniffi.mailcal_bindings.AccountCapability.MAIL
+import uniffi.mailcal_bindings.AccountCapability.MEETINGS
 import uniffi.mailcal_bindings.AccountCapability.SHARED_MAILBOXES
 
 private const val CALDAV = "https://dav.example.org/caldav"
@@ -119,6 +120,31 @@ class SetupUsesTest {
         val personal = UseToggles(UseOffer(listOf(choice(MAIL, true), choice(CALENDAR, true))))
         personal.sharedMailboxes = true
         assertEquals(listOf(MAIL, CALENDAR), personal.chosen().uses)
+    }
+
+    @Test
+    fun teams_meetings_start_on_count_whatever_else_is_on_and_are_never_the_last_use() {
+        // What the core offers a Microsoft work address.
+        val toggles = UseToggles(
+            UseOffer(listOf(MAIL, SHARED_MAILBOXES, CALENDAR, CONTACTS, COLLEAGUES, MEETINGS).map { choice(it, true) }),
+        )
+        assertTrue("Teams meetings start on", toggles.meetings)
+        assertTrue(toggles.offersMeetings)
+        assertEquals(listOf(MAIL, SHARED_MAILBOXES, CALENDAR, CONTACTS, COLLEAGUES, MEETINGS), toggles.chosen().uses)
+
+        toggles.calendar = false
+        toggles.contacts = false
+        assertEquals(listOf(MAIL, SHARED_MAILBOXES, MEETINGS), toggles.chosen().uses)
+        assertTrue("mail is the last use, whatever Teams is", !toggles.canFlip(toggles.mail))
+
+        toggles.meetings = false
+        assertEquals(listOf(MAIL, SHARED_MAILBOXES), toggles.chosen().uses)
+        assertTrue(!toggles.canFlip(toggles.mail))
+        // They do not wait for the calendar, nor for mail.
+        assertEquals(
+            listOf(CONTACTS, MEETINGS),
+            SetupUses.chosen(toggles.offer, false, off, on, null, meetings = true).uses,
+        )
     }
 
     @Test
