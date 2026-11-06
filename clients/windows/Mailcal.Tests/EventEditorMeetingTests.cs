@@ -131,6 +131,27 @@ public class EventEditorMeetingTests
     }
 
     [Fact]
+    public void Only_a_choice_the_event_does_not_have_yet_announces_the_link_at_the_save()
+    {
+        var created = EventEditorState.Create(Calendar([Teams, Jitsi]), "UTC", Now);
+        Assert.False(created.AnnouncesMeeting);
+        created.Meeting = new MeetingSelection.Choice("jitsi");
+        Assert.True(created.AnnouncesMeeting);
+        created.Meeting = new MeetingSelection.None();
+        Assert.False(created.AnnouncesMeeting);
+
+        var opened = Editing(new EditorMeeting("Microsoft Teams", "server:teams"), [Teams, Jitsi]);
+        Assert.False(opened.AnnouncesMeeting);
+        opened.Meeting = new MeetingSelection.Choice("jitsi");
+        Assert.True(opened.AnnouncesMeeting);
+        opened.Meeting = new MeetingSelection.Choice("server:teams");
+        Assert.False(opened.AnnouncesMeeting);
+
+        // A meeting no choice makes is the event's own, so it has nothing to announce.
+        Assert.False(Editing(new EditorMeeting("Zoom", null), [Jitsi]).AnnouncesMeeting);
+    }
+
+    [Fact]
     public void A_pick_carries_the_words_it_is_sent_with()
     {
         var words = new MeetingWords("Video meeting", "Join", "Meeting ID", "Passcode", "Join by phone", "Conference ID");

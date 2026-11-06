@@ -127,6 +127,14 @@ internal sealed partial class EventEditorState
     }
 
     /// <summary>
+    /// Whether the line beneath the row says the link is added at the save (rule 10): the row
+    /// holds a choice the event does not have yet. A meeting is made when the event is saved, never
+    /// when it is chosen.
+    /// </summary>
+    internal bool AnnouncesMeeting =>
+        EffectiveMeeting is MeetingSelection.Choice pick && pick != OpenedMeeting;
+
+    /// <summary>
     /// What a save does to the meeting, or null to leave it alone: None takes the event's meeting
     /// off, a choice replaces it, and leaving the row as it opened changes nothing.
     /// </summary>
