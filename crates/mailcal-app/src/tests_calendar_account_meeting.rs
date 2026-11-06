@@ -259,6 +259,20 @@ async fn taking_a_meeting_off_leaves_it_at_its_service() {
     assert!(talk.deleted.lock().unwrap().is_empty());
 }
 
+/// Whether the calendar was told to pull its rows again since the last look.
+fn redrawn(surfaces: &Mutex<Vec<crate::Surface>>) -> bool {
+    std::mem::take(&mut *surfaces.lock().unwrap()).contains(&crate::Surface::Calendar)
+}
+
+fn writable(app: &crate::App<CalendarFake>, account: &str) -> Vec<bool> {
+    app.calendar_range(super::today(), 7)
+        .calendars
+        .into_iter()
+        .filter(|row| row.account == account)
+        .map(|row| row.can_write)
+        .collect()
+}
+
 #[tokio::test]
 async fn an_accounts_meetings_come_and_go_with_its_connection_without_a_calendar_sync() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
@@ -268,51 +282,73 @@ async fn an_accounts_meetings_come_and_go_with_its_connection_without_a_calendar
     let app = calendar_app(vec![cloud, work], &surfaces);
     app.dispatch(Intent::RefreshCalendar).await;
     assert_eq!(choices(&app, "work"), Vec::new());
+    redrawn(&surfaces);
 
-    let connected = |surfaces: &Mutex<Vec<crate::Surface>>| {
-        std::mem::take(&mut *surfaces.lock().unwrap()).contains(&crate::Surface::Calendar)
-    };
-    connected(&surfaces);
     let fake = CalendarFake::writing_meetings(vec![], &[]);
     app.add_account_deferred(meeting_account("cloud", fake, &talk))
         .await;
+    let talk_through_cloud = [(
+        "account:nextcloud-talk:cloud".to_owned(),
+        Some("me@cloud.local".to_owned()),
+    )];
     assert_eq!(
         choices(&app, "work"),
-        [(
-            "account:nextcloud-talk:cloud".to_owned(),
-            Some("me@cloud.local".to_owned())
-        )],
+        talk_through_cloud,
         "offered as soon as the account connects, not after the next calendar sync"
     );
-    assert!(
-        connected(&surfaces),
-        "and the calendar is told to pull its rows again"
-    );
+    assert!(redrawn(&surfaces), "and the calendar pulls its rows again");
 
     let fake = CalendarFake::writing_meetings(vec![], &[]);
     app.add_account_deferred(calendar_account("cloud", fake))
         .await;
-    assert!(
-        choices(&app, "work").is_empty(),
+    assert_eq!(
+        choices(&app, "work"),
+        Vec::new(),
         "a connection without meetings takes them off"
     );
-    assert!(connected(&surfaces));
+    assert!(redrawn(&surfaces));
 
+    // Listed without providers while a use is switched, as the bindings do, then dialled again.
+    let fake = CalendarFake::writing_meetings(vec![], &[]);
+    app.add_account_deferred(crate::Account {
+        calendar_provider: None,
+        ..calendar_account("work", fake)
+    })
+    .await;
+    assert_eq!(writable(&app, "work"), [false]);
+    assert!(redrawn(&surfaces));
+    let fake = CalendarFake::writing_meetings(vec![], &[]);
+    app.add_account_deferred(calendar_account("work", fake))
+        .await;
     let fake = CalendarFake::writing_meetings(vec![], &[]);
     app.add_account_deferred(meeting_account("cloud", fake, &talk))
         .await;
+    assert_eq!(
+        writable(&app, "work"),
+        [true],
+        "a calendar may be written again once its own account connects"
+    );
+    assert_eq!(choices(&app, "work"), talk_through_cloud);
+    redrawn(&surfaces);
+
     app.remove_account(&"cloud".try_into().unwrap()).await;
-    assert!(
-        choices(&app, "work").is_empty(),
+    assert_eq!(
+        choices(&app, "work"),
+        Vec::new(),
         "a removed account makes no meeting"
     );
+    assert_eq!(
+        writable(&app, "cloud"),
+        Vec::<bool>::new(),
+        "and its calendars go with it"
+    );
+    assert!(redrawn(&surfaces));
 
-    connected(&surfaces);
     let fake = CalendarFake::writing_meetings(vec![], &[]);
     app.add_account_deferred(calendar_account("work", fake))
         .await;
     assert!(
-        !connected(&surfaces),
-        "a connection that changes no choice redraws nothing"
+        !redrawn(&surfaces),
+        "a connection that changes no calendar redraws nothing"
     );
 }
