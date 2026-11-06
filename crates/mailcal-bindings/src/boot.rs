@@ -330,6 +330,7 @@ pub(crate) fn build_accounts(
         app,
         account_connect_errors: Mutex::new(account_errors),
         calendar_connect_errors: Mutex::new(calendar_errors),
+        notice_book: Mutex::default(),
         registry,
         background,
         mcp,

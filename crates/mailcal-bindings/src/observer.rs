@@ -25,6 +25,11 @@ pub(crate) struct ObserverBridge {
 impl AppObserver for ObserverBridge {
     fn surface_changed(&self, surface: AppSurface) {
         self.foreign.surface_changed(surface.into());
+        // Most notices are read from the connectivity snapshot, so whatever moves it may move
+        // them; one place for this, rather than a second signal beside every first.
+        if surface == AppSurface::Connectivity {
+            self.foreign.surface_changed(crate::Surface::Notices);
+        }
     }
 }
 

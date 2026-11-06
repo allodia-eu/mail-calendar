@@ -292,6 +292,14 @@ the service answers. It reads `allodia_signin_ended_prompt` and its one action,
 complete says `signin_expired_failed` the way that platform's mail banner reports its own failed
 sign-in, and a dismissed browser says nothing. There is no banner for `NeedsReauth`, which is an offer and stays on the account screen.
 
+**The banner is a Degraded notice, and Blocked near a lapse** ([`docs/notices.md`](../docs/notices.md)).
+Mail, calendar and contacts all work without the Allodia account, so a refused grant is Degraded.
+It is raised to Blocked while the stored answer grants a paid capability whose grace (above) ends
+within seven days, because from then on signing in again is what keeps that capability. Grace,
+not `currentPeriodEnd`, is the horizon: the period end is for display, and the grace is what this
+device will actually stop granting on. The rise is read from the stored answer, so it arrives with
+the entitlement read the matrix below plans.
+
 **Create is a `prompt` on the same request, never a second URL.** The authorization endpoint is
 discovered, so a literal sign-up address would be a second source of truth and would ignore
 `MAILCAL_ALLODIA_HOST`. `prompt=create` is OpenID Connect Prompt Create 1.0 and the service

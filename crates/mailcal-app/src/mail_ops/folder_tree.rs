@@ -17,7 +17,7 @@ use mailcal_viewmodel::{
 
 use super::folders::resolve_move_target;
 use crate::{
-    App, FolderIntent, helpers::generated_idempotency, reference::FolderRef, scope::Scope,
+    App, FolderIntent, Surface, helpers::generated_idempotency, reference::FolderRef, scope::Scope,
 };
 
 impl<P: Provider> App<P> {
@@ -319,10 +319,25 @@ impl<P: Provider> App<P> {
     }
 
     pub(crate) fn set_folder_notice(&self, notice: Option<FolderNotice>) {
+        let changed = {
+            let mut pane = self.folder_pane.lock().expect("folder-pane mutex poisoned");
+            let changed = pane.notice() != notice;
+            pane.set_notice(notice);
+            changed
+        };
+        if changed {
+            self.observer.surface_changed(Surface::Notices);
+        }
+    }
+
+    /// The folder change the server refused, standing until the user dismisses it or makes
+    /// another change; the same notice the mailbox snapshot carries, read without building one.
+    #[must_use]
+    pub fn folder_notice(&self) -> Option<FolderNotice> {
         self.folder_pane
             .lock()
             .expect("folder-pane mutex poisoned")
-            .set_notice(notice);
+            .notice()
     }
 }
 

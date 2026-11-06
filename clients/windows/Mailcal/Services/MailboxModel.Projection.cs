@@ -32,6 +32,12 @@ public sealed partial class MailboxModel
         {
             return;
         }
+        // Not drawn yet: this client's banners still read the connectivity snapshot. Returning
+        // keeps the signal from reaching the mailbox reload below.
+        if (changed == Surface.Notices)
+        {
+            return;
+        }
         // A send signal only updates the "sending…" → "sent" hint; it doesn't touch the
         // mailbox projection (the post-send refresh fires its own MailboxList signal).
         if (changed == Surface.Sending)

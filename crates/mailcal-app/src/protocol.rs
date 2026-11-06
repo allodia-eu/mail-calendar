@@ -77,6 +77,10 @@ pub enum Surface {
     /// screen at the same time and mean opposite things: a composer can be saving a draft
     /// while an earlier message is still going out.
     DraftStatus,
+    /// The notices a host draws (`docs/notices.md`), assembled above this crate from
+    /// [`Self::Connectivity`] and the facts signalled here: today the refused folder change
+    /// ([`crate::App::folder_notice`]).
+    Notices,
 }
 
 /// A host implements this to learn a [`Surface`] changed, then pulls its snapshot.

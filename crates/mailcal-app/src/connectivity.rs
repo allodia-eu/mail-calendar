@@ -98,6 +98,12 @@ impl<P: Provider> App<P> {
         self.observer.surface_changed(Surface::Connectivity);
     }
 
+    /// Tells the host to read the notices again, for a layer above this crate that keeps state
+    /// of its own about them (`docs/notices.md`).
+    pub fn signal_notices(&self) {
+        self.observer.surface_changed(Surface::Notices);
+    }
+
     /// Marks `account` as needing calendar re-authentication (its OAuth grant lacks the calendar
     /// scope), signalling [`Surface::Connectivity`] only when the set actually changes. Mail is
     /// unaffected: a host shows a "reconnect to enable calendar" prompt, not an outage badge.
