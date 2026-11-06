@@ -64,6 +64,14 @@ that same file.
   ([`sidebarRowHighlight`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/Mailcal.Sidebar.swift)),
   and check a nested row on screen rather than a flat one: no suite sees this, `swift build` and
   the XCUITest classes included.
+- **A SwiftUI `.clipped()` crops the drawing, not the hit testing.** A view slid out of its frame
+  with `.offset` and clipped is invisible there and still takes every press, and the accessibility
+  tree goes on reporting whatever is drawn underneath, so a dump, `isHittable` and a screenshot all
+  agree that the control below works. The invitation card's day preview slides a whole day up
+  behind a clip, and an event earlier in the day lay over Accept, Maybe and Decline. A clipped
+  view that is only a picture takes `.allowsHitTesting(false)`. For one that must stay
+  interactive, press what lies beside it with a real pointer, off the label
+  ([`InvitationAnswerTests`](../clients/apple/UITests/InvitationAnswerTests.swift) does).
 - **A WinUI button with no label stands at its glyph's height, not its row's**, because the default
   button style *centres* its content rather than stretching it. So the one icon-only control in a
   row of labelled ones comes up short and vertically centred: 54px against 64px on a 200% display.

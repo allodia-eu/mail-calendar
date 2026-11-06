@@ -346,6 +346,10 @@ struct InvitationPreviewGrid: View {
                 .frame(height: gridHeight)
             }
         }
+        // A picture, not a control. The grid lays out the whole day and slides it up, and
+        // `.clipped()` crops only the drawing: the hours above the span still take clicks, and a
+        // block there lies invisibly over Accept, Maybe and Decline and swallows them.
+        .allowsHitTesting(false)
     }
 
     /// One day, so a bar spans the full width and the banner is as tall as the core's lane count. No
