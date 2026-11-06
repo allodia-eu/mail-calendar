@@ -2,7 +2,7 @@
 //! so what is under test is what a switch refuses and what a failure leaves behind; a switch
 //! that connects is the live suite's (`tests/live_sign_in_switch.rs`).
 
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, Mutex, mpsc};
 
 use super::named_as;
 use crate::{
@@ -269,4 +269,84 @@ fn an_imap_sign_in_is_remedied_by_signing_in_again_and_a_password_by_typing_one(
         app.account_provider(signed_in_id),
         Some(crate::AccountProvider::ImapOauth)
     ));
+}
+
+/// The host's DNS, recording each domain it is asked for mail servers and answering none, so a
+/// lookup reaches no mail server of its own.
+struct RecordingDns(Arc<Mutex<Vec<String>>>);
+
+impl crate::MxResolver for RecordingDns {
+    fn resolve_mx(&self, domain: String) -> Result<crate::MxResolution, crate::DnsError> {
+        self.0.lock().expect("the record").push(domain);
+        Ok(crate::MxResolution {
+            records: Vec::new(),
+            authentic_data: false,
+        })
+    }
+
+    fn resolve_srv(&self, _name: String) -> Result<crate::SrvResolution, crate::DnsError> {
+        Ok(crate::SrvResolution {
+            records: Vec::new(),
+            authentic_data: false,
+        })
+    }
+}
+
+#[test]
+fn the_sign_in_settings_offer_looks_the_address_up_as_setup_did() {
+    // Setup finds a provider hosting the domain through its MX record, so a lookup without the
+    // host's DNS names a different authorization server, or none, for the same account.
+    let (typed, id) = imap_account("dns", false);
+    let (app, _) = booted("sign-in-dns", vec![typed]);
+
+    // Asked before the host handed its DNS over: answered, but not kept for the account.
+    let _ = app.account_sign_in_options(id.clone());
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    app.set_dns_resolver(Box::new(RecordingDns(Arc::clone(&asked))));
+    let _ = app.account_sign_in_options(id);
+
+    assert!(
+        asked
+            .lock()
+            .expect("the record")
+            .iter()
+            .any(|domain| domain == "example.com"),
+        "the address's domain was never looked up in the host's DNS"
+    );
+}
+
+/// The host's DNS while it is failing: offline, a captive portal, a lookup that timed out.
+struct FailingDns;
+
+impl crate::MxResolver for FailingDns {
+    fn resolve_mx(&self, _domain: String) -> Result<crate::MxResolution, crate::DnsError> {
+        Err(crate::DnsError::Lookup("no network".to_owned()))
+    }
+
+    fn resolve_srv(&self, _name: String) -> Result<crate::SrvResolution, crate::DnsError> {
+        Err(crate::DnsError::Lookup("no network".to_owned()))
+    }
+}
+
+#[test]
+fn an_issuer_found_while_dns_failed_is_not_kept() {
+    // Detection falls back to the well-known probe when the MX lookup fails, which is the answer
+    // a lookup without DNS gives; kept, it would hold the account to that issuer for the session.
+    let (typed, id) = imap_account("dns-failing", false);
+    let (app, _) = booted("sign-in-dns-failing", vec![typed]);
+    app.set_dns_resolver(Box::new(FailingDns));
+    let _ = app.account_sign_in_options(id.clone());
+
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    app.set_dns_resolver(Box::new(RecordingDns(Arc::clone(&asked))));
+    let _ = app.account_sign_in_options(id);
+
+    assert!(
+        asked
+            .lock()
+            .expect("the record")
+            .iter()
+            .any(|domain| domain == "example.com"),
+        "the answer found while DNS failed was kept, so DNS was never asked again"
+    );
 }

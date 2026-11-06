@@ -6,13 +6,18 @@
 //! [`MailcalApp::install_credential`], which is the replacement a repaired password goes through,
 //! so a switch that fails leaves the account exactly as it was.
 
+use std::sync::Arc;
+
 use engine_api::addresses_match;
 use mailcal_account::{
     AccountConfig, ImapAuth, ImapAuthQuery, JmapAccountConfig, Secret, SetupRecommendation,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{ImapLoginRequest, MailcalApp, MailcalError, account_registry::SignInConfig};
+use crate::{
+    ImapLoginRequest, MailcalApp, MailcalError, account_registry::SignInConfig,
+    autodetect::WatchedResolver,
+};
 
 /// Which ways in an account's server accepts, for the switch its Settings page offers.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -364,7 +369,10 @@ impl MailcalApp {
     /// The issuer the provider's own autoconfig names for `email`, when detection finds the
     /// account's mail server there: what setup would have started a sign-in from. Looked for
     /// once per registration of `account_id`, by whichever of the options and the sign-in asks
-    /// first.
+    /// first, through the host's DNS as setup's detection is: a domain whose provider is found
+    /// through its MX record names another issuer, or none, without it. So an answer is kept only
+    /// when DNS answered every lookup, and not when it was given before the host handed its DNS
+    /// over or while a lookup failed.
     fn autoconfig_issuer(
         &self,
         account_id: &str,
@@ -374,7 +382,11 @@ impl MailcalApp {
         if let Some(issuer) = self.registry.sign_in_issuer(account_id) {
             return issuer;
         }
-        let issuer = match self.detect_route(email, None) {
+        let watched = self.dns_resolver().map(WatchedResolver::over);
+        let resolver = watched
+            .clone()
+            .map(|watched| watched as Arc<dyn mailcal_autodetect::MxResolver>);
+        let issuer = match self.detect_route_with(email, resolver) {
             SetupRecommendation::Imap {
                 imap_host,
                 oauth_issuer,
@@ -384,8 +396,10 @@ impl MailcalApp {
             }
             _ => None,
         };
-        self.registry
-            .remember_sign_in_issuer(account_id, issuer.clone());
+        if watched.is_some_and(|watched| watched.answered_every_lookup()) {
+            self.registry
+                .remember_sign_in_issuer(account_id, issuer.clone());
+        }
         issuer
     }
 

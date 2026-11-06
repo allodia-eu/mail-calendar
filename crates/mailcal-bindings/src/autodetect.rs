@@ -10,10 +10,13 @@ use std::sync::Arc;
 
 #[path = "autodetect_showcase.rs"]
 mod showcase;
+#[path = "autodetect_watched.rs"]
+mod watched;
 
 #[cfg(test)]
 use showcase::showcase_recommendation;
 use showcase::showcase_route;
+pub(crate) use watched::WatchedResolver;
 
 use crate::{MailcalApp, setup::ConnectionSecurity};
 
@@ -234,12 +237,21 @@ impl MailcalApp {
         email: &str,
         mx_resolver: Option<Box<dyn MxResolver>>,
     ) -> mailcal_account::SetupRecommendation {
-        if self.showcase {
-            return showcase_route(email);
-        }
         let resolver = mx_resolver.map(|resolver| {
             Arc::new(CallbackMxResolver(resolver)) as Arc<dyn mailcal_autodetect::MxResolver>
         });
+        self.detect_route_with(email, resolver)
+    }
+
+    /// [`detect_route`](MailcalApp::detect_route) through a resolver the core already holds.
+    pub(crate) fn detect_route_with(
+        &self,
+        email: &str,
+        resolver: Option<Arc<dyn mailcal_autodetect::MxResolver>>,
+    ) -> mailcal_account::SetupRecommendation {
+        if self.showcase {
+            return showcase_route(email);
+        }
         let config = detect_config();
         let result = self
             .runtime
