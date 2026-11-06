@@ -180,6 +180,24 @@ fn a_refused_grant_is_signed_out_and_not_an_outage() {
     ));
 }
 
+/// A refresh refused for a scope the grant never had (`invalid_scope`) is the offer to sign in
+/// again, never the outage: a client switches on this error alone, so an `Unreachable` here would
+/// tell somebody to wait for a permission that waiting cannot bring.
+#[cfg(feature = "allodia-license")]
+#[test]
+fn a_narrowed_grant_that_could_not_refresh_offers_a_fresh_sign_in() {
+    use crate::AllodiaGrantHealth;
+
+    let app = app();
+    signed_in(&app);
+    app.note_allodia_health(AllodiaGrantHealth::NeedsReauth);
+
+    assert!(matches!(
+        app.allodia_mint_failure(),
+        AllodiaPurchaseError::NeedsReauth
+    ));
+}
+
 /// A mint that failed with nothing learned about the grant is the outage it looks like.
 #[cfg(feature = "allodia-license")]
 #[test]

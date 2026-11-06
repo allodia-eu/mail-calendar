@@ -252,15 +252,17 @@ mod calls {
         /// What a token that could not be minted means to a client.
         ///
         /// Read after the mint, which has already recorded what the token endpoint's answer said
-        /// about the grant: a refusal there is a sign-in to make again, and anything else taught
-        /// nothing and is the outage it looks like.
+        /// about the grant: a refusal there is a sign-in to make again, a grant narrower than this
+        /// build wants is the offer to sign in again, and anything else taught nothing and is the
+        /// outage it looks like.
         pub(crate) fn allodia_mint_failure(&self) -> AllodiaPurchaseError {
             if self.allodia.lock().expect("allodia account lock").is_none() {
-                AllodiaPurchaseError::NotSignedIn
-            } else if self.allodia_health() == AllodiaGrantHealth::SignedOut {
-                AllodiaPurchaseError::SignedOut
-            } else {
-                AllodiaPurchaseError::Unreachable
+                return AllodiaPurchaseError::NotSignedIn;
+            }
+            match self.allodia_health() {
+                AllodiaGrantHealth::SignedOut => AllodiaPurchaseError::SignedOut,
+                AllodiaGrantHealth::NeedsReauth => AllodiaPurchaseError::NeedsReauth,
+                AllodiaGrantHealth::Ok => AllodiaPurchaseError::Unreachable,
             }
         }
 
