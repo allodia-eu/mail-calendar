@@ -232,6 +232,9 @@ struct AccountUsesSection: View {
         } message: { _ in
             Text(L10n.account_use_off_message())
         }
+        // The Review under a use paused for a new server asks the question here, as the outage
+        // banner does (docs/account-autodetect.md rule 14).
+        .serverChangeReview(model, $serverChange)
     }
 
     private func row(_ capability: AccountCapability) -> some View {
