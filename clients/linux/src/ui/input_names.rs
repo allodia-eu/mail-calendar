@@ -158,6 +158,7 @@ impl fmt::Debug for AppInput {
             Self::ManageAllodiaAccount => "ManageAllodiaAccount",
             Self::CancelAllodiaSignIn => "CancelAllodiaSignIn",
             Self::AllodiaSignInSlow(_) => "AllodiaSignInSlow",
+            Self::AllodiaPrepared(..) => "AllodiaPrepared",
             Self::AllodiaSignInFinished(..) => "AllodiaSignInFinished",
             Self::SignOutOfAllodia => "SignOutOfAllodia",
             Self::AllodiaSubscription(_) => "AllodiaSubscription",

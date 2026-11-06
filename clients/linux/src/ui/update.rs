@@ -409,6 +409,9 @@ impl AppModel {
             AppInput::ManageAllodiaAccount => self.manage_allodia_account(),
             AppInput::CancelAllodiaSignIn => self.cancel_allodia_sign_in(),
             AppInput::AllodiaSignInSlow(attempt) => self.allodia_sign_in_slow(attempt),
+            AppInput::AllodiaPrepared(attempt, prepared) => {
+                self.allodia_prepared(attempt, prepared, sender.input_sender().clone());
+            }
             AppInput::AllodiaSignInFinished(attempt, outcome) => {
                 self.allodia_sign_in_finished(attempt, outcome, sender.input_sender().clone());
             }

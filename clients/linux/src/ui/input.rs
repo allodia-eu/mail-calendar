@@ -9,7 +9,7 @@ use mailcal_bindings::{
 };
 
 use super::{
-    allodia::AllodiaOutcome,
+    allodia::{AllodiaOutcome, AllodiaPrepared},
     allodia_subscription::SubscriptionInput,
     allodia_sync::AllodiaSyncOutcome,
     calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
@@ -358,6 +358,8 @@ pub(crate) enum AppInput {
     /// The browser hop for this attempt has outlasted the card's threshold, so the
     /// first-run card owes the person a way back ([`super::setup_onboarding`]).
     AllodiaSignInSlow(u64),
+    /// The core answered an Allodia sign-in's begin, off the main thread.
+    AllodiaPrepared(u64, Result<Box<AllodiaPrepared>, String>),
     AllodiaSignInFinished(u64, AllodiaOutcome),
     SignOutOfAllodia,
     /// Ask the account service what the person's other devices hold, and tell it what this one
