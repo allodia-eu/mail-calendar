@@ -26,6 +26,7 @@ use crate::{
 pub(crate) async fn reconnect_uses(
     app: Arc<App<Box<dyn Provider>>>,
     registry: SharedRegistry,
+    redialling: crate::retry::Redialling,
     plans: Vec<(AccountId, AccountDial)>,
     display_zone: TimeZoneId,
 ) -> Vec<String> {
@@ -34,6 +35,7 @@ pub(crate) async fn reconnect_uses(
     dial_all(plans, |index, (id, plan): (AccountId, AccountDial)| {
         let app = Arc::clone(&app);
         let registry = Arc::clone(&registry);
+        let redialling = Arc::clone(&redialling);
         let unanswered = Arc::clone(&unanswered);
         let reconnected = Arc::clone(&reconnected);
         let display_zone = display_zone.clone();
@@ -41,6 +43,13 @@ pub(crate) async fn reconnect_uses(
             match plan.run_uses(&id, display_zone).await {
                 // Removed during the dial: its plan predates the removal.
                 Ok(_) if !registry.contains(id.as_str()) => {}
+                // A use switched on or off during the dial: its plan predates the switch, so the
+                // account is dialled again whole once this pass ends.
+                Ok(_) if crate::retry::asked_again(&redialling, id.as_str()) => {
+                    log::info!(
+                        "reconnect: account[{index}] was changed mid-dial; dialling it again"
+                    );
+                }
                 Ok(outcome) => {
                     registry.learn_dav_starts(id.as_str(), &outcome.learned);
                     if outcome.rediscover {
