@@ -51,7 +51,7 @@ struct Picked<'a> {
 /// an address book found apart from the calendar, or the one typed. Contacts found only through
 /// the calendar's server keep that server even with the calendar off, because that is where they
 /// are looked for, and the stored uses keep the calendar closed. Colleagues count only beside
-/// contacts, and shared mailboxes only beside mail.
+/// contacts, and shared mailboxes only beside mail. Video meetings count whatever else is on.
 fn chosen(
     offer: &UseOffer,
     mail: Option<bool>,
@@ -62,6 +62,7 @@ fn chosen(
     let Subchoices {
         shared_mailboxes,
         colleagues,
+        meetings,
     } = subs;
     let calendar_on = calendar.is_some_and(|picked| picked.on);
     let contacts_on = contacts.is_some_and(|picked| picked.on);
@@ -92,6 +93,7 @@ fn chosen(
             calendar_on.then_some(AccountCapability::Calendar),
             contacts_on.then_some(AccountCapability::Contacts),
             (contacts_on && colleagues == Some(true)).then_some(AccountCapability::Colleagues),
+            (meetings == Some(true)).then_some(AccountCapability::Meetings),
         ]
         .into_iter()
         .flatten()
@@ -104,12 +106,13 @@ fn chosen(
     }
 }
 
-/// The choices within a use: shared mailboxes within mail, colleagues within contacts; `None`
-/// for one the card did not offer.
+/// The choices beside a use: shared mailboxes within mail, colleagues within contacts, Teams
+/// meetings in the calendar's section; `None` for one the card did not offer.
 #[derive(Clone, Copy, Debug, Default)]
 struct Subchoices {
     shared_mailboxes: Option<bool>,
     colleagues: Option<bool>,
+    meetings: Option<bool>,
 }
 
 /// A calendar or contacts choice on screen: the toggle, and beneath it the server detection
@@ -128,6 +131,7 @@ pub(super) struct UseToggles {
     contacts: Option<DavToggle>,
     colleagues: Option<gtk::CheckButton>,
     shared_mailboxes: Option<gtk::CheckButton>,
+    meetings: Option<gtk::CheckButton>,
 }
 
 impl UseToggles {
@@ -154,6 +158,7 @@ impl UseToggles {
                     .as_ref()
                     .map(gtk::CheckButton::is_active),
                 colleagues: self.colleagues.as_ref().map(gtk::CheckButton::is_active),
+                meetings: self.meetings.as_ref().map(gtk::CheckButton::is_active),
             },
         )
     }
@@ -173,7 +178,12 @@ pub(super) fn append(
         contacts: None,
         colleagues: None,
         shared_mailboxes: None,
+        meetings: None,
     };
+    let meetings = offer
+        .choices
+        .iter()
+        .find(|choice| choice.capability == AccountCapability::Meetings);
     for choice in &offer.choices {
         match choice.capability {
             AccountCapability::Mail => {
@@ -205,6 +215,11 @@ pub(super) fn append(
                     l10n::setup_detect_calendar_add(),
                     l10n::setup_hint_caldav(),
                 ));
+                // Teams meetings are made for an event on any calendar, so they do not wait for
+                // this one; they are drawn beneath what the calendar itself shows.
+                if toggles.meetings.is_none() {
+                    toggles.meetings = meetings.map(|choice| meetings_toggle(content, choice));
+                }
             }
             AccountCapability::Contacts => {
                 content.append(&section(l10n::setup_detect_section_contacts()));
@@ -230,8 +245,11 @@ pub(super) fn append(
                     toggles.contacts.as_ref().map(|contacts| &contacts.enabled),
                 ));
             }
-            // Never a setup choice: switched on from the account's page.
-            AccountCapability::Meetings => {}
+            // Drawn in the calendar's section, which a card offering them always has.
+            AccountCapability::Meetings if toggles.meetings.is_some() => {}
+            AccountCapability::Meetings => {
+                toggles.meetings = Some(meetings_toggle(content, choice));
+            }
         }
     }
     keep_one_on(&toggles);
@@ -271,6 +289,14 @@ fn dav_toggle(
         enabled,
         typed: None,
     }
+}
+
+/// The Teams meetings choice, which is never the last use and so is always free to flip.
+fn meetings_toggle(content: &gtk::Box, choice: &SetupChoice) -> gtk::CheckButton {
+    let enabled = gtk::CheckButton::with_label(l10n::setup_detect_teams_enable());
+    enabled.set_active(choice.on);
+    content.append(&enabled);
+    enabled
 }
 
 /// Shows `widget` only while `toggle` is on.

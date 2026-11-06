@@ -1,19 +1,31 @@
-//! Settings → Videoconferencing (`docs/settings.md`, category 4): the person's Jitsi server, the
-//! one field the category holds (`docs/conferencing.md`, rule 13).
+//! Settings → Videoconferencing (`docs/settings.md`, category 4): the accounts that make video
+//! meetings, and the person's Jitsi server (`docs/conferencing.md`, rule 13).
 //!
-//! Empty until the person fills it, and checked by the core before it is stored, so an address it
-//! refuses is said here and nothing changes. Once one is stored, every calendar whose provider
-//! writes a meeting offers Jitsi in the editor.
+//! An account's row only opens its page, where the one switch for its meetings is: two switches
+//! for one setting would be two places to change it, and two places to ask a provider for its
+//! permission.
+//!
+//! The Jitsi server is empty until the person fills it, and checked by the core before it is
+//! stored, so an address it refuses is said here and nothing changes. Once one is stored, every
+//! calendar whose provider writes a meeting offers Jitsi in the editor.
 
 use std::rc::Rc;
 
 use adw::prelude::*;
+use mailcal_bindings::{CapabilityState, MeetingAccount};
 
-use super::{PageContext, group, page_box};
-use crate::l10n;
+use super::{PageContext, account_names::linked_name, group, page_box};
+use crate::{
+    l10n,
+    ui::{AppInput, account_settings::AccountsInput},
+};
 
 pub(super) fn page(ctx: &PageContext) -> gtk::Box {
     let content = page_box(l10n::settings_category_videoconferencing());
+    let accounts = ctx.app.accounts_snapshot().meeting_accounts;
+    if let Some(section) = meeting_accounts_group(&accounts, &ctx.sender) {
+        content.append(&section);
+    }
     let read = ctx.app.clone();
     let write = ctx.app.clone();
     content.append(&jitsi_server_group(
@@ -21,6 +33,49 @@ pub(super) fn page(ctx: &PageContext) -> gtk::Box {
         move |typed| write.set_jitsi_server(Some(typed)),
     ));
     content
+}
+
+/// An account's Video meetings use, as its row says it.
+pub(super) fn state_word(state: CapabilityState) -> &'static str {
+    match state {
+        CapabilityState::On => l10n::settings_toggle_on(),
+        CapabilityState::Off => l10n::settings_toggle_off(),
+        CapabilityState::NeedsPermission => l10n::settings_meeting_account_needs_permission(),
+        CapabilityState::NotOffered => l10n::settings_meeting_account_not_offered(),
+    }
+}
+
+/// The accounts that make video meetings, each opening its page; none while no account does.
+pub(super) fn meeting_accounts_group(
+    accounts: &[MeetingAccount],
+    sender: &relm4::Sender<AppInput>,
+) -> Option<adw::PreferencesGroup> {
+    if accounts.is_empty() {
+        return None;
+    }
+    let section = group(
+        l10n::settings_meeting_accounts(),
+        l10n::settings_meeting_accounts_hint(),
+    );
+    for account in accounts {
+        let row = adw::ActionRow::new();
+        // A service's and an account's names are not ours to mark up.
+        row.set_use_markup(false);
+        row.set_title(&account.service);
+        row.set_subtitle(&linked_name(&account.account));
+        let state = gtk::Label::new(Some(state_word(account.state)));
+        state.add_css_class("dim-label");
+        row.add_suffix(&state);
+        row.add_suffix(&gtk::Image::from_icon_name(crate::ui::icons::NEXT));
+        row.set_activatable(true);
+        let sender = sender.clone();
+        let id = account.account.id.clone();
+        row.connect_activated(move |_| {
+            sender.emit(AppInput::Accounts(AccountsInput::Visit(id.clone())));
+        });
+        section.add(&row);
+    }
+    Some(section)
 }
 
 /// The Jitsi server's group: `stored` reads what the core holds, `store` asks it to keep the text

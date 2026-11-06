@@ -16,6 +16,7 @@ fn linked(id: &str) -> LinkedAccount {
 /// A mail account with no calendar of its own, two calendars it may use, the second suggested.
 fn snapshot() -> AccountsSnapshot {
     AccountsSnapshot {
+        meeting_accounts: Vec::new(),
         accounts: vec![AccountEntry {
             id: "alice@imap".to_owned(),
             address: "alice@example.org".to_owned(),

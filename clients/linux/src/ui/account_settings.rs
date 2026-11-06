@@ -21,6 +21,8 @@ pub(crate) enum AccountsInput {
     Show(Option<String>),
     /// Put Settings on screen at an account's page, from outside the window.
     Open(String),
+    /// Move the open Settings to an account's page under Accounts, from another category.
+    Visit(String),
     /// Switch one of an account's uses on or off.
     SetUse {
         account: String,
@@ -173,6 +175,11 @@ impl AppModel {
                 self.settings.refresh_in_place();
             }
             AccountsInput::Open(account) => self.settings.open_account(account),
+            AccountsInput::Visit(account) => {
+                self.settings
+                    .record_category(super::settings::Category::Accounts);
+                self.accounts_input(AccountsInput::Show(Some(account)), sender);
+            }
             AccountsInput::SetUse {
                 account,
                 capability,

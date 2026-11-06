@@ -7,9 +7,13 @@
 use std::{cell::RefCell, rc::Rc};
 
 use adw::prelude::*;
+use mailcal_bindings::{CapabilityState, LinkedAccount, MeetingAccount};
 
-use super::jitsi_server_group;
-use crate::l10n;
+use super::{jitsi_server_group, meeting_accounts_group, state_word};
+use crate::{
+    l10n,
+    ui::{AppInput, account_settings::AccountsInput},
+};
 
 /// A stand-in for the core's store: it keeps an `https` address with its trailing `/` dropped,
 /// and refuses anything else.
@@ -86,4 +90,70 @@ pub(crate) fn the_jitsi_server_field_stores_what_the_core_accepts_and_says_when_
     entry.set_text("");
     entry.emit_by_name::<()>("apply", &[]);
     assert_eq!(*held.borrow(), None, "an empty field forgets the server");
+}
+
+#[test]
+fn a_meeting_account_says_its_use_in_the_words_its_page_would() {
+    assert_eq!(state_word(CapabilityState::On), l10n::settings_toggle_on());
+    assert_eq!(
+        state_word(CapabilityState::Off),
+        l10n::settings_toggle_off()
+    );
+    assert_eq!(
+        state_word(CapabilityState::NeedsPermission),
+        l10n::settings_meeting_account_needs_permission()
+    );
+    assert_eq!(
+        state_word(CapabilityState::NotOffered),
+        l10n::settings_meeting_account_not_offered()
+    );
+}
+
+#[test]
+fn no_account_that_makes_meetings_draws_no_group() {
+    let (sender, _receiver) = relm4::channel();
+    assert!(meeting_accounts_group(&[], &sender).is_none());
+}
+
+/// Called from the crate's single `gtk::init` test.
+pub(crate) fn a_meeting_account_row_names_the_service_and_account_and_opens_its_page() {
+    let (sender, receiver) = relm4::channel();
+    let account = MeetingAccount {
+        account: LinkedAccount {
+            id: "alice@contoso.example@microsoft".to_owned(),
+            address: "alice@contoso.example".to_owned(),
+            distinction: None,
+        },
+        service: "Microsoft Teams".to_owned(),
+        state: CapabilityState::NeedsPermission,
+    };
+    let group = meeting_accounts_group(&[account], &sender).expect("one account draws the group");
+    let widgets = crate::ui::setup_widget_tests::descendants::<gtk::Widget>(
+        group.upcast_ref::<gtk::Widget>(),
+    );
+    let row = widgets
+        .iter()
+        .find_map(|widget| widget.clone().downcast::<adw::ActionRow>().ok())
+        .expect("the group holds the account's row");
+    assert_eq!(row.title(), "Microsoft Teams");
+    assert_eq!(row.subtitle().as_deref(), Some("alice@contoso.example"));
+    assert!(row.is_activatable());
+    assert!(
+        widgets
+            .iter()
+            .filter_map(|widget| widget.clone().downcast::<gtk::Label>().ok())
+            .any(|label| label.text() == l10n::settings_meeting_account_needs_permission()),
+        "the row says the use's state"
+    );
+    assert!(
+        !widgets
+            .iter()
+            .any(|widget| widget.is::<gtk::Switch>() || widget.is::<adw::SwitchRow>()),
+        "the switch is on the account's page, not here"
+    );
+    row.emit_by_name::<()>("activated", &[]);
+    assert!(matches!(
+        receiver.recv_sync(),
+        Some(AppInput::Accounts(AccountsInput::Visit(id))) if id == "alice@contoso.example@microsoft"
+    ));
 }
