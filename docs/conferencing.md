@@ -64,7 +64,10 @@ nobody has to dig a link out of the notes.
    calendar redraws the row from the new calendar's choices, and a choice the new one lacks goes
    back to None.
 10. **A new event starts with no meeting.** The person adds one by choosing it; nothing is added
-    on their behalf.
+    on their behalf. A chosen meeting is made when the event is saved, never when it is chosen,
+    so nothing is filled into the location or notes before the save: while the row holds a
+    choice the event does not have yet, a line beneath it says the link is added when the
+    person saves (`event_meeting_added_on_save`).
 11. **Editing an event shows the meeting it has.** The row shows the event's first shown meeting
     (`is_shown`) as its current value. Choosing None takes that meeting off, with the block of text
     and the location it left; choosing another service replaces it; leaving the row alone leaves

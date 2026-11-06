@@ -73,6 +73,21 @@ import Testing
             ])
     }
 
+    @Test func aChoiceTheEventDoesNotHaveYetSaysTheLinkComesAtTheSave() {
+        var editor = EventEditorState.create(default: calendar([teams, jitsi]), zone: "UTC", now: now)
+        #expect(!editor.announcesMeeting)
+        editor.meeting = .choice("server:teams")
+        #expect(editor.announcesMeeting)
+        editor.meeting = .none
+        #expect(!editor.announcesMeeting)
+
+        let opened = editing(EditorMeeting(name: "Microsoft Teams", choice: "server:teams"), choices: [teams, jitsi])
+        #expect(!opened.announcesMeeting, "the event already has this meeting")
+        var replaced = opened
+        replaced.meeting = .choice("jitsi")
+        #expect(replaced.announcesMeeting)
+    }
+
     @Test func aCalendarWithNoChoicesDrawsNoRow() {
         let editor = EventEditorState.create(default: calendar([]), zone: "UTC", now: now)
         #expect(!editor.showsMeetingRow)

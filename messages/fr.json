@@ -1158,6 +1158,7 @@
 	"event_meeting_none": "Aucune",
 	"event_meeting_conference_id": "ID de conférence",
 	"event_meeting_through": "{service} ({account})",
+	"event_meeting_added_on_save": "Le lien de la réunion est ajouté à l’enregistrement.",
 	"settings_category_videoconferencing": "Visioconférence",
 	"settings_category_videoconferencing_summary": "Votre serveur Jitsi pour les réunions vidéo",
 	"settings_jitsi_server": "Serveur Jitsi",

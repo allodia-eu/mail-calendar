@@ -61,6 +61,13 @@ extension EventEditorState {
         !(calendar?.meetingChoices.isEmpty ?? true) || editing?.meeting != nil
     }
 
+    /// Whether the row says the link is added at the save: it holds a choice the event does not
+    /// have yet, which is made only when the event is saved (rule 10).
+    var announcesMeeting: Bool {
+        guard case .choice = effectiveMeeting else { return false }
+        return effectiveMeeting != openedMeeting
+    }
+
     /// The pick a save reads: one the chosen calendar does not offer goes back to None when the
     /// calendar changes (rule 9), unless it is what the editor opened with.
     var effectiveMeeting: MeetingSelection {

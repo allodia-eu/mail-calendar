@@ -1158,6 +1158,7 @@
 	"event_meeting_none": "Geen",
 	"event_meeting_conference_id": "Conferentie-ID",
 	"event_meeting_through": "{service} ({account})",
+	"event_meeting_added_on_save": "De vergaderlink wordt toegevoegd wanneer je opslaat.",
 	"settings_category_videoconferencing": "Videovergaderen",
 	"settings_category_videoconferencing_summary": "Je Jitsi-server voor videovergaderingen",
 	"settings_jitsi_server": "Jitsi-server",
