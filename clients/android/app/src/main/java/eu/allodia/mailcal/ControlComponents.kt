@@ -112,6 +112,20 @@ internal fun ControlButton(
     }
 }
 
+/** A text button, for an action beside a row rather than the row's own. */
+@Composable
+internal fun ControlTextButton(
+    label: String,
+    control: ControlState,
+    tag: String,
+    onClick: () -> Unit,
+) {
+    TextButton(onClick = onClick, enabled = control.enabled, modifier = Modifier.testTag(tag)) {
+        Running(control, tag)
+        Text(label)
+    }
+}
+
 /**
  * A dropdown: [labels] listed, [selected] shown. [onPick] is told the position the person picked,
  * and only when it differs from [selected].

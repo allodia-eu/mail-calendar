@@ -88,11 +88,13 @@ public sealed partial class SettingsDialog
         }
         confirm.Enabled = use.Control.Enabled;
         row.Children.Add(toggle.Element);
-        if (SeparateServerAction(entry, capability) is { } separate)
+        // Both open something and start nothing, so they are only held while a change runs.
+        var held = use.Control with { Running = false };
+        if (SeparateServerAction(entry, capability, held) is { } separate)
         {
             row.Children.Add(separate);
         }
-        if (ServerChangeAction(entry, capability, use.ReviewsServerChange) is { } review)
+        if (ServerChangeAction(entry, capability, use.ReviewsServerChange, held) is { } review)
         {
             row.Children.Add(review);
         }

@@ -263,11 +263,11 @@ struct AccountUsesSection: View {
                 }
             }
             if toggle.reviewsServerChange {
-                Button(L10n.server_changed_review()) {
+                // It opens a question and starts nothing, so it is only held while a change runs.
+                ControlButton(title: L10n.server_changed_review(), control: .free(control.enabled)) {
                     serverChange = model.serverChangeReview(entry.id)
                 }
                 .controlSize(.small)
-                .disabled(!control.enabled)
             }
             separateServer(capability, enabled: control.enabled)
         }
@@ -284,11 +284,13 @@ struct AccountUsesSection: View {
                 AccountSeparateServerForm(model: model, ask: ask) { separateServerUnder = nil }
                     .padding(.top, 4)
             } else {
-                Button(L10n.settings_account_use_separate_sign_in()) {
+                ControlButton(
+                    title: L10n.settings_account_use_separate_sign_in(),
+                    control: .free(enabled && separateServerUnder == nil)
+                ) {
                     separateServerUnder = capability
                 }
                 .controlSize(.small)
-                .disabled(separateServerUnder != nil || !enabled)
             }
         }
     }
@@ -367,9 +369,11 @@ struct LinkPickerRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if suggestButton, selected != suggested {
-                        Button(L10n.action_link()) { pick(option.id) }
-                            .controlSize(.small)
-                            .disabled(!control.enabled)
+                        // The picker beside it shows the link running.
+                        ControlButton(title: L10n.action_link(), control: .free(control.enabled)) {
+                            pick(option.id)
+                        }
+                        .controlSize(.small)
                     }
                 }
             }

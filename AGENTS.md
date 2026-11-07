@@ -573,6 +573,11 @@ were broken right now, would this tell me?*
   The pages render only in a browser; the same text is at
   `https://developer.apple.com/tutorials/data/design/human-interface-guidelines/<page>.json`. Where
   a contract asks for something the HIG does not, the contract says why.
+- **A control the core gives a state is drawn through its client's control components**
+  ([`docs/waiting.md`](docs/waiting.md)), including one that only opens a question or a form. A
+  platform control of the client's own is for a control the core gives no state yet, and the next
+  step there is the core's record, never a busy flag in the client.
+  `cargo xtask check-control-components` refuses one held from a `ControlState` by hand.
 - **Localisation is client-side.** The core has no runtime locale facility: it emits
   machine-readable data and owns validation plus the security gates, while each client assembles
   localised copy and formats dates. `mailcal-l10n` is **build-time** codegen from the inlang catalog

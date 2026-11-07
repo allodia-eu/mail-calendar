@@ -4,6 +4,7 @@
 // ContentDialog. The open question is kept on the dialog, so a redraw while the new server is
 // dialled draws it again, busy, and its answer lands on the one drawn last.
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -26,7 +27,8 @@ public sealed partial class SettingsDialog
     /// <summary>"Review" and, once pressed, the question under <paramref name="capability"/>'s
     /// row, when the core offers it there (<paramref name="reviews"/>): under the last of the uses
     /// paused for a server change.</summary>
-    private StackPanel? ServerChangeAction(AccountEntry entry, AccountCapability capability, bool reviews)
+    private StackPanel? ServerChangeAction(
+        AccountEntry entry, AccountCapability capability, bool reviews, ControlState control)
     {
         var kept = _serverChangeOpen is { } held && held.AccountId == entry.Id && held.Row == capability ? held : null;
         if (!reviews)
@@ -41,10 +43,9 @@ public sealed partial class SettingsDialog
         var panel = new StackPanel { Spacing = 8 };
         if (kept is not { } open)
         {
-            var review = new Button { Content = L10n.ServerChangedReview() };
-            AutomationProperties.SetAutomationId(review, $"AccountUseServerChangeReview_{capability}");
-            review.Click += (_, _) => _ = OpenServerChangeAsync(entry, capability);
-            panel.Children.Add(review);
+            panel.Children.Add(ControlComponents.Button(
+                L10n.ServerChangedReview(), control, $"AccountUseServerChangeReview_{capability}",
+                () => _ = OpenServerChangeAsync(entry, capability)));
         }
         else
         {

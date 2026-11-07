@@ -28,6 +28,7 @@ mod branding;
 mod british_english;
 mod british_english_words;
 mod composer_labels;
+mod control_components;
 mod dash_hygiene;
 mod desktop_handoff;
 mod dev_account;
@@ -173,6 +174,11 @@ pub(crate) const TASKS: &[Task] = &[
         name: "check-composer-labels",
         label: "composer labels (every client sends every one)",
         run: composer_labels::run,
+    },
+    Task {
+        name: "check-control-components",
+        label: "control components (a ControlState is drawn through them)",
+        run: control_components::run,
     },
     Task {
         name: "check-surface-publish",
