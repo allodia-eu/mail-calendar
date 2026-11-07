@@ -366,7 +366,7 @@ the service verifies, because neither is written down here.
 | Read an entitlement, with the grace and degrade rules above | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Tell a narrowed grant from a revoked one, and prompt for the right one | ✅ | 🚧 | 🚧 | ✅ | 🚧 | 🚧 |
 | Draw a refused grant as ended, with sign in again, on the account card | ✅ | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
-| Say a refused grant in the app's banner, with sign in again | ✅ | 🚧 | 🚧 | 🚧 | 🚧 | 🚧 |
+| Say a refused grant in the app's banner, with sign in again | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
 | Signing in again widens the grant, end to end | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
 | Draw a paid capability | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
