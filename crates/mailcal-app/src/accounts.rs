@@ -371,6 +371,22 @@ impl<P: Provider> App<P> {
         self.accounts.read().await.iter().map(Arc::clone).collect()
     }
 
+    /// Every account's address by id, whatever it is used for: what a notice names an account by
+    /// (`docs/notices.md`), since a person reads an address and never an id.
+    pub async fn account_addresses(&self) -> std::collections::HashMap<String, String> {
+        self.accounts
+            .read()
+            .await
+            .iter()
+            .map(|account| {
+                (
+                    account.id.as_str().to_owned(),
+                    account.identity.email.clone(),
+                )
+            })
+            .collect()
+    }
+
     /// The sidebar switcher rows (id + email) for every account used for mail, in the order the
     /// host stored them; see `install_account` for what holds that order across a reconnect. An
     /// account used for its calendar or contacts alone has no mailbox to switch to.

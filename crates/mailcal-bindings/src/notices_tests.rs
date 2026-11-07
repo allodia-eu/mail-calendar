@@ -24,6 +24,10 @@ fn ids(accounts: &[&str]) -> Vec<String> {
     accounts.iter().map(|id| (*id).to_owned()).collect()
 }
 
+fn mail_address(account: &str) -> String {
+    format!("{account}@example.org")
+}
+
 fn oauth(_: &str) -> Option<AccountProvider> {
     Some(AccountProvider::Google)
 }
@@ -53,6 +57,7 @@ fn pull_with(
         skipped_at_launch,
         folder_notice,
         provider: &oauth,
+        address: &mail_address,
     };
     book.snapshot(raise(&facts)).notices
 }
@@ -265,6 +270,7 @@ fn a_dead_password_sign_in_opens_settings_and_an_oauth_one_signs_in_again() {
         skipped_at_launch: 0,
         folder_notice: None,
         provider: &provider,
+        address: &mail_address,
     };
     let notices = NoticeBook::default().snapshot(raise(&facts)).notices;
     let action = |account: &str| {

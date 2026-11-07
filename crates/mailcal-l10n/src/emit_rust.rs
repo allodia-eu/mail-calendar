@@ -30,6 +30,7 @@ fn render_accessor(catalog: &Catalog, brand: &Brand) -> String {
     render_locale_list(&mut out, catalog);
     render_locale_resolver(&mut out, catalog);
     render_language_names(&mut out, catalog);
+    out.push_str(&crate::notice_lookup::rust(catalog));
     render_plural_rule(&mut out, catalog);
     for message in catalog.accessors() {
         render_message(&mut out, catalog, message);

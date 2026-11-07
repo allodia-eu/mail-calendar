@@ -10,7 +10,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     AccountProvider, ConnectivitySnapshot, FolderNotice, Notice, NoticeAction, NoticeKind,
-    NoticeScreens, NoticeSeverity, NoticesSnapshot, UseOutage, UseProblem,
+    NoticeScreens, NoticeSeverity, NoticeText, NoticesSnapshot, UseOutage, UseProblem,
+    notice_words,
 };
 
 /// What the notices are built from: everything is read, nothing is kept.
@@ -23,6 +24,8 @@ pub(crate) struct NoticeFacts<'a> {
     pub(crate) folder_notice: Option<FolderNotice>,
     /// Which sign-in an account was connected with, for the remedy a dead sign-in needs.
     pub(crate) provider: &'a dyn Fn(&str) -> Option<AccountProvider>,
+    /// The address a person knows an account by.
+    pub(crate) address: &'a dyn Fn(&str) -> String,
 }
 
 /// A notice's identity: its kind and the account it is about. Never parsed; only compared.
@@ -52,6 +55,7 @@ pub(crate) enum Dismissal {
 pub(crate) struct Raised {
     id: NoticeId,
     kind: NoticeKind,
+    title: NoticeText,
     severity: NoticeSeverity,
     screens: NoticeScreens,
     account: Option<String>,
@@ -61,6 +65,7 @@ pub(crate) struct Raised {
 
 impl Raised {
     fn new(
+        address: &dyn Fn(&str) -> String,
         slug: &str,
         account: Option<&str>,
         kind: NoticeKind,
@@ -68,9 +73,11 @@ impl Raised {
         screens: NoticeScreens,
         action: Option<NoticeAction>,
     ) -> Self {
+        let title = notice_words::title(&kind, &account.map(address).unwrap_or_default());
         Self {
             id: NoticeId::new(slug, account),
             kind,
+            title,
             severity,
             screens,
             account: account.map(str::to_owned),
@@ -94,6 +101,7 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
     let mut raised = Vec::new();
     if connectivity.offline {
         raised.push(Raised::new(
+            facts.address,
             "offline",
             None,
             NoticeKind::Offline,
@@ -104,6 +112,7 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
     }
     if let Some(address) = &connectivity.allodia_sign_in_ended {
         raised.push(Raised::new(
+            facts.address,
             "allodia_sign_in_ended",
             None,
             NoticeKind::AllodiaSignInEnded {
@@ -118,6 +127,7 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
         let count = u32::try_from(facts.skipped_at_launch).unwrap_or(u32::MAX);
         raised.push(
             Raised::new(
+                facts.address,
                 "accounts_skipped",
                 None,
                 NoticeKind::AccountsSkipped { count },
@@ -132,6 +142,7 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
         let action = sign_in_remedy((facts.provider)(account));
         let kind = NoticeKind::SignInExpired;
         raised.push(Raised::new(
+            facts.address,
             "signin_expired",
             Some(account),
             kind,
@@ -144,6 +155,7 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
     for account in sorted(&connectivity.mail_reauth_accounts) {
         let kind = NoticeKind::MailReauth;
         raised.push(Raised::new(
+            facts.address,
             "mail_reauth",
             Some(account),
             kind,
@@ -156,6 +168,7 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
         let kind = NoticeKind::CalendarReauth;
         let slug = "calendar_reauth";
         raised.push(Raised::new(
+            facts.address,
             slug,
             Some(account),
             kind,
@@ -170,6 +183,7 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
         };
         let (account, action) = (outage.account_id.as_str(), outage_remedy(outage.problem));
         raised.push(Raised::new(
+            facts.address,
             "calendar_outage",
             Some(account),
             kind,
@@ -184,6 +198,7 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
         };
         let (account, action) = (outage.account_id.as_str(), outage_remedy(outage.problem));
         raised.push(Raised::new(
+            facts.address,
             "contacts_outage",
             Some(account),
             kind,
@@ -196,6 +211,7 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
         let retry = Some(NoticeAction::Retry);
         let kind = NoticeKind::Unreachable;
         raised.push(Raised::new(
+            facts.address,
             "unreachable",
             Some(account),
             kind,
@@ -211,8 +227,16 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
             problem: notice.problem,
         };
         let account = Some(notice.account.as_str());
-        let mut refused = Raised::new("folder_change_refused", account, kind, Degraded, Mail, None)
-            .dismissed_by(Dismissal::FolderNotice(notice.clone()));
+        let mut refused = Raised::new(
+            facts.address,
+            "folder_change_refused",
+            account,
+            kind,
+            Degraded,
+            Mail,
+            None,
+        )
+        .dismissed_by(Dismissal::FolderNotice(notice.clone()));
         // A later refusal on the same account replaces this one in the pane; its own id keeps a
         // dismiss aimed at this one from closing that one.
         let scope = format!("{}:{:?}:{}", notice.account, notice.action, notice.folder);
@@ -324,10 +348,12 @@ impl NoticeBook {
             .map(|(_, notice, remedy_failed)| Notice {
                 id: notice.id.0,
                 kind: notice.kind,
+                title: notice.title,
                 severity: notice.severity,
                 screens: notice.screens,
                 account: notice.account,
                 action: notice.action,
+                action_label: notice.action.map(notice_words::action_label),
                 dismissible: notice.dismissal.is_some(),
                 remedy_failed,
             })

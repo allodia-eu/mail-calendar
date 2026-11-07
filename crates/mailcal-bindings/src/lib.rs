@@ -111,6 +111,7 @@ mod nextcloud_accounts;
 #[cfg(test)]
 mod nextcloud_mock;
 mod nextcloud_wipe;
+mod notice_words;
 mod notices;
 mod oauth_routes;
 mod observer;
@@ -265,7 +266,7 @@ pub use records_invitation::{
 };
 pub use records_meeting::{MeetingInvitee, MeetingInviteePatch, MeetingInviteeRole};
 pub use records_notices::{
-    Notice, NoticeAction, NoticeKind, NoticeScreens, NoticeSeverity, NoticesSnapshot,
+    Notice, NoticeAction, NoticeKind, NoticeScreens, NoticeSeverity, NoticeText, NoticesSnapshot,
 };
 pub use records_outbox::{QueuedRow, QueuedState, SendStatus};
 pub use records_recurrence::{

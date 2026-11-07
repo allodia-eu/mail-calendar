@@ -46,6 +46,10 @@ pub struct Message {
 /// accessors. See [`Catalog::is_singular`].
 pub const ONE_SUFFIX: &str = "_one";
 
+/// The prefix of the messages a notice names by key (`docs/notices.md` rule 11). Each gets an arm
+/// in the generated `notice` lookup, so each takes string arguments only and has no plural form.
+pub const NOTICE_PREFIX: &str = "notice_";
+
 /// A validated catalog: the base-locale key set, each key carrying its per-locale values.
 #[derive(Debug, Clone)]
 pub struct Catalog {

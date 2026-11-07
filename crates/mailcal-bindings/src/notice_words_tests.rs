@@ -1,0 +1,109 @@
+//! Every word the core names is in the catalog with the arguments it is given, and every
+//! `notice_` message in the catalog is one the core names. The catalog's own validator holds the
+//! other locales to English.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use super::{action_label, title};
+use crate::{FolderAction, FolderProblem, NoticeAction, NoticeKind, NoticeText, UseProblem};
+
+const CATALOG: &str = include_str!("../../../messages/en.json");
+
+fn catalog() -> BTreeMap<String, String> {
+    serde_json::from_str::<BTreeMap<String, serde_json::Value>>(CATALOG)
+        .expect("the catalog is JSON")
+        .into_iter()
+        .filter_map(|(key, value)| value.as_str().map(|text| (key, text.to_owned())))
+        .collect()
+}
+
+fn placeholders(template: &str) -> BTreeSet<String> {
+    template
+        .split('{')
+        .skip(1)
+        .filter_map(|rest| rest.split_once('}').map(|(name, _)| name.to_owned()))
+        .collect()
+}
+
+/// One of every kind, and both refusals a folder change can meet.
+fn every_kind() -> Vec<NoticeKind> {
+    let folder = |problem| NoticeKind::FolderChangeRefused {
+        folder: "Receipts".to_owned(),
+        action: FolderAction::Rename,
+        problem,
+    };
+    vec![
+        NoticeKind::SignInExpired,
+        NoticeKind::MailReauth,
+        NoticeKind::CalendarReauth,
+        NoticeKind::CalendarOutage {
+            problem: UseProblem::Unreachable,
+        },
+        NoticeKind::ContactsOutage {
+            problem: UseProblem::Unreachable,
+        },
+        NoticeKind::Unreachable,
+        NoticeKind::Offline,
+        NoticeKind::AllodiaSignInEnded {
+            address: "me@allodia.example".to_owned(),
+        },
+        NoticeKind::AccountsSkipped { count: 2 },
+        folder(FolderProblem::ChangedElsewhere),
+        folder(FolderProblem::Refused),
+    ]
+}
+
+fn every_text() -> Vec<NoticeText> {
+    let actions = [
+        NoticeAction::SignInAgain,
+        NoticeAction::OpenAccountSettings,
+        NoticeAction::SignInToAllodia,
+        NoticeAction::Retry,
+    ];
+    every_kind()
+        .iter()
+        .map(|kind| title(kind, "anna@example.org"))
+        .chain(actions.into_iter().map(action_label))
+        .collect()
+}
+
+#[test]
+fn every_word_the_core_names_is_in_the_catalog_with_its_arguments() {
+    let catalog = catalog();
+    for text in every_text() {
+        assert!(
+            text.key.starts_with("notice_"),
+            "{} is not a notice key",
+            text.key
+        );
+        let template = catalog
+            .get(&text.key)
+            .unwrap_or_else(|| panic!("{} is not in the catalog", text.key));
+        let given: BTreeSet<String> = text.args.keys().cloned().collect();
+        assert_eq!(given, placeholders(template), "{}", text.key);
+        assert!(
+            text.args.values().all(|value| !value.is_empty()),
+            "{}",
+            text.key
+        );
+    }
+}
+
+#[test]
+fn every_notice_message_in_the_catalog_is_one_the_core_names() {
+    let named: BTreeSet<String> = every_text().into_iter().map(|text| text.key).collect();
+    let orphans: Vec<String> = catalog()
+        .into_keys()
+        .filter(|key| key.starts_with("notice_") && !named.contains(key))
+        .collect();
+    assert!(orphans.is_empty(), "never named by the core: {orphans:?}");
+}
+
+#[test]
+fn a_notice_names_the_account_by_its_address() {
+    let text = title(&NoticeKind::SignInExpired, "anna@example.org");
+    assert_eq!(
+        text.args.get("address").map(String::as_str),
+        Some("anna@example.org")
+    );
+}

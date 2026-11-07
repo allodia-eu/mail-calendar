@@ -107,6 +107,7 @@ fn render_accessor(catalog: &Catalog, package: &str) -> String {
         out.push_str(PLURAL_RULE);
     }
     out.push_str(&render_locales(catalog));
+    out.push_str(&crate::notice_lookup::kotlin(catalog));
     out.push_str("}\n");
     out
 }

@@ -22,7 +22,7 @@ where its platform puts it. Two platforms showing the same moment show the same 
 | 8 | **A question is a notice, not a dialog.** A dialog is kept for a choice the person must make before they can continue. | A modal at an arbitrary moment interrupts whatever the person was doing, for something that can wait. |
 | 9 | **Dismissing is for what already happened.** A notice about a state that holds has `dismissible` false and goes when the state does. One about an event (accounts skipped at launch, a refused folder change) can be closed with `NoticeIntent::Dismiss`, and the core remembers it until the fact goes. | Closing "your sign-in no longer works" leaves the sign-in dead and the person without the button. |
 | 10 | **A failed remedy is said on the notice.** When the action does not complete, the client dispatches `NoticeIntent::RemedyFailed`; the core sets `remedy_failed` and every platform adds the same sentence beside the notice. It stands until the notice goes. A browser the person closed is not a failure and is not reported. | A sign-in that failed and a sign-in nobody tried look the same otherwise. |
-| 11 | **Words come from the catalog, generated.** The core is locale-free and carries the kind and its arguments; `mailcal-l10n` generates the title and the action's label per kind for every platform, so no client keeps its own switch. | Seven locales times four clients is where a missing translation hides. |
+| 11 | **Words come from the catalog, generated.** The core is locale-free, so it names each notice's words rather than writing them: `title` and `action_label` are a `NoticeText`, a catalog key and its string arguments, the account named by its address. `mailcal-l10n` generates one `notice(key, args)` lookup per platform over every `notice_` key, so no client keeps a switch of its own. A `notice_` message takes strings only and has no plural form. The few fixed words around a notice (`notices_more`, `notices_remedy_failed`, `notices_issues`, `notices_dismiss`) are ordinary typed accessors. | Seven locales times four clients is where a missing translation hides. |
 | 12 | **Announced once.** A notice is announced to assistive technology when it is first raised (a new `id`), not on every redraw, and never at launch as a modal. | A screen reader that repeats a banner on each snapshot is a screen reader the person turns off. |
 
 ## What each fact becomes
@@ -84,7 +84,7 @@ ignores the signal and must not let it reach a heavier reload.
 | One prominent notice and an Issues entry (rule 2) | | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The account row's glyph and label, and its Settings page (rule 6) | | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The three questions as notices (rule 8) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Generated words per kind (rule 11) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Generated words per kind (rule 11) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Announced once (rule 12) | | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The Allodia notice raised to Blocked near a lapse | ⬜ | | | | | |
 
@@ -104,6 +104,10 @@ Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ pl
   the ranking, one notice per account and fact, dismissal and the failed remedy;
   [`app_notices_tests.rs`](../crates/mailcal-bindings/src/app_notices_tests.rs) pins the pull, the
   signal and the intents through the FFI.
+- [`notice_words_tests.rs`](../crates/mailcal-bindings/src/notice_words_tests.rs) holds every key
+  the core names to the catalog, with its arguments, and every `notice_` message to a key the core
+  names; [`notice_lookup_tests.rs`](../crates/mailcal-l10n/src/notice_lookup_tests.rs) holds each
+  platform's generated lookup and the strings-only rule.
 - A new fact a client would otherwise draw becomes a `NoticeKind` here, with its row in the table,
   before any client draws it.
 - A client that draws notices draws them from `NoticesSnapshot` alone, and its matrix cells move

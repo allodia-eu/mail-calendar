@@ -152,6 +152,7 @@ fn render_accessor(catalog: &Catalog, namespace: &str) -> String {
         out.push_str(PLURAL_RULE);
     }
     out.push_str(&render_locales(catalog));
+    out.push_str(&crate::notice_lookup::csharp(catalog));
     out.push_str("}\n");
     out
 }
