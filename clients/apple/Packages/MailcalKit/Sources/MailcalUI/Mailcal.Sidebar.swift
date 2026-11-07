@@ -122,6 +122,11 @@ extension ContentView {
     func sidebarList(showsCalendarAndContacts: Bool) -> some View {
         #if os(macOS)
         sidebarTree
+            // Above the accounts it is about, and out of the content column, so the list and its
+            // actions bar never move (docs/notices.md).
+            .safeAreaInset(edge: .top, spacing: 0) {
+                NoticeCard(model: model, destination: model.destination)
+            }
             // The other destinations sit under the tree and out of its scroll, never as one more
             // section at the end of the list: an account with a few dozen folders fills the pane,
             // and a row that scrolls away with them is a destination the user has to scroll back
@@ -136,6 +141,11 @@ extension ContentView {
         // grouped background is a lighter slab on an iPad's glass column. Below the list, nothing
         // scrolls behind the rows, so they need no fill and sit on whatever the pane is drawn on.
         VStack(spacing: 0) {
+            // The iPad's sidebar column carries the card as the Mac's does; on iPhone this list is
+            // a sheet of folders, and the notice is the row under each tab's bar instead.
+            if hSize != .compact {
+                NoticeCard(model: model, destination: model.destination)
+            }
             sidebarTree
             sidebarDestinations(showsCalendarAndContacts: showsCalendarAndContacts)
         }
@@ -192,16 +202,20 @@ extension ContentView {
                     .modifier(AccountRowFolderDrop(
                         model: model, account: account.id, dragEnabled: hasReadingPane
                     ))
-                    // A warning badge when this account's server couldn't be reached on its
-                    // last sync (while the device is online), a per-account outage, distinct
-                    // from the device-wide offline banner.
-                    .overlay(alignment: .trailing) {
-                        if model.isAccountUnreachable(account.id) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
-                                .help(L10n.connectivity_account_unreachable())
-                                .padding(.trailing, 10)
+                    // The account carries its own notices: one line under its address, the first
+                    // one's glyph and a few words, readable without a pointer and never wrapping; the
+                    // sentences are in the notice and on the account's page (docs/notices.md rule 6).
+                    let about = model.notices(about: account.id)
+                    if let first = about.first, let label = NoticeRules.rowLabel(about) {
+                        HStack(spacing: 5) {
+                            NoticeGlyph(severity: first.severity).imageScale(.small)
+                            Text(label).lineLimit(1).truncationMode(.tail)
                         }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 28)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(about.map { NoticeRules.text($0.title) }.joined(separator: " "))
                     }
                     // Every expanded account's folders show indented beneath it, not just the
                     // selected one's, and whatever surface is on screen: the pane is furniture,

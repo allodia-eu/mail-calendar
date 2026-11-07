@@ -342,24 +342,6 @@ private struct MoveTargetLabel: View {
 }
 
 extension ContentView {
-    /// A folder change the server refused, until the user closes it (rule 28).
-    @ViewBuilder var folderNoticeBanner: some View {
-        if let notice = model.folderNotice {
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text(folderNoticeText(notice))
-                    .font(.callout).fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button(L10n.action_close()) { model.dismissFolderNotice() }
-                    .buttonStyle(.borderless)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .bannerBackground()
-            .overlay(alignment: .bottom) { Divider() }
-        }
-    }
-
     /// What a message row carries when dragged: the whole selection when the row is part of one,
     /// else the row alone (`docs/list-selection.md`, rule 12).
     func dragPayload(for row: SnapshotRow) -> PaneDragPayload {

@@ -292,14 +292,6 @@ func folderDeleteCopy(_ row: FolderRow) -> FolderDeleteCopy {
         )
 }
 
-/// The line a refused change stands on the pane with (rule 28).
-func folderNoticeText(_ notice: FolderNotice) -> String {
-    switch notice.problem {
-    case .changedElsewhere: L10n.folder_notice_changed(name: notice.folder)
-    case .refused: L10n.folder_notice_refused(name: notice.folder)
-    }
-}
-
 /// Which name dialog is open: making a folder, or renaming one.
 enum FolderNameRequest: Identifiable, Equatable {
     case create(account: String, parent: String?)

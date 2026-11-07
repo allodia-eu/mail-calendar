@@ -6,35 +6,6 @@ import MailcalBindings
 private let searchDebounceMilliseconds = 250
 
 extension MailboxModel {
-    /// Whether the device is currently offline, drives the offline banner.
-    var isOffline: Bool { connectivity?.offline ?? false }
-
-    /// Whether `accountId`'s server couldn't be reached on its last sync (while online), drives
-    /// the per-account warning badge in the switcher.
-    func isAccountUnreachable(_ accountId: String) -> Bool {
-        connectivity?.unreachableAccounts.contains(accountId) ?? false
-    }
-
-    /// The accounts whose stored sign-in the server has stopped accepting, an expired or revoked
-    /// OAuth grant, or a password it now refuses. Nothing syncs until the user signs in again, and
-    /// retrying never helps, so this drives its own banner rather than the unreachable badge (the
-    /// core already keeps such an account out of `unreachableAccounts`). Each entry carries the
-    /// provider so the button can launch the right sign-in, `nil` for an account whose family the
-    /// core doesn't know, which the banner treats as "update it in Settings". The id rides along
-    /// because a JMAP re-authentication is addressed to the *account*, not to an address: it
-    /// re-authorises that account's own persisted grant.
-    /// `nextcloud` marks an account a Nextcloud sign-in made, whose remedy is that sign-in.
-    var signInExpiredAccounts: [(id: String, name: String, provider: AccountProvider?, nextcloud: Bool)] {
-        (connectivity?.signinExpiredAccounts ?? []).map { id in
-            (
-                id: id,
-                name: signInName(id),
-                provider: app?.accountProvider(accountId: id),
-                nextcloud: accountEntry(id)?.nextcloud == true
-            )
-        }
-    }
-
     /// Set the active display time zone (an IANA id) via the selector.
     func setTimeZone(_ id: String) { app?.dispatch(intent: .setTimeZone(id: id)) }
 

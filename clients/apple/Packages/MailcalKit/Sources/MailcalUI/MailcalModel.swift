@@ -99,8 +99,6 @@ final class MailboxModel {
     /// Why the mail list has no rows, or `nil` whenever it has some. A search says how far it
     /// looked through `searchHorizon` instead, so the two are never both up.
     var emptyReason: EmptyReason?
-    /// A folder change the server refused, until dismissed (`docs/folder-pane.md`, rule 28).
-    var folderNotice: FolderNotice?
     var events: [EventRow] = []
     /// The contacts list, one row per unified **person**, not per provider card: the engine has
     /// already merged the cards that share an address, across accounts. Pulled on a
@@ -296,13 +294,12 @@ final class MailboxModel {
     var isConnecting = false
     /// The core is being opened at launch (`connect`); the root view shows `LaunchView` meanwhile.
     var isOpening = false
-    /// A non-blocking notice that some stored accounts were skipped at launch because their
-    /// mail connect failed (a stale password, a server blip); `nil` when every account
-    /// connected. Dismissible, the user clears it once they've seen it.
-    var accountNotice: String?
-    /// Connectivity (pulled on a `Surface::Connectivity` signal): `offline` drives the offline
-    /// banner; `unreachableAccounts` badges accounts whose server couldn't be reached.
+    /// Connectivity (pulled on a `Surface::Connectivity` signal), for Settings and the calendar.
     var connectivity: ConnectivitySnapshot?
+    /// The core's notices, ranked (`Surface::Notices`, docs/notices.md); `nil` until first pulled.
+    var notices: [Notice]?
+    /// Whether the iPad's sidebar column, which carries the notice card, is on screen.
+    var sidebarShown = false
     /// The local MCP (AI assistant access) settings, pulled on a `Surface::Settings` signal and
     /// once at connect. Carries whether a server is actually listening and where, not only what
     /// the user chose, a panel showing the toggle alone would say "on" while nothing is

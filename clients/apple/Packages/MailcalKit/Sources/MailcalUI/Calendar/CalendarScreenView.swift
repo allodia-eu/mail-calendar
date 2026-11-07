@@ -128,8 +128,6 @@ struct CalendarScreenView: View {
         )
 
         VStack(spacing: 0) {
-            reauthBanner
-            outageBanners
             #if os(macOS)
                 CalendarHeaderBar(state: header)
                 Divider()

@@ -268,16 +268,6 @@ extension MailboxModel {
         consentBrowser = nil
     }
 
-    /// Signs in again from a banner in the main window, which says nothing on success: the banner
-    /// clearing is the answer. A failure is said in the notice above the list.
-    func signInAgainFromBanner(_ id: String) {
-        Task {
-            if let notice = await signInAgain(id).bannerNotice {
-                accountNotice = notice
-            }
-        }
-    }
-
     /// Opens Settings → Accounts on `id`'s page, from a prompt in the main window that points at
     /// it. The shell watches `settingsRequest` and presents Settings.
     func openAccountPage(_ id: String) {

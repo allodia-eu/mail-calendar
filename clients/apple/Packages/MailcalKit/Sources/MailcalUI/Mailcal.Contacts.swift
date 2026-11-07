@@ -24,9 +24,7 @@ extension ContentView {
             showsTitle: hasContactsDetailPane,
             canCreate: !contactTargets.isEmpty,
             onCreate: { contactEditor = .create(targets: contactTargets) },
-            writeLine: model.contactWriteLine,
-            outages: model.contactsOutageLines,
-            model: model
+            writeLine: model.contactWriteLine
         )
         .task { await loadContactTargets() }
         // The list is a snapshot and the detail is a pull, so refreshing the rows leaves the pane
