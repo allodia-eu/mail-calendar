@@ -6,7 +6,6 @@ package eu.allodia.mailcal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import uniffi.mailcal_bindings.AboutPlatform
-import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
@@ -114,7 +113,7 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                                 account = allodiaAccount,
                                 signingIn = signingInAllodia,
                                 failure = allodiaFailure,
-                                signInEnded = connectivity?.allodiaSignInEnded != null,
+                                signInEnded = notices.allodiaSignInEnded,
                             ),
                             onAllodiaSignIn = { signInToAllodia() },
                             onAllodiaCreate = { registerAllodiaAccount() },
@@ -199,9 +198,12 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
 // (MainActivityAccountSettings.kt).
 private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     state = accountSettings,
-    expired = signInExpired.map { it.id }.toSet(),
+    expired = notices.expired,
     // A JMAP account holding a pasted password or API token, while the server refuses it.
-    pastedSecret = signInExpired.filter { it.provider == AccountProvider.JMAP }.map { it.id }.toSet(),
+    pastedSecret = notices.pastedSecret,
+    // Its notices open its page (docs/notices.md rule 6).
+    notices = notices.notices,
+    noticeHandlers = noticeHandlers(),
     standardPort = { kind, security -> standardPort(kind, security).toInt() },
     // Add account opens setup in place of Settings, and cancelling or finishing returns to Accounts.
     onAddAccount = {

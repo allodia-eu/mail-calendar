@@ -109,19 +109,10 @@ internal fun MailboxScreen(
     syncProgress: SyncProgressSnapshot?,
     // Why the list has no rows, or null whenever it has some (`docs/folder-pane.md`, rule 20).
     emptyReason: EmptyReason? = null,
-    offline: Boolean,
-    unreachableAccounts: List<String>,
-    connectionIssues: List<ConnectionIssue>,
-    mailReauth: List<NamedAccount> = emptyList(),
-    onReconnectMail: (accountId: String) -> Unit = {},
-    signInExpired: List<ExpiredSignIn> = emptyList(),
-    onSignInExpired: (account: ExpiredSignIn) -> Unit = {},
-    // Opens an account's page in Settings, for a sign-in only a new password or token mends.
-    onOpenAccountPage: (accountId: String) -> Unit = {},
-    // The Allodia account whose sign-in the service refused, and the ordinary Allodia sign-in that
-    // mends it.
-    allodiaSignInEnded: String? = null,
-    onAllodiaSignIn: () -> Unit = {},
+    // Each account's notice mark, by id, for the account switcher (docs/notices.md rule 6).
+    marks: Map<String, AccountMark> = emptyMap(),
+    // The notice card at the top of the list, and nothing without one (docs/notices.md rule 2).
+    notice: @androidx.compose.runtime.Composable () -> Unit = {},
     // What an account's removal names in its confirmation.
     removalOf: (accountId: String) -> AccountRemoval? = { null },
     onOpenSettings: () -> Unit,
@@ -221,7 +212,7 @@ internal fun MailboxScreen(
                     search = search,
                     accounts = accounts,
                     selectedAccount = selectedAccount,
-                    unreachableAccounts = unreachableAccounts,
+                    marks = marks,
                     onSelectAccount = onSelectAccount,
                     onRemoveAccount = onRemoveAccount,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
@@ -239,22 +230,7 @@ internal fun MailboxScreen(
                 SearchHorizonNotice(horizon = searchHorizon, onOpenSettings = onOpenSettings)
             }
             HorizontalDivider()
-            // A persistent banner while the device is offline, so the user knows the mail on screen
-            // is the last-synced copy; it clears itself when connectivity returns and the core
-            // auto-refreshes.
-            OfflineBanner(offline, ctx)
-            // While the device is online but one or more accounts can't reach their server: a
-            // friendly banner naming them, with a Details action and Try again to re-dial.
-            ConnectionIssuesBanner(connectionIssues, onRefresh, ctx)
-            // A standing permission gap (not an outage): a Microsoft account whose grant lacks the
-            // mail write/send scopes, so a send or mail action was refused. "Reconnect" re-runs its
-            // sign-in with the full scope set; the banner clears once a send/action succeeds.
-            MailReauthBanner(mailReauth, onReconnectMail, ctx)
-            // An account whose stored sign-in has stopped being accepted (an expired or revoked
-            // OAuth grant, a refused password). Not an outage, the server answered, so "Try
-            // again" would never help; only a fresh sign-in does.
-            SignInExpiredBanner(signInExpired, onSignInExpired, ctx) { onOpenAccountPage(it.id) }
-            AllodiaSignInEndedBanner(allodiaSignInEnded, onAllodiaSignIn, ctx)
+            notice()
             val listState = position.listState
             // Infinite scroll: when the last loaded row nears view, ask the core for the next page.
             // `onShowMore` is guarded in the host (it no-ops once every row is shown); keying the

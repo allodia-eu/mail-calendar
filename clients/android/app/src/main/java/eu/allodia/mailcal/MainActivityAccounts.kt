@@ -128,7 +128,7 @@ internal fun MainActivity.completeMicrosoftLogin(callbackUrl: String) {
                 // it now rather than at the next launch. A no-op when nobody is signed in.
                 activity.readAccountsSynced()
                 activity.syncAllodiaAccounts()
-                activity.refreshConnectivity()
+                activity.pullNotices()
                 activity.afterAccountAdded(row.id, signedInAtProvider = true)
             }
         } catch (e: Exception) {
@@ -330,6 +330,7 @@ internal fun MainActivity.reconnectJmap(accountId: String) {
             activity.mainHandler.post {
                 activity.signingInJmap = false
                 activity.toastSignInFailed(L10n.signin_expired_failed(activity))
+                activity.noticeRemedyEnded(NoticeRemedy.JMAP, accountId, failed = true)
             }
         }
     }
@@ -357,6 +358,7 @@ internal fun MainActivity.completeJmapReauth(accountId: String, callbackUrl: Str
             activity.mainHandler.post {
                 activity.completingJmap = false
                 activity.signingInJmap = false
+                activity.noticeRemedyEnded(NoticeRemedy.JMAP, accountId, failed = false)
             }
         } catch (e: Exception) {
             logUiWarn("jmap re-authentication complete failed: ${coreErrorText(e)}")
@@ -364,6 +366,7 @@ internal fun MainActivity.completeJmapReauth(accountId: String, callbackUrl: Str
                 activity.completingJmap = false
                 activity.signingInJmap = false
                 activity.toastSignInFailed(signInAgainSaid(e, activity))
+                activity.noticeRemedyEnded(NoticeRemedy.JMAP, accountId, failed = true)
             }
         }
     }
@@ -407,6 +410,7 @@ internal fun MainActivity.cancelAbandonedSignIns() {
         signingInAllodia = false
         allodiaSignInSlow = false
         pendingAllodiaSignIn = null
+        noticeRemedyEnded(NoticeRemedy.ALLODIA, null, failed = false)
     }
     // And for a dismissed sign-in of an existing account (MainActivityAccountSettings.kt).
     cancelAbandonedConsent()

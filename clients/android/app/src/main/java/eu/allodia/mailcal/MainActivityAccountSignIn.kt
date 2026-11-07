@@ -55,6 +55,7 @@ internal fun MainActivity.startAccountSignIn(accountId: String, switching: Boole
             start.onFailure {
                 logUiWarn("sign-in: starting an account's sign-in failed: ${coreErrorText(it)}")
                 signIn.finished()
+                noticeRemedyEnded(NoticeRemedy.ACCOUNT_SIGN_IN, accountId, failed = true)
                 say(
                     AccountNotice(
                         NoticeKind.FAILURE,
@@ -75,8 +76,10 @@ private fun MainActivity.openAccountBrowser(url: String, redirect: String, switc
     }
     opened.onFailure { error ->
         logUiWarn("sign-in: the browser did not open: ${error.message}")
+        val account = signIn.running?.accountId
         signIn.yieldRedirect()
         signIn.finished()
+        noticeRemedyEnded(NoticeRemedy.ACCOUNT_SIGN_IN, account, failed = true)
         val title = signInFailedTitle(switching)
         say(AccountNotice(NoticeKind.FAILURE, title, L10n.account_signin_browser_failed(this)))
     }
@@ -105,7 +108,8 @@ internal fun MainActivity.completeAccountSignIn(callbackUrl: String) {
         mainHandler.post {
             signIn.finished(switched = answer.isSuccess && claimed.switching)
             refreshAccountsSnapshot()
-            refreshConnectivity()
+            pullNotices()
+            noticeRemedyEnded(NoticeRemedy.ACCOUNT_SIGN_IN, claimed.accountId, failed = answer.isFailure)
             answer.onSuccess {
                 logUiInfo("sign-in: an account signed in through its provider")
                 val said = if (claimed.switching) {
@@ -148,7 +152,7 @@ internal fun MainActivity.switchToPassword(accountId: String, password: String) 
             answer.onSuccess {
                 logUiInfo("sign-in: an account now signs in with a password")
                 say(AccountNotice(NoticeKind.SUCCESS, L10n.settings_account_switched_to_password(this), ""))
-                refreshConnectivity()
+                pullNotices()
                 askSignInOptions(accountId)
             }
             answer.onFailure {
@@ -226,7 +230,7 @@ private fun MainActivity.updateExistingAccount(unreached: UnreachedUses?) {
             answer.onSuccess {
                 logUiInfo("setup: the account already set up took the new sign-in")
                 refreshAccountsSnapshot()
-                refreshConnectivity()
+                pullNotices()
                 endSetupAfterUpdate()
             }
             answer.onFailure {

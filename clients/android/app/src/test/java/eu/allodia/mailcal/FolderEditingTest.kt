@@ -29,11 +29,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import uniffi.mailcal_bindings.AccountFolderRow
 import uniffi.mailcal_bindings.AccountRow
-import uniffi.mailcal_bindings.FolderAction
 import uniffi.mailcal_bindings.FolderIntent
 import uniffi.mailcal_bindings.FolderNameCheck
-import uniffi.mailcal_bindings.FolderNotice
-import uniffi.mailcal_bindings.FolderProblem
 import uniffi.mailcal_bindings.FolderRole
 
 private fun ctx(): Context = RuntimeEnvironment.getApplication()
@@ -67,7 +64,6 @@ class FolderEditingTest {
 
     private fun drawer(
         folders: List<AccountFolderRow>,
-        notice: FolderNotice? = null,
         open: DrawerValue = DrawerValue.Open,
     ) {
         val editing = FolderEditing(
@@ -97,7 +93,6 @@ class FolderEditingTest {
                 onSetFolderExpanded = { _, _, _ -> },
                 onShowOutbox = {},
                 folderEditing = editing,
-                folderNotice = notice,
                 content = {},
             )
         }
@@ -345,20 +340,5 @@ class FolderEditingTest {
         val node = compose.onNodeWithText("Travel").fetchSemanticsNode()
         assertEquals(L10n.folder_pending(ctx()), node.config[SemanticsProperties.StateDescription])
         assertTrue(SemanticsActions.CustomActions !in node.config)
-    }
-
-    @Test
-    fun `a refused change stands until it is closed`() {
-        drawer(
-            listOf(accountFolderRow("acct", tree(), true)),
-            notice = FolderNotice("acct", "Work", FolderAction.RENAME, FolderProblem.CHANGED_ELSEWHERE),
-            // The notice sits over the list, which is what is on screen once the drawer is shut.
-            open = DrawerValue.Closed,
-        )
-
-        compose.onNodeWithText(L10n.folder_notice_changed(ctx(), "Work")).assertIsDisplayed()
-        compose.onNodeWithText(L10n.action_close(ctx())).performClick()
-
-        assertEquals(listOf<FolderIntent>(FolderIntent.DismissNotice), sent)
     }
 }

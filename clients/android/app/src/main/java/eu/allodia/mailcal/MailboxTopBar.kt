@@ -23,7 +23,7 @@ internal fun MailboxTopBar(
     search: SearchBarState,
     accounts: List<AccountRow>,
     selectedAccount: String?,
-    unreachableAccounts: List<String>,
+    marks: Map<String, AccountMark>,
     onSelectAccount: (String?) -> Unit,
     onRemoveAccount: (String) -> Unit,
     onOpenDrawer: () -> Unit,
@@ -54,7 +54,7 @@ internal fun MailboxTopBar(
             AccountSwitcher(
                 accounts = accounts,
                 selectedAccount = selectedAccount,
-                unreachableAccounts = unreachableAccounts,
+                marks = marks,
                 onSelectAccount = onSelectAccount,
                 onRemoveAccount = onRemoveAccount,
                 removalOf = removalOf,

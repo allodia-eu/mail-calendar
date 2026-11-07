@@ -85,6 +85,11 @@ internal fun MainActivity.prepareBoot(): MainActivityBootPlan {
             intent?.getStringExtra("MAILCAL_AUTODETECT_WELL_KNOWN_BASE")?.let { base ->
                 android.system.Os.setenv("MAILCAL_AUTODETECT_WELL_KNOWN_BASE", base, true)
             }
+            // The showcase's staged questions, which the core reads in a debug build only: a
+            // calendar server found on another site, and both reauth notices.
+            for (staged in listOf("MAILCAL_SHOWCASE_SERVER_CHANGE", "MAILCAL_SHOWCASE_REAUTH")) {
+                intent?.getStringExtra(staged)?.let { android.system.Os.setenv(staged, it, true) }
+            }
         }
         val devConfigs = devConfigs(devMode)
         // Before setContent, so the first frame is already in the chosen scheme rather than the

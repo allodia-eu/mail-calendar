@@ -101,15 +101,8 @@ internal fun CalendarScreen(
     // (first day of the week, default zoom, default calendar) are three taps away from the hub, and
     // the calendar is where a user is standing when they want them.
     onOpenCalendarSettings: () -> Unit = {},
-    // Microsoft accounts whose calendar is withheld for lack of the calendar OAuth scope, and the
-    // action that signs one in again in place to grant it.
-    calendarReauth: List<NamedAccount> = emptyList(),
-    onReconnectCalendar: (accountId: String) -> Unit = {},
-    // The calendars that did not connect, one line each, and the account page their action opens,
-    // or the question that allows a calendar's new server.
-    outages: List<OutageLine> = emptyList(),
-    onOpenAccount: (accountId: String) -> Unit = {},
-    onReviewServerChange: (accountId: String) -> Unit = {},
+    // The notice card under the calendar's bar, and nothing without one (docs/notices.md rule 2).
+    notice: @Composable () -> Unit = {},
     clock: () -> LocalDateTime = { LocalDateTime.now() },
     /** An event whose detail is open when the screen first appears: the meeting screenshot's. */
     initialEvent: EventOpen? = null,
@@ -289,10 +282,7 @@ internal fun CalendarScreen(
             onOpenCalendarSettings = onOpenCalendarSettings,
         )
         HorizontalDivider()
-        // A Microsoft account connected before calendar support (or with revoked consent) syncs no
-        // calendar until it re-authenticates, prompt for it here, where its absence is felt.
-        CalendarReauthBanner(calendarReauth, onReconnectCalendar, ctx)
-        UseOutageBanner(outages, onOpenAccount, ctx, onReviewServerChange)
+        notice()
         if (pager.mode.isMonth) {
             HorizontalPager(
                 state = pagerState,

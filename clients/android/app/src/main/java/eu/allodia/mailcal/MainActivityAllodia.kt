@@ -98,6 +98,7 @@ internal fun MainActivity.cancelAllodiaSignIn() {
     signingInAllodia = false
     allodiaSignInSlow = false
     pendingAllodiaSignIn = null
+    noticeRemedyEnded(NoticeRemedy.ALLODIA, null, failed = false)
 }
 
 // Completes a sign-in from the redirect [callbackUrl]: the core exchanges the code, asks the
@@ -130,6 +131,7 @@ internal fun MainActivity.completeAllodiaSignIn(callbackUrl: String) {
                 activity.allodiaFailure = null
                 activity.signingInAllodia = false
                 activity.allodiaSignInSlow = false
+                activity.noticeRemedyEnded(NoticeRemedy.ALLODIA, null, failed = false)
                 // The first thing a new sign-in is for: this device's accounts go up, and whatever
                 // the person's other devices hold comes back.
                 activity.syncAllodiaAccounts()
@@ -150,14 +152,12 @@ internal fun MainActivity.completeAllodiaSignIn(callbackUrl: String) {
     }
 }
 
-// Where a sign-in that did not complete is reported. Settings' card draws [allodiaFailure]; away
-// from Settings it was the refused-sign-in banner that started it, and that reports the way the
-// mail accounts' banner does. A dismissed browser never reaches here.
+// Where a sign-in that did not complete is reported. Settings' card draws [allodiaFailure]; one
+// the refused sign-in's notice started is said on that notice. A dismissed browser never reaches
+// here.
 private fun MainActivity.allodiaSignInFailed(e: Exception) {
     allodiaFailure = allodiaFailureSaid(e, this)
-    if (!showingSettings && connectivity?.allodiaSignInEnded != null) {
-        toastSignInFailed(L10n.signin_expired_failed(this))
-    }
+    noticeRemedyEnded(NoticeRemedy.ALLODIA, null, failed = true)
 }
 
 // Signs out: the core forgets the account and erases its stored grant before it touches the

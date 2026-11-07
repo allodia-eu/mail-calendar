@@ -42,8 +42,6 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import uniffi.mailcal_bindings.AccountFolderRow
 import uniffi.mailcal_bindings.AccountRow
-import uniffi.mailcal_bindings.FolderIntent
-import uniffi.mailcal_bindings.FolderNotice
 import uniffi.mailcal_bindings.FolderRole
 import uniffi.mailcal_bindings.FolderRow
 
@@ -68,8 +66,8 @@ internal fun FolderDrawerScaffold(
     onShowOutbox: () -> Unit,
     // The core's doors for changing folders; null offers no folder menu at all.
     folderEditing: FolderEditing? = null,
-    // A folder change the server refused, standing above the list until closed (rule 28).
-    folderNotice: FolderNotice? = null,
+    // Each account's notice mark, by id (docs/notices.md rule 6).
+    marks: Map<String, AccountMark> = emptyMap(),
     content: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -92,6 +90,7 @@ internal fun FolderDrawerScaffold(
                 onSetFolderExpanded = onSetFolderExpanded,
                 onShowOutbox = onShowOutbox,
                 folderEditing = folderEditing,
+                marks = marks,
             )
         },
         content = {
@@ -123,14 +122,7 @@ internal fun FolderDrawerScaffold(
                     onSelectAccount(null)
                 }
             }
-            Column {
-                if (folderNotice != null && folderEditing != null) {
-                    FolderNoticeCard(folderNotice) {
-                        folderEditing.dispatch(FolderIntent.DismissNotice)
-                    }
-                }
-                content()
-            }
+            content()
         },
     )
 }
@@ -151,6 +143,7 @@ private fun FolderDrawerSheet(
     onSetFolderExpanded: (account: String, key: String, expanded: Boolean) -> Unit,
     onShowOutbox: () -> Unit,
     folderEditing: FolderEditing?,
+    marks: Map<String, AccountMark>,
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -228,6 +221,7 @@ private fun FolderDrawerSheet(
                                 onSelectAccount(account.id)
                             },
                             ctx = ctx,
+                            mark = marks[account.id],
                             modifier = menu,
                         )
                     }
@@ -387,19 +381,25 @@ private fun AccountHeader(
     onToggle: () -> Unit,
     onClick: () -> Unit,
     ctx: android.content.Context,
+    mark: AccountMark?,
     modifier: Modifier = Modifier,
 ) {
     NavigationDrawerItem(
         // One line that never breaks: a line break inside an address (after the hyphen in
         // `team-orders@…`) and a one-line limit leave one word of it on screen. Shortened in the
         // middle, so the domain stays readable (docs/folder-pane.md rule 11).
+        // A notice about the account adds one line under the address, which never wraps either
+        // (docs/notices.md rule 6).
         label = {
-            Text(
-                account.email,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.MiddleEllipsis,
-            )
+            Column {
+                Text(
+                    account.email,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.MiddleEllipsis,
+                )
+                mark?.let { AccountMarkLine(it) }
+            }
         },
         icon = {
             IconButton(

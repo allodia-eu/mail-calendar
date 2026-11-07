@@ -41,6 +41,7 @@ import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountPageIntent
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.MailServerKind
+import uniffi.mailcal_bindings.Notice
 import uniffi.mailcal_bindings.SharedMailboxEntry
 import uniffi.mailcal_bindings.AccountPage as CoreAccountPage
 
@@ -54,6 +55,9 @@ internal class AccountsSettingsUi(
     val expired: Set<String> = emptySet(),
     // A JMAP account holding a pasted password or API token, which a new one replaces.
     val pastedSecret: Set<String> = emptySet(),
+    // Every notice in force, of which the page draws its account's at its top (docs/notices.md).
+    val notices: List<Notice> = emptyList(),
+    val noticeHandlers: NoticeHandlers = NoticeHandlers(),
     val standardPort: ((MailServerKind, ConnectionSecurity) -> Int)? = null,
     val onAddAccount: () -> Unit = {},
     val onOpenPage: (String?) -> Unit = { state.page = it },
