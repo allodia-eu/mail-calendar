@@ -49,6 +49,7 @@ impl From<AppSurface> for Surface {
             AppSurface::ContactsStatus => Self::ContactsStatus,
             AppSurface::InvitationReply => Self::InvitationReply,
             AppSurface::UnfiledCopy => Self::UnfiledCopy,
+            AppSurface::Notices => Self::Notices,
         }
     }
 }
@@ -281,6 +282,8 @@ impl TryFrom<Intent> for AppIntent {
                 reply_subject,
             },
             Intent::ReportNetworkReachable { reachable } => Self::ReportNetworkReachable(reachable),
+            // The binding layer keeps the notices' state, and answers these before converting.
+            Intent::Notices { .. } => return Err("a notice intent has no core form".to_owned()),
             Intent::ReportDeviceTimeZone { id } => Self::ReportDeviceTimeZone(id),
             Intent::SetTimeZone { id } => Self::SetTimeZone(id),
             Intent::AcceptTimeZoneChange => Self::AcceptTimeZoneChange,

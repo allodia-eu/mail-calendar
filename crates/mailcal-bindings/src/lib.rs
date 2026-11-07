@@ -56,6 +56,7 @@ mod app_contacts;
 mod app_display;
 mod app_folders;
 mod app_month;
+mod app_notices;
 mod app_sender_name;
 mod app_server_change;
 mod app_settings;
@@ -110,6 +111,7 @@ mod nextcloud_accounts;
 #[cfg(test)]
 mod nextcloud_mock;
 mod nextcloud_wipe;
+mod notices;
 mod oauth_routes;
 mod observer;
 mod protocol;
@@ -124,6 +126,7 @@ mod records_connectivity;
 mod records_contacts;
 mod records_event_detail;
 mod records_folders;
+mod records_notices;
 mod records_outbox;
 mod records_video_meeting;
 mod retry;
@@ -218,8 +221,8 @@ pub use native_fault::watch_for_native_faults;
 pub use nextcloud::{NextcloudSignInPoll, NextcloudSignInStart, nextcloud_poll_interval_ms};
 pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
-    BulkAction, EventIntent, FolderIntent, Intent, InvitationResponse, OutboxIntent, SearchScope,
-    SelectedRow,
+    BulkAction, EventIntent, FolderIntent, Intent, InvitationResponse, NoticeIntent, OutboxIntent,
+    SearchScope, SelectedRow,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -261,6 +264,9 @@ pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
 };
 pub use records_meeting::{MeetingInvitee, MeetingInviteePatch, MeetingInviteeRole};
+pub use records_notices::{
+    Notice, NoticeAction, NoticeKind, NoticeScreens, NoticeSeverity, NoticesSnapshot,
+};
 pub use records_outbox::{QueuedRow, QueuedState, SendStatus};
 pub use records_recurrence::{
     EventRecurrence, ProposedEdit, RecurrenceChange, RecurrenceDay, RecurrenceEnd,
@@ -323,6 +329,9 @@ pub struct MailcalApp {
     /// missing by choice). Account-prefixed. Runtime additions (`add_account`) append here, so
     /// it is behind a `Mutex`. Empty when every configured calendar connected.
     calendar_connect_errors: Mutex<Vec<String>>,
+    /// When each notice was first raised, and which were dismissed or reported as failed; see
+    /// [`notices`].
+    notice_book: Mutex<notices::NoticeBook>,
     /// Each connected account's config, keyed by account id; shared with the on-demand
     /// [`HostConnector`] and re-read when a sync-depth change reconnects an account's providers.
     registry: SharedRegistry,

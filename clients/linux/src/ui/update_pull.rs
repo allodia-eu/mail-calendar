@@ -91,6 +91,8 @@ impl AppModel {
             // A composition's save moved. The signal names none, so every open composer reads
             // its own state back (`docs/drafts.md`).
             Surface::DraftStatus => self.pull_draft_status(),
+            // Not drawn yet: this client's banners still read the connectivity snapshot.
+            Surface::Notices => {}
         }
     }
 }

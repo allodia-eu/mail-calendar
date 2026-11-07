@@ -342,6 +342,11 @@ pub enum Intent {
         /// Which change.
         intent: super::FolderIntent,
     },
+    /// Something the person did to a notice (`docs/notices.md`).
+    Notices {
+        /// What they did.
+        intent: super::NoticeIntent,
+    },
     /// The host's composer now holds the message `Surface::ComposeRequest` offered.
     DismissComposeRequest,
     /// Report whether the device can reach the network; on launch and on every OS change. Only a

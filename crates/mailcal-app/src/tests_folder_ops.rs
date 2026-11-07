@@ -369,3 +369,69 @@ async fn a_message_sent_to_the_folder_it_is_in_is_not_moved() {
     assert!(edits.lock().unwrap().is_empty());
     assert_eq!(app.mailbox_list().rows.len(), 1, "the row stays on screen");
 }
+
+#[tokio::test]
+async fn a_refusal_and_its_dismissal_each_signal_the_notices() {
+    // No Trash, so a delete is refused at once rather than made for good.
+    let provider = FakeProvider::with(vec![message("m1", "a", "Hello")]).with_folder_tree();
+    provider.folder_tree().lock().unwrap().push(Mailbox::new(
+        MailboxId::try_from("projects").unwrap(),
+        "Projects",
+    ));
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account(ACCOUNT, provider)], &surfaces);
+    app.dispatch(Intent::RefreshMail).await;
+    let notices = || {
+        surfaces
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|surface| **surface == crate::Surface::Notices)
+            .count()
+    };
+    assert_eq!(notices(), 0);
+
+    app.dispatch(Intent::Folders(FolderIntent::Delete(folder("projects"))))
+        .await;
+    let refused = app.folder_notice().expect("the refusal is held");
+    assert_eq!(refused.action, FolderAction::Delete);
+    assert_eq!(refused.problem, FolderProblem::Refused);
+    assert_eq!(app.mailbox_list().folder_notice, Some(refused));
+    assert_eq!(notices(), 1);
+
+    app.dispatch(Intent::Folders(FolderIntent::DismissNotice))
+        .await;
+    assert!(app.folder_notice().is_none());
+    assert_eq!(notices(), 2);
+    app.dispatch(Intent::Folders(FolderIntent::DismissNotice))
+        .await;
+    assert_eq!(notices(), 2, "nothing changed, so nothing is signalled");
+}
+
+#[tokio::test]
+async fn a_dismiss_closes_only_the_refusal_it_names() {
+    let provider = FakeProvider::with(vec![message("m1", "a", "Hello")]).with_folder_tree();
+    provider.folder_tree().lock().unwrap().push(Mailbox::new(
+        MailboxId::try_from("projects").unwrap(),
+        "Projects",
+    ));
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account(ACCOUNT, provider)], &surfaces);
+    app.dispatch(Intent::RefreshMail).await;
+    app.dispatch(Intent::Folders(FolderIntent::Delete(folder("projects"))))
+        .await;
+    let held = app.folder_notice().expect("the refusal is held");
+
+    app.dismiss_folder_notice_if(|current| current.folder == "Elsewhere")
+        .await;
+    assert_eq!(
+        app.folder_notice(),
+        Some(held.clone()),
+        "another refusal stands"
+    );
+
+    app.dismiss_folder_notice_if(|current| *current == held)
+        .await;
+    assert!(app.folder_notice().is_none());
+    assert!(app.mailbox_list().folder_notice.is_none());
+}
