@@ -8,10 +8,14 @@ using uniffi.mailcal_bindings;
 namespace Allodia.Mailcal.Services;
 
 /// <summary>How signing an account in again ended. A cancelled one carries neither: the person
-/// closed it, and nothing is said. <paramref name="Cause"/> is the core's error.</summary>
-internal sealed record ConsentEnded(bool SignedIn, string? Error, Exception? Cause = null)
+/// closed it, and nothing is said. <paramref name="Cause"/> is the core's error.
+/// <paramref name="Unanswered"/> is a wait for the browser that ran out, which says so but is not
+/// a failure: a closed tab ends there too (docs/notices.md rule 10).</summary>
+internal sealed record ConsentEnded(bool SignedIn, string? Error, Exception? Cause = null, bool Unanswered = false)
 {
     internal static ConsentEnded Failed(Exception error) => new(false, CoreErrorCopy.Said(error), error);
+
+    internal static ConsentEnded TimedOut() => new(false, L10n.AccountSigninTimeout(), Unanswered: true);
 }
 
 public sealed partial class MailboxModel
@@ -184,6 +188,11 @@ public sealed partial class MailboxModel
         {
             Log.Info("signing an account in again was cancelled");
             return new ConsentEnded(false, null);
+        }
+        catch (TimeoutException)
+        {
+            Log.Warn("signing an account in again timed out waiting for the browser");
+            return ConsentEnded.TimedOut();
         }
         catch (Exception ex)
         {

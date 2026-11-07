@@ -108,7 +108,8 @@ public sealed partial class MailboxModel
     /// withholds mail or the calendar is widened at its provider; a dead sign-in runs whatever
     /// flow the account signs in by.
     /// </summary>
-    /// <returns>Whether it failed. A browser the person closed is not a failure.</returns>
+    /// <returns>Whether it failed. A browser the person closed, or never came back from, is not a
+    /// failure.</returns>
     private async Task<bool> SignInAgainFromNoticeAsync(NoticeKind kind, string accountId)
     {
         var remedy = kind is NoticeKind.MailReauth or NoticeKind.CalendarReauth
@@ -120,21 +121,24 @@ public sealed partial class MailboxModel
         {
             case SignInRemedy.Nextcloud:
                 // Nothing to refresh: a new app password, through the browser.
-                return (await AccountNextcloudSignInAsync(accountId)).Error is not null;
+                return Failed(await AccountNextcloudSignInAsync(accountId));
             case SignInRemedy.ProviderConsent:
-                return (await SignInAgainAsync(accountId, [])).Error is not null;
+                return Failed(await SignInAgainAsync(accountId, []));
             case SignInRemedy.JmapReauth:
                 // Addressed to the account id, not the address: the core re-authorises this
                 // account's own stored grant, so there is no discovery and no second registration.
                 return await ReconnectJmapAsync(accountId);
             case SignInRemedy.AccountSignIn:
-                return (await AccountSignInAsync(accountId)).Error is not null;
+                return Failed(await AccountSignInAsync(accountId));
             default:
                 // No browser flow to run: the password is entered again on the account's page.
                 AccountSettingsRequested?.Invoke(accountId);
                 return false;
         }
     }
+
+    private static bool Failed(ConsentEnded ended) =>
+        NoticeRules.RemedyFailed(ended.SignedIn, ended.Error, ended.Unanswered);
 
     private async Task ReportUnlessDoneAsync(Notice notice, Task<bool> remedy)
     {

@@ -136,6 +136,17 @@ public class NoticeRulesTests
     }
 
     [Fact]
+    public void A_sign_in_is_a_failed_remedy_only_when_it_was_answered_and_refused()
+    {
+        Assert.False(NoticeRules.RemedyFailed(signedIn: true, error: null, unanswered: false), "it worked");
+        // A browser the person closed reports nothing (rule 10), whether the app hears of it as a
+        // cancel or only when its wait for the browser runs out.
+        Assert.False(NoticeRules.RemedyFailed(signedIn: false, error: null, unanswered: false), "cancelled");
+        Assert.False(NoticeRules.RemedyFailed(signedIn: false, error: "timed out", unanswered: true), "never answered");
+        Assert.True(NoticeRules.RemedyFailed(signedIn: false, error: "refused", unanswered: false), "refused");
+    }
+
+    [Fact]
     public void Only_a_notice_with_an_action_offers_a_button()
     {
         Assert.True(NoticeRules.Offers(Make("retry", nameof(NoticeScreens.Mail))));

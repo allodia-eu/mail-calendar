@@ -137,7 +137,7 @@ public sealed partial class MailboxModel
     /// writes the Credential Manager and retracts the notice itself, so there is no
     /// <c>AddAccountAsync</c> and no store write here. The account already exists.
     /// </summary>
-    /// <returns>Whether it failed. A sign-in cancelled or superseded did not.</returns>
+    /// <returns>Whether it failed. A sign-in cancelled, superseded or never answered did not.</returns>
     /// <remarks>
     /// Runs through the shared <see cref="SignInFlight"/> for the same reason the setup-form flow
     /// does: <c>ProtocolAuthCallback</c> holds a single static pending slot, and the notice lives
@@ -172,6 +172,12 @@ public sealed partial class MailboxModel
         {
             // Superseded by another sign-in, or cancelled. The notice is still up to try again.
             Log.Info("jmap re-authentication cancelled");
+            return false;
+        }
+        catch (TimeoutException)
+        {
+            // The browser never came back, which a closed tab also comes to: not a failure.
+            Log.Warn("jmap re-authentication timed out waiting for the browser");
             return false;
         }
         catch (Exception ex)

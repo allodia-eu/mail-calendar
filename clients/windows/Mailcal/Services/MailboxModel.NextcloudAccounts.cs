@@ -44,7 +44,8 @@ public sealed partial class MailboxModel
                     app, core => core.BeginAccountNextcloudSignIn(accountId), cancel, () => step(SignInStep.Browser));
                 if (end is not NextcloudFlightEnd.Granted granted)
                 {
-                    return new ConsentEnded(false, NextcloudSaid(end), (end as NextcloudFlightEnd.Failed)?.Error);
+                    return new ConsentEnded(
+                        false, NextcloudSaid(end), (end as NextcloudFlightEnd.Failed)?.Error, end is NextcloudFlightEnd.Expired);
                 }
                 grant = granted.Grant;
             }

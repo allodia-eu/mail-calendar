@@ -12,9 +12,11 @@ using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
 
-/// <summary>A failed sign-in to an Allodia account: the sentence to show, and whether the browser
-/// returned from another sign-in, which a reauth offer says beneath its button.</summary>
-internal sealed record AllodiaSignInFailure(string Said, bool Stale);
+/// <summary>A failed sign-in to an Allodia account: the sentence to show, whether the browser
+/// returned from another sign-in, which a reauth offer says beneath its button, and whether the
+/// browser never came back at all, which a closed tab also comes to and a notice does not count as
+/// a failure.</summary>
+internal sealed record AllodiaSignInFailure(string Said, bool Stale, bool Unanswered = false);
 
 public sealed partial class MailboxModel
 {
@@ -71,6 +73,11 @@ public sealed partial class MailboxModel
             // quietly; the disposed callback slot ignores any late redirect.
             Log.Info("allodia: sign-in cancelled by user");
             return null;
+        }
+        catch (TimeoutException ex)
+        {
+            Log.Warn("allodia: sign-in timed out waiting for the browser");
+            return new AllodiaSignInFailure(L10n.SettingsAllodiaFailed(CoreErrorCopy.Said(ex)), false, Unanswered: true);
         }
         catch (Exception ex)
         {
