@@ -294,8 +294,6 @@ final class MailboxModel {
     var isConnecting = false
     /// The core is being opened at launch (`connect`); the root view shows `LaunchView` meanwhile.
     var isOpening = false
-    /// A line above the list about something an action just did, which the user closes.
-    var accountNotice: String?
     /// Connectivity (pulled on a `Surface::Connectivity` signal), for Settings and the calendar.
     var connectivity: ConnectivitySnapshot?
     /// The core's notices, ranked (`Surface::Notices`, docs/notices.md); `nil` until first pulled.

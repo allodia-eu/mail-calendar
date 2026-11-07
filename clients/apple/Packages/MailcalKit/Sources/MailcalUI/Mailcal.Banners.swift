@@ -2,48 +2,21 @@ import MailcalBindings
 import SwiftUI
 
 extension ContentView {
-    /// `content` with what stands above it: on iPhone the notice row (docs/notices.md, the Mac
-    /// and the iPad put theirs in the sidebar), and a line about something an action just did.
+    /// `content` with the notice row above it on iPhone (docs/notices.md); the Mac and the iPad
+    /// put theirs in the sidebar.
     ///
-    /// On the Mac that is the window's whole content, under the toolbar. On iPhone and iPad it is
-    /// each navigation stack's own content, under its bar: an inset outside a tab's or a column's
-    /// stack does not move that stack's bar down, so a row there covers the bar and its buttons.
-    func bannered(_ content: some View) -> some View {
+    /// Each navigation stack's own content, under its bar: an inset outside a tab's stack does not
+    /// move that stack's bar down, so a row there covers the bar and its buttons.
+    @ViewBuilder func bannered(_ content: some View) -> some View {
         #if os(macOS)
-        // Stacked above the split view rather than inset into it: a safe-area inset around a
-        // split view reaches the sidebar but not the detail column, so a line there covered the
-        // mailbox's actions bar.
-        VStack(spacing: 0) {
-            accountNoticeBanner
-            content
-        }
-        #else
         content
-            .safeAreaInset(edge: .top) {
-                if hSize == .compact {
-                    NoticeStrip(model: model, destination: model.destination)
-                }
+        #else
+        content.safeAreaInset(edge: .top) {
+            if hSize == .compact {
+                NoticeStrip(model: model, destination: model.destination)
             }
-            .safeAreaInset(edge: .top) { accountNoticeBanner }
-        #endif
-    }
-
-    /// A line about something an action just did, such as a sign-in from Settings that did not
-    /// complete. Non-blocking: it sits above the list until the user closes it.
-    @ViewBuilder var accountNoticeBanner: some View {
-        if let notice = model.accountNotice {
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text(notice).font(.callout).fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button(L10n.action_close()) { model.accountNotice = nil }
-                    .buttonStyle(.borderless)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .bannerBackground()
-            .overlay(alignment: .bottom) { Divider() }
         }
+        #endif
     }
 
     /// A transient hint above the mailbox: a spinner while a send is in flight, then a
