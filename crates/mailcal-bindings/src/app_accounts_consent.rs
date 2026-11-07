@@ -193,9 +193,10 @@ impl MailcalApp {
                     );
                     // A sign-in that could not ask keeps what was known.
                     config.affiliation = config.affiliation.or(stored.affiliation.clone());
-                    config
+                    let toml = config
                         .to_toml()
-                        .map_err(|err| MailcalError::Config(err.to_string()))
+                        .map_err(|err| MailcalError::Config(err.to_string()))?;
+                    Ok((toml, authorized.access_token, authorized.expires_at))
                 }),
             Provider::Google => self
                 .runtime
@@ -207,12 +208,13 @@ impl MailcalApp {
                         &mut config.shape,
                         Some(stored.shape.clone()),
                     );
-                    config
+                    let toml = config
                         .to_toml()
-                        .map_err(|err| MailcalError::Config(err.to_string()))
+                        .map_err(|err| MailcalError::Config(err.to_string()))?;
+                    Ok((toml, authorized.access_token, authorized.expires_at))
                 }),
         };
-        let config_toml = signed_in.inspect_err(|err| {
+        let (config_toml, access_token, expires_at) = signed_in.inspect_err(|err| {
             log::warn!(
                 "consent: [{}] the sign-in did not complete ({err}); the stored grant is unchanged",
                 mailcal_account::account_log_handle(&pending.account_id),
@@ -224,6 +226,7 @@ impl MailcalApp {
             &sink,
             mailcal_account::CredentialOrigin::FreshSignIn,
         )?;
+        use_fresh_token(&prepared.connected, access_token, expires_at);
         let id = prepared.account.id.clone();
         self.install_repaired_account(
             &pending.account_id,
@@ -235,6 +238,25 @@ impl MailcalApp {
         // mail; a send it still cannot make raises the prompt again.
         self.app.clear_mail_reauth_required(&id);
         Ok(())
+    }
+}
+
+/// Starts `connected` on the token its sign-in just minted, as adding an account does. A refresh
+/// in its place asks Microsoft for the grant before the consent has propagated, which answers the
+/// old, narrower grant: the dial then finds the calendar still withheld, and saves that grant over
+/// the wider one, so the prompt stays until a later launch.
+fn use_fresh_token(
+    connected: &crate::ConnectedAccount,
+    access_token: String,
+    expires_at: time::OffsetDateTime,
+) {
+    use crate::ConnectedAccount::{Google, Imap, Jmap, Microsoft};
+    match connected {
+        Microsoft { tokens, .. } | Google { tokens, .. } => {
+            tokens.seed_access_token(access_token, expires_at);
+        }
+        // Signed in again through flows of their own, which seed their own token.
+        Imap { .. } | Jmap { .. } => {}
     }
 }
 
