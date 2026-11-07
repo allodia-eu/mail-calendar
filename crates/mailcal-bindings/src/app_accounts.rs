@@ -365,6 +365,7 @@ impl MailcalApp {
             self.drop_shared_mailbox(&child);
         }
         self.registry.remove(id);
+        self.account_work.forget(id);
         self.clear_links_to(id);
         self.refresh_analytics_accounts();
         // Drop it from the reconnect queue too, so a pending retry doesn't try to re-dial an

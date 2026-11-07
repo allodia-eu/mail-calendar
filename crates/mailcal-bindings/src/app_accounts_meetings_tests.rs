@@ -1,9 +1,6 @@
 //! Switching video meetings on and off as an account's use (`docs/accounts.md` rule 19).
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use mailcal_account::{Capabilities, Capability};
 
@@ -76,7 +73,7 @@ const DAV_ID: &str = "f3a9c1@dav:127.0.0.1:1";
 
 /// The state Settings → Accounts shows for `id`'s video meetings, `None` when it lists none.
 fn meetings(registry: &AccountRegistry) -> Option<CapabilityState> {
-    crate::accounts_view::entries(&registry.facts(), &BTreeSet::new(), &BTreeMap::new())[0]
+    crate::accounts_view::entries(&registry.facts(), &BTreeMap::new(), &BTreeMap::new())[0]
         .uses
         .iter()
         .find(|row| row.capability == AccountCapability::Meetings)
@@ -205,7 +202,7 @@ fn an_account_no_nextcloud_sign_in_made_offers_no_meetings() {
 /// What Settings → Videoconferencing lists for `registry`'s accounts.
 fn overview(registry: &AccountRegistry) -> Vec<(String, String, CapabilityState)> {
     let entries =
-        crate::accounts_view::entries(&registry.facts(), &BTreeSet::new(), &BTreeMap::new());
+        crate::accounts_view::entries(&registry.facts(), &BTreeMap::new(), &BTreeMap::new());
     crate::accounts_view::meeting_accounts(&entries)
         .into_iter()
         .map(|row| (row.service, row.account.address, row.state))

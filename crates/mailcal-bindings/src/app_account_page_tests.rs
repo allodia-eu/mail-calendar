@@ -1,6 +1,6 @@
 //! An account's page through `dispatch`: a change runs and its controls come back, one the core
-//! refuses leaves a notice, and a use with no server says so before it is pressed. Every server is
-//! a local port nothing listens on, so the account stays listed and never connects.
+//! refuses leaves a notice, and a use with no server or no grant says so before it is pressed.
+//! Every server is a local port nothing listens on, so the account stays listed and never connects.
 
 use std::{
     sync::{Arc, mpsc},
@@ -142,6 +142,32 @@ fn a_change_the_core_refuses_leaves_a_notice_and_a_missing_server_is_said_first(
 }
 
 #[test]
+fn a_calendar_the_provider_refused_asks_it_again_on_the_page_and_in_the_change() {
+    let app = app("account-page-calendar-refused", WITH_CALENDAR);
+    settled(&app);
+    app.app
+        .note_calendar_reauth_required(&engine_api::AccountId::try_from(ID).unwrap());
+    let calendar = settled(&app)
+        .uses
+        .into_iter()
+        .find(|switch| switch.capability == AccountCapability::Calendar)
+        .expect("listed");
+    assert!(!calendar.on && calendar.asks_provider && calendar.control.enabled);
+
+    // Pressed past the page, the core answers the same: nothing changes, and the provider is asked.
+    set_use(&app, AccountCapability::Calendar, true);
+    let notice = settled(&app).notice.expect("the switch did not take");
+    assert!(matches!(
+        notice.notice,
+        AccountChangeNotice::UseFailed {
+            capability: AccountCapability::Calendar,
+            on: true,
+            ..
+        }
+    ));
+}
+
+#[test]
 fn a_change_runs_in_the_showcase_too() {
     let (tx, _rx) = mpsc::channel();
     let app = MailcalApp::new_showcase(
@@ -190,10 +216,10 @@ impl AccountCredentialStore for KeepingStore {
     }
 }
 
-/// Waits until no change runs, by the accounts list's own page being free.
+/// Waits until the account's page is gone and the removal has ended, so what it came to is said.
 fn removed(app: &MailcalApp) {
     let deadline = Instant::now() + Duration::from_secs(5);
-    while app.account_page(ID.to_owned()).is_some() {
+    while app.account_page(ID.to_owned()).is_some() || app.account_work.of(ID).0.busy {
         assert!(Instant::now() < deadline, "the account was never removed");
         std::thread::sleep(Duration::from_millis(10));
     }
@@ -215,6 +241,13 @@ fn a_removal_takes_the_page_and_says_on_the_list_what_it_could_not_finish() {
         "a removal that worked says nothing"
     );
 
+    // A notice left on the page goes with an account removed some other way.
+    let elsewhere = self::app("account-page-remove-elsewhere", MAIL_ONLY);
+    set_use(&elsewhere, AccountCapability::Mail, false);
+    assert!(settled(&elsewhere).notice.is_some());
+    elsewhere.remove_account(ID.to_owned()).expect("removed");
+    assert_eq!(elsewhere.account_work.of(ID).1, None);
+
     let app = app_over(
         "account-page-remove-kept",
         MAIL_ONLY,
@@ -227,14 +260,7 @@ fn a_removal_takes_the_page_and_says_on_the_list_what_it_could_not_finish() {
         },
     });
     removed(&app);
-    let deadline = Instant::now() + Duration::from_secs(5);
-    let notice = loop {
-        if let Some(notice) = app.accounts_notice() {
-            break notice;
-        }
-        assert!(Instant::now() < deadline, "the list never said it");
-        std::thread::sleep(Duration::from_millis(10));
-    };
+    let notice = app.accounts_notice().expect("the list says it");
     assert!(
         matches!(notice.notice, AccountChangeNotice::RemoveFailed { .. }),
         "the account is gone, and the list says its credential was kept"

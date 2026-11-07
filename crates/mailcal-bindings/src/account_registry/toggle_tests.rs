@@ -1,10 +1,7 @@
 //! What switching a use on or off comes to: the one decision `set_use` acts on and an account's
 //! page reads before the switch is pressed, so the two are asked of the same accounts here.
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use mailcal_account::{Capabilities, Capability};
 
@@ -200,7 +197,7 @@ fn the_page_draws_what_the_registry_decides() {
         r#"["mail", "calendar", "meetings"]"#,
     );
     let entry =
-        crate::accounts_view::entries(&registry.facts(), &BTreeSet::new(), &BTreeMap::new())
+        crate::accounts_view::entries(&registry.facts(), &BTreeMap::new(), &BTreeMap::new())
             .remove(0);
     let page = crate::account_page::page(&entry, Hold::default(), None, |capability, on| {
         toggle(&registry, MICROSOFT_ID, Capability::from(capability), on)

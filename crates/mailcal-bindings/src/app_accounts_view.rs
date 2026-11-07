@@ -69,14 +69,8 @@ impl MailcalApp {
                 self.ask_calendar_users(&account.id);
             }
         }
-        let calendar_refused = self
-            .app
-            .connectivity()
-            .calendar_reauth_accounts
-            .into_iter()
-            .collect();
         let mut accounts =
-            accounts_view::entries(&facts, &calendar_refused, &self.app.every_use_problem());
+            accounts_view::entries(&facts, &self.refused_uses(), &self.app.every_use_problem());
         for (entry, account) in accounts.iter_mut().zip(&facts) {
             entry.mail_sync = MailSyncTechnology::of(
                 account.kind,

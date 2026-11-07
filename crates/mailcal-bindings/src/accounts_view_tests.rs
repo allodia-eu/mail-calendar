@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use engine_api::AccountId;
 use mailcal_account::{AccountLinks, Capabilities, Capability};
@@ -76,7 +76,7 @@ fn state(entry: &crate::AccountEntry, capability: AccountCapability) -> Option<C
 fn a_mail_account_linked_to_a_calendar_reads_the_link_by_address_from_both_ends() {
     let accounts = entries(
         &[mailbox(to_cloud()), cloud(AccountLinks::default())],
-        &BTreeSet::new(),
+        &BTreeMap::new(),
         &BTreeMap::new(),
     );
 
@@ -99,7 +99,7 @@ fn a_mail_account_linked_to_a_calendar_reads_the_link_by_address_from_both_ends(
 #[test]
 fn a_link_the_accounts_no_longer_allow_reads_as_none() {
     // Dangling: nothing has that id.
-    let dangling = entries(&[mailbox(to_cloud())], &BTreeSet::new(), &BTreeMap::new());
+    let dangling = entries(&[mailbox(to_cloud())], &BTreeMap::new(), &BTreeMap::new());
     assert!(dangling[0].links.calendar.is_none());
 
     // The mail account has a calendar of its own now.
@@ -107,7 +107,7 @@ fn a_link_the_accounts_no_longer_allow_reads_as_none() {
     own.chosen = set(&[Capability::Mail, Capability::Calendar]);
     let accounts = entries(
         &[own, cloud(AccountLinks::default())],
-        &BTreeSet::new(),
+        &BTreeMap::new(),
         &BTreeMap::new(),
     );
     assert!(accounts[0].links.calendar.is_none());
@@ -118,7 +118,7 @@ fn a_link_the_accounts_no_longer_allow_reads_as_none() {
     contacts_only.chosen = set(&[Capability::Contacts]);
     let accounts = entries(
         &[mailbox(to_cloud()), contacts_only],
-        &BTreeSet::new(),
+        &BTreeMap::new(),
         &BTreeMap::new(),
     );
     assert!(accounts[0].links.calendar.is_none());
@@ -128,7 +128,7 @@ fn a_link_the_accounts_no_longer_allow_reads_as_none() {
     graph.files_invitations = false;
     let accounts = entries(
         &[mailbox(to_cloud()), graph],
-        &BTreeSet::new(),
+        &BTreeMap::new(),
         &BTreeMap::new(),
     );
     assert!(accounts[0].links.calendar.is_none());
@@ -146,7 +146,7 @@ fn a_calendar_two_mailboxes_link_sends_through_the_one_it_names() {
             second.clone(),
             cloud(AccountLinks::default()),
         ],
-        &BTreeSet::new(),
+        &BTreeMap::new(),
         &BTreeMap::new(),
     );
     assert!(
@@ -164,7 +164,7 @@ fn a_calendar_two_mailboxes_link_sends_through_the_one_it_names() {
                 ..AccountLinks::default()
             }),
         ],
-        &BTreeSet::new(),
+        &BTreeMap::new(),
         &BTreeMap::new(),
     );
     assert_eq!(
@@ -190,7 +190,10 @@ fn each_kind_lists_what_it_can_be_used_for_in_its_state() {
     calendar_refused.kind = AccountKind::Microsoft;
     calendar_refused.offered = set(&Capability::ALL);
     calendar_refused.chosen = set(&Capability::ALL);
-    let refused: BTreeSet<String> = [calendar_refused.id.clone()].into();
+    let refused = BTreeMap::from([(
+        calendar_refused.id.clone(),
+        [Capability::Calendar].into_iter().collect(),
+    )]);
 
     let accounts = entries(
         &[graph, standards, calendar_refused],
@@ -231,7 +234,7 @@ fn a_use_the_account_does_not_offer_is_not_listed_at_all() {
     personal.chosen = set(&STANDARDS);
     personal.withheld = set(&[Capability::Colleagues]);
 
-    let accounts = entries(&[personal], &BTreeSet::new(), &BTreeMap::new());
+    let accounts = entries(&[personal], &BTreeMap::new(), &BTreeMap::new());
 
     assert_eq!(state(&accounts[0], AccountCapability::Colleagues), None);
     assert_eq!(
@@ -252,7 +255,7 @@ fn each_link_offers_only_the_accounts_it_may_name() {
             cloud(AccountLinks::default()),
             graph,
         ],
-        &BTreeSet::new(),
+        &BTreeMap::new(),
         &BTreeMap::new(),
     );
     let ids = |offered: &[crate::LinkedAccount]| -> Vec<String> {
@@ -293,7 +296,7 @@ fn a_calendar_that_recognises_the_mail_address_is_suggested_from_both_ends() {
     recognising.calendar_addresses = vec!["Alice@Example.org".to_owned()];
     let accounts = entries(
         &[mailbox(AccountLinks::default()), recognising],
-        &BTreeSet::new(),
+        &BTreeMap::new(),
         &BTreeMap::new(),
     );
     assert_eq!(
@@ -309,7 +312,7 @@ fn a_calendar_that_recognises_the_mail_address_is_suggested_from_both_ends() {
     stranger.calendar_addresses = vec!["bob@example.org".to_owned()];
     let accounts = entries(
         &[mailbox(AccountLinks::default()), stranger],
-        &BTreeSet::new(),
+        &BTreeMap::new(),
         &BTreeMap::new(),
     );
     assert_eq!(accounts[0].link_candidates.calendar.len(), 1);
@@ -326,7 +329,7 @@ fn an_address_book_is_never_suggested() {
     contacts_only.calendar_addresses = vec!["alice@example.org".to_owned()];
     let accounts = entries(
         &[mailbox(AccountLinks::default()), contacts_only],
-        &BTreeSet::new(),
+        &BTreeMap::new(),
         &BTreeMap::new(),
     );
     assert_eq!(accounts[0].link_candidates.contacts.len(), 1);
@@ -346,7 +349,7 @@ fn a_use_that_did_not_connect_says_why_while_it_is_on() {
     )]
     .into();
 
-    let accounts = entries(&[account], &BTreeSet::new(), &problems);
+    let accounts = entries(&[account], &BTreeMap::new(), &problems);
 
     let problem = |capability| {
         accounts[0]
@@ -390,7 +393,7 @@ fn a_calendar_that_needs_a_sign_in_of_its_own_names_its_server() {
 
     let entry = entries(
         std::slice::from_ref(&signed_in),
-        &BTreeSet::new(),
+        &BTreeMap::new(),
         &problems,
     )
     .remove(0);
@@ -407,7 +410,7 @@ fn a_calendar_that_needs_a_sign_in_of_its_own_names_its_server() {
         contacts: None,
     };
     let problems = BTreeMap::from([(signed_in.id.clone(), unreachable)]);
-    let entry = entries(&[signed_in], &BTreeSet::new(), &problems).remove(0);
+    let entry = entries(&[signed_in], &BTreeMap::new(), &problems).remove(0);
     assert!(
         entry.separate_server.is_none(),
         "a server that could not be reached is tried again, not signed in to separately"

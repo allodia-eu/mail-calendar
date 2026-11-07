@@ -87,6 +87,15 @@ impl AccountWork {
         *self.running.lock().expect("account work mutex poisoned") = None;
     }
 
+    /// Drops what `account`'s page had to say, for an account that is gone: one added again later
+    /// opens a page of its own.
+    pub(crate) fn forget(&self, account: &str) {
+        self.notices
+            .lock()
+            .expect("account notice mutex poisoned")
+            .remove(account);
+    }
+
     /// How `account`'s page stands, and the notice it shows.
     pub(crate) fn of(&self, account: &str) -> (Hold, Option<AccountChangeNoticeRaised>) {
         let running = self.running.lock().expect("account work mutex poisoned");

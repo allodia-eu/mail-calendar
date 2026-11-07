@@ -10,8 +10,8 @@ use mailcal_account::Capability;
 
 use crate::{
     AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, AccountPage,
-    AccountPageIntent, CapabilityChange, LinkSlot, MailcalApp, MailcalError, account_page,
-    account_registry::Toggle, account_work::PageWork,
+    AccountPageIntent, AccountUseBlock, CapabilityChange, LinkSlot, MailcalApp, MailcalError,
+    account_page, account_registry::Toggle, account_work::PageWork,
 };
 
 #[uniffi::export]
@@ -27,7 +27,7 @@ impl MailcalApp {
             .into_iter()
             .find(|entry| entry.id == account_id)?;
         let (hold, notice) = self.account_work.of(&account_id);
-        let refused = self.refused_uses(&account_id);
+        let refused = self.refused_uses().remove(&account_id).unwrap_or_default();
         Some(account_page::page(
             &entry,
             hold,
@@ -64,6 +64,7 @@ impl MailcalApp {
             AccountPageIntent::Remove { account } => (account.clone(), PageWork::Remove),
         };
         let Some(app) = self.rediscovery.app() else {
+            log::warn!("accounts: a change to an account was asked for while the app shuts down");
             return;
         };
         if !self.account_work.start(&account, work) {
@@ -121,7 +122,7 @@ impl MailcalApp {
 
 /// What a switch's change needs saying: only a failure. The page already asks the provider, or
 /// says a server is missing, before the switch is pressed, so the core's answer for either is a
-/// race the person sees as the switch not taking.
+/// race the person sees as the switch not taking, and is said with its reason all the same.
 fn use_failed(
     capability: AccountCapability,
     on: bool,
@@ -129,7 +130,8 @@ fn use_failed(
 ) -> Option<AccountChangeNotice> {
     let detail = match answer {
         Ok(CapabilityChange::Applied) => return None,
-        Ok(CapabilityChange::NeedsConsent | CapabilityChange::NeedsEndpoint) => String::new(),
+        Ok(CapabilityChange::NeedsConsent) => "the provider has not granted that".to_owned(),
+        Ok(CapabilityChange::NeedsEndpoint) => AccountUseBlock::NeedsServer.reason().to_owned(),
         Err(error) => error.to_string(),
     };
     Some(AccountChangeNotice::UseFailed {

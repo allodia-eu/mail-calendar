@@ -1,6 +1,6 @@
 //! Switching what an account is used for, from Settings → Accounts.
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use engine_api::{AccountId, SearchDomain};
 use mailcal_account::{Capabilities, Capability};
@@ -36,7 +36,7 @@ impl MailcalApp {
         on: bool,
     ) -> Result<CapabilityChange, MailcalError> {
         let capability = Capability::from(capability);
-        let refused = self.refused_uses(&account_id);
+        let refused = self.refused_uses().remove(&account_id).unwrap_or_default();
         let (config_toml, previous) =
             match self
                 .registry
@@ -107,16 +107,15 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
-    /// The uses `account_id`'s provider refused when they were opened, although its stored grant
-    /// allows them: switching one on asks the provider again.
-    pub(crate) fn refused_uses(&self, account_id: &str) -> Capabilities {
+    /// The uses each account's provider refused when they were opened, although its stored
+    /// grant allows them, by account id: drawn as waiting on the provider, and switching one on
+    /// asks the provider again.
+    pub(crate) fn refused_uses(&self) -> BTreeMap<String, Capabilities> {
         self.app
             .connectivity()
             .calendar_reauth_accounts
-            .iter()
-            .any(|id| id == account_id)
-            .then_some(Capability::Calendar)
             .into_iter()
+            .map(|id| (id, [Capability::Calendar].into_iter().collect()))
             .collect()
     }
 

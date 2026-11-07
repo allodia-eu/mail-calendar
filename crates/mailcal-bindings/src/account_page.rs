@@ -52,17 +52,10 @@ pub(crate) fn page(
             }
         })
         .collect();
-    let links = link_pickers(entry)
-        .into_iter()
-        .map(|mut picker| {
-            picker.control = control(PageWork::Link(picker.slot), true);
-            picker
-        })
-        .collect();
     AccountPage {
         account: entry.id.clone(),
         uses,
-        links,
+        links: link_pickers(entry, |slot| control(PageWork::Link(slot), true)),
         remove: control(PageWork::Remove, true),
         notice,
     }
@@ -81,7 +74,10 @@ fn review_after(entry: &AccountEntry) -> Option<AccountCapability> {
 /// The pickers the page offers: one per slot it can hold, which is a slot with candidates or one
 /// already linked. The linked account is listed even when it is no longer a candidate. Matched by
 /// id, so a linked account whose address or distinction has since changed is not listed twice.
-fn link_pickers(entry: &AccountEntry) -> Vec<AccountLinkPicker> {
+fn link_pickers(
+    entry: &AccountEntry,
+    control: impl Fn(LinkSlot) -> ControlState,
+) -> Vec<AccountLinkPicker> {
     [
         (
             LinkSlot::Calendar,
@@ -129,10 +125,7 @@ fn link_pickers(entry: &AccountEntry) -> Vec<AccountLinkPicker> {
             options,
             selected,
             suggested,
-            control: ControlState {
-                enabled: true,
-                running: false,
-            },
+            control: control(slot),
         }
     })
     .collect()

@@ -55,9 +55,10 @@ pub(crate) fn toggle(
     let chosen = entry.capabilities();
     if chosen.contains(capability) == on {
         // A use chosen and not granted is not working, so switching it on asks again.
-        let withheld = refused.contains(capability)
-            || matches!(opens(entry, &chosen, capability), Opens::NeedsConsent);
-        return if on && withheld {
+        let withheld = on
+            && (refused.contains(capability)
+                || matches!(opens(entry, &chosen, capability), Opens::NeedsConsent));
+        return if withheld {
             Toggle::AsksProvider
         } else {
             Toggle::Unchanged
