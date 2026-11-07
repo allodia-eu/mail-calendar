@@ -105,11 +105,15 @@ fi
 
 # alice, on both servers. The anonymous rate limit goes because every request a test sends comes
 # from one address: a few sign-in runs in a row pass the default and get `429`, which a sign-in
-# pre-flight reads as "this server offers no sign-in".
+# pre-flight reads as "this server offers no sign-in". The ban on failed sign-ins goes for the same
+# reason: suites refuse sign-ins on purpose (a changed password, a wrong one typed), the default bans
+# the Docker gateway for good after 100 in a day, and a banned address is answered with a closed
+# connection, which every client reads as the server being down.
 apply <<'EOF'
 {"@type":"upsert","object":"Domain","matchOn":["name"],"value":{"domain":{"name":"test.local"}}}
 {"@type":"upsert","object":"Account","matchOn":["name"],"value":{"alice":{"@type":"User","name":"alice","domainId":"#domain","description":"Alice Tester","credentials":{"0":{"@type":"Password","secret":"harness-alice-pw"}},"roles":{"@type":"User"}}}}
 {"@type":"update","object":"Http","value":{"rateLimitAnonymous":null}}
+{"@type":"update","object":"Security","value":{"authBanRate":null}}
 EOF
 
 # The shared-mailbox fixture's first half: `support`, a group mailbox with no sign-in of its own,
