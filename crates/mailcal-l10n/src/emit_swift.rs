@@ -83,6 +83,7 @@ fn render_accessor(catalog: &Catalog) -> String {
         out.push_str(")\n    }\n");
     }
 
+    out.push_str(&crate::notice_lookup::swift(catalog));
     out.push('\n');
     render_tables(catalog, &mut out);
     render_runtime(catalog, &mut out);

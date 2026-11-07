@@ -24,6 +24,10 @@ fn ids(accounts: &[&str]) -> Vec<String> {
     accounts.iter().map(|id| (*id).to_owned()).collect()
 }
 
+fn mail_address(account: &str) -> String {
+    format!("{account}@example.org")
+}
+
 fn oauth(_: &str) -> Option<AccountProvider> {
     Some(AccountProvider::Google)
 }
@@ -53,6 +57,7 @@ fn pull_with(
         skipped_at_launch,
         folder_notice,
         provider: &oauth,
+        address: &mail_address,
     };
     book.snapshot(raise(&facts)).notices
 }
@@ -67,149 +72,6 @@ fn nothing_wrong_is_no_notice() {
     assert!(pull(&mut NoticeBook::default(), &quiet()).is_empty());
 }
 
-/// One row of the mapping table: the facts, then what they must become.
-type Case = (
-    ConnectivitySnapshot,
-    NoticeKind,
-    NoticeSeverity,
-    NoticeScreens,
-    Option<&'static str>,
-    Option<NoticeAction>,
-);
-
-#[test]
-fn each_fact_maps_to_its_kind_severity_screens_and_action() {
-    use NoticeScreens::{Calendar, Contacts, Everywhere, Mail};
-    use NoticeSeverity::{Blocked, Degraded, Informational};
-
-    let outage = |problem| {
-        vec![UseOutage {
-            account_id: "a".to_owned(),
-            problem,
-        }]
-    };
-    let cases: Vec<Case> = vec![
-        (
-            ConnectivitySnapshot {
-                offline: true,
-                ..quiet()
-            },
-            NoticeKind::Offline,
-            Informational,
-            Everywhere,
-            None,
-            None,
-        ),
-        (
-            ConnectivitySnapshot {
-                signin_expired_accounts: ids(&["a"]),
-                ..quiet()
-            },
-            NoticeKind::SignInExpired,
-            Blocked,
-            Everywhere,
-            Some("a"),
-            Some(NoticeAction::SignInAgain),
-        ),
-        (
-            ConnectivitySnapshot {
-                mail_reauth_accounts: ids(&["a"]),
-                ..quiet()
-            },
-            NoticeKind::MailReauth,
-            Blocked,
-            Mail,
-            Some("a"),
-            Some(NoticeAction::SignInAgain),
-        ),
-        (
-            ConnectivitySnapshot {
-                calendar_reauth_accounts: ids(&["a"]),
-                ..quiet()
-            },
-            NoticeKind::CalendarReauth,
-            Degraded,
-            Calendar,
-            Some("a"),
-            Some(NoticeAction::SignInAgain),
-        ),
-        (
-            ConnectivitySnapshot {
-                calendar_outages: outage(UseProblem::Unreachable),
-                ..quiet()
-            },
-            NoticeKind::CalendarOutage {
-                problem: UseProblem::Unreachable,
-            },
-            Degraded,
-            Calendar,
-            Some("a"),
-            Some(NoticeAction::Retry),
-        ),
-        (
-            ConnectivitySnapshot {
-                calendar_outages: outage(UseProblem::NeedsOwnSignIn),
-                ..quiet()
-            },
-            NoticeKind::CalendarOutage {
-                problem: UseProblem::NeedsOwnSignIn,
-            },
-            Degraded,
-            Calendar,
-            Some("a"),
-            Some(NoticeAction::OpenAccountSettings),
-        ),
-        (
-            ConnectivitySnapshot {
-                contacts_outages: outage(UseProblem::SignInRefused),
-                ..quiet()
-            },
-            NoticeKind::ContactsOutage {
-                problem: UseProblem::SignInRefused,
-            },
-            Degraded,
-            Contacts,
-            Some("a"),
-            Some(NoticeAction::OpenAccountSettings),
-        ),
-        (
-            ConnectivitySnapshot {
-                unreachable_accounts: ids(&["a"]),
-                ..quiet()
-            },
-            NoticeKind::Unreachable,
-            Degraded,
-            Mail,
-            Some("a"),
-            Some(NoticeAction::Retry),
-        ),
-        (
-            ConnectivitySnapshot {
-                allodia_sign_in_ended: Some("me@allodia.example".to_owned()),
-                ..quiet()
-            },
-            NoticeKind::AllodiaSignInEnded {
-                address: "me@allodia.example".to_owned(),
-            },
-            Degraded,
-            Everywhere,
-            None,
-            Some(NoticeAction::SignInToAllodia),
-        ),
-    ];
-    for (connectivity, kind, severity, screens, account, action) in cases {
-        let notices = pull(&mut NoticeBook::default(), &connectivity);
-        let notice = only(&notices);
-        assert_eq!(notice.kind, kind);
-        assert_eq!(notice.severity, severity, "{kind:?}");
-        assert_eq!(notice.screens, screens, "{kind:?}");
-        assert_eq!(notice.account.as_deref(), account, "{kind:?}");
-        assert_eq!(notice.action, action, "{kind:?}");
-        assert!(!notice.dismissible, "{kind:?} is a state that holds");
-        assert!(!notice.remedy_failed, "{kind:?}");
-    }
-}
-
 #[test]
 fn the_launch_skip_and_a_refused_folder_change_are_events_that_can_be_closed() {
     let mut book = NoticeBook::default();
@@ -221,6 +83,7 @@ fn the_launch_skip_and_a_refused_folder_change_are_events_that_can_be_closed() {
         (NoticeSeverity::Degraded, NoticeScreens::Mail)
     );
     assert_eq!((skipped.account.as_deref(), skipped.action), (None, None));
+    assert_eq!(skipped.mark, None);
     assert!(skipped.dismissible);
 
     let refused = pull_with(
@@ -246,6 +109,10 @@ fn the_launch_skip_and_a_refused_folder_change_are_events_that_can_be_closed() {
         (refused.account.as_deref(), refused.action),
         (Some("a"), None)
     );
+    assert_eq!(
+        refused.mark.as_ref().map(|words| words.key.as_str()),
+        Some("notice_mark_folder_change_refused")
+    );
     assert!(refused.dismissible);
 }
 
@@ -265,6 +132,7 @@ fn a_dead_password_sign_in_opens_settings_and_an_oauth_one_signs_in_again() {
         skipped_at_launch: 0,
         folder_notice: None,
         provider: &provider,
+        address: &mail_address,
     };
     let notices = NoticeBook::default().snapshot(raise(&facts)).notices;
     let action = |account: &str| {
@@ -495,3 +363,6 @@ fn a_failed_remedy_is_forgotten_when_the_notice_offers_another() {
     assert!(!refused.remedy_failed, "nobody has tried the new remedy");
     assert!(!only(&pull(&mut book, &outage(UseProblem::Unreachable))).remedy_failed);
 }
+
+#[path = "notices_mapping_tests.rs"]
+mod mapping;

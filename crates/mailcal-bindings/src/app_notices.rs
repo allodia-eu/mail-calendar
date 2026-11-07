@@ -19,11 +19,20 @@ impl MailcalApp {
             .expect("account-errors mutex poisoned")
             .len();
         let provider = |account: &str| self.registry.provider(account);
+        let addresses = self.runtime.block_on(|| self.app.account_addresses());
+        // An account gone between the two reads is named by its id rather than not at all.
+        let address = |account: &str| {
+            addresses
+                .get(account)
+                .cloned()
+                .unwrap_or_else(|| account.to_owned())
+        };
         let facts = NoticeFacts {
             connectivity: &connectivity,
             skipped_at_launch,
             folder_notice: self.app.folder_notice().map(Into::into),
             provider: &provider,
+            address: &address,
         };
         let raised = raise(&facts);
         self.notice_book

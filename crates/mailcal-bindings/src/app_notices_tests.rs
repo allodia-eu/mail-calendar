@@ -47,8 +47,11 @@ fn going_offline_raises_a_notice_and_signals_it() {
         notices_signalled(&rx),
         "a connectivity change is a notices change"
     );
-    let kinds: Vec<_> = app.notices().notices.into_iter().map(|n| n.kind).collect();
+    let notices = app.notices().notices;
+    let kinds: Vec<_> = notices.iter().map(|n| n.kind.clone()).collect();
     assert_eq!(kinds, [NoticeKind::Offline]);
+    assert_eq!(notices[0].title.key, "notice_offline");
+    assert_eq!(notices[0].action_label, None);
 }
 
 #[test]

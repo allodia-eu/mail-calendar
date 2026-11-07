@@ -4,7 +4,9 @@
 //! uses a key that is not a legal identifier. Every problem is collected so one run reports
 //! them all.
 
-use crate::model::{ONE_SUFFIX, Raw, is_identifier, placeholders};
+use crate::model::{
+    NOTICE_PREFIX, ONE_SUFFIX, ParamType, Raw, is_identifier, param_type, placeholders,
+};
 
 /// Checks the catalog, returning every problem joined into one error string, or `Ok(())`
 /// when the catalog is sound.
@@ -112,6 +114,29 @@ pub(crate) fn check(raw: &Raw) -> Result<(), String> {
                  \"{stem}\" {plural_ph:?}",
                 raw.base
             ));
+        }
+    }
+
+    // A notice's words arrive as a key and a map of strings, so the generated lookup can pass
+    // neither a number nor a count to choose a plural by.
+    for (key, value) in base_map {
+        if !key.starts_with(NOTICE_PREFIX) {
+            continue;
+        }
+        if key.ends_with(ONE_SUFFIX) {
+            problems.push(format!(
+                "[{}] notice key \"{key}\" has a plural form; a notice's words take strings only",
+                raw.base
+            ));
+        }
+        for name in placeholders(value) {
+            if param_type(&name) == ParamType::Int {
+                problems.push(format!(
+                    "[{}] notice key \"{key}\" takes the number {{{name}}}; a notice's words \
+                     take strings only",
+                    raw.base
+                ));
+            }
         }
     }
 

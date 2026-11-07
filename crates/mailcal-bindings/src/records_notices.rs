@@ -2,6 +2,8 @@
 //! decided here so that no client infers one from an error, a field or a string
 //! (`docs/notices.md`).
 
+use std::collections::HashMap;
+
 use crate::{FolderAction, FolderProblem, UseProblem};
 
 /// Every notice in force, pulled after a `Surface::Notices` signal.
@@ -21,20 +23,42 @@ pub struct Notice {
     pub id: String,
     /// What it says, with what the words need.
     pub kind: NoticeKind,
+    /// The sentence to show, ready for the generated `notice` lookup (`docs/notices.md` rule 11).
+    pub title: NoticeText,
+    /// What a host shows under the title when there is room: why, and what that means. `None`
+    /// when the title says it all.
+    pub detail: Option<NoticeText>,
     /// How much of what the person relies on it touches.
     pub severity: NoticeSeverity,
     /// Where it is drawn.
     pub screens: NoticeScreens,
     /// The id of the account it is about, or `None` when it is about the whole app.
     pub account: Option<String>,
+    /// A few words for the account's row, which already shows its address, so they name no
+    /// address and take no arguments: one line under it (`docs/notices.md` rule 6). There exactly
+    /// when `account` is.
+    pub mark: Option<NoticeText>,
     /// The one thing a host offers to do about it, or `None` when there is nothing to do.
     pub action: Option<NoticeAction>,
+    /// The label of `action`'s button, there exactly when `action` is.
+    pub action_label: Option<NoticeText>,
     /// Whether a host offers to close it. Only a notice about something that already happened
     /// can be closed; one about a state that holds goes when the state does.
     pub dismissible: bool,
     /// The person ran `action` and the host reported that it did not complete. A host says so
     /// beside the notice. Cleared when the notice goes.
     pub remedy_failed: bool,
+}
+
+/// Words named by their catalog key, with what fills its placeholders. A host turns them into
+/// text with the generated `notice` lookup, the same for every key, so no client keeps a switch
+/// of its own; every key starts `notice_`, and every argument is a string.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct NoticeText {
+    /// The catalog key.
+    pub key: String,
+    /// Each placeholder's value, by its name in the catalog.
+    pub args: HashMap<String, String>,
 }
 
 /// What a notice says. The words are the catalog's, per kind; the arguments are here.
@@ -122,4 +146,7 @@ pub enum NoticeAction {
     SignInToAllodia,
     /// Refresh what the notice's screen shows, which dials the account again.
     Retry,
+    /// Ask whether to allow the account's new server, found on another site
+    /// (`MailcalApp::pending_server_change`, `docs/account-autodetect.md` rule 14).
+    Review,
 }
