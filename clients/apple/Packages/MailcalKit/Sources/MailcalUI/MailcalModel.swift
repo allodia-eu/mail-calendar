@@ -298,6 +298,8 @@ final class MailboxModel {
     var connectivity: ConnectivitySnapshot?
     /// The core's notices, ranked (`Surface::Notices`, docs/notices.md); `nil` until first pulled.
     var notices: [Notice]?
+    /// Whether the iPad's sidebar column, which carries the notice card, is on screen.
+    var sidebarShown = false
     /// The local MCP (AI assistant access) settings, pulled on a `Surface::Settings` signal and
     /// once at connect. Carries whether a server is actually listening and where, not only what
     /// the user chose, a panel showing the toggle alone would say "on" while nothing is

@@ -27,6 +27,7 @@ extension ContentView {
             // The list carries its own title and search field, so the navigation bar stays out of
             // its way rather than showing the heading twice.
             contactsList
+                .tracksSidebar(model)
                 .navigationBarTitleDisplayMode(.inline)
                 .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 460)
         } detail: {
@@ -46,6 +47,7 @@ extension ContentView {
         } detail: {
             // The calendar puts its own title (the period on screen) and items in this bar.
             bannered(calendarDetail)
+                .tracksSidebar(model)
                 .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -58,6 +60,7 @@ extension ContentView {
                 .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 300)
         } content: {
             compactMessageList
+                .tracksSidebar(model)
                 .navigationTitle(currentFolderName)
                 // Large, for the reason the iPhone's is: see phoneMail.
                 .navigationBarTitleDisplayMode(.large)
@@ -76,6 +79,18 @@ extension ContentView {
                 }
         } detail: {
             bannered(readingPane)
+        }
+    }
+}
+
+private extension View {
+    /// Records whether the sidebar is beside this column, the one that follows it: the column sits
+    /// at the window's leading edge exactly when the split view has hidden the sidebar, as it does
+    /// in portrait. The sidebar cannot say so itself, because a hidden column keeps the frame it
+    /// has when shown. While it is hidden the detail column draws the notice row (`bannered`).
+    func tracksSidebar(_ model: MailboxModel) -> some View {
+        onGeometryChange(for: Bool.self) { $0.frame(in: .global).minX < 1 } action: { atEdge in
+            model.sidebarShown = !atEdge
         }
     }
 }

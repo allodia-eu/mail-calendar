@@ -2,8 +2,8 @@ import MailcalBindings
 import SwiftUI
 
 extension ContentView {
-    /// `content` with the notice row above it on iPhone (docs/notices.md); the Mac and the iPad
-    /// put theirs in the sidebar.
+    /// `content` with the notice row above it on iPhone, and on an iPad whose sidebar column, where
+    /// its card is, is hidden (docs/notices.md); the Mac puts its own in the sidebar.
     ///
     /// Each navigation stack's own content, under its bar: an inset outside a tab's stack does not
     /// move that stack's bar down, so a row there covers the bar and its buttons.
@@ -12,7 +12,7 @@ extension ContentView {
         content
         #else
         content.safeAreaInset(edge: .top) {
-            if hSize == .compact {
+            if hSize == .compact || !model.sidebarShown {
                 NoticeStrip(model: model, destination: model.destination)
             }
         }

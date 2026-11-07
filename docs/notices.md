@@ -104,7 +104,8 @@ account's page in
 [`SettingsDialog.AccountNotices.cs`](../clients/windows/Mailcal/Dialogs/SettingsDialog.AccountNotices.cs).
 
 On iPhone the row sits under each tab's bar rather than inside the list, so the calendar, which has
-no list, draws it in the same place. On Apple the rules are `NoticeRules.swift`, tested in
+no list, draws it in the same place. An iPad whose sidebar column is hidden, as a split view hides it in
+portrait, draws that same row over its detail column, so a notice is never out of sight. On Apple the rules are `NoticeRules.swift`, tested in
 `NoticeRulesTests`; the views are `NoticeViews.swift`, the model's pull, announcement and remedies
 `MailcalModel.Notices.swift`, and `BannerPlacementTests` holds the iPhone row under the bar.
 
