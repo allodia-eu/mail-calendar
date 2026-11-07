@@ -366,3 +366,6 @@ fn a_failed_remedy_is_forgotten_when_the_notice_offers_another() {
 
 #[path = "notices_mapping_tests.rs"]
 mod mapping;
+
+#[path = "notices_retry_tests.rs"]
+mod retry;

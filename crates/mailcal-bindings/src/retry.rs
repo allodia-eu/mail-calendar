@@ -177,6 +177,7 @@ impl MailcalApp {
             // the last handle on the app must not be dropped on a thread of its own runtime.
             if let Some(app) = app {
                 std::thread::spawn(move || {
+                    app.settle_notice_retries();
                     let dial_again = asked_again || !after_parent.is_empty();
                     lock(&app.disconnected).extend(after_parent);
                     if dial_again {

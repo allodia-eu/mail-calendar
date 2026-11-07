@@ -14,9 +14,17 @@ pub enum NoticeIntent {
         /// The notice's `id`.
         id: String,
     },
-    /// The notice's `action` ran and did not complete: a sign-in that failed, a retry that did
-    /// not reach the server. A browser the person closed is not a failure and is not reported.
-    /// Ignored for a notice with no action.
+    /// Run a notice's `Retry`: the core refreshes the notice's screen, which dials the account
+    /// again, and marks the notice `remedy_failed` if it still stands when that dial ends, which
+    /// only the core can tell. A host dispatches this rather than the refresh itself. Ignored for
+    /// a notice that does not offer Retry.
+    Retry {
+        /// The notice's `id`.
+        id: String,
+    },
+    /// The notice's `action` ran and did not complete: a sign-in that failed. A browser the
+    /// person closed is not a failure and is not reported, and a Retry is the core's to judge
+    /// (`Retry`). Ignored for a notice with no action.
     RemedyFailed {
         /// The notice's `id`.
         id: String,

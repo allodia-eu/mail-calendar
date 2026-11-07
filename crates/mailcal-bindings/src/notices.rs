@@ -306,6 +306,8 @@ pub(crate) struct NoticeBook {
     /// The remedy each notice was offering when it was reported as failed. A notice whose action
     /// has changed since offers something nobody has tried, so its entry is dropped.
     remedy_failed: HashMap<NoticeId, NoticeAction>,
+    /// The notices whose Retry started a dial that has not ended yet.
+    retrying: HashSet<NoticeId>,
 }
 
 impl NoticeBook {
@@ -315,6 +317,7 @@ impl NoticeBook {
         self.first_raised.retain(|id, _| live.contains(id));
         self.dismissed.retain(|id| live.contains(id));
         self.remedy_failed.retain(|id, _| live.contains(id));
+        self.retrying.retain(|id| live.contains(id));
         self.in_force.clear();
         let mut ranked = Vec::with_capacity(raised.len());
         for notice in raised {
@@ -373,6 +376,31 @@ impl NoticeBook {
             return None;
         }
         Some(dismissal)
+    }
+
+    /// Records that `id`'s Retry has started a dial, if it is in force and offers Retry, answering
+    /// whether it did.
+    pub(crate) fn note_retry(&mut self, id: &str) -> bool {
+        let id = NoticeId(id.to_owned());
+        if self.in_force.get(&id).and_then(|notice| notice.action) != Some(NoticeAction::Retry) {
+            return false;
+        }
+        self.retrying.insert(id);
+        true
+    }
+
+    /// A dial has ended: every retried notice still in force did not get through, so its remedy
+    /// failed. Answers the notices it marked. Call it after a snapshot, so a notice the dial
+    /// cleared has already gone.
+    pub(crate) fn settle_retries(&mut self) -> Vec<String> {
+        let mut marked = Vec::new();
+        for id in std::mem::take(&mut self.retrying) {
+            if self.in_force.contains_key(&id) {
+                self.remedy_failed.insert(id.clone(), NoticeAction::Retry);
+                marked.push(id.0);
+            }
+        }
+        marked
     }
 
     /// Marks `id`'s remedy as failed if it is in force and has one, answering whether it did.

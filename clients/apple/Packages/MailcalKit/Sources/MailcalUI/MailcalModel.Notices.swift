@@ -46,7 +46,8 @@ extension MailboxModel {
                 review(question)
             }
         case .retry:
-            retry(notice.screens)
+            // The core refreshes, and says on the notice if the dial it starts does not get through.
+            app?.dispatch(intent: .notices(intent: .retry(id: notice.id)))
         case .signInToAllodia:
             switch await signInToAllodia() {
             case .signedIn: await syncAllodiaAccounts()
@@ -61,15 +62,6 @@ extension MailboxModel {
     /// Tells the core `notice`'s remedy did not complete, so it says so beside the notice.
     private func remedyFailed(_ notice: Notice) {
         app?.dispatch(intent: .notices(intent: .remedyFailed(id: notice.id)))
-    }
-
-    /// A refresh of what the notice's screen shows, which dials the account again.
-    private func retry(_ screens: NoticeScreens) {
-        switch screens {
-        case .calendar: app?.dispatch(intent: .refreshCalendar)
-        case .contacts: app?.dispatch(intent: .refreshContacts)
-        case .mail, .everywhere: refresh()
-        }
     }
 
     /// Signs `account` in again the way its sign-in was made, answering whether that either
