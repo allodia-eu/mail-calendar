@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     AccountCapability, AccountChangeNotice, AccountCredentialStore, AccountPage, AccountPageIntent,
-    AccountUseNote, CredentialStoreError, Intent, LogLevel, MailcalApp,
+    AccountUseBlock, CredentialStoreError, Intent, LogLevel, MailcalApp,
     tests::{
         ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle, temp_data_dir,
     },
@@ -118,7 +118,7 @@ fn a_change_the_core_refuses_leaves_a_notice_and_a_missing_server_is_said_first(
         .iter()
         .find(|switch| switch.capability == AccountCapability::Calendar)
         .expect("listed");
-    assert_eq!(calendar.note, Some(AccountUseNote::NeedsServer));
+    assert_eq!(calendar.blocked, Some(AccountUseBlock::NeedsServer));
     assert!(!calendar.control.enabled);
 
     // Mail is the last use: the page holds it, and the core refuses it all the same.

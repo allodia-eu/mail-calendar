@@ -151,6 +151,9 @@ attention, human or agent alike. Write the fact, not the story around it.
   it, and the work is not done until that issue is closed. What a platform cannot do at all is a
   decision, stated as a rule in its contract with the reason. Existing "Known gaps" entries are
   debt to pay down; nothing new is added to them.
+- **A rule is decided once, in the core.** The check that refuses a change and the screen that
+  predicts it call the same function, and a client words the answer; a rule restated to predict
+  it (or copied into a client) is a second implementation that will disagree.
 - **Consume the engine only through its `engine-api` facade.** Never reach into lower engine crates.
 - **Protocol knowledge belongs in the engine: check before you parse.** About to read or write
   protocol bytes here (an iCalendar property, a MIME part, a JMAP or DAV payload, an RFC status

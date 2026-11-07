@@ -242,8 +242,8 @@ pub use records::{
     },
 };
 pub use records_account_page::{
-    AccountChangeNotice, AccountChangeNoticeRaised, AccountLinkPicker, AccountPage, AccountUseNote,
-    AccountUseSwitch, ControlState,
+    AccountChangeNotice, AccountChangeNoticeRaised, AccountLinkPicker, AccountPage,
+    AccountUseBlock, AccountUseStatus, AccountUseSwitch, ControlState,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,

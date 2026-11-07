@@ -72,7 +72,7 @@ pub(crate) use dial::{AccountDial, ConnectFailure, MAX_CONCURRENT_DIALS, dial_al
 pub(crate) use nextcloud::issued as nextcloud_issued;
 pub(crate) use registered::Registered;
 pub(crate) use sign_in::SignInConfig;
-pub(crate) use uses::UseChange;
+pub(crate) use uses::{Toggle, UseChange};
 
 /// Every connected account's re-connection state, keyed by account id, and the gate that makes
 /// "registered before dialed" a property of the code rather than a rule in a document.

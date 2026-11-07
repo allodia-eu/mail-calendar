@@ -11,7 +11,7 @@ use mailcal_account::Capability;
 use crate::{
     AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, AccountPage,
     AccountPageIntent, CapabilityChange, LinkSlot, MailcalApp, MailcalError, account_page,
-    account_work::PageWork,
+    account_registry::Toggle, account_work::PageWork,
 };
 
 #[uniffi::export]
@@ -27,10 +27,16 @@ impl MailcalApp {
             .into_iter()
             .find(|entry| entry.id == account_id)?;
         let (hold, notice) = self.account_work.of(&account_id);
-        Some(account_page::page(&entry, hold, notice, |capability| {
-            self.registry
-                .switch_on(&account_id, Capability::from(capability))
-        }))
+        Some(account_page::page(
+            &entry,
+            hold,
+            notice,
+            |capability, on| {
+                self.registry
+                    .toggle(&account_id, Capability::from(capability), on)
+                    .unwrap_or(Toggle::Unchanged)
+            },
+        ))
     }
 
     /// What the last removal came to, when it needs saying: on the accounts list, since the

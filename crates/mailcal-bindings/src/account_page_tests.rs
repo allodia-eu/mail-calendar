@@ -1,14 +1,18 @@
-//! An account's page, decided from its entry alone: the rules every client used to keep a copy
-//! of, and how work running on the page holds its controls.
+//! An account's page as it is put together: what pressing a switch would come to drawn as the
+//! switch, what is wrong with a use said beside it, the link pickers, and how a running change
+//! holds the controls. Whether a change is refused is the registry's `toggle`, whose rules are
+//! pinned in `account_registry/toggle_tests.rs`; here it is stood in for.
 
-use AccountCapability::{Calendar, Colleagues, Contacts, Mail, Meetings, SharedMailboxes};
+use AccountCapability::{Calendar, Contacts, Mail, Meetings};
 use CapabilityState::{NeedsPermission, NotOffered, Off, On};
+use mailcal_account::Capabilities;
 
-use super::{SwitchOn, page};
+use super::page;
 use crate::{
     AccountCapability, AccountEntry, AccountKind, AccountLinksView, AccountPage, AccountUse,
-    AccountUseNote, AccountUseSwitch, CapabilityState, ControlState, LinkCandidates, LinkSlot,
-    LinkedAccount, SignInMethod, UseProblem,
+    AccountUseBlock, AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState,
+    LinkCandidates, LinkSlot, LinkedAccount, SignInMethod, UseProblem,
+    account_registry::Toggle,
     account_work::{Hold, PageWork},
 };
 
@@ -70,8 +74,15 @@ const fn own(work: PageWork) -> Hold {
     }
 }
 
+/// A registry that makes every change.
+fn applies(_: AccountCapability, _: bool) -> Toggle {
+    Toggle::Applies {
+        next: Capabilities::default(),
+    }
+}
+
 fn idle(entry: &AccountEntry) -> AccountPage {
-    page(entry, Hold::default(), None, |_| SwitchOn::Applies)
+    page(entry, Hold::default(), None, applies)
 }
 
 fn switch(page: &AccountPage, capability: AccountCapability) -> &AccountUseSwitch {
@@ -82,139 +93,120 @@ fn switch(page: &AccountPage, capability: AccountCapability) -> &AccountUseSwitc
 }
 
 #[test]
-fn the_last_use_cannot_be_switched_off() {
-    let page = idle(&mailbox_only());
+fn a_switch_the_core_would_refuse_is_held_and_says_why_and_one_it_would_make_is_free() {
+    let account = mailbox_only();
+    let page = page(&account, Hold::default(), None, |capability, on| {
+        match (capability, on) {
+            (Mail, false) => Toggle::Refused(AccountUseBlock::LastUse),
+            (Contacts, true) => Toggle::Refused(AccountUseBlock::NeedsServer),
+            _ => applies(capability, on),
+        }
+    });
     assert_eq!(
         switch(&page, Mail),
         &AccountUseSwitch {
             capability: Mail,
             on: true,
             control: HELD,
-            note: Some(AccountUseNote::Last),
+            blocked: Some(AccountUseBlock::LastUse),
+            status: None,
             asks_provider: false,
             confirms_off: true,
             reviews_server_change: false,
-        }
+        },
+        "an on switch is asked what switching it off would do"
     );
+    assert_eq!(
+        switch(&page, Contacts).blocked,
+        Some(AccountUseBlock::NeedsServer)
+    );
+    assert_eq!(switch(&page, Contacts).control, HELD);
     let calendar = switch(&page, Calendar);
     assert_eq!(
-        (calendar.on, calendar.control, calendar.note),
-        (false, IDLE, None)
+        (calendar.control, calendar.blocked, calendar.status),
+        (IDLE, None, None)
     );
 }
 
 #[test]
-fn video_meetings_are_never_the_last_use_and_switch_off_without_asking() {
-    let page = idle(&entry(
-        AccountKind::Dav,
-        &[(Calendar, On), (Contacts, Off), (Meetings, On)],
-    ));
-    assert_eq!(switch(&page, Calendar).note, Some(AccountUseNote::Last));
-    let meetings = switch(&page, Meetings);
-    assert_eq!((meetings.control, meetings.note), (IDLE, None));
-    assert!(!meetings.confirms_off);
-    assert!(switch(&page, Calendar).confirms_off);
-}
-
-#[test]
-fn colleagues_wait_for_contacts_and_shared_mailboxes_for_mail() {
-    let mut account = entry(
-        AccountKind::Microsoft,
-        &[
-            (Mail, Off),
-            (SharedMailboxes, Off),
-            (Calendar, On),
-            (Contacts, Off),
-            (Colleagues, Off),
-        ],
-    );
-    let page_now = idle(&account);
-    assert_eq!(
-        (
-            switch(&page_now, Colleagues).control,
-            switch(&page_now, Colleagues).note
-        ),
-        (HELD, Some(AccountUseNote::NeedsContacts))
-    );
-    assert_eq!(
-        (
-            switch(&page_now, SharedMailboxes).control,
-            switch(&page_now, SharedMailboxes).note
-        ),
-        (HELD, Some(AccountUseNote::NeedsMail))
-    );
-
-    account.uses[0].state = On;
-    account.uses[3].state = On;
-    let page_now = idle(&account);
-    assert_eq!(switch(&page_now, Colleagues).control, IDLE);
-    assert_eq!(switch(&page_now, SharedMailboxes).control, IDLE);
-}
-
-#[test]
-fn a_use_waiting_on_permission_is_drawn_off_and_switching_it_on_asks() {
-    let page = idle(&entry(
+fn a_switch_whose_grant_lacks_it_asks_the_provider_and_one_waiting_on_it_says_so() {
+    let account = entry(
         AccountKind::Google,
-        &[(Mail, Off), (Calendar, NeedsPermission), (Contacts, Off)],
-    ));
-    let calendar = switch(&page, Calendar);
-    assert!(!calendar.on, "it is not working, so it is not drawn on");
-    assert!(calendar.asks_provider);
-    assert_eq!(
-        calendar.control, IDLE,
-        "an only use waiting on permission can still be asked for"
+        &[(Mail, On), (Calendar, NeedsPermission), (Contacts, Off)],
     );
-    assert_eq!(calendar.note, Some(AccountUseNote::Withheld));
-}
-
-#[test]
-fn what_switching_on_needs_is_said_before_the_switch_is_pressed() {
-    let account = mailbox_only();
     let page = page(
         &account,
         Hold::default(),
         None,
-        |capability| match capability {
-            Calendar => SwitchOn::AsksProvider,
-            Contacts => SwitchOn::NeedsServer,
-            _ => SwitchOn::Applies,
+        |capability, on| match capability {
+            Contacts => Toggle::AsksProvider,
+            _ => applies(capability, on),
         },
     );
     let calendar = switch(&page, Calendar);
     assert!(
-        calendar.asks_provider,
+        !calendar.on,
+        "a use waiting on the provider is not working, so it is drawn off"
+    );
+    assert!(calendar.asks_provider && calendar.control.enabled);
+    assert_eq!(calendar.status, Some(AccountUseStatus::Withheld));
+    let contacts = switch(&page, Contacts);
+    assert!(
+        contacts.asks_provider,
         "a grant that lacks it goes to the provider"
     );
-    assert_eq!((calendar.control, calendar.note), (IDLE, None));
-    let contacts = switch(&page, Contacts);
-    assert!(!contacts.asks_provider);
     assert_eq!(
-        (contacts.control, contacts.note),
-        (HELD, Some(AccountUseNote::NeedsServer)),
-        "a use with no server says so rather than failing when pressed"
+        (contacts.status, contacts.blocked),
+        (None, None),
+        "not chosen, so nothing is wrong"
     );
 }
 
 #[test]
-fn a_use_the_server_does_not_offer_cannot_be_switched_and_holds_nothing_on() {
-    let page = idle(&entry(
-        AccountKind::Jmap,
-        &[(Mail, On), (Calendar, NotOffered), (Contacts, Off)],
-    ));
+fn what_is_wrong_with_a_use_is_said_beside_why_it_cannot_be_pressed() {
+    // A calendar-only account whose calendar is unreachable: the switch is held because it is the
+    // last use, and the page says both, rather than one hiding the other.
+    let mut account = entry(AccountKind::Dav, &[(Calendar, On), (Contacts, Off)]);
+    account.uses[0].problem = Some(UseProblem::Unreachable);
+    let page = page(&account, Hold::default(), None, |capability, on| {
+        match (capability, on) {
+            (Calendar, false) => Toggle::Refused(AccountUseBlock::LastUse),
+            _ => applies(capability, on),
+        }
+    });
     let calendar = switch(&page, Calendar);
+    assert_eq!(calendar.blocked, Some(AccountUseBlock::LastUse));
     assert_eq!(
-        (calendar.on, calendar.control, calendar.note),
-        (false, HELD, Some(AccountUseNote::NotOffered))
-    );
-    assert_eq!(
-        switch(&page, Mail).note,
-        Some(AccountUseNote::Last),
-        "mail is the one use that works"
+        calendar.status,
+        Some(AccountUseStatus::Problem {
+            problem: UseProblem::Unreachable
+        })
     );
 }
 
 #[test]
-fn a_use_that_did_not_connect_says_why_and_one_review_follows_the_paused_uses() {
+fn a_use_the_server_does_not_offer_is_asked_about_switching_on() {
+    let account = entry(AccountKind::Jmap, &[(Mail, On), (Calendar, NotOffered)]);
+    let page = page(&account, Hold::default(), None, |capability, on| {
+        match (capability, on) {
+            (Calendar, true) => Toggle::Refused(AccountUseBlock::NotOffered),
+            _ => applies(capability, on),
+        }
+    });
+    let calendar = switch(&page, Calendar);
+    assert_eq!((calendar.on, calendar.control), (false, HELD));
+    assert_eq!(calendar.blocked, Some(AccountUseBlock::NotOffered));
+}
+
+#[test]
+fn video_meetings_switch_off_without_asking() {
+    let page = idle(&entry(AccountKind::Dav, &[(Calendar, On), (Meetings, On)]));
+    assert!(!switch(&page, Meetings).confirms_off);
+    assert!(switch(&page, Calendar).confirms_off);
+}
+
+#[test]
+fn one_review_follows_the_uses_paused_for_a_new_server() {
     let mut account = entry(
         AccountKind::Imap,
         &[(Mail, On), (Calendar, On), (Contacts, On)],
@@ -222,36 +214,20 @@ fn a_use_that_did_not_connect_says_why_and_one_review_follows_the_paused_uses() 
     account.uses[1].problem = Some(UseProblem::ServerChanged);
     account.uses[2].problem = Some(UseProblem::ServerChanged);
     let page_now = idle(&account);
-    assert_eq!(
-        switch(&page_now, Calendar).note,
-        Some(AccountUseNote::ServerChangedCalendar)
-    );
-    assert_eq!(
-        switch(&page_now, Contacts).note,
-        Some(AccountUseNote::ServerChangedContacts)
-    );
     assert!(!switch(&page_now, Calendar).reviews_server_change);
     assert!(
         switch(&page_now, Contacts).reviews_server_change,
-        "one Review, beneath the last of the notes it answers"
+        "one Review, beneath the last of the uses it answers"
     );
 
-    account.uses[1].problem = Some(UseProblem::Unreachable);
     account.uses[2].problem = Some(UseProblem::NeedsOwnSignIn);
     let page_now = idle(&account);
+    assert!(switch(&page_now, Calendar).reviews_server_change);
     assert_eq!(
-        switch(&page_now, Calendar).note,
-        Some(AccountUseNote::UnreachableCalendar)
-    );
-    assert_eq!(
-        switch(&page_now, Contacts).note,
-        Some(AccountUseNote::OwnSignInContacts)
-    );
-    assert!(
-        page_now
-            .uses
-            .iter()
-            .all(|switch| !switch.reviews_server_change)
+        switch(&page_now, Contacts).status,
+        Some(AccountUseStatus::Problem {
+            problem: UseProblem::NeedsOwnSignIn
+        })
     );
 }
 
@@ -317,9 +293,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
     );
     account.link_candidates.calendar = vec![linked("cal@cloud.example")];
 
-    let switching = page(&account, own(PageWork::Use(Calendar)), None, |_| {
-        SwitchOn::Applies
-    });
+    let switching = page(&account, own(PageWork::Use(Calendar)), None, applies);
     assert_eq!(
         switch(&switching, Calendar).control,
         ControlState {
@@ -335,7 +309,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
         &account,
         own(PageWork::Link(LinkSlot::Calendar)),
         None,
-        |_| SwitchOn::Applies,
+        applies,
     );
     assert!(linking.links[0].control.running && !linking.links[0].control.enabled);
     assert!(
@@ -345,7 +319,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
             .all(|switch| !switch.control.enabled && !switch.control.running)
     );
 
-    let removing = page(&account, own(PageWork::Remove), None, |_| SwitchOn::Applies);
+    let removing = page(&account, own(PageWork::Remove), None, applies);
     assert!(removing.remove.running && !removing.remove.enabled);
 
     // A change running on another account holds this page too, and marks nothing here running:
@@ -357,7 +331,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
             own: None,
         },
         None,
-        |_| SwitchOn::Applies,
+        applies,
     );
     assert!(elsewhere.uses.iter().all(|switch| switch.control == HELD));
     assert_eq!((elsewhere.links[0].control, elsewhere.remove), (HELD, HELD));

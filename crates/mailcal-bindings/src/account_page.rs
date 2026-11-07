@@ -1,49 +1,25 @@
-//! The rules of an account's page in Settings (`docs/accounts.md` rules 11 to 13), decided once
-//! from the account's entry, the work its page has running and what switching a use on needs.
-//! Every client draws the [`AccountPage`] this makes and decides none of it.
+//! An account's page in Settings (`docs/accounts.md` rules 11 to 13), drawn from the account's
+//! entry, the change running and what pressing each switch would come to, which the registry's
+//! own `toggle` answers: the check that refuses a change and the page that predicts it are one
+//! decision. Every client draws the [`AccountPage`] this makes and decides none of it.
 
 use crate::{
     AccountCapability, AccountChangeNoticeRaised, AccountEntry, AccountLinkPicker, AccountPage,
-    AccountUseNote, AccountUseSwitch, CapabilityState, ControlState, LinkSlot, UseProblem,
+    AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState, LinkSlot, UseProblem,
+    account_registry::Toggle,
     account_work::{Hold, PageWork},
 };
 
-/// What switching an unused use on needs, as the account's registry answers it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SwitchOn {
-    /// The core switches it on.
-    Applies,
-    /// The provider has not granted it: its sign-in is asked for it.
-    AsksProvider,
-    /// The account has no server for it yet.
-    NeedsServer,
-}
-
-/// The three uses an account is used for at least one of.
-const PRIMARY: [AccountCapability; 3] = [
-    AccountCapability::Mail,
-    AccountCapability::Calendar,
-    AccountCapability::Contacts,
-];
-
-/// Whether a use in `state` is one the account is used for: on, or waiting on the provider.
-const fn works(state: CapabilityState) -> bool {
-    matches!(
-        state,
-        CapabilityState::On | CapabilityState::NeedsPermission
-    )
-}
-
-/// `entry`'s page, with `hold` holding its controls and `switch_on` answering what turning an
-/// unused use on needs.
+/// `entry`'s page. `hold` says which change runs, and `toggle` what switching a use on (`true`)
+/// or off comes to.
 pub(crate) fn page(
     entry: &AccountEntry,
     hold: Hold,
     notice: Option<AccountChangeNoticeRaised>,
-    switch_on: impl Fn(AccountCapability) -> SwitchOn,
+    toggle: impl Fn(AccountCapability, bool) -> Toggle,
 ) -> AccountPage {
-    let control = |work: PageWork| ControlState {
-        enabled: !hold.busy,
+    let control = |work: PageWork, free: bool| ControlState {
+        enabled: free && !hold.busy,
         running: hold.own == Some(work),
     };
     let review = review_after(entry);
@@ -51,17 +27,38 @@ pub(crate) fn page(
         .uses
         .iter()
         .map(|use_| {
-            let mut switch = use_switch(entry, use_.capability, &switch_on);
-            switch.control.enabled &= !hold.busy;
-            switch.control.running = hold.own == Some(PageWork::Use(use_.capability));
-            switch.reviews_server_change = review == Some(use_.capability);
-            switch
+            let capability = use_.capability;
+            // A use waiting on the provider is drawn off, and switching it on asks again.
+            let pressing = match use_.state {
+                CapabilityState::NeedsPermission => Toggle::AsksProvider,
+                CapabilityState::On => toggle(capability, false),
+                CapabilityState::Off | CapabilityState::NotOffered => toggle(capability, true),
+            };
+            let blocked = match pressing {
+                Toggle::Refused(block) => Some(block),
+                _ => None,
+            };
+            AccountUseSwitch {
+                capability,
+                on: use_.state == CapabilityState::On,
+                control: control(PageWork::Use(capability), blocked.is_none()),
+                blocked,
+                status: use_
+                    .problem
+                    .map(|problem| AccountUseStatus::Problem { problem })
+                    .or((use_.state == CapabilityState::NeedsPermission)
+                        .then_some(AccountUseStatus::Withheld)),
+                asks_provider: pressing == Toggle::AsksProvider,
+                // Video meetings hold nothing on the device to remove (`docs/accounts.md` rule 19).
+                confirms_off: capability != AccountCapability::Meetings,
+                reviews_server_change: review == Some(capability),
+            }
         })
         .collect();
     let links = link_pickers(entry)
         .into_iter()
         .map(|mut picker| {
-            picker.control = control(PageWork::Link(picker.slot));
+            picker.control = control(PageWork::Link(picker.slot), true);
             picker
         })
         .collect();
@@ -69,88 +66,8 @@ pub(crate) fn page(
         account: entry.id.clone(),
         uses,
         links,
-        remove: control(PageWork::Remove),
+        remove: control(PageWork::Remove, true),
         notice,
-    }
-}
-
-/// The switch for `capability`. The last of mail, calendar and contacts cannot be switched off,
-/// colleagues cannot be switched on without contacts, nor shared mailboxes without mail, and a use
-/// with no server cannot be switched on until it has one: the core refuses each, so the switch
-/// says why rather than letting the person find out.
-fn use_switch(
-    entry: &AccountEntry,
-    capability: AccountCapability,
-    switch_on: impl Fn(AccountCapability) -> SwitchOn,
-) -> AccountUseSwitch {
-    let used = |wanted| {
-        entry
-            .uses
-            .iter()
-            .any(|use_| use_.capability == wanted && works(use_.state))
-    };
-    let this = entry.uses.iter().find(|use_| use_.capability == capability);
-    let state = this.map_or(CapabilityState::Off, |use_| use_.state);
-    let problem = this.and_then(|use_| use_.problem);
-    // A use waiting on a permission is drawn off, so it is never the one held on: switching it
-    // on asks the provider, which the core does not refuse.
-    let last = state == CapabilityState::On
-        && PRIMARY.contains(&capability)
-        && PRIMARY.iter().filter(|wanted| used(**wanted)).count() == 1;
-    let without = |sub, within| capability == sub && state == CapabilityState::Off && !used(within);
-    let without_contacts = without(AccountCapability::Colleagues, AccountCapability::Contacts);
-    let without_mail = without(AccountCapability::SharedMailboxes, AccountCapability::Mail);
-    let not_offered = state == CapabilityState::NotOffered;
-    let needs = (state == CapabilityState::Off).then(|| switch_on(capability));
-    let needs_server = needs == Some(SwitchOn::NeedsServer);
-    let note = if not_offered {
-        Some(AccountUseNote::NotOffered)
-    } else if let Some(problem) = problem {
-        Some(problem_note(capability, problem))
-    } else if last {
-        Some(AccountUseNote::Last)
-    } else if without_contacts {
-        Some(AccountUseNote::NeedsContacts)
-    } else if without_mail {
-        Some(AccountUseNote::NeedsMail)
-    } else if state == CapabilityState::NeedsPermission {
-        Some(AccountUseNote::Withheld)
-    } else if needs_server {
-        Some(AccountUseNote::NeedsServer)
-    } else {
-        None
-    };
-    AccountUseSwitch {
-        capability,
-        on: state == CapabilityState::On,
-        control: ControlState {
-            enabled: !last && !without_contacts && !without_mail && !not_offered && !needs_server,
-            running: false,
-        },
-        note,
-        asks_provider: state == CapabilityState::NeedsPermission
-            || needs == Some(SwitchOn::AsksProvider),
-        // Video meetings hold nothing on the device to remove (`docs/accounts.md` rule 19).
-        confirms_off: capability != AccountCapability::Meetings,
-        reviews_server_change: false,
-    }
-}
-
-/// What a use that did not connect says beneath its switch. Only a calendar or an address book
-/// fails on its own; mail decides whether the account connected at all.
-const fn problem_note(capability: AccountCapability, problem: UseProblem) -> AccountUseNote {
-    let calendar = matches!(capability, AccountCapability::Calendar);
-    match problem {
-        UseProblem::Unreachable if calendar => AccountUseNote::UnreachableCalendar,
-        UseProblem::Unreachable => AccountUseNote::UnreachableContacts,
-        UseProblem::SignInRefused if calendar => AccountUseNote::RefusedCalendar,
-        UseProblem::SignInRefused => AccountUseNote::RefusedContacts,
-        UseProblem::NeedsOwnSignIn if calendar => AccountUseNote::OwnSignInCalendar,
-        UseProblem::NeedsOwnSignIn => AccountUseNote::OwnSignInContacts,
-        UseProblem::ServerChanged if calendar => AccountUseNote::ServerChangedCalendar,
-        UseProblem::ServerChanged => AccountUseNote::ServerChangedContacts,
-        UseProblem::NoneOnServer if calendar => AccountUseNote::NoneOnServerCalendar,
-        UseProblem::NoneOnServer => AccountUseNote::NoneOnServerContacts,
     }
 }
 

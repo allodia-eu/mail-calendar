@@ -2,7 +2,7 @@
 //! control on it, what it shows, whether it can be used, and whether work it started is still
 //! running (`docs/waiting.md`). A client draws this and keeps no rule of its own about it.
 
-use crate::{AccountCapability, LinkSlot, LinkedAccount};
+use crate::{AccountCapability, LinkSlot, LinkedAccount, UseProblem};
 
 /// What a control the person can act on is doing, as every client draws it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
@@ -14,36 +14,44 @@ pub struct ControlState {
     pub running: bool,
 }
 
-/// The line under a use's switch. The client words it; which one applies is decided here.
+/// Why a use's switch cannot be pressed: the reason the core would refuse it, said before it is
+/// (`docs/waiting.md` rule 6). The client words it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
-pub enum AccountUseNote {
+pub enum AccountUseBlock {
     /// The last of mail, calendar and contacts: the account is removed instead.
-    Last,
+    LastUse,
     /// Colleagues, while contacts are off.
     NeedsContacts,
     /// Shared mailboxes, while mail is off.
     NeedsMail,
+    /// The server offers none.
+    NotOffered,
+    /// The account has no server for it yet: its address goes in the servers below.
+    NeedsServer,
+}
+
+impl AccountUseBlock {
+    /// The reason in a sentence, for a log and for the core's own refusal.
+    #[must_use]
+    pub const fn reason(self) -> &'static str {
+        match self {
+            Self::LastUse => "an account is used for at least one of mail, calendar and contacts",
+            Self::NeedsContacts => "colleagues are only read beside contacts",
+            Self::NeedsMail => "shared mailboxes are only opened beside mail",
+            Self::NotOffered => "this account does not offer that",
+            Self::NeedsServer => "this account has no server for that",
+        }
+    }
+}
+
+/// What is wrong with a use, said beneath its switch whether or not it can be pressed. The client
+/// words it with the switch's capability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AccountUseStatus {
+    /// Its server did not connect, for this reason (`docs/accounts.md` rule 16).
+    Problem { problem: UseProblem },
     /// Chosen, and the provider has not granted it; switching it on asks the provider.
     Withheld,
-    /// The server offers none, so nothing can switch it on.
-    NotOffered,
-    /// Off, and the account has no server for it yet: its address goes in the servers below.
-    NeedsServer,
-    /// On, and its server could not be reached; the next refresh tries again.
-    UnreachableCalendar,
-    UnreachableContacts,
-    /// On, and its server refused the account's sign-in.
-    RefusedCalendar,
-    RefusedContacts,
-    /// On, and its server needs a sign-in of its own.
-    OwnSignInCalendar,
-    OwnSignInContacts,
-    /// Paused: its server was found on another site, and waits for the person to allow it.
-    ServerChangedCalendar,
-    ServerChangedContacts,
-    /// On, and its server has none for this account; a refresh does not ask again.
-    NoneOnServerCalendar,
-    NoneOnServerContacts,
 }
 
 /// One use's switch.
@@ -53,13 +61,16 @@ pub struct AccountUseSwitch {
     /// Drawn on. A use waiting on the provider's permission is drawn off: it is not working,
     /// and switching it on is what asks again.
     pub on: bool,
+    /// Its control is enabled exactly when nothing blocks it and no change runs.
     pub control: ControlState,
-    pub note: Option<AccountUseNote>,
+    pub blocked: Option<AccountUseBlock>,
+    pub status: Option<AccountUseStatus>,
     /// Switching it on goes to the provider's sign-in, asking for it, rather than to the core.
     pub asks_provider: bool,
     /// Switching it off is confirmed first: it deletes what the device holds of it.
     pub confirms_off: bool,
-    /// The question that allows its new server is offered beneath it.
+    /// The question that allows its new server is offered beneath it: under the last of the uses
+    /// paused for one, so it follows every status that says so.
     pub reviews_server_change: bool,
 }
 
@@ -88,7 +99,8 @@ pub enum AccountChangeNotice {
     },
     /// Linking `slot` did not take.
     LinkFailed { slot: LinkSlot, detail: String },
-    /// The account could not be removed.
+    /// The account was removed, and its stored credential could not be erased: it comes back at
+    /// the next launch unless the store lets it go.
     RemoveFailed { detail: String },
 }
 

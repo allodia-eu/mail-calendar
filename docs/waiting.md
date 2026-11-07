@@ -26,9 +26,10 @@ before the work does.
    press starts is dispatched and returns at once.
 5. **What a change came to is the core's to decide and the client's to word.** A change that
    worked says nothing: the page shows its result. One that did not leaves a notice, raised once.
-6. **What a control will need is said before it is pressed.** A switch that would go to the
-   provider's sign-in, or that cannot work until a server is given, says so on the page rather than
-   failing when pressed.
+6. **What a control will need is said before it is pressed, by the decision that would refuse
+   it.** A switch that would go to the provider's sign-in, or that cannot work until a server is
+   given, says so on the page rather than failing when pressed, and what the page predicts is
+   asked of the same function the change itself acts on, so the two cannot disagree.
 7. **A change the core applies at once needs nothing.** Archive, delete, flag and the other message
    actions update the list optimistically; a folder change shows its pending row
    ([`folder-pane.md`](folder-pane.md)).
@@ -39,7 +40,10 @@ Every control a person can act on carries a `ControlState`: `enabled`, and `runn
 started is under way. A running control is never enabled. A Settings page is a record the core
 produces (`MailcalApp::account_page` for an account's page), read again on every
 `Surface::Settings` signal; its changes are dispatched (`Intent::AccountPage`) and return at once, and
-the signal is raised when one starts and when it ends. Only the page that started a change marks its
+the signal is raised when one starts and when it ends. A use's switch carries `blocked`, why the
+core would refuse pressing it, asked of the registry's `toggle`, which `set_use` acts on too, so a
+switch is enabled exactly when nothing blocks it and no change runs; and `status`, what is wrong
+with the use, said beside it whether or not it can be pressed. Only the page that started a change marks its
 control running; every other page holds its controls without a spinner. The page's `notice` carries
 an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
@@ -56,9 +60,12 @@ a picker, a confirmation), in its platform's idiom, so a control drawn anywhere 
 ## Enforcement
 
 - [`account_page_tests.rs`](../crates/mailcal-bindings/src/account_page_tests.rs) pins the account
-  page's rules once: the last use held, colleagues beside contacts, shared mailboxes beside mail,
-  what switching on needs said first, one Review beneath the paused uses, the link pickers, and
-  running work holding every control and marking its own.
+  page as it is put together: a refused switch held and saying why, a status said beside it, one
+  Review beneath the paused uses, the link pickers, and running work holding every control and
+  marking its own.
+- [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
+  one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
+  mailboxes, a grant that lacks a use, and the page drawn from a real registry.
 - [`app_account_page_tests.rs`](../crates/mailcal-bindings/src/app_account_page_tests.rs) drives a
   change through `dispatch`: it runs and the page comes back free, and one the core refuses leaves
   a notice.
