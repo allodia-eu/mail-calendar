@@ -141,7 +141,7 @@ impl<P: Provider> App<P> {
     /// actually changes and, on that first raise, logs the cause **privacy-safely**: the count
     /// and reason, never the account address: so a support log shows why the prompt appeared.
     /// Sibling of [`note_calendar_reauth_required`](Self::note_calendar_reauth_required).
-    pub(crate) fn note_mail_reauth_required(&self, account: &AccountId) {
+    pub fn note_mail_reauth_required(&self, account: &AccountId) {
         let raised = {
             let mut set = self
                 .mail_reauth_accounts

@@ -683,12 +683,13 @@ jobs:
       # **Five classes of seventeen, and that is the ten-minute budget rather than a judgement
       # about the rest.**
       # A UI test costs what no other gate here costs: a simulator to boot and then the app's own
-      # launch per test. The five that run are the five that hold something written down: the
+      # launch per test. The six that run are the six that hold something written down: the
       # action row's order and the header that scrolls out from under it
       # (docs/reading-actions.md), the calendar pinch (docs/calendar.md), which is also the
       # regression test for a gesture that reached the iOS grid not at all, Settings as the one
       # place a later account is added (docs/settings.md), and the question a server found on
-      # another site asks before anything is sent to it (docs/account-autodetect.md rule 14). The
+      # another site asks before anything is sent to it (docs/account-autodetect.md rule 14), and
+      # each tab's own notice with its button (docs/notices.md rules 2 and 11). The
       # rest run from `clients/apple/Scripts/test-ui.sh` on a developer's machine;
       # `ComposerPresentationTests` is the slowest class in the bundle by some way. Add a `--only`
       # below to move one in.
@@ -698,7 +699,7 @@ jobs:
           clients/apple/Scripts/test-ui.sh --no-core --with-kit \
             --only ReadingActionRowTests --only ReadingHeaderScrollTests \
             --only CalendarPinchTests --only SettingsAddAccountTests \
-            --only ServerChangeTests
+            --only ServerChangeTests --only NoticeTests
 
       # A pull request compiles everything the step above runs (the app, the UI suite and
       # MailcalKit's suite, all for the simulator) and boots nothing (rule 5 at the top of this
