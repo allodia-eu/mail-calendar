@@ -58,6 +58,7 @@ internal fun AccountPage(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Spacer(modifier = Modifier.height(8.dp))
+    AccountNoticesGroup(NoticeRules.about(ui.notices, entry.id), ui.noticeHandlers)
     // Whether this one travels: first, because it decides whether anything below it is anybody
     // else's business (docs/settings.md).
     if (syncMode != null) {

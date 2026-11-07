@@ -7,8 +7,6 @@ import android.content.Context
 import uniffi.mailcal_bindings.AccountFolderRow
 import uniffi.mailcal_bindings.FolderIntent
 import uniffi.mailcal_bindings.FolderNameCheck
-import uniffi.mailcal_bindings.FolderNotice
-import uniffi.mailcal_bindings.FolderProblem
 import uniffi.mailcal_bindings.FolderRole
 import uniffi.mailcal_bindings.FolderRow
 import uniffi.mailcal_bindings.Intent
@@ -200,13 +198,6 @@ internal fun deleteCopy(folder: FolderRow, ctx: Context): DeleteCopy {
         )
     }
 }
-
-// Rule 28: what the standing notice says.
-internal fun noticeText(notice: FolderNotice, ctx: Context): String =
-    when (notice.problem) {
-        FolderProblem.CHANGED_ELSEWHERE -> L10n.folder_notice_changed(ctx, notice.folder)
-        FolderProblem.REFUSED -> L10n.folder_notice_refused(ctx, notice.folder)
-    }
 
 // A folder dialog the drawer has open.
 internal sealed interface FolderDialog {

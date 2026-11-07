@@ -61,20 +61,16 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         // A sync-progress signal only updates the download bar; the rows it commits
         // arrive on their own MAILBOX_LIST signal.
         CoreSurface.SYNC_PROGRESS -> syncProgress = app.syncProgress()
-        // A connectivity signal updates the offline banner, the per-account outage
-        // badges, and the friendly connection-issues banner (names + details).
-        // The accounts snapshot first: a provider refusing a calendar changes a use's state, and
-        // the banners name accounts from it.
+        // A provider refusing a calendar changes a use's state on the account's page. What it
+        // says as a notice follows on its own NOTICES signal.
         CoreSurface.CONNECTIVITY -> {
             refreshAccountsSnapshot()
-            refreshConnectivity()
             askSharedMailboxesAgain()
         }
         // A composition's save moved. The signal names none, so there is nothing to publish
         // but the fact that one did: every open composer re-pulls its own off this counter
         // (docs/drafts.md).
         CoreSurface.DRAFT_STATUS -> drafts.draftStatusVersion += 1
-        // Not drawn yet: this client's banners still read the connectivity snapshot.
-        CoreSurface.NOTICES -> {}
+        CoreSurface.NOTICES -> pullNotices()
     }
 }

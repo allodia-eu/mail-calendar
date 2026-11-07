@@ -46,6 +46,8 @@ internal fun MainActivity.startAccountNextcloudSignIn(accountId: String, switchi
             !ours -> Unit
             else -> {
                 signIn.finished()
+                // A wait that ran out is a browser left open, not a refusal (docs/notices.md rule 10).
+                noticeRemedyEnded(NoticeRemedy.ACCOUNT_SIGN_IN, accountId, failed = end is NextcloudEnd.Failed)
                 nextcloudSaid(end, this)?.let {
                     say(AccountNotice(NoticeKind.FAILURE, nextcloudFailedTitle(switching), it))
                 }
@@ -72,7 +74,8 @@ private fun MainActivity.completeAccountNextcloud(accountId: String, grant: Stri
             }
             signIn.finished(switched = answer.isSuccess && switching)
             refreshAccountsSnapshot()
-            refreshConnectivity()
+            pullNotices()
+            noticeRemedyEnded(NoticeRemedy.ACCOUNT_SIGN_IN, accountId, failed = answer.isFailure)
             answer.onSuccess {
                 logUiInfo("sign-in: a calendar and contacts account signed in with Nextcloud")
                 val said = if (switching) {

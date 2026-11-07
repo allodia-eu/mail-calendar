@@ -97,9 +97,6 @@ private fun TestMailbox(position: MailListPosition, search: SearchBarState) {
         onAcceptTimeZoneChange = {},
         onDismissTimeZoneChange = {},
         syncProgress = null,
-        offline = false,
-        unreachableAccounts = emptyList(),
-        connectionIssues = emptyList(),
         onOpenSettings = {},
     )
 }

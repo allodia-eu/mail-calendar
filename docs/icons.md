@@ -69,7 +69,7 @@ noted beside it, and the two without one are this app's own drawings.
 | Important, and any other folder | `folder` | `ic_folder` | `E8B7` Folder | `folder-symbolic` |
 | All Mail | `tray.full` | — | — | — |
 | An account | `person.crop.circle` | `ic_account_circle` (Top level in Move to…) | `E77B` Contact | `avatar-default-symbolic` |
-| An account with a notice ([`notices.md`](notices.md) rule 6) | its first notice's severity glyph, below | `ic_warning` | `E783` Error, `E7BA` Warning or `E946` Info, by the severity of its first notice | its first notice's severity glyph, below |
+| An account with a notice ([`notices.md`](notices.md) rule 6) | its first notice's severity glyph, below | its first notice's severity glyph, below | `E783` Error, `E7BA` Warning or `E946` Info, by the severity of its first notice | its first notice's severity glyph, below |
 | Outbox | `tray.and.arrow.up` | `ic_outbox` | `E898` Upload | `document-send-symbolic` |
 | Add an account | — | — | `E710` Add | — |
 | Open / closed tree | `chevron.down` / `chevron.right` | `ic_keyboard_arrow_down` / `ic_keyboard_arrow_right` | the `NavigationView`'s own | `pan-down-symbolic` / `pan-end-symbolic` |
@@ -266,10 +266,10 @@ The order and names are [`settings.md`](settings.md). Windows draws none (Known 
 
 | Meaning | Apple | Android | Windows | Linux |
 |---|---|---|---|---|
-| A Blocked notice: sign in again, or grant what is missing | `exclamationmark.triangle.fill` | `ic_warning` | the `InfoBar`'s own | `dialog-error-symbolic` |
+| A Blocked notice: sign in again, or grant what is missing | `exclamationmark.triangle.fill` | `ic_error` | the `InfoBar`'s own | `dialog-error-symbolic` |
 | A Degraded notice | `exclamationmark.circle.fill` | `ic_warning` | the `InfoBar`'s own | `dialog-warning-symbolic` |
-| An Informational notice, such as offline | `info.circle.fill` | `ic_warning` | the `InfoBar`'s own | `dialog-information-symbolic` |
-| Not connected | — | `ic_warning` | `E7BA` Warning | — |
+| An Informational notice, such as offline | `info.circle.fill` | `ic_info` | the `InfoBar`'s own | `dialog-information-symbolic` |
+| Not connected | — | — | `E7BA` Warning | — |
 | Sent | `checkmark.circle.fill` | — | — | — |
 | Queued in the Outbox | `clock.fill` | — | — | — |
 | Sending failed | `exclamationmark.triangle.fill` | — | — | — |

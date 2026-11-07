@@ -131,7 +131,7 @@ internal fun MainActivity.saveAccountEndpoints(accountId: String, endpoints: Acc
                     L10n.settings_account_servers_saved(this),
                     "",
                 )
-                refreshConnectivity()
+                pullNotices()
             }
             answer.onFailure {
                 // The reason, never the certificate: a refusal's message carries the whole of it
@@ -162,7 +162,7 @@ internal fun MainActivity.replaceAccountSecret(accountId: String, secret: String
                     L10n.settings_account_signed_in(this),
                     "",
                 )
-                refreshConnectivity()
+                pullNotices()
             }
             answer.onFailure {
                 logUiWarn("accounts: replacing an account's secret failed: ${coreErrorText(it)}")
@@ -191,6 +191,7 @@ internal fun MainActivity.signInAgain(accountId: String, adding: List<AccountCap
     val redirect = if (google) GoogleOAuthConfig.REDIRECT_URI else MicrosoftOAuthConfig.REDIRECT_URI
     if (redirect == null) {
         say(changeFailed(L10n.account_signin_browser_failed(this)))
+        noticeRemedyEnded(NoticeRemedy.CONSENT, accountId, failed = true)
         return
     }
     try {
@@ -216,6 +217,7 @@ internal fun MainActivity.signInAgain(accountId: String, adding: List<AccountCap
                 coreErrorSaid(e, this) ?: L10n.account_signin_browser_failed(this),
             ),
         )
+        noticeRemedyEnded(NoticeRemedy.CONSENT, accountId, failed = true)
     }
 }
 
@@ -233,7 +235,8 @@ internal fun MainActivity.completeAccountConsent(callbackUrl: String) {
         mainHandler.post {
             accountSettings.signingIn = null
             refreshAccountsSnapshot()
-            refreshConnectivity()
+            pullNotices()
+            noticeRemedyEnded(NoticeRemedy.CONSENT, consent.accountId, failed = answer.isFailure)
             answer.onSuccess {
                 logUiInfo("accounts: an account was signed in again in place")
                 say(signedInNotice(consent.accountId))
@@ -272,9 +275,11 @@ internal fun MainActivity.signedInNotice(accountId: String): AccountNotice {
 
 /** A sign-in for an existing account whose browser was closed without a redirect. */
 internal fun MainActivity.cancelAbandonedConsent() {
-    if (accountSettings.signingIn != null && accountSettings.consent != null) {
+    val account = accountSettings.signingIn ?: return
+    if (accountSettings.consent != null) {
         logUiInfo("accounts: signing an account in again was cancelled (browser dismissed)")
         accountSettings.signingIn = null
         accountSettings.consent = null
+        noticeRemedyEnded(NoticeRemedy.CONSENT, account, failed = false)
     }
 }

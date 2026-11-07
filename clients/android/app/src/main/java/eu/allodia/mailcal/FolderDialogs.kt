@@ -40,7 +40,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.FolderIntent
 import uniffi.mailcal_bindings.FolderNameCheck
-import uniffi.mailcal_bindings.FolderNotice
 
 // Shows whichever folder dialog is open, and closes it on an answer either way.
 @Composable
@@ -219,28 +218,4 @@ private fun FolderDeleteDialog(dialog: FolderDialog.Delete, editing: FolderEditi
             TextButton(onClick = onClose) { Text(L10n.action_cancel(ctx)) }
         },
     )
-}
-
-// Rule 28: a refused change stands above the list until the user closes it. Not a snackbar: one
-// that timed out would let a change the user asked for disappear unread.
-@Composable
-internal fun FolderNoticeCard(notice: FolderNotice, onDismiss: () -> Unit) {
-    val ctx = LocalContext.current
-    Surface(
-        color = MaterialTheme.colorScheme.errorContainer,
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-        ) {
-            Text(
-                text = noticeText(notice, ctx),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = onDismiss) { Text(L10n.action_close(ctx)) }
-        }
-    }
 }

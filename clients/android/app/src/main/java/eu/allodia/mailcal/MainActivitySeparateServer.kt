@@ -34,7 +34,7 @@ private fun MainActivity.connectSeparate(state: SeparateSignIn, username: String
 /** The uses moved to an account of their own, by a password or a sign-in: the lists redraw. */
 internal fun MainActivity.separateAccountAdded() {
     refreshAccountsSnapshot()
-    refreshConnectivity()
+    pullNotices()
     // The account list changed, so the person's other devices should hear about it.
     readAccountsSynced()
     syncAllodiaAccounts()
