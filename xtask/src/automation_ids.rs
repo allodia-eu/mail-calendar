@@ -44,7 +44,8 @@ const CS_SUITES: &str = "clients/windows/Mailcal.UiTests";
 ///
 /// An entry no suite looks up any more fails the check too, so the list cannot outlive its reason.
 pub(crate) const PLATFORM: &[(&str, &str)] = &[
-    ("CloseButton", "a ContentDialog template part"),
+    ("CloseButton", "a ContentDialog template part, and an InfoBar's close button"),
+    ("StandardIcon", "an InfoBar's severity icon, named for its severity"),
     ("PrimaryButton", "a ContentDialog template part"),
     ("SecondaryButton", "a ContentDialog template part"),
     ("PART_PaneToggleButton", "the WinUI TitleBar's pane toggle"),
