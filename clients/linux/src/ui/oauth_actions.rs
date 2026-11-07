@@ -50,7 +50,9 @@ impl AppModel {
                     google::complete(&app, start.pending, callback_url)
                 }
                 CallbackOutcome::Cancelled => GoogleOutcome::Cancelled,
-                CallbackOutcome::Failed(error) => GoogleOutcome::Failed(error),
+                CallbackOutcome::TimedOut(error) | CallbackOutcome::Failed(error) => {
+                    GoogleOutcome::Failed(error)
+                }
             };
             sender.emit(AppInput::GoogleFinished(attempt, outcome));
         });
@@ -123,7 +125,9 @@ impl AppModel {
                     microsoft::complete(&app, start.pending, callback_url)
                 }
                 CallbackOutcome::Cancelled => MicrosoftOutcome::Cancelled,
-                CallbackOutcome::Failed(error) => MicrosoftOutcome::Failed(error),
+                CallbackOutcome::TimedOut(error) | CallbackOutcome::Failed(error) => {
+                    MicrosoftOutcome::Failed(error)
+                }
             };
             sender.emit(AppInput::MicrosoftFinished(attempt, outcome));
         });

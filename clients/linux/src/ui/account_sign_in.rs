@@ -193,7 +193,7 @@ impl AppModel {
         }
     }
 
-    /// Starts signing `account` in through its provider: from its page, or from the banner of
+    /// Starts signing `account` in through its provider: from its page, or from the notice of
     /// an expired sign-in. A second request replaces the first.
     pub(super) fn start_account_sign_in(
         &mut self,
@@ -239,8 +239,8 @@ impl AppModel {
         });
     }
 
-    /// Says where a sign-in asked for `from` waits: on the account's page, in the browser; from
-    /// the main window, by taking the banner that asked away.
+    /// Says where a sign-in asked for `from` waits: on the account's page, in the browser. From
+    /// a notice, its button says it.
     fn say_waiting(&mut self, app: &MailcalApp, account: &str, from: ConsentFrom) {
         match from {
             ConsentFrom::Settings => {
@@ -258,7 +258,7 @@ impl AppModel {
                         &address,
                     )));
             }
-            ConsentFrom::MainWindow => self.notice = None,
+            ConsentFrom::Notice => {}
         }
     }
 
@@ -360,7 +360,12 @@ impl AppModel {
                     }
                 }
                 CallbackOutcome::Cancelled => Outcome::Cancelled,
-                CallbackOutcome::Failed(error) => Outcome::Failed(error),
+                CallbackOutcome::TimedOut(_) if attempt.from == ConsentFrom::Notice => {
+                    Outcome::Cancelled
+                }
+                CallbackOutcome::TimedOut(error) | CallbackOutcome::Failed(error) => {
+                    Outcome::Failed(error)
+                }
             };
             sender.emit(finished(attempt, outcome));
         });
@@ -420,9 +425,8 @@ impl AppModel {
             self.settings.sign_in.forget(&attempt.account);
             if let Some(app) = &self.app {
                 self.snapshot.replace(app.mailbox_list());
-                self.connectivity =
-                    super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
             }
+            self.pull_notices();
             if self.settings.account.as_deref() == Some(attempt.account.as_str()) {
                 self.ask_sign_in_options(&attempt.account, sender);
             }
@@ -432,11 +436,9 @@ impl AppModel {
                 Some(notice) => self.settings.notify(notice),
                 None => self.settings.refresh_in_place(),
             },
-            ConsentFrom::MainWindow => {
-                self.notice = match outcome {
-                    Outcome::Failed(said) => Some(super::core_error::signing_in_again_failed(said)),
-                    Outcome::Switched | Outcome::Cancelled => None,
-                };
+            ConsentFrom::Notice => {
+                let failed = matches!(outcome, Outcome::Failed(_));
+                self.notice_remedy_ended(super::notices::Remedy::AccountSignIn, failed);
                 self.settings.refresh_in_place();
             }
         }

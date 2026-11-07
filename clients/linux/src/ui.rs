@@ -90,6 +90,9 @@ mod microsoft;
 mod modal;
 mod model;
 mod nextcloud_flight;
+mod notice_bar;
+mod notice_rules;
+mod notices;
 mod notification_click;
 mod notification_open;
 mod notifications;
@@ -161,7 +164,6 @@ mod unfiled_copy;
 mod unreached;
 mod update;
 mod update_pull;
-mod update_reauth;
 mod update_signin;
 mod web_security;
 mod webview;
@@ -174,7 +176,6 @@ use composer_model::ComposeContext;
 #[cfg(any(debug_assertions, feature = "dev-harness"))]
 use composer_model::ComposeKind;
 use composer_notice::ComposerNotice;
-use connectivity::ConnectivityState;
 use contacts::ContactsModel;
 pub(crate) use destinations::PrimaryView;
 use host_tasks::HostTasks;
@@ -200,7 +201,8 @@ pub(crate) struct AppModel {
     app: Option<Arc<MailcalApp>>,
     secrets: Option<Arc<SecretStore>>,
     preferences: Arc<HostPreferences>,
-    connectivity: ConnectivityState,
+    /// The core's notices, and what is drawn from them (`docs/notices.md`).
+    notices: notices::NoticesState,
     /// Retained for the lifetime of the component so GIO keeps delivering default-network changes.
     _network_monitor: gtk::gio::NetworkMonitor,
     /// Retained so GLib keeps refreshing calendars throughout the foreground session.

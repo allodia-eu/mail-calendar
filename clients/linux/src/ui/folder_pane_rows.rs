@@ -9,7 +9,12 @@ use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::{AccountRow, FolderRole, FolderRow};
 
 use super::{
-    AppInput, folder_names::folder_label, folder_pane::SidebarTarget, mailbox, row_action,
+    AppInput,
+    folder_names::folder_label,
+    folder_pane::SidebarTarget,
+    mailbox,
+    notice_rules::{self, AccountMark},
+    row_action,
 };
 use crate::{l10n, ui::icons};
 
@@ -78,9 +83,13 @@ pub(super) fn unified_group_row(
 /// An account: its address, a chevron that opens its tree, and **no count**; the counts belong to
 /// the folders, and a roll-up here would sit directly above an identical number on the Inbox row
 /// beneath it.
+///
+/// While a notice is about it, its mark (`docs/notices.md` rule 6): a few words on one line under
+/// the address, and the first notice's glyph at the row's end, which is where an `AdwActionRow`
+/// takes a widget. A screen reader hears every one of its sentences.
 pub(super) fn account_row(
     account: &AccountRow,
-    unreachable: bool,
+    mark: Option<&AccountMark>,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ActionRow {
     let row = pane_row(
@@ -92,14 +101,18 @@ pub(super) fn account_row(
     // An address is as long as it is, and the pane has a floor: the row that gets truncated is
     // precisely the one the user needs to read.
     row.set_tooltip_text(Some(&account.email));
-    if unreachable {
-        let warning = gtk::Image::from_icon_name(icons::WARNING);
-        warning.add_css_class("warning");
-        warning.set_tooltip_text(Some(l10n::connectivity_account_unreachable()));
-        warning.update_property(&[AccessibleProperty::Label(
-            l10n::connectivity_account_unreachable(),
-        )]);
-        row.add_suffix(&warning);
+    if let Some(mark) = mark {
+        row.set_subtitle(&mark.label);
+        row.set_subtitle_lines(1);
+        row.upcast_ref::<gtk::Widget>()
+            .update_property(&[AccessibleProperty::Description(&mark.detail)]);
+        let glyph = gtk::Image::from_icon_name(notice_rules::glyph(mark.severity));
+        if mark.severity == mailcal_bindings::NoticeSeverity::Blocked {
+            glyph.add_css_class("error");
+        }
+        // The words beside it say what the glyph shows.
+        glyph.set_accessible_role(gtk::AccessibleRole::Presentation);
+        row.add_suffix(&glyph);
     }
     row.add_suffix(&chevron(account, sender));
     row

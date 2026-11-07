@@ -20,7 +20,6 @@ use crate::{l10n, preferences};
 pub(super) fn sidebar_pane(
     accounts: &gtk::ScrolledWindow,
     destinations: &DestinationBar,
-    folder_notice: &adw::Banner,
 ) -> adw::ToolbarView {
     let pane = adw::ToolbarView::new();
     let header = adw::HeaderBar::new();
@@ -28,7 +27,6 @@ pub(super) fn sidebar_pane(
     header.set_show_end_title_buttons(false);
     header.set_title_widget(Some(&adw::WindowTitle::new(l10n::sidebar_accounts(), "")));
     pane.add_top_bar(&header);
-    pane.add_top_bar(folder_notice);
     pane.set_content(Some(accounts));
     pane.add_bottom_bar(destinations.widget());
     pane

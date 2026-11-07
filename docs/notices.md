@@ -80,12 +80,12 @@ ignores the signal and must not let it reach a heavier reload.
 
 | | Core | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| The snapshot, its ranking and both intents (rules 1, 3 to 5, 7, 9, 10) | ✅ | ✅ | ✅ | ✅ | ⬜ | ⬜ |
-| One prominent notice and an Issues entry (rule 2) | | ✅ | ✅ | ✅ | ⬜ | ⬜ |
-| The account row's glyph and label, and its Settings page (rule 6) | | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| The snapshot, its ranking and both intents (rules 1, 3 to 5, 7, 9, 10) | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
+| One prominent notice and an Issues entry (rule 2) | | ✅ | ✅ | ✅ | ⬜ | ✅ |
+| The account row's glyph and label, and its Settings page (rule 6) | | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | The three questions as notices (rule 8) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Generated words per kind (rule 11) | ✅ | ✅ | ✅ | ✅ | ⬜ | ⬜ |
-| Announced once (rule 12) | | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| Generated words per kind (rule 11) | ✅ | ✅ | ✅ | ✅ | ⬜ | ✅ |
+| Announced once (rule 12) | | ✅ | ✅ | ✅ | ⬜ | ✅ |
 | The Allodia notice raised to Blocked near a lapse | ⬜ | | | | | |
 
 Where each platform puts the prominent notice: macOS and iPadOS, a card at the top of the sidebar,
@@ -102,6 +102,15 @@ Windows: [`NoticeBar`](../clients/windows/Mailcal/Views/NoticeBar.xaml.cs) above
 [`MailboxModel.Notices.cs`](../clients/windows/Mailcal/Services/MailboxModel.Notices.cs), and the
 account's page in
 [`SettingsDialog.AccountNotices.cs`](../clients/windows/Mailcal/Dialogs/SettingsDialog.AccountNotices.cs).
+
+Linux: [`NoticeBar`](../clients/linux/src/ui/notice_bar.rs) across the top of the window,
+[`notice_rules`](../clients/linux/src/ui/notice_rules.rs) (pinned by `notice_rules_tests.rs`),
+each action in [`notices.rs`](../clients/linux/src/ui/notices.rs), and the account's page in
+[`account_notices.rs`](../clients/linux/src/ui/settings/account_notices.rs). An `AdwBanner` holds
+one sentence and one button, so the strip around it carries the severity's glyph, the spinner while
+the button's sign-in runs and the Issues button; the detail shares the banner's sentence, a line
+below the title. The account row's glyph sits at the row's end, the one place an `AdwActionRow`
+takes a widget, with the mark as its subtitle.
 
 On iPhone the row sits under each tab's bar rather than inside the list, so the calendar, which has
 no list, draws it in the same place. An iPad whose sidebar column is hidden, as a split view hides it in

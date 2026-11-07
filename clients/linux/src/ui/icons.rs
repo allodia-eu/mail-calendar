@@ -95,6 +95,11 @@ icons! {
     /// A message the server refused, kept in the Outbox.
     NOT_SENT = "dialog-error-symbolic";
     WAITING = "document-open-recent-symbolic";
+    /// A notice, by severity (docs/notices.md rule 4): a different shape each, so colour is never
+    /// the only signal. On the Issues list and on the account's row in the folder pane.
+    NOTICE_BLOCKED = "dialog-error-symbolic";
+    NOTICE_DEGRADED = WARNING;
+    NOTICE_INFORMATIONAL = "dialog-information-symbolic";
     /// A document going out. Not `mail-send`, which the pane gives Sent: an Outbox that looks like
     /// Sent is the one confusion that row exists to prevent.
     OUTBOX = "document-send-symbolic";

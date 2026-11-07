@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Run the Linux reading/composer + search + calendar (incl. organising a meeting, the Jitsi server)
 # + invitations + contacts (incl. the editor's refusal) + mail actions + printing + signatures + MCP
-# + cross-account merge + server-change question acceptance path on a private Wayland + D-Bus
-# session. Controls are selected through GTK's AT-SPI tree, never by screen coordinates. The mailbox
-# is the local Stalwart fixture, then the showcase for the one state no fixture can stage; every
-# screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
+# + cross-account merge + server-change question acceptance path + the reauth notices on a private
+# Wayland + D-Bus session. Controls are selected through GTK's AT-SPI tree, never by screen
+# coordinates. The mailbox is the local Stalwart fixture, then the showcase for the states no fixture
+# can stage; every screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
 #
 # It expects the deterministic seed, the one `harness.sh up` lays down. Each run leaves its own mail
 # in Alice's Inbox (about ten messages: notifications, invitations, a bounce), so the list grows
@@ -1643,6 +1643,34 @@ PY
   "$PYTHON" "$ATSPI" activate \
     --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
   "$PYTHON" "$ATSPI" wait --name-substring "$paused" --showing --timeout 20
+
+  # The core's notices (docs/notices.md), on the showcase: MAILCAL_SHOWCASE_REAUTH has the core ask
+  # its first account to sign in again for mail and for its calendar, which no harness fixture can
+  # stage. Mail's notice holds the mail screen's banner, the calendar's the calendar screen's, and
+  # the account both are about reads "2 issues" beneath its address. An AdwBanner has one button,
+  # so Sign in again on it is also the proof that it offers no Close. The twins are
+  # clients/apple/UITests/NoticeTests.swift and
+  # clients/windows/Mailcal.UiTests/Suites/ReauthNoticeTests.cs.
+  stop_app
+  MAILCAL_SHOWCASE=1 MAILCAL_SHOWCASE_REAUTH=1 MAILCAL_SHOWCASE_SCREEN=list \
+    launch_app "" "$ARTIFACT_DIR/reauth-notices"
+  local mail_reauth="Sending and managing mail needs your permission for"
+  local calendar_reauth="Calendar access needs your permission for"
+  "$PYTHON" "$ATSPI" wait --name-substring "$mail_reauth" --showing --timeout 60
+  "$PYTHON" "$ATSPI" wait --name "Sign in again" --role "push button" --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "2 issues" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "1 more issue" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Issues" --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait --name-substring "Sign in again: $calendar_reauth" \
+    --role "push button" --showing --timeout 20
+  capture reauth-notices-issues
+  linux_session_type -k Escape
+  "$PYTHON" "$ATSPI" wait --name "Issues" --absent --timeout 20
+  capture reauth-notices-mail
+  "$PYTHON" "$ATSPI" activate --name "Calendar" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name-substring "$calendar_reauth" --showing --timeout 30
+  "$PYTHON" "$ATSPI" wait --name "Sign in again" --role "push button" --showing --timeout 20
+  capture reauth-notices-calendar
 
   if grep -Eq 'critical from |unhandled error from ' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log"; then
     grep -E 'critical from |unhandled error from ' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" \

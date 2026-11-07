@@ -1,11 +1,11 @@
 //! Folder-pane regressions, including GTK checks run by the crate's single `gtk::init` test.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    AccountFolderRow, AccountRow, FolderRole, FolderRow, MailboxListSnapshot, QueuedRow,
-    QueuedState,
+    AccountFolderRow, AccountRow, FolderRole, FolderRow, MailboxListSnapshot, NoticeSeverity,
+    QueuedRow, QueuedState,
 };
 
 use super::{
@@ -15,7 +15,7 @@ use crate::{
     l10n,
     ui::{
         AppInput, folder_pane_rows::role_icon, mailbox::tests::rendered_labels,
-        model::empty_mailbox,
+        model::empty_mailbox, notice_rules::AccountMark,
     },
 };
 
@@ -87,19 +87,30 @@ fn two_accounts() -> MailboxListSnapshot {
     }
 }
 
-fn pane_with_unreachable(
+fn pane_with_marks(
     snapshot: &MailboxListSnapshot,
-    unreachable: &HashSet<String>,
+    marks: &HashMap<String, AccountMark>,
 ) -> (gtk::ListBox, relm4::Receiver<AppInput>) {
     let list = gtk::ListBox::new();
     let (sender, receiver) = relm4::channel::<AppInput>();
     let check = crate::ui::folder_actions::name_check(None);
-    render(&list, snapshot, unreachable, &check, &sender);
+    render(&list, snapshot, marks, &check, &sender);
     (list, receiver)
 }
 
 fn pane(snapshot: &MailboxListSnapshot) -> (gtk::ListBox, relm4::Receiver<AppInput>) {
-    pane_with_unreachable(snapshot, &HashSet::new())
+    pane_with_marks(snapshot, &HashMap::new())
+}
+
+fn marked(account: &str) -> HashMap<String, AccountMark> {
+    HashMap::from([(
+        account.to_owned(),
+        AccountMark {
+            severity: NoticeSeverity::Degraded,
+            label: l10n::notices_account_count(2),
+            detail: "first\nsecond".to_owned(),
+        },
+    )])
 }
 
 fn rows(list: &gtk::ListBox) -> Vec<gtk::ListBoxRow> {
@@ -207,30 +218,33 @@ pub(crate) fn a_server_named_row_is_never_parsed_as_markup() {
     );
 }
 
-/// A provider outage badges only its own account, never its folders or a healthy neighbour.
-pub(crate) fn only_an_unreachable_account_gets_the_warning() {
-    let unreachable = HashSet::from(["acct-2".to_owned()]);
-    let (list, _receiver) = pane_with_unreachable(&two_accounts(), &unreachable);
+/// A notice marks only the account it is about, never its folders or a healthy neighbour
+/// (`docs/notices.md` rule 6): a few words on one line under the address.
+pub(crate) fn only_the_account_a_notice_is_about_carries_its_mark() {
+    let (list, _receiver) = pane_with_marks(&two_accounts(), &marked("acct-2"));
     let pane_rows = rows(&list);
-    let warning = l10n::connectivity_account_unreachable();
+    let subtitle = |index: usize| {
+        pane_rows[index]
+            .downcast_ref::<adw::ActionRow>()
+            .and_then(adw::prelude::ActionRowExt::subtitle)
+            .map(|text| text.to_string())
+            .unwrap_or_default()
+    };
 
-    assert!(
-        widget_tooltips(pane_rows[6].upcast_ref())
-            .iter()
-            .any(|text| text == warning),
-        "the affected account carries the warning"
+    assert_eq!(
+        subtitle(6),
+        l10n::notices_account_count(2),
+        "the affected account"
     );
-    assert!(
-        !widget_tooltips(pane_rows[2].upcast_ref())
-            .iter()
-            .any(|text| text == warning),
-        "a healthy account carries no warning"
-    );
-    assert!(
-        !widget_tooltips(pane_rows[7].upcast_ref())
-            .iter()
-            .any(|text| text == warning),
-        "the warning belongs to the account, not its inbox"
+    let row = pane_rows[6]
+        .downcast_ref::<adw::ActionRow>()
+        .expect("an account row");
+    assert_eq!(row.subtitle_lines(), 1, "never wrapping");
+    assert_eq!(subtitle(2), "", "a healthy account carries no mark");
+    assert_eq!(
+        subtitle(7),
+        "",
+        "the mark belongs to the account, not its inbox"
     );
 }
 
@@ -248,31 +262,31 @@ fn a_role_with_no_icon_of_its_own_takes_the_plain_folder() {
 #[test]
 fn the_pane_is_rebuilt_when_a_tree_opens_or_a_count_moves() {
     let snapshot = two_accounts();
-    let key = FolderPaneRendering::new(&snapshot, &HashSet::new());
+    let key = FolderPaneRendering::new(&snapshot, &HashMap::new());
     assert_eq!(
         key,
-        FolderPaneRendering::new(&two_accounts(), &HashSet::new())
+        FolderPaneRendering::new(&two_accounts(), &HashMap::new())
     );
 
     // Expansion and the counts change nothing about a row's *text*, so a key without them
     // leaves a shut tree drawn open and a stale badge on screen.
     let mut collapsed = two_accounts();
     collapsed.accounts[0].expanded = false;
-    assert_ne!(key, FolderPaneRendering::new(&collapsed, &HashSet::new()));
+    assert_ne!(key, FolderPaneRendering::new(&collapsed, &HashMap::new()));
 
     let mut counted = two_accounts();
     counted.account_folders[0].folders[0].unread = 546;
-    assert_ne!(key, FolderPaneRendering::new(&counted, &HashSet::new()));
+    assert_ne!(key, FolderPaneRendering::new(&counted, &HashMap::new()));
 
     let mut unified = two_accounts();
     unified.unified_unread = 0;
-    assert_ne!(key, FolderPaneRendering::new(&unified, &HashSet::new()));
+    assert_ne!(key, FolderPaneRendering::new(&unified, &HashMap::new()));
 
     let mut collapsed_unified = two_accounts();
     collapsed_unified.unified_expanded = false;
     assert_ne!(
         key,
-        FolderPaneRendering::new(&collapsed_unified, &HashSet::new())
+        FolderPaneRendering::new(&collapsed_unified, &HashMap::new())
     );
 
     // Selection moves among the existing rows. Rebuilding the whole tree here puts that work
@@ -280,13 +294,12 @@ fn the_pane_is_rebuilt_when_a_tree_opens_or_a_count_moves() {
     let mut selected = two_accounts();
     selected.selected_account = Some("acct-1".to_owned());
     selected.selected = Some("inbox".to_owned());
-    assert_eq!(key, FolderPaneRendering::new(&selected, &HashSet::new()));
+    assert_eq!(key, FolderPaneRendering::new(&selected, &HashMap::new()));
 
-    let unreachable = HashSet::from(["acct-1".to_owned()]);
     assert_ne!(
         key,
-        FolderPaneRendering::new(&two_accounts(), &unreachable),
-        "a connectivity signal must redraw the account badge without rebuilding the mail list"
+        FolderPaneRendering::new(&two_accounts(), &marked("acct-1")),
+        "a notices signal must redraw the account's mark without rebuilding the mail list"
     );
 
     // A queued send appears in no account's tree, so without the count in the key the Outbox row
@@ -305,7 +318,7 @@ fn the_pane_is_rebuilt_when_a_tree_opens_or_a_count_moves() {
     }];
     assert_ne!(
         key,
-        FolderPaneRendering::new(&queued, &HashSet::new()),
+        FolderPaneRendering::new(&queued, &HashMap::new()),
         "the Outbox row has to be drawn, and taken away again once the queue empties"
     );
 }
@@ -457,19 +470,6 @@ fn buttons(root: &gtk::Widget) -> Vec<gtk::Button> {
     let mut child = root.first_child();
     while let Some(node) = child {
         found.extend(buttons(&node));
-        child = node.next_sibling();
-    }
-    found
-}
-
-fn widget_tooltips(root: &gtk::Widget) -> Vec<String> {
-    let mut found = root
-        .tooltip_text()
-        .map(|text| vec![text.to_string()])
-        .unwrap_or_default();
-    let mut child = root.first_child();
-    while let Some(node) = child {
-        found.extend(widget_tooltips(&node));
         child = node.next_sibling();
     }
     found

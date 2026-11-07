@@ -114,26 +114,6 @@ fn problem_note(capability: AccountCapability, problem: UseProblem) -> &'static 
     }
 }
 
-/// The line above the calendar week or the contacts list for a use that did not connect
-/// (`docs/accounts.md` rule 16): which account, why in the words its own page uses, and that what
-/// is on screen is what was last synced.
-pub(in crate::ui) fn outage_line(
-    capability: AccountCapability,
-    problem: UseProblem,
-    address: &str,
-) -> String {
-    let title = if matches!(capability, AccountCapability::Calendar) {
-        l10n::calendar_outage_title(address)
-    } else {
-        l10n::contacts_outage_title(address)
-    };
-    format!(
-        "{title} {} {}",
-        problem_note(capability, problem),
-        l10n::use_outage_last_synced()
-    )
-}
-
 /// What a use's switch says beneath it: what is wrong with the use, then why it cannot be
 /// pressed, so neither hides the other.
 pub(super) fn switch_note(switch: &AccountUseSwitch) -> Option<String> {

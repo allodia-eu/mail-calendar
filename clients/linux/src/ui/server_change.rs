@@ -23,8 +23,8 @@ pub(crate) struct Review {
 pub(crate) enum ReviewFrom {
     /// The account's page in Settings.
     Settings,
-    /// The line above the calendar or the contacts.
-    Outage,
+    /// A notice about the calendar or the contacts.
+    Notice,
 }
 
 /// Which uses moved. Both, or the one that did.
@@ -150,7 +150,7 @@ fn allowed(
             from,
         },
         (None, ReviewFrom::Settings) => AccountsInput::Refused(failed()),
-        (None, ReviewFrom::Outage) => AccountsInput::ServerChangeFailed(account),
+        (None, ReviewFrom::Notice) => AccountsInput::ServerChangeFailed(account),
     }
 }
 

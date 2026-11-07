@@ -14,9 +14,9 @@ use relm4::{ComponentParts, ComponentSender, SimpleComponent};
 use super::{
     AppInput, AppModel, AppWindow, PrimaryView, SetupState, allodia_sync, calendar::CalendarModel,
     calendar_actions, composer_drafts, connectivity, contacts::ContactsModel,
-    host_tasks::HostTasks, launch, launcher_badge, mcp, model, model::ReadingState, preferences,
-    runtime_timers, search::SearchState, selection::Selection, settings, setup_onboarding,
-    sync_line, time_zone, welcome,
+    host_tasks::HostTasks, launch, launcher_badge, mcp, model, model::ReadingState, notices,
+    preferences, runtime_timers, search::SearchState, selection::Selection, settings,
+    setup_onboarding, sync_line, time_zone, welcome,
 };
 use crate::{appearance, boot, boot::BootedApp, crash, l10n, logger};
 
@@ -159,9 +159,7 @@ impl AppModel {
                 sync_line::sync_status(&progress, &snapshot.accounts),
             )
         });
-        // Pull once: a boot outage's signal fired before this model existed.
-        let (connectivity, network_monitor) =
-            connectivity::at_launch(app.as_deref(), &snapshot.accounts, input);
+        let network_monitor = connectivity::at_launch(app.as_deref(), input);
         let calendar_input = input.clone();
         let mut calendar_refreshes_remaining = runtime_timers::calendar_refresh_limit();
         let calendar_refresh_timer =
@@ -181,11 +179,11 @@ impl AppModel {
                 timezone_input.emit(AppInput::CheckDeviceTimeZone);
                 gtk::glib::ControlFlow::Continue
             });
-        Self {
+        let mut model = Self {
             app,
             secrets,
             preferences: preferences::global(),
-            connectivity,
+            notices: notices::NoticesState::default(),
             _network_monitor: network_monitor,
             _calendar_refresh_timer: calendar_refresh_timer,
             _device_timezone_timer: device_timezone_timer,
@@ -238,6 +236,10 @@ impl AppModel {
             host_tasks: HostTasks::new(welcome_pending, flow.setup_after_welcome),
             #[cfg(any(debug_assertions, feature = "dev-harness"))]
             showcase_pending: None,
-        }
+        };
+        // Once at launch: what was raised while the core opened was signalled before this model
+        // existed.
+        model.pull_notices();
+        model
     }
 }

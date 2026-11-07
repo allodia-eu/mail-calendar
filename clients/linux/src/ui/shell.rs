@@ -10,19 +10,18 @@ use super::{
     calendar::CalendarPane,
     composer::ComposerPane,
     composer_discard::DiscardDraftDialog,
-    connectivity::ConnectivityBanners,
     contacts::ContactsPane,
     destinations::DestinationBar,
     detached::DetachedWindows,
     folder_actions,
     folder_pane::{self, FolderPaneRendering, FolderPaneSelection},
-    folder_pane_edit,
     invitation::ReplyPromptDialog,
     mail_actions::PermanentDeleteDialog,
     mail_toolbar::MailToolbar,
     mailbox::MailboxRendering,
     mailbox_empty,
     mailbox_progressive::ProgressiveRenderer,
+    notice_bar::NoticeBar,
     outbox,
     reader::{ComposerHost, ReadingSource},
     reading::{InvitationClock, ReadingPane},
@@ -59,9 +58,8 @@ pub(crate) struct AppWidgets {
     /// The windows beside the mailbox, and the whole of what closing the mailbox has to sweep
     /// (`docs/reading-window.md`).
     detached: DetachedWindows,
-    connectivity: ConnectivityBanners,
+    notices: NoticeBar,
     notice: adw::Banner,
-    folder_notice: adw::Banner,
     sync_strip: gtk::Box,
     sync_bar_row: gtk::Box,
     sync_progress: gtk::ProgressBar,
@@ -96,8 +94,8 @@ impl AppWidgets {
         let unfiled_copy = UnfiledCopyPrompt::new(&sender);
         let shell = gtk::Box::new(gtk::Orientation::Vertical, 0);
         shell.append(&notice);
-        let connectivity = ConnectivityBanners::new(&sender);
-        shell.append(connectivity.widget());
+        let notices = NoticeBar::new(&sender);
+        shell.append(notices.widget());
 
         // Every row carries its own handler (folder_pane), so the list needs none: a folder key
         // is unique only within its account, and this pane holds every account's tree.
@@ -109,8 +107,7 @@ impl AppWidgets {
         sidebar_scroll.set_min_content_width(folder_pane::width::MIN);
         sidebar_scroll.set_child(Some(&sidebar));
         let destinations = DestinationBar::new(&sender);
-        let folder_notice = folder_pane_edit::notice_banner(&sender);
-        let sidebar_toolbar = sidebar_pane(&sidebar_scroll, &destinations, &folder_notice);
+        let sidebar_toolbar = sidebar_pane(&sidebar_scroll, &destinations);
 
         let messages = gtk::ListBox::new();
         // Multiple, so a selection is the platform's own selected state rather than a colour we
@@ -253,9 +250,8 @@ impl AppWidgets {
             reading,
             composer,
             detached,
-            connectivity,
+            notices,
             notice,
-            folder_notice,
             sync_strip,
             sync_bar_row,
             sync_progress,
@@ -305,13 +301,12 @@ impl AppWidgets {
         self.search.render(&model.search, &model.snapshot);
         // Two keys, not one: opening an account's tree must not rebuild the message list, which
         // would replace an open conversation's row mid-disclosure.
-        let pane =
-            FolderPaneRendering::new(&model.snapshot, &model.connectivity.unreachable_accounts);
+        let pane = FolderPaneRendering::new(&model.snapshot, &model.notices.marks);
         if self.rendered_pane.as_ref() != Some(&pane) {
             folder_pane::render(
                 &self.sidebar,
                 &model.snapshot,
-                &model.connectivity.unreachable_accounts,
+                &model.notices.marks,
                 &folder_actions::name_check(model.app.clone()),
                 &self.sender,
             );
@@ -404,8 +399,11 @@ impl AppWidgets {
         self.notice
             .set_title(model.notice.as_deref().unwrap_or_default());
         self.notice.set_revealed(model.notice.is_some());
-        folder_pane_edit::render_notice(&self.folder_notice, model.snapshot.folder_notice.as_ref());
-        self.connectivity.render(&model.connectivity, model.primary);
+        self.notices.render(
+            &model.notices.notices,
+            model.primary,
+            model.notices.running(),
+        );
         if let Some(bar) = &model.sync_bar {
             self.sync_caption.set_text(&bar.caption);
             self.sync_indeterminate.set(bar.fraction.is_none());
