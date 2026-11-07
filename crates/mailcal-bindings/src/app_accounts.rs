@@ -320,7 +320,9 @@ impl MailcalApp {
         );
         Ok(row)
     }
+}
 
+impl MailcalApp {
     /// Removes the account `id`: stops its background sync, drops it from the reconnection
     /// registry, clears every link the other accounts hold to it (storing each one it changed;
     /// [`AccountEntry::linked_from`](crate::AccountEntry::linked_from) names them beforehand),
@@ -338,8 +340,11 @@ impl MailcalApp {
     /// Returns [`MailcalError::Connect`] if the host's store refused to erase the credential.
     /// The account is gone from the runtime regardless (that half cannot fail) so this is
     /// reported rather than rolled back: what survives is a stored credential with no account,
-    /// which comes back as an account at the next launch with nothing to explain it. A host
-    /// should surface it; the removal itself has happened.
+    /// which comes back as an account at the next launch with nothing to explain it, so it is
+    /// said; the removal itself has happened.
+    ///
+    /// Not exported: a client removes an account through `AccountPageIntent::Remove`, which runs
+    /// this off its thread and says a failed erase as the accounts notice.
     pub fn remove_account(&self, id: String) -> Result<(), MailcalError> {
         // Read first: the password it is withdrawn with leaves with the account.
         let issued = self.registry.nextcloud_credentials(&id);
@@ -349,9 +354,7 @@ impl MailcalApp {
         }
         removed
     }
-}
 
-impl MailcalApp {
     /// What [`remove_account`](MailcalApp::remove_account) does on this device, and nothing at
     /// any server: also what a remote wipe does, whose password the server has already withdrawn.
     pub(crate) fn remove_account_here(&self, id: &str) -> Result<(), MailcalError> {
