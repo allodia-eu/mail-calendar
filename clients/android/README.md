@@ -15,8 +15,9 @@ The Rust core is identical across platforms; only the renderer differs. The same
 
 It:
 
-- cross-compiles the cdylib for `arm64-v8a` and `x86_64` via `cargo-ndk` (installing it if
-  needed) into `app/src/main/jniLibs/`;
+- cross-compiles the cdylib via `cargo-ndk` (installing it if needed) into
+  `app/src/main/jniLibs/`, for the connected device's ABI only, and removes any other ABI's
+  library left there;
 - generates the Kotlin bindings (from the host cdylib) into `app/src/main/java/uniffi/`;
 - assembles the debug APK with Gradle;
 - installs + launches it on a connected device/emulator, then captures `screenshot.png`
@@ -35,9 +36,9 @@ cargo-ndk built a cdylib for it, and an ABI that is filtered in but not compiled
 that installs happily and then dies at the first `System.loadLibrary`. A debug APK with no core for
 any ABI stops at `checkCoreLibrary` instead, so a bare `./gradlew :app:installPlayDebug` in a
 checkout that never cross-compiled it fails at once; one ABI passes, since a debug build is for the
-device at hand. A release artifact is caught by the checker below. Both scripts therefore always cross-compile **both** targets
-(`aarch64-linux-android`, `x86_64-linux-android`), so the debug loop works on an arm64 device and
-on an x86_64 emulator alike.
+device at hand. A release artifact is caught by the checker below. So `build-release.sh` always
+cross-compiles **both** targets (`aarch64-linux-android`, `x86_64-linux-android`), and
+`build-and-run.sh` only the one the connected device runs, first in its `ro.product.cpu.abilist`.
 
 32-bit (`armeabi-v7a`, `x86`) is deliberately out: `minSdk` is 31, Play has required 64-bit for
 years, and those folders only ever carried JNA's and Compose's own `.so`s riding in from their AARs.
