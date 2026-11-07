@@ -381,7 +381,10 @@ capturing the redirect), because that is inherently platform-specific.
     opened. It starts on the access token the sign-in minted, as adding an account does: a refresh
     straight after consent can still answer the old, narrower grant while Microsoft propagates the
     consent, and the dial would then find the calendar withheld and save that grant over the new
-    one. Adding a capability is the same call with `adding` set: Microsoft does not re-prompt
+    one. A refresh that names a wider grant than the account was dialled with, so opening a use the
+    old one withheld, dials its calendar and contacts again at once, which retracts the prompt: a
+    grant an administrator widens, or a consent still propagating, takes effect in the session.
+    Adding a capability is the same call with `adding` set: Microsoft does not re-prompt
     scopes already consented, and Google, which has no incremental consent for installed apps, is
     asked for the whole set.
 

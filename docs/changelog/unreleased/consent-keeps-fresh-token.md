@@ -5,7 +5,9 @@ Bump: patch
 
 > Signing a Microsoft account in again started on a refresh rather than on the token the sign-in
 > minted. Microsoft can answer that refresh with the old grant while the consent propagates, so a
-> withheld calendar stayed withheld, and its notice stayed up, until the next launch.
+> withheld calendar stayed withheld, and its notice stayed up, until the next launch. A refresh that
+> names a wider grant now also dials the withheld calendar again, so an administrator's consent
+> takes effect without a restart too.
 
 **English**
 

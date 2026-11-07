@@ -67,6 +67,7 @@ mod set_up;
 mod shared;
 mod sign_in;
 mod uses;
+mod widened;
 
 pub(crate) use dial::{AccountDial, ConnectFailure, MAX_CONCURRENT_DIALS, dial_all};
 pub(crate) use nextcloud::issued as nextcloud_issued;
@@ -91,6 +92,8 @@ pub(crate) struct AccountRegistry {
     dav_starts: Mutex<Option<mailcal_account::DavStartsFile>>,
     /// When each standards account's calendar and contacts last connected (`dav_fresh.rs`).
     dav_dialled: Mutex<HashMap<String, std::time::Instant>>,
+    /// The accounts a refresh's wider grant opened a use for (`widened.rs`).
+    widened: widened::Widened,
 }
 
 /// What one rotation did to the registry, for the token sink to report and persist.
@@ -455,14 +458,18 @@ impl AccountRegistry {
                 if unchanged(config.granted_scopes.as_deref()) {
                     return None;
                 }
+                let before = config.withheld_capabilities();
                 config.granted_scopes = Some(granted.as_slice().to_vec());
+                self.note_widened(id.as_str(), &before, &config.withheld_capabilities());
                 ("graph", config.to_toml())
             }
             ConnectedAccount::Google { config, .. } => {
                 if unchanged(config.granted_scopes.as_deref()) {
                     return None;
                 }
+                let before = config.withheld_capabilities();
                 config.granted_scopes = Some(granted.as_slice().to_vec());
+                self.note_widened(id.as_str(), &before, &config.withheld_capabilities());
                 ("google", config.to_toml())
             }
             ConnectedAccount::Jmap { .. } | ConnectedAccount::Imap { .. } => return None,

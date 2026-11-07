@@ -100,6 +100,8 @@ impl MailcalApp {
             .accounts_with_use_problem(mailcal_app::UseProblem::Unreachable)
             .into_keys()
             .chain(due)
+            // A refresh widened its grant to open a use the dial before it was planned without.
+            .chain(self.registry.take_widened())
         {
             if !queued.contains(&id) && !ids.contains(&id) {
                 ids.push(id);
