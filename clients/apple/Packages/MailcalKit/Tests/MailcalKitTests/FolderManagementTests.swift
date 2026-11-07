@@ -252,13 +252,6 @@ import Testing
         #expect(inside.confirm == L10n.action_delete_permanently())
     }
 
-    @Test func theNoticeSaysWhyTheChangeDidNotHappen() {
-        let changed = FolderNotice(account: "acct-1", folder: "Work", action: .rename, problem: .changedElsewhere)
-        #expect(folderNoticeText(changed) == L10n.folder_notice_changed(name: "Work"))
-        let refused = FolderNotice(account: "acct-1", folder: "Work", action: .create, problem: .refused)
-        #expect(folderNoticeText(refused) == L10n.folder_notice_refused(name: "Work"))
-    }
-
     @Test func aRenameIsCheckedBesideItselfAndACreateInsideItsParent() {
         let rename = FolderNameRequest.rename(account: "acct-1", folder: tree[3])
         #expect(rename.parent == "work")

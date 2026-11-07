@@ -93,13 +93,14 @@ extension MailboxModel {
         }
     }
 
-    /// Signs an existing OAuth JMAP account back in, from the expired-sign-in banner. The core
+    /// Signs an existing OAuth JMAP account back in, from its notice. The core
     /// builds the authorization URL from that account's own persisted grant (no re-discovery, no
     /// second client registration), we run the same browser hop, and the core swaps the fresh
     /// grant in, connect, Keychain, and the retracted prompt included. So unlike a first sign-in
     /// there is no `addAccount` and no `KeychainStore.save` here: the account already exists.
-    func reconnectJmap(accountId: String) async {
-        guard let app, !jmapReconnecting else { return }
+    /// Answers whether it worked or was left by the person; only a failure is said on the notice.
+    func reconnectJmap(accountId: String) async -> Bool {
+        guard let app, !jmapReconnecting else { return true }
         // A weak `presentationContextProvider`, so this local is what keeps it alive for the
         // duration of the awaited presentation, the same reason `signInWithJmap` holds one.
         let signIn = JmapSignIn()
@@ -116,17 +117,17 @@ extension MailboxModel {
                 try app.completeJmapReauth(
                     accountId: accountId, pending: start.pending, callbackUrl: callbackURL)
             }.value
-            accountNotice = nil
+            return true
         } catch JmapSignInError.cancelled {
-            // The user dismissed the browser. The banner is still there to try again from.
+            // The user dismissed the browser. The notice is still there to try again from.
+            return true
         } catch {
-            // Say so rather than leaving the tap looking like it did nothing, in plain words,
-            // because the cause is an OAuth protocol string. The banner stays up (the core leaves
-            // the prompt raised on every failure), so the remedy is still one tap away, and the
-            // specific cause goes to the diagnostic log: the core's messages name endpoints and
-            // error codes, never the address or a secret.
+            // The notice says it did not work and stays up (the core leaves the prompt raised on
+            // every failure), so the remedy is still one tap away. The cause goes to the
+            // diagnostic log: the core's messages name endpoints and error codes, never the
+            // address or a secret.
             logAppleLifecycle("jmap oauth: re-authentication did not complete (\(error))")
-            accountNotice = signInRemedy(error) ?? L10n.signin_expired_failed()
+            return false
         }
     }
 

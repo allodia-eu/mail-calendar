@@ -111,17 +111,6 @@ extension MailboxModel {
         }
     }
 
-    /// Signs an IMAP account signed in through its provider in again, from the expired-sign-in
-    /// banner. A success says nothing, because the banner clearing is the answer.
-    func signInThroughProviderFromBanner(_ id: String) {
-        Task {
-            let ended = await signInThroughProvider(id, redirectURI: ImapOAuthConfig.redirectURI)
-            if let notice = ended.bannerNotice {
-                accountNotice = notice
-            }
-        }
-    }
-
     // MARK: An account already set up
 
     /// Keeps what the refusal of an add needs to offer updating the account already there.

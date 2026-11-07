@@ -37,10 +37,6 @@ extension MailboxModel {
         app?.dispatch(intent: .folders(intent: .moveMessages(rows: rows, account: account, key: key)))
     }
 
-    func dismissFolderNotice() {
-        app?.dispatch(intent: .folders(intent: .dismissNotice))
-    }
-
     /// Whether `name` can be given to a folder inside `parent`, asked while the user types.
     /// A store read in the core, short enough for a keystroke.
     func checkFolderName(

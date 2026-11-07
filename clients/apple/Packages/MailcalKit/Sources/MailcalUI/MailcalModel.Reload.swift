@@ -6,9 +6,9 @@ import MailcalBindings
 
 extension MailboxModel {
     func reload(_ surface: Surface) {
-        // Not drawn yet: this client's banners still read the connectivity snapshot. Returning
-        // keeps the signal from reaching the mailbox reload below.
+        // Notices touch nothing else, and returning keeps the signal from the mailbox reload below.
         if case .notices = surface {
+            reloadNotices()
             return
         }
         // A send signal only updates the "sending…" → "sent" hint; it doesn't touch the
@@ -143,7 +143,6 @@ extension MailboxModel {
         selected = snapshot?.selected
         searchHorizon = snapshot?.searchHorizon
         emptyReason = snapshot?.emptyReason
-        folderNotice = snapshot?.folderNotice
         // The reading body (a potentially large HTML string) only changes on a Reading
         // signal, pull it just then, not on every mailbox refresh. The signal names no reader,
         // so every open detached window re-reads its own slot alongside the pane

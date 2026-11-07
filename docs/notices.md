@@ -80,17 +80,17 @@ ignores the signal and must not let it reach a heavier reload.
 
 | | Core | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| The snapshot, its ranking and both intents (rules 1, 3 to 5, 7, 9, 10) | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
-| One prominent notice and an Issues entry (rule 2) | | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
-| The account row's glyph and label, and its Settings page (rule 6) | | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
+| The snapshot, its ranking and both intents (rules 1, 3 to 5, 7, 9, 10) | ✅ | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| One prominent notice and an Issues entry (rule 2) | | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| The account row's glyph and label, and its Settings page (rule 6) | | ✅ | ✅ | ✅ | ⬜ | ⬜ |
 | The three questions as notices (rule 8) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Generated words per kind (rule 11) | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
-| Announced once (rule 12) | | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
+| Generated words per kind (rule 11) | ✅ | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| Announced once (rule 12) | | ✅ | ✅ | ✅ | ⬜ | ⬜ |
 | The Allodia notice raised to Blocked near a lapse | ⬜ | | | | | |
 
 Where each platform puts the prominent notice: macOS and iPadOS, a card at the top of the sidebar,
-above the accounts it is about; iPhone, the first inset row of the list, opening a sheet with the
-rest; Windows, one `InfoBar` above the list, severity mapped to Error, Warning and Informational,
+above the accounts it is about; iPhone, one row under the bar of the tab on show, opening a sheet
+with the rest; Windows, one `InfoBar` above the list, severity mapped to Error, Warning and Informational,
 `IsClosable` only when `dismissible`; Android, one Material outlined card at the top of the list
 (Material 3 has no banner component, and a snackbar disappears), the rest in a bottom sheet;
 Linux, one `AdwBanner` under the header bar, the rest behind an Issues button that appears only
@@ -102,6 +102,11 @@ Windows: [`NoticeBar`](../clients/windows/Mailcal/Views/NoticeBar.xaml.cs) above
 [`MailboxModel.Notices.cs`](../clients/windows/Mailcal/Services/MailboxModel.Notices.cs), and the
 account's page in
 [`SettingsDialog.AccountNotices.cs`](../clients/windows/Mailcal/Dialogs/SettingsDialog.AccountNotices.cs).
+
+On iPhone the row sits under each tab's bar rather than inside the list, so the calendar, which has
+no list, draws it in the same place. On Apple the rules are `NoticeRules.swift`, tested in
+`NoticeRulesTests`; the views are `NoticeViews.swift`, the model's pull, announcement and remedies
+`MailcalModel.Notices.swift`, and `BannerPlacementTests` holds the iPhone row under the bar.
 
 Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ planned.
 

@@ -120,11 +120,6 @@ extension MailboxModel {
         // very first launch the opt-in itself reports the session, so consenting is never a
         // launch we fail to count.
         app.reportAppOpened()
-        // A stored account skipped at launch (its mail connect failed) is non-fatal but
-        // user-visible: surface it as a dismissible in-app notice, not just a log line.
-        if let accountError = app.accountConnectError() {
-            accountNotice = L10n.accounts_skipped_notice(details: accountError)
-        }
         // A configured-but-failed CalDAV connect is non-fatal (mail still works), so it
         // is otherwise invisible, log it here as the likely empty-calendar cause.
         if let calendarError = app.calendarConnectError() {

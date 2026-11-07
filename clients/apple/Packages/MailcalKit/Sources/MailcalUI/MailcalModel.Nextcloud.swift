@@ -141,11 +141,6 @@ extension MailboxModel {
         }
     }
 
-    /// The expired-sign-in banner's sign-in, for an account a Nextcloud sign-in made. A success
-    /// says nothing, because the banner clearing is the answer.
-    func signInWithNextcloudFromBanner(_ id: String) {
-        signInAccountWithNextcloud(id) { [weak self] said in self?.accountNotice = said }
-    }
 }
 
 extension ExistingAccountUpdate {
