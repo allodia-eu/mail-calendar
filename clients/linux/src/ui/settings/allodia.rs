@@ -52,7 +52,7 @@ pub(super) fn allodia(ctx: &PageContext) -> Option<adw::PreferencesGroup> {
     if ctx.allodia_signing_in {
         section.add(&signing_in_row(&ctx.sender));
     } else if let Some(account) = ctx.app.allodia_account() {
-        // The connectivity banner's own source, so the two never disagree; the core raises the
+        // The Allodia notice's own source, so the two never disagree; the core raises the
         // connectivity signal when it moves, and that redraws this page.
         if ctx.app.connectivity().allodia_sign_in_ended.is_some() {
             section.add(&session_ended_row(&ctx.sender, &account));

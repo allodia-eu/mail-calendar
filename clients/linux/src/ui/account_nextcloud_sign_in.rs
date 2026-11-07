@@ -1,4 +1,4 @@
-//! Signing a calendar and contacts account in with Nextcloud from its page or from the banner of
+//! Signing a calendar and contacts account in with Nextcloud from its page or from the notice of
 //! a refused sign-in: again, for one a Nextcloud sign-in made, or instead of its typed password
 //! (`docs/nextcloud-sign-in.md` rules 2 and 7). The browser half is
 //! [`super::super::nextcloud_flight`]'s; this is the account's half, in the shape of the

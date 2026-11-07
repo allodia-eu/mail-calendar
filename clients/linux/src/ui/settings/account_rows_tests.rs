@@ -6,9 +6,7 @@ use mailcal_bindings::{
     LinkCandidates, LinkedAccount, UseProblem,
 };
 
-use super::{
-    change_notice, outage_line, signin_description, signs_in_at_provider, summary, switch_note,
-};
+use super::{change_notice, signin_description, signs_in_at_provider, summary, switch_note};
 use crate::{l10n, ui::settings::notice::Notice};
 
 fn linked(id: &str) -> LinkedAccount {
@@ -129,69 +127,6 @@ fn the_summary_names_the_kind_the_uses_and_the_links() {
         "a use the server lacks is not one"
     );
     assert!(summary.ends_with(l10n::settings_account_needs_permission()));
-}
-
-#[test]
-fn an_outage_line_names_the_account_then_the_reason_its_page_gives_then_the_last_sync() {
-    use mailcal_bindings::UseProblem;
-    let address = "alice@example.org";
-    for (capability, problem, title, reason) in [
-        (
-            AccountCapability::Calendar,
-            UseProblem::NeedsOwnSignIn,
-            l10n::calendar_outage_title(address),
-            l10n::settings_account_use_own_sign_in_calendar(),
-        ),
-        (
-            AccountCapability::Calendar,
-            UseProblem::SignInRefused,
-            l10n::calendar_outage_title(address),
-            l10n::settings_account_use_refused_calendar(),
-        ),
-        (
-            AccountCapability::Calendar,
-            UseProblem::Unreachable,
-            l10n::calendar_outage_title(address),
-            l10n::settings_account_use_unreachable_calendar(),
-        ),
-        (
-            AccountCapability::Contacts,
-            UseProblem::NeedsOwnSignIn,
-            l10n::contacts_outage_title(address),
-            l10n::settings_account_use_own_sign_in_contacts(),
-        ),
-        (
-            AccountCapability::Contacts,
-            UseProblem::SignInRefused,
-            l10n::contacts_outage_title(address),
-            l10n::settings_account_use_refused_contacts(),
-        ),
-        (
-            AccountCapability::Contacts,
-            UseProblem::Unreachable,
-            l10n::contacts_outage_title(address),
-            l10n::settings_account_use_unreachable_contacts(),
-        ),
-        (
-            AccountCapability::Calendar,
-            UseProblem::ServerChanged,
-            l10n::calendar_outage_title(address),
-            l10n::settings_account_use_server_changed_calendar(),
-        ),
-        (
-            AccountCapability::Contacts,
-            UseProblem::ServerChanged,
-            l10n::contacts_outage_title(address),
-            l10n::settings_account_use_server_changed_contacts(),
-        ),
-    ] {
-        assert!(title.contains(address));
-        assert_eq!(
-            outage_line(capability, problem, address),
-            format!("{title} {reason} {}", l10n::use_outage_last_synced()),
-            "{capability:?} {problem:?}"
-        );
-    }
 }
 
 #[test]

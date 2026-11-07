@@ -6,7 +6,7 @@
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
-use mailcal_bindings::{FolderIntent, FolderNotice, FolderProblem, FolderRow};
+use mailcal_bindings::{FolderIntent, FolderRow};
 
 use super::{
     AppInput,
@@ -137,32 +137,4 @@ fn dropped(drag: PaneDrag, into: Option<String>) -> FolderInput {
             key: into.unwrap_or_default(),
         },
     }
-}
-
-/// The sentence a refused folder change stands on the pane as (rule 28).
-pub(crate) fn notice_text(notice: &FolderNotice) -> String {
-    match notice.problem {
-        FolderProblem::ChangedElsewhere => l10n::folder_notice_changed(&notice.folder),
-        FolderProblem::Refused => l10n::folder_notice_refused(&notice.folder),
-    }
-}
-
-/// The banner above the pane's tree that carries a refused folder change until it is dismissed.
-pub(crate) fn notice_banner(sender: &relm4::Sender<AppInput>) -> adw::Banner {
-    let banner = adw::Banner::new("");
-    // A folder name is the server's text: markup-shaped input must render as itself.
-    banner.set_use_markup(false);
-    banner.set_button_label(Some(l10n::action_close()));
-    let input = sender.clone();
-    banner.connect_button_clicked(move |_| {
-        input.emit(AppInput::Folder(FolderInput::Change(
-            FolderIntent::DismissNotice,
-        )));
-    });
-    banner
-}
-
-pub(crate) fn render_notice(banner: &adw::Banner, notice: Option<&FolderNotice>) {
-    banner.set_title(&notice.map(notice_text).unwrap_or_default());
-    banner.set_revealed(notice.is_some());
 }

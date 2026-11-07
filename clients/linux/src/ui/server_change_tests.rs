@@ -90,7 +90,7 @@ fn a_failed_allow_is_said_where_it_was_asked_and_a_good_one_redraws() {
             Some(ServerChangeAnswer::Settled),
             account.to_owned(),
             shown(),
-            ReviewFrom::Outage
+            ReviewFrom::Notice
         ),
         AccountsInput::Changed(None)
     ));
@@ -99,7 +99,7 @@ fn a_failed_allow_is_said_where_it_was_asked_and_a_good_one_redraws() {
         AccountsInput::Refused(notice) if notice == failed()
     ));
     assert!(matches!(
-        allowed(None, account.to_owned(), shown(), ReviewFrom::Outage),
+        allowed(None, account.to_owned(), shown(), ReviewFrom::Notice),
         AccountsInput::ServerChangeFailed(id) if id == account
     ));
     assert!(matches!(
@@ -121,12 +121,12 @@ fn a_question_replaced_while_shown_is_asked_again_as_it_stands_and_nothing_fails
         Some(answer),
         account.to_owned(),
         review(change(true, false)),
-        ReviewFrom::Outage,
+        ReviewFrom::Notice,
     );
 
     assert!(matches!(
         next,
-        AccountsInput::ServerChangeReplaced { account: id, review: asked, from: ReviewFrom::Outage }
+        AccountsInput::ServerChangeReplaced { account: id, review: asked, from: ReviewFrom::Notice }
             if id == account && asked == review(now)
     ));
 }

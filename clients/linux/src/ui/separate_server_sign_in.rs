@@ -328,7 +328,9 @@ impl AppModel {
                     }),
                 },
                 CallbackOutcome::Cancelled => ended(SignInEnd::Cancelled),
-                CallbackOutcome::Failed(_) => ended(SignInEnd::Failed),
+                CallbackOutcome::TimedOut(_) | CallbackOutcome::Failed(_) => {
+                    ended(SignInEnd::Failed)
+                }
             };
             sender.emit(provider(from, input));
         });

@@ -27,6 +27,10 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
     kind.add_css_class("dim-label");
     kind.set_xalign(0.0);
     content.append(&kind);
+    // What needs attention first, above what the person might change about it.
+    if let Some(notices) = super::account_notices::group(ctx, &entry.id) {
+        content.append(&notices);
+    }
     // Whether this one travels: first, because it decides whether anything below it is anybody
     // else's business (`docs/settings.md`).
     if let Some(status) = ctx.allodia_accounts_synced.get(&entry.id).copied() {

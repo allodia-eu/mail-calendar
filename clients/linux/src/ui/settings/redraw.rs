@@ -15,17 +15,19 @@ pub(super) enum Signalled {
     Wait,
 }
 
-/// What Accounts is drawn from: every account, and the open account's page, whose controls a
-/// running change holds without changing any account.
+/// What Accounts is drawn from: every account, the open account's page, whose controls a
+/// running change holds without changing any account, and the notices at that page's top.
 pub(super) type Drawn = (
     mailcal_bindings::AccountsSnapshot,
     Option<mailcal_bindings::AccountPage>,
+    Vec<mailcal_bindings::Notice>,
 );
 
 pub(super) fn drawn(app: &mailcal_bindings::MailcalApp, account: Option<&str>) -> Drawn {
     (
         app.accounts_snapshot(),
         account.and_then(|id| app.account_page(id.to_owned())),
+        account.map_or_else(Vec::new, |id| super::account_notices::of(app, id)),
     )
 }
 

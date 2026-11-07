@@ -10,11 +10,10 @@ pub(crate) use super::test_tree::{
 };
 use super::{MailboxRendering, display_row, flat_row};
 use crate::ui::{
-    AppInput, composer_header::tests as composer_header, connectivity::tests as connectivity,
-    contacts::pane::tests as contacts, destinations::tests as destinations,
-    folder_pane::tests as folder_pane, invitation::widget_tests as invitation,
-    recipients::field::tests as recipients, search::bar::tests as search,
-    settings::signatures::tests as signatures, timestamps::MailClock,
+    AppInput, composer_header::tests as composer_header, contacts::pane::tests as contacts,
+    destinations::tests as destinations, folder_pane::tests as folder_pane,
+    invitation::widget_tests as invitation, recipients::field::tests as recipients,
+    search::bar::tests as search, settings::signatures::tests as signatures, timestamps::MailClock,
 };
 
 fn fixture(subject: &str) -> FlatRow {
@@ -281,8 +280,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::separate_sign_in_view::tests::the_page_form_opens_over_settings_and_updates_in_place(
     );
     crate::ui::separate_sign_in_view::tests::the_page_form_offers_the_sign_in_in_place();
-    connectivity::the_banners_render_the_snapshot_and_keep_the_remedy_actionable();
-    crate::ui::connectivity::allodia_tests::the_allodia_banner_names_the_address_and_signs_in();
+    crate::ui::notice_bar::tests::one_banner_per_screen_and_the_rest_behind_issues();
     crate::ui::unfiled_copy::tests::
         the_unfiled_copy_question_offers_both_answers_and_blocks_double_answers();
     // The ampersand has to sit in **both** halves. A property builder applies `use-markup` in
@@ -352,7 +350,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
 
     folder_pane::the_pane_draws_every_account_its_folders_and_its_counts();
     folder_pane::a_server_named_row_is_never_parsed_as_markup();
-    folder_pane::only_an_unreachable_account_gets_the_warning();
+    folder_pane::only_the_account_a_notice_is_about_carries_its_mark();
     folder_pane::the_unified_scope_is_an_expandable_group_with_an_inbox_child();
     folder_pane::the_pane_marks_where_the_core_says_we_are();
     folder_pane::moving_the_selection_reuses_the_pane();

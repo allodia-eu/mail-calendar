@@ -21,8 +21,6 @@ use crate::l10n;
 pub(crate) enum AccountsInput {
     /// Open an account's page, or go back to the list.
     Show(Option<String>),
-    /// Put Settings on screen at an account's page, from outside the window.
-    Open(String),
     /// Move the open Settings to an account's page under Accounts, from another category.
     Visit(String),
     /// A use, a link or a removal on an account's page, for the core to run.
@@ -151,7 +149,6 @@ impl AppModel {
                 self.settings.account = account;
                 self.settings.refresh_in_place();
             }
-            AccountsInput::Open(account) => self.settings.open_account(account),
             AccountsInput::Visit(account) => {
                 self.settings
                     .record_category(super::settings::Category::Accounts);

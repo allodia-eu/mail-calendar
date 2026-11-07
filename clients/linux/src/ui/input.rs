@@ -26,6 +26,7 @@ use super::{
     mailbox::ThreadKey,
     microsoft::MicrosoftOutcome,
     model::OpenedMessage,
+    notices::NoticeInput,
     notifications::NotificationTarget,
     outbox::{QueuedAction, QueuedTarget},
     reader::{ComposerHost, ReadingSource},
@@ -52,11 +53,8 @@ pub(crate) enum AppInput {
     CheckDeviceTimeZone,
     AcceptDeviceTimeZone,
     DismissDeviceTimeZone,
-    ResolveExpiredSignIn,
-    /// The connectivity banner's Sign in again for a refused Allodia sign-in.
-    ResolveAllodiaSignInEnded,
-    ResolveMailReauth,
-    ResolveCalendarReauth,
+    /// A notice's button (`docs/notices.md`).
+    Notice(NoticeInput),
     ShowMail,
     ShowCalendar,
     ShowContacts,

@@ -8,7 +8,7 @@
 //! The GTK half is functions rather than `#[test]`s, called by the crate's single `gtk::init`
 //! test, for the reason [`super::super::mailbox_thread_tests`] gives.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use adw::prelude::*;
 use mailcal_bindings::{AccountRow, MailboxListSnapshot, OutboxIntent, QueuedRow, QueuedState};
@@ -223,7 +223,7 @@ pub(crate) fn the_pane_row_appears_only_while_something_is_waiting() {
     crate::ui::folder_pane::render(
         &list,
         &empty,
-        &HashSet::default(),
+        &HashMap::default(),
         &crate::ui::folder_actions::name_check(None),
         &sender,
     );
@@ -241,7 +241,7 @@ pub(crate) fn the_pane_row_appears_only_while_something_is_waiting() {
     crate::ui::folder_pane::render(
         &list,
         &waiting,
-        &HashSet::default(),
+        &HashMap::default(),
         &crate::ui::folder_actions::name_check(None),
         &sender,
     );
@@ -278,7 +278,7 @@ pub(crate) fn the_pane_highlights_the_outbox_rather_than_everyones_inbox() {
     crate::ui::folder_pane::render(
         &list,
         &snapshot,
-        &HashSet::default(),
+        &HashMap::default(),
         &crate::ui::folder_actions::name_check(None),
         &sender,
     );
@@ -296,7 +296,7 @@ pub(crate) fn the_pane_highlights_the_outbox_rather_than_everyones_inbox() {
     crate::ui::folder_pane::render(
         &list,
         &unified,
-        &HashSet::default(),
+        &HashMap::default(),
         &crate::ui::folder_actions::name_check(None),
         &sender,
     );
@@ -327,7 +327,7 @@ pub(crate) fn opening_the_outbox_moves_a_highlight_the_selection_cache_would_hav
     crate::ui::folder_pane::render(
         &list,
         &unified,
-        &HashSet::default(),
+        &HashMap::default(),
         &crate::ui::folder_actions::name_check(None),
         &sender,
     );

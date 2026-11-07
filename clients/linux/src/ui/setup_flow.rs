@@ -120,9 +120,8 @@ impl AppModel {
     pub(super) fn existing_account_updated(&mut self, sender: relm4::Sender<AppInput>) {
         if let Some(app) = &self.app {
             self.snapshot.replace(app.mailbox_list());
-            self.connectivity =
-                super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
         }
+        self.pull_notices();
         match self.setup.returning_to.take() {
             Some(account) => self.onward(&account, &account, sender),
             None => self.finish_setup(sender),

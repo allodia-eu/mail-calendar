@@ -386,9 +386,8 @@ impl AppModel {
             self.notice = None;
             if let Some(app) = &self.app {
                 self.snapshot.replace(app.mailbox_list());
-                self.connectivity =
-                    super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
             }
+            self.pull_notices();
         } else {
             self.credential_repair_failed = Some(account);
             self.notice = Some(crate::l10n::signin_expired_failed().to_owned());

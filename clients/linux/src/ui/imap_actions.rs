@@ -126,7 +126,7 @@ impl AppModel {
                     imap_signin::complete(&app, pending, callback_url, unreached)
                 }
                 CallbackOutcome::Cancelled => ImapOutcome::Cancelled,
-                CallbackOutcome::Failed(_) => ImapOutcome::Failed,
+                CallbackOutcome::TimedOut(_) | CallbackOutcome::Failed(_) => ImapOutcome::Failed,
             };
             sender.emit(AppInput::ImapFinished(attempt, outcome));
         });

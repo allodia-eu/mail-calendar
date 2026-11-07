@@ -60,18 +60,7 @@ impl AppModel {
             AppInput::DismissDeviceTimeZone => {
                 self.dispatch(Intent::DismissTimeZoneChange);
             }
-            AppInput::ResolveExpiredSignIn => {
-                self.resolve_expired_signin(sender.input_sender().clone());
-            }
-            AppInput::ResolveAllodiaSignInEnded => {
-                self.resolve_allodia_sign_in_ended(sender.input_sender().clone());
-            }
-            AppInput::ResolveMailReauth => {
-                self.resolve_permission_reauth(false, sender.input_sender().clone());
-            }
-            AppInput::ResolveCalendarReauth => {
-                self.resolve_permission_reauth(true, sender.input_sender().clone());
-            }
+            AppInput::Notice(input) => self.notice_input(input, sender.input_sender().clone()),
             AppInput::ShowMail => self.primary = PrimaryView::Mail,
             AppInput::ShowCalendar => self.show_calendar(),
             AppInput::ShowContacts => self.show_contacts(sender.input_sender().clone()),

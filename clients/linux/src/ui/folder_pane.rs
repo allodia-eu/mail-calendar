@@ -6,7 +6,7 @@
 //! arrive in the snapshot; the pane keeps no state of its own, which is what makes it agree
 //! with the other clients and survive a restart.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use mailcal_bindings::{FolderRow, Intent, MailboxListSnapshot};
 
@@ -16,7 +16,9 @@ use super::{
     folder_names::folder_label,
     folder_pane_edit,
     folder_pane_rows::{account_row, folder_row, unified_group_row, unified_inbox_row},
-    mailbox, outbox,
+    mailbox,
+    notice_rules::AccountMark,
+    outbox,
 };
 
 /// A navigation target represented by one pane row. Carried by the row's own handler rather than
@@ -39,7 +41,7 @@ pub(crate) enum SidebarTarget {
 pub(crate) fn render(
     list: &gtk::ListBox,
     snapshot: &MailboxListSnapshot,
-    unreachable_accounts: &HashSet<String>,
+    marks: &HashMap<String, AccountMark>,
     check: &NameCheck,
     sender: &relm4::Sender<AppInput>,
 ) {
@@ -56,7 +58,7 @@ pub(crate) fn render(
     }
 
     for account in &snapshot.accounts {
-        let row = account_row(account, unreachable_accounts.contains(&account.id), sender);
+        let row = account_row(account, marks.get(&account.id), sender);
         folder_pane_edit::account(
             &row,
             &account.id,
@@ -230,7 +232,8 @@ struct RenderedAccount {
     id: String,
     email: String,
     expanded: bool,
-    unreachable: bool,
+    /// What its notices say on the row (`docs/notices.md` rule 6).
+    mark: Option<AccountMark>,
     manages_folders: bool,
     folders: Vec<RenderedFolder>,
 }
@@ -266,7 +269,7 @@ struct RenderedFolder {
 impl FolderPaneRendering {
     pub(super) fn new(
         snapshot: &MailboxListSnapshot,
-        unreachable_accounts: &HashSet<String>,
+        marks: &HashMap<String, AccountMark>,
     ) -> Self {
         Self {
             accounts: snapshot
@@ -276,7 +279,7 @@ impl FolderPaneRendering {
                     id: account.id.clone(),
                     email: account.email.clone(),
                     expanded: account.expanded,
-                    unreachable: unreachable_accounts.contains(&account.id),
+                    mark: marks.get(&account.id).cloned(),
                     manages_folders: manages_folders(snapshot, &account.id),
                     folders: folders_of(snapshot, &account.id)
                         .iter()
