@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use crate::{
-    FolderNotice, MailcalApp, NoticeIntent, NoticesSnapshot,
+    FolderNotice, Intent, MailcalApp, NoticeIntent, NoticeScreens, NoticesSnapshot,
     notices::{Dismissal, NoticeFacts, raise},
 };
 
@@ -47,7 +47,7 @@ impl MailcalApp {
     /// answers itself.
     pub(crate) fn dispatch_notice(&self, intent: NoticeIntent) {
         // Read first, so the book judges the id against what is in force now.
-        let _ = self.notices();
+        let shown = self.notices();
         let mut book = self.notice_book.lock().expect("notice-book mutex poisoned");
         match intent {
             NoticeIntent::Dismiss { id } => match book.dismiss(&id) {
@@ -75,6 +75,34 @@ impl MailcalApp {
                     self.app.signal_notices();
                 }
             }
+            NoticeIntent::Retry { id } => {
+                if !book.note_retry(&id) {
+                    return;
+                }
+                drop(book);
+                let screens = shown.notices.iter().find(|n| n.id == id).map(|n| n.screens);
+                // The refresh of the notice's screen is what dials the account again; the dial
+                // settles the retry when it ends (`settle_notice_retries`).
+                self.dispatch(match screens {
+                    Some(NoticeScreens::Calendar) => Intent::RefreshCalendar,
+                    Some(NoticeScreens::Contacts) => Intent::RefreshContacts,
+                    _ => Intent::RefreshMail,
+                });
+            }
+        }
+    }
+
+    /// A re-dial has ended: every retried notice still in force did not get through, and says so.
+    pub(crate) fn settle_notice_retries(&self) {
+        let _ = self.notices();
+        let marked = self
+            .notice_book
+            .lock()
+            .expect("notice-book mutex poisoned")
+            .settle_retries();
+        if !marked.is_empty() {
+            log::info!("notices: {} retry(ies) did not get through", marked.len());
+            self.app.signal_notices();
         }
     }
 }
