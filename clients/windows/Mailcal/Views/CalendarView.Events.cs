@@ -237,25 +237,4 @@ public sealed partial class CalendarView
             Model?.DeleteEvent(item.Account, item.Key);
         }
     }
-
-    // Signs the first account whose calendar the grant withholds in again, in place. The banner
-    // clears once the calendar connects; if several are affected it re-renders for the next after
-    // each completes.
-    private void OnCalendarReauth(object sender, RoutedEventArgs e) => Model?.ReconsentCalendar();
-
-    /// <summary>Raised with an account's id when its outage line asks for its page in Settings →
-    /// Accounts; the window opens the dialog, which needs its XamlRoot.</summary>
-    public event EventHandler<string>? AccountSettingsRequested;
-
-    /// <summary>Raised with an account's id when its outage line asks to review a server change;
-    /// the window opens the question, which needs its XamlRoot.</summary>
-    public event EventHandler<string>? ServerChangeRequested;
-
-    private void OnUseOutageAccount(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.Tag is UseOutageLine line)
-        {
-            (line.Reviews ? ServerChangeRequested : AccountSettingsRequested)?.Invoke(this, line.AccountId);
-        }
-    }
 }

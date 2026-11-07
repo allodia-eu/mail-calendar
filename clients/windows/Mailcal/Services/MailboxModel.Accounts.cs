@@ -336,10 +336,11 @@ public sealed partial class MailboxModel
                     Log.Warn($"calendar (CalDAV) failed to connect: {calendarError}");
                 }
                 Reload();
-                // Pull connectivity once now (a boot outage is seeded before any surface signal
-                // fires), so a stored account whose server is unreachable shows its warning badge +
-                // the connection banner immediately, not only after the next connectivity change.
+                // Pull connectivity and the notices once now (a boot outage is seeded before any
+                // surface signal fires), so a stored account whose server is unreachable is said at
+                // once, not only after the next change.
                 UpdateConnectivity(_app.Connectivity());
+                PullNotices();
                 ObserveSystemTimeZone();
                 ObserveNetworkReachability();
                 _app.Dispatch(new Intent.RefreshMail());

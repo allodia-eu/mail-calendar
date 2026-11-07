@@ -146,6 +146,7 @@ public sealed partial class SettingsDialog
         AutomationProperties.SetHeadingLevel(title, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level2);
         panel.Children.Add(title);
         panel.Children.Add(Description(AccountNameText.KindLine(entry)));
+        AddAccountNotices(panel, entry.Id);
         // Whether this one travels: first, because it decides whether anything below it is
         // anybody else's business (docs/settings.md).
         if (_model.AccountsSyncMode.TryGetValue(entry.Id, out var mode))
@@ -288,13 +289,14 @@ public sealed partial class SettingsDialog
         }
     }
 
-    /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, and
-    /// which accounts have a mailbox listed and how each is shared, which the page draws from
-    /// calls of their own.</summary>
+    /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, which
+    /// accounts have a mailbox listed and how each is shared, and the notices about accounts,
+    /// which the page draws from calls of their own.</summary>
     private string AccountsFingerprint(AccountsSnapshot snapshot)
     {
         var beside = (_model.GetSyncSettings()?.Accounts.Select(account => "mail:" + account.AccountId) ?? [])
-            .Concat(_model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}"));
+            .Concat(_model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}"))
+            .Concat(AccountNoticesFingerprint());
         return AccountSettingsRules.Fingerprint(snapshot, _model.SignInExpiredIds, beside);
     }
 

@@ -103,7 +103,7 @@ public static class SidebarTree
     /// value (<c>MailboxListSnapshot.UnifiedExpanded</c>).</param>
     /// <param name="queued">How many unsent messages are waiting, across every account. <c>0</c>
     /// draws no Outbox row at all (rule 18).</param>
-    /// <param name="isUnreachable">Whether an account's server couldn't be reached on its last sync.</param>
+    /// <param name="markOf">The mark an account's row carries for the notices about it, or null.</param>
     /// <param name="onExpandedChanged">Where a user's chevron click goes, the shell dispatches it
     /// to the core, which persists it.</param>
     /// <param name="labels">The localised synthetic labels.</param>
@@ -116,7 +116,7 @@ public static class SidebarTree
         uint unifiedUnread,
         bool unifiedExpanded,
         uint queued,
-        Func<string, bool> isUnreachable,
+        Func<string, SidebarMark?> markOf,
         Action<SidebarItem> onExpandedChanged,
         SidebarLabels labels,
         SidebarGlyphs glyphs,
@@ -169,7 +169,7 @@ public static class SidebarTree
                 ExpandedChanged = onExpandedChanged,
             };
             item.Content = account.Email;
-            item.ShowBadge = isUnreachable(account.Id);
+            item.Mark = markOf(account.Id);
             // On an account row this is the account's own capability: New folder, and a folder
             // dropped here to the top of its tree (rule 22).
             item.AcceptsFolders = account.ManagesFolders;

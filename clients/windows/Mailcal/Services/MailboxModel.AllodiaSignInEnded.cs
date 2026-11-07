@@ -1,6 +1,6 @@
-// The Allodia account's half of the expired sign-in banners: the service refused this device's
-// grant, so the account that keeps the person's mail accounts in step across devices has stopped
-// doing so. Its own partial so MailboxModel.Connectivity.cs stays clear of the 500-line limit.
+// The Allodia account's refused sign-in: the service refused this device's grant, so the account
+// that keeps the person's mail accounts in step across devices has stopped doing so. The window
+// says so through its notice (MailboxModel.Notices.cs); Settings reads it from here.
 
 using System.Threading.Tasks;
 using uniffi.mailcal_bindings;
@@ -12,59 +12,35 @@ public sealed partial class MailboxModel
     // The address whose Allodia sign-in the service refused, or null. The core clears it on a
     // sign-in, a sign-out or a later call the service accepts, and signals Connectivity either way.
     private string? _allodiaSignInEnded;
-    // What the banner says after the sign-in it started did not complete, or null.
-    private string? _allodiaBannerFailure;
 
     private void UpdateAllodiaSignInEnded(ConnectivitySnapshot connectivity)
     {
-        // A failure answers the attempt on this address, so a different address, or none, drops it.
-        if (connectivity.AllodiaSignInEnded != _allodiaSignInEnded)
-        {
-            _allodiaBannerFailure = null;
-        }
         _allodiaSignInEnded = connectivity.AllodiaSignInEnded;
         Raise(nameof(HasAllodiaSignInEnded));
-        Raise(nameof(AllodiaSignInEndedText));
     }
 
-    /// <summary>Whether the service refused this device's Allodia sign-in, which drives its banner.
-    /// Shown regardless of the offline state, like the mail accounts' prompts.</summary>
-    public bool HasAllodiaSignInEnded => AllodiaSignInEndedBanner.Shown(_allodiaSignInEnded);
+    /// <summary>Whether the service refused this device's Allodia sign-in. A grant that is merely
+    /// narrower than this build wants never names an address.</summary>
+    public bool HasAllodiaSignInEnded => !string.IsNullOrEmpty(_allodiaSignInEnded);
 
-    /// <summary>The banner's message, naming the address, and the last attempt's failure after it.</summary>
-    public string AllodiaSignInEndedText => _allodiaSignInEnded is { } email
-        ? AllodiaSignInEndedBanner.Message(L10n.AllodiaSigninEndedPrompt(email), _allodiaBannerFailure)
-        : string.Empty;
-
-    /// <summary>The banner's button: the ordinary Allodia sign-in, run from where the person is.
-    /// A no-op while a sign-in is already waiting on the browser, whose redirect it would
-    /// otherwise orphan.</summary>
-    public void SignInToAllodiaFromBanner()
+    /// <summary>
+    /// The notice's sign-in: the ordinary Allodia sign-in, run from where the person is.
+    /// </summary>
+    /// <returns>Whether it failed. A sign-in the person gave up on did not, and neither did one
+    /// already waiting on the browser, whose redirect a second would orphan.</returns>
+    private async Task<bool> SignInToAllodiaFromNoticeAsync()
     {
         if (_allodiaSignIn is not null)
         {
-            return;
+            return false;
         }
-        _ = SignInToAllodiaFromBannerAsync();
-    }
-
-    private async Task SignInToAllodiaFromBannerAsync()
-    {
-        SetAllodiaBannerFailure(null);
         var failure = await SignInToAllodiaAsync();
-        SetAllodiaBannerFailure(AllodiaSignInEndedBanner.AfterAttempt(
-            failure is not null, failure?.Stale == true, L10n.SigninStale(), L10n.SigninExpiredFailed()));
-        // What the prompt promised: the accounts in step again, now rather than at the next
+        // What the notice promised: the accounts in step again, now rather than at the next
         // launch. Asked of the grant, because a sign-in the person gave up on also returns null.
         if (failure is null && AllodiaGrantHealth == AllodiaGrantHealth.Ok)
         {
             _ = SyncAllodiaAccountsAsync();
         }
-    }
-
-    private void SetAllodiaBannerFailure(string? failure)
-    {
-        _allodiaBannerFailure = failure;
-        Raise(nameof(AllodiaSignInEndedText));
+        return failure is not null;
     }
 }

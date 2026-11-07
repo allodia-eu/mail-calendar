@@ -32,10 +32,11 @@ public sealed partial class MailboxModel
         {
             return;
         }
-        // Not drawn yet: this client's banners still read the connectivity snapshot. Returning
-        // keeps the signal from reaching the mailbox reload below.
+        // The notices touch only the bar, the folder pane's marks and Settings, never the mailbox
+        // projection below.
         if (changed == Surface.Notices)
         {
+            PullNotices();
             return;
         }
         // A send signal only updates the "sending…" → "sent" hint; it doesn't touch the
@@ -60,8 +61,8 @@ public sealed partial class MailboxModel
             UpdateSyncProgress(_app.SyncProgress());
             return;
         }
-        // A connectivity signal updates the offline banner + per-account outage badges; it
-        // doesn't touch the mailbox projection.
+        // A connectivity signal updates the folder pane's footer status and Settings; what a
+        // person is told about it arrives as notices. It doesn't touch the mailbox projection.
         if (changed == Surface.Connectivity)
         {
             UpdateConnectivity(_app.Connectivity());
@@ -144,7 +145,6 @@ public sealed partial class MailboxModel
         SelectedFolder = snapshot.Selected;
         SearchHorizon = snapshot.SearchHorizon;
         EmptyReason = snapshot.EmptyReason;
-        FolderNotice = snapshot.FolderNotice;
 
         var rows = snapshot.Rows.Select(row =>
         {

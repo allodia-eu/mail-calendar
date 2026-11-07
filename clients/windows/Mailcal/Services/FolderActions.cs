@@ -282,16 +282,6 @@ internal static class FolderActions
             ? new DeleteQuestion(words.PermanentTitle(name), words.PermanentMessage, words.PermanentConfirm)
             : new DeleteQuestion(words.Title(name), words.Message, words.Confirm);
 
-    /// <summary>The notice's sentence, or the empty string when there is no notice (rule 28).</summary>
-    public static string NoticeText(
-        FolderNotice? notice, Func<string, string> changed, Func<string, string> refused) =>
-        notice switch
-        {
-            null => string.Empty,
-            { Problem: FolderProblem.ChangedElsewhere } => changed(notice.Folder),
-            _ => refused(notice.Folder),
-        };
-
     private static string? AccountOf(SelectedRow row) => row switch
     {
         SelectedRow.Message message => message.Account,

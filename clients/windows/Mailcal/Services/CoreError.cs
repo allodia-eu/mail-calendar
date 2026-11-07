@@ -72,20 +72,6 @@ internal static class CoreError
             ? words.StaleSignIn
             : words.ConnectFailed(Said(error, words));
 
-    /// <summary>
-    /// What a banner asking for a sign-in again says after one launched from it failed:
-    /// <paramref name="failed"/> ("Signing in again didn't work"), except for the two outcomes
-    /// whose remedy differs, a sign-in that came back as another account and a browser that
-    /// returned from another sign-in. <paramref name="error"/> is null for a failure the core did
-    /// not raise, such as a browser that did not open.
-    /// </summary>
-    internal static string SaidOnBanner(Exception? error, CoreErrorWords words, string failed) => error switch
-    {
-        uniffi.mailcal_bindings.MailcalException.StaleSignIn => words.StaleSignIn,
-        uniffi.mailcal_bindings.MailcalException.DifferentAccount => words.DifferentAccount,
-        _ => failed,
-    };
-
     /// <summary>What a calendar or address book that did not connect on a server of its own
     /// says. <paramref name="capability"/> is never mail here, and is read as the calendar if it
     /// is.</summary>
