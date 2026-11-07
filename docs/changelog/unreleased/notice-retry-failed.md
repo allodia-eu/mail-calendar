@@ -1,6 +1,6 @@
 # A Try again that does not get through says so
 
-Platforms: macos, ios
+Platforms: macos, ios, windows
 Bump: patch
 
 > The client cannot tell when the dial a Try again starts has ended, so the core judges it: the
