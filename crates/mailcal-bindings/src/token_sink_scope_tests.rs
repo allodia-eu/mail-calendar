@@ -151,3 +151,59 @@ async fn a_later_rotation_keeps_the_recorded_grant() {
         [Some(scopes(&["a"])), Some(scopes(&["a"]))]
     );
 }
+
+/// Counts how often the registry asks for the widened accounts to be dialled again.
+fn count_reopens(sink: &BindingTokenSink) -> Arc<std::sync::atomic::AtomicUsize> {
+    let reopens = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = Arc::clone(&reopens);
+    sink.registry.on_grant_widened(Box::new(move || {
+        counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }));
+    reopens
+}
+
+/// A grant widened outside this app's own sign-in (an administrator's consent, or a consent that
+/// propagated after the sign-in) opens a use the old one withheld; the account's calendar and
+/// contacts are dialled again at once rather than at the next launch.
+#[tokio::test]
+async fn a_refresh_that_opens_a_withheld_use_has_it_dialled_again() {
+    let (id, sink, _store) = google_account(Some(&["https://mail.google.com/"]));
+    let reopens = count_reopens(&sink);
+
+    sink.scopes_granted(
+        &id,
+        &granted(&[
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/calendar",
+        ]),
+    )
+    .await;
+
+    assert_eq!(sink.registry.take_widened(), [id.as_str().to_owned()]);
+    assert_eq!(reopens.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(sink.registry.take_widened().is_empty(), "taken once");
+}
+
+/// A narrower grant, or a wider one that opens nothing the account is used for, dials nothing.
+#[tokio::test]
+async fn a_refresh_that_opens_nothing_dials_nothing() {
+    let both = [
+        "https://mail.google.com/",
+        "https://www.googleapis.com/auth/calendar",
+    ];
+    let (narrowed, sink, _store) = google_account(Some(&both));
+    let reopens = count_reopens(&sink);
+    sink.scopes_granted(&narrowed, &granted(&["https://mail.google.com/"]))
+        .await;
+
+    let (widened, wider, _store) = google_account(Some(&both));
+    let wider_reopens = count_reopens(&wider);
+    let mut more = both.to_vec();
+    more.push("https://www.googleapis.com/auth/unrelated");
+    wider.scopes_granted(&widened, &granted(&more)).await;
+
+    assert!(sink.registry.take_widened().is_empty());
+    assert!(wider.registry.take_widened().is_empty());
+    assert_eq!(reopens.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(wider_reopens.load(std::sync::atomic::Ordering::SeqCst), 0);
+}

@@ -145,6 +145,9 @@ impl TokenSink for BindingTokenSink {
                 granted.as_slice().len(),
             ),
         }
+        // A use the old grant withheld may be open now; its calendar and contacts are dialled
+        // again.
+        self.registry.reopen_widened();
     }
 
     /// Stores whether the account is a personal one. Losing this write costs one more question

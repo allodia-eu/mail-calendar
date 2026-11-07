@@ -358,6 +358,17 @@ pub(crate) fn build_accounts(
     // has consented, but it must happen before the first event, or a consented install's very
     // first batch would report zero accounts.
     mailcal.rediscovery.adopt(&mailcal);
+    // A refresh that widens a grant opens a use the dial before it was planned without; dial it
+    // again now. Off the runtime, whose thread must not drop the last handle on the app.
+    let widened = Arc::downgrade(&mailcal);
+    mailcal.registry.on_grant_widened(Box::new(move || {
+        let widened = widened.clone();
+        std::thread::spawn(move || {
+            if let Some(app) = widened.upgrade() {
+                app.retry_connections();
+            }
+        });
+    }));
     // Settings names which way each Gmail account syncs, which settles on the account's first
     // read, and an account whose mail cannot be reached is badged like any unreachable one.
     let settled = Arc::downgrade(&mailcal.app);
