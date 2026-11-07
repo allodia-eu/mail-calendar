@@ -25,6 +25,9 @@ pub struct Notice {
     pub kind: NoticeKind,
     /// The sentence to show, ready for the generated `notice` lookup (`docs/notices.md` rule 11).
     pub title: NoticeText,
+    /// What a host shows under the title when there is room: why, and what that means. `None`
+    /// when the title says it all.
+    pub detail: Option<NoticeText>,
     /// How much of what the person relies on it touches.
     pub severity: NoticeSeverity,
     /// Where it is drawn.
@@ -139,4 +142,7 @@ pub enum NoticeAction {
     SignInToAllodia,
     /// Refresh what the notice's screen shows, which dials the account again.
     Retry,
+    /// Ask whether to allow the account's new server, found on another site
+    /// (`MailcalApp::pending_server_change`, `docs/account-autodetect.md` rule 14).
+    Review,
 }

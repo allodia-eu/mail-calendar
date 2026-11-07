@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{action_label, title};
+use super::{action_label, detail, title};
 use crate::{FolderAction, FolderProblem, NoticeAction, NoticeKind, NoticeText, UseProblem};
 
 const CATALOG: &str = include_str!("../../../messages/en.json");
@@ -32,25 +32,34 @@ fn every_kind() -> Vec<NoticeKind> {
         action: FolderAction::Rename,
         problem,
     };
-    vec![
-        NoticeKind::SignInExpired,
-        NoticeKind::MailReauth,
-        NoticeKind::CalendarReauth,
-        NoticeKind::CalendarOutage {
-            problem: UseProblem::Unreachable,
-        },
-        NoticeKind::ContactsOutage {
-            problem: UseProblem::Unreachable,
-        },
-        NoticeKind::Unreachable,
-        NoticeKind::Offline,
-        NoticeKind::AllodiaSignInEnded {
-            address: "me@allodia.example".to_owned(),
-        },
-        NoticeKind::AccountsSkipped { count: 2 },
-        folder(FolderProblem::ChangedElsewhere),
-        folder(FolderProblem::Refused),
-    ]
+    let problems = [
+        UseProblem::Unreachable,
+        UseProblem::SignInRefused,
+        UseProblem::NeedsOwnSignIn,
+        UseProblem::ServerChanged,
+        UseProblem::NoneOnServer,
+    ];
+    let outages = problems.into_iter().flat_map(|problem| {
+        [
+            NoticeKind::CalendarOutage { problem },
+            NoticeKind::ContactsOutage { problem },
+        ]
+    });
+    outages
+        .chain([
+            NoticeKind::SignInExpired,
+            NoticeKind::MailReauth,
+            NoticeKind::CalendarReauth,
+            NoticeKind::Unreachable,
+            NoticeKind::Offline,
+            NoticeKind::AllodiaSignInEnded {
+                address: "me@allodia.example".to_owned(),
+            },
+            NoticeKind::AccountsSkipped { count: 2 },
+            folder(FolderProblem::ChangedElsewhere),
+            folder(FolderProblem::Refused),
+        ])
+        .collect()
 }
 
 fn every_text() -> Vec<NoticeText> {
@@ -59,10 +68,13 @@ fn every_text() -> Vec<NoticeText> {
         NoticeAction::OpenAccountSettings,
         NoticeAction::SignInToAllodia,
         NoticeAction::Retry,
+        NoticeAction::Review,
     ];
-    every_kind()
+    let kinds = every_kind();
+    kinds
         .iter()
         .map(|kind| title(kind, "anna@example.org"))
+        .chain(kinds.iter().filter_map(detail))
         .chain(actions.into_iter().map(action_label))
         .collect()
 }
@@ -97,6 +109,17 @@ fn every_notice_message_in_the_catalog_is_one_the_core_names() {
         .filter(|key| key.starts_with("notice_") && !named.contains(key))
         .collect();
     assert!(orphans.is_empty(), "never named by the core: {orphans:?}");
+}
+
+#[test]
+fn only_an_outage_has_a_detail_and_each_problem_its_own() {
+    let details: BTreeSet<String> = every_kind()
+        .iter()
+        .filter_map(detail)
+        .map(|text| text.key)
+        .collect();
+    assert_eq!(details.len(), 10, "five problems for each of two uses");
+    assert_eq!(detail(&NoticeKind::SignInExpired), None);
 }
 
 #[test]

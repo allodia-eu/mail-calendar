@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use crate::{FolderProblem, NoticeAction, NoticeKind, NoticeText};
+use crate::{FolderProblem, NoticeAction, NoticeKind, NoticeText, UseProblem};
 
 fn text(key: &str, args: &[(&str, &str)]) -> NoticeText {
     NoticeText {
@@ -44,12 +44,31 @@ pub(crate) fn title(kind: &NoticeKind, address: &str) -> NoticeText {
     }
 }
 
+/// Why a calendar or an address book did not connect, and that what is shown is what was last
+/// synced; the reason is the one the account's page gives under that use's switch.
+pub(crate) fn detail(kind: &NoticeKind) -> Option<NoticeText> {
+    let (problem, used) = match kind {
+        NoticeKind::CalendarOutage { problem } => (problem, "calendar"),
+        NoticeKind::ContactsOutage { problem } => (problem, "contacts"),
+        _ => return None,
+    };
+    let why = match problem {
+        UseProblem::Unreachable => "unreachable",
+        UseProblem::SignInRefused => "refused",
+        UseProblem::NeedsOwnSignIn => "own_sign_in",
+        UseProblem::ServerChanged => "server_changed",
+        UseProblem::NoneOnServer => "none_on_server",
+    };
+    Some(text(&format!("notice_detail_{why}_{used}"), &[]))
+}
+
 /// The label of `action`'s button.
 pub(crate) fn action_label(action: NoticeAction) -> NoticeText {
     let key = match action {
         NoticeAction::SignInAgain | NoticeAction::SignInToAllodia => "notice_action_sign_in_again",
         NoticeAction::OpenAccountSettings => "notice_action_open_account_settings",
         NoticeAction::Retry => "notice_action_retry",
+        NoticeAction::Review => "notice_action_review",
     };
     text(key, &[])
 }

@@ -262,15 +262,15 @@ fn sign_in_remedy(provider: Option<AccountProvider>) -> NoticeAction {
     }
 }
 
-/// A use that did not connect: dialled again by a refresh when it could not be reached, and
-/// explained on the account's page otherwise.
+/// A use that did not connect: dialled again by a refresh when it could not be reached, a
+/// question about the new server when it moved, and explained on the account's page otherwise.
 fn outage_remedy(problem: UseProblem) -> Option<NoticeAction> {
     Some(match problem {
         UseProblem::Unreachable => NoticeAction::Retry,
-        UseProblem::NeedsOwnSignIn
-        | UseProblem::SignInRefused
-        | UseProblem::ServerChanged
-        | UseProblem::NoneOnServer => NoticeAction::OpenAccountSettings,
+        UseProblem::ServerChanged => NoticeAction::Review,
+        UseProblem::NeedsOwnSignIn | UseProblem::SignInRefused | UseProblem::NoneOnServer => {
+            NoticeAction::OpenAccountSettings
+        }
     })
 }
 
@@ -347,6 +347,7 @@ impl NoticeBook {
             .into_iter()
             .map(|(_, notice, remedy_failed)| Notice {
                 id: notice.id.0,
+                detail: notice_words::detail(&notice.kind),
                 kind: notice.kind,
                 title: notice.title,
                 severity: notice.severity,
