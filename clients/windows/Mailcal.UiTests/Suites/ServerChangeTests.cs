@@ -51,7 +51,8 @@ public sealed class ServerChangeTests(ServerChangeHarnessApp harness) : IClassFi
     }
 
     /// <summary>Opens the calendar, which asks for it again, until the account's page offers a
-    /// review of the calendar's server, and returns that page.</summary>
+    /// review of the moved servers, and returns that page. The lookup moves the calendar and the
+    /// address book together, and the one Review sits beneath the last of them.</summary>
     private static Element WaitPaused(App app, SetupFlow flow)
     {
         Element? dialog = null;
@@ -61,17 +62,17 @@ public sealed class ServerChangeTests(ServerChangeHarnessApp harness) : IClassFi
             app.Agent.Invoke(app.Agent.Find(Filter.ById("NavCalendar", "ListItem"))!);
             app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(500), cap: TimeSpan.FromSeconds(5));
             dialog = flow.OpenAccount(Harness.Alice);
-            return Review(app, dialog, "Calendar") is not null;
+            return Review(app, dialog, "Contacts") is not null;
         }, TimeSpan.FromSeconds(60));
         Assert.True(paused, "the calendar server refused the sign-in, the lookup found it on another site, and the account's page never offered to review it");
         return dialog!;
     }
 
-    /// <summary>Presses Review under the calendar and waits for the question it draws. The question
-    /// is a layout panel, which has no automation peer, so it is found by its parts.</summary>
+    /// <summary>Presses Review and waits for the question it draws. The question is a layout panel,
+    /// which has no automation peer, so it is found by its parts.</summary>
     private static void OpenQuestion(App app, Element dialog)
     {
-        app.Agent.Invoke(Review(app, dialog, "Calendar")!);
+        app.Agent.Invoke(Review(app, dialog, "Contacts")!);
         if (app.Agent.Wait(new Filter { Id = "ServerChangeAllow", Under = dialog }, TimeSpan.FromSeconds(10)) is null)
         {
             throw new InvalidOperationException("Review drew no question on the account's page");
@@ -107,8 +108,10 @@ public sealed class ServerChangeTests(ServerChangeHarnessApp harness) : IClassFi
             flow = new SetupFlow(app);
             var dialog = WaitPaused(app, flow);
             Assert.True(Says(app, dialog, "settings_account_use_server_changed_calendar"), "the calendar's switch says it is paused for a new server");
-            Assert.True(Review(app, dialog, "Contacts") is not null && Says(app, dialog, "settings_account_use_server_changed_contacts"),
+            Assert.True(Says(app, dialog, "settings_account_use_server_changed_contacts"),
                 "and so does the address book's, which the same lookup moved");
+            Assert.True(Review(app, dialog, "Calendar") is null,
+                "one Review, beneath the last of the uses it answers: the question names one server change, whichever uses it moved");
             OpenQuestion(app, dialog);
             var before = app.Agent.Find(new Filter { Id = "ServerChangeBefore", Under = dialog })?.Name ?? "";
             var now = app.Agent.Find(new Filter { Id = "ServerChangeNow", Under = dialog })?.Name ?? "";
@@ -125,7 +128,7 @@ public sealed class ServerChangeTests(ServerChangeHarnessApp harness) : IClassFi
             Assert.True(Says(app, dialog, "settings_account_use_server_changed_calendar"), "and the calendar stays paused");
             app.Agent.Invoke(Button(app, dialog, "ServerChangeNotNow"));
             Assert.True(app.Agent.WaitGone(new Filter { Id = "ServerChangeAllow", Under = dialog }, TimeSpan.FromSeconds(10)), "Not now puts the question away");
-            Assert.True(Review(app, dialog, "Calendar") is not null, "and Review is offered again, since the calendar still waits on the person");
+            Assert.True(Review(app, dialog, "Contacts") is not null, "and Review is offered again, since the calendar still waits on the person");
         }, changesPassword: true);
 
     [HarnessFact]
