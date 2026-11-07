@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import uniffi.mailcal_bindings.AccountPageIntent
 import uniffi.mailcal_bindings.ContactDetail
 import uniffi.mailcal_bindings.EventIntent
 import uniffi.mailcal_bindings.Intent
@@ -327,7 +328,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             accounts = accounts,
                             selectedAccount = selectedAccount,
                             onSelectAccount = { instance.dispatch(Intent.SelectAccount(it)) },
-                            onRemoveAccount = { removeAccount(it) },
+                            onRemoveAccount = { changeAccount(AccountPageIntent.Remove(it)) },
                             removalOf = { id ->
                                 accountSettings.entry(id)
                                     ?.let { accountRemoval(this@MailboxTabContent, it) }

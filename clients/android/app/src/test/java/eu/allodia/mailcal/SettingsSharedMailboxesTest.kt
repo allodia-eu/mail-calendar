@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -44,6 +45,7 @@ class SettingsSharedMailboxesTest {
         val entry = mailboxOnly()
         state.snapshot = AccountsSnapshot(listOf(entry))
         state.page = entry.id
+        state.accountPage = pageOf(entry)
         state.shared.answered(entry.id, view, state.shared.read())
         val ui = AccountsSettingsUi(
             state = state,
@@ -53,8 +55,8 @@ class SettingsSharedMailboxesTest {
         )
         compose.setContent {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                AccountsSettings(ui, allodiaSyncCard = {}) { page ->
-                    AccountPage(page, ui, syncMode = null, onSetSyncMode = {}) {}
+                AccountsSettings(ui, allodiaSyncCard = {}) { shown, record ->
+                    AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {}) {}
                 }
             }
         }
@@ -115,7 +117,7 @@ class SettingsSharedMailboxesTest {
     }
 
     @Test
-    fun the_use_switch_waits_for_mail() {
+    fun the_use_switch_says_the_core_holds_it_for_mail() {
         val microsoft = accountEntry(
             CoreAccountKind.MICROSOFT,
             AccountCapability.MAIL to CapabilityState.OFF,
@@ -124,13 +126,26 @@ class SettingsSharedMailboxesTest {
         )
         state.snapshot = AccountsSnapshot(listOf(microsoft))
         state.page = microsoft.id
+        val held = uniffi.mailcal_bindings.ControlState(enabled = false, running = false)
+        state.accountPage = pageOf(
+            microsoft,
+            uses = listOf(
+                useSwitch(AccountCapability.MAIL, on = false),
+                useSwitch(
+                    AccountCapability.SHARED_MAILBOXES,
+                    on = false,
+                    control = held,
+                    blocked = uniffi.mailcal_bindings.AccountUseBlock.NEEDS_MAIL,
+                ),
+            ),
+        )
         val ui = AccountsSettingsUi(state = state)
         compose.setContent {
-            AccountsSettings(ui, allodiaSyncCard = {}) { page ->
-                AccountPage(page, ui, syncMode = null, onSetSyncMode = {}) {}
+            AccountsSettings(ui, allodiaSyncCard = {}) { shown, record ->
+                AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {}) {}
             }
         }
-        compose.onNodeWithTag("account-use-SHARED_MAILBOXES").assertIsOff()
+        compose.onNodeWithTag("account-use-SHARED_MAILBOXES").assertIsOff().assertIsNotEnabled()
         compose.onNodeWithText("Switch on Mail first.").assertExists()
     }
 }

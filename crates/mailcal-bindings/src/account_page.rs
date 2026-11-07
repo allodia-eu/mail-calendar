@@ -12,16 +12,16 @@ use crate::{
 };
 
 /// `entry`'s page. `hold` says which change runs, and `toggle` what switching a use on (`true`)
-/// or off comes to.
+/// or off comes to. The control a running change started is drawn at the value it is moving to.
 pub(crate) fn page(
     entry: &AccountEntry,
     hold: Hold,
     notice: Option<AccountChangeNoticeRaised>,
     toggle: impl Fn(AccountCapability, bool) -> Toggle,
 ) -> AccountPage {
-    let control = |work: PageWork, free: bool| ControlState {
+    let control = |running: bool, free: bool| ControlState {
         enabled: free && !hold.busy,
-        running: hold.own == Some(work),
+        running,
     };
     let review = review_after(entry);
     let uses = entry
@@ -30,6 +30,10 @@ pub(crate) fn page(
         .map(|use_| {
             let capability = use_.capability;
             let on = use_.state == CapabilityState::On;
+            let going = match &hold.own {
+                Some(PageWork::Use { capability: at, on }) if *at == capability => Some(*on),
+                _ => None,
+            };
             let pressing = toggle(capability, !on);
             let blocked = match pressing {
                 Toggle::Refused(block) => Some(block),
@@ -37,8 +41,8 @@ pub(crate) fn page(
             };
             AccountUseSwitch {
                 capability,
-                on,
-                control: control(PageWork::Use(capability), blocked.is_none()),
+                on: going.unwrap_or(on),
+                control: control(going.is_some(), blocked.is_none()),
                 blocked,
                 status: use_
                     .problem
@@ -52,13 +56,42 @@ pub(crate) fn page(
             }
         })
         .collect();
+    let linking = match &hold.own {
+        Some(PageWork::Link { slot, target }) => Some((*slot, target.as_deref())),
+        _ => None,
+    };
     AccountPage {
         account: entry.id.clone(),
         uses,
-        links: link_pickers(entry, |slot| control(PageWork::Link(slot), true)),
-        remove: control(PageWork::Remove, true),
+        links: link_pickers(entry)
+            .into_iter()
+            .map(|mut picker| {
+                if let Some((_, target)) = linking.filter(|(slot, _)| *slot == picker.slot) {
+                    picker.selected = target.and_then(|target| {
+                        index(picker.options.iter().position(|option| option.id == target))
+                    });
+                    picker.control = control(true, true);
+                } else {
+                    picker.control = control(false, true);
+                }
+                picker
+            })
+            .collect(),
+        remove: control(hold.own == Some(PageWork::Remove), true),
         notice,
     }
+}
+
+/// The pickers setup's link step offers `entry` once it is added: one per slot it can hold that
+/// nothing fills yet (`docs/accounts.md` rule 12). Whether the step is offered at all is
+/// [`offers_setup_links`](crate::offers_setup_links).
+#[uniffi::export]
+#[must_use]
+pub fn setup_link_pickers(entry: &AccountEntry) -> Vec<AccountLinkPicker> {
+    link_pickers(entry)
+        .into_iter()
+        .filter(|picker| picker.selected.is_none())
+        .collect()
 }
 
 /// The use the page's "Review" sits under: the last of those paused for a server found on another
@@ -74,10 +107,7 @@ fn review_after(entry: &AccountEntry) -> Option<AccountCapability> {
 /// The pickers the page offers: one per slot it can hold, which is a slot with candidates or one
 /// already linked. The linked account is listed even when it is no longer a candidate. Matched by
 /// id, so a linked account whose address or distinction has since changed is not listed twice.
-fn link_pickers(
-    entry: &AccountEntry,
-    control: impl Fn(LinkSlot) -> ControlState,
-) -> Vec<AccountLinkPicker> {
+fn link_pickers(entry: &AccountEntry) -> Vec<AccountLinkPicker> {
     [
         (
             LinkSlot::Calendar,
@@ -104,7 +134,6 @@ fn link_pickers(
         {
             options.insert(0, current.clone());
         }
-        let index = |found: Option<usize>| found.and_then(|at| u32::try_from(at).ok());
         let selected = index(
             current
                 .as_ref()
@@ -125,10 +154,18 @@ fn link_pickers(
             options,
             selected,
             suggested,
-            control: control(slot),
+            control: ControlState {
+                enabled: true,
+                running: false,
+            },
         }
     })
     .collect()
+}
+
+/// A position in a picker's options, as the record carries it.
+fn index(found: Option<usize>) -> Option<u32> {
+    found.and_then(|at| u32::try_from(at).ok())
 }
 
 #[cfg(test)]

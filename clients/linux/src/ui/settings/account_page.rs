@@ -3,21 +3,24 @@
 //! used for mail, and its removal, last.
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountCapability, AccountEntry};
-
-use super::{
-    PageContext, account_mail, account_rows, account_servers, dialog_box, group, page_box,
+use mailcal_bindings::{
+    AccountEntry, AccountLinkPicker, AccountPage, AccountPageIntent, AccountUseSwitch,
 };
+
+use super::{PageContext, account_mail, account_rows, account_servers, group, page_box};
 use crate::{
     l10n,
     ui::{
         AppInput,
         account_settings::AccountsInput,
+        controls,
         server_change::{self, Review, ReviewFrom},
     },
 };
 
-pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
+/// `entry`'s page: its uses, links and removal as the core decided them (`account`), the rest
+/// from the entry.
+pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPage) -> gtk::Box {
     let content = page_box(&entry.address);
     content.prepend(&back_button(&ctx.sender));
     let kind = gtk::Label::new(Some(&super::account_names::kind_line(entry)));
@@ -33,10 +36,9 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
             status,
         ));
     }
-    content.append(&uses_group(ctx, entry));
-    let pickers = account_rows::link_pickers(entry);
-    if !pickers.is_empty() {
-        content.append(&links_group(ctx, entry, pickers));
+    content.append(&uses_group(ctx, entry, &account.uses));
+    if !account.links.is_empty() {
+        content.append(&links_group(ctx, entry, &account.links));
     }
     if let Some(shared) = super::shared_mailboxes::section(ctx, entry) {
         content.append(&shared);
@@ -60,8 +62,13 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry) -> gtk::Box {
     if let Some(mail) = mail_group(ctx, entry) {
         content.append(&mail);
     }
-    content.append(&remove_group(ctx, entry));
+    content.append(&remove_group(ctx, entry, account.remove));
     content
+}
+
+/// Asks the core for a change on the page; it returns at once, and the page says it runs.
+fn change(sender: &relm4::Sender<AppInput>, intent: AccountPageIntent) {
+    sender.emit(AppInput::Accounts(AccountsInput::Change(intent)));
 }
 
 /// Back to the accounts list.
@@ -76,46 +83,59 @@ fn back_button(sender: &relm4::Sender<AppInput>) -> gtk::Button {
     back
 }
 
-/// A switch per use the account's kind offers. Switching one off is confirmed first, because it
-/// deletes what the device holds of it.
-fn uses_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup {
+/// A switch per use the account's kind offers. Switching one off that deletes what the device
+/// holds of it is confirmed first.
+fn uses_group(
+    ctx: &PageContext,
+    entry: &AccountEntry,
+    switches: &[AccountUseSwitch],
+) -> adw::PreferencesGroup {
     let section = group(
         l10n::settings_account_uses_heading(),
         l10n::settings_account_uses_description(),
     );
-    for use_ in &entry.uses {
-        let capability = use_.capability;
-        let switch = account_rows::use_switch(entry, capability);
-        let row = adw::SwitchRow::new();
-        row.set_use_markup(false);
-        row.set_title(account_rows::use_name(capability));
-        if let Some(note) = switch.note {
-            row.set_subtitle(note);
-        }
-        row.set_active(switch.active);
-        row.set_sensitive(switch.sensitive);
-        let parent = ctx.window.clone();
-        let sender = ctx.sender.clone();
-        let account = entry.id.clone();
-        let asks = switch.asks;
-        row.connect_active_notify(move |row| {
-            let on = row.is_active();
-            if on && asks {
-                // Already chosen, and waiting on the provider: switching it on asks again.
-                sender.emit(AppInput::Accounts(AccountsInput::SignInAgain {
-                    account: account.clone(),
-                    adding: vec![capability],
-                }));
-            } else if on || !account_rows::confirms_off(capability) {
-                sender.emit(AppInput::Accounts(AccountsInput::SetUse {
+    for switch in switches {
+        let capability = switch.capability;
+        let note = account_rows::switch_note(switch);
+        let (parent, sender, account) = (ctx.window.clone(), ctx.sender.clone(), entry.id.clone());
+        let (asks, confirms) = (switch.asks_provider, switch.confirms_off);
+        let row = controls::switch_row(
+            account_rows::use_name(capability),
+            note.as_deref(),
+            switch.on,
+            switch.control,
+            move |row, on| {
+                let set = AccountPageIntent::SetUse {
                     account: account.clone(),
                     capability,
                     on,
-                }));
-            } else {
-                confirm_off(&parent, row, account.clone(), capability, sender.clone());
-            }
-        });
+                };
+                if on && asks {
+                    sender.emit(AppInput::Accounts(AccountsInput::SignInAgain {
+                        account: account.clone(),
+                        adding: vec![capability],
+                    }));
+                } else if on || !confirms {
+                    change(&sender, set);
+                } else {
+                    let title = l10n::account_use_off_title(account_rows::use_name(capability));
+                    let (sender, row) = (sender.clone(), row.downgrade());
+                    controls::confirm(
+                        &parent,
+                        &title,
+                        l10n::account_use_off_message(),
+                        l10n::action_switch_off(),
+                        move |yes| {
+                            if yes {
+                                change(&sender, set.clone());
+                            } else if let Some(row) = row.upgrade() {
+                                row.set_active(true);
+                            }
+                        },
+                    );
+                }
+            },
+        );
         section.add(&row);
         // Under the note that says why: a sign-in of its own for the server that needs one.
         if crate::ui::separate_sign_in_view::action_after(entry) == Some(capability)
@@ -124,7 +144,7 @@ fn uses_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup 
             section.add(&action);
         }
         // Under the note that says it is paused: the question about the server found elsewhere.
-        if account_rows::review_after(entry) == Some(capability)
+        if switch.reviews_server_change
             && let Some(action) = review_row(ctx, entry)
         {
             section.add(&action);
@@ -149,97 +169,48 @@ fn review_row(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::ButtonRow>
     Some(row)
 }
 
-/// Asks before switching a use off; cancelling puts the switch back.
-fn confirm_off(
-    parent: &gtk::Window,
-    row: &adw::SwitchRow,
-    account: String,
-    capability: AccountCapability,
-    sender: relm4::Sender<AppInput>,
-) {
-    let title = l10n::account_use_off_title(account_rows::use_name(capability));
-    let (dialog, _) = crate::ui::modal::new(parent, &title, 440, None);
-    let content = dialog_box();
-    let message = gtk::Label::new(Some(l10n::account_use_off_message()));
-    message.set_wrap(true);
-    message.set_xalign(0.0);
-    content.append(&message);
-    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    actions.set_halign(gtk::Align::End);
-    let cancel = gtk::Button::with_label(l10n::action_cancel());
-    actions.append(&cancel);
-    let off = gtk::Button::with_label(l10n::action_switch_off());
-    off.add_css_class("destructive-action");
-    actions.append(&off);
-    content.append(&actions);
-    dialog.set_child(Some(&content));
-
-    let confirmed = std::rc::Rc::new(std::cell::Cell::new(false));
-    let done = confirmed.clone();
-    let window = dialog.clone();
-    off.connect_clicked(move |_| {
-        done.set(true);
-        sender.emit(AppInput::Accounts(AccountsInput::SetUse {
-            account: account.clone(),
-            capability,
-            on: false,
-        }));
-        window.close();
-    });
-    let window = dialog.clone();
-    cancel.connect_clicked(move |_| window.close());
-    // However the dialog goes away without the destructive button, the switch goes back on.
-    let row = row.downgrade();
-    dialog.connect_close_request(move |_| {
-        if !confirmed.get()
-            && let Some(row) = row.upgrade()
-        {
-            row.set_active(true);
-        }
-        gtk::glib::Propagation::Proceed
-    });
-    dialog.present();
-}
-
 /// A picker per link slot the account can hold.
 fn links_group(
     ctx: &PageContext,
     entry: &AccountEntry,
-    pickers: Vec<account_rows::LinkPicker>,
+    pickers: &[AccountLinkPicker],
 ) -> adw::PreferencesGroup {
     let section = group(
         l10n::settings_account_links_heading(),
         l10n::settings_account_links_description(),
     );
     for picker in pickers {
-        let names = picker.labels();
+        let names = account_rows::link_labels(picker);
         let labels = names.iter().map(String::as_str).collect::<Vec<_>>();
-        let selected = picker
-            .selected
-            .and_then(|index| u32::try_from(index + 1).ok())
-            .unwrap_or(0);
-        let (row, dropdown) = super::choice(picker.title, &labels, selected);
-        if let (Some(index), Some(name)) = (picker.suggested, picker.suggested_name()) {
-            suggest(&row, &dropdown, &name, index);
-        }
-        let sender = ctx.sender.clone();
-        let account = entry.id.clone();
-        let slot = picker.slot;
+        let (sender, account, slot) = (ctx.sender.clone(), entry.id.clone(), picker.slot);
         let targets = picker
             .options
             .iter()
             .map(|option| option.id.clone())
             .collect::<Vec<_>>();
-        dropdown.connect_selected_notify(move |dropdown| {
-            let target = (dropdown.selected() as usize)
-                .checked_sub(1)
-                .and_then(|index| targets.get(index).cloned());
-            sender.emit(AppInput::Accounts(AccountsInput::SetLink {
-                account: account.clone(),
-                slot,
-                target,
-            }));
-        });
+        let (row, dropdown) = controls::picker_row(
+            account_rows::link_title(slot),
+            &labels,
+            picker.selected.map_or(0, |index| index + 1),
+            picker.control,
+            move |at| {
+                let target = (at as usize)
+                    .checked_sub(1)
+                    .and_then(|index| targets.get(index).cloned());
+                change(
+                    &sender,
+                    AccountPageIntent::SetLink {
+                        account: account.clone(),
+                        slot,
+                        target,
+                    },
+                );
+            },
+        );
+        if let (Some(index), Some(name)) = (picker.suggested, account_rows::suggested_name(picker))
+        {
+            suggest(&row, &dropdown, &name, index, picker.control.enabled);
+        }
         section.add(&row);
     }
     section
@@ -247,12 +218,19 @@ fn links_group(
 
 /// Names the suggested account under the picker, with a button that picks it: the person confirms
 /// a suggestion, it is never linked for them (`docs/accounts.md` rule 12).
-fn suggest(row: &adw::ActionRow, dropdown: &gtk::DropDown, address: &str, index: usize) {
+fn suggest(
+    row: &adw::ActionRow,
+    dropdown: &gtk::DropDown,
+    address: &str,
+    index: u32,
+    enabled: bool,
+) {
     row.set_subtitle(&l10n::settings_account_link_suggested(address));
     let link = gtk::Button::with_label(l10n::action_link());
     link.set_valign(gtk::Align::Center);
+    link.set_sensitive(enabled);
     let dropdown = dropdown.downgrade();
-    let position = u32::try_from(index + 1).unwrap_or(0);
+    let position = index + 1;
     link.connect_clicked(move |_| {
         if let Some(dropdown) = dropdown.upgrade() {
             dropdown.set_selected(position);
@@ -314,21 +292,37 @@ fn signin_expired(ctx: &PageContext, entry: &AccountEntry) -> bool {
         .contains(&entry.id)
 }
 
-fn remove_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup {
+/// Removing the account, last, confirmed first.
+fn remove_group(
+    ctx: &PageContext,
+    entry: &AccountEntry,
+    control: mailcal_bindings::ControlState,
+) -> adw::PreferencesGroup {
     let section = adw::PreferencesGroup::new();
     let row = adw::ActionRow::builder()
         .title(l10n::action_remove_account())
         .use_markup(false)
         .build();
-    let remove = gtk::Button::with_label(l10n::action_remove());
-    remove.add_css_class("destructive-action");
-    remove.set_valign(gtk::Align::Center);
-    let parent = ctx.window.clone();
-    let sender = ctx.sender.clone();
-    let id = entry.id.clone();
+    let (parent, sender, account) = (ctx.window.clone(), ctx.sender.clone(), entry.id.clone());
     let message = remove_message(entry);
-    remove.connect_clicked(move |_| {
-        confirm_remove(&parent, &message, id.clone(), sender.clone());
+    let remove = controls::button(l10n::action_remove(), control, true, move || {
+        let (sender, account) = (sender.clone(), account.clone());
+        controls::confirm(
+            &parent,
+            l10n::remove_account_title(),
+            &message,
+            l10n::action_remove(),
+            move |yes| {
+                if yes {
+                    change(
+                        &sender,
+                        AccountPageIntent::Remove {
+                            account: account.clone(),
+                        },
+                    );
+                }
+            },
+        );
     });
     row.add_suffix(&remove);
     section.add(&row);
@@ -349,37 +343,6 @@ fn remove_message(entry: &AccountEntry) -> String {
         message.push_str(&l10n::remove_account_unlinks(&accounts));
     }
     message
-}
-
-fn confirm_remove(
-    parent: &gtk::Window,
-    message: &str,
-    account_id: String,
-    sender: relm4::Sender<AppInput>,
-) {
-    let (dialog, _) = crate::ui::modal::new(parent, l10n::remove_account_title(), 440, None);
-    let content = dialog_box();
-    let label = gtk::Label::new(Some(message));
-    label.set_wrap(true);
-    label.set_xalign(0.0);
-    content.append(&label);
-    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    actions.set_halign(gtk::Align::End);
-    let cancel = gtk::Button::with_label(l10n::action_cancel());
-    let window = dialog.clone();
-    cancel.connect_clicked(move |_| window.close());
-    actions.append(&cancel);
-    let remove = gtk::Button::with_label(l10n::action_remove());
-    remove.add_css_class("destructive-action");
-    let window = dialog.clone();
-    remove.connect_clicked(move |_| {
-        sender.emit(AppInput::RemoveAccount(account_id.clone()));
-        window.close();
-    });
-    actions.append(&remove);
-    content.append(&actions);
-    dialog.set_child(Some(&content));
-    dialog.present();
 }
 
 #[cfg(test)]

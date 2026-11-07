@@ -1,12 +1,14 @@
 // The last setup step, and a skippable one: an account that lacks a calendar or contacts can use
 // another account's, and a calendar without mail can name the account that sends its invitations
-// (docs/onboarding.md, "After the connect"). The pickers are Settings' own, from the same snapshot,
-// so the step offers exactly what the account's page would. Compose-free, so the JVM suite
-// reaches every rule.
+// (docs/onboarding.md, "After the connect"). The pickers are the core's (`setup_link_pickers`), the
+// ones the account's page offers that nothing fills yet. Compose-free, so the JVM suite reaches
+// every rule.
 package eu.allodia.mailcal
 
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
+import uniffi.mailcal_bindings.AccountLinkPicker
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.LinkSlot
@@ -56,8 +58,8 @@ internal enum class Fills {
  */
 internal data class SetupLinkStep(
     val account: String,
-    val pickers: List<LinkPicker>,
-    val picked: List<Int?> = pickers.map { it.suggested },
+    val pickers: List<AccountLinkPicker>,
+    val picked: List<Int?> = pickers.map { it.suggested?.toInt() },
     val beside: Pair<Beside, Fills>? = null,
     // Whether the person has changed a pick, after which a late suggestion leaves the step alone.
     val touched: Boolean = false,
@@ -117,17 +119,18 @@ internal data class SetupLinkStep(
          * ([offersLinks], the core's `offers_setup_links`: a Microsoft or Google account holds
          * everything itself, and linking one is for Settings). A server without a calendar or
          * contacts gets the step anyway, for "Add another account" and for [beside], which is
-         * offered only then.
+         * offered only then. [pickers] is the core's `setup_link_pickers`.
          */
         fun of(
             snapshot: AccountsSnapshot,
             account: String,
             offersLinks: (CoreAccountKind) -> Boolean,
+            pickers: (AccountEntry) -> List<AccountLinkPicker>,
             beside: Beside? = null,
         ): SetupLinkStep? {
             val entry = snapshot.accounts.firstOrNull { it.id == account } ?: return null
             if (!offersLinks(entry.kind)) return null
-            val pickers = AccountSettingsRules.linkPickers(entry).filter { it.selected == null }
+            val pickers = pickers(entry)
             fun lacks(capability: AccountCapability) = entry.uses.any {
                 it.capability == capability && it.state == CapabilityState.NOT_OFFERED
             }

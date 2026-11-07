@@ -9,10 +9,17 @@ import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 import uniffi.mailcal_bindings.CapabilityChange
 import uniffi.mailcal_bindings.offersSetupLinks
+import uniffi.mailcal_bindings.setupLinkPickers
 
 /** The link step for [account], from the snapshot last read. */
 internal fun MainActivity.linkStepFor(account: String): SetupLinkStep? =
-    SetupLinkStep.of(accountSettings.snapshot, account, ::offersSetupLinks, setupFlow.besideFor(account))
+    SetupLinkStep.of(
+        accountSettings.snapshot,
+        account,
+        ::offersSetupLinks,
+        ::setupLinkPickers,
+        setupFlow.besideFor(account),
+    )
 
 /**
  * An account was added. A sign-in at the provider may have been granted less than was chosen, which
@@ -75,7 +82,7 @@ internal fun MainActivity.chooseSetupUses(chosen: List<AccountCapability>) {
 internal fun MainActivity.finishLinkStep(link: Boolean) {
     val step = setupFlow.links
     if (link && step != null) {
-        step.links().forEach { (slot, target) -> setAccountLink(step.account, slot, target) }
+        linkFromSetup(step.account, step.links())
     }
     finishSetup()
 }

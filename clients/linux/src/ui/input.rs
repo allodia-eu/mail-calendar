@@ -384,8 +384,6 @@ pub(crate) enum AppInput {
     SetUpOfferedAccount(Box<mailcal_bindings::AllodiaAccountOffer>),
     /// Settings → Accounts' account pages, as one input.
     Accounts(crate::ui::account_settings::AccountsInput),
-    RemoveAccount(String),
-    AccountRemoved(Result<(), String>),
     AnalyticsDecided(bool),
     CollectNewMail,
     BackgroundFinished,

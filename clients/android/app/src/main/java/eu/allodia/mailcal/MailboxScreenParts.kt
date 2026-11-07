@@ -450,14 +450,10 @@ internal fun AccountSwitcher(
             }
         }
         accountToRemove?.let { account ->
-            RemoveAccountDialog(
-                removal = removalOf(account.id) ?: AccountRemoval(account.email, null),
-                onConfirm = {
-                    onRemoveAccount(account.id)
-                    accountToRemove = null
-                },
-                onDismiss = { accountToRemove = null },
-            )
+            RemoveAccountDialog(removalOf(account.id) ?: AccountRemoval(account.email, null)) { yes ->
+                accountToRemove = null
+                if (yes) onRemoveAccount(account.id)
+            }
         }
     }
 }

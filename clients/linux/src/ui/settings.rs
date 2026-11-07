@@ -21,7 +21,7 @@ pub(super) use account_names::entry_name;
 mod account_page;
 pub(super) mod account_rows;
 pub(super) mod sign_in_section;
-pub(super) use account_rows::{LinkPicker, link_pickers, outage_line, use_name};
+pub(super) use account_rows::{link_labels, link_title, outage_line, suggested_name, use_name};
 mod account_servers;
 pub(super) mod account_sync_mode;
 mod account_sync_technology;
@@ -157,11 +157,11 @@ struct PageContext {
 pub(super) struct SettingsWindow {
     window: Option<gtk::Window>,
     rendered_generation: u64,
-    /// The category stack drawn last, the account page it showed and the accounts it was drawn
-    /// from: what a redraw compares against to keep the person's place.
+    /// The category stack drawn last, the account page it showed and what it was drawn from:
+    /// what a redraw compares against to keep the person's place.
     pages: Option<gtk::Stack>,
     drawn_account: Option<String>,
-    drawn_accounts: Option<mailcal_bindings::AccountsSnapshot>,
+    drawn: Option<redraw::Drawn>,
     /// Whether a field was edited since the window was drawn.
     edited: std::rc::Rc<std::cell::Cell<bool>>,
     /// Where toasts are shown: above the pages, which every redraw replaces.
@@ -212,8 +212,8 @@ impl SettingsWindow {
                 .window
                 .as_ref()
                 .is_some_and(|window| redraw::typing(window, self.edited.get()));
-            match redraw::signalled(typing, self.drawn_accounts.as_ref(), || {
-                app.accounts_snapshot()
+            match redraw::signalled(typing, self.drawn.as_ref(), || {
+                redraw::drawn(&app, state.account)
             }) {
                 redraw::Signalled::Draw => {}
                 redraw::Signalled::Skip => {
@@ -290,7 +290,7 @@ impl SettingsWindow {
         };
         // Read before the pages read theirs: a change landing in between then reads as one the
         // window has not drawn, and the next signal draws it.
-        let drawn_accounts = ctx.app.accounts_snapshot();
+        let drawn = redraw::drawn(&ctx.app, state.account);
         let (content, pages) = window_content(state.category, &ctx);
         navigation.add_named(&content, Some("settings"));
         navigation.set_visible_child_name("settings");
@@ -314,7 +314,7 @@ impl SettingsWindow {
         self.toasts = Some(toasts);
         self.edited = std::rc::Rc::default();
         redraw::watch_edits(content.upcast_ref(), &self.edited);
-        self.drawn_accounts = Some(drawn_accounts);
+        self.drawn = Some(drawn);
         self.drawn_account = state.account.map(str::to_owned);
         self.pages = Some(pages);
         self.rendered_generation = state.generation;

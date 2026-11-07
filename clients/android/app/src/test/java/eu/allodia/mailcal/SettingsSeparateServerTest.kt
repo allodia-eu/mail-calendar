@@ -57,6 +57,7 @@ class SettingsSeparateServerTest {
     private fun show(entry: AccountEntry) {
         state.snapshot = AccountsSnapshot(listOf(entry))
         state.page = entry.id
+        state.accountPage = pageOf(entry)
         val ui = AccountsSettingsUi(
             state = state,
             onSeparateSignIn = { opened += it },
@@ -66,8 +67,8 @@ class SettingsSeparateServerTest {
         )
         compose.setContent {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                AccountsSettings(ui, allodiaSyncCard = {}) { page ->
-                    AccountPage(page, ui, syncMode = null, onSetSyncMode = {}) {}
+                AccountsSettings(ui, allodiaSyncCard = {}) { shown, record ->
+                    AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {}) {}
                 }
             }
         }

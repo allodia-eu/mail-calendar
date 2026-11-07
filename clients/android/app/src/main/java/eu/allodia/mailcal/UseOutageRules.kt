@@ -28,8 +28,8 @@ internal object UseOutageRules {
             OutageUse.CALENDAR -> L10n.calendar_outage_title(ctx, address)
             OutageUse.CONTACTS -> L10n.contacts_outage_title(ctx, address)
         }
-        val reason = useNoteText(ctx, problemNote(use.capability, problem))
-        return listOfNotNull(title, reason, L10n.use_outage_last_synced(ctx)).joinToString(" ")
+        val reason = problemText(ctx, use.capability, problem)
+        return listOf(title, reason, L10n.use_outage_last_synced(ctx)).joinToString(" ")
     }
 
     /**
@@ -52,7 +52,7 @@ internal object UseOutageRules {
             OutageLine(
                 outage.accountId,
                 text(ctx, use, address, outage.problem),
-                reviews = reviewsServerChange(problemNote(use.capability, outage.problem)),
+                reviews = outage.problem == UseProblem.SERVER_CHANGED,
             )
         }
     }

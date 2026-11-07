@@ -265,6 +265,9 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::account_mail::tests::
         an_expired_password_is_replaced_without_removing_the_account();
     crate::ui::settings::accounts::tests::an_account_row_opens_its_page();
+    crate::ui::controls::tests::
+        a_control_spins_while_its_work_runs_and_tells_only_what_the_person_did();
+    crate::ui::controls::tests::a_confirmation_closed_without_its_action_answers_no();
     crate::ui::settings::sign_in_section::tests::the_section_draws_the_switch_its_server_takes();
     crate::ui::settings::sign_in_section::tests::
         a_calendar_account_switches_to_signing_in_with_nextcloud();
