@@ -67,13 +67,13 @@ fn app_over(name: &str, config: &str, store: Box<dyn AccountCredentialStore>) ->
 fn settled(app: &MailcalApp) -> AccountPage {
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
-        let page = app
-            .account_page(ID.to_owned())
-            .expect("the account is listed");
         // Asked of the work itself, not of the page's controls: a change to a use the page does
-        // not list (colleagues, here) marks no control running.
+        // not list (colleagues, here) marks no control running. Asked before the page is read,
+        // so the page cannot be one drawn while the change still ran.
         if !app.account_work.of(ID).0.busy {
-            return page;
+            return app
+                .account_page(ID.to_owned())
+                .expect("the account is listed");
         }
         assert!(Instant::now() < deadline, "the change never ended");
         std::thread::sleep(Duration::from_millis(10));

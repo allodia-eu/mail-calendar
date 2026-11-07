@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use engine_api::{AccountId, SearchDomain};
-use mailcal_account::Capability;
+use mailcal_account::{Capabilities, Capability};
 
 use crate::{
     AccountCapability, CapabilityChange, MailcalApp, MailcalError, account_registry::UseChange,
@@ -36,15 +36,20 @@ impl MailcalApp {
         on: bool,
     ) -> Result<CapabilityChange, MailcalError> {
         let capability = Capability::from(capability);
-        let (config_toml, previous) = match self.registry.set_use(&account_id, capability, on)? {
-            UseChange::Unchanged => return Ok(CapabilityChange::Applied),
-            UseChange::NeedsConsent => return Ok(CapabilityChange::NeedsConsent),
-            UseChange::NeedsEndpoint => return Ok(CapabilityChange::NeedsEndpoint),
-            UseChange::Changed {
-                config_toml,
-                previous,
-            } => (config_toml, previous),
-        };
+        let refused = self.refused_uses(&account_id);
+        let (config_toml, previous) =
+            match self
+                .registry
+                .set_use(&account_id, capability, on, &refused)?
+            {
+                UseChange::Unchanged => return Ok(CapabilityChange::Applied),
+                UseChange::NeedsConsent => return Ok(CapabilityChange::NeedsConsent),
+                UseChange::NeedsEndpoint => return Ok(CapabilityChange::NeedsEndpoint),
+                UseChange::Changed {
+                    config_toml,
+                    previous,
+                } => (config_toml, previous),
+            };
         if let Err(err) = self.persist_config(&account_id, config_toml) {
             self.registry.restore_uses(&account_id, previous);
             return Err(err);
@@ -102,6 +107,19 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
+    /// The uses `account_id`'s provider refused when they were opened, although its stored grant
+    /// allows them: switching one on asks the provider again.
+    pub(crate) fn refused_uses(&self, account_id: &str) -> Capabilities {
+        self.app
+            .connectivity()
+            .calendar_reauth_accounts
+            .iter()
+            .any(|id| id == account_id)
+            .then_some(Capability::Calendar)
+            .into_iter()
+            .collect()
+    }
+
     /// Lists `id` again without providers and stops its background sync, so nothing it no longer
     /// opens keeps syncing until its next dial.
     pub(crate) fn list_without_providers(&self, id: &AccountId) {

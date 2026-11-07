@@ -17,7 +17,7 @@ pub(crate) enum UseChange {
         /// refuses the new config.
         previous: AccountShape,
     },
-    /// The provider's grant does not allow it; nothing changed.
+    /// The provider has not granted it; nothing changed.
     NeedsConsent,
     /// The account has no server for it; nothing changed.
     NeedsEndpoint,
@@ -32,23 +32,36 @@ pub(crate) enum Toggle {
     Unchanged,
     /// The core makes the change; `next` is what the account is used for after it.
     Applies { next: Capabilities },
-    /// The provider's grant lacks it: switching it on asks the provider for it.
+    /// The provider has not granted it: switching it on asks the provider for it.
     AsksProvider,
     /// It cannot be made, for this reason.
     Refused(AccountUseBlock),
 }
 
-/// What switching `capability` on or off comes to for `entry`. Switching contacts off takes
-/// colleagues with it, since they are only read beside contacts, and switching mail off takes
-/// shared mailboxes with it.
-pub(crate) fn toggle(entry: &ConnectedAccount, capability: Capability, on: bool) -> Toggle {
+/// What switching `capability` on or off comes to for `entry`, whose provider refused the uses
+/// in `refused` when they were opened although its stored grant allows them. Switching contacts
+/// off takes colleagues with it, since they are only read beside contacts, and switching mail off
+/// takes shared mailboxes with it.
+pub(crate) fn toggle(
+    entry: &ConnectedAccount,
+    capability: Capability,
+    on: bool,
+    refused: &Capabilities,
+) -> Toggle {
     let lacks = entry.lacks();
     if on && lacks.contains(capability) {
         return Toggle::Refused(AccountUseBlock::NotOffered);
     }
     let chosen = entry.capabilities();
     if chosen.contains(capability) == on {
-        return Toggle::Unchanged;
+        // A use chosen and not granted is not working, so switching it on asks again.
+        let withheld = refused.contains(capability)
+            || matches!(opens(entry, &chosen, capability), Opens::NeedsConsent);
+        return if on && withheld {
+            Toggle::AsksProvider
+        } else {
+            Toggle::Unchanged
+        };
     }
     let next: Capabilities = chosen
         .iter()
@@ -81,16 +94,22 @@ pub(crate) fn toggle(entry: &ConnectedAccount, capability: Capability, on: bool)
 
 impl AccountRegistry {
     /// What switching `capability` on or off for `id` comes to, changing nothing; `None` for an
-    /// account that is not registered.
-    pub(crate) fn toggle(&self, id: &str, capability: Capability, on: bool) -> Option<Toggle> {
+    /// account that is not registered. `refused` is as [`toggle`] takes it.
+    pub(crate) fn toggle(
+        &self,
+        id: &str,
+        capability: Capability,
+        on: bool,
+        refused: &Capabilities,
+    ) -> Option<Toggle> {
         self.entries
             .lock()
             .expect("account registry mutex poisoned")
             .get(id)
-            .map(|entry| toggle(entry, capability, on))
+            .map(|entry| toggle(entry, capability, on, refused))
     }
 
-    /// Switches `capability` on or off for `id`, as [`toggle`] decides.
+    /// Switches `capability` on or off for `id`, as [`toggle`] decides with `refused`.
     ///
     /// # Errors
     ///
@@ -103,6 +122,7 @@ impl AccountRegistry {
         id: &str,
         capability: Capability,
         on: bool,
+        refused: &Capabilities,
     ) -> Result<UseChange, MailcalError> {
         let mut entries = self
             .entries
@@ -111,7 +131,7 @@ impl AccountRegistry {
         let Some(entry) = entries.get_mut(id) else {
             return Err(MailcalError::Config("no such account".to_owned()));
         };
-        let next = match toggle(entry, capability, on) {
+        let next = match toggle(entry, capability, on, refused) {
             Toggle::Unchanged => return Ok(UseChange::Unchanged),
             Toggle::AsksProvider => return Ok(UseChange::NeedsConsent),
             Toggle::Refused(AccountUseBlock::NeedsServer) => return Ok(UseChange::NeedsEndpoint),

@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use mailcal_account::Capability;
+use mailcal_account::{Capabilities, Capability};
 
 use super::{Toggle, UseChange};
 use crate::{
@@ -79,7 +79,9 @@ const EVERY_SCOPE: &[&str] = &[
 ];
 
 fn toggle(registry: &AccountRegistry, id: &str, capability: Capability, on: bool) -> Toggle {
-    registry.toggle(id, capability, on).expect("registered")
+    registry
+        .toggle(id, capability, on, &Capabilities::default())
+        .expect("registered")
 }
 
 #[test]
@@ -95,11 +97,16 @@ fn the_last_use_cannot_go_and_a_use_with_no_server_says_so() {
     );
     // `set_use` acts on the same answers.
     assert!(matches!(
-        registry.set_use(IMAP_ID, Capability::Mail, false),
+        registry.set_use(IMAP_ID, Capability::Mail, false, &Capabilities::default()),
         Err(MailcalError::Config(reason)) if reason == AccountUseBlock::LastUse.reason()
     ));
     assert!(matches!(
-        registry.set_use(IMAP_ID, Capability::Calendar, true),
+        registry.set_use(
+            IMAP_ID,
+            Capability::Calendar,
+            true,
+            &Capabilities::default()
+        ),
         Ok(UseChange::NeedsEndpoint)
     ));
     assert_eq!(
@@ -141,9 +148,49 @@ fn a_grant_that_lacks_a_use_asks_the_provider() {
         Toggle::AsksProvider
     );
     assert!(matches!(
-        registry.set_use(MICROSOFT_ID, Capability::Meetings, true),
+        registry.set_use(
+            MICROSOFT_ID,
+            Capability::Meetings,
+            true,
+            &Capabilities::default()
+        ),
         Ok(UseChange::NeedsConsent)
     ));
+}
+
+#[test]
+fn a_use_chosen_and_not_granted_asks_the_provider_again() {
+    // The grant came back without it: an administrator withheld it.
+    let registry = microsoft(&["Calendars.ReadWrite"], r#"["calendar", "meetings"]"#);
+    assert_eq!(
+        toggle(&registry, MICROSOFT_ID, Capability::Meetings, true),
+        Toggle::AsksProvider
+    );
+    assert!(matches!(
+        registry.set_use(
+            MICROSOFT_ID,
+            Capability::Meetings,
+            true,
+            &Capabilities::default()
+        ),
+        Ok(UseChange::NeedsConsent)
+    ));
+    // The grant allows it, and the provider refused it when it was opened.
+    let registry = microsoft(EVERY_SCOPE, r#"["mail", "calendar"]"#);
+    let refused: Capabilities = [Capability::Calendar].into_iter().collect();
+    assert_eq!(
+        registry.toggle(MICROSOFT_ID, Capability::Calendar, true, &refused),
+        Some(Toggle::AsksProvider)
+    );
+    assert!(matches!(
+        registry.set_use(MICROSOFT_ID, Capability::Calendar, true, &refused),
+        Ok(UseChange::NeedsConsent)
+    ));
+    assert_eq!(
+        toggle(&registry, MICROSOFT_ID, Capability::Calendar, true),
+        Toggle::Unchanged,
+        "granted and opened, it is already on"
+    );
 }
 
 #[test]

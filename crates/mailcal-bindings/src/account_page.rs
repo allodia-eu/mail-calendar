@@ -8,6 +8,7 @@ use crate::{
     AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState, LinkSlot, UseProblem,
     account_registry::Toggle,
     account_work::{Hold, PageWork},
+    app_accounts_uses::domain_of,
 };
 
 /// `entry`'s page. `hold` says which change runs, and `toggle` what switching a use on (`true`)
@@ -28,19 +29,15 @@ pub(crate) fn page(
         .iter()
         .map(|use_| {
             let capability = use_.capability;
-            // A use waiting on the provider is drawn off, and switching it on asks again.
-            let pressing = match use_.state {
-                CapabilityState::NeedsPermission => Toggle::AsksProvider,
-                CapabilityState::On => toggle(capability, false),
-                CapabilityState::Off | CapabilityState::NotOffered => toggle(capability, true),
-            };
+            let on = use_.state == CapabilityState::On;
+            let pressing = toggle(capability, !on);
             let blocked = match pressing {
                 Toggle::Refused(block) => Some(block),
                 _ => None,
             };
             AccountUseSwitch {
                 capability,
-                on: use_.state == CapabilityState::On,
+                on,
                 control: control(PageWork::Use(capability), blocked.is_none()),
                 blocked,
                 status: use_
@@ -49,8 +46,8 @@ pub(crate) fn page(
                     .or((use_.state == CapabilityState::NeedsPermission)
                         .then_some(AccountUseStatus::Withheld)),
                 asks_provider: pressing == Toggle::AsksProvider,
-                // Video meetings hold nothing on the device to remove (`docs/accounts.md` rule 19).
-                confirms_off: capability != AccountCapability::Meetings,
+                // Switching off asks first exactly when it deletes something.
+                confirms_off: domain_of(capability.into()).is_some(),
                 reviews_server_change: review == Some(capability),
             }
         })

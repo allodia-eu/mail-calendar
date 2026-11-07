@@ -134,15 +134,12 @@ fn a_switch_whose_grant_lacks_it_asks_the_provider_and_one_waiting_on_it_says_so
         AccountKind::Google,
         &[(Mail, On), (Calendar, NeedsPermission), (Contacts, Off)],
     );
-    let page = page(
-        &account,
-        Hold::default(),
-        None,
-        |capability, on| match capability {
-            Contacts => Toggle::AsksProvider,
+    let page = page(&account, Hold::default(), None, |capability, on| {
+        match (capability, on) {
+            (Calendar | Contacts, true) => Toggle::AsksProvider,
             _ => applies(capability, on),
-        },
-    );
+        }
+    });
     let calendar = switch(&page, Calendar);
     assert!(
         !calendar.on,

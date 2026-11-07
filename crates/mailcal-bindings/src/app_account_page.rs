@@ -27,13 +27,14 @@ impl MailcalApp {
             .into_iter()
             .find(|entry| entry.id == account_id)?;
         let (hold, notice) = self.account_work.of(&account_id);
+        let refused = self.refused_uses(&account_id);
         Some(account_page::page(
             &entry,
             hold,
             notice,
             |capability, on| {
                 self.registry
-                    .toggle(&account_id, Capability::from(capability), on)
+                    .toggle(&account_id, Capability::from(capability), on, &refused)
                     .unwrap_or(Toggle::Unchanged)
             },
         ))
