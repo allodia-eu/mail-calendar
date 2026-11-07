@@ -289,9 +289,6 @@
                        Text="{x:Bind Model.ListTitle, Mode=OneWay}" />
         </Grid>
 
-        <!-- Both bars bind Visibility as well as IsOpen: a closed InfoBar stays visible at zero
-             size, so its top margin would otherwise hold the list down whether or not either bar
-             has anything to say (MainWindow.xaml's banner strip carries the full note). -->
         <StackPanel Grid.Row="1">
             <!-- How far back the results reach. Search reads what is on this device and nothing
                  else, so an empty result without this line claims "no such message" when it means
@@ -313,65 +310,6 @@
                                  Content="{x:Bind l10n:L10n.SearchHorizonChange(), Mode=OneTime}"
                                  Click="OnChangeSyncDepth" />
             </Grid>
-
-            <!-- A Microsoft account connected before the mail write/send scopes (or with revoked
-                 consent) can read mail but its send / mark-read / move / delete are refused with a
-                 403, prompt here, above the list. Reading is unaffected, so it is a Warning info
-                 bar, not an error; "Reconnect" re-runs the account's sign-in, re-granting the full
-                 scope set (clearing this and any calendar prompt); it clears once a send succeeds. -->
-            <InfoBar Margin="16,8,16,0"
-                     IsOpen="{x:Bind Model.HasMailReauth, Mode=OneWay}"
-                     Visibility="{x:Bind Model.HasMailReauth, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                     IsClosable="False"
-                     Severity="Warning"
-                     AutomationProperties.AutomationId="MailReauthBanner"
-                     Message="{x:Bind Model.MailReauthText, Mode=OneWay}">
-                <InfoBar.Content>
-                    <Button Content="{x:Bind l10n:L10n.MailReauthAction(), Mode=OneTime}"
-                            Margin="0,8,0,12"
-                            AutomationProperties.AutomationId="MailReauthAction"
-                            Click="OnMailReauth" />
-                </InfoBar.Content>
-            </InfoBar>
-
-            <!-- An account whose stored sign-in the server has stopped accepting: an expired or
-                 revoked OAuth grant, or a refused password. Not an outage, the server answered,
-                 so a retry never helps and only a fresh sign-in does. The button appears only for
-                 an OAuth account; a password/JMAP one is pointed at Settings by the message. -->
-            <InfoBar Margin="16,8,16,0"
-                     IsOpen="{x:Bind Model.HasSignInExpired, Mode=OneWay}"
-                     Visibility="{x:Bind Model.HasSignInExpired, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                     IsClosable="False"
-                     Severity="Warning"
-                     AutomationProperties.AutomationId="SignInExpiredBanner"
-                     Message="{x:Bind Model.SignInExpiredText, Mode=OneWay}">
-                <InfoBar.Content>
-                    <Button Content="{x:Bind l10n:L10n.SigninExpiredAction(), Mode=OneTime}"
-                            Margin="0,8,0,12"
-                            Visibility="{x:Bind Model.SignInExpiredActionVisible, Mode=OneWay}"
-                            AutomationProperties.AutomationId="SignInExpiredAction"
-                            Click="OnSignInExpired" />
-                </InfoBar.Content>
-            </InfoBar>
-
-            <!-- The Allodia account's own sign-in, refused by the account service: the same news
-                 about the account that keeps the mail accounts in step across devices. Its button
-                 runs the ordinary Allodia sign-in; a grant merely narrower than this build wants
-                 never raises it. -->
-            <InfoBar Margin="16,8,16,0"
-                     IsOpen="{x:Bind Model.HasAllodiaSignInEnded, Mode=OneWay}"
-                     Visibility="{x:Bind Model.HasAllodiaSignInEnded, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                     IsClosable="False"
-                     Severity="Warning"
-                     AutomationProperties.AutomationId="AllodiaSignInEndedBanner"
-                     Message="{x:Bind Model.AllodiaSignInEndedText, Mode=OneWay}">
-                <InfoBar.Content>
-                    <Button Content="{x:Bind l10n:L10n.SigninExpiredAction(), Mode=OneTime}"
-                            Margin="0,8,0,12"
-                            AutomationProperties.AutomationId="AllodiaSignInEndedAction"
-                            Click="OnAllodiaSignInEnded" />
-                </InfoBar.Content>
-            </InfoBar>
         </StackPanel>
 
         <!-- Tap a row to open it in the reading pane (a flat row opens its message, a

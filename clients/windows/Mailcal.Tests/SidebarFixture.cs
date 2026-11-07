@@ -95,7 +95,7 @@ internal static class SidebarFixture
         uint unifiedUnread = 0,
         bool unifiedExpanded = true,
         uint queued = 0,
-        Func<string, bool>? unreachable = null,
+        Func<string, SidebarMark?>? markOf = null,
         Action<SidebarItem>? onExpanded = null) =>
         SidebarTree.Reconcile(
             target,
@@ -105,7 +105,7 @@ internal static class SidebarFixture
             unifiedUnread,
             unifiedExpanded,
             queued,
-            unreachable ?? (_ => false),
+            markOf ?? (_ => null),
             onExpanded ?? (_ => { }),
             Labels,
             Glyphs);

@@ -153,7 +153,7 @@ public sealed partial class MainWindow
             Model.UnifiedUnread,
             Model.UnifiedExpanded,
             (uint)Model.Outbox.Count,
-            Model.IsAccountUnreachable,
+            Model.MarkOf,
             OnExpandedChanged,
             new SidebarLabels(
                 L10n.SidebarAllAccounts(),

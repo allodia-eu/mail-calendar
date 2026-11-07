@@ -264,9 +264,8 @@ internal static class AccountSettingsRules
         _ => null,
     };
 
-    /// <summary>What a use that did not connect says beneath its switch, and on the screen that
-    /// shows it (<see cref="UseOutageLines"/>). Only a calendar or an address book fails on its own;
-    /// mail decides whether the account connected at all.</summary>
+    /// <summary>What a use that did not connect says beneath its switch. Only a calendar or an
+    /// address book fails on its own; mail decides whether the account connected at all.</summary>
     internal static UseNote ProblemNote(AccountCapability capability, UseProblem problem)
     {
         var calendar = capability == AccountCapability.Calendar;

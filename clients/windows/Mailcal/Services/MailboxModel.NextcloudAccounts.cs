@@ -75,17 +75,6 @@ public sealed partial class MailboxModel
     /// <summary>Withdraws the grant an account's page held for another try: Settings closed.</summary>
     internal void ReleaseAccountNextcloudGrant() => AbandonNextcloudGrant(_accountNextcloud.Release());
 
-    /// <summary>The banner's sign-in for an account a Nextcloud sign-in made, said there when it
-    /// fails.</summary>
-    private async Task AccountNextcloudFromBannerAsync(string accountId)
-    {
-        var ended = await AccountNextcloudSignInAsync(accountId);
-        if (ended.Error is not null)
-        {
-            SetSignInReauthFailure(ended.Error);
-        }
-    }
-
     /// <summary>Whether <paramref name="step"/>'s server is Nextcloud. Blocking in the core, so off
     /// the UI thread; never throws, and anything that goes wrong reads as "no".</summary>
     internal async Task<bool> SeparateServerOffersNextcloudSignInAsync(SeparateServerStep step)

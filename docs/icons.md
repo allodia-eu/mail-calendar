@@ -69,7 +69,7 @@ noted beside it, and the two without one are this app's own drawings.
 | Important, and any other folder | `folder` | `ic_folder` | `E8B7` Folder | `folder-symbolic` |
 | All Mail | `tray.full` | — | — | — |
 | An account | `person.crop.circle` | `ic_account_circle` (Top level in Move to…) | `E77B` Contact | `avatar-default-symbolic` |
-| An account whose server is unreachable | `exclamationmark.triangle.fill` | `ic_warning` | `Symbol.Important` | `dialog-warning-symbolic` |
+| An account whose server is unreachable | `exclamationmark.triangle.fill` | `ic_warning` | `E783` Error, `E7BA` Warning or `E946` Info, by the severity of its first notice (any notice about the account, [`notices.md`](notices.md) rule 6) | `dialog-warning-symbolic` |
 | Outbox | `tray.and.arrow.up` | `ic_outbox` | `E898` Upload | `document-send-symbolic` |
 | Add an account | — | — | `E710` Add | — |
 | Open / closed tree | `chevron.down` / `chevron.right` | `ic_keyboard_arrow_down` / `ic_keyboard_arrow_right` | the `NavigationView`'s own | `pan-down-symbolic` / `pan-end-symbolic` |

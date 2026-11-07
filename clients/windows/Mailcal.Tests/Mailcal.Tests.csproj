@@ -256,11 +256,6 @@
          kept for that account and address only, offered only for what its session lacks, and used
          up once taken. Silent when wrong: a second copy of contacts the session already has. -->
     <Compile Include="..\Mailcal\Services\SetupBeside.cs" Link="Services\SetupBeside.cs" />
-    <!-- The line the calendar and contacts screens draw over a use that did not connect
-         (docs/accounts.md rule 16): the title, the reason the account's page gives and the
-         last-synced sentence, one per account. L10n-free, the words arrive as parameters. -->
-    <Compile Include="..\Mailcal\Services\UseOutageLines.cs" Link="Services\UseOutageLines.cs" />
-    <Compile Include="..\Mailcal\ViewModels\UseOutageLine.cs" Link="ViewModels\UseOutageLine.cs" />
     <!-- The question a calendar or address book server found on another site asks
          (docs/account-autodetect.md rule 14): which title, body and closing line a change earns,
          and where each site sits in its line, which is drawn in bold. L10n-free, the words arrive
@@ -347,9 +342,6 @@
     <Compile Include="..\Mailcal\Services\AllodiaSubscriptionCard.cs" Link="Services\AllodiaSubscriptionCard.cs" />
     <Compile Include="..\Mailcal\Services\AllodiaSubscriptionFormat.cs" Link="Services\AllodiaSubscriptionFormat.cs" />
     <Compile Include="..\Mailcal\Services\AllodiaWriteResult.cs" Link="Services\AllodiaWriteResult.cs" />
-    <!-- What the banner a refused Allodia sign-in raises says (`entitlement.md`, the contract beside
-         the Allodia Licence). WinUI-free and L10n-free: the words arrive as parameters. -->
-    <Compile Include="..\Mailcal\Services\AllodiaSignInEndedBanner.cs" Link="Services\AllodiaSignInEndedBanner.cs" />
     <!-- What a new-mail pass puts on the desktop (docs/background-sync.md). WinUI-free and
          L10n-free on purpose, the words arrive as parameters and the toast itself is
          NewMailNotifier, because the contract's load-bearing rule, one notification per MESSAGE
@@ -384,6 +376,13 @@
     <Compile Include="..\Mailcal\ViewModels\SidebarSources.cs" Link="ViewModels\SidebarSources.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarItem.cs" Link="ViewModels\SidebarItem.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarTree.cs" Link="ViewModels\SidebarTree.cs" />
+    <Compile Include="..\Mailcal\ViewModels\SidebarMark.cs" Link="ViewModels\SidebarMark.cs" />
+    <!-- Which of the core's notices is drawn where (docs/notices.md): the bar's notice for the
+         screen on show, how many stand behind it, each account's mark, and what is announced once.
+         Silent when wrong: a notice drawn on a screen it does not belong to, or one read aloud on
+         every snapshot. It reads the generated Notice, so it needs the bindings below. -->
+    <Compile Include="..\Mailcal\Services\NoticeRules.cs" Link="Services\NoticeRules.cs" />
+    <Compile Include="..\Mailcal\Services\AppDestination.cs" Link="Services\AppDestination.cs" />
     <Compile Include="..\Mailcal\ViewModels\AccountList.cs" Link="ViewModels\AccountList.cs" />
     <!-- What the folder pane offers and accepts when the tree is changed (docs/folder-pane.md,
          "Changing the tree"): a row's menu, Move to…'s destinations, which drops land, and the

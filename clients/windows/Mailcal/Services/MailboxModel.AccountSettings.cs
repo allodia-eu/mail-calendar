@@ -8,8 +8,7 @@ using uniffi.mailcal_bindings;
 namespace Allodia.Mailcal.Services;
 
 /// <summary>How signing an account in again ended. A cancelled one carries neither: the person
-/// closed it, and nothing is said. <paramref name="Cause"/> is the core's error, from which the
-/// expired-sign-in banner chooses its own line (<see cref="CoreError.SaidOnBanner"/>).</summary>
+/// closed it, and nothing is said. <paramref name="Cause"/> is the core's error.</summary>
 internal sealed record ConsentEnded(bool SignedIn, string? Error, Exception? Cause = null)
 {
     internal static ConsentEnded Failed(Exception error) => new(false, CoreErrorCopy.Said(error), error);
@@ -33,7 +32,7 @@ public sealed partial class MailboxModel
         _app?.AccountsSnapshot() ?? new AccountsSnapshot([]);
 
     /// <summary>The accounts whose stored sign-in the server no longer accepts.</summary>
-    internal IReadOnlyList<string> SignInExpiredIds => _signInExpired.Select(account => account.Id).ToList();
+    internal IReadOnlyList<string> SignInExpiredIds => _signInExpired;
 
     /// <summary>Which sign-in an account's credential is, for the remedy its page offers.</summary>
     internal AccountProvider? ProviderOf(string accountId) => _app?.AccountProvider(accountId);

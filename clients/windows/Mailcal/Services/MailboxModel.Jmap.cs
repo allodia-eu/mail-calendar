@@ -131,29 +131,29 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>
-    /// Signs an existing OAuth JMAP account back in, from the expired-sign-in banner. Unlike
+    /// Signs an existing OAuth JMAP account back in, from its notice. Unlike
     /// <see cref="SignInWithJmapAsync"/> there is no discovery and no registration: the core builds
     /// the authorization URL from that account's own persisted grant, and on completion connects,
-    /// writes the Credential Manager and retracts the prompt itself, so there is no
+    /// writes the Credential Manager and retracts the notice itself, so there is no
     /// <c>AddAccountAsync</c> and no store write here. The account already exists.
     /// </summary>
+    /// <returns>Whether it failed. A sign-in cancelled or superseded did not.</returns>
     /// <remarks>
     /// Runs through the shared <see cref="SignInFlight"/> for the same reason the setup-form flow
-    /// does: <c>ProtocolAuthCallback</c> holds a single static pending slot, and this button lives
-    /// on the mail list, a screen that outlives any form, so a sign-in abandoned in the browser
-    /// must be superseded by the next click rather than wedging it
-    /// (<c>docs/provider-oauth.md</c> rule 13).
+    /// does: <c>ProtocolAuthCallback</c> holds a single static pending slot, and the notice lives
+    /// above every screen, which outlives any form, so a sign-in abandoned in the browser must be
+    /// superseded by the next click rather than wedging it (<c>docs/provider-oauth.md</c> rule 13).
     /// </remarks>
-    internal Task ReconnectJmapAsync(string accountId)
+    internal Task<bool> ReconnectJmapAsync(string accountId)
     {
         if (_connecting || _app is null)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(true);
         }
         return _signIn.RunAsync(cancel => ReconnectJmapFlowAsync(accountId, cancel));
     }
 
-    private async Task ReconnectJmapFlowAsync(string accountId, CancellationToken cancelToken)
+    private async Task<bool> ReconnectJmapFlowAsync(string accountId, CancellationToken cancelToken)
     {
         var app = _app!;
         IsSigningIn = true;
@@ -166,18 +166,20 @@ public sealed partial class MailboxModel
             // The exchange, the connect and the catch-up sync all block.
             await Task.Run(() => app.CompleteJmapReauth(accountId, start.Pending, callbackUrl));
             Log.Info("jmap re-authentication complete; the account is connected again");
+            return false;
         }
         catch (OperationCanceledException)
         {
-            // Superseded by another sign-in, or cancelled. The banner is still up to try again.
+            // Superseded by another sign-in, or cancelled. The notice is still up to try again.
             Log.Info("jmap re-authentication cancelled");
+            return false;
         }
         catch (Exception ex)
         {
-            // Say so on the banner in plain words; the OAuth cause goes to the diagnostic log.
-            // The core leaves the prompt raised on every failure, so the retry is one click away.
+            // The OAuth cause goes to the diagnostic log; the notice says it did not work. The core
+            // leaves the notice raised on every failure, so the retry is one click away.
             Log.Error($"jmap re-authentication failed: {CoreError.Describe(ex)}");
-            SetSignInReauthFailed(ex);
+            return true;
         }
         finally
         {

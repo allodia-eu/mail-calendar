@@ -24,10 +24,6 @@ internal static class CoreErrorCopy
     /// <summary><see cref="CoreError.Said(Exception, CoreErrorWords)"/> in the catalog's words.</summary>
     internal static string Said(Exception error) => CoreError.Said(error, Words());
 
-    /// <summary><see cref="CoreError.SaidOnBanner"/> in the catalog's words.</summary>
-    internal static string SaidOnBanner(Exception? error) =>
-        CoreError.SaidOnBanner(error, Words(), L10n.SigninExpiredFailed());
-
     /// <summary><see cref="CoreError.SaidAsConnect"/> in the catalog's words.</summary>
     internal static string SaidAsConnect(Exception error) => CoreError.SaidAsConnect(error, Words());
 }

@@ -5,9 +5,9 @@
 //
 // WinUI-free on purpose, like the calendar's pure layer: it is linked into Mailcal.Tests, which is
 // a plain net10.0 assembly, so the tree-shaping rules in SidebarTree are pinned by tests that need
-// no window. That is why the unreachable badge is a bool here and becomes a Visibility only in the
-// DataTemplate (SidebarTemplates.cs), and why the display strings arrive as parameters, L10n.cs
-// cannot be linked into that assembly.
+// no window. That is why the notice mark is a record and a bool here and becomes a brush and a
+// Visibility only in the DataTemplate (SidebarTemplates.cs), and why the display strings arrive
+// as parameters: L10n.cs cannot be linked into that assembly.
 
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -185,15 +185,40 @@ public sealed class SidebarItem : INotifyPropertyChanged
         set => Set(ref _unreadLabel, value);
     }
 
-    private bool _showBadge;
+    private SidebarMark? _mark;
 
-    /// <summary>Whether this account's server couldn't be reached on its last sync while online,
-    /// drives the warning badge, distinct from the device-wide offline banner.</summary>
-    public bool ShowBadge
+    /// <summary>The notices about this account, as its row draws them, or null for none
+    /// (docs/notices.md rule 6).</summary>
+    public SidebarMark? Mark
     {
-        get => _showBadge;
-        set => Set(ref _showBadge, value);
+        get => _mark;
+        set
+        {
+            if (Set(ref _mark, value))
+            {
+                OnPropertyChanged(nameof(HasMark));
+                OnPropertyChanged(nameof(MarkGlyph));
+                OnPropertyChanged(nameof(MarkLabel));
+                OnPropertyChanged(nameof(MarkDetail));
+                OnPropertyChanged(nameof(MarkTone));
+            }
+        }
     }
+
+    /// <summary>Whether the row draws a mark at all.</summary>
+    public bool HasMark => _mark is not null;
+
+    /// <summary>The mark's glyph, empty without one.</summary>
+    public string MarkGlyph => _mark?.Glyph ?? string.Empty;
+
+    /// <summary>The mark's label, drawn beneath the address, empty without one.</summary>
+    public string MarkLabel => _mark?.Label ?? string.Empty;
+
+    /// <summary>Every notice about the account, for a screen reader.</summary>
+    public string MarkDetail => _mark?.Detail ?? string.Empty;
+
+    /// <summary>The mark's tone, which picks its colour; Informational without one.</summary>
+    public SidebarMarkTone MarkTone => _mark?.Tone ?? SidebarMarkTone.Informational;
 
     private bool _isPending;
     private string _pendingLabel = string.Empty;

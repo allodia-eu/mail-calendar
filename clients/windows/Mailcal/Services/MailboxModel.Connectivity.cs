@@ -2,9 +2,8 @@
 // outages the core reports on Surface.Connectivity, plus the OS network-reachability watch that
 // feeds the core back. Split out of MailboxModel.cs to keep that file under the 500-line limit.
 //
-// Two distinct conditions, deliberately not merged: the DEVICE has no network (one banner, the
-// mail on screen is the last-synced copy), or SOME ACCOUNTS can't reach their server while the
-// device is online (a provider outage or a stale password, a per-account banner naming them).
+// What a person is told about either is a notice (MailboxModel.Notices.cs); what is kept here is
+// the folder pane's footer status, and which accounts have a sign-in Settings asks for again.
 
 using Microsoft.UI.Xaml;
 using uniffi.mailcal_bindings;
@@ -15,264 +14,29 @@ namespace Allodia.Mailcal.Services;
 public sealed partial class MailboxModel
 {
     private bool _offline;
-    private HashSet<string> _unreachableAccounts = new();
     private List<ConnectionIssue> _connectionIssues = new();
-    // The names of Microsoft accounts whose calendar is withheld for lack of the calendar OAuth
-    // scope (connected before calendar support, or revoked consent), drives the calendar re-auth
-    // banner. Reconnecting an account re-runs its sign-in with the calendar scope.
-    private List<string> _calendarReauthNames = new();
-    // The names of Microsoft accounts whose mail write/send is withheld for lack of the
-    // Mail.ReadWrite / Mail.Send OAuth scopes (connected before those scopes, or revoked consent),
-    // so a send or mail action was refused, drives the mail re-auth banner. Reconnecting re-runs
-    // sign-in with the full scope set, clearing this and any calendar prompt at once.
-    private List<string> _mailReauthNames = new();
-    // The same two prompts by account id, which signing an account in again in place is addressed
-    // to (docs/provider-oauth.md rule 11).
-    private List<string> _calendarReauthIds = new();
-    private List<string> _mailReauthIds = new();
-    // Accounts whose stored sign-in the server has stopped accepting, an expired or revoked OAuth
-    // grant (Google invalid_grant, a Microsoft AADSTS700082), or a password it now refuses. Nothing
-    // syncs and a retry never helps, so this drives its own banner rather than the connection-issues
-    // one; the core already keeps such an account out of the unreachable list.
-    private List<ExpiredSignIn> _signInExpired = new();
+    // Accounts whose stored sign-in the server has stopped accepting, which an account's page in
+    // Settings draws its sign-in section for.
+    private List<string> _signInExpired = new();
 
     /// <summary>One account that can't reach its server: its id, display email, and the technical
-    /// detail (its connect error) revealed behind the banner / footer "details" link.</summary>
+    /// detail (its connect error) revealed behind the footer status.</summary>
     private sealed record ConnectionIssue(string Id, string Email, string? Detail);
 
-    /// <summary>One account whose stored sign-in the server has stopped accepting: its account id,
-    /// what a person reads it by, and its provider family, which decides the remedy
-    /// (<see cref="AccountSettingsRules.Remedy"/>): an account that signs in through its provider
-    /// re-runs its browser sign-in, anything else is updated in Settings. The id is what a JMAP or
-    /// standards re-authentication is addressed to: it re-authorises that account's own persisted
-    /// grant rather than starting a discovery from an address.</summary>
-    /// <param name="Nextcloud">A Nextcloud sign-in made it, so signing in again is that sign-in
-    /// whatever provider it reports.</param>
-    private sealed record ExpiredSignIn(string Id, string Name, AccountProvider? Provider, bool Nextcloud);
-
-    // What the banner says after a re-authentication launched from it failed, so the click does
-    // not look like it did nothing. Cleared on the next attempt; a success clears the whole
-    // banner, since the core retracts the prompt.
-    private string? _signInReauthFailure;
-
-    /// <summary>Records the latest connectivity and refreshes its bound view helpers, then
-    /// raises <see cref="ConnectivityChanged"/> so the sidebar can re-badge accounts (the nav
-    /// items are built imperatively, not data-bound to a per-account flag).</summary>
+    /// <summary>Records the latest connectivity and refreshes the footer status, then raises
+    /// <see cref="AccountsChanged"/> for Settings, whose pages draw an expired sign-in.</summary>
     private void UpdateConnectivity(ConnectivitySnapshot connectivity)
     {
         _offline = connectivity.Offline;
-        _unreachableAccounts = new HashSet<string>(connectivity.UnreachableAccounts);
-        // Resolve each unreachable id to its switcher email + the core's technical detail, so the
-        // banner can name the affected accounts and reveal the raw error behind a "details" link.
         _connectionIssues = connectivity.UnreachableAccounts.Select(id =>
         {
             var email = Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id;
             return new ConnectionIssue(id, email, _app?.ConnectionDetail(id));
         }).ToList();
-        // An account asked to sign in again is named apart from another of its address
-        // (docs/accounts.md rule 8), from the accounts snapshot, which lists the accounts without a
-        // mailbox too. It is read only while some account is asked.
-        var asked = connectivity.CalendarReauthAccounts.Length + connectivity.MailReauthAccounts.Length
-            + connectivity.SigninExpiredAccounts.Length > 0;
-        var listed = asked ? AccountsSnapshot().Accounts : Array.Empty<AccountEntry>();
-        string AskedName(string id) => AccountNames.Of(
-            listed, id, Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id, Views.AccountNameText.Words);
-        // A standing permission gap, not a connectivity fault, and (unlike unreachable) shown
-        // regardless of the offline state.
-        _calendarReauthIds = connectivity.CalendarReauthAccounts.ToList();
-        _calendarReauthNames = connectivity.CalendarReauthAccounts.Select(AskedName).ToList();
-        // Likewise the mail write/send permission gap (a refused send or mail action).
-        _mailReauthIds = connectivity.MailReauthAccounts.ToList();
-        _mailReauthNames = connectivity.MailReauthAccounts.Select(AskedName).ToList();
-        // A dead sign-in, carrying its provider so the button can launch the right flow.
-        _signInExpired = connectivity.SigninExpiredAccounts
-            .Select(id => new ExpiredSignIn(
-                id, AskedName(id), _app?.AccountProvider(id), listed.Any(entry => entry.Id == id && entry.Nextcloud)))
-            .ToList();
-        UpdateUseOutages(connectivity);
+        _signInExpired = connectivity.SigninExpiredAccounts.ToList();
         UpdateAllodiaSignInEnded(connectivity);
-        Raise(nameof(IsOffline));
-        Raise(nameof(HasConnectionIssues));
-        Raise(nameof(ConnectionIssuesText));
-        Raise(nameof(ConnectionIssuesDetail));
-        Raise(nameof(HasCalendarReauth));
-        Raise(nameof(CalendarReauthText));
-        Raise(nameof(HasMailReauth));
-        Raise(nameof(MailReauthText));
-        Raise(nameof(HasSignInExpired));
-        Raise(nameof(SignInExpiredText));
-        Raise(nameof(CanRelaunchSignIn));
-        Raise(nameof(SignInExpiredActionVisible));
         RaiseConnectionStatus();
-        ConnectivityChanged?.Invoke();
         RaiseAccountsChanged();
-    }
-
-    /// <summary>Whether the device has no network (drives the offline banner).</summary>
-    public bool IsOffline => _offline;
-
-    /// <summary>Whether <paramref name="accountId"/>'s server couldn't be reached on its last
-    /// sync while online, a per-account outage, distinct from the device-wide offline state.</summary>
-    public bool IsAccountUnreachable(string accountId) => _unreachableAccounts.Contains(accountId);
-
-    /// <summary>Raised when connectivity changes, so the imperatively-built sidebar can re-badge.</summary>
-    public event Action? ConnectivityChanged;
-
-    /// <summary>Whether any account can't reach its server (while online), drives the top
-    /// connection banner. Empty while the whole device is offline (the offline banner stands in).</summary>
-    public bool HasConnectionIssues => _connectionIssues.Count > 0;
-
-    /// <summary>The friendly banner text naming the accounts that can't connect.</summary>
-    public string ConnectionIssuesText =>
-        L10n.ConnectivityAccountsAffected(string.Join(", ", _connectionIssues.Select(i => i.Email)));
-
-    /// <summary>The joined technical errors behind the banner's "Details" link, one per affected
-    /// account (the core already prefixes each line with its account address).</summary>
-    public string ConnectionIssuesDetail =>
-        string.Join("\n\n", _connectionIssues.Select(i => i.Detail ?? i.Email));
-
-    /// <summary>Whether a Microsoft account's calendar is withheld for lack of the calendar OAuth
-    /// scope, drives the calendar re-auth banner. Mail is unaffected; reconnecting grants it.</summary>
-    public bool HasCalendarReauth => _calendarReauthNames.Count > 0;
-
-    /// <summary>The calendar re-auth banner text, naming the affected account(s).</summary>
-    public string CalendarReauthText =>
-        L10n.CalendarReauthPrompt(string.Join(", ", _calendarReauthNames));
-
-    /// <summary>Whether a Microsoft account's mail write/send is withheld for lack of the
-    /// Mail.ReadWrite / Mail.Send OAuth scopes, drives the mail re-auth banner. Reading is
-    /// unaffected; reconnecting re-runs sign-in with the full scope set.</summary>
-    public bool HasMailReauth => _mailReauthNames.Count > 0;
-
-    /// <summary>The mail re-auth banner text, naming the affected account(s).</summary>
-    public string MailReauthText =>
-        L10n.MailReauthPrompt(string.Join(", ", _mailReauthNames));
-
-    /// <summary>Whether an account's stored sign-in has stopped being accepted, drives the
-    /// "sign in again" banner. Not an outage: the server answered, and only a fresh sign-in
-    /// helps, so this is deliberately separate from <see cref="HasConnectionIssues"/>.</summary>
-    public bool HasSignInExpired => _signInExpired.Count > 0;
-
-    /// <summary>The expired-sign-in banner text, naming the affected account(s). Points at the
-    /// button when there is a browser flow to re-run, and at Settings when there isn't, plus, on
-    /// a failed attempt, a plain line saying so (the cause is an OAuth protocol string and belongs
-    /// in the log, not in front of the user).</summary>
-    public string SignInExpiredText
-    {
-        get
-        {
-            var names = string.Join(", ", _signInExpired.Select(a => a.Name));
-            var prompt = CanRelaunchSignIn
-                ? L10n.SigninExpiredPrompt(names)
-                : L10n.SigninExpiredPromptSettings(names);
-            return _signInReauthFailure is { } failure ? $"{prompt} {failure}" : prompt;
-        }
-    }
-
-    /// <summary>Whether the first affected account has a sign-in this app can re-launch: an OAuth
-    /// provider, including a JMAP or standards account that was connected by signing in. A
-    /// password account, or a JMAP one holding a pasted password/API token, is re-entered in
-    /// Settings, so the button is hidden.</summary>
-    public bool CanRelaunchSignIn =>
-        _signInExpired.FirstOrDefault() is { } account
-            && AccountSettingsRules.Remedy(account.Provider, account.Nextcloud) != SignInRemedy.Settings;
-
-    /// <summary>The banner button's visibility, bound directly, as WinUI has no built-in
-    /// bool-to-Visibility conversion for <c>x:Bind</c>.</summary>
-    public Visibility SignInExpiredActionVisible =>
-        CanRelaunchSignIn ? Visibility.Visible : Visibility.Collapsed;
-
-    /// <summary>Signs the first affected account back in, launching the flow its provider needs
-    /// (the banner re-renders for the next after each clears). A no-op for a password account, or
-    /// a JMAP one holding a pasted secret, whose button is hidden, there is no browser flow to
-    /// run, and the message points at Settings instead. The provider choice stays in here rather
-    /// than on a public property because the generated <c>AccountProvider</c> enum is internal to
-    /// the bindings.</summary>
-    public void ReconnectExpiredSignIn()
-    {
-        if (_signInExpired.FirstOrDefault() is not { } account)
-        {
-            return;
-        }
-        SetSignInReauthFailure(null);
-        switch (AccountSettingsRules.Remedy(account.Provider, account.Nextcloud))
-        {
-            case SignInRemedy.Nextcloud:
-                // Nothing to refresh: a new app password, through the browser (rule 8).
-                _ = AccountNextcloudFromBannerAsync(account.Id);
-                break;
-            case SignInRemedy.ProviderConsent:
-                _ = SignInAgainFromBannerAsync(account.Id);
-                break;
-            case SignInRemedy.JmapReauth:
-                // Addressed to the account id, not the address: the core re-authorises this
-                // account's own stored grant, so there is no discovery and no second registration.
-                _ = ReconnectJmapAsync(account.Id);
-                break;
-            case SignInRemedy.AccountSignIn:
-                // From the stored grant as well, on the client it registered.
-                _ = AccountSignInFromBannerAsync(account.Id);
-                break;
-            case SignInRemedy.Settings:
-                break;
-        }
-    }
-
-    /// <summary>Signs in again the first account whose calendar the grant withholds, in place.</summary>
-    public void ReconsentCalendar()
-    {
-        if (_calendarReauthIds.FirstOrDefault() is { } id)
-        {
-            _ = SignInAgainFromBannerAsync(id);
-        }
-    }
-
-    /// <summary>Signs in again the first account whose mail writes the grant withholds, in place.</summary>
-    public void ReconsentMail()
-    {
-        if (_mailReauthIds.FirstOrDefault() is { } id)
-        {
-            _ = SignInAgainFromBannerAsync(id);
-        }
-    }
-
-    /// <summary>
-    /// A banner's sign-in: the account is signed in again where it is, keeping its mail and
-    /// settings, rather than added a second time. A failure is said on the expired-sign-in banner;
-    /// the core leaves every prompt raised, so the retry is one click away.
-    /// </summary>
-    private async Task SignInAgainFromBannerAsync(string accountId)
-    {
-        SetSignInReauthFailure(null);
-        var ended = await SignInAgainAsync(accountId, []);
-        if (ended.Error is not null)
-        {
-            SetSignInReauthFailed(ended.Cause);
-        }
-    }
-
-    /// <summary>A standards account's sign-in from the banner, said there when it fails.</summary>
-    private async Task AccountSignInFromBannerAsync(string accountId)
-    {
-        var ended = await AccountSignInAsync(accountId);
-        if (ended.Error is not null)
-        {
-            SetSignInReauthFailed(ended.Cause);
-        }
-    }
-
-    /// <summary>Records that the last banner-launched re-authentication failed, said in plain
-    /// words by <see cref="CoreError.SaidOnBanner"/>, since the cause is an OAuth protocol
-    /// string.</summary>
-    private void SetSignInReauthFailed(Exception? cause) =>
-        SetSignInReauthFailure(CoreErrorCopy.SaidOnBanner(cause));
-
-    /// <summary>Sets what the banner says about the last attempt, null for nothing, and refreshes
-    /// the banner text.</summary>
-    private void SetSignInReauthFailure(string? failure)
-    {
-        _signInReauthFailure = failure;
-        Raise(nameof(SignInExpiredText));
     }
 
     // The unreachable accounts within the current scope: the selected account only, or all of them

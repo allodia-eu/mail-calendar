@@ -1,5 +1,5 @@
-// The WinUI half of the data-bound sidebar: which DataTemplate a node gets, and the one type
-// conversion the templates need. Kept beside the views rather than in ViewModels/ because both
+// The WinUI half of the data-bound sidebar: which DataTemplate a node gets, and the two type
+// conversions the templates need. Kept beside the views rather than in ViewModels/ because both
 // touch WinUI types, and SidebarItem/SidebarTree must stay free of them (they are linked into
 // Mailcal.Tests, a plain net10.0 assembly).
 
@@ -11,7 +11,7 @@ using Microsoft.UI.Xaml.Data;
 namespace Allodia.Mailcal.Views;
 
 /// <summary>
-/// Picks the account template (which carries the unreachable badge, the folder children and the
+/// Picks the account template (which carries the notice mark, the folder children and the
 /// "Remove account" context menu) for an account node, the group template for the All Accounts
 /// heading, and the plain one for everything else: each folder, the unified Inbox, and Add account.
 /// </summary>
@@ -66,13 +66,13 @@ public sealed partial class SidebarItemTemplateSelector : DataTemplateSelector
 }
 
 /// <summary>
-/// A bound <c>bool</c> as a <see cref="Visibility"/>, for the account row's unreachable badge.
+/// A bound <c>bool</c> as a <see cref="Visibility"/>, for the account row's notice mark.
 /// </summary>
 /// <remarks>
 /// The rest of the app needs no converter at all, its row types expose <c>Visibility</c> directly
 /// (ViewModels/RowViewModels.cs) so the XAML stays declarative. <see cref="SidebarItem"/> cannot:
 /// it is linked into Mailcal.Tests, a plain net10.0 assembly, so a WinUI type on it would stop that
-/// project compiling. Hence one small converter here, on the WinUI side of the line.
+/// project compiling. Hence small converters here, on the WinUI side of the line.
 /// </remarks>
 public sealed partial class BoolToVisibilityConverter : IValueConverter
 {
@@ -83,4 +83,18 @@ public sealed partial class BoolToVisibilityConverter : IValueConverter
     /// <inheritdoc/>
     public object ConvertBack(object value, Type targetType, object parameter, string language) =>
         value is Visibility.Visible;
+}
+
+/// <summary>
+/// An account mark's tone as the brush its glyph is drawn in (docs/notices.md rule 4).
+/// </summary>
+public sealed partial class MarkToneBrushConverter : IValueConverter
+{
+    /// <inheritdoc/>
+    public object Convert(object value, Type targetType, object parameter, string language) =>
+        NoticeBar.ToneBrush(value is SidebarMarkTone tone ? tone : SidebarMarkTone.Informational);
+
+    /// <inheritdoc/>
+    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+        throw new NotSupportedException();
 }

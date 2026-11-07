@@ -1,6 +1,5 @@
-// The words of what Settings → Accounts says beneath a use's switch, and of the line the calendar and
-// contacts screens draw over a use that is not connected, which gives the same reason
-// (docs/accounts.md rule 16). The decisions are AccountSettingsRules and UseOutageLines.
+// The words of what Settings → Accounts says beneath a use's switch (docs/accounts.md rule 16). The
+// decision is AccountSettingsRules.
 
 namespace Allodia.Mailcal.Services;
 
@@ -26,13 +25,4 @@ internal static class AccountUseText
         UseNote.NoneOnServerContacts => L10n.SettingsAccountUseNoneOnServerContacts(),
         _ => null,
     };
-
-    /// <summary>The words <see cref="UseOutageLines"/> composes a line from.</summary>
-    internal static UseOutageWords OutageWords() => new(
-        L10n.CalendarOutageTitle,
-        L10n.ContactsOutageTitle,
-        Note,
-        L10n.UseOutageLastSynced(),
-        L10n.UseOutageOpenAccount(),
-        L10n.ServerChangedReview());
 }
