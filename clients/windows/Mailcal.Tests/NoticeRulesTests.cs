@@ -147,6 +147,33 @@ public class NoticeRulesTests
     }
 
     [Fact]
+    public void A_retry_is_the_cores_to_run_and_to_judge()
+    {
+        var notice = Make("unreachable", nameof(NoticeScreens.Mail), account: "a");
+
+        // The core refreshes the notice's screen itself and marks the notice when that dial ends
+        // with it still standing (docs/notices.md rules 7 and 10), so the client sends only this.
+        var sent = Assert.IsType<NoticeIntent.Retry>(NoticeRules.CoreRemedy(notice));
+        Assert.Equal(notice.Id, sent.Id);
+    }
+
+    [Theory]
+    [InlineData(nameof(NoticeAction.SignInAgain))]
+    [InlineData(nameof(NoticeAction.OpenAccountSettings))]
+    [InlineData(nameof(NoticeAction.SignInToAllodia))]
+    [InlineData(nameof(NoticeAction.Review))]
+    public void Every_other_action_is_a_flow_the_client_runs(string action)
+    {
+        var notice = Make("other", nameof(NoticeScreens.Mail), account: "a") with
+        {
+            Action = Enum.Parse<NoticeAction>(action),
+        };
+
+        Assert.Null(NoticeRules.CoreRemedy(notice));
+        Assert.Null(NoticeRules.CoreRemedy(notice with { Action = null }));
+    }
+
+    [Fact]
     public void Only_a_notice_with_an_action_offers_a_button()
     {
         Assert.True(NoticeRules.Offers(Make("retry", nameof(NoticeScreens.Mail))));

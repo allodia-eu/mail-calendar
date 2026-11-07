@@ -1,6 +1,7 @@
 // The core's notices (docs/notices.md): pulled after Surface.Notices, drawn by the window's one
 // bar, each account's row in the folder pane and the account's page in Settings, and each action
-// run through a flow this client already has. Which notice is drawn where is NoticeRules.
+// run through a flow this client already has, or by the core for a Retry. Which notice is drawn
+// where is NoticeRules.
 
 using System.Threading.Tasks;
 using Allodia.Mailcal.ViewModels;
@@ -64,10 +65,16 @@ public sealed partial class MailboxModel
         }
     }
 
-    /// <summary>Runs <paramref name="notice"/>'s action through the flow this client already has
-    /// for it (rule 7), and reports one that did not complete (rule 10).</summary>
+    /// <summary>Runs <paramref name="notice"/>'s action: a Retry through the core, which judges
+    /// it, and every other through the flow this client already has (rule 7), reporting one that
+    /// did not complete (rule 10).</summary>
     internal void RunNoticeAction(Notice notice)
     {
+        if (NoticeRules.CoreRemedy(notice) is { } core)
+        {
+            _app?.Dispatch(new Intent.Notices(core));
+            return;
+        }
         switch (notice.Action)
         {
             case NoticeAction.SignInAgain when notice.Account is { } account:
@@ -82,25 +89,9 @@ public sealed partial class MailboxModel
             case NoticeAction.Review when notice.Account is { } account:
                 ServerChangeRequested?.Invoke(account);
                 break;
-            case NoticeAction.Retry:
-                Retry(notice.Screens);
-                break;
             default:
                 break;
         }
-    }
-
-    /// <summary>A refresh of the notice's screen, which dials the account again. One that belongs
-    /// everywhere refreshes the screen on show.</summary>
-    private void Retry(NoticeScreens screens)
-    {
-        var screen = screens == NoticeScreens.Everywhere ? NoticeRules.ScreenOf(Destination) : screens;
-        _app?.Dispatch(screen switch
-        {
-            NoticeScreens.Calendar => new Intent.RefreshCalendar(),
-            NoticeScreens.Contacts => new Intent.RefreshContacts(),
-            _ => new Intent.RefreshMail(),
-        });
     }
 
     /// <summary>

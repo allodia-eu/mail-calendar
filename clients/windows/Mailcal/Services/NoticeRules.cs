@@ -72,6 +72,15 @@ internal static class NoticeRules
     internal static bool RemedyFailed(bool signedIn, string? error, bool unanswered) =>
         !signedIn && error is not null && !unanswered;
 
+    /// <summary>
+    /// What the core runs for a notice's action, or null for a flow this client runs itself. A
+    /// Retry is the core's: it refreshes the notice's screen, which dials the account again, and
+    /// marks the notice when that dial ends with the notice still standing, which only it can tell
+    /// (rules 7 and 10). So the client never reports a Retry as failed.
+    /// </summary>
+    internal static NoticeIntent? CoreRemedy(Notice notice) =>
+        notice.Action == NoticeAction.Retry ? new NoticeIntent.Retry(notice.Id) : null;
+
     /// <summary>Whether a notice has something to run, which only an action label can say: the
     /// core sends both or neither.</summary>
     internal static bool Offers(Notice notice) => notice.Action is not null && notice.ActionLabel is not null;
