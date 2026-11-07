@@ -33,9 +33,10 @@ extension MailboxModel {
         app?.dispatch(intent: .notices(intent: .dismiss(id: notice.id)))
     }
 
-    /// Runs `notice`'s action. `review` is how the view presents the server-change question,
-    /// which is a sheet of its own; every other action is run here.
-    func runNoticeAction(_ notice: Notice, review: (ServerChangeReview) -> Void) {
+    /// Runs `notice`'s action, returning once the remedy has settled, so the view can keep its
+    /// button from starting a second one meanwhile. `review` is how the view presents the
+    /// server-change question, which is a sheet of its own; every other action is run here.
+    func runNoticeAction(_ notice: Notice, review: (ServerChangeReview) -> Void) async {
         guard let action = notice.action else { return }
         switch action {
         case .openAccountSettings:
@@ -47,18 +48,13 @@ extension MailboxModel {
         case .retry:
             retry(notice.screens)
         case .signInToAllodia:
-            Task {
-                switch await signInToAllodia() {
-                case .signedIn: await syncAllodiaAccounts()
-                case .cancelled: break
-                case .failed: remedyFailed(notice)
-                }
+            switch await signInToAllodia() {
+            case .signedIn: await syncAllodiaAccounts()
+            case .cancelled: break
+            case .failed: remedyFailed(notice)
             }
         case .signInAgain:
-            guard let account = notice.account else { return }
-            Task {
-                if await !signInAgain(fromNotice: account) { remedyFailed(notice) }
-            }
+            if await !signInAgain(fromNotice: notice) { remedyFailed(notice) }
         }
     }
 
@@ -79,7 +75,8 @@ extension MailboxModel {
     /// Signs `account` in again the way its sign-in was made, answering whether that either
     /// worked or was left by the person; only a failure is said on the notice. A password or
     /// pasted-secret account has no sign-in to run here, so its page opens instead.
-    private func signInAgain(fromNotice account: String) async -> Bool {
+    private func signInAgain(fromNotice notice: Notice) async -> Bool {
+        guard let account = notice.account else { return true }
         let provider = app?.accountProvider(accountId: account)
         let nextcloud = accountEntry(account)?.nextcloud == true
         switch AccountSignInRules.remedy(provider, nextcloud: nextcloud) {
@@ -92,12 +89,7 @@ extension MailboxModel {
             return await reconnectJmap(accountId: account)
         case .nextcloud:
             // Reports a failure through its own callback, after the browser round trip.
-            signInAccountWithNextcloud(account) { [weak self] _ in
-                guard let self, let notice = self.notices(about: account).first(where: {
-                    $0.action == .signInAgain
-                }) else { return }
-                self.remedyFailed(notice)
-            }
+            signInAccountWithNextcloud(account) { [weak self] _ in self?.remedyFailed(notice) }
             return true
         case .settings:
             openAccountPage(account)

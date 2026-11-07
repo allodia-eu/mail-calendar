@@ -120,6 +120,9 @@ extension MailboxModel {
         // very first launch the opt-in itself reports the session, so consenting is never a
         // launch we fail to count.
         app.reportAppOpened()
+        // What is wrong at launch, read now: the stored accounts that could not be read never
+        // change after this, so no signal would ever bring their notice (docs/notices.md).
+        reloadNotices()
         // A configured-but-failed CalDAV connect is non-fatal (mail still works), so it
         // is otherwise invisible, log it here as the likely empty-calendar cause.
         if let calendarError = app.calendarConnectError() {

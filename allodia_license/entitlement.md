@@ -277,22 +277,22 @@ names the address in "your sign-in as … has ended", offers **Sign in again** a
 draws no Manage account and no subscription section: the page would ask for a sign-in, and the read
 cannot succeed. Waiting never brings a refused grant back, so the outage sentence is never drawn
 for it. The card reads `ConnectivitySnapshot::allodia_sign_in_ended`, the
-same field the banner below reads, so the two cannot disagree; a subscription read that answers
+same field the notice below is raised from, so the two cannot disagree; a subscription read that answers
 `AllodiaPurchaseError::SignedOut` raises it, and the screen redraws on the `Surface::Connectivity`
 signal like any other prompt. The stored grant is kept until the person acts, so the card can
 still say whose sign-in ended.
 
-**A refused sign-in is also a banner**, drawn where the mail accounts' expired sign-in prompts are
-([`docs/provider-oauth.md`](../docs/provider-oauth.md) rule 12), because nobody opens Settings to
-find out that a sign-in ended. The core carries it as `ConnectivitySnapshot::allodia_sign_in_ended`,
-the address, and signals `Surface::Connectivity` whenever it is raised or taken down. A refusal
-raises it and nothing else does; a sign-in or a sign-out takes it down, and so does a later call
-the service answers. It reads `allodia_signin_ended_prompt` and its one action,
-`signin_expired_action`, runs the ordinary sign-in from where it is; a sign-in that does not
-complete says `signin_expired_failed` the way that platform's mail banner reports its own failed
-sign-in, and a dismissed browser says nothing. There is no banner for `NeedsReauth`, which is an offer and stays on the account screen.
+**A refused sign-in is also a notice** ([`docs/notices.md`](../docs/notices.md)), on every screen,
+because nobody opens Settings to find out that a sign-in ended. The core raises it from
+`ConnectivitySnapshot::allodia_sign_in_ended`, the address, and signals `Surface::Notices` whenever
+it is raised or taken down. A refusal raises it and nothing else does; a sign-in or a sign-out takes
+it down, and so does a later call the service answers. Its words are `notice_allodia_sign_in_ended`
+and its one action, `SignInToAllodia`, runs the ordinary sign-in from where it is; a sign-in that
+does not complete is reported as a failed remedy and said on the notice, and a dismissed browser
+says nothing. There is no notice for `NeedsReauth`, which is an offer and stays on the account
+screen.
 
-**The banner is a Degraded notice, and Blocked near a lapse** ([`docs/notices.md`](../docs/notices.md)).
+**The notice is Degraded, and Blocked near a lapse.**
 Mail, calendar and contacts all work without the Allodia account, so a refused grant is Degraded.
 It is raised to Blocked while the stored answer grants a paid capability whose grace (above) ends
 within seven days, because from then on signing in again is what keeps that capability. Grace,

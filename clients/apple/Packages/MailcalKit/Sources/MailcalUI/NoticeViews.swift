@@ -22,6 +22,8 @@ struct NoticeEntry: View {
     let notice: Notice
 
     @State private var serverChange: ServerChangeReview?
+    /// The action is running, so its button cannot start a second one.
+    @State private var running = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -42,6 +44,10 @@ struct NoticeEntry: View {
                 if notice.dismissible {
                     Button { model.dismissNotice(notice) } label: {
                         Image(systemName: "xmark").imageScale(.small)
+                            #if os(iOS)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                            #endif
                     }
                     .buttonStyle(.borderless)
                     .accessibilityLabel(L10n.notices_dismiss())
@@ -51,9 +57,14 @@ struct NoticeEntry: View {
                 HStack {
                     Spacer(minLength: 0)
                     Button(NoticeRules.text(label)) {
-                        model.runNoticeAction(notice) { serverChange = $0 }
+                        Task {
+                            running = true
+                            await model.runNoticeAction(notice) { serverChange = $0 }
+                            running = false
+                        }
                     }
                     .buttonStyle(.bordered)
+                    .disabled(running)
                     #if os(macOS)
                     .controlSize(.small)
                     #endif

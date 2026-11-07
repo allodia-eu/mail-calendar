@@ -186,16 +186,17 @@ The others belong **beside the list**, never inside the detail pane: a create is
 open, so a line drawn there is one the user who just created a contact cannot read, and a save
 that did not happen is the outcome it costs most to lose.
 
-### An address book that is not connected says so above the list
+### An address book that is not connected says so
 
 An address book the account is used for can fail while the account connects
 ([`accounts.md`](accounts.md) rule 16). Its cards stay listed, and the contacts screen says what
-they are: one line per account above the list, from `ConnectivitySnapshot.contacts_outages`, "The
-address book for {address} isn't connected." followed by the reason the account's page gives and
-"You're seeing what was last synced", with **Account settings** opening that account's page. Its
+they are: one notice per account ([`notices.md`](notices.md)), raised from
+`ConnectivitySnapshot.contacts_outages`, "The address book for {address} isn't connected." with the
+reason the account's page gives and "You're seeing what was last synced" beneath it, and the same
+action a calendar's has ([`calendar.md`](calendar.md) §4). Its
 cards offer no edit and its books are not offered for a new contact (above), so nothing on screen
 promises a save that cannot be made. Offline, an unreachable address book is left to the offline
-banner; an account whose sign-in expired has its own prompt.
+notice; an account whose sign-in expired has its own.
 
 Neither write is durable offline yet: a failed save stays failed rather than queueing, which is the
 same shortfall the calendar writes have.
@@ -346,7 +347,7 @@ change updates in every catalog locale.
 | Create a contact, into a chosen writable address book | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Edit one **source card** of a person, chosen when there are several | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Both write affordances hidden where no write could land | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| An address book that is not connected says so above the list, and its cards offer no edit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| An address book that is not connected says so, and its cards offer no edit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A save that did not happen says so; one that may have says it is unconfirmed | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Delete a contact | — | — | — | — | — | — |
 | Composer recipient autosuggest (contacts **+** sent-mail history) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
