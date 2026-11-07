@@ -23,6 +23,7 @@ public class NoticeRulesTests
             Kind: new NoticeKind.Unreachable(),
             Title: new NoticeText("notice_" + id, new Dictionary<string, string> { ["address"] = account ?? "" }),
             Detail: null,
+            Mark: account is null ? null : new NoticeText("notice_mark_" + id, []),
             Severity: Enum.Parse<NoticeSeverity>(severity),
             Screens: Enum.Parse<NoticeScreens>(screens),
             Account: account,
@@ -84,7 +85,7 @@ public class NoticeRulesTests
     }
 
     [Fact]
-    public void Each_account_with_a_notice_is_marked_by_its_first_and_lists_them_all()
+    public void Each_account_with_a_notice_is_marked_by_its_first_on_one_short_line()
     {
         Notice[] notices =
         [
@@ -94,14 +95,18 @@ public class NoticeRulesTests
             Make("outage", nameof(NoticeScreens.Calendar), account: "a"),
         ];
 
-        var marks = NoticeRules.Marks(notices, Words);
+        var marks = NoticeRules.Marks(notices, Words, count => $"{count} issues");
 
         Assert.Equal(["a", "b"], marks.Keys.Order());
+        // Several notices: the first one's glyph, and how many, never one sentence picked from them.
         Assert.Equal(SidebarMarkTone.Blocked, marks["a"].Tone);
-        Assert.Equal("notice_expired:a", marks["a"].Label);
+        Assert.Equal("2 issues", marks["a"].Label);
+        // A screen reader still hears every sentence, in the core's order.
         Assert.Equal("notice_expired:a\nnotice_outage:a", marks["a"].Detail);
+        // One notice: its short mark, not its sentence, which repeats the address the row shows.
         Assert.Equal(SidebarMarkTone.Degraded, marks["b"].Tone);
-        Assert.Equal("notice_calendar:b", marks["b"].Label);
+        Assert.Equal("notice_mark_calendar", marks["b"].Label);
+        Assert.Equal("notice_calendar:b", marks["b"].Detail);
     }
 
     [Theory]

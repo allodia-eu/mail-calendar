@@ -63,8 +63,8 @@ public sealed class NoticeBarTests(ServerChangeShowcaseApp showcase) : IClassFix
         app.RowsList();
         Assert.True(App.Eventually(() => app.NoticeBar() is null, TimeSpan.FromSeconds(10)),
             "the calendar's notice belongs to the calendar, so the mail has no bar");
-        Assert.True(App.Eventually(() => app.AccountMark(address) == sentence, TimeSpan.FromSeconds(10)),
-            "and the account's row says it beneath the address, readable rather than a tooltip");
+        Assert.True(App.Eventually(() => app.AccountMark(address) == Catalog.English("notice_mark_calendar_paused"), TimeSpan.FromSeconds(10)),
+            "and the account's row says it in a few words beneath the address, readable rather than a tooltip");
     });
 }
 

@@ -123,7 +123,7 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
         var bar = app.WaitNotice(Expired, TimeSpan.FromSeconds(10))
             ?? throw new InvalidOperationException("the expired sign-in's notice went away on its own");
         Assert.True(app.NoticeClose(bar) is null, "a sign-in that no longer works cannot be closed away: only signing in again ends it");
-        Assert.Equal(Expired, app.AccountMark(Harness.Alice));
+        Assert.Equal(Catalog.English("notice_mark_signin_expired"), app.AccountMark(Harness.Alice));
         // A password account has no browser sign-in to run, so its action opens its page.
         var action = app.NoticeAction(bar) ?? throw new InvalidOperationException("the expired sign-in's notice offers no action");
         Assert.Equal(Catalog.English("notice_action_open_account_settings"), action.Name);

@@ -382,11 +382,12 @@
                             <!-- A folder dropped on its account's row moves to the top of the tree
                                  (docs/folder-pane.md, rule 24); the row handles the drop itself, as
                                  a folder row does. -->
-                            <!-- A notice about the account marks the row with a glyph and its
-                                 sentence beneath the address, readable rather than a tooltip
-                                 (docs/notices.md rule 6); a screen reader hears every one of the
-                                 account's notices as the row's status. The name stays the address,
-                                 which is what the row is. -->
+                            <!-- A notice about the account marks the row with one line beneath
+                                 the address, a glyph and the notice's short mark, readable rather
+                                 than a tooltip (docs/notices.md rule 6). One line, never wrapped:
+                                 the sentences are the bar's. A screen reader hears every one of
+                                 the account's notices as the row's status; the name stays the
+                                 address, which is what the row is. -->
                             <NavigationViewItem
                                 Tag="{Binding Tag}"
                                 ToolTipService.ToolTip="{Binding Content}"
@@ -418,6 +419,7 @@
                                                    Text="{Binding MarkLabel}"
                                                    Style="{StaticResource CaptionTextBlockStyle}"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="NoWrap"
                                                    TextTrimming="CharacterEllipsis"
                                                    AutomationProperties.AutomationId="AccountNoticeLabel" />
                                     </Grid>

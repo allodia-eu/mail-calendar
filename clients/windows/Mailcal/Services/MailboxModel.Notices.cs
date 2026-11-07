@@ -49,7 +49,7 @@ public sealed partial class MailboxModel
         _noticesDrawn = drawn;
         _notices = notices;
         Log.Info($"notices: {notices.Length} in force");
-        _marks = NoticeRules.Marks(notices, Words);
+        _marks = NoticeRules.Marks(notices, Words, L10n.NoticesAccountCount);
         NoticesChanged?.Invoke();
         // An account's page in Settings carries the account's notices at its top.
         RaiseAccountsChanged();

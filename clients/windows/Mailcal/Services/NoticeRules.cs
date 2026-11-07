@@ -35,20 +35,22 @@ internal static class NoticeRules
 
     /// <summary>
     /// The mark each account with a notice carries in the folder pane (rule 6): the glyph of its
-    /// first notice, which the core ranked most severe, and that notice's sentence as the label,
-    /// with every one of the account's sentences, in order, as the detail.
+    /// first notice, which the core ranked most severe, and one short line beside it, that
+    /// notice's mark, or how many there are when there are several (<paramref name="count"/>).
+    /// Every one of the account's sentences, in order, is the detail a screen reader hears.
     /// </summary>
     internal static IReadOnlyDictionary<string, SidebarMark> Marks(
-        IReadOnlyList<Notice> notices, Func<NoticeText, string> words)
+        IReadOnlyList<Notice> notices, Func<NoticeText, string> words, Func<int, string> count)
     {
         var marks = new Dictionary<string, SidebarMark>();
         foreach (var group in notices.Where(notice => notice.Account is not null).GroupBy(notice => notice.Account!))
         {
-            var first = group.First();
+            var all = group.ToList();
+            var first = all[0];
             marks[group.Key] = new SidebarMark(
                 ToneOf(first.Severity),
-                words(first.Title),
-                string.Join("\n", group.Select(notice => words(notice.Title))));
+                all.Count > 1 ? count(all.Count) : words(first.Mark ?? first.Title),
+                string.Join("\n", all.Select(notice => words(notice.Title))));
         }
         return marks;
     }
