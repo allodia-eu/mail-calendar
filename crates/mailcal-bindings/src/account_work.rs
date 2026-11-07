@@ -15,16 +15,23 @@ use std::{
 
 use crate::{AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, LinkSlot};
 
-/// A change an account's page started.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A change an account's page started, with where it takes the control, so a running control is
+/// drawn at the value it is moving to rather than back at the one it is leaving.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PageWork {
-    Use(AccountCapability),
-    Link(LinkSlot),
+    Use {
+        capability: AccountCapability,
+        on: bool,
+    },
+    Link {
+        slot: LinkSlot,
+        target: Option<String>,
+    },
     Remove,
 }
 
 /// How a page's controls stand against the change running, if any.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct Hold {
     /// A change runs somewhere, so every control is held.
     pub(crate) busy: bool,
@@ -104,7 +111,7 @@ impl AccountWork {
             own: running
                 .as_ref()
                 .filter(|(id, _)| id == account)
-                .map(|(_, work)| *work),
+                .map(|(_, work)| work.clone()),
         };
         drop(running);
         let notice = self
